@@ -1,0 +1,7 @@
+# Lines are LF to prevent spurious diffs in blobless clones.
+
+* text=auto
+* diff=auto
+
+# CRLF will be converted to LF on commit for all text files
+* text

@@ -1,0 +1,27 @@
+## Swift
+.build/
+.swiftpm/
+DerivedData/
+
+## Xcode
+.idea/
+*.xcodeproj
+*.xcworkspace
+
+## macOS
+.DS_Store
+*.swiftdoc
+*.swiftsourceinfo
+
+## Models (large binary files at repo root)
+/models/
+!/models/.gitkeep
+
+## Python scripts (audit tools, not part of package)
+audit_static.py
+*.pyc
+__pycache__/
+
+## Hermes agent temp & analysis cache
+.hermes-tmp.*/
+.hermes/

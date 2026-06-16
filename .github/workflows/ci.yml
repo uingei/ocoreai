@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  build-with-mlx:
+    name: Build MLX (release)
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Build with MLX
+        run: |
+          export SWIFT_BUILD_NUM_WORKERS=2
+          swift build -c release --traits mlx
+      - name: Upload artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocoreai-macos-mlx
+          path: .build/release/ocoreai
+          retention-days: 5
+
+  release:
+    name: Release
+    runs-on: macos-26
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-with-mlx
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: Build with MLX
+        run: |
+          export SWIFT_BUILD_NUM_WORKERS=2
+          swift build -c release --traits mlx
+      - name: Create archive
+        run: |
+          cd .build/release
+          tar czf ocoreai-macos-mlx.tar.gz ocoreai
+          shasum -a 256 ocoreai-macos-mlx.tar.gz > SHA256.txt
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            .build/release/ocoreai-macos-mlx.tar.gz
+            .build/release/SHA256.txt
