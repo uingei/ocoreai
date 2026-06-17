@@ -179,12 +179,15 @@ actor MLXSessionPool {
         let now = ContinuousClock.now
         let ttl = Duration.seconds(config.sessionTTLSeconds)
         let before = pool.count
-        pool.removeAll { key, entry in
+        let keysToRemove: [String] = pool.compactMap { key, entry in
             let expired = now.duration(from: entry.lastAccessedAt) >= ttl
             if expired {
                 logger.debug("Evicted expired session: \(key)")
             }
-            return expired
+            return expired ? key : nil
+        }
+        for key in keysToRemove {
+            pool.removeValue(forKey: key)
         }
         let removed = before - pool.count
         if removed > 0 {
@@ -224,8 +227,11 @@ actor MLXSessionPool {
 
     /// Clear only sessions for a specific model (during model unload)
     func clear(modelId: String) {
-        pool.removeAll { key, _ in
-            key.hasPrefix("\(modelId):")
+        let keysToRemove: [String] = pool.compactMap { key, _ in
+            key.hasPrefix("\(modelId):") ? key : nil
+        }
+        for key in keysToRemove {
+            pool.removeValue(forKey: key)
         }
     }
 
