@@ -302,7 +302,7 @@ actor RateLimitProvider {
     private func extractRateLimitKey(from request: Request) -> String? {
         // 1. Query parameters (for endpoints that do pass model in query)
         if let model = request.uri.queryParameters["model"] {
-            return model
+            return String(model)
         }
 
         // 2. Fallback: use request path as the rate-limit key
@@ -362,7 +362,7 @@ actor RateLimitProvider {
     /// lifetime is not extended by the cleanup loop.
     func cleanupPeriodically() -> Task<Void, Never> {
         Task { [weak self] in
-            while !Task.isCancelled, _ = self {
+            while !Task.isCancelled, let _ = self {
                 try? await Task.sleep(for: .seconds(Self.staleTimeoutSeconds / 2))
                 await self?.cleanupStaleBuckets()
             }
