@@ -87,7 +87,7 @@ struct AuthConfig: Sendable, Equatable {
     /// false positives on legitimate user messages like "You are an assistant
     /// helping me translate" or "ignore this file path".
     /// Compiled once at init — no per-request regex compilation overhead.
-    static let defaultPromptInjectionRegexes: [Regex<RegexOutput>] = [
+    static let defaultPromptInjectionRegexes: [Regex] = [
         try! Regex(#"\bignore\b.*\b(system\s*prompt|all\s*pri(?:or|r)\s*(?:instr|rules))\b"#),
         try! Regex(#"\bdirect(?:ly|ed?)\b.*(?:re(?:peat|sume))\b.*\binstruction"#),
         try! Regex(#"\boutput\b.*\b(system\s*?prompt|hidden\s*?instr)\b"#),
@@ -99,7 +99,7 @@ struct AuthConfig: Sendable, Equatable {
     ///
     /// Uses precompiled ``Foundation/Regex`` instances for word-boundary matching
     /// to avoid false positives on legitimate user messages.
-    static func detectPromptInjection(in messages: [Message], patterns: [Regex<RegexOutput>]) -> Bool {
+    static func detectPromptInjection(in messages: [Message], patterns: [Regex]) -> Bool {
         for msg in messages {
             let content = switch msg.content {
                 case .some(.text(let s)): s
