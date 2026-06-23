@@ -129,24 +129,41 @@ struct ChatView: View {
 	// MARK: - Message List
 
 	private var messageList: some View {
-		ScrollView {
-			if chatState.messages.isEmpty && chatState.responseText.isEmpty {
-				emptyState
-			} else {
-				LazyVStack(spacing: 10) {
-					ForEach(chatState.messages) { msg in
-						ChatBubble(message: ChatBubbleMessage(
-							index: msg.id.hashValue,
-							role: msg.role,
-							content: msg.content,
-							timestamp: Date()
-						))
+		ScrollViewReader { proxy in
+			ScrollView {
+				if chatState.messages.isEmpty && chatState.responseText.isEmpty {
+					emptyState
+				} else {
+					LazyVStack(spacing: 10) {
+						ForEach(chatState.messages) { msg in
+							ChatBubble(message: ChatBubbleMessage(
+								index: msg.id.hashValue,
+								role: msg.role,
+								content: msg.content,
+								timestamp: msg.timestamp
+							))
+							.id(msg.id)
+						}
+						// Scroll anchor for automatic scroll-to-bottom
+						Color.clear
+							.frame(height: 1)
+							.id("bottom")
 					}
+					.padding()
 				}
-				.padding()
+			}
+			.scrollIndicators(.never)
+			.onChange(of: chatState.messages.count) {
+				withAnimation {
+					proxy.scrollTo("bottom", anchor: .bottom)
+				}
+			}
+			.onChange(of: chatState.responseText) {
+				withAnimation {
+					proxy.scrollTo("bottom", anchor: .bottom)
+				}
 			}
 		}
-		.scrollIndicators(.never)
 		.accessibilityLabel("Messages")
 	}
 

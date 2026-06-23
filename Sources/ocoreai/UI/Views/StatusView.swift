@@ -1,9 +1,8 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// StatusView — real-time system status panel
-/// omlx pattern: ViewModel + SectionHeader + StatusPill
-/// @Observable pattern: AppState accessed via computed property (no @EnvironmentObject)
-/// Accessibility: full VoiceOver labels on all rows
+/// omlx pattern: ViewModel + SectionHeader + StatusPill + StatusRow
+/// @Observable pattern. i18n via StringKey. Accessibility: full VoiceOver.
 
 import SwiftUI
 
@@ -14,43 +13,43 @@ struct StatusView: View {
 	var body: some View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 24) {
-				SectionHeader("System Status", subtitle: "Real-time backend metrics")
+				SectionHeader(StringKey.dashboardTitle.l, subtitle: StringKey.loadingMetrics.l)
 
 				LazyVStack(spacing: 8) {
 					StatusRow(
 						title: "Backend",
-						value: appState.isConnected ? "Online" : "Offline",
+						value: appState.isConnected ? StringKey.systemOnline.l : StringKey.disconnected.l,
 						icon: "server.rack",
 						tint: appState.isConnected ? theme.greenDot : theme.redDot,
-						pill: appState.isConnected ? .running : .error
+						pill: appState.isConnected ? SPStatus.running : SPStatus.error
 					)
 					StatusRow(
-						title: "Active Sessions",
+						title: StringKey.sessions.l,
 						value: String(appState.currentMetrics.activeSessions),
 						icon: "person.3.fill",
-						tint: .green,
-						pill: .running
+						tint: theme.greenDot,
+						pill: SPStatus.running
 					)
 					StatusRow(
-						title: "GPU Memory",
+						title: StringKey.gpuMemory.l,
 						value: String(format: "%.1f GB", appState.currentMetrics.gpuMemoryUsage),
 						icon: "memorychip",
-						tint: .purple,
-						pill: .running
+						tint: theme.tintPurple,
+						pill: SPStatus.running
 					)
 					StatusRow(
-						title: "Token Throughput",
+						title: StringKey.throughput.l,
 						value: String(format: "%.1f tok/s", appState.currentMetrics.tokensPerSecond),
 						icon: "bolt.horizontal.fill",
-						tint: .blue,
-						pill: .running
+						tint: theme.tintBlue,
+						pill: SPStatus.running
 					)
 					StatusRow(
-						title: "TTFT",
+						title: StringKey.ttft.l,
 						value: String(format: "%.0f ms", appState.currentMetrics.ttftMs),
 						icon: "timer",
-						tint: .orange,
-						pill: .running
+						tint: theme.tintOrange,
+						pill: SPStatus.running
 					)
 				}
 				Spacer(minLength: 16)
@@ -59,7 +58,7 @@ struct StatusView: View {
 		}
 		.animation(.easeInOut(duration: 0.2), value: appState.currentMetrics)
 		.background(theme.windowBg)
-		.accessibilityLabel("System Status")
+		.accessibilityLabel(StringKey.dashboardTitle.l)
 	}
 }
 
@@ -98,25 +97,10 @@ struct StatusRow: View {
 			Spacer()
 
 			StatusPill(status: pill, compact: true)
-				.accessibilityLabel("Status: \(pill.stringValue)")
+				.accessibilityLabel("Status: \(pill.label)")
 		}
 		.modifier(theme.cardStyle())
 		.accessibilityLabel("\(title): \(value)")
 		.accessibilityAddTraits(.isStaticText)
-	}
-}
-
-// MARK: - Accessibility Extension for SPStatus
-
-extension SPStatus {
-	var stringValue: String {
-		switch self {
-		case .running: return StringKey.statusRunning.l
-		case .starting: return StringKey.statusStarting.l
-		case .stopping: return StringKey.statusStopping.l
-		case .stopped: return StringKey.statusStopped.l
-		case .error: return StringKey.statusError.l
-		case .custom(_, let label, _): return label
-		}
 	}
 }

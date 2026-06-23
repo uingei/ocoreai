@@ -16,6 +16,13 @@ struct ChatMessage: Identifiable, Hashable, Sendable {
     let id = UUID()
     let role: String
     let content: String
+    let timestamp: Date
+    
+    init(role: String, content: String, timestamp: Date = .now) {
+        self.role = role
+        self.content = content
+        self.timestamp = timestamp
+    }
 }
 
 // MARK: - Chat State

@@ -1,35 +1,47 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Models ViewModel — independent .task{await load()} pattern.
-/// Transient APIClient, screen-state machine, no shared singleton coupling.
+/// Models ViewModel — reads loaded models directly from EnginePool (Fast Path, no HTTP).
 ///
 /// @Observable pattern (Swift 5.9+): property-level change tracking.
 
 import Foundation
 import SwiftUI
 
+/// Simple lightweight model info from EnginePool.
+struct ModelID: Identifiable, Hashable, Sendable {
+    let id: String
+    let maxContext: Int
+    let tokenizer: String
+    
+    init(id: String, maxContext: Int = 0, tokenizer: String = "") {
+        self.id = id
+        self.maxContext = maxContext
+        self.tokenizer = tokenizer
+    }
+    
+    static func fromListModels(_ entry: [String: String]) -> ModelID {
+        ModelID(
+            id: entry["id"] ?? "unknown",
+            maxContext: Int(entry["max_context_length"] ?? "0") ?? 0,
+            tokenizer: entry["tokenizer"] ?? ""
+        )
+    }
+}
+
 @MainActor
 final class ModelsState: Observable {
-    var state: ViewState<[APIClient.ModelEntry]> = .idle
-    var loading: Bool = false
-    var error: Error?
-
-    private var client: APIClient
-
-    init(client: @escaping () -> APIClient = { APIClient.shared }) {
-        self.client = client()
-    }
+    var state: ViewState<[ModelID]> = .idle
+    
+    private var enginePool: EnginePool?
 
     func fetchModels() async {
-        await MainActor.run {
-            state = .loading
-            loading = true
-            error = nil
+        state = .loading
+        guard let pool = OcoreaiEngine.shared.activeEnginePool ?? enginePool else {
+            state = .idle
+            return
         }
-        let models = await client.listModels()
-        await MainActor.run {
-            state = .success(models)
-            loading = false
-        }
+        let entries = await pool.listModels()
+        let models = entries.map { ModelID.fromListModels($0) }
+        state = .success(models)
     }
 }

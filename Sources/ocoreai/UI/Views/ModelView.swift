@@ -1,9 +1,8 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// ModelView — model management: load, switch, quantize
-/// omlx pattern: ViewModel + .task{await vm.load()} + ViewState state machine
-/// @Observable pattern: @State + Observable instead of @StateObject
-/// Accessibility: full VoiceOver labels, hidden decorative elements
+/// Fast Path: reads directly from EnginePool (no HTTP)
+/// @Observable pattern. i18n via StringKey. Accessibility: full VoiceOver.
 
 import SwiftUI
 
@@ -18,7 +17,7 @@ struct ModelView: View {
 	var body: some View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 24) {
-				SectionHeader("Model Management", subtitle: "Load, switch, and monitor models") {
+				SectionHeader(StringKey.tabModels.l, subtitle: StringKey.loadingModels.l) {
 					Button("≡ Refresh") {
 						Task { await modelsState.fetchModels() }
 					}
@@ -28,12 +27,8 @@ struct ModelView: View {
 				}
 
 				if modelsState.state.isLoading {
-					LoadingStateView(message: "Loading models...")
-				} else if let err = modelsState.state.error {
-					ErrorStateView(error: err) {
-						Task { await modelsState.fetchModels() }
-					}
-				} else if let models = modelsState.state.data, models.isEmpty {
+					LoadingStateView(message: StringKey.loadingModels.l)
+				} else if modelsState.state.data?.isEmpty == true {
 					emptyState
 				} else if let models = modelsState.state.data {
 					LazyVStack(spacing: 8) {
@@ -50,7 +45,7 @@ struct ModelView: View {
 		.task {
 			await modelsState.fetchModels()
 		}
-		.accessibilityLabel("Models")
+		.accessibilityLabel(StringKey.tabModels.l)
 	}
 
 	private var emptyState: some View {
@@ -65,13 +60,13 @@ struct ModelView: View {
 		}
 		.frame(maxWidth: .infinity, minHeight: 120)
 		.modifier(theme.cardStyle())
-		.accessibilityLabel("No models available")
+		.accessibilityLabel(StringKey.noModelsLoaded.l)
 		.accessibilityAddTraits(.isStaticText)
 	}
 }
 
 private struct LiveModelCard: View {
-	let model: APIClient.ModelEntry
+	let model: ModelID
 	@Environment(\.ocoreaiTheme) private var theme
 
 	var body: some View {
@@ -90,9 +85,16 @@ private struct LiveModelCard: View {
 				Text(model.id)
 					.font(.ocoreaiText(15))
 					.fontWeight(.semibold)
-				Label(model.object, systemImage: "cpu")
-					.font(.ocoreaiText(11))
-					.foregroundStyle(theme.textSecondary)
+				if model.maxContext > 0 {
+					Text("Context: \(model.maxContext)")
+						.font(.ocoreaiText(11))
+						.foregroundStyle(theme.textSecondary)
+				}
+				if !model.tokenizer.isEmpty {
+					Text("Tokenizer: \(model.tokenizer)")
+						.font(.ocoreaiText(11))
+						.foregroundStyle(theme.textTertiary)
+				}
 			}
 
 			Spacer()
@@ -101,7 +103,7 @@ private struct LiveModelCard: View {
 				.accessibilityLabel("Model is running")
 		}
 		.modifier(theme.cardStyle())
-		.accessibilityLabel("Model: \(model.id), \(model.object)")
+		.accessibilityLabel("Model: \(model.id)")
 		.accessibilityAddTraits(.isStaticText)
 	}
 }

@@ -105,11 +105,7 @@ final class SettingsState: Observable {
 
     // MARK: - Internal
 
-    private let client: APIClient
-
-    init(client: APIClient = .shared) {
-        self.client = client
-    }
+    private var enginePool: EnginePool?
 
     // MARK: - Lifecycle
 
@@ -119,22 +115,26 @@ final class SettingsState: Observable {
     }
 
     private func loadModels() async {
-        let entries = await client.listModels()
-        modelOptions = entries.map(\.id)
+        guard let pool = OcoreaiEngine.shared.activeEnginePool ?? enginePool else {
+            modelOptions = [""]
+            return
+        }
+        let entries = await pool.listModels()
+        modelOptions = entries.map { $0["id"] ?? "unknown" }
         if modelOptions.isEmpty { modelOptions = [""] }
         if !modelOptions.contains(selectedModelID) {
             selectedModelID = modelOptions.first ?? ""
         }
     }
 
-    /// Verify server connection
+    /// Check connection via Fast Path (EnginePool ready)
     func verifyConnection() async {
         verifying = true
         verifyMessage = nil
         errorMessage = nil
-        let healthy = await client.getHealth()
-        connected = healthy
-        verifyMessage = healthy ? nil : "Server not responding"
+        let ready = OcoreaiEngine.shared.activeEnginePool != nil
+        connected = ready
+        verifyMessage = ready ? nil : "Engine not initialized"
         verifying = false
     }
 

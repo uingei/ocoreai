@@ -74,9 +74,9 @@ struct SettingsView: View {
 
     private var performanceSection: some View {
         Section {
-            steplerLabel(StringKey.pollInterval.l, $settingsState.pollIntervalSec, 1...10,
+            stepperLabel(StringKey.pollInterval.l, $settingsState.pollIntervalSec, 1...10,
                          desc: StringKey.pollInterval.l)
-            steplerLabel(StringKey.chartWindow.l, $settingsState.chartWindowSec, 30...600,
+            stepperLabel(StringKey.chartWindow.l, $settingsState.chartWindowSec, 30...600,
                          desc: StringKey.chartWindowHint.l)
         } header: { Text(StringKey.performanceSection.l) }
     }
@@ -164,7 +164,7 @@ struct SettingsView: View {
 
     // MARK: - Helpers
 
-    private func steplerLabel(_ title: String, _ value: Binding<Int>, _ range: ClosedRange<Int>,
+    private func stepperLabel(_ title: String, _ value: Binding<Int>, _ range: ClosedRange<Int>,
                               desc: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {

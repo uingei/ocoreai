@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Dashboard ViewModel — wraps MetricsBridge + health check in screen lifecycle.
+/// Dashboard ViewModel — reads metrics directly from EnginePool + MetricsRegistry (Fast Path, no HTTP).
 ///
 /// @Observable pattern (Swift 5.9+): property-level change tracking.
 /// omlx pattern: .task{await vm.load()} drives state machine.
@@ -10,7 +10,7 @@ import SwiftUI
 
 @MainActor
 final class DashboardState: Observable {
-    /// Live metrics from bridge
+    /// Live metrics snapshot
     var metricsSnapshot = MetricsSnapshot.empty
     /// Token throughput history for chart
     var tokenHistory: [MetricsPoint] = []
@@ -22,27 +22,30 @@ final class DashboardState: Observable {
     var connected: Bool = false
     var isLive: Bool { connected }
 
-    private var bridge: MetricsBridge?
-    private var syncTask: Task<Void, Never>?
-
-    init() {}
+    private var pollingTask: Task<Void, Never>?
+    private let engine = OcoreaiEngine.shared
 
     // MARK: - Screen lifecycle
 
-    /// Start live metrics polling — omlx .task{ pattern
+    /// Start live metrics polling — reads directly from EnginePool + MetricsRegistry
     func startPolling() async {
-        bridge = MetricsBridge()
-        bridge?.startPolling(interval: 1.0)
-
-        // Periodically snapshot from bridge into our observable state
-        syncTask = Task { [weak self] in
-            guard let self else { return }
+        pollingTask = Task.detached(priority: .utility) { [self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                guard let bridge = self.bridge else { break }
+                let (pool, metrics) = await MainActor.run {
+                    (self.engine.activeEnginePool, self.engine.activeMetrics)
+                }
+                guard let pool, let metrics else {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    continue
+                }
+
+                let _ = await pool.engineSummary()
+                let promText = await metrics.export()
+                let parsed = MetricsSnapshot.parse(from: promText) ?? .empty
+
                 await MainActor.run {
-                    self.metricsSnapshot = bridge.metricsSnapshot
-                    let snap = bridge.metricsSnapshot
+                    self.metricsSnapshot = parsed
+                    let snap = parsed
 
                     // Track token history (keep last 60 points)
                     self.tokenHistory.append(
@@ -67,17 +70,24 @@ final class DashboardState: Observable {
                         self.memoryHistory.removeFirst()
                     }
 
+                    // KV cache point
+                    let kvGB = Double(snap.kvCacheBytes) / 1_073_741_824.0
+                    self.kvCacheHistory.append(KVCachePoint(timestamp: Date(), kvCacheGB: kvGB))
+                    if self.kvCacheHistory.count > 60 {
+                        self.kvCacheHistory.removeFirst()
+                    }
+
                     self.connected = true
                 }
+
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
         }
     }
 
     func stopPolling() {
-        bridge?.stopPolling()
-        bridge = nil
-        syncTask?.cancel()
-        syncTask = nil
+        pollingTask?.cancel()
+        pollingTask = nil
     }
 }
 
