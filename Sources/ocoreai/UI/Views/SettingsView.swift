@@ -1,0 +1,179 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
+/// Settings view — full panel: server, performance, KVCache, logs, app, about
+/// omlx pattern: ViewModel + .task{} + Section/TextRow — cross-platform
+
+import SwiftUI
+
+struct SettingsView: View {
+    @State private var settingsState: SettingsState
+    @Environment(\.ocoreaiTheme) private var theme
+
+    init() {
+        _settingsState = State(initialValue: SettingsState())
+    }
+
+    var body: some View {
+        Form {
+            serverSection
+            modelSection
+            performanceSection
+            kvCacheSection
+            logsSection
+            appSection
+            aboutSection
+            dangerSection
+        }
+        .formStyle(.grouped)
+        .navigationTitle(StringKey.settingsTitle.l)
+        .task {
+            // Non-blocking: listModels() no longer runs on MainActor, so this yields control back to UI
+            await settingsState.load()
+        }
+    }
+
+    // MARK: - Server Connection
+
+    private var serverSection: some View {
+        Section {
+            TextField(StringKey.serverAddress.l, text: $settingsState.serverHost)
+            TextField(StringKey.port.l, text: $settingsState.portField)
+            Button { Task { await settingsState.verifyConnection() } } label: {
+                HStack {
+                    Spacer()
+                    if settingsState.verifying {
+                        ProgressView()
+                    } else {
+                        Text(StringKey.verifyConnection.l)
+                    }
+                    Spacer()
+                }
+            }
+            .disabled(settingsState.verifying)
+            if settingsState.connected {
+                Text(StringKey.connected.l).font(.ocoreaiText(12))
+                    .foregroundStyle(theme.greenDot)
+            }
+        } header: { Text(StringKey.serverSection.l) }
+          footer: { Text(StringKey.ensureBackend.l) }
+    }
+
+    // MARK: - Model Selection
+
+    private var modelSection: some View {
+        Section {
+            Picker(StringKey.modelsLoaded.l, selection: $settingsState.selectedModelID) {
+                ForEach(settingsState.modelOptions, id: \.self) { m in
+                    Text(m).tag(m)
+                }
+            }
+        }
+    }
+
+    // MARK: - Performance
+
+    private var performanceSection: some View {
+        Section {
+            steplerLabel(StringKey.pollInterval.l, $settingsState.pollIntervalSec, 1...10,
+                         desc: StringKey.pollInterval.l)
+            steplerLabel(StringKey.chartWindow.l, $settingsState.chartWindowSec, 30...600,
+                         desc: StringKey.chartWindowHint.l)
+        } header: { Text(StringKey.performanceSection.l) }
+    }
+
+    // MARK: - KV Cache
+
+    private var kvCacheSection: some View {
+        Section {
+            Toggle(StringKey.kvQuantToggle.l, isOn: $settingsState.kvQuantizationEnabled)
+            if settingsState.kvQuantizationEnabled {
+                Picker(StringKey.kvQuantBits.l, selection: $settingsState.kvQuantizationBits) {
+                    Text("4").tag(4)
+                    Text("8").tag(8)
+                }
+                Text(StringKey.kvBudget.l)
+                    .font(.ocoreaiText(12)).foregroundStyle(.secondary)
+                Slider(value: $settingsState.kvCacheBudgetGB, in: 0.5...128,
+                       step: 0.5) {
+                        Text(String(format: "%.1f GB", settingsState.kvCacheBudgetGB))
+                            .font(.ocoreaiMono(11)).foregroundStyle(.secondary)
+                    }
+            }
+        } header: { Text(StringKey.kvCacheSection.l) }
+          footer: { Text(StringKey.kvQuantToggleHint.l) }
+    }
+
+    // MARK: - Logs & Profiling
+
+    private var logsSection: some View {
+        Section {
+            Picker(StringKey.logLevel.l, selection: $settingsState.logLevel) {
+                ForEach(LogLevelRaw.allCases, id: \.self) {
+                    Text($0.displayName).tag($0)
+                }
+            }
+            .tint(settingsState.logLevel.color)
+            Toggle(StringKey.profileToggle.l, isOn: $settingsState.profileEnabled)
+        } header: { Text(StringKey.logsSection.l) }
+          footer: { Text(StringKey.profileToggleHint.l) }
+    }
+
+    // MARK: - App Preferences
+
+    private var appSection: some View {
+        Section {
+            Picker(StringKey.localePicker.l, selection: $settingsState.appLocale) {
+                ForEach(OCALocale.allCases, id: \.self) {
+                    Text($0.displayName).tag($0)
+                }
+            }
+            Picker(StringKey.themeMode.l, selection: $settingsState.appThemeMode) {
+                ForEach(ThemeModeRaw.allCases, id: \.self) {
+                    Label($0.displayName, systemImage: $0.systemName).tag($0)
+                }
+            }
+        } header: { Text(StringKey.appSection.l) }
+    }
+
+    // MARK: - About
+
+    private var aboutSection: some View {
+        Section {
+            VStack(spacing: 4) {
+                Label("ocoreai", systemImage: "brain.cuda")
+                    .font(.title2.bold())
+                Text(StringKey.version.l)
+                    .font(.subheadline).foregroundStyle(.secondary)
+                Text("v1.0.0 · macOS 15+ / iOS 17+")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity).padding(.vertical, 4)
+        } header: { Text(StringKey.aboutSection.l) }
+    }
+
+    // MARK: - Danger Zone
+
+    private var dangerSection: some View {
+        Section {
+            Button(role: .destructive) { settingsState.resetToDefaults() } label: {
+                Text(StringKey.resetSettings.l).frame(maxWidth: .infinity)
+            }
+            .tint(theme.redDot)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func steplerLabel(_ title: String, _ value: Binding<Int>, _ range: ClosedRange<Int>,
+                              desc: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title).font(.ocoreaiText(15))
+                Spacer()
+                Stepper("\(value.wrappedValue)s", value: value, in: range)
+            }
+            Text(desc).font(.ocoreaiText(12)).foregroundStyle(.secondary)
+                .padding(.horizontal)
+        }
+    }
+}

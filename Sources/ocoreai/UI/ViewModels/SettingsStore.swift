@@ -1,0 +1,182 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
+/// SettingsStore — UserDefaults persistence for UI settings.
+///
+/// Systematic: typed accessor so SettingsState
+/// reads/writes are always in sync with disk.
+
+import SwiftUI
+
+// MARK: - Settings Store
+
+@MainActor
+final class SettingsStore: Observable {
+    static let shared = SettingsStore()
+
+    // MARK: - Server Connection
+
+    var serverHost: String {
+        get { defaults.string(forKey: Key.serverHost.rawValue) ?? "127.0.0.1" }
+        set { defaults.set(newValue, forKey: Key.serverHost.rawValue) }
+    }
+
+    var serverPort: Int {
+        get {
+            let val = defaults.integer(forKey: Key.serverPort.rawValue)
+            return val > 0 ? val : 8080
+        }
+        set { defaults.set(newValue, forKey: Key.serverPort.rawValue) }
+    }
+
+    // MARK: - Performance
+
+    /// Polling interval in seconds (1-10)
+    var pollIntervalSec: Int {
+        get {
+            let val = defaults.integer(forKey: Key.pollIntervalSec.rawValue)
+            // UserDefaults.integer returns 0 when key missing — clamp to default
+            return max(1, min(val, 10))
+        }
+        set { defaults.set(clampedInterval(newValue), forKey: Key.pollIntervalSec.rawValue) }
+    }
+
+    /// Chart history window in seconds (30-600)
+    var chartWindowSec: Int {
+        get {
+            let val = defaults.integer(forKey: Key.chartWindowSec.rawValue)
+            return max(30, min(val, 600))
+        }
+        set { defaults.set(max(30, min(newValue, 600)), forKey: Key.chartWindowSec.rawValue) }
+    }
+
+    // MARK: - KV Cache
+
+    /// Enable KV cache quantization on dashboard
+    var kvQuantizationEnabled: Bool {
+        get { defaults.bool(forKey: Key.kvQuantizationEnabled.rawValue) }
+        set { defaults.set(newValue, forKey: Key.kvQuantizationEnabled.rawValue) }
+    }
+
+    /// Quantization bits: 4 or 8
+    var kvQuantizationBits: Int {
+        get { defaults.integer(forKey: Key.kvQuantizationBits.rawValue) }
+        set { defaults.set(newValue == 4 || newValue == 8 ? newValue : 4, forKey: Key.kvQuantizationBits.rawValue) }
+    }
+
+    /// KV cache memory budget in GB
+    var kvCacheBudgetGB: Double {
+        get {
+            let val = defaults.double(forKey: Key.kvCacheBudgetGB.rawValue)
+            return max(0.5, min(val, 128))
+        }
+        set { defaults.set(max(0.5, min(newValue, 128)), forKey: Key.kvCacheBudgetGB.rawValue) }
+    }
+
+    // MARK: - Logs & Profiling
+
+    var logLevel: LogLevelRaw {
+        get { LogLevelRaw(rawValue: defaults.string(forKey: Key.logLevel.rawValue) ?? "info") ?? .info }
+        set { defaults.set(newValue.rawValue, forKey: Key.logLevel.rawValue) }
+    }
+
+    var profileEnabled: Bool {
+        get { defaults.bool(forKey: Key.profileEnabled.rawValue) }
+        set { defaults.set(newValue, forKey: Key.profileEnabled.rawValue) }
+    }
+
+    // MARK: - App Preferences
+
+    var appLocale: OCALocale {
+        get { OCALocale(rawValue: defaults.string(forKey: Key.appLocale.rawValue) ?? "en") ?? .en }
+        set { defaults.set(newValue.rawValue, forKey: Key.appLocale.rawValue) }
+    }
+
+    var appThemeMode: ThemeModeRaw {
+        get { ThemeModeRaw(rawValue: defaults.string(forKey: Key.appThemeMode.rawValue) ?? "auto") ?? .auto }
+        set { defaults.set(newValue.rawValue, forKey: Key.appThemeMode.rawValue) }
+    }
+
+    // MARK: - Reset
+
+    /// Wipe all settings to defaults
+    @MainActor
+    func resetToDefaults() {
+        let keys: [String] = Key.allCases.map(\.rawValue)
+        keys.forEach { defaults.removeObject(forKey: $0) }
+        defaults.synchronize()
+    }
+
+    // MARK: - UserDefaults Keys (type-safe)
+
+    enum Key: String, CaseIterable {
+        // Server
+        case serverHost = "settings.server.host"
+        case serverPort = "settings.server.port"
+
+        // Performance
+        case pollIntervalSec = "settings.performance.pollInterval"
+        case chartWindowSec = "settings.performance.chartWindow"
+
+        // KV Cache
+        case kvQuantizationEnabled = "settings.kvCache.quantEnabled"
+        case kvQuantizationBits = "settings.kvCache.quantBits"
+        case kvCacheBudgetGB = "settings.kvCache.budgetGB"
+
+        // Logs
+        case logLevel = "settings.logs.level"
+        case profileEnabled = "settings.logs.profile"
+
+        // App
+        case appLocale = "settings.app.locale"
+        case appThemeMode = "settings.app.themeMode"
+    }
+
+    private let defaults: UserDefaults
+    private init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    // MARK: - Private Helpers
+
+    private func clampedInterval(_ val: Int) -> Int { max(1, min(val, 10)) }
+}
+
+// MARK: - Typed Wrappers
+
+public enum LogLevelRaw: String, CaseIterable, Sendable {
+    case debug, info, warning, error
+    public var displayName: String {
+        switch self {
+        case .debug: return StringKey.logLevelDebug.l
+        case .info:  return StringKey.logLevelInfo.l
+        case .warning: return StringKey.logLevelWarning.l
+        case .error:  return StringKey.logLevelError.l
+        }
+    }
+    public var color: Color {
+        switch self {
+        case .debug: return .blue
+        case .info: return .green
+        case .warning: return .orange
+        case .error: return .red
+        }
+    }
+}
+
+public enum ThemeModeRaw: String, CaseIterable, Sendable {
+    case auto, light, dark
+    public var displayName: String {
+        switch self {
+        case .auto: return StringKey.themeModeAuto.l
+        case .light: return StringKey.themeModeLight.l
+        case .dark:  return StringKey.themeModeDark.l
+        }
+    }
+    public var systemName: String {
+        switch self {
+        case .auto: return StringKey.themeModeAuto.l
+        case .light: return StringKey.themeModeLight.l
+        case .dark: return StringKey.themeModeDark.l
+        }
+    }
+}

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Privacy Manifest — App Store requirement since iOS 18/macOS 15 -->
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <!-- UserDefaults: app config, session state, UI preferences -->
+        <dict>
+            <key>NSPrivacyAccessedAPICategory</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>C617.1</string>
+            </array>
+        </dict>
+        <!-- SQLite: session persistence, memory events, FTS5 search -->
+        <dict>
+            <key>NSPrivacyAccessedAPICategory</key>
+            <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>CA92.1</string>
+            </array>
+        </dict>
+        <!-- Disk space: model download cache, KV cache monitoring -->
+        <dict>
+            <key>NSPrivacyAccessedAPICategory</key>
+            <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>7595.1</string>
+            </array>
+        </dict>
+        <!-- Network: model download, MCP tool calls, remote API fallback -->
+        <dict>
+            <key>NSPrivacyAccessedAPICategory</key>
+            <string>NSPrivacyAccessedAPICategorySystemNetworkInfo</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>E57C.1</string>
+            </array>
+        </dict>
+    </array>
+    <!-- Data Collection — we collect ZERO personal identifiers -->
+    <key>NSPrivacyTracking</key>
+    <false/>
+    <key>NSPrivacyTrackingDomains</key>
+    <array/>
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array>
+        <!-- Usage data: model inference metrics, local hardware stats (non-personal) -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeOtherDiagnosticData</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypeTracked</key>
+            <false/>
+            <key>NSPrivacyCollectedDataCategories</key>
+            <array>
+                <string>NSPrivacyCollectedDataCategoryOtherIdentifierData</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

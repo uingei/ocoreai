@@ -1,0 +1,363 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
+/// ChatView — streaming chat with model selector, mid-stream interrupt, suggestion chips
+/// omlx pattern: ViewModel + .task{await vm.load()} + ViewState state machine
+/// Theme-driven: all colors resolve through @Environment(\.ocoreaiTheme)
+/// @Observable pattern: @State + Observable instead of @StateObject
+/// Accessibility: full VoiceOver support, Dynamic Type, reduced motion
+
+import SwiftUI
+
+/// Stable identity wrapper for chat messages — uses index-based id so SwiftUI
+/// does not recreate view identity on every diff.
+struct ChatBubbleMessage: Identifiable, Hashable, Sendable {
+	let id: Int       // index into the messages array — stable across diffs
+	let role: String
+	let content: String
+	let timestamp: Date
+
+	init(index: Int, role: String, content: String, timestamp: Date) {
+		self.id = index
+		self.role = role
+		self.content = content
+		self.timestamp = timestamp
+	}
+}
+
+struct ChatView: View {
+	@State private var chatState: ChatState
+	@Environment(\.ocoreaiTheme) private var theme
+	@State private var inputText = ""
+	@State private var currentModel = ""
+	@State private var models: [String] = []
+	@State private var activeTask: Task<Void, Never>? = nil
+
+	init() {
+		_chatState = State(initialValue: ChatState())
+	}
+
+	private var isStreaming: Bool { activeTask != nil || chatState.loading }
+	private var isConnected: Bool { chatState.connected }
+
+	var body: some View {
+		VStack(spacing: 0) {
+			chatHeader
+			messageList
+			if !chatState.responseText.isEmpty {
+				streamingPreview
+			}
+			inputBar
+		}
+		.background(theme.windowBg)
+		// omlx .task{} lifecycle: start health polling + load models
+		.task {
+			chatState.start()
+			let ids = await chatState.loadModels()
+			if ids.isEmpty { models = ["local"] } else { models = ids }
+			currentModel = models.first ?? ""
+		}
+		// omlx lifecycle: stop polling on screen dismissal
+		.onDisappear {
+			chatState.stop()
+		}
+		.toolbar {
+			ToolbarItem(placement: .primaryAction) {
+				Button(role: .destructive) {
+					chatState.resetConversation()
+				} label: {
+					Label("Clear", systemImage: "trash")
+				}
+				.accessibilityLabel("Clear Conversation")
+				.accessibilityHint("Removes all messages from this conversation")
+				.disabled(isStreaming)
+			}
+		}
+		.accessibilityLabel("Chat")
+	}
+
+	// MARK: - Header
+
+	private var chatHeader: some View {
+		HStack(spacing: 6) {
+			Menu {
+				ForEach(models, id: \.self) { m in
+					Button(m) { currentModel = m }
+				}
+				Divider()
+				Button("default") { currentModel = "" }
+			} label: {
+				HStack(spacing: 6) {
+					Image(systemName: "brain")
+						.font(.ocoreaiText(11, weight: .medium))
+						.foregroundStyle(theme.accent)
+						.accessibilityHidden(true)
+					Text(currentModel.isEmpty ? "No Model" : currentModel)
+						.font(.ocoreaiText(13, weight: .medium))
+						.lineLimit(1)
+					Image(systemName: "chevron.down")
+						.font(.ocoreaiText(10))
+						.foregroundStyle(theme.textSecondary)
+						.accessibilityHidden(true)
+				}
+				.padding(.horizontal, 10)
+				.padding(.vertical, 6)
+				.background(theme.accentSoft)
+				.clipShape(Capsule())
+			}
+			.accessibilityLabel("Model Selector")
+			.accessibilityValue(currentModel.isEmpty ? "No model selected" : currentModel)
+			.accessibilityHint("Double-tap to choose a model")
+
+			Spacer()
+
+			HStack(spacing: 6) {
+				Circle()
+					.fill(isConnected ? theme.greenDot : theme.amberDot)
+					.frame(width: 6, height: 6)
+					.shadow(color: (isConnected ? theme.greenDot : theme.amberDot).opacity(0.4), radius: 2)
+					.accessibilityHidden(true)
+				Text(isConnected ? "Local" : "Loading…")
+					.font(.ocoreaiText(10))
+					.foregroundStyle(theme.textSecondary)
+					.accessibilityLabel(isConnected ? "Local backend connected" : "Backend loading")
+			}
+		}
+		.padding(.horizontal)
+		.padding(.vertical, 8)
+	}
+
+	// MARK: - Message List
+
+	private var messageList: some View {
+		ScrollView {
+			if chatState.messages.isEmpty && chatState.responseText.isEmpty {
+				emptyState
+			} else {
+				LazyVStack(spacing: 10) {
+					ForEach(chatState.messages) { msg in
+						ChatBubble(message: ChatBubbleMessage(
+							index: msg.id.hashValue,
+							role: msg.role,
+							content: msg.content,
+							timestamp: Date()
+						))
+					}
+				}
+				.padding()
+			}
+		}
+		.scrollIndicators(.never)
+		.accessibilityLabel("Messages")
+	}
+
+	// MARK: - Streaming Preview
+
+	private var streamingPreview: some View {
+		ChatBubble(message: ChatBubbleMessage(
+			index: -1, // streaming placeholder — not in messages array
+			role: "assistant",
+			content: chatState.responseText,
+			timestamp: Date()
+		))
+			.opacity(0.85)
+			.transition(.opacity.combined(with: .move(edge: .bottom)))
+			.padding()
+			.accessibilityLabel("Assistant typing")
+			.accessibilityHidden(false)
+	}
+
+	// MARK: - Empty State
+
+	private var emptyState: some View {
+		VStack(spacing: 14) {
+			Image(systemName: "bubble.left.and.bubble.right")
+				.font(.ocoreaiText(44, weight: .light))
+				.foregroundStyle(theme.textTertiary)
+				.accessibilityHidden(true)
+
+			Text(StringKey.chatWelcomeTitle.l)
+				.font(.ocoreaiText(22))
+
+			Text(StringKey.chatWelcomeDesc.l)
+				.font(.ocoreaiText(14))
+				.foregroundStyle(theme.textSecondary)
+				.multilineTextAlignment(.center)
+
+			LazyVStack(spacing: 8) {
+				suggestionChip("Explain MLX tensor operations")
+				suggestionChip("Compare CoreAI vs MLX on Apple Silicon")
+				suggestionChip("Debug my SwiftUI view hierarchy")
+			}
+			.padding(.top, 8)
+		}
+		.padding(40)
+		.transition(.opacity)
+	}
+
+	private func suggestionChip(_ text: String) -> some View {
+		Button {
+			inputText = text
+		} label: {
+			Text(text)
+				.font(.ocoreaiText(13))
+				.foregroundStyle(theme.accent)
+				.frame(maxWidth: .infinity)
+				.padding(.horizontal, 14)
+				.padding(.vertical, 8)
+				.background(theme.accentSoft)
+				.clipShape(Capsule())
+		}
+		.accessibilityLabel("Suggestion: \(text)")
+		.accessibilityHint("Tap to use this suggestion as your message")
+	}
+
+	// MARK: - Input Bar
+
+	private var inputBar: some View {
+		HStack(spacing: 10) {
+			Button {
+				// TODO: AVFoundation speech
+			} label: {
+				Image(systemName: "waveform.circle.fill")
+					.font(.title3)
+					.foregroundStyle(theme.textSecondary)
+			}
+			.accessibilityLabel("Voice Input")
+			.accessibilityHint("Tap to use voice input (coming soon)")
+
+			TextField("Type a message…", text: $inputText, axis: .vertical)
+				.font(.ocoreaiText(15))
+				.textFieldStyle(.plain)
+				.frame(minHeight: 36)
+				.submitLabel(.send)
+				.onSubmit { sendMessage() }
+				.padding(.horizontal, 12)
+				.padding(.vertical, 8)
+				.background(theme.inputBg)
+				.clipShape(RoundedRectangle(cornerRadius: 12))
+				.overlay(
+					RoundedRectangle(cornerRadius: 12)
+						.stroke(theme.inputBorder.opacity(0.5), lineWidth: 0.5)
+				)
+				.accessibilityLabel("Message Input")
+				.accessibilityHint("Type your message and press Enter to send")
+
+			Button {
+				isStreaming ? stopStreaming() : sendMessage()
+			} label: {
+				Image(systemName: isStreaming ? "stop.circle.fill" : "arrow.up.circle.fill")
+					.font(.title2)
+					.foregroundStyle(isStreaming ? theme.redDot : theme.accent)
+			}
+			.accessibilityLabel(isStreaming ? "Stop Streaming" : "Send Message")
+			.accessibilityHint(isStreaming ? "Tap to stop the current response" : "Tap to send your message")
+			.disabled(isStreaming && inputText.trimmingCharacters(in: .whitespaces).isEmpty)
+		}
+		.padding()
+	}
+
+	// MARK: - Actions
+
+	private func sendMessage() {
+		let text = inputText.trimmingCharacters(in: .whitespaces)
+		guard !text.isEmpty && !isStreaming else { return }
+
+		inputText = ""
+		let modelID = currentModel.isEmpty ? "local" : currentModel
+
+		// Use regular Task (not detached) so cancellation propagates
+		// and MainActor context is captured for updating chatState
+		// ChatView is a struct, so no [weak self] needed — capture is deterministic
+		activeTask = Task {
+			await self.chatState.chat(text, model: modelID)
+		}
+	}
+
+	private func stopStreaming() {
+		activeTask?.cancel()
+	}
+}
+
+// MARK: - Chat Bubble
+
+struct ChatBubble: View {
+	let message: ChatBubbleMessage
+
+	@Environment(\.ocoreaiTheme) private var theme
+
+	private var isUser: Bool { message.role == "user" }
+
+	var body: some View {
+		HStack(alignment: .top, spacing: 8) {
+			if !isUser {
+				Image(systemName: "cpu")
+					.font(.ocoreaiText(12, weight: .medium))
+					.foregroundStyle(theme.accent)
+					.frame(width: 26, height: 26)
+					.background(theme.accentSoft)
+					.clipShape(Circle())
+					.accessibilityHidden(true)
+			}
+
+			VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
+				ChatHeader(isUser: isUser, timestamp: message.timestamp)
+
+				Text(message.content)
+					.font(.ocoreaiText(15))
+					.lineSpacing(3)
+					.multilineTextAlignment(isUser ? .trailing : .leading)
+					.padding(12)
+					.background(
+						isUser ? theme.accentSoft : theme.cardBg
+					)
+					.clipShape(RoundedRectangle(cornerRadius: 14))
+			}
+			.accessibilityLabel("\(isUser ? "You" : "ocoreai"): \(message.content)")
+			.accessibilityValue("Message sent at \(message.timestamp, formatter: timeFormatter)")
+			.accessibilityAddTraits(.isStaticText)
+
+			if isUser { Spacer(minLength: 16) }
+		}
+	}
+
+	private static let sharedTimeFormatter: DateFormatter = {
+		let f = DateFormatter()
+		f.dateFormat = "HH:mm"
+		return f
+	}()
+
+	private var timeFormatter: DateFormatter {
+		Self.sharedTimeFormatter
+	}
+}
+
+struct ChatHeader: View {
+	let isUser: Bool
+	let timestamp: Date
+
+	@Environment(\.ocoreaiTheme) private var theme
+
+	static let timeFormatter: DateFormatter = {
+		let f = DateFormatter()
+		f.dateFormat = "HH:mm"
+		return f
+	}()
+
+	var body: some View {
+		HStack(spacing: 6) {
+			Text(isUser ? "You" : "ocoreai")
+				.font(.ocoreaiText(11, weight: .medium))
+				.foregroundStyle(theme.textSecondary)
+
+			Text(Self.timeFormatter.string(from: timestamp))
+				.font(.ocoreaiMono(10))
+				.foregroundStyle(theme.textTertiary.opacity(0.6))
+		}
+		.accessibilityHidden(true) // Redundant with ChatBubble label
+	}
+}
+
+// MARK: - Preview
+
+/// #Preview requires Xcode PreviewsMacros plugin — disabled for swift build.
+/// For live previews open the project in Xcode instead.
