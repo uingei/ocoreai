@@ -15,7 +15,7 @@ import Observation
 
 @Observable
 @MainActor
-final class SettingsState: Observable {
+final class SettingsState {
     // MARK: - Server Connection (persisted via SettingsStore)
 
     var serverHost: String {

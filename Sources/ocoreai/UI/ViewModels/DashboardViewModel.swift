@@ -8,8 +8,9 @@
 import Foundation
 import SwiftUI
 
+@Observable
 @MainActor
-final class DashboardState: Observable {
+final class DashboardState {
     /// Live metrics snapshot
     var metricsSnapshot = MetricsSnapshot.empty
     /// Token throughput history for chart

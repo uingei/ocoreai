@@ -28,8 +28,9 @@ struct ModelID: Identifiable, Hashable, Sendable {
     }
 }
 
+@Observable
 @MainActor
-final class ModelsState: Observable {
+final class ModelsState {
     var state: ViewState<[ModelID]> = .idle
     
     private var enginePool: EnginePool?

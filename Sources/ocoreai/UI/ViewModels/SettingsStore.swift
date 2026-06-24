@@ -12,7 +12,7 @@ import Observation
 
 @Observable
 @MainActor
-final class SettingsStore: Observable {
+final class SettingsStore {
     static let shared = SettingsStore()
 
     // MARK: - Server Connection

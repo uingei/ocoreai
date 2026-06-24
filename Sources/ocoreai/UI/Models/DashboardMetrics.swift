@@ -44,8 +44,9 @@ struct MetricsSnapshot: Sendable, Equatable {
 }
 
 /// Bridge that polls local API and publishes metrics snapshots via Task loop.
+@Observable
 @MainActor
-final class MetricsBridge: Observable {
+final class MetricsBridge {
     var metricsSnapshot: MetricsSnapshot = .empty
 
     private let url: URL

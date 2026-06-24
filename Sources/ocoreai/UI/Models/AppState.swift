@@ -10,7 +10,7 @@ import Observation
 
 @Observable
 @MainActor
-final class AppState: Observable {
+final class AppState {
     static let shared = AppState()
 
     var isConnected: Bool = false

@@ -29,7 +29,7 @@ struct ChatMessage: Identifiable, Hashable, Sendable {
 
 @Observable
 @MainActor
-final class ChatState: Observable {
+final class ChatState {
     var messages: [ChatMessage] = []
     var responseText: String = ""
     var error: Error?
