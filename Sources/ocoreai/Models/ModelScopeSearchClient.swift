@@ -1,13 +1,13 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ModelScopeSearchClient.swift — Search and browse models on ModelScope Hub
+/// ModelScopeSearchClient.swift - Search and browse models on ModelScope Hub
 ///
 /// Reverse-engineered from the Python SDK (modelscope 1.x):
-///   PUT /api/v1/models/          — list/search models by keyword
-///   GET /api/v1/models/{owner}/{name} — model detail
-///   GET /api/v1/models/{owner}/{name}/repo — file download
+///   PUT /api/v1/models/          - list/search models by keyword
+///   GET /api/v1/models/{owner}/{name} - model detail
+///   GET /api/v1/models/{owner}/{name}/repo - file download
 ///
-/// No official Swift SDK exists — this is a thin HTTP client built from
+/// No official Swift SDK exists - this is a thin HTTP client built from
 /// the Python SDK behavior as reference.
 
 import Foundation
@@ -62,12 +62,12 @@ struct MSHubModel: Identifiable, Hashable, Sendable {
 
 /// Lightweight HTTP client for ModelScope model search.
 ///
-/// Uses only Foundation HTTP — no external dependency needed.
+/// Uses only Foundation HTTP - no external dependency needed.
 final actor ModelScopeSearchClient {
 
     // MARK: - Configuration
 
-    /// Base URL — follows the same pattern as the Python SDK.
+    /// Base URL - follows the same pattern as the Python SDK.
     private let baseURL: String
     private let token: String?
 
@@ -88,7 +88,7 @@ final actor ModelScopeSearchClient {
     /// Search models by keyword.
     ///
     /// - Parameters:
-    ///   - keyword: Search term — matched against model name, owner, description.
+    ///   - keyword: Search term - matched against model name, owner, description.
     ///             Pass empty string to list all public models.
     ///   - page: Page number (1-based).
     ///   - pageSize: Number of results per page (default 20, max 100).
@@ -98,8 +98,8 @@ final actor ModelScopeSearchClient {
         page: Int = 1,
         pageSize: Int = 20
     ) async throws -> (models: [MSHubModel], totalCount: Int) {
-        // Python SDK uses PUT for list_models — unusual but real.
-        let url = URL(string: "\(baseURL)/api/v1/models/\")!
+        // Python SDK uses PUT for list_models - unusual but real.
+        let url = URL(string: "\(baseURL)/api/v1/models/")!
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -144,7 +144,7 @@ final actor ModelScopeSearchClient {
             throw MSError.invalidJSON
         }
 
-        // Python SDK wraps in Code/Data — return Data field
+        // Python SDK wraps in Code/Data - return Data field
         return json["Data"] as? [String: Any] ?? json
     }
 
