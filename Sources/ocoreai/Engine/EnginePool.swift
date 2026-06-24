@@ -205,27 +205,55 @@ actor EnginePool {
 
     // MARK: - Model Loading
 
+    /// Check whether this model ID refers to a remote hub model.
+    private nonisolated func isHubModel(_ modelId: String) -> Bool {
+        modelId.hasPrefix("hf:") || modelId.hasPrefix("huggingface:") || modelId.hasPrefix("mscope:")
+    }
+
     private func loadModel(_ modelId: String) async throws -> LoadedModel {
         logger.info("Loading model: \(modelId)")
 
-        var configURL = URL(fileURLWithPath: config.modelConfigPath)
-        let candidate = configURL
-            .appendingPathComponent(modelId)
-            .appendingPathComponent("config.json")
-        if candidate.isFileURL, FileManager.default.fileExists(atPath: candidate.path) {
-            configURL = candidate
+        // Hub models (hf: / mscope: / huggingface:) are resolved by MLXModelLoader
+        // — no local config.json or weight files to discover pre-download.
+        // We still create a stub ModelConfig so downstream code works uniformly.
+        // Pass the raw modelId string as modelURL.pathContent — MLXModelLoader.parseSource
+        // reads modelURL.path to detect hf:/mscope: prefixes.
+        let (modelConfig, modelURL, configData): (ModelConfig, URL, Data)
+        if isHubModel(modelId) {
+            modelConfig = ModelConfig.init(
+                name: modelId,
+                function: "default",
+                vocabSize: 151_936,
+                maxContextLength: 131_072,
+                chunkThreshold: 8,
+                prefillChunkSize: 4096
+            )
+            // Use fileURLWithPath so modelURL.path preserves the "hf:" / "mscope:" prefix
+            // for MLXModelLoader.parseSource() to match.
+            modelURL = URL(fileURLWithPath: modelId)
+            // Stub configData for coreai path; actual weights come from hub download
+            configData = "{}".data(using: .utf8)!
+            logger.info("Model \(modelId) is a hub model — MLXModelLoader will resolve")
+        } else {
+            var configURL = URL(fileURLWithPath: config.modelConfigPath)
+            let candidate = configURL
+                .appendingPathComponent(modelId)
+                .appendingPathComponent("config.json")
+            if candidate.isFileURL, FileManager.default.fileExists(atPath: candidate.path) {
+                configURL = candidate
+            }
+
+            configData = try Data(contentsOf: configURL)
+            modelConfig = try ModelConfig(parsing: configData)
+            try modelConfig.validate()
+
+            let baseDir = URL(fileURLWithPath: config.modelDirectory)
+                .appendingPathComponent(modelId)
+            let modelName = modelConfig.serializedModel.first ?? "\(modelId).aimodel"
+            modelURL = baseDir.appendingPathComponent(modelName)
+
+            logger.info("Model \(modelId) metadata loaded")
         }
-
-        let configData = try Data(contentsOf: configURL)
-        let modelConfig = try ModelConfig(parsing: configData)
-        try modelConfig.validate()
-
-        let baseDir = URL(fileURLWithPath: config.modelDirectory)
-            .appendingPathComponent(modelId)
-        let modelName = modelConfig.serializedModel.first ?? "\(modelId).aimodel"
-        let modelURL = baseDir.appendingPathComponent(modelName)
-
-        logger.info("Model \(modelId) metadata loaded")
 
 #if coreai
         let preparedModel = try await coreAIPreparedModelLoader.load(

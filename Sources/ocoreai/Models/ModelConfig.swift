@@ -90,8 +90,8 @@ private struct _ModelConfigJSON: Decodable {
     }
 }
 
-private extension ModelConfig {
-    /// Direct initializer used by coreai-specific ``KVCacheManager`` cold-store code.
+extension ModelConfig {
+    /// Direct initializer used by ``KVCacheManager`` and hub-model stub creation in ``EnginePool``.
     init(
         name: String,
         function: String,
