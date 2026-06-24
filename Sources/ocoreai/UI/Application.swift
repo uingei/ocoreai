@@ -2,10 +2,12 @@
 // Licensed under MIT.
 /// Application entry point — macOS 15+ / iOS 17+ / iPadOS 17+
 ///
-/// Mirrors omlx shell pattern:
-///   • @NSApplicationDelegateAdaptor for menubar/launch
-///   • NavigationSplitView with sidebar · quick metrics · detail
+/// HIG-compliant structure:
+///   • macOS: single-instance Window (not WindowGroup), standard title bar
+///   • NavigationSplitView: sidebar + detail (two-column)
+///   • Settings via Cmd+, (CommandGroup replacing: .appSettings)
 ///   • Sidebar driven by AppState.selectedTab (single source of truth)
+///   • Keyboard shortcuts localized via StringKey.l
 ///
 /// @Observable pattern: AppState is now Observable; accessed as computed property.
 
@@ -21,31 +23,49 @@ struct OcoreaiApp: App {
 	#endif
 
 	var body: some Scene {
-		WindowGroup {
+		#if os(macOS)
+		// macOS: single-instance window — HIG compliant
+		Window("ocoreai", id: "main") {
 			OcoreaiShellView()
 		}
-		#if os(macOS)
-		.windowStyle(.hiddenTitleBar)
-		// Keyboard shortcuts: Cmd+1~5 for tabs
+		.windowResizability(.contentSize)
+		.windowStyle(.titleBar)
+		// Settings via Cmd+, — macOS standard
 		.commands {
-			CommandGroup(replacing: .newItem) {
-				Button("Dashboard") { AppState.shared.selectedTab = .dashboard }
-					.keyboardShortcut("1")
-				Button("Chat") { AppState.shared.selectedTab = .chat }
-					.keyboardShortcut("2")
-				Button("Models") { AppState.shared.selectedTab = .models }
-					.keyboardShortcut("3")
-				Button("Settings") { AppState.shared.selectedTab = .settings }
-					.keyboardShortcut("4")
-				Button("Status") { AppState.shared.selectedTab = .status }
-					.keyboardShortcut("5")
+			CommandGroup(replacing: .newItem) {}
+			CommandGroup(replacing: .appSettings) {
+				Button(StringKey.tabSettings.l) {
+					AppState.shared.selectedTab = .settings
+				}
 			}
+			CommandMenu(StringKey.navigationTitle.l) {
+				Button(StringKey.tabDashboard.l) {
+					AppState.shared.selectedTab = .dashboard
+				}
+				.keyboardShortcut("1")
+				Button(StringKey.tabChat.l) {
+					AppState.shared.selectedTab = .chat
+				}
+				.keyboardShortcut("2")
+				Button(StringKey.tabModels.l) {
+					AppState.shared.selectedTab = .models
+				}
+				.keyboardShortcut("3")
+				Button(StringKey.tabStatus.l) {
+					AppState.shared.selectedTab = .status
+				}
+				.keyboardShortcut("5")
+			}
+		}
+		#else
+		WindowGroup {
+			OcoreaiShellView()
 		}
 		#endif
 	}
 }
 
-// MARK: - Root Shell View
+/// Root Shell View — two-column: sidebar + detail, HIG compliant
 
 struct OcoreaiShellView: View {
 	// swiftlint:disable:next identifier_name
@@ -58,8 +78,6 @@ struct OcoreaiShellView: View {
 		NavigationSplitView {
 			SidebarView()
 				.navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
-		} content: {
-			metricsColumn
 		} detail: {
 			TabDetailView()
 		}
@@ -79,10 +97,6 @@ struct OcoreaiShellView: View {
 			appState.shutdown()
 		}
 		.accessibilityLabel("ocoreai")
-	}
-
-	private var metricsColumn: some View {
-		OverviewMetricsView()
 	}
 }
 
@@ -188,91 +202,7 @@ private struct SectionHeaderLabel: View {
 	}
 }
 
-// MARK: - Quick Metrics (cross-platform: macOS 15+, iOS 17+, iPadOS 17+)
-
-private struct OverviewMetricsView: View {
-	private var appState: AppState { AppState.shared }
-
-	var body: some View {
-		ScrollView {
-			LazyVStack(spacing: 10) {
-				QuickMetricTile(
-					value: String(format: "%.0f", appState.currentMetrics.tokensPerSecond),
-					unit: "tok/s",
-					label: "Throughput",
-					icon: "bolt.horizontal.fill",
-					tint: .blue
-				)
-				QuickMetricTile(
-					value: String(format: "%.1f", appState.currentMetrics.gpuMemoryUsage),
-					unit: "GB",
-					label: "GPU Memory",
-					icon: "memorychip",
-					tint: .purple
-				)
-				QuickMetricTile(
-					value: String(appState.currentMetrics.activeSessions),
-					unit: "",
-					label: "Sessions",
-					icon: "person.3.fill",
-					tint: .green
-				)
-				QuickMetricTile(
-					value: appState.isConnected ? "Active" : "Idle",
-					unit: "",
-					label: "Status",
-					icon: appState.isConnected ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
-					tint: appState.isConnected ? .green : .orange
-				)
-			}
-			.padding()
-		}
-		.navigationTitle("Overview")
-		.accessibilityLabel("System Overview")
-	}
-}
-
-struct QuickMetricTile: View {
-	let value: String
-	let unit: String
-	let label: String
-	let icon: String
-	let tint: Color
-
-	var body: some View {
-		HStack(spacing: 12) {
-			ZStack {
-				Circle()
-					.fill(tint.opacity(0.12))
-					.frame(width: 36, height: 36)
-				Image(systemName: icon)
-						.font(.ocoreaiText(15, weight: .medium))
-						.foregroundStyle(tint)
-					.accessibilityHidden(true)
-				}
-				VStack(alignment: .leading, spacing: 2) {
-					Text(label)
-						.font(.ocoreaiText(11))
-						.foregroundStyle(.secondary)
-					HStack(spacing: 4) {
-						Text(value)
-							.font(.ocoreaiMono(14, weight: .semibold))
-						if !unit.isEmpty {
-							Text(unit)
-								.font(.ocoreaiText(10))
-								.foregroundStyle(.secondary)
-						}
-					}
-			}
-		}
-		.padding(.vertical, 4)
-		.accessibilityLabel("\(label): \(value)\(unit.isEmpty ? "" : " \(unit)")")
-		.accessibilityAddTraits(.isStaticText)
-	}
-}
-
 // MARK: - macOS App Delegate
-
 #if os(macOS)
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {

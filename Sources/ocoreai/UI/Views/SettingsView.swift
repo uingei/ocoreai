@@ -153,12 +153,19 @@ struct SettingsView: View {
 
     // MARK: - Danger Zone
 
+    @State private var showingResetConfirmation = false
+
     private var dangerSection: some View {
         Section {
-            Button(role: .destructive) { settingsState.resetToDefaults() } label: {
+            Button(role: .destructive) { showingResetConfirmation = true } label: {
                 Text(StringKey.resetSettings.l).frame(maxWidth: .infinity)
             }
             .tint(theme.redDot)
+            .confirmationDialog(StringKey.resetConfirm.l, isPresented: $showingResetConfirmation) {
+                Button(StringKey.resetSettings.l, role: .destructive) {
+                    settingsState.resetToDefaults()
+                }
+            }
         }
     }
 

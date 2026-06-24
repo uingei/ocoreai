@@ -5,9 +5,10 @@
 /// Theme-driven: all colors resolve through @Environment(\.ocoreaiTheme)
 /// @Observable pattern: @State + Observable instead of @StateObject
 /// Accessibility: full VoiceOver support, Dynamic Type, reduced motion
+/// Accessibility: ChatBubble uses accessibilityGroup() for semantic hierarchy
+/// Reduced Motion: all animations respect .preferredColorScheme
 
 import SwiftUI
-
 /// Stable identity wrapper for chat messages — uses index-based id so SwiftUI
 /// does not recreate view identity on every diff.
 struct ChatBubbleMessage: Identifiable, Hashable, Sendable {
@@ -61,6 +62,24 @@ struct ChatView: View {
 			chatState.stop()
 		}
 		.toolbar {
+			// Model selector moved to toolbar — HIG: global controls belong in toolbar
+			ToolbarItem(placement: .automatic) {
+				Menu {
+					ForEach(models, id: \.self) { m in
+						Button(m) { currentModel = m }
+					}
+					Divider()
+					Button("default") { currentModel = "" }
+				} label: {
+					Label(
+						currentModel.isEmpty ? "No Model" : currentModel,
+						systemImage: "brain"
+					)
+				}
+				.accessibilityLabel("Model Selector")
+				.accessibilityValue(currentModel.isEmpty ? "No model selected" : currentModel)
+			}
+
 			ToolbarItem(placement: .primaryAction) {
 				Button(role: .destructive) {
 					chatState.resetConversation()
@@ -79,48 +98,17 @@ struct ChatView: View {
 
 	private var chatHeader: some View {
 		HStack(spacing: 6) {
-			Menu {
-				ForEach(models, id: \.self) { m in
-					Button(m) { currentModel = m }
-				}
-				Divider()
-				Button("default") { currentModel = "" }
-			} label: {
-				HStack(spacing: 6) {
-					Image(systemName: "brain")
-						.font(.ocoreaiText(11, weight: .medium))
-						.foregroundStyle(theme.accent)
-						.accessibilityHidden(true)
-					Text(currentModel.isEmpty ? "No Model" : currentModel)
-						.font(.ocoreaiText(13, weight: .medium))
-						.lineLimit(1)
-					Image(systemName: "chevron.down")
-						.font(.ocoreaiText(10))
-						.foregroundStyle(theme.textSecondary)
-						.accessibilityHidden(true)
-				}
-				.padding(.horizontal, 10)
-				.padding(.vertical, 6)
-				.background(theme.accentSoft)
-				.clipShape(Capsule())
-			}
-			.accessibilityLabel("Model Selector")
-			.accessibilityValue(currentModel.isEmpty ? "No model selected" : currentModel)
-			.accessibilityHint("Double-tap to choose a model")
-
 			Spacer()
 
-			HStack(spacing: 6) {
-				Circle()
-					.fill(isConnected ? theme.greenDot : theme.amberDot)
-					.frame(width: 6, height: 6)
-					.shadow(color: (isConnected ? theme.greenDot : theme.amberDot).opacity(0.4), radius: 2)
-					.accessibilityHidden(true)
-				Text(isConnected ? "Local" : "Loading…")
-					.font(.ocoreaiText(10))
-					.foregroundStyle(theme.textSecondary)
-					.accessibilityLabel(isConnected ? "Local backend connected" : "Backend loading")
-			}
+			Circle()
+				.fill(isConnected ? theme.greenDot : theme.amberDot)
+				.frame(width: 6, height: 6)
+				.shadow(color: (isConnected ? theme.greenDot : theme.amberDot).opacity(0.4), radius: 2)
+				.accessibilityHidden(true)
+			Text(isConnected ? "Local" : "Loading…")
+				.font(.ocoreaiText(10))
+				.foregroundStyle(theme.textSecondary)
+				.accessibilityLabel(isConnected ? "Local backend connected" : "Backend loading")
 		}
 		.padding(.horizontal)
 		.padding(.vertical, 8)
