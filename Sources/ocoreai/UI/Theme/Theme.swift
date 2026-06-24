@@ -72,8 +72,8 @@ extension OcoreaiTheme {
         windowBg:       Color(nsColor: NSColor.windowBackgroundColor),
         sidebarBg:      Color.clear,
         cardBg:         Color.secondary.opacity(isDark ? 0.06 : 0.04),
-        groupBg:        Color.secondary.opacity(isDark ? 0.04 : 0.03),
         cardBorder:     Color.secondary.opacity(isDark ? 0.12 : 0.18),
+        groupBg:        Color.secondary.opacity(isDark ? 0.04 : 0.03),
         groupBorder:    Color.secondary.opacity(isDark ? 0.12 : 0.16),
         inputBg:        Color.secondary.opacity(isDark ? 0.08 : 0.06),
         inputBorder:    Color.secondary.opacity(isDark ? 0.12 : 0.18),
@@ -180,15 +180,15 @@ extension Font {
     }
 
     static func ocoreaiText(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .system(textStyle: textStyle(for: size), weight: weight, design: .rounded)
+        .system(textStyle(for: size), design: .rounded, weight: weight)
     }
 
     static func ocoreaiDisplay(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-        .system(textStyle: textStyle(for: size), weight: weight, design: .rounded)
+        .system(textStyle(for: size), design: .rounded, weight: weight)
     }
 
     static func ocoreaiMono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .system(textStyle: textStyle(for: size), weight: weight, design: .monospaced)
+        .system(textStyle(for: size), design: .monospaced, weight: weight)
     }
 
     /// Section header: uppercase semibold with kerning (caption-style default)
