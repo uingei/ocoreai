@@ -12,9 +12,6 @@
 /// @Observable pattern: AppState is now Observable; accessed as computed property.
 
 import SwiftUI
-#if os(iOS)
-import UIKit
-#endif
 
 @main
 struct OcoreaiApp: App {
@@ -70,6 +67,8 @@ struct OcoreaiApp: App {
 struct OcoreaiShellView: View {
 	// swiftlint:disable:next identifier_name
 	@Environment(\.colorScheme) private var colorScheme
+	// swiftlint:disable:next identifier_name
+	@Environment(\.scenePhase) private var scenePhase
 	@State private var theme = OcoreaiTheme.theme(from: .light)
 
 	private var appState: AppState { AppState.shared }
@@ -86,6 +85,10 @@ struct OcoreaiShellView: View {
 		.environment(\.ocoreaiTheme, theme)
 		.onChange(of: colorScheme) { _, scheme in
 			theme = OcoreaiTheme.theme(from: scheme)
+		}
+		// ScenePhase gating: tell AppState whether we're in foreground/background
+		.onChange(of: scenePhase) { _, phase in
+			appState.isForeground = (phase == .active)
 		}
 		.onAppear {
 			// Initial sync in case colorScheme changed before view appeared

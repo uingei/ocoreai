@@ -9,6 +9,8 @@ import SwiftUI
 struct StatusView: View {
 	private var appState: AppState { AppState.shared }
 	@Environment(\.ocoreaiTheme) private var theme
+	// swiftlint:disable:next identifier_name
+	@Environment(\.accessibilityReduceMotionIsEnabled) private var reduceMotion
 
 	var body: some View {
 		ScrollView {
@@ -56,7 +58,7 @@ struct StatusView: View {
 			}
 			.padding(20)
 		}
-		.animation(.easeInOut(duration: 0.2), value: appState.currentMetrics)
+		.animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: appState.currentMetrics)
 		.background(theme.windowBg)
 		.accessibilityLabel(StringKey.dashboardTitle.l)
 	}

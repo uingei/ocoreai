@@ -14,7 +14,9 @@ final class AppState: Observable {
     var isConnected: Bool = false
     var currentMetrics: MetricsSnapshot = .empty
     var selectedTab: AppTab = .dashboard
-    
+    /// ScenePhase gate — true when app is active, false in background
+    var isForeground: Bool = true
+
     private let engine = OcoreaiEngine.shared
     private var metricsTask: Task<Void, Never>?
     
@@ -75,7 +77,8 @@ final class AppState: Observable {
             await OcoreaiEngine.shared.start()
         }
         
-        // Fast Path: poll EnginePool directly (no HTTP, zero serialization)
+        /// Fast Path: poll EnginePool directly (no HTTP, zero serialization)
+        /// ScenePhase-gated: 1s in foreground, 10s in background.
         metricsTask = Task.detached { [weak self] in
             guard let self = self else { return }
             while !Task.isCancelled {
@@ -89,7 +92,9 @@ final class AppState: Observable {
                 await MainActor.run {
                     self.currentMetrics = snap
                 }
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                // ScenePhase gating: slow down in background
+                let interval = await MainActor.run { self.isForeground } ? 1_000_000_000 : 10_000_000_000
+                try? await Task.sleep(nanoseconds: interval)
             }
         }
     }

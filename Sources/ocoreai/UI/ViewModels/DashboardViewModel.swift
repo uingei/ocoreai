@@ -30,9 +30,14 @@ final class DashboardState: Observable {
     /// Start live metrics polling — reads directly from EnginePool + MetricsRegistry
     @MainActor
     func startPolling() async {
-        // Wait until engine core is fully initialized
-        while !OcoreaiEngine.shared.engineReady {
+        // Wait until engine core is fully initialized — 30s timeout guard
+        let deadline = Date().addingTimeInterval(30.0)
+        while !OcoreaiEngine.shared.engineReady, Date() < deadline, !Task.isCancelled {
             try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+        }
+        
+        guard OcoreaiEngine.shared.engineReady else {
+            return
         }
         
         pollingTask = Task.detached(priority: .utility) { [self] in
@@ -86,7 +91,7 @@ final class DashboardState: Observable {
                     self.connected = true
                 }
 
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                try? await Task.sleep(nanoseconds: AppState.shared.isForeground ? 1_000_000_000 : 10_000_000_000)
             }
         }
     }
