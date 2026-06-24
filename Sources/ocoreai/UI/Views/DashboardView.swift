@@ -85,7 +85,7 @@ struct DashboardView: View {
 				Text(uptimeLabel)
 					.font(.ocoreaiMono(11))
 					.foregroundStyle(theme.textTertiary)
-					.accessibilityLabel("\(StringKey.uptimeLabel.l): \(uptimeLabel)")
+					.accessibilityLabel("\(StringKey.uptime.l): \(uptimeLabel)")
 			}
 		}
 	}
