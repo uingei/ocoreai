@@ -26,8 +26,8 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if coreai` guards
-        // MLX 推理框架 — 更新到最新 (40c2ff0: Gemma4 VLM PTQ + KV-shared layers fix)
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "40c2ff0"),
+        // MLX 推理框架 — 始终追踪 main 分支最新
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", branch: "main"),
         // HuggingFace Hub SDK + Tokenizers — 原生搜索、下载、tokenizer 加载
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.8.1"),
         // NOTE: swift-testing 0.x requires swift-syntax 600.x, incompatible with
@@ -43,7 +43,6 @@ let package = Package(
                 .product(name: "Atomics", package: "swift-atomics"),
                 .product(name: "Yams", package: "yams"),
                 .product(name: "MLXLLM", package: "mlx-swift-lm"),
-                .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
                 .product(name: "HuggingFace", package: "swift-huggingface"),
             ],
             // NOTE: PrivacyInfo.xcprivacy resource removed — file does not exist yet.

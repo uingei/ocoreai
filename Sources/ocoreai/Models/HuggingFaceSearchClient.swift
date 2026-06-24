@@ -61,7 +61,7 @@ struct HFHubModel: Identifiable, Hashable, Sendable {
             pipelineTag: m.pipelineTag,
             lastModified: m.lastModified.map { ISO8601DateFormatter().string(from: $0) },
             downloads: m.downloads,
-            sizeBytes: m.usedStorage
+            sizeBytes: m.usedStorage.map(Int64.init)
         )
     }
 }
@@ -84,7 +84,7 @@ actor HuggingFaceSearchClient {
     private let hubClient: HubClient
 
     /// Create with auto-detected token (HF_TOKEN env var, ~/.huggingface/token, etc.)
-    nonisolated init() {
+    init() {
         self.hubClient = .default
     }
 
@@ -112,9 +112,9 @@ actor HuggingFaceSearchClient {
         }
 
         // Expand fields we care about for a rich UI
-        let expandFields: [Model.ModelExpandField] = [
-            .downloads, .likes, .tags, .pipelineTag,
-            .lastModified, .cardData, .safetensors
+        let expandFields: [Extensible<HubClient.ModelExpandField>] = [
+            .known(.downloads), .known(.likes), .known(.tags), .known(.pipelineTag),
+            .known(.lastModified), .known(.cardData), .known(.safetensors)
         ]
 
         do {
@@ -126,7 +126,7 @@ actor HuggingFaceSearchClient {
                 full: true,
                 expand: ExtensibleCommaSeparatedList(expandFields)
             )
-            return response.data.map { HFHubModel.fromSDKModel($0) }
+            return response.items.map { HFHubModel.fromSDKModel($0) }
         } catch {
             throw HFSearchError.fromSDKError(error)
         }
@@ -144,9 +144,11 @@ actor HuggingFaceSearchClient {
 
     /// Get detailed info for a single model (including safetensors index for size estimation).
     func modelInfo(repoId: String) async throws -> [String: Any] {
-        let repo = try Repo.ID(repoId)
+        guard let repo = Repo.ID(rawValue: repoId) else {
+            throw HFSearchError.badQuery
+        }
         do {
-            let model = try await hubClient.model(id: repo, full: true)
+            let model = try await hubClient.getModel(repo, full: true)
             return try Model.toDictionary(model)
         } catch {
             throw HFSearchError.fromSDKError(error)

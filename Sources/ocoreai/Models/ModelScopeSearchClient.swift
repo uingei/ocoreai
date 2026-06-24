@@ -205,7 +205,7 @@ final actor ModelScopeSearchClient {
 // MARK: - Errors
 
 enum MSError: LocalizedError {
-    case httpError(any URLRequest.Response?)
+    case httpError(URLResponse?)
     case invalidJSON
     case missingField(String)
 
