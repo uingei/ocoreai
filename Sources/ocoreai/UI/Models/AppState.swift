@@ -79,10 +79,15 @@ final class AppState: Observable {
         metricsTask = Task.detached { [weak self] in
             guard let self = self else { return }
             while !Task.isCancelled {
+                await MainActor.run {
+                    // isConnected is based on engineReady, not loadedModels —
+                    // EnginePool starts empty (lazy model loading), so loadedModels == 0
+                    // does NOT mean the engine is down.
+                    self.isConnected = OcoreaiEngine.shared.engineReady
+                }
                 let snap = await self.pollMetrics()
                 await MainActor.run {
                     self.currentMetrics = snap
-                    self.isConnected = snap.loadedModels > 0
                 }
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }

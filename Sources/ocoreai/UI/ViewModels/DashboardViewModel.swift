@@ -28,7 +28,13 @@ final class DashboardState: Observable {
     // MARK: - Screen lifecycle
 
     /// Start live metrics polling — reads directly from EnginePool + MetricsRegistry
+    @MainActor
     func startPolling() async {
+        // Wait until engine core is fully initialized
+        while !OcoreaiEngine.shared.engineReady {
+            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+        }
+        
         pollingTask = Task.detached(priority: .utility) { [self] in
             while !Task.isCancelled {
                 let (pool, metrics) = await MainActor.run {
