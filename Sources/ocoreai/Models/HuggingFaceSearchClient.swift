@@ -2,10 +2,11 @@
 // Licensed under MIT.
 /// HuggingFaceSearchClient.swift — Browse and search models on HuggingFace Hub
 ///
-/// Calls the HF Hub API (/api/models) to discover MLX-compat models.
+/// Thin wrapper around swift-huggingface's HubClient.listModels().
 /// Download is handled by #hubDownloader() native macro (MLXHuggingFace).
 
 import Foundation
+import HuggingFace
 
 // MARK: - Search DTOs
 
@@ -19,13 +20,13 @@ struct HFHubModel: Identifiable, Hashable, Sendable {
     let tags: [String]
     /// Number of likes/stars
     let likes: Int
-    /// Whether the model has a pipeline_tag indicating it's a generation model
+    /// Pipeline tag (e.g. "text-generation")
     let pipelineTag: String?
     /// Last modified date string
     let lastModified: String?
-    /// Monthly downloads count (from metrics)
+    /// Monthly downloads count
     let downloads: Int?
-    /// Size in bytes (approximate, from card data if available)
+    /// Size in bytes (approximate)
     let sizeBytes: Int64?
 
     /// Whether this model appears to be MLX-compatible (has "mlx" tag)
@@ -48,36 +49,19 @@ struct HFHubModel: Identifiable, Hashable, Sendable {
         return ("", id)
     }
 
-    init(id: String, displayName: String, tags: [String], likes: Int, pipelineTag: String?, lastModified: String?, downloads: Int?, sizeBytes: Int64?) {
-        self.id = id
-        self.displayName = displayName
-        self.tags = tags
-        self.likes = likes
-        self.pipelineTag = pipelineTag
-        self.lastModified = lastModified
-        self.downloads = downloads
-        self.sizeBytes = sizeBytes
-    }
-
-    /// Parse from HuggingFace API JSON
-    static func fromAPIResponse(_ dict: [String: Any]) -> HFHubModel? {
-        guard let repoId = dict["id"] as? String else { return nil }
-        let displayName = dict["_id"] as? String ?? dict["id"] as? String ?? repoId
-        let tags = (dict["tags"] as? [String]) ?? []
-        let likes = (dict["likes"] as? Int) ?? 0
-        let pipelineTag = dict["pipeline_tag"] as? String
-        let lastModified = dict["lastModified"] as? String
-        let downloadsVal = dict["downloads"] as? Int
-        // HF API doesn't consistently provide size — skip for now
+    /// Parse from HubClient Model type
+    static func fromSDKModel(_ m: Model) -> HFHubModel {
+        let id = m.id.description
+        let tags = m.tags ?? []
         return HFHubModel(
-            id: repoId,
-            displayName: displayName,
+            id: id,
+            displayName: id.components(separatedBy: "/").last ?? id,
             tags: tags,
-            likes: likes,
-            pipelineTag: pipelineTag,
-            lastModified: lastModified,
-            downloads: downloadsVal,
-            sizeBytes: nil
+            likes: m.likes ?? 0,
+            pipelineTag: m.pipelineTag,
+            lastModified: m.lastModified.map { ISO8601DateFormatter().string(from: $0) },
+            downloads: m.downloads,
+            sizeBytes: m.usedStorage
         )
     }
 }
@@ -88,27 +72,20 @@ struct HFSearchFilters: Sendable {
     var mlxOnly: Bool = true
     /// Only generation models (text-generation, etc.)
     var generationOnly: Bool = true
-
-    /// Convert to HF API query params
-    var tags: [String] {
-        var result: [String] = []
-        if mlxOnly { result.append("mlx") }
-        if generationOnly { result.append("text-generation") }
-        return result
-    }
 }
 
 // MARK: - Search Client
 
 /// Client for browsing/searching HuggingFace Hub.
+///
+/// Wraps swift-huggingface's HubClient.listModels() with MLX-specific
+/// defaults (mlx filter, text-generation pipeline, sort by downloads).
 actor HuggingFaceSearchClient {
-    private let baseURL: URL
-    private let token: String?
+    private let hubClient: HubClient
 
-    init(token: String? = nil) {
-        self.baseURL = URL(string: "https://huggingface.co/api")!
-        self.token = token ?? ProcessInfo.processInfo.environment["HF_TOKEN"] ??
-                         ProcessInfo.processInfo.environment["HF_API_TOKEN"]
+    /// Create with auto-detected token (HF_TOKEN env var, ~/.huggingface/token, etc.)
+    nonisolated init() {
+        self.hubClient = .default
     }
 
     /// Search models by query string.
@@ -125,50 +102,33 @@ actor HuggingFaceSearchClient {
         limit: Int = 50,
         sort: String = "downloads"
     ) async throws -> [HFHubModel] {
-        var components = URLComponents(url: baseURL.appendingPathComponent("models"), resolvingAgainstBaseURL: false)!
-        var queryItems: [URLQueryItem] = []
-
-        if !query.isEmpty {
-            queryItems.append(URLQueryItem(name: "search", value: query))
+        let clampedLimit = min(max(limit, 1), 1000)
+        var filterTag: String? = nil
+        if filters.mlxOnly {
+            filterTag = filterTag.map { "\($0),mlx" } ?? "mlx"
         }
-        // Tag filtering — multiple tags narrows results
-        for tag in filters.tags {
-            queryItems.append(URLQueryItem(name: "filter", value: tag))
-        }
-        queryItems.append(URLQueryItem(name: "limit", value: String(min(max(limit, 1), 1000))))
-        if !sort.isEmpty {
-            queryItems.append(URLQueryItem(name: "sort", value: sort))
-        }
-        queryItems.append(URLQueryItem(name: "full", value: "true"))
-
-        components.queryItems = queryItems
-
-        var request = URLRequest(url: components.url!)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let token = token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if filters.generationOnly {
+            filterTag = filterTag.map { "\($0),text-generation" } ?? "text-generation"
         }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw HFSearchError.invalidResponse
-        }
+        // Expand fields we care about for a rich UI
+        let expandFields: [Model.ModelExpandField] = [
+            .downloads, .likes, .tags, .pipelineTag,
+            .lastModified, .cardData, .safetensors
+        ]
 
-        switch httpResponse.statusCode {
-        case 200:
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                throw HFSearchError.invalidJSON
-            }
-            return json.compactMap { HFHubModel.fromAPIResponse($0) }
-        case 400:
-            throw HFSearchError.badQuery
-        case 401:
-            throw HFSearchError.unauthorized
-        case 429:
-            throw HFSearchError.rateLimited
-        default:
-            throw HFSearchError.unknown(status: httpResponse.statusCode)
+        do {
+            let response: PaginatedResponse<Model> = try await hubClient.listModels(
+                search: query.isEmpty ? nil : query,
+                filter: filterTag,
+                sort: sort,
+                limit: clampedLimit,
+                full: true,
+                expand: ExtensibleCommaSeparatedList(expandFields)
+            )
+            return response.data.map { HFHubModel.fromSDKModel($0) }
+        } catch {
+            throw HFSearchError.fromSDKError(error)
         }
     }
 
@@ -184,60 +144,37 @@ actor HuggingFaceSearchClient {
 
     /// Get detailed info for a single model (including safetensors index for size estimation).
     func modelInfo(repoId: String) async throws -> [String: Any] {
-        let url = baseURL
-            .appendingPathComponent("models")
-            .appendingPathComponent(repoId)
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        if let token = token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let repo = try Repo.ID(repoId)
+        do {
+            let model = try await hubClient.model(id: repo, full: true)
+            return try Model.toDictionary(model)
+        } catch {
+            throw HFSearchError.fromSDKError(error)
         }
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw HFSearchError.notFound
-        }
-
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw HFSearchError.invalidJSON
-        }
-        return json
     }
+}
 
-    /// List repo files for size estimation.
-    func listFiles(repoId: String) async throws -> [[String: Any]] {
-        let url = baseURL
-            .appendingPathComponent("models")
-            .appendingPathComponent(repoId)
-            .appendingPathComponent("tree")
-            .appendingPathComponent("main")
+// MARK: - Dictionary conversion helper
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        if let token = token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+extension Model {
+    /// Convert Model to AnyHashable dictionary for backward compat with existing callers.
+    static func toDictionary(_ m: Model) throws -> [String: Any] {
+        var dict: [String: Any] = [:]
+        dict["id"] = m.id.description
+        if let author = m.author { dict["author"] = author }
+        if let sha = m.sha { dict["sha"] = sha }
+        if let lastModified = m.lastModified {
+            dict["lastModified"] = ISO8601DateFormatter().string(from: lastModified)
         }
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw HFSearchError.notFound
-        }
-
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            throw HFSearchError.invalidJSON
-        }
-        return json
-    }
-
-    /// Estimate model size by summing safetensors files.
-    func estimateSize(repoId: String) async throws -> Int64 {
-        let files = try await self.listFiles(repoId: repoId)
-        let safetensors = files.filter { file in
-            let path = file["path"] as? String ?? ""
-            return path.hasSuffix(".safetensors") || path.hasSuffix(".safetensors.index.json")
-        }
-        return safetensors.reduce(0) { $0 + Int64($1["size"] as? Int ?? 0) }
+        if let downloads = m.downloads { dict["downloads"] = downloads }
+        if let likes = m.likes { dict["likes"] = likes }
+        if let tags = m.tags { dict["tags"] = tags }
+        if let pipelineTag = m.pipelineTag { dict["pipeline_tag"] = pipelineTag }
+        if let cardData = m.cardData { dict["cardData"] = cardData as Any }
+        if let config = m.config { dict["config"] = config as Any }
+        if let trendingScore = m.trendingScore { dict["trendingScore"] = trendingScore }
+        if let usedStorage = m.usedStorage { dict["usedStorage"] = usedStorage }
+        return dict
     }
 }
 
@@ -250,7 +187,7 @@ enum HFSearchError: Error, LocalizedError {
     case unauthorized
     case rateLimited
     case notFound
-    case unknown(status: Int)
+    case unknown(status: String)
 
     var errorDescription: String? {
         switch self {
@@ -262,5 +199,23 @@ enum HFSearchError: Error, LocalizedError {
         case .notFound: return "Model not found on HuggingFace Hub"
         case .unknown(let s): return "HuggingFace API error: \(s)"
         }
+    }
+
+    /// Map swift-huggingface error types to our error enum.
+    static func fromSDKError(_ error: Error) -> HFSearchError {
+        let message = (error as CustomStringConvertible).description.lowercased()
+        if message.contains("401") || message.contains("unauthorized") {
+            return .unauthorized
+        }
+        if message.contains("429") || message.contains("rate") {
+            return .rateLimited
+        }
+        if message.contains("404") || message.contains("not found") {
+            return .notFound
+        }
+        if message.contains("400") || message.contains("bad request") {
+            return .badQuery
+        }
+        return .unknown(status: message)
     }
 }
