@@ -140,12 +140,12 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section {
             VStack(spacing: 4) {
-                Label("ocoreai", systemImage: "brain.fill")
+                Label(StringKey.aboutTitle.l, systemImage: "brain.fill")
                     .font(.title2.bold())
                 Text(StringKey.version.l)
                     .font(.subheadline).foregroundStyle(.secondary)
-                Text("v1.0.0 · macOS 15+ / iOS 17+")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text(StringKey.aboutVersion.l)
+                	.font(.caption).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 4)
         } header: { Text(StringKey.aboutSection.l) }
