@@ -75,8 +75,7 @@ struct OcoreaiShellView: View {
 	// swiftlint:disable:next identifier_name
 	@Environment(\.scenePhase) private var scenePhase
 	@State private var theme = OcoreaiTheme.theme(from: .light)
-
-	private var appState: AppState { AppState.shared }
+	@Bindable private var appState = AppState.shared
 
 	var body: some View {
 		NavigationSplitView {
