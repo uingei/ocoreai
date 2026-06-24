@@ -3,23 +3,23 @@
 // MLXBridge.swift — MLX inference bridge
 //
 // Compiled only when 'mlx' trait is active. Implements:
-#if mlx
-//   - MLXModelLoader (actor) — downloads & loads models via ModelScope or HF
-//   - MLX inference session management — create, execute, track
+//   - MLXModelLoader (actor) — loads models via ModelScope, HF, or local path
 //   - Sampling parameter bridge — MLXSamplingConfig → GenerateParameters
-//   - Model registry — track loaded models by path or model identifier
+//   - Message conversion — ocoreai Message → mlx-swift-lm Chat.Message
 //
 // ### Architecture:
 // - Models can be loaded from:
-//   1. Local path: `file:///path/to/model/`
+//   1. Local path: `/path/to/model/` or `~/path/to/model/`
 //   2. ModelScope Hub: `mscope:Qwen/Qwen2.5-7B-Instruct`
-//   3. HuggingFace Hub: (reserved via mlx-hub)
+//   3. HuggingFace Hub: `hf:mlx-community/Qwen3.5-4B`
 //
 // ### MLX Stack (mlx-swift-lm):
-//   LLMModelFactory.load(fromDownloader:)
-//     → ModelContainer  (thread-safe shell around ModelContext)
-//       → ChatSession  (KVCache + generate + tokenization)
-//         → streamResponse / respond → String / AsyncThrowingStream
+//   LLMModelFactory.loadContainer(from: downloader, using: tokenizerLoader)
+//     → ModelContainer (thread-safe shell around ModelContext)
+//       → ChatSession (KVCache + generate + tokenization)
+//
+// Reference: MLXChatExample/Services/MLXService.swift (ml-explore upstream)
+//   — gold standard for native MLX loading pattern.
 
 #if mlx
 
@@ -30,8 +30,8 @@ import MLXLMCommon
 
 // MARK: - HuggingFace Integration
 
-/// Import MLXHuggingFace for native #hubDownloader() and #huggingFaceTokenizerLoader() macros.
-/// Also import HuggingFace for HubClient (model search via HubClient.listModels).
+/// Native MLX download + tokenizer via swift-huggingface macros.
+/// Auth auto-detected by HubClient from HF_TOKEN env var / filesystem.
 import MLXHuggingFace
 import HuggingFace
 
@@ -40,18 +40,11 @@ import HuggingFace
 /// Protocol for an MLX-loaded model handle — hides MLX-specific types
 /// so EngineManager can talk to it without directly importing MLXLLM.
 protocol MLXModelHandle: Sendable {
-    /// The MLX model container providing thread-safe chat inference.
     var modelContainer: MLXLMCommon.ModelContainer { get }
-    /// Human-readable model identifier.
     var modelId: String { get }
-    /// Number of layers (for cache tracking).
     var layerCount: Int { get }
 }
 
-/// Concrete handle backed by an MLX ``ModelContainer``.
-///
-/// Wraps a ``ModelContainer`` so the engine manager can treat it as
-/// an opaque inference endpoint without touching MLX internals.
 final class MLXModelHandleImpl: MLXModelHandle {
     let modelContainer: MLXLMCommon.ModelContainer
     let modelId: String
@@ -60,7 +53,6 @@ final class MLXModelHandleImpl: MLXModelHandle {
     init(modelContainer: MLXLMCommon.ModelContainer, modelId: String) {
         self.modelContainer = modelContainer
         self.modelId = modelId
-        // Layer count approximated — available from modelContainer.metadata after load
         self.layerCount = 0
     }
 }
@@ -69,27 +61,17 @@ final class MLXModelHandleImpl: MLXModelHandle {
 
 /// Load an MLX model from local filesystem, ModelScope Hub, or HuggingFace.
 ///
-/// Conforms to ``ModelContainer`` lifecycle — downloads model files,
-/// resolves tokenizer, initializes ``LLMModelFactory``, and returns a
-/// ready-to-use inference handle.
+/// HF path: native `#hubDownloader()` + `#huggingFaceTokenizerLoader()` (zero handwritten code)
+/// MS path:  custom `ModelScopeDownloader` (upstream has no ModelScope support)
+/// Local:   `LLMModelFactory.loadContainer(from: directory, using: tokenizer)`
 actor MLXModelLoader {
 
     // MARK: - Configuration
 
     private let logger: Logger
-    private let cacheBase: URL
-    private let defaultHub: String // "modelscope" or "huggingface"
+    private let defaultHub: String
     private let modelScopeToken: String?
-    private let hfToken: String?
 
-    /// Create the MLX model loader.
-    ///
-    /// - Parameters:
-    ///   - logger: Observability logger
-    ///   - cacheBase: Base directory for model downloads
-    ///   - defaultHub: Default hub provider (modelscope/huggingface)
-    ///   - modelScopeToken: Optional ModelScope auth token
-    ///   - hfToken: Optional HuggingFace API token (for gated models)
     init(
         logger: Logger,
         cacheBase: URL? = nil,
@@ -98,113 +80,74 @@ actor MLXModelLoader {
         hfToken: String? = nil
     ) {
         self.logger = logger
-        self.cacheBase = cacheBase ?? {
-            let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-            return urls.first?.appendingPathComponent("ocoreai/mlx")
-                ?? URL(fileURLWithPath: "/tmp/ocoreai-mlx-cache")
-        }()
         self.defaultHub = defaultHub
         self.modelScopeToken = modelScopeToken
-        self.hfToken = hfToken ?? ProcessInfo.processInfo.environment["HF_TOKEN"]
-        // Ensure cache exists
-        try? FileManager.default.createDirectory(
-            at: self.cacheBase, withIntermediateDirectories: true)
+        // hfToken is auto-detected by HubClient from HF_TOKEN env var — kept for API compat
     }
 
-    // MARK: - Model Loading
+    // MARK: - Public Load
 
-    /// Load model from local filesystem or remote hub.
-    ///
-    /// - Parameters:
-    ///   - modelURL: Filesystem path, ModelScope id, or hub repo identifier
-    ///   - modelId: Model identifier for logging
-    /// - Returns: Loaded ``MLXModelHandle`` ready for inference
     func load(modelURL: URL, modelId: String) async throws -> (any MLXModelHandle) {
         logger.info("Loading MLX model \(modelId) from \(modelURL.path)")
         let start = ContinuousClock.now
 
-        // 1. Parse model source
         let source = MLXModelLoader.parseSource(modelURL.path)
 
-        // 2. Load model using appropriate loader
         let container: MLXLMCommon.ModelContainer
         switch source {
         case .local(let localPath):
-            container = try await loadLocalModel(
-                at: URL(fileURLWithPath: localPath), modelId: modelId)
+            container = try await loadLocal(Path(localPath), modelId: modelId)
 
         case .mscope(let repoId):
-            container = try await loadModelFromHub(
-                provider: .modelScope, repoId: repoId, modelId: modelId)
+            container = try await loadFromHub(
+                .modelScope, repoId: repoId, modelId: modelId)
 
         case .huggingFace(let repoId):
-            container = try await loadModelFromHub(
-                provider: .huggingFace, repoId: repoId, modelId: modelId)
+            container = try await loadFromHub(
+                .huggingFace, repoId: repoId, modelId: modelId)
 
         default:
-            // Attempt as local path first, then hub
-            container = try await loadLocalModelWithHubFallback(
-                url: modelURL, modelId: modelId)
+            container = try await loadLocal(url: modelURL, fallback: modelId)
         }
 
-        // 3. Measure elapsed time
-        let elapsed = ContinuousClock.now.duration(to: start)
-        let ms = Double(elapsed.components.seconds) * 1000.0
-            + Double(elapsed.components.attoseconds) / 1e15
-        logger.info("MLX model \(modelId) loaded in \(String(format: "%.0fms", ms))")
+        logElapsed("MLX model \(modelId) loaded", start)
 
         return MLXModelHandleImpl(modelContainer: container, modelId: modelId)
     }
 
-    // MARK: - Local Model Loading
+    // MARK: - Local Load
 
-    /// Load from a local directory containing model files.
-    private func loadLocalModel(at directory: URL, modelId: String) async throws
-        -> MLXLMCommon.ModelContainer
-    {
-        logger.info("Using local path for \(modelId): \(directory.path)")
+    func loadLocal(_ path: Path, modelId: String) async throws -> MLXContainer {
+        logger.info("Using local path for \(modelId): \(path.rawValue)")
+        let directory = URL(fileURLWithPath: path.rawValue)
         do {
-            let factory = LLMModelFactory.shared
-            return try await factory.loadContainer(
+            return try await LLMModelFactory.shared.loadContainer(
                 from: directory,
                 using: #huggingFaceTokenizerLoader()
             )
         } catch {
             logger.error("Local load failed for \(modelId): \(error.localizedDescription)")
-            throw MLXLoadError.localLoadFailed(path: directory.path, error: error.localizedDescription)
+            throw MLXLoadError.localLoadFailed(path: path.rawValue, error: error.localizedDescription)
         }
     }
 
-    /// Load from local path with Hub fallback.
-    private func loadLocalModelWithHubFallback(url: URL, modelId: String) async throws
-        -> MLXLMCommon.ModelContainer
-    {
-        // Try local first
+    func loadLocal(url: URL, fallback modelId: String) async throws -> MLXContainer {
         do {
-            return try await loadLocalModel(at: url, modelId: modelId)
+            return try await loadLocal(Path(url.path), modelId: modelId)
         } catch {
             logger.warning("Local path failed for \(modelId), trying hub: \(error.localizedDescription)")
         }
 
-        // Attempt as hub download using repo id (last path component)
         let repoId = url.lastPathComponent
-        return try await loadModelFromHub(
-            provider: .modelScope, repoId: repoId, modelId: modelId)
+        return try await loadFromHub(.modelScope, repoId: repoId, modelId: modelId)
     }
 
-    // MARK: - Hub Loading
+    // MARK: - Hub Load
 
-    enum HubProvider {
-        case modelScope
-        case huggingFace
-    }
+    enum HubProvider { case modelScope, huggingFace }
 
-    /// Download and load from Hub (ModelScope or HuggingFace).
-    private func loadModelFromHub(
-        provider: HubProvider,
-        repoId: String,
-        modelId: String
-    ) async throws -> MLXLMCommon.ModelContainer {
+    @inline(never)
+    func loadFromHub(_ provider: HubProvider, repoId: String, modelId: String) async throws -> MLXContainer {
         let start = ContinuousClock.now
 
         switch provider {
@@ -215,103 +158,91 @@ actor MLXModelLoader {
                 id: repoId, revision: nil, matching: [], useLatest: false,
                 progressHandler: { _ in }
             )
-            let elapsed = ContinuousClock.now.duration(to: start)
-            let ms = Double(elapsed.components.seconds) * 1000.0
-                + Double(elapsed.components.attoseconds) / 1e15
-            logger.info("ModelScope download \(repoId) completed in \(String(format: "%.0fms", ms))")
+            logElapsed("ModelScope download \(repoId) completed", start)
             return try await LLMModelFactory.shared.loadContainer(
                 from: directory,
                 using: #huggingFaceTokenizerLoader()
             )
 
         case .huggingFace:
+            // Native MLX path — #hubDownloader() gives built-in cache, resume, progress.
+            // Auth auto-detected by HubClient from HF_TOKEN / filesystem.
+            // Equivalent to MLXChatExample: factory.loadContainer(from: downloader, ...)
             logger.info("Downloading from HuggingFace: \(repoId)")
-            // Native MLX path: #hubDownloader() gives us native HF download
-            // with built-in cache, resume, and progress — zero handwritten code.
-            // Auth is auto-detected by HubClient from HF_TOKEN env var / filesystem.
-            let downloader = #hubDownloader()
-            let directory = try await downloader.download(
-                id: repoId, revision: nil, matching: [], useLatest: false,
-                progressHandler: { _ in }
-            )
-            let elapsed = ContinuousClock.now.duration(to: start)
-            let ms = Double(elapsed.components.seconds) * 1000.0
-                + Double(elapsed.components.attoseconds) / 1e15
-            logger.info("HuggingFace download \(repoId) completed in \(String(format: "%.0fms", ms))")
             return try await LLMModelFactory.shared.loadContainer(
-                from: directory,
-                using: #huggingFaceTokenizerLoader()
+                from: #hubDownloader(),
+                using: #huggingFaceTokenizerLoader(),
+                configuration: ModelConfiguration(id: repoId)
             )
         }
     }
 
-    // MARK: - Model Source Parsing
+    // MARK: - Source Parsing
 
-    /// Parse a model source string or path to determine where the model lives.
-     enum ModelSource {
+    struct Path: ExpressibleByStringLiteral {
+        let rawValue: String
+        init(_ value: String) { self.rawValue = value }
+        init(stringLiteral value: String) { self.rawValue = value }
+    }
+
+    nonisolated static func parseSource(_ path: String) -> ModelSource {
+        if path.hasPrefix("mscope:") {
+            return .mscope(String(path.dropFirst(7)))
+        }
+        if path.hasPrefix("hf:") {
+            return .huggingFace(String(path.dropFirst(3)))
+        }
+        if path.hasPrefix("huggingface:") {
+            return .huggingFace(String(path.dropFirst(12)))
+        }
+        if path.hasPrefix("/") || path.hasPrefix("~/") {
+            return .local(path)
+        }
+        return .local(path) // backwards compat: treat as local path
+    }
+
+    // MARK: - Teardown
+
+    func teardown() {
+        logger.info("MLXModelLoader teardown requested")
+    }
+
+    // MARK: - Helpers
+
+    private func logElapsed(_ msg: String, _ start: ContinuousClock.Instant) {
+        let elapsed = ContinuousClock.now.duration(to: start)
+        let ms = Double(elapsed.components.seconds) * 1000.0
+            + Double(elapsed.components.attoseconds) / 1e15
+        logger.info("\(msg) in \(String(format: "%.0fms", ms))")
+    }
+}
+
+// MARK: - Model Source
+
+extension MLXModelLoader {
+    enum ModelSource {
         case local(String)
         case mscope(String)
         case huggingFace(String)
         case unknown(String)
     }
-
-    nonisolated static func parseSource(_ path: String) -> ModelSource {
-        // 1. Check for modelscope prefix
-        if path.hasPrefix("mscope:") {
-            let repoId = String(path.dropFirst(7))
-            return .mscope(repoId)
-        }
-        // 2. Check for huggingface prefix
-        if path.hasPrefix("hf:") || path.hasPrefix("huggingface:") {
-            let prefix = path.hasPrefix("hf:") ? 3 : 12
-            let repoId = String(path.dropFirst(prefix))
-            return .huggingFace(repoId)
-        }
-        // 3. Is it a local file path?
-        if path.hasPrefix("/") || path.hasPrefix("~/") {
-            return .local(path)
-        }
-        // 4. Default: treat as local path (backwards compat)
-        return .local(path)
-    }
-
-    // MARK: - Teardown
-
-    /// Release loader resources.
-    func teardown() {
-        logger.info("MLXModelLoader teardown requested")
-        // Note: ModelCache is shared and lives beyond this actor;
-        // actual unloading happens when containers are de-referenced.
-    }
 }
 
-// MARK: - MLX Sampling Configuration
+// MARK: - Sampling Config Bridge
 
 /// Convert ``SamplingConfiguration`` to mlx-swift-lm ``GenerateParameters``.
-///
-/// Maps ocoreai sampling fields:
-///   temperature → GenerateParameters.maximumTokenCount
-///   topP → GenerateParameters.topK
-///   topK → GenerateParameters.topP
-///   seed → GenerateParameters.seed (mapped)
-///   repetitionPenalty → GenerateParameters.logitBias
-///
-/// Default max tokens capped at 8192 (4K generation window).
 nonisolated func makeGenerateParameters(
     from sampling: SamplingConfiguration,
     maxTokens: Int?,
     kvCacheQuant: KVCacheQuantizationConfig? = nil
 ) -> MLXLMCommon.GenerateParameters {
     var params = MLXLMCommon.GenerateParameters()
-    // Apply per-generation limits
     params.maxTokens = maxTokens ?? 1024
-    // KV cache dynamic quantization - FP16 -> INT4/INT8 after N tokens
     if let config = kvCacheQuant, config.enabled, let bits = config.bits {
         params.kvBits = bits
         params.kvGroupSize = config.groupSize
         params.quantizedKVStart = config.quantizedKVStart
     }
-    // Sampling config
     if let temp = sampling.temperature, temp > 0 {
         params.temperature = Float(temp)
     }
@@ -327,26 +258,19 @@ nonisolated func makeGenerateParameters(
     return params
 }
 
-// MARK: - MLX Chat Message helpers
+// MARK: - Message Conversion
 
-/// Convert internal ``Message`` (ocoreai type) to ``Chat.Message`` (mlx-swift-lm).
-///
-/// ocoreai ``Message`` has `role` + `content` (text or parts).
-/// mlx-swift-lm uses ``Chat.Message`` with strong typing for role + rich content.
+/// Convert internal `Message` (ocoreai type) to `Chat.Message` (mlx-swift-lm).
 nonisolated func toMLXChatMessage(_ msg: Message) -> Chat.Message {
+    let text = toMessageText(msg)
     switch msg.role {
-    case "system":
-        return Chat.Message.system(toMessageText(msg))
-    case "assistant":
-        return Chat.Message.assistant(toMessageText(msg))
-    case "tool":
-        return Chat.Message.tool(toMessageText(msg))
-    default:
-        return Chat.Message.user(toMessageText(msg))
+    case "system":    return Chat.Message.system(text)
+    case "assistant": return Chat.Message.assistant(text)
+    case "tool":      return Chat.Message.tool(text)
+    default:          return Chat.Message.user(text)
     }
 }
 
-/// Extract text content from a message, flattening parts if needed.
 nonisolated private func toMessageText(_ msg: Message) -> String {
     switch msg.content {
     case .some(.text(let s)): return s
@@ -356,7 +280,7 @@ nonisolated private func toMessageText(_ msg: Message) -> String {
     }
 }
 
-// MARK: - Error types for MLX loading
+// MARK: - Errors
 
 enum MLXLoadError: LocalizedError {
     case localLoadFailed(path: String, error: String)
@@ -376,5 +300,3 @@ enum MLXLoadError: LocalizedError {
 }
 
 #endif // mlx
-
-#endif // outer mlx
