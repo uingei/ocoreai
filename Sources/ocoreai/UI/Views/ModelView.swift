@@ -18,7 +18,7 @@ struct ModelView: View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 24) {
 				SectionHeader(StringKey.tabModels.l, subtitle: StringKey.loadingModels.l) {
-					Button("≡ Refresh") {
+					Button(StringKey.refreshButton.l) {
 						Task { await modelsState.fetchModels() }
 					}
 					.ocoreaiButton(.normal, size: .small)

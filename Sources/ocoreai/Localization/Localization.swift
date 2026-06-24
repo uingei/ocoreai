@@ -287,6 +287,8 @@ public enum StringKey: String, CaseIterable {
 	case defaultModel = "Model.Default"
 	case noModelSelected = "Model.NoModelSelected"
 	case clear = "Chat.Clear"
+	// — Refresh —
+	case refreshButton = "Action.Refresh"
 }
 
 // MARK: - Translation Table (per locale)
@@ -518,6 +520,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.defaultModel: "default",
 		.noModelSelected: "No Model",
 		.clear: "Clear",
+		.refreshButton: "Refresh",
 		]
 
 	// Translation overrides per locale
@@ -715,6 +718,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.defaultModel: "默认",
 		.noModelSelected: "未选择模型",
 		.clear: "清空",
+		.refreshButton: "刷新",
 		]
 
 	// Add more locale tables here as needed (ja, ko, fr, es...)

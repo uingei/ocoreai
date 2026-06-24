@@ -69,10 +69,10 @@ struct ChatView: View {
 						Button(m) { currentModel = m }
 					}
 					Divider()
-					Button("default") { currentModel = "" }
+					Button(StringKey.defaultModel.l) { currentModel = "" }
 				} label: {
 					Label(
-						currentModel.isEmpty ? "No Model" : currentModel,
+						currentModel.isEmpty ? StringKey.noModelSelected.l : currentModel,
 						systemImage: "brain"
 					)
 				}
@@ -350,7 +350,7 @@ struct ChatHeader: View {
 
 	var body: some View {
 		HStack(spacing: 6) {
-			Text(isUser ? "You" : "ocoreai")
+			Text(isUser ? StringKey.youLabel.l : StringKey.ocoreaiLabel.l)
 				.font(.ocoreaiText(11, weight: .medium))
 				.foregroundStyle(theme.textSecondary)
 
