@@ -4,7 +4,7 @@
 ///
 /// @Observable pattern (Swift 5.9+): property-level change tracking.
 /// Fast Path: SwiftUI → DirectInferenceClient → EnginePool (zero HTTP).
-/// APIClient retained only as Opt-in fallback for external Agent access.
+/// Single source of truth for engine readiness: OcoreaiEngine.shared.engineReady.
 
 import Foundation
 import SwiftUI
@@ -33,52 +33,16 @@ final class ChatState: Observable {
     var responseText: String = ""
     var error: Error?
     var loading: Bool = false
-    var connected: Bool = false
-    var engineReady: Bool = false
     
-    private var healthTask: Task<Void, Never>?
+    // Single source of truth — no separate health polling task
+    var connected: Bool { OcoreaiEngine.shared.engineReady }
+    var engineReady: Bool { OcoreaiEngine.shared.engineReady }
     
     // MARK: - Lifecycle
     
-    /// Start health monitoring — Fast Path polls OcoreaiEngine directly.
-    ///
-    /// No more HTTP polling — we check whether the engine pool, scheduler,
-    /// and message builder are all wired up.
-    func start() {
-        healthTask = Task { [weak self] in
-            guard let self else { return }
-            while !Task.isCancelled {
-                let isReady = Self.checkEngineReady()
-                if self.engineReady != isReady {
-                    self.engineReady = isReady
-                    self.connected = isReady  // alias for backward compat
-                }
-                if !isReady {
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                } else {
-                    try? await Task.sleep(nanoseconds: 5_000_000_000)
-                }
-            }
-        }
-    }
-    
-    /// Stop health polling
-    func stop() {
-        healthTask?.cancel()
-        healthTask = nil
-    }
-    
-    deinit {
-        healthTask?.cancel()
-    }
-    
-    /// Check if the inference engine is ready (all components wired up)
-    private static func checkEngineReady() -> Bool {
-        let engine = OcoreaiEngine.shared
-        return engine.activeEnginePool != nil
-            && engine.activeScheduler != nil
-            && engine.activeMessageBuilder != nil
-    }
+    /// No-op: engine readiness is now a computed property from OcoreaiEngine.shared.
+    func start() {}
+    func stop() {}
     
     // MARK: - Chat (Fast Path)
     
