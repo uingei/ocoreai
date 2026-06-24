@@ -6,7 +6,9 @@
 /// no @Published needed. Observers auto-track mutations.
 
 import Foundation
+import Observation
 
+@Observable
 @MainActor
 final class AppState: Observable {
     static let shared = AppState()
