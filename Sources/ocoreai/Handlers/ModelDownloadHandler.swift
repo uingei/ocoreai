@@ -123,7 +123,10 @@ private func downloadFromHF(
     logger: Logger,
     emit: @Sendable @escaping (DownloadSSEEvent) -> Void
 ) async throws -> String {
-    let downloader = HuggingFaceDownloader(token: hfToken)
+    // Native MLX path: #hubDownloader() gives built-in cache, resume, progress.
+    // Auth is auto-detected by HubClient from HF_TOKEN env var / filesystem —
+    // no need to wire token through handler.
+    let downloader = #hubDownloader()
     logger.info("Downloading from HuggingFace", metadata: ["model": .string(modelId)])
 
     let result: URL

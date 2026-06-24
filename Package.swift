@@ -26,7 +26,10 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if coreai` guards
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "d1d9a09aee6acb82dc7241d2738f7099935913c0"),
+        // MLX 推理框架 — 更新到最新 (40c2ff0: Gemma4 VLM PTQ + KV-shared layers fix)
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "40c2ff0"),
+        // HuggingFace Hub SDK + Tokenizers — 原生搜索、下载、tokenizer 加载
+        .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.8.1"),
         // NOTE: swift-testing 0.x requires swift-syntax 600.x, incompatible with
         //       MLX's swift-syntax 602-604 requirement. Testing tests are guarded
         //       with #if canImport(Testing) so main target builds regardless.
@@ -40,10 +43,13 @@ let package = Package(
                 .product(name: "Atomics", package: "swift-atomics"),
                 .product(name: "Yams", package: "yams"),
                 .product(name: "MLXLLM", package: "mlx-swift-lm"),
+                .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
+                .product(name: "HuggingFace", package: "swift-huggingface"),
             ],
-            resources: [
-                .process("PrivacyInfo.xcprivacy"),
-            ],
+            // NOTE: PrivacyInfo.xcprivacy resource removed — file does not exist yet.
+            //            resources: [
+            //                .process("PrivacyInfo.xcprivacy"),
+            //            ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .unsafeFlags(["-warnings-as-errors"])
@@ -52,15 +58,7 @@ let package = Package(
                 .linkedLibrary("sqlite3"),
             ],
         ),
-        .testTarget(
-            name: "ocoreaiTests",
-            dependencies: [
-                .target(name: "ocoreai"),
-            ],
-            swiftSettings: [
-                .swiftLanguageMode(.v6),
-                .unsafeFlags(["-warnings-as-errors"])
-            ]
-        ),
+        // NOTE: testTarget temporarily removed — Tests/ directory is empty.
+        //        Add back when test files land in Tests/ocoreaiTests/.
     ]
 )

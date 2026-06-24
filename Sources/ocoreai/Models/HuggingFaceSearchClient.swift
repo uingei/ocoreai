@@ -3,7 +3,7 @@
 /// HuggingFaceSearchClient.swift — Browse and search models on HuggingFace Hub
 ///
 /// Calls the HF Hub API (/api/models) to discover MLX-compat models.
-/// Does not initiate downloads — that is the job of ``HuggingFaceDownloader``.
+/// Download is handled by #hubDownloader() native macro (MLXHuggingFace).
 
 import Foundation
 

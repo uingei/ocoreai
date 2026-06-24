@@ -28,46 +28,12 @@ import Logging
 import MLXLLM
 import MLXLMCommon
 
-// MARK: - Local Tokenizer Loader
+// MARK: - HuggingFace Integration
 
-/// Minimal ``MLXLMCommon.TokenizerLoader`` that creates a GPT-style BPE tokenizer
-/// from a local model directory. Used by ``LLMModelFactory`` under the `mlx` trait.
-struct LocalTokenizerLoader: MLXLMCommon.TokenizerLoader, Sendable {
-    func load(from directory: URL) async throws -> any MLXLMCommon.Tokenizer {
-        LocalTokenizer(directory: directory)
-    }
-}
-
-/// Minimal ``MLXLMCommon.Tokenizer`` that throws if accidentally invoked.
-///
-/// Under `mlx` trait, ``LLMModelFactory`` loads the real tokenizer from model files.
-/// This satisfies the protocol but fails fast if any code path calls it directly.
-private struct LocalTokenizer: MLXLMCommon.Tokenizer, Sendable {
-    init(directory: URL) {}
-
-    func encode(text: String, addSpecialTokens: Bool) -> [Int] {
-        fatalError("LocalTokenizer should not be called — MLX loads tokenizer from model files under mlx trait")
-    }
-
-    func decode(tokenIds: [Int], skipSpecialTokens: Bool) -> String {
-        fatalError("LocalTokenizer should not be called — MLX loads tokenizer from model files under mlx trait")
-    }
-
-    func convertTokenToId(_ token: String) -> Int? { nil }
-    func convertIdToToken(_ id: Int) -> String? { nil }
-
-    var bosToken: String? { "<|begin_of_text|>" }
-    var eosToken: String? { "<|end_of_text|>" }
-    var unknownToken: String? { "<unk>" }
-
-    func applyChatTemplate(
-        messages: [[String: any Sendable]],
-        tools: [[String: any Sendable]]?,
-        additionalContext: [String: any Sendable]?
-    ) throws -> [Int] {
-        fatalError("LocalTokenizer should not be called — MLX loads tokenizer from model files under mlx trait")
-    }
-}
+/// Import MLXHuggingFace for native #hubDownloader() and #huggingFaceTokenizerLoader() macros.
+/// Also import HuggingFace for HubClient (model search via HubClient.listModels).
+import MLXHuggingFace
+import HuggingFace
 
 // MARK: - MLX Model Handle
 
@@ -201,7 +167,7 @@ actor MLXModelLoader {
             let factory = LLMModelFactory.shared
             return try await factory.loadContainer(
                 from: directory,
-                using: LocalTokenizerLoader()
+                using: #huggingFaceTokenizerLoader()
             )
         } catch {
             logger.error("Local load failed for \(modelId): \(error.localizedDescription)")
@@ -239,33 +205,44 @@ actor MLXModelLoader {
         repoId: String,
         modelId: String
     ) async throws -> MLXLMCommon.ModelContainer {
-        let downloader: MLXLMCommon.Downloader
+        let start = ContinuousClock.now
+
         switch provider {
         case .modelScope:
             logger.info("Downloading from ModelScope: \(repoId)")
-            downloader = ModelScopeDownloader()
+            let msDownloader = ModelScopeDownloader()
+            let directory = try await msDownloader.download(
+                id: repoId, revision: nil, matching: [], useLatest: false,
+                progressHandler: { _ in }
+            )
+            let elapsed = ContinuousClock.now.duration(to: start)
+            let ms = Double(elapsed.components.seconds) * 1000.0
+                + Double(elapsed.components.attoseconds) / 1e15
+            logger.info("ModelScope download \(repoId) completed in \(String(format: "%.0fms", ms))")
+            return try await LLMModelFactory.shared.loadContainer(
+                from: directory,
+                using: #huggingFaceTokenizerLoader()
+            )
+
         case .huggingFace:
             logger.info("Downloading from HuggingFace: \(repoId)")
-            downloader = HuggingFaceDownloader(token: hfToken)
+            // Native MLX path: #hubDownloader() gives us native HF download
+            // with built-in cache, resume, and progress — zero handwritten code.
+            // Auth is auto-detected by HubClient from HF_TOKEN env var / filesystem.
+            let downloader = #hubDownloader()
+            let directory = try await downloader.download(
+                id: repoId, revision: nil, matching: [], useLatest: false,
+                progressHandler: { _ in }
+            )
+            let elapsed = ContinuousClock.now.duration(to: start)
+            let ms = Double(elapsed.components.seconds) * 1000.0
+                + Double(elapsed.components.attoseconds) / 1e15
+            logger.info("HuggingFace download \(repoId) completed in \(String(format: "%.0fms", ms))")
+            return try await LLMModelFactory.shared.loadContainer(
+                from: directory,
+                using: #huggingFaceTokenizerLoader()
+            )
         }
-        let start = ContinuousClock.now
-        let directory = try await downloader.download(
-            id: repoId,
-            revision: nil,
-            matching: [],
-            useLatest: false,
-            progressHandler: { _ in }
-        )
-        let factory = LLMModelFactory.shared
-        let container = try await factory.loadContainer(
-            from: directory,
-            using: LocalTokenizerLoader()
-        )
-        let elapsed = ContinuousClock.now.duration(to: start)
-        let ms = Double(elapsed.components.seconds) * 1000.0
-            + Double(elapsed.components.attoseconds) / 1e15
-        logger.info("Hub download \(repoId) completed in \(String(format: "%.0fms", ms))")
-        return container
     }
 
     // MARK: - Model Source Parsing
