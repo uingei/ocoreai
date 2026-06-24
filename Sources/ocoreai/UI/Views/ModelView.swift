@@ -86,12 +86,12 @@ private struct LiveModelCard: View {
 					.font(.ocoreaiText(15))
 					.fontWeight(.semibold)
 				if model.maxContext > 0 {
-					Text("Context: \(model.maxContext)")
+					Text(StringKey.modelInfoContext.l + ": \(model.maxContext)")
 						.font(.ocoreaiText(11))
 						.foregroundStyle(theme.textSecondary)
 				}
 				if !model.tokenizer.isEmpty {
-					Text("Tokenizer: \(model.tokenizer)")
+					Text(StringKey.modelInfoTokenizer.l + ": \(model.tokenizer)")
 						.font(.ocoreaiText(11))
 						.foregroundStyle(theme.textTertiary)
 				}

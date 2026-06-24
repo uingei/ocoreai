@@ -270,6 +270,14 @@ public enum StringKey: String, CaseIterable {
 	case a11yStatus = "A11y.Status"
 	case a11yModel = "A11y.Model"
 
+	// — Settings / About —
+	case aboutTitle = "About.Title"
+	case aboutVersion = "About.Version"
+
+	// — Model Info —
+	case modelInfoContext = "ModelInfo.Context"
+	case modelInfoTokenizer = "ModelInfo.Tokenizer"
+
 	// — Chart Axis Labels (macOS Charts) —
 	case chartTime = "Chart.Time"
 	case chartTokPerSec = "Chart.TokPerSec"
@@ -493,6 +501,14 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.a11yStatus: "Status",
 		.a11yModel: "Model",
 
+		// Settings / About
+		.aboutTitle: "ocoreai",
+		.aboutVersion: "v1.0.0 · macOS 15+ / iOS 17+",
+
+		// Model info
+		.modelInfoContext: "Context",
+		.modelInfoTokenizer: "Tokenizer",
+
 		// Chart axis labels
 		.chartTime: "Time",
 		.chartTokPerSec: "tok/s",
@@ -681,6 +697,14 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		// A11y templates
 		.a11yStatus: "状态",
 		.a11yModel: "模型",
+
+		// Settings / About
+		.aboutTitle: "ocoreai",
+		.aboutVersion: "v1.0.0 · macOS 15+ / iOS 17+",
+
+		// Model info
+		.modelInfoContext: "上下文",
+		.modelInfoTokenizer: "分词器",
 
 		// Chart
 		.chartTime: "时间",
