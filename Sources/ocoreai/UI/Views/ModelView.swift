@@ -8,6 +8,8 @@ import SwiftUI
 
 struct ModelView: View {
 	@State private var modelsState: ModelsState
+	@State private var showParamsSheet = false
+	@State private var editingModelId: String = ""
 	@Environment(\.ocoreaiTheme) private var theme
 
 	init() {
@@ -33,7 +35,10 @@ struct ModelView: View {
 				} else if let models = modelsState.state.data {
 					LazyVStack(spacing: 8) {
 						ForEach(models, id: \.id) { model in
-							LiveModelCard(model: model)
+							LiveModelCard(model: model) {
+								editingModelId = model.id
+								showParamsSheet = true
+							}
 						}
 					}
 				}
@@ -44,6 +49,9 @@ struct ModelView: View {
 		.background(theme.windowBg)
 		.task {
 			await modelsState.fetchModels()
+		}
+		.sheet(isPresented: $showParamsSheet) {
+			ModelParamsView(modelId: editingModelId)
 		}
 		.accessibilityLabel(StringKey.tabModels.l)
 	}
@@ -67,9 +75,19 @@ struct ModelView: View {
 
 private struct LiveModelCard: View {
 	let model: ModelID
+	let onTap: () -> Void
 	@Environment(\.ocoreaiTheme) private var theme
 
 	var body: some View {
+		Button { onTap() } label: {
+			cardContent
+		}
+		.buttonStyle(.plain)
+		.accessibilityLabel(StringKey.modelViewTapToEdit.l)
+	}
+
+	@ViewBuilder
+	private var cardContent: some View {
 		HStack(spacing: 12) {
 			ZStack {
 				Circle()
@@ -86,12 +104,12 @@ private struct LiveModelCard: View {
 					.font(.ocoreaiText(15))
 					.fontWeight(.semibold)
 				if model.maxContext > 0 {
-					Text(StringKey.modelInfoContext.l + ": \(model.maxContext)")
+					Text("\(StringKey.modelInfoContext.l): \(model.maxContext)")
 						.font(.ocoreaiText(11))
 						.foregroundStyle(theme.textSecondary)
 				}
 				if !model.tokenizer.isEmpty {
-					Text(StringKey.modelInfoTokenizer.l + ": \(model.tokenizer)")
+					Text("\(StringKey.modelInfoTokenizer.l): \(model.tokenizer)")
 						.font(.ocoreaiText(11))
 						.foregroundStyle(theme.textTertiary)
 				}
@@ -99,9 +117,25 @@ private struct LiveModelCard: View {
 
 			Spacer()
 
+			// Params indicator dot — shows when model has custom params
+			if model.paramsCustomized {
+				Image(systemName: "slider.horizontal.3")
+					.font(.ocoreaiText(11))
+					.foregroundStyle(theme.accent)
+					.accessibilityLabel(StringKey.modelParamTemperature.l)
+					.accessibilityHidden(true)
+			}
+
 			StatusPill(status: .running, compact: false)
 				.accessibilityLabel(StringKey.modelRunningLabel.l)
+
+			// Gear icon hint
+			Image(systemName: "gearshape")
+				.font(.ocoreaiText(12))
+				.foregroundStyle(theme.textTertiary)
+				.accessibilityHidden(true)
 		}
+		.padding(8)
 		.modifier(theme.cardStyle())
 		.accessibilityLabel("\(StringKey.a11yModel.l): \(model.id)")
 		.accessibilityAddTraits(.isStaticText)

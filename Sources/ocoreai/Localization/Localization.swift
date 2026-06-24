@@ -295,6 +295,25 @@ public enum StringKey: String, CaseIterable {
 	case copyMessage = "Action.CopyMessage"
 	// — Undo —
 	case undoAction = "Action.Undo"
+
+	// — Per-model Inference Params —
+	case modelParamsTitle = "Models.ParamsTitle"
+	case modelParamTemperature = "Models.ParamTemperature"
+	case modelParamTemperatureHint = "Models.ParamTemperatureHint"
+	case modelParamTopP = "Models.ParamTopP"
+	case modelParamTopPHint = "Models.ParamTopPHint"
+	case modelParamTopK = "Models.ParamTopK"
+	case modelParamTopKHint = "Models.ParamTopKHint"
+	case modelParamMaxTokens = "Models.ParamMaxTokens"
+	case modelParamMaxTokensHint = "Models.ParamMaxTokensHint"
+	case modelParamRepeatPenalty = "Models.ParamRepeatPenalty"
+	case modelParamRepeatPenaltyHint = "Models.ParamRepeatPenaltyHint"
+	case modelParamFrequencyPenalty = "Models.ParamFrequencyPenalty"
+	case modelParamPresencePenalty = "Models.ParamPresencePenalty"
+	case modelParamSave = "Models.ParamSave"
+	case modelParamReset = "Models.ParamReset"
+	case modelParamDefaults = "Models.ParamDefaults"
+	case modelViewTapToEdit = "Models.TapToEdit"
 }
 
 // MARK: - Translation Table (per locale)
@@ -522,6 +541,25 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.chartTokPerSec: "tok/s",
 		.chartGB: "GB",
 
+		// Per-model inference params
+		.modelParamsTitle: "Inference Parameters",
+		.modelParamTemperature: "Temperature",
+		.modelParamTemperatureHint: "Controls randomness (0.0–2.0)",
+		.modelParamTopP: "Top P",
+		.modelParamTopPHint: "Nucleus sampling threshold",
+		.modelParamTopK: "Top K",
+		.modelParamTopKHint: "Keep K most likely tokens",
+		.modelParamMaxTokens: "Max Tokens",
+		.modelParamMaxTokensHint: "Maximum output tokens",
+		.modelParamRepeatPenalty: "Repeat Penalty",
+		.modelParamRepeatPenaltyHint: "Penalty for repeated tokens",
+		.modelParamFrequencyPenalty: "Frequency Penalty",
+		.modelParamPresencePenalty: "Presence Penalty",
+		.modelParamSave: "Save",
+		.modelParamReset: "Reset to Defaults",
+		.modelParamDefaults: "Defaults",
+		.modelViewTapToEdit: "Tap to edit parameters",
+
 		// Models
 		.defaultModel: "default",
 		.noModelSelected: "No Model",
@@ -731,7 +769,26 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.tryAgain: "重试",
 		.copyMessage: "复制消息",
 		.undoAction: "撤销",
-		]
+
+		// Per-model inference params
+		.modelParamsTitle: "推理参数",
+		.modelParamTemperature: "温度",
+		.modelParamTemperatureHint: "控制随机性 (0.0–2.0)",
+		.modelParamTopP: "Top P",
+		.modelParamTopPHint: "核采样阈值",
+		.modelParamTopK: "Top K",
+		.modelParamTopKHint: "保留 K 个最可能的 token",
+		.modelParamMaxTokens: "最大 Token 数",
+		.modelParamMaxTokensHint: "最大输出 token 数",
+		.modelParamRepeatPenalty: "重复惩罚",
+		.modelParamRepeatPenaltyHint: "重复 token 的惩罚系数",
+		.modelParamFrequencyPenalty: "频率惩罚",
+		.modelParamPresencePenalty: "存在惩罚",
+		.modelParamSave: "保存",
+		.modelParamReset: "恢复默认",
+		.modelParamDefaults: "默认值",
+		.modelViewTapToEdit: "点击编辑参数",
+	]
 
 	// Add more locale tables here as needed (ja, ko, fr, es...)
 

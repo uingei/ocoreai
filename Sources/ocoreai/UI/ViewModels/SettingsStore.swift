@@ -108,6 +108,44 @@ final class SettingsStore {
         defaults.synchronize()
     }
 
+    // MARK: - Per-Model Sampling Config
+
+    /// Key prefix for per-model configs in UserDefaults
+    private func modelParamKey(_ modelId: String) -> String {
+        "settings.model.params.\(modelId)"
+    }
+
+    /// Save sampling config for a model.
+    /// The config is serialized to JSON in UserDefaults under the model's ID key.
+    func saveSamplingConfig(_ config: ModelSamplingConfig, for modelId: String) async {
+        let pool = OcoreaiEngine.shared.activeEnginePool
+        let encoder = JSONEncoder()
+        guard let data = try? encoder.encode(config) else { return }
+        defaults.set(data, forKey: modelParamKey(modelId))
+        if let pool {
+            await pool.updateSamplingConfig(modelId: modelId, config: config)
+        }
+    }
+
+    /// Load persisted sampling config for a model, or default.
+    func loadSamplingConfig(for modelId: String) -> ModelSamplingConfig {
+        let key = modelParamKey(modelId)
+        guard let data = defaults.object(forKey: key) as? Data else {
+            return .default
+        }
+        let decoder = JSONDecoder()
+        return (try? decoder.decode(ModelSamplingConfig.self, from: data)) ?? .default
+    }
+
+    /// Reset a model's sampling config to defaults.
+    func resetSamplingConfig(for modelId: String) async {
+        defaults.removeObject(forKey: modelParamKey(modelId))
+        let pool = OcoreaiEngine.shared.activeEnginePool
+        if let pool {
+            await pool.resetSamplingConfig(modelId: modelId)
+        }
+    }
+
     // MARK: - UserDefaults Keys (type-safe)
 
     enum Key: String, CaseIterable {

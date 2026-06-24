@@ -12,13 +12,15 @@ struct ModelID: Identifiable, Hashable, Sendable {
     let id: String
     let maxContext: Int
     let tokenizer: String
-    
-    init(id: String, maxContext: Int = 0, tokenizer: String = "") {
+    var paramsCustomized: Bool = false  /// Whether this model has non-default sampling params
+
+    init(id: String, maxContext: Int = 0, tokenizer: String = "", paramsCustomized: Bool = false) {
         self.id = id
         self.maxContext = maxContext
         self.tokenizer = tokenizer
+        self.paramsCustomized = paramsCustomized
     }
-    
+
     static func fromListModels(_ entry: [String: String]) -> ModelID {
         ModelID(
             id: entry["id"] ?? "unknown",
@@ -32,7 +34,7 @@ struct ModelID: Identifiable, Hashable, Sendable {
 @MainActor
 final class ModelsState {
     var state: ViewState<[ModelID]> = .idle
-    
+
     private var enginePool: EnginePool?
 
     func fetchModels() async {
@@ -42,7 +44,19 @@ final class ModelsState {
             return
         }
         let entries = await pool.listModels()
-        let models = entries.map { ModelID.fromListModels($0) }
+        // Hot-swap persisted sampling configs into engine pool
+        let store = SettingsStore.shared
+        var models: [ModelID] = []
+        for entry in entries {
+            let model = ModelID.fromListModels(entry)
+            let config = store.loadSamplingConfig(for: model.id)
+            // Write to engine pool runtime store
+            await pool.updateSamplingConfig(modelId: model.id, config: config)
+            // Mark if params are non-default
+            var info = model
+            info.paramsCustomized = !config.isDefault
+            models.append(info)
+        }
         state = .success(models)
     }
 }

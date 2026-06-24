@@ -576,6 +576,12 @@ struct ModelSamplingConfig: Sendable, Codable {
     /// System default configuration
     static let `default`: ModelSamplingConfig = .init()
 
+    /// Test whether this config is all-defaults (useful to mark "customized" state)
+    var isDefault: Bool {
+        temperature == 0.7 && topP == nil && topK == nil && maxTokens == nil
+            && frequencyPenalty == 0 && presencePenalty == 0 && responseFormat == nil
+    }
+
     // MARK: - Snake-Case Key Mapping (OpenAI API compat for PATCH)
 
     enum CodingKeys: String, CodingKey {
