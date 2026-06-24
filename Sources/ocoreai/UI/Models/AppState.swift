@@ -131,7 +131,7 @@ final class AppState {
 // MARK: - Tab enum with sidebar grouping
 
 enum AppTab: String, CaseIterable, Identifiable, Sendable {
-    case dashboard, chat, models, settings, status
+    case dashboard, chat, models, sessions, skills, system, settings, status
 
     var id: String { rawValue }
 
@@ -142,6 +142,9 @@ enum AppTab: String, CaseIterable, Identifiable, Sendable {
         case .models:    return StringKey.tabModels.l
         case .settings:  return StringKey.tabSettings.l
         case .status:    return StringKey.tabStatus.l
+        case .sessions:  return StringKey.tabSessions.l
+        case .skills:    return StringKey.tabSkills.l
+        case .system:    return StringKey.tabSystem.l
         }
     }
 
@@ -152,11 +155,14 @@ enum AppTab: String, CaseIterable, Identifiable, Sendable {
         case .models:    return "brain.head.profile"
         case .settings:  return "gear"
         case .status:    return "info.circle"
+        case .sessions:  return "text.page"
+        case .skills:    return "wrench.and.screwdriver"
+        case .system:    return "server.rack"
         }
     }
 
     // Sidebar section groups (omlx pattern)
     static var serverGroup: [AppTab] { [.dashboard, .chat] }
     static var modelGroup:  [AppTab] { [.models] }
-    static var generalGroup: [AppTab] { [.settings, .status] }
+    static var generalGroup: [AppTab] { [.sessions, .skills, .system, .settings, .status] }
 }

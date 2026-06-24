@@ -564,6 +564,24 @@ actor MCPBridge {
         }
     }
 
+    /// Sendable endpoint summary for cross-actor use.
+    struct MCPEndpointSummaryItem: Codable, Sendable, Identifiable {
+        var id: String { name }
+        let name: String
+        let command: String
+        let status: String
+    }
+
+    func listEndpointSummaries() -> [MCPEndpointSummaryItem] {
+        endpointHandles.values.map { handle in
+            MCPEndpointSummaryItem(
+                name: handle.endpoint.name,
+                command: handle.endpoint.stdioCommand,
+                status: handle.status.rawValue
+            )
+        }
+    }
+
     // MARK: - 缓存
 
     /// 清空缓存。

@@ -62,12 +62,36 @@ public final class OcoreaiEngine {
     /// Direct accessor to the metrics registry — SwiftUI reads real-time metrics.
     var activeMetrics: MetricsRegistry? { metrics }
     
+    /// Direct accessor to skill registry — SwiftUI can list/add/remove skills.
+    var activeSkillRegistry: SkillRegistry? { _skillRegistry }
+    
+    /// Direct accessor to MCP bridge — SwiftUI can inspect external MCP servers.
+    var activeMCPBridge: MCPBridge? { _mcpBridge }
+    
+    /// Direct accessor to tool registry — SwiftUI can list registered tools.
+    var activeToolRegistry: ToolRegistry? { _toolRegistry }
+    
+    /// Direct accessor to audit trail — SwiftUI can browse tool call history.
+    var activeAuditTrail: AuditTrail? { _auditTrail }
+    
+    /// Direct accessor to complexity analyzer — SwiftUI can show reasoning depth.
+    var activeComplexityAnalyzer: ComplexityAnalyzer? { _complexityAnalyzer }
+    
+    /// Direct accessor to thinking budget — SwiftUI can show thinking token status.
+    var activeThinkingBudget: ThinkingBudget? { _thinkingBudget }
+    
     private(set) var enginePool: EnginePool?
     private var _sessionCompressor: SessionCompressor?
     private var _systemPromptBuilder: SystemPromptBuilder?
     private var _messageBuilder: MessageBuilder?
     private(set) var metrics: MetricsRegistry?
     private(set) var scheduler: SchedulerActor?
+    private var _skillRegistry: SkillRegistry?
+    private var _mcpBridge: MCPBridge?
+    private var _toolRegistry: ToolRegistry?
+    private var _auditTrail: AuditTrail?
+    private var _complexityAnalyzer: ComplexityAnalyzer?
+    private var _thinkingBudget: ThinkingBudget?
     
     private let logger: Logger
     
@@ -130,12 +154,12 @@ public final class OcoreaiEngine {
         
         let fts5Search = FTS5Search(store: store)
         
-        let skillRegistry = SkillRegistry(log: logger)
+        _skillRegistry = SkillRegistry(log: logger)
         _systemPromptBuilder = SystemPromptBuilder(
             basePrompt: "You are oCoreAI, an intelligent assistant running on macOS."
         )
         do {
-            try await skillRegistry.bootstrap(
+            try await _skillRegistry?.bootstrap(
                 skillsDir: nil,
                 systemPromptBuilder: _systemPromptBuilder!
             )
@@ -144,14 +168,17 @@ public final class OcoreaiEngine {
             logger.warning("SkillRegistry bootstrap failed: \(error)")
         }
         
-        let auditTrail = AuditTrail()
-        let toolRegistry = ToolRegistry(auditTrail: auditTrail)
+        _auditTrail = AuditTrail()
+        _toolRegistry = ToolRegistry(auditTrail: _auditTrail!)
         
         // Bootstrap built-in tools (info, skills_list, skills_lookup, echo)
-        await bootstrapBuiltInTools(registry: toolRegistry, skillRegistry: skillRegistry)
+        await bootstrapBuiltInTools(
+            registry: _toolRegistry!,
+            skillRegistry: _skillRegistry!
+        )
         let mcpTransport = MCPStdioTransport(log: logger)
-        let mcpBridge = MCPBridge(
-            toolRegistry: toolRegistry,
+        _mcpBridge = MCPBridge(
+            toolRegistry: _toolRegistry!,
             transport: mcpTransport
         )
         
@@ -183,16 +210,16 @@ public final class OcoreaiEngine {
             fts: fts5Search
         )
         
-        // MARK: - Complexity + Thinking Budget (for MessageBuilder)
-        let complexityAnalyzer = ComplexityAnalyzer()
-        let thinkingBudget = ThinkingBudget()
+        // MARK: - Complexity + Thinking Budget (for Fast Path + Bridge Path)
+        _complexityAnalyzer = ComplexityAnalyzer()
+        _thinkingBudget = ThinkingBudget()
         
         // MARK: - MessageBuilder (shared by Fast Path + Bridge Path)
         _messageBuilder = MessageBuilder(
             systemPromptBuilder: _systemPromptBuilder!,
             sessionCompressor: _sessionCompressor!,
-            complexityAnalyzer: complexityAnalyzer,
-            thinkingBudget: thinkingBudget
+            complexityAnalyzer: _complexityAnalyzer!,
+            thinkingBudget: _thinkingBudget!
         )
         
         metrics = MetricsRegistry()
@@ -208,24 +235,19 @@ public final class OcoreaiEngine {
         logger.info("App Store build — Bridge Path (HTTP) disabled")
         #else
         logger.info("Development build — Bridge Path (HTTP) enabled")
-        startHTTPServer(
-            mcpBridge: mcpBridge,
-            auditTrail: auditTrail,
-            toolRegistry: toolRegistry
-        )
+        startHTTPServer()
         #endif
     }
     
     // MARK: - HTTP Server (Bridge Path, optional)
     
-    private func startHTTPServer(
-        mcpBridge: MCPBridge,
-        auditTrail: AuditTrail,
-        toolRegistry: ToolRegistry
-    ) {
+    private func startHTTPServer() {
         guard let enginePool, let scheduler, let metrics,
               let sessionCompressor = _sessionCompressor,
-              let systemPromptBuilder = _systemPromptBuilder
+              let systemPromptBuilder = _systemPromptBuilder,
+              let mcpBridge = _mcpBridge,
+              let _ = _auditTrail,
+              let _ = _toolRegistry
         else { return }
         
         let rateLimitProvider = RateLimitProvider(

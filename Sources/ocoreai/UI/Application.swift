@@ -123,10 +123,13 @@ private struct TabDetailView: View {
 	private var content: some View {
 		switch appState.selectedTab {
 		case .dashboard: DashboardView()
-		case .chat:      ChatView()
-		case .models:    ModelView()
-		case .settings:  SettingsView()
-		case .status:    StatusView()
+			case .chat:      ChatView()
+			case .models:    ModelView()
+			case .sessions:  SessionView()
+			case .skills:    SkillsView()
+			case .system:    SystemView()
+			case .settings:  SettingsView()
+			case .status:    StatusView()
 		}
 	}
 

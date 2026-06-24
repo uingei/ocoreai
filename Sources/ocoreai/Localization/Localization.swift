@@ -296,6 +296,60 @@ public enum StringKey: String, CaseIterable {
 	// — Undo —
 	case undoAction = "Action.Undo"
 
+	// — Sessions —
+	case tabSessions = "Tab.Sessions"
+	case sessionSearchPlaceholder = "Session.SearchPlaceholder"
+	case sessionListEmpty = "Session.ListEmpty"
+	case sessionSelectHint = "Session.SelectHint"
+	case sessionCreate = "Session.Create"
+	case sessionDelete = "Session.Delete"
+	case sessionDeleteConfirm = "Session.DeleteConfirm"
+	case sessionSummary = "Session.Summary"
+	case sessionModel = "Session.Model"
+	case sessionCreatedAt = "Session.CreatedAt"
+	case sessionMessageCount = "Session.MessageCount"
+	case sessionTokenCount = "Session.TokenCount"
+	case memoryTitle = "Session.MemoryTitle"
+	case memoryEmpty = "Session.MemoryEmpty"
+	case memorySearchPlaceholder = "Session.MemorySearchPlaceholder"
+	
+	// — Skills —
+	case tabSkills = "Tab.Skills"
+	case skillListEmpty = "Skill.ListEmpty"
+	case skillSelectHint = "Skill.SelectHint"
+	case skillName = "Skill.Name"
+	case skillCategory = "Skill.Category"
+	case skillDescription = "Skill.Description"
+	case skillTags = "Skill.Tags"
+	case skillContentTitle = "Skill.ContentTitle"
+	case skillDependencies = "Skill.Dependencies"
+	
+	// — System —
+	case tabSystem = "Tab.System"
+	case systemMCPSection = "System.MCPSection"
+	case systemMCPEmpty = "System.MCPEmpty"
+	case systemMCPConnected = "System.MCPConnected"
+	case systemMCPDisconnected = "System.MCPDisconnected"
+	case systemMCPName = "System.MCPName"
+	case systemMCPCommand = "System.MCPCommand"
+	case systemToolsSection = "System.ToolsSection"
+	case systemToolsEmpty = "System.ToolsEmpty"
+	case systemToolName = "System.ToolName"
+	case systemToolReadOnly = "System.ToolReadOnly"
+	case systemToolDestructive = "System.ToolDestructive"
+	case systemAuditSection = "System.AuditSection"
+	case systemAuditEmpty = "System.AuditEmpty"
+	case systemAuditTool = "System.AuditTool"
+	case systemAuditCaller = "System.AuditCaller"
+	case systemAuditDuration = "System.AuditDuration"
+	case systemAuditStatus = "System.AuditStatus"
+	case systemReasoningSection = "System.ReasoningSection"
+	case systemComplexityScore = "System.ComplexityScore"
+	case systemThinkingBudget = "System.ThinkingBudget"
+	case systemRefresh = "System.Refresh"
+	case systemClearAudit = "System.ClearAudit"
+	case systemClearAuditConfirm = "System.ClearAuditConfirm"
+	
 	// — Per-model Inference Params —
 	case modelParamsTitle = "Models.ParamsTitle"
 	case modelParamTemperature = "Models.ParamTemperature"
@@ -568,7 +622,60 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.tryAgain: "Try Again",
 		.copyMessage: "Copy Message",
 		.undoAction: "Undo",
-	]
+
+		// Sessions
+		.tabSessions: "Sessions",
+		.sessionSearchPlaceholder: "Search sessions...",
+		.sessionListEmpty: "No sessions yet",
+		.sessionSelectHint: "Select a session to view details",
+		.sessionCreate: "New Session",
+		.sessionDelete: "Delete Session",
+		.sessionDeleteConfirm: "Delete this session? All messages will be lost.",
+		.sessionSummary: "Session Summary",
+		.sessionModel: "Model",
+		.sessionCreatedAt: "Started",
+		.sessionMessageCount: "Messages",
+		.sessionTokenCount: "Tokens",
+		.memoryTitle: "Memory Events",
+		.memoryEmpty: "No memory events",
+		.memorySearchPlaceholder: "Search memory...",
+
+		// Skills
+		.tabSkills: "Skills",
+		.skillListEmpty: "No skills registered",
+		.skillSelectHint: "Select a skill to view details",
+		.skillName: "Name",
+		.skillCategory: "Category",
+		.skillDescription: "Description",
+		.skillTags: "Tags",
+		.skillContentTitle: "Content",
+		.skillDependencies: "Dependencies",
+
+		// System
+		.tabSystem: "System",
+		.systemMCPSection: "MCP Servers",
+		.systemMCPEmpty: "No MCP servers connected",
+		.systemMCPConnected: "Connected",
+		.systemMCPDisconnected: "Disconnected",
+		.systemMCPName: "Server",
+		.systemMCPCommand: "Command",
+		.systemToolsSection: "Tools",
+		.systemToolsEmpty: "No tools registered",
+		.systemToolName: "Tool",
+		.systemToolReadOnly: "Read-only",
+		.systemToolDestructive: "Destructive",
+		.systemAuditSection: "Audit Trail",
+		.systemAuditEmpty: "No audit entries",
+		.systemAuditTool: "Tool",
+		.systemAuditCaller: "Caller",
+		.systemAuditDuration: "Duration",
+		.systemAuditStatus: "Status",
+		.systemReasoningSection: "Reasoning Pipeline",
+		.systemComplexityScore: "Complexity Score",
+		.systemThinkingBudget: "Thinking Budget",
+		.systemRefresh: "Refresh",
+		.systemClearAudit: "Clear Audit Log",
+		.systemClearAuditConfirm: "Clear all audit trail entries?",	]
 
 	// Translation overrides per locale
 	let zh: [StringKey: String] = [
@@ -769,6 +876,60 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.tryAgain: "重试",
 		.copyMessage: "复制消息",
 		.undoAction: "撤销",
+
+		// Sessions
+		.tabSessions: "会话",
+		.sessionSearchPlaceholder: "搜索会话...",
+		.sessionListEmpty: "暂无会话",
+		.sessionSelectHint: "选择会话查看详情",
+		.sessionCreate: "新建会话",
+		.sessionDelete: "删除会话",
+		.sessionDeleteConfirm: "确定删除此会话？所有消息将丢失。",
+		.sessionSummary: "会话摘要",
+		.sessionModel: "模型",
+		.sessionCreatedAt: "开始于",
+		.sessionMessageCount: "消息",
+		.sessionTokenCount: "Token 数",
+		.memoryTitle: "记忆事件",
+		.memoryEmpty: "暂无记忆事件",
+		.memorySearchPlaceholder: "搜索记忆...",
+
+		// Skills
+		.tabSkills: "技能",
+		.skillListEmpty: "暂无技能",
+		.skillSelectHint: "选择技能查看详情",
+		.skillName: "名称",
+		.skillCategory: "分类",
+		.skillDescription: "描述",
+		.skillTags: "标签",
+		.skillContentTitle: "内容",
+		.skillDependencies: "依赖",
+
+		// System
+		.tabSystem: "系统",
+		.systemMCPSection: "MCP 服务",
+		.systemMCPEmpty: "未连接 MCP 服务",
+		.systemMCPConnected: "已连接",
+		.systemMCPDisconnected: "未连接",
+		.systemMCPName: "服务名称",
+		.systemMCPCommand: "命令",
+		.systemToolsSection: "工具",
+		.systemToolsEmpty: "暂无工具",
+		.systemToolName: "工具",
+		.systemToolReadOnly: "只读",
+		.systemToolDestructive: "破坏性",
+		.systemAuditSection: "审计日志",
+		.systemAuditEmpty: "暂无审计记录",
+		.systemAuditTool: "工具",
+		.systemAuditCaller: "调用者",
+		.systemAuditDuration: "耗时",
+		.systemAuditStatus: "状态",
+		.systemReasoningSection: "推理管线",
+		.systemComplexityScore: "复杂度评分",
+		.systemThinkingBudget: "思考预算",
+		.systemRefresh: "刷新",
+		.systemClearAudit: "清空审计日志",
+		.systemClearAuditConfirm: "清空所有审计记录？",
 
 		// Per-model inference params
 		.modelParamsTitle: "推理参数",
