@@ -141,10 +141,10 @@ private struct TabDetailView: View {
 // MARK: - Sidebar
 
 private struct SidebarView: View {
-	private var appState: AppState { AppState.shared }
+	@Bindable private var appState = AppState.shared
 
 	var body: some View {
-		List {
+		List(selection: $appState.selectedTab) {
 			sidebarSection(icon: "server.rack", title: StringKey.sectionServer.l, tabs: AppTab.serverGroup)
 			sidebarSection(icon: "brain.head.profile", title: StringKey.sectionModels.l, tabs: AppTab.modelGroup)
 			sidebarSection(icon: "gearshape.2", title: StringKey.sectionGeneral.l, tabs: AppTab.generalGroup)
@@ -157,9 +157,7 @@ private struct SidebarView: View {
 		Section {
 			ForEach(tabs) { tab in
 				SidebarRow(tab: tab, active: appState.selectedTab == tab)
-					.onTapGesture {
-						appState.selectedTab = tab
-					}
+					.tag(tab)
 			}
 		} header: {
 			SectionHeaderLabel(icon: icon, title: title)
