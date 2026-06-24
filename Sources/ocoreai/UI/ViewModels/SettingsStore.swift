@@ -6,9 +6,11 @@
 /// reads/writes are always in sync with disk.
 
 import SwiftUI
+import Observation
 
 // MARK: - Settings Store
 
+@Observable
 @MainActor
 final class SettingsStore: Observable {
     static let shared = SettingsStore()

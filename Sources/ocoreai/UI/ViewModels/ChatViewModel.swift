@@ -8,10 +8,10 @@
 
 import Foundation
 import SwiftUI
+import Observation
 
 // MARK: - Chat Message
 
-/// Lightweight chat message — used across UI layer.
 struct ChatMessage: Identifiable, Hashable, Sendable {
     let id = UUID()
     let role: String
@@ -27,6 +27,7 @@ struct ChatMessage: Identifiable, Hashable, Sendable {
 
 // MARK: - Chat State
 
+@Observable
 @MainActor
 final class ChatState: Observable {
     var messages: [ChatMessage] = []

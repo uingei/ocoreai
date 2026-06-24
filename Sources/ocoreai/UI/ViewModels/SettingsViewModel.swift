@@ -11,21 +11,18 @@
 
 import Foundation
 import SwiftUI
+import Observation
 
+@Observable
 @MainActor
 final class SettingsState: Observable {
     // MARK: - Server Connection (persisted via SettingsStore)
 
-    private var store = SettingsStore.shared
-
     var serverHost: String {
-        get { store.serverHost }
-        set { store.serverHost = newValue }
+        didSet { SettingsStore.shared.serverHost = serverHost }
     }
-
     var serverPort: Int {
-        get { store.serverPort }
-        set { store.serverPort = newValue }
+        didSet { SettingsStore.shared.serverPort = serverPort }
     }
 
     var portField: String {
@@ -40,56 +37,40 @@ final class SettingsState: Observable {
     // MARK: - Performance Settings
 
     var pollIntervalSec: Int {
-        get { store.pollIntervalSec }
-        set { store.pollIntervalSec = newValue }
+        didSet { SettingsStore.shared.pollIntervalSec = pollIntervalSec }
     }
-
     var chartWindowSec: Int {
-        get { store.chartWindowSec }
-        set { store.chartWindowSec = newValue }
+        didSet { SettingsStore.shared.chartWindowSec = chartWindowSec }
     }
 
     // MARK: - KV Cache Settings
 
     var kvQuantizationEnabled: Bool {
-        get { store.kvQuantizationEnabled }
-        set { store.kvQuantizationEnabled = newValue }
+        didSet { SettingsStore.shared.kvQuantizationEnabled = kvQuantizationEnabled }
     }
-
     var kvQuantizationBits: Int {
-        get { store.kvQuantizationBits }
-        set { store.kvQuantizationBits = newValue }
+        didSet { SettingsStore.shared.kvQuantizationBits = kvQuantizationBits }
     }
-
     var kvCacheBudgetGB: Double {
-        get { store.kvCacheBudgetGB }
-        set { store.kvCacheBudgetGB = newValue }
+        didSet { SettingsStore.shared.kvCacheBudgetGB = kvCacheBudgetGB }
     }
 
     // MARK: - Logs & Profiling
 
     var logLevel: LogLevelRaw {
-        get { store.logLevel }
-        set { store.logLevel = newValue }
+        didSet { SettingsStore.shared.logLevel = logLevel }
     }
-
     var profileEnabled: Bool {
-        get { store.profileEnabled }
-        set { store.profileEnabled = newValue }
+        didSet { SettingsStore.shared.profileEnabled = profileEnabled }
     }
 
     // MARK: - App Preferences
 
     var appLocale: OCALocale {
-        get { store.appLocale }
-        set {
-            store.appLocale = newValue
-        }
+        didSet { SettingsStore.shared.appLocale = appLocale }
     }
-
     var appThemeMode: ThemeModeRaw {
-        get { store.appThemeMode }
-        set { store.appThemeMode = newValue }
+        didSet { SettingsStore.shared.appThemeMode = appThemeMode }
     }
 
     // MARK: - Transient UI State (not persisted)
@@ -105,15 +86,91 @@ final class SettingsState: Observable {
 
     // MARK: - Undo support
 
-    /// Snapshot of persisted settings before destructive operations (max one level).
     private var undoSettings: SettingsSnapshot?
-
-    /// Returns true if there is an undoable action available.
     var hasUndo: Bool { undoSettings != nil }
 
-    /// Lightweight snapshot of all persisted settings.
+    // MARK: - Init
+
+    init() {
+        // Load from disk — must assign default first for Swift init rules with @Observable macro
+        serverHost = SettingsStore.shared.serverHost
+        serverPort = SettingsStore.shared.serverPort
+        pollIntervalSec = SettingsStore.shared.pollIntervalSec
+        chartWindowSec = SettingsStore.shared.chartWindowSec
+        kvQuantizationEnabled = SettingsStore.shared.kvQuantizationEnabled
+        kvQuantizationBits = SettingsStore.shared.kvQuantizationBits
+        kvCacheBudgetGB = SettingsStore.shared.kvCacheBudgetGB
+        logLevel = SettingsStore.shared.logLevel
+        profileEnabled = SettingsStore.shared.profileEnabled
+        appLocale = SettingsStore.shared.appLocale
+        appThemeMode = SettingsStore.shared.appThemeMode
+    }
+
+    // MARK: - Lifecycle
+
+    /// Load settings on screen appear
+    func load() async {
+        await loadModels()
+    }
+
+    private func loadModels() async {
+        guard let pool = OcoreaiEngine.shared.activeEnginePool else {
+            modelOptions = [""]
+            return
+        }
+        let entries = await pool.listModels()
+        modelOptions = entries.map { $0["id"] ?? "unknown" }
+        if modelOptions.isEmpty { modelOptions = [""] }
+        if !modelOptions.contains(selectedModelID) {
+            selectedModelID = modelOptions.first ?? ""
+        }
+    }
+
+    /// Check connection via Fast Path (EnginePool ready)
+    func verifyConnection() async {
+        verifying = true
+        verifyMessage = nil
+        errorMessage = nil
+        let ready = OcoreaiEngine.shared.activeEnginePool != nil
+        connected = ready
+        verifyMessage = ready ? nil : "Engine not initialized"
+        verifying = false
+    }
+
+    /// Snapshot current settings, then reset all to defaults.
+    func resetToDefaults() {
+        undoSettings = SettingsSnapshot(from: self)
+        SettingsStore.shared.resetToDefaults()
+        // Reload from store
+        serverHost = SettingsStore.shared.serverHost
+        serverPort = SettingsStore.shared.serverPort
+        pollIntervalSec = SettingsStore.shared.pollIntervalSec
+        chartWindowSec = SettingsStore.shared.chartWindowSec
+        kvQuantizationEnabled = SettingsStore.shared.kvQuantizationEnabled
+        kvQuantizationBits = SettingsStore.shared.kvQuantizationBits
+        kvCacheBudgetGB = SettingsStore.shared.kvCacheBudgetGB
+        logLevel = SettingsStore.shared.logLevel
+        profileEnabled = SettingsStore.shared.profileEnabled
+        appLocale = SettingsStore.shared.appLocale
+        appThemeMode = SettingsStore.shared.appThemeMode
+        errorMessage = "Settings reset to defaults"
+        // Register undo with AppState for Cmd+Z access
+        AppState.shared.undoAction = { [weak self] in self?.undoResetToDefaults() }
+    }
+
+    /// Restore from the last snapshot if one exists.
+    func undoResetToDefaults() {
+        guard let snapshot = undoSettings else { return }
+        snapshot.apply(to: self)
+        undoSettings = nil
+    }
+}
+
+// MARK: - Settings Snapshot for undo
+
+extension SettingsState {
     @MainActor
-    private struct SettingsSnapshot {
+    struct SettingsSnapshot {
         let serverHost: String
         let serverPort: Int
         let pollIntervalSec: Int
@@ -152,57 +209,18 @@ final class SettingsState: Observable {
             state.profileEnabled = profileEnabled
             state.appLocale = appLocale
             state.appThemeMode = appThemeMode
+            // Persist to disk
+            SettingsStore.shared.serverHost = serverHost
+            SettingsStore.shared.serverPort = serverPort
+            SettingsStore.shared.pollIntervalSec = pollIntervalSec
+            SettingsStore.shared.chartWindowSec = chartWindowSec
+            SettingsStore.shared.kvQuantizationEnabled = kvQuantizationEnabled
+            SettingsStore.shared.kvQuantizationBits = kvQuantizationBits
+            SettingsStore.shared.kvCacheBudgetGB = kvCacheBudgetGB
+            SettingsStore.shared.logLevel = logLevel
+            SettingsStore.shared.profileEnabled = profileEnabled
+            SettingsStore.shared.appLocale = appLocale
+            SettingsStore.shared.appThemeMode = appThemeMode
         }
-    }
-
-    // MARK: - Internal
-
-    private var enginePool: EnginePool?
-
-    // MARK: - Lifecycle
-
-    /// Load settings on screen appear
-    func load() async {
-        await loadModels()
-    }
-
-    private func loadModels() async {
-        guard let pool = OcoreaiEngine.shared.activeEnginePool ?? enginePool else {
-            modelOptions = [""]
-            return
-        }
-        let entries = await pool.listModels()
-        modelOptions = entries.map { $0["id"] ?? "unknown" }
-        if modelOptions.isEmpty { modelOptions = [""] }
-        if !modelOptions.contains(selectedModelID) {
-            selectedModelID = modelOptions.first ?? ""
-        }
-    }
-
-    /// Check connection via Fast Path (EnginePool ready)
-    func verifyConnection() async {
-        verifying = true
-        verifyMessage = nil
-        errorMessage = nil
-        let ready = OcoreaiEngine.shared.activeEnginePool != nil
-        connected = ready
-        verifyMessage = ready ? nil : "Engine not initialized"
-        verifying = false
-    }
-
-    /// Snapshot current settings, then reset all to defaults.
-    func resetToDefaults() {
-        undoSettings = SettingsSnapshot(from: self)
-        store.resetToDefaults()
-        errorMessage = "Settings reset to defaults"
-        // Register undo with AppState for Cmd+Z access
-        AppState.shared.undoAction = { [weak self] in self?.undoResetToDefaults() }
-    }
-
-    /// Restore from the last snapshot if one exists.
-    func undoResetToDefaults() {
-        guard let snapshot = undoSettings else { return }
-        snapshot.apply(to: self)
-        undoSettings = nil
     }
 }
