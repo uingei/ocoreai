@@ -112,7 +112,7 @@ struct OcoreaiShellView: View {
 // MARK: - Detail Router
 
 private struct TabDetailView: View {
-	private var appState: AppState { AppState.shared }
+	@Bindable private var appState = AppState.shared
 
 	var body: some View {
 		content
