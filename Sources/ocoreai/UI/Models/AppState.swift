@@ -17,6 +17,18 @@ final class AppState: Observable {
     /// ScenePhase gate — true when app is active, false in background
     var isForeground: Bool = true
 
+    /// Undo slot — set by any ViewModel before a destructive op, cleared after undo
+    var undoAction: (@MainActor () -> Void)? = nil
+
+    /// Whether undo is available (for menu item enabling)
+    var hasUndo: Bool { undoAction != nil }
+
+    /// Execute undo and clear the slot
+    func performUndo() {
+        undoAction?()
+        undoAction = nil
+    }
+
     private let engine = OcoreaiEngine.shared
     private var metricsTask: Task<Void, Never>?
     

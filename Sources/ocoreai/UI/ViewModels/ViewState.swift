@@ -45,11 +45,11 @@ struct ErrorStateView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
 
-            Button("Try Again") {
+            Button(StringKey.tryAgain.l, role: .cancel) {
                 retry()
             }
             .fontWeight(.medium)
-            .foregroundStyle(.white)
+            .foregroundStyle(theme.text)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .background(theme.accent)

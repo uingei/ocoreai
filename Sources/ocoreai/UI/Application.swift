@@ -30,6 +30,11 @@ struct OcoreaiApp: App {
 		// Settings via Cmd+, — macOS standard
 		.commands {
 			CommandGroup(replacing: .newItem) {}
+			CommandGroup(replacing: .undoRedo) {
+				Button(StringKey.undoAction.l, action: { AppState.shared.performUndo() })
+					.disabled(!AppState.shared.hasUndo)
+					.keyboardShortcut("z", modifiers: .command)
+			}
 			CommandGroup(replacing: .appSettings) {
 				Button(StringKey.tabSettings.l) {
 					AppState.shared.selectedTab = .settings
@@ -51,7 +56,7 @@ struct OcoreaiApp: App {
 				Button(StringKey.tabStatus.l) {
 					AppState.shared.selectedTab = .status
 				}
-				.keyboardShortcut("5")
+				.keyboardShortcut("4")
 			}
 		}
 		#else
@@ -100,6 +105,7 @@ struct OcoreaiShellView: View {
 			appState.shutdown()
 		}
 		.accessibilityLabel(StringKey.appLabel.l)
+		.frame(minWidth: 580, minHeight: 420)
 	}
 }
 

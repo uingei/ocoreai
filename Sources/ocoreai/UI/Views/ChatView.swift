@@ -9,6 +9,7 @@
 /// Reduced Motion: all animations respect .preferredColorScheme
 
 import SwiftUI
+import AppKit
 /// Stable identity wrapper for chat messages — uses index-based id so SwiftUI
 /// does not recreate view identity on every diff.
 struct ChatBubbleMessage: Identifiable, Hashable, Sendable {
@@ -320,6 +321,11 @@ struct ChatBubble: View {
 			.accessibilityLabel("\(isUser ? StringKey.youLabel.l : StringKey.ocoreaiLabel.l): \(message.content)")
 			.accessibilityValue("Message sent at \(message.timestamp, formatter: timeFormatter)")
 			.accessibilityAddTraits(.isStaticText)
+			.contextMenu {
+				Button(StringKey.copyMessage.l) {
+					NSPasteboard.general.setString(message.content, forType: .string)
+				}
+			}
 
 			if isUser { Spacer(minLength: 16) }
 		}

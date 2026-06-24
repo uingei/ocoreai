@@ -289,6 +289,12 @@ public enum StringKey: String, CaseIterable {
 	case clear = "Chat.Clear"
 	// — Refresh —
 	case refreshButton = "Action.Refresh"
+	// — Retry —
+	case tryAgain = "Action.TryAgain"
+	// — Copy —
+	case copyMessage = "Action.CopyMessage"
+	// — Undo —
+	case undoAction = "Action.Undo"
 }
 
 // MARK: - Translation Table (per locale)
@@ -521,7 +527,10 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.noModelSelected: "No Model",
 		.clear: "Clear",
 		.refreshButton: "Refresh",
-		]
+		.tryAgain: "Try Again",
+		.copyMessage: "Copy Message",
+		.undoAction: "Undo",
+	]
 
 	// Translation overrides per locale
 	let zh: [StringKey: String] = [
@@ -719,6 +728,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.noModelSelected: "未选择模型",
 		.clear: "清空",
 		.refreshButton: "刷新",
+		.tryAgain: "重试",
+		.copyMessage: "复制消息",
+		.undoAction: "撤销",
 		]
 
 	// Add more locale tables here as needed (ja, ko, fr, es...)

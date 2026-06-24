@@ -38,6 +38,16 @@ final class ChatState: Observable {
     var connected: Bool { OcoreaiEngine.shared.engineReady }
     var engineReady: Bool { OcoreaiEngine.shared.engineReady }
     
+    // MARK: - Undo support
+    
+    /// Snapshot capture before destructive operations (max one level).
+    private var undoSnapshot: [ChatMessage]?
+    private var undoResponseText: String?
+    private var undoError: Error?
+    
+    /// Returns true if there is an undoable action available.
+    var hasUndo: Bool { undoSnapshot != nil }
+    
     // MARK: - Lifecycle
     
     /// No-op: engine readiness is now a computed property from OcoreaiEngine.shared.
@@ -97,9 +107,26 @@ final class ChatState: Observable {
         return models.map { $0["id"] ?? "unknown" }
     }
     
+    /// Snapshot current state, then clear the conversation.
     func resetConversation() {
+        undoSnapshot = messages
+        undoResponseText = responseText
+        undoError = error
         messages = []
         responseText = ""
         error = nil
+        // Register undo with AppState for Cmd+Z access
+        AppState.shared.undoAction = { [weak self] in self?.undoReset() }
+    }
+    
+    /// Restore from the last snapshot if one exists.
+    func undoReset() {
+        guard let snapshot = undoSnapshot else { return }
+        messages = snapshot
+        responseText = undoResponseText ?? ""
+        error = undoError
+        undoSnapshot = nil
+        undoResponseText = nil
+        undoError = nil
     }
 }

@@ -103,6 +103,58 @@ final class SettingsState: Observable {
     var selectedModelID: String = ""
     var modelOptions: [String] = []
 
+    // MARK: - Undo support
+
+    /// Snapshot of persisted settings before destructive operations (max one level).
+    private var undoSettings: SettingsSnapshot?
+
+    /// Returns true if there is an undoable action available.
+    var hasUndo: Bool { undoSettings != nil }
+
+    /// Lightweight snapshot of all persisted settings.
+    @MainActor
+    private struct SettingsSnapshot {
+        let serverHost: String
+        let serverPort: Int
+        let pollIntervalSec: Int
+        let chartWindowSec: Int
+        let kvQuantizationEnabled: Bool
+        let kvQuantizationBits: Int
+        let kvCacheBudgetGB: Double
+        let logLevel: LogLevelRaw
+        let profileEnabled: Bool
+        let appLocale: OCALocale
+        let appThemeMode: ThemeModeRaw
+
+        init(from state: SettingsState) {
+            serverHost = state.serverHost
+            serverPort = state.serverPort
+            pollIntervalSec = state.pollIntervalSec
+            chartWindowSec = state.chartWindowSec
+            kvQuantizationEnabled = state.kvQuantizationEnabled
+            kvQuantizationBits = state.kvQuantizationBits
+            kvCacheBudgetGB = state.kvCacheBudgetGB
+            logLevel = state.logLevel
+            profileEnabled = state.profileEnabled
+            appLocale = state.appLocale
+            appThemeMode = state.appThemeMode
+        }
+
+        func apply(to state: SettingsState) {
+            state.serverHost = serverHost
+            state.serverPort = serverPort
+            state.pollIntervalSec = pollIntervalSec
+            state.chartWindowSec = chartWindowSec
+            state.kvQuantizationEnabled = kvQuantizationEnabled
+            state.kvQuantizationBits = kvQuantizationBits
+            state.kvCacheBudgetGB = kvCacheBudgetGB
+            state.logLevel = logLevel
+            state.profileEnabled = profileEnabled
+            state.appLocale = appLocale
+            state.appThemeMode = appThemeMode
+        }
+    }
+
     // MARK: - Internal
 
     private var enginePool: EnginePool?
@@ -138,9 +190,19 @@ final class SettingsState: Observable {
         verifying = false
     }
 
-    /// Reset all settings to defaults
+    /// Snapshot current settings, then reset all to defaults.
     func resetToDefaults() {
+        undoSettings = SettingsSnapshot(from: self)
         store.resetToDefaults()
         errorMessage = "Settings reset to defaults"
+        // Register undo with AppState for Cmd+Z access
+        AppState.shared.undoAction = { [weak self] in self?.undoResetToDefaults() }
+    }
+
+    /// Restore from the last snapshot if one exists.
+    func undoResetToDefaults() {
+        guard let snapshot = undoSettings else { return }
+        snapshot.apply(to: self)
+        undoSettings = nil
     }
 }
