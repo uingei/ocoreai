@@ -163,20 +163,36 @@ private struct GroupStyleModifier: ViewModifier {
 // MARK: - Font helpers (omlx pattern)
 
 extension Font {
+    /// Map a raw size to the closest SwiftUI TextStep/TextStyle so Dynamic Type scales.
+    private static func textStyle(for size: CGFloat) -> Font.TextStyle {
+        switch size {
+        case ...9: return .caption2
+        case ...10: return .caption
+        case ...12: return .caption
+        case ...13: return .subheadline
+        case ...14: return .callout
+        case ...18: return .body
+        case ...22: return .title3
+        case ...28: return .title2
+        case ...34: return .title
+        default: return .largeTitle
+        }
+    }
+
     static func ocoreaiText(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .rounded)
+        .system(textStyle: textStyle(for: size), weight: weight, design: .rounded)
     }
 
     static func ocoreaiDisplay(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-        .system(size: size, weight: weight, design: .rounded)
+        .system(textStyle: textStyle(for: size), weight: weight, design: .rounded)
     }
 
     static func ocoreaiMono(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .monospaced)
+        .system(textStyle: textStyle(for: size), weight: weight, design: .monospaced)
     }
 
-    /// Section header: uppercase semibold with kerning (11pt default)
+    /// Section header: uppercase semibold with kerning (caption-style default)
     static var ocoreaiSectionHeader: Font {
-        .system(size: 11, weight: .semibold, design: .rounded)
+        .system(.caption, design: .rounded).bold()
     }
 }

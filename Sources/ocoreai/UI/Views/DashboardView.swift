@@ -351,7 +351,7 @@ private struct MetricTile: View {
 	var body: some View {
 		VStack(spacing: 8) {
 			Image(systemName: icon)
-				.font(.system(size: 16))
+				.font(.ocoreaiText(16))
 				.foregroundStyle(tint)
 				.frame(height: 24)
 				.accessibilityHidden(true)
@@ -392,7 +392,7 @@ private struct InfoBadge: View {
 	var body: some View {
 		HStack(spacing: 6) {
 			Image(systemName: icon)
-				.font(.system(size: 12))
+				.font(.ocoreaiText(12))
 				.foregroundStyle(theme.accent)
 				.accessibilityHidden(true)
 			VStack(alignment: .leading, spacing: 1) {
