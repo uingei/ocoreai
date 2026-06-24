@@ -690,6 +690,15 @@ enum AppError: Error, CustomStringConvertible, LocalizedError {
     /// Gone — session expired or invalidated
     case sessionExpired(String)
 
+    /// Service Unavailable — BlockPool exhausted and unable to evict
+    case blockPoolExhausted
+
+    /// Service Unavailable — session limit exceeded
+    case sessionLimitExceeded
+
+    /// Not Found — session not found in PagedKVCache
+    case sessionNotFound(String)
+
     /// ``CustomStringConvertible`` description (used in logs)
     var description: String {
         switch self {
@@ -705,6 +714,9 @@ enum AppError: Error, CustomStringConvertible, LocalizedError {
         case .tokenizationFailed(let msg): return "Tokenization failed: \(msg)"
         case .toolCallFailed(let msg): return "Tool call failed: \(msg)"
         case .sessionExpired(let id): return "Session \(id) expired"
+        case .blockPoolExhausted: return "BlockPool exhausted — unable to evict"
+        case .sessionLimitExceeded: return "Session limit exceeded"
+        case .sessionNotFound(let id): return "Session \(id) not found"
         }
     }
 

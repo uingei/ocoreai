@@ -69,7 +69,7 @@ extension OcoreaiTheme {
 
         return OcoreaiTheme(
             isDark:         isDark,
-            windowBg:       Color.primary.opacity(isDark ? 0.02 : 1.0),
+            windowBg:       Color(nsColor: NSColor.windowBackgroundColor),
             sidebarBg:      Color.clear,
             cardBg:         Color.secondary.opacity(isDark ? 0.06 : 0.04),
             cardBorder:     Color.secondary.opacity(isDark ? 0.12 : 0.18),

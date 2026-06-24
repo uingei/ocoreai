@@ -63,9 +63,10 @@ actor EnginePool {
     /// Loaded model instances keyed by model ID
     var loadedModels: [String: LoadedModel] = [:]
 
-    /// KV cache manager (optional — nil when feature disabled).
-    /// When set, active sessions are tracked and evicted on GPU memory pressure.
-    private let kvCacheManager: KVCacheManager?
+    /// Paged KV cache (optional — nil when feature disabled).
+    /// In-memory block pool with LRU eviction, replacing old KVCacheManager
+    /// SSD cold-store anti-pattern. Tracks active sessions and evicts on memory pressure.
+    private let pagedKVCache: PagedKVCache?
 
     /// Memory tracker — reports GPU memory allocations to MemoryTracker.
     private let memoryTracker: MemoryTracker?
@@ -94,7 +95,8 @@ actor EnginePool {
         config: EnginePoolConfig = .default,
         logger: Logger,
         tokenizerManager: TokenizerManager,
-        kvCacheConfig: KVCacheManager.Config? = nil,
+        pagedKVCacheConfig: PagedKVCacheConfig? = nil,
+        blockPoolConfig: BlockPoolConfig? = nil,
         coreAILoadingConfig: CoreAILoadingConfig = .init(),
         memoryTracker: MemoryTracker? = nil,
         hfToken: String? = nil,
@@ -106,7 +108,15 @@ actor EnginePool {
         self.config = config
         self.logger = logger
         self.tokenizerManager = tokenizerManager
-        self.kvCacheManager = kvCacheConfig.map { KVCacheManager(config: $0, logger: logger) }
+        if let pagedKVConfig = pagedKVCacheConfig, let poolConfig = blockPoolConfig {
+            self.pagedKVCache = PagedKVCache(
+                poolConfig: poolConfig,
+                cacheConfig: pagedKVConfig,
+                logger: logger
+            )
+        } else {
+            self.pagedKVCache = nil
+        }
         self.memoryTracker = memoryTracker
 #if coreai
         self.coreAIPreparedModelLoader = CoreAIModelLoader(
@@ -168,8 +178,8 @@ actor EnginePool {
         model.acquireSession()
 
         let sessionId = UUID().uuidString
-        if let kvCache = kvCacheManager {
-            await kvCache.registerZeroSession(sessionId: sessionId)
+        if let paged = pagedKVCache {
+            try await paged.attach(sessionId: sessionId)
         }
 
         logger.info(
@@ -186,11 +196,11 @@ actor EnginePool {
 
     func releaseSession(modelId: String, sessionId: String) async {
         loadedModels[modelId]?.releaseSession()
-        await kvCacheManager?.unregister(sessionId: sessionId)
+        await pagedKVCache?.evictSession(sessionId: sessionId)
     }
 
     func markSessionActive(sessionId: String) async {
-        await kvCacheManager?.markActive(sessionId: sessionId)
+        await pagedKVCache?.markActive(sessionId: sessionId)
     }
 
     // MARK: - Model Loading
@@ -279,7 +289,12 @@ actor EnginePool {
     }
 
     func engineSummary() async -> EngineSummary {
-        let gpuCacheGB = await kvCacheManager?.gpuUsageGB() ?? 0.0
+        let gpuCacheGB: Double
+        if let paged = pagedKVCache {
+            gpuCacheGB = Double(await paged.getMemoryBytes()) / 1_073_741_824.0
+        } else {
+            gpuCacheGB = 0.0
+        }
 #if coreai
         let specializedCount = loadedModels.values.filter { $0.preparedModel.isSpecialized }.count
 #else
@@ -298,7 +313,8 @@ actor EnginePool {
     func loadedModelCount() -> Int { loadedModels.count }
 
     func gpuCacheUsageGB() async -> Double {
-        await kvCacheManager?.gpuUsageGB() ?? 0.0
+        guard let paged = pagedKVCache else { return 0.0 }
+        return Double(await paged.getMemoryBytes()) / 1_073_741_824.0
     }
 
 #if mlx
@@ -366,9 +382,8 @@ actor EnginePool {
         }
         #endif
 
-        if let kvCache = kvCacheManager {
-            await kvCache.coldStoreActiveSessions()
-            await kvCache.shutdown()
+        if let paged = pagedKVCache {
+            await paged.shutdown()
         }
 
         for model in loadedModels.values {

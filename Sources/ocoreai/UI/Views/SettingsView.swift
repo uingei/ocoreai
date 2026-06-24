@@ -140,7 +140,7 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section {
             VStack(spacing: 4) {
-                Label("ocoreai", systemImage: "brain.cuda")
+                Label("ocoreai", systemImage: "brain.fill")
                     .font(.title2.bold())
                 Text(StringKey.version.l)
                     .font(.subheadline).foregroundStyle(.secondary)

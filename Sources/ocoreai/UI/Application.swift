@@ -26,6 +26,21 @@ struct OcoreaiApp: App {
 		}
 		#if os(macOS)
 		.windowStyle(.hiddenTitleBar)
+		// Keyboard shortcuts: Cmd+1~5 for tabs
+		.commands {
+			CommandGroup(replacing: .newItem) {
+				Button("Dashboard") { AppState.shared.selectedTab = .dashboard }
+					.keyboardShortcut("1")
+				Button("Chat") { AppState.shared.selectedTab = .chat }
+					.keyboardShortcut("2")
+				Button("Models") { AppState.shared.selectedTab = .models }
+					.keyboardShortcut("3")
+				Button("Settings") { AppState.shared.selectedTab = .settings }
+					.keyboardShortcut("4")
+				Button("Status") { AppState.shared.selectedTab = .status }
+					.keyboardShortcut("5")
+			}
+		}
 		#endif
 	}
 }
@@ -98,7 +113,7 @@ private struct TabDetailView: View {
 		var body: some View {
 			ContentUnavailableView(
 				"ocoreai",
-				systemImage: "brain.cuda",
+					systemImage: "brain.fill",
 				description: Text(StringKey.selectPanel.l)
 			)
 			.accessibilityLabel("No panel selected")

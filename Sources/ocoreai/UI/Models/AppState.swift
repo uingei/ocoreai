@@ -18,10 +18,41 @@ final class AppState: Observable {
     private let engine = OcoreaiEngine.shared
     private var metricsTask: Task<Void, Never>?
     
-    /// Read live metrics from EnginePool directly (Fast Path, no HTTP)
+    /// Read live metrics from EnginePool + MetricsRegistry (Fast Path, no HTTP)
+    /// Combines engine summary with Prometheus-style metrics for full observability.
     private func pollMetrics() async -> MetricsSnapshot {
-        guard let pool = OcoreaiEngine.shared.activeEnginePool else { return .empty }
-        let summary = await pool.engineSummary()
+        let (pool, registry) = (
+            OcoreaiEngine.shared.activeEnginePool,
+            OcoreaiEngine.shared.activeMetrics
+        )
+        
+        // Fast path: get engine summary for core state
+        let summary: EngineSummary
+        if let pool {
+            summary = await pool.engineSummary()
+        } else {
+            return .empty
+        }
+        
+        // Parse metrics registry for detailed telemetry
+        if let registry, let parsed = MetricsSnapshot.parse(from: await registry.export()) {
+            return MetricsSnapshot(
+                timestamp: .now,
+                tokensPerSecond: parsed.tokensPerSecond,
+                ttftMs: parsed.ttftMs,
+                ttfbMs: parsed.ttfbMs,
+                gpuMemoryUsage: parsed.gpuMemoryUsage,
+                kvCacheBytes: parsed.kvCacheBytes,
+                kvCacheEvictions: parsed.kvCacheEvictions,
+                activeSessions: parsed.activeSessions,
+                loadedModels: parsed.loadedModels,
+                inferenceDurationMs: parsed.inferenceDurationMs,
+                inferenceCount: parsed.inferenceCount,
+                rateLimitRejections: parsed.rateLimitRejections
+            )
+        }
+        
+        // Fallback: engine summary only
         return MetricsSnapshot(
             timestamp: .now,
             tokensPerSecond: 0,

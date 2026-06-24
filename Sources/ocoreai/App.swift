@@ -171,7 +171,8 @@ public final class OcoreaiEngine {
             config: .default,
             logger: logger,
             tokenizerManager: tokenizerManager,
-            kvCacheConfig: KVCacheManager.Config.default,
+            pagedKVCacheConfig: .default,
+            blockPoolConfig: .default,
             coreAILoadingConfig: coreAILoadingConfig,
             memoryTracker: memoryTracker
         )

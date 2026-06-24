@@ -146,6 +146,22 @@ public enum StringKey: String, CaseIterable {
     case tabSettings = "Navigation.Settings"
     case selectPanel = "Navigation.SelectPanel"
     case navigationTitle = "Navigation.Title"
+    case sidebarNavigation = "Navigation.Sidebar"
+    
+    // — Sidebar Sections —
+    case sectionServer = "Sidebar.Section.Server"
+    case sectionModels = "Sidebar.Section.Models"
+    case sectionGeneral = "Sidebar.Section.General"
+    
+    // — Quick Metrics —
+    case metricOverview = "Metrics.Overview"
+    case metricOverviewAccessibility = "Metrics.Overview.Descripción"
+    case metricThroughput = "Metrics.Throughput"
+    case metricGPUMemory = "Metrics.GPUMemory"
+    case metricSessions = "Metrics.Sessions"
+    case metricStatus = "Metrics.Status"
+    case metricStatusActive = "Metrics.Status.Active"
+    case metricStatusIdle = "Metrics.Status.Idle"
 
     // — Chat —
     case chatWelcomeTitle = "Chat.WelcomeTitle"
@@ -278,6 +294,22 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .tabSettings: "Settings",
         .selectPanel: "Select a panel",
         .navigationTitle: "Navigation",
+        .sidebarNavigation: "Navigation",
+        
+        // Sidebar Sections
+        .sectionServer: "Server",
+        .sectionModels: "Models",
+        .sectionGeneral: "General",
+        
+        // Quick Metrics
+        .metricOverview: "Overview",
+        .metricOverviewAccessibility: "System Overview",
+        .metricThroughput: "Throughput",
+        .metricGPUMemory: "GPU Memory",
+        .metricSessions: "Sessions",
+        .metricStatus: "Status",
+        .metricStatusActive: "Active",
+        .metricStatusIdle: "Idle",
 
         // Chat
         .chatWelcomeTitle: "Start a conversation",
