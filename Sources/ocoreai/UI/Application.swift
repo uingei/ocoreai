@@ -96,7 +96,7 @@ struct OcoreaiShellView: View {
 		.onDisappear {
 			appState.shutdown()
 		}
-		.accessibilityLabel("ocoreai")
+		.accessibilityLabel(StringKey.appLabel.l)
 	}
 }
 
@@ -108,7 +108,7 @@ private struct TabDetailView: View {
 	var body: some View {
 		content
 			.navigationTitle(appState.selectedTab.title)
-			.accessibilityLabel("\(appState.selectedTab.title) panel")
+			.accessibilityLabel("\(appState.selectedTab.title) \(StringKey.appTitle.l)")
 	}
 
 	@ViewBuilder
@@ -130,7 +130,7 @@ private struct TabDetailView: View {
 					systemImage: "brain.fill",
 				description: Text(StringKey.selectPanel.l)
 			)
-			.accessibilityLabel("No panel selected")
+			.accessibilityLabel(StringKey.noPanelSelected.l)
 		}
 	}
 }
@@ -142,12 +142,12 @@ private struct SidebarView: View {
 
 	var body: some View {
 		List {
-			sidebarSection(icon: "server.rack", title: "Server", tabs: AppTab.serverGroup)
-			sidebarSection(icon: "brain.head.profile", title: "Models", tabs: AppTab.modelGroup)
-			sidebarSection(icon: "gearshape.2", title: "General", tabs: AppTab.generalGroup)
+			sidebarSection(icon: "server.rack", title: StringKey.sectionServer.l, tabs: AppTab.serverGroup)
+			sidebarSection(icon: "brain.head.profile", title: StringKey.sectionModels.l, tabs: AppTab.modelGroup)
+			sidebarSection(icon: "gearshape.2", title: StringKey.sectionGeneral.l, tabs: AppTab.generalGroup)
 		}
 		.listStyle(.sidebar)
-		.accessibilityLabel("Navigation")
+		.accessibilityLabel(StringKey.sidebarNavigation.l)
 	}
 
 	private func sidebarSection(icon: String, title: String, tabs: [AppTab]) -> some View {
@@ -180,7 +180,7 @@ private struct SidebarRow: View {
 		}
 		.accessibilityLabel("\(tab.title)")
 		.accessibilityAddTraits(active ? [.isSelected] : [])
-		.accessibilityAction(named: "Select \(tab.title)") {
+		.accessibilityAction(named: "\(StringKey.selectTab.l) \(tab.title)") {
 			AppState.shared.selectedTab = tab
 		}
 	}

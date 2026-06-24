@@ -46,7 +46,7 @@ struct MultimodalControls: View {
 			RoundedRectangle(cornerRadius: 12)
 				.stroke(Color.secondary, lineWidth: 1)
 		)
-		.accessibilityLabel("Multimodal Controls")
+		.accessibilityLabel(StringKey.multimodalControlsLabel.l)
 	}
 
 	// MARK: - Camera Section
@@ -69,8 +69,8 @@ struct MultimodalControls: View {
 							captureService.stopCapture()
 						}
 					}
-					.accessibilityLabel("Enable Camera")
-					.accessibilityHint("Turn camera on or off")
+					.accessibilityLabel(StringKey.enableCameraLabel.l)
+					.accessibilityHint(StringKey.enableCameraHint.l)
 			}
 
 			// Camera preview (if frame available)
@@ -95,24 +95,24 @@ struct MultimodalControls: View {
 						.cornerRadius(4),
 					alignment: .topLeading
 				)
-				.accessibilityLabel("Camera live feed preview")
+				.accessibilityLabel(StringKey.cameraPreviewLabel.l)
 			}
 
 			// Capture button
 			if mmState.cameraEnabled {
 				Button(action: {
-					Task {
-						if let dataURL = await captureService.captureFrame() {
-							MultimodalState.shared.cameraSnapshot = dataURL
+						Task {
+							if let dataURL = await captureService.captureFrame() {
+								MultimodalState.shared.cameraSnapshot = dataURL
+							}
 						}
+					}) {
+						Label(StringKey.captureFrameLabel.l, systemImage: "camera.on.rectangle")
+							.frame(maxWidth: .infinity)
 					}
-				}) {
-					Label("Capture Frame", systemImage: "camera.on.rectangle")
-						.frame(maxWidth: .infinity)
-				}
-				.buttonStyle(.borderedProminent)
-				.accessibilityLabel("Capture Frame")
-				.accessibilityHint("Take a snapshot from the camera")
+					.buttonStyle(.borderedProminent)
+					.accessibilityLabel(StringKey.captureFrameLabel.l)
+					.accessibilityHint(StringKey.captureFrameHint.l)
 			}
 		}
 	}
@@ -138,8 +138,8 @@ struct MultimodalControls: View {
 							Task { _ = await audioIO.requestMicPermission() }
 						}
 					}
-					.accessibilityLabel("Enable Microphone")
-					.accessibilityHint("Turn microphone on or off")
+					.accessibilityLabel(StringKey.enableMicLabel.l)
+					.accessibilityHint(StringKey.enableMicHint.l)
 			}
 
 			if mmState.microphoneEnabled {
@@ -157,14 +157,14 @@ struct MultimodalControls: View {
 					HStack {
 						Image(systemName: audioIO.isRecording ? "stop.circle.fill" : "record.circle")
 							.font(.title3)
-						Text(audioIO.isRecording ? "Stop Recording" : "Start Recording")
+						Text(audioIO.isRecording ? StringKey.stopRecordingLabel.l : StringKey.startRecordingLabel.l)
 					}
 					.frame(maxWidth: .infinity)
 				}
 				.buttonStyle(.borderedProminent)
 				.tint(audioIO.isRecording ? Color.red : Color.accentColor)
-				.accessibilityLabel(audioIO.isRecording ? "Stop Recording" : "Start Recording")
-				.accessibilityHint(audioIO.isRecording ? "Stop the current audio recording" : "Begin recording audio")
+				.accessibilityLabel(audioIO.isRecording ? StringKey.stopRecordingLabel.l : StringKey.startRecordingLabel.l)
+				.accessibilityHint(audioIO.isRecording ? StringKey.stopRecordingHint.l : StringKey.startRecordingHint.l)
 			}
 
 			// Show last transcript
@@ -173,7 +173,7 @@ struct MultimodalControls: View {
 					.font(.caption)
 					.foregroundColor(.gray)
 					.lineLimit(2)
-					.accessibilityLabel("Last transcript: \(transcript)")
+					.accessibilityLabel("\(StringKey.lastTranscriptLabel.l): \(transcript)")
 					.accessibilityAddTraits(.isStaticText)
 			}
 		}
@@ -197,15 +197,15 @@ struct MultimodalControls: View {
 							audioIO.stopSpeaking()
 						}
 					}
-					.accessibilityLabel("Enable Speaker")
-					.accessibilityHint("Turn text-to-speech on or off")
+					.accessibilityLabel(StringKey.enableSpeakerLabel.l)
+					.accessibilityHint(StringKey.enableSpeakerHint.l)
 			}
 
 			if mmState.speakerEnabled {
 				Text(StringKey.multimodalTtsHint.l)
 					.font(.caption)
 					.foregroundColor(.gray)
-					.accessibilityLabel("Text-to-speech is active")
+					.accessibilityLabel(StringKey.ttsActiveLabel.l)
 					.accessibilityAddTraits(.isStaticText)
 			}
 		}
@@ -215,11 +215,11 @@ struct MultimodalControls: View {
 
 	private var statusRow: some View {
 		HStack(spacing: 16) {
-			StatusDot(isActive: captureService.isCapturing, label: "Camera Active")
-			StatusDot(isActive: audioIO.isRecording, label: "Recording")
-			StatusDot(isActive: audioIO.isSpeaking, label: "Speaking")
+			StatusDot(isActive: captureService.isCapturing, label: StringKey.metricStatusActive.l)
+			StatusDot(isActive: audioIO.isRecording, label: StringKey.metricStatusActive.l)
+			StatusDot(isActive: audioIO.isSpeaking, label: StringKey.metricStatusActive.l)
 		}
-		.accessibilityLabel("Multimodal status indicators")
+		.accessibilityLabel(StringKey.statusIndicatorsLabel.l)
 	}
 }
 
@@ -240,7 +240,7 @@ private struct StatusDot: View {
 				.foregroundColor(.gray)
 				.lineLimit(1)
 		}
-		.accessibilityLabel("\(label): \(isActive ? "Active" : "Inactive")")
+		.accessibilityLabel("\(label): \(isActive ? StringKey.statusActive.l : StringKey.statusInactive.l)")
 		.accessibilityAddTraits(.isStaticText)
 	}
 }

@@ -35,7 +35,7 @@ struct DashboardView: View {
 		.onDisappear {
 			dashboardState.stopPolling()
 		}
-		.accessibilityLabel("Dashboard")
+		.accessibilityLabel(StringKey.dashboardLabel.l)
 	}
 
 	// MARK: - Content
@@ -85,7 +85,7 @@ struct DashboardView: View {
 				Text(uptimeLabel)
 					.font(.ocoreaiMono(11))
 					.foregroundStyle(theme.textTertiary)
-					.accessibilityLabel("Uptime: \(uptimeLabel)")
+					.accessibilityLabel("\(StringKey.uptimeLabel.l): \(uptimeLabel)")
 			}
 		}
 	}
@@ -204,7 +204,7 @@ struct DashboardView: View {
 		.background(theme.cardBg)
 		.clipShape(RoundedRectangle(cornerRadius: 12))
 		.padding(.horizontal, 20)
-		.accessibilityLabel("System information")
+		.accessibilityLabel(StringKey.systemInfoLabel.l)
 		.accessibilityAddTraits(.isStaticText)
 	}
 
@@ -222,7 +222,7 @@ struct DashboardView: View {
 				)
 				.foregroundStyle(theme.accent.opacity(0.15))
 				.interpolationMethod(.catmullRom)
-				.accessibilityLabel("Area graph showing token throughput over time")
+				.accessibilityLabel(StringKey.areaGraphTokenDesc.l)
 
 				LineMark(
 					x: .value("Time", point.timestamp),
@@ -257,7 +257,7 @@ struct DashboardView: View {
 				)
 				.foregroundStyle(theme.tintPurple.opacity(0.15))
 				.interpolationMethod(.catmullRom)
-				.accessibilityLabel("Area graph showing GPU memory usage over time")
+				.accessibilityLabel(StringKey.areaGraphGpuDesc.l)
 
 				LineMark(
 					x: .value("Time", point.timestamp),
@@ -276,7 +276,7 @@ struct DashboardView: View {
 				.foregroundStyle(theme.tintCyan)
 				.interpolationMethod(.catmullRom)
 				.lineStyle(StrokeStyle(lineWidth: 2, dash: [6, 4]))
-				.accessibilityLabel("KV cache usage line graph")
+				.accessibilityLabel(StringKey.kvCacheLineDesc.l)
 			}
 			.frame(height: 180)
 			.chartXAxis(.hidden)

@@ -22,8 +22,8 @@ struct ModelView: View {
 						Task { await modelsState.fetchModels() }
 					}
 					.ocoreaiButton(.normal, size: .small)
-					.accessibilityLabel("Refresh Model List")
-					.accessibilityHint("Fetch the latest model list from the backend")
+					.accessibilityLabel(StringKey.refreshModelLabel.l)
+					.accessibilityHint(StringKey.refreshModelHint.l)
 				}
 
 				if modelsState.state.isLoading {
@@ -100,10 +100,10 @@ private struct LiveModelCard: View {
 			Spacer()
 
 			StatusPill(status: .running, compact: false)
-				.accessibilityLabel("Model is running")
+				.accessibilityLabel(StringKey.modelRunningLabel.l)
 		}
 		.modifier(theme.cardStyle())
-		.accessibilityLabel("Model: \(model.id)")
+		.accessibilityLabel("\(StringKey.a11yModel.l): \(model.id)")
 		.accessibilityAddTraits(.isStaticText)
 	}
 }

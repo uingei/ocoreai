@@ -97,7 +97,7 @@ struct StatusRow: View {
 			Spacer()
 
 			StatusPill(status: pill, compact: true)
-				.accessibilityLabel("Status: \(pill.label)")
+				.accessibilityLabel("\(StringKey.a11yStatus.l): \(pill.label)")
 		}
 		.modifier(theme.cardStyle())
 		.accessibilityLabel("\(title): \(value)")

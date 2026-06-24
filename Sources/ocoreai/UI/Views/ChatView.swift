@@ -76,22 +76,22 @@ struct ChatView: View {
 						systemImage: "brain"
 					)
 				}
-				.accessibilityLabel("Model Selector")
-				.accessibilityValue(currentModel.isEmpty ? "No model selected" : currentModel)
+				.accessibilityLabel(StringKey.modelSelectorLabel.l)
+				.accessibilityValue(currentModel.isEmpty ? StringKey.modelSelectorValueDefault.l : currentModel)
 			}
 
 			ToolbarItem(placement: .primaryAction) {
 				Button(role: .destructive) {
 					chatState.resetConversation()
 				} label: {
-					Label("Clear", systemImage: "trash")
+					Label(StringKey.clear.l, systemImage: "trash")
 				}
-				.accessibilityLabel("Clear Conversation")
-				.accessibilityHint("Removes all messages from this conversation")
+				.accessibilityLabel(StringKey.clearConversationLabel.l)
+				.accessibilityHint(StringKey.clearConversationHint.l)
 				.disabled(isStreaming)
 			}
 		}
-		.accessibilityLabel("Chat")
+		.accessibilityLabel(StringKey.chatLabel.l)
 	}
 
 	// MARK: - Header
@@ -105,10 +105,10 @@ struct ChatView: View {
 				.frame(width: 6, height: 6)
 				.shadow(color: (isConnected ? theme.greenDot : theme.amberDot).opacity(0.4), radius: 2)
 				.accessibilityHidden(true)
-			Text(isConnected ? "Local" : "Loading…")
+			Text(isConnected ? StringKey.localLabel.l : "Loading…")
 				.font(.ocoreaiText(10))
 				.foregroundStyle(theme.textSecondary)
-				.accessibilityLabel(isConnected ? "Local backend connected" : "Backend loading")
+				.accessibilityLabel(isConnected ? StringKey.chatConnected.l : StringKey.chatLoading.l)
 		}
 		.padding(.horizontal)
 		.padding(.vertical, 8)
@@ -152,7 +152,7 @@ struct ChatView: View {
 				}
 			}
 		}
-		.accessibilityLabel("Messages")
+		.accessibilityLabel(StringKey.messagesLabel.l)
 	}
 
 	// MARK: - Streaming Preview
@@ -167,7 +167,7 @@ struct ChatView: View {
 			.opacity(0.85)
 			.transition(.opacity.combined(with: .move(edge: .bottom)))
 			.padding()
-			.accessibilityLabel("Assistant typing")
+			.accessibilityLabel(StringKey.assistantTyping.l)
 			.accessibilityHidden(false)
 	}
 
@@ -212,8 +212,8 @@ struct ChatView: View {
 				.background(theme.accentSoft)
 				.clipShape(Capsule())
 		}
-		.accessibilityLabel("Suggestion: \(text)")
-		.accessibilityHint("Tap to use this suggestion as your message")
+		.accessibilityLabel("\(StringKey.suggestionHint.l): \(text)")
+		.accessibilityHint(StringKey.suggestionHint.l)
 	}
 
 	// MARK: - Input Bar
@@ -227,10 +227,10 @@ struct ChatView: View {
 					.font(.title3)
 					.foregroundStyle(theme.textSecondary)
 			}
-			.accessibilityLabel("Voice Input")
-			.accessibilityHint("Tap to use voice input (coming soon)")
+			.accessibilityLabel(StringKey.voiceInputLabel.l)
+			.accessibilityHint(StringKey.voiceInputHint.l)
 
-			TextField("Type a message…", text: $inputText, axis: .vertical)
+			TextField(StringKey.chatPlaceholder.l, text: $inputText, axis: .vertical)
 				.font(.ocoreaiText(15))
 				.textFieldStyle(.plain)
 				.frame(minHeight: 36)
@@ -244,8 +244,8 @@ struct ChatView: View {
 					RoundedRectangle(cornerRadius: 12)
 						.stroke(theme.inputBorder.opacity(0.5), lineWidth: 0.5)
 				)
-				.accessibilityLabel("Message Input")
-				.accessibilityHint("Type your message and press Enter to send")
+				.accessibilityLabel(StringKey.messageInputLabel.l)
+				.accessibilityHint(StringKey.messageInputHint.l)
 
 			Button {
 				isStreaming ? stopStreaming() : sendMessage()
@@ -254,8 +254,8 @@ struct ChatView: View {
 					.font(.title2)
 					.foregroundStyle(isStreaming ? theme.redDot : theme.accent)
 			}
-			.accessibilityLabel(isStreaming ? "Stop Streaming" : "Send Message")
-			.accessibilityHint(isStreaming ? "Tap to stop the current response" : "Tap to send your message")
+			.accessibilityLabel(isStreaming ? StringKey.stopStreamingLabel.l : StringKey.sendMessageLabel.l)
+			.accessibilityHint(isStreaming ? StringKey.stopStreamingHint.l : StringKey.sendMessageHint.l)
 			.disabled(isStreaming && inputText.trimmingCharacters(in: .whitespaces).isEmpty)
 		}
 		.padding()
@@ -317,7 +317,7 @@ struct ChatBubble: View {
 					)
 					.clipShape(RoundedRectangle(cornerRadius: 14))
 			}
-			.accessibilityLabel("\(isUser ? "You" : "ocoreai"): \(message.content)")
+			.accessibilityLabel("\(isUser ? StringKey.youLabel.l : StringKey.ocoreaiLabel.l): \(message.content)")
 			.accessibilityValue("Message sent at \(message.timestamp, formatter: timeFormatter)")
 			.accessibilityAddTraits(.isStaticText)
 
