@@ -54,8 +54,11 @@ func anthropicMessagesHandler(
 ) async throws -> Response {
     let modelId = request.model
 
+    // Capture content guard early — used for both input and output safety
+    let streamGuard: ContentGuard? = await OcoreaiEngine.shared.activeContentGuard
+
     // Safety check: filter harmful input before scheduling
-    if let contentGuard = await OcoreaiEngine.shared.activeContentGuard {
+    if let contentGuard = streamGuard {
         let messageText: String
         if let first = request.messages.first, let content = first.content {
             switch content {
@@ -191,7 +194,8 @@ func anthropicMessagesHandler(
             request: chatRequest,
             modelId: modelId,
             logger: logger,
-            metrics: metrics
+            metrics: metrics,
+            contentGuard: streamGuard
         )
     } else {
         return try await nonStreamAnthropicResponse(
@@ -203,7 +207,8 @@ func anthropicMessagesHandler(
             request: chatRequest,
             modelId: modelId,
             logger: logger,
-            metrics: metrics
+            metrics: metrics,
+            contentGuard: streamGuard
         )
     }
 }
@@ -282,7 +287,8 @@ private func nonStreamAnthropicResponse(
     request: ChatCompletionRequest,
     modelId: String,
     logger: Logger,
-    metrics: MetricsRegistry
+    metrics: MetricsRegistry,
+    contentGuard: ContentGuard? = nil
 ) async throws -> Response {
     let requestId = "msg-\(UUID().uuidString.prefix(8))"
     let startTime = ContinuousClock.now
@@ -340,6 +346,28 @@ private func nonStreamAnthropicResponse(
         }
     }
 
+    // Check output safety before serializing
+    if let contentGuard, !content.isEmpty {
+        let checkResult = await contentGuard.checkOutput(content)
+        if !checkResult.passed {
+            logger.warning("Anthropic non-stream output blocked: \(checkResult.triggeredCategories)")
+            let errorBody: [String: Any] = [
+                "error": [
+                    "message": checkResult.rejectionReason ?? "Content safety violation",
+                    "type": "content_policy_violation",
+                    "code": 400,
+                    "categories": checkResult.triggeredCategories.map(\.rawValue),
+                ]
+            ]
+            guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
+                return Response(status: .badRequest)
+            }
+            var headers: HTTPFields = [:]
+            headers[.contentType] = "application/json"
+            return Response(status: .badRequest, headers: headers, body: .init(contentsOf: [ByteBuffer(data: data)]))
+        }
+    }
+
     // Record metrics
     let dur = startTime.duration(to: ContinuousClock.now)
     let elapsed = Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
@@ -379,7 +407,8 @@ private func streamAnthropicResponse(
     request: ChatCompletionRequest,
     modelId: String,
     logger: Logger,
-    metrics: MetricsRegistry
+    metrics: MetricsRegistry,
+    contentGuard: ContentGuard? = nil
 ) async throws -> Response {
     let responseHeaders = SSEHeaders
 
@@ -387,6 +416,9 @@ private func streamAnthropicResponse(
 
     // Cancellation token: bridges client disconnect → inference loop
     let canceller = InferenceCancellation.cancellable()
+
+    // Safety guard for streaming — captured early for inline safety checks
+    let streamGuard = contentGuard
 
     _ = Task {
         do {
@@ -446,6 +478,21 @@ private func streamAnthropicResponse(
                         }
                         prevDecodedText = newText
 
+                        // Safety check: filter harmful output in real-time
+                        if let contentGuard = streamGuard {
+                            let checkResult = await contentGuard.checkOutput(deltaText)
+                            if !checkResult.passed {
+                                logger.warning("Anthropic streaming output blocked: \(checkResult.triggeredCategories)")
+                                let errorEvent = AnthropicStreamEvent(
+                                    type: "error", index: nil, message: nil, delta: nil,
+                                    usage: AnthropicStreamUsage(outputTokens: totalOutputTokens, inputTokens: tokens.count)
+                                )
+                                writeSSEEvent(continuation, event: errorEvent)
+                                continuation.finish()
+                                return
+                            }
+                        }
+
                         // Emit delta event
                         let deltaEvent = AnthropicStreamEvent.textDelta(index: 0, text: deltaText)
                         writeSSEEvent(continuation, event: deltaEvent)
@@ -453,6 +500,21 @@ private func streamAnthropicResponse(
                     case .text(let text):
                         try Task.checkCancellation()
                         totalOutputTokens += 1
+
+                        // Safety check: filter harmful output in real-time
+                        if let contentGuard = streamGuard {
+                            let checkResult = await contentGuard.checkOutput(text)
+                            if !checkResult.passed {
+                                logger.warning("Anthropic streaming output blocked (.text): \(checkResult.triggeredCategories)")
+                                let errorEvent = AnthropicStreamEvent(
+                                    type: "error", index: nil, message: nil, delta: nil,
+                                    usage: AnthropicStreamUsage(outputTokens: totalOutputTokens, inputTokens: tokens.count)
+                                )
+                                writeSSEEvent(continuation, event: errorEvent)
+                                continuation.finish()
+                                return
+                            }
+                        }
 
                         let deltaEvent = AnthropicStreamEvent.textDelta(index: 0, text: text)
                         writeSSEEvent(continuation, event: deltaEvent)

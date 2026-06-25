@@ -57,6 +57,18 @@ struct OcoreaiApp: App {
 					AppState.shared.selectedTab = .status
 				}
 				.keyboardShortcut("4")
+				Button(StringKey.tabSessions.l) {
+					AppState.shared.selectedTab = .sessions
+				}
+				.keyboardShortcut("5")
+				Button(StringKey.tabSkills.l) {
+					AppState.shared.selectedTab = .skills
+				}
+				.keyboardShortcut("6")
+				Button(StringKey.tabSystem.l) {
+					AppState.shared.selectedTab = .system
+				}
+				.keyboardShortcut("7")
 			}
 		}
 		#else

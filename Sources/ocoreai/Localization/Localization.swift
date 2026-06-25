@@ -374,6 +374,20 @@ public enum StringKey: String, CaseIterable {
 	case modelParamReset = "Models.ParamReset"
 	case modelParamDefaults = "Models.ParamDefaults"
 	case modelViewTapToEdit = "Models.TapToEdit"
+
+	// — Model Search —
+	case modelSearchQuickLoad = "ModelSearch.QuickLoad"
+	case modelSearchExample = "ModelSearch.Example"
+	case modelSearchLoad = "ModelSearch.Load"
+	case modelSearchHubSource = "ModelSearch.HubSource"
+	case modelSearchSelectHub = "ModelSearch.SelectHub"
+	case modelSearchHFHub = "ModelSearch.HFHub"
+	case modelSearchModelScope = "ModelSearch.ModelScope"
+	case modelSearchSearching = "ModelSearch.Searching"
+	case modelSearchResults = "ModelSearch.Results"
+	case modelSearchLoading = "ModelSearch.Loading"
+	case modelSearchDismiss = "ModelSearch.Dismiss"
+	case modelSearchTitle = "ModelSearch.Title"
 }
 
 // MARK: - Translation Table (per locale)
@@ -685,7 +699,22 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.systemThinkingBudget: "Thinking Budget",
 		.systemRefresh: "Refresh",
 		.systemClearAudit: "Clear Audit Log",
-		.systemClearAuditConfirm: "Clear all audit trail entries?",	]
+		.systemClearAuditConfirm: "Clear all audit trail entries?",
+
+		// Model Search
+		.modelSearchQuickLoad: "Quick Load",
+		.modelSearchExample: "e.g. Qwen/Qwen2.5-7B-Instruct",
+		.modelSearchLoad: "Load",
+		.modelSearchHubSource: "Hub Source",
+		.modelSearchSelectHub: "Select Hub",
+		.modelSearchHFHub: "Search HF Hub…",
+		.modelSearchModelScope: "Search ModelScope…",
+		.modelSearchSearching: "Searching…",
+		.modelSearchResults: "Results",
+		.modelSearchLoading: "Loading",
+		.modelSearchDismiss: "Dismiss",
+		.modelSearchTitle: "Load Model",
+	]
 
 	// Translation overrides per locale
 	let zh: [StringKey: String] = [
@@ -965,6 +994,20 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.modelParamReset: "恢复默认",
 		.modelParamDefaults: "默认值",
 		.modelViewTapToEdit: "点击编辑参数",
+
+		// Model Search
+		.modelSearchQuickLoad: "快速加载",
+		.modelSearchExample: "e.g. Qwen/Qwen2.5-7B-Instruct",
+		.modelSearchLoad: "加载",
+		.modelSearchHubSource: "模型源",
+		.modelSearchSelectHub: "选择源",
+		.modelSearchHFHub: "搜索 HuggingFace Hub…",
+		.modelSearchModelScope: "搜索 ModelScope…",
+		.modelSearchSearching: "搜索中…",
+		.modelSearchResults: "结果",
+		.modelSearchLoading: "加载中",
+		.modelSearchDismiss: "关闭",
+		.modelSearchTitle: "加载模型",
 	]
 
 	// Add more locale tables here as needed (ja, ko, fr, es...)

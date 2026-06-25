@@ -130,7 +130,7 @@ struct ChatView: View {
 				.frame(width: 6, height: 6)
 				.shadow(color: (isConnected ? theme.greenDot : theme.amberDot).opacity(0.4), radius: 2)
 				.accessibilityHidden(true)
-			Text(isConnected ? StringKey.localLabel.l : "Loading…")
+			Text(isConnected ? StringKey.localLabel.l : StringKey.chatLoading.l)
 				.font(.ocoreaiText(10))
 				.foregroundStyle(theme.textSecondary)
 				.accessibilityLabel(isConnected ? StringKey.chatConnected.l : StringKey.chatLoading.l)
@@ -426,11 +426,11 @@ struct ModelSearchView: View {
 	var body: some View {
 		Form {
 			// Quick entry — direct model ID
-			Section("Quick Load") {
+			Section(StringKey.modelSearchQuickLoad.l) {
 				HStack {
-					TextField("e.g. Qwen/Qwen2.5-7B-Instruct", text: $directModelId)
+					TextField(StringKey.modelSearchExample.l, text: $directModelId)
 					if !directModelId.isEmpty {
-						Button("Load") {
+						Button(StringKey.modelSearchLoad.l) {
 							let source = selectedSource == .modelScope ? HubSource.modelScope : HubSource.huggingFace
 							loadModel(directModelId, source: source)
 						}
@@ -439,8 +439,8 @@ struct ModelSearchView: View {
 			}
 			
 			// Hub source selector
-			Section("Hub Source") {
-				Picker("Select Hub", selection: $selectedSource) {
+			Section(StringKey.modelSearchHubSource.l) {
+				Picker(StringKey.modelSearchSelectHub.l, selection: $selectedSource) {
 					ForEach(HubSource.allCases, id: \.self) { source in
 						Text(source.rawValue).tag(source)
 					}
@@ -452,7 +452,7 @@ struct ModelSearchView: View {
 			Section {
 				SearchBar(
 					text: $searchQuery,
-					placeholder: selectedSource == .huggingFace ? "Search HF Hub…" : "Search ModelScope…"
+					placeholder: selectedSource == .huggingFace ? StringKey.modelSearchHFHub.l : StringKey.modelSearchModelScope.l
 				) { query in
 					Task { @MainActor in
 						await performSearch(query)
@@ -462,7 +462,7 @@ struct ModelSearchView: View {
 				if isSearching {
 					HStack {
 						ProgressView()
-						Text("Searching…")
+						Text(StringKey.modelSearchSearching.l)
 							.foregroundStyle(.secondary)
 						Spacer()
 					}
@@ -472,7 +472,7 @@ struct ModelSearchView: View {
 			
 			// HF Results
 			if !hfResults.isEmpty, selectedSource == .huggingFace {
-				Section("Results") {
+				Section(StringKey.modelSearchResults.l) {
 					List(hfResults) { model in
 						HFModelRow(model: model)
 							.onTapGesture {
@@ -486,7 +486,7 @@ struct ModelSearchView: View {
 			
 			// MS Results
 			if !msResults.isEmpty, selectedSource == .modelScope {
-				Section("Results") {
+				Section(StringKey.modelSearchResults.l) {
 					List(msResults) { model in
 						MSModelRow(model: model)
 							.onTapGesture {
@@ -500,7 +500,7 @@ struct ModelSearchView: View {
 			
 			// Currently loading
 			if !loadingModelId.isEmpty {
-				Section("Loading") {
+				Section(StringKey.modelSearchLoading.l) {
 					HStack {
 						ProgressView()
 						VStack(alignment: .leading) {
@@ -529,13 +529,13 @@ struct ModelSearchView: View {
 							.font(.ocoreaiText(13))
 							.foregroundStyle(.red)
 						Spacer()
-						Button("Dismiss") { localError = nil }
+						Button(StringKey.modelSearchDismiss.l) { localError = nil }
 							.buttonStyle(.plain)
 					}
 				}
 			}
 		}
-		.navigationTitle("Load Model")
+		.navigationTitle(StringKey.modelSearchTitle.l)
 		.onChange(of: chatState.loading) { _, isLoading in
 			if isLoading {
 				if searchQuery.isEmpty || loadingModelId.isEmpty {
