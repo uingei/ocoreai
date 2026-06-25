@@ -34,10 +34,8 @@ struct ChatView: View {
 	@State private var models: [String] = []
 	@State private var activeTask: Task<Void, Never>? = nil
 	
-	// P0 test: model download entry point
+	// Model search + load entry point
 	@State private var showModelLoader = false
-	@State private var newModelId = ""
-	@State private var loadingModel = false
 
 	init() {
 		_chatState = State(initialValue: ChatState())
@@ -99,45 +97,18 @@ struct ChatView: View {
 				.disabled(isStreaming)
 			}
 		}
-		// P0 test: model download sheet
+		// Model search + load sheet
 		.sheet(isPresented: $showModelLoader) {
 			NavigationStack {
-				Form {
-					Section("Model ID") {
-						TextField("e.g. mlx-community/SmolLM2-1.7B-Instruct", text: $newModelId)
-					}
-					Section {
-						Button("Load") {
-							loadingModel = true
-							Task { @MainActor in
-								let updated = await chatState.loadNewModel(newModelId)
-								if !updated.isEmpty {
-									models = updated
-									currentModel = updated.last ?? currentModel
-								}
-								showModelLoader = false
-								loadingModel = false
-								newModelId = ""
-							}
-						}
-						.disabled(newModelId.isEmpty)
-					}
-					if loadingModel {
-						Section {
-							HStack {
-								ProgressView()
-								Text("Loading model…")
-								Spacer()
-							}
+				ModelSearchView(
+					chatState: chatState,
+					onModelLoaded: { updated in
+						if !updated.isEmpty {
+							models = updated
+							currentModel = updated.last ?? currentModel
 						}
 					}
-				}
-				.navigationTitle("Load Model")
-				.toolbar {
-					ToolbarItem(placement: .cancellationAction) {
-						Button("Cancel") { showModelLoader = false; loadingModel = false }
-					}
-				}
+				)
 			}
 		}
 		// P0-2: On model selector change, unload old model to free GPU memory
@@ -427,3 +398,234 @@ struct ChatHeader: View {
 
 /// #Preview requires Xcode PreviewsMacros plugin — disabled for swift build.
 /// For live previews open the project in Xcode instead.
+
+// MARK: - Model Search + Load View
+
+/// Standalone view for the model search/load sheet.
+/// Provides: search bar → HF Hub results → tap to load → loading indicator → auto-close on success.
+struct ModelSearchView: View {
+	let chatState: ChatState
+	let onModelLoaded: ([String]) -> Void
+	
+	@State private var searchQuery = ""
+	@State private var searchResults: [HFModelInfo] = []
+	@State private var isSearching = false
+	@State private var loadingModelId = ""
+	@State private var loadingProgress: String? = nil
+	@State private var directModelId = ""
+	@State private var showDirectEntry = false
+	
+	@Environment(\.dismiss) private var dismiss
+	
+	@Environment(\.ocoreaiTheme) private var theme
+	
+	@State private var localError: String? = nil
+	
+	var body: some View {
+		Form {
+			// Quick entry — direct model ID
+			Section("Quick Load") {
+				HStack {
+					TextField("e.g. Qwen/Qwen2.5-7B-Instruct", text: $directModelId)
+					if !directModelId.isEmpty {
+						Button("Load") {
+							loadModel(directModelId)
+						}
+					}
+				}
+			}
+			
+			// Search section
+			Section {
+				SearchBar(
+					text: $searchQuery,
+					placeholder: "Search HF Hub…"
+				) { query in
+					Task { @MainActor in
+						await performSearch(query)
+					}
+				}
+				
+				if isSearching {
+					HStack {
+						ProgressView()
+						Text("Searching…")
+							.foregroundStyle(.secondary)
+						Spacer()
+					}
+					.padding(.vertical, 4)
+				}
+			}
+			
+			// Results
+			if !searchResults.isEmpty {
+				Section("Results") {
+					List(searchResults) { model in
+						ModelRow(model: model)
+							.onTapGesture {
+								showDirectEntry = false // Collapse keyboard
+								loadModel(model.id)
+							}
+					}
+					.listStyle(.plain)
+				}
+			}
+			
+			// Currently loading
+			if !loadingModelId.isEmpty {
+				Section("Loading") {
+					HStack {
+						ProgressView()
+						VStack(alignment: .leading) {
+							Text(loadingModelId)
+								.font(.ocoreaiText(13, weight: .medium))
+								.lineLimit(1)
+							if let progress = loadingProgress {
+								Text(progress)
+									.font(.ocoreaiText(11))
+									.foregroundStyle(.secondary)
+							}
+						}
+						Spacer()
+					}
+					.padding(.vertical, 4)
+				}
+			}
+			
+			// Errors
+			if let error = localError {
+				Section {
+					HStack {
+						Image(systemName: "exclamationmark.triangle.fill")
+							.foregroundStyle(.red)
+						Text(error)
+							.font(.ocoreaiText(13))
+							.foregroundStyle(.red)
+						Spacer()
+						Button("Dismiss") { localError = nil }
+							.buttonStyle(.plain)
+					}
+				}
+			}
+		}
+		.navigationTitle("Load Model")
+		.onChange(of: chatState.loading) { _, isLoading in
+			if isLoading {
+				if searchQuery.isEmpty || loadingModelId.isEmpty {
+					loadingProgress = "Downloading…"
+				}
+			} else {
+				loadingProgress = nil
+			}
+		}
+		.onDisappear {
+			// On close, check if load succeeded and notify parent
+			if loadingModelId.isEmpty, chatState.messages.isEmpty {
+				// No-op: parent already gets refreshed models
+			}
+		}
+		.task { @MainActor [searchQuery] in
+			// Auto-search on open if query is non-empty (e.g. after navigation push)
+			if !searchQuery.isEmpty {
+				await performSearch(searchQuery)
+			}
+		}
+	}
+	
+	// MARK: - Search
+	
+	func performSearch(_ query: String) async {
+		guard !query.isEmpty else {
+			searchResults = []
+			return
+		}
+		
+		isSearching = true
+		localError = nil
+		
+		let results = await chatState.searchHubModels(keyword: query)
+		
+		searchResults = results
+		isSearching = false
+		
+		if results.isEmpty && query.count > 1 {
+			localError = "No models found for \"\(query)\""
+		}
+	}
+	
+	// MARK: - Load
+	
+	func loadModel(_ modelId: String) {
+		loadingModelId = modelId
+		loadingProgress = "Downloading…"
+		
+		Task { @MainActor in
+			let updated = await chatState.loadNewModel(modelId)
+			loadingModelId = ""
+			loadingProgress = nil
+			
+			if !updated.isEmpty {
+				onModelLoaded(updated)
+				dismiss()
+			}
+		}
+	}
+}
+
+// MARK: - Search Bar (macOS-compatible TextField)
+
+private struct SearchBar: View {
+	@Binding var text: String
+	let placeholder: String
+	let onCommit: (String) -> Void
+	
+	var body: some View {
+		TextField(placeholder, text: $text)
+			.onSubmit { onCommit(text) }
+	}
+}
+
+// MARK: - Model Row
+
+private struct ModelRow: View {
+	let model: HFModelInfo
+	
+	@Environment(\.ocoreaiTheme) private var theme
+	
+	var body: some View {
+		HStack(spacing: 6) {
+			// MLX badge
+			if model.isMLX {
+				Image(systemName: "cpu")
+					.font(.ocoreaiText(10))
+					.padding(3)
+					.background(theme.accentSoft)
+					.clipShape(RoundedRectangle(cornerRadius: 4))
+					.accessibilityLabel("MLX format")
+			}
+			
+			// Model ID
+			VStack(alignment: .leading) {
+				Text(model.id)
+					.font(.ocoreaiText(13, weight: .medium))
+					.lineLimit(1)
+				if let tag = model.pipelineTag, !tag.isEmpty {
+					Text(tag)
+						.font(.ocoreaiText(10))
+						.foregroundStyle(.secondary)
+						.lineLimit(1)
+				}
+			}
+			
+			Spacer()
+			
+			// Likes
+			if model.likes > 0 {
+				Label("\(model.likes, format: .number)", systemImage: "heart.fill")
+					.font(.ocoreaiText(10))
+					.foregroundStyle(.secondary)
+			}
+		}
+		.padding(.vertical, 2)
+	}
+}

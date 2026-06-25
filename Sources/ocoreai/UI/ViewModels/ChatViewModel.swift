@@ -18,6 +18,37 @@ import Observation
 
 // MARK: - Chat Message
 
+// MARK: - HF Hub Model Info
+
+/// Minimal model metadata from HuggingFace Hub search API.
+/// Decode via CodingKeys because "private" is a Swift reserved keyword.
+struct HFModelInfo: Codable, Identifiable, Sendable {
+    let id: String
+    var likes: Int
+    
+    var tags: [String]?
+    var pipelineTag: String?
+    
+    private let isPrivate: Bool?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, likes, tags, pipelineTag
+        case isPrivate = "private"
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        likes = try container.decodeIfPresent(Int.self, forKey: .likes) ?? 0
+        tags = try container.decodeIfPresent([String].self, forKey: .tags)
+        pipelineTag = try container.decodeIfPresent(String.self, forKey: .pipelineTag)
+        isPrivate = try container.decodeIfPresent(Bool.self, forKey: .isPrivate)
+    }
+    
+    /// Whether this model ships in MLX format (has "mlx" tag)
+    var isMLX: Bool { tags?.contains("mlx") ?? false }
+}
+
 struct ChatMessage: Identifiable, Hashable, Sendable {
     let id = UUID()
     let role: String
@@ -243,6 +274,26 @@ final class ChatState {
         return models.map { $0["id"] ?? "unknown" }
     }
     
+    /// Search HuggingFace Hub for models.
+    /// Returns matching model IDs, sorted by likes.
+    func searchHubModels(keyword: String, limit: Int = 15) async -> [HFModelInfo] {
+        guard let url = URL(string: "https://huggingface.co/api/models?search=\(keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? keyword)&limit=\(limit)&sort=likes")
+        else { return [] }
+    
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                self.error = NSError(domain: "ChatState", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch models from Hub"])
+                return []
+            }
+            let models = try JSONDecoder().decode([HFModelInfo].self, from: data)
+            return models
+        } catch {
+            self.error = error
+            return []
+        }
+    }
+
     /// Load a model into the pool (triggers download if hub model like hf:...),
     /// then return the updated list of loaded model IDs.
     func loadNewModel(_ modelId: String) async -> [String] {
