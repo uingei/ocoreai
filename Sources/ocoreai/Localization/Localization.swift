@@ -388,6 +388,8 @@ public enum StringKey: String, CaseIterable {
 	case modelSearchLoading = "ModelSearch.Loading"
 	case modelSearchDismiss = "ModelSearch.Dismiss"
 	case modelSearchTitle = "ModelSearch.Title"
+	case modelSearchLabel = "ModelSearch.Label"
+	case modelSearchHint = "ModelSearch.Hint"
 }
 
 // MARK: - Translation Table (per locale)
@@ -714,6 +716,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.modelSearchLoading: "Loading",
 		.modelSearchDismiss: "Dismiss",
 		.modelSearchTitle: "Load Model",
+		.modelSearchLabel: "Load Model",
+		.modelSearchHint: "Search and load models from HuggingFace or ModelScope",
 	]
 
 	// Translation overrides per locale
@@ -1008,6 +1012,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.modelSearchLoading: "加载中",
 		.modelSearchDismiss: "关闭",
 		.modelSearchTitle: "加载模型",
+		.modelSearchLabel: "加载模型",
+		.modelSearchHint: "从 HuggingFace 或 ModelScope 搜索并加载模型",
 	]
 
 	// Add more locale tables here as needed (ja, ko, fr, es...)

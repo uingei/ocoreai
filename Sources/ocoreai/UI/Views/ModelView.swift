@@ -10,6 +10,7 @@ struct ModelView: View {
 	@State private var modelsState: ModelsState
 	@State private var showParamsSheet = false
 	@State private var editingModelId: String = ""
+	@State private var showModelSearch = false
 	@Environment(\.ocoreaiTheme) private var theme
 
 	init() {
@@ -20,6 +21,13 @@ struct ModelView: View {
 		ScrollView {
 			VStack(alignment: .leading, spacing: 24) {
 				SectionHeader(StringKey.tabModels.l, subtitle: StringKey.loadingModels.l) {
+					Button(StringKey.modelSearchTitle.l) {
+						showModelSearch = true
+					}
+					.ocoreaiButton(.normal, size: .small)
+					.accessibilityLabel(StringKey.modelSearchLabel.l)
+					.accessibilityHint(StringKey.modelSearchHint.l)
+					Spacer(minLength: 8)
 					Button(StringKey.refreshButton.l) {
 						Task { await modelsState.fetchModels() }
 					}
@@ -52,6 +60,9 @@ struct ModelView: View {
 		}
 		.sheet(isPresented: $showParamsSheet) {
 			ModelParamsView(modelId: editingModelId)
+		}
+		.sheet(isPresented: $showModelSearch) {
+			ModelSearchSheetView()
 		}
 		.accessibilityLabel(StringKey.tabModels.l)
 	}

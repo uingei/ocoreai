@@ -624,7 +624,7 @@ private struct SearchBar: View {
 
 // MARK: - HF Model Row
 
-private struct HFModelRow: View {
+struct HFModelRow: View {
 	let model: HFModelInfo
 	
 	@Environment(\.ocoreaiTheme) private var theme
@@ -669,7 +669,7 @@ private struct HFModelRow: View {
 
 // MARK: - ModelScope Model Row
 
-private struct MSModelRow: View {
+struct MSModelRow: View {
 	let model: MSModelInfo
 	
 	@Environment(\.ocoreaiTheme) private var theme
