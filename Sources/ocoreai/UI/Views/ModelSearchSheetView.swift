@@ -12,38 +12,36 @@ import Observation
 @Observable
 @MainActor
 final class ModelSearchState {
+	// Local models
+	var localModels: [ModelID] = []
+	var defaultModelId: String = ""
+	
+	// Hub search
 	var searchQuery = ""
 	var hfResults: [HFModelInfo] = []
 	var msResults: [MSModelInfo] = []
 	var isSearching = false
-	var loadingModelId = ""
-	var loadingProgress: String? = nil
-	var directModelId = ""
 	var selectedSource: HubSource = .huggingFace
-	var localError: String? = nil
+	
+	// Download
+	var downloadingModelId: String = ""
+	var isDownloading = false
+	
+	// Error
+	var errorMessage: String? = nil
 	
 	func performSearch(_ query: String) async {
-		guard !query.isEmpty else {
-			hfResults = []
-			msResults = []
-			return
-		}
+		guard !query.isEmpty else { hfResults = []; msResults = []; return }
 		isSearching = true
-		localError = nil
+		errorMessage = nil
 		
 		switch selectedSource {
 		case .huggingFace:
 			let results = await searchHub(keyword: query)
 			hfResults = results
-			if results.isEmpty && query.count > 1 {
-				localError = "No models found for \"\(query)\""
-			}
 		case .modelScope:
 			let results = await searchModelScope(keyword: query)
 			msResults = results
-			if results.isEmpty && query.count > 1 {
-				localError = "No models found for \"\(query)\""
-			}
 		}
 		isSearching = false
 	}
@@ -51,33 +49,47 @@ final class ModelSearchState {
 	@MainActor
 	func loadModel(_ modelId: String, onSuccess: (() -> Void)?) {
 		guard let pool = OcoreaiEngine.shared.activeEnginePool else {
-			localError = "Engine not available"
+			errorMessage = "Engine not available"
 			return
 		}
-			
+		
 		let normalizedId: String
 		if selectedSource == .modelScope && !modelId.hasPrefix("mscope:") {
 			normalizedId = "mscope:\(modelId)"
 		} else {
 			normalizedId = modelId
 		}
-			
-		loadingModelId = modelId
-		loadingProgress = "Downloading…"
-			
+		
+		isDownloading = true
+		downloadingModelId = modelId
+		
 		Task {
 			do {
 				let _ = try await pool.acquire(model: normalizedId)
 				await pool.releaseSession(modelId: normalizedId, sessionId: "init")
-				loadingModelId = ""
-				loadingProgress = nil
-				onSuccess?()
+				await self.refreshLocalModels()
+				self.isDownloading = false
+				self.downloadingModelId = ""
+			onSuccess?()
 			} catch {
-				localError = error.localizedDescription
-				loadingModelId = ""
-				loadingProgress = nil
+				self.errorMessage = error.localizedDescription
+				self.isDownloading = false
+				self.downloadingModelId = ""
 			}
 		}
+	}
+	
+	func refreshLocalModels() async {
+		guard let pool = OcoreaiEngine.shared.activeEnginePool else { return }
+		self.localModels = await pool.loadedModels.map {
+			ModelID(id: $0.key, maxContext: $0.value.modelConfig.maxContextLength, tokenizer: $0.value.modelConfig.tokenizer)
+		}
+		self.defaultModelId = UserDefaults.standard.string(forKey: "DefaultModelId") ?? ""
+	}
+	
+	private func setDefault(_ modelId: String) {
+		self.defaultModelId = modelId
+		UserDefaults.standard.set(modelId, forKey: "DefaultModelId")
 	}
 	
 	// MARK: - Hub Search (mirrors ChatState methods)
@@ -139,134 +151,182 @@ struct ModelSearchSheetView: View {
 	var body: some View {
 		NavigationStack {
 			Form {
-				// Quick entry — direct model ID
-				Section(StringKey.modelSearchQuickLoad.l) {
-					HStack {
-						TextField(StringKey.modelSearchExample.l, text: $searchState.directModelId)
-							.textFieldStyle(.plain)
-						if !searchState.directModelId.isEmpty {
-							Button(StringKey.modelSearchLoad.l) {
-								searchState.loadModel(searchState.directModelId, onSuccess: { dismiss() })
-							}
-						}
-					}
-				}
+				// ① Local models section
+				localModelsSection
 				
-				// Hub source selector
-				Section(StringKey.modelSearchHubSource.l) {
-					Picker(StringKey.modelSearchSelectHub.l, selection: $searchState.selectedSource) {
-						ForEach(HubSource.allCases, id: \.self) { source in
-							Text(source.rawValue).tag(source)
-						}
-					}
-					.pickerStyle(.segmented)
-				}
+				// ② Hub source toggle
+				hubToggleSection
 				
-				// Search section
-				Section {
-					SearchBar(
-						text: $searchState.searchQuery,
-						// swiftlint:disable:next identifier_name
-						placeholder: searchState.selectedSource == .huggingFace
-							? StringKey.modelSearchHFHub.l
-							: StringKey.modelSearchModelScope.l
-					) { query in
-						Task {
-							await searchState.performSearch(query)
-						}
-					}
-					
-					if searchState.isSearching {
-						HStack {
-							ProgressView()
-							Text(StringKey.modelSearchSearching.l)
-								.foregroundStyle(.secondary)
-							Spacer()
-						}
-						.padding(.vertical, 4)
-					}
-				}
+				// ③ Search
+				searchSection
 				
-				// HF Results
+				// ④ Results
 				if !searchState.hfResults.isEmpty, searchState.selectedSource == .huggingFace {
-					Section(StringKey.modelSearchResults.l) {
-						List(searchState.hfResults) { model in
-							HFModelRow(model: model)
-								.onTapGesture {
-								searchState.loadModel(model.id, onSuccess: { dismiss() })
-							}
-						}
-						.listStyle(.plain)
-					}
+					hfResultsSection
 				}
-				
-				// MS Results
 				if !searchState.msResults.isEmpty, searchState.selectedSource == .modelScope {
-					Section(StringKey.modelSearchResults.l) {
-						List(searchState.msResults) { model in
-							MSModelRow(model: model)
-								.onTapGesture {
-									searchState.loadModel(model.path, onSuccess: { dismiss() })
-								}
-						}
-						.listStyle(.plain)
-					}
-				}
-				
-				// Currently loading
-				if !searchState.loadingModelId.isEmpty {
-					Section(StringKey.modelSearchLoading.l) {
-						HStack {
-							ProgressView()
-							Text(searchState.loadingModelId)
-								.foregroundStyle(.secondary)
-								.lineLimit(1)
-							Spacer()
-						}
-						if let progress = searchState.loadingProgress {
-							Text(progress)
-								.foregroundStyle(.secondary)
-								.font(.ocoreaiText(11))
-						}
-					}
+					msResultsSection
 				}
 				
 				// Error
-				if let error = searchState.localError {
-					Section {
-						HStack {
-							Image(systemName: "exclamationmark.triangle")
-								.foregroundStyle(.red)
-							Text(error)
-								.foregroundStyle(.secondary)
-								.font(.ocoreaiText(12))
-						}
-					}
+				if let error = searchState.errorMessage {
+					errorSection(error)
 				}
 			}
-			.navigationTitle(StringKey.modelSearchTitle.l)
+			.navigationTitle(StringKey.tabModels.l)
 			.toolbar {
 				ToolbarItem(placement: .cancellationAction) {
 					Button(StringKey.modelSearchDismiss.l) {
 						dismiss()
 					}
-					.disabled(!searchState.loadingModelId.isEmpty)
+					.disabled(searchState.isDownloading)
 				}
+			}
+			.task {
+				_ = await searchState.refreshLocalModels()
 			}
 		}
 	}
-}
-
-// MARK: - Search Bar (macOS-compatible TextField)
-
-private struct SearchBar: View {
-	@Binding var text: String
-	let placeholder: String
-	let onCommit: (String) -> Void
 	
-	var body: some View {
-		TextField(placeholder, text: $text)
+	// MARK: - Local Models Section
+	
+	@ViewBuilder
+	private var localModelsSection: some View {
+		if searchState.localModels.isEmpty {
+			Section {
+				HStack {
+					Image(systemName: "cpu")
+						.font(.title2)
+						.foregroundStyle(theme.accent)
+					Text(StringKey.noModelsLoaded.l)
+						.foregroundStyle(.secondary)
+				}
+				.frame(maxWidth: .infinity)
+			}
+		} else {
+			Section(header: Text(StringKey.sectionModels.l)) {
+				ForEach(searchState.localModels, id: \.id) { model in
+					HStack {
+						Text(model.id)
+							.lineLimit(1)
+						Spacer()
+						if searchState.defaultModelId == model.id {
+							Image(systemName: "checkmark.circle.fill")
+								.foregroundStyle(.green)
+								.imageScale(.medium)
+						}
+					}
+				}
+			}
+			.headerProminence(.increased)
+		}
+	}
+	
+	// MARK: - Hub Toggle
+	
+	private var hubToggleSection: some View {
+		Section(header: Text(StringKey.modelSearchHubSource.l)) {
+			Picker(StringKey.modelSearchSelectHub.l, selection: $searchState.selectedSource) {
+				ForEach(HubSource.allCases, id: \.self) { source in
+					Text(source.rawValue).tag(source)
+				}
+			}
+			.pickerStyle(.segmented)
+		}
+	}
+	
+	// MARK: - Search Section
+	
+	private var searchSection: some View {
+		Section {
+			TextField(
+				searchState.selectedSource == .huggingFace
+					? StringKey.modelSearchHFHub.l
+					: StringKey.modelSearchModelScope.l,
+				text: $searchState.searchQuery
+			)
 			.textFieldStyle(.plain)
-			.onSubmit { onCommit(text) }
+			.onSubmit { Task { await searchState.performSearch(searchState.searchQuery) } }
+			.disableAutocorrection(true)
+			
+			if searchState.isSearching {
+				HStack {
+					ProgressView()
+					Text(StringKey.modelSearchSearching.l)
+						.foregroundStyle(.secondary)
+					Spacer()
+				}
+				.padding(.vertical, 4)
+			}
+		}
+	}
+	
+	// MARK: - HF Results
+	
+	@ViewBuilder
+	private var hfResultsSection: some View {
+		Section(header: Text(StringKey.modelSearchResults.l)) {
+			ForEach(searchState.hfResults.prefix(15), id: \.id) { model in
+				resultRow(id: model.id, label: model.id, sub: model.pipelineTag)
+			}
+		}
+	}
+	
+	// MARK: - MS Results
+	
+	@ViewBuilder
+	private var msResultsSection: some View {
+		Section(header: Text(StringKey.modelSearchResults.l)) {
+			ForEach(searchState.msResults.prefix(15), id: \.id) { model in
+				resultRow(id: model.path, label: model.path, sub: "\(model.stars)")
+			}
+		}
+	}
+	
+	// MARK: - Result Row
+	
+	private func resultRow(id: String, label: String, sub: String?) -> some View {
+		HStack(spacing: 8) {
+			VStack(alignment: .leading, spacing: 2) {
+				Text(label)
+					.fontWeight(.medium)
+					.lineLimit(1)
+				if let sub {
+					Text(sub)
+						.font(.caption)
+						.foregroundStyle(.secondary)
+				}
+			}
+			Spacer()
+			downloadButton(for: id, action: {
+				searchState.loadModel(id, onSuccess: { dismiss() })
+			})
+		}
+	}
+	
+	// MARK: - Download Button
+	
+	@ViewBuilder
+	private func downloadButton(for modelId: String, action: @escaping () -> Void) -> some View {
+		if searchState.downloadingModelId == modelId {
+			ProgressView()
+		} else {
+			Button(StringKey.modelSearchLoad.l, action: action)
+				.disabled(searchState.isDownloading)
+		}
+	}
+	
+	// MARK: - Error Section
+	
+	private func errorSection(_ error: String) -> some View {
+		Section {
+			HStack {
+				Image(systemName: "exclamationmark.triangle.fill")
+					.foregroundStyle(.red)
+				Text(error)
+					.foregroundStyle(.secondary)
+					.font(.subheadline)
+			}
+		}
 	}
 }
