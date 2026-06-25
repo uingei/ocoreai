@@ -145,10 +145,15 @@ final class ModelSearchState {
 
 struct ModelSearchSheetView: View {
 	@State private var searchState = ModelSearchState()
+	// Local binding for TextField — avoids macOS Form + @Observable dynamic member focus leak
+	@State private var searchQueryLocal = ""
 	@Environment(\.dismiss) private var dismiss
 	@Environment(\.ocoreaiTheme) private var theme
-	
+
 	var body: some View {
+		onChange(of: searchQueryLocal) { _, newValue in
+			searchState.searchQuery = newValue
+		}
 		NavigationStack {
 			Form {
 				// ① Local models section
@@ -243,10 +248,13 @@ struct ModelSearchSheetView: View {
 				searchState.selectedSource == .huggingFace
 					? StringKey.modelSearchHFHub.l
 					: StringKey.modelSearchModelScope.l,
-				text: $searchState.searchQuery
+				text: $searchQueryLocal
 			)
 			.textFieldStyle(.plain)
-			.onSubmit { Task { await searchState.performSearch(searchState.searchQuery) } }
+			.onSubmit {
+				searchState.searchQuery = searchQueryLocal
+				Task { await searchState.performSearch(searchQueryLocal) }
+			}
 			.disableAutocorrection(true)
 			
 			if searchState.isSearching {
