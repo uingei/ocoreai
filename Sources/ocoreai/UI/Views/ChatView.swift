@@ -408,12 +408,14 @@ struct ModelSearchView: View {
 	let onModelLoaded: ([String]) -> Void
 	
 	@State private var searchQuery = ""
-	@State private var searchResults: [HFModelInfo] = []
+	@State private var hfResults: [HFModelInfo] = []
+	@State private var msResults: [MSModelInfo] = []
 	@State private var isSearching = false
 	@State private var loadingModelId = ""
 	@State private var loadingProgress: String? = nil
 	@State private var directModelId = ""
 	@State private var showDirectEntry = false
+	@State private var selectedSource: HubSource = .huggingFace
 	
 	@Environment(\.dismiss) private var dismiss
 	
@@ -429,17 +431,28 @@ struct ModelSearchView: View {
 					TextField("e.g. Qwen/Qwen2.5-7B-Instruct", text: $directModelId)
 					if !directModelId.isEmpty {
 						Button("Load") {
-							loadModel(directModelId)
+							let source = selectedSource == .modelScope ? HubSource.modelScope : HubSource.huggingFace
+							loadModel(directModelId, source: source)
 						}
 					}
 				}
+			}
+			
+			// Hub source selector
+			Section("Hub Source") {
+				Picker("Select Hub", selection: $selectedSource) {
+					ForEach(HubSource.allCases, id: \.self) { source in
+						Text(source.rawValue).tag(source)
+					}
+				}
+				.pickerStyle(.segmented)
 			}
 			
 			// Search section
 			Section {
 				SearchBar(
 					text: $searchQuery,
-					placeholder: "Search HF Hub…"
+					placeholder: selectedSource == .huggingFace ? "Search HF Hub…" : "Search ModelScope…"
 				) { query in
 					Task { @MainActor in
 						await performSearch(query)
@@ -457,14 +470,28 @@ struct ModelSearchView: View {
 				}
 			}
 			
-			// Results
-			if !searchResults.isEmpty {
+			// HF Results
+			if !hfResults.isEmpty, selectedSource == .huggingFace {
 				Section("Results") {
-					List(searchResults) { model in
-						ModelRow(model: model)
+					List(hfResults) { model in
+						HFModelRow(model: model)
 							.onTapGesture {
-								showDirectEntry = false // Collapse keyboard
-								loadModel(model.id)
+								showDirectEntry = false
+								loadModel(model.id, source: .huggingFace)
+							}
+					}
+					.listStyle(.plain)
+				}
+			}
+			
+			// MS Results
+			if !msResults.isEmpty, selectedSource == .modelScope {
+				Section("Results") {
+					List(msResults) { model in
+						MSModelRow(model: model)
+							.onTapGesture {
+								showDirectEntry = false
+								loadModel(model.path, source: .modelScope)
 							}
 					}
 					.listStyle(.plain)
@@ -518,14 +545,15 @@ struct ModelSearchView: View {
 				loadingProgress = nil
 			}
 		}
-		.onDisappear {
-			// On close, check if load succeeded and notify parent
-			if loadingModelId.isEmpty, chatState.messages.isEmpty {
-				// No-op: parent already gets refreshed models
+		.onChange(of: selectedSource) { _, newSource in
+			// Clear results when switching source
+			if newSource == .huggingFace {
+				msResults = []
+			} else {
+				hfResults = []
 			}
 		}
 		.task { @MainActor [searchQuery] in
-			// Auto-search on open if query is non-empty (e.g. after navigation push)
 			if !searchQuery.isEmpty {
 				await performSearch(searchQuery)
 			}
@@ -536,31 +564,40 @@ struct ModelSearchView: View {
 	
 	func performSearch(_ query: String) async {
 		guard !query.isEmpty else {
-			searchResults = []
+			hfResults = []
+			msResults = []
 			return
 		}
 		
 		isSearching = true
 		localError = nil
 		
-		let results = await chatState.searchHubModels(keyword: query)
-		
-		searchResults = results
-		isSearching = false
-		
-		if results.isEmpty && query.count > 1 {
-			localError = "No models found for \"\(query)\""
+		switch selectedSource {
+		case .huggingFace:
+			let results = await chatState.searchHubModels(keyword: query)
+			hfResults = results
+			if results.isEmpty && query.count > 1 {
+				localError = "No models found on HuggingFace for \"\(query)\""
+			}
+		case .modelScope:
+			let results = await chatState.searchModelScopeModels(keyword: query)
+			msResults = results
+			if results.isEmpty && query.count > 1 {
+				localError = "No models found on ModelScope for \"\(query)\""
+			}
 		}
+		
+		isSearching = false
 	}
 	
 	// MARK: - Load
 	
-	func loadModel(_ modelId: String) {
+	func loadModel(_ modelId: String, source: HubSource) {
 		loadingModelId = modelId
 		loadingProgress = "Downloading…"
 		
 		Task { @MainActor in
-			let updated = await chatState.loadNewModel(modelId)
+			let updated = await chatState.loadNewModel(modelId, source: source)
 			loadingModelId = ""
 			loadingProgress = nil
 			
@@ -585,9 +622,9 @@ private struct SearchBar: View {
 	}
 }
 
-// MARK: - Model Row
+// MARK: - HF Model Row
 
-private struct ModelRow: View {
+private struct HFModelRow: View {
 	let model: HFModelInfo
 	
 	@Environment(\.ocoreaiTheme) private var theme
@@ -622,6 +659,49 @@ private struct ModelRow: View {
 			// Likes
 			if model.likes > 0 {
 				Label("\(model.likes, format: .number)", systemImage: "heart.fill")
+					.font(.ocoreaiText(10))
+					.foregroundStyle(.secondary)
+			}
+		}
+		.padding(.vertical, 2)
+	}
+}
+
+// MARK: - ModelScope Model Row
+
+private struct MSModelRow: View {
+	let model: MSModelInfo
+	
+	@Environment(\.ocoreaiTheme) private var theme
+	
+	var body: some View {
+		HStack(spacing: 6) {
+			// Source badge
+			Image(systemName: "cloud.fill")
+				.font(.ocoreaiText(10))
+				.padding(3)
+				.background(theme.accentSoft)
+				.clipShape(RoundedRectangle(cornerRadius: 4))
+				.accessibilityLabel("ModelScope")
+			
+			// Model path
+			VStack(alignment: .leading) {
+				Text(model.path)
+					.font(.ocoreaiText(13, weight: .medium))
+					.lineLimit(1)
+				if !model.tasks.isEmpty {
+					Text(model.tasks.joined(separator: ", "))
+						.font(.ocoreaiText(10))
+						.foregroundStyle(.secondary)
+						.lineLimit(1)
+				}
+			}
+			
+			Spacer()
+			
+			// Downloads
+			if model.downloads > 0 {
+				Label("\(model.downloads, format: .number)", systemImage: "arrow.down.circle.fill")
 					.font(.ocoreaiText(10))
 					.foregroundStyle(.secondary)
 			}

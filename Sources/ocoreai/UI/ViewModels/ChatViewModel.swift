@@ -22,6 +22,12 @@ import Observation
 
 /// Minimal model metadata from HuggingFace Hub search API.
 /// Decode via CodingKeys because "private" is a Swift reserved keyword.
+/// Unified hub source for model search (HF vs ModelScope)
+enum HubSource: String, CaseIterable, Sendable {
+    case huggingFace = "HuggingFace"
+    case modelScope = "ModelScope"
+}
+
 struct HFModelInfo: Codable, Identifiable, Sendable {
     let id: String
     var likes: Int
@@ -47,6 +53,42 @@ struct HFModelInfo: Codable, Identifiable, Sendable {
     
     /// Whether this model ships in MLX format (has "mlx" tag)
     var isMLX: Bool { tags?.contains("mlx") ?? false }
+}
+
+/// ModelScope search result DTO.
+/// "Path" is the primary identifier (e.g. "Qwen/Qwen2.5-7B-Instruct").
+struct MSModelInfo: Codable, Identifiable, Sendable {
+    let id: Int
+    let path: String
+    var displayName: String
+    var chineseName: String?
+    var downloads: Int
+    var stars: Int
+    var tasks: [String]
+    
+    // CodingKeys: API returns "Path" with capital P
+    enum CodingKeys: String, CodingKey {
+        case id = "Id"
+        case path = "Path"
+        case displayName = "Name"
+        case chineseName = "ChineseName"
+        case downloads = "Downloads"
+        case stars = "Stars"
+        case tasks = "Tasks"
+    }
+    
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(Int.self, forKey: .id) ?? 0
+        path = try c.decodeIfPresent(String.self, forKey: .path)
+            ?? (try c.decodeIfPresent(String.self, forKey: .displayName) ?? "")
+        displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
+            ?? path.components(separatedBy: "/").last ?? path
+        chineseName = try c.decodeIfPresent(String.self, forKey: .chineseName)
+        downloads = try c.decodeIfPresent(Int.self, forKey: .downloads) ?? 0
+        stars = try c.decodeIfPresent(Int.self, forKey: .stars) ?? 0
+        tasks = try c.decodeIfPresent([String].self, forKey: .tasks) ?? []
+    }
 }
 
 struct ChatMessage: Identifiable, Hashable, Sendable {
@@ -279,7 +321,7 @@ final class ChatState {
     func searchHubModels(keyword: String, limit: Int = 15) async -> [HFModelInfo] {
         guard let url = URL(string: "https://huggingface.co/api/models?search=\(keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? keyword)&limit=\(limit)&sort=likes")
         else { return [] }
-    
+
         do {
             let (data, response) = try await URLSession.shared.data(from: url)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -293,15 +335,66 @@ final class ChatState {
             return []
         }
     }
+    
+    /// Search ModelScope Hub for models.
+    /// Returns matching model paths.
+    func searchModelScopeModels(keyword: String, pageSize: Int = 15) async -> [MSModelInfo] {
+        // ModelScope uses PUT for list/search (same as Python SDK)
+        guard let url = URL(string: "https://modelscope.cn/api/v1/models/") else { return [] }
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = [
+            "Path": keyword,
+            "PageNumber": 1,
+            "PageSize": min(pageSize, 100),
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                self.error = NSError(domain: "ChatState", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch models from ModelScope"])
+                return []
+            }
+            // Response: { "Code": 200, "Data": { "Models": [...], ... } }
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let dataObj: [String: Any]
+            if let nested = json?["Data"] as? [String: Any] {
+                dataObj = nested
+            } else {
+                dataObj = json ?? [:]
+            }
+            guard let modelsRaw = dataObj["Models"] as? [[String: Any]] else { return [] }
+            
+            // Decode each raw dict to MSModelInfo
+            let modelData = modelsRaw.map { try? JSONDecoder().decode(MSModelInfo.self, from: try JSONSerialization.data(withJSONObject: $0, options: [])) }
+            return modelData.compactMap { $0 }
+        } catch {
+            self.error = error
+            return []
+        }
+    }
 
     /// Load a model into the pool (triggers download if hub model like hf:...),
     /// then return the updated list of loaded model IDs.
-    func loadNewModel(_ modelId: String) async -> [String] {
+    /// For ModelScope models, automatically prepends "mscope:" prefix.
+    func loadNewModel(_ modelId: String, source: HubSource = .huggingFace) async -> [String] {
         guard let pool = OcoreaiEngine.shared.activeEnginePool else { return [] }
+        
+        // Normalize modelId: ModelScope models need "mscope:" prefix
+        let normalizedId: String
+        if source == .modelScope && !modelId.hasPrefix("mscope:") {
+            normalizedId = "mscope:\(modelId)"
+        } else {
+            normalizedId = modelId
+        }
+        
         do {
             // Acquire triggers lazy-load; immediately release so we don't hold a session
-            let _ = try await pool.acquire(model: modelId)
-            await pool.releaseSession(modelId: modelId, sessionId: "init")
+            let _ = try await pool.acquire(model: normalizedId)
+            await pool.releaseSession(modelId: normalizedId, sessionId: "init")
         } catch {
             self.error = error
             return []

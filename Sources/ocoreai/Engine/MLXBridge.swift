@@ -92,7 +92,9 @@ actor MLXModelLoader {
         logger.info("Loading MLX model \(modelId) from \(modelURL.path)")
         let start = ContinuousClock.now
 
-        let source = MLXModelLoader.parseSource(modelURL.path)
+        // Prefer raw modelId for source detection — modelURL.path is often mangled
+        // by URL(fileURLWithPath:) which adds a "/" prefix breaking prefix detection.
+        let source = MLXModelLoader.parseSource(modelId, fallbackPath: modelURL.path)
 
         let container: MLXLMCommon.ModelContainer
         switch source {
@@ -186,20 +188,41 @@ actor MLXModelLoader {
         init(stringLiteral value: String) { self.rawValue = value }
     }
 
-    nonisolated static func parseSource(_ path: String) -> ModelSource {
-        if path.hasPrefix("mscope:") {
-            return .mscope(String(path.dropFirst(7)))
+    /// Parse the source type from the raw model ID.
+    /// - Parameters:
+    ///   - modelId: Raw model identifier (e.g. "hf:org/repo", "org/repo", "/local/path")
+    ///   - fallbackPath: modelURL.path — used only when modelId is ambiguous
+    nonisolated static func parseSource(
+        _ modelId: String,
+        fallbackPath: String? = nil
+    ) -> ModelSource {
+        if modelId.hasPrefix("mscope:") {
+            return .mscope(String(modelId.dropFirst(7)))
         }
-        if path.hasPrefix("hf:") {
-            return .huggingFace(String(path.dropFirst(3)))
+        if modelId.hasPrefix("hf:") {
+            return .huggingFace(String(modelId.dropFirst(3)))
         }
-        if path.hasPrefix("huggingface:") {
-            return .huggingFace(String(path.dropFirst(12)))
+        if modelId.hasPrefix("huggingface:") {
+            return .huggingFace(String(modelId.dropFirst(12)))
         }
-        if path.hasPrefix("/") || path.hasPrefix("~/") {
-            return .local(path)
+        // Bare "org/repo" pattern — treat as HuggingFace Hub
+        // (most HF models use this format; ModelScope models should use mscope: prefix)
+        if modelId.contains("/") && !modelId.hasPrefix("/") && !modelId.hasPrefix("~/") {
+            return .huggingFace(modelId)
         }
-        return .local(path) // backwards compat: treat as local path
+        // Fallback to modelURL.path if modelId was a plain name without slashes
+        if let fallback = fallbackPath {
+            if fallback.contains("/") && !fallback.hasPrefix("/") && !fallback.hasPrefix("~/") {
+                return .huggingFace(fallback)
+            }
+        }
+        // Absolute or tilde path → local
+        let check = modelId.hasPrefix("/") || modelId.hasPrefix("~/")
+        if check {
+            return .local(modelId)
+        }
+        // Single-component name with no slash — try local fallback
+        return .local(fallbackPath ?? modelId)
     }
 
     // MARK: - Teardown

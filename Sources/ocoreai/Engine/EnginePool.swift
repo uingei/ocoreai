@@ -206,8 +206,16 @@ actor EnginePool {
     // MARK: - Model Loading
 
     /// Check whether this model ID refers to a remote hub model.
+    /// Recognizes: hf:… / huggingface:… / mscope:… prefixes AND bare "org/repo" paths.
     private nonisolated func isHubModel(_ modelId: String) -> Bool {
-        modelId.hasPrefix("hf:") || modelId.hasPrefix("huggingface:") || modelId.hasPrefix("mscope:")
+        if modelId.hasPrefix("hf:") || modelId.hasPrefix("huggingface:") || modelId.hasPrefix("mscope:") {
+            return true
+        }
+        // Bare "org/repo" pattern: contains a slash and is not an absolute/local path
+        if modelId.contains("/") && !modelId.hasPrefix("/") && !modelId.hasPrefix("~/") {
+            return true
+        }
+        return false
     }
 
     private func loadModel(_ modelId: String) async throws -> LoadedModel {
