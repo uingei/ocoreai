@@ -72,8 +72,8 @@ struct ChatView: View {
 					ForEach(models, id: \.self) { m in
 						Button(m) { currentModel = m }
 					}
-					// P0 test: load model from HuggingFace / ModelScope
-					Button("+ Load Model…") { showModelLoader = true }
+					// P0: load model from HuggingFace / ModelScope
+					Button(StringKey.modelSearchTitle.l) { showModelLoader = true }
 					Divider()
 					Button(StringKey.defaultModel.l) { currentModel = "" }
 				} label: {
