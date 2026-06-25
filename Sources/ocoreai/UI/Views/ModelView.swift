@@ -25,16 +25,10 @@ struct ModelView: View {
 	}
 
 	var body: some View {
-		ScrollView {
-			VStack(alignment: .leading, spacing: 24) {
-				SectionHeader(StringKey.tabModels.l, subtitle: StringKey.loadingModels.l) {
-					Spacer(minLength: 2)
-					Button(StringKey.refreshButton.l) {
-						Task { await modelsState.fetchModels() }
-					}
-					.ocoreaiButton(.normal, size: .small)
-				}
-
+		// macOS: TextField keyboard input requires Form for proper responder chain
+		// Without Form, keyboard chars are swallowed but pasteboard (Cmd+V) still works
+		Form {
+			Section(StringKey.tabModels.l) {
 				// 搜索框
 				searchBoxCard
 
@@ -47,16 +41,14 @@ struct ModelView: View {
 						Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
 						Text(err).foregroundStyle(.secondary).font(.caption)
 					}
-					.padding(10).modifier(theme.cardStyle()).onTapGesture { downloadError = nil }
+					.onTapGesture { downloadError = nil }
 				}
 
 				// 本地模型
 				localModelsView
-
-				Spacer(minLength: 16)
 			}
-			.padding(20)
 		}
+		.formStyle(.grouped)
 		.background(theme.windowBg)
 		.task {
 			await modelsState.fetchModels()
@@ -69,35 +61,30 @@ struct ModelView: View {
 
 	@ViewBuilder
 	private var searchBoxCard: some View {
-		// macOS 上 Section 在 Form 外渲染为 GroupBox，会截获聚焦事件导致 TextField 无法输入
-		// 这里直接用 VStack + padding + cardStyle，绕过 GroupBox 焦点路由问题
-		VStack(spacing: 8) {
-			Picker(StringKey.modelSearchSelectHub.l, selection: $selectedSource) {
-				ForEach(HubSource.allCases, id: \.self) { s in
-					Text(s.rawValue).tag(s)
-				}
-			}
-			.pickerStyle(.segmented).frame(maxWidth: .infinity)
-
-			TextField(
-				selectedSource == .huggingFace
-					? StringKey.modelSearchHFHub.l
-					: StringKey.modelSearchModelScope.l,
-				text: $searchQuery
-			)
-			.textFieldStyle(.plain)
-			.onSubmit { Task { await doSearch(searchQuery) } }
-			.disableAutocorrection(true)
-
-			if isSearching {
-				HStack {
-					ProgressView()
-					Text(StringKey.modelSearchSearching.l).foregroundStyle(.secondary)
-					Spacer()
-				}.padding(.vertical, 4)
+		// Form 环境下直接放内容，不需要额外 Section（外层已有 Section）
+		Picker(StringKey.modelSearchSelectHub.l, selection: $selectedSource) {
+			ForEach(HubSource.allCases, id: \.self) { s in
+				Text(s.rawValue).tag(s)
 			}
 		}
-		.padding(12).modifier(theme.cardStyle())
+		.pickerStyle(.segmented).frame(maxWidth: .infinity)
+
+		TextField(
+			selectedSource == .huggingFace
+				? StringKey.modelSearchHFHub.l
+				: StringKey.modelSearchModelScope.l,
+			text: $searchQuery
+		)
+		.onSubmit { Task { await doSearch(searchQuery) } }
+		.disableAutocorrection(true)
+
+		if isSearching {
+			HStack {
+				ProgressView()
+				Text(StringKey.modelSearchSearching.l).foregroundStyle(.secondary)
+				Spacer()
+			}
+		}
 	}
 
 	@ViewBuilder
