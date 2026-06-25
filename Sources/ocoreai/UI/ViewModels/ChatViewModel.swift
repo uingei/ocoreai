@@ -243,6 +243,22 @@ final class ChatState {
         return models.map { $0["id"] ?? "unknown" }
     }
     
+    /// Load a model into the pool (triggers download if hub model like hf:...),
+    /// then return the updated list of loaded model IDs.
+    func loadNewModel(_ modelId: String) async -> [String] {
+        guard let pool = OcoreaiEngine.shared.activeEnginePool else { return [] }
+        do {
+            // Acquire triggers lazy-load; immediately release so we don't hold a session
+            let _ = try await pool.acquire(model: modelId)
+            await pool.releaseSession(modelId: modelId, sessionId: "init")
+        } catch {
+            self.error = error
+            return []
+        }
+        // Return refreshed model list for ChatView to update its @State
+        return await loadModels()
+    }
+    
     /// Snapshot current state, then clear the conversation.
     func resetConversation() {
         undoSnapshot = messages

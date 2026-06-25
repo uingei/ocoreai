@@ -33,6 +33,11 @@ struct ChatView: View {
 	@State private var currentModel = ""
 	@State private var models: [String] = []
 	@State private var activeTask: Task<Void, Never>? = nil
+	
+	// P0 test: model download entry point
+	@State private var showModelLoader = false
+	@State private var newModelId = ""
+	@State private var loadingModel = false
 
 	init() {
 		_chatState = State(initialValue: ChatState())
@@ -90,6 +95,55 @@ struct ChatView: View {
 				.accessibilityLabel(StringKey.clearConversationLabel.l)
 				.accessibilityHint(StringKey.clearConversationHint.l)
 				.disabled(isStreaming)
+			}
+			
+			// P0 test: model download entry point
+			ToolbarItem(placement: .primaryAction) {
+				Button { showModelLoader = true } label: {
+					Label("Load Model", systemImage: "plus.below.square.stack")
+				}
+				.accessibilityLabel("Load a new model")
+			}
+		}
+		// P0 test: model download sheet
+		.sheet(isPresented: $showModelLoader) {
+			NavigationStack {
+				Form {
+					Section("Model ID") {
+						TextField("e.g. mlx-community/SmolLM2-1.7B-Instruct", text: $newModelId)
+					}
+					Section {
+						Button("Load") {
+							loadingModel = true
+							Task { @MainActor in
+								let updated = await chatState.loadNewModel(newModelId)
+								if !updated.isEmpty {
+									models = updated
+									currentModel = updated.last ?? currentModel
+								}
+								showModelLoader = false
+								loadingModel = false
+								newModelId = ""
+							}
+						}
+						.disabled(newModelId.isEmpty)
+					}
+					if loadingModel {
+						Section {
+							HStack {
+								ProgressView()
+								Text("Loading model…")
+								Spacer()
+							}
+						}
+					}
+				}
+				.navigationTitle("Load Model")
+				.toolbar {
+					ToolbarItem(placement: .cancellationAction) {
+						Button("Cancel") { showModelLoader = false; loadingModel = false }
+					}
+				}
 			}
 		}
 		// P0-2: On model selector change, unload old model to free GPU memory
