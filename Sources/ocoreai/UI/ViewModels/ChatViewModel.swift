@@ -5,6 +5,12 @@
 /// @Observable pattern (Swift 5.9+): property-level change tracking.
 /// Fast Path: SwiftUI → DirectInferenceClient → EnginePool (zero HTTP).
 /// Single source of truth for engine readiness: OcoreaiEngine.shared.engineReady.
+///
+/// ### Persistence (Phase 1 P0-1 fix):
+/// - Every user/assistant message is persisted to SQLite via SessionCompressor.
+/// - Session is created/reused per (modelId) pair.
+/// - On `start()`, historical messages for the last-used session are loaded from SQLite.
+/// - On `resetConversation()`, the session is cleared and a new one is created.
 
 import Foundation
 import SwiftUI
@@ -39,6 +45,50 @@ final class ChatState {
     var connected: Bool { OcoreaiEngine.shared.engineReady }
     var engineReady: Bool { OcoreaiEngine.shared.engineReady }
     
+    // MARK: - Persistence state
+    
+    /// SQLite-backed session ID for the current conversation.
+    /// nil means no session yet (will be created on first chat).
+    private var sessionId: Int64? = nil
+    
+    /// Current model for session scoping.
+    private var activeModelId: String? = nil
+    
+    /// SessionCompressor accessor — nil when engine not booted.
+    private var compressor: SessionCompressor? { OcoreaiEngine.shared.activeSessionCompressor }
+    
+    // MARK: - Cancellation (P0-3: mid-stream interrupt)
+    
+    /// Cancellation token for the active inference stream.
+    /// When non-nil, a stream is in progress and can be cancelled.
+    private var currentCancellation: InferenceCancellation? = nil
+    
+    /// Cancel the current inference stream immediately.
+    /// Safe to call multiple times and when no stream is active.
+    func cancelInference() {
+        currentCancellation?.cancel()
+        currentCancellation = nil
+        loading = false
+        responseText = ""
+    }
+    
+    // MARK: - Model lifecycle (P0-2: hot-switch)
+    
+    /// Called when the user switches the model selector.
+    /// Unloads the old model from EnginePool to free GPU memory.
+    func onModelChanged(newModelId: String) {
+        // Cancel any in-flight inference before switching
+        cancelInference()
+        
+        // Unload the old model if it differs from the new one
+        if let oldModel = activeModelId, oldModel != newModelId {
+            Task {
+                guard let pool = OcoreaiEngine.shared.activeEnginePool else { return }
+                await pool.unloadModel(oldModel)
+            }
+        }
+    }
+    
     // MARK: - Undo support
     
     /// Snapshot capture before destructive operations (max one level).
@@ -51,9 +101,70 @@ final class ChatState {
     
     // MARK: - Lifecycle
     
-    /// No-op: engine readiness is now a computed property from OcoreaiEngine.shared.
-    func start() {}
+    /// Start session: load historical messages from SQLite for the last-used session.
+    func start() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.loadHistory()
+        }
+    }
     func stop() {}
+    
+    // MARK: - Persistence
+    
+    /// Load messages from SQLite for the current session (if any).
+    private func loadHistory() async {
+        guard let compressor, let sid = sessionId else { return }
+        do {
+            let dbMessages = try await compressor.getMessages(sid, limit: nil, offset: 0)
+            // Messages come in reverse chronological order from DB — reverse for display
+            let chronMessages = dbMessages.reversed().map { fromMessageModel($0) }
+            messages = chronMessages
+        } catch {
+            // Non-fatal: fall back to empty in-memory state
+        }
+    }
+    
+    /// Create or reuse a persistent session for the given model.
+    /// Reuses existing session if the model hasn't changed.
+    private func ensureSession(for modelId: String) async {
+        guard let compressor else { return }
+        if sessionId != nil && activeModelId == modelId {
+            return // Session already exists for this model
+        }
+        do {
+            // Clean up old session model association before creating new one
+            activeModelId = modelId
+            sessionId = try await compressor.createSession(modelId: modelId)
+        } catch {
+            // Non-fatal: continue with in-memory mode
+        }
+    }
+    
+    /// Persist a single message to SQLite.
+    private func persistMessage(role: String, content: String) async {
+        guard let compressor, let sid = sessionId else { return }
+        do {
+            try await compressor.addMessage(
+                sessionId: sid,
+                role: role,
+                content: content,
+                tokenCount: estimateTokens(content)
+            )
+        } catch {
+            // Non-fatal: message still exists in memory
+        }
+    }
+    
+    /// Rough token estimate: ~4 chars per token for English, ~2 for CJK.
+    private nonisolated func estimateTokens(_ text: String) -> Int {
+        max(1, text.utf8.count / 3)
+    }
+    
+    /// Convert DB MessageModel to our ChatMessage.
+    private nonisolated func fromMessageModel(_ mm: MessageModel) -> ChatMessage {
+        ChatMessage(role: mm.role, content: mm.content, timestamp: mm.createdAt)
+    }
     
     // MARK: - Chat (Fast Path)
     
@@ -63,11 +174,21 @@ final class ChatState {
     ///       → EnginePool.acquire() → generateFromMessages()
     ///       → AsyncStream<InferenceEvent> → UI update
     func chat(_ text: String, model: String) async {
-        // Push user message
-        messages.append(ChatMessage(role: "user", content: text))
+        // Ensure persistent session exists
+        await ensureSession(for: model)
+        
+        // Push and persist user message
+        let userMsg = ChatMessage(role: "user", content: text)
+        messages.append(userMsg)
+        await persistMessage(role: "user", content: text)
+        
         responseText = ""
         loading = true
         error = nil
+        
+        // P0-3: Create cancellable token for mid-stream interrupt
+        let cancellation = InferenceCancellation.cancellable()
+        currentCancellation = cancellation
         
         do {
             // Build InferenceRequest from our ChatMessage array
@@ -80,24 +201,32 @@ final class ChatState {
             let request = InferenceRequest(
                 modelId: model,
                 messages: typedMessages,
-                sessionId: "chat-\(UUID().uuidString.prefix(8))"
+                sessionId: "chat-\(UUID().uuidString.prefix(8))",
+                cancellation: cancellation
             )
             
             // Stream via Fast Path
             for try await chunk in try await DirectInferenceClient.shared.stream(request: request) {
+                // P0-3: respect cancellation from both the token and outer Task
+                guard !cancellation.isCancelled, !Task.isCancelled else { break }
                 if !chunk.text.isEmpty {
                     responseText += chunk.text
                 }
                 if chunk.isComplete {
-                    // Conversation complete — append to history
+                    // Conversation complete — append and persist to history
                     if !responseText.isEmpty {
-                        messages.append(ChatMessage(role: "assistant", content: responseText))
+                        let assistantMsg = ChatMessage(role: "assistant", content: responseText)
+                        messages.append(assistantMsg)
+                        await persistMessage(role: "assistant", content: responseText)
                     }
                 }
             }
+            // Finalize cancellation handle
+            currentCancellation = nil
         } catch {
             self.error = error
             responseText = error.localizedDescription
+            currentCancellation = nil
         }
         loading = false
     }

@@ -92,6 +92,11 @@ struct ChatView: View {
 				.disabled(isStreaming)
 			}
 		}
+		// P0-2: On model selector change, unload old model to free GPU memory
+		.onChange(of: currentModel) { _, newModel in
+			let targetModel = newModel.isEmpty ? "local" : newModel
+			chatState.onModelChanged(newModelId: targetModel)
+		}
 		.accessibilityLabel(StringKey.chatLabel.l)
 	}
 
@@ -280,6 +285,8 @@ struct ChatView: View {
 	}
 
 	private func stopStreaming() {
+		// P0-3: propagate cancellation to both the Task layer and the InferenceCancellation layer
+		chatState.cancelInference()
 		activeTask?.cancel()
 	}
 }

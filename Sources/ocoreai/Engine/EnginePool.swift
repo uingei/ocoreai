@@ -389,6 +389,44 @@ actor EnginePool {
         trackedTasks.removeAll { $0 == task }
     }
 
+    // MARK: - Single Model Unload (hot-switch support)
+
+    /// Unload a single model from the pool, releasing GPU memory.
+    /// Waits for active sessions to drain before removing.
+    ///
+    /// - Parameter modelId: The model to unload
+    /// - Returns: `true` if the model was unloaded, `false` if it wasn't loaded
+    @discardableResult
+    func unloadModel(_ modelId: String) async -> Bool {
+        guard let model = loadedModels.removeValue(forKey: modelId) else {
+            logger.info("Model not loaded, skip unload: \(modelId)")
+            return false
+        }
+
+        logger.info("Unloading model: \(modelId)")
+
+        // Wait for active sessions to naturally drain (up to 30s)
+        let deadline = ContinuousClock.now + .seconds(30)
+        while model.activeSessions > 0, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(500))
+        }
+
+        if model.activeSessions > 0 {
+            logger.warning("Model \(modelId) still has \(model.activeSessions) active sessions — force releasing")
+        }
+
+        model.cleanup()
+
+        // Also clear cached tokenizer to free memory
+        await tokenizerManager.removeTokenizer(for: modelId)
+
+        // Clear sampling overrides so next load uses defaults
+        modelSamplingDefaults.removeValue(forKey: modelId)
+
+        logger.info("Model unloaded: \(modelId)")
+        return true
+    }
+
     // MARK: - Graceful Shutdown
 
     func shutdown() async {

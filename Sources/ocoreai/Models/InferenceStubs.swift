@@ -192,6 +192,8 @@ actor TokenizerManager {
         throw StubError("Tokenizer unavailable — enable coreai or mlx trait")
     }
     func getTokenizer(for modelId: String) -> (any TokenizerProvider)? { nil }
+    @discardableResult
+    func removeTokenizer(for modelId: String) -> Bool { false }
     func shutdown() {}
 }
 

@@ -29,12 +29,17 @@ struct InferenceRequest: Sendable {
     let topK: Int?
     let maxTokens: Int?
     
+    /// Cancellation token for mid-stream interrupt support.
+    /// When nil (default), the request is non-cancellable.
+    let cancellation: InferenceCancellation?
+    
     init(
         modelId: String,
         messages: [Message],
         temperature: Double? = nil,
         maxTokens: Int? = nil,
-        sessionId: String? = nil
+        sessionId: String? = nil,
+        cancellation: InferenceCancellation? = nil
     ) {
         self.modelId = modelId
         self.messages = messages
@@ -45,6 +50,7 @@ struct InferenceRequest: Sendable {
         self.topP = nil
         self.topK = nil
         self.maxTokens = maxTokens
+        self.cancellation = cancellation
     }
 }
 
@@ -193,10 +199,14 @@ extension DirectInferenceClient {
         // Phase 5: Dispatch inference
         await handle.markActive()
         
+        // Pass cancellation token to propagate UI cancel signal to the inference layer
+        let cancellation = request.cancellation ?? .none
+        
         let tokenStream = handle.generateFromMessages(
             messages: fullMessages,
             sampling: sampling,
-            options: inferenceOpts
+            options: inferenceOpts,
+            cancellation: cancellation
         )
         
         var outputTokens = 0

@@ -98,6 +98,17 @@ actor TokenizerManager {
         tokenizers[modelId]
     }
 
+    /// Remove a single tokenizer from the registry (hot-switch support).
+    /// - Parameter modelId: The model whose tokenizer should be removed
+    /// - Returns: `true` if a tokenizer existed and was removed
+    @discardableResult
+    func removeTokenizer(for modelId: String) -> Bool {
+        guard tokenizers.removeValue(forKey: modelId) != nil else {
+            return false
+        }
+        return true
+    }
+
     /// Release all registered tokenizers (cleanup on shutdown).
     func shutdown() {
         tokenizers.removeAll()
