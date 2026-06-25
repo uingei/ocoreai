@@ -74,6 +74,8 @@ struct ChatView: View {
 					ForEach(models, id: \.self) { m in
 						Button(m) { currentModel = m }
 					}
+					// P0 test: load model from HuggingFace / ModelScope
+					Button("+ Load Model…") { showModelLoader = true }
 					Divider()
 					Button(StringKey.defaultModel.l) { currentModel = "" }
 				} label: {
@@ -95,14 +97,6 @@ struct ChatView: View {
 				.accessibilityLabel(StringKey.clearConversationLabel.l)
 				.accessibilityHint(StringKey.clearConversationHint.l)
 				.disabled(isStreaming)
-			}
-			
-			// P0 test: model download entry point
-			ToolbarItem(placement: .primaryAction) {
-				Button { showModelLoader = true } label: {
-					Label("Load Model", systemImage: "plus.below.square.stack")
-				}
-				.accessibilityLabel("Load a new model")
 			}
 		}
 		// P0 test: model download sheet
