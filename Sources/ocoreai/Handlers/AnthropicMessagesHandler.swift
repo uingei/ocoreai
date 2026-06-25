@@ -54,6 +54,38 @@ func anthropicMessagesHandler(
 ) async throws -> Response {
     let modelId = request.model
 
+    // Safety check: filter harmful input before scheduling
+    if let contentGuard = await OcoreaiEngine.shared.activeContentGuard {
+        let messageText: String
+        if let first = request.messages.first, let content = first.content {
+            switch content {
+            case .text(let s): messageText = s
+            case .blocks(let blocks): messageText = blocks.compactMap { $0.text }.joined(separator: "\n")
+            }
+        } else {
+            messageText = ""
+        }
+        if !messageText.isEmpty {
+            let result = await contentGuard.checkInput(messageText)
+            if result.isBlocked {
+                let errorBody: [String: Any] = [
+                    "error": [
+                        "message": result.rejectionReason ?? "Content safety violation",
+                        "type": "content_policy_violation",
+                        "code": 400,
+                        "categories": result.triggeredCategories.map(\.rawValue),
+                    ]
+                ]
+                guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
+                    return Response(status: .badRequest)
+                }
+                var headers: HTTPFields = [:]
+                headers[.contentType] = "application/json"
+                return Response(status: .badRequest, headers: headers, body: .init(contentsOf: [ByteBuffer(data: data)]))
+            }
+        }
+    }
+
     // ═══════════════════════════════════════════════════════
     // Convert Anthropic → internal ChatCompletionRequest
     // ═══════════════════════════════════════════════════════

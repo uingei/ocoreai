@@ -18,19 +18,22 @@ public struct AppConfig: Sendable, Codable, Equatable {
     public var models: [String: ModelConfigEntry]
     public var memory: MemoryConfig
     public var metrics: MetricsConfig
+    public var safety: SafetyConfig
 
     public init(
         server: ServerConfig = .default,
         backend: BackendConfig = .default,
         models: [String: ModelConfigEntry] = ModelConfigEntry.defaultModels,
         memory: MemoryConfig = .default,
-        metrics: MetricsConfig = .default
+        metrics: MetricsConfig = .default,
+        safety: SafetyConfig = .default
     ) {
         self.server = server
         self.backend = backend
         self.models = models
         self.memory = memory
         self.metrics = metrics
+        self.safety = safety
     }
 
     /// Run validation — throws on invalid config.
@@ -38,6 +41,57 @@ public struct AppConfig: Sendable, Codable, Equatable {
         try server.validate()
         try backend.validate()
         try memory.validate()
+        try safety.validate()
+    }
+}
+
+// MARK: - Safety Config
+
+/// Content safety configuration — controls pre/post inference filtering.
+///
+/// Stored in `~/.ocoreai/config.yaml` under the `safety:` key.
+public struct SafetyConfig: Sendable, Codable, Equatable {
+    /// Master toggle — disabled means all filters are bypassed.
+    public var enabled: Bool
+
+    /// Per-category detection mode override (default: auto).
+    public var categoryModes: [String: String]
+
+    /// Additional keywords to detect (category → keyword list).
+    public var additionalKeywords: [String: [String]]
+
+    /// Minimum number of keyword matches before blocking a category.
+    public var minMatchesRequired: Int
+
+    /// Whether to redact offending content in logs.
+    public var logRedaction: Bool
+
+    public static let `default` = SafetyConfig()
+
+    public init(
+        enabled: Bool = true,
+        categoryModes: [String: String] = [:],
+        additionalKeywords: [String: [String]] = [:],
+        minMatchesRequired: Int = 1,
+        logRedaction: Bool = true
+    ) {
+        self.enabled = enabled
+        self.categoryModes = categoryModes
+        self.additionalKeywords = additionalKeywords
+        self.minMatchesRequired = max(1, min(minMatchesRequired, 5))
+        self.logRedaction = logRedaction
+    }
+
+    func validate() throws {
+        // Non-negotiable categories cannot be set to "disabled"
+        let nonNegotiable: [String] = ["underageSexual", "sexualViolence", "selfHarm"]
+        for catName in nonNegotiable {
+            if let mode = categoryModes[catName], mode == "disabled" {
+                throw ConfigValidationError(
+                    "safety.categoryModes: cannot disable \(catName) — non-negotiable safety category"
+                )
+            }
+        }
     }
 }
 

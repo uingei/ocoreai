@@ -74,6 +74,9 @@ public final class OcoreaiEngine {
     /// Direct accessor to audit trail — SwiftUI can browse tool call history.
     var activeAuditTrail: AuditTrail? { _auditTrail }
     
+    /// Direct accessor to ContentGuard — safety filter for both paths.
+    var activeContentGuard: ContentGuard? { _contentGuard }
+    
     /// Direct accessor to complexity analyzer — SwiftUI can show reasoning depth.
     var activeComplexityAnalyzer: ComplexityAnalyzer? { _complexityAnalyzer }
     
@@ -92,6 +95,7 @@ public final class OcoreaiEngine {
     private var _auditTrail: AuditTrail?
     private var _complexityAnalyzer: ComplexityAnalyzer?
     private var _thinkingBudget: ThinkingBudget?
+    private var _contentGuard: ContentGuard?
     
     private let logger: Logger
     
@@ -213,6 +217,10 @@ public final class OcoreaiEngine {
         // MARK: - Complexity + Thinking Budget (for Fast Path + Bridge Path)
         _complexityAnalyzer = ComplexityAnalyzer()
         _thinkingBudget = ThinkingBudget()
+        
+        // MARK: - ContentGuard (safety filter for both Fast + Bridge paths)
+        _contentGuard = ContentGuard(runtimeConfig: .init(from: .default))
+        logger.info("ContentGuard initialized (safety filter active)")
         
         // MARK: - MessageBuilder (shared by Fast Path + Bridge Path)
         _messageBuilder = MessageBuilder(

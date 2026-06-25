@@ -113,10 +113,7 @@ private func _doTrain(
     do {
         let snapshotTrain = trainData
         let snapshotValid = validData
-        trainResult = try await modelContainer.perform { ctx in
-            let model = ctx.model
-            let tkn = ctx.tokenizer
-
+        trainResult = try await modelContainer.perform { model, tkn in
             guard model is (any LoRAModel) else {
                 _ = yieldSSE(
                     TrainProgressChunk(

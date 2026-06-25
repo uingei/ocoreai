@@ -28,7 +28,9 @@ let package = Package(
         // not SwiftPM packages — imported directly in source via `#if coreai` guards
         // MLX 推理框架 — 始终追踪 main 分支最新
         .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", branch: "main"),
-        // HuggingFace Hub SDK + Tokenizers — 原生搜索、下载、tokenizer 加载
+        // swift-tokenizers-mlx: Tokenizers module (huggingFaceTokenizerLoader macro requires it)
+        .package(url: "https://github.com/huggingface/swift-tokenizers-mlx.git", branch: "main"),
+        // HuggingFace Hub SDK — 原生搜索、下载
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.8.1"),
         // NOTE: swift-testing 0.x requires swift-syntax 600.x, incompatible with
         //       MLX's swift-syntax 602-604 requirement. Testing tests are guarded

@@ -142,6 +142,28 @@ func chatCompletionsHandler(
     /// Extract model identifier from the request payload.
     let modelId = request.model
 
+    /// Safety check: filter harmful input before scheduling
+    if let contentGuard = await OcoreaiEngine.shared.activeContentGuard {
+        let messageText = request.messages.map { $0.textContent() }.joined(separator: " ")
+        let result = await contentGuard.checkInput(messageText)
+        if result.isBlocked {
+            let errorBody: [String: Any] = [
+                "error": [
+                    "message": result.rejectionReason ?? "Content safety violation",
+                    "type": "content_policy_violation",
+                    "code": 400,
+                    "categories": result.triggeredCategories.map(\.rawValue),
+                ]
+            ]
+            guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
+                return Response(status: .badRequest)
+            }
+            var headers: HTTPFields = [:]
+            headers[.contentType] = "application/json"
+            return Response(status: .badRequest, headers: headers, body: .init(contentsOf: [ByteBuffer(data: data)]))
+        }
+    }
+
     /// Phase 1: Submit to scheduler (OOMGuard + priority queue)
     let schedulingRequest = SchedulingRequest(
         id: "req-\(UUID().uuidString.prefix(8))",
@@ -679,6 +701,9 @@ private func streamWithToolCalling(
         let startTime = ContinuousClock.now
         var ttfbTime: ContinuousClock.Instant? = nil
 
+        /// Streaming output safety guard — reused for every chunk
+        let streamGuard = await OcoreaiEngine.shared.activeContentGuard
+
         /// Mark session active — resets KV cache idle eviction timer.
         await handle.markActive()
 
@@ -733,8 +758,18 @@ private func streamWithToolCalling(
                         deltaText = newText
                     }
 
-                    /// Emit SSE chunk if there's new text.
+                    /// Emit SSE chunk if there's new text (with safety filter).
                     if !deltaText.isEmpty {
+                        // Safety check: filter harmful output in real-time
+                        if let contentGuard = streamGuard {
+                            let checkResult = await contentGuard.checkOutput(deltaText)
+                            if !checkResult.passed {
+                                logger.warning("Streaming output blocked: \(checkResult.triggeredCategories)")
+                                yieldSSERaw("[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]", to: continuation)
+                                continuation.finish()
+                                return
+                            }
+                        }
                         let choice = ChunkChoice(
                             delta: ChatDelta(content: deltaText),
                             finishReason: nil
@@ -756,6 +791,17 @@ private func streamWithToolCalling(
 
                     if ttfbTime == nil {
                         ttfbTime = ContinuousClock.now
+                    }
+
+                    // Safety check: filter harmful output in real-time
+                    if let contentGuard = streamGuard {
+                        let checkResult = await contentGuard.checkOutput(text)
+                        if !checkResult.passed {
+                            logger.warning("Streaming output blocked (.text): \(checkResult.triggeredCategories)")
+                            yieldSSERaw("[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]", to: continuation)
+                            continuation.finish()
+                            return
+                        }
                     }
 
                     prevDecodedText.append(text)
@@ -780,6 +826,16 @@ private func streamWithToolCalling(
                             if finalText.hasPrefix(prevDecodedText) {
                                 let remainder = String(finalText.dropFirst(prevDecodedText.count))
                                 if !remainder.isEmpty {
+                                    // Safety check: final flush content
+                                    if let contentGuard = streamGuard {
+                                        let checkResult = await contentGuard.checkOutput(remainder)
+                                        if !checkResult.passed {
+                                            logger.warning("Streaming output blocked (final flush): \(checkResult.triggeredCategories)")
+                                            yieldSSERaw("[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]", to: continuation)
+                                            continuation.finish()
+                                            return
+                                        }
+                                    }
                                     let choice = ChunkChoice(
                                         delta: ChatDelta(content: remainder),
                                         finishReason: nil

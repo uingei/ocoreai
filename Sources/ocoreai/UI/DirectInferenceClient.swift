@@ -77,6 +77,15 @@ final class DirectInferenceClient {
             throw DirectInferenceError.schedulerNotReady
         }
         
+        // Safety check: filter harmful input before scheduling
+        if let contentGuard = OcoreaiEngine.shared.activeContentGuard {
+            let messageText = request.messages.map { $0.textContent() }.joined(separator: " ")
+            let result = await contentGuard.checkInput(messageText)
+            if result.isBlocked {
+                throw DirectInferenceError.contentBlocked(result.rejectionReason ?? "Content safety violation")
+            }
+        }
+        
         return AsyncStream(DirectChatChunk.self) { continuation in
             Task {
                 do {
@@ -194,6 +203,9 @@ extension DirectInferenceClient {
         var accumulatedText = ""
         var finishReason: String? = nil
         
+        // Streaming output safety guard
+        let streamGuard = OcoreaiEngine.shared.activeContentGuard
+        
         do {
             for try await event in tokenStream {
                 switch event.kind {
@@ -201,6 +213,15 @@ extension DirectInferenceClient {
                     outputTokens += 1
                 case .text(let text):
                     outputTokens += 1
+                    // Safety check: filter harmful output
+                    if let contentGuard = streamGuard {
+                        let checkResult = await contentGuard.checkOutput(text)
+                        if !checkResult.passed {
+                            continuation.yield(.init(text: "[Safety Filter: \(checkResult.rejectionReason ?? "Content safety violation")]", isComplete: true))
+                            continuation.finish()
+                            return
+                        }
+                    }
                     accumulatedText += text
                     continuation.yield(.init(text: text, isComplete: false))
                 case .done(let reason):
@@ -358,12 +379,14 @@ enum DirectInferenceError: Error, LocalizedError {
     case engineNotReady
     case schedulerNotReady
     case messageBuilderNotReady
+    case contentBlocked(String)
     
     var errorDescription: String? {
         switch self {
         case .engineNotReady: return "Inference engine not yet ready"
         case .schedulerNotReady: return "Scheduler not yet ready"
         case .messageBuilderNotReady: return "Message builder not yet ready"
+        case .contentBlocked(let reason): return "Content blocked: \(reason)"
         }
     }
 }

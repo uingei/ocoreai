@@ -34,6 +34,7 @@ import MLXLMCommon
 /// Auth auto-detected by HubClient from HF_TOKEN env var / filesystem.
 import MLXHuggingFace
 import HuggingFace
+import Tokenizers
 
 // MARK: - MLX Model Handle
 
@@ -117,7 +118,7 @@ actor MLXModelLoader {
 
     // MARK: - Local Load
 
-    func loadLocal(_ path: Path, modelId: String) async throws -> MLXContainer {
+    func loadLocal(_ path: Path, modelId: String) async throws -> MLXLMCommon.ModelContainer {
         logger.info("Using local path for \(modelId): \(path.rawValue)")
         let directory = URL(fileURLWithPath: path.rawValue)
         do {
@@ -131,7 +132,7 @@ actor MLXModelLoader {
         }
     }
 
-    func loadLocal(url: URL, fallback modelId: String) async throws -> MLXContainer {
+    func loadLocal(url: URL, fallback modelId: String) async throws -> MLXLMCommon.ModelContainer {
         do {
             return try await loadLocal(Path(url.path), modelId: modelId)
         } catch {
@@ -147,7 +148,7 @@ actor MLXModelLoader {
     enum HubProvider { case modelScope, huggingFace }
 
     @inline(never)
-    func loadFromHub(_ provider: HubProvider, repoId: String, modelId: String) async throws -> MLXContainer {
+    func loadFromHub(_ provider: MLXModelLoader.HubProvider, repoId: String, modelId: String) async throws -> MLXLMCommon.ModelContainer {
         let start = ContinuousClock.now
 
         switch provider {

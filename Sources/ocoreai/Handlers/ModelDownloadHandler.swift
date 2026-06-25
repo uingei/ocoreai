@@ -13,6 +13,10 @@ import Foundation
 import HTTPTypes
 import Hummingbird
 import Logging
+import MLXHuggingFace
+import HuggingFace
+import MLXLLM
+import MLXLMCommon
 
 // MARK: - Helpers
 
@@ -133,6 +137,7 @@ private func downloadFromHF(
     result = try await downloader.download(
         id: modelId,
         revision: revision,
+        matching: [],
         useLatest: useLatest,
         progressHandler: { progress in
             let pct = Int(progress.fractionCompleted * 100)
@@ -167,6 +172,7 @@ private func downloadFromMscope(
     result = try await downloader.download(
         id: modelId,
         revision: revision,
+        matching: [],
         useLatest: useLatest,
         progressHandler: { progress in
             let pct = Int(progress.fractionCompleted * 100)
