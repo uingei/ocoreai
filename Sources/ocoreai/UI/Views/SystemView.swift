@@ -6,13 +6,8 @@
 
 import SwiftUI
 
-private var reduceMotion: Bool {
-	#if os(macOS)
-	NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-	#else
-	UIAccessibility.isReduceMotionEnabled
-	#endif
-}
+// reduceMotion is now provided by shared AnimationHelpers.swift
+import AppKit
 
 struct SystemView: View {
     @State private var viewModel = SystemState()

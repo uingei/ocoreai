@@ -167,12 +167,12 @@ struct ChatView: View {
 			}
 			.scrollIndicators(.never)
 			.onChange(of: chatState.messages.count) {
-				withAnimation {
+				withAnimationRespectingAccessibility {
 					proxy.scrollTo("bottom", anchor: .bottom)
 				}
 			}
 			.onChange(of: chatState.responseText) {
-				withAnimation {
+				withAnimationRespectingAccessibility {
 					proxy.scrollTo("bottom", anchor: .bottom)
 				}
 			}

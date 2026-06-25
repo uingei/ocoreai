@@ -9,16 +9,6 @@ import SwiftUI
 struct StatusView: View {
 	private var appState: AppState { AppState.shared }
 	@Environment(\.ocoreaiTheme) private var theme
-	
-	private var reduceMotion: Bool {
-#if os(macOS)
-		NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-#elseif os(iOS)
-		UIAccessibility.isReduceMotionEnabled
-#else
-		false
-#endif
-	}
 
 	var body: some View {
 		ScrollView {

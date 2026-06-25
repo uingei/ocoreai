@@ -26,16 +26,6 @@ extension View {
 struct OCoreaiButtonModifier: ViewModifier {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.ocoreaiTheme) private var theme
-    
-    private var reduceMotion: Bool {
-#if os(macOS)
-        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-#elseif os(iOS)
-        UIAccessibility.isReduceMotionEnabled
-#else
-        false
-#endif
-    }
 
     let kind: OCoreaiButtonKind
     let size: OCoreaiButtonSize
