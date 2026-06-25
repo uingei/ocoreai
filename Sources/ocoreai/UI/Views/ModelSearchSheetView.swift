@@ -143,6 +143,7 @@ struct ModelSearchSheetView: View {
 				Section(StringKey.modelSearchQuickLoad.l) {
 					HStack {
 						TextField(StringKey.modelSearchExample.l, text: $searchState.directModelId)
+							.textFieldStyle(.plain)
 						if !searchState.directModelId.isEmpty {
 							Button(StringKey.modelSearchLoad.l) {
 								searchState.loadModel(searchState.directModelId, onSuccess: { dismiss() })
@@ -265,6 +266,7 @@ private struct SearchBar: View {
 	
 	var body: some View {
 		TextField(placeholder, text: $text)
+			.textFieldStyle(.plain)
 			.onSubmit { onCommit(text) }
 	}
 }

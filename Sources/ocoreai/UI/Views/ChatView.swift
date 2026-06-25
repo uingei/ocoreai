@@ -618,6 +618,7 @@ private struct SearchBar: View {
 	
 	var body: some View {
 		TextField(placeholder, text: $text)
+			.textFieldStyle(.plain)
 			.onSubmit { onCommit(text) }
 	}
 }
