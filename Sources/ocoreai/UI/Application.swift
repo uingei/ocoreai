@@ -25,7 +25,8 @@ struct OcoreaiApp: App {
 		Window("ocoreai", id: "main") {
 			OcoreaiShellView()
 		}
-		.windowResizability(.contentSize)
+		// .windowResizability(.default) is the macOS standard — .contentSize
+		// can cause window activation issues with TextField focus (radar 91608726)
 		.windowStyle(.titleBar)
 		// Settings via Cmd+, — macOS standard
 		.commands {
@@ -228,7 +229,15 @@ private struct SectionHeaderLabel: View {
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
 	func applicationDidFinishLaunching(_ notification: Notification) {
-		// System-managed appearance — auto dark/light
+		// macOS HIG: activate application so it becomes key window immediately
+		// This prevents the terminal/console from stealing keyboard focus
+		NSApplication.shared.setActivationPolicy(.regular)
+		NSApplication.shared.activate(ignoringOtherApps: true)
+
+		// Ensure the main window becomes key & ordered front
+		if let mainWindow = NSApp.mainWindow {
+			mainWindow.makeKeyAndOrderFront(nil)
+		}
 	}
 }
 #endif
