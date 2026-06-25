@@ -1,6 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// Skills View — skill list, categories, and detail
+/// Accessibility: VoiceOver labels, hints, groups
 
 import SwiftUI
 
@@ -28,6 +29,7 @@ struct SkillsView: View {
         .onAppear {
             Task { await viewModel.load() }
         }
+        .accessibilityLabel(StringKey.tabSkills.l)
     }
 
     // MARK: - Category Filter
@@ -38,7 +40,7 @@ struct SkillsView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     CategoryButton(
-                        title: "All",
+                        title: StringKey.skillAll.l,
                         isSelected: viewModel.selectedCategory == nil
                     ) {
                         viewModel.filterByCategory(nil)
@@ -70,7 +72,7 @@ struct SkillsView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
             } header: {
-                Text("Skills")
+                Text(StringKey.tabSkills.l)
             } footer: {
                 EmptyView()
             }
@@ -89,17 +91,20 @@ struct SkillsView: View {
                                     .lineLimit(2)
                             }
                         }
+                        .accessibilityLabel("\(skill.name): \(skill.description)")
                         Spacer()
                         Label(skill.category, systemImage: "cube.box")
                             .font(.ocoreaiText(11))
                             .foregroundStyle(theme.accent)
+                            .accessibilityHidden(true)
                     }
                     .padding(.vertical, 4)
                     .contentShape(Rectangle())
                     .onTapGesture { viewModel.select(skill) }
+                    .accessibilityAddTraits(.isButton)
                 }
             } header: {
-                Text("Skills")
+                Text(StringKey.tabSkills.l)
             } footer: {
                 EmptyView()
             }

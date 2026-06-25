@@ -1,8 +1,18 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// System View — MCP servers, tools, audit trail, reasoning status
+/// Accessibility: VoiceOver labels, hints, groups
+/// Reduced Motion: all animations respect user preference
 
 import SwiftUI
+
+private var reduceMotion: Bool {
+	#if os(macOS)
+	NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+	#else
+	UIAccessibility.isReduceMotionEnabled
+	#endif
+}
 
 struct SystemView: View {
     @State private var viewModel = SystemState()
@@ -53,7 +63,7 @@ struct SystemView: View {
         } label: {
             Image(systemName: "arrow.clockwise")
                 .rotationEffect(.degrees(viewModel.refreshing ? 360 : 0))
-                .animation(viewModel.refreshing ? .easeInOut(duration: 1).repeatForever(autoreverses: false) : nil, value: viewModel.refreshing)
+                .animation(reduceMotion ? nil : (viewModel.refreshing ? .easeInOut(duration: 1).repeatForever(autoreverses: false) : nil), value: viewModel.refreshing)
         }
     }
 
@@ -74,14 +84,15 @@ struct SystemView: View {
         } else {
             ForEach(viewModel.mcpEndpoints) { endpoint in
                 Section {
-                    LabeledContent("Name") { Text(endpoint.name) }
-                    LabeledContent("Command") {
-                        Text(endpoint.command).font(.system(.caption, design: .monospaced))
+                    LabeledContent(StringKey.systemMCPName.l) { Text(endpoint.name) }
+                    LabeledContent(StringKey.systemMCPCommand.l) {
+                        Text(endpoint.command).font(.ocoreaiMono(12))
                     }
-                    LabeledContent("Status") {
+                    LabeledContent(StringKey.systemAuditStatus.l) {
                         HStack(spacing: 4) {
                             StatusDot(isConnected: viewModel.isConnected(for: endpoint))
-                            Text(viewModel.isConnected(for: endpoint) ? "Connected" : "Disconnected")
+                                .accessibilityHidden(true)
+                            Text(viewModel.isConnected(for: endpoint) ? StringKey.systemMCPConnected.l : StringKey.systemMCPDisconnected.l)
                                 .font(.ocoreaiText(12))
                         }
                     }
@@ -115,10 +126,12 @@ struct SystemView: View {
                         Image(systemName: "wrench.and.hammer")
                             .foregroundStyle(theme.accent)
                             .frame(width: 20)
+                            .accessibilityHidden(true)
                         Text(name)
                             .font(.ocoreaiText(13))
                             .foregroundStyle(theme.text)
                     }
+                    .accessibilityLabel(name)
                 }
             } header: {
                 Text(StringKey.systemToolsSection.l)
@@ -163,6 +176,7 @@ struct SystemView: View {
                         }
                     }
                     .padding(.vertical, 4)
+                    .accessibilityLabel("\(entry.toolName) · \(Self.durationString(entry.durationMs)) · \(entry.caller)")
                 }
             } header: {
                 Text(StringKey.systemAuditSection.l)
@@ -200,6 +214,7 @@ struct SystemView: View {
         } footer: {
             EmptyView()
         }
+        .accessibilityLabel(StringKey.systemReasoningSection.l)
     }
 
     // MARK: - Helpers
@@ -213,9 +228,9 @@ struct SystemView: View {
     }
 
     private static func complexityBand(_ score: Double) -> String {
-        if score < 0.3 { return "Low" }
-        if score < 0.6 { return "Medium" }
-        return "High"
+        if score < 0.3 { return StringKey.systemComplexityLow.l }
+        if score < 0.6 { return StringKey.systemComplexityMedium.l }
+        return StringKey.systemComplexityHigh.l
     }
 }
 

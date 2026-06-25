@@ -323,6 +323,7 @@ public enum StringKey: String, CaseIterable {
 	case skillTags = "Skill.Tags"
 	case skillContentTitle = "Skill.ContentTitle"
 	case skillDependencies = "Skill.Dependencies"
+	case skillAll = "Skill.All"
 	
 	// — System —
 	case tabSystem = "Tab.System"
@@ -349,6 +350,11 @@ public enum StringKey: String, CaseIterable {
 	case systemRefresh = "System.Refresh"
 	case systemClearAudit = "System.ClearAudit"
 	case systemClearAuditConfirm = "System.ClearAuditConfirm"
+	
+	// — System complexity bands —
+	case systemComplexityLow = "System.ComplexityLow"
+	case systemComplexityMedium = "System.ComplexityMedium"
+	case systemComplexityHigh = "System.ComplexityHigh"
 	
 	// — Per-model Inference Params —
 	case modelParamsTitle = "Models.ParamsTitle"
@@ -650,6 +656,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.skillTags: "Tags",
 		.skillContentTitle: "Content",
 		.skillDependencies: "Dependencies",
+		.skillAll: "All",
 
 		// System
 		.tabSystem: "System",
@@ -659,6 +666,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.systemMCPDisconnected: "Disconnected",
 		.systemMCPName: "Server",
 		.systemMCPCommand: "Command",
+		.systemComplexityLow: "Low",
+		.systemComplexityMedium: "Medium",
+		.systemComplexityHigh: "High",
 		.systemToolsSection: "Tools",
 		.systemToolsEmpty: "No tools registered",
 		.systemToolName: "Tool",
@@ -930,6 +940,12 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.systemRefresh: "刷新",
 		.systemClearAudit: "清空审计日志",
 		.systemClearAuditConfirm: "清空所有审计记录？",
+		.systemComplexityLow: "低",
+		.systemComplexityMedium: "中",
+		.systemComplexityHigh: "高",
+
+		// Skills
+		.skillAll: "全部",
 
 		// Per-model inference params
 		.modelParamsTitle: "推理参数",

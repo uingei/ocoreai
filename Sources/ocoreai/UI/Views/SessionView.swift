@@ -1,6 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// Session View — session list, detail, memory search
+/// Accessibility: VoiceOver labels, hints, groups
 
 import SwiftUI
 
@@ -28,6 +29,7 @@ struct SessionView: View {
         .onAppear {
             Task { await viewModel.load() }
         }
+        .accessibilityLabel(StringKey.tabSessions.l)
         .alert(StringKey.sessionDelete.l, isPresented: $showingDeleteAlert) {
             Button(StringKey.sessionDelete.l, role: .destructive) {
                 if let session = sessionToDelete {
