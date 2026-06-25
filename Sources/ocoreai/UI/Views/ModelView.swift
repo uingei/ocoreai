@@ -75,8 +75,16 @@ struct ModelView: View {
 				: StringKey.modelSearchModelScope.l,
 			text: $searchQuery
 		)
-		.onSubmit { Task { await doSearch(searchQuery) } }
 		.disableAutocorrection(true)
+
+		// macOS Form intercepts .onSubmit for row navigation — use a button as the primary trigger
+		Button(action: { Task { await doSearch(searchQuery) } }) {
+			Image(systemName: "magnifyingglass").font(.ocoreaiText(12))
+		}
+		.buttonStyle(.borderedProminent)
+		.controlSize(.small)
+		.frame(width: 80)
+		.accessibilityLabel(StringKey.modelSearchSearching.l)
 
 		if isSearching {
 			HStack {
@@ -89,14 +97,36 @@ struct ModelView: View {
 
 	@ViewBuilder
 	private var searchResultsView: some View {
-		if !searchQuery.isEmpty {
-			if selectedSource == .huggingFace, !hfResults.isEmpty {
+		if !searchQuery.isEmpty || hfResults.isEmpty == false || msResults.isEmpty == false {
+			if isSearching {
+				searchingPlaceholder
+			} else if selectedSource == .huggingFace, !hfResults.isEmpty {
 				_hfResultView
 			} else if selectedSource == .modelScope, !msResults.isEmpty {
 				_msResultView
+			} else if !hfResults.isEmpty || !msResults.isEmpty {
+				// Results from previous search, show them
+				_hfResultView2
 			} else {
 				emptySearchState
 			}
+		}
+	}
+
+	private var searchingPlaceholder: some View {
+		VStack(spacing: 12) {
+			ProgressView().scaleEffect(1.2)
+			Text(StringKey.modelSearchSearching.l).foregroundStyle(.secondary)
+		}
+		.frame(maxWidth: .infinity).padding(.vertical, 20)
+	}
+
+	@ViewBuilder
+	private var _hfResultView2: some View {
+		if !hfResults.isEmpty {
+			_hfResultView
+		} else if !msResults.isEmpty {
+			_msResultView
 		}
 	}
 
