@@ -69,35 +69,35 @@ struct ModelView: View {
 
 	@ViewBuilder
 	private var searchBoxCard: some View {
-		Section {
-			VStack(spacing: 8) {
-				Picker(StringKey.modelSearchSelectHub.l, selection: $selectedSource) {
-					ForEach(HubSource.allCases, id: \.self) { s in
-						Text(s.rawValue).tag(s)
-					}
-				}
-				.pickerStyle(.segmented).frame(maxWidth: .infinity)
-
-				TextField(
-					selectedSource == .huggingFace
-						? StringKey.modelSearchHFHub.l
-						: StringKey.modelSearchModelScope.l,
-					text: $searchQuery
-				)
-				.textFieldStyle(.plain)
-				.onSubmit { Task { await doSearch(searchQuery) } }
-				.disableAutocorrection(true)
-
-				if isSearching {
-					HStack {
-						ProgressView()
-						Text(StringKey.modelSearchSearching.l).foregroundStyle(.secondary)
-						Spacer()
-					}.padding(.vertical, 4)
+		// macOS 上 Section 在 Form 外渲染为 GroupBox，会截获聚焦事件导致 TextField 无法输入
+		// 这里直接用 VStack + padding + cardStyle，绕过 GroupBox 焦点路由问题
+		VStack(spacing: 8) {
+			Picker(StringKey.modelSearchSelectHub.l, selection: $selectedSource) {
+				ForEach(HubSource.allCases, id: \.self) { s in
+					Text(s.rawValue).tag(s)
 				}
 			}
-			.padding(12).modifier(theme.cardStyle())
+			.pickerStyle(.segmented).frame(maxWidth: .infinity)
+
+			TextField(
+				selectedSource == .huggingFace
+					? StringKey.modelSearchHFHub.l
+					: StringKey.modelSearchModelScope.l,
+				text: $searchQuery
+			)
+			.textFieldStyle(.plain)
+			.onSubmit { Task { await doSearch(searchQuery) } }
+			.disableAutocorrection(true)
+
+			if isSearching {
+				HStack {
+					ProgressView()
+					Text(StringKey.modelSearchSearching.l).foregroundStyle(.secondary)
+					Spacer()
+				}.padding(.vertical, 4)
+			}
 		}
+		.padding(12).modifier(theme.cardStyle())
 	}
 
 	@ViewBuilder
