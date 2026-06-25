@@ -69,7 +69,13 @@ final class ChatState {
         currentCancellation?.cancel()
         currentCancellation = nil
         loading = false
-        responseText = ""
+        
+        // P0-3 UX: Preserve the partial response instead of instantly blanking the screen.
+        // The user can still see what was generated before interruption.
+        if !responseText.isEmpty {
+            messages.append(ChatMessage(role: "assistant", content: responseText + " [Interrupted]"))
+            responseText = ""
+        }
     }
     
     // MARK: - Model lifecycle (P0-2: hot-switch)
@@ -206,7 +212,7 @@ final class ChatState {
             )
             
             // Stream via Fast Path
-            for try await chunk in try await DirectInferenceClient.shared.stream(request: request) {
+            for await chunk in try await DirectInferenceClient.shared.stream(request: request) {
                 // P0-3: respect cancellation from both the token and outer Task
                 guard !cancellation.isCancelled, !Task.isCancelled else { break }
                 if !chunk.text.isEmpty {
