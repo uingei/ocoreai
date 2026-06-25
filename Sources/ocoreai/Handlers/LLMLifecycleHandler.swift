@@ -48,7 +48,7 @@ func trainHandler(
     )
 }
 
-private struct TrainResult {
+private struct TrainResult: Sendable {
     var success: Bool; var iterations: Int; var trainLoss: Float?; var validLoss: Float?; var adapterPath: String?; var errMsg: String?
 }
 
@@ -113,8 +113,8 @@ private func _doTrain(
     do {
         let snapshotTrain = trainData
         let snapshotValid = validData
-        trainResult = try await modelContainer.perform { model, tkn in
-            guard model is (any LoRAModel) else {
+        trainResult = try await modelContainer.perform { (ctx: MLXLMCommon.ModelContext) in
+            guard ctx.model is (any LoRAModel) else {
                 _ = yieldSSE(
                     TrainProgressChunk(
                         type: "error", iteration: 0, trainingLoss: nil, validationLoss: nil,
@@ -126,7 +126,7 @@ private func _doTrain(
                 return TrainResult(success: false, iterations: 0, trainLoss: nil, validLoss: nil, adapterPath: nil, errMsg: "Model does not support LoRA")
             }
 
-            let _ = try LoRAContainer.from(model: model, configuration: LoRAConfiguration(
+            let _ = try LoRAContainer.from(model: ctx.model, configuration: LoRAConfiguration(
                 numLayers: request.lora.numLayers,
                 fineTuneType: .lora,
                 loraParameters: LoRAConfiguration.LoRAParameters(
@@ -143,12 +143,12 @@ private func _doTrain(
 
             do {
                 try LoRATrain.train(
-                    model: model,
+                    model: ctx.model,
                     train: snapshotTrain,
                     validate: snapshotValid,
                     optimizer: optimizer,
                     loss: LoRATrain.loss,
-                    tokenizer: tkn,
+                    tokenizer: ctx.tokenizer,
                     parameters: LoRATrain.Parameters(
                         batchSize: request.hyperparams.batchSize,
                         iterations: request.hyperparams.iterations,
@@ -201,9 +201,7 @@ private func _doTrain(
                 guard let supportURL = FileManager.default.urls(
                     for: .applicationSupportDirectory, in: .userDomainMask
                 ).first else {
-                    return .failure(Swift.ErrorDomain.errorWithCode(
-                        -1, userInfo: [NSLocalizedDescriptionKey: "applicationSupportDirectory unavailable"]
-                    ))
+                    throw NSError(domain: NSCocoaErrorDomain, code: -1, userInfo: [NSLocalizedDescriptionKey: "applicationSupportDirectory unavailable"])
                 }
                 let adapterURL = supportURL.appendingPathComponent("ocoreai", isDirectory: true)
                     .appendingPathComponent("adapters", isDirectory: true)
@@ -214,7 +212,7 @@ private func _doTrain(
                     at: adapterURL.deletingLastPathComponent(),
                     withIntermediateDirectories: true
                 )
-                try LoRATrain.saveLoRAWeights(model: model, url: adapterURL)
+                try LoRATrain.saveLoRAWeights(model: ctx.model, url: adapterURL)
                 logger.info("Saved adapter: \(adapterURL.path())")
 
                 return TrainResult(

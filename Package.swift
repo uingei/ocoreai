@@ -28,10 +28,10 @@ let package = Package(
         // not SwiftPM packages — imported directly in source via `#if coreai` guards
         // MLX 推理框架 — 始终追踪 main 分支最新
         .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", branch: "main"),
-        // swift-tokenizers-mlx: Tokenizers module (huggingFaceTokenizerLoader macro requires it)
-        .package(url: "https://github.com/huggingface/swift-tokenizers-mlx.git", branch: "main"),
         // HuggingFace Hub SDK — 原生搜索、下载
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.8.1"),
+        // swift-transformers: 提供 Tokenizers 库（#huggingFaceTokenizerLoader 宏展开依赖）
+        .package(url: "https://github.com/huggingface/swift-transformers.git", branch: "main"),
         // NOTE: swift-testing 0.x requires swift-syntax 600.x, incompatible with
         //       MLX's swift-syntax 602-604 requirement. Testing tests are guarded
         //       with #if canImport(Testing) so main target builds regardless.
@@ -47,6 +47,7 @@ let package = Package(
                 .product(name: "MLXLLM", package: "mlx-swift-lm"),
                 .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
                 .product(name: "HuggingFace", package: "swift-huggingface"),
+                .product(name: "Tokenizers", package: "swift-transformers"),
             ],
             // NOTE: PrivacyInfo.xcprivacy resource removed — file does not exist yet.
             //            resources: [
