@@ -36,6 +36,7 @@ import MLXHuggingFace
 import HuggingFace
 import Tokenizers
 
+
 // MARK: - MLX Model Handle
 
 /// Protocol for an MLX-loaded model handle — hides MLX-specific types
@@ -156,27 +157,62 @@ actor MLXModelLoader {
         switch provider {
         case .modelScope:
             logger.info("Downloading from ModelScope: \(repoId)")
+            // Notify UI that download started
+            await MainActor.run {
+                OcoreaiDownloadProgress.shared.start(modelId: modelId)
+            }
             let msDownloader = ModelScopeDownloader()
             let directory = try await msDownloader.download(
                 id: repoId, revision: nil, matching: [], useLatest: false,
-                progressHandler: { _ in }
+                progressHandler: { [weak self] progress in
+                    // Post progress to MainActor UI store
+                    await MainActor.run {
+                        OcoreaiDownloadProgress.shared.update(progress, for: modelId)
+                    }
+                }
             )
             logElapsed("ModelScope download \(repoId) completed", start)
-            return try await LLMModelFactory.shared.loadContainer(
-                from: directory,
-                using: #huggingFaceTokenizerLoader()
-            )
+            do {
+                let container = try await LLMModelFactory.shared.loadContainer(
+                    from: directory,
+                    using: #huggingFaceTokenizerLoader()
+                )
+                await MainActor.run {
+                    OcoreaiDownloadProgress.shared.finish(modelId: modelId, success: true)
+                }
+                return container
+            } catch {
+                await MainActor.run {
+                    OcoreaiDownloadProgress.shared.finish(modelId: modelId, success: false)
+                }
+                throw error
+            }
 
         case .huggingFace:
             // Native MLX path — #hubDownloader() gives built-in cache, resume, progress.
             // Auth auto-detected by HubClient from HF_TOKEN / filesystem.
             // Equivalent to MLXChatExample: factory.loadContainer(from: downloader, ...)
             logger.info("Downloading from HuggingFace: \(repoId)")
-            return try await LLMModelFactory.shared.loadContainer(
-                from: #hubDownloader(),
-                using: #huggingFaceTokenizerLoader(),
-                configuration: ModelConfiguration(id: repoId)
-            )
+            // Notify UI that download started
+            await MainActor.run {
+                OcoreaiDownloadProgress.shared.start(modelId: modelId)
+            }
+            do {
+                let container = try await LLMModelFactory.shared.loadContainer(
+                    from: #hubDownloader(),
+                    using: #huggingFaceTokenizerLoader(),
+                    configuration: ModelConfiguration(id: repoId)
+                )
+                await MainActor.run {
+                    OcoreaiDownloadProgress.shared.finish(modelId: modelId, success: true)
+                }
+                return container
+            } catch {
+                await MainActor.run {
+                    OcoreaiDownloadProgress.shared.finish(modelId: modelId, success: false)
+                }
+                throw error
+            }
         }
     }
 

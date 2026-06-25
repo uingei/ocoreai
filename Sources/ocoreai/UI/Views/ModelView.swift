@@ -230,7 +230,7 @@ struct ModelView: View {
 	}
 
 	func _searchModelScope(keyword: String, pageSize: Int = 15) async -> [MSModelInfo] {
-		guard let url = URL(string: "https://modelscope.cn/api/v1/models/") else { return [] }
+		guard let url = URL(string: "https://modelscope.cn/api/v1/models") else { return [] }
 		var request = URLRequest(url: url)
 		request.httpMethod = "PUT"
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")

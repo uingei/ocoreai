@@ -110,7 +110,7 @@ final class ModelSearchState {
 	}
 	
 	private func searchModelScope(keyword: String, pageSize: Int = 15) async -> [MSModelInfo] {
-		guard let url = URL(string: "https://modelscope.cn/api/v1/models/") else { return [] }
+		guard let url = URL(string: "https://modelscope.cn/api/v1/models") else { return [] }
 		var request = URLRequest(url: url)
 		request.httpMethod = "PUT"
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -147,6 +147,8 @@ struct ModelSearchSheetView: View {
 	@State private var searchState = ModelSearchState()
 	// Local binding for TextField — avoids macOS Form + @Observable dynamic member focus leak
 	@State private var searchQueryLocal = ""
+	// Download progress — global store, auto-updates from MLXBridge
+	@State private var downloadProgress = OcoreaiDownloadProgress.shared
 	@Environment(\.dismiss) private var dismiss
 	@Environment(\.ocoreaiTheme) private var theme
 
@@ -313,11 +315,25 @@ struct ModelSearchSheetView: View {
 	}
 	
 	// MARK: - Download Button
-	
+
 	@ViewBuilder
 	private func downloadButton(for modelId: String, action: @escaping () -> Void) -> some View {
-		if searchState.downloadingModelId == modelId {
-			ProgressView()
+		// Use global progress store for real-time progress
+		let progressState = downloadProgress.progress(for: modelId)
+		let isDown = downloadProgress.isDownloading(modelId)
+	
+		if isDown, let state = progressState {
+			// Show real progress bar with percentage
+			HStack(spacing: 6) {
+				ProgressView(value: state.fraction)
+					.progressViewStyle(.linear)
+					.frame(width: 80)
+				Text(Int(state.fraction * 100) == 100 ? "✓" : "\(Int(state.fraction * 100))%")
+					.font(.caption)
+					.foregroundStyle(state.fraction >= 1 ? .green : .secondary)
+					.monospacedDigit()
+			}
+			.animation(.smooth, value: state.fraction)
 		} else {
 			Button(StringKey.modelSearchLoad.l, action: action)
 				.disabled(searchState.isDownloading)

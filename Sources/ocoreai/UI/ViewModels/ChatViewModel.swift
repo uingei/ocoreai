@@ -340,7 +340,7 @@ final class ChatState {
     /// Returns matching model paths.
     func searchModelScopeModels(keyword: String, pageSize: Int = 15) async -> [MSModelInfo] {
         // ModelScope uses PUT for list/search (same as Python SDK)
-        guard let url = URL(string: "https://modelscope.cn/api/v1/models/") else { return [] }
+        guard let url = URL(string: "https://modelscope.cn/api/v1/models") else { return [] }
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
