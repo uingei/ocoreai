@@ -162,11 +162,9 @@ extension EnginePool {
 
 #if coreai
         do {
-            let engine = try await EngineFactory.createEngine(
-                config: loaded.configData,
-                modelURL: loaded.modelURL,
-                options: loaded.engineOptions
-            )
+            // Use cached engine — CoreAI 34f0db3: single engine per model preserves
+            // KV cache across turns. TokenHistory.resolve handles prefix caching automatically.
+            let engine = try await loaded.getCachedEngine()
             let sequence = try engine.generate(
                 with: input,
                 samplingConfiguration: sampling,
@@ -194,12 +192,9 @@ extension EnginePool {
                 continuation.yield(.init(kind: .done(sequence.stopReason)))
             }
 
-            do {
-                try await engine.reset()
-                logger.info("Engine cache reset completed")
-            } catch {
-                logger.warning("Engine reset failed: \(error.localizedDescription)")
-            }
+            // CoreAI 34f0db3: no per-turn reset. KV cache persists across turns;
+            // TokenHistory.resolve manages prefix reuse and divergence rewind.
+            // Explicit reset only on model switch or hard error.
 
         } catch {
             continuation.yield(.init(kind: .error(error.localizedDescription)))
@@ -207,54 +202,23 @@ extension EnginePool {
 #endif
 
 #if mlx
-        do {
-            guard let mlxHandle = loaded.mlxModelHandle else {
-                continuation.yield(.init(kind: .error("MLX model handle not loaded: \(modelId)")))
-                continuation.finish()
-                return
-            }
-
-            let promptText = (try? await detokenize(modelId: modelId, tokens: input))
-                ?? "<detokenization failed>"
-            let mlxMessages: [Chat.Message] = [.init(role: .user, content: promptText)]
-
-            let genParams = makeGenerateParameters(
-                from: sampling,
-                maxTokens: options.maxTokens,
-                kvCacheQuant: config.kvCacheQuantization
-            )
-
-            let chatSession = ChatSession(
-                mlxHandle.modelContainer,
-                generateParameters: genParams
-            )
-
-            let genStream: AsyncThrowingStream<MLXLMCommon.Generation, Error> =
-                chatSession.streamDetails(to: mlxMessages)
-
-            metrics.firstTokenMs = metrics.overallMs
-
-            do {
-                for try await generation in genStream {
-                    if Task.isCancelled || cancellation.isCancelled {
-                        continuation.yield(.init(kind: .done(StopReason.cancelled)))
-                        break
-                    }
-                    switch generation {
-                    case .chunk(let text):
-                        metrics.incrementGenerated()
-                        continuation.yield(.init(kind: .text(text)))
-                    case .info, .toolCall: break
-                    }
-                }
-            } catch {
-                continuation.yield(.init(kind: .error(error.localizedDescription)))
-            }
-
-            if !Task.isCancelled {
-                continuation.yield(.init(kind: .done(nil)))
-            }
-        }
+        // Route to _runInferenceWithMessages which uses SessionPool for ChatSession
+        // reuse + KV cache management. Convert raw tokens → message → back to tokens
+        // via that path's proper tokenization + session pooling.
+        let promptText = (try? await detokenize(modelId: modelId, tokens: input))
+            ?? "<detokenization failed>"
+        let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
+        await _runInferenceWithMessages(
+            modelId: modelId,
+            messages: mlxMessages,
+            sampling: sampling,
+            options: options,
+            metrics: metrics,
+            continuation: continuation,
+            conversationId: nil,
+            cancellation: cancellation,
+            skipLock: true  // caller (_runInference) already holds inference guard
+        )
 #endif
 
 #if !coreai && !mlx
@@ -274,7 +238,8 @@ extension EnginePool {
         metrics: PerRequestMetrics,
         continuation: AsyncThrowingStream<InferenceEvent, Error>.Continuation,
         conversationId: String?,
-        cancellation: InferenceCancellation = .none
+        cancellation: InferenceCancellation = .none,
+        skipLock: Bool = false
     ) async {
         guard let loaded = loadedModels[modelId] else {
             continuation.yield(.init(kind: .error("Model not loaded: \(modelId)")))
@@ -302,12 +267,17 @@ extension EnginePool {
         metrics.promptTokenCount = tokenCount
         metrics.start()
 
-        guard loaded.tryAcquireInference() else {
-            continuation.yield(.init(kind: .error("Engine busy")))
-            continuation.finish()
-            return
+        // skipLock: caller already holds inference guard (e.g. _runInference delegate path)
+        var lockHeldByUs = false
+        if !skipLock {
+            guard loaded.tryAcquireInference() else {
+                continuation.yield(.init(kind: .error("Engine busy")))
+                continuation.finish()
+                return
+            }
+            lockHeldByUs = true
         }
-        defer { loaded.releaseInference() }
+        defer { if lockHeldByUs { loaded.releaseInference() } }
 
         guard let mlxHandle = loaded.mlxModelHandle else {
             continuation.yield(.init(kind: .error("MLX model handle not loaded: \(modelId)")))

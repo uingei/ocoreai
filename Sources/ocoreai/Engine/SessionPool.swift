@@ -154,10 +154,15 @@ actor MLXSessionPool {
         if let restoredSession = Self.restoreCachedSession(
             modelContainer, cacheURL: cacheURL, genParams: genParams, logger: logger
         ) {
+            // Disk restore gives us a ChatSession with baked-in KV cache but no message history.
+            // The KV cache already contains all prefill state, so messageCount should reflect
+            // that prior state exists. We set it to a sentinel indicating "restored from disk"
+            // so callers send only the new delta messages, avoiding duplicate prefill.
+            let restoredCount = Int.max
             let freshPooled = PooledChatSession(
                 session: restoredSession,
                 lastAccessedAt: ContinuousClock.now,
-                messageCount: 0,
+                messageCount: restoredCount,
                 cacheFileURL: cacheURL
             )
             missCount += 1

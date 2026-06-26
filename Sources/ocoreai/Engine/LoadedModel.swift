@@ -45,8 +45,12 @@ final class LoadedModel: @unchecked Sendable {
     /// v15: Specialized Core AI model — compiled once at load time, reused across requests
     let preparedModel: CoreAIPreparedModel
 
-    /// Engine options (KV cache strategy, etc.) — used when fallback path active
+    /// Engine options (KV cache strategy, etc.)
     let engineOptions: EngineOptions
+
+    /// Cached inference engine — created once per LoadedModel, reused across requests.
+    /// CoreAI 34f0db3: engine preserves KV cache across turns; no per-turn reset needed.
+    private var cachedEngine: (any InferenceEngine)?
 #endif
 
 #if mlx
@@ -75,11 +79,8 @@ final class LoadedModel: @unchecked Sendable {
 
         #if coreai
         do {
-            let engine = try await EngineFactory.createEngine(
-                config: configData,
-                modelURL: modelURL,
-                options: engineOptions
-            )
+            // Use cached engine — CoreAI 34f0db3: single engine per model preserves KV cache
+            let engine = try await getCachedEngine()
             let seq = try engine.generate(
                 with: Array(repeating: 0, count: 8),
                 samplingConfiguration: SamplingConfiguration(),
@@ -152,6 +153,33 @@ final class LoadedModel: @unchecked Sendable {
 
     /// Decrement session counter
     func releaseSession() { sessionCount.wrappingDecrement(ordering: .relaxed) }
+
+    // MARK: - Engine Resolution (CoreAI)
+
+#if coreai
+    /// Get cached inference engine — create on first call, reuse thereafter.
+    /// CoreAI 34f0db3: engines should be singletons per LoadedModel to preserve KV cache.
+    /// Safe because inference access is serialized by the inferenceGuard CAS lock,
+    /// and this class is @unchecked Sendable with mutable state.
+    func getCachedEngine() async throws -> any InferenceEngine {
+        if let cached = cachedEngine {
+            return cached
+        }
+        let engine: any InferenceEngine = try await EngineFactory.createEngine(
+            config: configData,
+            modelURL: modelURL,
+            options: engineOptions
+        )
+        cachedEngine = engine
+        return engine
+    }
+
+    /// Reset engine cache — used on model switch or hard error recovery.
+    /// CoreAI 34f0db3: per-turn reset removed; TokenHistory.resolve handles prefix reuse.
+    func resetCacheIfNeeded() {
+        cachedEngine = nil
+    }
+#endif
 
     // MARK: - Cleanup
 
