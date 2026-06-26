@@ -36,13 +36,18 @@ struct ModelView: View {
 				searchResultsView
 
 				// 错误
-				if let err = downloadError {
-					HStack(spacing: 8) {
-						Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
-						Text(err).foregroundStyle(.secondary).font(.caption)
+					if let err = downloadError {
+						Button {
+							downloadError = nil
+						} label: {
+							HStack(spacing: 8) {
+								Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+								Text(err).foregroundStyle(.secondary).font(.caption)
+							}
+							.frame(maxWidth: .infinity, alignment: .leading)
+						}
+						.buttonStyle(.plain)
 					}
-					.onTapGesture { downloadError = nil }
-				}
 
 				// 本地模型
 				localModelsView

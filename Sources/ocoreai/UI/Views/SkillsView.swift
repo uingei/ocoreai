@@ -79,29 +79,31 @@ struct SkillsView: View {
         } else {
             Section {
                 ForEach(viewModel.filteredSkills, id: \.path) { skill in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(skill.name)
-                                .font(.ocoreaiText(15, weight: .medium))
-                                .foregroundStyle(theme.text)
-                            if !skill.description.isEmpty {
-                                Text(skill.description)
-                                    .font(.ocoreaiText(12))
-                                    .foregroundStyle(theme.textSecondary)
-                                    .lineLimit(2)
-                            }
-                        }
-                        .accessibilityLabel("\(skill.name): \(skill.description)")
-                        Spacer()
-                        Label(skill.category, systemImage: "cube.box")
-                            .font(.ocoreaiText(11))
-                            .foregroundStyle(theme.accent)
-                            .accessibilityHidden(true)
-                    }
-                    .padding(.vertical, 4)
-                    .contentShape(Rectangle())
-                    .onTapGesture { viewModel.select(skill) }
-                    .accessibilityAddTraits(.isButton)
+                	Button {
+                		viewModel.select(skill)
+                	} label: {
+                		HStack {
+                			VStack(alignment: .leading, spacing: 4) {
+                				Text(skill.name)
+                					.font(.ocoreaiText(15, weight: .medium))
+                					.foregroundStyle(theme.text)
+                				if !skill.description.isEmpty {
+                					Text(skill.description)
+                						.font(.ocoreaiText(12))
+                						.foregroundStyle(theme.textSecondary)
+                						.lineLimit(2)
+                				}
+                			}
+                			.accessibilityLabel("\(skill.name): \(skill.description)")
+                			Spacer()
+                			Label(skill.category, systemImage: "cube.box")
+                				.font(.ocoreaiText(11))
+                				.foregroundStyle(theme.accent)
+                				.accessibilityHidden(true)
+                		}
+                		.padding(.vertical, 4)
+                	}
+                	.buttonStyle(.plain)
                 }
             } header: {
                 Text(StringKey.tabSkills.l)

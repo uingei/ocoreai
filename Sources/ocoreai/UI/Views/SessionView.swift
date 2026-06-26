@@ -66,29 +66,32 @@ struct SessionView: View {
                 .foregroundStyle(.secondary)
             } else {
                 ForEach(viewModel.searchSessions(viewModel.searchQuery), id: \.id) { session in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(session.modelId)
-                                .font(.ocoreaiText(15, weight: .medium))
-                                .foregroundStyle(theme.text)
-                            Text(session.createdAt, style: .date)
-                                .font(.ocoreaiText(12))
-                                .foregroundStyle(theme.textSecondary)
-                        }
-                        Spacer()
-                        Label(String(session.messageCount), systemImage: "text.bubble")
-                            .font(.ocoreaiText(11))
-                            .foregroundStyle(theme.accent)
-                    }
-                    .padding(.vertical, 4)
-                    .contentShape(Rectangle())
-                    .onTapGesture { viewModel.selectSession(session) }
-                    .contextMenu {
-                        Button(StringKey.sessionDelete.l, role: .destructive) {
-                            sessionToDelete = session
-                            showingDeleteAlert = true
-                        }
-                    }
+                	Button {
+                		viewModel.selectSession(session)
+                	} label: {
+                		HStack {
+                			VStack(alignment: .leading, spacing: 4) {
+                				Text(session.modelId)
+                					.font(.ocoreaiText(15, weight: .medium))
+                					.foregroundStyle(theme.text)
+                				Text(session.createdAt, style: .date)
+                					.font(.ocoreaiText(12))
+                					.foregroundStyle(theme.textSecondary)
+                			}
+                			Spacer()
+                			Label(String(session.messageCount), systemImage: "text.bubble")
+                				.font(.ocoreaiText(11))
+                				.foregroundStyle(theme.accent)
+                		}
+                		.padding(.vertical, 4)
+                	}
+                	.buttonStyle(.plain)
+                	.contextMenu {
+                		Button(StringKey.sessionDelete.l, role: .destructive) {
+                			sessionToDelete = session
+                			showingDeleteAlert = true
+                		}
+                	}
                 }
             }
         } header: {
