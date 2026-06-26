@@ -105,7 +105,14 @@ extension OcoreaiTheme {
 }
 
 extension EnvironmentValues {
-	@Entry var ocoreaiTheme: OcoreaiTheme = .theme(from: .light)
+	private struct OcoreaiThemeKey: EnvironmentKey {
+		static let defaultValue: OcoreaiTheme = .theme(from: .light)
+	}
+
+	var ocoreaiTheme: OcoreaiTheme {
+		get { self[OcoreaiThemeKey.self] }
+		set { self[OcoreaiThemeKey.self] = newValue }
+	}
 }
 
 // MARK: - Card Modifier (auto-border + cornerRadius)

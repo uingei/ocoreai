@@ -747,7 +747,7 @@ private func streamWithToolCalling(
 					}
 
 					/// Extract delta (new text since last chunk) — UTF-8 byte safe.
-					var deltaText: String = if newText.hasPrefix(prevDecodedText) {
+					let deltaText: String = if newText.hasPrefix(prevDecodedText) {
 						String(newText.dropFirst(prevDecodedText.count))
 					} else {
 						// Detokenization reformatted; send full new text as fallback.
