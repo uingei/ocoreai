@@ -128,8 +128,26 @@
 		/// Target compute unit for specialization
 		var computeTarget: ComputeTarget = .init()
 
-		/// Cache directory path (used when cache is enabled)
-		var cacheDirectory: String = "/tmp/ocoreai-model-cache"
+		/// Cache directory path (used when cache is enabled).
+		/// Resolves to `~/Library/Caches/ocoreai/models/` on macOS,
+		/// avoiding macOS tmpwatch cleanup of /tmp.
+		var cacheDirectory: String?
+
+		/// Resolve to a real filesystem path — defaults to ~/Library/Caches/ocoreai/models/
+		var resolvedCacheDirectory: String {
+			if let dir = cacheDirectory, !dir.isEmpty {
+				return dir
+			}
+			#if os(iOS) || os(visionOS)
+				return FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+					.appendingPathComponent("ocoreai").appendingPathComponent("models").path
+			#else
+				let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+				let url = caches.appendingPathComponent("ocoreai").appendingPathComponent("models")
+				try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+				return url.path
+			#endif
+		}
 
 		/// Timeout for model specialization (seconds)
 		var specializationTimeout: TimeInterval = 120.0
@@ -173,10 +191,10 @@
 			// Initialize cache if enabled
 			if config.enableCache {
 				cache = AIModelCache(
-					directory: URL(fileURLWithPath: config.cacheDirectory),
+					directory: URL(fileURLWithPath: config.resolvedCacheDirectory),
 					name: "ocoreai-cache",
 				)
-				logger.info("AIModelCache initialized at \(config.cacheDirectory)")
+				logger.info("AIModelCache initialized at \(config.resolvedCacheDirectory)")
 			}
 		}
 

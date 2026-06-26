@@ -55,14 +55,12 @@ extension EnginePool {
 						await tracker.value
 					}
 					group.addTask {
-						// SilenceReason.gcdCancel: Task.sleep cancellation is expected
 						do { try await Task.sleep(for: .milliseconds(500)) } catch {}
 						while cancellation.isCancelled == false, ContinuousClock.now < deadline {
 							do { try Task.checkCancellation() } catch {
 								cancellation.cancel()
 								break
 							}
-							// SilenceReason.gcdCancel: Task.sleep cancellation is expected
 							do { try await Task.sleep(for: .milliseconds(500)) } catch {
 								cancellation.cancel()
 								break
@@ -111,14 +109,12 @@ extension EnginePool {
 							await tracker.value
 						}
 						group.addTask {
-							// SilenceReason.gcdCancel: Task.sleep cancellation is expected
 							do { try await Task.sleep(for: .milliseconds(500)) } catch {}
 							while cancellation.isCancelled == false, ContinuousClock.now < deadline {
 								do { try Task.checkCancellation() } catch {
 									cancellation.cancel()
 									break
 								}
-								// SilenceReason.gcdCancel: Task.sleep cancellation is expected
 								do { try await Task.sleep(for: .milliseconds(500)) } catch {
 									cancellation.cancel()
 									break
@@ -213,11 +209,20 @@ extension EnginePool {
 		#endif
 
 		#if mlx
-			// Route to _runInferenceWithMessages which uses SessionPool for ChatSession
-			// reuse + KV cache management. Convert raw tokens → message → back to tokens
-			// via that path's proper tokenization + session pooling.
+			// [KNOWN LIMITATION] MLXLLM ChatSession only accepts [Chat.Message], not raw tokens.
+			// Detokenize → Message → re-tokenize path drops special control tokens
+			// (e.g. <|begin_of_thought|>, <|eot_id|>). Track upstream for promptTokens API:
+			// https://github.com/ml-explore/mlx-swift-examples/issues
+			// Mitigation: log warning when input may contain non-text tokens.
 			let promptText = await (try? detokenize(modelId: modelId, tokens: input))
 				?? "<detokenization failed>"
+		
+			// Check for known control tokens that will be lost in detokenize→retokenize roundtrip
+			let knownControlTokens = Set([151645, 151646, 198, 27]) // <|begin_of_thought|>, <|eot_id|>, newline, ESC
+			if input.contains(where: { knownControlTokens.contains(Int($0)) }) {
+				logger.warning("MLX token→text→token path may drop control tokens for model \(modelId)")
+			}
+		
 			let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
 			await _runInferenceWithMessages(
 				modelId: modelId,
@@ -364,8 +369,7 @@ extension EnginePool {
 				let genStream: AsyncThrowingStream<MLXLMCommon.Generation, Error> =
 					chatSession.streamDetails(to: messagesToSend)
 
-				metrics.firstTokenMs = metrics.overallMs
-
+				var firstTokenRecorded = false
 				var inferenceError: Error?
 				do {
 					for try await generation in genStream {
@@ -375,6 +379,11 @@ extension EnginePool {
 						}
 						switch generation {
 						case let .chunk(text):
+							// firstTokenMs: record on first actual text chunk — isolates prefill/init time
+							if !firstTokenRecorded {
+								metrics.firstTokenMs = metrics.overallMs
+								firstTokenRecorded = true
+							}
 							metrics.incrementGenerated()
 							continuation.yield(.init(kind: .text(text)))
 						case .info, .toolCall: break

@@ -222,16 +222,37 @@ actor EnginePool {
 
 		// Hub models (hf: / mscope: / huggingface:) are resolved by MLXModelLoader
 		// — no local config.json or weight files to discover pre-download.
-		// We still create a stub ModelConfig so downstream code works uniformly.
+		// We fetch remote config.json to get real vocab_size and max_context_length,
+		// falling back to safe defaults on failure.
 		// Pass the raw modelId string as modelURL.pathContent — MLXModelLoader.parseSource
 		// reads modelURL.path to detect hf:/mscope: prefixes.
 		let (modelConfig, modelURL, configData): (ModelConfig, URL, Data)
 		if isHubModel(modelId) {
+			// Strip prefix to get raw repo id for config fetch
+			let repoId: String
+			if modelId.hasPrefix("mscope:") {
+				repoId = String(modelId.dropFirst(7))
+			} else if modelId.hasPrefix("hf:") || modelId.hasPrefix("huggingface:") {
+				let prefixLen = modelId.hasPrefix("hf:") ? 3 : 12
+				repoId = String(modelId.dropFirst(prefixLen))
+			} else {
+				repoId = modelId
+			}
+
+			// Fetch remote config — best effort with URLSession 10s internal timeout,
+			// never blocks model loading even on failure
+			let resolved: (vocabSize: Int, maxContextLength: Int)?
+			if modelId.hasPrefix("mscope:") {
+				resolved = await HubConfigFetcher.fetchModelScopeConfig(repoId: repoId, logger: logger)
+			} else {
+				resolved = await HubConfigFetcher.fetchHuggingFaceConfig(repoId: repoId, logger: logger)
+			}
+
 			modelConfig = ModelConfig(
 				name: modelId,
 				function: "default",
-				vocabSize: 151_936,
-				maxContextLength: 131_072,
+				vocabSize: resolved?.vocabSize ?? 151_936,
+				maxContextLength: resolved?.maxContextLength ?? 131_072,
 				chunkThreshold: 8,
 				prefillChunkSize: 4096,
 			)
@@ -240,7 +261,7 @@ actor EnginePool {
 			modelURL = URL(fileURLWithPath: modelId)
 			// Stub configData for coreai path; actual weights come from hub download
 			configData = "{}".data(using: .utf8)!
-			logger.info("Model \(modelId) is a hub model — MLXModelLoader will resolve")
+			logger.info("Model \(modelId) is a hub model — MLXModelLoader will resolve \(resolved != nil ? "(remote config resolved)" : "(using defaults)")")
 		} else {
 			var configURL = URL(fileURLWithPath: config.modelConfigPath)
 			let candidate = configURL
