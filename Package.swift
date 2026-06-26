@@ -61,7 +61,16 @@ let package = Package(
                 .linkedLibrary("sqlite3"),
             ],
         ),
-        // NOTE: testTarget temporarily removed — Tests/ directory is empty.
-        //        Add back when test files land in Tests/ocoreaiTests/.
-    ]
-)
+        // NOTE: testing target — uses Xcode Testing framework (@Suite/@Test)
+        //       guarded with #if canImport(Testing) so main target builds regardless
+        .testTarget(
+        	name: "ocoreaiTests",
+        	dependencies: [
+        		"ocoreai",
+        	],
+        	swiftSettings: [
+        		.swiftLanguageMode(.v6),
+        	],
+        ),
+        ]
+        )
