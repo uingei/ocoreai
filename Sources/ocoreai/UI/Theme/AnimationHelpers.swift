@@ -6,9 +6,9 @@
 import SwiftUI
 
 #if os(macOS)
-import AppKit
+	import AppKit
 #else
-import UIKit
+	import UIKit
 #endif
 
 /// Whether the user prefers reduced motion (Apple Accessibility → Reduce Motion).
@@ -18,9 +18,9 @@ import UIKit
 /// should gate through this property.
 public var reduceMotion: Bool {
 	#if os(macOS)
-	NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+		NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 	#else
-	UIAccessibility.isReduceMotionEnabled
+		UIAccessibility.isReduceMotionEnabled
 	#endif
 }
 

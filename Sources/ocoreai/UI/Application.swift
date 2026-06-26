@@ -16,66 +16,66 @@ import SwiftUI
 @main
 struct OcoreaiApp: App {
 	#if os(macOS)
-	@NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+		@NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 	#endif
 
 	var body: some Scene {
 		#if os(macOS)
-		// macOS: single-instance window — HIG compliant
-		Window("ocoreai", id: "main") {
-			OcoreaiShellView()
-		}
-		// .windowResizability(.default) is the macOS standard — .contentSize
-		// can cause window activation issues with TextField focus (radar 91608726)
-		.windowStyle(.titleBar)
-		// Settings via Cmd+, — macOS standard
-		.commands {
-			CommandGroup(replacing: .newItem) {}
-			CommandGroup(replacing: .undoRedo) {
-				Button(StringKey.undoAction.l, action: { AppState.shared.performUndo() })
-					.disabled(!AppState.shared.hasUndo)
-					.keyboardShortcut("z", modifiers: .command)
+			// macOS: single-instance window — HIG compliant
+			Window("ocoreai", id: "main") {
+				OcoreaiShellView()
 			}
-			CommandGroup(replacing: .appSettings) {
-				Button(StringKey.tabSettings.l) {
-					AppState.shared.selectedTab = .settings
+			// .windowResizability(.default) is the macOS standard — .contentSize
+			// can cause window activation issues with TextField focus (radar 91608726)
+			.windowStyle(.titleBar)
+			// Settings via Cmd+, — macOS standard
+			.commands {
+				CommandGroup(replacing: .newItem) {}
+				CommandGroup(replacing: .undoRedo) {
+					Button(StringKey.undoAction.l, action: { AppState.shared.performUndo() })
+						.disabled(!AppState.shared.hasUndo)
+						.keyboardShortcut("z", modifiers: .command)
+				}
+				CommandGroup(replacing: .appSettings) {
+					Button(StringKey.tabSettings.l) {
+						AppState.shared.selectedTab = .settings
+					}
+				}
+				CommandMenu(StringKey.navigationTitle.l) {
+					Button(StringKey.tabDashboard.l) {
+						AppState.shared.selectedTab = .dashboard
+					}
+					.keyboardShortcut("1")
+					Button(StringKey.tabChat.l) {
+						AppState.shared.selectedTab = .chat
+					}
+					.keyboardShortcut("2")
+					Button(StringKey.tabModels.l) {
+						AppState.shared.selectedTab = .models
+					}
+					.keyboardShortcut("3")
+					Button(StringKey.tabStatus.l) {
+						AppState.shared.selectedTab = .status
+					}
+					.keyboardShortcut("4")
+					Button(StringKey.tabSessions.l) {
+						AppState.shared.selectedTab = .sessions
+					}
+					.keyboardShortcut("5")
+					Button(StringKey.tabSkills.l) {
+						AppState.shared.selectedTab = .skills
+					}
+					.keyboardShortcut("6")
+					Button(StringKey.tabSystem.l) {
+						AppState.shared.selectedTab = .system
+					}
+					.keyboardShortcut("7")
 				}
 			}
-			CommandMenu(StringKey.navigationTitle.l) {
-				Button(StringKey.tabDashboard.l) {
-					AppState.shared.selectedTab = .dashboard
-				}
-				.keyboardShortcut("1")
-				Button(StringKey.tabChat.l) {
-					AppState.shared.selectedTab = .chat
-				}
-				.keyboardShortcut("2")
-				Button(StringKey.tabModels.l) {
-					AppState.shared.selectedTab = .models
-				}
-				.keyboardShortcut("3")
-				Button(StringKey.tabStatus.l) {
-					AppState.shared.selectedTab = .status
-				}
-				.keyboardShortcut("4")
-				Button(StringKey.tabSessions.l) {
-					AppState.shared.selectedTab = .sessions
-				}
-				.keyboardShortcut("5")
-				Button(StringKey.tabSkills.l) {
-					AppState.shared.selectedTab = .skills
-				}
-				.keyboardShortcut("6")
-				Button(StringKey.tabSystem.l) {
-					AppState.shared.selectedTab = .system
-				}
-				.keyboardShortcut("7")
-			}
-		}
 		#else
-		WindowGroup {
-			OcoreaiShellView()
-		}
+			WindowGroup {
+				OcoreaiShellView()
+			}
 		#endif
 	}
 }
@@ -136,23 +136,24 @@ private struct TabDetailView: View {
 	private var content: some View {
 		switch appState.selectedTab {
 		case .dashboard: DashboardView()
-			case .chat:      ChatView()
-			case .models:    ModelView()
-			case .sessions:  SessionView()
-			case .skills:    SkillsView()
-			case .system:    SystemView()
-			case .settings:  SettingsView()
-			case .status:    StatusView()
+		case .chat: ChatView()
+		case .models: ModelView()
+		case .sessions: SessionView()
+		case .skills: SkillsView()
+		case .system: SystemView()
+		case .settings: SettingsView()
+		case .status: StatusView()
 		}
 	}
 
 	// MARK: - Empty View for initial state
+
 	struct EmptyContent: View {
 		var body: some View {
 			ContentUnavailableView(
 				"ocoreai",
-					systemImage: "brain.fill",
-				description: Text(StringKey.selectPanel.l)
+				systemImage: "brain.fill",
+				description: Text(StringKey.selectPanel.l),
 			)
 			.accessibilityLabel(StringKey.noPanelSelected.l)
 		}
@@ -225,19 +226,20 @@ private struct SectionHeaderLabel: View {
 }
 
 // MARK: - macOS App Delegate
-#if os(macOS)
-@MainActor
-class AppDelegate: NSObject, NSApplicationDelegate {
-	func applicationDidFinishLaunching(_ notification: Notification) {
-		// macOS HIG: activate application so it becomes key window immediately
-		// This prevents the terminal/console from stealing keyboard focus
-		NSApplication.shared.setActivationPolicy(.regular)
-		NSApplication.shared.activate(ignoringOtherApps: true)
 
-		// Ensure the main window becomes key & ordered front
-		if let mainWindow = NSApp.mainWindow {
-			mainWindow.makeKeyAndOrderFront(nil)
+#if os(macOS)
+	@MainActor
+	class AppDelegate: NSObject, NSApplicationDelegate {
+		func applicationDidFinishLaunching(_: Notification) {
+			// macOS HIG: activate application so it becomes key window immediately
+			// This prevents the terminal/console from stealing keyboard focus
+			NSApplication.shared.setActivationPolicy(.regular)
+			NSApplication.shared.activate(ignoringOtherApps: true)
+
+			// Ensure the main window becomes key & ordered front
+			if let mainWindow = NSApp.mainWindow {
+				mainWindow.makeKeyAndOrderFront(nil)
+			}
 		}
 	}
-}
 #endif

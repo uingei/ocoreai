@@ -10,217 +10,225 @@
 ///   (read-only)    (bridge + state)  (typed accessor)
 
 import Foundation
-import SwiftUI
 import Observation
+import SwiftUI
 
 @Observable
 @MainActor
 final class SettingsState {
-    // MARK: - Server Connection (persisted via SettingsStore)
+	// MARK: - Server Connection (persisted via SettingsStore)
 
-    var serverHost: String {
-        didSet { SettingsStore.shared.serverHost = serverHost }
-    }
-    var serverPort: Int {
-        didSet { SettingsStore.shared.serverPort = serverPort }
-    }
+	var serverHost: String {
+		didSet { SettingsStore.shared.serverHost = serverHost }
+	}
 
-    var portField: String {
-        get { String(serverPort) }
-        set {
-            if let p = Int(newValue), p > 0 && p < 65536 {
-                serverPort = p
-            }
-        }
-    }
+	var serverPort: Int {
+		didSet { SettingsStore.shared.serverPort = serverPort }
+	}
 
-    // MARK: - Performance Settings
+	var portField: String {
+		get { String(serverPort) }
+		set {
+			if let p = Int(newValue), p > 0, p < 65536 {
+				serverPort = p
+			}
+		}
+	}
 
-    var pollIntervalSec: Int {
-        didSet { SettingsStore.shared.pollIntervalSec = pollIntervalSec }
-    }
-    var chartWindowSec: Int {
-        didSet { SettingsStore.shared.chartWindowSec = chartWindowSec }
-    }
+	// MARK: - Performance Settings
 
-    // MARK: - KV Cache Settings
+	var pollIntervalSec: Int {
+		didSet { SettingsStore.shared.pollIntervalSec = pollIntervalSec }
+	}
 
-    var kvQuantizationEnabled: Bool {
-        didSet { SettingsStore.shared.kvQuantizationEnabled = kvQuantizationEnabled }
-    }
-    var kvQuantizationBits: Int {
-        didSet { SettingsStore.shared.kvQuantizationBits = kvQuantizationBits }
-    }
-    var kvCacheBudgetGB: Double {
-        didSet { SettingsStore.shared.kvCacheBudgetGB = kvCacheBudgetGB }
-    }
+	var chartWindowSec: Int {
+		didSet { SettingsStore.shared.chartWindowSec = chartWindowSec }
+	}
 
-    // MARK: - Logs & Profiling
+	// MARK: - KV Cache Settings
 
-    var logLevel: LogLevelRaw {
-        didSet { SettingsStore.shared.logLevel = logLevel }
-    }
-    var profileEnabled: Bool {
-        didSet { SettingsStore.shared.profileEnabled = profileEnabled }
-    }
+	var kvQuantizationEnabled: Bool {
+		didSet { SettingsStore.shared.kvQuantizationEnabled = kvQuantizationEnabled }
+	}
 
-    // MARK: - App Preferences
+	var kvQuantizationBits: Int {
+		didSet { SettingsStore.shared.kvQuantizationBits = kvQuantizationBits }
+	}
 
-    var appLocale: OCALocale {
-        didSet { SettingsStore.shared.appLocale = appLocale }
-    }
-    var appThemeMode: ThemeModeRaw {
-        didSet { SettingsStore.shared.appThemeMode = appThemeMode }
-    }
+	var kvCacheBudgetGB: Double {
+		didSet { SettingsStore.shared.kvCacheBudgetGB = kvCacheBudgetGB }
+	}
 
-    // MARK: - Transient UI State (not persisted)
+	// MARK: - Logs & Profiling
 
-    var verifying: Bool = false
-    var connected: Bool = false
-    var verifyMessage: String?
-    var errorMessage: String?
+	var logLevel: LogLevelRaw {
+		didSet { SettingsStore.shared.logLevel = logLevel }
+	}
 
-    // Model picker options
-    var selectedModelID: String = ""
-    var modelOptions: [String] = []
+	var profileEnabled: Bool {
+		didSet { SettingsStore.shared.profileEnabled = profileEnabled }
+	}
 
-    // MARK: - Undo support
+	// MARK: - App Preferences
 
-    private var undoSettings: SettingsSnapshot?
-    var hasUndo: Bool { undoSettings != nil }
+	var appLocale: OCALocale {
+		didSet { SettingsStore.shared.appLocale = appLocale }
+	}
 
-    // MARK: - Init
+	var appThemeMode: ThemeModeRaw {
+		didSet { SettingsStore.shared.appThemeMode = appThemeMode }
+	}
 
-    init() {
-        // Load from disk — must assign default first for Swift init rules with @Observable macro
-        serverHost = SettingsStore.shared.serverHost
-        serverPort = SettingsStore.shared.serverPort
-        pollIntervalSec = SettingsStore.shared.pollIntervalSec
-        chartWindowSec = SettingsStore.shared.chartWindowSec
-        kvQuantizationEnabled = SettingsStore.shared.kvQuantizationEnabled
-        kvQuantizationBits = SettingsStore.shared.kvQuantizationBits
-        kvCacheBudgetGB = SettingsStore.shared.kvCacheBudgetGB
-        logLevel = SettingsStore.shared.logLevel
-        profileEnabled = SettingsStore.shared.profileEnabled
-        appLocale = SettingsStore.shared.appLocale
-        appThemeMode = SettingsStore.shared.appThemeMode
-    }
+	// MARK: - Transient UI State (not persisted)
 
-    // MARK: - Lifecycle
+	var verifying: Bool = false
+	var connected: Bool = false
+	var verifyMessage: String?
+	var errorMessage: String?
 
-    /// Load settings on screen appear
-    func load() async {
-        await loadModels()
-    }
+	// Model picker options
+	var selectedModelID: String = ""
+	var modelOptions: [String] = []
 
-    private func loadModels() async {
-        guard let pool = OcoreaiEngine.shared.activeEnginePool else {
-            modelOptions = [""]
-            return
-        }
-        let entries = await pool.listModels()
-        modelOptions = entries.map { $0["id"] ?? "unknown" }
-        if modelOptions.isEmpty { modelOptions = [""] }
-        if !modelOptions.contains(selectedModelID) {
-            selectedModelID = modelOptions.first ?? ""
-        }
-    }
+	// MARK: - Undo support
 
-    /// Check connection via Fast Path (EnginePool ready)
-    func verifyConnection() async {
-        verifying = true
-        verifyMessage = nil
-        errorMessage = nil
-        let ready = OcoreaiEngine.shared.activeEnginePool != nil
-        connected = ready
-        verifyMessage = ready ? nil : "Engine not initialized"
-        verifying = false
-    }
+	private var undoSettings: SettingsSnapshot?
+	var hasUndo: Bool {
+		undoSettings != nil
+	}
 
-    /// Snapshot current settings, then reset all to defaults.
-    func resetToDefaults() {
-        undoSettings = SettingsSnapshot(from: self)
-        SettingsStore.shared.resetToDefaults()
-        // Reload from store
-        serverHost = SettingsStore.shared.serverHost
-        serverPort = SettingsStore.shared.serverPort
-        pollIntervalSec = SettingsStore.shared.pollIntervalSec
-        chartWindowSec = SettingsStore.shared.chartWindowSec
-        kvQuantizationEnabled = SettingsStore.shared.kvQuantizationEnabled
-        kvQuantizationBits = SettingsStore.shared.kvQuantizationBits
-        kvCacheBudgetGB = SettingsStore.shared.kvCacheBudgetGB
-        logLevel = SettingsStore.shared.logLevel
-        profileEnabled = SettingsStore.shared.profileEnabled
-        appLocale = SettingsStore.shared.appLocale
-        appThemeMode = SettingsStore.shared.appThemeMode
-        errorMessage = "Settings reset to defaults"
-        // Register undo with AppState for Cmd+Z access
-        AppState.shared.undoAction = { [weak self] in self?.undoResetToDefaults() }
-    }
+	// MARK: - Init
 
-    /// Restore from the last snapshot if one exists.
-    func undoResetToDefaults() {
-        guard let snapshot = undoSettings else { return }
-        snapshot.apply(to: self)
-        undoSettings = nil
-    }
+	init() {
+		// Load from disk — must assign default first for Swift init rules with @Observable macro
+		serverHost = SettingsStore.shared.serverHost
+		serverPort = SettingsStore.shared.serverPort
+		pollIntervalSec = SettingsStore.shared.pollIntervalSec
+		chartWindowSec = SettingsStore.shared.chartWindowSec
+		kvQuantizationEnabled = SettingsStore.shared.kvQuantizationEnabled
+		kvQuantizationBits = SettingsStore.shared.kvQuantizationBits
+		kvCacheBudgetGB = SettingsStore.shared.kvCacheBudgetGB
+		logLevel = SettingsStore.shared.logLevel
+		profileEnabled = SettingsStore.shared.profileEnabled
+		appLocale = SettingsStore.shared.appLocale
+		appThemeMode = SettingsStore.shared.appThemeMode
+	}
+
+	// MARK: - Lifecycle
+
+	/// Load settings on screen appear
+	func load() async {
+		await loadModels()
+	}
+
+	private func loadModels() async {
+		guard let pool = OcoreaiEngine.shared.activeEnginePool else {
+			modelOptions = [""]
+			return
+		}
+		let entries = await pool.listModels()
+		modelOptions = entries.map { $0["id"] ?? "unknown" }
+		if modelOptions.isEmpty { modelOptions = [""] }
+		if !modelOptions.contains(selectedModelID) {
+			selectedModelID = modelOptions.first ?? ""
+		}
+	}
+
+	/// Check connection via Fast Path (EnginePool ready)
+	func verifyConnection() async {
+		verifying = true
+		verifyMessage = nil
+		errorMessage = nil
+		let ready = OcoreaiEngine.shared.activeEnginePool != nil
+		connected = ready
+		verifyMessage = ready ? nil : "Engine not initialized"
+		verifying = false
+	}
+
+	/// Snapshot current settings, then reset all to defaults.
+	func resetToDefaults() {
+		undoSettings = SettingsSnapshot(from: self)
+		SettingsStore.shared.resetToDefaults()
+		// Reload from store
+		serverHost = SettingsStore.shared.serverHost
+		serverPort = SettingsStore.shared.serverPort
+		pollIntervalSec = SettingsStore.shared.pollIntervalSec
+		chartWindowSec = SettingsStore.shared.chartWindowSec
+		kvQuantizationEnabled = SettingsStore.shared.kvQuantizationEnabled
+		kvQuantizationBits = SettingsStore.shared.kvQuantizationBits
+		kvCacheBudgetGB = SettingsStore.shared.kvCacheBudgetGB
+		logLevel = SettingsStore.shared.logLevel
+		profileEnabled = SettingsStore.shared.profileEnabled
+		appLocale = SettingsStore.shared.appLocale
+		appThemeMode = SettingsStore.shared.appThemeMode
+		errorMessage = "Settings reset to defaults"
+		// Register undo with AppState for Cmd+Z access
+		AppState.shared.undoAction = { [weak self] in self?.undoResetToDefaults() }
+	}
+
+	/// Restore from the last snapshot if one exists.
+	func undoResetToDefaults() {
+		guard let snapshot = undoSettings else { return }
+		snapshot.apply(to: self)
+		undoSettings = nil
+	}
 }
 
 // MARK: - Settings Snapshot for undo
 
 extension SettingsState {
-    @MainActor
-    struct SettingsSnapshot {
-        let serverHost: String
-        let serverPort: Int
-        let pollIntervalSec: Int
-        let chartWindowSec: Int
-        let kvQuantizationEnabled: Bool
-        let kvQuantizationBits: Int
-        let kvCacheBudgetGB: Double
-        let logLevel: LogLevelRaw
-        let profileEnabled: Bool
-        let appLocale: OCALocale
-        let appThemeMode: ThemeModeRaw
+	@MainActor
+	struct SettingsSnapshot {
+		let serverHost: String
+		let serverPort: Int
+		let pollIntervalSec: Int
+		let chartWindowSec: Int
+		let kvQuantizationEnabled: Bool
+		let kvQuantizationBits: Int
+		let kvCacheBudgetGB: Double
+		let logLevel: LogLevelRaw
+		let profileEnabled: Bool
+		let appLocale: OCALocale
+		let appThemeMode: ThemeModeRaw
 
-        init(from state: SettingsState) {
-            serverHost = state.serverHost
-            serverPort = state.serverPort
-            pollIntervalSec = state.pollIntervalSec
-            chartWindowSec = state.chartWindowSec
-            kvQuantizationEnabled = state.kvQuantizationEnabled
-            kvQuantizationBits = state.kvQuantizationBits
-            kvCacheBudgetGB = state.kvCacheBudgetGB
-            logLevel = state.logLevel
-            profileEnabled = state.profileEnabled
-            appLocale = state.appLocale
-            appThemeMode = state.appThemeMode
-        }
+		init(from state: SettingsState) {
+			serverHost = state.serverHost
+			serverPort = state.serverPort
+			pollIntervalSec = state.pollIntervalSec
+			chartWindowSec = state.chartWindowSec
+			kvQuantizationEnabled = state.kvQuantizationEnabled
+			kvQuantizationBits = state.kvQuantizationBits
+			kvCacheBudgetGB = state.kvCacheBudgetGB
+			logLevel = state.logLevel
+			profileEnabled = state.profileEnabled
+			appLocale = state.appLocale
+			appThemeMode = state.appThemeMode
+		}
 
-        func apply(to state: SettingsState) {
-            state.serverHost = serverHost
-            state.serverPort = serverPort
-            state.pollIntervalSec = pollIntervalSec
-            state.chartWindowSec = chartWindowSec
-            state.kvQuantizationEnabled = kvQuantizationEnabled
-            state.kvQuantizationBits = kvQuantizationBits
-            state.kvCacheBudgetGB = kvCacheBudgetGB
-            state.logLevel = logLevel
-            state.profileEnabled = profileEnabled
-            state.appLocale = appLocale
-            state.appThemeMode = appThemeMode
-            // Persist to disk
-            SettingsStore.shared.serverHost = serverHost
-            SettingsStore.shared.serverPort = serverPort
-            SettingsStore.shared.pollIntervalSec = pollIntervalSec
-            SettingsStore.shared.chartWindowSec = chartWindowSec
-            SettingsStore.shared.kvQuantizationEnabled = kvQuantizationEnabled
-            SettingsStore.shared.kvQuantizationBits = kvQuantizationBits
-            SettingsStore.shared.kvCacheBudgetGB = kvCacheBudgetGB
-            SettingsStore.shared.logLevel = logLevel
-            SettingsStore.shared.profileEnabled = profileEnabled
-            SettingsStore.shared.appLocale = appLocale
-            SettingsStore.shared.appThemeMode = appThemeMode
-        }
-    }
+		func apply(to state: SettingsState) {
+			state.serverHost = serverHost
+			state.serverPort = serverPort
+			state.pollIntervalSec = pollIntervalSec
+			state.chartWindowSec = chartWindowSec
+			state.kvQuantizationEnabled = kvQuantizationEnabled
+			state.kvQuantizationBits = kvQuantizationBits
+			state.kvCacheBudgetGB = kvCacheBudgetGB
+			state.logLevel = logLevel
+			state.profileEnabled = profileEnabled
+			state.appLocale = appLocale
+			state.appThemeMode = appThemeMode
+			// Persist to disk
+			SettingsStore.shared.serverHost = serverHost
+			SettingsStore.shared.serverPort = serverPort
+			SettingsStore.shared.pollIntervalSec = pollIntervalSec
+			SettingsStore.shared.chartWindowSec = chartWindowSec
+			SettingsStore.shared.kvQuantizationEnabled = kvQuantizationEnabled
+			SettingsStore.shared.kvQuantizationBits = kvQuantizationBits
+			SettingsStore.shared.kvCacheBudgetGB = kvCacheBudgetGB
+			SettingsStore.shared.logLevel = logLevel
+			SettingsStore.shared.profileEnabled = profileEnabled
+			SettingsStore.shared.appLocale = appLocale
+			SettingsStore.shared.appThemeMode = appThemeMode
+		}
+	}
 }

@@ -11,8 +11,8 @@
 /// - @Observable data flow, no @EnvironmentObject
 /// - Accessibility: full VoiceOver labels, hidden decorative elements, chart text alternatives
 
-import SwiftUI
 import Charts
+import SwiftUI
 
 struct DashboardView: View {
 	@State private var dashboardState: DashboardState
@@ -70,12 +70,12 @@ struct DashboardView: View {
 				.frame(width: 8, height: 8)
 				.shadow(
 					color: (dashboardState.isLive ? theme.greenDot : theme.amberDot).opacity(0.3),
-					radius: 2
+					radius: 2,
 				)
 				.accessibilityHidden(true)
 			Text(dashboardState.isLive
-				 ? StringKey.systemOnline.l
-				 : StringKey.systemLoading.l)
+				? StringKey.systemOnline.l
+				: StringKey.systemLoading.l)
 				.font(.ocoreaiText(14, weight: .medium))
 				.foregroundStyle(theme.textSecondary)
 				.accessibilityLabel("System status: \(dashboardState.isLive ? StringKey.systemOnline.l : StringKey.systemLoading.l)")
@@ -100,70 +100,70 @@ struct DashboardView: View {
 				.padding(.horizontal, 20)
 				.padding(.top, 12)
 
-				LazyVGrid(
+			LazyVGrid(
 				columns: [
 					GridItem(.flexible()),
 					GridItem(.flexible()),
 					GridItem(.flexible()),
 				],
-				spacing: 12
+				spacing: 12,
 			) {
 				// Row 1: Throughput & Latency
 				MetricTile(title: StringKey.throughput.l,
-						  bigVal: String(format: "%.1f", snap.tokensPerSecond),
-						  subVal: "tok/s",
-						  icon: "bolt.horizontal.fill",
-						  tint: theme.tintBlue)
+				           bigVal: String(format: "%.1f", snap.tokensPerSecond),
+				           subVal: "tok/s",
+				           icon: "bolt.horizontal.fill",
+				           tint: theme.tintBlue)
 
 				MetricTile(title: StringKey.ttft.l,
-						  bigVal: String(format: "%.0f", snap.ttftMs),
-						  subVal: "ms",
-						  icon: "timer",
-						  tint: theme.tintOrange)
+				           bigVal: String(format: "%.0f", snap.ttftMs),
+				           subVal: "ms",
+				           icon: "timer",
+				           tint: theme.tintOrange)
 
 				MetricTile(title: StringKey.ttfb.l,
-						  bigVal: String(format: "%.0f", snap.ttfbMs),
-						  subVal: "ms",
-						  icon: "shippingbox.fill",
-						  tint: theme.tintGreen)
+				           bigVal: String(format: "%.0f", snap.ttfbMs),
+				           subVal: "ms",
+				           icon: "shippingbox.fill",
+				           tint: theme.tintGreen)
 
 				// Row 2: Memory
 				MetricTile(title: StringKey.gpuMemory.l,
-						  bigVal: String(format: "%.2f", snap.gpuMemoryUsage),
-						  subVal: "GB",
-						  icon: "memorychip",
-						  tint: theme.tintPurple)
+				           bigVal: String(format: "%.2f", snap.gpuMemoryUsage),
+				           subVal: "GB",
+				           icon: "memorychip",
+				           tint: theme.tintPurple)
 
 				MetricTile(title: StringKey.kvCache.l,
-						  bigVal: snap.formattedBytes(snap.kvCacheBytes),
-						  subVal: "",
-						  icon: "internaldrive.fill",
-						  tint: theme.tintCyan)
+				           bigVal: snap.formattedBytes(snap.kvCacheBytes),
+				           subVal: "",
+				           icon: "internaldrive.fill",
+				           tint: theme.tintCyan)
 
 				MetricTile(title: StringKey.kvEvictions.l,
-						  bigVal: String(snap.kvCacheEvictions),
-						  subVal: "",
-						  icon: "arrow.triangle.2.circlepath",
-						  tint: theme.tintRed)
+				           bigVal: String(snap.kvCacheEvictions),
+				           subVal: "",
+				           icon: "arrow.triangle.2.circlepath",
+				           tint: theme.tintRed)
 
 				// Row 3: Scheduler
 				MetricTile(title: StringKey.sessions.l,
-						  bigVal: String(snap.activeSessions),
-						  subVal: "",
-						  icon: "person.3.fill",
-						  tint: theme.tintYellow)
+				           bigVal: String(snap.activeSessions),
+				           subVal: "",
+				           icon: "person.3.fill",
+				           tint: theme.tintYellow)
 
 				MetricTile(title: StringKey.modelsLoaded.l,
-						  bigVal: String(snap.loadedModels),
-						  subVal: "",
-						  icon: "brain.head.profile",
-						  tint: theme.tintPink)
+				           bigVal: String(snap.loadedModels),
+				           subVal: "",
+				           icon: "brain.head.profile",
+				           tint: theme.tintPink)
 
 				MetricTile(title: StringKey.inferences.l,
-						  bigVal: String(snap.inferenceCount),
-						  subVal: avgInferPerMs,
-						  icon: "cpu",
-						  tint: theme.tintTeal)
+				           bigVal: String(snap.inferenceCount),
+				           subVal: avgInferPerMs,
+				           icon: "cpu",
+				           tint: theme.tintTeal)
 			}
 			.padding(.horizontal, 20)
 			.padding(.bottom, 8)
@@ -191,14 +191,14 @@ struct DashboardView: View {
 	private var systemInfoSection: some View {
 		HStack(spacing: 16) {
 			InfoBadge(icon: "shield.checkered",
-					 label: StringKey.rateLimit.l,
-					 value: String(dashboardState.metricsSnapshot.rateLimitRejections))
+			          label: StringKey.rateLimit.l,
+			          value: String(dashboardState.metricsSnapshot.rateLimitRejections))
 			InfoBadge(icon: "clock.arrow.circlepath",
-					 label: StringKey.uptime.l,
-					 value: uptimeLabel)
+			          label: StringKey.uptime.l,
+			          value: uptimeLabel)
 			InfoBadge(icon: "bolt.fill",
-					 label: StringKey.avgInfer.l,
-					 value: String(format: "%.1f it/s", inferItPerS))
+			          label: StringKey.avgInfer.l,
+			          value: String(format: "%.1f it/s", inferItPerS))
 		}
 		.padding(12)
 		.background(theme.cardBg)
@@ -218,7 +218,7 @@ struct DashboardView: View {
 			Chart(dashboardState.tokenHistory) { point in
 				AreaMark(
 					x: .value("Time", point.timestamp),
-					y: .value("tok/s", point.tokensPerSecond)
+					y: .value("tok/s", point.tokensPerSecond),
 				)
 				.foregroundStyle(theme.accent.opacity(0.15))
 				.interpolationMethod(.catmullRom)
@@ -226,7 +226,7 @@ struct DashboardView: View {
 
 				LineMark(
 					x: .value("Time", point.timestamp),
-					y: .value("tok/s", point.tokensPerSecond)
+					y: .value("tok/s", point.tokensPerSecond),
 				)
 				.foregroundStyle(theme.accent)
 				.interpolationMethod(.catmullRom)
@@ -253,7 +253,7 @@ struct DashboardView: View {
 				// GPU Memory area + line
 				AreaMark(
 					x: .value("Time", point.timestamp),
-					y: .value("GB", point.gpuMemoryUsage)
+					y: .value("GB", point.gpuMemoryUsage),
 				)
 				.foregroundStyle(theme.tintPurple.opacity(0.15))
 				.interpolationMethod(.catmullRom)
@@ -261,7 +261,7 @@ struct DashboardView: View {
 
 				LineMark(
 					x: .value("Time", point.timestamp),
-					y: .value("GB", point.gpuMemoryUsage)
+					y: .value("GB", point.gpuMemoryUsage),
 				)
 				.foregroundStyle(theme.tintPurple)
 				.interpolationMethod(.catmullRom)
@@ -271,7 +271,7 @@ struct DashboardView: View {
 				// KV Cache dashed line
 				LineMark(
 					x: .value("Time", point.timestamp),
-					y: .value("GB", point.kvCacheGB)
+					y: .value("GB", point.kvCacheGB),
 				)
 				.foregroundStyle(theme.tintCyan)
 				.interpolationMethod(.catmullRom)
@@ -285,24 +285,24 @@ struct DashboardView: View {
 			.chartXScale(domain: memoryChartDomain)
 			// Text alternative for screen readers
 			.accessibilityLabel(StringKey.dashboardMemChartDesc.l)
-			}
-			.padding()
-			.background(theme.cardBg)
-			.clipShape(RoundedRectangle(cornerRadius: 12))
-			.padding(.horizontal, 20)
-			.padding(.bottom, 20)
+		}
+		.padding()
+		.background(theme.cardBg)
+		.clipShape(RoundedRectangle(cornerRadius: 12))
+		.padding(.horizontal, 20)
+		.padding(.bottom, 20)
 	}
 
 	// MARK: - Chart domain helpers
 
 	private var tokenChartDomain: ClosedRange<Date> {
 		let base = dashboardState.tokenHistory.last?.timestamp ?? .now
-		return base.addingTimeInterval(-60)...Date.distantFuture
+		return base.addingTimeInterval(-60) ... Date.distantFuture
 	}
 
 	private var memoryChartDomain: ClosedRange<Date> {
 		let base = dashboardState.memoryHistory.last?.timestamp ?? .now
-		return base.addingTimeInterval(-60)...Date.distantFuture
+		return base.addingTimeInterval(-60) ... Date.distantFuture
 	}
 
 	// MARK: - Uptime helpers

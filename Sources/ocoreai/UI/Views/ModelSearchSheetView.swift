@@ -4,8 +4,8 @@
 /// Directly interacts with OcoreaiEngine, no ChatState dependency.
 /// Features: HuggingFace / ModelScope hub search, direct model ID loading, progress indicator.
 
-import SwiftUI
 import Observation
+import SwiftUI
 
 // MARK: - ViewModel
 
@@ -15,26 +15,26 @@ final class ModelSearchState {
 	// Local models
 	var localModels: [ModelID] = []
 	var defaultModelId: String = ""
-	
+
 	// Hub search
 	var searchQuery = ""
 	var hfResults: [HFModelInfo] = []
 	var msResults: [MSModelInfo] = []
 	var isSearching = false
 	var selectedSource: HubSource = .huggingFace
-	
+
 	// Download
 	var downloadingModelId: String = ""
 	var isDownloading = false
-	
+
 	// Error
-	var errorMessage: String? = nil
-	
+	var errorMessage: String?
+
 	func performSearch(_ query: String) async {
 		guard !query.isEmpty else { hfResults = []; msResults = []; return }
 		isSearching = true
 		errorMessage = nil
-		
+
 		switch selectedSource {
 		case .huggingFace:
 			let results = await searchHub(keyword: query)
@@ -45,31 +45,30 @@ final class ModelSearchState {
 		}
 		isSearching = false
 	}
-	
+
 	func loadModel(_ modelId: String, onSuccess: (() -> Void)?) {
 		guard let pool = OcoreaiEngine.shared.activeEnginePool else {
 			errorMessage = StringKey.engineNotAvailable.l
 			return
 		}
-		
-		let normalizedId: String
-		if selectedSource == .modelScope && !modelId.hasPrefix("mscope:") {
-			normalizedId = "mscope:\(modelId)"
+
+		let normalizedId: String = if selectedSource == .modelScope, !modelId.hasPrefix("mscope:") {
+			"mscope:\(modelId)"
 		} else {
-			normalizedId = modelId
+			modelId
 		}
-		
+
 		isDownloading = true
 		downloadingModelId = modelId
-		
+
 		Task {
 			do {
-				let _ = try await pool.acquire(model: normalizedId)
+				_ = try await pool.acquire(model: normalizedId)
 				await pool.releaseSession(modelId: normalizedId, sessionId: "init")
 				await self.refreshLocalModels()
 				self.isDownloading = false
 				self.downloadingModelId = ""
-			onSuccess?()
+				onSuccess?()
 			} catch {
 				self.errorMessage = error.localizedDescription
 				self.isDownloading = false
@@ -77,26 +76,26 @@ final class ModelSearchState {
 			}
 		}
 	}
-	
+
 	func refreshLocalModels() async {
 		guard let pool = OcoreaiEngine.shared.activeEnginePool else { return }
-		self.localModels = await pool.loadedModels.map {
+		localModels = await pool.loadedModels.map {
 			ModelID(id: $0.key, maxContext: $0.value.modelConfig.maxContextLength, tokenizer: $0.value.modelConfig.tokenizer)
 		}
-		self.defaultModelId = UserDefaults.standard.string(forKey: "DefaultModelId") ?? ""
+		defaultModelId = UserDefaults.standard.string(forKey: "DefaultModelId") ?? ""
 	}
-	
+
 	private func setDefault(_ modelId: String) {
-		self.defaultModelId = modelId
+		defaultModelId = modelId
 		UserDefaults.standard.set(modelId, forKey: "DefaultModelId")
 	}
-	
+
 	// MARK: - Hub Search (mirrors ChatState methods)
-	
+
 	private func searchHub(keyword: String, limit: Int = 15) async -> [HFModelInfo] {
 		guard let url = URL(string: "https://huggingface.co/api/models?search=\(keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? keyword)&limit=\(limit)&sort=likes")
 		else { return [] }
-		
+
 		do {
 			let (data, response) = try await URLSession.shared.data(from: url)
 			guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -107,20 +106,20 @@ final class ModelSearchState {
 			return []
 		}
 	}
-	
+
 	private func searchModelScope(keyword: String, pageSize: Int = 15) async -> [MSModelInfo] {
 		guard let url = URL(string: "https://modelscope.cn/api/v1/models") else { return [] }
 		var request = URLRequest(url: url)
 		request.httpMethod = "PUT"
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-		
+
 		let body: [String: Any] = [
 			"Path": keyword,
 			"PageNumber": 1,
 			"PageSize": min(pageSize, 100),
 		]
 		request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-		
+
 		do {
 			let (data, response) = try await URLSession.shared.data(for: request)
 			guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -133,7 +132,7 @@ final class ModelSearchState {
 			}
 			guard let modelsRaw = dataObj["Models"] as? [[String: Any]] else { return [] }
 			let modelData = modelsRaw.map { try? JSONDecoder().decode(MSModelInfo.self, from: try JSONSerialization.data(withJSONObject: $0, options: [])) }
-			return modelData.compactMap { $0 }
+			return modelData.compactMap(\.self)
 		} catch {
 			return []
 		}
@@ -159,13 +158,13 @@ struct ModelSearchSheetView: View {
 			Form {
 				// ① Local models section
 				localModelsSection
-				
+
 				// ② Hub source toggle
 				hubToggleSection
-				
+
 				// ③ Search
 				searchSection
-				
+
 				// ④ Results
 				if !searchState.hfResults.isEmpty, searchState.selectedSource == .huggingFace {
 					hfResultsSection
@@ -173,7 +172,7 @@ struct ModelSearchSheetView: View {
 				if !searchState.msResults.isEmpty, searchState.selectedSource == .modelScope {
 					msResultsSection
 				}
-				
+
 				// Error
 				if let error = searchState.errorMessage {
 					errorSection(error)
@@ -193,9 +192,9 @@ struct ModelSearchSheetView: View {
 			}
 		}
 	}
-	
+
 	// MARK: - Local Models Section
-	
+
 	@ViewBuilder
 	private var localModelsSection: some View {
 		if searchState.localModels.isEmpty {
@@ -227,9 +226,9 @@ struct ModelSearchSheetView: View {
 			.headerProminence(.increased)
 		}
 	}
-	
+
 	// MARK: - Hub Toggle
-	
+
 	private var hubToggleSection: some View {
 		Section(header: Text(StringKey.modelSearchHubSource.l)) {
 			Picker(StringKey.modelSearchSelectHub.l, selection: $searchState.selectedSource) {
@@ -240,16 +239,16 @@ struct ModelSearchSheetView: View {
 			.pickerStyle(.segmented)
 		}
 	}
-	
+
 	// MARK: - Search Section
-	
+
 	private var searchSection: some View {
 		Section {
 			TextField(
 				searchState.selectedSource == .huggingFace
 					? StringKey.modelSearchHFHub.l
 					: StringKey.modelSearchModelScope.l,
-				text: $searchQueryLocal
+				text: $searchQueryLocal,
 			)
 			.textFieldStyle(.plain)
 			.onSubmit {
@@ -257,7 +256,7 @@ struct ModelSearchSheetView: View {
 				Task { await searchState.performSearch(searchQueryLocal) }
 			}
 			.disableAutocorrection(true)
-			
+
 			if searchState.isSearching {
 				HStack {
 					ProgressView()
@@ -269,10 +268,9 @@ struct ModelSearchSheetView: View {
 			}
 		}
 	}
-	
+
 	// MARK: - HF Results
-	
-	@ViewBuilder
+
 	private var hfResultsSection: some View {
 		Section(header: Text(StringKey.modelSearchResults.l)) {
 			ForEach(searchState.hfResults.prefix(15), id: \.id) { model in
@@ -280,10 +278,9 @@ struct ModelSearchSheetView: View {
 			}
 		}
 	}
-	
+
 	// MARK: - MS Results
-	
-	@ViewBuilder
+
 	private var msResultsSection: some View {
 		Section(header: Text(StringKey.modelSearchResults.l)) {
 			ForEach(searchState.msResults.prefix(15), id: \.id) { model in
@@ -291,9 +288,9 @@ struct ModelSearchSheetView: View {
 			}
 		}
 	}
-	
+
 	// MARK: - Result Row
-	
+
 	private func resultRow(id: String, label: String, sub: String?) -> some View {
 		HStack(spacing: 8) {
 			VStack(alignment: .leading, spacing: 2) {
@@ -312,7 +309,7 @@ struct ModelSearchSheetView: View {
 			})
 		}
 	}
-	
+
 	// MARK: - Download Button
 
 	@ViewBuilder
@@ -320,7 +317,7 @@ struct ModelSearchSheetView: View {
 		// Use global progress store for real-time progress
 		let progressState = downloadProgress.progress(for: modelId)
 		let isDown = downloadProgress.isDownloading(modelId)
-	
+
 		if isDown, let state = progressState {
 			// Show real progress bar with percentage
 			HStack(spacing: 6) {
@@ -338,9 +335,9 @@ struct ModelSearchSheetView: View {
 				.disabled(searchState.isDownloading)
 		}
 	}
-	
+
 	// MARK: - Error Section
-	
+
 	private func errorSection(_ error: String) -> some View {
 		Section {
 			HStack {

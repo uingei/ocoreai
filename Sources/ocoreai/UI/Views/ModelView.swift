@@ -36,18 +36,18 @@ struct ModelView: View {
 				searchResultsView
 
 				// 错误
-					if let err = downloadError {
-						Button {
-							downloadError = nil
-						} label: {
-							HStack(spacing: 8) {
-								Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
-								Text(err).foregroundStyle(.secondary).font(.caption)
-							}
-							.frame(maxWidth: .infinity, alignment: .leading)
+				if let err = downloadError {
+					Button {
+						downloadError = nil
+					} label: {
+						HStack(spacing: 8) {
+							Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+							Text(err).foregroundStyle(.secondary).font(.caption)
 						}
-						.buttonStyle(.plain)
+						.frame(maxWidth: .infinity, alignment: .leading)
 					}
+					.buttonStyle(.plain)
+				}
 
 				// 本地模型
 				localModelsView
@@ -78,7 +78,7 @@ struct ModelView: View {
 			selectedSource == .huggingFace
 				? StringKey.modelSearchHFHub.l
 				: StringKey.modelSearchModelScope.l,
-			text: $searchQuery
+			text: $searchQuery,
 		)
 		.disableAutocorrection(true)
 
@@ -135,7 +135,6 @@ struct ModelView: View {
 		}
 	}
 
-	@ViewBuilder
 	private var _hfResultView: some View {
 		LazyVStack(spacing: 8) {
 			ForEach(Array(hfResults.prefix(20).enumerated()), id: \.offset) { _, model in
@@ -144,7 +143,6 @@ struct ModelView: View {
 		}
 	}
 
-	@ViewBuilder
 	private var _msResultView: some View {
 		LazyVStack(spacing: 8) {
 			ForEach(Array(msResults.prefix(20).enumerated()), id: \.offset) { _, model in
@@ -249,7 +247,7 @@ struct ModelView: View {
 			if let nested = json?["Data"] as? [String: Any] { dataObj = nested }
 			guard let modelsRaw = dataObj["Models"] as? [[String: Any]] else { return [] }
 			let modelData = modelsRaw.map { try? JSONDecoder().decode(MSModelInfo.self, from: try JSONSerialization.data(withJSONObject: $0, options: [])) }
-			return modelData.compactMap { $0 }
+			return modelData.compactMap(\.self)
 		} catch { return [] }
 	}
 
@@ -263,7 +261,7 @@ struct ModelView: View {
 		Task {
 			guard let pool = OcoreaiEngine.shared.activeEnginePool else { return }
 			do {
-				let _ = try await pool.acquire(model: normalizedId)
+				_ = try await pool.acquire(model: normalizedId)
 				await pool.releaseSession(modelId: normalizedId, sessionId: "init")
 				await modelsState.fetchModels()
 				loadingModelId = ""
@@ -288,7 +286,6 @@ private struct LiveModelCard: View {
 			.accessibilityLabel(StringKey.modelViewTapToEdit.l)
 	}
 
-	@ViewBuilder
 	private var cardContent: some View {
 		HStack(spacing: 12) {
 			ZStack {

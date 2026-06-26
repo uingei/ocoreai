@@ -7,7 +7,10 @@
 import SwiftUI
 
 struct StatusView: View {
-	private var appState: AppState { AppState.shared }
+	private var appState: AppState {
+		AppState.shared
+	}
+
 	@Environment(\.ocoreaiTheme) private var theme
 
 	var body: some View {
@@ -21,35 +24,35 @@ struct StatusView: View {
 						value: appState.isConnected ? StringKey.systemOnline.l : StringKey.disconnected.l,
 						icon: "server.rack",
 						tint: appState.isConnected ? theme.greenDot : theme.redDot,
-						pill: appState.isConnected ? SPStatus.running : SPStatus.error
+						pill: appState.isConnected ? SPStatus.running : SPStatus.error,
 					)
 					StatusRow(
 						title: StringKey.sessions.l,
 						value: String(appState.currentMetrics.activeSessions),
 						icon: "person.3.fill",
 						tint: theme.greenDot,
-						pill: SPStatus.running
+						pill: SPStatus.running,
 					)
 					StatusRow(
 						title: StringKey.gpuMemory.l,
 						value: String(format: "%.1f GB", appState.currentMetrics.gpuMemoryUsage),
 						icon: "memorychip",
 						tint: theme.tintPurple,
-						pill: SPStatus.running
+						pill: SPStatus.running,
 					)
 					StatusRow(
 						title: StringKey.throughput.l,
 						value: String(format: "%.1f tok/s", appState.currentMetrics.tokensPerSecond),
 						icon: "bolt.horizontal.fill",
 						tint: theme.tintBlue,
-						pill: SPStatus.running
+						pill: SPStatus.running,
 					)
 					StatusRow(
 						title: StringKey.ttft.l,
 						value: String(format: "%.0f ms", appState.currentMetrics.ttftMs),
 						icon: "timer",
 						tint: theme.tintOrange,
-						pill: SPStatus.running
+						pill: SPStatus.running,
 					)
 				}
 				Spacer(minLength: 16)

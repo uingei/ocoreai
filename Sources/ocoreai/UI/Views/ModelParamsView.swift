@@ -33,7 +33,6 @@ struct ModelParamsView: View {
 		.accessibilityLabel(StringKey.modelParamsTitle.l)
 	}
 
-	@ViewBuilder
 	private var innerBody: some View {
 		VStack(alignment: .leading, spacing: 24) {
 			headerBar
@@ -48,7 +47,6 @@ struct ModelParamsView: View {
 		}
 	}
 
-	@ViewBuilder
 	private var headerBar: some View {
 		HStack {
 			VStack(alignment: .leading, spacing: 4) {
@@ -66,19 +64,17 @@ struct ModelParamsView: View {
 		}
 	}
 
-	@ViewBuilder
 	private var temperatureCard: some View {
 		SliderAutoSaveView(
 			label: StringKey.modelParamTemperature.l,
 			hint: StringKey.modelParamTemperatureHint.l,
 			display: String(format: "%.2f", config.temperature),
 			value: $config.temperature,
-			range: 0...2,
-			autoSave: { autoSave() }
+			range: 0 ... 2,
+			autoSave: { autoSave() },
 		)
 	}
 
-	@ViewBuilder
 	private var topPCard: some View {
 		SliderAutoSaveView(
 			label: StringKey.modelParamTopP.l,
@@ -86,16 +82,15 @@ struct ModelParamsView: View {
 			display: config.topP != nil ? String(format: "%.2f", config.topP!) : StringKey.modelParamDefaults.l,
 			value: Binding(
 				get: { config.topP ?? 0.95 },
-				set: { config.topP = $0; autoSave() }
+				set: { config.topP = $0; autoSave() },
 			),
-			range: 0...1,
+			range: 0 ... 1,
 			hasReset: true,
 			resetAction: { config.topP = nil; autoSave() },
-			autoSave: { }
+			autoSave: {},
 		)
 	}
 
-	@ViewBuilder
 	private var topKCard: some View {
 		TextFieldParamView(
 			label: StringKey.modelParamTopK.l,
@@ -106,11 +101,10 @@ struct ModelParamsView: View {
 				config.topK = max(Int(topKText) ?? 1, 1)
 				autoSave()
 			},
-			resetAction: { config.topK = nil; topKText = ""; autoSave() }
+			resetAction: { config.topK = nil; topKText = ""; autoSave() },
 		)
 	}
 
-	@ViewBuilder
 	private var maxTokensCard: some View {
 		TextFieldParamView(
 			label: StringKey.modelParamMaxTokens.l,
@@ -121,35 +115,32 @@ struct ModelParamsView: View {
 				config.maxTokens = max(Int(maxTokensText) ?? 1, 1)
 				autoSave()
 			},
-			resetAction: { config.maxTokens = nil; maxTokensText = ""; autoSave() }
+			resetAction: { config.maxTokens = nil; maxTokensText = ""; autoSave() },
 		)
 	}
 
-	@ViewBuilder
 	private var frequencyPenaltyCard: some View {
 		SliderAutoSaveView(
 			label: StringKey.modelParamFrequencyPenalty.l,
 			hint: nil,
 			display: String(format: "%.2f", config.frequencyPenalty),
 			value: $config.frequencyPenalty,
-			range: -2...2,
-			autoSave: { autoSave() }
+			range: -2 ... 2,
+			autoSave: { autoSave() },
 		)
 	}
 
-	@ViewBuilder
 	private var presencePenaltyCard: some View {
 		SliderAutoSaveView(
 			label: StringKey.modelParamPresencePenalty.l,
 			hint: nil,
 			display: String(format: "%.2f", config.presencePenalty),
 			value: $config.presencePenalty,
-			range: -2...2,
-			autoSave: { autoSave() }
+			range: -2 ... 2,
+			autoSave: { autoSave() },
 		)
 	}
 
-	@ViewBuilder
 	private var actionRow: some View {
 		HStack(spacing: 12) {
 			Button(StringKey.modelParamReset.l) {
@@ -203,7 +194,7 @@ private struct SliderAutoSaveView: View {
 		range: ClosedRange<Float>,
 		hasReset: Bool = false,
 		resetAction: (() -> Void)? = nil,
-		autoSave: @escaping () -> Void
+		autoSave: @escaping () -> Void,
 	) {
 		self.label = label
 		self.hint = hint

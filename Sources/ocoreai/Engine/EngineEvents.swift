@@ -13,31 +13,31 @@ import Foundation
 /// Lightweight cancellation token for propagating cancellation across task boundaries.
 ///
 /// Used by SSE handlers to cancel inference running in unrelated root Tasks.
-struct InferenceCancellation: Sendable {
-    private let _token: Task<Void, Error>?
+struct InferenceCancellation {
+	private let _token: Task<Void, Error>?
 
-    /// Non-cancellable handle (used for non-stream endpoints)
-    static let none: Self = .init()
+	/// Non-cancellable handle (used for non-stream endpoints)
+	static let none: Self = .init()
 
-    /// Cancellable handle — cancels underlying task when ``cancel()`` is called
-    static func cancellable() -> Self {
-        .init(_token: Task { () })
-    }
+	/// Cancellable handle — cancels underlying task when ``cancel()`` is called
+	static func cancellable() -> Self {
+		.init(_token: Task { () })
+	}
 
-    /// Check if this token has been cancelled
-    /// - Returns: true if the cancel signal has been sent
-    var isCancelled: Bool {
-        _token?.isCancelled == true
-    }
+	/// Check if this token has been cancelled
+	/// - Returns: true if the cancel signal has been sent
+	var isCancelled: Bool {
+		_token?.isCancelled == true
+	}
 
-    /// Send cancellation signal to all holders of this token
-    func cancel() {
-        _token?.cancel()
-    }
+	/// Send cancellation signal to all holders of this token
+	func cancel() {
+		_token?.cancel()
+	}
 
-    private init(_token: Task<Void, Error>? = nil) {
-        self._token = _token
-    }
+	private init(_token: Task<Void, Error>? = nil) {
+		self._token = _token
+	}
 }
 
 // MARK: - Inference Event
@@ -45,22 +45,22 @@ struct InferenceCancellation: Sendable {
 /// Unified event type streamed from the inference pipeline to the handler.
 ///
 /// Events flow through ``AsyncThrowingStream`` so the HTTP layer can emit SSE chunks.
-struct InferenceEvent: Sendable {
-    /// Event kind discriminator
-    enum Kind: Sendable {
-        /// Generated token (`Int32` token ID — Core AI path)
-        case token(Int32)
+struct InferenceEvent {
+	/// Event kind discriminator
+	enum Kind {
+		/// Generated token (`Int32` token ID — Core AI path)
+		case token(Int32)
 
-        /// Generated text chunk (MLX path — already decoded)
-        case text(String)
+		/// Generated text chunk (MLX path — already decoded)
+		case text(String)
 
-        /// Generation complete (optional `StopReason`)
-        case done(StopReason?)
+		/// Generation complete (optional `StopReason`)
+		case done(StopReason?)
 
-        /// Fatal inference error
-        case error(String)
-    }
+		/// Fatal inference error
+		case error(String)
+	}
 
-    /// Event payload
-    var kind: Kind
+	/// Event payload
+	var kind: Kind
 }

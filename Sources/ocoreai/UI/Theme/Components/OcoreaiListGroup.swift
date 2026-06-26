@@ -6,14 +6,14 @@
 import SwiftUI
 
 struct OcoreaiListGroup<Content: View>: View {
-    @ViewBuilder let content: Content
+	@ViewBuilder let content: Content
 
-    @Environment(\.ocoreaiTheme) private var theme
+	@Environment(\.ocoreaiTheme) private var theme
 
-    var body: some View {
-        content
-            .padding(12)
-            .background(theme.groupBg)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
+	var body: some View {
+		content
+			.padding(12)
+			.background(theme.groupBg)
+			.clipShape(RoundedRectangle(cornerRadius: 16))
+	}
 }

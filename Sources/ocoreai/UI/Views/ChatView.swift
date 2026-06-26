@@ -8,18 +8,19 @@
 /// Accessibility: ChatBubble uses accessibilityGroup() for semantic hierarchy
 /// Reduced Motion: all animations respect .accessibilityReduceMotion
 
-import SwiftUI
 import AppKit
+import SwiftUI
+
 /// Stable identity wrapper for chat messages — uses index-based id so SwiftUI
 /// does not recreate view identity on every diff.
-struct ChatBubbleMessage: Identifiable, Hashable, Sendable {
-	let id: Int       // index into the messages array — stable across diffs
+struct ChatBubbleMessage: Identifiable, Hashable {
+	let id: Int // index into the messages array — stable across diffs
 	let role: String
 	let content: String
 	let timestamp: Date
 
 	init(index: Int, role: String, content: String, timestamp: Date) {
-		self.id = index
+		id = index
 		self.role = role
 		self.content = content
 		self.timestamp = timestamp
@@ -33,7 +34,7 @@ struct ChatView: View {
 	@State private var currentModel = ""
 	@State private var models: [String] = []
 	@State private var activeTask: Task<Void, Never>? = nil
-	
+
 	// Model search + load entry point
 	@State private var showModelLoader = false
 
@@ -41,8 +42,13 @@ struct ChatView: View {
 		_chatState = State(initialValue: ChatState())
 	}
 
-	private var isStreaming: Bool { activeTask != nil || chatState.loading }
-	private var isConnected: Bool { chatState.connected }
+	private var isStreaming: Bool {
+		activeTask != nil || chatState.loading
+	}
+
+	private var isConnected: Bool {
+		chatState.connected
+	}
 
 	var body: some View {
 		VStack(spacing: 0) {
@@ -79,7 +85,7 @@ struct ChatView: View {
 				} label: {
 					Label(
 						currentModel.isEmpty ? StringKey.noModelSelected.l : currentModel,
-						systemImage: "brain"
+						systemImage: "brain",
 					)
 				}
 				.accessibilityLabel(StringKey.modelSelectorLabel.l)
@@ -107,7 +113,7 @@ struct ChatView: View {
 							models = updated
 							currentModel = updated.last ?? currentModel
 						}
-					}
+					},
 				)
 			}
 		}
@@ -144,7 +150,7 @@ struct ChatView: View {
 	private var messageList: some View {
 		ScrollViewReader { proxy in
 			ScrollView {
-				if chatState.messages.isEmpty && chatState.responseText.isEmpty {
+				if chatState.messages.isEmpty, chatState.responseText.isEmpty {
 					emptyState
 				} else {
 					LazyVStack(spacing: 10) {
@@ -153,7 +159,7 @@ struct ChatView: View {
 								index: msg.id.hashValue,
 								role: msg.role,
 								content: msg.content,
-								timestamp: msg.timestamp
+								timestamp: msg.timestamp,
 							))
 							.id(msg.id)
 						}
@@ -187,13 +193,13 @@ struct ChatView: View {
 			index: -1, // streaming placeholder — not in messages array
 			role: "assistant",
 			content: chatState.responseText,
-			timestamp: Date()
+			timestamp: Date(),
 		))
-			.opacity(0.85)
-			.transition(.opacity.combined(with: .move(edge: .bottom)))
-			.padding()
-			.accessibilityLabel(StringKey.assistantTyping.l)
-			.accessibilityHidden(false)
+		.opacity(0.85)
+		.transition(.opacity.combined(with: .move(edge: .bottom)))
+		.padding()
+		.accessibilityLabel(StringKey.assistantTyping.l)
+		.accessibilityHidden(false)
 	}
 
 	// MARK: - Empty State
@@ -267,7 +273,7 @@ struct ChatView: View {
 				.clipShape(RoundedRectangle(cornerRadius: 12))
 				.overlay(
 					RoundedRectangle(cornerRadius: 12)
-						.stroke(theme.inputBorder.opacity(0.5), lineWidth: 0.5)
+						.stroke(theme.inputBorder.opacity(0.5), lineWidth: 0.5),
 				)
 				.accessibilityLabel(StringKey.messageInputLabel.l)
 				.accessibilityHint(StringKey.messageInputHint.l)
@@ -299,7 +305,7 @@ struct ChatView: View {
 		// and MainActor context is captured for updating chatState
 		// ChatView is a struct, so no [weak self] needed — capture is deterministic
 		activeTask = Task {
-			await self.chatState.chat(text, model: modelID)
+			await chatState.chat(text, model: modelID)
 		}
 	}
 
@@ -317,7 +323,9 @@ struct ChatBubble: View {
 
 	@Environment(\.ocoreaiTheme) private var theme
 
-	private var isUser: Bool { message.role == "user" }
+	private var isUser: Bool {
+		message.role == "user"
+	}
 
 	var body: some View {
 		HStack(alignment: .top, spacing: 8) {
@@ -340,7 +348,7 @@ struct ChatBubble: View {
 					.multilineTextAlignment(isUser ? .trailing : .leading)
 					.padding(12)
 					.background(
-						isUser ? theme.accentSoft : theme.cardBg
+						isUser ? theme.accentSoft : theme.cardBg,
 					)
 					.clipShape(RoundedRectangle(cornerRadius: 14))
 			}
@@ -406,7 +414,7 @@ struct ChatHeader: View {
 struct ModelSearchView: View {
 	let chatState: ChatState
 	let onModelLoaded: ([String]) -> Void
-	
+
 	@State private var searchQuery = ""
 	@State private var hfResults: [HFModelInfo] = []
 	@State private var msResults: [MSModelInfo] = []
@@ -416,13 +424,13 @@ struct ModelSearchView: View {
 	@State private var directModelId = ""
 	@State private var showDirectEntry = false
 	@State private var selectedSource: HubSource = .huggingFace
-	
+
 	@Environment(\.dismiss) private var dismiss
-	
+
 	@Environment(\.ocoreaiTheme) private var theme
-	
+
 	@State private var localError: String? = nil
-	
+
 	var body: some View {
 		Form {
 			// Quick entry — direct model ID
@@ -437,7 +445,7 @@ struct ModelSearchView: View {
 					}
 				}
 			}
-			
+
 			// Hub source selector
 			Section(StringKey.modelSearchHubSource.l) {
 				Picker(StringKey.modelSearchSelectHub.l, selection: $selectedSource) {
@@ -447,16 +455,16 @@ struct ModelSearchView: View {
 				}
 				.pickerStyle(.segmented)
 			}
-			
+
 			// Search section
 			Section {
 				SearchBar(
-						text: $searchQuery,
-						placeholder: selectedSource == .huggingFace ? StringKey.modelSearchHFHub.l : StringKey.modelSearchModelScope.l
-					) { query in
-						Task { await performSearch(query) }
-					}
-				
+					text: $searchQuery,
+					placeholder: selectedSource == .huggingFace ? StringKey.modelSearchHFHub.l : StringKey.modelSearchModelScope.l,
+				) { query in
+					Task { await performSearch(query) }
+				}
+
 				if isSearching {
 					HStack {
 						ProgressView()
@@ -467,45 +475,45 @@ struct ModelSearchView: View {
 					.padding(.vertical, 4)
 				}
 			}
-			
-			// HF Results
-				if !hfResults.isEmpty, selectedSource == .huggingFace {
-					Section(StringKey.modelSearchResults.l) {
-						LazyVStack(spacing: 4) {
-							ForEach(hfResults, id: \.id) { model in
-								Button {
-									showDirectEntry = false
-									loadModel(model.id, source: .huggingFace)
-								} label: {
-									HFModelRow(model: model)
-										.frame(maxWidth: .infinity, alignment: .leading)
-								}
-								.buttonStyle(.plain)
-							}
-						}
-						.padding(.vertical, 2)
-					}
-				}
 
-				// MS Results
-				if !msResults.isEmpty, selectedSource == .modelScope {
-					Section(StringKey.modelSearchResults.l) {
-						LazyVStack(spacing: 4) {
-							ForEach(msResults, id: \.path) { model in
-								Button {
-									showDirectEntry = false
-									loadModel(model.path, source: .modelScope)
-								} label: {
-									MSModelRow(model: model)
-										.frame(maxWidth: .infinity, alignment: .leading)
-								}
-								.buttonStyle(.plain)
+			// HF Results
+			if !hfResults.isEmpty, selectedSource == .huggingFace {
+				Section(StringKey.modelSearchResults.l) {
+					LazyVStack(spacing: 4) {
+						ForEach(hfResults, id: \.id) { model in
+							Button {
+								showDirectEntry = false
+								loadModel(model.id, source: .huggingFace)
+							} label: {
+								HFModelRow(model: model)
+									.frame(maxWidth: .infinity, alignment: .leading)
 							}
+							.buttonStyle(.plain)
 						}
-						.padding(.vertical, 2)
 					}
+					.padding(.vertical, 2)
 				}
-			
+			}
+
+			// MS Results
+			if !msResults.isEmpty, selectedSource == .modelScope {
+				Section(StringKey.modelSearchResults.l) {
+					LazyVStack(spacing: 4) {
+						ForEach(msResults, id: \.path) { model in
+							Button {
+								showDirectEntry = false
+								loadModel(model.path, source: .modelScope)
+							} label: {
+								MSModelRow(model: model)
+									.frame(maxWidth: .infinity, alignment: .leading)
+							}
+							.buttonStyle(.plain)
+						}
+					}
+					.padding(.vertical, 2)
+				}
+			}
+
 			// Currently loading
 			if !loadingModelId.isEmpty {
 				Section(StringKey.modelSearchLoading.l) {
@@ -526,7 +534,7 @@ struct ModelSearchView: View {
 					.padding(.vertical, 4)
 				}
 			}
-			
+
 			// Errors
 			if let error = localError {
 				Section {
@@ -567,48 +575,48 @@ struct ModelSearchView: View {
 			}
 		}
 	}
-	
+
 	// MARK: - Search
-	
+
 	func performSearch(_ query: String) async {
 		guard !query.isEmpty else {
 			hfResults = []
 			msResults = []
 			return
 		}
-		
+
 		isSearching = true
 		localError = nil
-		
+
 		switch selectedSource {
 		case .huggingFace:
 			let results = await chatState.searchHubModels(keyword: query)
 			hfResults = results
-			if results.isEmpty && query.count > 1 {
+			if results.isEmpty, query.count > 1 {
 				localError = StringKey.modelSearchNoResults.l
 			}
 		case .modelScope:
 			let results = await chatState.searchModelScopeModels(keyword: query)
 			msResults = results
-			if results.isEmpty && query.count > 1 {
+			if results.isEmpty, query.count > 1 {
 				localError = StringKey.modelSearchNoResults.l
 			}
 		}
-		
+
 		isSearching = false
 	}
-	
+
 	// MARK: - Load
-	
+
 	func loadModel(_ modelId: String, source: HubSource) {
 		loadingModelId = modelId
 		loadingProgress = "Downloading…"
-		
+
 		Task {
 			let updated = await chatState.loadNewModel(modelId, source: source)
 			loadingModelId = ""
 			loadingProgress = nil
-			
+
 			if !updated.isEmpty {
 				onModelLoaded(updated)
 				dismiss()
@@ -623,7 +631,7 @@ private struct SearchBar: View {
 	@Binding var text: String
 	let placeholder: String
 	let onCommit: (String) -> Void
-	
+
 	var body: some View {
 		TextField(placeholder, text: $text)
 			.textFieldStyle(.plain)
@@ -635,9 +643,9 @@ private struct SearchBar: View {
 
 struct HFModelRow: View {
 	let model: HFModelInfo
-	
+
 	@Environment(\.ocoreaiTheme) private var theme
-	
+
 	var body: some View {
 		HStack(spacing: 6) {
 			// MLX badge
@@ -649,7 +657,7 @@ struct HFModelRow: View {
 					.clipShape(RoundedRectangle(cornerRadius: 4))
 					.accessibilityLabel(StringKey.a11yMLXFormat.l)
 			}
-			
+
 			// Model ID
 			VStack(alignment: .leading) {
 				Text(model.id)
@@ -662,9 +670,9 @@ struct HFModelRow: View {
 						.lineLimit(1)
 				}
 			}
-			
+
 			Spacer()
-			
+
 			// Likes
 			if model.likes > 0 {
 				Label("\(model.likes, format: .number)", systemImage: "heart.fill")
@@ -680,9 +688,9 @@ struct HFModelRow: View {
 
 struct MSModelRow: View {
 	let model: MSModelInfo
-	
+
 	@Environment(\.ocoreaiTheme) private var theme
-	
+
 	var body: some View {
 		HStack(spacing: 6) {
 			// Source badge
@@ -692,7 +700,7 @@ struct MSModelRow: View {
 				.background(theme.accentSoft)
 				.clipShape(RoundedRectangle(cornerRadius: 4))
 				.accessibilityLabel(StringKey.a11yModelScopeSource.l)
-			
+
 			// Model path
 			VStack(alignment: .leading) {
 				Text(model.path)
@@ -705,9 +713,9 @@ struct MSModelRow: View {
 						.lineLimit(1)
 				}
 			}
-			
+
 			Spacer()
-			
+
 			// Downloads
 			if model.downloads > 0 {
 				Label("\(model.downloads, format: .number)", systemImage: "arrow.down.circle.fill")

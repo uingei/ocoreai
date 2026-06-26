@@ -13,36 +13,36 @@ import Foundation
 
 /// Root configuration structure — decoded from YAML, written back on change.
 public struct AppConfig: Sendable, Codable, Equatable {
-    public var server: ServerConfig
-    public var backend: BackendConfig
-    public var models: [String: ModelConfigEntry]
-    public var memory: MemoryConfig
-    public var metrics: MetricsConfig
-    public var safety: SafetyConfig
+	public var server: ServerConfig
+	public var backend: BackendConfig
+	public var models: [String: ModelConfigEntry]
+	public var memory: MemoryConfig
+	public var metrics: MetricsConfig
+	public var safety: SafetyConfig
 
-    public init(
-        server: ServerConfig = .default,
-        backend: BackendConfig = .default,
-        models: [String: ModelConfigEntry] = ModelConfigEntry.defaultModels,
-        memory: MemoryConfig = .default,
-        metrics: MetricsConfig = .default,
-        safety: SafetyConfig = .default
-    ) {
-        self.server = server
-        self.backend = backend
-        self.models = models
-        self.memory = memory
-        self.metrics = metrics
-        self.safety = safety
-    }
+	public init(
+		server: ServerConfig = .default,
+		backend: BackendConfig = .default,
+		models: [String: ModelConfigEntry] = ModelConfigEntry.defaultModels,
+		memory: MemoryConfig = .default,
+		metrics: MetricsConfig = .default,
+		safety: SafetyConfig = .default,
+	) {
+		self.server = server
+		self.backend = backend
+		self.models = models
+		self.memory = memory
+		self.metrics = metrics
+		self.safety = safety
+	}
 
-    /// Run validation — throws on invalid config.
-    public func validate() throws {
-        try server.validate()
-        try backend.validate()
-        try memory.validate()
-        try safety.validate()
-    }
+	/// Run validation — throws on invalid config.
+	public func validate() throws {
+		try server.validate()
+		try backend.validate()
+		try memory.validate()
+		try safety.validate()
+	}
 }
 
 // MARK: - Safety Config
@@ -51,113 +51,114 @@ public struct AppConfig: Sendable, Codable, Equatable {
 ///
 /// Stored in `~/.ocoreai/config.yaml` under the `safety:` key.
 public struct SafetyConfig: Sendable, Codable, Equatable {
-    /// Master toggle — disabled means all filters are bypassed.
-    public var enabled: Bool
+	/// Master toggle — disabled means all filters are bypassed.
+	public var enabled: Bool
 
-    /// Per-category detection mode override (default: auto).
-    public var categoryModes: [String: String]
+	/// Per-category detection mode override (default: auto).
+	public var categoryModes: [String: String]
 
-    /// Additional keywords to detect (category → keyword list).
-    public var additionalKeywords: [String: [String]]
+	/// Additional keywords to detect (category → keyword list).
+	public var additionalKeywords: [String: [String]]
 
-    /// Minimum number of keyword matches before blocking a category.
-    public var minMatchesRequired: Int
+	/// Minimum number of keyword matches before blocking a category.
+	public var minMatchesRequired: Int
 
-    /// Whether to redact offending content in logs.
-    public var logRedaction: Bool
+	/// Whether to redact offending content in logs.
+	public var logRedaction: Bool
 
-    public static let `default` = SafetyConfig()
+	public static let `default` = SafetyConfig()
 
-    public init(
-        enabled: Bool = true,
-        categoryModes: [String: String] = [:],
-        additionalKeywords: [String: [String]] = [:],
-        minMatchesRequired: Int = 1,
-        logRedaction: Bool = true
-    ) {
-        self.enabled = enabled
-        self.categoryModes = categoryModes
-        self.additionalKeywords = additionalKeywords
-        self.minMatchesRequired = max(1, min(minMatchesRequired, 5))
-        self.logRedaction = logRedaction
-    }
+	public init(
+		enabled: Bool = true,
+		categoryModes: [String: String] = [:],
+		additionalKeywords: [String: [String]] = [:],
+		minMatchesRequired: Int = 1,
+		logRedaction: Bool = true,
+	) {
+		self.enabled = enabled
+		self.categoryModes = categoryModes
+		self.additionalKeywords = additionalKeywords
+		self.minMatchesRequired = max(1, min(minMatchesRequired, 5))
+		self.logRedaction = logRedaction
+	}
 
-    func validate() throws {
-        // Non-negotiable categories cannot be set to "disabled"
-        let nonNegotiable: [String] = ["underageSexual", "sexualViolence", "selfHarm"]
-        for catName in nonNegotiable {
-            if let mode = categoryModes[catName], mode == "disabled" {
-                throw ConfigValidationError(
-                    "safety.categoryModes: cannot disable \(catName) — non-negotiable safety category"
-                )
-            }
-        }
-    }
+	func validate() throws {
+		// Non-negotiable categories cannot be set to "disabled"
+		let nonNegotiable: [String] = ["underageSexual", "sexualViolence", "selfHarm"]
+		for catName in nonNegotiable {
+			if let mode = categoryModes[catName], mode == "disabled" {
+				throw ConfigValidationError(
+					"safety.categoryModes: cannot disable \(catName) — non-negotiable safety category",
+				)
+			}
+		}
+	}
 }
 
 // MARK: - Server Config
 
 public struct ServerConfig: Sendable, Codable, Equatable {
-    public var host: String
-    public var port: Int
-    public var workers: Int
-    public var corsOrigin: String?
-    public var bindInterface: String
+	public var host: String
+	public var port: Int
+	public var workers: Int
+	public var corsOrigin: String?
+	public var bindInterface: String
 
-    public static let `default` = ServerConfig()
+	public static let `default` = ServerConfig()
 
-    public init(
-        host: String? = nil,
-        port: Int = 8080,
-        workers: Int? = nil,
-        corsOrigin: String? = nil,
-        bindInterface: String? = nil
-    ) {
-        self.host = host ?? "127.0.0.1"
-        self.port = port
-        self.workers = workers ?? max(1, ProcessInfo.processInfo.activeProcessorCount / 2)
-        self.corsOrigin = corsOrigin
-        self.bindInterface = bindInterface ?? "localhost"
-    }
+	public init(
+		host: String? = nil,
+		port: Int = 8080,
+		workers: Int? = nil,
+		corsOrigin: String? = nil,
+		bindInterface: String? = nil,
+	) {
+		self.host = host ?? "127.0.0.1"
+		self.port = port
+		self.workers = workers ?? max(1, ProcessInfo.processInfo.activeProcessorCount / 2)
+		self.corsOrigin = corsOrigin
+		self.bindInterface = bindInterface ?? "localhost"
+	}
 
-    func validate() throws {
-        guard (1...65535).contains(port) else {
-            throw ConfigValidationError("server.port must be 1-65535, got \(port)")
-        }
-    }
+	func validate() throws {
+		guard (1 ... 65535).contains(port) else {
+			throw ConfigValidationError("server.port must be 1-65535, got \(port)")
+		}
+	}
 }
 
 // MARK: - Backend Config
+
 /// Inference backend selection and resource limits.
 public struct BackendConfig: Sendable, Codable, Equatable {
-    public var preference: [String]
-    public var maxConcurrentSessions: Int
-    public var kvCacheGB: Double
-    public var kvCacheQuantization: KVCacheQuantizationConfig
+	public var preference: [String]
+	public var maxConcurrentSessions: Int
+	public var kvCacheGB: Double
+	public var kvCacheQuantization: KVCacheQuantizationConfig
 
-    public static let `default` = BackendConfig()
+	public static let `default` = BackendConfig()
 
-    public init(
-        preference: [String] = ["coreai", "mlx"],
-        maxConcurrentSessions: Int = 8,
-        kvCacheGB: Double = 16.0,
-        kvCacheQuantization: KVCacheQuantizationConfig? = nil
-    ) {
-        self.preference = preference
-        self.maxConcurrentSessions = maxConcurrentSessions
-        self.kvCacheGB = kvCacheGB
-        self.kvCacheQuantization = kvCacheQuantization ?? .default
-    }
+	public init(
+		preference: [String] = ["coreai", "mlx"],
+		maxConcurrentSessions: Int = 8,
+		kvCacheGB: Double = 16.0,
+		kvCacheQuantization: KVCacheQuantizationConfig? = nil,
+	) {
+		self.preference = preference
+		self.maxConcurrentSessions = maxConcurrentSessions
+		self.kvCacheGB = kvCacheGB
+		self.kvCacheQuantization = kvCacheQuantization ?? .default
+	}
 
-    func validate() throws {
-        guard !preference.isEmpty else {
-            throw ConfigValidationError("backend.preference: must have at least one backend")
-        }
-        guard maxConcurrentSessions > 0 else {
-            throw ConfigValidationError("backend.maxConcurrentSessions: must be > 0")
-        }
-        try kvCacheQuantization.validate()
-    }
+	func validate() throws {
+		guard !preference.isEmpty else {
+			throw ConfigValidationError("backend.preference: must have at least one backend")
+		}
+		guard maxConcurrentSessions > 0 else {
+			throw ConfigValidationError("backend.maxConcurrentSessions: must be > 0")
+		}
+		try kvCacheQuantization.validate()
+	}
 }
 
 /// KV cache dynamic quantization configuration.
@@ -167,269 +168,280 @@ public struct BackendConfig: Sendable, Codable, Equatable {
 /// Backed by mlx-swift-lm ``GenerateParameters.kvBits`` /
 /// ``GenerateParameters.quantizedKVStart`` (see MLXLMCommon/Evaluate.swift:67-73).
 public struct KVCacheQuantizationConfig: Sendable, Codable, Equatable {
-    /// Enable KV cache quantization downgrade. nil/disabled means FP16-only KV cache.
-    public var enabled: Bool
-    /// Quantization bits: 4 (most aggressive) or 8 (conservative). nil = disabled.
-    public var bits: Int?
-    /// MLX group size for KV quantization (default: 64).
-    public var groupSize: Int
-    /// Token step after which KV quantization kicks in (default: 256).
-    /// 0 means quantize immediately; higher values keep early context in FP16 for accuracy.
-    public var quantizedKVStart: Int
+	/// Enable KV cache quantization downgrade. nil/disabled means FP16-only KV cache.
+	public var enabled: Bool
+	/// Quantization bits: 4 (most aggressive) or 8 (conservative). nil = disabled.
+	public var bits: Int?
+	/// MLX group size for KV quantization (default: 64).
+	public var groupSize: Int
+	/// Token step after which KV quantization kicks in (default: 256).
+	/// 0 means quantize immediately; higher values keep early context in FP16 for accuracy.
+	public var quantizedKVStart: Int
 
-    public static let `default` = KVCacheQuantizationConfig(
-        enabled: true,
-        bits: 4,
-        groupSize: 64,
-        quantizedKVStart: 256
-    )
+	public static let `default` = KVCacheQuantizationConfig(
+		enabled: true,
+		bits: 4,
+		groupSize: 64,
+		quantizedKVStart: 256,
+	)
 
-    public init(
-        enabled: Bool = true,
-        bits: Int? = 4,
-        groupSize: Int = 64,
-        quantizedKVStart: Int = 256
-    ) {
-        self.enabled = enabled
-        self.bits = bits
-        self.groupSize = groupSize
-        self.quantizedKVStart = quantizedKVStart
-    }
+	public init(
+		enabled: Bool = true,
+		bits: Int? = 4,
+		groupSize: Int = 64,
+		quantizedKVStart: Int = 256,
+	) {
+		self.enabled = enabled
+		self.bits = bits
+		self.groupSize = groupSize
+		self.quantizedKVStart = quantizedKVStart
+	}
 
-    func validate() throws {
-        guard !enabled || bits == nil || (4...8).contains(bits ?? 4) else {
-            throw ConfigValidationError("backend.kvCacheQuantization.bits: must be 4 or 8 (got \(String(describing: bits)))")
-        }
-        guard groupSize > 0 else {
-            throw ConfigValidationError("backend.kvCacheQuantization.groupSize: must be > 0")
-        }
-        guard quantizedKVStart >= 0 else {
-            throw ConfigValidationError("backend.kvCacheQuantization.quantizedKVStart: must be >= 0")
-        }
-    }
+	func validate() throws {
+		guard !enabled || bits == nil || (4 ... 8).contains(bits ?? 4) else {
+			throw ConfigValidationError("backend.kvCacheQuantization.bits: must be 4 or 8 (got \(String(describing: bits)))")
+		}
+		guard groupSize > 0 else {
+			throw ConfigValidationError("backend.kvCacheQuantization.groupSize: must be > 0")
+		}
+		guard quantizedKVStart >= 0 else {
+			throw ConfigValidationError("backend.kvCacheQuantization.quantizedKVStart: must be >= 0")
+		}
+	}
 }
 
 // MARK: - Model Configuration
 
 /// Per-model settings stored in config.yaml under `models.<id>`.
 public struct ModelConfigEntry: Sendable, Codable, Equatable {
-    public var enabled: Bool
-    public var source: String
-    public var modelId: String
-    public var version: String?
-    public var sampling: SamplingConfig
-    public var maxSessionTokens: Int
+	public var enabled: Bool
+	public var source: String
+	public var modelId: String
+	public var version: String?
+	public var sampling: SamplingConfig
+	public var maxSessionTokens: Int
 
-    public static let defaultEntry = ModelConfigEntry(
-        enabled: true,
-        source: "modelscope",
-        modelId: "mlx-community/Qwen3.5-4B-OptiQ-4bit",
-        version: nil,
-        sampling: .default,
-        maxSessionTokens: 32_768
-    )
+	public static let defaultEntry = ModelConfigEntry(
+		enabled: true,
+		source: "modelscope",
+		modelId: "mlx-community/Qwen3.5-4B-OptiQ-4bit",
+		version: nil,
+		sampling: .default,
+		maxSessionTokens: 32768,
+	)
 
-    public static var defaultModels: [String: ModelConfigEntry] {
-        ["default": defaultEntry]
-    }
+	public static var defaultModels: [String: ModelConfigEntry] {
+		["default": defaultEntry]
+	}
 
-    // MARK: - Dynamic Memory Enforcer (4-tier)
+	// MARK: - Dynamic Memory Enforcer (4-tier)
 
-    /// 4-tier memory ceiling policy.
-    ///
-    /// - safe: 40% physical RAM ceiling (reserve 60% for macOS + user apps)
-    /// - balanced: 55% ceiling (default, reserve 45%)
-    /// - aggressive: 75% ceiling (reserve 25%, for high-RAM machines)
-    /// - custom(pct): user-specified percentage (clamped to 20-85%)
-    public struct MemoryGuardTier: Sendable, Codable, Equatable, CustomStringConvertible {
-        public let percentage: Int
+	/// 4-tier memory ceiling policy.
+	///
+	/// - safe: 40% physical RAM ceiling (reserve 60% for macOS + user apps)
+	/// - balanced: 55% ceiling (default, reserve 45%)
+	/// - aggressive: 75% ceiling (reserve 25%, for high-RAM machines)
+	/// - custom(pct): user-specified percentage (clamped to 20-85%)
+	public struct MemoryGuardTier: Sendable, Codable, Equatable, CustomStringConvertible {
+		public let percentage: Int
 
-        public init(percentage: Int) {
-            self.percentage = min(max(percentage, 20), 85)
-        }
+		public init(percentage: Int) {
+			self.percentage = min(max(percentage, 20), 85)
+		}
 
-        public static var safe: MemoryGuardTier { MemoryGuardTier(percentage: 40) }
-        public static var balanced: MemoryGuardTier { MemoryGuardTier(percentage: 55) }
-        public static var aggressive: MemoryGuardTier { MemoryGuardTier(percentage: 75) }
-        public static var systemDefault: MemoryGuardTier { .balanced }
+		public static var safe: MemoryGuardTier {
+			MemoryGuardTier(percentage: 40)
+		}
 
-        public var description: String {
-            switch percentage {
-            case 40: return "safe"
-            case 55: return "balanced"
-            case 75: return "aggressive"
-            default: return "custom(\(percentage)%)"
-            }
-        }
-    }
+		public static var balanced: MemoryGuardTier {
+			MemoryGuardTier(percentage: 55)
+		}
 
-    /// Infer appropriate memory tier from physical RAM size.
-    ///
-    /// Conservative heuristic: larger machines get more aggressive allocation.
-    /// - safe: < 16 GB RAM (40% ceiling)
-    /// - balanced: 16-31 GB RAM (55% ceiling)
-    /// - aggressive: >= 32 GB RAM (75% ceiling)
-    public static func inferMemoryTier(from physicalMemory: UInt64) -> MemoryGuardTier {
-        let gb = Double(physicalMemory) / 1_073_741_824.0
-        if gb >= 32 { return .aggressive }
-        if gb >= 16 { return .balanced }
-        return .safe
-    }
+		public static var aggressive: MemoryGuardTier {
+			MemoryGuardTier(percentage: 75)
+		}
 
-    /// Detect physical memory. macOS via sysctl hw.memsize; iOS via ProcessInfo hardwareInfo.
-    /// Returns bytes. Falls back to 16 GB if detection fails.
-    public static func detectPhysicalMemory() -> UInt64 {
-        #if os(iOS) || os(visionOS)
-        return UInt64(ProcessInfo.processInfo.physicalMemory)
-        #else
-        var memSize: UInt64 = 0
-        var size = MemoryLayout<UInt64>.size
-        let ret = sysctlbyname("hw.memsize", &memSize, &size, nil, 0)
-        if ret == 0, memSize > 0 {
-            return memSize
-        }
-        return 16 * 1024 * 1024 * 1024 // safe fallback
-        #endif
-    }
+		public static var systemDefault: MemoryGuardTier {
+			.balanced
+		}
 
-    /// Compute an adaptive memory budget based on tier policy.
-    ///
-    /// Apple Silicon UMA: CPU + GPU share physical RAM. We must reserve
-    /// headroom for macOS itself + user apps. Budget varies by tier:
-    /// - safe: 40%, balanced: 55%, aggressive: 75%, custom: user-defined
-    /// Dynamic ceiling: if system free memory is low, budget scales down
-    /// proportionally. Hard floor: 4 GB minimum regardless.
-    public static func computeMemoryBudget(physicalMemory: UInt64, tier: MemoryGuardTier = .systemDefault) -> UInt64 {
-        let baseBudget = physicalMemory * UInt64(tier.percentage) / 100
-        return max(baseBudget, 4 * 1024 * 1024 * 1024)
-    }
+		public var description: String {
+			switch percentage {
+			case 40: "safe"
+			case 55: "balanced"
+			case 75: "aggressive"
+			default: "custom(\(percentage)%)"
+			}
+		}
+	}
 
-    public init(
-        enabled: Bool = true,
-        source: String = "modelscope",
-        modelId: String,
-        version: String? = nil,
-        sampling: SamplingConfig = .default,
-        maxSessionTokens: Int = 32_768
-    ) {
-        self.enabled = enabled
-        self.source = source
-        self.modelId = modelId
-        self.version = version
-        self.sampling = sampling
-        self.maxSessionTokens = maxSessionTokens
-    }
+	/// Infer appropriate memory tier from physical RAM size.
+	///
+	/// Conservative heuristic: larger machines get more aggressive allocation.
+	/// - safe: < 16 GB RAM (40% ceiling)
+	/// - balanced: 16-31 GB RAM (55% ceiling)
+	/// - aggressive: >= 32 GB RAM (75% ceiling)
+	public static func inferMemoryTier(from physicalMemory: UInt64) -> MemoryGuardTier {
+		let gb = Double(physicalMemory) / 1_073_741_824.0
+		if gb >= 32 { return .aggressive }
+		if gb >= 16 { return .balanced }
+		return .safe
+	}
+
+	/// Detect physical memory. macOS via sysctl hw.memsize; iOS via ProcessInfo hardwareInfo.
+	/// Returns bytes. Falls back to 16 GB if detection fails.
+	public static func detectPhysicalMemory() -> UInt64 {
+		#if os(iOS) || os(visionOS)
+			return UInt64(ProcessInfo.processInfo.physicalMemory)
+		#else
+			var memSize: UInt64 = 0
+			var size = MemoryLayout<UInt64>.size
+			let ret = sysctlbyname("hw.memsize", &memSize, &size, nil, 0)
+			if ret == 0, memSize > 0 {
+				return memSize
+			}
+			return 16 * 1024 * 1024 * 1024 // safe fallback
+		#endif
+	}
+
+	/// Compute an adaptive memory budget based on tier policy.
+	///
+	/// Apple Silicon UMA: CPU + GPU share physical RAM. We must reserve
+	/// headroom for macOS itself + user apps. Budget varies by tier:
+	/// - safe: 40%, balanced: 55%, aggressive: 75%, custom: user-defined
+	/// Dynamic ceiling: if system free memory is low, budget scales down
+	/// proportionally. Hard floor: 4 GB minimum regardless.
+	public static func computeMemoryBudget(physicalMemory: UInt64, tier: MemoryGuardTier = .systemDefault) -> UInt64 {
+		let baseBudget = physicalMemory * UInt64(tier.percentage) / 100
+		return max(baseBudget, 4 * 1024 * 1024 * 1024)
+	}
+
+	public init(
+		enabled: Bool = true,
+		source: String = "modelscope",
+		modelId: String,
+		version: String? = nil,
+		sampling: SamplingConfig = .default,
+		maxSessionTokens: Int = 32768,
+	) {
+		self.enabled = enabled
+		self.source = source
+		self.modelId = modelId
+		self.version = version
+		self.sampling = sampling
+		self.maxSessionTokens = maxSessionTokens
+	}
 }
 
 /// Sampling parameters per model.
 public struct SamplingConfig: Sendable, Codable, Equatable {
-    public var temperature: Double?
-    public var topP: Double?
-    public var topK: Int?
-    public var minP: Double?
-    public var repetitionPenalty: Double?
-    public var maxTokens: Int?
-    public var stopSequences: [String]
+	public var temperature: Double?
+	public var topP: Double?
+	public var topK: Int?
+	public var minP: Double?
+	public var repetitionPenalty: Double?
+	public var maxTokens: Int?
+	public var stopSequences: [String]
 
-    public static let `default` = SamplingConfig()
+	public static let `default` = SamplingConfig()
 
-    public init(
-        temperature: Double? = nil,
-        topP: Double? = nil,
-        topK: Int? = nil,
-        minP: Double? = nil,
-        repetitionPenalty: Double? = nil,
-        maxTokens: Int? = nil,
-        stopSequences: [String] = []
-    ) {
-        self.temperature = temperature
-        self.topP = topP
-        self.topK = topK
-        self.minP = minP
-        self.repetitionPenalty = repetitionPenalty
-        self.maxTokens = maxTokens
-        self.stopSequences = stopSequences
-    }
+	public init(
+		temperature: Double? = nil,
+		topP: Double? = nil,
+		topK: Int? = nil,
+		minP: Double? = nil,
+		repetitionPenalty: Double? = nil,
+		maxTokens: Int? = nil,
+		stopSequences: [String] = [],
+	) {
+		self.temperature = temperature
+		self.topP = topP
+		self.topK = topK
+		self.minP = minP
+		self.repetitionPenalty = repetitionPenalty
+		self.maxTokens = maxTokens
+		self.stopSequences = stopSequences
+	}
 }
 
 // MARK: - Memory Config
 
 /// Session memory and RAG settings.
 public struct MemoryConfig: Sendable, Codable, Equatable {
-    public var enabled: Bool
-    public var sessionTTL: Int
-    public var maxRecallResults: Int
-    public var archivalTTL: Int
-    public var vectorDim: Int
+	public var enabled: Bool
+	public var sessionTTL: Int
+	public var maxRecallResults: Int
+	public var archivalTTL: Int
+	public var vectorDim: Int
 
-    public static let `default` = MemoryConfig()
+	public static let `default` = MemoryConfig()
 
-    public init(
-        enabled: Bool = true,
-        sessionTTL: Int = 86400,
-        maxRecallResults: Int = 3,
-        archivalTTL: Int = 15_552_000,
-        vectorDim: Int = 768
-    ) {
-        self.enabled = enabled
-        self.sessionTTL = sessionTTL
-        self.maxRecallResults = maxRecallResults
-        self.archivalTTL = archivalTTL
-        self.vectorDim = vectorDim
-    }
+	public init(
+		enabled: Bool = true,
+		sessionTTL: Int = 86400,
+		maxRecallResults: Int = 3,
+		archivalTTL: Int = 15_552_000,
+		vectorDim: Int = 768,
+	) {
+		self.enabled = enabled
+		self.sessionTTL = sessionTTL
+		self.maxRecallResults = maxRecallResults
+		self.archivalTTL = archivalTTL
+		self.vectorDim = vectorDim
+	}
 
-    func validate() throws {
-        guard sessionTTL > 0 else {
-            throw ConfigValidationError("memory.sessionTTL: must be > 0 seconds")
-        }
-        guard maxRecallResults > 0 && maxRecallResults <= 20 else {
-            throw ConfigValidationError("memory.maxRecallResults: must be 1-20")
-        }
-    }
+	func validate() throws {
+		guard sessionTTL > 0 else {
+			throw ConfigValidationError("memory.sessionTTL: must be > 0 seconds")
+		}
+		guard maxRecallResults > 0, maxRecallResults <= 20 else {
+			throw ConfigValidationError("memory.maxRecallResults: must be 1-20")
+		}
+	}
 }
 
 // MARK: - Metrics Config
 
 /// Metrics and token tracking settings.
 public struct MetricsConfig: Sendable, Codable, Equatable {
-    public var enabled: Bool
-    public var tokenTracking: Bool
-    public var exportInterval: Int
-    public var retentionDays: Int
+	public var enabled: Bool
+	public var tokenTracking: Bool
+	public var exportInterval: Int
+	public var retentionDays: Int
 
-    public static let `default` = MetricsConfig()
+	public static let `default` = MetricsConfig()
 
-    public init(
-        enabled: Bool = true,
-        tokenTracking: Bool = true,
-        exportInterval: Int = 60,
-        retentionDays: Int = 30
-    ) {
-        self.enabled = enabled
-        self.tokenTracking = tokenTracking
-        self.exportInterval = exportInterval
-        self.retentionDays = retentionDays
-    }
+	public init(
+		enabled: Bool = true,
+		tokenTracking: Bool = true,
+		exportInterval: Int = 60,
+		retentionDays: Int = 30,
+	) {
+		self.enabled = enabled
+		self.tokenTracking = tokenTracking
+		self.exportInterval = exportInterval
+		self.retentionDays = retentionDays
+	}
 }
 
 // MARK: - Validation Error
 
 /// Configuration validation error with field path.
 public enum ConfigValidationError: Error, LocalizedError, Sendable {
-    case invalid(String)
-    case missing(String)
-    case typeMismatch(String, String)
+	case invalid(String)
+	case missing(String)
+	case typeMismatch(String, String)
 
-    public init(_ message: String) {
-        self = .invalid(message)
-    }
+	public init(_ message: String) {
+		self = .invalid(message)
+	}
 
-    public var errorDescription: String? {
-        switch self {
-        case .invalid(let msg): return "Config invalid: \(msg)"
-        case .missing(let field): return "Missing required config: \(field)"
-        case .typeMismatch(let field, let expected):
-            return "Type mismatch for \(field): expected \(expected)"
-        }
-    }
+	public var errorDescription: String? {
+		switch self {
+		case let .invalid(msg): "Config invalid: \(msg)"
+		case let .missing(field): "Missing required config: \(field)"
+		case let .typeMismatch(field, expected):
+			"Type mismatch for \(field): expected \(expected)"
+		}
+	}
 }

@@ -15,165 +15,164 @@ import Foundation
 
 /// Actor that builds and caches the current system prompt.
 actor SystemPromptBuilder {
-    private var basePrompt: String
-    private var registry: SkillRegistry?
-    private var currentPrompt: String?
-    private var lastHash: String?  // Hash of (basePrompt + resolvedSkillHashes)
-    private var version: Int = 0
-    private var changeListenerIDs: [String: @Sendable () async -> Void] = [:]
-    
-    // Pre-computed skill prompt content cache keyed by skill name
-    private var skillPromptCache: [String: String] = [:]
+	private var basePrompt: String
+	private var registry: SkillRegistry?
+	private var currentPrompt: String?
+	private var lastHash: String? // Hash of (basePrompt + resolvedSkillHashes)
+	private var version: Int = 0
+	private var changeListenerIDs: [String: @Sendable () async -> Void] = [:]
 
-    /// Create builder with a base system prompt.
-    init(basePrompt: String) {
-        self.basePrompt = basePrompt
-    }
+	// Pre-computed skill prompt content cache keyed by skill name
+	private var skillPromptCache: [String: String] = [:]
 
-    /// Build the full system prompt — returns cached result if content unchanged.
-    func build(includeCategories: [String]? = nil) async -> String {
-        // Compute content hash
-        let newHash = await computeHash(categories: includeCategories)
-        
-        // Cache hit — content unchanged
-        if newHash == lastHash, let cached = currentPrompt {
-            return cached
-        }
+	/// Create builder with a base system prompt.
+	init(basePrompt: String) {
+		self.basePrompt = basePrompt
+	}
 
-        // Cache miss — rebuild
-        let skillSection = await buildSkillSection(categories: includeCategories)
+	/// Build the full system prompt — returns cached result if content unchanged.
+	func build(includeCategories: [String]? = nil) async -> String {
+		// Compute content hash
+		let newHash = await computeHash(categories: includeCategories)
 
-        let parts: [String]
-        if !skillSection.isEmpty {
-            parts = [basePrompt, "", "# Available Skills\n", skillSection]
-        } else {
-            parts = [basePrompt]
-        }
+		// Cache hit — content unchanged
+		if newHash == lastHash, let cached = currentPrompt {
+			return cached
+		}
 
-        let prompt = parts.joined(separator: "\n")
-        currentPrompt = prompt
-        lastHash = newHash
-        version += 1
+		// Cache miss — rebuild
+		let skillSection = await buildSkillSection(categories: includeCategories)
 
-        // Notify listeners
-        notifyChangeListeners()
+		let parts: [String] = if !skillSection.isEmpty {
+			[basePrompt, "", "# Available Skills\n", skillSection]
+		} else {
+			[basePrompt]
+		}
 
-        return prompt
-    }
+		let prompt = parts.joined(separator: "\n")
+		currentPrompt = prompt
+		lastHash = newHash
+		version += 1
 
-    /// Compute a hash of the current prompt content without building the string.
-    private func computeHash(categories: [String]?) async -> String {
-        var hasher = Hasher()
-        hasher.combine(basePrompt)
-        if let registry = self.registry {
-            let skills: [Skill]
-            if let categories = categories, !categories.isEmpty {
-                var filtered: [Skill] = []
-                for category in categories {
-                    filtered.append(contentsOf: await registry.lookupCategory(category))
-                }
-                skills = filtered
-            } else {
-                skills = await registry.resolvedSkills()
-            }
-            for skill in skills where skill.status == .loaded {
-                hasher.combine(skill.contentHash)
-            }
-        }
-        return String(hasher.finalize())
-    }
+		// Notify listeners
+		notifyChangeListeners()
 
-    /// Build the skill section by joining individual skill prompt content.
-    private func buildSkillSection(categories: [String]?) async -> String {
-        guard let registry = self.registry else { return "" }
+		return prompt
+	}
 
-        let skills: [Skill]
-        if let categories = categories, !categories.isEmpty {
-            var filtered: [Skill] = []
-            for category in categories {
-                filtered.append(contentsOf: await registry.lookupCategory(category))
-            }
-            skills = filtered
-        } else {
-            skills = await registry.resolvedSkills()
-        }
+	/// Compute a hash of the current prompt content without building the string.
+	private func computeHash(categories: [String]?) async -> String {
+		var hasher = Hasher()
+		hasher.combine(basePrompt)
+		if let registry {
+			let skills: [Skill]
+			if let categories, !categories.isEmpty {
+				var filtered: [Skill] = []
+				for category in categories {
+					await filtered.append(contentsOf: registry.lookupCategory(category))
+				}
+				skills = filtered
+			} else {
+				skills = await registry.resolvedSkills()
+			}
+			for skill in skills where skill.status == .loaded {
+				hasher.combine(skill.contentHash)
+			}
+		}
+		return String(hasher.finalize())
+	}
 
-        return skills.compactMap { skill -> String? in
-            guard skill.status == .loaded else { return nil }
-            // Cache each skill's promptContent to avoid repeated serialize
-            if let cached = skillPromptCache[skill.name] {
-                return cached
-            }
-            let content = skill.promptContent
-            skillPromptCache[skill.name] = content
-            return content
-        }.joined(separator: "\n\n---\n\n")
-    }
+	/// Build the skill section by joining individual skill prompt content.
+	private func buildSkillSection(categories: [String]?) async -> String {
+		guard let registry else { return "" }
 
-    /// Associate a skill registry for dynamic skill injection.
-    func setRegistry(_ registry: SkillRegistry) {
-        self.registry = registry
-        // Invalidate cache when registry changes
-        invalidate()
-    }
+		let skills: [Skill]
+		if let categories, !categories.isEmpty {
+			var filtered: [Skill] = []
+			for category in categories {
+				await filtered.append(contentsOf: registry.lookupCategory(category))
+			}
+			skills = filtered
+		} else {
+			skills = await registry.resolvedSkills()
+		}
 
-    /// Update the base prompt at runtime without reload.
-    func updateBasePrompt(_ newPrompt: String) {
-        basePrompt = newPrompt
-        invalidate()
-        notifyChangeListeners()
-    }
+		return skills.compactMap { skill -> String? in
+			guard skill.status == .loaded else { return nil }
+			// Cache each skill's promptContent to avoid repeated serialize
+			if let cached = skillPromptCache[skill.name] {
+				return cached
+			}
+			let content = skill.promptContent
+			skillPromptCache[skill.name] = content
+			return content
+		}.joined(separator: "\n\n---\n\n")
+	}
 
-    /// Get the last-built prompt (if any).
-    func getCached() -> String? {
-        currentPrompt
-    }
+	/// Associate a skill registry for dynamic skill injection.
+	func setRegistry(_ registry: SkillRegistry) {
+		self.registry = registry
+		// Invalidate cache when registry changes
+		invalidate()
+	}
 
-    /// Get the current version number.
-    func getVersion() -> Int {
-        version
-    }
+	/// Update the base prompt at runtime without reload.
+	func updateBasePrompt(_ newPrompt: String) {
+		basePrompt = newPrompt
+		invalidate()
+		notifyChangeListeners()
+	}
 
-    /// Register a callback invoked when the prompt changes.
-    /// - Returns: A unique listener ID that can be used to remove this listener.
-    func onChange(_ listener: @escaping @Sendable () async -> Void) -> String {
-        let id = UUID().uuidString.prefix(8).lowercased()
-        changeListenerIDs[String(describing: id)] = listener
-        return id
-    }
+	/// Get the last-built prompt (if any).
+	func getCached() -> String? {
+		currentPrompt
+	}
 
-    /// Remove the change listener previously registered with the given ID.
-    func removeListener(_ id: String) {
-        changeListenerIDs.removeValue(forKey: id)
-    }
+	/// Get the current version number.
+	func getVersion() -> Int {
+		version
+	}
 
-    /// Notify all registered change listeners.
-    private func notifyChangeListeners() {
-        for listener in changeListenerIDs.values {
-            Task { await listener() }
-        }
-    }
+	/// Register a callback invoked when the prompt changes.
+	/// - Returns: A unique listener ID that can be used to remove this listener.
+	func onChange(_ listener: @escaping @Sendable () async -> Void) -> String {
+		let id = UUID().uuidString.prefix(8).lowercased()
+		changeListenerIDs[String(describing: id)] = listener
+		return id
+	}
 
-    /// Invalidate internal cache — called when registry or base prompt changes.
-    private func invalidate() {
-        currentPrompt = nil
-        lastHash = nil
-        skillPromptCache.removeAll()
-    }
+	/// Remove the change listener previously registered with the given ID.
+	func removeListener(_ id: String) {
+		changeListenerIDs.removeValue(forKey: id)
+	}
 
-    /// Refresh a single skill's cached prompt content after hot-reload.
-    func refreshSkillCache(_ skill: Skill) {
-        skillPromptCache[skill.name] = skill.promptContent
-    }
+	/// Notify all registered change listeners.
+	private func notifyChangeListeners() {
+		for listener in changeListenerIDs.values {
+			Task { await listener() }
+		}
+	}
 
-    /// List loaded skill names via registry.
-    func listSkills() async -> [String] {
-        guard let reg = self.registry else { return [] }
-        return await reg.list()
-    }
+	/// Invalidate internal cache — called when registry or base prompt changes.
+	private func invalidate() {
+		currentPrompt = nil
+		lastHash = nil
+		skillPromptCache.removeAll()
+	}
 
-    /// Build system prompt for a given model — injected into inference pipeline.
-    func buildSystemPrompt() async -> String {
-        await build()
-    }
+	/// Refresh a single skill's cached prompt content after hot-reload.
+	func refreshSkillCache(_ skill: Skill) {
+		skillPromptCache[skill.name] = skill.promptContent
+	}
+
+	/// List loaded skill names via registry.
+	func listSkills() async -> [String] {
+		guard let reg = registry else { return [] }
+		return await reg.list()
+	}
+
+	/// Build system prompt for a given model — injected into inference pipeline.
+	func buildSystemPrompt() async -> String {
+		await build()
+	}
 }

@@ -28,79 +28,80 @@ import Foundation
 /// - `ContinuousClock.Instant` is inherently Sendable
 /// - No reference to external shared mutable state
 final class PerRequestMetrics: @unchecked Sendable {
+	// MARK: - Token Counts
 
-    // MARK: - Token Counts
+	/// Number of prompt (input) tokens processed
+	var promptTokenCount: Int = 0
 
-    /// Number of prompt (input) tokens processed
-    var promptTokenCount: Int = 0
+	/// Number of generated (output) tokens produced
+	var generatedTokenCount: Int = 0
 
-    /// Number of generated (output) tokens produced
-    var generatedTokenCount: Int = 0
+	/// Total token count (prompt + generated)
+	var totalTokenCount: Int {
+		promptTokenCount + generatedTokenCount
+	}
 
-    /// Total token count (prompt + generated)
-    var totalTokenCount: Int { promptTokenCount + generatedTokenCount }
+	// MARK: - Timing
 
-    // MARK: - Timing
+	/// Overall request start timer
+	private var overallTimer: ContinuousClock.Instant?
 
-    /// Overall request start timer
-    private var overallTimer: ContinuousClock.Instant?
+	/// Tokenization phase duration (milliseconds)
+	var tokenizationMs: Double = 0
 
-    /// Tokenization phase duration (milliseconds)
-    var tokenizationMs: Double = 0
+	/// Inference phase duration (milliseconds)
+	var inferenceMs: Double = 0
 
-    /// Inference phase duration (milliseconds)
-    var inferenceMs: Double = 0
+	/// Time to first byte / first token (milliseconds)
+	var firstTokenMs: Double = 0
 
-    /// Time to first byte / first token (milliseconds)
-    var firstTokenMs: Double = 0
+	/// Overall elapsed time since ``start`` was called
+	var overallMs: Double {
+		guard let start = overallTimer else { return 0 }
+		let d = start.duration(to: ContinuousClock.now)
+		return Double(d.components.seconds) * 1000 + Double(d.components.attoseconds) / 1e15
+	}
 
-    /// Overall elapsed time since ``start`` was called
-    var overallMs: Double {
-        guard let start = overallTimer else { return 0 }
-        let d = start.duration(to: ContinuousClock.now)
-        return Double(d.components.seconds) * 1000 + Double(d.components.attoseconds) / 1e15
-    }
+	// MARK: - Throughput
 
-    // MARK: - Throughput
+	/// Prompt processing throughput (tokens per second)
+	var promptThroughput: Double {
+		guard inferenceMs > 0, promptTokenCount > 0 else { return 0 }
+		return Double(promptTokenCount) / (inferenceMs / 1000.0)
+	}
 
-    /// Prompt processing throughput (tokens per second)
-    var promptThroughput: Double {
-        guard inferenceMs > 0, promptTokenCount > 0 else { return 0 }
-        return Double(promptTokenCount) / (inferenceMs / 1000.0)
-    }
+	/// Generation throughput (tokens per second)
+	var generationThroughput: Double {
+		guard inferenceMs > 0, generatedTokenCount > 0 else { return 0 }
+		return Double(generatedTokenCount) / (inferenceMs / 1000.0)
+	}
 
-    /// Generation throughput (tokens per second)
-    var generationThroughput: Double {
-        guard inferenceMs > 0, generatedTokenCount > 0 else { return 0 }
-        return Double(generatedTokenCount) / (inferenceMs / 1000.0)
-    }
+	// MARK: - Lifecycle
 
-    // MARK: - Lifecycle
+	/// Start the metrics timer (captures ``ContinuousClock`` snapshot)
+	func start() {
+		precondition(overallTimer == nil, "PerRequestMetrics.start() called twice — create a new instance per request")
+		overallTimer = ContinuousClock.now
+	}
 
-    /// Start the metrics timer (captures ``ContinuousClock`` snapshot)
-    func start() {
-        precondition(overallTimer == nil, "PerRequestMetrics.start() called twice — create a new instance per request")
-        overallTimer = ContinuousClock.now
-    }
+	/// Increment the generated token counter (call after each output token)
+	func incrementGenerated() {
+		generatedTokenCount += 1
+	}
 
-    /// Increment the generated token counter (call after each output token)
-    func incrementGenerated() {
-        generatedTokenCount += 1
-    }
+	// MARK: - Summary
 
-    // MARK: - Summary
-
-    /// Format metrics as a human-readable summary string for logging.
-    ///
-    /// - Parameter modelId: Model identifier for inclusion in the log line
-    /// - Returns: Formatted string with model, tokens, latency, throughput
-    func summary(modelId: String) -> String {
-        let total = overallMs
-        return """
-        [metrics] model=\(modelId) prompt=\(promptTokenCount) gen=\(generatedTokenCount) \
-        total=\(String(format: "%.1f", total))ms \
-        ttfb=\(String(format: "%.1f", firstTokenMs))ms \
-        throughput=\(String(format: "%.1f", generationThroughput))tok/s
-        """
-    }
+	/// Format metrics as a human-readable summary string for logging.
+	///
+	/// - Parameter modelId: Model identifier for inclusion in the log line
+	/// - Returns: Formatted string with model, tokens, latency, throughput
+	func summary(modelId: String) -> String {
+		let total = overallMs
+		return """
+		[metrics] model=\(modelId) prompt=\(promptTokenCount) gen=\(generatedTokenCount) \
+		total=\(String(format: "%.1f", total))ms \
+		ttfb=\(String(format: "%.1f", firstTokenMs))ms \
+		throughput=\(String(format: "%.1f", generationThroughput))tok/s
+		"""
+	}
 }

@@ -30,24 +30,24 @@ public enum OCALocale: String, CaseIterable {
 
 	public var displayName: String {
 		switch self {
-		case .en: return "English"
-		case .zhHans: return "简体中文"
-		case .ja: return "日本語"
-		case .ko: return "한국어"
-		case .fr: return "Français"
-		case .es: return "Español"
+		case .en: "English"
+		case .zhHans: "简体中文"
+		case .ja: "日本語"
+		case .ko: "한국어"
+		case .fr: "Français"
+		case .es: "Español"
 		}
 	}
 
 	/// BCP 47 language tag
 	public var bcp47Tag: String {
 		switch self {
-		case .en: return "en"
-		case .zhHans: return "zh-Hans"
-		case .ja: return "ja"
-		case .ko: return "ko"
-		case .fr: return "fr"
-		case .es: return "es"
+		case .en: "en"
+		case .zhHans: "zh-Hans"
+		case .ja: "ja"
+		case .ko: "ko"
+		case .fr: "fr"
+		case .es: "es"
 		}
 	}
 
@@ -317,7 +317,7 @@ public enum StringKey: String, CaseIterable {
 	case memoryTitle = "Session.MemoryTitle"
 	case memoryEmpty = "Session.MemoryEmpty"
 	case memorySearchPlaceholder = "Session.MemorySearchPlaceholder"
-	
+
 	// — Skills —
 	case tabSkills = "Tab.Skills"
 	case skillListEmpty = "Skill.ListEmpty"
@@ -329,7 +329,7 @@ public enum StringKey: String, CaseIterable {
 	case skillContentTitle = "Skill.ContentTitle"
 	case skillDependencies = "Skill.Dependencies"
 	case skillAll = "Skill.All"
-	
+
 	// — System —
 	case tabSystem = "Tab.System"
 	case systemMCPSection = "System.MCPSection"
@@ -355,12 +355,12 @@ public enum StringKey: String, CaseIterable {
 	case systemRefresh = "System.Refresh"
 	case systemClearAudit = "System.ClearAudit"
 	case systemClearAuditConfirm = "System.ClearAuditConfirm"
-	
+
 	// — System complexity bands —
 	case systemComplexityLow = "System.ComplexityLow"
 	case systemComplexityMedium = "System.ComplexityMedium"
 	case systemComplexityHigh = "System.ComplexityHigh"
-	
+
 	// — Per-model Inference Params —
 	case modelParamsTitle = "Models.ParamsTitle"
 	case modelParamTemperature = "Models.ParamTemperature"
@@ -401,12 +401,14 @@ public enum StringKey: String, CaseIterable {
 
 // MARK: - Translation Table (per locale)
 
-extension StringKey {
+public extension StringKey {
 	/// Quick inline access to resolved string
-	public var l: String { localized(for: .systemLocale()) }
+	var l: String {
+		localized(for: .systemLocale())
+	}
 
 	/// Resolve via fallback chain: requested locale → base (en).
-	public func localized(for locale: OCALocale = .systemLocale()) -> String {
+	func localized(for locale: OCALocale = .systemLocale()) -> String {
 		resolve(key: self, locale: locale)
 	}
 }
