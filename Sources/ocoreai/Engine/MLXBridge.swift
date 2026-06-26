@@ -161,14 +161,15 @@ actor MLXModelLoader {
             await MainActor.run {
                 OcoreaiDownloadProgress.shared.start(modelId: modelId)
             }
+            // Note: Downloader protocol requires synchronous progressHandler.
+            // v3 breaking change: progressHandler must be (@Sendable (Progress) -> Void), not async.
+            // UI progress is handled via start/finish markers instead.
             let msDownloader = ModelScopeDownloader()
             let directory = try await msDownloader.download(
                 id: repoId, revision: nil, matching: [], useLatest: false,
-                progressHandler: { [weak self] progress in
-                    // Post progress to MainActor UI store
-                    await MainActor.run {
-                        OcoreaiDownloadProgress.shared.update(progress, for: modelId)
-                    }
+                progressHandler: { progress in
+                    // Synchronous callback — no MainActor.run allowed here.
+                    // Progress reporting is handled by start/finish markers.
                 }
             )
             logElapsed("ModelScope download \(repoId) completed", start)
