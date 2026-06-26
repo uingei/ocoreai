@@ -91,7 +91,7 @@ struct MultimodalControls: View {
 						.font(.caption2)
 						.foregroundColor(.gray)
 						.padding(4)
-						.background(Color.black.opacity(0.6))
+						.background(.primary.opacity(0.15))
 						.cornerRadius(4),
 					alignment: .topLeading
 				)

@@ -22,12 +22,12 @@ struct SkillsView: View {
         .formStyle(.grouped)
         .navigationTitle(StringKey.tabSkills.l)
         .overlay {
-            if viewModel.isLoading {
-                ProgressView(StringKey.loadingModels.l)
-            }
+        	if viewModel.isLoading {
+        		ProgressView(StringKey.loadingModels.l)
+        	}
         }
-        .onAppear {
-            Task { await viewModel.load() }
+        .task {
+        	await viewModel.load()
         }
         .accessibilityLabel(StringKey.tabSkills.l)
     }

@@ -451,13 +451,11 @@ struct ModelSearchView: View {
 			// Search section
 			Section {
 				SearchBar(
-					text: $searchQuery,
-					placeholder: selectedSource == .huggingFace ? StringKey.modelSearchHFHub.l : StringKey.modelSearchModelScope.l
-				) { query in
-					Task { @MainActor in
-						await performSearch(query)
+						text: $searchQuery,
+						placeholder: selectedSource == .huggingFace ? StringKey.modelSearchHFHub.l : StringKey.modelSearchModelScope.l
+					) { query in
+						Task { await performSearch(query) }
 					}
-				}
 				
 				if isSearching {
 					HStack {
@@ -471,32 +469,42 @@ struct ModelSearchView: View {
 			}
 			
 			// HF Results
-			if !hfResults.isEmpty, selectedSource == .huggingFace {
-				Section(StringKey.modelSearchResults.l) {
-					List(hfResults) { model in
-						HFModelRow(model: model)
-							.onTapGesture {
-								showDirectEntry = false
-								loadModel(model.id, source: .huggingFace)
+				if !hfResults.isEmpty, selectedSource == .huggingFace {
+					Section(StringKey.modelSearchResults.l) {
+						LazyVStack(spacing: 4) {
+							ForEach(hfResults, id: \.id) { model in
+								Button {
+									showDirectEntry = false
+									loadModel(model.id, source: .huggingFace)
+								} label: {
+									HFModelRow(model: model)
+										.frame(maxWidth: .infinity, alignment: .leading)
+								}
+								.buttonStyle(.plain)
 							}
+						}
+						.padding(.vertical, 2)
 					}
-					.listStyle(.plain)
 				}
-			}
-			
-			// MS Results
-			if !msResults.isEmpty, selectedSource == .modelScope {
-				Section(StringKey.modelSearchResults.l) {
-					List(msResults) { model in
-						MSModelRow(model: model)
-							.onTapGesture {
-								showDirectEntry = false
-								loadModel(model.path, source: .modelScope)
+
+				// MS Results
+				if !msResults.isEmpty, selectedSource == .modelScope {
+					Section(StringKey.modelSearchResults.l) {
+						LazyVStack(spacing: 4) {
+							ForEach(msResults, id: \.path) { model in
+								Button {
+									showDirectEntry = false
+									loadModel(model.path, source: .modelScope)
+								} label: {
+									MSModelRow(model: model)
+										.frame(maxWidth: .infinity, alignment: .leading)
+								}
+								.buttonStyle(.plain)
 							}
+						}
+						.padding(.vertical, 2)
 					}
-					.listStyle(.plain)
 				}
-			}
 			
 			// Currently loading
 			if !loadingModelId.isEmpty {
@@ -553,7 +561,7 @@ struct ModelSearchView: View {
 				hfResults = []
 			}
 		}
-		.task { @MainActor [searchQuery] in
+		.task { [searchQuery] in
 			if !searchQuery.isEmpty {
 				await performSearch(searchQuery)
 			}
@@ -577,13 +585,13 @@ struct ModelSearchView: View {
 			let results = await chatState.searchHubModels(keyword: query)
 			hfResults = results
 			if results.isEmpty && query.count > 1 {
-				localError = "No models found on HuggingFace for \"\(query)\""
+				localError = StringKey.modelSearchNoResults.l
 			}
 		case .modelScope:
 			let results = await chatState.searchModelScopeModels(keyword: query)
 			msResults = results
 			if results.isEmpty && query.count > 1 {
-				localError = "No models found on ModelScope for \"\(query)\""
+				localError = StringKey.modelSearchNoResults.l
 			}
 		}
 		
@@ -596,7 +604,7 @@ struct ModelSearchView: View {
 		loadingModelId = modelId
 		loadingProgress = "Downloading…"
 		
-		Task { @MainActor in
+		Task {
 			let updated = await chatState.loadNewModel(modelId, source: source)
 			loadingModelId = ""
 			loadingProgress = nil
@@ -639,7 +647,7 @@ struct HFModelRow: View {
 					.padding(3)
 					.background(theme.accentSoft)
 					.clipShape(RoundedRectangle(cornerRadius: 4))
-					.accessibilityLabel("MLX format")
+					.accessibilityLabel(StringKey.a11yMLXFormat.l)
 			}
 			
 			// Model ID
@@ -683,7 +691,7 @@ struct MSModelRow: View {
 				.padding(3)
 				.background(theme.accentSoft)
 				.clipShape(RoundedRectangle(cornerRadius: 4))
-				.accessibilityLabel("ModelScope")
+				.accessibilityLabel(StringKey.a11yModelScopeSource.l)
 			
 			// Model path
 			VStack(alignment: .leading) {

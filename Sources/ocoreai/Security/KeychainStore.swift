@@ -32,10 +32,11 @@ final class KeychainStore: Sendable {
             throw KeychainError.encodingFailed("UTF-8 encoding failed for account: \(account)")
         }
         let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.service,
-            kSecAttrAccount as String: account,
-            kSecValueData as String: data,
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrService as String: Self.service,
+        kSecAttrAccount as String: account,
+        kSecValueData as String: data,
+        kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else {

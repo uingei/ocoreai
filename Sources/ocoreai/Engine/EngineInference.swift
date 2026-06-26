@@ -57,16 +57,22 @@ extension EnginePool {
                     }
                     group.addTask {
                         // SilenceReason.gcdCancel: Task.sleep cancellation is expected
-                        do { try await Task.sleep(for: .milliseconds(500)) } catch {}
-                        while !Task.isCancelled {
-                            if cancellation.isCancelled || ContinuousClock.now >= deadline {
-                                cancellation.cancel()
-                                break
-                            }
-                            // SilenceReason.gcdCancel: Task.sleep cancellation is expected
-                            do { try await Task.sleep(for: .milliseconds(500)) } catch {}
+                        	do { try await Task.sleep(for: .milliseconds(500)) } catch {}
+                        	while cancellation.isCancelled == false, ContinuousClock.now < deadline {
+                        		do { try Task.checkCancellation() } catch {
+                        			cancellation.cancel()
+                        			break
+                        		}
+                        		// SilenceReason.gcdCancel: Task.sleep cancellation is expected
+                        		do { try await Task.sleep(for: .milliseconds(500)) } catch {
+                        			cancellation.cancel()
+                        			break
+                        		}
+                        	}
+                        	if ContinuousClock.now >= deadline {
+                        		cancellation.cancel()
+                        	}
                         }
-                    }
                 }
                 self.removeTrackedTask(tracker)
             }
@@ -107,16 +113,22 @@ extension EnginePool {
                     }
                     group.addTask {
                         // SilenceReason.gcdCancel: Task.sleep cancellation is expected
-                        do { try await Task.sleep(for: .milliseconds(500)) } catch {}
-                        while !Task.isCancelled {
-                            if cancellation.isCancelled || ContinuousClock.now >= deadline {
-                                cancellation.cancel()
-                                break
-                            }
-                            // SilenceReason.gcdCancel: Task.sleep cancellation is expected
-                            do { try await Task.sleep(for: .milliseconds(500)) } catch {}
+                        	do { try await Task.sleep(for: .milliseconds(500)) } catch {}
+                        	while cancellation.isCancelled == false, ContinuousClock.now < deadline {
+                        		do { try Task.checkCancellation() } catch {
+                        			cancellation.cancel()
+                        			break
+                        		}
+                        		// SilenceReason.gcdCancel: Task.sleep cancellation is expected
+                        		do { try await Task.sleep(for: .milliseconds(500)) } catch {
+                        			cancellation.cancel()
+                        			break
+                        		}
+                        	}
+                        	if ContinuousClock.now >= deadline {
+                        		cancellation.cancel()
+                        	}
                         }
-                    }
                 }
                 self.removeTrackedTask(tracker)
             }

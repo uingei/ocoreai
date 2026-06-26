@@ -173,7 +173,7 @@ struct ModelView: View {
 	private var emptySearchState: some View {
 		VStack(spacing: 10) {
 			Image(systemName: "magnifyingglass").font(.ocoreaiText(28, weight: .light)).foregroundStyle(theme.textTertiary)
-			Text("No results found").font(.ocoreaiText(13)).foregroundStyle(theme.textSecondary)
+			Text(StringKey.modelSearchEmpty.l).font(.ocoreaiText(13)).foregroundStyle(theme.textSecondary)
 		}
 		.frame(maxWidth: .infinity).padding(.vertical, 24)
 	}

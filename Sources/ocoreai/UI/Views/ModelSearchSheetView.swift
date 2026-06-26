@@ -46,10 +46,9 @@ final class ModelSearchState {
 		isSearching = false
 	}
 	
-	@MainActor
 	func loadModel(_ modelId: String, onSuccess: (() -> Void)?) {
 		guard let pool = OcoreaiEngine.shared.activeEnginePool else {
-			errorMessage = "Engine not available"
+			errorMessage = StringKey.engineNotAvailable.l
 			return
 		}
 		

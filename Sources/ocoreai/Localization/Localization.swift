@@ -259,6 +259,11 @@ public enum StringKey: String, CaseIterable {
 	case ttsActiveLabel = "A11y.TtsActiveLabel"
 	case statusIndicatorsLabel = "A11y.StatusIndicatorsLabel"
 
+	// — Accessibility —
+	case a11yMLXFormat = "A11y.MLXFormat"
+	case a11yModelScopeSource = "A11y.ModelScopeSource"
+	case engineNotAvailable = "Engine.NotAvailable"
+
 	// — Status Dot Labels —
 	case statusCameraActive = "Status.CameraActive"
 	case statusRecording = "Status.Recording"
@@ -390,6 +395,8 @@ public enum StringKey: String, CaseIterable {
 	case modelSearchTitle = "ModelSearch.Title"
 	case modelSearchLabel = "ModelSearch.Label"
 	case modelSearchHint = "ModelSearch.Hint"
+	case modelSearchNoResults = "ModelSearch.NoResults"
+	case modelSearchEmpty = "ModelSearch.Empty"
 }
 
 // MARK: - Translation Table (per locale)
@@ -718,6 +725,11 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.modelSearchTitle: "Load Model",
 		.modelSearchLabel: "Load Model",
 		.modelSearchHint: "Search and load models from HuggingFace or ModelScope",
+		.modelSearchNoResults: "No models found for your search",
+		.modelSearchEmpty: "No results found",
+		.a11yMLXFormat: "MLX format",
+		.a11yModelScopeSource: "ModelScope",
+		.engineNotAvailable: "Engine not available",
 	]
 
 	// Translation overrides per locale
@@ -1014,6 +1026,11 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.modelSearchTitle: "加载模型",
 		.modelSearchLabel: "加载模型",
 		.modelSearchHint: "从 HuggingFace 或 ModelScope 搜索并加载模型",
+		.modelSearchNoResults: "未找到匹配的模型",
+		.modelSearchEmpty: "未找到结果",
+		.a11yMLXFormat: "MLX 格式",
+		.a11yModelScopeSource: "ModelScope 源",
+		.engineNotAvailable: "引擎不可用",
 	]
 
 	// Add more locale tables here as needed (ja, ko, fr, es...)

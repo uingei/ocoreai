@@ -32,12 +32,12 @@ struct SystemView: View {
             #endif
         }
         .overlay {
-            if viewModel.isLoading {
-                ProgressView(StringKey.loadingModels.l)
-            }
+        	if viewModel.isLoading {
+        		ProgressView(StringKey.loadingModels.l)
+        	}
         }
-        .onAppear {
-            Task { await viewModel.load() }
+        .task {
+        	await viewModel.load()
         }
         .alert(StringKey.systemClearAudit.l, isPresented: $showClearAlert) {
             Button(StringKey.systemClearAudit.l, role: .destructive) {

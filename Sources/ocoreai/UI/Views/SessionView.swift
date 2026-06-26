@@ -22,12 +22,12 @@ struct SessionView: View {
         .formStyle(.grouped)
         .navigationTitle(StringKey.tabSessions.l)
         .overlay {
-            if viewModel.isLoading {
-                ProgressView(StringKey.loadingModels.l)
-            }
+        	if viewModel.isLoading {
+        		ProgressView(StringKey.loadingModels.l)
+        	}
         }
-        .onAppear {
-            Task { await viewModel.load() }
+        .task {
+        	await viewModel.load()
         }
         .accessibilityLabel(StringKey.tabSessions.l)
         .alert(StringKey.sessionDelete.l, isPresented: $showingDeleteAlert) {

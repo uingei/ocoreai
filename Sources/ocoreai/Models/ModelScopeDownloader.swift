@@ -67,7 +67,7 @@ actor ModelScopeDownloader: Downloader {
         // 1. Compute local cache directory
         let cacheDir = cacheRoot
             .appendingPathComponent(id)
-            .appendingPathComponent(revision ?? "master")
+            .appendingPathComponent(revision ?? "main")
 
         // 2. Check cache — if files matching all patterns exist and !useLatest, return early
         if !useLatest, let existingFiles = try? listLocalFiles(in: cacheDir),
@@ -83,7 +83,7 @@ actor ModelScopeDownloader: Downloader {
         }
 
         // 3. Fetch file tree from ModelScope
-        let fileInfo = try await listRepoFiles(repoId: id, revision: revision ?? "master")
+        let fileInfo = try await listRepoFiles(repoId: id, revision: revision ?? "main")
 
         // 4. Filter files matching patterns
         let matchingFiles = fileInfo.filter { fileInfo in
@@ -102,7 +102,7 @@ actor ModelScopeDownloader: Downloader {
             matchingFiles,
             to: cacheDir,
             repoId: id,
-            revision: revision ?? "master",
+            revision: revision ?? "main",
             existingFilenames: existingFilenames,
             progressHandler: progressHandler
         )
@@ -162,12 +162,14 @@ actor ModelScopeDownloader: Downloader {
             )
         }
 
+        // Parse ModelScope v2 API response.
+        // Structure: Data.ModelInfos.safetensor.files[].name / .size / .sha256
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let dataObj = json["Data"] as? [String: Any],
               let modelInfos = dataObj["ModelInfos"] as? [String: Any],
-              let filesArray = modelInfos["files"] as? [[String: Any]] else {
-            // Fallback: model without ModelInfos — common safetensors patterns
-            // Actual file list will fail at download time if wrong; this is best-effort
+              let safetensor = modelInfos["safetensor"] as? [String: Any],
+              let filesArray = safetensor["files"] as? [[String: Any]] else {
+            // Unknown response shape — try fallback patterns
             return [
                 FileInfo(path: "model.safetensors.index.json", size: nil, type: "file"),
                 FileInfo(path: "model-00001-of-00001.safetensors", size: nil, type: "file"),
