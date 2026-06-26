@@ -6,7 +6,7 @@
 /// @Observable pattern: @State + Observable instead of @StateObject
 /// Accessibility: full VoiceOver support, Dynamic Type, reduced motion
 /// Accessibility: ChatBubble uses accessibilityGroup() for semantic hierarchy
-/// Reduced Motion: all animations respect .preferredColorScheme
+/// Reduced Motion: all animations respect .accessibilityReduceMotion
 
 import SwiftUI
 import AppKit
