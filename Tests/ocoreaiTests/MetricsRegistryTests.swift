@@ -2,7 +2,6 @@
 //
 // Tests counter increments, histogram observations, and Prometheus export format.
 
-#if canImport(Testing)
 import Testing
 @testable import ocoreai
 
@@ -61,4 +60,3 @@ struct MetricsRegistryTests {
     }
 }
 
-#endif

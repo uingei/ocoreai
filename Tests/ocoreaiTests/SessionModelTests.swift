@@ -3,7 +3,6 @@
 //
 // Tests: SessionModel, MessageModel, FTSSearchResult encode/decode.
 
-#if canImport(Testing)
 import Testing
 import Foundation
 @testable import ocoreai
@@ -124,4 +123,3 @@ struct EngineSummaryTests {
     }
 }
 
-#endif

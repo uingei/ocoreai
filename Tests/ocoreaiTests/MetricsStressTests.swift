@@ -3,7 +3,6 @@
 // Exposes: race conditions in actor mailbox, histogram bucket overflow,
 // Prometheus export format compliance, memory leak in counter growth.
 
-#if canImport(Testing)
 import Testing
 @testable import ocoreai
 import Foundation
@@ -133,4 +132,3 @@ struct MetricsStressTests {
     }
 }
 
-#endif

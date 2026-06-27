@@ -3,7 +3,6 @@
 /// Scheduler concurrent stress tests — queue under load, OOM rejection,
 /// priority dispatch ordering, and batch dispatch integrity.
 
-#if canImport(Testing)
 import Testing
 import Foundation
 import Logging
@@ -130,4 +129,3 @@ struct SchedulerConcurrentTests {
     }
 }
 
-#endif

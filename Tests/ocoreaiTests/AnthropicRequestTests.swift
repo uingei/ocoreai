@@ -2,7 +2,6 @@
 // Licensed under MIT.
 /// Anthropic request model tests — verifies Decoder + Scheduler wiring correctness
 
-#if canImport(Testing)
 import Testing
 import Foundation
 import Hummingbird
@@ -109,4 +108,3 @@ struct AnthropicRequestTests {
     }
 }
 
-#endif

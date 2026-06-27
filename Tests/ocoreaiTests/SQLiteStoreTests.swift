@@ -5,7 +5,6 @@
 /// Covers: open/close lifecycle, DML execution, scalarQuery, multi-row query,
 /// FTS5 full-text search, memory_events six-element CRUD, Actor boundary safety.
 
-#if canImport(Testing)
 import Testing
 import Foundation
 import Logging
@@ -377,4 +376,3 @@ struct MemoryEventTests {
     }
 }
 
-#endif

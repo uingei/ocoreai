@@ -3,7 +3,6 @@
 // Validates token bucket math, burst behavior, and global rate limit config
 // without requiring CoreAI runtime or Hummingbird Request types.
 
-#if canImport(Testing)
 import Testing
 @testable import ocoreai
 import Logging
@@ -62,7 +61,7 @@ struct TokenBucketTests {
     func timeUntilAvailable_zeroWhenTokensExist() async {
         let bucket = TokenBucket(rate: 10, capacity: 10)
         let wait = await bucket.timeUntilAvailable()
-        #expect(wait == 0, tolerance: 0.001)
+        #expect(wait < 0.001)
     }
 
     @Test
@@ -99,4 +98,3 @@ struct RateLimitProviderConfigTests {
         _ = RateLimitProvider(config: config, logger: Logger(label: "test"))
     }
 }
-#endif

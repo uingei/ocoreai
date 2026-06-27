@@ -5,7 +5,6 @@
 /// Covers: translation table completeness (en + zhHans), fallback chain,
 /// StringKey.l non-emptiness, and ⚠️ marker only on genuine gaps.
 
-#if canImport(Testing)
 import Testing
 import Foundation
 @testable import ocoreai
@@ -138,4 +137,3 @@ struct WarningMarkerTests {
     }
 }
 
-#endif

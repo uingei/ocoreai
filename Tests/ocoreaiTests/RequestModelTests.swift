@@ -3,7 +3,6 @@
 // Validates JSON deserialization, default values, and edge cases
 // without requiring CoreAI runtime.
 
-#if canImport(Testing)
 import Testing
 import Foundation
 @testable import ocoreai
@@ -139,4 +138,3 @@ struct RequestModelTests {
     }
 }
 
-#endif

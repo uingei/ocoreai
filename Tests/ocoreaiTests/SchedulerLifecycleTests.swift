@@ -3,7 +3,6 @@
 /// Scheduler lifecycle tests — submit → dispatch → complete/fail/interrupt
 /// Verifies: memory tracking, OOM protection, priority queue, request states
 
-#if canImport(Testing)
 import Testing
 import Foundation
 import Logging
@@ -126,4 +125,3 @@ struct SchedulerLifecycleTests {
         #expect(snap.totalRequests >= 1)
     }
 }
-#endif

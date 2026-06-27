@@ -5,7 +5,6 @@
 /// Covers: init(rawValue:) dispatch, casting methods (asInt64/asDouble/
 /// asString/asData), null handling, and cross-actor Sendable safety.
 
-#if canImport(Testing)
 import Testing
 import Foundation
 @testable import ocoreai
@@ -101,7 +100,7 @@ struct SendableValueRawValueDispatchTests {
     @Test("Float 值分发到 .float")
     func dispatchFloat() {
         let val = SendableValue(rawValue: Float(1.414))
-        #expect(val.asDouble == Double(1.414))
+        #expect(val.asDouble == Double(Float(1.414)))
     }
 
     @Test("String 值分发到 .text")
@@ -269,4 +268,3 @@ struct SendableValueSendableTests {
     }
 }
 
-#endif

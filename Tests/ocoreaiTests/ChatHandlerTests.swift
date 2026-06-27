@@ -11,7 +11,6 @@
 /// - AnthropicMessageRequest decoding: system, stream, tools, content blocks
 /// - ModelSamplingPatch partial/full overrides
 
-#if canImport(Testing)
 import Foundation
 import Testing
 @testable import ocoreai
@@ -334,4 +333,3 @@ struct SamplingPatchTests {
     }
 }
 
-#endif
