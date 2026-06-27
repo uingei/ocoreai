@@ -38,6 +38,9 @@ struct ChatView: View {
 	// Model search + load entry point
 	@State private var showModelLoader = false
 
+	// Multimodal controls panel — collapsed by default
+	@State private var showMultimodal = false
+
 	init() {
 		_chatState = State(initialValue: ChatState())
 	}
@@ -56,6 +59,14 @@ struct ChatView: View {
 			messageList
 			if !chatState.responseText.isEmpty {
 				streamingPreview
+			}
+			// Multimodal panel — collapsible, below messages above input
+			if showMultimodal {
+				Divider().accessibilityHidden(true)
+				MultimodalControls()
+					.padding(.horizontal)
+					.padding(.top, 4)
+					.transition(.move(edge: .bottom).combined(with: .opacity))
 			}
 			inputBar
 		}
@@ -250,7 +261,30 @@ struct ChatView: View {
 	// MARK: - Input Bar
 
 	private var inputBar: some View {
-		HStack(spacing: 10) {
+		VStack(spacing: 6) {
+			// Multimodal toggle
+			Button {
+				withAnimation { showMultimodal.toggle() }
+			} label: {
+				HStack(spacing: 4) {
+					Image(systemName: "eye.and.ear.and.hands")
+						.font(.caption)
+					Image(systemName: showMultimodal ? "chevron.up" : "chevron.down")
+						.font(.caption2)
+						.foregroundStyle(theme.textTertiary)
+				}
+				.foregroundStyle(theme.textSecondary)
+				.padding(.horizontal, 14)
+				.padding(.vertical, 4)
+				.background(theme.inputBg)
+				.clipShape(Capsule())
+			}
+			.buttonStyle(.plain)
+			.accessibilityLabel(StringKey.multimodalToggleLabel.l)
+			.accessibilityHint(StringKey.multimodalToggleHint.l)
+
+			// Actual input row
+			HStack(spacing: 10) {
 			Button {
 				// TODO: AVFoundation speech
 			} label: {
@@ -289,8 +323,9 @@ struct ChatView: View {
 			.accessibilityHint(isStreaming ? StringKey.stopStreamingHint.l : StringKey.sendMessageHint.l)
 			.disabled(isStreaming && inputText.trimmingCharacters(in: .whitespaces).isEmpty)
 		}
-		.padding()
 	}
+	.padding()
+}
 
 	// MARK: - Actions
 

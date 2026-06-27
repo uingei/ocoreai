@@ -180,6 +180,8 @@ public enum StringKey: String, CaseIterable {
 	case multimodalMic = "Multimodal.Mic"
 	case multimodalSpeaker = "Multimodal.Speaker"
 	case multimodalTtsHint = "Multimodal.TtsHint"
+	case multimodalToggleLabel = "Multimodal.ToggleLabel"
+	case multimodalToggleHint = "Multimodal.ToggleHint"
 
 	// — Dashboard —
 	case dashboardTitle = "Dashboard.Title"
@@ -523,6 +525,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.multimodalMic: "Microphone (Ears)",
 		.multimodalSpeaker: "Speaker (Mouth)",
 		.multimodalTtsHint: "TTS is active — assistant responses will be spoken aloud",
+		.multimodalToggleLabel: "Toggle Multimodal Controls",
+		.multimodalToggleHint: "Show/hide camera, microphone, and speaker controls",
 
 		// Dashboard
 		.dashboardTitle: "Dashboard",
@@ -822,6 +826,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.multimodalMic: "麦克风（听觉）",
 		.multimodalSpeaker: "扬声器（语音）",
 		.multimodalTtsHint: "TTS 已激活 — 助手回复将以语音播报",
+		.multimodalToggleLabel: "多模态控制",
+		.multimodalToggleHint: "显示/隐藏摄像头、麦克风和扬声器控制",
 
 		// Dashboard
 		.dashboardTitle: "仪表盘",
