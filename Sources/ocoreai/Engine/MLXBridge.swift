@@ -86,7 +86,103 @@
 			// hfToken is auto-detected by HubClient from HF_TOKEN env var — kept for API compat
 		}
 
-		// MARK: - Public Load
+		// MARK: - Cache Check
+
+	/// Check if a model is already downloaded in the local cache.
+	///
+	/// - Parameters:
+	///   - provider: Hub provider (ModelScope or HuggingFace)
+	///   - repoId: Repository identifier (e.g. "Qwen/Qwen2.5-7B-Instruct")
+	/// - Returns: true if a safetensors file exists in the expected cache directory
+	nonisolated func isModelCached(_ provider: MLXModelLoader.HubProvider, repoId: String) -> Bool {
+		let cacheRoot: URL
+		
+		let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+		guard let baseDir = urls.first else {
+			return false
+		}
+		
+		switch provider {
+		case .modelScope:
+			cacheRoot = baseDir
+				.appendingPathComponent("ocoreai/modelscope")
+				.appendingPathComponent(repoId)
+				.appendingPathComponent("main")
+		case .huggingFace:
+			let hfCache = baseDir
+				.appendingPathComponent("org.ml-explore.mlx-swift-lm")
+				.appendingPathComponent(repoId)
+			return FileManager.default.fileExists(atPath: hfCache.path)
+		}
+		
+		guard FileManager.default.fileExists(atPath: cacheRoot.path),
+			  let files = try? FileManager.default.contentsOfDirectory(
+				  at: cacheRoot, includingPropertiesForKeys: nil
+			  )
+		else {
+			return false
+		}
+		// Must have at least one safetensors file to be considered "downloaded"
+		return files.contains { $0.pathExtension == "safetensors" }
+	}
+
+	// MARK: - Public Load
+
+	/// Attempt to load a model — checks cache first, downloads only if missing.
+	///
+	/// This is the unified entry point for ModelRepositoryState.
+	/// Returns the cache directory path if the model was already cached.
+	func tryLoad(modelURL: URL, modelId: String) async throws -> String? {
+		let source = MLXModelLoader.parseSource(modelId, fallbackPath: modelURL.path)
+		
+		switch source {
+		case let .local(localPath):
+			// Already local — just load directly
+			_ = try await loadLocal(Path(localPath), modelId: modelId)
+			return localPath
+			
+		case let .mscope(repoId):
+			// Check ModelScope cache first
+			if isModelCached(.modelScope, repoId: repoId) {
+				logger.info("Model \\(repoId) found in ModelScope cache, skipping download")
+				let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+				guard let baseDir = urls.first else {
+					throw MLXLoadError.localLoadFailed(
+						path: "cache",
+						error: "Cannot locate cache directory"
+					)
+				}
+				let cacheDir = baseDir
+					.appendingPathComponent("ocoreai/modelscope")
+					.appendingPathComponent(repoId)
+					.appendingPathComponent("main")
+				_ = try await LLMModelFactory.shared.loadContainer(
+					from: cacheDir,
+					using: #huggingFaceTokenizerLoader()
+				)
+				return cacheDir.path(percentEncoded: false)
+			}
+			// Fall through to download
+			_ = try await loadFromHub(.modelScope, repoId: repoId, modelId: modelId)
+			return nil // Signal: download just happened
+			
+		case let .huggingFace(repoId):
+			// Check HF cache first
+			if isModelCached(.huggingFace, repoId: repoId) {
+				logger.info("Model \\(repoId) found in HF cache, skipping download")
+			}
+			_ = try await loadFromHub(.huggingFace, repoId: repoId, modelId: modelId)
+			return nil
+			
+		default:
+			_ = try await loadLocal(url: modelURL, fallback: modelId)
+			return nil
+		}
+	}
+
+	// MARK: - Public Load
+
+	// TODO: merge with tryLoad once old callers are migrated
 
 		func load(modelURL: URL, modelId: String) async throws -> (any MLXModelHandle) {
 			logger.info("Loading MLX model \(modelId) from \(modelURL.path)")

@@ -122,6 +122,14 @@ public final class OcoreaiEngine {
 	private var _complexityAnalyzer: ComplexityAnalyzer?
 	private var _thinkingBudget: ThinkingBudget?
 	private var _contentGuard: ContentGuard?
+	
+	/// Download task manager — manages model download queue, progress, and cache state
+	private(set) var downloadTaskManager: DownloadTaskManager?
+	
+	/// Direct accessor to download task manager — SwiftUI can inspect/download models
+	var activeDownloadTaskManager: DownloadTaskManager? {
+		downloadTaskManager
+	}
 
 	private let logger: Logger
 
@@ -234,6 +242,8 @@ public final class OcoreaiEngine {
 			coreAILoadingConfig: coreAILoadingConfig,
 			memoryTracker: memoryTracker,
 		)
+		downloadTaskManager = DownloadTaskManager(maxConcurrent: 2)
+		logger.info("DownloadTaskManager initialized")
 
 		// Build LLM summarizer callback for session compression
 		_sessionCompressor = SessionCompressor(
