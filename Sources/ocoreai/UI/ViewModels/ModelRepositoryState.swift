@@ -131,6 +131,11 @@ final class ModelRepositoryState {
 	/// Acquire a model from the EnginePool (triggers download if needed), then release.
 	/// Updates local model list afterwards.
 	///
+	/// Optimized flow:
+	/// 1. Check local cache first via MLXModelLoader.isModelCached() (when mlx trait)
+	/// 2. If cached → load directly, skip progress UI
+	/// 3. If not cached → show progress UI then download via EnginePool
+	///
 	/// - Note: Progress is tracked under the ORIGINAL modelId (without prefix) so that
 	///   UI components can query progress using the same identifier they got from search results.
 	func load(_ modelId: String) async -> Bool {
@@ -146,19 +151,52 @@ final class ModelRepositoryState {
 			modelId
 		}
 
-		isDownloading = true
-		downloadingModelId = modelId // UI-friendly: show without prefix
-		currentError = nil
+		// Strip prefix for progress key alignment — UI queries by the same key
+		let progressKey = modelId
 
-		// Progress tracked under ORIGINAL modelId — UI queries by the same key
-		OcoreaiDownloadProgress.shared.start(modelId: modelId)
+		// Fast-check: if model is already cached, load directly without progress UI
+		#if mlx
+		if pool.isHubModel(normalizedId) {
+			// Determine provider from prefix
+			let provider: MLXModelLoader.HubProvider
+			let repoId: String
+			if normalizedId.hasPrefix("mscope:") {
+				provider = .modelScope
+				repoId = String(normalizedId.dropFirst(7))
+			} else {
+				provider = .huggingFace
+				repoId = normalizedId.hasPrefix("hf:") ? String(normalizedId.dropFirst(3)) : normalizedId
+			}
+
+			// Check if already cached
+			if MLXModelLoader.isModelCached(provider, repoId: repoId) {
+				// Model cached — load directly, no progress UI needed
+				currentError = nil
+				do {
+					_ = try await pool.acquire(model: normalizedId)
+					await pool.releaseSession(modelId: normalizedId, sessionId: "init")
+					await refreshLocalModels()
+					return true
+				} catch {
+					currentError = .loadFailed(error.localizedDescription)
+					return false
+				}
+			}
+		}
+		#endif
+
+		// Model not cached or non-hub model — use full download path with progress UI
+		isDownloading = true
+		downloadingModelId = progressKey
+		currentError = nil
+		OcoreaiDownloadProgress.shared.start(modelId: progressKey)
 
 		do {
 			_ = try await pool.acquire(model: normalizedId)
 			await pool.releaseSession(modelId: normalizedId, sessionId: "init")
 
-			// Signal success in progress store
-			OcoreaiDownloadProgress.shared.finish(modelId: modelId, success: true)
+			// Signal success
+			OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
 
 			// Refresh local model list
 			await refreshLocalModels()
@@ -167,7 +205,7 @@ final class ModelRepositoryState {
 			downloadingModelId = ""
 			return true
 		} catch {
-			OcoreaiDownloadProgress.shared.finish(modelId: modelId, success: false)
+			OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
 			currentError = .loadFailed(error.localizedDescription)
 			isDownloading = false
 			downloadingModelId = ""

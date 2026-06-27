@@ -94,7 +94,7 @@
 	///   - provider: Hub provider (ModelScope or HuggingFace)
 	///   - repoId: Repository identifier (e.g. "Qwen/Qwen2.5-7B-Instruct")
 	/// - Returns: true if a safetensors file exists in the expected cache directory
-	nonisolated func isModelCached(_ provider: MLXModelLoader.HubProvider, repoId: String) -> Bool {
+	static func isModelCached(_ provider: MLXModelLoader.HubProvider, repoId: String) -> Bool {
 		let cacheRoot: URL
 		
 		let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
@@ -143,7 +143,7 @@
 			
 		case let .mscope(repoId):
 			// Check ModelScope cache first
-			if isModelCached(.modelScope, repoId: repoId) {
+			if Self.isModelCached(.modelScope, repoId: repoId) {
 				logger.info("Model \\(repoId) found in ModelScope cache, skipping download")
 				let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
 				guard let baseDir = urls.first else {
@@ -168,7 +168,7 @@
 			
 		case let .huggingFace(repoId):
 			// Check HF cache first
-			if isModelCached(.huggingFace, repoId: repoId) {
+			if Self.isModelCached(.huggingFace, repoId: repoId) {
 				logger.info("Model \\(repoId) found in HF cache, skipping download")
 			}
 			_ = try await loadFromHub(.huggingFace, repoId: repoId, modelId: modelId)

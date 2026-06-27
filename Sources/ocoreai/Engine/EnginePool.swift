@@ -206,7 +206,8 @@ actor EnginePool {
 
 	/// Check whether this model ID refers to a remote hub model.
 	/// Recognizes: hf:… / huggingface:… / mscope:… prefixes AND bare "org/repo" paths.
-	private nonisolated func isHubModel(_ modelId: String) -> Bool {
+	/// Exposed for ModelRepositoryState cache-check optimization.
+	nonisolated func isHubModel(_ modelId: String) -> Bool {
 		if modelId.hasPrefix("hf:") || modelId.hasPrefix("huggingface:") || modelId.hasPrefix("mscope:") {
 			return true
 		}
