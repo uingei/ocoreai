@@ -26,15 +26,14 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if coreai` guards
-        // MLX 推理框架 — 始终追踪 main 分支最新
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", branch: "main"),
+        // MLX 推理框架 — semver 锁定（原 branch: "main" 会飘）
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", from: "3.31.3"),
         // HuggingFace Hub SDK — 原生搜索、下载
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.8.1"),
         // swift-transformers: 提供 Tokenizers 库（#huggingFaceTokenizerLoader 宏展开依赖）
-        .package(url: "https://github.com/huggingface/swift-transformers.git", branch: "main"),
-        // NOTE: swift-testing 0.x requires swift-syntax 600.x, incompatible with
-        //       MLX's swift-syntax 602-604 requirement. Testing tests are guarded
-        //       with #if canImport(Testing) so main target builds regardless.
+        .package(url: "https://github.com/huggingface/swift-transformers.git", from: "1.3.3"),
+        // swift-testing: 激活 Xcode Testing framework（@Suite/@Test）
+        .package(url: "https://github.com/apple/swift-testing.git", from: "0.11.0"),
     ],
     targets: [
         .executableTarget(
@@ -49,10 +48,9 @@ let package = Package(
                 .product(name: "HuggingFace", package: "swift-huggingface"),
                 .product(name: "Tokenizers", package: "swift-transformers"),
             ],
-            // NOTE: PrivacyInfo.xcprivacy resource removed — file does not exist yet.
-            //            resources: [
-            //                .process("PrivacyInfo.xcprivacy"),
-            //            ],
+            resources: [
+                .process("PrivacyInfo.xcprivacy"),
+            ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .unsafeFlags(["-warnings-as-errors"])
@@ -64,13 +62,14 @@ let package = Package(
         // NOTE: testing target — uses Xcode Testing framework (@Suite/@Test)
         //       guarded with #if canImport(Testing) so main target builds regardless
         .testTarget(
-        	name: "ocoreaiTests",
-        	dependencies: [
-        		"ocoreai",
-        	],
-        	swiftSettings: [
-        		.swiftLanguageMode(.v6),
-        	],
+       	name: "ocoreaiTests",
+       	dependencies: [
+       		"ocoreai",
+       		.product(name: "Testing", package: "swift-testing"),
+       	],
+       	swiftSettings: [
+       		.swiftLanguageMode(.v6),
+       	],
         ),
         ]
         )
