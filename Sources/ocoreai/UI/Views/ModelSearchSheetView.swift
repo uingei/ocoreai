@@ -12,8 +12,9 @@ struct ModelSearchSheetView: View {
 	@State private var repositoryState: ModelRepositoryState
 	// Local binding for TextField — avoids macOS Form + @Observable dynamic member focus leak
 	@State private var searchQueryLocal = ""
-	// Download progress — global store, auto-updates from MLXBridge
-	@State private var downloadProgress = OcoreaiDownloadProgress.shared
+	// Download progress — weak reference to the @Observable shared instance
+	// (keeps View body reactive when the store emits changes)
+	weak var downloadProgress: OcoreaiDownloadProgress? = OcoreaiDownloadProgress.shared
 	@Environment(\.dismiss) private var dismiss
 	@Environment(\.ocoreaiTheme) private var theme
 
@@ -197,8 +198,8 @@ struct ModelSearchSheetView: View {
 	@ViewBuilder
 	private func downloadButton(for modelId: String) -> some View {
 		// Use global progress store for real-time progress
-		let progressState = downloadProgress.progress(for: modelId)
-		let isDown = downloadProgress.isDownloading(modelId)
+		let progressState = downloadProgress?.progress(for: modelId)
+		let isDown = downloadProgress?.isDownloading(modelId) == true
 
 		if isDown, let state = progressState {
 			// Show real progress bar with percentage

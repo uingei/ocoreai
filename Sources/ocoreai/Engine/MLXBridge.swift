@@ -263,15 +263,14 @@
 				await MainActor.run {
 					OcoreaiDownloadProgress.shared.start(modelId: progressKey)
 				}
-				// Note: Downloader protocol requires synchronous progressHandler.
-				// v3 breaking change: progressHandler must be (@Sendable (Progress) -> Void), not async.
-				// UI progress is handled via start/finish markers instead.
+				// ProgressHandler: synchronous Sendable context — fire-and-forget to MainActor
 				let msDownloader = ModelScopeDownloader()
 				let directory = try await msDownloader.download(
 					id: repoId, revision: nil, matching: ["*.safetensors", "*.json", "*.jinja"], useLatest: false,
-					progressHandler: { _ in
-						// Synchronous callback — no MainActor.run allowed here.
-						// Progress reporting is handled by start/finish markers.
+					progressHandler: { [progressKey] progress in
+						Task { @MainActor in
+							OcoreaiDownloadProgress.shared.update(progress, for: progressKey)
+						}
 					},
 				)
 				logElapsed("ModelScope download \(repoId) completed", start)
