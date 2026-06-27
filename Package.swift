@@ -26,8 +26,8 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if coreai` guards
-        // MLX 推理框架 — semver 锁定（原 branch: "main" 会飘）
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "1248805"),
+        // MLX 推理框架 — revision 锁定 (3.31.x 有 API breaking change)
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", .revision("1248805")),
         // HuggingFace Hub SDK — 原生搜索、下载
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.8.1"),
         // swift-transformers: 提供 Tokenizers 库（#huggingFaceTokenizerLoader 宏展开依赖）
