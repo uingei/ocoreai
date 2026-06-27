@@ -27,13 +27,13 @@ let package = Package(
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if coreai` guards
         // MLX 推理框架 — semver 锁定（原 branch: "main" 会飘）
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", from: "3.31.3"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "1248805"),
         // HuggingFace Hub SDK — 原生搜索、下载
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.8.1"),
         // swift-transformers: 提供 Tokenizers 库（#huggingFaceTokenizerLoader 宏展开依赖）
         .package(url: "https://github.com/huggingface/swift-transformers.git", from: "1.3.3"),
-        // swift-testing: Swift 6 CLI 工具链需要此包提供 _TestingInternals 模块
-        .package(url: "https://github.com/apple/swift-testing.git", from: "0.11.0"),
+        // Note: swift-testing is part of Swift 6.3 toolchain, no package dep needed.
+        // Adding it conflicts with mlx-swift-lm's swift-syntax 602 requirement.
     ],
     targets: [
         .executableTarget(
