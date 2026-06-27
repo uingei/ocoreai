@@ -131,6 +131,11 @@ public final class OcoreaiEngine {
 		downloadTaskManager
 	}
 
+	/// Config system — loaded at startup, hot-reload capable
+	private var configSystem: ConfigSystem?
+	/// Config snapshot — set on start, updated on hot-reload. Reads are same-actor.
+	private var _configSnapshot: AppConfig = AppConfig()
+
 	private let logger: Logger
 
 	private init() {
@@ -192,6 +197,13 @@ public final class OcoreaiEngine {
 
 		let fts5Search = FTS5Search(store: store)
 
+		// MARK: - Config System (YAML + env override + hot-reload)
+
+		configSystem = await ConfigSystem.create()
+		_configSnapshot = await configSystem?.get() ?? AppConfig()
+		await configSystem?.startWatching()
+		logger.info("ConfigSystem ready — snapshot loaded from \(configPath)")
+
 		_skillRegistry = SkillRegistry(log: logger)
 		_systemPromptBuilder = SystemPromptBuilder(
 			basePrompt: "You are oCoreAI, an intelligent assistant running on macOS.",
@@ -233,8 +245,11 @@ public final class OcoreaiEngine {
 
 		let coreAILoadingConfig = CoreAILoadingConfig.production
 
+		// Build engine config from ConfigSystem (or fallback to hard-coded defaults)
+		let engineConfig = EnginePoolConfig(from: _configSnapshot, logger: logger)
+
 		enginePool = EnginePool(
-			config: .default,
+			config: engineConfig,
 			logger: logger,
 			tokenizerManager: tokenizerManager,
 			pagedKVCacheConfig: .default,
@@ -256,9 +271,9 @@ public final class OcoreaiEngine {
 		_complexityAnalyzer = ComplexityAnalyzer()
 		_thinkingBudget = ThinkingBudget()
 
-		// MARK: - ContentGuard (safety filter for both Fast + Bridge paths)
+		// MARK: - ContentGuard (safety filter from config)
 
-		_contentGuard = ContentGuard(runtimeConfig: .init(from: .default))
+		_contentGuard = ContentGuard(runtimeConfig: .init(from: _configSnapshot.safety))
 		logger.info("ContentGuard initialized (safety filter active)")
 
 		// MARK: - MessageBuilder (shared by Fast Path + Bridge Path)
@@ -394,6 +409,12 @@ public final class OcoreaiEngine {
 		enginePool = nil
 		metrics = nil
 		scheduler = nil
+
+		// MARK: - Config cleanup
+
+		await configSystem?.stopWatching()
+		configSystem?.shutdown()
+		self.configSystem = nil
 
 		logger.info("oCoreAI shut down complete")
 	}

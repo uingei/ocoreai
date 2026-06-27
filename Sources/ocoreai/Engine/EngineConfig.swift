@@ -3,6 +3,7 @@
 /// EngineConfig.swift — EnginePool configuration
 
 import Foundation
+import Logging
 
 /// Engine pool configuration — passed by value, immutable after initialization.
 ///
@@ -55,6 +56,45 @@ public struct EnginePoolConfig: Sendable {
 		sessionPoolConfig: .default,
 		kvCacheQuantization: .default,
 	)
+
+	/// Build from the config system's ``AppConfig``.
+	///
+	/// Maps `backend.*` → engine limits, `models.default` → model id,
+	/// `backend.kvCacheQuantization` → KV cache policy.
+	/// Missing or invalid values fall back to `.default`.
+	///
+	/// When `appConfig` is `nil` the system works with hard-coded defaults.
+	public init(from appConfig: AppConfig?, logger: Logger) {
+		guard let app = appConfig else {
+			self = Self.default
+			logger.warning("No AppConfig available — using EnginePoolConfig defaults")
+			return
+		}
+
+		self.maxConcurrentSessions = max(1, app.backend.maxConcurrentSessions)
+		self.maxQueueSize = 32
+		self.modelConfigPath = "./models/config.json"
+		self.modelDirectory = "./models"
+
+		// Resolve default model from config, fallback to hard-coded
+		if let defaultEntry = app.models["default"] {
+			self.defaultModelId = switch defaultEntry.source {
+			case "huggingface": "hf:\(defaultEntry.modelId)"
+			case "modelscope": "mscope:\(defaultEntry.modelId)"
+			default: defaultEntry.modelId
+			}
+		} else {
+			self.defaultModelId = Self.default.defaultModelId
+		}
+		self.warmupTokens = 4
+		self.kvCacheConfig = nil
+		self.inferenceTimeoutSeconds = 180
+		self.sessionPoolConfig = .default
+		self.kvCacheQuantization = app.backend.kvCacheQuantization
+
+		let backendStr = app.backend.preference.joined(separator: ", ")
+		logger.info("EnginePoolConfig from AppConfig — backend: \(backendStr), defaultModel: \(self.defaultModelId), sessions: \(self.maxConcurrentSessions)")
+	}
 
 	init(
 		maxConcurrentSessions: Int,
