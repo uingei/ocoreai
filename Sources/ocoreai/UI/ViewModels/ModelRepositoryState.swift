@@ -130,13 +130,16 @@ final class ModelRepositoryState {
 
 	/// Acquire a model from the EnginePool (triggers download if needed), then release.
 	/// Updates local model list afterwards.
+	///
+	/// - Note: Progress is tracked under the ORIGINAL modelId (without prefix) so that
+	///   UI components can query progress using the same identifier they got from search results.
 	func load(_ modelId: String) async -> Bool {
 		guard let pool = _enginePool else {
 			currentError = .engineUnavailable
 			return false
 		}
 
-		// Normalize: ModelScope needs "mscope:" prefix
+		// Normalize: ModelScope needs "mscope:" prefix for EnginePool
 		let normalizedId: String = if selectedSource == .modelScope, !modelId.hasPrefix("mscope:") {
 			"mscope:\(modelId)"
 		} else {
@@ -144,18 +147,18 @@ final class ModelRepositoryState {
 		}
 
 		isDownloading = true
-		downloadingModelId = normalizedId
+		downloadingModelId = modelId // UI-friendly: show without prefix
 		currentError = nil
 
-		// Start tracking in global progress store
-		OcoreaiDownloadProgress.shared.start(modelId: normalizedId)
+		// Progress tracked under ORIGINAL modelId — UI queries by the same key
+		OcoreaiDownloadProgress.shared.start(modelId: modelId)
 
 		do {
 			_ = try await pool.acquire(model: normalizedId)
 			await pool.releaseSession(modelId: normalizedId, sessionId: "init")
 
 			// Signal success in progress store
-			OcoreaiDownloadProgress.shared.finish(modelId: normalizedId, success: true)
+			OcoreaiDownloadProgress.shared.finish(modelId: modelId, success: true)
 
 			// Refresh local model list
 			await refreshLocalModels()
@@ -164,7 +167,7 @@ final class ModelRepositoryState {
 			downloadingModelId = ""
 			return true
 		} catch {
-			OcoreaiDownloadProgress.shared.finish(modelId: normalizedId, success: false)
+			OcoreaiDownloadProgress.shared.finish(modelId: modelId, success: false)
 			currentError = .loadFailed(error.localizedDescription)
 			isDownloading = false
 			downloadingModelId = ""

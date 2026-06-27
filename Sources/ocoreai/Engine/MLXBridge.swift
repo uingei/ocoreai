@@ -154,12 +154,18 @@
 		func loadFromHub(_ provider: MLXModelLoader.HubProvider, repoId: String, modelId: String) async throws -> MLXLMCommon.ModelContainer {
 			let start = ContinuousClock.now
 
+			// Strip prefix for progress tracking — UI components query by the plain repo id
+			let progressKey = modelId.hasPrefix("mscope:") ? String(modelId.dropFirst(7))
+				: modelId.hasPrefix("hf:") ? String(modelId.dropFirst(3))
+				: modelId.hasPrefix("huggingface:") ? String(modelId.dropFirst(12))
+				: modelId
+
 			switch provider {
 			case .modelScope:
 				logger.info("Downloading from ModelScope: \(repoId)")
 				// Notify UI that download started
 				await MainActor.run {
-					OcoreaiDownloadProgress.shared.start(modelId: modelId)
+					OcoreaiDownloadProgress.shared.start(modelId: progressKey)
 				}
 				// Note: Downloader protocol requires synchronous progressHandler.
 				// v3 breaking change: progressHandler must be (@Sendable (Progress) -> Void), not async.
@@ -179,12 +185,12 @@
 						using: #huggingFaceTokenizerLoader(),
 					)
 					await MainActor.run {
-						OcoreaiDownloadProgress.shared.finish(modelId: modelId, success: true)
+						OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
 					}
 					return container
 				} catch {
 					await MainActor.run {
-						OcoreaiDownloadProgress.shared.finish(modelId: modelId, success: false)
+						OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
 					}
 					throw error
 				}
@@ -196,7 +202,7 @@
 				logger.info("Downloading from HuggingFace: \(repoId)")
 				// Notify UI that download started
 				await MainActor.run {
-					OcoreaiDownloadProgress.shared.start(modelId: modelId)
+					OcoreaiDownloadProgress.shared.start(modelId: progressKey)
 				}
 				do {
 					let container = try await LLMModelFactory.shared.loadContainer(
@@ -205,12 +211,12 @@
 						configuration: ModelConfiguration(id: repoId),
 					)
 					await MainActor.run {
-						OcoreaiDownloadProgress.shared.finish(modelId: modelId, success: true)
+						OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
 					}
 					return container
 				} catch {
 					await MainActor.run {
-						OcoreaiDownloadProgress.shared.finish(modelId: modelId, success: false)
+						OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
 					}
 					throw error
 				}
