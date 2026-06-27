@@ -235,9 +235,9 @@ public actor ContentGuard {
 	// Compiled regex patterns per category
 	private let regexPatterns: [SafetyCategory: [NSRegularExpression]]
 
-	// Audit counter (for metrics)
-	private nonisolated(unsafe) var checksRun: Int64 = 0
-	private nonisolated(unsafe) var blocksTriggered: Int64 = 0
+	// Audit counter (for metrics) — actor-isolated, safe for concurrent access
+	private var checksRun: Int64 = 0
+	private var blocksTriggered: Int64 = 0
 
 	// MARK: - Init
 

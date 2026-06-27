@@ -508,30 +508,31 @@
 
 		/// Deserialize KV state from binary ``Data``.
 		///
-		/// - Parameter data: Serialized data buffer (minimum 12-byte header)
+		/// - Parameter data: Serialized data buffer (minimum 24-byte header: 3 × 8-byte Int64)
 		/// - Returns: Restored ``AsyncKVState`` instance
 		/// - Throws: ``AppError.kvCacheCorruption`` when header/payload mismatch
 		static func deserialize(from data: Data) throws -> AsyncKVState {
-			guard data.count >= 12 else {
+			guard data.count >= 24 else {
 				throw AppError.kvCacheCorruption("Header too short: \(data.count) bytes")
 			}
 
-			// Parse big-endian header
+			// Parse big-endian header — each Int is 8 bytes on arm64
 			let processedTokenCount = Int(bigEndian: data.withUnsafeBytes { $0.load(fromByteOffset: 0, as: Int.self) })
-			let vocabSize = Int(bigEndian: data.withUnsafeBytes { $0.load(fromByteOffset: 4, as: Int.self) })
-			let maxContextLength = Int(bigEndian: data.withUnsafeBytes { $0.load(fromByteOffset: 8, as: Int.self) })
+			let vocabSize = Int(bigEndian: data.withUnsafeBytes { $0.load(fromByteOffset: 8, as: Int.self) })
+			let maxContextLength = Int(bigEndian: data.withUnsafeBytes { $0.load(fromByteOffset: 16, as: Int.self) })
 
 			// Validate header values
 			guard processedTokenCount > 0, vocabSize > 0, maxContextLength > 0 else {
 				throw AppError.kvCacheCorruption("Invalid header values: tokens=\(processedTokenCount), vocab=\(vocabSize), ctx=\(maxContextLength)")
 			}
 
-			// Split key/value cache data (12-byte header)
-			let payloadSize = data.count - 12
+			// Split key/value cache data (24-byte header: 3 × Int64 big-endian fields)
+			let headerSize = 24
+			let payloadSize = data.count - headerSize
 			let half = payloadSize / 2
 
-			let keyData = data.subdata(in: 12 ..< 12 + half)
-			let valueData = data.subdata(in: 12 + half ..< 12 + payloadSize)
+			let keyData = data.subdata(in: headerSize ..< headerSize + half)
+			let valueData = data.subdata(in: headerSize + half ..< headerSize + payloadSize)
 
 			// Reconstruct NDArray from Data (Float16 layout)
 			let keyArray = try NDArray.fromData(keyData, scalarType: .float16)

@@ -254,11 +254,18 @@ actor SchedulerActor {
 	}
 
 	/// Interrupt all requests for a given model.
+	/// Collects target request IDs first, then removes — safe under Dictionary iteration.
 	func interruptAll(for modelId: String) async {
-		for id in activeRequests.keys where activeRequests[id]?.modelId == modelId {
+		// Collect IDs to interrupt first (avoid mutating dict while iterating)
+		let idsToInterrupt: [String] = activeRequests.compactMap { id, req in
+			req.modelId == modelId ? id : nil
+		}
+
+		for id in idsToInterrupt {
 			requestStates[id] = .interrupted
 			activeRequests.removeValue(forKey: id)
 		}
+
 		// Remove matching from pending queue
 		while let removed = queue.remove(where: { $0.request.modelId == modelId }) {
 			requestStates[removed.request.id] = .interrupted

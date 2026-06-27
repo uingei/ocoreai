@@ -150,24 +150,22 @@ struct SessionPoolConfig {
 
 			// 4. Miss — try restore from disk first
 			let cacheURL = cacheFileURL(key: key)
-			if let restoredSession = Self.restoreCachedSession(
+			if let (restoredSession, restoredTokenCount) = Self.restoreCachedSession(
 				modelContainer, cacheURL: cacheURL, genParams: genParams, logger: logger,
 			) {
-				// Disk restore gives us a ChatSession with baked-in KV cache but no message history.
-				// The KV cache already contains all prefill state, so messageCount should reflect
-				// that prior state exists. We set it to a sentinel indicating "restored from disk"
-				// so callers send only the new delta messages, avoiding duplicate prefill.
-				let restoredCount = Int.max
+				// Disk restore gives us a ChatSession with baked-in KV cache.
+				// Message count restored from cache metadata — callers can compute delta
+				// correctly instead of re-prefilling the entire context.
 				let freshPooled = PooledChatSession(
 					session: restoredSession,
 					lastAccessedAt: ContinuousClock.now,
-					messageCount: restoredCount,
+					messageCount: restoredTokenCount,
 					cacheFileURL: cacheURL,
 				)
 				missCount += 1
 				totalAcquireAttempts += 1
 				logHitRateIfNeeded()
-				logger.info("Session cache RESTORED from disk: \(key)")
+				logger.info("Session cache RESTORED from disk: \(key) (tokens: \(restoredTokenCount))")
 				return (freshPooled, isHit: false)
 			}
 
@@ -262,25 +260,29 @@ struct SessionPoolConfig {
 		// MARK: - On-disk KV cache I/O
 
 		/// Restore a ChatSession from on-disk KV cache.
-		/// Returns nil if the cache file does not exist or is incompatible.
+		/// Returns (ChatSession, restoredTokenCount) on success, nil otherwise.
 		private static func restoreCachedSession(
 			_ modelContainer: MLXLMCommon.ModelContainer,
 			cacheURL: URL,
 			genParams: MLXLMCommon.GenerateParameters,
 			logger: Logger,
-		) -> ChatSession? {
+		) -> (session: ChatSession, tokenCount: Int)? {
 			guard FileManager.default.fileExists(atPath: cacheURL.path) else {
 				return nil
 			}
 			do {
 				let (caches, _) = try MLXLMCommon.loadPromptCache(url: cacheURL)
 				guard !caches.isEmpty else { return nil }
-				logger.info("Restoring KV cache from: \(cacheURL.lastPathComponent)")
-				return ChatSession(
+				// Recover token count from cache offset — accurate record of how many
+				// tokens were prefill-ed into this cached KV state.
+				let restoredTokenCount = caches.first?.offset ?? 0
+				logger.info("Restoring KV cache from: \(cacheURL.lastPathComponent) (tokens: \(restoredTokenCount))")
+				let restoredSession = ChatSession(
 					modelContainer,
 					cache: caches,
 					generateParameters: genParams,
 				)
+				return (restoredSession, restoredTokenCount)
 			} catch {
 				logger.warning("Cache restore failed (\(cacheURL.lastPathComponent)): \(error.localizedDescription)")
 				return nil
