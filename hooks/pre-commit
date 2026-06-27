@@ -1,0 +1,28 @@
+#!/bin/bash
+# ocoreai pre-commit hook — build gate before every commit
+# Exit 1 blocks the commit. Exit 0 lets it through.
+
+# ── Fast path: skip if only docs/scripts ──────────────────────────
+git diff --cached --name-only --diff-filter=ACM | grep -qE '\.(swift$|Package\.swift|Package\.resolved|xcprivacy|yml$|ya?ml$|json$|toml$)' || {
+    echo "✅ [pre-commit] Only docs/config — skipping build gate."
+    exit 0
+}
+
+# ── Package.swift changed? Resolve first ─────────────────────────
+if git diff --cached --name-only --diff-filter=ACM | grep -qE 'Package\.swift|Package\.resolved'; then
+    echo "📦 [pre-commit] Package changed — resolving..."
+    if ! swift package resolve 2>&1; then
+        echo "❌ [pre-commit] swift package resolve failed. Aborting commit."
+        exit 1
+    fi
+fi
+
+# ── Build gate ──────────────────────────────────────────────────
+echo "🔨 [pre-commit] swift build --traits mlx ..."
+if swift build --traits mlx 2>&1 | tee /tmp/ocoreai-build.log | grep -qE 'error:'; then
+    echo "❌ [pre-commit] Build failed — commit blocked."
+    exit 1
+fi
+
+echo "✅ [pre-commit] Build passed (exit 0). Commit allowed."
+exit 0
