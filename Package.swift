@@ -32,8 +32,7 @@ let package = Package(
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: 提供 Tokenizers 库（#huggingFaceTokenizerLoader 宏展开依赖）
         .package(url: "https://github.com/huggingface/swift-transformers.git", from: "1.3.3"),
-        // Note: swift-testing is part of Swift 6.3 toolchain, no package dep needed.
-        // Adding it conflicts with mlx-swift-lm's swift-syntax 602 requirement.
+        // XCTest — P0: core module test coverage
     ],
     targets: [
         .executableTarget(
@@ -63,10 +62,10 @@ let package = Package(
         // NOTE: testing target — uses Xcode Testing framework (@Suite/@Test)
         //       guarded with #if canImport(Testing) so main target builds regardless
         .testTarget(
-     	name: "ocoreaiTests",
-     	dependencies: [
-     		"ocoreai",
-     	],
+    	name: "ocoreaiTests",
+    	dependencies: [
+    		"ocoreai",
+    	],
      	swiftSettings: [
      		.swiftLanguageMode(.v6),
      	],
