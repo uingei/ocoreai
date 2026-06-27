@@ -452,25 +452,20 @@ struct ChatHeader: View {
 
 /// Standalone view for the model search/load sheet.
 /// Provides: search bar → HF Hub results → tap to load → loading indicator → auto-close on success.
+/// Uses shared ModelRepositoryState for search/download (see ModelRepositoryState.swift).
 struct ModelSearchView: View {
-	let chatState: ChatState
-	let onModelLoaded: ([String]) -> Void
-
-	@State private var searchQuery = ""
-	@State private var hfResults: [HFHubModel] = []
-	@State private var msResults: [MSHubModel] = []
-	@State private var isSearching = false
-	@State private var loadingModelId = ""
-	@State private var loadingProgress: String? = nil
+	@State private var repositoryState: ModelRepositoryState
 	@State private var directModelId = ""
 	@State private var showDirectEntry = false
-	@State private var selectedSource: HubSource = .huggingFace
+	let onModelLoaded: ([String]) -> Void
 
 	@Environment(\.dismiss) private var dismiss
-
 	@Environment(\.ocoreaiTheme) private var theme
 
-	@State private var localError: String? = nil
+	init(chatState: ChatState, onModelLoaded: @escaping ([String]) -> Void) {
+		_repositoryState = State(initialValue: ModelRepositoryState())
+		self.onModelLoaded = onModelLoaded
+	}
 
 	var body: some View {
 		Form {
@@ -480,8 +475,14 @@ struct ModelSearchView: View {
 					TextField(StringKey.modelSearchExample.l, text: $directModelId)
 					if !directModelId.isEmpty {
 						Button(StringKey.modelSearchLoad.l) {
-							let source = selectedSource == .modelScope ? HubSource.modelScope : HubSource.huggingFace
-							loadModel(directModelId, source: source)
+							Task {
+								let updated = await repositoryState.load(directModelId)
+								if updated {
+									await repositoryState.refreshLocalModels()
+									onModelLoaded(repositoryState.localModels.map { $0.id })
+									dismiss()
+								}
+							}
 						}
 					}
 				}
@@ -489,7 +490,7 @@ struct ModelSearchView: View {
 
 			// Hub source selector
 			Section(StringKey.modelSearchHubSource.l) {
-				Picker(StringKey.modelSearchSelectHub.l, selection: $selectedSource) {
+				Picker(StringKey.modelSearchSelectHub.l, selection: $repositoryState.selectedSource) {
 					ForEach(HubSource.allCases, id: \.self) { source in
 						Text(source.rawValue).tag(source)
 					}
@@ -500,17 +501,17 @@ struct ModelSearchView: View {
 			// Search section
 			Section {
 				SearchBar(
-					text: $searchQuery,
-					placeholder: selectedSource == .huggingFace ? StringKey.modelSearchHFHub.l : StringKey.modelSearchModelScope.l,
+					text: $repositoryState.searchQuery,
+					placeholder: repositoryState.selectedSource == .huggingFace ? StringKey.modelSearchHFHub.l : StringKey.modelSearchModelScope.l,
 				) { query in
-					Task { await performSearch(query) }
+					Task { await repositoryState.search(query) }
 				}
 
-				if isSearching {
+				if repositoryState.isSearching {
 					HStack {
 						ProgressView()
 						Text(StringKey.modelSearchSearching.l)
-							.foregroundStyle(.secondary)
+							.foregroundStyle(theme.textSecondary)
 						Spacer()
 					}
 					.padding(.vertical, 4)
@@ -518,13 +519,19 @@ struct ModelSearchView: View {
 			}
 
 			// HF Results
-			if !hfResults.isEmpty, selectedSource == .huggingFace {
+			if !repositoryState.hfResults.isEmpty, repositoryState.selectedSource == .huggingFace {
 				Section(StringKey.modelSearchResults.l) {
 					LazyVStack(spacing: 4) {
-						ForEach(hfResults, id: \.id) { model in
+						ForEach(repositoryState.hfResults, id: \.id) { model in
 							Button {
-								showDirectEntry = false
-								loadModel(model.id, source: .huggingFace)
+								Task {
+									let ok = await repositoryState.load(model.id)
+									if ok {
+										await repositoryState.refreshLocalModels()
+										onModelLoaded(repositoryState.localModels.map { $0.id })
+										dismiss()
+									}
+								}
 							} label: {
 								HFModelRow(model: model)
 									.frame(maxWidth: .infinity, alignment: .leading)
@@ -537,38 +544,42 @@ struct ModelSearchView: View {
 			}
 
 			// MS Results
-			if !msResults.isEmpty, selectedSource == .modelScope {
+			if !repositoryState.msResults.isEmpty, repositoryState.selectedSource == .modelScope {
 				Section(StringKey.modelSearchResults.l) {
 					LazyVStack(spacing: 4) {
-					ForEach(msResults, id: \.path) { model in
-						Button {
-							showDirectEntry = false
-							loadModel(model.path, source: .modelScope)
-						} label: {
-							MSModelRow(model: model)
-								.frame(maxWidth: .infinity, alignment: .leading)
+						ForEach(repositoryState.msResults, id: \.path) { model in
+							Button {
+								Task {
+									let ok = await repositoryState.load(model.path)
+									if ok {
+										await repositoryState.refreshLocalModels()
+										onModelLoaded(repositoryState.localModels.map { $0.id })
+										dismiss()
+									}
+								}
+							} label: {
+								MSModelRow(model: model)
+									.frame(maxWidth: .infinity, alignment: .leading)
+							}
+							.buttonStyle(.plain)
 						}
-						.buttonStyle(.plain)
-					}
 					}
 					.padding(.vertical, 2)
 				}
 			}
 
 			// Currently loading
-			if !loadingModelId.isEmpty {
+			if repositoryState.isDownloading {
 				Section(StringKey.modelSearchLoading.l) {
 					HStack {
 						ProgressView()
 						VStack(alignment: .leading) {
-							Text(loadingModelId)
+							Text(repositoryState.downloadingModelId)
 								.font(.ocoreaiText(13, weight: .medium))
 								.lineLimit(1)
-							if let progress = loadingProgress {
-								Text(progress)
-									.font(.ocoreaiText(11))
-									.foregroundStyle(.secondary)
-							}
+							Text(StringKey.modelSearchLoading.l)
+								.font(.ocoreaiText(11))
+								.foregroundStyle(theme.textSecondary)
 						}
 						Spacer()
 					}
@@ -576,93 +587,12 @@ struct ModelSearchView: View {
 				}
 			}
 
-			// Errors
-			if let error = localError {
-				Section {
-					HStack {
-						Image(systemName: "exclamationmark.triangle.fill")
-							.foregroundStyle(.red)
-						Text(error)
-							.font(.ocoreaiText(13))
-							.foregroundStyle(.red)
-						Spacer()
-						Button(StringKey.modelSearchDismiss.l) { localError = nil }
-							.buttonStyle(.plain)
-					}
-				}
+			// Errors — unified OcoreaiErrorBanner
+			if let error = repositoryState.currentError {
+				OcoreaiErrorBanner(error: error) { repositoryState.currentError = nil }
 			}
 		}
 		.navigationTitle(StringKey.modelSearchTitle.l)
-		.onChange(of: chatState.loading) { _, isLoading in
-			if isLoading {
-				if searchQuery.isEmpty || loadingModelId.isEmpty {
-					loadingProgress = "Downloading…"
-				}
-			} else {
-				loadingProgress = nil
-			}
-		}
-		.onChange(of: selectedSource) { _, newSource in
-			// Clear results when switching source
-			if newSource == .huggingFace {
-				msResults = []
-			} else {
-				hfResults = []
-			}
-		}
-		.task { [searchQuery] in
-			if !searchQuery.isEmpty {
-				await performSearch(searchQuery)
-			}
-		}
-	}
-
-	// MARK: - Search
-
-	func performSearch(_ query: String) async {
-		guard !query.isEmpty else {
-			hfResults = []
-			msResults = []
-			return
-		}
-
-		isSearching = true
-		localError = nil
-
-		switch selectedSource {
-		case .huggingFace:
-			let results = await chatState.searchHubModels(keyword: query)
-			hfResults = results
-			if results.isEmpty, query.count > 1 {
-				localError = StringKey.modelSearchNoResults.l
-			}
-		case .modelScope:
-			let results = await chatState.searchModelScopeModels(keyword: query)
-			msResults = results
-			if results.isEmpty, query.count > 1 {
-				localError = StringKey.modelSearchNoResults.l
-			}
-		}
-
-		isSearching = false
-	}
-
-	// MARK: - Load
-
-	func loadModel(_ modelId: String, source: HubSource) {
-		loadingModelId = modelId
-		loadingProgress = "Downloading…"
-
-		Task {
-			let updated = await chatState.loadNewModel(modelId, source: source)
-			loadingModelId = ""
-			loadingProgress = nil
-
-			if !updated.isEmpty {
-				onModelLoaded(updated)
-				dismiss()
-			}
-		}
 	}
 }
 

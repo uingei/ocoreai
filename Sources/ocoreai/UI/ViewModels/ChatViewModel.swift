@@ -262,57 +262,6 @@ final class ChatState {
 		return models.map { $0["id"] ?? "unknown" }
 	}
 
-	/// Search HuggingFace Hub for models — delegates to HuggingFaceSearchClient.
-	/// Falls back silently when engine is not yet configured.
-	func searchHubModels(keyword: String, limit: Int = 15) async -> [HFHubModel] {
-		let client = HuggingFaceSearchClient()
-		do {
-			let models = try await client.search(query: keyword, limit: limit)
-			return models
-		} catch {
-			self.error = error
-			return []
-		}
-	}
-
-	/// Search ModelScope Hub for models — delegates to ModelScopeSearchClient.
-	/// Falls back silently when engine is not yet configured.
-	func searchModelScopeModels(keyword: String, pageSize: Int = 15) async -> [MSHubModel] {
-		let client = ModelScopeSearchClient()
-		do {
-			let result = try await client.search(keyword: keyword, pageSize: min(pageSize, 100))
-			return result.models
-		} catch {
-			self.error = error
-			return []
-		}
-	}
-
-	/// Load a model into the pool (triggers download if hub model like hf:...),
-	/// then return the updated list of loaded model IDs.
-	/// For ModelScope models, automatically prepends "mscope:" prefix.
-	func loadNewModel(_ modelId: String, source: HubSource = .huggingFace) async -> [String] {
-		guard let pool = OcoreaiEngine.shared.activeEnginePool else { return [] }
-
-		// Normalize modelId: ModelScope models need "mscope:" prefix
-		let normalizedId: String = if source == .modelScope, !modelId.hasPrefix("mscope:") {
-			"mscope:\(modelId)"
-		} else {
-			modelId
-		}
-
-		do {
-			// Acquire triggers lazy-load; immediately release so we don't hold a session
-			_ = try await pool.acquire(model: normalizedId)
-			await pool.releaseSession(modelId: normalizedId, sessionId: "init")
-		} catch {
-			self.error = error
-			return []
-		}
-		// Return refreshed model list for ChatView to update its @State
-		return await loadModels()
-	}
-
 	/// Snapshot current state, then clear the conversation.
 	func resetConversation() {
 		undoSnapshot = messages
