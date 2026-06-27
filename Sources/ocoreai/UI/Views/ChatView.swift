@@ -540,16 +540,16 @@ struct ModelSearchView: View {
 			if !msResults.isEmpty, selectedSource == .modelScope {
 				Section(StringKey.modelSearchResults.l) {
 					LazyVStack(spacing: 4) {
-						ForEach(msResults, id: \.path) { model in
-							Button {
-								showDirectEntry = false
-								loadModel(model.path, source: .modelScope)
-							} label: {
-								MSModelRow(model: model)
-									.frame(maxWidth: .infinity, alignment: .leading)
-							}
-							.buttonStyle(.plain)
+					ForEach(msResults, id: \.repoId) { model in
+						Button {
+							showDirectEntry = false
+							loadModel(model.repoId, source: .modelScope)
+						} label: {
+							MSModelRow(model: model)
+								.frame(maxWidth: .infinity, alignment: .leading)
 						}
+						.buttonStyle(.plain)
+					}
 					}
 					.padding(.vertical, 2)
 				}
@@ -744,7 +744,7 @@ struct MSModelRow: View {
 
 			// Model path
 			VStack(alignment: .leading) {
-				Text(model.path)
+				Text(model.repoId)
 					.font(.ocoreaiText(13, weight: .medium))
 					.lineLimit(1)
 				if !model.tasks.isEmpty {

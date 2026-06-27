@@ -284,7 +284,7 @@ struct ModelSearchSheetView: View {
 	private var msResultsSection: some View {
 		Section(header: Text(StringKey.modelSearchResults.l)) {
 			ForEach(searchState.msResults.prefix(15), id: \.id) { model in
-				resultRow(id: model.path, label: model.path, sub: "\(model.stars)")
+				resultRow(id: model.repoId, label: model.repoId, sub: "\(model.stars)")
 			}
 		}
 	}

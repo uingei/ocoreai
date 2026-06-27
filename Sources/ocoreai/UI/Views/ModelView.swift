@@ -146,7 +146,7 @@ struct ModelView: View {
 	private var _msResultView: some View {
 		LazyVStack(spacing: 8) {
 			ForEach(Array(msResults.prefix(20).enumerated()), id: \.offset) { _, model in
-				_resultRow(display: model.path, sub: String(model.stars), modelId: model.path)
+				_resultRow(display: model.repoId, sub: String(model.stars), modelId: model.repoId)
 			}
 		}
 	}

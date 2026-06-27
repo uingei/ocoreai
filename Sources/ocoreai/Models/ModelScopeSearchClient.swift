@@ -174,9 +174,20 @@ final actor ModelScopeSearchClient {
 		let totalCount = dataObj["TotalCount"] as? Int ?? modelsRaw.count
 
 		let models: [MSHubModel] = modelsRaw.compactMap { raw in
-			// Path is the primary model identifier in list responses
-			let path = raw["Path"] as? String ?? (raw["Name"] as? String ?? "")
-			guard !path.isEmpty else { return nil }
+			// Path (org) + Name (model) → full repo ID e.g. "Qwen/Qwen-Image-2512"
+			let orgPath = raw["Path"] as? String
+			let modelName = raw["Name"] as? String
+			let path: String
+			switch (orgPath, modelName) {
+			case let (.some(o), .some(n)) where !o.isEmpty && !n.isEmpty:
+				path = "\(o)/\(n)"
+			case let (.some(o), _):
+				path = o
+			case let (_, .some(n)):
+				path = n
+			default:
+				return nil
+			}
 
 			let tasks = (raw["Tasks"] as? [String]) ?? []
 			let frameworks = (raw["Frameworks"] as? [String]) ?? []

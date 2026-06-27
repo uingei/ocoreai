@@ -61,31 +61,63 @@ struct HFModelInfo: Codable, Identifiable {
 /// "Path" is the primary identifier (e.g. "Qwen/Qwen2.5-7B-Instruct").
 struct MSModelInfo: Codable, Identifiable {
 	let id: Int
-	let path: String
+	/// Organization (e.g. "Qwen") — API field "Path"
+	private let _orgPath: String?
+	/// Model name (e.g. "Qwen-Image-2512") — API field "Name"
+	private let _modelName: String?
 	var displayName: String
 	var chineseName: String?
 	var downloads: Int
 	var stars: Int
 	var tasks: [String]
 
-	// CodingKeys: API returns "Path" with capital P
+	/// Full repo ID for downstream use (e.g. "Qwen/Qwen-Image-2512").
+	/// Falls back to org-only Path when Name is missing (legacy response).
+	var repoId: String {
+		switch (_orgPath, _modelName) {
+		case let (.some(org), .some(name)) where !org.isEmpty && !name.isEmpty:
+			return "\(org)/\(name)"
+		case let (.some(org), _):
+			return org
+		case let (_, .some(name)):
+			return name
+		case (nil, nil):
+			return ""
+		}
+	}
+
+	// CodingKeys: API returns fields with capital-case keys
 	enum CodingKeys: String, CodingKey {
 		case id = "Id"
-		case path = "Path"
-		case displayName = "Name"
+		case orgPath = "Path"
+		case modelName = "Name"
+		case displayName
 		case chineseName = "ChineseName"
 		case downloads = "Downloads"
 		case stars = "Stars"
 		case tasks = "Tasks"
 	}
 
+	// Encodable: emit full repoId path
+	func encode(to encoder: any Encoder) throws {
+		var c = encoder.container(keyedBy: CodingKeys.self)
+		try c.encode(id, forKey: .id)
+		try c.encode(repoId, forKey: .orgPath)
+		try c.encode(displayName, forKey: .displayName)
+		try c.encodeIfPresent(chineseName, forKey: .chineseName)
+		try c.encode(downloads, forKey: .downloads)
+		try c.encode(stars, forKey: .stars)
+		try c.encode(tasks, forKey: .tasks)
+	}
+
 	init(from decoder: Decoder) throws {
 		let c = try decoder.container(keyedBy: CodingKeys.self)
 		id = try c.decodeIfPresent(Int.self, forKey: .id) ?? 0
-		path = try c.decodeIfPresent(String.self, forKey: .path)
-			?? (c.decodeIfPresent(String.self, forKey: .displayName) ?? "")
+		_orgPath = try c.decodeIfPresent(String.self, forKey: .orgPath)
+		_modelName = try c.decodeIfPresent(String.self, forKey: .modelName)
 		displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
-			?? path.components(separatedBy: "/").last ?? path
+			?? _modelName
+			?? (_orgPath?.components(separatedBy: "/").last ?? _orgPath ?? "")
 		chineseName = try c.decodeIfPresent(String.self, forKey: .chineseName)
 		downloads = try c.decodeIfPresent(Int.self, forKey: .downloads) ?? 0
 		stars = try c.decodeIfPresent(Int.self, forKey: .stars) ?? 0
