@@ -18,112 +18,14 @@ import SwiftUI
 
 // MARK: - Chat Message
 
-// MARK: - HF Hub Model Info
-
-/// Minimal model metadata from HuggingFace Hub search API.
-/// Decode via CodingKeys because "private" is a Swift reserved keyword.
 /// Unified hub source for model search (HF vs ModelScope)
 enum HubSource: String, CaseIterable {
 	case huggingFace = "HuggingFace"
 	case modelScope = "ModelScope"
 }
 
-struct HFModelInfo: Codable, Identifiable {
-	let id: String
-	var likes: Int
-
-	var tags: [String]?
-	var pipelineTag: String?
-
-	private let isPrivate: Bool?
-
-	enum CodingKeys: String, CodingKey {
-		case id, likes, tags, pipelineTag
-		case isPrivate = "private"
-	}
-
-	init(from decoder: Decoder) throws {
-		let container = try decoder.container(keyedBy: CodingKeys.self)
-		id = try container.decode(String.self, forKey: .id)
-		likes = try container.decodeIfPresent(Int.self, forKey: .likes) ?? 0
-		tags = try container.decodeIfPresent([String].self, forKey: .tags)
-		pipelineTag = try container.decodeIfPresent(String.self, forKey: .pipelineTag)
-		isPrivate = try container.decodeIfPresent(Bool.self, forKey: .isPrivate)
-	}
-
-	/// Whether this model ships in MLX format (has "mlx" tag)
-	var isMLX: Bool {
-		tags?.contains("mlx") ?? false
-	}
-}
-
-/// ModelScope search result DTO.
-/// "Path" is the primary identifier (e.g. "Qwen/Qwen2.5-7B-Instruct").
-struct MSModelInfo: Codable, Identifiable {
-	let id: Int
-	/// Organization (e.g. "Qwen") — API field "Path"
-	private let _orgPath: String?
-	/// Model name (e.g. "Qwen-Image-2512") — API field "Name"
-	private let _modelName: String?
-	var displayName: String
-	var chineseName: String?
-	var downloads: Int
-	var stars: Int
-	var tasks: [String]
-
-	/// Full repo ID for downstream use (e.g. "Qwen/Qwen-Image-2512").
-	/// Falls back to org-only Path when Name is missing (legacy response).
-	var repoId: String {
-		switch (_orgPath, _modelName) {
-		case let (.some(org), .some(name)) where !org.isEmpty && !name.isEmpty:
-			return "\(org)/\(name)"
-		case let (.some(org), _):
-			return org
-		case let (_, .some(name)):
-			return name
-		case (nil, nil):
-			return ""
-		}
-	}
-
-	// CodingKeys: API returns fields with capital-case keys
-	enum CodingKeys: String, CodingKey {
-		case id = "Id"
-		case orgPath = "Path"
-		case modelName = "Name"
-		case displayName
-		case chineseName = "ChineseName"
-		case downloads = "Downloads"
-		case stars = "Stars"
-		case tasks = "Tasks"
-	}
-
-	// Encodable: emit full repoId path
-	func encode(to encoder: any Encoder) throws {
-		var c = encoder.container(keyedBy: CodingKeys.self)
-		try c.encode(id, forKey: .id)
-		try c.encode(repoId, forKey: .orgPath)
-		try c.encode(displayName, forKey: .displayName)
-		try c.encodeIfPresent(chineseName, forKey: .chineseName)
-		try c.encode(downloads, forKey: .downloads)
-		try c.encode(stars, forKey: .stars)
-		try c.encode(tasks, forKey: .tasks)
-	}
-
-	init(from decoder: Decoder) throws {
-		let c = try decoder.container(keyedBy: CodingKeys.self)
-		id = try c.decodeIfPresent(Int.self, forKey: .id) ?? 0
-		_orgPath = try c.decodeIfPresent(String.self, forKey: .orgPath)
-		_modelName = try c.decodeIfPresent(String.self, forKey: .modelName)
-		displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
-			?? _modelName
-			?? (_orgPath?.components(separatedBy: "/").last ?? _orgPath ?? "")
-		chineseName = try c.decodeIfPresent(String.self, forKey: .chineseName)
-		downloads = try c.decodeIfPresent(Int.self, forKey: .downloads) ?? 0
-		stars = try c.decodeIfPresent(Int.self, forKey: .stars) ?? 0
-		tasks = try c.decodeIfPresent([String].self, forKey: .tasks) ?? []
-	}
-}
+// Note: HFModelInfo and MSModelInfo have been replaced by HFHubModel and MSHubModel
+// from HuggingFaceSearchClient and ModelScopeSearchClient respectively.
 
 struct ChatMessage: Identifiable, Hashable {
 	let id = UUID()
@@ -360,59 +262,26 @@ final class ChatState {
 		return models.map { $0["id"] ?? "unknown" }
 	}
 
-	/// Search HuggingFace Hub for models.
-	/// Returns matching model IDs, sorted by likes.
-	func searchHubModels(keyword: String, limit: Int = 15) async -> [HFModelInfo] {
-		guard let url = URL(string: "https://huggingface.co/api/models?search=\(keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? keyword)&limit=\(limit)&sort=likes")
-		else { return [] }
-
+	/// Search HuggingFace Hub for models — delegates to HuggingFaceSearchClient.
+	/// Falls back silently when engine is not yet configured.
+	func searchHubModels(keyword: String, limit: Int = 15) async -> [HFHubModel] {
+		let client = HuggingFaceSearchClient()
 		do {
-			let (data, response) = try await URLSession.shared.data(from: url)
-			guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-				error = NSError(domain: "ChatState", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch models from Hub"])
-				return []
-			}
-			return try JSONDecoder().decode([HFModelInfo].self, from: data)
+			let models = try await client.search(query: keyword, limit: limit)
+			return models
 		} catch {
 			self.error = error
 			return []
 		}
 	}
 
-	/// Search ModelScope Hub for models.
-	/// Returns matching model paths.
-	func searchModelScopeModels(keyword: String, pageSize: Int = 15) async -> [MSModelInfo] {
-		// ModelScope uses PUT for list/search (same as Python SDK)
-		guard let url = URL(string: "https://modelscope.cn/api/v1/models") else { return [] }
-		var request = URLRequest(url: url)
-		request.httpMethod = "PUT"
-		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-		let body: [String: Any] = [
-			"Path": keyword,
-			"PageNumber": 1,
-			"PageSize": min(pageSize, 100),
-		]
-		request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
+	/// Search ModelScope Hub for models — delegates to ModelScopeSearchClient.
+	/// Falls back silently when engine is not yet configured.
+	func searchModelScopeModels(keyword: String, pageSize: Int = 15) async -> [MSHubModel] {
+		let client = ModelScopeSearchClient()
 		do {
-			let (data, response) = try await URLSession.shared.data(for: request)
-			guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-				error = NSError(domain: "ChatState", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch models from ModelScope"])
-				return []
-			}
-			// Response: { "Code": 200, "Data": { "Models": [...], ... } }
-			let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-			let dataObj: [String: Any] = if let nested = json?["Data"] as? [String: Any] {
-				nested
-			} else {
-				json ?? [:]
-			}
-			guard let modelsRaw = dataObj["Models"] as? [[String: Any]] else { return [] }
-
-			// Decode each raw dict to MSModelInfo
-			let modelData = modelsRaw.map { try? JSONDecoder().decode(MSModelInfo.self, from: try JSONSerialization.data(withJSONObject: $0, options: [])) }
-			return modelData.compactMap(\.self)
+			let result = try await client.search(keyword: keyword, pageSize: min(pageSize, 100))
+			return result.models
 		} catch {
 			self.error = error
 			return []

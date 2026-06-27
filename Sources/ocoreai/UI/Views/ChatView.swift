@@ -457,8 +457,8 @@ struct ModelSearchView: View {
 	let onModelLoaded: ([String]) -> Void
 
 	@State private var searchQuery = ""
-	@State private var hfResults: [HFModelInfo] = []
-	@State private var msResults: [MSModelInfo] = []
+	@State private var hfResults: [HFHubModel] = []
+	@State private var msResults: [MSHubModel] = []
 	@State private var isSearching = false
 	@State private var loadingModelId = ""
 	@State private var loadingProgress: String? = nil
@@ -540,10 +540,10 @@ struct ModelSearchView: View {
 			if !msResults.isEmpty, selectedSource == .modelScope {
 				Section(StringKey.modelSearchResults.l) {
 					LazyVStack(spacing: 4) {
-					ForEach(msResults, id: \.repoId) { model in
+					ForEach(msResults, id: \.path) { model in
 						Button {
 							showDirectEntry = false
-							loadModel(model.repoId, source: .modelScope)
+							loadModel(model.path, source: .modelScope)
 						} label: {
 							MSModelRow(model: model)
 								.frame(maxWidth: .infinity, alignment: .leading)
@@ -683,14 +683,14 @@ private struct SearchBar: View {
 // MARK: - HF Model Row
 
 struct HFModelRow: View {
-	let model: HFModelInfo
+	let model: HFHubModel
 
 	@Environment(\.ocoreaiTheme) private var theme
 
 	var body: some View {
 		HStack(spacing: 6) {
 			// MLX badge
-			if model.isMLX {
+			if model.isMLXCompatible {
 				Image(systemName: "cpu")
 					.font(.ocoreaiText(10))
 					.padding(3)
@@ -728,7 +728,7 @@ struct HFModelRow: View {
 // MARK: - ModelScope Model Row
 
 struct MSModelRow: View {
-	let model: MSModelInfo
+	let model: MSHubModel
 
 	@Environment(\.ocoreaiTheme) private var theme
 
@@ -744,7 +744,7 @@ struct MSModelRow: View {
 
 			// Model path
 			VStack(alignment: .leading) {
-				Text(model.repoId)
+				Text(model.path)
 					.font(.ocoreaiText(13, weight: .medium))
 					.lineLimit(1)
 				if !model.tasks.isEmpty {

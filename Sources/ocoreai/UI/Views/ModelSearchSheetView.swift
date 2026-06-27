@@ -18,8 +18,8 @@ final class ModelSearchState {
 
 	// Hub search
 	var searchQuery = ""
-	var hfResults: [HFModelInfo] = []
-	var msResults: [MSModelInfo] = []
+	var hfResults: [HFHubModel] = []
+	var msResults: [MSHubModel] = []
 	var isSearching = false
 	var selectedSource: HubSource = .huggingFace
 
@@ -90,49 +90,22 @@ final class ModelSearchState {
 		UserDefaults.standard.set(modelId, forKey: "DefaultModelId")
 	}
 
-	// MARK: - Hub Search (mirrors ChatState methods)
+	// MARK: - Hub Search (delegated to HuggingFaceSearchClient / ModelScopeSearchClient)
 
-	private func searchHub(keyword: String, limit: Int = 15) async -> [HFModelInfo] {
-		guard let url = URL(string: "https://huggingface.co/api/models?search=\(keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? keyword)&limit=\(limit)&sort=likes")
-		else { return [] }
-
+	private func searchHub(keyword: String, limit: Int = 15) async -> [HFHubModel] {
 		do {
-			let (data, response) = try await URLSession.shared.data(from: url)
-			guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-				return []
-			}
-			return try JSONDecoder().decode([HFModelInfo].self, from: data)
+			let client = HuggingFaceSearchClient()
+			return try await client.search(query: keyword, limit: limit)
 		} catch {
 			return []
 		}
 	}
 
-	private func searchModelScope(keyword: String, pageSize: Int = 15) async -> [MSModelInfo] {
-		guard let url = URL(string: "https://modelscope.cn/api/v1/models") else { return [] }
-		var request = URLRequest(url: url)
-		request.httpMethod = "PUT"
-		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-		let body: [String: Any] = [
-			"Path": keyword,
-			"PageNumber": 1,
-			"PageSize": min(pageSize, 100),
-		]
-		request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
+	private func searchModelScope(keyword: String, pageSize: Int = 15) async -> [MSHubModel] {
 		do {
-			let (data, response) = try await URLSession.shared.data(for: request)
-			guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-				return []
-			}
-			let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-			var dataObj = json ?? [:]
-			if let nested = json?["Data"] as? [String: Any] {
-				dataObj = nested
-			}
-			guard let modelsRaw = dataObj["Models"] as? [[String: Any]] else { return [] }
-			let modelData = modelsRaw.map { try? JSONDecoder().decode(MSModelInfo.self, from: try JSONSerialization.data(withJSONObject: $0, options: [])) }
-			return modelData.compactMap(\.self)
+			let client = ModelScopeSearchClient()
+			let result = try await client.search(keyword: keyword, pageSize: min(pageSize, 100))
+			return result.models
 		} catch {
 			return []
 		}
@@ -284,7 +257,7 @@ struct ModelSearchSheetView: View {
 	private var msResultsSection: some View {
 		Section(header: Text(StringKey.modelSearchResults.l)) {
 			ForEach(searchState.msResults.prefix(15), id: \.id) { model in
-				resultRow(id: model.repoId, label: model.repoId, sub: "\(model.stars)")
+				resultRow(id: model.path, label: model.path, sub: "\(model.stars)")
 			}
 		}
 	}
