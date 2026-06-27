@@ -32,7 +32,7 @@ let package = Package(
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.8.1"),
         // swift-transformers: 提供 Tokenizers 库（#huggingFaceTokenizerLoader 宏展开依赖）
         .package(url: "https://github.com/huggingface/swift-transformers.git", from: "1.3.3"),
-        // swift-testing: 激活 Xcode Testing framework（@Suite/@Test）
+        // swift-testing: Swift 6 CLI 工具链需要此包提供 _TestingInternals 模块
         .package(url: "https://github.com/apple/swift-testing.git", from: "0.11.0"),
     ],
     targets: [
@@ -62,14 +62,13 @@ let package = Package(
         // NOTE: testing target — uses Xcode Testing framework (@Suite/@Test)
         //       guarded with #if canImport(Testing) so main target builds regardless
         .testTarget(
-       	name: "ocoreaiTests",
-       	dependencies: [
-       		"ocoreai",
-       		.product(name: "Testing", package: "swift-testing"),
-       	],
-       	swiftSettings: [
-       		.swiftLanguageMode(.v6),
-       	],
+     	name: "ocoreaiTests",
+     	dependencies: [
+     		"ocoreai",
+     	],
+     	swiftSettings: [
+     		.swiftLanguageMode(.v6),
+     	],
         ),
         ]
         )
