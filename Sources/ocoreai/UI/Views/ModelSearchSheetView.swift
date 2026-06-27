@@ -101,11 +101,9 @@ struct ModelSearchSheetView: View {
 						Text(model.id)
 							.lineLimit(1)
 						Spacer()
-						if repositoryState.selectedSource == .huggingFace {
-							Image(systemName: "checkmark.circle.fill")
-								.foregroundStyle(.green)
-								.imageScale(.medium)
-						}
+						Image(systemName: "checkmark.circle.fill")
+							.foregroundStyle(theme.greenDot)
+							.imageScale(.medium)
 					}
 				}
 			}
@@ -210,7 +208,7 @@ struct ModelSearchSheetView: View {
 					.frame(width: 80)
 				Text(Int(state.fraction * 100) == 100 ? "✓" : "\(Int(state.fraction * 100))%")
 					.font(.caption)
-					.foregroundStyle(state.fraction >= 1 ? .green : theme.textSecondary)
+					.foregroundStyle(state.fraction >= 1 ? theme.tintGreen : theme.textSecondary)
 					.monospacedDigit()
 			}
 			.animation(.smooth, value: state.fraction)
