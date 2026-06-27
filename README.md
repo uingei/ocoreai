@@ -70,6 +70,9 @@ $ curl http://localhost:8080/metrics
 | `DELETE` | `/v1/models/:model/sampling` | Reset sampling config |
 | `DELETE` | `/v1/models/sampling` | Reset all sampling configs |
 | `POST` | `/v1/models/download` | Download from ModelScope / HuggingFace |
+| `POST` | `/v1/multimodal/capture` | Capture camera frame or audio sample |
+| `POST` | `/v1/multimodal/speak` | TTS output |
+| `POST` | `/v1/multimodal/status` | Get/set multimodal toggles |
 | `GET`  | `/sessions` | List sessions |
 | `DELETE` | `/sessions/:id` | Delete session |
 | `GET`  | `/sessions/:id/memory` | Query memory events |
@@ -142,16 +145,19 @@ Supported backends: `coreai` (macOS 15.3+, M4+, compiled via `--traits coreai`),
 | Module | Location | What It Does |
 |--------|----------|-------------|
 | **Router** | `Router/` | Hummingbird HTTP router, endpoint dispatch |
-| **Handlers** | `Handlers/` | Chat completion, SSE streaming, model download |
-|| **Scheduler** | `Scheduler/` | Priority dispatch, memory tracking, OOM guard |
-|| **Engine** | `Engine/` | MLX/CoreAI inference bridge, session pool |
-|| **SQLite** | `SQLite/` | Session storage + FTS5 full-text search + memory events |
+| **Handlers** | `Handlers/` | Chat completion, SSE streaming, model download, multimodal |
+| **Scheduler** | `Scheduler/` | Priority dispatch, memory tracking, OOM guard |
+| **Engine** | `Engine/` | MLX/CoreAI inference bridge, session pool, engine lifecycle |
+| **SQLite** | `SQLite/` | Session storage + FTS5 full-text search + memory events |
 | **Config** | `Config/` | YAML config with hardware auto-detection |
 | **MCP** | `MCP/` | JSON-RPC 2.0 tool server via stdio transport |
 | **Security** | `Security/` | Keychain store, structured logger, audit trail |
 | **Skills** | `Skills/` | Skill registry, loader, system prompt builder |
 | **Tools** | `Tools/` | Model download, tool registration |
 | **Middleware** | `Middleware/` | Rate limiting, request filtering |
+| **Multimodal** | `Multimodal/` | Camera capture, audio I/O, TTS (Apple Speech) |
+| **Reasoning** | `Reasoning/` | Reasoning effort control, structured output |
+| **Metrics** | `Metrics/` | Prometheus metrics collection and export |
 
 ---
 
@@ -160,6 +166,7 @@ Supported backends: `coreai` (macOS 15.3+, M4+, compiled via `--traits coreai`),
 | Component | Status |
 |-----------|--------|
 | MLX Metal inference | ✅ |
+| CoreAI backend | ✅ |
 | SSE streaming + non-stream | ✅ |
 | Anthropic-compatible API | ✅ |
 | SQLite session persistence | ✅ |
@@ -167,7 +174,8 @@ Supported backends: `coreai` (macOS 15.3+, M4+, compiled via `--traits coreai`),
 | Skill system + prompt builder | ✅ |
 | MCP tool endpoints | ✅ |
 | Scheduler: Anthropic + Chat path unified | ✅ |
-| Dashboard UI | 🔲 Models/Settings mock |
+| Multimodal (camera/audio/TTS) | ✅ |
+| Dashboard UI (live metrics + charts) | ✅ |
 
 ---
 
