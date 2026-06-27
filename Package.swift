@@ -29,7 +29,7 @@ let package = Package(
         // MLX 推理框架 — revision 锁定 (3.31.x 有 API breaking change)
         .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", .revision("1248805")),
         // HuggingFace Hub SDK — 原生搜索、下载
-        .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.8.1"),
+        .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: 提供 Tokenizers 库（#huggingFaceTokenizerLoader 宏展开依赖）
         .package(url: "https://github.com/huggingface/swift-transformers.git", from: "1.3.3"),
         // Note: swift-testing is part of Swift 6.3 toolchain, no package dep needed.
