@@ -1,15 +1,16 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Audio I/O service — microphone capture + TTS playback
+/// Audio I/O service — microphone capture + TTS playback + STT transcription
 ///
 /// Cross-platform: AVFoundation available on macOS, iOS, iPadOS.
-/// Recording via AVAudioRecorder, TTS via AVSpeechSynthesizer.
+/// Recording via AVAudioRecorder, TTS via AVSpeechSynthesizer, STT via SFSpeechRecognizer.
 ///
 /// Migrated to @Observable (Swift 5.9+ standard per Apple API Design Guidelines)
 
 import AVFoundation
 import Foundation
 import os.log
+import Speech
 
 private let audioLogger = Logger(subsystem: "ocoreai", category: "audioio")
 
@@ -28,20 +29,30 @@ final class AudioIO: NSObject {
 	/// Is speaking
 	var isSpeaking: Bool = false
 
-	private let synthesizer = AVSpeechSynthesizer()
+	// MARK: - STT state
+
+	/// Is recognizing (voice-to-text in progress)
+	var isRecognizing: Bool = false
+
+	/// Latest recognized text
+	var recognizedText: String = ""
 
 	// MARK: - Internal
 
+	private let synthesizer = AVSpeechSynthesizer()
 	private var recorder: AVAudioRecorder?
 	private var recordedURL: URL?
+	private let audioEngine = AVAudioEngine()
 
 	override init() {
 		super.init()
 		synthesizer.delegate = self
 	}
+}
 
-	// MARK: - Microphone
+// MARK: - Microphone
 
+extension AudioIO {
 	func requestMicPermission() async -> Bool {
 		await AVCaptureDevice.requestAccess(for: .audio)
 	}
@@ -73,7 +84,7 @@ final class AudioIO: NSObject {
 		isRecording = false
 
 		guard let url = recordedURL,
-		      FileManager.default.fileExists(atPath: url.path)
+			  FileManager.default.fileExists(atPath: url.path)
 		else {
 			return nil
 		}
@@ -114,9 +125,11 @@ final class AudioIO: NSObject {
 		recorder?.stop()
 		recorder = nil
 	}
+}
 
-	// MARK: - TTS
+// MARK: - TTS
 
+extension AudioIO {
 	func speak(_ text: String) {
 		guard !text.isEmpty else { return }
 		synthesizer.stopSpeaking(at: .immediate)
@@ -127,6 +140,92 @@ final class AudioIO: NSObject {
 
 	func stopSpeaking() {
 		synthesizer.stopSpeaking(at: .immediate)
+	}
+}
+
+// MARK: - Speech-to-Text
+
+extension AudioIO {
+	/// Request authorization for speech recognition
+	func requestSpeechPermission() async -> Bool {
+		let granted = await withCheckedContinuation { continuation in
+			SFSpeechRecognizer.requestAuthorization { status in
+				continuation.resume(returning: status == .authorized)
+			}
+		}
+		return granted
+	}
+
+	/// Continuous speech recognition — returns final transcribed text or nil on cancel/error
+	func transcribe(timeout: TimeInterval = 30) async -> String? {
+		// Check authorization
+		let authorized = await requestSpeechPermission()
+		guard authorized else {
+			audioLogger.error("[AudioIO] Speech recognition not authorized")
+			return nil
+		}
+
+		guard let recognizer = SFSpeechRecognizer() else {
+			audioLogger.error("[AudioIO] No available speech recognizer")
+			return nil
+		}
+
+		// Setup audio engine — macOS compatible (no AVAudioSession)
+		audioEngine.stop()
+		audioEngine.reset()
+
+		let request = SFSpeechAudioBufferRecognitionRequest()
+		request.shouldReportPartialResults = false
+
+		let format = audioEngine.inputNode.outputFormat(forBus: 0)
+		audioEngine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+			request.append(buffer)
+		}
+
+		try? audioEngine.start()
+		isRecognizing = true
+		recognizedText = ""
+
+		do {
+			let task = recognizer.recognitionTask(with: request) { result, error in
+				if let result {
+					// MainActor update via @Observable
+					_ = Task { @MainActor in
+						AudioIO.shared.recognizedText = result.bestTranscription.formattedString
+					}
+				}
+				if error != nil {
+					_ = Task { @MainActor in
+						AudioIO.shared.isRecognizing = false
+					}
+				}
+			}
+
+			// Wait up to timeout then cancel
+			try await Task.sleep(nanoseconds: UInt64(timeout) * 1_000_000_000)
+			task.cancel()
+			audioEngine.inputNode.removeTap(onBus: 0)
+			audioEngine.stop()
+			isRecognizing = false
+
+			if !recognizedText.isEmpty {
+				return recognizedText
+			}
+			return nil
+		} catch {
+			audioLogger.error("[AudioIO] STT error: \(error.localizedDescription)")
+			audioEngine.inputNode.removeTap(onBus: 0)
+			audioEngine.stop()
+			isRecognizing = false
+			return nil
+		}
+	}
+
+	/// Cancel ongoing recognition immediately
+	func cancelTranscription() {
+		audioEngine.stop()
+		audioEngine.inputNode.removeTap(onBus: 0)
+		isRecognizing = false
 	}
 }
 

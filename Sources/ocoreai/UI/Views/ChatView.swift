@@ -286,7 +286,13 @@ struct ChatView: View {
 			// Actual input row
 			HStack(spacing: 10) {
 			Button {
-				// TODO: AVFoundation speech
+				// Voice input — transcribe speech to text
+				Task {
+					let text = await AudioIO.shared.transcribe()
+					if let t = text, !t.isEmpty {
+						inputText = t
+					}
+				}
 			} label: {
 				Image(systemName: "waveform.circle.fill")
 					.font(.title3)
