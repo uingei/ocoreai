@@ -174,7 +174,7 @@
 		result = try await downloader.download(
 			id: modelId,
 			revision: revision,
-			matching: [],
+			matching: ["*.safetensors", "*.json", "*.jinja"],
 			useLatest: useLatest,
 			progressHandler: { progress in
 				let pct = Int(progress.fractionCompleted * 100)

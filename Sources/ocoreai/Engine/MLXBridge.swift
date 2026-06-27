@@ -166,7 +166,7 @@
 				// UI progress is handled via start/finish markers instead.
 				let msDownloader = ModelScopeDownloader()
 				let directory = try await msDownloader.download(
-					id: repoId, revision: nil, matching: [], useLatest: false,
+					id: repoId, revision: nil, matching: ["*.safetensors", "*.json", "*.jinja"], useLatest: false,
 					progressHandler: { _ in
 						// Synchronous callback — no MainActor.run allowed here.
 						// Progress reporting is handled by start/finish markers.
