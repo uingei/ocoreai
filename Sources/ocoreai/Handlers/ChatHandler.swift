@@ -456,6 +456,7 @@ private func parseToolCalls(from content: String) -> [ToolCall]? {
 ///   - options: Inference options (maxTokens, logits)
 ///   - request: Original chat completion request
 ///   - modelId: Model identifier
+///   - sessionCompressor: Session persistence layer
 ///   - logger: Observability logger
 ///   - metrics: Shared metrics registry for recording inference metrics
 /// - Returns: JSON ``Response`` with ``ChatCompletion`` payload
@@ -471,6 +472,9 @@ private func nonStreamWithToolCalling(
 	logger: Logger,
 	metrics: MetricsRegistry,
 ) async throws -> Response {
+	/// Resolve conversation ID for session pooling / KV cache reuse.
+	let conversationId: String? = request.sessionID
+	
 	/// Generate unique request ID for tracing.
 	let requestId = "req-\(UUID().uuidString.prefix(8))"
 	let created = Int64(Date().timeIntervalSince1970)
@@ -487,8 +491,9 @@ private func nonStreamWithToolCalling(
 		messages: messages,
 		sampling: sampling,
 		options: options,
+		conversationId: conversationId,
 	)
-
+	
 	var accumulatedTokens: [Int32] = []
 	var accumulatedText: String? = nil
 	var totalOutputTokens = 0
@@ -565,6 +570,7 @@ private func nonStreamWithToolCalling(
 						),
 						sampling: correctedSampling,
 						options: correctedOpts,
+						conversationId: conversationId,
 					)
 					var accTokens: [Int32] = []
 					var accText: String? = nil
@@ -666,6 +672,7 @@ private func nonStreamWithToolCalling(
 ///   - options: Inference options (maxTokens, logits)
 ///   - request: Original chat completion request
 ///   - modelId: Model identifier
+///   - sessionCompressor: Session persistence layer
 ///   - logger: Observability logger
 ///   - metrics: Shared metrics registry for recording inference metrics
 /// - Returns: SSE ``Response`` with NDJSON ``ChatCompletionChunk`` payloads
@@ -681,6 +688,9 @@ private func streamWithToolCalling(
 	logger: Logger,
 	metrics: MetricsRegistry,
 ) async throws -> Response {
+	/// Resolve conversation ID for session pooling / KV cache reuse.
+	let conversationId: String? = request.sessionID
+	
 	/// Configure SSE-compliant response headers.
 	let responseHeaders = SSEHeaders
 
@@ -710,6 +720,7 @@ private func streamWithToolCalling(
 			messages: messages,
 			sampling: sampling,
 			options: options,
+			conversationId: conversationId,
 			cancellation: canceller,
 		)
 
