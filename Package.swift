@@ -26,6 +26,7 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if coreai` guards
+        // ⚠️ .revision deprecation in Swift 6.3 SPM — keeping pending upstream tag for commit pinning stability
         .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", .revision("1248805")),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),

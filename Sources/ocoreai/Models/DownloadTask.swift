@@ -387,7 +387,7 @@ actor DownloadTaskManager {
     /// Start the actual download for a task.
     ///
     /// This is called by drainQueue() when a slot becomes available.
-    /// The caller (ModelRepositoryState or UI) passes a download closure
+    /// The caller (ModelManager or UI) passes a download closure
     /// that returns (cacheDir, success) on completion.
     func startDownload(
         _ taskId: String,
@@ -482,103 +482,4 @@ actor DownloadTaskManager {
     }
 }
 
-// MARK: - Progress Broadcaster
 
-/// @Observable bridge for download progress UI bindings.
-/// Replaces OcoreaiDownloadProgress singleton with multi-subscriber support.
-///
-/// Usage:
-///   1. UI observes: `OcoreaiDownloadProgress.shared`
-///   2. DownloadTask 更新进度时广播 Progress
-///   3. UI binds to: `.progress(for:)`, `.isDownloading(:_)`
-///
-/// Maintains backward compatibility with existing OcoreaiDownloadProgress API.
-@Observable
-@MainActor
-final class ProgressBroadcaster {
-    static let shared = ProgressBroadcaster()
-    
-    /// Per-model download task state — derived from DownloadTaskManager snapshots
-    private var _progress: [String: OcoreaiDownloadProgressState] = [:]
-    
-    /// Full task list snapshot (refreshed from manager)
-    var tasks: [DownloadTask] = []
-    
-    private init() {}
-    
-    /// Refresh task list snapshot from DownloadTaskManager
-    func refresh(from manager: DownloadTaskManager) async {
-        tasks = await manager.getAllTasks()
-        // Update progress state for each active download
-        for task in tasks where task.state == .downloading {
-            _progress[task.repoId] = OcoreaiDownloadProgressState(
-                fraction: task.progress.fractionCompleted,
-                completedFiles: task.progress.completedFiles,
-                totalFiles: task.progress.totalFiles,
-                active: true
-            )
-        }
-        // Remove completed tasks from active progress
-        for key in _progress.keys {
-            let isActive = tasks.contains {
-                $0.repoId == key && $0.state == .downloading
-            }
-            if !isActive {
-                _progress.removeValue(forKey: key)
-            }
-        }
-    }
-    
-    /// Update progress state for a model
-    func update(_ progress: Foundation.Progress, for modelId: String) {
-        let total: Int64 = progress.totalUnitCount
-        let completed: Int64 = progress.completedUnitCount
-        let fraction = total > 0 ? Double(completed) / Double(total) : 0
-        
-        _progress[modelId] = OcoreaiDownloadProgressState(
-            fraction: fraction,
-            completedFiles: Int(completed),
-            totalFiles: Int(total),
-            active: true
-        )
-    }
-    
-    /// Start tracking a download
-    func start(modelId: String) {
-        _progress[modelId] = OcoreaiDownloadProgressState(
-            fraction: 0, completedFiles: 0, totalFiles: 0, active: true,
-        )
-    }
-    
-    /// Mark a download as complete
-    func finish(modelId: String, success: Bool = true) {
-        if success {
-            var state = _progress[modelId] ?? .idle
-            state.fraction = 1.0
-            state.active = false
-            _progress[modelId] = state
-        } else {
-            _progress.removeValue(forKey: modelId)
-        }
-    }
-    
-    /// Clear all progress state
-    func clear() {
-        _progress.removeAll()
-    }
-    
-    /// Get current progress for a model
-    func progress(for modelId: String) -> OcoreaiDownloadProgressState? {
-        _progress[modelId]
-    }
-    
-    /// Is this model currently downloading?
-    func isDownloading(_ modelId: String) -> Bool {
-        (_progress[modelId]?.active ?? false)
-    }
-    
-    /// Find the DownloadTask for a repoId
-    func task(for repoId: String) -> DownloadTask? {
-        tasks.first { $0.repoId == repoId }
-    }
-}

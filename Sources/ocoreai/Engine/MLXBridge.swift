@@ -138,7 +138,7 @@
 
 	/// Attempt to load a model — checks cache first, downloads only if missing.
 	///
-	/// This is the unified entry point for ModelRepositoryState.
+	/// This is the unified entry point for ModelManager.
 	/// Returns the cache directory path if the model was already cached.
 	func tryLoad(modelURL: URL, modelId: String) async throws -> String? {
 		let source = MLXModelLoader.parseSource(modelId, fallbackPath: modelURL.path)

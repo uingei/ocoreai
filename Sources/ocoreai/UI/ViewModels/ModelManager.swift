@@ -8,12 +8,34 @@
 //   1. Hub search (HF / ModelScope) — via dedicated SearchClients
 //   2. Model load/download via EnginePool — unified progress tracking
 //   3. Local model list — single [ModelID] array, always fresh
-//   4. Error state — typed RepositoryError (defined in ModelRepositoryState.swift)
+//   4. Error state — typed RepositoryError
 //
 // Uses ModelIdentity for prefix-free model identifiers.
 
 import Foundation
 import Observation
+
+// MARK: - Unified Error Type
+
+enum RepositoryError: LocalizedError {
+	case engineUnavailable
+	case searchFailed(String)
+	case loadFailed(String)
+	case noResults
+
+	var errorDescription: String? {
+		switch self {
+		case .engineUnavailable:
+			return StringKey.engineNotAvailable.l
+		case .searchFailed(let msg):
+			return "\(StringKey.modelSearchNoResults.l): \(msg)"
+		case .loadFailed(let msg):
+			return "\(StringKey.modelLoadError.l): \(msg)"
+		case .noResults:
+			return StringKey.modelSearchNoResults.l
+		}
+	}
+}
 
 // MARK: - Unified Model Manager
 
