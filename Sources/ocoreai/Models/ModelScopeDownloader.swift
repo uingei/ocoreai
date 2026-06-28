@@ -71,16 +71,10 @@
 
 			// 2. Check cache — if files matching all patterns exist and !useLatest, return early
 			if !useLatest, let existingFiles = try? listLocalFiles(in: cacheDir),
-			   let _ = firstMissingPattern(patterns, in: existingFiles)
+			   firstMissingPattern(patterns, in: existingFiles) == nil
 			{
-				// Only skip if ALL patterns have at least one match
-				let allSatisfied = patterns.allSatisfy { pattern in
-					existingFiles.contains { matchesGlob($0, pattern) }
-				}
-				if allSatisfied {
-					return cacheDir
-				}
-				// Some patterns present — proceed with partial download (only download missing)
+				// All patterns satisfied — skip download
+				return cacheDir
 			}
 
 			// 3. Fetch file tree from ModelScope

@@ -112,7 +112,15 @@
 			let hfCache = baseDir
 				.appendingPathComponent("org.ml-explore.mlx-swift-lm")
 				.appendingPathComponent(repoId)
-			return FileManager.default.fileExists(atPath: hfCache.path)
+			// Must have at least one safetensors file to be considered "downloaded"
+			guard FileManager.default.fileExists(atPath: hfCache.path),
+			          let files = try? FileManager.default.contentsOfDirectory(
+			                  at: hfCache, includingPropertiesForKeys: nil
+			          )
+			else {
+				return false
+			}
+			return files.contains { $0.pathExtension == "safetensors" }
 		}
 		
 		guard FileManager.default.fileExists(atPath: cacheRoot.path),
@@ -264,7 +272,7 @@
 					OcoreaiDownloadProgress.shared.start(modelId: progressKey)
 				}
 				// ProgressHandler: synchronous Sendable context — fire-and-forget to MainActor
-				let msDownloader = ModelScopeDownloader()
+				let msDownloader = ModelScopeDownloader(token: modelScopeToken)
 				let directory = try await msDownloader.download(
 					id: repoId, revision: nil, matching: ["*.safetensors", "*.json", "*.jinja"], useLatest: false,
 					progressHandler: { [progressKey] progress in
