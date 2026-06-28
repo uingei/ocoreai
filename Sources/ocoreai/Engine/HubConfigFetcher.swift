@@ -38,7 +38,7 @@ enum HubConfigFetcher {
 			logger.warning("Invalid ModelScope config URL for \(repoId)")
 			return nil
 		}
-		return await fetchConfig(url: url, repoId: repoId, logger: logger, isModelScope: false)
+		return await fetchConfig(url: url, repoId: repoId, logger: logger, isModelScope: true)
 	}
 
 	// MARK: - Internal
