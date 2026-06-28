@@ -99,7 +99,9 @@ final actor ModelScopeSearchClient {
 		page: Int = 1,
 		pageSize: Int = 20,
 	) async throws -> (models: [MSHubModel], totalCount: Int) {
-		// Python SDK uses PUT for list_models - unusual but real.
+		// Python SDK (modelscope 1.x) uses PUT for list_models — unusual but real.
+		// Search parameter is "Name" (model name substring), NOT "Path" (org path field).
+		// Reference: references/omlx/omlx/admin/ms_downloader.py::_fetch_ms_models_rest
 		let url = URL(string: "\(baseURL)/api/v1/models")!
 		var request = URLRequest(url: url)
 		request.httpMethod = "PUT"
@@ -109,7 +111,7 @@ final actor ModelScopeSearchClient {
 		}
 
 		let body: [String: Any] = [
-			"Path": keyword,
+			"Name": keyword,
 			"PageNumber": page,
 			"PageSize": min(pageSize, 100),
 		]
