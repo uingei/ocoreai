@@ -29,10 +29,11 @@ struct ChatBubbleMessage: Identifiable, Hashable {
 
 struct ChatView: View {
 	@State private var chatState: ChatState
+	// Unified model manager — replaces local models array + separate repositoryState
+	@State private var modelManager: ModelManager
 	@Environment(\.ocoreaiTheme) private var theme
 	@State private var inputText = ""
 	@State private var currentModel = ""
-	@State private var models: [String] = []
 	@State private var activeTask: Task<Void, Never>? = nil
 
 	// Model search + load entry point
@@ -43,6 +44,7 @@ struct ChatView: View {
 
 	init() {
 		_chatState = State(initialValue: ChatState())
+		_modelManager = State(initialValue: ModelManager())
 	}
 
 	private var isStreaming: Bool {
@@ -53,14 +55,15 @@ struct ChatView: View {
 		chatState.connected
 	}
 
+	private var models: [String] {
+		modelManager.modelIdStrings()
+	}
+
 	var body: some View {
 		VStack(spacing: 0) {
 			chatHeader
+			Divider().accessibilityHidden(true)
 			messageList
-			if !chatState.responseText.isEmpty {
-				streamingPreview
-			}
-			// Multimodal panel — collapsible, below messages above input
 			if showMultimodal {
 				Divider().accessibilityHidden(true)
 				MultimodalControls()
@@ -74,9 +77,13 @@ struct ChatView: View {
 		// omlx .task{} lifecycle: start health polling + load models
 		.task {
 			chatState.start()
-			let ids = await chatState.loadModels()
-			if ids.isEmpty { models = ["local"] } else { models = ids }
-			currentModel = models.first ?? ""
+			await modelManager.loadModels()
+			let idStrings = modelManager.modelIdStrings()
+			if idStrings.isEmpty {
+				currentModel = "local"
+			} else {
+				currentModel = idStrings.first ?? ""
+			}
 		}
 		// omlx lifecycle: stop polling on screen dismissal
 		.onDisappear {
@@ -118,11 +125,10 @@ struct ChatView: View {
 		.sheet(isPresented: $showModelLoader) {
 			NavigationStack {
 				ModelSearchView(
-					chatState: chatState,
-					onModelLoaded: { updated in
-						if !updated.isEmpty {
-							models = updated
-							currentModel = updated.last ?? currentModel
+					modelManager: modelManager,
+					onModelLoaded: { idStrings in
+						if !idStrings.isEmpty {
+							currentModel = idStrings.last ?? currentModel
 						}
 					},
 				)
@@ -229,6 +235,7 @@ struct ChatView: View {
 				.font(.ocoreaiText(14))
 				.foregroundStyle(theme.textSecondary)
 				.multilineTextAlignment(.center)
+				.padding()
 
 			LazyVStack(spacing: 8) {
 				suggestionChip("Explain MLX tensor operations")
@@ -261,42 +268,13 @@ struct ChatView: View {
 	// MARK: - Input Bar
 
 	private var inputBar: some View {
-		VStack(spacing: 6) {
-			// Multimodal toggle
+		HStack(spacing: 10) {
 			Button {
-				withAnimation { showMultimodal.toggle() }
+				showMultimodal.toggle()
 			} label: {
-				HStack(spacing: 4) {
-					Image(systemName: "eye.and.ear.and.hands")
-						.font(.caption)
-					Image(systemName: showMultimodal ? "chevron.up" : "chevron.down")
-						.font(.caption2)
-						.foregroundStyle(theme.textTertiary)
-				}
-				.foregroundStyle(theme.textSecondary)
-				.padding(.horizontal, 14)
-				.padding(.vertical, 4)
-				.background(theme.inputBg)
-				.clipShape(Capsule())
-			}
-			.buttonStyle(.plain)
-			.accessibilityLabel(StringKey.multimodalToggleLabel.l)
-			.accessibilityHint(StringKey.multimodalToggleHint.l)
-
-			// Actual input row
-			HStack(spacing: 10) {
-			Button {
-				// Voice input — transcribe speech to text
-				Task {
-					let text = await AudioIO.shared.transcribe()
-					if let t = text, !t.isEmpty {
-						inputText = t
-					}
-				}
-			} label: {
-				Image(systemName: "waveform.circle.fill")
+				Image(systemName: "waveform")
 					.font(.title3)
-					.foregroundStyle(theme.textSecondary)
+					.foregroundStyle(showMultimodal ? theme.accent : theme.textSecondary)
 			}
 			.accessibilityLabel(StringKey.voiceInputLabel.l)
 			.accessibilityHint(StringKey.voiceInputHint.l)
@@ -329,9 +307,8 @@ struct ChatView: View {
 			.accessibilityHint(isStreaming ? StringKey.stopStreamingHint.l : StringKey.sendMessageHint.l)
 			.disabled(isStreaming && inputText.trimmingCharacters(in: .whitespaces).isEmpty)
 		}
+		.padding()
 	}
-	.padding()
-}
 
 	// MARK: - Actions
 
@@ -452,9 +429,9 @@ struct ChatHeader: View {
 
 /// Standalone view for the model search/load sheet.
 /// Provides: search bar → HF Hub results → tap to load → loading indicator → auto-close on success.
-/// Uses shared ModelRepositoryState for search/download (see ModelRepositoryState.swift).
+/// Uses shared ModelManager for search/download (see ModelManager.swift).
 struct ModelSearchView: View {
-	@State private var repositoryState: ModelRepositoryState
+	@State private var modelManager: ModelManager
 	@State private var directModelId = ""
 	@State private var showDirectEntry = false
 	let onModelLoaded: ([String]) -> Void
@@ -462,8 +439,8 @@ struct ModelSearchView: View {
 	@Environment(\.dismiss) private var dismiss
 	@Environment(\.ocoreaiTheme) private var theme
 
-	init(chatState: ChatState, onModelLoaded: @escaping ([String]) -> Void) {
-		_repositoryState = State(initialValue: ModelRepositoryState())
+	init(modelManager: ModelManager, onModelLoaded: @escaping ([String]) -> Void) {
+		_modelManager = State(initialValue: modelManager)
 		self.onModelLoaded = onModelLoaded
 	}
 
@@ -476,10 +453,9 @@ struct ModelSearchView: View {
 					if !directModelId.isEmpty {
 						Button(StringKey.modelSearchLoad.l) {
 							Task {
-								let updated = await repositoryState.load(directModelId)
-								if updated {
-									await repositoryState.refreshLocalModels()
-									onModelLoaded(repositoryState.localModels.map { $0.id })
+								let ok = await modelManager.load(directModelId)
+								if ok {
+									onModelLoaded(modelManager.modelIdStrings())
 									dismiss()
 								}
 							}
@@ -490,7 +466,7 @@ struct ModelSearchView: View {
 
 			// Hub source selector
 			Section(StringKey.modelSearchHubSource.l) {
-				Picker(StringKey.modelSearchSelectHub.l, selection: $repositoryState.selectedSource) {
+				Picker(StringKey.modelSearchSelectHub.l, selection: $modelManager.selectedSource) {
 					ForEach(HubSource.allCases, id: \.self) { source in
 						Text(source.rawValue).tag(source)
 					}
@@ -501,13 +477,13 @@ struct ModelSearchView: View {
 			// Search section
 			Section {
 				SearchBar(
-					text: $repositoryState.searchQuery,
-					placeholder: repositoryState.selectedSource == .huggingFace ? StringKey.modelSearchHFHub.l : StringKey.modelSearchModelScope.l,
+					text: $modelManager.searchQuery,
+					placeholder: modelManager.selectedSource == .huggingFace ? StringKey.modelSearchHFHub.l : StringKey.modelSearchModelScope.l,
 				) { query in
-					Task { await repositoryState.search(query) }
+					Task { await modelManager.search(query) }
 				}
 
-				if repositoryState.isSearching {
+				if modelManager.isSearching {
 					HStack {
 						ProgressView()
 						Text(StringKey.modelSearchSearching.l)
@@ -519,16 +495,15 @@ struct ModelSearchView: View {
 			}
 
 			// HF Results
-			if !repositoryState.hfResults.isEmpty, repositoryState.selectedSource == .huggingFace {
+			if !modelManager.hfResults.isEmpty, modelManager.selectedSource == .huggingFace {
 				Section(StringKey.modelSearchResults.l) {
 					LazyVStack(spacing: 4) {
-						ForEach(repositoryState.hfResults, id: \.id) { model in
+						ForEach(modelManager.hfResults, id: \.id) { model in
 							Button {
 								Task {
-									let ok = await repositoryState.load(model.id)
+									let ok = await modelManager.load(model.id)
 									if ok {
-										await repositoryState.refreshLocalModels()
-										onModelLoaded(repositoryState.localModels.map { $0.id })
+										onModelLoaded(modelManager.modelIdStrings())
 										dismiss()
 									}
 								}
@@ -544,16 +519,15 @@ struct ModelSearchView: View {
 			}
 
 			// MS Results
-			if !repositoryState.msResults.isEmpty, repositoryState.selectedSource == .modelScope {
+			if !modelManager.msResults.isEmpty, modelManager.selectedSource == .modelScope {
 				Section(StringKey.modelSearchResults.l) {
 					LazyVStack(spacing: 4) {
-						ForEach(repositoryState.msResults, id: \.path) { model in
+						ForEach(modelManager.msResults, id: \.path) { model in
 							Button {
 								Task {
-									let ok = await repositoryState.load(model.path)
+									let ok = await modelManager.load(model.path)
 									if ok {
-										await repositoryState.refreshLocalModels()
-										onModelLoaded(repositoryState.localModels.map { $0.id })
+										onModelLoaded(modelManager.modelIdStrings())
 										dismiss()
 									}
 								}
@@ -569,12 +543,12 @@ struct ModelSearchView: View {
 			}
 
 			// Currently loading
-			if repositoryState.isDownloading {
+			if modelManager.isDownloading {
 				Section(StringKey.modelSearchLoading.l) {
 					HStack {
 						ProgressView()
 						VStack(alignment: .leading) {
-							Text(repositoryState.downloadingModelId)
+							Text(modelManager.downloadingModelId)
 								.font(.ocoreaiText(13, weight: .medium))
 								.lineLimit(1)
 							Text(StringKey.modelSearchLoading.l)
@@ -588,8 +562,8 @@ struct ModelSearchView: View {
 			}
 
 			// Errors — unified OcoreaiErrorBanner
-			if let error = repositoryState.currentError {
-				OcoreaiErrorBanner(error: error) { repositoryState.currentError = nil }
+			if let error = modelManager.currentError {
+				OcoreaiErrorBanner(error: error) { modelManager.currentError = nil }
 			}
 		}
 		.navigationTitle(StringKey.modelSearchTitle.l)

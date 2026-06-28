@@ -3,25 +3,20 @@
 /// ModelView — model management: load, switch, quantize with inline search
 /// Fast Path: reads directly from EnginePool (no HTTP)
 /// @Observable pattern. i18n via StringKey. Accessibility: full VoiceOver.
-/// Search/download delegated to shared ModelRepositoryState (see ModelRepositoryState.swift).
-/// Local model list still uses ModelsState for sampling-config merging from SettingsStore.
+/// Search/download + local model list delegated to shared ModelManager (see ModelManager.swift).
 
 import SwiftUI
 
 struct ModelView: View {
-	// Local models — ModelsState handles sampling config merge from SettingsStore
-	@State private var modelsState: ModelsState
+	// Unified model manager — search/download + local models + sampling config merge
+	@State private var modelManager: ModelManager
 	@State private var showParamsSheet = false
 	@State private var editingModelId: String = ""
-
-	// Search/download — shared ModelRepositoryState replaces the 3 separate implementations
-	@State private var repositoryState: ModelRepositoryState
 
 	@Environment(\.ocoreaiTheme) private var theme
 
 	init() {
-		_modelsState = State(initialValue: ModelsState())
-		_repositoryState = State(initialValue: ModelRepositoryState())
+		_modelManager = State(initialValue: ModelManager())
 	}
 
 	var body: some View {
@@ -36,8 +31,8 @@ struct ModelView: View {
 				searchResultsView
 
 				// 错误 — unified OcoreaiErrorBanner
-				if let error = repositoryState.currentError {
-					OcoreaiErrorBanner(error: error) { repositoryState.currentError = nil }
+				if let error = modelManager.currentError {
+					OcoreaiErrorBanner(error: error) { modelManager.currentError = nil }
 				}
 
 				// 本地模型
@@ -47,7 +42,7 @@ struct ModelView: View {
 		.formStyle(.grouped)
 		.background(theme.windowBg)
 		.task {
-			await modelsState.fetchModels()
+			await modelManager.loadModels()
 		}
 		.sheet(isPresented: $showParamsSheet) {
 			ModelParamsView(modelId: editingModelId)
@@ -58,7 +53,7 @@ struct ModelView: View {
 	@ViewBuilder
 	private var searchBoxCard: some View {
 		// Form 环境下直接放内容，不需要额外 Section（外层已有 Section）
-		Picker(StringKey.modelSearchSelectHub.l, selection: $repositoryState.selectedSource) {
+		Picker(StringKey.modelSearchSelectHub.l, selection: $modelManager.selectedSource) {
 			ForEach(HubSource.allCases, id: \.self) { s in
 				Text(s.rawValue).tag(s)
 			}
@@ -66,21 +61,21 @@ struct ModelView: View {
 		.pickerStyle(.segmented).frame(maxWidth: .infinity)
 
 		TextField(
-			repositoryState.selectedSource == .huggingFace
+			modelManager.selectedSource == .huggingFace
 				? StringKey.modelSearchHFHub.l
 				: StringKey.modelSearchModelScope.l,
 			text: Binding<String>(
-				get: { repositoryState.searchQuery },
-				set: { repositoryState.searchQuery = $0 },
+				get: { modelManager.searchQuery },
+				set: { modelManager.searchQuery = $0 },
 			),
 		)
 		.disableAutocorrection(true)
 		.onSubmit {
-			Task { await repositoryState.search(repositoryState.searchQuery) }
+			Task { await modelManager.search(modelManager.searchQuery) }
 		}
 
 		// macOS Form intercepts .onSubmit for row navigation — use a button as the primary trigger
-		Button(action: { Task { await repositoryState.search(repositoryState.searchQuery) } }) {
+		Button(action: { Task { await modelManager.search(modelManager.searchQuery) } }) {
 			Image(systemName: "magnifyingglass").font(.ocoreaiText(12))
 		}
 		.buttonStyle(.borderedProminent)
@@ -88,7 +83,7 @@ struct ModelView: View {
 		.frame(width: 80)
 		.accessibilityLabel(StringKey.modelSearchSearching.l)
 
-		if repositoryState.isSearching {
+		if modelManager.isSearching {
 			HStack {
 				ProgressView()
 				Text(StringKey.modelSearchSearching.l).foregroundStyle(theme.textSecondary)
@@ -99,15 +94,15 @@ struct ModelView: View {
 
 	@ViewBuilder
 	private var searchResultsView: some View {
-		let hasResults = !repositoryState.hfResults.isEmpty || !repositoryState.msResults.isEmpty
-		let hasQuery = !repositoryState.searchQuery.isEmpty
+		let hasResults = !modelManager.hfResults.isEmpty || !modelManager.msResults.isEmpty
+		let hasQuery = !modelManager.searchQuery.isEmpty
 
 		if hasQuery || hasResults {
-			if repositoryState.isSearching {
+			if modelManager.isSearching {
 				searchingPlaceholder
-			} else if repositoryState.selectedSource == .huggingFace, !repositoryState.hfResults.isEmpty {
+			} else if modelManager.selectedSource == .huggingFace, !modelManager.hfResults.isEmpty {
 				hfResultView
-			} else if repositoryState.selectedSource == .modelScope, !repositoryState.msResults.isEmpty {
+			} else if modelManager.selectedSource == .modelScope, !modelManager.msResults.isEmpty {
 				msResultView
 			} else if hasResults {
 				// Results from previous search, show them
@@ -128,16 +123,16 @@ struct ModelView: View {
 
 	@ViewBuilder
 	private var fallbackResultView: some View {
-		if !repositoryState.hfResults.isEmpty {
+		if !modelManager.hfResults.isEmpty {
 			hfResultView
-		} else if !repositoryState.msResults.isEmpty {
+		} else if !modelManager.msResults.isEmpty {
 			msResultView
 		}
 	}
 
 	private var hfResultView: some View {
 		LazyVStack(spacing: 8) {
-			ForEach(Array(repositoryState.hfResults.prefix(20).enumerated()), id: \.offset) { _, model in
+			ForEach(Array(modelManager.hfResults.prefix(20).enumerated()), id: \.offset) { _, model in
 				resultRow(display: model.id, sub: model.pipelineTag ?? "", modelId: model.id)
 			}
 		}
@@ -145,7 +140,7 @@ struct ModelView: View {
 
 	private var msResultView: some View {
 		LazyVStack(spacing: 8) {
-			ForEach(Array(repositoryState.msResults.prefix(20).enumerated()), id: \.offset) { _, model in
+			ForEach(Array(modelManager.msResults.prefix(20).enumerated()), id: \.offset) { _, model in
 				resultRow(display: model.path, sub: String(model.stars), modelId: model.path)
 			}
 		}
@@ -162,20 +157,20 @@ struct ModelView: View {
 				Text(sub).font(.caption).foregroundStyle(theme.textTertiary)
 			}
 			Spacer()
-			if repositoryState.downloadingModelId == modelId {
+			if modelManager.downloadingModelId == modelId {
 				ProgressView()
 			} else {
 				Button {
 					Task {
-						let ok = await repositoryState.load(modelId)
+						let ok = await modelManager.load(modelId)
 						if ok {
-							await modelsState.fetchModels()
+							await modelManager.refreshLocalModels()
 						}
 					}
 				} label: {
 					Image(systemName: "arrow.down.circle.fill").font(.title3).foregroundStyle(theme.accent)
 				}
-				.disabled(repositoryState.isDownloading)
+				.disabled(modelManager.isDownloading)
 			}
 		}
 		.padding(10).modifier(theme.cardStyle())
@@ -191,14 +186,12 @@ struct ModelView: View {
 
 	@ViewBuilder
 	private var localModelsView: some View {
-		if modelsState.state.isLoading {
-			LoadingStateView(message: StringKey.loadingModels.l)
-		} else if modelsState.state.data?.isEmpty == true {
+		if modelManager.localModels.isEmpty {
 			emptyState
-		} else if let models = modelsState.state.data {
+		} else {
 			Text(StringKey.sectionModels.l).font(.ocoreaiText(13)).foregroundStyle(theme.textTertiary).bold()
 			LazyVStack(spacing: 8) {
-				ForEach(models, id: \.id) { model in
+				ForEach(modelManager.localModels, id: \.id) { model in
 					LiveModelCard(model: model) {
 						editingModelId = model.id
 						showParamsSheet = true

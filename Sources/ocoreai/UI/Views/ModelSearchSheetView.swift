@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// Model search sheet — reusable from ModelView and DashboardView.
-/// Uses shared ModelRepositoryState for search/download (see ModelRepositoryState.swift).
+/// Uses shared ModelManager for search/download (see ModelManager.swift).
 /// Previous ModelSearchState class removed — its search/load/download logic
 /// was duplicated across three views and has been consolidated.
 
@@ -9,7 +9,7 @@ import Observation
 import SwiftUI
 
 struct ModelSearchSheetView: View {
-	@State private var repositoryState: ModelRepositoryState
+	@State private var modelManager: ModelManager
 	// Local binding for TextField — avoids macOS Form + @Observable dynamic member focus leak
 	@State private var searchQueryLocal = ""
 	// Download progress — weak reference to the @Observable shared instance
@@ -20,7 +20,7 @@ struct ModelSearchSheetView: View {
 
 	var body: some View {
 		onChange(of: searchQueryLocal) { _, newValue in
-			repositoryState.searchQuery = newValue
+			modelManager.searchQuery = newValue
 		}
 		NavigationStack {
 			Form {
@@ -34,20 +34,20 @@ struct ModelSearchSheetView: View {
 				searchSection
 
 				// ④ Results
-				if !repositoryState.hfResults.isEmpty, repositoryState.selectedSource == .huggingFace {
+				if !modelManager.hfResults.isEmpty, modelManager.selectedSource == .huggingFace {
 					hfResultsSection
 				}
-				if !repositoryState.msResults.isEmpty, repositoryState.selectedSource == .modelScope {
+				if !modelManager.msResults.isEmpty, modelManager.selectedSource == .modelScope {
 					msResultsSection
 				}
 
 				// ⑤ Currently loading
-				if repositoryState.isDownloading {
+				if modelManager.isDownloading {
 					Section(StringKey.modelSearchLoading.l) {
 						HStack {
 							ProgressView()
 							VStack(alignment: .leading) {
-								Text(repositoryState.downloadingModelId)
+								Text(modelManager.downloadingModelId)
 									.font(.ocoreaiText(13, weight: .medium))
 									.lineLimit(1)
 								Text(StringKey.modelSearchLoading.l)
@@ -61,8 +61,8 @@ struct ModelSearchSheetView: View {
 				}
 
 				// ⑥ Error — unified OcoreaiErrorBanner
-				if let error = repositoryState.currentError {
-					OcoreaiErrorBanner(error: error) { repositoryState.currentError = nil }
+				if let error = modelManager.currentError {
+					OcoreaiErrorBanner(error: error) { modelManager.currentError = nil }
 				}
 			}
 			.navigationTitle(StringKey.tabModels.l)
@@ -71,11 +71,11 @@ struct ModelSearchSheetView: View {
 					Button(StringKey.modelSearchDismiss.l) {
 						dismiss()
 					}
-					.disabled(repositoryState.isDownloading)
+					.disabled(modelManager.isDownloading)
 				}
 			}
 			.task {
-				await repositoryState.refreshLocalModels()
+				await modelManager.refreshLocalModels()
 			}
 		}
 	}
@@ -84,7 +84,7 @@ struct ModelSearchSheetView: View {
 
 	@ViewBuilder
 	private var localModelsSection: some View {
-		if repositoryState.localModels.isEmpty {
+		if modelManager.localModels.isEmpty {
 			Section {
 				HStack {
 					Image(systemName: "cpu")
@@ -97,7 +97,7 @@ struct ModelSearchSheetView: View {
 			}
 		} else {
 			Section(header: Text(StringKey.sectionModels.l)) {
-				ForEach(repositoryState.localModels, id: \.id) { model in
+				ForEach(modelManager.localModels, id: \.id) { model in
 					HStack {
 						Text(model.id)
 							.lineLimit(1)
@@ -116,7 +116,7 @@ struct ModelSearchSheetView: View {
 
 	private var hubToggleSection: some View {
 		Section(header: Text(StringKey.modelSearchHubSource.l)) {
-			Picker(StringKey.modelSearchSelectHub.l, selection: $repositoryState.selectedSource) {
+			Picker(StringKey.modelSearchSelectHub.l, selection: $modelManager.selectedSource) {
 				ForEach(HubSource.allCases, id: \.self) { source in
 					Text(source.rawValue).tag(source)
 				}
@@ -130,19 +130,19 @@ struct ModelSearchSheetView: View {
 	private var searchSection: some View {
 		Section {
 			TextField(
-				repositoryState.selectedSource == .huggingFace
+				modelManager.selectedSource == .huggingFace
 					? StringKey.modelSearchHFHub.l
 					: StringKey.modelSearchModelScope.l,
 				text: $searchQueryLocal,
 			)
 			.textFieldStyle(.plain)
 			.onSubmit {
-				repositoryState.searchQuery = searchQueryLocal
-				Task { await repositoryState.search(searchQueryLocal) }
+				modelManager.searchQuery = searchQueryLocal
+				Task { await modelManager.search(searchQueryLocal) }
 			}
 			.disableAutocorrection(true)
 
-			if repositoryState.isSearching {
+			if modelManager.isSearching {
 				HStack {
 					ProgressView()
 					Text(StringKey.modelSearchSearching.l)
@@ -158,7 +158,7 @@ struct ModelSearchSheetView: View {
 
 	private var hfResultsSection: some View {
 		Section(header: Text(StringKey.modelSearchResults.l)) {
-			ForEach(repositoryState.hfResults.prefix(15), id: \.id) { model in
+			ForEach(modelManager.hfResults.prefix(15), id: \.id) { model in
 				resultRow(id: model.id, label: model.id, sub: model.pipelineTag)
 			}
 		}
@@ -168,7 +168,7 @@ struct ModelSearchSheetView: View {
 
 	private var msResultsSection: some View {
 		Section(header: Text(StringKey.modelSearchResults.l)) {
-			ForEach(repositoryState.msResults.prefix(15), id: \.id) { model in
+			ForEach(modelManager.msResults.prefix(15), id: \.id) { model in
 				resultRow(id: model.path, label: model.path, sub: model.tasks.first)
 			}
 		}
@@ -216,14 +216,14 @@ struct ModelSearchSheetView: View {
 		} else {
 			Button(StringKey.modelSearchLoad.l) {
 				Task {
-					let ok = await repositoryState.load(modelId)
+					let ok = await modelManager.load(modelId)
 					if ok {
-						await repositoryState.refreshLocalModels()
+						// ModelManager.load already refreshes local models internally
 						dismiss()
 					}
 				}
 			}
-			.disabled(repositoryState.isDownloading)
+			.disabled(modelManager.isDownloading)
 		}
 	}
 }
