@@ -89,11 +89,10 @@ final actor ModelScopeSearchClient {
 	/// Search models by keyword.
 	///
 	/// - Parameters:
-	///   - keyword: Search term - matched against model name, owner, description.
-	///             Pass empty string to list all public models.
+	///   - keyword: Search term. Supports full paths like "org/model" — the
+	///              model name part will be extracted for the API call.
 	///   - page: Page number (1-based).
 	///   - pageSize: Number of results per page (default 20, max 100).
-	/// - Returns: Tuple of (models, totalCount).
 	func search(
 		keyword: String,
 		page: Int = 1,
@@ -102,6 +101,15 @@ final actor ModelScopeSearchClient {
 		// Python SDK (modelscope 1.x) uses PUT for list_models — unusual but real.
 		// Search parameter is "Name" (model name substring), NOT "Path" (org path field).
 		// Reference: references/omlx/omlx/admin/ms_downloader.py::_fetch_ms_models_rest
+		//
+		// When the user types a full path like "org/model", the API can only filter
+		// by the model name — "Path" is an org-level field, not searchable by name.
+		let searchName: String = if keyword.contains("/") {
+			keyword.components(separatedBy: "/").last ?? keyword
+		} else {
+			keyword
+		}
+
 		let url = URL(string: "\(baseURL)/api/v1/models")!
 		var request = URLRequest(url: url)
 		request.httpMethod = "PUT"
@@ -111,7 +119,7 @@ final actor ModelScopeSearchClient {
 		}
 
 		let body: [String: Any] = [
-			"Name": keyword,
+			"Name": searchName,
 			"PageNumber": page,
 			"PageSize": min(pageSize, 100),
 		]
