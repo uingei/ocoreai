@@ -165,32 +165,3 @@ actor MessageBuilder {
 		return messages
 	}
 }
-
-// MARK: - ChatHandler Compatibility
-
-/// Extension to keep ChatHandler.swift compile-compatible — delegates to MessageBuilder.
-///
-/// TODO: Remove this once ChatHandler is fully refactored to use MessageBuilder directly.
-extension MessageBuilder {
-	/// Legacy wrapper matching the old ChatHandler signature.
-	///
-	/// - Parameters:
-	///   - request: Chat completion request
-	///   - systemPromptBuilder: System prompt assembly actor
-	///   - sessionCompressor: Session persistence actor
-	/// - Returns: Ordered ``Message`` array
-	func buildMessageList(
-		request: ChatCompletionRequest,
-		systemPromptBuilder _: SystemPromptBuilder,
-		sessionCompressor _: SessionCompressor,
-	) async throws -> [Message] {
-		let ctx = MessageBuilderContext(
-			modelId: request.model,
-			rawMessages: request.messages,
-			userSystemPrompt: request.system,
-			tools: request.tools,
-			sessionId: request.sessionID ?? UUID().uuidString,
-		)
-		return try await buildMessages(context: ctx)
-	}
-}

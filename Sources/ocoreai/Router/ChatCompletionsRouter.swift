@@ -74,6 +74,7 @@ func buildRouter(
 	sessionCompressor: SessionCompressor,
 	mcpBridge: MCPBridge,
 	systemPromptBuilder: SystemPromptBuilder,
+	messageBuilder: MessageBuilder,
 	logger: Logger,
 	authMiddleware: AuthMiddleware<OCoreAIContext>,
 	rateLimitMiddleware: RateLimitMiddleware<OCoreAIContext>,
@@ -153,7 +154,7 @@ func buildRouter(
 			scheduler: scheduler,
 			metrics: metrics,
 			sessionCompressor: sessionCompressor,
-			systemPromptBuilder: systemPromptBuilder,
+			messageBuilder: messageBuilder,
 			logger: logger,
 		)
 	}

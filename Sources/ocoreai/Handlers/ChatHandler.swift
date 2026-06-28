@@ -36,13 +36,7 @@ import HTTPTypes
 import Hummingbird
 import Logging
 
-// MARK: - Adaptive Reasoning (三思而后行)
 
-/// Per-session complexity analyzer — adaptive thinking budget.
-private let complexityAnalyzer = ComplexityAnalyzer()
-
-/// Thinking budget manager — scaffolding injection + adaptive calibration.
-private let thinkingBudget = ThinkingBudget()
 
 // MARK: - Self-Correction Integration
 
@@ -126,7 +120,7 @@ private func buildCorrectedMessages(
 ///   - scheduler: Request scheduler with OOMGuard + priority queue
 ///   - metrics: Shared metrics registry (Prometheus-compatible)
 ///   - sessionCompressor: Session persistence layer
-///   - systemPromptBuilder: System prompt assembly (skills injection)
+///   - messageBuilder: Shared message assembly (Fast Path + Bridge Path)
 ///   - logger: Observability logger
 /// - Returns: HTTP Response (SSE stream or JSON completion)
 func chatCompletionsHandler(
@@ -135,7 +129,7 @@ func chatCompletionsHandler(
 	scheduler: SchedulerActor,
 	metrics: MetricsRegistry,
 	sessionCompressor: SessionCompressor,
-	systemPromptBuilder: SystemPromptBuilder,
+	messageBuilder: MessageBuilder,
 	logger: Logger,
 ) async throws -> Response {
 	/// Extract model identifier from the request payload.
@@ -189,10 +183,14 @@ func chatCompletionsHandler(
 	}
 
 	/// Phase 2: Build complete message list including system prompt + tool info injection.
-	let fullMessages = try await buildMessageList(
-		request: request, handle: handle, systemPromptBuilder: systemPromptBuilder,
-		sessionCompressor: sessionCompressor,
-	)
+	/// Delegates to shared MessageBuilder (same logic as Fast Path UI) to avoid duplication.
+	let fullMessages = try await messageBuilder.buildMessages(context: MessageBuilderContext(
+		modelId: modelId,
+		rawMessages: request.messages,
+		userSystemPrompt: request.system,
+		tools: request.tools,
+		sessionId: request.sessionID ?? UUID().uuidString,
+	))
 
 	/// Phase 3: Tokenize messages for prompt token count.
 	/// (Token count needed for metrics; actual inference passes messages directly on MLX path.)
@@ -287,112 +285,6 @@ func chatCompletionsHandler(
 			metrics: metrics,
 		)
 	}
-}
-
-// MARK: - Message Construction
-
-/// Build complete message list including system prompt and tool definitions.
-///
-/// Injects two elements before user messages:
-/// 1. System prompt from ``request/system`` (highest priority, prepended)
-/// 2. Tool definitions as formatted markdown in system message
-///
-/// - Parameters:
-///   - request: Chat completion request with messages and optional tools
-///   - handle: Engine handle (for model metadata)
-/// - Returns: Ordered ``Message`` array ready for tokenization
-/// - Throws: ``AppError.invalidRequest`` if validation fails
-private func buildMessageList(
-	request: ChatCompletionRequest,
-	handle _: EngineHandle,
-	systemPromptBuilder: SystemPromptBuilder,
-	sessionCompressor: SessionCompressor,
-) async throws -> [Message] {
-	var messages = request.messages
-
-	/// Inject skill-based system prompt from SystemPromptBuilder.
-	let builtSystemPrompt = await systemPromptBuilder.buildSystemPrompt()
-
-	/// Recall permanent memory — cue-spreading surface related past events.
-	var memoryContext = ""
-	do {
-		let recalled = try await sessionCompressor.recallPermanentMemory(limit: 10)
-		if !recalled.isEmpty {
-			let summaries = recalled.map {
-				"**[\($0.memoryType.rawValue)]** \($0.cause) → \($0.result)"
-			}.joined(separator: "\n")
-			memoryContext = """
-
-			## Recalled Memory
-			The following structured knowledge from past sessions is relevant:
-
-			\(summaries)
-			"""
-		}
-	} catch {
-		// Memory recall failure is non-fatal — proceed without it
-	}
-
-	/// User-provided system prompt takes highest priority.
-	let finalSystem: String = if let userSystem = request.system, !userSystem.isEmpty {
-		userSystem + "\n\n" + builtSystemPrompt + memoryContext
-	} else if !builtSystemPrompt.isEmpty {
-		builtSystemPrompt + memoryContext
-	} else {
-		memoryContext.isEmpty ? "" : memoryContext
-	}
-
-	/// Inject system message (prepended to message array).
-	if !finalSystem.isEmpty {
-		messages.insert(Message(role: "system", content: finalSystem), at: 0)
-	}
-
-	/// Inject tool definitions into system message (if tools present).
-	if let tools = request.tools, !tools.isEmpty {
-		/// Format tool definitions as markdown blocks for the model.
-		let toolDefs = tools.compactMap { tool -> String? in
-			guard let desc = tool.function.description else { return nil }
-			return "## Tool: \(tool.function.name)\nDescription: \(desc)"
-		}.joined(separator: "\n\n")
-
-		if !toolDefs.isEmpty {
-			/// If system message exists, append tool info; otherwise insert new system message.
-			if let firstSystem = messages.firstIndex(where: { $0.role == "system" }) {
-				if case var .text(existingContent) = messages[firstSystem].content {
-					existingContent += "\n\nAvailable tools:\n\(toolDefs)"
-					messages[firstSystem].content = .text(existingContent)
-				}
-			} else {
-				let toolMessage = Message(role: "system", content: "You have access to the following tools:\n\n\(toolDefs)")
-				messages.insert(toolMessage, at: 0)
-			}
-		}
-	}
-
-	/// Guard: message list must not be empty after construction.
-	guard !messages.isEmpty else {
-		throw AppError.invalidRequest("Message list is empty for model '\(request.model)'")
-	}
-
-	/// Inject adaptive reasoning scaffold (三思而后行) — auto-calibrated by input complexity
-	let adaptiveSessionId = request.sessionID ?? "\(UUID().uuidString.prefix(8))"
-	let userMessage = messages.first(where: { $0.role == "user" })?.textContent()
-		?? request.messages.first?.textContent() ?? ""
-	let complexity = await complexityAnalyzer.analyze(
-		input: userMessage,
-		messageCount: max(1, messages.count),
-		sessionId: adaptiveSessionId,
-	)
-	let reasoningScaffold = await thinkingBudget.scaffolding(for: complexity, sessionId: adaptiveSessionId)
-	if !reasoningScaffold.isEmpty {
-		if let sysIdx = messages.firstIndex(where: { $0.role == "system" }) {
-			if case var .text(existingContent) = messages[sysIdx].content {
-				existingContent += "\n\n" + reasoningScaffold
-				messages[sysIdx].content = .text(existingContent)
-			}
-		}
-	}
-	return messages
 }
 
 // MARK: - Tool Call Detection & Parsing

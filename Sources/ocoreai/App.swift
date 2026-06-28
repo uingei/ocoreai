@@ -308,11 +308,12 @@ public final class OcoreaiEngine {
 
 	private func startHTTPServer() {
 		guard let enginePool, let scheduler, let metrics,
-		      let sessionCompressor = _sessionCompressor,
-		      let systemPromptBuilder = _systemPromptBuilder,
-		      let mcpBridge = _mcpBridge,
-		      let _ = _auditTrail,
-		      let _ = _toolRegistry
+			      let sessionCompressor = _sessionCompressor,
+			      let systemPromptBuilder = _systemPromptBuilder,
+			      let messageBuilder = _messageBuilder,
+			      let mcpBridge = _mcpBridge,
+			      let _ = _auditTrail,
+			      let _ = _toolRegistry
 		else { return }
 
 		let rateLimitProvider = RateLimitProvider(
@@ -359,6 +360,7 @@ public final class OcoreaiEngine {
 					sessionCompressor: sessionCompressor,
 					mcpBridge: mcpBridge,
 					systemPromptBuilder: systemPromptBuilder,
+					messageBuilder: messageBuilder,
 					logger: logger,
 					authMiddleware: authMiddleware,
 					rateLimitMiddleware: rateLimitMiddleware,
@@ -446,6 +448,7 @@ func buildApplication(
 	sessionCompressor: SessionCompressor,
 	mcpBridge: MCPBridge,
 	systemPromptBuilder: SystemPromptBuilder,
+	messageBuilder: MessageBuilder,
 	logger: Logger,
 	authMiddleware: AuthMiddleware<OCoreAIContext>,
 	rateLimitMiddleware: RateLimitMiddleware<OCoreAIContext>,
@@ -459,6 +462,7 @@ func buildApplication(
 		sessionCompressor: sessionCompressor,
 		mcpBridge: mcpBridge,
 		systemPromptBuilder: systemPromptBuilder,
+		messageBuilder: messageBuilder,
 		logger: logger,
 		authMiddleware: authMiddleware,
 		rateLimitMiddleware: rateLimitMiddleware,
