@@ -130,19 +130,31 @@ final class ModelManager {
 	/// Acquire a model from the EnginePool (triggers download if needed), then release.
 	/// Refreshes the local model list afterwards.
 	///
-	/// Optimized flow:
-	/// 1. Check local cache first via MLXModelLoader.isModelCached() (when mlx trait)
-	/// 2. If cached → load directly, skip progress UI
-	/// 3. If not cached → show progress UI then download via EnginePool
+	/// Uses `selectedSource` to determine the Hub source — prevents ModelScope results
+	/// from being routed to HuggingFace due to bare "org/repo" string ambiguity.
 	@discardableResult
 	func load(_ modelId: String) async -> Bool {
+		await load(modelId, hub: selectedSource)
+	}
+
+	/// Acquire a model from the EnginePool with an explicit Hub source override.
+	/// - Parameters:
+	///   - modelId: The raw model ID (with or without prefix)
+	///   - hub: Override Hub source. When nil, ModelIdentity.parse uses its own heuristic.
+	@discardableResult
+	private func load(_ modelId: String, hub: HubSource?) async -> Bool {
 		guard let pool = _enginePool else {
 			currentError = .engineUnavailable
 			return false
 		}
 
-		// Resolve identity — normalizes prefix handling to one place
-		let identity = ModelIdentity.parse(modelId)
+		// Resolve identity with hub override
+		let identity: ModelIdentity
+		if let hub {
+			identity = ModelIdentity.parse(modelId, hub: hub)
+		} else {
+			identity = ModelIdentity.parse(modelId)
+		}
 		let normalizedId = identity.prefixedId
 
 		// Progress key = repoId (no prefix) — aligns UI with MLXBridge callbacks

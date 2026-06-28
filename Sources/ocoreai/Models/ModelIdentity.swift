@@ -84,6 +84,13 @@ struct ModelIdentity: Identifiable, Hashable, Codable, Sendable {
     /// Priority: mscope: prefix > hf:/huggingface: prefix > contains "/" (assumed HF) > local fallback.
     /// This is the ONLY place prefix rules are defined.
     static func parse(_ raw: String) -> ModelIdentity {
+        parse(raw, hub: nil)
+    }
+
+    /// Parse with an optional Hub source override.
+    /// When `hub` is provided and the raw string has no explicit prefix,
+    /// the override decides whether a bare "org/repo" belongs to that Hub.
+    static func parse(_ raw: String, hub: HubSource?) -> ModelIdentity {
         // mscope: prefix → ModelScope
         if raw.hasPrefix("mscope:") {
             let repoId = String(raw.dropFirst(7))
@@ -99,8 +106,11 @@ struct ModelIdentity: Identifiable, Hashable, Codable, Sendable {
             let repoId = String(raw.dropFirst(12))
             return huggingFace(repoId)
         }
-        // Bare "org/repo" → HuggingFace (most common format)
+        // Bare "org/repo" → use hub override if available, else default HF
         if raw.contains("/") && !raw.hasPrefix("/") && !raw.hasPrefix("~/") {
+            if hub == .modelScope {
+                return modelScope(raw)
+            }
             return huggingFace(raw)
         }
         // Absolute or tilde path → local
