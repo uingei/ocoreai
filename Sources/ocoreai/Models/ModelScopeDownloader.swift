@@ -166,27 +166,63 @@
 
 			// Parse ModelScope v2 API response.
 			// Structure: Data.ModelInfos.safetensor.files[].name / .size / .sha256
-			guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-			      let dataObj = json["Data"] as? [String: Any],
-			      let modelInfos = dataObj["ModelInfos"] as? [String: Any],
-			      let safetensor = modelInfos["safetensor"] as? [String: Any],
-			      let filesArray = safetensor["files"] as? [[String: Any]]
-			else {
-				// Unknown response shape — try fallback patterns
-				return [
-					FileInfo(path: "model.safetensors.index.json", size: nil, type: "file"),
-					FileInfo(path: "model-00001-of-00001.safetensors", size: nil, type: "file"),
-					FileInfo(path: "model-00001-of-00002.safetensors", size: nil, type: "file"),
-					FileInfo(path: "model-00002-of-00002.safetensors", size: nil, type: "file"),
-				]
+			var files: [FileInfo] = []
+			if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+			   let dataObj = json["Data"] as? [String: Any],
+			   let modelInfos = dataObj["ModelInfos"] as? [String: Any],
+			   let safetensor = modelInfos["safetensor"] as? [String: Any],
+			   let filesArray = safetensor["files"] as? [[String: Any]] {
+				files = filesArray.compactMap { dict in
+					guard let name = dict["name"] as? String else { return nil }
+					let size = dict["size"] as? Int64
+					return FileInfo(path: name, size: size, type: "file")
+				}
+			}
+		
+			// ModelScope detail API only returns safetensor weights, not tokenizer/config files.
+			// Probe resolve endpoint for essential tokenizer files — if they exist, add them.
+			// MLX requires tokenizer.json for AutoTokenizer.from(modelFolder:)
+			let tokenizerCandidates: [String] = [
+				"tokenizer.json",
+				"tokenizer_config.json",
+				"vocab.json",
+				"merges.txt",
+				"tokenizer.model",
+				"special_tokens_map.json",
+			]
+			let existingPaths = Set(files.map(\.path))
+		
+			for candidate in tokenizerCandidates {
+				if !existingPaths.contains(candidate) {
+					if await resolveExists(path: candidate, repoId: repoId) {
+						files.append(FileInfo(path: candidate, size: nil, type: "file"))
+					}
+				}
+			}
+		
+			return files
 			}
 
-			return filesArray.compactMap { dict in
-				guard let name = dict["name"] as? String else { return nil }
-				let size = dict["size"] as? Int64
-				return FileInfo(path: name, size: size, type: "file")
+			/// Probe whether a file exists via the resolve endpoint (HEAD-like GET with status check).
+			private func resolveExists(path: String, repoId: String) async -> Bool {
+				let endpoint = baseAPI
+					.appendingPathComponent("/models")
+					.appendingPathComponent(repoId)
+					.appendingPathComponent("resolve")
+					.appendingPathComponent("main")
+					.appendingPathComponent(path)
+
+				do {
+					var request = URLRequest(url: endpoint)
+					request.allHTTPHeaderFields = createHeaders()
+					request.timeoutInterval = 5
+					let (_, response) = try await URLSession.shared.data(for: request)
+					let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+					return status == 200 || status == 302
+				} catch {
+					return false
+				}
 			}
-		}
 
 		/// Download a single file from ModelScope.
 		///

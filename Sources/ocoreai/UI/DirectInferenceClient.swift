@@ -206,6 +206,7 @@ extension DirectInferenceClient {
 			messages: fullMessages,
 			sampling: sampling,
 			options: inferenceOpts,
+			conversationId: request.sessionId,
 			cancellation: cancellation,
 		)
 

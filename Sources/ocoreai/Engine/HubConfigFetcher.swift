@@ -34,11 +34,11 @@ enum HubConfigFetcher {
 	/// - Returns: Parsed (vocabSize, maxContextLength) or nil on failure
 	static func fetchModelScopeConfig(repoId: String, logger: Logger) async -> (vocabSize: Int, maxContextLength: Int)? {
 		let encoded = repoId.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed) ?? repoId
-		guard let url = URL(string: "https://www.modelscope.cn/api/v1/models/\(encoded)/files?filename=config.json") else {
+		guard let url = URL(string: "https://www.modelscope.cn/api/v1/models/\(encoded)/resolve/main/config.json") else {
 			logger.warning("Invalid ModelScope config URL for \(repoId)")
 			return nil
 		}
-		return await fetchConfig(url: url, repoId: repoId, logger: logger, isModelScope: true)
+		return await fetchConfig(url: url, repoId: repoId, logger: logger, isModelScope: false)
 	}
 
 	// MARK: - Internal
@@ -79,29 +79,36 @@ enum HubConfigFetcher {
 				return nil
 			}
 			
-			// Extract vocab_size — try Int, then Int64, fallback
-			var vocabSize = config["vocab_size"] as? Int ?? 151_936
-			if vocabSize == 151_936 {
-				if let big = config["vocab_size"] as? Int64 {
-					vocabSize = Int(big)
-				}
-			}
+			// Extract vocab_size — try top-level first, then text_config (Qwen3.5 multimodal), then fallback
+			var vocabSize: Int? = nil
+			if let v = config["vocab_size"] as? Int { vocabSize = v }
+			if vocabSize == nil, let v = config["vocab_size"] as? Int64 { vocabSize = Int(v) }
+			if vocabSize == nil, let textConfig = config["text_config"] as? [String: Any],
+			   let v = textConfig["vocab_size"] as? Int { vocabSize = v }
+			if vocabSize == nil, let textConfig = config["text_config"] as? [String: Any],
+			   let v = textConfig["vocab_size"] as? Int64 { vocabSize = Int(v) }
+			if vocabSize == nil, let textConfig = config["text_config"] as? [String: Any],
+			   let v = textConfig["vocab_size"] as? NSNumber { vocabSize = v.intValue }
+			let finalVocabSize = vocabSize ?? 151_936
 
-			// Extract max_context_length — try multiple key names, fallback
-			var maxContextLength = config["max_context_length"] as? Int
-				?? config["max_position_embeddings"] as? Int
-				?? config["n_ctx"] as? Int
-				?? 131_072
-			if maxContextLength == 131_072 {
-				if let big = config["max_context_length"] as? Int64 {
-					maxContextLength = Int(big)
-				} else if let big = config["max_position_embeddings"] as? Int64 {
-					maxContextLength = Int(big)
+			// Extract max_context_length — try top-level, then text_config, then fallback
+			var maxContextLength: Int? = nil
+			for key in ["max_context_length", "max_position_embeddings", "n_ctx"] {
+				if let v = config[key] as? Int { maxContextLength = v; break }
+				if let v = config[key] as? Int64 { maxContextLength = Int(v); break }
+				if let v = config[key] as? NSNumber { maxContextLength = v.intValue; break }
+			}
+			if maxContextLength == nil, let textConfig = config["text_config"] as? [String: Any] {
+				for key in ["max_context_length", "max_position_embeddings", "n_ctx"] {
+					if let v = textConfig[key] as? Int { maxContextLength = v; break }
+					if let v = textConfig[key] as? Int64 { maxContextLength = Int(v); break }
+					if let v = textConfig[key] as? NSNumber { maxContextLength = v.intValue; break }
 				}
 			}
+			let finalMaxContextLength = maxContextLength ?? 131_072
 			
-			logger.info("Remote config for \(repoId): vocab=\(vocabSize), ctx=\(maxContextLength)")
-			return (vocabSize, maxContextLength)
+			logger.info("Remote config for \(repoId): vocab=\(finalVocabSize), ctx=\(finalMaxContextLength)")
+			return (finalVocabSize, finalMaxContextLength)
 			
 		} catch {
 			logger.warning("Config fetch error for \(repoId): \(error.localizedDescription)")

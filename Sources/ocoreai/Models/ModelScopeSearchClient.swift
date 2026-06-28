@@ -100,7 +100,7 @@ final actor ModelScopeSearchClient {
 		pageSize: Int = 20,
 	) async throws -> (models: [MSHubModel], totalCount: Int) {
 		// Python SDK uses PUT for list_models - unusual but real.
-		let url = URL(string: "\(baseURL)/api/v1/models/")!
+		let url = URL(string: "\(baseURL)/api/v1/models")!
 		var request = URLRequest(url: url)
 		request.httpMethod = "PUT"
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
