@@ -172,6 +172,16 @@ public enum StringKey: String, CaseIterable {
 	case loadingModels = "Models.Loading"
 	case modelLoadError = "Models.LoadError"
 	case modelLoadErrorDesc = "Models.LoadErrorDesc"
+	case modelDeleteError = "Models.DeleteError"
+	case modelDeleteTitle = "Models.DeleteTitle"
+	case modelDeleteConfirm = "Models.DeleteConfirm"
+	case modelDeleteSuccess = "Models.DeleteSuccess"
+	case modelUnload = "Models.Unload"
+	case modelDeleteButton = "Models.DeleteButton"
+	case modelViewDeleteConfirmTitle = "Models.DeleteConfirmTitle"
+	case modelViewDeleteConfirmMessage = "Models.DeleteConfirmMessage"
+	case modelViewDeleteConfirmAction = "Models.DeleteConfirmAction"
+	case modelViewDeleteCancelAction = "Models.DeleteCancelAction"
 
 	// — Multimodal —
 	case multimodalTitle = "Multimodal.Title"
@@ -517,6 +527,16 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.loadingModels: "Loading models...",
 		.modelLoadError: "Load Failed",
 		.modelLoadErrorDesc: "The backend server may be unavailable",
+		.modelDeleteError: "Delete Failed",
+		.modelDeleteTitle: "Model Actions",
+		.modelDeleteConfirm: "This will unload the model and remove cached files from disk.",
+		.modelDeleteSuccess: "Model deleted",
+		.modelUnload: "Unload",
+		.modelDeleteButton: "Delete",
+		.modelViewDeleteConfirmTitle: "Delete Model",
+		.modelViewDeleteConfirmMessage: "This will remove \\(model) from memory and delete all cached files. This cannot be undone.",
+		.modelViewDeleteConfirmAction: "Delete",
+		.modelViewDeleteCancelAction: "Cancel",
 
 		// Multimodal
 		.multimodalTitle: "Multimodal I/O",
@@ -818,6 +838,16 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.loadingModels: "加载模型中…",
 		.modelLoadError: "加载失败",
 		.modelLoadErrorDesc: "推理后端服务器可能不可用",
+		.modelDeleteError: "删除失败",
+		.modelDeleteTitle: "模型操作",
+		.modelDeleteConfirm: "此操作将从内存卸载模型并删除磁盘上的缓存文件。",
+		.modelDeleteSuccess: "模型已删除",
+		.modelUnload: "卸载",
+		.modelDeleteButton: "删除",
+		.modelViewDeleteConfirmTitle: "删除模型",
+		.modelViewDeleteConfirmMessage: "此操作将从内存中移除 %@ 并删除所有缓存文件，无法撤销。",
+		.modelViewDeleteConfirmAction: "删除",
+		.modelViewDeleteCancelAction: "取消",
 
 		// Multimodal
 		.multimodalTitle: "多模态输入/输出",

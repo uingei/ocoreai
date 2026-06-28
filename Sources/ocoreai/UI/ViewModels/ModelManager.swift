@@ -21,6 +21,7 @@ enum RepositoryError: LocalizedError {
 	case engineUnavailable
 	case searchFailed(String)
 	case loadFailed(String)
+	case deleteFailed(String)
 	case noResults
 
 	var errorDescription: String? {
@@ -31,6 +32,8 @@ enum RepositoryError: LocalizedError {
 			return "\(StringKey.modelSearchNoResults.l): \(msg)"
 		case .loadFailed(let msg):
 			return "\(StringKey.modelLoadError.l): \(msg)"
+		case .deleteFailed(let msg):
+			return "\(StringKey.modelDeleteError.l): \(msg)"
 		case .noResults:
 			return StringKey.modelSearchNoResults.l
 		}
@@ -245,6 +248,82 @@ final class ModelManager {
 	/// Get model IDs as plain strings — for ChatView toolbar picker.
 	func modelIdStrings() -> [String] {
 		localModels.map { $0.id }
+	}
+
+	// MARK: - Convenience
+
+	/// Unload a model from memory without removing cached files.
+	@discardableResult
+	func unload(_ modelId: String) async -> Bool {
+		guard let pool = _enginePool else {
+			currentError = .engineUnavailable
+			return false
+		}
+		let ok = await pool.unloadModel(modelId)
+		if ok {
+			await SettingsStore.shared.resetSamplingConfig(for: modelId)
+			await refreshLocalModels()
+		}
+		return ok
+	}
+
+	/// Delete a model: unload from memory, remove cached files from disk, clear settings.
+	/// Returns true if the model was successfully removed.
+	@discardableResult
+	func deleteModel(_ modelId: String) async -> Bool {
+		guard let pool = _enginePool else {
+			currentError = .engineUnavailable
+			return false
+		}
+
+		// 1. Unload from memory (best-effort — continue even if not loaded)
+		_ = await pool.unloadModel(modelId)
+
+		// 2. Remove cached files from disk
+		let identity = ModelIdentity.parse(modelId)
+		do {
+			try await deleteCachedFiles(for: identity)
+		} catch {
+			currentError = .deleteFailed(error.localizedDescription)
+			return false
+		}
+
+		// 3. Clear persisted sampling config
+		await SettingsStore.shared.resetSamplingConfig(for: modelId)
+
+		// 4. Clear download progress state
+		OcoreaiDownloadProgress.shared.finish(modelId: identity.repoId, success: false)
+
+		currentError = nil
+		await refreshLocalModels()
+		return true
+	}
+
+	private func deleteCachedFiles(for identity: ModelIdentity) async throws {
+		let fileManager = FileManager.default
+		guard let cachesDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+			throw RepositoryError.deleteFailed("Cannot locate cache directory")
+		}
+
+		switch identity.source {
+		case .modelScope(let repoId):
+				let dir = cachesDir
+					.appendingPathComponent("ocoreai/modelscope")
+					.appendingPathComponent(repoId)
+				if fileManager.fileExists(atPath: dir.path) {
+					try fileManager.removeItem(at: dir)
+				}
+		case .huggingFace(let repoId):
+			let dir = cachesDir
+				.appendingPathComponent("org.ml-explore.mlx-swift-lm")
+				.appendingPathComponent(repoId)
+			if fileManager.fileExists(atPath: dir.path) {
+				try fileManager.removeItem(at: dir)
+			}
+		case .local:
+			// Local models are not managed in cache — nothing to delete
+			break
+		}
 	}
 
 	// MARK: - Convenience

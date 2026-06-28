@@ -192,10 +192,17 @@ struct ModelView: View {
 			Text(StringKey.sectionModels.l).font(.ocoreaiText(13)).foregroundStyle(theme.textTertiary).bold()
 			LazyVStack(spacing: 8) {
 				ForEach(modelManager.localModels, id: \.id) { model in
-					LiveModelCard(model: model) {
+					LiveModelCard(model: model, onEdit: {
 						editingModelId = model.id
 						showParamsSheet = true
-					}
+					}, onDelete: {
+						Task {
+							let ok = await modelManager.deleteModel(model.id)
+							if ok {
+								await modelManager.refreshLocalModels()
+							}
+						}
+					})
 				}
 			}
 		}
@@ -214,12 +221,28 @@ struct ModelView: View {
 
 private struct LiveModelCard: View {
 	let model: ModelID
-	let onTap: () -> Void
+	let onEdit: () -> Void
+	let onDelete: () -> Void
 	@Environment(\.ocoreaiTheme) private var theme
+	@State private var showDeleteAlert = false
 
 	var body: some View {
-		Button { onTap() } label: { cardContent }
+		Button { onEdit() } label: { cardContent }
 			.buttonStyle(.plain)
+			.confirmationDialog(
+				StringKey.modelViewDeleteConfirmTitle.l,
+				isPresented: $showDeleteAlert,
+				titleVisibility: .visible
+			) {
+				Button(role: .destructive) {
+					onDelete()
+				} label: {
+					Text(StringKey.modelViewDeleteConfirmAction.l)
+				}
+				Button(StringKey.modelViewDeleteCancelAction.l, role: .cancel) {}
+			} message: {
+				Text(String(format: StringKey.modelViewDeleteConfirmMessage.l, model.id))
+			}
 			.accessibilityLabel(StringKey.modelViewTapToEdit.l)
 	}
 
@@ -252,6 +275,17 @@ private struct LiveModelCard: View {
 			}
 
 			StatusPill(status: .running, compact: false).accessibilityLabel(StringKey.modelRunningLabel.l)
+
+			// Delete button — destructive action with confirmation
+			Button(role: .destructive) {
+				showDeleteAlert = true
+			} label: {
+				Image(systemName: "trash")
+					.font(.ocoreaiText(12))
+					.foregroundStyle(.red.opacity(0.7))
+			}
+			.buttonStyle(.plain)
+			.accessibilityLabel(StringKey.modelDeleteButton.l)
 
 			Image(systemName: "gearshape").font(.ocoreaiText(12))
 				.foregroundStyle(theme.textTertiary).accessibilityHidden(true)
