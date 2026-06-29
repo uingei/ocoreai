@@ -144,6 +144,7 @@ actor SQLiteStore {
 			for: .applicationSupportDirectory,
 			in: .userDomainMask,
 		).first?.appendingPathComponent("ocoreai/data") else {
+			// Unreachable on macOS/iOS — .applicationSupportDirectory is a system-guaranteed directory.
 			fatalError("[SQLiteStore] applicationSupportDirectory not available")
 		}
 		let dataDir = supportURL.path

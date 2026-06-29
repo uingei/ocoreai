@@ -28,6 +28,11 @@
 	///
 	/// Each N tokens, outputs a text chunk via ``consume(_:)``.
 	/// Maintains internal state of processed token IDs.
+	///
+	/// ``@unchecked Sendable``: `_stream` (swift-transformers object) holds an internal C pointer
+	/// that the compiler cannot verify as thread-safe. In practice, this instance lives exclusively
+	/// on `LoadedModel`'s CAS-guarded inference actor and is never shared across concurrency contexts.
+	/// `@unchecked Sendable` satisfies the Swift requirement without unsafe wrapping.
 	final class StreamingDetokenizer: @unchecked Sendable {
 		private let _tokenizer: any Tokenizer
 		private var _ids: [Int] = []

@@ -102,6 +102,7 @@ struct SessionPoolConfig {
 				guard let supportURL = FileManager.default.urls(
 					for: .applicationSupportDirectory, in: .userDomainMask,
 				).first?.appendingPathComponent("ocoreai/cache") else {
+					// Unreachable on macOS/iOS — .applicationSupportDirectory is system-guaranteed.
 					fatalError("[MLXSessionPool] applicationSupportDirectory not available")
 				}
 				return supportURL.appendingPathComponent("kvcache")

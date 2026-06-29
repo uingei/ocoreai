@@ -60,6 +60,8 @@ final class MetricsBridge {
 
 	private static let defaultURL: URL = {
 		guard let url = URL(string: "http://localhost:8080/metrics") else {
+			// Unreachable — "http://localhost:8080/metrics" is a syntactically valid URL literal.
+			// fatalError satisfies the exhaustiveness check; will never execute at runtime.
 			fatalError("[MetricsBridge] Default metrics URL invalid")
 		}
 		return url
