@@ -78,6 +78,28 @@ func bootstrapBuiltInTools(
 		))
 	}
 
+	// ── skills_view ────────────────────────────────────────────────────────
+	if let sr = skillRegistry {
+		try? await registry.register(ToolEntry(
+			name: "skills_view",
+			toolset: "skills",
+			schema: ToolSchema(parameters: ["name": .string, "file": .string]),
+			handler: { [sr] args in
+				let name = parseArgKey(args, key: "name") ?? ""
+				let file = parseArgKey(args, key: "file")
+				guard !name.isEmpty else { return "error: name required" }
+				if let file {
+					// Delegated to skill system — return path for later resolve
+					return "resolve: \(name)/\(file)"
+				}
+				guard let skill = await sr.lookup(name) else {
+					return "skill '\(name)' not found"
+				}
+				return skill.promptContent
+			},
+		))
+	}
+
 	// ── echo ────────────────────────────────────────────────────────────────
 	try? await registry.register(ToolEntry(
 		name: "echo",
