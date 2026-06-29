@@ -45,6 +45,14 @@ enum RepositoryError: LocalizedError {
 @Observable
 @MainActor
 final class ModelManager {
+	// MARK: - Shared instance
+
+	/// Singleton shared across all views — ensures model list, progress
+	/// and download state are consistent no matter which tab is active.
+	static let shared = ModelManager()
+
+	private init() {}
+
 	// MARK: - Search state
 
 	var searchQuery: String = ""

@@ -46,13 +46,16 @@ actor ModelScopeDownloader: Downloader {
 	// MARK: - Downloader Conformance
 
 	func download(
-		id: String,
-		revision: String? = nil,
-		matching patterns: [String] = ["*.safetensors", "*.json", "*.jinja"],
-		useLatest: Bool = false,
-		progressHandler: @Sendable @escaping (Progress) -> Void = { _ in },
+	id: String,
+	revision: String? = nil,
+	matching patterns: [String] = ["*.safetensors", "*.json", "*.jinja"],
+	useLatest: Bool = false,
+	progressHandler: @Sendable @escaping (Progress) -> Void = { _ in },
 	) async throws -> URL {
-		let rev = revision ?? "main"
+	/* ModelScope 默认版本是 main 而不是 master。
+	   如果请求了 master 版本，ModelScope 会自动重定向到 main，
+	   不需要特殊处理。 */
+	let rev = revision ?? "main"
 		let cacheDir = cacheRoot
 			.appendingPathComponent(id)
 			.appendingPathComponent(rev)
@@ -271,6 +274,8 @@ actor ModelScopeDownloader: Downloader {
 	// MARK: - Helpers
 
 	/// List all file paths recursively under directory.
+	/// Returns RELATIVE paths (relative to `directory`) so they match the
+	/// FileInfo.path strings from the ModelScope API.
 	private func listLocalFiles(in directory: URL) throws -> [String] {
 		guard let enumerator = FileManager.default.enumerator(
 			at: directory,
@@ -278,8 +283,13 @@ actor ModelScopeDownloader: Downloader {
 			options: [.skipsHiddenFiles]
 		) else { return [] }
 		var results: [String] = []
+		let base = directory.path(percentEncoded: false)
 		for case let url as URL in enumerator {
-			results.append(url.path(percentEncoded: false))
+			let full = url.path(percentEncoded: false)
+			if full.hasPrefix(base + "/") {
+				let relative = String(full.dropFirst(base.count + 1))
+				results.append(relative)
+			}
 		}
 		return results
 	}

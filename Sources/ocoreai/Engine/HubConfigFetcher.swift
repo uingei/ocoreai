@@ -32,8 +32,8 @@ enum HubConfigFetcher {
 	/// `_fetch_model_config()`, which returns raw JSON directly.
 	static func fetchModelScopeConfig(repoId: String, token: String? = nil, logger: Logger) async -> (vocabSize: Int, maxContextLength: Int)? {
 		let encoded = repoId.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed) ?? repoId
-		// omlx reference: _fetch_model_config() uses /repo?FilePath=config.json&Revision=master
-		guard let url = URL(string: "https://www.modelscope.cn/api/v1/models/\(encoded)/repo?FilePath=config.json&Revision=master") else {
+		// omlx reference: _fetch_model_config() uses /repo?FilePath=config.json&Revision=main
+		guard let url = URL(string: "https://www.modelscope.cn/api/v1/models/\(encoded)/repo?FilePath=config.json&Revision=main") else {
 			logger.warning("Invalid ModelScope config URL for \(repoId)")
 			return nil
 		}

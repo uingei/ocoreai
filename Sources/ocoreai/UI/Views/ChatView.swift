@@ -44,7 +44,7 @@ struct ChatView: View {
 
 	init() {
 		_chatState = State(initialValue: ChatState())
-		_modelManager = State(initialValue: ModelManager())
+		_modelManager = State(initialValue: ModelManager.shared)
 	}
 
 	private var isStreaming: Bool {

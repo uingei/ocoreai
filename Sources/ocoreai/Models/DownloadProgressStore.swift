@@ -37,7 +37,13 @@ final class OcoreaiDownloadProgress {
 	private init() {}
 
 	/// Start tracking a download for the given model ID.
+	/// Idempotent: if the model is already downloading, keep the current progress
+	/// instead of resetting to zero.
 	func start(modelId: String) {
+		// Don't reset progress if download is already in progress
+		if _progress[modelId]?.active == true {
+			return
+		}
 		_progress[modelId] = OcoreaiDownloadProgressState(
 			fraction: 0, completedFiles: 0, totalFiles: 0, active: true,
 		)

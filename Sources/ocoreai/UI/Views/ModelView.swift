@@ -16,7 +16,7 @@ struct ModelView: View {
 	@Environment(\.ocoreaiTheme) private var theme
 
 	init() {
-		_modelManager = State(initialValue: ModelManager())
+		_modelManager = State(initialValue: ModelManager.shared)
 	}
 
 	var body: some View {
