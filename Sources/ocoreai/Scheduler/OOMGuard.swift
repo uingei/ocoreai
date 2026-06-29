@@ -2,16 +2,22 @@
 // Licensed under MIT.
 /// OOMGuard — quantization downgrade chain for GPU memory protection.
 ///
-/// Downgrade chain: 4bit → 8bit → CPU fallback → hard refuse.
+/// On Apple Silicon UMA, CPU and GPU share the same physical memory — there is
+/// no separate "GPU memory" to fall back to. Switching inference to CPU does NOT
+/// free memory; it only makes it slower. Therefore the downgrade chain is:
+///   4bit → 8bit → hard refuse
+///
 /// Each level is logged and emitted as an event for monitoring.
 import Foundation
 import Logging
 
 /// Quantization levels in the downgrade chain.
+///
+/// NOTE: No cpuFallback — on Apple Silicon UMA, CPU and GPU share
+/// physical RAM. Switching to CPU does not free memory, only adds latency.
 public enum QuantizationLevel: String, Sendable, Codable {
 	case bits4 /// 4-bit quantization (most aggressive, fastest)
-	case bits8 /// 8-bit quantization
-	case cpuFallback /// CPU inference (last resort before refusing)
+	case bits8 /// 8-bit quantization (lower precision, less memory)
 	case refuse /// Hard refuse — all requests rejected
 }
 
@@ -52,14 +58,13 @@ actor OOMGuard {
 	private var budgetBytes: UInt64 = 0
 	private var budgetBytesUsed: UInt64 = 0
 
-	/// Minimum quantization level before CPU fallback.
-	var minLevel: QuantizationLevel = .cpuFallback
+	/// Minimum quantization level before hard refuse.
+	var minLevel: QuantizationLevel = .refuse
 
 	/// Maximum allowed requests at current level.
 	var maxRequests: [QuantizationLevel: Int] = [
 		.bits4: 16,
 		.bits8: 8,
-		.cpuFallback: 4,
 		.refuse: 0,
 	]
 
@@ -93,12 +98,15 @@ actor OOMGuard {
 
 	/// Called when memory tracker signals a new level.
 	/// - Parameter level: Current memory level from tracker.
+	///
+	/// UMA-correct downgrade: 4bit → 8bit → refuse.
+	/// CPU fallback removed — on UMA it doesn't free memory, only adds latency.
 	func respond(to level: MemoryLevel) {
 		let fromLevel = currentLevel
 		switch level {
 		case .normal:
-			// Recover to 4-bit if we're at a lower level
-			if currentLevel == .bits8 || currentLevel == .cpuFallback {
+			// Recover to 4-bit if we're at 8-bit
+			if currentLevel == .bits8 {
 				currentLevel = .bits4
 				emitEvent(from: fromLevel, to: .bits4, trigger: level)
 			}
@@ -109,13 +117,10 @@ actor OOMGuard {
 				emitEvent(from: fromLevel, to: .bits8, trigger: level)
 			}
 		case .critical:
-			// Force degrade to CPU or 8-bit
+			// Force to 8-bit if still at 4-bit
 			if currentLevel == .bits4 {
 				currentLevel = .bits8
 				emitEvent(from: fromLevel, to: .bits8, trigger: level)
-			} else if currentLevel == .bits8 {
-				currentLevel = .cpuFallback
-				emitEvent(from: fromLevel, to: .cpuFallback, trigger: level)
 			}
 		case .oom:
 			// Start refusing new requests

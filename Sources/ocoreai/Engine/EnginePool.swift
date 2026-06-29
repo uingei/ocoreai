@@ -62,6 +62,12 @@ actor EnginePool {
 	/// Loaded model instances keyed by model ID
 	var loadedModels: [String: LoadedModel] = [:]
 
+	/// Model last-access timestamps for LRU eviction (modelId → Instant)
+	private var modelLastAccess: [String: ContinuousClock.Instant] = [:]
+
+	/// Maximum models to keep in memory before LRU eviction kicks in
+	let maxLoadedModels: Int
+
 	/// Paged KV cache (optional — nil when feature disabled).
 	/// In-memory block pool with LRU eviction, replacing old KVCacheManager
 	/// SSD cold-store anti-pattern. Tracks active sessions and evicts on memory pressure.
@@ -117,6 +123,7 @@ actor EnginePool {
 			pagedKVCache = nil
 		}
 		self.memoryTracker = memoryTracker
+		self.maxLoadedModels = 4
 		#if coreai
 			coreAIPreparedModelLoader = CoreAIModelLoader(
 				config: coreAILoadingConfig,
@@ -173,6 +180,12 @@ actor EnginePool {
 			throw AppError.engineUnavailable
 		}
 
+		// Touch model access time for LRU tracking
+		touchModelAccess(modelId)
+
+		// Evict idle models if pool is full
+		await evictIdleModelsIfNeeded()
+
 		try await model.prewarmIfNeeded(config.warmupTokens)
 		model.acquireSession()
 
@@ -200,6 +213,37 @@ actor EnginePool {
 
 	func markSessionActive(sessionId: String) async {
 		await pagedKVCache?.markActive(sessionId: sessionId)
+	}
+
+	// MARK: - Model LRU Eviction
+
+	/// Record a timestamped access for LRU tracking.
+	private func touchModelAccess(_ modelId: String) {
+		modelLastAccess[modelId] = .now
+	}
+
+	/// When the model pool reaches capacity, evict the least-recently-used idle model.
+	/// Only models with zero active sessions are eligible.
+	private func evictIdleModelsIfNeeded() async {
+		guard loadedModels.count >= maxLoadedModels else { return }
+
+		// Find idle models (zero active sessions) sorted by last access (oldest first)
+		var idleModels: [(id: String, accessed: ContinuousClock.Instant)] = []
+		for (id, model) in loadedModels {
+			if model.activeSessions == 0 {
+				let access = modelLastAccess[id] ?? ContinuousClock.now
+				idleModels.append((id, access))
+			}
+		}
+
+		// Sort by access time — oldest first
+		idleModels.sort { $0.accessed < $1.accessed }
+
+		// Evict the oldest idle model
+		if let target = idleModels.first {
+			logger.info("LRU eviction: model \(target.id) (pool: \(loadedModels.count)/\(maxLoadedModels))")
+			await unloadModel(target.id)
+		}
 	}
 
 	// MARK: - Model Loading
@@ -452,6 +496,9 @@ actor EnginePool {
 
 		// Clear sampling overrides so next load uses defaults
 		modelSamplingDefaults.removeValue(forKey: modelId)
+
+		// Clear LRU access timestamp
+		modelLastAccess.removeValue(forKey: modelId)
 
 		logger.info("Model unloaded: \(modelId)")
 		return true

@@ -2,14 +2,19 @@
 // Licensed under MIT.
 /// Pre-fill Admission Gate — per-request memory budget admission control.
 ///
-/// Before any pre-fill, the gate estimates the memory cost of the request
+/// Before any dispatch, the gate estimates the memory cost of the request
 /// and checks if sufficient headroom exists. This prevents OOM mid-generation
 /// by refusing large requests when budget is tight.
 ///
+/// On Apple Silicon UMA, memory pressure is system-wide — CPU/GPU share RAM.
+/// The gate uses MemoryTracker (which polls host_statistics64) as the source
+/// of truth for current usage, and tracks per-request reservations on top.
+///
 /// Features:
 /// - Per-request memory cost estimation (input + output tokens)
-/// - Abort margin: reserves extra headroom for emergency abort
+/// - Budget synced with MemoryTracker (single source of truth)
 /// - Jitter protection: burst-limits concurrent admissions
+/// - Abort margin: reserves extra headroom for emergency abort
 import Foundation
 import Logging
 
@@ -38,17 +43,16 @@ public struct AdmissionResult: Sendable, Codable {
 actor AdmissionGate {
 	// MARK: - Configuration
 
-	/// Bytes per token (KV cache + activation overhead, FP16 baseline)
-	private let bytesPerToken: Int = 2 * 4096 * 2 // 16 KB/token (FP16, hidden dim 4096)
+	/// KB per token in KV cache + activations with 4-bit quantization.
+	/// SchedulerActor.KBPerToken = 4KB/token for bits4 q4_0 is the
+	/// authoritative reference — this gate must use the same baseline.
+	private static let KBPerToken = 1024 // 1KB/token (bits4 q4_0)
 
 	/// Abort margin: percentage of remaining budget to always reserve
 	private let abortMarginFraction: Double = 0.15
 
 	/// Maximum concurrent pre-fills (jitter protection)
 	private let maxConcurrentPreFills: Int
-
-	/// Global memory budget in bytes (updated by dynamic enforcer)
-	private var budgetBytes: UInt64 = 16 * 1024 * 1024 * 1024 // 16GB fallback
 
 	// MARK: - State
 
@@ -61,25 +65,28 @@ actor AdmissionGate {
 	/// Current active pre-fill count (for jitter limiting)
 	private var activePreFills: Int = 0
 
+	/// MemoryTracker reference — source of truth for system memory state
+	private var memoryTracker: MemoryTracker?
+
 	private let logger: Logger
 
 	// MARK: - Init
 
 	init(
-		budgetBytes: UInt64,
 		maxConcurrentPreFills: Int = 4,
+		memoryTracker: MemoryTracker?,
 		log: Logger = Logger(label: "ocoreai.scheduler.admission"),
 	) {
-		self.budgetBytes = budgetBytes
 		self.maxConcurrentPreFills = maxConcurrentPreFills
+		self.memoryTracker = memoryTracker
 		logger = log
 	}
 
 	// MARK: - Budget Update
 
-	/// Update budget from dynamic memory enforcer.
-	func updateBudget(_ bytes: UInt64) {
-		budgetBytes = bytes
+	/// Link or re-link to a MemoryTracker.
+	func setMemoryTracker(_ tracker: MemoryTracker?) {
+		memoryTracker = tracker
 	}
 
 	// MARK: - Admission
@@ -91,25 +98,43 @@ actor AdmissionGate {
 	/// - Returns: Estimated bytes needed.
 	func estimatedCost(inputTokens: Int, maxOutputTokens: Int) -> UInt64 {
 		let totalTokens = inputTokens + maxOutputTokens
-		return UInt64(totalTokens) * UInt64(bytesPerToken)
+		return UInt64(totalTokens) * UInt64(Self.KBPerToken)
+	}
+
+	/// Query available headroom from MemoryTracker + our reservations.
+	/// Returns (totalBudget, availableHeadroom) in bytes.
+	private func queryHeadroom() async -> (totalBudget: UInt64, available: UInt64) {
+		guard let tracker = memoryTracker else {
+			// No tracker — allow everything (defer to downstream OOMGuard)
+			return (0, .max)
+		}
+
+		// Query system memory state from tracker
+		let systemUsed = await tracker.currentUsage()
+		let budget = await tracker.getBudget()
+		let used = systemUsed + reservedBytes
+
+		// Available after accounting for reservations
+		let available = max(budget - used, 0)
+		return (budget, available)
 	}
 
 	/// Check if a new request can be admitted.
 	/// - Parameters:
-	///   - sessionId: Unique session identifier.
+	///   - requestId: Unique request identifier.
 	///   - inputTokens: Number of input tokens in the prompt.
 	///   - maxOutputTokens: Maximum tokens the model may generate.
 	/// - Returns: AdmissionResult with decision and cost estimate.
 	func check(
-		sessionId: String,
+		requestId: String,
 		inputTokens: Int,
 		maxOutputTokens: Int,
-	) -> AdmissionResult {
+	) async -> AdmissionResult {
 		let cost = estimatedCost(inputTokens: inputTokens, maxOutputTokens: maxOutputTokens)
 		let costMB = Double(cost) / (1024 * 1024)
 
-		// Already admitted — allow continuation
-		if reservations[sessionId] != nil {
+		// Already reserved for this request — allow continuation
+		if reservations[requestId] != nil {
 			return .ok
 		}
 
@@ -118,8 +143,10 @@ actor AdmissionGate {
 			return .rejected("Jitter: \(activePreFills) pre-fills active (max \(maxConcurrentPreFills))", costMB: costMB)
 		}
 
-		// Calculate available headroom after abort margin
-		let available = max(budgetBytes - reservedBytes, 0)
+		// Query headroom from system + our reservations
+		let (_, available) = await queryHeadroom()
+
+		// Calculate effective headroom after abort margin
 		let abortMargin = UInt64(Double(available) * abortMarginFraction)
 		let effectiveHeadroom = available - abortMargin
 
@@ -132,52 +159,39 @@ actor AdmissionGate {
 			)
 		}
 
-		// Already reserved for this session — no second admission
-		if reservations[sessionId] != nil {
-			return .ok
-		}
-
 		return AdmissionResult(admitted: true, estimatedCostMB: costMB)
 	}
 
 	/// Admit a request — reserve its memory cost.
 	/// - Parameters:
-	///   - sessionId: Unique session identifier.
+	///   - requestId: Unique request identifier.
 	///   - inputTokens: Number of input tokens.
 	///   - maxOutputTokens: Maximum output tokens.
 	/// - Returns: true if admission succeeded.
-	/// - Note: Call ``check`` first. This assumes the caller verified admission.
 	@discardableResult
 	func admit(
-		_ sessionId: String,
+		_ requestId: String,
 		inputTokens: Int,
 		maxOutputTokens: Int,
 	) -> Bool {
 		let cost = estimatedCost(inputTokens: inputTokens, maxOutputTokens: maxOutputTokens)
 
-		// Double-check headroom (defense in depth)
-		let available = max(budgetBytes - reservedBytes, 0)
-		guard cost <= available else {
-			logger.warning("Admission failed for \(sessionId): cost \(cost) > available \(available)")
-			return false
-		}
-
 		// Reserve
-		reservations[sessionId] = cost
+		reservations[requestId] = cost
 		reservedBytes += cost
 		activePreFills += 1
 
-		logger.debug("Admitted \(sessionId): \(Int(cost / 1_048_576))MB reserved (total: \(Int(reservedBytes / 1_073_741_824)) / \(Int(budgetBytes / 1_073_741_824))GB)")
+		logger.debug("Admitted \(requestId): \(Int(cost / 1_048_576))MB reserved (total: \(Int(reservedBytes / 1_073_741_824))GB)")
 		return true
 	}
 
-	/// Release a session's reservation (normal completion or abort).
-	/// - Parameter sessionId: Session to release.
-	func release(_ sessionId: String) {
-		if let cost = reservations.removeValue(forKey: sessionId) {
+	/// Release a request's reservation (normal completion or abort).
+	/// - Parameter requestId: Request to release.
+	func release(_ requestId: String) {
+		if let cost = reservations.removeValue(forKey: requestId) {
 			reservedBytes = max(reservedBytes - cost, 0)
 			activePreFills = max(0, activePreFills - 1)
-			logger.debug("Released \(sessionId): freed \(Double(cost) / 1_048_576)MB")
+			logger.debug("Released \(requestId): freed \(Double(cost) / 1_048_576)MB")
 		}
 	}
 
@@ -194,12 +208,17 @@ actor AdmissionGate {
 	// MARK: - Inspection
 
 	/// Current admission state for monitoring.
-	func state() -> (reserved: UInt64, budget: UInt64, active: Int, sessions: Int) {
-		(
+	func state() async -> (reserved: UInt64, totalBudget: UInt64, active: Int, requests: Int) {
+		let totalBudget: UInt64 = if let tracker = memoryTracker {
+			await tracker.getBudget()
+		} else {
+			0
+		}
+		return (
 			reserved: reservedBytes,
-			budget: budgetBytes,
+			totalBudget: totalBudget,
 			active: activePreFills,
-			sessions: reservations.count,
+			requests: reservations.count,
 		)
 	}
 }

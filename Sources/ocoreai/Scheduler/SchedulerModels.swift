@@ -102,22 +102,35 @@ public struct SchedulerSnapshot: Codable, Sendable {
 	public let inferringCount: Int
 	public let totalRequests: Int
 	public let avgQueueTimeMs: Double
-	public let memoryUsageGB: Double
+	/// Memory fraction from MemoryTracker (0.0-1.0), not absolute GB.
+	public let memoryUsageFraction: Double
 	public let oomGuardLevel: String
+	/// Admission gate — reserved memory in MB.
+	public let admissionReservedMB: Double
+	/// Admission gate — total budget in MB (from MemoryTracker).
+	public let admissionBudgetMB: Double
+	/// Admission gate — currently active admissions.
+	public let admissionActive: Int
 
 	public init(
 		pendingCount: Int,
 		inferringCount: Int,
 		totalRequests: Int,
 		avgQueueTimeMs: Double,
-		memoryUsageGB: Double,
+		memoryUsageFraction: Double,
 		oomGuardLevel: String,
+		admissionReservedMB: Double = 0,
+		admissionBudgetMB: Double = 0,
+		admissionActive: Int = 0,
 	) {
 		self.pendingCount = pendingCount
 		self.inferringCount = inferringCount
 		self.totalRequests = totalRequests
 		self.avgQueueTimeMs = avgQueueTimeMs
-		self.memoryUsageGB = memoryUsageGB
+		self.memoryUsageFraction = memoryUsageFraction
 		self.oomGuardLevel = oomGuardLevel
+		self.admissionReservedMB = admissionReservedMB
+		self.admissionBudgetMB = admissionBudgetMB
+		self.admissionActive = admissionActive
 	}
 }

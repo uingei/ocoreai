@@ -5,6 +5,11 @@
 /// P95 dispatch: < 1ms. Queue: max-heap O(log n), n ≤ 128.
 /// Memory: ~5KB for 128 entries.
 /// Privacy: request prompts logged as redacted, only metadata persisted.
+///
+/// Admission pipeline:
+/// 1. OOMGuard.shouldAcceptRequest() — system-wide OOM guard
+/// 2. AdmissionGate.check() — per-request headroom estimation
+/// 3. dispatch() — pop from priority queue, reserve memory
 import Foundation
 import Logging
 
@@ -112,19 +117,23 @@ private struct ComparableRequest: Comparable, Equatable {
 
 // MARK: - Scheduler Actor
 
-/// Central scheduler — actor-isolated priority queue with interrupt and timeout support.
+/// Central scheduler — actor-isolated priority queue with interrupt, OOM guard,
+/// and admission control. Triple-layer defense:
+/// 1. OOMGuard — system-wide quantization downgrade chain
+/// 2. AdmissionGate — per-request headroom estimation
+/// 3. MemoryTracker — system-level memory pressure monitoring
 actor SchedulerActor {
 	private var queue: PriorityQueue<ComparableRequest> = PriorityQueue()
 	private var activeRequests: [String: SchedulingRequest] = [:]
 	private var requestStates: [String: RequestState] = [:]
-	private var requestIdCounter = 0
 	private let logger: Logger
 	private var memoryTracker: MemoryTracker?
 	private var oomGuard: OOMGuard?
+	private var admissionGate: AdmissionGate?
 
 	/// KB per token in KV cache (4-bit quant, 2-layer FIM + attention).
-	/// ~4KB/token is conservative for 7B class, higher for larger models.
-	private static let KBPerToken = 4 * 1024
+	/// ~1KB/token for bits4 q4_0. AdmissionGate uses the same baseline.
+	private static let KBPerToken = 1024
 
 	/// Per-request estimated memory for accurate deallocation tracking.
 	private var requestMemoryMap: [String: UInt64] = [:]
@@ -135,20 +144,26 @@ actor SchedulerActor {
 	/// Total requests processed.
 	private(set) var totalProcessed = 0
 
+	/// Total requests rejected at admission gate.
+	private(set) var totalAdmitted = 0
+
 	/// Initialize the scheduler.
 	/// - Parameters:
 	///   - maxQueueSize: Maximum pending requests (default: 128)
-	///   - memoryTracker: Optional memory monitor
-	///   - oomGuard: Optional OOM protection
+	///   - memoryTracker: System-level memory monitor
+	///   - oomGuard: System-wide OOM downgrade guard
+	///   - admissionGate: Per-request admission control
 	init(
 		maxQueueSize: Int = 128,
 		memoryTracker: MemoryTracker? = nil,
 		oomGuard: OOMGuard? = nil,
+		admissionGate: AdmissionGate? = nil,
 		log: Logger = Logger(label: "ocoreai.scheduler"),
 	) {
 		self.maxQueueSize = maxQueueSize
 		self.memoryTracker = memoryTracker
 		self.oomGuard = oomGuard
+		self.admissionGate = admissionGate
 		logger = log
 	}
 
@@ -156,11 +171,11 @@ actor SchedulerActor {
 
 	/// Submit a new request to the scheduler.
 	/// - Parameter request: The scheduling request to enqueue.
-	/// - Throws: ``SchedulerError`` if queue is full or OOM.
+	/// - Throws: ``SchedulerError`` if OOM, no admission, or queue full.
 	/// - Returns: Request ID for tracking.
 	@discardableResult
 	func submit(_ request: SchedulingRequest) async throws -> String {
-		// 1. OOM check
+		// 1. OOMGuard check — system-wide OOM protection
 		if let oomg = oomGuard {
 			guard await oomg.shouldAcceptRequest() else {
 				logger.warning("Rejecting request: OOMGuard active")
@@ -196,23 +211,54 @@ actor SchedulerActor {
 	// MARK: - Dispatch
 
 	/// Dispatch the next request from the queue (highest priority).
+	/// Pre-fills are admitted through the admission gate — if headroom is
+	/// insufficient, the request stays queued and we try the next one.
 	/// - Returns: The next scheduling request, or nil if queue is empty.
 	func dispatch() async -> SchedulingRequest? {
-		guard let comparable = queue.pop() else { return nil }
-		let request = comparable.request
-		activeRequests[request.id] = request
-		requestStates[request.id] = .inferring
+		while let comparable = queue.pop() {
+			let request = comparable.request
+			let requestId = request.id
 
-		// Estimate and allocate memory for KV cache
-		let estBytes = UInt64(request.tokenBudget) * UInt64(Self.KBPerToken)
-		requestMemoryMap[request.id] = estBytes
-		if let tracker = memoryTracker {
-			await tracker.allocation(estBytes)
+			// Check admission — does this request fit in available headroom?
+			if let gate = admissionGate {
+				let result = await gate.check(
+					requestId: requestId,
+					inputTokens: estimateInputTokens(from: request.prompt),
+					maxOutputTokens: request.tokenBudget,
+				)
+				if !result.admitted {
+					// Re-queue is not possible (already popped); skip this request
+					logger.info("Admission failed for \(requestId): \(result.reason ?? "budget") — skipping")
+					continue
+				}
+			}
+
+			// Admit — reserve memory for this request
+			if let gate = admissionGate {
+				await gate.admit(
+					requestId,
+					inputTokens: estimateInputTokens(from: request.prompt),
+					maxOutputTokens: request.tokenBudget,
+				)
+				totalAdmitted += 1
+			}
+
+			// Mark active
+			activeRequests[requestId] = request
+			requestStates[requestId] = .inferring
+
+			// Estimate and allocate memory for KV cache
+			let estBytes = UInt64(request.tokenBudget) * UInt64(Self.KBPerToken)
+			requestMemoryMap[requestId] = estBytes
+			if let tracker = memoryTracker {
+				await tracker.allocation(estBytes)
+			}
+
+			logger.info("Dispatched request \(requestId) (model: \(request.modelId), est: \(estBytes / 1_048_576)MB)")
+			totalProcessed += 1
+			return request
 		}
-
-		logger.info("Dispatched request \(request.id) (model: \(request.modelId), est: \(estBytes / 1_048_576)MB)")
-		totalProcessed += 1
-		return request
+		return nil
 	}
 
 	/// Dispatch up to `count` requests.
@@ -230,6 +276,12 @@ actor SchedulerActor {
 		return requests
 	}
 
+	/// Rough estimate of input tokens from prompt text.
+	/// ~4 chars/token is a conservative average for English/Chinese mixed.
+	private func estimateInputTokens(from prompt: String) -> Int {
+		max(1, prompt.utf8.count / 4)
+	}
+
 	// MARK: - Interrupt
 
 	/// Interrupt a running request.
@@ -237,6 +289,11 @@ actor SchedulerActor {
 	/// - Returns: The interrupted request, or nil if not found.
 	@discardableResult
 	func interrupt(_ requestId: String) async -> SchedulingRequest? {
+		// Release admission reservation
+		if let gate = admissionGate {
+			await gate.release(requestId)
+		}
+
 		if let request = activeRequests[requestId] {
 			requestStates[requestId] = .interrupted
 			activeRequests.removeValue(forKey: requestId)
@@ -264,6 +321,11 @@ actor SchedulerActor {
 		for id in idsToInterrupt {
 			requestStates[id] = .interrupted
 			activeRequests.removeValue(forKey: id)
+			// Release admission reservation
+			if let gate = admissionGate {
+				await gate.release(id)
+			}
+			await deallocateMemory(for: id)
 		}
 
 		// Remove matching from pending queue
@@ -277,6 +339,11 @@ actor SchedulerActor {
 	/// Mark a request as completed.
 	/// - Parameter requestId: The request to complete.
 	func complete(_ requestId: String) async {
+		// Release admission reservation
+		if let gate = admissionGate {
+			await gate.release(requestId)
+		}
+
 		activeRequests.removeValue(forKey: requestId)
 		requestStates[requestId] = .completed
 		await deallocateMemory(for: requestId)
@@ -288,6 +355,11 @@ actor SchedulerActor {
 	///   - requestId: The request ID.
 	///   - error: Error details.
 	func fail(_ requestId: String, with error: String) async {
+		// Release admission reservation
+		if let gate = admissionGate {
+			await gate.release(requestId)
+		}
+
 		activeRequests.removeValue(forKey: requestId)
 		requestStates[requestId] = .failed
 		await deallocateMemory(for: requestId)
@@ -320,25 +392,42 @@ actor SchedulerActor {
 
 	/// Get a snapshot of scheduler health.
 	func snapshot() async -> SchedulerSnapshot {
-		let memUsage: Double = if let tracker = memoryTracker {
+		// Memory fraction from tracker (0.0 - 1.0)
+		let memFraction: Double = if let tracker = memoryTracker {
 			await tracker.usageFraction()
 		} else {
 			0
 		}
+		// OOMGuard quantization level
 		let level: String = if let oomg = oomGuard {
 			await oomg.currentQuantization().rawValue
 		} else {
 			"unknown"
 		}
+		// Admission gate state
+		var admissionReservedMB: Double = 0
+		var admissionBudgetMB: Double = 0
+		var admissionActive: Int = 0
+		if let gate = admissionGate {
+			let state = await gate.state()
+			admissionReservedMB = Double(state.reserved) / 1_048_576
+			admissionBudgetMB = Double(state.totalBudget) / 1_048_576
+			admissionActive = state.active
+		}
+
 		return SchedulerSnapshot(
 			pendingCount: queue.count,
 			inferringCount: activeRequests.count,
 			totalRequests: totalProcessed,
 			// avgQueueTimeMs requires per-request timestamps — reserved for v2
 			avgQueueTimeMs: 0,
-			// MemoryTracker tracks fraction, not absolute — report as such
-			memoryUsageGB: memUsage,
+			// MemoryTracker reports fraction (0.0-1.0), not GB
+			memoryUsageFraction: memFraction,
 			oomGuardLevel: level,
+			// Admission gate stats if available
+			admissionReservedMB: admissionReservedMB,
+			admissionBudgetMB: admissionBudgetMB,
+			admissionActive: admissionActive,
 		)
 	}
 
