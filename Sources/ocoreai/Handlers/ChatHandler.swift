@@ -224,11 +224,22 @@ func chatCompletionsHandler(
 	let effectiveTopK = request.topK ?? runtimeDefaults.topK
 	let effectiveMaxTokens = request.maxTokens ?? runtimeDefaults.maxTokens
 
+	/// Resolve penalty parameters (0 = not set, non-zero = explicit value).
+	let effectivePresencePenalty = request.presencePenalty != 0
+		? request.presencePenalty
+		: runtimeDefaults.presencePenalty
+	let effectiveFrequencyPenalty = request.frequencyPenalty != 0
+		? request.frequencyPenalty
+		: runtimeDefaults.frequencyPenalty
+
 	/// Build normalized sampling configuration (drops redundant params when temperature == 0).
 	let rawSampling = SamplingConfiguration(
 		temperature: Double(effectiveTemp),
 		topP: effectiveTopP.map(Double.init),
 		topK: effectiveTopK,
+		minP: nil,
+		presencePenalty: Double(effectivePresencePenalty),
+		frequencyPenalty: Double(effectiveFrequencyPenalty),
 		stopSequences: nil,
 		logitBias: nil,
 		combined: true,

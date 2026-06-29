@@ -427,8 +427,17 @@
 		if let topK = sampling.topK {
 			params.topK = topK
 		}
+		if let minP = sampling.minP, minP > 0 {
+			params.minP = Float(minP)
+		}
 		if let repPen = sampling.repetitionPenalty, repPen > 0 {
 			params.repetitionPenalty = Float(repPen)
+		}
+		if let pPen = sampling.presencePenalty, pPen > 0 {
+			params.presencePenalty = Float(pPen)
+		}
+		if let fPen = sampling.frequencyPenalty, fPen > 0 {
+			params.frequencyPenalty = Float(fPen)
 		}
 		return params
 	}

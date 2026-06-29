@@ -20,6 +20,8 @@ struct SamplingConfiguration: Codable, Equatable {
 	var topK: Int?
 	var minP: Double?
 	var repetitionPenalty: Double?
+	var presencePenalty: Double?
+	var frequencyPenalty: Double?
 	var stopSequences: [String]?
 	var logitBias: [String: Double]?
 	var combined: Bool = true
@@ -31,6 +33,8 @@ struct SamplingConfiguration: Codable, Equatable {
 		topK: Int? = nil,
 		minP: Double? = nil,
 		repetitionPenalty: Double? = nil,
+		presencePenalty: Double? = nil,
+		frequencyPenalty: Double? = nil,
 		stopSequences: [String]? = nil,
 		logitBias: [String: Double]? = nil,
 		combined: Bool = true,
@@ -41,6 +45,8 @@ struct SamplingConfiguration: Codable, Equatable {
 		self.topK = topK
 		self.minP = minP
 		self.repetitionPenalty = repetitionPenalty
+		self.presencePenalty = presencePenalty
+		self.frequencyPenalty = frequencyPenalty
 		self.stopSequences = stopSequences
 		self.logitBias = logitBias
 		self.combined = combined
