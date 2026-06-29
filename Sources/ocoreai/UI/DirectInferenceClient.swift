@@ -329,7 +329,7 @@ extension DirectInferenceClient {
 
 		// If tools are defined, try agent loop
 		if let tools = request.tools, !tools.isEmpty {
-			if let registry = await OcoreaiEngine.shared.activeToolRegistry {
+			if let registry = OcoreaiEngine.shared.activeToolRegistry {
 				let loopConfig = AgentLoopConfig(
 					maxIter: 30,
 					tokenBudget: tokenBudget,
