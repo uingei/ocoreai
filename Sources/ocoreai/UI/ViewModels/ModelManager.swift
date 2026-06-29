@@ -115,7 +115,9 @@ final class ModelManager {
 	}
 
 	private func _searchMS(_ query: String) async -> [MSHubModel] {
-		let client = ModelScopeSearchClient()
+		// Inject MODELSCOPE_TOKEN so search hits (including gated repos) work correctly
+		let msToken = ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
+		let client = ModelScopeSearchClient(token: msToken)
 		do {
 			let result = try await client.search(keyword: query, pageSize: 15)
 			return result.models
