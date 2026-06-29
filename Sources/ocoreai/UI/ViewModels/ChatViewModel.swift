@@ -246,11 +246,20 @@ final class ChatState {
 					}
 				}
 			}
+			// If interrupted mid-stream but accumulated text exists, save it
+			if Task.isCancelled || cancellation.isCancelled {
+				if !responseText.isEmpty {
+					let assistantMsg = ChatMessage(role: "assistant", content: responseText + " [interrupted]")
+					messages.append(assistantMsg)
+					await persistMessage(role: "assistant", content: assistantMsg.content)
+				}
+			}
 			// Finalize cancellation handle
 			currentCancellation = nil
 		} catch {
 			self.error = error
-			responseText = error.localizedDescription
+			// Clear streaming preview on error — the error banner shows the message
+			responseText = ""
 			currentCancellation = nil
 		}
 		loading = false

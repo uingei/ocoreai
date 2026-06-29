@@ -377,63 +377,51 @@ private func nonStreamWithToolCalling(
 	/// Mark session active — resets KV cache idle eviction timer.
 	await handle.markActive()
 
-	/// Start inference — MLX path passes messages directly to ChatSession,
-	/// eliminating the tokenize→detokenize→re-tokenize loop.
-	let tokenStream = handle.generateFromMessages(
-		messages: messages,
-		sampling: sampling,
-		options: options,
-		conversationId: conversationId,
+	// MARK: Agent Loop — multi-turn tool execution
+	/// If tools are available, attempt agent loop (inference → tool execution → repeat).
+	/// Falls back to single inference when no tools or agent loop disabled.
+	let toolRegistry = await OcoreaiEngine.shared.activeToolRegistry
+	let messageBuilder = await OcoreaiEngine.shared.activeMessageBuilder
+	let budget = options.maxTokens ?? 4096
+	let loopConfig = AgentLoopConfig(
+		maxIter: 30,
+		tokenBudget: budget,
+		guardMargin: 512,
+		timeoutSeconds: 120,
+		registry: toolRegistry!,
+		builder: messageBuilder!,
+		caller: "api"
 	)
-	
-	var accumulatedTokens: [Int32] = []
-	var accumulatedText: String? = nil
-	var totalOutputTokens = 0
-	var finishReason = "stop"
 
-	/// Consume all events from the token stream.
-	do {
-		for try await event in tokenStream {
-			switch event.kind {
-			/// Accumulate generated token IDs.
-			case let .token(tokenId):
-				try Task.checkCancellation()
-				accumulatedTokens.append(tokenId)
-				totalOutputTokens += 1
-
-			/// MLX path: text chunks already decoded — accumulate directly.
-			case let .text(text):
-				try Task.checkCancellation()
-				totalOutputTokens += 1
-				accumulatedText = (accumulatedText ?? "") + text
-
-			/// Capture generation completion reason.
-			case let .done(reason):
-				finishReason = stopReasonToString(reason) ?? "stop"
-
-			/// Log and propagate inference errors.
-			case let .error(errorMsg):
-				finishReason = "error"
-				logger.error("Generation error: \(errorMsg)")
-			}
-		}
-	} catch {
-		logger.error("Non-stream token consumption failed: \(error)")
-		throw AppError.inferenceFailed(error.localizedDescription)
+	let agentResult: AgentLoopResult
+	if let tools = request.tools, !tools.isEmpty {
+		/// Agent loop path: multi-turn inference with tool execution
+		agentResult = try await AgentLoop.run(
+			config: loopConfig,
+			handle: handle,
+			initialMessages: messages,
+			modelId: modelId,
+			sampling: sampling,
+			options: options,
+			logger: logger
+		)
+	} else {
+		/// Single inference path (no tools available)
+		agentResult = try await AgentLoop.oneInference(
+			handle: handle,
+			messages: messages,
+			sampling: sampling,
+			options: options,
+			logger: logger
+		)
 	}
 
-	/// Detokenize full accumulated token array to get complete output text.
-	/// MLX path uses pre-decoded accumulatedText; CoreAI path detokenizes tokens.
-	let content: String
-	if let preDecoded = accumulatedText {
-		content = preDecoded
-	} else {
-		do {
-			content = try await handle.detokenize(tokens: accumulatedTokens)
-		} catch {
-			logger.info("Detokenization failed, returning placeholder")
-			content = "<decode failed>"
-		}
+	let content = agentResult.text
+	let totalOutputTokens = agentResult.totalTokens
+	let finishReason = agentResult.finishReason
+
+	if agentResult.iterationCount > 1 {
+		logger.info("Agent loop completed in \(agentResult.iterationCount) iterations, \(agentResult.totalTokens) tokens total")
 	}
 
 	// MARK: Post-inference Self-Correction (zero overhead when disabled)

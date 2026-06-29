@@ -255,7 +255,7 @@ extension DirectInferenceClient {
 	}
 }
 
-// MARK: - Non-Streaming Implementation
+// MARK: - Non-Streaming Implementation (with Agent Loop)
 
 extension DirectInferenceClient {
 	private func doCompleteInference(
@@ -306,7 +306,7 @@ extension DirectInferenceClient {
 		let effectiveTopK = runtimeDefaults.topK
 		let effectiveMaxTokens = request.maxTokens ?? runtimeDefaults.maxTokens
 
-		let sampling = SamplingConfiguration(
+		let samplingConfig = SamplingConfiguration(
 			temperature: effectiveTemp,
 			topP: effectiveTopP,
 			topK: effectiveTopK,
@@ -315,44 +315,69 @@ extension DirectInferenceClient {
 			combined: true,
 		).normalized()
 
-		let inferenceOpts = InferenceOptions(
+		let infOpts = InferenceOptions(
 			maxTokens: effectiveMaxTokens,
 			includeLogits: false,
 		)
 
-		// Phase 5: Generate
+		// Phase 5: Dispatch inference — Agent loop if tools available
 		await handle.markActive()
 
-		let tokenStream = handle.generateFromMessages(
-			messages: fullMessages,
-			sampling: sampling,
-			options: inferenceOpts,
-		)
-
-		var outputTokens = 0
+		let tokenBudget = effectiveMaxTokens ?? 4096
 		var completeText = ""
-		var finishReason: String? = nil
+		var outputTok = 0
 
-		do {
+		// If tools are defined, try agent loop
+		if let tools = request.tools, !tools.isEmpty {
+			if let registry = await OcoreaiEngine.shared.activeToolRegistry {
+				let loopConfig = AgentLoopConfig(
+					maxIter: 30,
+					tokenBudget: tokenBudget,
+					guardMargin: 512,
+					timeoutSeconds: 120,
+					registry: registry,
+					builder: messageBuilder,
+					caller: "ui-direct"
+				)
+				let agentResult = try await AgentLoop.run(
+					config: loopConfig,
+					handle: handle,
+					initialMessages: fullMessages,
+					modelId: request.modelId,
+					sampling: samplingConfig,
+					options: infOpts
+				)
+				completeText = agentResult.text
+				outputTok = agentResult.totalTokens
+			}
+		}
+
+		// If agent loop was not triggered (no tools or no registry), do single inference
+		if completeText.isEmpty && outputTok == 0 {
+			let tokenStream = handle.generateFromMessages(
+				messages: fullMessages,
+				sampling: samplingConfig,
+				options: infOpts
+			)
 			for try await event in tokenStream {
 				switch event.kind {
 				case .token:
-					outputTokens += 1
+					outputTok += 1
 				case let .text(text):
-					outputTokens += 1
+					outputTok += 1
 					completeText += text
-				case let .done(reason):
-					finishReason = stopReasonToString(reason) ?? "stop"
-				case let .error(errorMsg):
-					throw AppError.generationError(errorMsg)
+				case .done:
+					break
+				case let .error(msg):
+					throw AppError.generationError(msg)
 				}
 			}
 		}
 
 		return DirectInferenceResult(
 			content: completeText,
-			stopReason: finishReason ?? "stop",
-			outputTokens: outputTokens,
+			stopReason: "stop",
+			outputTokens: outputTok
 		)
 	}
 }
@@ -396,7 +421,7 @@ enum DirectInferenceError: Error, LocalizedError {
 		switch self {
 		case .engineNotReady: "Inference engine not yet ready"
 		case .schedulerNotReady: "Scheduler not yet ready"
-		case .messageBuilderNotReady: "Message builder not yet ready"
+		case .messageBuilderNotReady: "Message builder not ready"
 		case let .contentBlocked(reason): "Content blocked: \(reason)"
 		}
 	}

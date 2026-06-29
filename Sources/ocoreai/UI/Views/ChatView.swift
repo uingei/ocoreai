@@ -121,6 +121,32 @@ struct ChatView: View {
 				.disabled(isStreaming)
 			}
 		}
+		// P0: Show error banner when chat inference fails
+		.overlay(alignment: .bottom) {
+			if let error = chatState.error {
+				HStack(spacing: 8) {
+					Text(error.localizedDescription)
+						.font(.ocoreaiText(12))
+						.foregroundStyle(.red)
+						.lineLimit(3)
+					Spacer()
+					Button {
+						chatState.error = nil
+					} label: {
+						Image(systemName: "xmark.circle.fill")
+							.foregroundStyle(.secondary)
+					}
+					.buttonStyle(.plain)
+					.accessibilityLabel("Dismiss error")
+				}
+				.padding(.horizontal, 12)
+				.padding(.vertical, 8)
+				.background(theme.cardBg.opacity(0.95))
+				.clipShape(RoundedRectangle(cornerRadius: 8))
+				.padding(.bottom, 8)
+				.accessibilityLabel(StringKey.statusError.l)
+			}
+		}
 		// Model search + load sheet
 		.sheet(isPresented: $showModelLoader) {
 			NavigationStack {
@@ -179,6 +205,10 @@ struct ChatView: View {
 								timestamp: msg.timestamp,
 							))
 							.id(msg.id)
+						}
+						// Streaming preview — show assistant's partial response in real-time
+						if !chatState.responseText.isEmpty {
+							streamingPreview
 						}
 						// Scroll anchor for automatic scroll-to-bottom
 						Color.clear
