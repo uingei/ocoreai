@@ -20,7 +20,7 @@ actor SessionCompressor {
 	private let hotWindow: Int // Number of messages to keep in hot layer
 	private let tokenThreshold: Int // Token count that triggers compression
 	private let ttlDays: Int // Default session retention
-	private let llmSummarizer: ((String) async throws -> String)? // LLM summarization callback (nil = rule-based only)
+	private var llmSummarizer: (@Sendable (String) async throws -> String)? // LLM summarization callback (nil = rule-based only)
 
 	// Per-session tracking
 	private var sessionTokenCounts: [Int64: Int] = [:]
@@ -52,7 +52,7 @@ actor SessionCompressor {
 	init(
 		store: SQLiteStore,
 		fts: FTS5Search,
-		llmSummarizer: ((String) async throws -> String)?,
+		llmSummarizer: (@Sendable (String) async throws -> String)?,
 	) {
 		logger = Logger(label: "ocoreai.session")
 		self.store = store
@@ -69,7 +69,7 @@ actor SessionCompressor {
 		hotWindow: Int,
 		tokenThreshold: Int,
 		ttlDays: Int,
-		llmSummarizer: ((String) async throws -> String)? = nil,
+		llmSummarizer: (@Sendable (String) async throws -> String)? = nil,
 	) {
 		logger = Logger(label: "ocoreai.session")
 		self.store = store
@@ -78,6 +78,16 @@ actor SessionCompressor {
 		self.tokenThreshold = tokenThreshold
 		self.ttlDays = ttlDays
 		self.llmSummarizer = llmSummarizer
+	}
+
+	// MARK: - Lazy Injection
+
+	/// Inject (or replace) the LLM summarization callback after engine boot.
+	/// Safe to call multiple times — compression that fires before injection
+	/// uses rule-based fallback; afterwards it uses the LLM.
+	func setSummarizer(_ callback: (@Sendable (String) async throws -> String)?) async {
+		llmSummarizer = callback
+		logger.info("LLM summarizer callback installed")
 	}
 
 	// MARK: - Session CRUD

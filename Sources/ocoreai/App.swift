@@ -285,6 +285,19 @@ public final class OcoreaiEngine {
 			thinkingBudget: _thinkingBudget!,
 		)
 
+		// MARK: - Summarizer (LLM-driven session compression)
+
+		// SummarizerActor bridges SessionCompressor ↔ EnginePool without circular dependency.
+		// Installed lazily — compression before install uses rule-based fallback.
+		let summarizer = SummarizerActor(
+			enginePool: enginePool!,
+			messageBuilder: _messageBuilder!,
+			config: .default,
+			log: logger,
+		)
+		await _sessionCompressor?.setSummarizer(summarizer.makeCallback())
+		logger.info("SessionCompressor: LLM summarizer injected via SummarizerActor")
+
 		metrics = MetricsRegistry()
 
 		// MARK: - Fast Path Ready Signal

@@ -136,63 +136,9 @@
 
 	// MARK: - Public Load
 
-	/// Attempt to load a model — checks cache first, downloads only if missing.
-	///
-	/// This is the unified entry point for ModelManager.
-	/// Returns the cache directory path if the model was already cached.
-	func tryLoad(modelURL: URL, modelId: String) async throws -> String? {
-		let source = MLXModelLoader.parseSource(modelId, fallbackPath: modelURL.path)
-		
-		switch source {
-		case let .local(localPath):
-			// Already local — just load directly
-			_ = try await loadLocal(Path(localPath), modelId: modelId)
-			return localPath
-			
-		case let .mscope(repoId):
-			// Check ModelScope cache first
-			if Self.isModelCached(.modelScope, repoId: repoId) {
-				logger.info("Model \\(repoId) found in ModelScope cache, skipping download")
-				let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-				guard let baseDir = urls.first else {
-					throw MLXLoadError.localLoadFailed(
-						path: "cache",
-						error: "Cannot locate cache directory"
-					)
-				}
-				let cacheDir = baseDir
-					.appendingPathComponent("ocoreai/modelscope")
-					.appendingPathComponent(repoId)
-					.appendingPathComponent("main")
-				_ = try await LLMModelFactory.shared.loadContainer(
-					from: cacheDir,
-					using: #huggingFaceTokenizerLoader()
-				)
-				return cacheDir.path(percentEncoded: false)
-			}
-			// Fall through to download
-			_ = try await loadFromHub(.modelScope, repoId: repoId, modelId: modelId)
-			return nil // Signal: download just happened
-			
-		case let .huggingFace(repoId):
-			// Check HF cache first
-			if Self.isModelCached(.huggingFace, repoId: repoId) {
-				logger.info("Model \\(repoId) found in HF cache, skipping download")
-			}
-			_ = try await loadFromHub(.huggingFace, repoId: repoId, modelId: modelId)
-			return nil
-			
-		default:
-			_ = try await loadLocal(url: modelURL, fallback: modelId)
-			return nil
-		}
-	}
-
-	// MARK: - Public Load
-
-	// TODO: merge with tryLoad once old callers are migrated
-
-		func load(modelURL: URL, modelId: String) async throws -> (any MLXModelHandle) {
+	/// Primary load entry point — called by ``EnginePool``.
+	/// Dispatches to the correct backend based on model source detection.
+	func load(modelURL: URL, modelId: String) async throws -> (any MLXModelHandle) {
 			logger.info("Loading MLX model \(modelId) from \(modelURL.path)")
 			let start = ContinuousClock.now
 

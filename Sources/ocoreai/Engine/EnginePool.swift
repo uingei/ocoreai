@@ -410,6 +410,16 @@ actor EnginePool {
 		)
 	}
 
+	/// Check if a model is currently loaded in the pool.
+	func isModelLoaded(_ modelId: String) -> Bool {
+		loadedModels[modelId] != nil
+	}
+
+	/// Return the first loaded model ID (useful for fallback/summarization).
+	func firstLoadedModelId() -> String? {
+		loadedModels.keys.first
+	}
+
 	func loadedModelCount() -> Int {
 		loadedModels.count
 	}
