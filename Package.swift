@@ -26,8 +26,9 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if coreai` guards
-        // Follow main branch — upstream has no stable tags. Pinned in references/VERSIONS.log.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", branch: "main"),
+        // Pinned to exact revision — upstream main branch drifts; update via `swift package update`
+        // then bump .revision + test. Current pin: 2026-06-29 build-verified commit.
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "124880582175726b709015a632c5ba9f3069a319"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)

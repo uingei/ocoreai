@@ -145,6 +145,9 @@ actor SchedulerActor {
 	private(set) var totalProcessed = 0
 
 	/// Total requests rejected at admission gate.
+	private(set) var totalRejected = 0
+
+	/// Total requests admitted and dispatched.
 	private(set) var totalAdmitted = 0
 
 	/// Initialize the scheduler.
@@ -212,12 +215,25 @@ actor SchedulerActor {
 
 	/// Dispatch the next request from the queue (highest priority).
 	/// Pre-fills are admitted through the admission gate — if headroom is
-	/// insufficient, the request stays queued and we try the next one.
+	/// insufficient, the request is re-enqueued and dispatch pauses until
+	/// memory becomes available.
 	/// - Returns: The next scheduling request, or nil if queue is empty.
 	func dispatch() async -> SchedulingRequest? {
+		// Track IDs we've rejected in this pass — if every request is
+		// rejected, all would sit in queue forever. Return nil so the
+		/// caller can wait for memory to free up before trying again.
+		var rejectedInThisPass: Set<String> = []
+
 		while let comparable = queue.pop() {
 			let request = comparable.request
 			let requestId = request.id
+
+			// Safety: if we already rejected this ID in this pass, stop —
+			// we've checked everyone and none fit.
+			if rejectedInThisPass.contains(requestId) {
+				logger.info("All queued requests rejected in this pass — waiting for memory")
+				break
+			}
 
 			// Check admission — does this request fit in available headroom?
 			if let gate = admissionGate {
@@ -227,8 +243,12 @@ actor SchedulerActor {
 					maxOutputTokens: request.tokenBudget,
 				)
 				if !result.admitted {
-					// Re-queue is not possible (already popped); skip this request
-					logger.info("Admission failed for \(requestId): \(result.reason ?? "budget") — skipping")
+					// Re-enqueue — don't drop the request. Track it so we
+					// can detect "everyone rejected" and break the loop.
+					rejectedInThisPass.insert(requestId)
+					queue.insert(comparable)
+					totalRejected += 1
+					logger.info("Admission failed for \(requestId): \(result.reason ?? "budget") — re-enqueued (\(rejectedInThisPass.count) rejected this pass)")
 					continue
 				}
 			}
