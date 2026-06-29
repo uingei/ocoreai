@@ -149,6 +149,14 @@ actor ModelScopeDownloader: Downloader {
 				let type = dict["Type"] as? String ?? "file"
 				return FileInfo(path: path, size: size, type: type)
 			}
+		} else {
+			// Data.Files is null/missing — typically means the repo is gated/private
+			// and requires authentication (MODELSCOPE_TOKEN).
+			let raw = String(data: data, encoding: .utf8) ?? "<binary>"
+			throw DownloaderError.gatedRepository(
+				repoId: repoId,
+				hint: "Data.Files is null in API response — repo may require MODELSCOPE_TOKEN. Response: \(raw.prefix(300))",
+			)
 		}
 
 		return files.filter { $0.type == "file" }
@@ -157,6 +165,7 @@ actor ModelScopeDownloader: Downloader {
 	/// Download a single file from ModelScope.
 	///
 	/// Uses `/api/v1/models/{id}/resolve/{revision}/{path}` which redirects to CDN.
+	/// Streams the response into a temp file — never holds the full file in memory.
 	private func downloadSingleFile(
 		path: String,
 		to destURL: URL,
@@ -178,18 +187,23 @@ actor ModelScopeDownloader: Downloader {
 
 		let tempURL = parent.appendingPathComponent(".download-\(UUID().uuidString.prefix(8))")
 		do {
-			// URLSession.download(from:) only accepts URL, not URLRequest.
-			// Use data(for: URLRequest) instead to apply auth headers, then write to temp file.
-			let (data, resp) = try await URLSession.shared.data(for: request)
+			// bytes(for:) returns (AsyncBytes, URLResponse) in Swift 6 —
+			// check response first, then stream body.
+			let (bytes, response) = try await URLSession.shared.bytes(for: request)
 
-			guard let httpResponse = resp as? HTTPURLResponse,
+			guard let httpResponse = response as? HTTPURLResponse,
 			      (200 ... 299).contains(httpResponse.statusCode)
 			else {
-				let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+				let status = (response as? HTTPURLResponse)?.statusCode ?? 0
 				throw DownloaderError.downloadFailed(path: path, statusCode: status)
 			}
 
-			try data.write(to: tempURL)
+			// Stream into file — O(1) memory regardless of file size.
+			let handle = try FileHandle(forWritingTo: tempURL)
+			defer { try? handle.close() }
+			for try await byte in bytes {
+				try handle.write(contentsOf: [byte])
+			}
 
 			if FileManager.default.fileExists(atPath: destURL.path(percentEncoded: false)) {
 				try FileManager.default.removeItem(at: destURL)
@@ -292,6 +306,7 @@ actor ModelScopeDownloader: Downloader {
 /// Error types for the downloader.
 enum DownloaderError: LocalizedError {
 	case noFilesMatching(repoId: String, patterns: [String])
+	case gatedRepository(repoId: String, hint: String)
 	case apiError(statusCode: Int, body: String)
 	case downloadFailed(path: String, statusCode: Int)
 	case partialDownload(failed: [String], total: Int, succeeded: Int)
@@ -302,6 +317,8 @@ enum DownloaderError: LocalizedError {
 		switch self {
 		case let .noFilesMatching(repo, patterns):
 			"No files in model '\(repo)' matching patterns \(patterns)"
+		case let .gatedRepository(repo, hint):
+			"ModelScope repository '\(repo)' is gated/private — \(hint)"
 		case let .apiError(code, body):
 			"ModelScope API error (\(code)): \(body)"
 		case let .downloadFailed(path, code):

@@ -216,8 +216,12 @@ public final class OcoreaiEngine {
 			)
 			logger.info("SkillRegistry bootstrapped")
 		} catch {
-			logger.warning("SkillRegistry bootstrap failed: \(error)")
+			logger.warning("SkillRegistry bootstrap failed: \\(error)")
 		}
+
+		// Wire SkillRegistry → SystemPromptBuilder bidirectional link
+		// (bootstrap sets SkillRegistry.systemPromptBuilder; this sets the reverse)
+		await _systemPromptBuilder?.setRegistry(_skillRegistry!)
 
 		_auditTrail = AuditTrail()
 		_toolRegistry = ToolRegistry(auditTrail: _auditTrail!)

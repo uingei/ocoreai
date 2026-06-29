@@ -289,9 +289,11 @@
 		/// - Parameters:
 		///   - modelId: Raw model identifier (e.g. "hf:org/repo", "org/repo", "/local/path")
 		///   - fallbackPath: modelURL.path — used only when modelId is ambiguous
+		///   - defaultHub: Fallback provider for bare "org/repo" paths (default: "modelscope")
 		nonisolated static func parseSource(
 			_ modelId: String,
 			fallbackPath: String? = nil,
+			defaultHub: String = "modelscope",
 		) -> ModelSource {
 			if modelId.hasPrefix("mscope:") {
 				return .mscope(String(modelId.dropFirst(7)))
@@ -302,14 +304,19 @@
 			if modelId.hasPrefix("huggingface:") {
 				return .huggingFace(String(modelId.dropFirst(12)))
 			}
-			// Bare "org/repo" pattern — treat as HuggingFace Hub
-			// (most HF models use this format; ModelScope models should use mscope: prefix)
+			// Bare "org/repo" pattern — use configured defaultHub provider
 			if modelId.contains("/") && !modelId.hasPrefix("/") && !modelId.hasPrefix("~/") {
+				if defaultHub == "modelscope" {
+					return .mscope(modelId)
+				}
 				return .huggingFace(modelId)
 			}
 			// Fallback to modelURL.path if modelId was a plain name without slashes
 			if let fallback = fallbackPath {
 				if fallback.contains("/"), !fallback.hasPrefix("/"), !fallback.hasPrefix("~/") {
+					if defaultHub == "modelscope" {
+						return .mscope(fallback)
+					}
 					return .huggingFace(fallback)
 				}
 			}
@@ -364,7 +371,7 @@
 			params.kvGroupSize = config.groupSize
 			params.quantizedKVStart = config.quantizedKVStart
 		}
-		if let temp = sampling.temperature, temp > 0 {
+		if let temp = sampling.temperature {
 			params.temperature = Float(temp)
 		}
 		if let topP = sampling.topP, topP > 0 {
