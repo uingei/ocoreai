@@ -209,8 +209,6 @@ enum AgentLoop {
             budgetRemaining -= tokCount
 
             // ── Check for tool calls ────────────────────────────────────
-            // Import parseToolCalls from handler — it's defined as private so
-            // we duplicate the logic inline here:
             if let tc = parseToolCalls(from: text), !tc.isEmpty {
                 log.info("AgentLoop iter \\(i): \\(tc.count) tool_calls in \\(tokCount) tokens (\\(elapsedMs)ms)")
 
@@ -365,32 +363,5 @@ enum AgentLoop {
             throw error
         }
         return (accumulatedText, tokCount)
-    }
-
-    // MARK: - Tool call detection
-
-    /// Parse tool calls from generated model content (mirrors ChatHandler.parseToolCalls).
-    private static func parseToolCalls(from content: String) -> [ToolCall]? {
-        guard !content.isEmpty else { return nil }
-        do {
-            let jsonData = content.data(using: .utf8) ?? Data()
-            if let toolArray = try JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] {
-                var toolCalls: [ToolCall] = []
-                for toolObj in toolArray {
-                    if let name = toolObj["name"] as? String,
-                       let args = toolObj["arguments"] {
-                        let argsJson = (try? String(data: JSONSerialization.data(
-                            withJSONObject: args, options: []), encoding: .utf8)) ?? "{}"
-                        let tc = ToolCall(
-                            id: "call_\(UUID().uuidString.prefix(8))",
-                            function: ToolCallFunction(name: name, arguments: argsJson)
-                        )
-                        toolCalls.append(tc)
-                    }
-                }
-                return toolCalls.isEmpty ? nil : toolCalls
-            }
-        } catch { /* not JSON array, fall through */ }
-        return nil
     }
 }

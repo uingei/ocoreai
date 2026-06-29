@@ -44,8 +44,7 @@ actor AdmissionGate {
 	// MARK: - Configuration
 
 	/// KB per token in KV cache + activations with 4-bit quantization.
-	/// SchedulerActor.KBPerToken = 4KB/token for bits4 q4_0 is the
-	/// authoritative reference — this gate must use the same baseline.
+	/// Aligned with SchedulerActor.KBPerToken — 1KB/token for bits4 q4_0.
 	private static let KBPerToken = 1024 // 1KB/token (bits4 q4_0)
 
 	/// Abort margin: percentage of remaining budget to always reserve

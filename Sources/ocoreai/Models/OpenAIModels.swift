@@ -310,6 +310,53 @@ struct ToolCallFunction: Codable {
 	}
 }
 
+// MARK: - Tool Call Parsing (Shared)
+
+/// Parse tool calls from generated model content.
+///
+/// Shared by ChatHandler (bridge path) and AgentLoop (fast path) to avoid
+/// duplicate parsing logic.
+///
+/// Parses JSON array of `{"name": "...", "arguments": "..."}` objects.
+/// Falls back to nil if content does not match tool call format.
+///
+/// - Parameter content: Raw generated text from the model
+/// - Returns: Array of ``ToolCall`` if detected, otherwise nil
+func parseToolCalls(from content: String) -> [ToolCall]? {
+	guard !content.isEmpty else { return nil }
+
+	/// Attempt standard JSON array parsing for tool call objects.
+	do {
+		let jsonData = content.data(using: .utf8) ?? Data()
+		if let toolArray = try JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] {
+			var toolCalls: [ToolCall] = []
+			for toolObj in toolArray {
+				if let name = toolObj["name"] as? String,
+				   let args = toolObj["arguments"] {
+					/// Serialize arguments back to JSON string for OpenAI compatibility.
+					let argsJson = (try? String(data: JSONSerialization.data(
+						withJSONObject: args, options: []), encoding: .utf8)) ?? "{}"
+					let tc = ToolCall(
+						id: "call_\(UUID().uuidString.prefix(8))",
+						function: ToolCallFunction(name: name, arguments: argsJson)
+					)
+					toolCalls.append(tc)
+				}
+			}
+			return toolCalls.isEmpty ? nil : toolCalls
+		}
+	} catch {
+		return nil
+	}
+
+	/// Legacy fallback: detect Claude-style tool_use markers.
+	if content.contains("<tool_code>") || (content.contains("\n\n") && content.contains("```json")) {
+		return nil
+	}
+
+	return nil
+}
+
 // MARK: - Message (Multi-Role + Content Polymorphism + Tool Calls)
 
 /// Chat message supporting all roles: system, user, assistant, tool.
