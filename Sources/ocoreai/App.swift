@@ -163,10 +163,10 @@ public final class OcoreaiEngine {
 
 		// Read hub tokens early — needed by BOTH Fast Path (UI) and Bridge Path (HTTP)
 		// Must happen before EnginePool init so MLXModelLoader has the token for MS downloads
+		// NOTE: ProcessInfo.setValue(forKey:) uses KVC, NOT environment vars — custom keys
+		// throw NSUnknownKeyException. Tokens are passed via constructor chain instead.
 		let msToken: String? = ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
 		let hfToken: String? = ProcessInfo.processInfo.environment["HF_TOKEN"]
-		// For ModelScope: store in env so downstream code (ModelScopeSearchClient, downloader) can pick it up
-		ProcessInfo.processInfo.setValue(msToken, forKey: "MODELSCOPE_TOKEN")
 
 		let oomGuard = OOMGuard(log: logger)
 		let memoryTracker = MemoryTracker(
