@@ -257,8 +257,8 @@ public final class OcoreaiEngine {
 			blockPoolConfig: .default,
 			coreAILoadingConfig: coreAILoadingConfig,
 			memoryTracker: memoryTracker,
-			hfToken: hfToken,
 			modelScopeToken: msToken,
+			hfToken: hfToken,
 		)
 		// Build LLM summarizer callback for session compression
 		_sessionCompressor = SessionCompressor(

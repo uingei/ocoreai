@@ -30,14 +30,14 @@ enum HubConfigFetcher {
 	///
 	/// Uses `/api/v1/models/{id}/repo?FilePath=config.json` — same as omlx's
 	/// `_fetch_model_config()`, which returns raw JSON directly.
-	static func fetchModelScopeConfig(repoId: String, logger: Logger) async -> (vocabSize: Int, maxContextLength: Int)? {
+	static func fetchModelScopeConfig(repoId: String, token: String? = nil, logger: Logger) async -> (vocabSize: Int, maxContextLength: Int)? {
 		let encoded = repoId.addingPercentEncoding(withAllowedCharacters: .urlHostAllowed) ?? repoId
 		// omlx reference: _fetch_model_config() uses /repo?FilePath=config.json&Revision=master
 		guard let url = URL(string: "https://www.modelscope.cn/api/v1/models/\(encoded)/repo?FilePath=config.json&Revision=master") else {
 			logger.warning("Invalid ModelScope config URL for \(repoId)")
 			return nil
 		}
-		return await fetchConfig(url: url, repoId: repoId, logger: logger)
+		return await fetchConfig(url: url, repoId: repoId, token: token, logger: logger)
 	}
 
 	// MARK: - Internal
@@ -46,11 +46,15 @@ enum HubConfigFetcher {
 	private nonisolated static func fetchConfig(
 		url: URL,
 		repoId: String,
+		token: String? = nil,
 		logger: Logger,
 	) async -> (vocabSize: Int, maxContextLength: Int)? {
 		do {
 			var request = URLRequest(url: url)
 			request.timeoutInterval = 10
+			if let token {
+				request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+			}
 			let (data, response) = try await URLSession.shared.data(for: request)
 
 			guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {

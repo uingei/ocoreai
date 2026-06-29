@@ -94,19 +94,21 @@ actor EnginePool {
 	/// Tracked inference tasks — used by ``shutdown()`` to cancel + await all running inferences
 	private var trackedTasks: [Task<Void, Never>] = []
 
-	// MARK: - Initialization
-
+	/// Token for ModelScope Hub API (used by HubConfigFetcher + MLXModelLoader)
+	private let modelScopeToken: String?
+	
 	init(
-		config: EnginePoolConfig = .default,
+		config: EnginePoolConfig,
 		logger: Logger,
 		tokenizerManager: TokenizerManager,
 		pagedKVCacheConfig: PagedKVCacheConfig? = nil,
 		blockPoolConfig: BlockPoolConfig? = nil,
 		coreAILoadingConfig: CoreAILoadingConfig = .init(),
 		memoryTracker: MemoryTracker? = nil,
-		hfToken: String? = nil,
 		modelScopeToken: String? = nil,
+		hfToken: String? = nil,
 	) {
+		self.modelScopeToken = modelScopeToken
 		precondition(config.maxConcurrentSessions > 0, "maxConcurrentSessions must be positive")
 		precondition(config.maxQueueSize > 0, "maxQueueSize must be positive")
 		precondition(config.warmupTokens > 0, "warmupTokens must be positive")
@@ -288,7 +290,7 @@ actor EnginePool {
 			// never blocks model loading even on failure
 			let resolved: (vocabSize: Int, maxContextLength: Int)?
 			if modelId.hasPrefix("mscope:") {
-				resolved = await HubConfigFetcher.fetchModelScopeConfig(repoId: repoId, logger: logger)
+				resolved = await HubConfigFetcher.fetchModelScopeConfig(repoId: repoId, token: modelScopeToken, logger: logger)
 			} else {
 				resolved = await HubConfigFetcher.fetchHuggingFaceConfig(repoId: repoId, logger: logger)
 			}
