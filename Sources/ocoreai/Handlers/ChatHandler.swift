@@ -216,18 +216,19 @@ func chatCompletionsHandler(
 
 	/// Phase 3: Tokenize messages for prompt token count.
 	/// (Token count needed for metrics; actual inference passes messages directly on MLX path.)
-	let tokens: [Int32]
+	/// On MLX backend the tokenizer manager is a stub (real tokenizer lives in ChatSession),
+	/// so we gracefully fall back to a character-based heuristic instead of blocking the request.
+	var promptTokenCount: Int
 	do {
-		tokens = try await handle.tokenize(messages: fullMessages)
+		let tok = try await handle.tokenize(messages: fullMessages)
+		promptTokenCount = tok.isEmpty ? 1 : tok.count
 	} catch {
-		throw AppError.tokenizationFailed(error.localizedDescription)
-	}
-
-	/// Validate tokenization returned at least one token.
-	guard !tokens.isEmpty else {
-		throw AppError.tokenizationFailed(
-			"Empty token output for model '\(modelId)'",
+		logger.warning(
+			"Tokenization failed, using heuristic estimate for metrics — \(error.localizedDescription)"
 		)
+		promptTokenCount = max(1, fullMessages.reduce(0) {
+			$0 + $1.textContent().utf8.count / 4
+		})
 	}
 
 	/// Phase 4: Three-layer Parameter Fallback Chain.
@@ -305,7 +306,7 @@ func chatCompletionsHandler(
 	if request.stream == true {
 		return try await streamWithToolCalling(
 			handle: handle,
-			tokens: tokens,
+			promptTokenCount: promptTokenCount,
 			messages: fullMessages,
 			sampling: sampling,
 			options: inferenceOpts,
@@ -318,7 +319,7 @@ func chatCompletionsHandler(
 	} else {
 		return try await nonStreamWithToolCalling(
 			handle: handle,
-			tokens: tokens,
+			promptTokenCount: promptTokenCount,
 			messages: fullMessages,
 			sampling: sampling,
 			options: inferenceOpts,
@@ -342,7 +343,7 @@ func chatCompletionsHandler(
 ///
 /// - Parameters:
 ///   - handle: Acquired engine handle
-///   - tokens: Tokenized input prompt
+///   - promptTokenCount: Estimated prompt token count
 ///   - sampling: Normalized sampling configuration
 ///   - options: Inference options (maxTokens, logits)
 ///   - request: Original chat completion request
@@ -353,7 +354,7 @@ func chatCompletionsHandler(
 /// - Returns: JSON ``Response`` with ``ChatCompletion`` payload
 private func nonStreamWithToolCalling(
 	handle: EngineHandle,
-	tokens: [Int32],
+	promptTokenCount: Int,
 	messages: [Message],
 	sampling: SamplingConfiguration,
 	options: InferenceOptions,
@@ -504,7 +505,7 @@ private func nonStreamWithToolCalling(
 	let elapsed = Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
 	await metrics.observeInferenceDuration(elapsed / 1000.0)
 	await metrics.incrementTokens(kind: "generated", count: totalOutputTokens)
-	await metrics.incrementTokens(kind: "prompt", count: tokens.count)
+	await metrics.incrementTokens(kind: "prompt", count: promptTokenCount)
 
 	/// Assemble full ChatCompletion response with usage statistics.
 	let completion = ChatCompletion(
@@ -512,7 +513,7 @@ private func nonStreamWithToolCalling(
 		created: created,
 		model: modelId,
 		choices: [choice],
-		usage: Usage(input: tokens.count, output: totalOutputTokens),
+		usage: Usage(input: promptTokenCount, output: totalOutputTokens),
 	)
 
 	/// Persist conversation to SQLite (fire-and-forget, non-blocking).
@@ -522,7 +523,7 @@ private func nonStreamWithToolCalling(
 			messages: messages,
 			assistantContent: finalContent,
 			modelId: modelId,
-			promptTokens: tokens.count,
+			promptTokens: promptTokenCount,
 			outputTokens: totalOutputTokens,
 			compressor: sessionCompressor,
 		)
@@ -546,7 +547,7 @@ private func nonStreamWithToolCalling(
 ///
 /// - Parameters:
 ///   - handle: Acquired engine handle
-///   - tokens: Tokenized input prompt
+///   - promptTokenCount: Estimated prompt token count
 ///   - sampling: Normalized sampling configuration
 ///   - options: Inference options (maxTokens, logits)
 ///   - request: Original chat completion request
@@ -557,7 +558,7 @@ private func nonStreamWithToolCalling(
 /// - Returns: SSE ``Response`` with NDJSON ``ChatCompletionChunk`` payloads
 private func streamWithToolCalling(
 	handle: EngineHandle,
-	tokens: [Int32],
+	promptTokenCount: Int,
 	messages: [Message],
 	sampling: SamplingConfiguration,
 	options: InferenceOptions,
@@ -824,7 +825,7 @@ private func streamWithToolCalling(
 		}
 		await metrics.observeInferenceDuration(
 			ms: inferenceDurationMs,
-			inputTokens: tokens.count,
+			inputTokens: promptTokenCount,
 			outputTokens: totalOutputTokens,
 			ttfbMs: String(format: "%.1f", ttfbMsVal),
 			modelId: modelId,
@@ -836,7 +837,7 @@ private func streamWithToolCalling(
 			messages: messages,
 			assistantContent: prevDecodedText,
 			modelId: modelId,
-			promptTokens: tokens.count,
+			promptTokens: promptTokenCount,
 			outputTokens: totalOutputTokens,
 			compressor: sessionCompressor,
 		)

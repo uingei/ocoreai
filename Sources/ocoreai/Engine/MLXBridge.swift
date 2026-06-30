@@ -413,7 +413,7 @@
 	/// NOTE: toMLXChatMessage is dead code — EnginePool.tokenize uses contentToString directly.
 	@available(*, deprecated, message: "EnginePool.tokenize bypasses MLXBridge for tokenization")
 	nonisolated func toMLXChatMessage(_ msg: Message) -> Chat.Message {
-		let (text, _dropped) = toMessageParts(msg)
+		let (text, _) = toMessageParts(msg)
 		switch msg.role {
 		case "system": return Chat.Message.system(text)
 		case "assistant": return Chat.Message.assistant(text)
