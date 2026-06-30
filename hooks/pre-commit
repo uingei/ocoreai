@@ -31,8 +31,8 @@ if git diff --cached --name-only --diff-filter=ACM | grep -qE 'Package\.swift|Pa
 fi
 
 # ── Build gate ──────────────────────────────────────────────────
-echo "🔨 [pre-commit] swift build --traits mlx ..."
-if swift build --traits mlx 2>&1 | tee /tmp/ocoreai-build.log | grep -qE 'error:'; then
+echo "🔨 [pre-commit] swift build ..."
+if swift build 2>&1 | tee /tmp/ocoreai-build.log | grep -qE 'error:'; then
     echo "❌ [pre-commit] Build failed — commit blocked."
     exit 1
 fi

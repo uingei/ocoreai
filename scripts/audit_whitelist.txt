@@ -1,0 +1,11 @@
+# ocoreai audit whitelist — one excluded path per line
+# Format: file or pattern that the audit grep will skip via -F match
+
+# EngineInference: Task.sleep catch {} is intentional — sleep only throws
+# cancellation, which the surrounding while loop handles via checkCancellation.
+# Adding a logger call for a 500ms sleep backoff would be noise, not signal.
+EngineInference
+
+# ErrorContext: the doc comment describes what try? / empty catch {} NOT to do —
+# it's a pattern description, not actual code.
+ErrorContext

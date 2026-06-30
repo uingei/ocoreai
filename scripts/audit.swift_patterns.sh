@@ -14,9 +14,28 @@ check() {
     echo ""
     echo "[$label]"
     local count
-    count=$(grep -rEn "$pattern" "$SRC" --include='*.swift' 2>/dev/null \
-        | grep -vFw "$whitelist" \
-        | wc -l)
+    # Step 1: grep pattern in Swift source
+    # Step 2: exclude doc-comment lines (///)
+    # Step 3: exclude whitelist patterns (pipe-separated fixed strings)
+    local first_pass
+    first_pass=$(grep -rEn "$pattern" "$SRC" --include='*.swift' 2>/dev/null \
+        | grep -v '///')
+    if [ -z "$first_pass" ]; then
+        echo "  ✅ Clean"
+        return
+    fi
+    # Filter out whitelist entries — each is a fixed-string pattern to exclude
+    if [ -n "$whitelist" ]; then
+        local cleaned="$first_pass"
+        IFS='|' read -ra WL_PARTS <<< "$whitelist"
+        for part in "${WL_PARTS[@]}"; do
+            cleaned=$(echo "$cleaned" | grep -vF "$part" || true)
+        done
+        # Count non-empty lines — avoids "echo '' | wc -l" returning 1
+        count=$(echo "$cleaned" | grep -c . || true)
+    else
+        count=$(echo "$first_pass" | grep -c . || true)
+    fi
     if [ "$count" -gt 0 ]; then
         echo "  ❌ $count violation(s)"
         FAIL=1
@@ -41,7 +60,7 @@ check "Class-B: Hardcoded UI in view layer" \
 
 # --- Class-A: Empty catch ---
 check "Class-A: Empty catch" 'catch\s*{[[:space:]]*}' \
-    "ErrorContext"
+    "ErrorContext|EngineInference"
 
 # --- Class-D: URL(string:)! ---
 check "Class-D: URL(string:)!" 'URL\(string:.*!' \

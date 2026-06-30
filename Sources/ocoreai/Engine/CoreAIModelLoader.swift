@@ -138,11 +138,11 @@
 			if let dir = cacheDirectory, !dir.isEmpty {
 				return dir
 			}
+			let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+				?? URL(fileURLWithPath: "/tmp/ocoreai-cache")
 			#if os(iOS) || os(visionOS)
-				return FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-					.appendingPathComponent("ocoreai").appendingPathComponent("models").path
+				return caches.appendingPathComponent("ocoreai").appendingPathComponent("models").path
 			#else
-				let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
 				let url = caches.appendingPathComponent("ocoreai").appendingPathComponent("models")
 				try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
 				return url.path

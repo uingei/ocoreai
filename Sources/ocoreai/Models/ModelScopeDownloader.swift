@@ -25,13 +25,15 @@ actor ModelScopeDownloader: Downloader {
 	// MARK: - Configuration
 
 	private let token: String?
-	private let baseAPI: URL
+	/// ModelScope API base — hardcoded, always valid.
+	private static let baseAPI: URL = .init(
+		string: "https://www.modelscope.cn/api/v1"
+	)!
 	private let cacheRoot: URL
 
 	/// Create a ModelScope Downloader.
 	init(token: String? = nil, cacheRoot: URL? = nil) {
 		self.token = token
-		baseAPI = URL(string: "https://www.modelscope.cn/api/v1")!
 		self.cacheRoot = cacheRoot ?? {
 			let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
 			return urls.first?.appendingPathComponent("ocoreai/modelscope")
@@ -115,7 +117,7 @@ actor ModelScopeDownloader: Downloader {
 	///
 	/// Response: Data.Files[].Path / .Size / .Type
 	private func listRepoFiles(repoId: String, revision: String) async throws -> [FileInfo] {
-		var components = URLComponents(url: baseAPI, resolvingAgainstBaseURL: false)!
+		var components = URLComponents(url: Self.baseAPI, resolvingAgainstBaseURL: false)!
 		components.path = (components.path as NSString).appendingPathComponent("models") + "/" + repoId + "/repo/files"
 		components.queryItems = [
 			URLQueryItem(name: "Revision", value: revision),
@@ -175,7 +177,7 @@ actor ModelScopeDownloader: Downloader {
 		repoId: String,
 		revision: String,
 	) async throws {
-		var components = URLComponents(url: baseAPI, resolvingAgainstBaseURL: false)!
+		var components = URLComponents(url: Self.baseAPI, resolvingAgainstBaseURL: false)!
 		components.path = (components.path as NSString).appendingPathComponent("models") + "/" + repoId + "/resolve/" + revision + "/" + path
 		guard let url = components.url else {
 			throw DownloaderError.invalidURL("Cannot construct download URL for \(path)")

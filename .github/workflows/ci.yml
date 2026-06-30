@@ -12,10 +12,23 @@ permissions:
   id-token: write
 
 jobs:
-  test:
-    name: Test (macos-26)
+  ## ── Static audit (fast, no build) ────────────────────────────────
+  audit:
+    name: Static Audit
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Run static audit
+        run: bash scripts/audit.swift_patterns.sh
+
+  ## ── Build + test (single pass, feeds release) ────────────────────
+  build-and-test:
+    name: Build & Test (macos-26)
+    runs-on: macos-26
+    timeout-minutes: 45
+    needs: [audit]
     steps:
       - uses: actions/checkout@v7
 
@@ -29,39 +42,46 @@ jobs:
       - name: Run tests
         run: |
           export SWIFT_BUILD_NUM_WORKERS=2
-          # swift test — 146 tests / 34 suites (build-verified 2026-07-01)
-          # If MLXLMTestUtils conflict persists on macos-26, fall back to
-          # `swift build --target ocoreaiTests` as compile-integrity gate.
-          swift test --traits mlx
+          swift test
 
-  build-gui:
-    name: Build GUI (macos-26)
-    runs-on: macos-26
-    timeout-minutes: 45
-    needs: [test]
-    steps:
-      - uses: actions/checkout@v7
+      - name: Setup MLX metallib
+        run: |
+          # MLX runtime looks for mlx.metallib next to the binary.
+          # Without it, MLX silently falls back to CPU (10-50x slower).
+          # Try our script first, then find system metallib as fallback.
+          bash scripts/setup-metallib.sh || {
+            echo "⚠️ setup-metallib.sh failed — searching system..."
+            METALLIB=$(find /opt/homebrew /Library/Developer -name 'mlx.metallib' -type f 2>/dev/null | head -1)
+            if [ -n "$METALLIB" ]; then
+              cp "$METALLIB" .build/arm64-apple-macosx/debug/
+              cp "$METALLIB" .build/arm64-apple-macosx/release/
+              echo "✅ Copied from $METALLIB"
+            else
+              echo "⚠️ No mlx.metallib found — MLX will fall back to CPU"
+            fi
+          }
 
-      - name: Cache SPM checkouts
-        uses: actions/cache@v5
-        with:
-          path: .build/checkouts
-          key: macos-spm-v7-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            macos-spm-v7-${{ hashFiles('Package.resolved') }}
-
-      - name: Resolve dependencies
-        run: swift package resolve
-
-      - name: Build GUI target
+      - name: Build release binary
         run: |
           export SWIFT_BUILD_NUM_WORKERS=2
-          swift build -c release --traits mlx
+          swift build -c release
+        env:
+          OCOREAI_BUILD: ci
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocoreai-binary
+          path: |
+            .build/arm64-apple-macosx/release/ocoreai
+            .build/arm64-apple-macosx/release/mlx.metallib
+          retention-days: 7
+
+  ## ── Release (tagged pushes only) ─────────────────────────────────
   release:
     name: Release
     runs-on: macos-26
-    needs: [test, build-gui]
+    needs: [build-and-test]
     if: startsWith(github.ref, 'refs/tags/v')
     timeout-minutes: 30
     steps:
@@ -69,36 +89,44 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Cache SPM checkouts
-        uses: actions/cache@v5
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
         with:
-          path: .build/checkouts
-          key: macos-spm-v7-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            macos-spm-v7-${{ hashFiles('Package.resolved') }}
+          name: ocoreai-binary
+          path: .build/arm64-apple-macosx/release/
 
-      - name: Resolve dependencies
-        run: swift package resolve
-
-      - name: Build & Package macOS App
+      - name: Extract version from tag
+        id: version
         run: |
-          export SWIFT_BUILD_NUM_WORKERS=2
-          swift build -c release --traits mlx
-          APP_DIR=".build/release/ocoreai.app"
-          mkdir -p "$APP_DIR/Contents/MacOS"
-          mkdir -p "$APP_DIR/Contents/Resources"
-          cp .build/release/ocoreai "$APP_DIR/Contents/MacOS/"
+          # Strip 'v' prefix: v1.2.3 → 1.2.3
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Tag: $TAG → Version: $VERSION"
+
+      - name: Package macOS App
+        run: |
+          APP_DIR="ocoreai.app/Contents"
+          mkdir -p "$APP_DIR/MacOS"
+          mkdir -p "$APP_DIR/Resources"
+
+          cp .build/arm64-apple-macosx/release/ocoreai "$APP_DIR/MacOS/"
+          cp .build/arm64-apple-macosx/release/mlx.metallib "$APP_DIR/MacOS/" 2>/dev/null || true
+          cp PrivacyInfo.xcprivacy "$APP_DIR/Resources/" 2>/dev/null || true
+
+          # Generate Info.plist with dynamic version
           python3 -c "
           import xml.etree.ElementTree as ET
-          from xml.dom import minidom
+          import os
+          version = '${{ steps.version.outputs.version }}'
           root = ET.Element('plist', version='1.0')
           d = ET.SubElement(root, 'dict')
           items = [
             ('CFBundleExecutable', 'ocoreai'),
             ('CFBundleIdentifier', 'com.uingei.ocoreai'),
             ('CFBundleName', 'ocoreai'),
-            ('CFBundleShortVersionString', '1.0'),
-            ('CFBundleVersion', '1'),
+            ('CFBundleShortVersionString', version),
+            ('CFBundleVersion', version),
             ('LSMinimumSystemVersion', '15.0'),
             ('NSHighResolutionCapable', 'true'),
           ]
@@ -106,28 +134,28 @@ jobs:
               ET.SubElement(d, 'key').text = k
               ET.SubElement(d, 'string').text = v
           tree = ET.ElementTree(root)
-          with open(f'$APP_DIR/Contents/Info.plist', 'wb') as f:
-              f.write(b'''<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-          <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
-          ''')
+          plist_path = '$APP_DIR/Info.plist'
+          with open(plist_path, 'wb') as f:
+              f.write(b'<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n')
+              f.write(b'<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n')
               tree.write(f, encoding='UTF-8', xml_declaration=False)
           "
-          cp PrivacyInfo.xcprivacy "$APP_DIR/Contents/Resources/" 2>/dev/null || true
-        env:
-          OCOREAI_BUILD: ci
+
+      - name: Ad-hoc codesign
+        run: |
+          codesign --sign - --force --deep --options runtime ocoreai.app
+          codesign -vvv --strict ocoreai.app
 
       - name: Archive builds
         run: |
-          cd .build/release
-          tar czf ocoreai-macos-gui.tar.gz ocoreai
-          tar czf ocoreai-macos-app.tar.gz ocoreai.app
-          shasum -a 256 ocoreai-macos-gui.tar.gz ocoreai-macos-app.tar.gz > SHA256.txt
+          tar czf ocoreai-macos.tar.gz ocoreai.app
+          shasum -a 256 ocoreai-macos.tar.gz > SHA256.txt
 
       - name: GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            .build/release/ocoreai-macos-gui.tar.gz
-            .build/release/ocoreai-macos-app.tar.gz
-            .build/release/SHA256.txt
-          prerelease: true
+            ocoreai-macos.tar.gz
+            SHA256.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

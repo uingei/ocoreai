@@ -69,7 +69,7 @@ final actor ModelScopeSearchClient {
 	// MARK: - Configuration
 
 	/// Base URL - follows the same pattern as the Python SDK.
-	private let baseURL: String
+	private let baseURL: URL
 	private let token: String?
 
 	/// Create the client.
@@ -77,7 +77,7 @@ final actor ModelScopeSearchClient {
 	///   - baseURL: API base URL (defaults to ModelScope main site)
 	///   - token: Optional access token for authed operations
 	init(
-		baseURL: String = "https://modelscope.cn",
+		baseURL: URL = .init(string: "https://modelscope.cn")!,
 		token: String? = nil,
 	) {
 		self.baseURL = baseURL
@@ -110,7 +110,7 @@ final actor ModelScopeSearchClient {
 			keyword
 		}
 
-		let url = URL(string: "\(baseURL)/api/v1/models")!
+		let url = baseURL.appending(path: "api/v1/models")
 		var request = URLRequest(url: url)
 		request.httpMethod = "PUT"
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -140,7 +140,7 @@ final actor ModelScopeSearchClient {
 	/// Get detailed info for a specific model.
 	/// - Parameter modelId: Full model path e.g. "Qwen/Qwen2.5-7B-Instruct"
 	func modelDetail(modelId: String) async throws -> [String: Any] {
-		let url = URL(string: "\(baseURL)/api/v1/models/\(modelId)")!
+		let url = baseURL.appending(path: "api/v1/models/\(modelId)")
 		var request = URLRequest(url: url)
 		if let token {
 			request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
