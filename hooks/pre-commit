@@ -2,6 +2,19 @@
 # ocoreai pre-commit hook — build gate before every commit
 # Exit 1 blocks the commit. Exit 0 lets it through.
 
+# ── Manifest sync check (P0) ─────────────────────────────────────
+# Package.swift and Package@swift-6.3.swift MUST be in sync.
+# If both exist, any diff = commit blocked.
+PKG6="Package@swift-6.3.swift"
+if [ -f "$PKG6" ]; then
+    if ! diff -q Package.swift "$PKG6" >/dev/null 2>&1; then
+        echo "❌ [pre-commit] Package.swift ≠ ${PKG6} — manifest split detected!"
+        echo "   Fix: sync both files or remove ${PKG6}, then re-commit."
+        diff --color=always Package.swift "$PKG6" | head -40
+        exit 1
+    fi
+fi
+
 # ── Fast path: skip if only docs/scripts ──────────────────────────
 git diff --cached --name-only --diff-filter=ACM | grep -qE '\.(swift$|Package\.swift|Package\.resolved|xcprivacy|yml$|ya?ml$|json$|toml$)' || {
     echo "✅ [pre-commit] Only docs/config — skipping build gate."

@@ -35,6 +35,8 @@ final class AppState {
 
 	private let engine = OcoreaiEngine.shared
 	private var metricsTask: Task<Void, Never>?
+	/// Idempotency guard — initialize() is safe to call multiple times
+	private var _initialized = false
 
 	/// Read live metrics from EnginePool + MetricsRegistry (Fast Path, no HTTP)
 	/// Combines engine summary with Prometheus-style metrics for full observability.
@@ -88,7 +90,11 @@ final class AppState {
 	}
 
 	/// Called on app launch — start internal server + sync engine state
+	/// Idempotent: safe to call multiple times (e.g., repeated onAppear in SwiftUI)
 	func initialize() {
+		guard !_initialized else { return }
+		_initialized = true
+
 		Task {
 			await OcoreaiEngine.shared.start()
 		}
