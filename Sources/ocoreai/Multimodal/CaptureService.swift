@@ -82,16 +82,22 @@ final class CaptureService: NSObject {
 
 	// MARK: - Frame
 
+	/// Capture a single frame and return it as a base64 data URL.
+	/// Returns nil if capturing is not active or no photo output is configured.
 	func captureFrame() async -> String? {
 		guard isCapturing, session.isRunning else { return nil }
 		let now = Date().timeIntervalSince1970
 		guard now - lastFrameTime >= frameInterval else { return nil }
 		lastFrameTime = now
+		
+		let out = session.outputs.first as? AVCapturePhotoOutput
+		guard let out else { return nil }
+		
 		let settings = AVCapturePhotoSettings()
 		settings.flashMode = .off
+		
 		return await withCheckedContinuation { cont in
-			let out = session.outputs.first as? AVCapturePhotoOutput
-			out?.capturePhoto(with: settings, delegate: FrameCaptureDelegate { data in
+			out.capturePhoto(with: settings, delegate: FrameCaptureDelegate { data in
 				if let d = data {
 					cont.resume(returning: "data:image/jpeg;base64,\(d.base64EncodedString())")
 				} else {
