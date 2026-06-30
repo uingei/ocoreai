@@ -37,6 +37,8 @@ struct InferenceRequest {
 		modelId: String,
 		messages: [Message],
 		temperature: Double? = nil,
+		topP: Double? = nil,
+		topK: Int? = nil,
 		maxTokens: Int? = nil,
 		sessionId: String? = nil,
 		cancellation: InferenceCancellation? = nil,
@@ -45,11 +47,11 @@ struct InferenceRequest {
 		self.messages = messages
 		systemPrompt = nil
 		tools = nil
-		self.sessionId = sessionId
 		self.temperature = temperature
-		topP = nil
-		topK = nil
+		self.topP = topP
+		self.topK = topK
 		self.maxTokens = maxTokens
+		self.sessionId = sessionId
 		self.cancellation = cancellation
 	}
 }

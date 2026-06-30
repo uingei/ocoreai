@@ -251,6 +251,38 @@ func buildRouter(
 
 	#endif
 
+	// MARK: Multimodal (camera / microphone / TTS)
+
+	routes.post("/v1/multimodal/capture") { request, context in
+		let captureRequest = try await request.decode(
+			as: CaptureRequest.self, context: context,
+		)
+		return try await multimodalCaptureHandler(
+			request: captureRequest,
+			logger: logger,
+		)
+	}
+
+	routes.post("/v1/multimodal/speak") { request, context in
+		let speakRequest = try await request.decode(
+			as: SpeakRequest.self, context: context,
+		)
+		return try await multimodalSpeakHandler(
+			request: speakRequest,
+			logger: logger,
+		)
+	}
+
+	routes.post("/v1/multimodal/status") { request, context in
+		let statusRequest: StatusRequest? = try? await request.decode(
+			as: StatusRequest.self, context: context,
+		)
+		return try await multimodalStatusHandler(
+			request: statusRequest,
+			logger: logger,
+		)
+	}
+
 	// MARK: MCP JSON-RPC Endpoint
 
 	routes.post("/mcp") { request, _ in

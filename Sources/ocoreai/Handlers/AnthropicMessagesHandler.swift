@@ -88,6 +88,30 @@ func anthropicMessagesHandler(
 		}
 	}
 
+	// Prompt injection detection — uses precompiled regex from AuthConfig
+	if AuthConfig.default.promptInjectionEnabled {
+		// Convert Anthropic messages to internal Message for detection
+		let chatReq = toChatCompletionRequest(request)
+		if AuthConfig.detectPromptInjection(
+			in: chatReq.messages,
+			patterns: AuthConfig.defaultPromptInjectionRegexes,
+		) {
+			let errorBody: [String: Any] = [
+				"error": [
+					"message": "Potential prompt injection detected",
+					"type": "prompt_injection",
+					"code": 400,
+				],
+			]
+			guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
+				return Response(status: .badRequest)
+			}
+			var headers: HTTPFields = [:]
+			headers[.contentType] = "application/json"
+			return Response(status: .badRequest, headers: headers, body: .init(contentsOf: [ByteBuffer(data: data)]))
+		}
+	}
+
 	// ═══════════════════════════════════════════════════════
 	// Convert Anthropic → internal ChatCompletionRequest
 	// ═══════════════════════════════════════════════════════

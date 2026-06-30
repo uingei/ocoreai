@@ -157,6 +157,28 @@ func chatCompletionsHandler(
 		}
 	}
 
+	/// Prompt injection detection — uses precompiled regex from AuthConfig
+	if AuthConfig.default.promptInjectionEnabled {
+		if AuthConfig.detectPromptInjection(
+			in: request.messages,
+			patterns: AuthConfig.defaultPromptInjectionRegexes,
+		) {
+			let errorBody: [String: Any] = [
+				"error": [
+					"message": "Potential prompt injection detected",
+					"type": "prompt_injection",
+					"code": 400,
+				],
+			]
+			guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
+				return Response(status: .badRequest)
+			}
+			var headers: HTTPFields = [:]
+			headers[.contentType] = "application/json"
+			return Response(status: .badRequest, headers: headers, body: .init(contentsOf: [ByteBuffer(data: data)]))
+		}
+	}
+
 	/// Phase 1: Submit to scheduler (OOMGuard + priority queue)
 	let schedulingRequest = SchedulingRequest(
 		id: "req-\(UUID().uuidString.prefix(8))",
