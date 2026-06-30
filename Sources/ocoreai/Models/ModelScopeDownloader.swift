@@ -169,6 +169,7 @@ actor ModelScopeDownloader: Downloader {
 	///
 	/// Uses `/api/v1/models/{id}/resolve/{revision}/{path}` which redirects to CDN.
 	/// Streams the response into a temp file — never holds the full file in memory.
+	/// Supports task cancellation — caller can cancel and the download cleans up partial files.
 	private func downloadSingleFile(
 		path: String,
 		to destURL: URL,
@@ -204,7 +205,14 @@ actor ModelScopeDownloader: Downloader {
 			// Stream into file — O(1) memory regardless of file size.
 			let handle = try FileHandle(forWritingTo: tempURL)
 			defer { try? handle.close() }
+			var byteCount = 0
 			for try await byte in bytes {
+				// Check for task cancellation every 128 byte-writes (~128 B) to avoid
+				// per-byte overhead while still cancelling within reasonable bounds.
+				byteCount &+= 1
+				if byteCount.isMultiple(of: 128) {
+					try Task.checkCancellation()
+				}
 				try handle.write(contentsOf: [byte])
 			}
 
