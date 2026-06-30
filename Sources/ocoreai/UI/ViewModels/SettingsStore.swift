@@ -218,9 +218,9 @@ public enum ThemeModeRaw: String, CaseIterable, Sendable {
 
 	public var systemName: String {
 		switch self {
-		case .auto: StringKey.themeModeAuto.l
-		case .light: StringKey.themeModeLight.l
-		case .dark: StringKey.themeModeDark.l
+		case .auto: "circle.dotted"
+		case .light: "sun.horizon"
+		case .dark: "moon"
 		}
 	}
 }

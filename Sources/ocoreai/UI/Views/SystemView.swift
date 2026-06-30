@@ -117,7 +117,7 @@ struct SystemView: View {
 			Section {
 				ForEach(Array(viewModel.toolNames.enumerated()), id: \.offset) { _, name in
 					HStack(spacing: 8) {
-						Image(systemName: "wrench.and.hammer")
+						Image(systemName: "wrench")
 							.foregroundStyle(theme.accent)
 							.frame(width: 20)
 							.accessibilityHidden(true)

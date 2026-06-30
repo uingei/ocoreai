@@ -15,7 +15,7 @@
 			VStack(alignment: .leading, spacing: 16) {
 				// Section header
 				HStack {
-					Image(systemName: "eye.and.ear.and.hands.filled")
+					Image(systemName: "camera.viewfinder")
 						.font(.title2)
 						.accessibilityHidden(true)
 					Text(StringKey.multimodalTitle.l)
