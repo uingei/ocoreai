@@ -194,8 +194,11 @@ final class ModelManager {
 				if MLXModelLoader.isModelCached(provider, repoId: repoId) {
 					currentError = nil
 					do {
-						_ = try await pool.acquire(model: normalizedId)
-						await pool.releaseSession(modelId: normalizedId, sessionId: "init")
+						let handle = try await pool.acquire(model: normalizedId)
+						// Use handle.release() — uses the real UUID sessionId from acquire(),
+						// ensuring pagedKVCache evicts the correct session entry.
+						// Fixes P0-2: pagedKVCache sessionId leak (UUID never evicted when sessionId="init")
+						await handle.release()
 						await refreshLocalModels()
 						return true
 					} catch {
@@ -222,8 +225,10 @@ final class ModelManager {
 		OcoreaiDownloadProgress.shared.start(modelId: progressKey)
 
 		do {
-			_ = try await pool.acquire(model: normalizedId)
-			await pool.releaseSession(modelId: normalizedId, sessionId: "init")
+			let handle = try await pool.acquire(model: normalizedId)
+			// Use handle.release() — real UUID sessionId from acquire()
+			// (same fix as P0-2 above)
+			await handle.release()
 
 			OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
 

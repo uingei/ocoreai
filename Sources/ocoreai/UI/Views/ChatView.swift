@@ -255,9 +255,9 @@ struct ChatView: View {
 				.padding()
 
 			LazyVStack(spacing: 8) {
-				suggestionChip("Explain MLX tensor operations")
-				suggestionChip("Compare CoreAI vs MLX on Apple Silicon")
-				suggestionChip("Debug my SwiftUI view hierarchy")
+				suggestionChip(StringKey.chatSuggestionExplainMlx.l)
+				suggestionChip(StringKey.chatSuggestionCompareCoreAi.l)
+				suggestionChip(StringKey.chatSuggestionDebugSwiftui.l)
 			}
 			.padding(.top, 8)
 		}

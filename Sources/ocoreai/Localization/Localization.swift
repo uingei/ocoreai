@@ -172,6 +172,9 @@ public enum StringKey: String, CaseIterable {
 	// — Chat —
 	case chatWelcomeTitle = "Chat.WelcomeTitle"
 	case chatWelcomeDesc = "Chat.WelcomeDesc"
+	case chatSuggestionExplainMlx = "Chat.SuggestionExplainMlx"
+	case chatSuggestionCompareCoreAi = "Chat.SuggestionCompareCoreAi"
+	case chatSuggestionDebugSwiftui = "Chat.SuggestionDebugSwiftui"
 
 	// — Models —
 	case noModelsLoaded = "Models.NoModelsLoaded"
@@ -531,6 +534,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		// Chat
 		.chatWelcomeTitle: "Start a conversation",
 		.chatWelcomeDesc: "Send a message to begin local AI inference",
+		.chatSuggestionExplainMlx: "Explain MLX tensor operations",
+		.chatSuggestionCompareCoreAi: "Compare CoreAI vs MLX on Apple Silicon",
+		.chatSuggestionDebugSwiftui: "Debug my SwiftUI view hierarchy",
 
 		// Models
 		.noModelsLoaded: "No models loaded",
@@ -842,6 +848,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		// Chat
 		.chatWelcomeTitle: "开始对话",
 		.chatWelcomeDesc: "发送消息以开始本地 AI 推理",
+		.chatSuggestionExplainMlx: "解释 MLX 张量运算",
+		.chatSuggestionCompareCoreAi: "比较 CoreAI 和 MLX 在 Apple Silicon 上的表现",
+		.chatSuggestionDebugSwiftui: "调试 SwiftUI 视图层级",
 
 		// Models
 		.noModelsLoaded: "未加载模型",

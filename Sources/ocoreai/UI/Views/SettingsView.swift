@@ -79,12 +79,6 @@ struct SettingsView: View {
 
 	@State private var _loadingHubTokens = false
 
-	/// Sync local SecureField bindings into SettingsState on appearance
-	private func _syncHubTokens() {
-		settingsState.hfToken = (_hfTokenField.isEmpty ? nil : _hfTokenField)
-		settingsState.modelScopeToken = (_msTokenField.isEmpty ? nil : _msTokenField)
-	}
-
 	private var hubTokenSection: some View {
 		Section {
 			VStack(alignment: .leading, spacing: 4) {

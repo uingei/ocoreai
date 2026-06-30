@@ -30,7 +30,9 @@ final class DashboardState {
 
 	// MARK: - Screen lifecycle
 
-	/// Start live metrics polling — reads directly from EnginePool + MetricsRegistry
+	/// Consume metrics from AppState (single source of truth).
+	/// AppState.metricsTask does the actual polling — we track chart history here.
+	/// Fixes: P0-1 (eliminated duplicate polling), P1-1 (no [self] strong capture)
 	@MainActor
 	func startPolling() async {
 		// Wait until engine core is fully initialized — 30s timeout guard
@@ -43,63 +45,64 @@ final class DashboardState {
 			return
 		}
 
-		pollingTask = Task.detached(priority: .utility) { [self] in
+		// Weak self + detached: no strong reference retained beyond cancel point
+		pollingTask = Task.detached(priority: .utility) { [weak self] in
 			while !Task.isCancelled {
-				let (pool, metrics) = await MainActor.run {
-					(self.engine.activeEnginePool, self.engine.activeMetrics)
-				}
-				guard let pool, let metrics else {
-					try? await Task.sleep(nanoseconds: 1_000_000_000)
-					continue
-				}
+				guard let self else { return }
 
-				_ = await pool.engineSummary()
-				let promText = await metrics.export()
-				let parsed = MetricsSnapshot.parse(from: promText) ?? .empty
-
+				// Read metrics from AppState (single poller) — zero extra I/O
 				await MainActor.run {
-					self.metricsSnapshot = parsed
-					let snap = parsed
-
-					// Track token history (keep last 60 points)
-					self.tokenHistory.append(
-						MetricsPoint(
-							timestamp: Date(),
-							tokensPerSecond: snap.tokensPerSecond,
-						),
-					)
-					if self.tokenHistory.count > 60 {
-						self.tokenHistory.removeFirst()
-					}
-
-					// Track GPU memory history
-					self.memoryHistory.append(
-						MemoryPoint(
-							timestamp: Date(),
-							gpuMemoryUsage: snap.gpuMemoryUsage,
-							kvCacheGB: Double(snap.kvCacheBytes) / 1_073_741_824.0,
-						),
-					)
-					if self.memoryHistory.count > 60 {
-						self.memoryHistory.removeFirst()
-					}
-
-					// KV cache point
-					let kvGB = Double(snap.kvCacheBytes) / 1_073_741_824.0
-					self.kvCacheHistory.append(KVCachePoint(timestamp: Date(), kvCacheGB: kvGB))
-					if self.kvCacheHistory.count > 60 {
-						self.kvCacheHistory.removeFirst()
-					}
-
-					self.connected = true
+					self.consumeMetrics()
 				}
 
-					// Use user-configured poll interval in foreground; throttle in background
-					let interval = await AppState.shared.isForeground
-						? SettingsStore.shared.pollIntervalSec
-						: max(SettingsStore.shared.pollIntervalSec, 10)
-					try? await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
+				// Use user-configured poll interval in foreground; throttle in background
+				let interval = await AppState.shared.isForeground
+					? SettingsStore.shared.pollIntervalSec
+					: max(SettingsStore.shared.pollIntervalSec, 10)
+				try? await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
 			}
+		}
+	}
+
+	/// Pull the latest snapshot from AppState and update chart histories.
+	@MainActor
+	private func consumeMetrics() {
+		let snap = AppState.shared.currentMetrics
+
+		// Connection state: mirror AppState
+		self.connected = AppState.shared.isConnected
+
+		// Update current snapshot
+		self.metricsSnapshot = snap
+
+		// Track token history (keep last 60 points)
+		self.tokenHistory.append(
+			MetricsPoint(
+				timestamp: Date(),
+				tokensPerSecond: snap.tokensPerSecond,
+			),
+		)
+		if self.tokenHistory.count > 60 {
+			self.tokenHistory.removeFirst()
+		}
+
+		// Track GPU memory history
+		self.memoryHistory.append(
+			MemoryPoint(
+				timestamp: Date(),
+				gpuMemoryUsage: snap.gpuMemoryUsage,
+				kvCacheGB: Double(snap.kvCacheBytes) / 1_073_741_824.0,
+			),
+		)
+		if self.memoryHistory.count > 60 {
+			self.memoryHistory.removeFirst()
+		}
+
+		// KV cache point
+		let kvGB = Double(snap.kvCacheBytes) / 1_073_741_824.0
+		self.kvCacheHistory.append(KVCachePoint(timestamp: Date(), kvCacheGB: kvGB))
+		if self.kvCacheHistory.count > 60 {
+			self.kvCacheHistory.removeFirst()
 		}
 	}
 
