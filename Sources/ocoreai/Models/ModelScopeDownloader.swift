@@ -27,7 +27,6 @@ actor ModelScopeDownloader: Downloader {
 	private let token: String?
 	private let baseAPI: URL
 	private let cacheRoot: URL
-	private let fileCountLimit: Int = 200
 
 	/// Create a ModelScope Downloader.
 	init(token: String? = nil, cacheRoot: URL? = nil) {
@@ -235,16 +234,21 @@ actor ModelScopeDownloader: Downloader {
 		existingFilenames: Set<String>,
 		progressHandler: @Sendable @escaping (Progress) -> Void,
 	) async throws {
+		let totalBytes = files.reduce(Int64(0)) { $0 + ($1.size ?? 0) }
 		let total = files.count
-		var downloaded = 0
+		var downloadedBytes: Int64 = 0
+		var downloadedCount = 0
 		var failedPaths: [String] = []
 
 		for chunk in files.chunked(into: 4) {
-			let tasks = chunk.map { fileInfo -> (String, Task<Bool, Error>) in
+			// Task.isCancelled checkpoint — allow user cancellation to take effect
+			if Task.isCancelled { throw CancellationError() }
+
+			let tasks = chunk.map { fileInfo -> (String, Task<(FileInfo, Bool), Error>) in
 				let filePath = String(fileInfo.path)
 				return (filePath, Task {
 					if existingFilenames.contains(filePath) {
-						return true
+						return (fileInfo, true)
 					}
 					let dest = cacheDir.appendingPathComponent(filePath)
 					try await downloadSingleFile(
@@ -253,16 +257,19 @@ actor ModelScopeDownloader: Downloader {
 						repoId: repoId,
 						revision: revision,
 					)
-					return true
+					return (fileInfo, true)
 				})
 			}
 
 			for (filePath, task) in tasks {
 				do {
-					_ = try await task.value
-					downloaded += 1
-					let progress = Progress(totalUnitCount: Int64(total))
-					progress.completedUnitCount = Int64(downloaded)
+					let (info, _) = try await task.value
+					downloadedCount += 1
+					let fileBytes = info.size ?? 0
+					downloadedBytes += fileBytes
+					// Byte-level progress — smooth ETA and percentage
+					let progress = Progress(totalUnitCount: max(totalBytes, 1))
+					progress.completedUnitCount = Int64(downloadedBytes)
 					progressHandler(progress)
 				} catch {
 					failedPaths.append(filePath)
@@ -274,7 +281,7 @@ actor ModelScopeDownloader: Downloader {
 			throw DownloaderError.partialDownload(
 				failed: failedPaths,
 				total: total,
-				succeeded: downloaded,
+				succeeded: downloadedCount,
 			)
 		}
 	}

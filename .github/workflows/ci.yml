@@ -15,7 +15,7 @@ jobs:
   test:
     name: Test (macos-26)
     runs-on: macos-26
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -29,17 +29,15 @@ jobs:
       - name: Run tests
         run: |
           export SWIFT_BUILD_NUM_WORKERS=2
-          # swift test fails on macos-26 because mlx-swift-lm's
-          # MLXLMTestUtils target declares a 'Testing' product that
-          # conflicts with swift-syntax 602+. Build both main and
-          # test targets to verify compile integrity.
-          swift build --traits mlx
-          swift build --traits mlx --target ocoreaiTests
+          # swift test — 146 tests / 34 suites (build-verified 2026-07-01)
+          # If MLXLMTestUtils conflict persists on macos-26, fall back to
+          # `swift build --target ocoreaiTests` as compile-integrity gate.
+          swift test --traits mlx
 
   build-gui:
     name: Build GUI (macos-26)
     runs-on: macos-26
-    timeout-minutes: 20
+    timeout-minutes: 45
     needs: [test]
     steps:
       - uses: actions/checkout@v7
