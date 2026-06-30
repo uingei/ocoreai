@@ -80,7 +80,8 @@ struct ChatView: View {
 			await modelManager.loadModels()
 			let idStrings = modelManager.modelIdStrings()
 			if idStrings.isEmpty {
-				currentModel = "local"
+				// No local models yet — use configured default model ID
+				currentModel = await OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? ""
 			} else {
 				currentModel = idStrings.first ?? ""
 			}
@@ -334,7 +335,9 @@ struct ChatView: View {
 		guard !text.isEmpty && !isStreaming else { return }
 
 		inputText = ""
-		let modelID = currentModel.isEmpty ? "local" : currentModel
+		let modelID = currentModel.isEmpty
+			? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? ""
+			: currentModel
 
 		// Use regular Task (not detached) so cancellation propagates
 		// and MainActor context is captured for updating chatState
