@@ -15,6 +15,8 @@ struct SessionView: View {
 	var body: some View {
 		Form {
 			sessionListSection
+			// B11: memory search always visible at bottom
+			memorySearchSection
 			if viewModel.selectedSession != nil {
 				sessionDetailSection()
 			}
@@ -140,6 +142,37 @@ struct SessionView: View {
 				Text(StringKey.sessionSummary.l)
 			} footer: {
 				EmptyView()
+			}
+		}
+	}
+
+	// MARK: - Memory Search (B11)
+
+	@ViewBuilder
+	private var memorySearchSection: some View {
+		Section(StringKey.memoryTitle.l) {
+			HStack {
+				Image(systemName: "brain.head.profile")
+					.foregroundStyle(.secondary)
+				TextField(StringKey.memorySearchPlaceholder.l, text: $viewModel.memorySearchQuery)
+					.textFieldStyle(.plain)
+					.onSubmit {
+						Task { await viewModel.searchMemory(viewModel.memorySearchQuery) }
+					}
+			}
+			.padding(8)
+			.background(theme.cardBg, in: RoundedRectangle(cornerRadius: 8))
+
+			ForEach(viewModel.memorySearchResults, id: \.id) { event in
+				VStack(alignment: .leading, spacing: 4) {
+					Text(event.process)
+						.font(.ocoreaiText(13))
+						.lineLimit(3)
+					Text(event.context)
+						.font(.ocoreaiText(10))
+						.foregroundStyle(theme.textTertiary)
+				}
+				.padding(.vertical, 2)
 			}
 		}
 	}

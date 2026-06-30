@@ -98,6 +98,39 @@ final class SettingsStore {
 		set { defaults.set(newValue.rawValue, forKey: Key.appThemeMode.rawValue) }
 	}
 
+	// MARK: - Hub Tokens
+
+	/// HuggingFace token — env var HF_TOKEN takes precedence, then persisted value
+	/// Note: UserDefaults is thread-safe, so this can be called off MainActor.
+	var hfToken: String? {
+		get {
+			ProcessInfo.processInfo.environment["HF_TOKEN"]
+				?? UserDefaults.standard.string(forKey: Key.hfToken.rawValue)
+		}
+		set { defaults.set(newValue, forKey: Key.hfToken.rawValue) }
+	}
+
+	/// ModelScope token — env var MODELSCOPE_TOKEN takes precedence, then persisted value
+	/// Note: UserDefaults is thread-safe, so this can be called off MainActor.
+	var modelScopeToken: String? {
+		get {
+			ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
+				?? UserDefaults.standard.string(forKey: Key.modelScopeToken.rawValue)
+		}
+		set { defaults.set(newValue, forKey: Key.modelScopeToken.rawValue) }
+	}
+
+	/// Masked version for UI display — shows first/last 2 chars if set
+	var hfTokenMasked: String {
+		guard let token = hfToken, token.count > 4 else { return "" }
+		return String(token.prefix(2)) + "••••" + String(token.suffix(2))
+	}
+
+	var modelScopeTokenMasked: String {
+		guard let token = modelScopeToken, token.count > 4 else { return "" }
+		return String(token.prefix(2)) + "••••" + String(token.suffix(2))
+	}
+
 	// MARK: - Reset
 
 	/// Wipe all settings to defaults
@@ -169,6 +202,10 @@ final class SettingsStore {
 		// App
 		case appLocale = "settings.app.locale"
 		case appThemeMode = "settings.app.themeMode"
+
+		// Hub Tokens
+		case hfToken = "settings.hub.hfToken"
+		case modelScopeToken = "settings.hub.modelScopeToken"
 	}
 
 	private let defaults: UserDefaults

@@ -297,12 +297,17 @@ struct DashboardView: View {
 
 	private var tokenChartDomain: ClosedRange<Date> {
 		let base = dashboardState.tokenHistory.last?.timestamp ?? .now
-		return base.addingTimeInterval(-60) ... Date.distantFuture
+		// Use chart window setting for upper bound — Date.distantFuture causes chart scale overflow
+		let window = max(SettingsStore.shared.chartWindowSec, 30)
+		let lower = base.addingTimeInterval(-Double(window))
+		return lower ... base.addingTimeInterval(5)
 	}
 
 	private var memoryChartDomain: ClosedRange<Date> {
 		let base = dashboardState.memoryHistory.last?.timestamp ?? .now
-		return base.addingTimeInterval(-60) ... Date.distantFuture
+		let window = max(SettingsStore.shared.chartWindowSec, 30)
+		let lower = base.addingTimeInterval(-Double(window))
+		return lower ... base.addingTimeInterval(5)
 	}
 
 	// MARK: - Uptime helpers

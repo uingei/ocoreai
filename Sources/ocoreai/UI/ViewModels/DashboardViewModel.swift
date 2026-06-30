@@ -94,7 +94,11 @@ final class DashboardState {
 					self.connected = true
 				}
 
-				try? await Task.sleep(nanoseconds: AppState.shared.isForeground ? 1_000_000_000 : 10_000_000_000)
+					// Use user-configured poll interval in foreground; throttle in background
+					let interval = await AppState.shared.isForeground
+						? SettingsStore.shared.pollIntervalSec
+						: max(SettingsStore.shared.pollIntervalSec, 10)
+					try? await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
 			}
 		}
 	}

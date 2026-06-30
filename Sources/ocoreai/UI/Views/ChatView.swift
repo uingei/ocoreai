@@ -96,8 +96,7 @@ struct ChatView: View {
 					ForEach(models, id: \.self) { m in
 						Button(m) { currentModel = m }
 					}
-					// P0: load model from HuggingFace / ModelScope
-					Button(StringKey.modelSearchTitle.l) { showModelLoader = true }
+					// B4: model search/load moved to Models tab
 					Divider()
 					Button(StringKey.defaultModel.l) { currentModel = "" }
 				} label: {
@@ -147,19 +146,7 @@ struct ChatView: View {
 				.accessibilityLabel(StringKey.statusError.l)
 			}
 		}
-		// Model search + load sheet
-		.sheet(isPresented: $showModelLoader) {
-			NavigationStack {
-				ModelSearchView(
-					modelManager: modelManager,
-					onModelLoaded: { idStrings in
-						if !idStrings.isEmpty {
-							currentModel = idStrings.last ?? currentModel
-						}
-					},
-				)
-			}
-		}
+		// B4 fix: removed .sheet — model search/load already available via Models tab
 		// P0-2: On model selector change, unload old model to free GPU memory
 		.onChange(of: currentModel) { _, newModel in
 			let targetModel = newModel.isEmpty ? "local" : newModel

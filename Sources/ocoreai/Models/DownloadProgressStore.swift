@@ -63,16 +63,11 @@ final class OcoreaiDownloadProgress {
 		)
 	}
 
+	// B9 fix: success also evicts entry to prevent leaked stale state
 	/// Mark a download as complete (or failed).
+	/// On success the entry is evicted — stale completed entries are no-ops in UI.
 	func finish(modelId: String, success: Bool = true) {
-		if success {
-			var state = _progress[modelId] ?? .idle
-			state.fraction = 1.0
-			state.active = false
-			_progress[modelId] = state
-		} else {
-			_progress.removeValue(forKey: modelId)
-		}
+		_progress.removeValue(forKey: modelId)
 	}
 
 	/// Clear all state (e.g. when sheet dismisses).

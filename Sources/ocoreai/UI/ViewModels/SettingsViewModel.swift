@@ -79,6 +79,27 @@ final class SettingsState {
 		didSet { SettingsStore.shared.appThemeMode = appThemeMode }
 	}
 
+	// MARK: - Hub Tokens (persisted via SettingsStore)
+
+	var hfToken: String? {
+		didSet { SettingsStore.shared.hfToken = hfToken }
+	}
+
+	var modelScopeToken: String? {
+		didSet { SettingsStore.shared.modelScopeToken = modelScopeToken }
+	}
+
+	/// Masked tokens for UI display
+	var hfTokenMasked: String {
+		guard let token = hfToken, token.count > 4 else { return "" }
+		return String(token.prefix(2)) + "••••" + String(token.suffix(2))
+	}
+
+	var modelScopeTokenMasked: String {
+		guard let token = modelScopeToken, token.count > 4 else { return "" }
+		return String(token.prefix(2)) + "••••" + String(token.suffix(2))
+	}
+
 	// MARK: - Transient UI State (not persisted)
 
 	var verifying: Bool = false
@@ -112,6 +133,8 @@ final class SettingsState {
 		profileEnabled = SettingsStore.shared.profileEnabled
 		appLocale = SettingsStore.shared.appLocale
 		appThemeMode = SettingsStore.shared.appThemeMode
+		hfToken = SettingsStore.shared.hfToken
+		modelScopeToken = SettingsStore.shared.modelScopeToken
 	}
 
 	// MARK: - Lifecycle
@@ -146,8 +169,10 @@ final class SettingsState {
 	}
 
 	/// Snapshot current settings, then reset all to defaults.
+	/// NOTE: Hub tokens are NOT snapshotted — they are sensitive credentials
+	/// that should never be restored via Cmd+Z after a reset.
 	func resetToDefaults() {
-		undoSettings = SettingsSnapshot(from: self)
+		undoSettings = SettingsSnapshot(from: self, includeTokens: false)
 		SettingsStore.shared.resetToDefaults()
 		// Reload from store
 		serverHost = SettingsStore.shared.serverHost
@@ -161,6 +186,8 @@ final class SettingsState {
 		profileEnabled = SettingsStore.shared.profileEnabled
 		appLocale = SettingsStore.shared.appLocale
 		appThemeMode = SettingsStore.shared.appThemeMode
+		hfToken = nil
+		modelScopeToken = nil
 		errorMessage = "Settings reset to defaults"
 		// Register undo with AppState for Cmd+Z access
 		AppState.shared.undoAction = { [weak self] in self?.undoResetToDefaults() }
@@ -191,7 +218,9 @@ extension SettingsState {
 		let appLocale: OCALocale
 		let appThemeMode: ThemeModeRaw
 
-		init(from state: SettingsState) {
+		/// Create snapshot. Tokens are intentionally excluded for security —
+		/// they should never be restored via Cmd+Z.
+		init(from state: SettingsState, includeTokens: Bool = false) {
 			serverHost = state.serverHost
 			serverPort = state.serverPort
 			pollIntervalSec = state.pollIntervalSec

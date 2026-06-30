@@ -35,19 +35,23 @@ struct ModelView: View {
 					OcoreaiErrorBanner(error: error) { modelManager.currentError = nil }
 				}
 
+				// B4 fix: inline params instead of .sheet — user preference: inline embedding
+				if !editingModelId.isEmpty {
+					ModelParamsView(modelId: editingModelId)
+						.transition(.opacity.combined(with: .slide))
+				}
+
 				// 本地模型
 				localModelsView
 			}
 		}
 		.formStyle(.grouped)
 		.background(theme.windowBg)
-		.task {
-			await modelManager.loadModels()
-		}
-		.sheet(isPresented: $showParamsSheet) {
-			ModelParamsView(modelId: editingModelId)
-		}
-		.accessibilityLabel(StringKey.tabModels.l)
+			task {
+				await modelManager.loadModels()
+			}
+			.animation(.smooth, value: editingModelId)
+			.accessibilityLabel(StringKey.tabModels.l)
 	}
 
 	@ViewBuilder

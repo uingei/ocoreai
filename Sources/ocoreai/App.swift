@@ -165,8 +165,11 @@ public final class OcoreaiEngine {
 		// Must happen before EnginePool init so MLXModelLoader has the token for MS downloads
 		// NOTE: ProcessInfo.setValue(forKey:) uses KVC, NOT environment vars — custom keys
 		// throw NSUnknownKeyException. Tokens are passed via constructor chain instead.
+		// Priority: env var > UserDefaults (persisted from Settings UI)
 		let msToken: String? = ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
+			?? UserDefaults.standard.string(forKey: "settings.hub.modelScopeToken")
 		let hfToken: String? = ProcessInfo.processInfo.environment["HF_TOKEN"]
+			?? UserDefaults.standard.string(forKey: "settings.hub.hfToken")
 
 		let oomGuard = OOMGuard(log: logger)
 		let memoryTracker = MemoryTracker(
@@ -366,7 +369,9 @@ public final class OcoreaiEngine {
 		}
 
 		let hfToken = ProcessInfo.processInfo.environment["HF_TOKEN"]
+			?? UserDefaults.standard.string(forKey: "settings.hub.hfToken")
 		let msToken = ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
+			?? UserDefaults.standard.string(forKey: "settings.hub.modelScopeToken")
 
 		Task {
 			do {

@@ -99,6 +99,12 @@ public enum StringKey: String, CaseIterable {
 	case stop = "Chat.Stop"
 	case newConversation = "Chat.NewConversation"
 
+	// — Hub Tokens —
+	case hubTokensTitle = "Settings.HubTokensTitle"
+	case hubTokensHint = "Settings.HubTokensHint"
+	case notConfigured = "Common.NotConfigured"
+	case enterTokenPlaceholder = "Common.EnterTokenPlaceholder"
+
 	// — Settings —
 	case settingsTitle = "Settings.Title"
 	case serverAddress = "Settings.ServerAddress"
@@ -492,6 +498,10 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.resetSettings: "Reset All Settings",
 		.resetConfirm: "Are you sure? This wipes all saved settings.",
 		.allSections: "All Settings",
+		.hubTokensTitle: "Hub Tokens",
+		.hubTokensHint: "Tokens for accessing model hubs (HuggingFace, ModelScope). Stored securely in UserDefaults.",
+		.notConfigured: "Not configured",
+		.enterTokenPlaceholder: "Enter token...",
 
 		// Navigation
 		.tabDashboard: "Dashboard",

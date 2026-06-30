@@ -9,6 +9,10 @@ struct SettingsView: View {
 	@State private var settingsState: SettingsState
 	@Environment(\.ocoreaiTheme) private var theme
 
+	// Hub token local bindings — SecureField needs non-optional String
+	@State private var _hfTokenField: String = ""
+	@State private var _msTokenField: String = ""
+
 	init() {
 		_settingsState = State(initialValue: SettingsState())
 	}
@@ -17,6 +21,7 @@ struct SettingsView: View {
 		Form {
 			serverSection
 			modelSection
+			hubTokenSection
 			performanceSection
 			kvCacheSection
 			logsSection
@@ -70,7 +75,74 @@ struct SettingsView: View {
 		}
 	}
 
-	// MARK: - Performance
+	// MARK: - Hub Tokens
+
+	@State private var _loadingHubTokens = false
+
+	/// Sync local SecureField bindings into SettingsState on appearance
+	private func _syncHubTokens() {
+		settingsState.hfToken = (_hfTokenField.isEmpty ? nil : _hfTokenField)
+		settingsState.modelScopeToken = (_msTokenField.isEmpty ? nil : _msTokenField)
+	}
+
+	private var hubTokenSection: some View {
+		Section {
+			VStack(alignment: .leading, spacing: 4) {
+				HStack {
+					Text("HuggingFace")
+						.font(.ocoreaiText(15))
+					Spacer()
+					if settingsState.hfTokenMasked.isEmpty {
+						Text(StringKey.notConfigured.l)
+							.font(.ocoreaiText(12))
+							.foregroundStyle(.secondary)
+					} else {
+						Text(settingsState.hfTokenMasked)
+							.font(.ocoreaiText(12))
+							.foregroundStyle(theme.greenDot)
+					}
+				}
+				SecureField(StringKey.enterTokenPlaceholder.l, text: $_hfTokenField)
+					.disabled(_loadingHubTokens)
+					.onChange(of: _hfTokenField) { newValue in
+						settingsState.hfToken = (newValue.isEmpty ? nil : newValue)
+					}
+			}
+
+			VStack(alignment: .leading, spacing: 4) {
+				HStack {
+					Text("ModelScope")
+						.font(.ocoreaiText(15))
+					Spacer()
+					if settingsState.modelScopeTokenMasked.isEmpty {
+						Text(StringKey.notConfigured.l)
+							.font(.ocoreaiText(12))
+							.foregroundStyle(.secondary)
+					} else {
+						Text(settingsState.modelScopeTokenMasked)
+							.font(.ocoreaiText(12))
+							.foregroundStyle(theme.greenDot)
+					}
+				}
+				SecureField(StringKey.enterTokenPlaceholder.l, text: $_msTokenField)
+					.disabled(_loadingHubTokens)
+					.onChange(of: _msTokenField) { newValue in
+						settingsState.modelScopeToken = (newValue.isEmpty ? nil : newValue)
+					}
+			}
+		} header: {
+			Text(StringKey.hubTokensTitle.l)
+		} footer: {
+			Text(StringKey.hubTokensHint.l)
+		}
+		.task {
+			// Load persisted tokens into local field bindings
+			_loadingHubTokens = true
+			_hfTokenField = settingsState.hfToken ?? ""
+			_msTokenField = settingsState.modelScopeToken ?? ""
+			_loadingHubTokens = false
+		}
+	}
 
 	private var performanceSection: some View {
 		Section {

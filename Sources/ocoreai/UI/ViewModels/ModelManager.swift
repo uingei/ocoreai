@@ -124,7 +124,8 @@ final class ModelManager {
 
 	private func _searchMS(_ query: String) async -> [MSHubModel] {
 		// Inject MODELSCOPE_TOKEN so search hits (including gated repos) work correctly
-		let msToken = ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
+		// Priority: env var > UserDefaults (persisted from Settings UI)
+		let msToken = SettingsStore.shared.modelScopeToken
 		let client = ModelScopeSearchClient(token: msToken)
 		do {
 			let result = try await client.search(keyword: query, pageSize: 15)
