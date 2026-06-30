@@ -57,14 +57,16 @@ final class CaptureService: NSObject {
 		do {
 			guard await AVCaptureDevice.requestAccess(for: .video) else { return false }
 			session.beginConfiguration()
-			defer { session.commitConfiguration() }
 			for input in session.inputs {
 				session.removeInput(input)
 			}
 			if try session.canAddInput(AVCaptureDeviceInput(device: device)) {
 				try session.addInput(AVCaptureDeviceInput(device: device))
 			}
-			session.startRunning()
+			session.commitConfiguration()
+			// startRunning MUST be called after commitConfiguration —
+			// AVFoundation throws NSGenericException if called in between.
+			try await session.startRunning()
 			isCapturing = true
 		} catch {
 			captureLogger.error("[CaptureService] Start error: \(error.localizedDescription)")
