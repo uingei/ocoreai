@@ -98,7 +98,7 @@ struct SettingsView: View {
 				}
 				SecureField(StringKey.enterTokenPlaceholder.l, text: $_hfTokenField)
 					.disabled(_loadingHubTokens)
-					.onChange(of: _hfTokenField) { newValue in
+					.onChange(of: _hfTokenField) { _, newValue in
 						settingsState.hfToken = (newValue.isEmpty ? nil : newValue)
 					}
 			}
@@ -120,7 +120,7 @@ struct SettingsView: View {
 				}
 				SecureField(StringKey.enterTokenPlaceholder.l, text: $_msTokenField)
 					.disabled(_loadingHubTokens)
-					.onChange(of: _msTokenField) { newValue in
+					.onChange(of: _msTokenField) { _, newValue in
 						settingsState.modelScopeToken = (newValue.isEmpty ? nil : newValue)
 					}
 			}
