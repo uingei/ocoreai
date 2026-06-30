@@ -81,7 +81,7 @@ struct ChatView: View {
 			let idStrings = modelManager.modelIdStrings()
 			if idStrings.isEmpty {
 				// No local models yet — use configured default model ID
-				currentModel = await OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? ""
+				currentModel = OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? ""
 			} else {
 				currentModel = idStrings.first ?? ""
 			}

@@ -146,14 +146,26 @@
 			// by URL(fileURLWithPath:) which adds a "/" prefix breaking prefix detection.
 			let source = MLXModelLoader.parseSource(modelId, fallbackPath: modelURL.path)
 
+			func loadFromHubWithFallback(_ repoId: String) async throws -> MLXLMCommon.ModelContainer {
+				// Try ModelScope first, fall back to HuggingFace on any error
+				do {
+					return try await loadFromHub(
+						.modelScope, repoId: repoId, modelId: modelId,
+					)
+				} catch {
+					logger.warning("ModelScope failed for \\(modelId) — falling back to HuggingFace: \\(error.localizedDescription)")
+				}
+				return try await loadFromHub(
+					.huggingFace, repoId: repoId, modelId: modelId,
+				)
+			}
+
 			let container: MLXLMCommon.ModelContainer = switch source {
 			case let .local(localPath):
 				try await loadLocal(Path(localPath), modelId: modelId)
 
 			case let .mscope(repoId):
-				try await loadFromHub(
-					.modelScope, repoId: repoId, modelId: modelId,
-				)
+				try await loadFromHubWithFallback(repoId)
 
 			case let .huggingFace(repoId):
 				try await loadFromHub(
