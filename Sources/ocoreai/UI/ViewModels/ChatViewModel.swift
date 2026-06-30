@@ -13,6 +13,7 @@
 /// - On `resetConversation()`, the session is cleared and a new one is created.
 
 import Foundation
+import Logging
 import Observation
 import SwiftUI
 
@@ -45,6 +46,9 @@ struct ChatMessage: Identifiable, Hashable {
 @Observable
 @MainActor
 final class ChatState {
+	/// Logger for persistence operations
+	private static let logger = Logger(label: "ocoreai.chat")
+
 	var messages: [ChatMessage] = []
 	var responseText: String = ""
 	var error: Error?
@@ -147,6 +151,7 @@ final class ChatState {
 			messages = chronMessages
 		} catch {
 			// Non-fatal: fall back to empty in-memory state
+			Self.logger.warning("Failed to load chat history: \(error.localizedDescription)")
 		}
 	}
 
@@ -163,6 +168,7 @@ final class ChatState {
 			sessionId = try await compressor.createSession(modelId: modelId)
 		} catch {
 			// Non-fatal: continue with in-memory mode
+			Self.logger.warning("Failed to create session: \(error.localizedDescription)")
 		}
 	}
 
@@ -178,6 +184,7 @@ final class ChatState {
 			)
 		} catch {
 			// Non-fatal: message still exists in memory
+			Self.logger.warning("Failed to persist \(role) message: \(error.localizedDescription)")
 		}
 	}
 

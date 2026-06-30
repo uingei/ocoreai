@@ -3,11 +3,15 @@
 /// Session Manager — bridges SessionCompressor with SwiftUI
 
 import Foundation
+import Logging
 import Observation
 
 @Observable
 @MainActor
 final class SessionManager {
+	/// Logger for session operations
+	private static let logger = Logger(label: "ocoreai.session")
+
 	// MARK: - Session data
 
 	private(set) var sessions: [SessionModel] = []

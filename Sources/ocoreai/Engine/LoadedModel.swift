@@ -75,48 +75,50 @@ final class LoadedModel: @unchecked Sendable {
 		logger.info("Prewarming \(modelConfig.name ?? "model")...")
 		let startTime = ContinuousClock.now
 
-		#if coreai
-			do {
-				// Use cached engine — CoreAI 34f0db3: single engine per model preserves KV cache
-				let engine = try await getCachedEngine()
-				let seq = try engine.generate(
-					with: Array(repeating: 0, count: 8),
-					samplingConfiguration: SamplingConfiguration(),
-					inferenceOptions: InferenceOptions(maxTokens: warmupTokens),
-				)
-				// Drain stream to complete warmup
-				for try await _ in seq {}
-			} catch {
-				logger.warning("Warmup skipped (non-fatal): \(error)")
+#if coreai
+		do {
+			// Use cached engine — CoreAI 34f0db3: single engine per model preserves KV cache
+			let engine = try await getCachedEngine()
+			let seq = try engine.generate(
+				with: Array(repeating: 0, count: 8),
+				samplingConfiguration: SamplingConfiguration(),
+				inferenceOptions: InferenceOptions(maxTokens: warmupTokens),
+			)
+			// Drain stream to complete warmup
+			for try await _ in seq {}
+		} catch {
+			logger.warning("Warmup skipped (non-fatal): \(error)")
+		}
+#elseif mlx
+		do {
+			guard let handle = mlxModelHandle else {
+				logger.warning("MLX warmup skipped: no model handle")
+				return
 			}
-		#elseif mlx
-			do {
-				guard let handle = mlxModelHandle else {
-					logger.warning("MLX warmup skipped: no model handle")
-					return
-				}
-				let mlxMessages: [Chat.Message] = [.init(role: .user, content: "warmup")]
-				let mlxParams = makeGenerateParameters(
-					from: SamplingConfiguration(),
-					maxTokens: warmupTokens,
-					kvCacheQuant: kvCacheQuantization,
-				)
-				let session = ChatSession(
-					handle.modelContainer,
-					generateParameters: mlxParams,
-				)
-				let genStream: AsyncThrowingStream<MLXLMCommon.Generation, Error> =
-					session.streamDetails(to: mlxMessages)
-				for try await _ in genStream {
-					break
-				}
-			} catch {
-				logger.warning("MLX warmup skipped (non-fatal): \(error)")
+			let mlxMessages: [Chat.Message] = [.init(role: .user, content: "warmup")]
+			let mlxParams = makeGenerateParameters(
+				from: SamplingConfiguration(),
+				maxTokens: warmupTokens,
+				kvCacheQuant: kvCacheQuantization,
+			)
+			let session = ChatSession(
+				handle.modelContainer,
+				generateParameters: mlxParams,
+			)
+			let genStream: AsyncThrowingStream<MLXLMCommon.Generation, Error> =
+				session.streamDetails(to: mlxMessages)
+			// Consume first chunk then exit — no need to drain the full stream
+			for try await chunk in genStream {
+				_ = chunk
+				break
 			}
-		#else
-			// Stub warmup — no inference backend available
-			logger.info("Warmup skipped (no inference trait)")
-		#endif
+		} catch {
+			logger.warning("MLX warmup skipped (non-fatal): \(error)")
+		}
+#else
+		// Stub warmup — no inference backend available
+		logger.info("Warmup skipped (no inference trait)")
+#endif
 
 		let dur = startTime.duration(to: ContinuousClock.now)
 		let elapsed = Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
@@ -165,9 +167,22 @@ final class LoadedModel: @unchecked Sendable {
 	#if coreai
 		/// Get cached inference engine — create on first call, reuse thereafter.
 		/// CoreAI 34f0db3: engines should be singletons per LoadedModel to preserve KV cache.
-		/// Safe because inference access is serialized by the inferenceGuard CAS lock,
-		/// and this class is @unchecked Sendable with mutable state.
+		/// Double-checked locking: inferenceGuard serializes access, but prewarm
+		/// can call getCachedEngine outside the guard. The CAS ensures only one
+		/// engine is created even under concurrent calls.
 		func getCachedEngine() async throws -> any InferenceEngine {
+			// Fast path: check cache without lock
+			if let cached = cachedEngine {
+				return cached
+			}
+			// Slow path: serialise creation via inferenceGuard CAS
+			guard tryAcquireInference() else {
+				// Another caller is creating the engine — wait briefly and retry
+				try await Task.sleep(for: .milliseconds(10))
+				return try await getCachedEngine()
+			}
+			defer { releaseInference() }
+			// Double-check after acquiring lock
 			if let cached = cachedEngine {
 				return cached
 			}

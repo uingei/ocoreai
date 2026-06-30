@@ -28,7 +28,6 @@ import Logging
 // MARK: - Content helper
 
 /// Convert ContentPolymorphic to String for tokenization input.
-/// Convert ContentPolymorphic to String for tokenization input.
 /// - Returns: (text to tokenize, count of non-text parts silently dropped)
 func contentToString(_ content: ContentPolymorphic?) -> (String, Int) {
 	guard let content else { return ("", 0) }

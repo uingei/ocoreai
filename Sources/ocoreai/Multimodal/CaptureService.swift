@@ -54,19 +54,18 @@ final class CaptureService: NSObject {
 		else {
 			return false
 		}
+
+		guard await AVCaptureDevice.requestAccess(for: .video) else { return false }
+
 		do {
-			guard await AVCaptureDevice.requestAccess(for: .video) else { return false }
 			session.beginConfiguration()
 			for input in session.inputs {
 				session.removeInput(input)
 			}
-			if try session.canAddInput(AVCaptureDeviceInput(device: device)) {
-				try session.addInput(AVCaptureDeviceInput(device: device))
-			}
+			try session.addInput(AVCaptureDeviceInput(device: device))
 			session.commitConfiguration()
-			// startRunning MUST be called after commitConfiguration —
-			// AVFoundation throws NSGenericException if called in between.
-			try await session.startRunning()
+			// startRunning is synchronous — ObjC exceptions don't bridge to Swift throw
+			session.startRunning()
 			isCapturing = true
 		} catch {
 			captureLogger.error("[CaptureService] Start error: \(error.localizedDescription)")
@@ -89,13 +88,13 @@ final class CaptureService: NSObject {
 		let now = Date().timeIntervalSince1970
 		guard now - lastFrameTime >= frameInterval else { return nil }
 		lastFrameTime = now
-		
+
 		let out = session.outputs.first as? AVCapturePhotoOutput
 		guard let out else { return nil }
-		
+
 		let settings = AVCapturePhotoSettings()
 		settings.flashMode = .off
-		
+
 		return await withCheckedContinuation { cont in
 			out.capturePhoto(with: settings, delegate: FrameCaptureDelegate { data in
 				if let d = data {
