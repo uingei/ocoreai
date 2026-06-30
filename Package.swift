@@ -28,7 +28,7 @@ let package = Package(
         // not SwiftPM packages — imported directly in source via `#if coreai` guards
         // Pinned to exact revision — upstream main branch drifts; update via `swift package update`
         // then bump .revision + test. Current pin: 2026-06-29 build-verified commit.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "124880582175726b709015a632c5ba9f3069a319"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "bd4b7434e6bdb588c7ef55706ff8904cb7fd4c57"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
