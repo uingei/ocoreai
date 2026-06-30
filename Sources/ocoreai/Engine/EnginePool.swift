@@ -28,11 +28,16 @@ import Logging
 // MARK: - Content helper
 
 /// Convert ContentPolymorphic to String for tokenization input.
-func contentToString(_ content: ContentPolymorphic?) -> String {
-	guard let content else { return "" }
+/// Convert ContentPolymorphic to String for tokenization input.
+/// - Returns: (text to tokenize, count of non-text parts silently dropped)
+func contentToString(_ content: ContentPolymorphic?) -> (String, Int) {
+	guard let content else { return ("", 0) }
 	switch content {
-	case let .text(s): return s
-	case let .parts(parts): return parts.compactMap(\.text).joined(separator: " ")
+	case let .text(s): return (s, 0)
+	case let .parts(parts):
+		let texts = parts.compactMap(\.text)
+		let dropped = parts.count - texts.count
+		return (texts.joined(separator: " "), dropped)
 	}
 }
 
@@ -159,8 +164,12 @@ actor EnginePool {
 		guard let provider = await tokenizerManager.getTokenizer(for: modelId) else {
 			throw AppError.modelNotFound(modelId)
 		}
-		let dicts: [[String: String]] = messages.map {
-			["role": $0.role, "content": contentToString($0.content)]
+		let dicts: [[String: String]] = messages.map { msg -> [String: String] in
+			let (text, dropped) = contentToString(msg.content)
+			if dropped > 0 {
+				self.logger.warning("Dropped \(dropped) non-text content part(s) for \(msg.role) message")
+			}
+			return ["role": msg.role, "content": text]
 		}
 		return try await provider.tokenize(messages: dicts)
 	}
