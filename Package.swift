@@ -13,7 +13,6 @@ let package = Package(
     ],
     traits: [
         .trait(name: "coreai", description: "Enable CoreAI backend (macOS 27+)"),
-        .trait(name: "mlx", description: "Enable MLX backend (macOS 15+)"),
         .trait(name: "appStore", description: "App Store build: disable HTTP server, use direct inference only"),
     ],
     dependencies: [
@@ -53,6 +52,9 @@ let package = Package(
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
+                // MLX is always enabled — it's a real dependency, not an optional trait.
+                // The `mlx` swift flag keeps existing `#if mlx` guards functional.
+                .define("mlx"),
             ],
             linkerSettings: [
                 .linkedLibrary("sqlite3"),
