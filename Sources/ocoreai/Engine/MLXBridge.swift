@@ -404,32 +404,6 @@
 		return params
 	}
 
-	// MARK: - Message Conversion
-
-	/// Convert internal `Message` (ocoreai type) to `Chat.Message` (mlx-swift-lm).
-	/// NOTE: toMLXChatMessage is dead code — EnginePool.tokenize uses contentToString directly.
-	@available(*, deprecated, message: "EnginePool.tokenize bypasses MLXBridge for tokenization")
-	nonisolated func toMLXChatMessage(_ msg: Message) -> Chat.Message {
-		let (text, _) = toMessageParts(msg)
-		switch msg.role {
-		case "system": return Chat.Message.system(text)
-		case "assistant": return Chat.Message.assistant(text)
-		case "tool": return Chat.Message.tool(text)
-		default: return Chat.Message.user(text)
-		}
-	}
-
-	private nonisolated func toMessageParts(_ msg: Message) -> (String, Int) {
-		switch msg.content {
-		case let .some(.text(s)): return (s, 0)
-		case let .some(.parts(parts)):
-			let texts = parts.compactMap(\.text)
-			let dropped = parts.count - texts.count
-			return (texts.joined(separator: "\n"), dropped)
-		case .none: return ("", 0)
-		}
-	}
-
 	// MARK: - Errors
 
 	enum MLXLoadError: LocalizedError {
