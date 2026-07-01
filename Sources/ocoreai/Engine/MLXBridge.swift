@@ -96,12 +96,12 @@
 	/// - Returns: true if a safetensors file exists in the expected cache directory
 	static func isModelCached(_ provider: MLXModelLoader.HubProvider, repoId: String) -> Bool {
 		let cacheRoot: URL
-		
+
 		let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
 		guard let baseDir = urls.first else {
 			return false
 		}
-		
+
 		switch provider {
 		case .modelScope:
 			cacheRoot = baseDir
@@ -109,29 +109,26 @@
 				.appendingPathComponent(repoId)
 				.appendingPathComponent("main")
 		case .huggingFace:
-			let hfCache = baseDir
+			cacheRoot = baseDir
 				.appendingPathComponent("org.ml-explore.mlx-swift-lm")
 				.appendingPathComponent(repoId)
-			// Must have at least one safetensors file to be considered "downloaded"
-			guard FileManager.default.fileExists(atPath: hfCache.path),
-			          let files = try? FileManager.default.contentsOfDirectory(
-			                  at: hfCache, includingPropertiesForKeys: nil
-			          )
-			else {
-				return false
-			}
-			return files.contains { $0.pathExtension == "safetensors" }
 		}
-		
-		guard FileManager.default.fileExists(atPath: cacheRoot.path),
-			  let files = try? FileManager.default.contentsOfDirectory(
-				  at: cacheRoot, includingPropertiesForKeys: nil
-			  )
-		else {
+
+		// Must have at least one safetensors file to be considered "downloaded"
+		return hasSafetensors(in: cacheRoot)
+	}
+
+	private static func hasSafetensors(in url: URL) -> Bool {
+		guard FileManager.default.fileExists(atPath: url.path) else {
 			return false
 		}
-		// Must have at least one safetensors file to be considered "downloaded"
-		return files.contains { $0.pathExtension == "safetensors" }
+		do {
+			let files = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
+			return files.contains { $0.pathExtension == "safetensors" }
+		} catch {
+			// If directory listing fails, assume not cached — caller will retry download
+			return false
+		}
 	}
 
 	// MARK: - Public Load
