@@ -150,7 +150,7 @@
 						.modelScope, repoId: repoId, modelId: modelId,
 					)
 				} catch {
-					logger.warning("ModelScope failed for \\(modelId) — falling back to HuggingFace: \\(error.localizedDescription)")
+					logger.warning("ModelScope failed for \(modelId) — falling back to HuggingFace: \(error.localizedDescription)")
 				}
 				return try await loadFromHub(
 					.huggingFace, repoId: repoId, modelId: modelId,
