@@ -66,6 +66,9 @@ actor EnginePool {
 	/// Loaded model instances keyed by model ID
 	var loadedModels: [String: LoadedModel] = [:]
 
+	/// Models currently being loaded — prevents concurrent duplicate loads.
+	private var loadingModels: Set<String> = []
+
 	/// Model last-access timestamps for LRU eviction (modelId → Instant)
 	private var modelLastAccess: [String: ContinuousClock.Instant] = [:]
 
@@ -183,13 +186,46 @@ actor EnginePool {
 	// MARK: - Acquire / Release
 
 	func acquire(model modelId: String) async throws -> EngineHandle {
-		if loadedModels[modelId] == nil {
-			loadedModels[modelId] = try await loadModel(modelId)
+		// 1. Fast path: already loaded and ready
+		if let model = loadedModels[modelId] {
+			return try await _acquireSession(model: model, modelId: modelId)
 		}
+
+		// 2. Another caller is loading this model — wait for it to finish
+		while loadingModels.contains(modelId) {
+			logger.info("Model \\(modelId) load in progress — waiting")
+			try? await Task.sleep(for: .milliseconds(200))
+			// Re-check: load may have completed while we slept
+			if let model = loadedModels[modelId] {
+				return try await _acquireSession(model: model, modelId: modelId)
+			}
+		}
+
+		// 3. Not loaded — start the load
+		loadingModels.insert(modelId)
+		defer { loadingModels.remove(modelId) }
+
+		// Double-check after defer setup (another caller may have finished between check & insert)
+		if loadedModels[modelId] != nil {
+			return try await _acquireSession(modelId: modelId)
+		}
+
+		loadedModels[modelId] = try await loadModel(modelId)
+
+		// 4. Load succeeded — acquire session
+		return try await _acquireSession(modelId: modelId)
+	}
+
+	/// Acquire a session for an already-loaded model.
+	/// Reads `loadedModels[modelId]` at call time to get the latest reference.
+	private func _acquireSession(modelId: String) async throws -> EngineHandle {
 		guard let model = loadedModels[modelId] else {
 			throw AppError.engineUnavailable
 		}
+		return try await _acquireSession(model: model, modelId: modelId)
+	}
 
+	private func _acquireSession(model: LoadedModel, modelId: String) async throws -> EngineHandle {
 		// Touch model access time for LRU tracking
 		touchModelAccess(modelId)
 
@@ -315,7 +351,7 @@ actor EnginePool {
 			// for MLXModelLoader.parseSource() to match.
 			modelURL = URL(fileURLWithPath: modelId)
 			// Stub configData for coreai path; actual weights come from hub download
-			configData = "{}".data(using: .utf8)!
+			configData = "{}".data(using: .utf8) ?? Data()
 			logger.info("Model \(modelId) is a hub model — MLXModelLoader will resolve \(resolved != nil ? "(remote config resolved)" : "(using defaults)")")
 		} else {
 			var configURL = URL(fileURLWithPath: config.modelConfigPath)

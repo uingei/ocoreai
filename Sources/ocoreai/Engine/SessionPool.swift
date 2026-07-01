@@ -99,13 +99,17 @@ struct SessionPoolConfig {
 
 			// Derive cache directory from config or default — cross-platform
 			cacheDirectory = config.cacheDirectory ?? {
-				guard let supportURL = FileManager.default.urls(
+				let dir: URL
+				if let supportURL = FileManager.default.urls(
 					for: .applicationSupportDirectory, in: .userDomainMask,
-				).first?.appendingPathComponent("ocoreai/cache") else {
-					// Unreachable on macOS/iOS — .applicationSupportDirectory is system-guaranteed.
-					fatalError("[MLXSessionPool] applicationSupportDirectory not available")
+				).first?.appendingPathComponent("ocoreai/cache") {
+					dir = supportURL
+				} else {
+					// Fallback to temp directory on unusual configurations
+					dir = URL(fileURLWithPath: NSTemporaryDirectory())
+						.appendingPathComponent("ocoreai/cache")
 				}
-				return supportURL.appendingPathComponent("kvcache")
+				return dir.appendingPathComponent("kvcache")
 			}()
 
 			// Ensure directory exists

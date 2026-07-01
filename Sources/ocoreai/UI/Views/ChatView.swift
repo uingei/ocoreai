@@ -11,16 +11,15 @@
 import AppKit
 import SwiftUI
 
-/// Stable identity wrapper for chat messages — uses index-based id so SwiftUI
-/// does not recreate view identity on every diff.
+/// Stable identity wrapper for chat messages — uses UUID string for deterministic identity
 struct ChatBubbleMessage: Identifiable, Hashable {
-	let id: Int // index into the messages array — stable across diffs
+	let id: String // stable UUID-based identity
 	let role: String
 	let content: String
 	let timestamp: Date
 
-	init(index: Int, role: String, content: String, timestamp: Date) {
-		id = index
+	init(id: String, role: String, content: String, timestamp: Date) {
+		self.id = id
 		self.role = role
 		self.content = content
 		self.timestamp = timestamp
@@ -187,7 +186,7 @@ struct ChatView: View {
 					LazyVStack(spacing: 10) {
 						ForEach(chatState.messages) { msg in
 							ChatBubble(message: ChatBubbleMessage(
-								index: msg.id.hashValue,
+								id: msg.id.uuidString,
 								role: msg.role,
 								content: msg.content,
 								timestamp: msg.timestamp,
@@ -225,7 +224,7 @@ struct ChatView: View {
 
 	private var streamingPreview: some View {
 		ChatBubble(message: ChatBubbleMessage(
-			index: -1, // streaming placeholder — not in messages array
+			id: "_streaming", // stable placeholder identity for streaming preview
 			role: "assistant",
 			content: chatState.responseText,
 			timestamp: Date(),

@@ -139,17 +139,25 @@ actor SQLiteStore {
 	/// Default database path — cross-platform (macOS/iOS/iPadOS).
 	/// macOS: ~/Library/Application Support/ocoreai/data/ocoreai.sqlite
 	/// iOS/iPadOS: sandbox/Library/Application Support/ocoreai/data/ocoreai.sqlite
+	/// Falls back to ~/Library/Caches if .applicationSupportDirectory is unavailable.
 	static let defaultPath: String = {
-		guard let supportURL = FileManager.default.urls(
+		let baseDir: String
+		if let supportURL = FileManager.default.urls(
 			for: .applicationSupportDirectory,
 			in: .userDomainMask,
-		).first?.appendingPathComponent("ocoreai/data") else {
-			// Unreachable on macOS/iOS — .applicationSupportDirectory is a system-guaranteed directory.
-			fatalError("[SQLiteStore] applicationSupportDirectory not available")
+		).first?.appendingPathComponent("ocoreai/data") {
+			baseDir = supportURL.path
+		} else if let cacheURL = FileManager.default.urls(
+			for: .cachesDirectory,
+			in: .userDomainMask,
+		).first?.appendingPathComponent("ocoreai/data") {
+			baseDir = cacheURL.path
+		} else {
+			// Last resort — use temp directory
+			baseDir = (NSTemporaryDirectory() as NSString).appendingPathComponent("ocoreai/data")
 		}
-		let dataDir = supportURL.path
-		try? FileManager.default.createDirectory(atPath: dataDir, withIntermediateDirectories: true)
-		return (dataDir as NSString).appendingPathComponent("ocoreai.sqlite")
+		try? FileManager.default.createDirectory(atPath: baseDir, withIntermediateDirectories: true)
+		return (baseDir as NSString).appendingPathComponent("ocoreai.sqlite")
 	}()
 
 	/// Create store at the given path (defaults to ~/.ocoreai/data/ocoreai.sqlite).
