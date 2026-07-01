@@ -46,6 +46,10 @@ public struct EnginePoolConfig: Sendable {
 	/// Wired memory GPU hard-isolation (Layer 0 below OOMGuard).
 	var wiredMemory: WiredMemoryConfig = .default
 
+	/// Speculative decoding — draft model proposes tokens, main model verifies.
+	/// Defaults to disabled (zero behavior change).
+	var specDecoding: SpecDecodingConfig = .default
+
 	/// Default configuration with sensible production values
 	public static let `default`: EnginePoolConfig = .init(
 		maxConcurrentSessions: 8,
@@ -59,6 +63,7 @@ public struct EnginePoolConfig: Sendable {
 		sessionPoolConfig: .default,
 		kvCacheQuantization: .default,
 		wiredMemory: .default,
+		specDecoding: .default, // disabled by default
 	)
 
 	/// Build from the config system's ``AppConfig``.
@@ -113,6 +118,7 @@ public struct EnginePoolConfig: Sendable {
 		sessionPoolConfig: SessionPoolConfig?,
 		kvCacheQuantization: KVCacheQuantizationConfig,
 		wiredMemory: WiredMemoryConfig,
+		specDecoding: SpecDecodingConfig = .default,
 	) {
 		self.maxConcurrentSessions = maxConcurrentSessions
 		self.maxQueueSize = maxQueueSize
@@ -125,5 +131,6 @@ public struct EnginePoolConfig: Sendable {
 		self.sessionPoolConfig = sessionPoolConfig
 		self.kvCacheQuantization = kvCacheQuantization
 		self.wiredMemory = wiredMemory
+		self.specDecoding = specDecoding
 	}
 }

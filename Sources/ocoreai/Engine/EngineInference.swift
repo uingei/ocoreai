@@ -330,6 +330,9 @@ extension EnginePool {
 				kvCacheQuant: config.kvCacheQuantization,
 			)
 
+			// Build speculative decoding config once before inference body
+			let specConfig = loaded.createSpeculativeConfig()
+
 			// Layer 0: Wired memory GPU hard-isolation (opt-in via config)
 			// Wraps the entire inference from session creation through generation to pool release.
 			// Prevents model weights/KV cache from being paged out during inference.
@@ -359,6 +362,7 @@ extension EnginePool {
 						modelId: modelId,
 						conversationId: convKey,
 						genParams: genParams,
+						speculativeDecoding: specConfig,
 					)
 					chatSession = acquired.pooled.session
 					isPoolHit = acquired.isHit
@@ -369,6 +373,7 @@ extension EnginePool {
 				} else {
 					chatSession = ChatSession(
 						mlxHandle.modelContainer,
+						speculativeDecoding: specConfig,
 						generateParameters: genParams,
 					)
 				}

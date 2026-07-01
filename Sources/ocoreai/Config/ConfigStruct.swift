@@ -159,6 +159,55 @@ public struct WiredMemoryConfig: Sendable, Codable, Equatable {
 	}
 }
 
+/// Speculative decoding configuration.
+///
+/// When enabled, a smaller draft model proposes candidate tokens that the
+/// main model verifies in a single forward pass — significant TTFT and
+/// throughput speedup with zero quality degradation.
+///
+/// For MTP models (Qwen3.5, Gemma4), use `mode: "mtp"` — the main model's
+/// built-in MTP layers act as the drafter, no separate draft model needed.
+/// For non-MTP models, use `mode: "traditional"` with a smaller `draftModelId`.
+public struct SpecDecodingConfig: Sendable, Codable, Equatable {
+	/// Master toggle — disabled means speculative decoding is off.
+	public var enabled: Bool
+	/// Mode: "mtp" (main model's MTP layers as drafter) or "traditional"
+	/// (separate draft model).
+	public var mode: String
+	/// Draft model repository ID for traditional mode (ignored for "mtp").
+	public var draftModelId: String?
+	/// Number of tokens proposed per speculation cycle (1-16, default 5).
+	public var numDraftTokens: Int
+	/// Memory policy for traditional mode: "recommendedWorkingSet" to
+	/// auto-fallback when main+draft exceed available memory.
+	public var memoryPolicy: String?
+
+	public static let `default` = SpecDecodingConfig()
+
+	public init(
+		enabled: Bool = false,
+		mode: String = "mtp",
+		draftModelId: String? = nil,
+		numDraftTokens: Int = 5,
+		memoryPolicy: String? = "recommendedWorkingSet"
+	) {
+		self.enabled = enabled
+		self.mode = mode
+		self.draftModelId = draftModelId
+		self.numDraftTokens = max(1, min(numDraftTokens, 16))
+		self.memoryPolicy = memoryPolicy
+	}
+
+	func validate() throws {
+		guard mode == "mtp" || mode == "traditional" else {
+			throw ConfigValidationError("backend.specDecoding.mode: must be 'mtp' or 'traditional' (got '\(mode)')")
+		}
+		if mode == "traditional", draftModelId == nil {
+			throw ConfigValidationError("backend.specDecoding: draftModelId required for 'traditional' mode")
+		}
+	}
+}
+
 /// Inference backend selection and resource limits.
 public struct BackendConfig: Sendable, Codable, Equatable {
 	public var preference: [String]
@@ -166,6 +215,7 @@ public struct BackendConfig: Sendable, Codable, Equatable {
 	public var kvCacheGB: Double
 	public var kvCacheQuantization: KVCacheQuantizationConfig
 	public var wiredMemory: WiredMemoryConfig
+	public var specDecoding: SpecDecodingConfig
 
 	public static let `default` = BackendConfig()
 
@@ -175,12 +225,14 @@ public struct BackendConfig: Sendable, Codable, Equatable {
 		kvCacheGB: Double = 16.0,
 		kvCacheQuantization: KVCacheQuantizationConfig? = nil,
 		wiredMemory: WiredMemoryConfig? = nil,
+		specDecoding: SpecDecodingConfig? = nil,
 	) {
 		self.preference = preference
 		self.maxConcurrentSessions = maxConcurrentSessions
 		self.kvCacheGB = kvCacheGB
 		self.kvCacheQuantization = kvCacheQuantization ?? .default
 		self.wiredMemory = wiredMemory ?? .default
+		self.specDecoding = specDecoding ?? .default
 	}
 
 	func validate() throws {
@@ -191,6 +243,9 @@ public struct BackendConfig: Sendable, Codable, Equatable {
 			throw ConfigValidationError("backend.maxConcurrentSessions: must be > 0")
 		}
 		try kvCacheQuantization.validate()
+		if specDecoding.enabled {
+			try specDecoding.validate()
+		}
 	}
 }
 

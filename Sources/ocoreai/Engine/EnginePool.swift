@@ -92,6 +92,8 @@ actor EnginePool {
 	#if mlx
 		let mlxModelLoader: MLXModelLoader
 		let sessionPool: MLXSessionPool?
+		/// Shared draft model for speculative decoding — loaded once, reused across all models.
+		private var draftModelHandle: (any MLXModelHandle)?
 	#endif
 
 	// MARK: - Runtime Parameter Store (hot-swappable)
@@ -155,6 +157,17 @@ actor EnginePool {
 				sessionPool = nil
 				logger.info("MLXSessionPool disabled (create-and-destroy per request)")
 			}
+
+			// Log speculative decoding status
+				if config.specDecoding.enabled {
+					if let draftId = config.specDecoding.draftModelId {
+						logger.info("Speculative decoding enabled (draft: \(draftId), lazy load on first model)")
+					} else {
+						logger.info("Speculative decoding enabled (draft model ID not set)")
+					}
+				} else {
+					logger.info("Speculative decoding disabled")
+				}
 		#else
 			logger.info("EnginePool initialized (no inference trait — stub backend)")
 		#endif
@@ -411,6 +424,30 @@ actor EnginePool {
 			)
 			model.setMLXHandle(mlxHandle)
 			model.kvCacheQuantization = config.kvCacheQuantization
+			// Configure speculative decoding — lazy-load draft model on first model load
+			model.setSpecDecodingConfig(config.specDecoding)
+			if config.specDecoding.enabled {
+				if let draft = self.draftModelHandle {
+					model.setDraftModel(draft)
+				} else if self.draftModelHandle == nil,
+				        let draftId = config.specDecoding.draftModelId {
+					// Lazy-load draft model once
+					let draftURL = URL(fileURLWithPath: "hf:\(draftId)")
+					do {
+						let draftHandle = try await mlxModelLoader.load(
+							modelURL: draftURL,
+							modelId: draftId
+						)
+						self.draftModelHandle = draftHandle
+						model.setDraftModel(draftHandle)
+						logger.info("Speculative decoding draft model loaded: \(draftId)")
+					} catch {
+						logger.warning("Speculative decoding draft model load failed: \(error)")
+					}
+				} else {
+					logger.warning("Speculative decoding enabled but no draft model — falling back to standard generation")
+				}
+			}
 			return model
 		#else
 			return LoadedModel(

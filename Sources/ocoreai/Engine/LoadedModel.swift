@@ -55,10 +55,53 @@ final class LoadedModel: @unchecked Sendable {
 		/// MLXLLM model handle — loaded once at load time, reused across inference
 		var mlxModelHandle: (any MLXModelHandle)?
 		var kvCacheQuantization: KVCacheQuantizationConfig = .default
+		/// Speculative decoding config from backend settings. Set via setSpecDecodingConfig.
+		var specDecodingConfig: SpecDecodingConfig = .default
+		/// Draft model for speculative decoding — loaded by EnginePool, reused across sessions.
+		private var draftModelHandle: (any MLXModelHandle)?
 	#endif
 
 	/// Logger for observability
 	let logger: Logger
+
+	// MARK: - Speculative Decoding (MLX only)
+
+	/// Configure speculative decoding for this loaded model.
+	/// Called once after model loading, before any inference session is created.
+	#if mlx
+		func setSpecDecodingConfig(_ config: SpecDecodingConfig) {
+			specDecodingConfig = config
+		}
+
+		/// Set the loaded draft model for speculative decoding.
+		/// EnginePool loads the draft model via MLXModelLoader and stores it here.
+		func setDraftModel(_ handle: any MLXModelHandle) {
+			draftModelHandle = handle
+			logger.info("Speculative decoding enabled — draft model loaded")
+		}
+
+		/// Build ``SpeculativeDecodingConfig`` for ChatSession initialization.
+		///
+		/// Returns `nil` when:
+		/// - Speculative decoding is disabled in config (`enabled: false`)
+		/// - No draft model has been loaded
+		func createSpeculativeConfig() -> MLXLMCommon.SpeculativeDecodingConfig? {
+			guard specDecodingConfig.enabled else { return nil }
+			guard let handle = mlxModelHandle else { return nil }
+
+			// The actual draft model that proposes tokens
+			let draftHandle = draftModelHandle ?? handle
+			if draftModelHandle == nil {
+				logger.warning("Speculative decoding enabled but no draft model — may cause issues if main model is used")
+			}
+
+			return MLXLMCommon.SpeculativeDecodingConfig(
+				draftModel: draftHandle.modelContainer,
+				numDraftTokens: specDecodingConfig.numDraftTokens,
+				memoryPolicy: nil
+			)
+		}
+	#endif
 
 	// MARK: - Warmup (CAS-guarded, runs once)
 
@@ -103,6 +146,7 @@ final class LoadedModel: @unchecked Sendable {
 			)
 			let session = ChatSession(
 				handle.modelContainer,
+				speculativeDecoding: createSpeculativeConfig(),
 				generateParameters: mlxParams,
 			)
 			let genStream: AsyncThrowingStream<MLXLMCommon.Generation, Error> =

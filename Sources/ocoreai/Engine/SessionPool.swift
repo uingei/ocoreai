@@ -136,6 +136,7 @@ struct SessionPoolConfig {
 			modelId: String,
 			conversationId: String,
 			genParams: MLXLMCommon.GenerateParameters,
+			speculativeDecoding: MLXLMCommon.SpeculativeDecodingConfig? = nil,
 		) async -> (pooled: PooledChatSession, isHit: Bool) {
 			// 1. Expire stale sessions (with on-disk save)
 			await evictExpired()
@@ -157,6 +158,7 @@ struct SessionPoolConfig {
 			let cacheURL = cacheFileURL(key: key)
 			if let (restoredSession, restoredTokenCount) = Self.restoreCachedSession(
 				modelContainer, cacheURL: cacheURL, genParams: genParams, logger: logger,
+				speculativeDecoding: speculativeDecoding,
 			) {
 				// Disk restore gives us a ChatSession with baked-in KV cache.
 				// Message count restored from cache metadata — callers can compute delta
@@ -177,6 +179,7 @@ struct SessionPoolConfig {
 			// 5. Cold miss — create fresh session
 			let freshSession = ChatSession(
 				modelContainer,
+				speculativeDecoding: speculativeDecoding,
 				generateParameters: genParams,
 			)
 			let cacheFile = cacheFileURL(key: key)
@@ -271,6 +274,7 @@ struct SessionPoolConfig {
 			cacheURL: URL,
 			genParams: MLXLMCommon.GenerateParameters,
 			logger: Logger,
+			speculativeDecoding: MLXLMCommon.SpeculativeDecodingConfig? = nil,
 		) -> (session: ChatSession, tokenCount: Int)? {
 			guard FileManager.default.fileExists(atPath: cacheURL.path) else {
 				return nil
@@ -285,6 +289,7 @@ struct SessionPoolConfig {
 				let restoredSession = ChatSession(
 					modelContainer,
 					cache: caches,
+					speculativeDecoding: speculativeDecoding,
 					generateParameters: genParams,
 				)
 				return (restoredSession, restoredTokenCount)
