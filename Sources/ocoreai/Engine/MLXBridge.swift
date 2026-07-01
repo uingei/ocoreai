@@ -350,7 +350,7 @@
 		// MARK: - Helpers
 
 		private func logElapsed(_ msg: String, _ start: ContinuousClock.Instant) {
-			let elapsed = ContinuousClock.now.duration(to: start)
+			let elapsed = start.duration(to: ContinuousClock.now)
 			let ms = Double(elapsed.components.seconds) * 1000.0
 				+ Double(elapsed.components.attoseconds) / 1e15
 			logger.info("\(msg) in \(String(format: "%.0fms", ms))")
