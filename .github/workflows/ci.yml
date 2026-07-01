@@ -14,14 +14,27 @@ permissions:
 jobs:
   ## ── Static audit (fast, no build) ────────────────────────────────
   audit:
-    name: Static Audit
+    name: Static Audit + Lint
     runs-on: macos-26
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
+      - name: Setup SwiftLint
+        run: brew install swiftlint
+
       - name: Run static audit
         run: bash scripts/audit.swift_patterns.sh
+
+      - name: Run SwiftLint
+        run: |
+          echo "🔍 SwiftLint check..."
+          swiftlint lint --config .swiftlint.yml 2>&1 | tee /tmp/swiftlint-output.txt
+          ERRORS=$(grep -c 'error:' /tmp/swiftlint-output.txt || true)
+          WARNINGS=$(grep -c 'warning:' /tmp/swiftlint-output.txt || true)
+          echo ""
+          echo "📊 SwiftLint report: $ERRORS errors, $WARNINGS warnings"
+          echo "⚠️  Lint is advisory only — errors/warnings will become gates after baseline fix"
 
   ## ── Build + test (single pass, feeds release) ────────────────────
   build-and-test:
@@ -39,16 +52,29 @@ jobs:
         env:
           SWIFT_BUILD_NUM_WORKERS: 2
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: |
           export SWIFT_BUILD_NUM_WORKERS=2
-          swift test
+          swift test --enable-code-coverage
+        env:
+          OCOREAI_BUILD: ci
+
+      - name: Generate coverage report
+        run: |
+          COVERAGE_PATH=$(swift test --show-code-coverage-path 2>/dev/null || echo ".build/arm64-apple-macosx/debug/codecov/ocoreai.json")
+          echo "Coverage data at: $COVERAGE_PATH"
+          python3 scripts/coverage_report.py || echo "⚠️ Coverage report failed (non-blocking)"
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-data
+          path: .build/*/codecov/
+          retention-days: 7
 
       - name: Setup MLX metallib
         run: |
-          # MLX runtime looks for mlx.metallib next to the binary.
-          # Without it, MLX silently falls back to CPU (10-50x slower).
-          # Try our script first, then find system metallib as fallback.
           bash scripts/setup-metallib.sh || {
             echo "⚠️ setup-metallib.sh failed — searching system..."
             METALLIB=$(find /opt/homebrew /Library/Developer -name 'mlx.metallib' -type f 2>/dev/null | head -1)
@@ -98,7 +124,6 @@ jobs:
       - name: Extract version from tag
         id: version
         run: |
-          # Strip 'v' prefix: v1.2.3 → 1.2.3
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -114,7 +139,6 @@ jobs:
           cp .build/arm64-apple-macosx/release/mlx.metallib "$APP_DIR/MacOS/" 2>/dev/null || true
           cp PrivacyInfo.xcprivacy "$APP_DIR/Resources/" 2>/dev/null || true
 
-          # Generate Info.plist with dynamic version
           python3 -c "
           import xml.etree.ElementTree as ET
           import os

@@ -61,7 +61,7 @@ actor ConfigSystem {
 
 		do {
 			let data = try Data(contentsOf: URL(fileURLWithPath: configPath))
-			guard let loaded = try? Yams.load(yaml: String(decoding: data, as: UTF8.self)) as? AppConfig else {
+			guard let loaded = try? YAMLDecoder().decode(AppConfig.self, from: data) else {
 				logger.warning("YAML did not decode to AppConfig")
 				return false
 			}
@@ -80,7 +80,7 @@ actor ConfigSystem {
 
 	/// Write current config to disk.
 	func save() async throws {
-		let yaml = try Yams.dump(object: config)
+		let yaml = try YAMLEncoder().encode(config)
 		try yaml.write(to: URL(fileURLWithPath: configPath), atomically: true, encoding: .utf8)
 		logger.info("Config saved to \(configPath)")
 	}

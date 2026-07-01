@@ -424,15 +424,24 @@ actor EnginePool {
 
 	// MARK: - Inspection
 
-	func listModels() -> [[String: String]] {
-		loadedModels.compactMap { id, model in
-			[
-				"id": id,
-				"max_context_length": String(model.modelConfig.maxContextLength),
-				"vocab_size": String(model.modelConfig.vocabSize),
-				"tokenizer": model.modelConfig.tokenizer,
-			]
+	/// Snapshot model list without holding actor projection on live LoadedModel entries.
+	/// Returns an independent copy — safe to call from @MainActor without risking
+	/// EXC_BAD_ACCESS from concurrent LRU eviction / updateSamplingConfig.
+	func listModels() async -> [[String: String]] {
+		var result: [[String: String]] = []
+		// Grab stable model IDs first — keys are isolated to this actor
+		let ids = loadedModels.keys
+		for id in ids {
+			if let model = loadedModels[id] {
+				result.append([
+					"id": id,
+					"max_context_length": String(model.modelConfig.maxContextLength),
+					"vocab_size": String(model.modelConfig.vocabSize),
+					"tokenizer": model.modelConfig.tokenizer,
+				])
+			}
 		}
+		return result
 	}
 
 	func engineSummary() async -> EngineSummary {
