@@ -1,0 +1,86 @@
+# ocoreai SwiftLint Configuration
+# SwiftLint 0.65.0, Swift 6.3
+# Strategy: bug-catching lint, not style enforcement.
+# Style is handled by the codebase's own conventions.
+
+excluded:
+  - .build
+  - references
+
+# Only opt-in rules that catch real problems
+opt_in_rules:
+  - blanket_disable_command
+  - closure_spacing
+  - convenience_type
+  - discarded_notification_center_observer
+  - discouraged_optional_boolean
+  - empty_count
+  - empty_enum_associated_value
+  - empty_xctest_method
+  - fallthrough
+  - fatal_error_message
+  - first_where
+  - flatmap_over_map_reduce
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - last_where
+  - legacy_multiple
+  - legacy_random
+  - number_separator
+  - overridden_super_call
+  - overridden_statements
+  - private_action
+  - prohibited_super_call
+  - redundant_nil_coalescing
+  - redundant_type_annotation
+  - self_binding
+  - strict_fileprivate
+  - superfluous_else
+  - toggle_bool
+  - unowned_variable_capture
+  - unused_capture_list
+  - unused_closure_parameter
+  - unused_control_flow_label
+  - unused_declaration
+
+# Severity: force unwrap is a real crash risk
+force_unwrapping:
+  severity: error
+implicitly_unwrapped_optional:
+  severity: error
+
+# Reasonable thresholds (lenient to not block existing code)
+type_body_length:
+  warning: 700
+  error: 1200
+function_body_length:
+  warning: 80
+  error: 150
+file_length:
+  warning: 1000
+  error: 1500
+line_length:
+  warning: 180
+  error: 250
+  ignores_urls: true
+  ignores_function_declarations: true
+  ignores_comments: true
+large_tuple:
+  warning: 4
+  error: 6
+identifier_name:
+  min_length: 1
+  excluded: ["id", "i", "j", "k", "_", "ex", "err", "to", "db", "at"]
+nesting:
+  type_level: 4
+  function_level: 4
+trailing_whitespace:
+  ignores_empty_lines: true
+  ignores_comments: true
+
+# Disable rules that fight existing conventions (tab indent, MARKs, etc.)
+disabled_rules:
+  - trailing_comma
+  - vertical_whitespace
+  - void_return
+  - multiple_closures_with_trailing_closure
