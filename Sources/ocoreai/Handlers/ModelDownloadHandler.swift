@@ -94,6 +94,10 @@
 	// MARK: - Download Dispatch
 
 	/// Actually run the download, emitting SSE progress events.
+	///
+	/// Acquires a global download concurrency slot before starting — prevents
+	/// API path from bypassing UI path's concurrency limits. Releases the slot
+	/// on both success and failure.
 	private func doDownload(
 		downloadId: String,
 		modelId: String,
@@ -105,6 +109,19 @@
 		logger: Logger,
 		emit: @Sendable @escaping (DownloadSSEEvent) -> Void,
 	) async throws -> String {
+		// Extract bare repoId for semaphore key
+		let bareId = modelId
+
+		// Acquire concurrency slot — waits if all slots are busy
+		let shouldProceed = await DownloadSemaphore.shared.acquireOrWait(for: bareId)
+		guard shouldProceed else {
+			throw AppError.invalidRequest("Model \(modelId) is already being downloaded by another request")
+		}
+		defer {
+			// Release slot on all exit paths (return, throw, cancel)
+			DownloadSemaphore.shared.release(for: bareId)
+		}
+
 		switch provider {
 		case "hf": return try await downloadFromHF(
 				downloadId: downloadId, modelId: modelId, revision: revision,

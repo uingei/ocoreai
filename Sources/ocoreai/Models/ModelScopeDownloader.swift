@@ -228,6 +228,13 @@ actor ModelScopeDownloader: Downloader {
 	}
 
 	/// Download files in parallel batches of 4.
+	///
+	/// On partial failure: removes only the files downloaded in this session
+	/// (not pre-existing files) so the cache stays consistent.
+	/// On cancellation: skips cleanup — user can retry without re-downloading good files.
+	///
+	/// After download: verifies every file's size matches the remote manifest.
+	/// Files with size mismatch are treated as corrupted and removed.
 	private func downloadFiles(
 		_ files: [FileInfo],
 		to cacheDir: URL,
@@ -241,6 +248,10 @@ actor ModelScopeDownloader: Downloader {
 		var downloadedBytes: Int64 = 0
 		var downloadedCount = 0
 		var failedPaths: [String] = []
+		/// Paths that were actually downloaded (not pre-existing) in this session.
+		/// Used for targeted cleanup on partial failure — avoids deleting files
+		/// that existed before this download attempt.
+		var newlyDownloaded: Set<String> = []
 
 		for chunk in files.chunked(into: 4) {
 			// Task.isCancelled checkpoint — allow user cancellation to take effect
@@ -266,6 +277,7 @@ actor ModelScopeDownloader: Downloader {
 			for (filePath, task) in tasks {
 				do {
 					let (info, _) = try await task.value
+					newlyDownloaded.insert(filePath)
 					downloadedCount += 1
 					let fileBytes = info.size ?? 0
 					downloadedBytes += fileBytes
@@ -280,12 +292,67 @@ actor ModelScopeDownloader: Downloader {
 		}
 
 		if !failedPaths.isEmpty {
+			/// Clean up only the files we downloaded in this session.
+			/// Pre-existing files are kept (user may want to retry).
+			for path in newlyDownloaded {
+				try? FileManager.default.removeItem(at: cacheDir.appendingPathComponent(path))
+			}
 			throw DownloaderError.partialDownload(
 				failed: failedPaths,
 				total: total,
 				succeeded: downloadedCount,
 			)
 		}
+
+		/// Post-download integrity check: verify local files match remote manifest sizes.
+		/// Corrupted/incomplete files are removed so the next download attempt is clean.
+		let corrupted = verifyDownloadedFiles(files, cacheDir: cacheDir)
+		if !corrupted.isEmpty {
+			// Remove only the corrupted files — next download attempt re-downloads them.
+			for path in corrupted {
+				try? FileManager.default.removeItem(at: cacheDir.appendingPathComponent(path))
+			}
+			throw DownloaderError.corruptedDownload(
+				files: corrupted,
+				reason: "Local file size does not match remote manifest",
+			)
+		}
+	}
+
+	/// Verify that locally downloaded files match their remote manifest sizes.
+	/// Returns the list of corrupted file paths (empty if all OK).
+	private func verifyDownloadedFiles(
+		_ files: [FileInfo],
+		cacheDir: URL,
+	) -> [String] {
+		var corrupted: [String] = []
+
+		for fileInfo in files {
+			let localPath = cacheDir.appendingPathComponent(fileInfo.path)
+			guard FileManager.default.fileExists(atPath: localPath.path(percentEncoded: false))
+			else {
+				corrupted.append(fileInfo.path)
+				continue
+			}
+
+			// If remote manifest has a size, verify local file matches
+			guard let expectedSize = fileInfo.size, expectedSize > 0 else { continue }
+
+			do {
+				let attrs = try FileManager.default.attributesOfItem(atPath: localPath.path(percentEncoded: false))
+				let localSize = attrs[.size] as? Int64 ?? 0
+
+				// Tolerance: allow up to 1 byte difference (edge case for streaming)
+				if abs(localSize - expectedSize) > 1 {
+					corrupted.append(fileInfo.path)
+				}
+			} catch {
+				// If we can't stat the file, treat it as corrupted
+				corrupted.append(fileInfo.path)
+			}
+		}
+
+		return corrupted
 	}
 
 	// MARK: - Helpers
@@ -337,6 +404,7 @@ enum DownloaderError: LocalizedError {
 	case apiError(statusCode: Int, body: String)
 	case downloadFailed(path: String, statusCode: Int)
 	case partialDownload(failed: [String], total: Int, succeeded: Int)
+	case corruptedDownload(files: [String], reason: String)
 	case parseError
 	case invalidURL(String)
 
@@ -352,6 +420,8 @@ enum DownloaderError: LocalizedError {
 			"Download failed for '\(path)' (HTTP \(code))"
 		case let .partialDownload(failed, total, succeeded):
 			"Partial download: \(total) files total, \(succeeded) succeeded, \(failed.count) failed: \(failed.prefix(3).joined(separator: ", "))"
+		case let .corruptedDownload(files, reason):
+			"Corrupted download (\(files.count) file(s)): \(reason). \(files.prefix(5).joined(separator: ", "))"
 		case .parseError:
 			"Failed to parse ModelScope API response"
 		case let .invalidURL(msg):
