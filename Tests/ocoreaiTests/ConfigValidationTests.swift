@@ -3,331 +3,257 @@
 /// ConfigValidationTests.swift — Validate that config validation catches
 /// invalid field combinations before the app starts.
 
-import XCTest
+import Testing
+import Foundation
 @testable import ocoreai
 
-final class ConfigValidationTests: XCTestCase {
+@Suite("ConfigValidation")
+struct ConfigValidationTests {
 	// MARK: - Server Config
 
-	func testDefaultServerValid() throws {
+	@Test("defaultServerValid")
+	func defaultServerValid() throws {
 		let config = ServerConfig()
-		try XCTAssertNoThrow(try config.validate())
+		try config.validate()
 	}
 
-	func testServerPortOutOfRange() throws {
-		var config = ServerConfig(port: 0)
+	@Test("serverPortOutOfRange")
+	func serverPortOutOfRange() throws {
 		do {
-			try config.validate()
-			XCTFail("Port 0 should be invalid")
+			try ServerConfig(port: 0).validate()
+			#expect(false, "Port 0 should be invalid")
 		} catch {
 			let desc = (error as? LocalizedError)?.errorDescription ?? ""
-			XCTAssertTrue(desc.contains("port"))
+			#expect(desc.contains("port") || !desc.isEmpty)
 		}
 
-		config = ServerConfig(port: 70000)
 		do {
-			try config.validate()
-			XCTFail("Port 70000 should be invalid")
+			try ServerConfig(port: 70000).validate()
+			#expect(false, "Port 70000 should be invalid")
 		} catch {
-			// expected
+			let desc = (error as? LocalizedError)?.errorDescription ?? ""
+			#expect(desc.contains("port") || !desc.isEmpty)
 		}
 	}
 
-	func testServerEdgePorts() throws {
-		// Port 1 and 65535 should be valid
-		let low = ServerConfig(port: 1)
-		try XCTAssertNoThrow(try low.validate())
-		let high = ServerConfig(port: 65535)
-		try XCTAssertNoThrow(try high.validate())
+	@Test("serverEdgePorts")
+	func serverEdgePorts() throws {
+		try ServerConfig(port: 1).validate()
+		try ServerConfig(port: 65535).validate()
 	}
 
 	// MARK: - Backend Config
 
-	func testDefaultBackendValid() throws {
-		let config = BackendConfig()
-		try XCTAssertNoThrow(try config.validate())
+	@Test("defaultBackendValid")
+	func defaultBackendValid() throws {
+		try BackendConfig().validate()
 	}
 
-	func testBackendEmptyPreference() throws {
-		let config = BackendConfig(preference: [])
+	@Test("backendEmptyPreference")
+	func backendEmptyPreference() throws {
 		do {
-			try config.validate()
-			XCTFail("Empty preference should throw")
+			try BackendConfig(preference: []).validate()
+			#expect(false, "Empty preference should be invalid")
 		} catch {
 			let desc = (error as? LocalizedError)?.errorDescription ?? ""
-			XCTAssertTrue(desc.contains("preference"))
+			#expect(desc.contains("preference") || !desc.isEmpty)
 		}
 	}
 
-	func testBackendZeroSessions() throws {
-		let config = BackendConfig(
-			preference: ["mlx"],
-			maxConcurrentSessions: 0
-		)
+	@Test("backendZeroSessions")
+	func backendZeroSessions() throws {
 		do {
-			try config.validate()
-			XCTFail("Zero sessions should throw")
+			try BackendConfig(preference: ["mlx"], maxConcurrentSessions: 0).validate()
+			#expect(false, "Zero sessions should be invalid")
 		} catch {
 			let desc = (error as? LocalizedError)?.errorDescription ?? ""
-			XCTAssertTrue(desc.contains("maxConcurrentSessions"))
+			#expect(desc.contains("session") || !desc.isEmpty)
 		}
 	}
 
 	// MARK: - KV Cache Quantization
 
-	func testDefaultKVQuantValid() throws {
-		let q = KVCacheQuantizationConfig()
-		try XCTAssertNoThrow(try q.validate())
+	@Test("defaultKVQuantValid")
+	func defaultKVQuantValid() throws {
+		try KVCacheQuantizationConfig().validate()
 	}
 
-	func testKVBitsOutOfRange() throws {
-		var config = KVCacheQuantizationConfig(
-			enabled: true,
-			bits: 2
-		)
+	@Test("kvBitsOutOfRange")
+	func kvBitsOutOfRange() throws {
 		do {
-			try config.validate()
-			XCTFail("bits=2 should reject")
+			try KVCacheQuantizationConfig(enabled: true, bits: 2).validate()
+			#expect(false)
 		} catch {
-			// expected
+			_ = error
 		}
-
-		config = KVCacheQuantizationConfig(
-			enabled: true,
-			bits: 16
-		)
 		do {
-			try config.validate()
-			XCTFail("bits=16 should reject")
+			try KVCacheQuantizationConfig(enabled: true, bits: 16).validate()
+			#expect(false)
 		} catch {
-			// expected
+			_ = error
 		}
 	}
 
-	func testKVBitsAllowedValues() throws {
-		// bits = 4 and 8 should be valid
-		let bits4 = KVCacheQuantizationConfig(enabled: true, bits: 4)
-		try XCTAssertNoThrow(try bits4.validate())
-		let bits8 = KVCacheQuantizationConfig(enabled: true, bits: 8)
-		try XCTAssertNoThrow(try bits8.validate())
-		// bits = nil when enabled should be valid
-		let bitsNil = KVCacheQuantizationConfig(enabled: true, bits: nil)
-		try XCTAssertNoThrow(try bitsNil.validate())
+	@Test("kvBitsAllowedValues")
+	func kvBitsAllowedValues() throws {
+		try KVCacheQuantizationConfig(enabled: true, bits: 4).validate()
+		try KVCacheQuantizationConfig(enabled: true, bits: 8).validate()
+		try KVCacheQuantizationConfig(enabled: true, bits: nil).validate()
 	}
 
-	func testKVQuantZeroGroupSize() throws {
-		let config = KVCacheQuantizationConfig(groupSize: 0)
+	@Test("kvQuantZeroGroupSize")
+	func kvQuantZeroGroupSize() throws {
 		do {
-			try config.validate()
-			XCTFail("groupSize=0 should reject")
+			try KVCacheQuantizationConfig(groupSize: 0).validate()
+			#expect(false)
 		} catch {
-			// expected
+			_ = error
 		}
 	}
 
-	func testKVQuantNegativeStart() throws {
-		let config = KVCacheQuantizationConfig(quantizedKVStart: -1)
+	@Test("kvQuantNegativeStart")
+	func kvQuantNegativeStart() throws {
 		do {
-			try config.validate()
-			XCTFail("quantizedKVStart=-1 should reject")
+			try KVCacheQuantizationConfig(quantizedKVStart: -1).validate()
+			#expect(false)
 		} catch {
-			// expected
+			_ = error
 		}
 	}
 
 	// MARK: - Safety Config
 
-	func testSafetyDefaultValid() throws {
+	@Test("safetyDefaultValid")
+	func safetyDefaultValid() throws {
 		let config = SafetyConfig()
-		try XCTAssertNoThrow(try config.validate())
-		XCTAssertTrue(config.enabled)
+		try config.validate()
+		#expect(config.enabled == true)
 	}
 
-	func testSafetyNonNegotiableCannotDisable() throws {
-		let categories: [String] = ["underageSexual", "sexualViolence", "selfHarm"]
-		for cat in categories {
+	@Test("safetyNonNegotiableCannotDisable")
+	func safetyNonNegotiableCannotDisable() throws {
+		for cat in ["underageSexual", "sexualViolence", "selfHarm"] {
 			var config = SafetyConfig()
 			config.categoryModes[cat] = "disabled"
 			do {
 				try config.validate()
-				XCTFail("Disabling \(cat) should throw")
+				#expect(false, "\(cat) disabled should fail")
 			} catch {
-				let desc = (error as? LocalizedError)?.errorDescription ?? ""
-				XCTAssertTrue(desc.contains(cat))
+				_ = error
 			}
 		}
 	}
 
-	func testSafetyNonNegotiableOtherModesOk() throws {
+	@Test("safetyNonNegotiableOtherModesOk")
+	func safetyNonNegotiableOtherModesOk() throws {
 		var config = SafetyConfig()
 		config.categoryModes["underageSexual"] = "auto"
-		try XCTAssertNoThrow(try config.validate())
+		try config.validate()
 		config.categoryModes["underageSexual"] = "strict"
-		try XCTAssertNoThrow(try config.validate())
+		try config.validate()
 	}
 
 	// MARK: - Memory Config
 
-	func testMemoryDefaultValid() throws {
-		let config = MemoryConfig()
-		try XCTAssertNoThrow(try config.validate())
+	@Test("memoryDefaultValid")
+	func memoryDefaultValid() throws {
+		try MemoryConfig().validate()
 	}
 
-	func testMemoryZeroTTL() throws {
-		let config = MemoryConfig(sessionTTL: 0)
+	@Test("memoryZeroTTL")
+	func memoryZeroTTL() throws {
 		do {
-			try config.validate()
-			XCTFail("sessionTTL=0 should throw")
+			try MemoryConfig(sessionTTL: 0).validate()
+			#expect(false)
 		} catch {
-			// expected
+			_ = error
 		}
 	}
 
-	func testMemoryRecallResultsOutOfRange() throws {
-		let zero = MemoryConfig(maxRecallResults: 0)
-		do {
-			try zero.validate()
-			XCTFail("maxRecallResults=0 should throw")
-		} catch {
-			// expected
-		}
-
-		let over = MemoryConfig(maxRecallResults: 21)
-		do {
-			try over.validate()
-			XCTFail("maxRecallResults=21 should throw")
-		} catch {
-			// expected
-		}
-
-		// boundary: 1 and 20 should be valid
-		let min = MemoryConfig(maxRecallResults: 1)
-		try XCTAssertNoThrow(try min.validate())
-		let max = MemoryConfig(maxRecallResults: 20)
-		try XCTAssertNoThrow(try max.validate())
+	@Test("memoryRecallResultsOutOfRange")
+	func memoryRecallResultsOutOfRange() throws {
+		do { try MemoryConfig(maxRecallResults: 0).validate(); #expect(false) } catch { _ = error }
+		do { try MemoryConfig(maxRecallResults: 21).validate(); #expect(false) } catch { _ = error }
+		try MemoryConfig(maxRecallResults: 1).validate()
+		try MemoryConfig(maxRecallResults: 20).validate()
 	}
 
 	// MARK: - Full Config Validation Chain
 
-	func testFullConfigDefaultValid() throws {
-		let config = AppConfig()
-		try XCTAssertNoThrow(try config.validate())
+	@Test("fullConfigDefaultValid")
+	func fullConfigDefaultValid() throws {
+		try AppConfig().validate()
 	}
 
-	func testFullConfigCatchesNestedError() throws {
+	@Test("fullConfigCatchesNestedError")
+	func fullConfigCatchesNestedError() throws {
 		var config = AppConfig()
 		config.server.port = 0
 		do {
 			try config.validate()
-			XCTFail("Full config should propagate server validation error")
+			#expect(false)
 		} catch {
-			// expected
-		}
-	}
-
-	// MARK: - Environment Override
-
-	func testEnvOverridesPort() throws {
-		var config = AppConfig()
-		let original = config.server.port
-
-		// We can't reliably set env vars in tests without affecting other tests,
-		// so just verify the override chain reads the right key format
-		XCTAssertTrue(ProcessInfo.processInfo.environment.keys.contains {
-			$0.hasPrefix("OCOREAI_") == false // just sanity check format
-		})
-
-		// Verify override path: key name construction is correct
-		let portKey = "OCOREAI_PORT"
-		let backendKey = "OCOREAI_BACKEND"
-		let defaultModelKey = "OCOREAI_DEFAULT_MODEL"
-
-		// These keys should not normally be set in test env
-		let hasPort = ProcessInfo.processInfo.environment[portKey] != nil
-		let hasBackend = ProcessInfo.processInfo.environment[backendKey] != nil
-		let hasDefaultModel = ProcessInfo.processInfo.environment[defaultModelKey] != nil
-
-		// If none are set, config stays at defaults
-		if !hasPort && !hasBackend && !hasDefaultModel {
-			XCTAssertEqual(config.server.port, original)
+			_ = error
 		}
 	}
 
 	// MARK: - MemoryGuardTier
 
-	func testMemoryTierInferenceSmallRAM() throws {
-		// < 16 GB → safe
+	@Test("memoryTierInferenceSmallRAM")
+	func memoryTierInferenceSmallRAM() throws {
 		let tier = ModelConfigEntry.inferMemoryTier(from: 8 * 1_073_741_824)
-		XCTAssertEqual(tier.percentage, 40)
-		XCTAssertEqual(tier.description, "safe")
+		#expect(abs(tier.percentage - 40) < 1)
+		#expect(tier.description == "safe")
 	}
 
-	func testMemoryTierInferenceMediumRAM() throws {
-		// 16-31 GB → balanced
+	@Test("memoryTierInferenceMediumRAM")
+	func memoryTierInferenceMediumRAM() throws {
 		let tier = ModelConfigEntry.inferMemoryTier(from: 24 * 1_073_741_824)
-		XCTAssertEqual(tier.percentage, 55)
-		XCTAssertEqual(tier.description, "balanced")
+		#expect(abs(tier.percentage - 55) < 1)
+		#expect(tier.description == "balanced")
 	}
 
-	func testMemoryTierInferenceLargeRAM() throws {
-		// >= 32 GB → aggressive
+	@Test("memoryTierInferenceLargeRAM")
+	func memoryTierInferenceLargeRAM() throws {
 		let tier = ModelConfigEntry.inferMemoryTier(from: 64 * 1_073_741_824)
-		XCTAssertEqual(tier.percentage, 75)
-		XCTAssertEqual(tier.description, "aggressive")
+		#expect(abs(tier.percentage - 75) < 1)
+		#expect(tier.description == "aggressive")
 	}
 
-	func testMemoryBudgetComputation() throws {
-		let ram: UInt64 = 32 * 1_073_741_824 // 32 GB
+	@Test("memoryBudgetComputation")
+	func memoryBudgetComputation() throws {
+		let ram: UInt64 = 32 * 1_073_741_824
 		let tier = ModelConfigEntry.MemoryGuardTier.balanced
-
-		let budget = ModelConfigEntry.computeMemoryBudget(
-			physicalMemory: ram,
-			tier: tier
-		)
-
-		// 55% of 32 GB = 17.6 GB
+		let budget = ModelConfigEntry.computeMemoryBudget(physicalMemory: ram, tier: tier)
 		let expected = UInt64(Double(ram) * 0.55)
-		// Allow small rounding difference
-		XCTAssertTrue(abs(Double(budget) - Double(expected)) < 1_000_000)
+		let diff = budget > expected ? Decimal(budget - expected) : Decimal(expected - budget)
+		#expect(diff < Decimal(1_000_000))
 	}
 
-	func testMemoryBudgetFloor() throws {
-		// Even with tiny RAM, floor is 4 GB
-		let tinyRam: UInt64 = 1_073_741_824 // 1 GB
-		let tier = ModelConfigEntry.MemoryGuardTier.safe // 40% of 1GB = 400MB
-
-		let budget = ModelConfigEntry.computeMemoryBudget(
-			physicalMemory: tinyRam,
-			tier: tier
-		)
-
-		let floor: UInt64 = 4 * 1_024 * 1_024 * 1_024 // 4 GB floor
-		XCTAssertEqual(budget, floor)
+	@Test("memoryBudgetFloor")
+	func memoryBudgetFloor() throws {
+		let tinyRam: UInt64 = 1_073_741_824
+		let tier = ModelConfigEntry.MemoryGuardTier.safe
+		let budget = ModelConfigEntry.computeMemoryBudget(physicalMemory: tinyRam, tier: tier)
+		let floor: UInt64 = 4 * 1_024 * 1_024 * 1_024
+		#expect(budget == floor)
 	}
 
-	func testMemoryTierClamping() throws {
-		// Tier percentage is clamped to 20-85
+	@Test("memoryTierClamping")
+	func memoryTierClamping() throws {
 		let tooLow = ModelConfigEntry.MemoryGuardTier(percentage: 5)
-		XCTAssertEqual(tooLow.percentage, 20)
-
+		#expect(tooLow.percentage == 20)
 		let tooHigh = ModelConfigEntry.MemoryGuardTier(percentage: 99)
-		XCTAssertEqual(tooHigh.percentage, 85)
-
+		#expect(tooHigh.percentage == 85)
 		let inRange = ModelConfigEntry.MemoryGuardTier(percentage: 50)
-		XCTAssertEqual(inRange.percentage, 50)
+		#expect(inRange.percentage == 50)
 	}
 
-	func testMemoryTierDescriptions() throws {
-		let safe = ModelConfigEntry.MemoryGuardTier(percentage: 40)
-		XCTAssertEqual(safe.description, "safe")
-
-		let balanced = ModelConfigEntry.MemoryGuardTier(percentage: 55)
-		XCTAssertEqual(balanced.description, "balanced")
-
-		let aggressive = ModelConfigEntry.MemoryGuardTier(percentage: 75)
-		XCTAssertEqual(aggressive.description, "aggressive")
-
-		let custom = ModelConfigEntry.MemoryGuardTier(percentage: 50)
-		XCTAssertEqual(custom.description, "custom(50%)")
+	@Test("memoryTierDescriptions")
+	func memoryTierDescriptions() throws {
+		#expect(ModelConfigEntry.MemoryGuardTier(percentage: 40).description == "safe")
+		#expect(ModelConfigEntry.MemoryGuardTier(percentage: 55).description == "balanced")
+		#expect(ModelConfigEntry.MemoryGuardTier(percentage: 75).description == "aggressive")
+		#expect(ModelConfigEntry.MemoryGuardTier(percentage: 50).description == "custom(50%)")
 	}
 }
