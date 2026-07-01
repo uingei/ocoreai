@@ -155,6 +155,11 @@ actor MCPStdioClient {
 		return parseToolsListResponse(response)
 	}
 
+	/// 列出外部 server 提供的工具（返回原始 JSON 字符串，Sendable-safe）。
+	func listToolsRaw() async throws -> String {
+		try await request("tools/list", params: [:])
+	}
+
 	/// 调用外部 server 上的工具。
 	/// - Returns: 工具执行结果内容数组。
 	func callTool(_ name: String, arguments: [String: Any]) async throws -> [[String: String]] {

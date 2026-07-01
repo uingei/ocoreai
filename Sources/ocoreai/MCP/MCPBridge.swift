@@ -138,6 +138,9 @@ public extension MCPEndpoint {
 actor MCPBridge {
 	// MARK: - 状态
 
+	/// 工具注册表引用 — 用于将外部 MCP 工具注册到全局 ToolRegistry
+	private let toolRegistry: ToolRegistry
+
 	/// 本地工具服务器
 	private let server: MCPServer
 
@@ -166,6 +169,7 @@ actor MCPBridge {
 		bridgeConfig: MCPBridgeConfig = .default,
 		log: Logger = Logger(label: "ocoreai.mcp.bridge"),
 	) {
+		self.toolRegistry = toolRegistry
 		server = MCPServer(registry: toolRegistry, transport: transport, log: log)
 		callCache = MCPCallCache(
 			maxEntries: bridgeConfig.callCacheMaxEntries,
@@ -237,7 +241,7 @@ actor MCPBridge {
 			else {
 				return jsonError("Missing required param: name", code: -32602, id: reqID)
 			}
-			disconnectEndpoint(name: name)
+			await disconnectEndpoint(name: name)
 			return jsonResult(["endpoint": name, "status": "disconnected"], id: reqID)
 		case "$bridge/status":
 			return jsonResult(bridgeStatus(), id: reqID)
@@ -477,7 +481,96 @@ actor MCPBridge {
 
 	// MARK: - Endpoint 管理
 
-	/// 连接外部 MCP endpoint（启动子进程 + initialize）。
+	/// Discover tools from an MCP endpoint and register them to the global ToolRegistry.
+	/// Tools are tagged with `mcpSource` so they can be batch-unregistered on disconnect.
+	private func discoverAndRegisterTools(client: MCPStdioClient, source: String) async throws {
+		// Use raw JSON to avoid Sendable boundary issue with [[String: Any]] across actors
+		let rawJSON = try await client.listToolsRaw()
+
+		// Parse on MCPBridge side (same actor context)
+		guard let data = rawJSON.data(using: .utf8),
+			  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+			  let result = obj["result"] as? [String: Any],
+			  let tools = result["tools"] as? [[String: Any]]
+		else {
+			log.info("Endpoint \(source) has no tools to discover")
+			return
+		}
+
+		guard !tools.isEmpty else {
+			log.info("Endpoint \(source) has no tools to discover")
+			return
+		}
+
+		for toolInfo in tools {
+			let toolName = (toolInfo["name"] as? String) ?? ""
+			guard !toolName.isEmpty else { continue }
+
+			// Build schema from MCP inputSchema
+			let inputSchema = toolInfo["inputSchema"] as? [String: Any] ?? [:]
+			let properties = inputSchema["properties"] as? [String: [String: Any]] ?? [:]
+
+			var parameters: [String: ParameterType] = [:]
+			for (paramName, paramInfo) in properties {
+				let typeString = (paramInfo["type"] as? String)?.lowercased() ?? "string"
+				let paramType: ParameterType
+				switch typeString {
+				case "string": paramType = .string
+				case "number", "integer": paramType = .integer
+				case "boolean": paramType = .boolean
+				case "array": paramType = .array
+				default: paramType = .string
+				}
+				parameters[paramName] = paramType
+			}
+
+			let schema = ToolSchema(parameters: parameters)
+
+			// Handler forwards calls to the MCP client via the bridge
+			let handler: @Sendable (String) async throws -> String = { arguments in
+				let results = try await self.forwardToolCall(name: toolName, arguments: arguments, source: source)
+				let texts = results.compactMap { $0["text"] }
+				guard !texts.isEmpty else { return "(no content)" }
+				return texts.joined(separator: "\n")
+			}
+
+			let entry = ToolEntry(
+				name: toolName,
+				toolset: "mcp:\(source)",
+				schema: schema,
+				handler: handler,
+				mcpSource: source,
+			)
+
+			try await toolRegistry.register(entry)
+			log.info("Registered MCP tool: \(toolName) [mcp:\(source)]")
+		}
+
+		log.info("Discovered \(tools.count) tools from endpoint \(source)")
+	}
+
+	/// Forward a tool call to the MCP client for the given source endpoint.
+	/// Called from outside the MCPBridge actor (e.g., ToolRegistry handler dispatch).
+	private func forwardToolCall(name: String, arguments: String, source: String) async throws -> [[String: String]] {
+		guard let client = externalClients[source] else {
+			throw MCPBridgeError.noServerAvailable(source)
+		}
+
+		// Parse arguments JSON
+		let argsData = arguments.data(using: .utf8)
+		let argsMap: [String: Any]
+		if let data = argsData,
+		   let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+			argsMap = parsed
+		} else {
+			argsMap = [:]
+		}
+
+		let results = try await client.callTool(name, arguments: argsMap)
+		return results
+	}
+
+	/// 连接外部 MCP endpoint（启动子进程 + initialize + discover tools）。
 	func connectEndpoint(
 		name: String,
 		command: String,
@@ -505,6 +598,9 @@ actor MCPBridge {
 			externalClients[name] = client
 
 			log.info("Endpoint \(name) connected: \(command) \(args.joined(separator: " "))")
+
+			// Discover tools from this endpoint and register them to ToolRegistry
+			try await discoverAndRegisterTools(client: client, source: name)
 		} catch {
 			handle.status = .errored
 			handle.lastError = error.localizedDescription
@@ -515,7 +611,10 @@ actor MCPBridge {
 	}
 
 	/// 断开外部 MCP endpoint。
-	func disconnectEndpoint(name: String) {
+	func disconnectEndpoint(name: String) async {
+		// Unregister tools from this MCP source before disconnecting
+		await toolRegistry.unregisterToolsFromSource(name)
+
 		if let client = externalClients[name] {
 			Task { @Sendable in
 				await client.disconnect()
@@ -532,8 +631,8 @@ actor MCPBridge {
 	}
 
 	/// 移除 endpoint。
-	func removeEndpoint(name: String) {
-		disconnectEndpoint(name: name)
+	func removeEndpoint(name: String) async {
+		await disconnectEndpoint(name: name)
 		endpointHandles.removeValue(forKey: name)
 		log.info("Endpoint \(name) removed")
 	}

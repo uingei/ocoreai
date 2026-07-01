@@ -78,6 +78,11 @@ actor ToolRegistry {
 		byToolset[toolset] ?? []
 	}
 
+	/// List tools registered from a specific MCP endpoint source.
+	func listByMcpSource(_ source: String) -> [String] {
+		tools.values.filter { $0.mcpSource == source }.map(\.name)
+	}
+
 	/// Get schema for a tool
 	func schema(for name: String) -> ToolSchema? {
 		tools[name]?.schema
@@ -186,6 +191,37 @@ actor ToolRegistry {
 		// Trim history
 		if executionHistory.count > 100 {
 			executionHistory.removeFirst(50)
+		}
+	}
+
+	// MARK: - Lifecycle
+
+	/// Unregister a single tool by name.
+	/// - Returns: `true` if the tool was found and removed.
+	func unregister(_ toolName: String) -> Bool {
+		guard let entry = tools.removeValue(forKey: toolName) else {
+			logger.warning("Unregister miss: \(toolName)")
+			return false
+		}
+		// Remove from toolset index
+		if var names = byToolset[entry.toolset] {
+			names.removeAll { $0 == toolName }
+			if names.isEmpty {
+				byToolset.removeValue(forKey: entry.toolset)
+			} else {
+				byToolset[entry.toolset] = names
+			}
+		}
+		logger.info("Unregistered tool: \(toolName)")
+		return true
+	}
+
+	/// Batch-unregister all tools that came from a specific MCP endpoint.
+	func unregisterToolsFromSource(_ source: String) {
+		let toolNames = listByMcpSource(source)
+		_ = toolNames.map { unregister($0) }
+		if !toolNames.isEmpty {
+			logger.info("Batch-unregistered \(toolNames.count) tools from MCP source: \(source)")
 		}
 	}
 }

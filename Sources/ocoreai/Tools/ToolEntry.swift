@@ -16,6 +16,9 @@ struct ToolEntry {
 	let checkFn: @Sendable () async -> Bool
 	let isDestructive: Bool
 	let maxDepth: Int
+	/// MCP endpoint source name — used for lifecycle cleanup when endpoint disconnects.
+	/// nil for built-in tools, non-nil for tools discovered from an external MCP server.
+	let mcpSource: String?
 
 	/// Default TTL for checkFn cache — 30 seconds
 	static let checkTTL: TimeInterval = 30.0
@@ -28,6 +31,7 @@ struct ToolEntry {
 		checkFn: @Sendable @escaping () async -> Bool = { true },
 		isDestructive: Bool = false,
 		maxDepth: Int = 3,
+		mcpSource: String? = nil,
 	) {
 		self.name = name
 		self.toolset = toolset
@@ -36,6 +40,7 @@ struct ToolEntry {
 		self.checkFn = checkFn
 		self.isDestructive = isDestructive
 		self.maxDepth = maxDepth
+		self.mcpSource = mcpSource
 	}
 }
 
