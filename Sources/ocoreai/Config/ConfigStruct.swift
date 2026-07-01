@@ -129,12 +129,43 @@ public struct ServerConfig: Sendable, Codable, Equatable {
 
 // MARK: - Backend Config
 
+/// Wired memory policy configuration for GPU hard-isolation.
+///
+/// On Apple Silicon UMA, wired memory prevents the GPU from paging out
+/// model weights and activations when the system is under memory pressure.
+/// This is Layer 0 — the hardware-level protection below OOMGuard.
+///
+/// See upstream: references/mlx-swift/Source/MLX/WiredMemory.swift
+/// and references/mlx-swift-lm/Libraries/MLXLMCommon/WiredMemoryPolicies.swift
+public struct WiredMemoryConfig: Sendable, Codable, Equatable {
+	/// Master toggle — disabled means wired memory is not applied per-request.
+	public var enabled: Bool
+	/// Policy type — "max" (peak ticket) or "sum" (aggregate tickets).
+	/// "max" is default for inference — one big ticket dominates.
+	public var policy: String
+	/// Override the per-request budget in bytes. Auto-detected when 0.
+	public var bytesOverride: Int
+
+	public static let `default` = WiredMemoryConfig()
+
+	public init(
+		enabled: Bool = false,
+		policy: String = "max",
+		bytesOverride: Int = 0,
+	) {
+		self.enabled = enabled
+		self.policy = policy
+		self.bytesOverride = bytesOverride
+	}
+}
+
 /// Inference backend selection and resource limits.
 public struct BackendConfig: Sendable, Codable, Equatable {
 	public var preference: [String]
 	public var maxConcurrentSessions: Int
 	public var kvCacheGB: Double
 	public var kvCacheQuantization: KVCacheQuantizationConfig
+	public var wiredMemory: WiredMemoryConfig
 
 	public static let `default` = BackendConfig()
 
@@ -143,11 +174,13 @@ public struct BackendConfig: Sendable, Codable, Equatable {
 		maxConcurrentSessions: Int = 8,
 		kvCacheGB: Double = 16.0,
 		kvCacheQuantization: KVCacheQuantizationConfig? = nil,
+		wiredMemory: WiredMemoryConfig? = nil,
 	) {
 		self.preference = preference
 		self.maxConcurrentSessions = maxConcurrentSessions
 		self.kvCacheGB = kvCacheGB
 		self.kvCacheQuantization = kvCacheQuantization ?? .default
+		self.wiredMemory = wiredMemory ?? .default
 	}
 
 	func validate() throws {

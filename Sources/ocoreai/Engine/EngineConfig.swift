@@ -43,6 +43,9 @@ public struct EnginePoolConfig: Sendable {
 	/// KV cache dynamic quantization — KV auto-downgrades FP16 → INT4/INT8 after N tokens.
 	var kvCacheQuantization: KVCacheQuantizationConfig = .default
 
+	/// Wired memory GPU hard-isolation (Layer 0 below OOMGuard).
+	var wiredMemory: WiredMemoryConfig = .default
+
 	/// Default configuration with sensible production values
 	public static let `default`: EnginePoolConfig = .init(
 		maxConcurrentSessions: 8,
@@ -55,6 +58,7 @@ public struct EnginePoolConfig: Sendable {
 		inferenceTimeoutSeconds: 180,
 		sessionPoolConfig: .default,
 		kvCacheQuantization: .default,
+		wiredMemory: .default,
 	)
 
 	/// Build from the config system's ``AppConfig``.
@@ -91,6 +95,7 @@ public struct EnginePoolConfig: Sendable {
 		self.inferenceTimeoutSeconds = 180
 		self.sessionPoolConfig = .default
 		self.kvCacheQuantization = app.backend.kvCacheQuantization
+		self.wiredMemory = app.backend.wiredMemory
 
 		let backendStr = app.backend.preference.joined(separator: ", ")
 		logger.info("EnginePoolConfig from AppConfig — backend: \(backendStr), defaultModel: \(self.defaultModelId), sessions: \(self.maxConcurrentSessions)")
@@ -107,6 +112,7 @@ public struct EnginePoolConfig: Sendable {
 		inferenceTimeoutSeconds: Int,
 		sessionPoolConfig: SessionPoolConfig?,
 		kvCacheQuantization: KVCacheQuantizationConfig,
+		wiredMemory: WiredMemoryConfig,
 	) {
 		self.maxConcurrentSessions = maxConcurrentSessions
 		self.maxQueueSize = maxQueueSize
@@ -118,5 +124,6 @@ public struct EnginePoolConfig: Sendable {
 		self.inferenceTimeoutSeconds = inferenceTimeoutSeconds
 		self.sessionPoolConfig = sessionPoolConfig
 		self.kvCacheQuantization = kvCacheQuantization
+		self.wiredMemory = wiredMemory
 	}
 }

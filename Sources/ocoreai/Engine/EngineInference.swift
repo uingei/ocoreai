@@ -16,6 +16,7 @@ import Logging
 #endif
 
 #if mlx
+	import MLX
 	import MLXLLM
 	import MLXLMCommon
 #endif
@@ -329,94 +330,127 @@ extension EnginePool {
 				kvCacheQuant: config.kvCacheQuantization,
 			)
 
-			var chatSession: ChatSession
-			let convKey: String = conversationId ?? "\(modelId):ephemeral"
-			var isPoolHit = false
-			var deltaOffset = 0
-			if let pool = sessionPool {
-				let acquired = await pool.acquire(
-					from: mlxHandle.modelContainer,
-					modelId: modelId,
-					conversationId: convKey,
-					genParams: genParams,
-				)
-				chatSession = acquired.pooled.session
-				isPoolHit = acquired.isHit
-				deltaOffset = acquired.pooled.messageCount
-				if isPoolHit {
-					logger.debug("Pool HIT for \(convKey) — KV cache reused (offset=\(deltaOffset))")
+			// Layer 0: Wired memory GPU hard-isolation (opt-in via config)
+			// Wraps the entire inference from session creation through generation to pool release.
+			// Prevents model weights/KV cache from being paged out during inference.
+			let wiredConfig = config.wiredMemory
+			var wireTicket: WiredMemoryTicket?
+			if wiredConfig.enabled {
+				let policy: any WiredMemoryPolicy = if wiredConfig.policy == "sum" {
+					MLX.WiredSumPolicy()
+				} else {
+					MLX.WiredMaxPolicy()
 				}
-			} else {
-				chatSession = ChatSession(
-					mlxHandle.modelContainer,
-					generateParameters: genParams,
+				wireTicket = WiredMemoryTicket(
+					size: max(0, wiredConfig.bytesOverride),
+					policy: policy
 				)
 			}
 
-			let poolRef = sessionPool
-
-			do {
-				let messagesToSend: [Chat.Message]
-				if isPoolHit, deltaOffset < mlxMessages.count {
-					messagesToSend = Array(mlxMessages[deltaOffset...])
-				} else if isPoolHit, deltaOffset >= mlxMessages.count {
-					logger.warning("Pool session messageCount (\(deltaOffset)) >= current messages (\(mlxMessages.count)), sending all")
-					messagesToSend = mlxMessages
-				} else {
-					messagesToSend = mlxMessages
-				}
-
-				let genStream: AsyncThrowingStream<MLXLMCommon.Generation, Error> =
-					chatSession.streamDetails(to: messagesToSend)
-
-				var firstTokenRecorded = false
-				var inferenceError: Error?
-				do {
-					for try await generation in genStream {
-						if Task.isCancelled || cancellation.isCancelled {
-							continuation.yield(.init(kind: .done(StopReason.cancelled)))
-							break
-						}
-						switch generation {
-						case let .chunk(text):
-							// firstTokenMs: record on first actual text chunk — isolates prefill/init time
-							if !firstTokenRecorded {
-								metrics.firstTokenMs = metrics.overallMs
-								firstTokenRecorded = true
-							}
-							metrics.incrementGenerated()
-							continuation.yield(.init(kind: .text(text)))
-						case .info, .toolCall: break
-						}
+			// runInferenceBody: session acquisition → generation → pool release
+			func runInferenceBody() async throws {
+				var chatSession: ChatSession
+				let convKey: String = conversationId ?? "\(modelId):ephemeral"
+				var isPoolHit = false
+				var deltaOffset = 0
+				if let pool = sessionPool {
+					let acquired = await pool.acquire(
+						from: mlxHandle.modelContainer,
+						modelId: modelId,
+						conversationId: convKey,
+						genParams: genParams,
+					)
+					chatSession = acquired.pooled.session
+					isPoolHit = acquired.isHit
+					deltaOffset = acquired.pooled.messageCount
+					if isPoolHit {
+						logger.debug("Pool HIT for \(convKey) — KV cache reused (offset=\(deltaOffset))")
 					}
-				} catch {
-					inferenceError = error
+				} else {
+					chatSession = ChatSession(
+						mlxHandle.modelContainer,
+						generateParameters: genParams,
+					)
 				}
 
-				if let inferenceError {
-					continuation.yield(.init(kind: .error(inferenceError.localizedDescription)))
-				} else if !Task.isCancelled {
-					continuation.yield(.init(kind: .done(nil)))
+				let poolRef = sessionPool
+
+				do {
+					let messagesToSend: [Chat.Message]
+					if isPoolHit, deltaOffset < mlxMessages.count {
+						messagesToSend = Array(mlxMessages[deltaOffset...])
+					} else if isPoolHit, deltaOffset >= mlxMessages.count {
+						logger.warning("Pool session messageCount (\(deltaOffset)) >= current messages (\(mlxMessages.count)), sending all")
+						messagesToSend = mlxMessages
+					} else {
+						messagesToSend = mlxMessages
+					}
+
+					let genStream: AsyncThrowingStream<MLXLMCommon.Generation, Error> =
+						chatSession.streamDetails(to: messagesToSend)
+
+					var firstTokenRecorded = false
+					var inferenceError: Error?
+					do {
+						for try await generation in genStream {
+							if Task.isCancelled || cancellation.isCancelled {
+								continuation.yield(.init(kind: .done(StopReason.cancelled)))
+								break
+							}
+							switch generation {
+							case let .chunk(text):
+								// firstTokenMs: record on first actual text chunk — isolates prefill/init time
+								if !firstTokenRecorded {
+									metrics.firstTokenMs = metrics.overallMs
+									firstTokenRecorded = true
+								}
+								metrics.incrementGenerated()
+								continuation.yield(.init(kind: .text(text)))
+							case .info, .toolCall: break
+							}
+						}
+					} catch {
+						inferenceError = error
+					}
+
+					if let inferenceError {
+						continuation.yield(.init(kind: .error(inferenceError.localizedDescription)))
+					} else if !Task.isCancelled {
+						continuation.yield(.init(kind: .done(nil)))
+					}
 				}
+
+				if let pool = poolRef {
+					let newMessageCount = isPoolHit ? (deltaOffset + mlxMessages.count - deltaOffset) : mlxMessages.count
+					await pool.release(
+						pooled: PooledChatSession(
+							session: chatSession,
+							lastAccessedAt: ContinuousClock.now,
+							messageCount: newMessageCount,
+						),
+						modelId: modelId,
+						conversationId: convKey,
+						processedMessageCount: newMessageCount,
+					)
+				}
+			}
+
+			// Execute — conditionally wrapped in WiredMemoryTicket for GPU hard-isolation (L0)
+			do {
+				if let ticket = wireTicket {
+					try await WiredMemoryTicket.withWiredLimit(ticket) {
+						try await runInferenceBody()
+					}
+				} else {
+					try await runInferenceBody()
+				}
+			} catch {
+				// Wired memory admission denied or inference body threw — report as error event
+				continuation.yield(.init(kind: .error(error.localizedDescription)))
 			}
 
 			metrics.inferenceMs = metrics.overallMs
-
-			if let pool = poolRef {
-				let newMessageCount = isPoolHit ? (deltaOffset + mlxMessages.count - deltaOffset) : mlxMessages.count
-				await pool.release(
-					pooled: PooledChatSession(
-						session: chatSession,
-						lastAccessedAt: ContinuousClock.now,
-						messageCount: newMessageCount,
-					),
-					modelId: modelId,
-					conversationId: convKey,
-					processedMessageCount: newMessageCount,
-				)
-			}
-
 			continuation.finish()
-		}
-	#endif
-}
+			}
+			#endif
+			}
