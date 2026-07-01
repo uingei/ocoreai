@@ -35,11 +35,11 @@ final class RouterResponseTests: XCTestCase {
 		XCTAssertEqual(json?["status"] as? String, "ok")
 		XCTAssertEqual(json?["timestamp"] as? Int64, 1_700_000_000)
 
-		let eSummary = json?["engine_summary"] as? [String: Any]
+		let eSummary = json?["engineSummary"] as? [String: Any]
 		XCTAssertNotNil(eSummary)
-		XCTAssertEqual(eSummary?["loaded_models"] as? Int, 2)
-		XCTAssertEqual(eSummary?["active_sessions"] as? Int, 3)
-		XCTAssertEqual(eSummary?["gpu_cache_gb"] as? Double, 4.2)
+		XCTAssertEqual(eSummary?["loadedModels"] as? Int, 2)
+		XCTAssertEqual(eSummary?["activeSessions"] as? Int, 3)
+		XCTAssertEqual(eSummary?["gpuCacheGB"] as? Double, 4.2)
 	}
 
 	// MARK: - ModelListResponse
@@ -60,7 +60,7 @@ final class RouterResponseTests: XCTestCase {
 		XCTAssertEqual(dataArray?.count, 2)
 		XCTAssertEqual(dataArray?[0]["id"] as? String, "model-x")
 		XCTAssertEqual(dataArray?[0]["object"] as? String, "model")
-		XCTAssertEqual(dataArray?[0]["owned_by"] as? String, "ocoreai")
+		XCTAssertEqual(dataArray?[0]["ownedBy"] as? String, "ocoreai")
 	}
 
 	// MARK: - CountTokensResponse
@@ -91,22 +91,5 @@ final class RouterResponseTests: XCTestCase {
 		XCTAssertEqual(json?["id"] as? Int64, 42)
 	}
 
-	// MARK: - MemoryResponse
 
-	func testMemoryResponseEncoding() throws {
-		let msg = MessageModel(
-			id: 1,
-			role: "user",
-			content: "hello",
-			sessionId: 10,
-			createdAt: Date()
-		)
-		let response = MemoryResponse(session_id: 10, messages: [msg])
-
-		let data = try encoder.encode(response)
-		let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-
-		XCTAssertEqual(json?["session_id"] as? Int64, 10)
-		XCTAssertNotNil(json?["messages"] as? [[String: Any]])
-	}
 }

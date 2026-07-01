@@ -277,7 +277,7 @@ final class ConfigValidationTests: XCTestCase {
 	}
 
 	func testMemoryBudgetComputation() throws {
-		let ram = 32 * 1_073_741_824 // 32 GB
+		let ram: UInt64 = 32 * 1_073_741_824 // 32 GB
 		let tier = ModelConfigEntry.MemoryGuardTier.balanced
 
 		let budget = ModelConfigEntry.computeMemoryBudget(
@@ -293,7 +293,7 @@ final class ConfigValidationTests: XCTestCase {
 
 	func testMemoryBudgetFloor() throws {
 		// Even with tiny RAM, floor is 4 GB
-		let tinyRam = 1_073_741_824 // 1 GB
+		let tinyRam: UInt64 = 1_073_741_824 // 1 GB
 		let tier = ModelConfigEntry.MemoryGuardTier.safe // 40% of 1GB = 400MB
 
 		let budget = ModelConfigEntry.computeMemoryBudget(
@@ -301,7 +301,7 @@ final class ConfigValidationTests: XCTestCase {
 			tier: tier
 		)
 
-		let floor = 4 * 1_024 * 1_024 * 1_024 // 4 GB floor
+		let floor: UInt64 = 4 * 1_024 * 1_024 * 1_024 // 4 GB floor
 		XCTAssertEqual(budget, floor)
 	}
 
