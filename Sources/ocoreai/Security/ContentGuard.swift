@@ -537,6 +537,9 @@ public actor ContentGuard {
 			"remove all restrictions", "no limits", "uncensored mode",
 			"ignore all rules", "jailbreak", "dank mode", "dev mode",
 			"developer mode", "raw mode", "unfiltered mode",
+			"ignore all rules restrictions", // Chinese jailbreak
+			"忽略所有规则", "忽略所有规则限制", "绕过所有限制", "打破所有约束",
+			"无视所有规则", "忽略安全限制", "绕过安全规则",
 		])
 
 		// --- systemPromptOverride ---
@@ -593,7 +596,7 @@ public actor ContentGuard {
 			regex("(dev(?:eloper)?|developer|dev)\\\\s*mode", options),
 			regex("(uncensored?|unfiltered?|raw|dank)\\\\s*(mode|output)", options),
 			// Chinese jailbreak
-			regex("(忽略|无视|绕过|打破)\\\\s*(所有|全部)?\\\\s*(规则|限制|约束|指引|安全)?", options),
+			regex("(忽略|无视|绕过|打破)\\\\s*(所有|全部)?\\\\s*(((规则|限制|约束|指引|安全)\\\\s*){1,3})", options),
 		].compactMap(\.self)
 
 		// --- System prompt override ---
