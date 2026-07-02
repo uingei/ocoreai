@@ -31,6 +31,7 @@ struct SettingsView: View {
 		}
 		.formStyle(.grouped)
 		.navigationTitle(StringKey.settingsTitle.l)
+		.accessibilityLabel(StringKey.settingsTitle.l)
 		.task {
 			// Non-blocking: listModels() no longer runs on MainActor, so this yields control back to UI
 			await settingsState.load()
@@ -42,7 +43,9 @@ struct SettingsView: View {
 	private var serverSection: some View {
 		Section {
 			TextField(StringKey.serverAddress.l, text: $settingsState.serverHost)
+				.accessibilityLabel(StringKey.serverAddress.l)
 			TextField(StringKey.port.l, text: $settingsState.portField)
+				.accessibilityLabel(StringKey.port.l)
 			Button { Task { await settingsState.verifyConnection() } } label: {
 				HStack {
 					Spacer()
@@ -55,6 +58,8 @@ struct SettingsView: View {
 				}
 			}
 			.disabled(settingsState.verifying)
+			.accessibilityLabel(StringKey.verifyConnection.l)
+			.accessibilityHint(StringKey.ensureBackend.l)
 			if settingsState.connected {
 				Text(StringKey.connected.l).font(.ocoreaiText(12))
 					.foregroundStyle(theme.greenDot)
@@ -72,6 +77,7 @@ struct SettingsView: View {
 					Text(m).tag(m)
 				}
 			}
+			.accessibilityLabel(StringKey.modelsLoaded.l)
 		}
 	}
 
@@ -152,11 +158,13 @@ struct SettingsView: View {
 	private var kvCacheSection: some View {
 		Section {
 			Toggle(StringKey.kvQuantToggle.l, isOn: $settingsState.kvQuantizationEnabled)
+				.accessibilityLabel(StringKey.kvQuantToggle.l)
 			if settingsState.kvQuantizationEnabled {
 				Picker(StringKey.kvQuantBits.l, selection: $settingsState.kvQuantizationBits) {
 					Text("4").tag(4)
 					Text("8").tag(8)
 				}
+				.accessibilityLabel(StringKey.kvQuantBits.l)
 				Text(StringKey.kvBudget.l)
 					.font(.ocoreaiText(12)).foregroundStyle(.secondary)
 				Slider(value: $settingsState.kvCacheBudgetGB, in: 0.5 ... 128,
@@ -165,6 +173,7 @@ struct SettingsView: View {
 					Text(String(format: "%.1f GB", settingsState.kvCacheBudgetGB))
 						.font(.ocoreaiMono(11)).foregroundStyle(.secondary)
 				}
+				.accessibilityLabel(StringKey.kvBudget.l)
 			}
 		} header: { Text(StringKey.kvCacheSection.l) }
 			footer: { Text(StringKey.kvQuantToggleHint.l) }

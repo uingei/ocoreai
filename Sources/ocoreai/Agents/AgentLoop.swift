@@ -348,6 +348,11 @@ enum AgentLoop {
         var tokCount = 0
         do {
             for try await ev in stream {
+                // Respond to upstream task cancellation (e.g., user interrupt, model switch)
+                // Check every 128 tokens to balance responsiveness vs overhead
+                if tokCount.isMultiple(of: 128), tokCount > 0 {
+                    try Task.checkCancellation()
+                }
                 switch ev.kind {
                 case .done, .token:
                     break
@@ -359,7 +364,9 @@ enum AgentLoop {
                 }
             }
         } catch {
-            logger.error("AgentLoop: inference failed: \(error)")
+            if !Task.isCancelled {
+                logger.error("AgentLoop: inference failed: \(error)")
+            }
             throw error
         }
         return (accumulatedText, tokCount)

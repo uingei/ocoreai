@@ -198,6 +198,16 @@ extension Logger {
 }
 
 /// Structured log handler bridging swift-log to JSON output.
+///
+/// NOTE: `nonisolated(unsafe)` on mutable properties is required because the
+/// SwiftLog `LogHandler` protocol demands mutable `logLevel` and `metadata`
+/// storage. `StructuredLogHandler` is not an `actor` — it's a plain `class` —
+/// so `nonisolated(unsafe)` tells the strict concurrency checker that these
+/// properties may be mutated from any isolation context.
+/// In practice, this handler is created once per Logger and only mutated
+/// from the calling thread of `log(event:)`, which is single-threaded per
+/// emission. The `Sendable` conformance on `StructuredLogger` holds because
+/// `StructuredLogHandler` instances are not shared across actors.
 private final class StructuredLogHandler: LogHandler {
 	nonisolated(unsafe) var logLevel: Logger.Level = .info
 	nonisolated(unsafe) var metadata: Logger.Metadata = [:]

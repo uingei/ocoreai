@@ -58,6 +58,9 @@ public final class OcoreaiEngine {
 	private var gaugeTask: Task<Void, Never>?
 	private var cleanupTask: Task<Void, Never>?
 
+	/// HTTP server task — tracked so stop() can cancel it.
+	private var serverTask: Task<Void, Never>?
+
 	/// Circuit breaker — prevents crash-loop by tracking consecutive startup failures
 	private let circuitBreaker = EngineCircuitBreaker(
 		maxConsecutiveFailures: 3,
@@ -145,8 +148,6 @@ public final class OcoreaiEngine {
 	private var _thinkingBudget: ThinkingBudget?
 	private var _contentGuard: ContentGuard?
 	
-
-
 	/// Config system — loaded at startup, hot-reload capable
 	private var configSystem: ConfigSystem?
 	/// Config snapshot — set on start, updated on hot-reload. Reads are same-actor.
@@ -274,19 +275,29 @@ public final class OcoreaiEngine {
 
 		// Wire SkillRegistry → SystemPromptBuilder bidirectional link
 		// (bootstrap sets SkillRegistry.systemPromptBuilder; this sets the reverse)
-		await _systemPromptBuilder?.setRegistry(_skillRegistry!)
+
+		// Wire SkillRegistry → SystemPromptBuilder bidirectional link
+		// (bootstrap sets SkillRegistry.systemPromptBuilder; this sets the reverse)
+		// Guard: direct inits cannot fail, but guard-let prevents force-unwrap
+		// from becoming a latent crash if init order ever changes.
+		guard let skillRegistry = _skillRegistry,
+			  let systemPromptBuilder = _systemPromptBuilder else {
+			failStartup("Core components not initialized")
+			return
+		}
+		await systemPromptBuilder.setRegistry(skillRegistry)
 
 		_auditTrail = AuditTrail()
 		_toolRegistry = ToolRegistry(auditTrail: _auditTrail!)
 
 		// Bootstrap built-in tools (info, skills_list, skills_lookup, echo)
 		await bootstrapBuiltInTools(
-			registry: _toolRegistry!,
-			skillRegistry: _skillRegistry!,
+			registry: _toolRegistry! /* safe: direct init above */,
+			skillRegistry: _skillRegistry! /* safe: direct init above */,
 		)
 		let mcpTransport = MCPStdioTransport(log: logger)
 		_mcpBridge = MCPBridge(
-			toolRegistry: _toolRegistry!,
+			toolRegistry: _toolRegistry! /* safe: guard-let above */,
 			transport: mcpTransport,
 		)
 
@@ -335,20 +346,33 @@ public final class OcoreaiEngine {
 
 		// MARK: - MessageBuilder (shared by Fast Path + Bridge Path)
 
+		// guard: all components initialized above, safe to unwrap in normal flow
+		guard let mbSystemPrompt = _systemPromptBuilder,
+			  let mbCompressor = _sessionCompressor,
+			  let mbAnalyzer = _complexityAnalyzer,
+			  let mbBudget = _thinkingBudget else {
+			failStartup("Core components not ready for MessageBuilder")
+			return
+		}
 		_messageBuilder = MessageBuilder(
-			systemPromptBuilder: _systemPromptBuilder!,
-			sessionCompressor: _sessionCompressor!,
-			complexityAnalyzer: _complexityAnalyzer!,
-			thinkingBudget: _thinkingBudget!,
+			systemPromptBuilder: mbSystemPrompt,
+			sessionCompressor: mbCompressor,
+			complexityAnalyzer: mbAnalyzer,
+			thinkingBudget: mbBudget,
 		)
 
 		// MARK: - Summarizer (LLM-driven session compression)
 
 		// SummarizerActor bridges SessionCompressor ↔ EnginePool without circular dependency.
 		// Installed lazily — compression before install uses rule-based fallback.
+		guard let saPool = enginePool,
+			  let saBuilder = _messageBuilder else {
+			failStartup("Engine / builder not ready for SummarizerActor")
+			return
+		}
 		let summarizer = SummarizerActor(
-			enginePool: enginePool!,
-			messageBuilder: _messageBuilder!,
+			enginePool: saPool,
+			messageBuilder: saBuilder,
 			config: .default,
 			log: logger,
 		)
@@ -467,14 +491,14 @@ public final class OcoreaiEngine {
 
 				let serverHost = ProcessInfo.processInfo.environment["OCOREAI_HOST"] ?? "127.0.0.1"
 				let serverPort = ProcessInfo.processInfo.environment["OCOREAI_PORT"] ?? "8080"
-				let serverHandle = Task.detached(priority: .utility) {
+				// Track server task so stop() can cancel it during shutdown
+				self.serverTask = Task.detached(priority: .utility) {
 					do {
 						try await app.runService()
 					} catch {
 						Logger(label: "ocoreai").error("Server crashed: \(error)")
 					}
 				}
-				_ = serverHandle
 
 				logger.info("Engine booted on \(serverHost):\(serverPort)")
 			} catch {
@@ -492,6 +516,7 @@ public final class OcoreaiEngine {
 
 		lifecycleState = .stopping
 
+		serverTask?.cancel()
 		cleanupTask?.cancel()
 		gaugeTask?.cancel()
 
