@@ -1,16 +1,16 @@
-# ocoreai — Apple Silicon LLM Inference Server
+# ocoreai — Local-First AI Agent Runtime
 
-**macOS Native AI Inference Runtime** — OpenAI/Anthropic-compatible LLM inference on Apple Silicon with CoreAI / MLX + Metal, built on Hummingbird 2.25 and Swift 6.3.
+**macOS-native LLM inference platform** — Agent loop with tool use, multimodal I/O, and skill system, powered by CoreAI / MLX + Metal. Built with Swift 6.3, Hummingbird 2.25, SwiftUI.
 
-[![CI](https://github.com/uingei/ocoreai/actions/workflows/ci.yml/badge.svg)](https://github.com/uingei/ocoreai/actions/workflows/ci.yml)
 [![Swift 6.3](https://img.shields.io/badge/Swift-6.3-orange.svg)](https://www.swift.org)
+[![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue.svg)](https://developer.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
-### Installation
+### Quick Start
 
-**macOS 15+ · Swift 6.3 · Apple Silicon**
+**macOS 15+ · Apple Silicon · Swift 6.3**
 
 ```bash
 git clone https://github.com/uingei/ocoreai.git && cd ocoreai
@@ -18,43 +18,24 @@ swift build -c release --traits mlx
 .build/release/ocoreai
 ```
 
-By default the server listens on `127.0.0.1:8080`. Pass a custom config via `~/.ocoreai.yaml`.
+Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
 ---
 
-### What you type → what happens
+### What's in here
 
-```bash
-# OpenAI-compatible streaming completion
-$ curl http://localhost:8080/v1/chat/completions \
-    -H "Authorization: Bearer your-api-key" \
-    -d '{"model":"default","stream":true,"messages":[{"role":"user","content":"Hello"}]}'
-→ streams token-by-token via SSE
+ocoreai is a **local-first AI agent runtime**:
 
-# Anthropic-compatible messages
-$ curl http://localhost:8080/v1/messages \
-    -H "Authorization: Bearer your-api-key" \
-    -d '{"model":"default","max_tokens":100,"messages":[{"role":"user","content":"Write a poem"}]}'
-→ Anthropic-compatible JSON response
+- **Dual inference backends** — MLX (Metal GPU, default) + CoreAI (Apple Neural Engine, macOS 27+ / M4+). Zero network calls — inference runs on your Mac.
+- **Agent loop** — multi-turn tool use: the model reasons, calls registered tools, reads results, and iterates (up to 30 rounds, 180s timeout). Built-in tools for system info, skills, search. Extensible via `ToolRegistry`.
+- **Skill system** — modular prompt injection from YAML registry. Skills are loaded at boot and injected into the system prompt pipeline.
+- **Multimodal I/O** — camera capture, microphone input, Apple Speech TTS — all native, no external dependencies.
+- **Session memory** — SQLite + FTS5 full-text search with LLM-driven session compression (hot/warm/cold tiers).
+- **MCP bridge** — connect external MCP servers; their tools auto-register into `ToolRegistry` alongside built-in tools.
+- **Scheduler + OOM guard** — priority dispatch (`P0` system → `P4` user), GPU memory budget enforcement, downgrade chain (4-bit → 8-bit → CPU → refuse).
+- **SwiftUI dashboard** — live system metrics, model management, settings, chat interface.
 
-# List registry with sampling state
-$ curl http://localhost:8080/v1/models
-→ model list with quantization, backend, and status
-
-# Count tokens without running inference
-$ curl http://localhost:8080/v1/count-tokens \
-    -d '{"prompt":"Hello world"}'
-→ {"prompt_tokens":N}
-
-# Download & register a model from ModelScope or HuggingFace
-$ curl -X POST http://localhost:8080/v1/models/download \
-    -d '{"modelScope":"qwen/qwen3.5-4b-4bit"}'
-→ streams download progress via SSE, then registers model
-
-# Health and metrics
-$ curl http://localhost:8080/health
-$ curl http://localhost:8080/metrics
-```
+Evolving toward a full **Agent OS** — a device-level runtime where the LLM controls tools, apps, and the desktop through a unified tool interface.
 
 ---
 
@@ -66,55 +47,52 @@ $ curl http://localhost:8080/metrics
 | `POST` | `/v1/messages` | Anthropic messages + tool use |
 | `POST` | `/v1/count-tokens` | Token count utility |
 | `GET`  | `/v1/models` | Model registry |
-| `GET`  | `/v1/models/:model/sampling` | Get sampling config for a model |
+| `GET`  | `/v1/models/:model/sampling` | Get sampling config |
 | `DELETE` | `/v1/models/:model/sampling` | Reset sampling config |
-| `DELETE` | `/v1/models/sampling` | Reset all sampling configs |
 | `POST` | `/v1/models/download` | Download from ModelScope / HuggingFace |
 | `POST` | `/v1/multimodal/capture` | Capture camera frame or audio sample |
 | `POST` | `/v1/multimodal/speak` | TTS output |
-| `POST` | `/v1/multimodal/status` | Get/set multimodal toggles |
 | `GET`  | `/sessions` | List sessions |
-| `DELETE` | `/sessions/:id` | Delete session |
-| `GET`  | `/sessions/:id/memory` | Query memory events |
-| `GET`  | `/sessions/search` | FTS5 full-text search |
-| `GET`  | `/skills` | List registered skills |
 | `POST` | `/mcp` | MCP JSON-RPC endpoint |
 | `GET`  | `/health` | Health check |
 | `GET`  | `/metrics` | Prometheus metrics (text format) |
 
 ---
 
-### How it works
+### Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        ocoreai Server                       │
-│                                                             │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐ │
-│  │  Router  │→ │ Handler  │→ │ Scheduler│→ │  Engine  │ │
-│  │(HB 2.25) │  │  (SSE)   │  │(Actor)   │  │ (MLX)    │ │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘ │
-│                                         ↑               │
-│  ┌───────────┐  ┌──────────┐  ┌────────┐  │             │
-│  │ Config    │  │ SQLite   │  │  MCP   │  └────────────┘ │
-│  │(YAML+hwr) │  │(FTS5)    │  │(JSON-RPC)│               │
-│  └───────────┘  └──────────┘  └────────┘                │
-│  ┌───────────┐  ┌──────────┐  ┌────────┐                │
-│  │ MemTrack  │  │ Security │  │ Skills │                │
-│  │+OOMGuard  │  │(Audit)   │  │(Reg)   │                │
-│  └───────────┘  └──────────┘  └────────┘                │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                        ocoreai                               │
+│                                                              │
+│  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌───────────┐  │
+│  │  Router  │→ │ Handler   │→ │ Scheduler│→ │  Engine   │  │
+│  │(HB 2.25) │  │  (SSE)    │  │(Actor)   │  │(MLX/CoreAI)│  │
+│  └──────────┘  └───────────┘  └──────────┘  └─────┬─────┘  │
+│                                         ┌─────────┘        │
+│  ┌───────────┐  ┌──────────┐  ┌────────┐  │               │
+│  │ Config    │  │ SQLite   │  │  MCP   │  │               │
+│  │(YAML+hw)  │  │(FTS5)    │  │(JSON-RPC)│              │
+│  └───────────┘  └──────────┘  └────────┘                 │
+│  ┌───────────┐  ┌──────────┐  ┌────────┐                 │
+│  │ MemTrack  │  │ Security │  │ Skills │                 │
+│  │+OOMGuard  │  │(Audit)   │  │(Reg)   │                 │
+│  └───────────┘  └──────────┘  └────────┘                 │
+│  ┌───────────┐  ┌──────────┐                             │
+│  │ ToolReg   │  │ Multimodal│                            │
+│  │(Agent    │  │(CAM+MIC+ │                            │
+│  │  Loop)   │  │ TTS)      │                            │
+│  └───────────┘  └──────────┘                             │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-MLX performs inference natively on Metal GPUs. On macOS 15.3+ / M4+, CoreAI is the preferred backend (compiled via `--traits coreai`). Memory budget is auto-detected via `sysctl hw.memsize` (70% of physical RAM). OOMGuard enforces a downgrade chain: `4bit → 8bit → CPU → refuse` — no disk I/O, the correct approach for Apple Silicon UMA.
-
-SchedulerActor dispatches requests by priority (`P0=system` … `P4=user`). MemoryTracker allocates/deallocates per-request GPU memory under the actor mailbox.
+Memory budget auto-detected via `sysctl hw.memsize` (70% of physical RAM). OOMGuard enforces a downgrade chain with no disk I/O — the correct approach for Apple Silicon UMA.
 
 ---
 
 ### Configuration
 
-Create `~/.ocoreai.yaml`:
+Create `~/.ocoreai/config.yaml`:
 
 ```yaml
 server:
@@ -136,27 +114,26 @@ memory:
   budget_gb: 0      # 0 = auto-detect (70% RAM)
 ```
 
-Supported backends: `coreai` (macOS 15.3+, M4+, compiled via `--traits coreai`), `mlx` (default, Metal).
+Supported backends: `coreai` (macOS 27+, M4+, compiled via `--traits coreai`), `mlx` (default, Metal).
 
 ---
 
 ### Modules
 
-| Module | Location | What It Does |
-|--------|----------|-------------|
+| Module | Path | What It Does |
+|--------|------|-------------|
 | **Router** | `Router/` | Hummingbird HTTP router, endpoint dispatch |
 | **Handlers** | `Handlers/` | Chat completion, SSE streaming, model download, multimodal |
 | **Scheduler** | `Scheduler/` | Priority dispatch, memory tracking, OOM guard |
 | **Engine** | `Engine/` | MLX/CoreAI inference bridge, session pool, engine lifecycle |
+| **Agents** | `Agents/` | Agent loop — multi-turn tool calling, reasoning → action cycle |
+| **Tool Registry** | `Tools/` | Actor-isolated tool registration, dispatch, loop detection, audit trail |
+| **Skills** | `Skills/` | Skill registry, loader, system prompt builder |
 | **SQLite** | `SQLite/` | Session storage + FTS5 full-text search + memory events |
 | **Config** | `Config/` | YAML config with hardware auto-detection |
 | **MCP** | `MCP/` | JSON-RPC 2.0 tool server via stdio transport |
-| **Security** | `Security/` | Keychain store, structured logger, audit trail |
-| **Skills** | `Skills/` | Skill registry, loader, system prompt builder |
-| **Tools** | `Tools/` | Model download, tool registration |
-| **Middleware** | `Middleware/` | Rate limiting, request filtering |
 | **Multimodal** | `Multimodal/` | Camera capture, audio I/O, TTS (Apple Speech) |
-| **Reasoning** | `Reasoning/` | Reasoning effort control, structured output |
+| **Security** | `Security/` | Keychain store, structured logger, audit trail |
 | **Metrics** | `Metrics/` | Prometheus metrics collection and export |
 
 ---
@@ -166,16 +143,17 @@ Supported backends: `coreai` (macOS 15.3+, M4+, compiled via `--traits coreai`),
 | Component | Status |
 |-----------|--------|
 | MLX Metal inference | ✅ |
-| CoreAI backend | ✅ |
+| CoreAI backend (macOS 27+) | ✅ |
 | SSE streaming + non-stream | ✅ |
-| Anthropic-compatible API | ✅ |
-| SQLite session persistence | ✅ |
-| FTS5 full-text search + memory events | ✅ |
+| OpenAI + Anthropic compatible API | ✅ |
+| Agent loop with tool use | ✅ |
+| Tool Registry (actor-isolated) | ✅ |
+| SQLite session persistence + FTS5 | ✅ |
 | Skill system + prompt builder | ✅ |
-| MCP tool endpoints | ✅ |
-| Scheduler: Anthropic + Chat path unified | ✅ |
+| MCP bridge | ✅ |
 | Multimodal (camera/audio/TTS) | ✅ |
-| Dashboard UI (live metrics + charts) | ✅ |
+| SwiftUI dashboard UI | ✅ |
+| Self-adaptation (EMA health) | ✅ |
 
 ---
 
