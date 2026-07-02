@@ -1,6 +1,6 @@
-# ocoreai — Local-First AI Agent Runtime
+# ocoreai — Self-Contained AI Agent OS
 
-**macOS-native LLM inference platform** — Agent loop with tool use, multimodal I/O, and skill system, powered by CoreAI / MLX + Metal. Built with Swift 6.3, Hummingbird 2.25, SwiftUI.
+**macOS-native AI agent platform** — Dual-channel inference (MLX GPU + CoreAI ANE), agent loop with tool use, skill system, and session memory, all in one binary. Built with Swift 6.3, Hummingbird 2.25, SwiftUI.
 
 [![Swift 6.3](https://img.shields.io/badge/Swift-6.3-orange.svg)](https://www.swift.org)
 [![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue.svg)](https://developer.apple.com/macos/)
@@ -15,24 +15,26 @@
 ```bash
 git clone https://github.com/uingei/ocoreai.git && cd ocoreai
 swift build -c release --traits mlx
-.build/release/ocoreai
 ```
 
+Build the Xcode project and run, or invoke via `swift run`.
 Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
 ---
 
 ### What's in here
 
-ocoreai is a **local-first AI agent runtime**:
+ocoreai unifies inference engine, agent orchestration, and persistence in one process:
 
-- **Dual inference backends** — MLX (Metal GPU, default) + CoreAI (Apple Neural Engine, macOS 27+ / M4+). Zero network calls — inference runs on your Mac.
-- **Agent loop** — multi-turn tool use: the model reasons, calls registered tools, reads results, and iterates (up to 30 rounds, 180s timeout). Built-in tools for system info, skills, search. Extensible via `ToolRegistry`.
-- **Skill system** — modular prompt injection from YAML registry. Skills are loaded at boot and injected into the system prompt pipeline.
-- **Multimodal I/O** — camera capture, microphone input, Apple Speech TTS — all native, no external dependencies.
-- **Session memory** — SQLite + FTS5 full-text search with LLM-driven session compression (hot/warm/cold tiers).
-- **MCP bridge** — connect external MCP servers; their tools auto-register into `ToolRegistry` alongside built-in tools.
+- **Dual inference backends** — MLX (Metal GPU, default) + CoreAI (Apple Neural Engine, macOS 27+ / M4+, currently stub pending SDK). Zero network calls — inference runs on your Mac.
+- **Wired Memory GPU isolation** — hardware-level GPU memory bounds prevent OOM during inference.
+- **Agent loop** — multi-turn tool use: the model reasons, calls registered tools, reads results, and iterates (up to 30 rounds, 180s timeout). Built-in tools for system info, skills, and search. Extensible via `ToolRegistry`.
+- **Skill system** — YAML registry of modular prompt templates. Loaded at boot, injected into the system prompt pipeline.
+- **Session memory** — SQLite + FTS5 full-text search with LLM-driven session compression (hot/warm/cold tiers). Memory events for cross-session fact recall.
+- **MCP bridge** — connect external MCP servers; available via HTTP endpoint and ToolRegistry dispatcher.
 - **Scheduler + OOM guard** — priority dispatch (`P0` system → `P4` user), GPU memory budget enforcement, downgrade chain (4-bit → 8-bit → CPU → refuse).
+- **Config system** — YAML config with file watcher (poll-based). Hardware auto-detection for memory budget.
+- **Multimodal I/O** — camera capture, microphone input, Apple Speech TTS — all native, no external dependencies.
 - **SwiftUI dashboard** — live system metrics, model management, settings, chat interface.
 
 Evolving toward a full **Agent OS** — a device-level runtime where the LLM controls tools, apps, and the desktop through a unified tool interface.
@@ -61,30 +63,45 @@ Evolving toward a full **Agent OS** — a device-level runtime where the LLM con
 
 ### Architecture
 
+Unified architecture — inference, agent, and memory in one process:
+
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                        ocoreai                               │
-│                                                              │
-│  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌───────────┐  │
-│  │  Router  │→ │ Handler   │→ │ Scheduler│→ │  Engine   │  │
-│  │(HB 2.25) │  │  (SSE)    │  │(Actor)   │  │(MLX/CoreAI)│  │
-│  └──────────┘  └───────────┘  └──────────┘  └─────┬─────┘  │
-│                                         ┌─────────┘        │
-│  ┌───────────┐  ┌──────────┐  ┌────────┐  │               │
-│  │ Config    │  │ SQLite   │  │  MCP   │  │               │
-│  │(YAML+hw)  │  │(FTS5)    │  │(JSON-RPC)│              │
-│  └───────────┘  └──────────┘  └────────┘                 │
-│  ┌───────────┐  ┌──────────┐  ┌────────┐                 │
-│  │ MemTrack  │  │ Security │  │ Skills │                 │
-│  │+OOMGuard  │  │(Audit)   │  │(Reg)   │                 │
-│  └───────────┘  └──────────┘  └────────┘                 │
-│  ┌───────────┐  ┌──────────┐                             │
-│  │ ToolReg   │  │ Multimodal│                            │
-│  │(Agent    │  │(CAM+MIC+ │                            │
-│  │  Loop)   │  │ TTS)      │                            │
-│  └───────────┘  └──────────┘                             │
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                       ocoreai                            │
+│                                                         │
+│  Gateway                                                  │
+│  ┌──────────────┐  ┌──────┐                             │
+│  │ HTTP (HB)   │  │ GUI  │                             │
+│  │ :8080 API   │  │SwiftUI│                             │
+│  └──────┬──────┘  └──┬───┘                              │
+│         │            │                                   │
+│  Control Plane                                             │
+│  ┌──────┴──────┐  ┌──────────┐  ┌──────────┐            │
+│  │  Scheduler  │  │ Agent    │  │ Skill    │            │
+│  │ P0→P4 dispatch│ Loop    │  │ Registry │            │
+│  │ OOMGuard     │ │+ToolReg │  │          │            │
+│  │ ConfigWatch  │ │         │  │          │            │
+│  └──────┬──────┘  └────┬───┘  └──────────┘            │
+│         │              │                                │
+│  Inference Engine                                            │
+│  ┌──────┴──────────────┴──────────┐                         │
+│  │         EnginePool (actor)     │                         │
+│  │  ┌──────────┐  ┌──────────┐   │                         │
+│  │  │ MLX GPU  │  │CoreAI   │   │                         │
+│  │  │(Metal)   │  │  ANE    │   │                         │
+│  │  └──────────┘  └──────────┘   │                         │
+│  │  SessionPool · WiredMem · Spec│                         │
+│  └───────────────────────────────┘                         │
+│                                                         │
+│  Persistence                                             │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐               │
+│  │ SQLite   │  │ Security │  │ MCP      │               │
+│  │ FTS5     │  │(Audit)   │  │ Bridge   │               │
+│  └──────────┘  └──────────┘  └──────────┘               │
+└─────────────────────────────────────────────────────────┘
 ```
+
+**One process, no boundary.** The scheduler feeds the inference engine directly — no localhost hop, no IPC serialization, no context loss between control plane and GPU.
 
 Memory budget auto-detected via `sysctl hw.memsize` (70% of physical RAM). OOMGuard enforces a downgrade chain with no disk I/O — the correct approach for Apple Silicon UMA.
 
@@ -143,7 +160,10 @@ Supported backends: `coreai` (macOS 27+, M4+, compiled via `--traits coreai`), `
 | Component | Status |
 |-----------|--------|
 | MLX Metal inference | ✅ |
-| CoreAI backend (macOS 27+) | ✅ |
+| VLM multimodal inference | ✅ |
+| CoreAI ANE backend (macOS 27+) | ⚠️ Stub (waiting for SDK) |
+| Wired Memory GPU isolation | ✅ |
+| Speculative decoding (traditional) | ✅ |
 | SSE streaming + non-stream | ✅ |
 | OpenAI + Anthropic compatible API | ✅ |
 | Agent loop with tool use | ✅ |
@@ -156,7 +176,6 @@ Supported backends: `coreai` (macOS 27+, M4+, compiled via `--traits coreai`), `
 | Self-adaptation (EMA health) | ✅ |
 
 ---
-
 ### License
 
 MIT — Copyright © 2026 uingei@163.com
