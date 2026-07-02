@@ -19,6 +19,7 @@ import Logging
 	import MLX
 	import MLXLLM
 	import MLXLMCommon
+	import MLXVLM
 #endif
 
 // MARK: - Inference Extension
@@ -312,13 +313,28 @@ extension EnginePool {
 					}
 					return Chat.Message(role: role, content: text)
 				case let .parts(parts):
-					let role: Chat.Message.Role = switch msg.role {
-					case "system": .system
-					case "assistant": .assistant
-					case "tool": .tool
-					default: .user
-					}
-					return Chat.Message(role: role, content: parts.compactMap(\.text).joined(separator: " "))
+						let role: Chat.Message.Role = switch msg.role {
+						case "system": .system
+						case "assistant": .assistant
+						case "tool": .tool
+						default: .user
+						}
+						// Extract text, images from parts
+							var textParts: [String] = []
+							var images: [MLXLMCommon.UserInput.Image] = []
+							for part in parts {
+								if let text = part.text {
+									textParts.append(text)
+								}
+								if let img = part.imageUrl, let url = URL(string: img.url) {
+									images.append(.url(url))
+								}
+							}
+							return Chat.Message(
+								role: role,
+								content: textParts.joined(separator: " "),
+								images: images,
+							)
 				case nil:
 					return Chat.Message(role: .user, content: "")
 				}

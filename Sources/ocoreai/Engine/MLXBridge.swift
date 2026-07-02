@@ -14,19 +14,22 @@
 //   3. HuggingFace Hub: `hf:mlx-community/Qwen3.5-4B`
 //
 // ### MLX Stack (mlx-swift-lm):
-//   LLMModelFactory.loadContainer(from: downloader, using: tokenizerLoader)
-//     → ModelContainer (thread-safe shell around ModelContext)
-//       → ChatSession (KVCache + generate + tokenization)
+//   Auto-detect VLM via `preprocessor_config.json`:
+//    - VLM → VLMModelFactory.loadContainer(...) — supports images/video/audio
+//    - LLM → LLMModelFactory.loadContainer(...) — text only
 //
 // Reference: MLXChatExample/Services/MLXService.swift (ml-explore upstream)
 //   — gold standard for native MLX loading pattern.
 
 #if mlx
 
+	// MARK: - Imports
+
 	import Foundation
 	import Logging
 	import MLXLLM
 	import MLXLMCommon
+	import MLXVLM
 
 	// MARK: - HuggingFace Integration
 
@@ -63,9 +66,12 @@
 
 	/// Load an MLX model from local filesystem, ModelScope Hub, or HuggingFace.
 	///
+	/// VLM auto-detection: if model directory has `preprocessor_config.json`,
+	/// it uses `VLMModelFactory` instead of `LLMModelFactory`.
+	///
 	/// HF path: native `#hubDownloader()` + `#huggingFaceTokenizerLoader()` (zero handwritten code)
 	/// MS path:  custom `ModelScopeDownloader` (upstream has no ModelScope support)
-	/// Local:   `LLMModelFactory.loadContainer(from: directory, using: tokenizer)`
+	/// Local:   auto-detect VLM vs LLM then load accordingly
 	actor MLXModelLoader {
 		// MARK: - Configuration
 
@@ -86,6 +92,35 @@
 			// hfToken is auto-detected by HubClient from HF_TOKEN env var — kept for API compat
 		}
 
+		// MARK: - VLM Detection
+
+		/// VLM models have `preprocessor_config.json` (processor_class).
+		/// LLM models do not — this is the most reliable way to distinguish.
+		nonisolated static func isVLMModel(at directory: URL) -> Bool {
+			let processorPath = directory.appendingPathComponent("preprocessor_config.json")
+			return FileManager.default.fileExists(atPath: processorPath.path)
+		}
+
+		/// Load container auto-detecting VLM vs LLM from directory.
+		@inline(never)
+		func loadContainer(
+			from directory: URL,
+			repoId: String? = nil
+		) async throws -> MLXLMCommon.ModelContainer {
+			if MLXModelLoader.isVLMModel(at: directory) {
+				logger.info("VLM model detected — using VLMModelFactory")
+				return try await MLXVLM.VLMModelFactory.shared.loadContainer(
+					from: directory,
+					using: #huggingFaceTokenizerLoader(),
+				)
+			}
+			// LLM path
+			return try await LLMModelFactory.shared.loadContainer(
+				from: directory,
+				using: #huggingFaceTokenizerLoader(),
+			)
+		}
+
 		// MARK: - Cache Check
 
 	/// Check if a model is already downloaded in the local cache.
@@ -94,89 +129,89 @@
 	///   - provider: Hub provider (ModelScope or HuggingFace)
 	///   - repoId: Repository identifier (e.g. "Qwen/Qwen2.5-7B-Instruct")
 	/// - Returns: true if a safetensors file exists in the expected cache directory
-	static func isModelCached(_ provider: MLXModelLoader.HubProvider, repoId: String) -> Bool {
-		let cacheRoot: URL
+		static func isModelCached(_ provider: MLXModelLoader.HubProvider, repoId: String) -> Bool {
+			let cacheRoot: URL
 
-		let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-		guard let baseDir = urls.first else {
-			return false
+			let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+			guard let baseDir = urls.first else {
+				return false
+			}
+
+			switch provider {
+			case .modelScope:
+				cacheRoot = baseDir
+					.appendingPathComponent("ocoreai/modelscope")
+					.appendingPathComponent(repoId)
+					.appendingPathComponent("main")
+			case .huggingFace:
+				cacheRoot = baseDir
+					.appendingPathComponent("org.ml-explore.mlx-swift-lm")
+					.appendingPathComponent(repoId)
+			}
+
+			// Must have at least one safetensors file to be considered "downloaded"
+			return hasSafetensors(in: cacheRoot)
 		}
 
-		switch provider {
-		case .modelScope:
-			cacheRoot = baseDir
-				.appendingPathComponent("ocoreai/modelscope")
-				.appendingPathComponent(repoId)
-				.appendingPathComponent("main")
-		case .huggingFace:
-			cacheRoot = baseDir
-				.appendingPathComponent("org.ml-explore.mlx-swift-lm")
-				.appendingPathComponent(repoId)
+		private static func hasSafetensors(in url: URL) -> Bool {
+			guard FileManager.default.fileExists(atPath: url.path) else {
+				return false
+			}
+			do {
+				let files = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
+				return files.contains { $0.pathExtension == "safetensors" }
+			} catch {
+				// If directory listing fails, assume not cached — caller will retry download
+				return false
+			}
 		}
 
-		// Must have at least one safetensors file to be considered "downloaded"
-		return hasSafetensors(in: cacheRoot)
-	}
-
-	private static func hasSafetensors(in url: URL) -> Bool {
-		guard FileManager.default.fileExists(atPath: url.path) else {
-			return false
-		}
-		do {
-			let files = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
-			return files.contains { $0.pathExtension == "safetensors" }
-		} catch {
-			// If directory listing fails, assume not cached — caller will retry download
-			return false
-		}
-	}
-
-	// MARK: - Public Load
+		// MARK: - Public Load
 
 	/// Primary load entry point — called by ``EnginePool``.
 	/// Dispatches to the correct backend based on model source detection.
-	func load(modelURL: URL, modelId: String) async throws -> (any MLXModelHandle) {
-			logger.info("Loading MLX model \(modelId) from \(modelURL.path)")
-			let start = ContinuousClock.now
+		func load(modelURL: URL, modelId: String) async throws -> (any MLXModelHandle) {
+				logger.info("Loading MLX model \(modelId) from \(modelURL.path)")
+				let start = ContinuousClock.now
 
-			// Prefer raw modelId for source detection — modelURL.path is often mangled
-			// by URL(fileURLWithPath:) which adds a "/" prefix breaking prefix detection.
-			let source = MLXModelLoader.parseSource(modelId, fallbackPath: modelURL.path)
+				// Prefer raw modelId for source detection — modelURL.path is often mangled
+				// by URL(fileURLWithPath:) which adds a "/" prefix breaking prefix detection.
+				let source = MLXModelLoader.parseSource(modelId, fallbackPath: modelURL.path)
 
-			func loadFromHubWithFallback(_ repoId: String) async throws -> MLXLMCommon.ModelContainer {
-				// Try ModelScope first, fall back to HuggingFace on any error
-				do {
+				func loadFromHubWithFallback(_ repoId: String) async throws -> MLXLMCommon.ModelContainer {
+					// Try ModelScope first, fall back to HuggingFace on any error
+					do {
+						return try await loadFromHub(
+							.modelScope, repoId: repoId, modelId: modelId,
+						)
+					} catch {
+						logger.warning("ModelScope failed for \(modelId) — falling back to HuggingFace: \(error.localizedDescription)")
+					}
 					return try await loadFromHub(
-						.modelScope, repoId: repoId, modelId: modelId,
+						.huggingFace, repoId: repoId, modelId: modelId,
 					)
-				} catch {
-					logger.warning("ModelScope failed for \(modelId) — falling back to HuggingFace: \(error.localizedDescription)")
 				}
-				return try await loadFromHub(
-					.huggingFace, repoId: repoId, modelId: modelId,
-				)
+
+				let container: MLXLMCommon.ModelContainer = switch source {
+				case let .local(localPath):
+					try await loadLocal(Path(localPath), modelId: modelId)
+
+				case let .mscope(repoId):
+					try await loadFromHubWithFallback(repoId)
+
+				case let .huggingFace(repoId):
+					try await loadFromHub(
+						.huggingFace, repoId: repoId, modelId: modelId,
+					)
+
+				default:
+					try await loadLocal(url: modelURL, fallback: modelId)
+				}
+
+				logElapsed("MLX model \(modelId) loaded", start)
+
+				return MLXModelHandleImpl(modelContainer: container, modelId: modelId)
 			}
-
-			let container: MLXLMCommon.ModelContainer = switch source {
-			case let .local(localPath):
-				try await loadLocal(Path(localPath), modelId: modelId)
-
-			case let .mscope(repoId):
-				try await loadFromHubWithFallback(repoId)
-
-			case let .huggingFace(repoId):
-				try await loadFromHub(
-					.huggingFace, repoId: repoId, modelId: modelId,
-				)
-
-			default:
-				try await loadLocal(url: modelURL, fallback: modelId)
-			}
-
-			logElapsed("MLX model \(modelId) loaded", start)
-
-			return MLXModelHandleImpl(modelContainer: container, modelId: modelId)
-		}
 
 		// MARK: - Local Load
 
@@ -184,10 +219,7 @@
 			logger.info("Using local path for \(modelId): \(path.rawValue)")
 			let directory = URL(fileURLWithPath: path.rawValue)
 			do {
-				return try await LLMModelFactory.shared.loadContainer(
-					from: directory,
-					using: #huggingFaceTokenizerLoader(),
-				)
+				return try await loadContainer(from: directory)
 			} catch {
 				logger.error("Local load failed for \(modelId): \(error.localizedDescription)")
 				throw MLXLoadError.localLoadFailed(path: path.rawValue, error: error.localizedDescription)
@@ -238,10 +270,8 @@
 				)
 				logElapsed("ModelScope download \(repoId) completed", start)
 				do {
-					let container = try await LLMModelFactory.shared.loadContainer(
-						from: directory,
-						using: #huggingFaceTokenizerLoader(),
-					)
+					// VLM auto-detection: check for preprocessor_config.json
+					let container = try await loadContainer(from: directory, repoId: repoId)
 					await MainActor.run {
 						OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
 					}
@@ -257,6 +287,7 @@
 				// Native MLX path — #hubDownloader() gives built-in cache, resume, progress.
 				// Auth auto-detected by HubClient from HF_TOKEN / filesystem.
 				// Equivalent to MLXChatExample: factory.loadContainer(from: downloader, ...)
+				// VLM: try LLMModelFactory first, fall back to VLMModelFactory on error.
 				logger.info("Downloading from HuggingFace: \(repoId)")
 				// Notify UI that download started
 				await MainActor.run {
@@ -273,10 +304,24 @@
 					}
 					return container
 				} catch {
-					await MainActor.run {
-						OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
+					// LLM load failed — try VLM factory (model may have preprocessor_config.json)
+					logger.info("LLM load failed for \(repoId), trying VLM: \(error.localizedDescription)")
+					do {
+						let container = try await MLXVLM.VLMModelFactory.shared.loadContainer(
+							from: #hubDownloader(),
+							using: #huggingFaceTokenizerLoader(),
+							configuration: ModelConfiguration(id: repoId),
+						)
+						await MainActor.run {
+							OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
+						}
+						return container
+					} catch {
+						await MainActor.run {
+							OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
+						}
+						throw error
 					}
-					throw error
 				}
 			}
 		}
