@@ -20,7 +20,7 @@ struct StatusView: View {
 
 				LazyVStack(spacing: 8) {
 					StatusRow(
-						title: "Backend",
+						title: StringKey.backend.l,
 						value: appState.isConnected ? StringKey.systemOnline.l : StringKey.disconnected.l,
 						icon: "server.rack",
 						tint: appState.isConnected ? theme.greenDot : theme.redDot,

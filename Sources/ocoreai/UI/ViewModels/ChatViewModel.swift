@@ -205,6 +205,11 @@ final class ChatState {
 	/// Flow: ChatMessage → Message (typed) → DirectInferenceClient.stream()
 	///       → EnginePool.acquire() → generateFromMessages()
 	///       → AsyncStream<InferenceEvent> → UI update
+	///
+	/// Fix: Filter out interrupted assistant messages from the inference context.
+	/// Interrupted messages (ending with "[Interrupted]") are kept in UI history
+	/// for display but excluded from the model's conversation context to prevent
+	/// degraded inference quality from partial responses.
 	func chat(_ text: String, model: String) async {
 		// Ensure persistent session exists
 		await ensureSession(for: model)
@@ -223,16 +228,17 @@ final class ChatState {
 		currentCancellation = cancellation
 
 		do {
-			// Build InferenceRequest from our ChatMessage array
-			let typedMessages = messages
-				.filter { $0.role != "system" }
-				.map { msg -> Message in
-					Message(role: msg.role, content: .text(msg.content))
-				}
+		// Build InferenceRequest — exclude interrupted messages and system messages
+		// to prevent partial responses degrading the model's context.
+		let cleanMessages = messages
+			.filter { $0.role != "system" && !$0.content.hasSuffix(" [Interrupted]") }
+			.map { msg -> Message in
+				Message(role: msg.role, content: .text(msg.content))
+			}
 
 			let request = InferenceRequest(
 				modelId: model,
-				messages: typedMessages,
+				messages: cleanMessages,
 				sessionId: "chat-\(UUID().uuidString.prefix(8))",
 				cancellation: cancellation,
 			)
@@ -256,7 +262,7 @@ final class ChatState {
 			// If interrupted mid-stream but accumulated text exists, save it
 			if Task.isCancelled || cancellation.isCancelled {
 				if !responseText.isEmpty {
-					let assistantMsg = ChatMessage(role: "assistant", content: responseText + " [interrupted]")
+					let assistantMsg = ChatMessage(role: "assistant", content: responseText + " [Interrupted]")
 					messages.append(assistantMsg)
 					await persistMessage(role: "assistant", content: assistantMsg.content)
 				}

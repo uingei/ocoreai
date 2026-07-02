@@ -75,6 +75,7 @@ public enum OCALocale: String, CaseIterable {
 public enum StringKey: String, CaseIterable {
 	// — Dashboard —
 	case systemOnline = "Dashboard.SystemOnline"
+	case backend = "Dashboard.Backend"
 	case systemLoading = "Dashboard.SystemLoading"
 	case metrics = "Dashboard.Metrics"
 	case throughput = "Dashboard.Throughput"
@@ -102,6 +103,8 @@ public enum StringKey: String, CaseIterable {
 	// — Hub Tokens —
 	case hubTokensTitle = "Settings.HubTokensTitle"
 	case hubTokensHint = "Settings.HubTokensHint"
+	case hubHuggingFace = "Settings.HubHuggingFace"
+	case hubModelScope = "Settings.HubModelScope"
 	case notConfigured = "Common.NotConfigured"
 	case enterTokenPlaceholder = "Common.EnterTokenPlaceholder"
 
@@ -439,6 +442,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 	let base: [StringKey: String] = [
 		// Dashboard
 		.systemOnline: "System Online",
+		.backend: "Backend",
 		.systemLoading: "System Loading",
 		.metrics: "Metrics",
 		.throughput: "Throughput",
@@ -505,6 +509,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.hubTokensHint: "Tokens for accessing model hubs (HuggingFace, ModelScope). Stored securely in UserDefaults.",
 		.notConfigured: "Not configured",
 		.enterTokenPlaceholder: "Enter token...",
+		.hubHuggingFace: "HuggingFace",
+		.hubModelScope: "ModelScope",
 
 		// Navigation
 		.tabDashboard: "Dashboard",
@@ -777,6 +783,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 	// Translation overrides per locale
 	let zh: [StringKey: String] = [
 		.systemOnline: "系统在线",
+		.backend: "后端服务",
 		.systemLoading: "系统加载中",
 		.metrics: "指标",
 		.throughput: "吞吐量",

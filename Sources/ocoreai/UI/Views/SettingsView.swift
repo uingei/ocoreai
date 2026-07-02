@@ -83,7 +83,7 @@ struct SettingsView: View {
 		Section {
 			VStack(alignment: .leading, spacing: 4) {
 				HStack {
-					Text("HuggingFace")
+					Text(StringKey.hubHuggingFace.l)
 						.font(.ocoreaiText(15))
 					Spacer()
 					if settingsState.hfTokenMasked.isEmpty {
@@ -105,7 +105,7 @@ struct SettingsView: View {
 
 			VStack(alignment: .leading, spacing: 4) {
 				HStack {
-					Text("ModelScope")
+					Text(StringKey.hubModelScope.l)
 						.font(.ocoreaiText(15))
 					Spacer()
 					if settingsState.modelScopeTokenMasked.isEmpty {
