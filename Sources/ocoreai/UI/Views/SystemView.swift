@@ -159,7 +159,7 @@ struct SystemView: View {
 								.foregroundStyle(theme.text)
 							Spacer()
 							Text(Self.durationString(entry.durationMs))
-								.font(.system(.caption, design: .monospaced))
+								.font(.ocoreaiMono(11))
 								.foregroundStyle(theme.textSecondary)
 						}
 						HStack {

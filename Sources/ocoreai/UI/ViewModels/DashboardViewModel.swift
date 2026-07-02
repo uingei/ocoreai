@@ -17,8 +17,7 @@ final class DashboardState {
 	var tokenHistory: [MetricsPoint] = []
 	/// GPU memory history for chart
 	var memoryHistory: [MemoryPoint] = []
-	/// KV Cache history for chart
-	var kvCacheHistory: [KVCachePoint] = []
+
 	/// Connection state
 	var connected: Bool = false
 	var isLive: Bool {
@@ -98,12 +97,7 @@ final class DashboardState {
 			self.memoryHistory.removeFirst()
 		}
 
-		// KV cache point
-		let kvGB = Double(snap.kvCacheBytes) / 1_073_741_824.0
-		self.kvCacheHistory.append(KVCachePoint(timestamp: Date(), kvCacheGB: kvGB))
-		if self.kvCacheHistory.count > 60 {
-			self.kvCacheHistory.removeFirst()
-		}
+
 	}
 
 	func stopPolling() {

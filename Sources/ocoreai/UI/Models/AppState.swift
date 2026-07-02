@@ -121,10 +121,7 @@ final class AppState {
 		}
 	}
 
-	/// Bind metrics (kept for backward / Dashboard compatibility)
-	func bindMetrics() {
-		// Already handled by initialize() Fast Path — no-op
-	}
+
 
 	/// Graceful shutdown on app termination
 	func shutdown() {

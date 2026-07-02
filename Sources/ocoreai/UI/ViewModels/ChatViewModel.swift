@@ -64,9 +64,7 @@ final class ChatState {
 		OcoreaiEngine.shared.engineReady
 	}
 
-	var engineReady: Bool {
-		OcoreaiEngine.shared.engineReady
-	}
+
 
 	// MARK: - Persistence state
 

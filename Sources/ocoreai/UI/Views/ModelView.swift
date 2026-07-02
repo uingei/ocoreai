@@ -50,7 +50,7 @@ struct ModelView: View {
 			task {
 				await modelManager.loadModels()
 			}
-			.animation(.smooth, value: editingModelId)
+			.animation(reduceMotion ? nil : .smooth, value: editingModelId)
 			.accessibilityLabel(StringKey.tabModels.l)
 	}
 

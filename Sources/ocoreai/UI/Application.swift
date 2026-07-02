@@ -111,7 +111,6 @@ struct OcoreaiShellView: View {
 			// Initial sync in case colorScheme changed before view appeared
 			theme = OcoreaiTheme.theme(from: colorScheme)
 			appState.initialize()
-			appState.bindMetrics()
 		}
 		.onDisappear {
 			appState.shutdown()
@@ -146,18 +145,6 @@ private struct TabDetailView: View {
 		}
 	}
 
-	// MARK: - Empty View for initial state
-
-	struct EmptyContent: View {
-		var body: some View {
-			ContentUnavailableView(
-				"ocoreai",
-				systemImage: "brain.fill",
-				description: Text(StringKey.selectPanel.l),
-			)
-			.accessibilityLabel(StringKey.noPanelSelected.l)
-		}
-	}
 }
 
 // MARK: - Sidebar
