@@ -76,9 +76,36 @@ struct InferenceOptions: Codable {
 	init() {}
 }
 
-/// Stub types needed when the `coreai` trait is inactive.
-/// In mlx-only mode, CoreAI-specific types (CoreAIPreparedModel, CoreAIModelLoader)
-/// are not available from their real modules, so we provide stubs here.
+// MARK: - MLX-only stubs (TokenizerManager placeholder — MLX containers have built-in tokenizers)
+
+#if mlx
+
+	/// Empty TokenizerManager for MLX-only builds — MLXLLM containers have built-in tokenizers.
+	final class StreamingDetokenizer: @unchecked Sendable {}
+
+	protocol TokenizerProvider: Sendable {
+		var name: String { get }
+		func tokenize(messages: [[String: String]]) async throws -> [Int32]
+		func detokenize(tokenIds: [Int32]) async throws -> String
+		func streamingDetokenizer() -> StreamingDetokenizer
+		func countTokens(messages: [[String: String]]) async throws -> Int
+		func prewarm() async throws
+	}
+
+	actor TokenizerManager {
+		init() {}
+		func registerTokenizer(for _: String, tokenizerPath _: String) async throws {}
+		func registerTokenizerFromHub(for _: String, hubId _: String) async throws {}
+		func getTokenizer(for _: String) -> (any TokenizerProvider)? { nil }
+		@discardableResult
+		func removeTokenizer(for _: String) -> Bool { false }
+		func shutdown() {}
+	}
+
+#endif // mlx
+
+// MARK: - CoreAI stubs (when coreai trait is inactive — mlx also needs these)
+
 #if !coreai
 
 	struct EngineOptions {
@@ -192,48 +219,6 @@ struct InferenceOptions: Codable {
 			case let .disabled(msg): msg
 			}
 		}
-	}
-
-	final class StreamingDetokenizer: @unchecked Sendable {
-		func consume(_: Int32) throws -> String? {
-			throw StubError("Tokenizer unavailable — enable coreai or mlx trait")
-		}
-
-		func reset(initialTokenIds _: [Int32]) {}
-		var currentTokenIds: [Int32] {
-			[]
-		}
-	}
-
-	protocol TokenizerProvider: Sendable {
-		var name: String { get }
-		func tokenize(messages: [[String: String]]) async throws -> [Int32]
-		func detokenize(tokenIds: [Int32]) async throws -> String
-		func streamingDetokenizer() -> StreamingDetokenizer
-		func countTokens(messages: [[String: String]]) async throws -> Int
-		func prewarm() async throws
-	}
-
-	actor TokenizerManager {
-		init() {}
-		func registerTokenizer(for _: String, tokenizerPath _: String) async throws {
-			throw StubError("Tokenizer unavailable — enable coreai or mlx trait")
-		}
-
-		func registerTokenizerFromHub(for _: String, hubId _: String) async throws {
-			throw StubError("Tokenizer unavailable — enable coreai or mlx trait")
-		}
-
-		func getTokenizer(for _: String) -> (any TokenizerProvider)? {
-			nil
-		}
-
-		@discardableResult
-		func removeTokenizer(for _: String) -> Bool {
-			false
-		}
-
-		func shutdown() {}
 	}
 
 #endif // !coreai

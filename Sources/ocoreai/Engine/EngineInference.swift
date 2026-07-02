@@ -266,19 +266,19 @@ extension EnginePool {
 
 			let tokenCount: Int
 			do {
-				let tokens = try await tokenize(modelId: modelId, messages: messages)
-				tokenCount = tokens.count
-				if tokenCount > loaded.modelConfig.maxContextLength {
-					continuation.yield(.init(kind: .error(
-						"Input \(tokenCount) exceeds max context \(loaded.modelConfig.maxContextLength)",
-					)))
-					continuation.finish()
-					return
-				}
-			} catch {
-				continuation.yield(.init(kind: .error("Tokenization failed: \(error.localizedDescription)")))
+			let tokens = try await tokenize(modelId: modelId, messages: messages)
+			tokenCount = tokens.count
+			if tokenCount > loaded.modelConfig.maxContextLength {
+				continuation.yield(.init(kind: .error(
+					"Input \(tokenCount) exceeds max context \(loaded.modelConfig.maxContextLength)",
+				)))
 				continuation.finish()
 				return
+			}
+			} catch {
+			// Fallback: mlx containers have their own tokenizer, use heuristic estimate
+			logger.warning("Tokenization failed, using heuristic estimate for metrics — \(error.localizedDescription)")
+			tokenCount = messages.reduce(0) { $0 + contentToString($1.content).0.utf8.count / 4 }
 			}
 
 			metrics.promptTokenCount = tokenCount

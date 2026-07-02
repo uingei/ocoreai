@@ -9,7 +9,7 @@
 ///
 /// ### API:
 /// - `tokenizer.applyChatTemplate(messages:)` → `[Int]`
-/// - `tokenizer.decode(tokenIds:)` → `String`
+/// - `tokenizer.decode(tokens:)` → `String`
 /// - `streamingDetokenizer()` → per-token text chunk output for SSE
 ///
 /// ### Architecture:
@@ -42,17 +42,26 @@
 			_tokenizer = tokenizer
 		}
 
-		func consume(_ tokenId: Int32) throws -> String? {
-			_ids.append(Int(tokenId))
-			if _stream == nil {
-				_stream = StreamingAdapter(wrapping: _tokenizer.streamingDetokenizer())
+		func consume(_ token: Int32) throws -> String? {
+			let id = Int(token)
+			_ids.append(id)
+
+			if let stream = _stream {
+				return try stream.consume(id) ?? nil
 			}
-			return try _stream?.consume(Int(tokenId))
+
+			// First token: initialize the StreamingDetokenizer from Transformers
+			if _ids.count == 1 {
+				_stream = try StreamingAdapter(tokenizer: _tokenizer, ids: [id])
+			}
+
+			// Return empty string for the first token
+			return ""
 		}
 
-		func reset(initialTokenIds: [Int32]) {
-			_ids = initialTokenIds.map(Int.init)
-			_stream = StreamingAdapter(wrapping: _tokenizer.streamingDetokenizer(initialTokenIds: _ids))
+		func reset(initialTokenIds ids: [Int32]) {
+			_ids = ids.map(Int.init)
+			_stream = nil
 		}
 
 		var currentTokenIds: [Int32] {
@@ -107,13 +116,11 @@
 		/// - Returns: `true` if a tokenizer existed and was removed
 		@discardableResult
 		func removeTokenizer(for modelId: String) -> Bool {
-			guard tokenizers.removeValue(forKey: modelId) != nil else {
-				return false
-			}
+			guard tokenizers.removeValue(forKey: modelId) != nil else { return false }
 			return true
 		}
 
-		/// Release all registered tokenizers (cleanup on shutdown).
+		/// Clear all tokenizers from the registry.
 		func shutdown() {
 			tokenizers.removeAll()
 		}
@@ -167,22 +174,21 @@
 	private final class StreamingAdapter: Sendable {
 		private let _consume: @Sendable (Int) -> Result<String?, Error>
 
-		init(wrapping stream: Transformers.StreamingDetokenizer) {
-			_consume = { tokenId in
-				do {
-					let result = try stream.consume(tokenId)
-					return .success(result)
-				} catch {
-					return .failure(error)
-				}
+		init(tokenizer: any Tokenizer, ids: [Int]) throws {
+			let stream = tokenizer.streamingDetokenizer()
+			_consume = { count in
+				Result { try stream.consume(count) }
+			}
+			_ = try stream.consume(ids[0])
+			for id in ids.dropFirst() {
+				let _ = try self._consume(id).get { error in throw error }
 			}
 		}
 
-		func consume(_ tokenId: Int) throws -> String? {
-			switch _consume(tokenId) {
-			case let .success(value): return value
-			case let .failure(error):
-				throw AppError.tokenizationFailed(error.localizedDescription)
+		func consume(_ id: Int) throws -> String? {
+			switch _consume(id) {
+			case .success(let value): return value
+			case .failure(let error): throw error
 			}
 		}
 	}
