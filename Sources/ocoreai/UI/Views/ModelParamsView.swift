@@ -9,14 +9,15 @@ import SwiftUI
 
 struct ModelParamsView: View {
 	let modelId: String
+	let onCancel: () -> Void
 	@State private var config: ModelSamplingConfig
 	@State private var topKText: String = ""
 	@State private var maxTokensText: String = ""
-	@Environment(\.dismiss) private var dismiss
 	@Environment(\.ocoreaiTheme) private var theme
 
-	init(modelId: String) {
+	init(modelId: String, onCancel: @escaping () -> Void = {}) {
 		self.modelId = modelId
+		self.onCancel = onCancel
 		let store = SettingsStore.shared
 		let cfg = store.loadSamplingConfig(for: modelId)
 		_config = State(initialValue: cfg)
@@ -59,7 +60,7 @@ struct ModelParamsView: View {
 					.lineLimit(1)
 			}
 			Spacer()
-			Button(StringKey.clear.l) { dismiss() }
+			Button(StringKey.clear.l) { onCancel() }
 				.ocoreaiButton(.normal, size: .small)
 		}
 	}
@@ -156,7 +157,7 @@ struct ModelParamsView: View {
 				Task {
 					let store = SettingsStore.shared
 					await store.saveSamplingConfig(config, for: modelId)
-					dismiss()
+					onCancel()
 				}
 			}
 			.ocoreaiButton(.primary, size: .regular)

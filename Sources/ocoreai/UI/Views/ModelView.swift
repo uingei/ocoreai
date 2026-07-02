@@ -198,7 +198,6 @@ struct ModelView: View {
 				ForEach(modelManager.localModels, id: \.id) { model in
 					LiveModelCard(model: model, onEdit: {
 						editingModelId = model.id
-						showParamsSheet = true
 					}, onDelete: {
 						Task {
 							let ok = await modelManager.deleteModel(model.id)

@@ -42,12 +42,13 @@ struct ChatView: View {
 	@State private var showMultimodal = false
 
 	init() {
-		_chatState = State(initialValue: ChatState())
+		_chatState = State(initialValue: ChatState.shared)
 		_modelManager = State(initialValue: ModelManager.shared)
 	}
 
 	private var isStreaming: Bool {
-		activeTask != nil || chatState.loading
+		// Use loading as the primary signal — activeTask is only for cancellation
+		chatState.loading
 	}
 
 	private var isConnected: Bool {
@@ -340,11 +341,12 @@ struct ChatView: View {
 
 		// Use regular Task (not detached) so cancellation propagates
 		// and MainActor context is captured for updating chatState
-		// ChatView is a struct, so no [weak self] needed — capture is deterministic
-		activeTask = Task {
+		// Reset activeTask on completion so isStreaming unblocks future sends
+		activeTask = Task { @MainActor in
 			await chatState.chat(text, model: modelID)
+			activeTask = nil
 		}
-	}
+		}
 
 	private func stopStreaming() {
 		// P0-3: propagate cancellation to both the Task layer and the InferenceCancellation layer

@@ -49,6 +49,11 @@ final class ChatState {
 	/// Logger for persistence operations
 	private static let logger = Logger(label: "ocoreai.chat")
 
+	/// Shared singleton — survives view recreation (tab switch, NavigationSplitView).
+	/// @State<ChatState.shared> is the correct SwiftUI observation pattern, same as ModelManager.
+	static let shared = ChatState()
+	private init() {}
+
 	var messages: [ChatMessage] = []
 	var responseText: String = ""
 	var error: Error?
@@ -142,7 +147,10 @@ final class ChatState {
 	// MARK: - Persistence
 
 	/// Load messages from SQLite for the current session (if any).
+	/// Idempotent — skips if messages already present (singleton survived view recreation).
 	private func loadHistory() async {
+		// Skip reload if messages already in memory
+		guard messages.isEmpty else { return }
 		guard let compressor, let sid = sessionId else { return }
 		do {
 			let dbMessages = try await compressor.getMessages(sid, limit: nil, offset: 0)
