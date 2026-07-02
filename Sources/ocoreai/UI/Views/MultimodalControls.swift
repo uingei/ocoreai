@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Multimodal Controls — camera/microphone/speaker toggle panel with preview
+/// Multimodal Controls — camera/microphone/speaker/screen toggle panel with preview
 /// Accessibility: full VoiceOver labels on toggles, buttons, and status indicators
 
 #if os(macOS)
@@ -10,6 +10,7 @@
 		private let mmState = MultimodalState.shared
 		private let captureService = CaptureService.shared
 		private let audioIO = AudioIO.shared
+		private let screenshotService = ScreenshotService.shared
 
 		var body: some View {
 			VStack(alignment: .leading, spacing: 16) {
@@ -29,6 +30,9 @@
 
 				// Camera section
 				cameraSection
+
+				// Screen capture section
+				screenSection
 
 				// Microphone section
 				microphoneSection
@@ -79,12 +83,12 @@
 						image
 							.resizable()
 							.scaledToFit()
-							.frame(height: 120)
+							.frame(height: 100)
 							.cornerRadius(8)
 							.clipped()
 					} placeholder: {
 						ProgressView()
-							.frame(height: 120)
+							.frame(height: 100)
 					}
 					.overlay(
 						Text(StringKey.multimodalLiveFeed.l)
@@ -117,6 +121,57 @@
 			}
 		}
 
+		// MARK: - Screen Section
+
+		private var screenSection: some View {
+			VStack(alignment: .leading, spacing: 8) {
+				HStack {
+					Image(systemName: "desktopcomputer")
+						.foregroundColor(screenshotService.isCapturing ? .green : .secondary)
+						.accessibilityHidden(true)
+					Text(StringKey.multimodalScreen.l)
+						.font(.subheadline)
+					Spacer()
+					// One-shot capture button
+					Button(action: {
+						Task {
+							_ = await screenshotService.captureScreen()
+						}
+					}) {
+						Label(StringKey.multimodalScreenCaptureLabel.l, systemImage: "camera.macro")
+					}
+					.buttonStyle(.bordered)
+					.accessibilityLabel(StringKey.multimodalScreenCaptureLabel.l)
+					.accessibilityHint(StringKey.multimodalScreenCaptureHint.l)
+				}
+
+				// Screen preview
+				if let snap = mmState.screenSnapshot {
+					AsyncImage(url: URL(string: snap)) { image in
+						image
+							.resizable()
+							.scaledToFit()
+							.frame(height: 100)
+							.cornerRadius(8)
+							.clipped()
+					} placeholder: {
+						ProgressView()
+							.frame(height: 100)
+					}
+					.overlay(
+						Text(StringKey.multimodalScreenLiveFeed.l)
+							.font(.caption2)
+							.foregroundColor(.gray)
+							.padding(4)
+							.background(.primary.opacity(0.15))
+							.cornerRadius(4),
+						alignment: .topLeading,
+					)
+					.accessibilityLabel(StringKey.multimodalScreenLiveFeed.l)
+				}
+			}
+		}
+
 		// MARK: - Microphone Section
 
 		private var microphoneSection: some View {
@@ -125,7 +180,7 @@
 					Image(systemName: "mic.fill")
 						.foregroundColor(
 							audioIO.isRecording ? .red :
-								(mmState.microphoneEnabled ? .green : .secondary),
+								(mmState.microphoneEnabled ? .green : .secondary)
 						)
 						.accessibilityHidden(true)
 					Text(StringKey.multimodalMic.l)
@@ -167,8 +222,15 @@
 					.accessibilityHint(audioIO.isRecording ? StringKey.stopRecordingHint.l : StringKey.startRecordingHint.l)
 				}
 
-				// Show last transcript
-				if let transcript = MultimodalState.shared.lastTranscript {
+				// 🔥 STT streaming partial text
+				if !audioIO.partialText.isEmpty {
+					Text(audioIO.partialText)
+						.font(.caption)
+						.foregroundColor(.blue)
+						.lineLimit(3)
+						.accessibilityLabel("\(StringKey.multimodalSTTPartialLabel.l): \(audioIO.partialText)")
+						.accessibilityAddTraits(.isStaticText)
+				} else if let transcript = mmState.lastTranscript {
 					Text(transcript)
 						.font(.caption)
 						.foregroundColor(.gray)
@@ -215,9 +277,22 @@
 
 		private var statusRow: some View {
 			HStack(spacing: 16) {
-				StatusDot(isActive: captureService.isCapturing, label: StringKey.metricStatusActive.l)
-				StatusDot(isActive: audioIO.isRecording, label: StringKey.metricStatusActive.l)
-				StatusDot(isActive: audioIO.isSpeaking, label: StringKey.metricStatusActive.l)
+				StatusDot(
+					isActive: captureService.isCapturing,
+					label: StringKey.statusCameraActive.l
+				)
+				StatusDot(
+					isActive: audioIO.isRecording,
+					label: StringKey.statusRecording.l
+				)
+				StatusDot(
+					isActive: audioIO.isSpeaking,
+					label: StringKey.statusSpeaking.l
+				)
+				StatusDot(
+					isActive: screenshotService.isCapturing,
+					label: StringKey.multimodalScreenCaptureActive.l
+				)
 			}
 			.accessibilityLabel(StringKey.statusIndicatorsLabel.l)
 		}
@@ -225,29 +300,26 @@
 
 	// MARK: - Status Dot Helper
 
-	private struct StatusDot: View {
-		let isActive: Bool
-		let label: String
+	extension MultimodalControls {
+		private struct StatusDot: View {
+			let isActive: Bool
+			let label: String
 
-		var body: some View {
-			HStack(spacing: 4) {
-				Circle()
-					.fill(isActive ? Color.red : Color.gray)
-					.frame(width: 6, height: 6)
-					.accessibilityHidden(true)
-				Text(label)
-					.font(.caption2)
-					.foregroundColor(.gray)
-					.lineLimit(1)
+			var body: some View {
+				HStack(spacing: 4) {
+					Circle()
+						.fill(isActive ? Color.red : Color.gray)
+						.frame(width: 6, height: 6)
+						.accessibilityHidden(true)
+					Text(label)
+						.font(.caption2)
+						.foregroundColor(.gray)
+						.lineLimit(1)
+				}
+				.accessibilityLabel("\(label): \(isActive ? StringKey.statusActive.l : StringKey.statusInactive.l)")
+				.accessibilityAddTraits(.isStaticText)
 			}
-			.accessibilityLabel("\(label): \(isActive ? StringKey.statusActive.l : StringKey.statusInactive.l)")
-			.accessibilityAddTraits(.isStaticText)
 		}
 	}
-
-	// MARK: - Preview
-
-	/// #Preview requires Xcode PreviewsMacros plugin — disabled for swift build.
-	/// For live previews open the project in Xcode instead.
 
 #endif // os(macOS)

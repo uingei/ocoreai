@@ -8,11 +8,40 @@
 /// Migrated to @Observable (Swift 5.9+ standard per Apple API Design Guidelines)
 
 import AVFoundation
+import AudioToolbox
 import Foundation
 import os.log
 import Speech
 
 private let audioLogger = Logger(subsystem: "ocoreai", category: "audioio")
+
+/// Audio feedback — start/stop beeps via AudioToolbox
+private enum AudioFeedback {
+	/// Play a short system sound
+	static func play(_ soundID: UInt32 = 1108) {
+		AudioServicesPlaySystemSound(soundID)
+	}
+
+	/// Recording start sound (subtle)
+	static func playRecordingStart() {
+		Self.play(1108)
+	}
+
+	/// Recording end sound
+	static func playRecordingEnd() {
+		Self.play(1104)
+	}
+
+	/// Transcription started sound
+	static func playTranscriptionStart() {
+		Self.play(1108)
+	}
+
+	/// Transcription completed sound
+	static func playTranscriptionEnd() {
+		Self.play(1104)
+	}
+}
 
 @Observable
 @MainActor
@@ -34,8 +63,11 @@ final class AudioIO: NSObject {
 	/// Is recognizing (voice-to-text in progress)
 	var isRecognizing: Bool = false
 
-	/// Latest recognized text
+	/// Latest recognized text (final)
 	var recognizedText: String = ""
+
+	/// Live partial transcription (streaming updates)
+	var partialText: String = ""
 
 	// MARK: - Internal
 
@@ -74,6 +106,7 @@ extension AudioIO {
 		guard let url = recordedURL else { return false }
 
 		beginRecording(to: url, settings: settings)
+		AudioFeedback.playRecordingStart()
 		return true
 	}
 
@@ -82,6 +115,7 @@ extension AudioIO {
 		guard isRecording else { return nil }
 		stopRecordingInternal()
 		isRecording = false
+		AudioFeedback.playRecordingEnd()
 
 		guard let url = recordedURL,
 			  FileManager.default.fileExists(atPath: url.path)
@@ -156,7 +190,10 @@ extension AudioIO {
 		return granted
 	}
 
-	/// Continuous speech recognition — returns final transcribed text or nil on cancel/error
+	/// Continuous speech recognition with streaming partial results.
+	/// Returns final transcribed text or nil on cancel/error.
+	/// Partial results are pushed to `partialText` in real-time.
+	/// Audio feedback (beep) plays on start and end.
 	func transcribe(timeout: TimeInterval = 30) async -> String? {
 		// Check authorization
 		let authorized = await requestSpeechPermission()
@@ -175,7 +212,8 @@ extension AudioIO {
 		audioEngine.reset()
 
 		let request = SFSpeechAudioBufferRecognitionRequest()
-		request.shouldReportPartialResults = false
+		// 🔥 Streaming: report partial results in real-time
+		request.shouldReportPartialResults = true
 
 		let format = audioEngine.inputNode.outputFormat(forBus: 0)
 		audioEngine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
@@ -185,18 +223,19 @@ extension AudioIO {
 		try? audioEngine.start()
 		isRecognizing = true
 		recognizedText = ""
+		partialText = ""
+		AudioFeedback.playTranscriptionStart()
 
 		do {
 			let task = recognizer.recognitionTask(with: request) { result, error in
-				if let result {
-					// MainActor update via @Observable
-					_ = Task { @MainActor in
-						AudioIO.shared.recognizedText = result.bestTranscription.formattedString
-					}
-				}
-				if error != nil {
-					_ = Task { @MainActor in
-						AudioIO.shared.isRecognizing = false
+				guard let result else { return }
+				_ = Task { @MainActor in
+					let text = result.bestTranscription.formattedString
+					if result.isFinal {
+						AudioIO.shared.recognizedText = text
+					} else {
+						// 🔥 Live partial update — UI can display this in real-time
+						AudioIO.shared.partialText = text
 					}
 				}
 			}
@@ -207,6 +246,8 @@ extension AudioIO {
 			audioEngine.inputNode.removeTap(onBus: 0)
 			audioEngine.stop()
 			isRecognizing = false
+			partialText = ""
+			AudioFeedback.playTranscriptionEnd()
 
 			if !recognizedText.isEmpty {
 				return recognizedText
@@ -217,6 +258,8 @@ extension AudioIO {
 			audioEngine.inputNode.removeTap(onBus: 0)
 			audioEngine.stop()
 			isRecognizing = false
+			partialText = ""
+			AudioFeedback.playTranscriptionEnd()
 			return nil
 		}
 	}
@@ -226,6 +269,8 @@ extension AudioIO {
 		audioEngine.stop()
 		audioEngine.inputNode.removeTap(onBus: 0)
 		isRecognizing = false
+		partialText = ""
+		AudioFeedback.playRecordingEnd()
 	}
 }
 

@@ -204,6 +204,14 @@ public enum StringKey: String, CaseIterable {
 	case multimodalTtsHint = "Multimodal.TtsHint"
 	case multimodalToggleLabel = "Multimodal.ToggleLabel"
 	case multimodalToggleHint = "Multimodal.ToggleHint"
+	case multimodalScreen = "Multimodal.Screen"
+	case multimodalScreenCaptureLabel = "Multimodal.ScreenCaptureLabel"
+	case multimodalScreenCaptureHint = "Multimodal.ScreenCaptureHint"
+	case multimodalScreenLiveFeed = "Multimodal.ScreenLiveFeed"
+	case multimodalScreenCaptureActive = "Multimodal.ScreenCaptureActive"
+	case multimodalSTTListening = "Multimodal.STTListening"
+	case multimodalSTTListeningHint = "Multimodal.STTListeningHint"
+	case multimodalSTTPartialLabel = "Multimodal.STTPartialLabel"
 
 	// — Dashboard —
 	case dashboardTitle = "Dashboard.Title"
@@ -566,9 +574,17 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.multimodalLiveFeed: "Live Feed",
 		.multimodalMic: "Microphone (Ears)",
 		.multimodalSpeaker: "Speaker (Mouth)",
+		.multimodalScreen: "Screen (Desktop)",
 		.multimodalTtsHint: "TTS is active — assistant responses will be spoken aloud",
 		.multimodalToggleLabel: "Toggle Multimodal Controls",
 		.multimodalToggleHint: "Show/hide camera, microphone, and speaker controls",
+		.multimodalScreenCaptureLabel: "Capture Screen",
+		.multimodalScreenCaptureHint: "Take a screenshot of the current display",
+		.multimodalScreenLiveFeed: "Screen Feed",
+		.multimodalScreenCaptureActive: "Capturing",
+		.multimodalSTTListening: "STT Listening",
+		.multimodalSTTListeningHint: "Speech recognition is active — transcribe to text",
+		.multimodalSTTPartialLabel: "Live Transcription",
 
 		// Dashboard
 		.dashboardTitle: "Dashboard",
@@ -875,15 +891,23 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.modelViewDeleteConfirmAction: "删除",
 		.modelViewDeleteCancelAction: "取消",
 
-		// Multimodal
+	// Multimodal
 		.multimodalTitle: "多模态输入/输出",
 		.multimodalCamera: "摄像头（视觉）",
 		.multimodalLiveFeed: "实时画面",
 		.multimodalMic: "麦克风（听觉）",
 		.multimodalSpeaker: "扬声器（语音）",
+		.multimodalScreen: "屏幕（桌面捕获）",
 		.multimodalTtsHint: "TTS 已激活 — 助手回复将以语音播报",
 		.multimodalToggleLabel: "多模态控制",
 		.multimodalToggleHint: "显示/隐藏摄像头、麦克风和扬声器控制",
+		.multimodalScreenCaptureLabel: "捕获屏幕",
+		.multimodalScreenCaptureHint: "截取当前显示器画面",
+		.multimodalScreenLiveFeed: "屏幕画面",
+		.multimodalScreenCaptureActive: "捕获中",
+		.multimodalSTTListening: "语音识别中",
+		.multimodalSTTListeningHint: "语音识别已激活 — 语音转文字",
+		.multimodalSTTPartialLabel: "实时转录",
 
 		// Dashboard
 		.dashboardTitle: "仪表盘",

@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Multimodal Server Handler — camera/audio I/O and multimodal chat integration
+/// Multimodal Server Handler — camera/audio/screen I/O and multimodal chat integration
 
 import Foundation
 
@@ -9,10 +9,10 @@ import HTTPTypes
 import Hummingbird
 import Logging
 
-/// Request: POST /v1/multimodal/capture — capture camera frame or audio sample
+/// Request: POST /v1/multimodal/capture — capture camera frame, audio sample, or screen
 struct CaptureRequest: Codable {
 	enum CaptureType: String, Codable {
-		case camera, microphone
+		case camera, microphone, screen
 	}
 
 	let type: CaptureType
@@ -44,7 +44,7 @@ struct StatusResponse: Codable {
 	let speakerEnabled: Bool
 }
 
-/// Handle multimodal capture (camera frame or audio recording)
+/// Handle multimodal capture (camera frame, audio recording, or screen)
 func multimodalCaptureHandler(
 	request: CaptureRequest,
 	logger: Logger,
@@ -90,6 +90,27 @@ func multimodalCaptureHandler(
 			dataType: "audio/caf",
 			dataURL: nil,
 			message: "Recording started",
+		))
+
+	case .screen:
+		let screenshotService = await ScreenshotService.shared
+		logger.info("Multimodal: capturing screen")
+		if let frameURL = await screenshotService.captureScreen() {
+			await MainActor.run {
+				MultimodalState.shared.screenSnapshot = frameURL
+			}
+			return try await Response.json(CaptureResponse(
+				success: true,
+				dataType: "image/png",
+				dataURL: frameURL,
+				message: "Screen captured",
+			))
+		}
+		return try await Response.json(CaptureResponse(
+			success: false,
+			dataType: "image/png",
+			dataURL: nil,
+			message: "No screen frame captured",
 		))
 	}
 }

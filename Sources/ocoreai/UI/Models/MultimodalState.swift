@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Multimodal state — camera, microphone, speaker toggles with persistence
+/// Multimodal state — camera, microphone, speaker, screen toggles with persistence
 ///
 /// Migrated to @Observable (Swift 5.9+ standard per Apple API Design Guidelines)
 
@@ -40,8 +40,23 @@ final class MultimodalState {
 		didSet { save(); notifyChange() }
 	}
 
-	/// Camera preview image snapshot (base64 NSDataURL)
+	/// Screen capture enabled
+	var screenCaptureEnabled: Bool = false {
+		didSet { save(); notifyChange() }
+	}
+
+	/// Camera preview image snapshot (base64 data URL)
 	var cameraSnapshot: String? {
+		didSet { notifyChange() }
+	}
+
+	/// Latest screen capture snapshot (base64 data URL)
+	var screenSnapshot: String? {
+		didSet { notifyChange() }
+	}
+
+	/// STT streaming partial text (live transcription)
+	var sttPartialText: String = "" {
 		didSet { notifyChange() }
 	}
 
@@ -71,7 +86,12 @@ final class MultimodalState {
 	}
 
 	private func save() {
-		let data = Snapshot(cameraEnabled: cameraEnabled, microphoneEnabled: microphoneEnabled, speakerEnabled: speakerEnabled)
+		let data = Snapshot(
+			cameraEnabled: cameraEnabled,
+			microphoneEnabled: microphoneEnabled,
+			speakerEnabled: speakerEnabled,
+			screenCaptureEnabled: screenCaptureEnabled
+		)
 		try? encoder.encode(data).write(to: storageKey)
 	}
 
@@ -81,12 +101,13 @@ final class MultimodalState {
 		cameraEnabled = snapshot.cameraEnabled
 		microphoneEnabled = snapshot.microphoneEnabled
 		speakerEnabled = snapshot.speakerEnabled
+		screenCaptureEnabled = snapshot.screenCaptureEnabled
 	}
 
 	private func notifyChange() {
 		NotificationCenter.default.post(
 			name: .multimodalStateDidChange,
-			object: objectKey,
+			object: objectKey
 		)
 	}
 
@@ -94,6 +115,7 @@ final class MultimodalState {
 		var cameraEnabled: Bool
 		var microphoneEnabled: Bool
 		var speakerEnabled: Bool
+		var screenCaptureEnabled: Bool = false // backward compat default
 	}
 
 	private class ObjectStorageKey {}
