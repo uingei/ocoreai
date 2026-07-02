@@ -446,6 +446,10 @@
 		if let fPen = sampling.frequencyPenalty, fPen > 0 {
 			params.frequencyPenalty = Float(fPen)
 		}
+		// Seed → reproducible sampling (upstream PR #377)
+		if let s = sampling.seed {
+			params.seed = UInt64(s)
+		}
 		return params
 	}
 
