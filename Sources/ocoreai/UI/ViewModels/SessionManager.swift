@@ -9,8 +9,9 @@ import Observation
 @Observable
 @MainActor
 final class SessionManager {
-	/// Logger for session operations
-	private static let logger = Logger(label: "ocoreai.session")
+	/// Shared singleton — survives view recreation (tab switch, NavigationSplitView).
+	static let shared = SessionManager()
+	private init() {}
 
 	// MARK: - Session data
 

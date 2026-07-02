@@ -599,6 +599,11 @@ actor EnginePool {
 		// Clear sampling overrides so next load uses defaults
 		modelSamplingDefaults.removeValue(forKey: modelId)
 
+		// Clear session pool to prevent dangling GPU weight references
+		#if mlx
+			await sessionPool?.clear(modelId: modelId)
+		#endif
+
 		// Clear LRU access timestamp
 		modelLastAccess.removeValue(forKey: modelId)
 

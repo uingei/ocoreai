@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct SessionView: View {
-	@State private var viewModel = SessionManager()
+	@State private var viewModel: SessionManager = .shared
 	@State private var showingDeleteAlert = false
 	@State private var sessionToDelete: SessionModel?
 
@@ -24,8 +24,10 @@ struct SessionView: View {
 		.formStyle(.grouped)
 		.navigationTitle(StringKey.tabSessions.l)
 		.overlay {
-			if viewModel.isLoading {
-				ProgressView(StringKey.loadingModels.l)
+			Group {
+				if viewModel.isLoading {
+					ProgressView(StringKey.loadingModels.l)
+				}
 			}
 		}
 		.task {

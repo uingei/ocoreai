@@ -36,6 +36,8 @@ struct InferenceRequest {
 	init(
 		modelId: String,
 		messages: [Message],
+		systemPrompt: String? = nil,
+		tools: [ToolDef]? = nil,
 		temperature: Double? = nil,
 		topP: Double? = nil,
 		topK: Int? = nil,
@@ -45,8 +47,8 @@ struct InferenceRequest {
 	) {
 		self.modelId = modelId
 		self.messages = messages
-		systemPrompt = nil
-		tools = nil
+		self.systemPrompt = systemPrompt
+		self.tools = tools
 		self.temperature = temperature
 		self.topP = topP
 		self.topK = topK
