@@ -32,15 +32,37 @@ import ServiceLifecycle
 ///   directly — zero HTTP serialization, ``AsyncStream``-driven streaming.
 /// - **Bridge Path (External):** HTTP server on localhost:8080 for third-party agents.
 ///   Opt-in only; disabled by default for App Store compliance.
+///
+/// ### Lifecycle State Machine:
+/// - 6-state machine (idle → starting → ready/degraded → stopping → idle)
+/// - Circuit breaker prevents crash-loop (3 failures → cooldown 60s)
+/// - Port conflict detection before HTTP server binding
 @MainActor
 public final class OcoreaiEngine {
 	public static let shared = OcoreaiEngine()
 
-	private(set) var isRunning = false
-	private(set) var engineReady = false /// Published once core engine booted (before HTTP server)
+	/// Lifecycle state machine — replaces `isRunning` + `engineReady` booleans
+	private(set) var lifecycleState: EngineLifecycleState = .idle {
+		didSet {
+			logger.debug("Lifecycle: \\(oldValue) → \\(lifecycleState)")
+		}
+	}
+
+	/// Backward-compatible alias — SwiftUI consumers still read `isRunning` for guard clauses
+	var isRunning: Bool { lifecycleState != .idle && lifecycleState != .error }
+
+	/// Backward-compatible alias — SwiftUI consumers still read `engineReady` for guard clauses
+	var engineReady: Bool { lifecycleState.isHealthy }
+
 	private var serverApp: (any ApplicationProtocol)?
 	private var gaugeTask: Task<Void, Never>?
 	private var cleanupTask: Task<Void, Never>?
+
+	/// Circuit breaker — prevents crash-loop by tracking consecutive startup failures
+	private let circuitBreaker = EngineCircuitBreaker(
+		maxConsecutiveFailures: 3,
+		cooldownSeconds: 60
+	)
 
 	// MARK: - Public Accessors (Fast Path for SwiftUI)
 
@@ -136,6 +158,19 @@ public final class OcoreaiEngine {
 		logger = Logger(label: "ocoreai")
 	}
 
+	/// Signal a startup failure — records failure in circuit breaker, transitions state.
+	/// Call from any early-return path in `start()`.
+	private func failStartup(_ message: String) {
+		circuitBreaker.recordFailure()
+		if circuitBreaker.isCircuitOpen {
+			lifecycleState = .error
+			logger.critical("Circuit breaker OPEN after \(circuitBreaker.failureCount) consecutive failures")
+		} else {
+			lifecycleState = .idle
+		}
+		logger.critical("Startup failed: \(message) — failures: \(circuitBreaker.failureCount)/\(circuitBreaker.maxFailures)")
+	}
+
 	/// Boot the engine core components (always runs) + optional HTTP server.
 	///
 	/// Fast Path components (EnginePool, Scheduler, SessionCompressor) are always
@@ -143,14 +178,30 @@ public final class OcoreaiEngine {
 	///
 	/// Bridge Path (HTTP server) is opt-in: disabled by default for App Store builds.
 	/// Override via `OCOREAI_ENABLE_HTTP=1` environment variable or omit `#if appStore` trait.
+	///
+	/// Circuit breaker: if 3 consecutive startups fail, the circuit opens for 60s.
+	/// Call `resetCircuitBreaker()` to unblock.
 	public func start() async {
-		guard !isRunning else {
-			logger.warning("Engine already running")
+		// Lifecycle gate — prevent concurrent startup or restart while running/stopping
+		guard lifecycleState != .starting && lifecycleState != .stopping else {
+			if lifecycleState.isHealthy {
+				logger.warning("Engine already running (state: \(lifecycleState))")
+			} else {
+				logger.warning("Engine startup blocked (state: \(lifecycleState))")
+			}
 			return
 		}
 
+		// Circuit breaker gate
+		guard circuitBreaker.allowStart() else {
+			let remaining = circuitBreaker.cooldownRemaining()
+			logger.error("Circuit breaker open — startup blocked for \(remaining)s")
+			lifecycleState = .error
+			return
+		}
+
+		lifecycleState = .starting
 		logger.info("oCoreAI booting...")
-		isRunning = true
 
 		let physicalMem = ModelConfigEntry.detectPhysicalMemory()
 		let memBudget = ModelConfigEntry.computeMemoryBudget(physicalMemory: physicalMem)
@@ -189,13 +240,12 @@ public final class OcoreaiEngine {
 				logger.info("SQLiteStore opened at: \(path)")
 			}
 		} catch {
-			logger.critical("Failed to open SQLiteStore: \(error)")
-			isRunning = false
+			failStartup("SQLiteStore failed to open: \(error)")
 			return
 		}
 
 		guard let store = sqliteStore else {
-			isRunning = false
+			failStartup("SQLiteStore initialization returned nil")
 			return
 		}
 
@@ -311,7 +361,8 @@ public final class OcoreaiEngine {
 
 		// Engine core is now fully initialized. UI can start using direct accessors
 		// even before (or without) the HTTP server starting.
-		engineReady = true
+		circuitBreaker.recordSuccess()
+		lifecycleState = .ready
 		logger.info("Engine core ready — Fast Path available for UI")
 
 		// MARK: - Bridge Path: HTTP Server (opt-out via appStore trait)
@@ -326,6 +377,21 @@ public final class OcoreaiEngine {
 
 	// MARK: - HTTP Server (Bridge Path, optional)
 
+	/// Detect if a process is binding the given port. Uses /dev/tcp as a lightweight
+	/// check (no shell dependency) — if the socket connects, something is listening.
+	private static func isPortInUse(_ port: Int) -> Bool {
+		let pipe = Pipe()
+		let task = Process()
+		task.launchPath = "/usr/sbin/lsof"
+		task.arguments = ["-i:\(port)", "-sTCP:LISTEN", "-Fp"]
+		task.standardOutput = pipe
+		task.launch()
+		task.waitUntilExit()
+		let data = try? pipe.fileHandleForReading.readToEnd()
+		let output = String(data: data ?? Data(), encoding: .utf8) ?? ""
+		return !output.isEmpty
+	}
+
 	private func startHTTPServer() {
 		guard let enginePool, let scheduler, let metrics,
 			      let sessionCompressor = _sessionCompressor,
@@ -335,6 +401,14 @@ public final class OcoreaiEngine {
 			      let _ = _auditTrail,
 			      let _ = _toolRegistry
 		else { return }
+
+		// Port conflict detection — refuse silent bind failures
+		let serverPort = Int(ProcessInfo.processInfo.environment["OCOREAI_PORT"] ?? "8080") ?? 8080
+		if Self.isPortInUse(serverPort) {
+			logger.warning("Port \(serverPort) already in use — Bridge Path (HTTP) skipped")
+			lifecycleState = .degraded
+			return
+		}
 
 		let rateLimitProvider = RateLimitProvider(
 			config: .init(
@@ -411,8 +485,12 @@ public final class OcoreaiEngine {
 
 	/// Graceful shutdown
 	public func stop() async {
-		guard isRunning else { return }
-		isRunning = false
+		guard lifecycleState.isHealthy || lifecycleState.isTransitioning else {
+			logger.warning("Engine not running (state: \(lifecycleState))")
+			return
+		}
+
+		lifecycleState = .stopping
 
 		cleanupTask?.cancel()
 		gaugeTask?.cancel()
@@ -440,6 +518,7 @@ public final class OcoreaiEngine {
 		configSystem?.shutdown()
 		self.configSystem = nil
 
+		lifecycleState = .idle
 		logger.info("oCoreAI shut down complete")
 	}
 }
