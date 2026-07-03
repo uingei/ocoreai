@@ -473,7 +473,7 @@ func countTokensHandler(
 	enginePool: EnginePool,
 ) async throws -> CountTokensResponse {
 	let handle = try await enginePool.acquire(model: request.model)
-	defer { Task.detached { await handle.release() } }
+	defer { Task { await handle.release() } }
 
 	let count = try await handle.countTokens(text: request.prompt)
 	return CountTokensResponse(model: request.model, tokenCount: count)

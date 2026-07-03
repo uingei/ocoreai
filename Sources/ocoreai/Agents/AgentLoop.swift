@@ -169,6 +169,13 @@ enum AgentLoop {
         var iterCount = 0
         var totalTok = 0
 
+        // Context guard: limit tool turn count to prevent context explosion.
+        // Each iteration adds ~2 messages (assistant tool_call + tool result).
+        // With maxIter=30 this could yield 60+ extra messages (90+ total).
+        let initialMsgCount = msgs.count
+        let maxToolRounds = 10  // Keep at most N rounds of tool call/results
+        var toolRoundCount = 0
+
         log.info("AgentLoop started (max=\(config.maxIter), budget=\(config.tokenBudget), tools=\(toolList.count))")
 
         let deadline = ContinuousClock.now + .seconds(config.timeoutSeconds)
@@ -236,6 +243,22 @@ enum AgentLoop {
                     ))
                 }
 
+                // Context trimming: keep initial messages + at most
+                // maxToolRounds of tool call/result pairs to prevent
+                // context explosion over many iterations.
+                toolRoundCount += 1
+                if toolRoundCount > maxToolRounds {
+                    // Prune oldest tool round, preserving initial messages
+                    let toolMsgCount = msgs.count - initialMsgCount
+                    let keepToolMsgs = maxToolRounds * 2  // ~2 msgs per round
+                    if toolMsgCount > keepToolMsgs {
+                        let pruneCount = toolMsgCount - keepToolMsgs
+                        // Remove messages after initial set, skip first `pruneCount`
+                        msgs.removeSubrange(initialMsgCount..<(initialMsgCount + pruneCount))
+                        log.info("AgentLoop: pruned \\\\(pruneCount) old tool messages (keeping \\\\(keepToolMsgs))")
+                    }
+                }
+
                 logs.append(AgentLoopIterationLog(
                     iteration: i,
                     tok: tokCount,
@@ -300,6 +323,8 @@ enum AgentLoop {
     // MARK: - Tool execution
 
     /// Execute tools in parallel and return one result string per tool call.
+    /// Tool outputs are filtered through ContentGuard to prevent injection of
+    /// malicious tool results back into the inference context.
     private static func executeTools(
         tc: [ToolCall],
         registry: ToolRegistry,
@@ -316,6 +341,13 @@ enum AgentLoop {
                             arguments: tool.function.arguments,
                             caller: caller
                         )
+                        // Filter tool output through ContentGuard to sanitize
+                        // results before injecting back into context
+                        if let contentGuard = await OcoreaiEngine.shared.activeContentGuard,
+                           await contentGuard.checkOutput(r).isBlocked {
+                            logger.warning("AgentLoop: tool output blocked by ContentGuard")
+                            return (idx, "[tool-output-filtered: safety check failed]")
+                        }
                         return (idx, r)
                     } catch {
                         return (idx, "[tool-error:\(tool.function.name)] \(error.localizedDescription)")
@@ -328,6 +360,7 @@ enum AgentLoop {
             return results
         }
     }
+
 
     // MARK: - Inference
 
