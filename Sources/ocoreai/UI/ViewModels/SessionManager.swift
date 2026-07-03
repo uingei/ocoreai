@@ -56,12 +56,15 @@ final class SessionManager {
 
 	func selectSession(_ session: SessionModel) {
 		selectedSession = session
+		// Clear stale error when user selects a session
+		errorMessage = nil
 		Task { @MainActor [weak self] in
 			guard let self, let compressor else { return }
 			do {
 				sessionSummary = try await compressor.getSessionSummary(session.id)
 			} catch {
 				sessionSummary = nil
+				self.errorMessage = "Failed to load session summary: \(error.localizedDescription)"
 			}
 		}
 	}

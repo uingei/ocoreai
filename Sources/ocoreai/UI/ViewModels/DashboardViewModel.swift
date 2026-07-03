@@ -120,10 +120,3 @@ struct MemoryPoint: Identifiable {
 	let gpuMemoryUsage: Double
 	let kvCacheGB: Double
 }
-
-/// Chart data point for KV cache
-struct KVCachePoint: Identifiable {
-	let id = UUID()
-	let timestamp: Date
-	let kvCacheGB: Double
-}

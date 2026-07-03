@@ -246,7 +246,7 @@ private struct AuditStatusPill: View {
 
 	var body: some View {
 		Text(status.rawValue.uppercased())
-			.font(.system(.caption, design: .monospaced))
+			.font(.ocoreaiText(11))
 			.padding(3)
 			.background(statusColor, in: RoundedRectangle(cornerRadius: 3))
 			.foregroundStyle(.white)

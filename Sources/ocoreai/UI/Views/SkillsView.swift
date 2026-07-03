@@ -148,7 +148,7 @@ struct SkillsView: View {
 					.font(.ocoreaiText(12, weight: .semibold))
 					.foregroundStyle(theme.textSecondary)
 				Text(skill.body)
-					.font(.system(.caption, design: .monospaced))
+					.font(.ocoreaiText(11))
 					.lineLimit(8)
 			}
 			.padding(.vertical, 4)

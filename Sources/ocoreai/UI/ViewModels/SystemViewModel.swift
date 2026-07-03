@@ -11,17 +11,14 @@ final class SystemState {
 	// MARK: - MCP
 
 	private(set) var mcpEndpoints: [MCPBridge.MCPEndpointSummaryItem] = []
-	var showMCPEndpoints: Bool = true
 
 	// MARK: - Tools
 
 	private(set) var toolNames: [String] = []
-	var showTools: Bool = true
 
 	// MARK: - Audit
 
 	private(set) var auditEntries: [AuditEntry] = []
-	var showAudit: Bool = true
 
 	// MARK: - Reasoning
 

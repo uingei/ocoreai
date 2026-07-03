@@ -275,11 +275,6 @@ public final class OcoreaiEngine {
 
 		// Wire SkillRegistry → SystemPromptBuilder bidirectional link
 		// (bootstrap sets SkillRegistry.systemPromptBuilder; this sets the reverse)
-
-		// Wire SkillRegistry → SystemPromptBuilder bidirectional link
-		// (bootstrap sets SkillRegistry.systemPromptBuilder; this sets the reverse)
-		// Guard: direct inits cannot fail, but guard-let prevents force-unwrap
-		// from becoming a latent crash if init order ever changes.
 		guard let skillRegistry = _skillRegistry,
 			  let systemPromptBuilder = _systemPromptBuilder else {
 			failStartup("Core components not initialized")
