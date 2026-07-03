@@ -274,8 +274,8 @@ func chatCompletionsHandler(
 		minP: nil,
 		presencePenalty: Double(effectivePresencePenalty),
 		frequencyPenalty: Double(effectiveFrequencyPenalty),
-		stopSequences: nil,
-		logitBias: nil,
+		stopSequences: request.stop,
+		logitBias: nil, // logitBias 暂不暴露（ChatCompletionRequest 无对应字段）
 		combined: true,
 	)
 	let sampling = rawSampling.normalized()

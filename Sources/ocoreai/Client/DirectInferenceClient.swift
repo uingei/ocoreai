@@ -25,6 +25,10 @@ struct InferenceRequest {
 
 	/// Sampling parameters (Double to match EnginePool / SamplingConfiguration)
 	let temperature: Double?
+	/// Stop sequences for generation control (from ChatCompletionRequest `.stop`)
+	let stopSequences: [String]?
+	/// Logit bias for token probability shaping
+	let logitBias: [String: Double]?
 	let topP: Double?
 	let topK: Int?
 	let maxTokens: Int?
@@ -42,6 +46,8 @@ struct InferenceRequest {
 		topP: Double? = nil,
 		topK: Int? = nil,
 		maxTokens: Int? = nil,
+		stopSequences: [String]? = nil,
+		logitBias: [String: Double]? = nil,
 		sessionId: String? = nil,
 		cancellation: InferenceCancellation? = nil,
 	) {
@@ -53,6 +59,8 @@ struct InferenceRequest {
 		self.topP = topP
 		self.topK = topK
 		self.maxTokens = maxTokens
+		self.stopSequences = stopSequences
+		self.logitBias = logitBias
 		self.sessionId = sessionId
 		self.cancellation = cancellation
 	}
@@ -190,8 +198,8 @@ extension DirectInferenceClient {
 			temperature: effectiveTemp,
 			topP: effectiveTopP,
 			topK: effectiveTopK,
-			stopSequences: nil,
-			logitBias: nil,
+			stopSequences: request.stopSequences,
+			logitBias: request.logitBias,
 			combined: true,
 		).normalized()
 
@@ -314,8 +322,8 @@ extension DirectInferenceClient {
 			temperature: effectiveTemp,
 			topP: effectiveTopP,
 			topK: effectiveTopK,
-			stopSequences: nil,
-			logitBias: nil,
+			stopSequences: request.stopSequences,
+			logitBias: request.logitBias,
 			combined: true,
 		).normalized()
 
