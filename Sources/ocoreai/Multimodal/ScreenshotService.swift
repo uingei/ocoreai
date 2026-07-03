@@ -52,8 +52,9 @@ final class ScreenshotService {
 
 	@discardableResult
 	func captureScreen() async -> String? {
-		// If continuous capture is running, reuse the latest frame
-		if let cached = self.latestFrameDataURL {
+		// Only reuse cached frame when continuous capture is actively refreshing it.
+		// One-shot capture always takes a fresh frame.
+		if self.isCapturing, let cached = self.latestFrameDataURL {
 			return cached
 		}
 

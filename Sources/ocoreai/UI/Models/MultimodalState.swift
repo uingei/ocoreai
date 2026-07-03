@@ -47,6 +47,7 @@ final class MultimodalState {
 	/// Camera enabled — starts/stops CaptureService automatically
 	var cameraEnabled: Bool = false {
 		didSet {
+			guard !_restoring else { return }
 			save()
 			notifyChange()
 			wireCamera(self.cameraEnabled)
@@ -56,6 +57,7 @@ final class MultimodalState {
 	/// Microphone enabled — starts/stops AudioIO automatically
 	var microphoneEnabled: Bool = false {
 		didSet {
+			guard !_restoring else { return }
 			save()
 			notifyChange()
 			wireMicrophone(self.microphoneEnabled)
@@ -65,6 +67,7 @@ final class MultimodalState {
 	/// Speaker (TTS) enabled — starts/stops AudioIO TTS automatically
 	var speakerEnabled: Bool = false {
 		didSet {
+			guard !_restoring else { return }
 			save()
 			notifyChange()
 		}
@@ -73,6 +76,7 @@ final class MultimodalState {
 	/// Screen capture enabled — starts/stops ScreenshotService automatically
 	var screenCaptureEnabled: Bool = false {
 		didSet {
+			guard !_restoring else { return }
 			save()
 			notifyChange()
 			wireScreen(self.screenCaptureEnabled)
@@ -105,10 +109,26 @@ final class MultimodalState {
 		didSet { notifyChange() }
 	}
 
-	private let objectKey = ObjectStorageKey()
+	/// Flag to guard didSet during restore — prevents services starting on cold boot.
+	private var _restoring = false
+	private var objectKey = ObjectStorageKey()
 
 	init() {
-		load()
+		_restoreFromDisk()
+	}
+
+	/// Restore persisted toggles from disk without firing didSet side-effects.
+	private func _restoreFromDisk() {
+		_restoring = true
+		// Read persisted values directly into properties — didSet will see _restoring=true
+		if let data = try? Data(contentsOf: storageKey),
+		   let snapshot = try? decoder.decode(Snapshot.self, from: data) {
+			cameraEnabled = snapshot.cameraEnabled
+			microphoneEnabled = snapshot.microphoneEnabled
+			speakerEnabled = snapshot.speakerEnabled
+			screenCaptureEnabled = snapshot.screenCaptureEnabled
+		}
+		_restoring = false
 	}
 
 	// MARK: - Service Wiring (toggle → start/stop)
