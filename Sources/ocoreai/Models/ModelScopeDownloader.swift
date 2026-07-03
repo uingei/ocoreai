@@ -53,10 +53,11 @@ actor ModelScopeDownloader: Downloader {
 	useLatest: Bool = false,
 	progressHandler: @Sendable @escaping (Progress) -> Void = { _ in },
 	) async throws -> URL {
-	/* ModelScope 默认版本是 main 而不是 master。
-	   如果请求了 master 版本，ModelScope 会自动重定向到 main，
-	   不需要特殊处理。 */
-	let rev = revision ?? "main"
+	/* ModelScope 默认 revision 是 master，不是 main。
+	   实测：Revision=main 返回 Code=200 但 Files=null，
+	   导致代码误判为 gated → 退到 HuggingFace。
+	   模型详情 API 返回 Revision 字段确认为 "master"。 */
+	let rev = revision ?? "master"
 		let cacheDir = cacheRoot
 			.appendingPathComponent(id)
 			.appendingPathComponent(rev)
