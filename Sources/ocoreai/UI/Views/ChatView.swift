@@ -28,8 +28,8 @@ struct ChatBubbleMessage: Identifiable, Hashable {
 
 struct ChatView: View {
 	@State private var chatState: ChatState
-	// Unified model manager — replaces local models array + separate repositoryState
-	@State private var modelManager: ModelManager
+	// Note: ModelManager is accessed via .shared singleton to avoid dual @State binding
+	// of the same @Observable instance (SwiftUI observation reader collision → crash)
 	@Environment(\.ocoreaiTheme) private var theme
 	@State private var inputText = ""
 	@State private var currentModel = ""
@@ -43,7 +43,6 @@ struct ChatView: View {
 
 	init() {
 		_chatState = State(initialValue: ChatState.shared)
-		_modelManager = State(initialValue: ModelManager.shared)
 	}
 
 	private var isStreaming: Bool {
@@ -56,7 +55,7 @@ struct ChatView: View {
 	}
 
 	private var models: [String] {
-		modelManager.modelIdStrings()
+		ModelManager.shared.modelIdStrings()
 	}
 
 	var body: some View {
@@ -77,8 +76,8 @@ struct ChatView: View {
 		// omlx .task{} lifecycle: start health polling + load models
 		.task {
 			chatState.start()
-			await modelManager.loadModels()
-			let idStrings = modelManager.modelIdStrings()
+			await ModelManager.shared.loadModels()
+			let idStrings = ModelManager.shared.modelIdStrings()
 			if idStrings.isEmpty {
 				// No local models yet — use configured default model ID
 				currentModel = OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? ""
@@ -123,15 +122,15 @@ struct ChatView: View {
 		}
 		// P0: Show error banner when chat inference fails
 		.overlay(alignment: .bottom) {
-			if let error = chatState.error {
+			if let errorMsg = chatState.errorMessage {
 				HStack(spacing: 8) {
-					Text(error.localizedDescription)
+					Text(errorMsg)
 						.font(.ocoreaiText(12))
 						.foregroundStyle(.red)
 						.lineLimit(3)
 					Spacer()
 					Button {
-						chatState.error = nil
+						chatState.errorMessage = nil
 					} label: {
 						Image(systemName: "xmark.circle.fill")
 							.foregroundStyle(.secondary)

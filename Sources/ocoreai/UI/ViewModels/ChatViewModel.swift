@@ -56,7 +56,7 @@ final class ChatState {
 
 	var messages: [ChatMessage] = []
 	var responseText: String = ""
-	var error: Error?
+	var errorMessage: String?
 	var loading: Bool = false
 
 	// Single source of truth — no separate health polling task
@@ -123,7 +123,8 @@ final class ChatState {
 	/// Snapshot capture before destructive operations (max one level).
 	private var undoSnapshot: [ChatMessage]?
 	private var undoResponseText: String?
-	private var undoError: Error?
+	/// Undo snapshot: error message text
+	private var undoErrorMessage: String?
 
 	/// Returns true if there is an undoable action available.
 	var hasUndo: Bool {
@@ -227,7 +228,7 @@ final class ChatState {
 
 		responseText = ""
 		loading = true
-		error = nil
+		errorMessage = nil
 
 		// P0-3: Create cancellable token for mid-stream interrupt
 		let cancellation = InferenceCancellation.cancellable()
@@ -276,7 +277,7 @@ final class ChatState {
 			// Finalize cancellation handle
 			currentCancellation = nil
 		} catch {
-			self.error = error
+			self.errorMessage = error.localizedDescription
 			// Clear streaming preview on error — the error banner shows the message
 			responseText = ""
 			currentCancellation = nil
@@ -294,10 +295,10 @@ final class ChatState {
 	func resetConversation() {
 		undoSnapshot = messages
 		undoResponseText = responseText
-		undoError = error
+		undoErrorMessage = errorMessage
 		messages = []
 		responseText = ""
-		error = nil
+		errorMessage = nil
 		// Register undo with AppState for Cmd+Z access
 		AppState.shared.undoAction = { [weak self] in self?.undoReset() }
 	}
@@ -307,9 +308,9 @@ final class ChatState {
 		guard let snapshot = undoSnapshot else { return }
 		messages = snapshot
 		responseText = undoResponseText ?? ""
-		error = undoError
+		errorMessage = undoErrorMessage
 		undoSnapshot = nil
 		undoResponseText = nil
-		undoError = nil
+		undoErrorMessage = nil
 	}
 }
