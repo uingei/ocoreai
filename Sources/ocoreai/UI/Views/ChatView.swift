@@ -35,8 +35,6 @@ struct ChatView: View {
 	@State private var currentModel = ""
 	@State private var activeTask: Task<Void, Never>? = nil
 
-	// Model search + load entry point
-	@State private var showModelLoader = false
 
 	// Multimodal controls panel — collapsed by default
 	@State private var showMultimodal = false

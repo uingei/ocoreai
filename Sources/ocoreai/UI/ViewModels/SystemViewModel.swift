@@ -8,6 +8,9 @@ import Observation
 @Observable
 @MainActor
 final class SystemState {
+	static let shared = SystemState()
+	private init() {}
+
 	// MARK: - MCP
 
 	private(set) var mcpEndpoints: [MCPBridge.MCPEndpointSummaryItem] = []

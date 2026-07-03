@@ -10,7 +10,7 @@ import SwiftUI
 import AppKit
 
 struct SystemView: View {
-	@State private var viewModel = SystemState()
+	@State private var viewModel = SystemState.shared
 	@State private var showClearAlert = false
 
 	@Environment(\.ocoreaiTheme) private var theme
