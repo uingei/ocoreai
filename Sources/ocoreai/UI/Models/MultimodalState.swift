@@ -49,7 +49,6 @@ final class MultimodalState {
 		didSet {
 			guard !_restoring else { return }
 			save()
-			notifyChange()
 			wireCamera(self.cameraEnabled)
 		}
 	}
@@ -59,7 +58,6 @@ final class MultimodalState {
 		didSet {
 			guard !_restoring else { return }
 			save()
-			notifyChange()
 			wireMicrophone(self.microphoneEnabled)
 		}
 	}
@@ -69,7 +67,6 @@ final class MultimodalState {
 		didSet {
 			guard !_restoring else { return }
 			save()
-			notifyChange()
 		}
 	}
 
@@ -78,7 +75,6 @@ final class MultimodalState {
 		didSet {
 			guard !_restoring else { return }
 			save()
-			notifyChange()
 			wireScreen(self.screenCaptureEnabled)
 		}
 	}
@@ -86,32 +82,21 @@ final class MultimodalState {
 	// MARK: - Capture Snapshots
 
 	/// Camera preview image snapshot (base64 data URL)
-	var cameraSnapshot: String? {
-		didSet { notifyChange() }
-	}
+	var cameraSnapshot: String?
 
 	/// Latest screen capture snapshot (base64 data URL)
-	var screenSnapshot: String? {
-		didSet { notifyChange() }
-	}
+	var screenSnapshot: String?
 
 	/// STT streaming partial text (live transcription)
-	var sttPartialText: String = "" {
-		didSet { notifyChange() }
-	}
+	var sttPartialText: String = ""
 
 	/// Last audio recording data URL
-	var lastRecordingDataURL: String? {
-		didSet { notifyChange() }
-	}
+	var lastRecordingDataURL: String?
 
-	var lastTranscript: String? {
-		didSet { notifyChange() }
-	}
+	var lastTranscript: String?
 
 	/// Flag to guard didSet during restore — prevents services starting on cold boot.
 	private var _restoring = false
-	private var objectKey = ObjectStorageKey()
 
 	init() {
 		_restoreFromDisk()
@@ -245,25 +230,16 @@ final class MultimodalState {
 		screenCaptureEnabled = snapshot.screenCaptureEnabled
 	}
 
-	private func notifyChange() {
-		NotificationCenter.default.post(
-			name: .multimodalStateDidChange,
-			object: objectKey
-		)
-	}
-
 	private struct Snapshot: Codable {
 		var cameraEnabled: Bool
 		var microphoneEnabled: Bool
 		var speakerEnabled: Bool
-		var screenCaptureEnabled: Bool = false // backward compat default
+		var screenCaptureEnabled: Bool = false
 	}
-
-	private class ObjectStorageKey {}
 }
 
+// P0-6: STT transcript notification — delivered when voice recording finishes transcription
 extension Notification.Name {
-	static let multimodalStateDidChange = Notification.Name("MultimodalStateDidChange")
-	///Posted when STT transcription completes — userInfo contains "transcript": String
+	/// Posted when STT transcription completes — userInfo contains "transcript": String
 	static let audioTranscriptAvailable = Notification.Name("AudioTranscriptAvailable")
 }

@@ -156,14 +156,14 @@ struct ChatView: View {
 				HStack(spacing: 8) {
 					Text(errorMsg)
 						.font(.ocoreaiText(12))
-						.foregroundStyle(.red)
+						.foregroundStyle(theme.redDot)
 						.lineLimit(3)
 					Spacer()
 					Button {
 						chatState.errorMessage = nil
 					} label: {
 						Image(systemName: "xmark.circle.fill")
-							.foregroundStyle(.secondary)
+							.foregroundStyle(theme.textSecondary)
 					}
 					.buttonStyle(.plain)
 					.accessibilityLabel("Dismiss error")
