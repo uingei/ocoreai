@@ -157,17 +157,28 @@ final class ScreenshotService {
 	// MARK: - Continuous capture
 
 	/// Start continuous screen capture at configured interval
+	/// 直接调用 captureOnce() 更新最新帧 — 不经过 captureScreen() 缓存层，
+	/// 确保每帧都是新鲜数据，推理管线也能拿到实时截图。
 	func startCapture() {
 		guard !isCapturing else { return }
 		isCapturing = true
 		captureTask = Task(priority: .utility) {
 			while !Task.isCancelled {
-				await Self.shared.captureScreen()
+				if let frameURL = await Self.captureOnce() {
+					await Self.shared.updateCache(frameURL)
+				}
 				do { try await Task.sleep(for: .seconds(Self.shared.frameInterval)) }
 				catch { break }
 			}
 		}
 		screenshotLogger.info("[ScreenshotService] Continuous capture started (interval=\(self.frameInterval)s)")
+	}
+	
+	/// 更新缓存帧 — MainActor 隔离
+	private func updateCache(_ frameURL: String) {
+		self.latestFrameDataURL = frameURL
+		NotificationCenter.default.post(name: .screenFrameAvailable, object: nil)
+		screenshotLogger.info("[ScreenshotService] Continuous frame refreshed: \(frameURL.prefix(20))...")
 	}
 
 	/// Stop continuous screen capture

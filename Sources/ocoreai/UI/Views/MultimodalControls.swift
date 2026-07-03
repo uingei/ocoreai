@@ -2,15 +2,28 @@
 // Licensed under MIT.
 /// Multimodal Controls — camera/microphone/speaker/screen toggle panel with preview
 /// Accessibility: full VoiceOver labels on toggles, buttons, and status indicators
+/// Theme-driven: all colors resolve through @Environment(\.ocoreaiTheme)
+/// Fix P0-4: DataURLPreview replaces AsyncImage (data URLs do not work with URLSession)
 
 #if os(macOS)
 	import SwiftUI
 
 	struct MultimodalControls: View {
+		@Environment(\.ocoreaiTheme) private var theme
 		private let mmState = MultimodalState.shared
 		private let captureService = CaptureService.shared
 		private let audioIO = AudioIO.shared
 		private let screenshotService = ScreenshotService.shared
+
+		// Camera preview frame — bound for DataURLPreview reactivity
+		@State private var cameraFrameURL: String?
+		@State private var screenFrameURL: String?
+
+		init() {
+			// Seed initial frame URLs from services so previews render immediately
+			_cameraFrameURL = State(initialValue: CaptureService.shared.latestFrameDataURL)
+			_screenFrameURL = State(initialValue: MultimodalState.shared.screenSnapshot)
+		}
 
 		var body: some View {
 			VStack(alignment: .leading, spacing: 16) {
@@ -18,6 +31,7 @@
 				HStack {
 					Image(systemName: "camera.viewfinder")
 						.font(.title2)
+						.foregroundStyle(theme.accent)
 						.accessibilityHidden(true)
 					Text(StringKey.multimodalTitle.l)
 						.font(.headline)
@@ -44,13 +58,20 @@
 				statusRow
 			}
 			.padding()
-			.background(Color.gray.opacity(0.05))
+			.background(theme.cardBg.opacity(0.95))
 			.cornerRadius(12)
 			.overlay(
 				RoundedRectangle(cornerRadius: 12)
-					.stroke(Color.secondary, lineWidth: 1),
+					.stroke(theme.inputBorder.opacity(0.5), lineWidth: 1),
 			)
 			.accessibilityLabel(StringKey.multimodalControlsLabel.l)
+			// React to service frame changes
+			.onChange(of: captureService.latestFrameDataURL) { _, _ in
+				cameraFrameURL = captureService.latestFrameDataURL
+			}
+			.onChange(of: mmState.screenSnapshot) { _, _ in
+				screenFrameURL = mmState.screenSnapshot
+			}
 		}
 
 		// MARK: - Camera Section
@@ -59,7 +80,7 @@
 			VStack(alignment: .leading, spacing: 8) {
 				HStack {
 					Image(systemName: "camera.fill")
-						.foregroundColor(mmState.cameraEnabled ? .green : .secondary)
+						.foregroundStyle(mmState.cameraEnabled ? theme.greenDot : theme.textSecondary)
 						.accessibilityHidden(true)
 					Text(StringKey.multimodalCamera.l)
 						.font(.subheadline)
@@ -78,28 +99,19 @@
 				}
 
 				// Camera preview (if frame available)
-				if let frameURL = captureService.latestFrameDataURL {
-					AsyncImage(url: URL(string: frameURL)) { image in
-						image
-							.resizable()
-							.scaledToFit()
-							.frame(height: 100)
-							.cornerRadius(8)
-							.clipped()
-					} placeholder: {
-						ProgressView()
-							.frame(height: 100)
-					}
-					.overlay(
-						Text(StringKey.multimodalLiveFeed.l)
-							.font(.caption2)
-							.foregroundColor(.gray)
-							.padding(4)
-							.background(.primary.opacity(0.15))
-							.cornerRadius(4),
-						alignment: .topLeading,
-					)
-					.accessibilityLabel(StringKey.cameraPreviewLabel.l)
+				// P0-4 fix: uses DataURLPreview which decodes base64 data URLs directly
+				if cameraFrameURL != nil || captureService.latestFrameDataURL != nil {
+					DataURLPreview(dataURLString: $cameraFrameURL, height: 100)
+						.overlay(
+							Text(StringKey.multimodalLiveFeed.l)
+								.font(.caption2)
+								.foregroundStyle(theme.textTertiary)
+								.padding(4)
+								.background(theme.cardBg.opacity(0.85))
+								.cornerRadius(4),
+							alignment: .topLeading,
+						)
+						.accessibilityLabel(StringKey.cameraPreviewLabel.l)
 				}
 
 				// Capture button
@@ -127,7 +139,7 @@
 			VStack(alignment: .leading, spacing: 8) {
 				HStack {
 					Image(systemName: "desktopcomputer")
-						.foregroundColor(screenshotService.isCapturing ? .green : .secondary)
+						.foregroundStyle(screenshotService.isCapturing ? theme.greenDot : theme.textSecondary)
 						.accessibilityHidden(true)
 					Text(StringKey.multimodalScreen.l)
 						.font(.subheadline)
@@ -146,28 +158,19 @@
 				}
 
 				// Screen preview
-				if let snap = mmState.screenSnapshot {
-					AsyncImage(url: URL(string: snap)) { image in
-						image
-							.resizable()
-							.scaledToFit()
-							.frame(height: 100)
-							.cornerRadius(8)
-							.clipped()
-					} placeholder: {
-						ProgressView()
-							.frame(height: 100)
-					}
-					.overlay(
-						Text(StringKey.multimodalScreenLiveFeed.l)
-							.font(.caption2)
-							.foregroundColor(.gray)
-							.padding(4)
-							.background(.primary.opacity(0.15))
-							.cornerRadius(4),
-						alignment: .topLeading,
-					)
-					.accessibilityLabel(StringKey.multimodalScreenLiveFeed.l)
+				// P0-4 fix: uses DataURLPreview which decodes base64 data URLs directly
+				if screenFrameURL != nil || mmState.screenSnapshot != nil {
+					DataURLPreview(dataURLString: $screenFrameURL, height: 100)
+						.overlay(
+							Text(StringKey.multimodalScreenLiveFeed.l)
+								.font(.caption2)
+								.foregroundStyle(theme.textTertiary)
+								.padding(4)
+								.background(theme.cardBg.opacity(0.85))
+								.cornerRadius(4),
+							alignment: .topLeading,
+						)
+						.accessibilityLabel(StringKey.multimodalScreenLiveFeed.l)
 				}
 			}
 		}
@@ -178,9 +181,9 @@
 			VStack(alignment: .leading, spacing: 8) {
 				HStack {
 					Image(systemName: "mic.fill")
-						.foregroundColor(
-							audioIO.isRecording ? .red :
-								(mmState.microphoneEnabled ? .green : .secondary)
+						.foregroundStyle(
+							audioIO.isRecording ? theme.redDot :
+								(mmState.microphoneEnabled ? theme.greenDot : theme.textSecondary)
 						)
 						.accessibilityHidden(true)
 					Text(StringKey.multimodalMic.l)
@@ -200,9 +203,16 @@
 				if mmState.microphoneEnabled {
 					Button(action: {
 						if audioIO.isRecording {
+							// Stop recording then auto-transcribe
 							Task {
-								if let audioData = await audioIO.stopRecording() {
-									MultimodalState.shared.lastTranscript = "[audio captured: " + audioData.prefix(40) + "...]"
+								_ = await audioIO.stopRecording()
+								if let transcript = await audioIO.transcribe(timeout: 15) {
+									// Post transcript so ChatView can inject it into input bar
+									NotificationCenter.default.post(
+										name: .audioTranscriptAvailable,
+										object: nil,
+									 userInfo: ["transcript": transcript]
+									)
 								}
 							}
 						} else {
@@ -217,23 +227,23 @@
 						.frame(maxWidth: .infinity)
 					}
 					.buttonStyle(.borderedProminent)
-					.tint(audioIO.isRecording ? Color.red : Color.accentColor)
+					.tint(audioIO.isRecording ? theme.redDot : theme.accent)
 					.accessibilityLabel(audioIO.isRecording ? StringKey.stopRecordingLabel.l : StringKey.startRecordingLabel.l)
 					.accessibilityHint(audioIO.isRecording ? StringKey.stopRecordingHint.l : StringKey.startRecordingHint.l)
 				}
 
-				// 🔥 STT streaming partial text
+				// STT streaming partial text
 				if !audioIO.partialText.isEmpty {
 					Text(audioIO.partialText)
 						.font(.caption)
-						.foregroundColor(.blue)
+						.foregroundStyle(theme.accent)
 						.lineLimit(3)
 						.accessibilityLabel("\(StringKey.multimodalSTTPartialLabel.l): \(audioIO.partialText)")
 						.accessibilityAddTraits(.isStaticText)
 				} else if let transcript = mmState.lastTranscript {
 					Text(transcript)
 						.font(.caption)
-						.foregroundColor(.gray)
+						.foregroundStyle(theme.textSecondary)
 						.lineLimit(2)
 						.accessibilityLabel("\(StringKey.lastTranscriptLabel.l): \(transcript)")
 						.accessibilityAddTraits(.isStaticText)
@@ -247,7 +257,7 @@
 			VStack(alignment: .leading, spacing: 8) {
 				HStack {
 					Image(systemName: "speaker.wave.3.fill")
-						.foregroundColor(mmState.speakerEnabled ? .green : .secondary)
+						.foregroundStyle(mmState.speakerEnabled ? theme.greenDot : theme.textSecondary)
 						.accessibilityHidden(true)
 					Text(StringKey.multimodalSpeaker.l)
 						.font(.subheadline)
@@ -266,7 +276,7 @@
 				if mmState.speakerEnabled {
 					Text(StringKey.multimodalTtsHint.l)
 						.font(.caption)
-						.foregroundColor(.gray)
+						.foregroundStyle(theme.textTertiary)
 						.accessibilityLabel(StringKey.ttsActiveLabel.l)
 						.accessibilityAddTraits(.isStaticText)
 				}
@@ -305,15 +315,17 @@
 			let isActive: Bool
 			let label: String
 
+			@Environment(\.ocoreaiTheme) private var theme
+
 			var body: some View {
 				HStack(spacing: 4) {
 					Circle()
-						.fill(isActive ? Color.red : Color.gray)
+						.fill(isActive ? theme.greenDot : theme.textTertiary)
 						.frame(width: 6, height: 6)
 						.accessibilityHidden(true)
 					Text(label)
 						.font(.caption2)
-						.foregroundColor(.gray)
+						.foregroundStyle(theme.textTertiary)
 						.lineLimit(1)
 				}
 				.accessibilityLabel("\(label): \(isActive ? StringKey.statusActive.l : StringKey.statusInactive.l)")

@@ -87,6 +87,38 @@ struct ChatView: View {
 		.onDisappear {
 			chatState.stop()
 		}
+		// P1-4: macOS HIG keyboard shortcuts
+		.onAppear {
+			NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+				let cmd = event.modifierFlags.contains(.command)
+				let opt = event.modifierFlags.contains(.option)
+				let ctrl = event.modifierFlags.contains(.control)
+				let shift = event.modifierFlags.contains(.shift)
+				// ⌘+Return — send message (even when TextField not focused)
+				if cmd && event.keyCode == 36 {
+					guard !isStreaming else { return event }
+					guard inputText.trimmingCharacters(in: .whitespaces).isEmpty else {
+						sendMessage()
+						return NSEvent()
+					}
+					return event
+				}
+				// ⌘+Option+M — toggle multimodal panel
+				if cmd && opt, let c = event.characters {
+					if c.lowercased() == "m" {
+						showMultimodal.toggle()
+						return NSEvent()
+					}
+				}
+				return event
+			}
+		}
+		// P0-6: listen for STT transcript completion → inject into input bar
+		.onReceive(NotificationCenter.default.publisher(for: .audioTranscriptAvailable)) { notification in
+			if let transcript = notification.userInfo?["transcript"] as? String {
+				inputText = transcript
+			}
+		}
 		.toolbar {
 			// Model selector moved to toolbar — HIG: global controls belong in toolbar
 			ToolbarItem(placement: .automatic) {

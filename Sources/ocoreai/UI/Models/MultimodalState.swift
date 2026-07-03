@@ -264,4 +264,6 @@ final class MultimodalState {
 
 extension Notification.Name {
 	static let multimodalStateDidChange = Notification.Name("MultimodalStateDidChange")
+	///Posted when STT transcription completes — userInfo contains "transcript": String
+	static let audioTranscriptAvailable = Notification.Name("AudioTranscriptAvailable")
 }
