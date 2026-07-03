@@ -2,9 +2,26 @@
 // Licensed under MIT.
 /// Multimodal state — camera, microphone, speaker, screen toggles with persistence
 ///
+/// Toggle changes automatically start/stop the corresponding service via didSet.
+/// This is the bridge between UI toggles and the actual I/O services.
+///
 /// Migrated to @Observable (Swift 5.9+ standard per Apple API Design Guidelines)
 
 import Foundation
+import os.log
+
+private let mmLogger = Logger(subsystem: "ocoreai", category: "multimodal_state")
+
+#if os(macOS)
+	// Forward declarations to avoid circular import — imported via Multimodule later
+	typealias MMCaptureService = CaptureService
+	typealias MMScreenshotService = ScreenshotService
+	typealias MMAudioIO = AudioIO
+#else
+	typealias MMCaptureService = CaptureService
+	typealias MMScreenshotService = ScreenshotService
+	typealias MMAudioIO = AudioIO
+#endif
 
 @Observable
 @MainActor
@@ -25,25 +42,44 @@ final class MultimodalState {
 
 	private let fileKey: String = "multimodal_state"
 
-	/// Camera enabled
+	// MARK: - Service Toggles (with auto-wiring)
+
+	/// Camera enabled — starts/stops CaptureService automatically
 	var cameraEnabled: Bool = false {
-		didSet { save(); notifyChange() }
+		didSet {
+			save()
+			notifyChange()
+			wireCamera(self.cameraEnabled)
+		}
 	}
 
-	/// Microphone enabled
+	/// Microphone enabled — starts/stops AudioIO automatically
 	var microphoneEnabled: Bool = false {
-		didSet { save(); notifyChange() }
+		didSet {
+			save()
+			notifyChange()
+			wireMicrophone(self.microphoneEnabled)
+		}
 	}
 
-	/// Speaker (TTS) enabled
+	/// Speaker (TTS) enabled — starts/stops AudioIO TTS automatically
 	var speakerEnabled: Bool = false {
-		didSet { save(); notifyChange() }
+		didSet {
+			save()
+			notifyChange()
+		}
 	}
 
-	/// Screen capture enabled
+	/// Screen capture enabled — starts/stops ScreenshotService automatically
 	var screenCaptureEnabled: Bool = false {
-		didSet { save(); notifyChange() }
+		didSet {
+			save()
+			notifyChange()
+			wireScreen(self.screenCaptureEnabled)
+		}
 	}
+
+	// MARK: - Capture Snapshots
 
 	/// Camera preview image snapshot (base64 data URL)
 	var cameraSnapshot: String? {
@@ -73,6 +109,91 @@ final class MultimodalState {
 
 	init() {
 		load()
+	}
+
+	// MARK: - Service Wiring (toggle → start/stop)
+
+	/// Wire camera toggle to CaptureService lifecycle
+	private func wireCamera(_ value: Bool) {
+		Task {
+			let service = MMCaptureService.shared
+			if value {
+				mmLogger.info("[MultimodalState] Camera enabled — starting CaptureService")
+				_ = await service.startCapture()
+			} else {
+				mmLogger.info("[MultimodalState] Camera disabled — stopping CaptureService")
+				await service.stopCapture()
+			}
+		}
+	}
+
+	/// Wire microphone toggle to AudioIO lifecycle
+	private func wireMicrophone(_ value: Bool) {
+		Task {
+			let audio = MMAudioIO.shared
+			if value {
+				mmLogger.info("[MultimodalState] Microphone enabled — requesting permission")
+				_ = await audio.requestMicPermission()
+			} else {
+				mmLogger.info("[MultimodalState] Microphone disabled — stopping recording")
+				_ = await audio.stopRecording()
+			}
+		}
+	}
+
+	/// Wire screen capture toggle to ScreenshotService lifecycle
+	private func wireScreen(_ value: Bool) {
+		Task {
+			let service = MMScreenshotService.shared
+			if value {
+				mmLogger.info("[MultimodalState] Screen capture enabled — starting ScreenshotService")
+				service.startCapture()
+			} else {
+				mmLogger.info("[MultimodalState] Screen capture disabled — stopping ScreenshotService")
+				service.stopCapture()
+			}
+		}
+	}
+
+	// MARK: - Multimodal Context Capture
+
+	/// Capture current multimodal context snapshot for inference.
+	/// Returns an array of (serviceName: String, imageDataURL: String) pairs.
+	/// Only captures from services whose toggle is currently enabled.
+	@discardableResult
+	func captureContext() async -> [(name: String, dataURL: String)] {
+		var contexts: [(String, String)] = []
+
+		// Camera frame
+		if self.cameraEnabled {
+			let cs = await MMCaptureService.shared
+			if let frameURL = await cs.captureFrame() {
+				self.cameraSnapshot = frameURL
+				contexts.append(("camera", frameURL))
+				mmLogger.info("[MultimodalState] Context: camera frame captured")
+			}
+		}
+
+		// Screen frame
+		if self.screenCaptureEnabled {
+			let ss = await MMScreenshotService.shared
+			if let frameURL = await ss.captureScreen() {
+				self.screenSnapshot = frameURL
+				contexts.append(("screen", frameURL))
+				mmLogger.info("[MultimodalState] Context: screen frame captured")
+			}
+		}
+
+		return contexts
+	}
+
+	// MARK: - Post-Inference TTS
+
+	/// If speaker is enabled, speak the given text via TTS.
+	func speakIfEnabled(_ text: String) {
+		guard self.speakerEnabled, !text.isEmpty else { return }
+		mmLogger.info("[MultimodalState] Speaker active — TTS: \(text.prefix(50))...")
+		MMAudioIO.shared.speak(text)
 	}
 
 	// MARK: - Storage

@@ -209,9 +209,15 @@ final class ChatState {
 
 	/// Send chat message via Fast Path — bypasses HTTP entirely.
 	///
-	/// Flow: ChatMessage → Message (typed) → DirectInferenceClient.stream()
+	/// Flow: ChatMessage → multimodal context capture → Message (typed, may include
+	///       image parts) → DirectInferenceClient.stream()
 	///       → EnginePool.acquire() → generateFromMessages()
-	///       → AsyncStream<InferenceEvent> → UI update
+	///       → AsyncStream<InferenceEvent> → UI update → TTS (if speaker enabled)
+	///
+	/// Multimodal integration:
+	/// - If camera/screen capture is enabled, visual context is captured before inference
+	///   and injected as ContentPart.imageUrl parts in the user message.
+	/// - If speaker is enabled, the final response is spoken via AudioIO TTS.
 	///
 	/// Fix: Filter out interrupted assistant messages from the inference context.
 	/// Interrupted messages (ending with "[Interrupted]") are kept in UI history
@@ -221,7 +227,12 @@ final class ChatState {
 		// Ensure persistent session exists
 		await ensureSession(for: model)
 
-		// Push and persist user message
+		// MARK: - Multimodal context capture
+		// Capture visual context (camera + screen) if enabled before inference
+		let mmState = MultimodalState.shared
+		let mmContext = await mmState.captureContext()
+
+		// Push and persist user message (text only for persistence)
 		let userMsg = ChatMessage(role: "user", content: text)
 		messages.append(userMsg)
 		await persistMessage(role: "user", content: text)
@@ -239,13 +250,35 @@ final class ChatState {
 		// to prevent partial responses degrading the model's context.
 		let cleanMessages = messages
 			.filter { $0.role != "system" && !$0.content.hasSuffix(" [Interrupted]") }
-			.map { msg -> Message in
-				Message(role: msg.role, content: .text(msg.content))
+
+		// Convert to typed Messages — last user message gets multimodal parts if available
+		let typedMessages: [Message] = {
+			var result: [Message] = []
+			let count = cleanMessages.count
+			for (idx, msg) in cleanMessages.enumerated() {
+				// If this is the last user message AND we have multimodal context,
+				// inject images as ContentPart.imageUrl parts
+				let isLastUserMsg = (msg.role == "user") && (idx == count - 1) && !mmContext.isEmpty
+				if isLastUserMsg {
+					var parts: [ContentPart] = [ContentPart(type: "text", text: msg.content, imageUrl: nil)]
+					for ctx in mmContext {
+						parts.append(ContentPart(
+							type: "image_url",
+							text: nil,
+							imageUrl: ContentPart.ImageURL(url: ctx.dataURL)
+						))
+					}
+					result.append(Message(role: "user", content: .parts(parts)))
+				} else {
+					result.append(Message(role: msg.role, content: .text(msg.content)))
+				}
 			}
+			return result
+		}()
 
 			let request = InferenceRequest(
 				modelId: model,
-				messages: cleanMessages,
+				messages: typedMessages,
 				sessionId: "chat-\(UUID().uuidString.prefix(8))",
 				cancellation: cancellation,
 			)
@@ -263,6 +296,10 @@ final class ChatState {
 						let assistantMsg = ChatMessage(role: "assistant", content: responseText)
 						messages.append(assistantMsg)
 						await persistMessage(role: "assistant", content: responseText)
+
+						// MARK: - Post-inference TTS
+						// If speaker is enabled, speak the final response
+						mmState.speakIfEnabled(responseText)
 					}
 				}
 			}
