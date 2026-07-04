@@ -38,12 +38,23 @@ struct ChatView: View {
 	@State private var currentModel = ""
 	@State private var activeTask: Task<Void, Never>? = nil
 
+	// P1-fix: NSEvent monitor handle — disposed on .onDisappear to prevent leak
+	#if os(macOS)
+		@State private var _keyboardMonitor: Any? = nil
+	#endif
 
 	// Multimodal controls panel — collapsed by default
 	@State private var showMultimodal = false
 
 	init() {
 		_chatState = State(initialValue: ChatState.shared)
+	}
+
+	/// Dispose NSEvent monitor handle — breaks RC cycle on tab switch
+	private func disposeKeyboardMonitor() {
+		#if os(macOS)
+			self._keyboardMonitor = nil
+		#endif
 	}
 
 	private var isStreaming: Bool {
@@ -86,14 +97,15 @@ struct ChatView: View {
 				currentModel = idStrings.first ?? ""
 			}
 		}
-		// omlx lifecycle: stop polling on screen dismissal
+		// P1-fix: dispose keyboard monitor on disappear to prevent event monitor leak
 		.onDisappear {
+			disposeKeyboardMonitor()
 			chatState.stop()
 		}
 		// P1-4: macOS HIG keyboard shortcuts
 		#if os(macOS)
 		.onAppear {
-			NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+			_keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
 				let cmd = event.modifierFlags.contains(.command)
 				let opt = event.modifierFlags.contains(.option)
 				_ = event.modifierFlags.contains(.control)

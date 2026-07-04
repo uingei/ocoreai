@@ -67,7 +67,7 @@ struct SystemView: View {
 		if viewModel.mcpEndpoints.isEmpty {
 			Section {
 				Text(StringKey.systemMCPEmpty.l)
-					.foregroundStyle(.secondary)
+					.foregroundStyle(theme.textSecondary)
 					.frame(maxWidth: .infinity)
 			} header: {
 				Text(StringKey.systemMCPSection.l)
@@ -104,8 +104,8 @@ struct SystemView: View {
 	private var toolsSection: some View {
 		if viewModel.toolNames.isEmpty {
 			Section {
-				Text(StringKey.systemToolsEmpty.l)
-					.foregroundStyle(.secondary)
+					Text(StringKey.systemToolsEmpty.l)
+						.foregroundStyle(theme.textSecondary)
 					.frame(maxWidth: .infinity)
 			} header: {
 				Text(StringKey.systemToolsSection.l)
@@ -140,8 +140,8 @@ struct SystemView: View {
 	private var auditSection: some View {
 		if viewModel.auditEntries.isEmpty {
 			Section {
-				Text(StringKey.systemAuditEmpty.l)
-					.foregroundStyle(.secondary)
+					Text(StringKey.systemAuditEmpty.l)
+						.foregroundStyle(theme.textSecondary)
 					.frame(maxWidth: .infinity)
 			} header: {
 				Text(StringKey.systemAuditSection.l)
@@ -231,9 +231,11 @@ struct SystemView: View {
 private struct StatusDot: View {
 	let isConnected: Bool
 
+	@Environment(\.ocoreaiTheme) private var theme
+
 	var body: some View {
 		Circle()
-			.fill(isConnected ? Color.green : Color.gray)
+			.fill(isConnected ? theme.greenDot : theme.textTertiary)
 			.frame(width: 8, height: 8)
 	}
 }
@@ -243,20 +245,27 @@ private struct StatusDot: View {
 private struct AuditStatusPill: View {
 	let status: AuditEntry.AuditStatus
 
+	@Environment(\.ocoreaiTheme) private var theme
+
 	var body: some View {
 		Text(status.rawValue.uppercased())
 			.font(.ocoreaiText(11))
 			.padding(3)
 			.background(statusColor, in: RoundedRectangle(cornerRadius: 3))
-			.foregroundStyle(.white)
+			.foregroundStyle(pillTextColor)
 	}
 
 	private var statusColor: Color {
 		switch status {
-		case .success: .green
-		case .error: .red
-		case .cancelled: .orange
-		case .timeout: .orange
+		case .success: theme.tintGreen
+		case .error: theme.tintRed
+		case .cancelled: theme.tintOrange
+		case .timeout: theme.tintOrange
 		}
+	}
+
+	// P2-fix HIG-01: theme text color instead of hardcoded .white
+	private var pillTextColor: Color {
+		theme.text
 	}
 }

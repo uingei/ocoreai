@@ -203,7 +203,7 @@ private struct ModelResultRow: View {
 			}
 			VStack(alignment: .leading, spacing: 2) {
 				Text(display).font(.ocoreaiText(14)).fontWeight(.semibold).lineLimit(1)
-				Text(sub).font(.caption).foregroundStyle(theme.textTertiary)
+				Text(sub).font(.ocoreaiText(11)).foregroundStyle(theme.textTertiary)
 			}
 			Spacer()
 			downloadButton

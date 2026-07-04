@@ -187,13 +187,11 @@
 					Spacer()
 					Toggle("", isOn: Binding(get: { mmState.microphoneEnabled }, set: { MultimodalState.shared.microphoneEnabled = $0 }))
 						.toggleStyle(.switch)
-						.onChange(of: mmState.microphoneEnabled) { _, value in
-							if value {
-								Task { _ = await audioIO.requestMicPermission() }
-							}
-						}
+						// P1-fix MM-03: removed redundant .onChange — MultimodalState.didSet
+						// already calls wireMicrophone → requestMicPermission.
+						// Keeping this causes duplicate permission prompts.
 						.accessibilityLabel(StringKey.enableMicLabel.l)
-						.accessibilityHint(StringKey.enableMicHint.l)
+					.accessibilityHint(StringKey.enableMicHint.l)
 				}
 
 				if mmState.microphoneEnabled {
