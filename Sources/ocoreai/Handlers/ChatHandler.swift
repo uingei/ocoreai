@@ -237,21 +237,13 @@ func chatCompletionsHandler(
 	/// Layer 3: System default (hardcoded)
 	let runtimeDefaults = await enginePool.getSamplingConfig(modelId: modelId)
 
-	/// Resolve effective temperature with fallback chain.
-	/// Note: temperature=0 is a valid user setting (deterministic mode).
-	/// We can't distinguish "user set 0.7" from "default is 0.7" in the model,
-	/// but we must never override an explicit non-default value like 0.0.
-	let effectiveTemp: Float
-	if request.temperature == 0.0 {
-		// temperature=0 is explicit — respect it (deterministic generation)
-		effectiveTemp = 0.0
-	} else if runtimeDefaults.temperature == ModelSamplingConfig.default.temperature {
-		// runtime has no custom override — use request value
-		effectiveTemp = request.temperature
-	} else {
-		// runtime has custom default — use request (user can still override via body)
-		effectiveTemp = request.temperature
-	}
+	/// Resolve effective temperature.
+	/// Note: ChatCompletionRequest.temperature is Float = 0.7 (non-optional),
+	/// so we cannot distinguish "user sent nothing" from "user sent 0.7".
+	/// Therefore request.temperature is always the source of truth —
+	/// runtimeDefaults can only help for optional fields (topP, topK, etc.).
+	/// Special case: temperature=0 is valid (deterministic mode).
+	let effectiveTemp: Float = request.temperature
 
 	/// Resolve optional parameters with nil → runtime → nil cascade.
 	let effectiveTopP = request.topP ?? runtimeDefaults.topP

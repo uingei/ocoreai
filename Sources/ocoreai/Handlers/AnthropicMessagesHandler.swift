@@ -181,9 +181,7 @@ func anthropicMessagesHandler(
 	// ═══════════════════════════════════════════════════════
 	let runtimeDefaults = await enginePool.getSamplingConfig(modelId: modelId)
 
-	let effectiveTemp = request.temperature != nil
-		? (request.temperature ?? 0.7)
-		: runtimeDefaults.temperature
+	let effectiveTemp: Float = request.temperature ?? runtimeDefaults.temperature
 
 	let effectiveTopP = request.topP ?? runtimeDefaults.topP
 	let effectiveTopK = request.topK ?? runtimeDefaults.topK
