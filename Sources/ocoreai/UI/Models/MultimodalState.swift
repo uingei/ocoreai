@@ -127,7 +127,7 @@ final class MultimodalState {
 				_ = await service.startCapture()
 			} else {
 				mmLogger.info("[MultimodalState] Camera disabled — stopping CaptureService")
-				await service.stopCapture()
+				service.stopCapture()
 			}
 		}
 	}
@@ -171,7 +171,7 @@ final class MultimodalState {
 
 		// Camera frame
 		if self.cameraEnabled {
-			let cs = await MMCaptureService.shared
+			let cs = MMCaptureService.shared
 			if let frameURL = await cs.captureFrame() {
 				self.cameraSnapshot = frameURL
 				contexts.append(("camera", frameURL))
@@ -181,7 +181,7 @@ final class MultimodalState {
 
 		// Screen frame
 		if self.screenCaptureEnabled {
-			let ss = await MMScreenshotService.shared
+			let ss = MMScreenshotService.shared
 			if let frameURL = await ss.captureScreen() {
 				self.screenSnapshot = frameURL
 				contexts.append(("screen", frameURL))
