@@ -47,6 +47,11 @@ protocol BackendProtocol: Sendable {
 
 /// Opaque handle returned by backend after model load.
 /// Concrete backends store their internal pointer/struct here.
+///
+/// ``@unchecked Sendable``: `payload: NSObject` is a bridge type that cannot
+/// synthesize Sendable. In practice each concrete backend guarantees the
+/// underlying C pointer / Metal buffer is either thread-safe (Metal) or
+/// confined to a single actor (CoreAI). `backendName` is immutable.
 struct BackendModelHandle: @unchecked Sendable {
 	let backendName: String
 	var payload: NSObject

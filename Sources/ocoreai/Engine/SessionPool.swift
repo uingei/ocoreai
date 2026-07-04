@@ -58,6 +58,11 @@ struct SessionPoolConfig {
 	// MARK: - Pooled Session Entry
 
 	/// Metadata wrapper around a ChatSession with LRU tracking.
+	///
+	/// ``@unchecked Sendable``: this struct lives exclusively inside
+	/// ``MLXSessionPool`` actor — all reads and mutations are actor-isolated,
+	/// so cross-thread access never occurs. The `ChatSession` itself is not
+	/// formally Sendable but is only accessed via the actor.
 	struct PooledChatSession: @unchecked Sendable {
 		/// The underlying MLX chat session (holds KV cache)
 		let session: ChatSession

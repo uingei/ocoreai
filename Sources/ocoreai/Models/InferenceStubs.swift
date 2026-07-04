@@ -81,6 +81,8 @@ struct InferenceOptions: Codable {
 #if mlx
 
 	/// Empty TokenizerManager for MLX-only builds — MLXLLM containers have built-in tokenizers.
+	/// ``@unchecked Sendable``: this is a stub class with no properties — trivially
+	/// Sendable, but the compiler cannot infer it because classes default to non-Sendable.
 	final class StreamingDetokenizer: @unchecked Sendable {}
 
 	protocol TokenizerProvider: Sendable {

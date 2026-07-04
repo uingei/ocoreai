@@ -212,8 +212,13 @@ struct JSONSchemaRequest: Decodable {
 ///
 /// Supports Bool, Int, Double, String, Array, Dict, and nil.
 /// Used in ``JSONSchemaRequest`` where schema shape is user-defined.
+///
+/// ``@unchecked Sendable``: the `value: Any` property is mutated only during
+/// `init(from:)` JSON deserialization, which runs on a single task and never
+/// escapes before the returned `AnyCodable` is handed across concurrency
+/// boundaries. After decode the value is read-only.
 struct AnyCodable: Codable, Equatable, @unchecked Sendable {
-	/// Wrapped dynamic value
+	/// Wrapped dynamic value — mutable only during deserialization
 	var value: Any
 
 	init(_ value: Any) {
