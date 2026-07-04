@@ -8,8 +8,11 @@
 /// Accessibility: ChatBubble uses accessibilityGroup() for semantic hierarchy
 /// Reduced Motion: all animations respect .accessibilityReduceMotion
 
-import AppKit
 import SwiftUI
+
+#if os(macOS)
+import AppKit
+#endif
 
 /// Stable identity wrapper for chat messages — uses UUID string for deterministic identity
 struct ChatBubbleMessage: Identifiable, Hashable {
@@ -88,12 +91,13 @@ struct ChatView: View {
 			chatState.stop()
 		}
 		// P1-4: macOS HIG keyboard shortcuts
+		#if os(macOS)
 		.onAppear {
 			NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
 				let cmd = event.modifierFlags.contains(.command)
 				let opt = event.modifierFlags.contains(.option)
-				let ctrl = event.modifierFlags.contains(.control)
-				let shift = event.modifierFlags.contains(.shift)
+				_ = event.modifierFlags.contains(.control)
+				_ = event.modifierFlags.contains(.shift)
 				// ⌘+Return — send message (even when TextField not focused)
 				if cmd && event.keyCode == 36 {
 					guard !isStreaming else { return event }
@@ -113,6 +117,7 @@ struct ChatView: View {
 				return event
 			}
 		}
+		#endif
 		// P0-6: listen for STT transcript completion → inject into input bar
 		.onReceive(NotificationCenter.default.publisher(for: .audioTranscriptAvailable)) { notification in
 			if let transcript = notification.userInfo?["transcript"] as? String {
@@ -424,9 +429,15 @@ struct ChatBubble: View {
 			.accessibilityValue("Message sent at \(message.timestamp, formatter: timeFormatter)")
 			.accessibilityAddTraits(.isStaticText)
 			.contextMenu {
+			#if os(macOS)
 				Button(StringKey.copyMessage.l) {
 					NSPasteboard.general.setString(message.content, forType: .string)
 				}
+			#else
+				Button(StringKey.copyMessage.l) {
+					copyToPasteboard(message.content)
+				}
+			#endif
 			}
 
 			if isUser { Spacer(minLength: 16) }

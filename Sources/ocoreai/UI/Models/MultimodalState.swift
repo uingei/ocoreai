@@ -195,10 +195,23 @@ final class MultimodalState {
 	// MARK: - Post-Inference TTS
 
 	/// If speaker is enabled, speak the given text via TTS.
+	/// Strips `<thinking>` blocks, code blocks, and truncates long content
+	/// to avoid reading out debug/internal artifacts.
 	func speakIfEnabled(_ text: String) {
 		guard self.speakerEnabled, !text.isEmpty else { return }
-		mmLogger.info("[MultimodalState] Speaker active — TTS: \(text.prefix(50))...")
-		MMAudioIO.shared.speak(text)
+		var content = text.replacingOccurrences(of: "<thinking>[^<]*</thinking>",
+		                                      with: "",
+		                                      options: .regularExpression)
+		content = content.replacingOccurrences(of: "```[\\s\\S]*?```",
+		                                       with: "[code omitted]",
+		                                       options: .regularExpression)
+		// Truncate to 500 chars to avoid reading very long outputs
+		if content.count > 500 {
+			content = String(content.prefix(500)) + "..."
+		}
+		guard !content.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+		mmLogger.info("[MultimodalState] Speaker active — TTS: \(content.prefix(50))...")
+		MMAudioIO.shared.speak(content)
 	}
 
 	// MARK: - Storage
@@ -219,15 +232,6 @@ final class MultimodalState {
 			screenCaptureEnabled: screenCaptureEnabled
 		)
 		try? encoder.encode(data).write(to: storageKey)
-	}
-
-	private func load() {
-		guard let data = try? Data(contentsOf: storageKey) else { return }
-		guard let snapshot = try? decoder.decode(Snapshot.self, from: data) else { return }
-		cameraEnabled = snapshot.cameraEnabled
-		microphoneEnabled = snapshot.microphoneEnabled
-		speakerEnabled = snapshot.speakerEnabled
-		screenCaptureEnabled = snapshot.screenCaptureEnabled
 	}
 
 	private struct Snapshot: Codable {

@@ -8,6 +8,7 @@
 import AVFoundation
 import Foundation
 import os.log
+import UniformTypeIdentifiers
 
 private let captureLogger = Logger(subsystem: "ocoreai", category: "capture")
 
@@ -82,6 +83,8 @@ final class CaptureService: NSObject {
 	// MARK: - Frame
 
 	/// Capture a single frame and return it as a base64 data URL.
+	/// Frames are resized to max 1280px wide and JPEG-compressed at 0.6 quality
+	/// to reduce token consumption when sent to VLM.
 	/// Returns nil if capturing is not active or no photo output is configured.
 	func captureFrame() async -> String? {
 		guard isCapturing, session.isRunning else { return nil }
@@ -98,12 +101,51 @@ final class CaptureService: NSObject {
 		return await withCheckedContinuation { cont in
 			out.capturePhoto(with: settings, delegate: FrameCaptureDelegate { data in
 				if let d = data {
-					cont.resume(returning: "data:image/jpeg;base64,\(d.base64EncodedString())")
+					let compressed = self.compressCameraFrame(d)
+					cont.resume(returning: "data:image/jpeg;base64,\(compressed.base64EncodedString())")
 				} else {
 					cont.resume(returning: nil)
 				}
 			})
 		}
+	}
+
+	/// Resize frame to max 1280px and compress to JPEG at 0.6 quality.
+	/// If resize fails the original data is returned unchanged.
+	/// Uses CGImageSourceCreateThumbnailAtIndex for cross-platform correctness.
+	private func compressCameraFrame(_ data: Data) -> Data {
+		guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+			return data
+		}
+
+		let maxPixel: CGFloat = 1280
+		let opts: [CFString: Any] = [
+			kCGImageSourceCreateThumbnailFromImageAlways: true,
+			kCGImageSourceShouldCacheImmediately: true,
+			kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+		]
+
+		guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, opts as CFDictionary) else {
+			return data
+		}
+
+		// Convert CGImage back to JPEG at 0.6 quality
+		let dest = CFDataCreateMutable(nil, 0)!
+		guard let destination = CGImageDestinationCreateWithData(dest, UTType.jpeg.identifier as CFString, 1, nil) else {
+			return data
+		}
+
+		let propOpts: [CFString: Any] = [
+			kCGImageDestinationLossyCompressionQuality: 0.6,
+		]
+		CGImageDestinationSetProperties(destination, propOpts as CFDictionary)
+		CGImageDestinationAddImage(destination, thumbnail, nil)
+
+		guard CGImageDestinationFinalize(destination) else {
+			return data
+		}
+
+		return dest as Data
 	}
 
 	func toggleCapture() async {
