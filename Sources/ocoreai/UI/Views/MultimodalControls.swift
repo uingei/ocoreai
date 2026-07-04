@@ -87,13 +87,9 @@
 					Spacer()
 					Toggle("", isOn: Binding(get: { mmState.cameraEnabled }, set: { MultimodalState.shared.cameraEnabled = $0 }))
 						.toggleStyle(.switch)
-						.onChange(of: mmState.cameraEnabled) { _, value in
-							if value {
-								Task { await captureService.startCapture() }
-							} else {
-								captureService.stopCapture()
-							}
-						}
+						// P1-2: wireCamera() is called from MultimodalState.cameraEnabled didSet —
+						// .onChange here would duplicate the call (double startCapture).
+						// Removed redundant .onChange handler.
 						.accessibilityLabel(StringKey.enableCameraLabel.l)
 						.accessibilityHint(StringKey.enableCameraHint.l)
 				}

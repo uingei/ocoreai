@@ -63,7 +63,8 @@ final class ScreenshotService {
 			return nil
 		}
 		self.latestFrameDataURL = url
-		NotificationCenter.default.post(name: .screenFrameAvailable, object: nil)
+		// P2-1: Removed NotificationCenter.post — @Observable + MainActor property update
+		// already drives SwiftUI UI reactivity. Dead notification with no .onReceive listeners.
 		screenshotLogger.info("[ScreenshotService] Captured frame: \(url.prefix(20))...")
 		return url
 	}
@@ -165,7 +166,7 @@ final class ScreenshotService {
 		captureTask = Task(priority: .utility) {
 			while !Task.isCancelled {
 				if let frameURL = await Self.captureOnce() {
-					await Self.shared.updateCache(frameURL)
+					Self.shared.updateCache(frameURL)
 				}
 				do { try await Task.sleep(for: .seconds(Self.shared.frameInterval)) }
 				catch { break }
@@ -177,7 +178,8 @@ final class ScreenshotService {
 	/// 更新缓存帧 — MainActor 隔离
 	private func updateCache(_ frameURL: String) {
 		self.latestFrameDataURL = frameURL
-		NotificationCenter.default.post(name: .screenFrameAvailable, object: nil)
+		// P2-1: Removed NotificationCenter.post — @Observable + MainActor property update
+		// already drives SwiftUI UI reactivity. Dead notification with no .onReceive listeners.
 		screenshotLogger.info("[ScreenshotService] Continuous frame refreshed: \(frameURL.prefix(20))...")
 	}
 
