@@ -8,9 +8,13 @@
 
 import SwiftUI
 
+#if os(macOS)
+import AppKit
+#endif
+
 // MARK: - Token struct
 
-/// Dynamic theme token — no NSColor → safe in test targets cross-platform.
+/// Dynamic theme token — cross-platform safe (macOS + iOS).
 struct OcoreaiTheme {
 	let isDark: Bool
 
@@ -67,9 +71,15 @@ extension OcoreaiTheme {
 	static func theme(from scheme: ColorScheme) -> OcoreaiTheme {
 		let isDark = scheme == .dark
 
+#if os(macOS)
+		let windowBg: Color = Color(nsColor: NSColor.windowBackgroundColor)
+#else
+		let windowBg: Color = Color(.systemBackground)
+#endif
+
 		return OcoreaiTheme(
 			isDark: isDark,
-			windowBg: Color(nsColor: NSColor.windowBackgroundColor),
+			windowBg: windowBg,
 			sidebarBg: Color.clear,
 			cardBg: Color.secondary.opacity(isDark ? 0.06 : 0.04),
 			cardBorder: Color.secondary.opacity(isDark ? 0.12 : 0.18),

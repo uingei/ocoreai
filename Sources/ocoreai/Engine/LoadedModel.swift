@@ -84,9 +84,21 @@ final class LoadedModel: @unchecked Sendable {
 		///
 		/// Returns `nil` when:
 		/// - Speculative decoding is disabled in config (`enabled: false`)
-		/// - No draft model has been loaded
+		/// - Mode is "mtp" — MTP does not use a separate draft model and needs
+		///   its own inference path (MTPSpeculativeTokenIterator), not yet wired.
+		/// - No draft model has been loaded for "traditional" mode
 		func createSpeculativeConfig() -> MLXLMCommon.SpeculativeDecodingConfig? {
 			guard specDecodingConfig.enabled else { return nil }
+
+			// MTP mode: speculative decoding via main model's own MTP layers.
+			// This requires MTPSpeculativeTokenIterator — not yet connected, so we
+			// return nil and log a note rather than silently using traditional SDC.
+			if specDecodingConfig.mode == "mtp" {
+				logger.info("Speculative decoding mode 'mtp' — using main model inference path (MTP SDC not yet wired)")
+				return nil
+			}
+
+			// Traditional mode: draft model proposes tokens, main model verifies
 			guard let handle = mlxModelHandle else { return nil }
 
 			// The actual draft model that proposes tokens
@@ -95,10 +107,15 @@ final class LoadedModel: @unchecked Sendable {
 				logger.warning("Speculative decoding enabled but no draft model — may cause issues if main model is used")
 			}
 
+			let memPolicy: MLXLMCommon.SpeculativeDecodingMemoryPolicy? =
+				specDecodingConfig.memoryPolicy == "recommendedWorkingSet"
+					? .recommendedWorkingSet
+					: nil
+
 			return MLXLMCommon.SpeculativeDecodingConfig(
 				draftModel: draftHandle.modelContainer,
 				numDraftTokens: specDecodingConfig.numDraftTokens,
-				memoryPolicy: nil
+				memoryPolicy: memPolicy
 			)
 		}
 	#endif
