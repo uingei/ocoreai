@@ -420,10 +420,11 @@
 	) -> MLXLMCommon.GenerateParameters {
 		var params = MLXLMCommon.GenerateParameters()
 		params.maxTokens = maxTokens ?? 1024
-		if let config = kvCacheQuant, config.enabled, let bits = config.bits {
-			params.kvBits = bits
+		if let config = kvCacheQuant, config.enabled {
+			params.kvBits = config.bits
 			params.kvGroupSize = config.groupSize
 			params.quantizedKVStart = config.quantizedKVStart
+			params.kvScheme = config.kvScheme
 		}
 		if let temp = sampling.temperature {
 			params.temperature = Float(temp)

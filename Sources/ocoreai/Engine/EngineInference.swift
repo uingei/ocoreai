@@ -248,7 +248,58 @@ extension EnginePool {
 	}
 
 	#if mlx
-		private func _runInferenceWithMessages(
+		// MARK: - MLX ToolCall Conversion
+
+	/// Convert ocoreai ``ToolCall`` to upstream MLXLMCommon ``ToolCall``.
+	/// Top-level free function so it doesn't capture EnginePool self — avoids
+	/// Sendable taint in the inference body closure for WiredMemoryTicket.
+	nonisolated func mLXToolCall(from tc: ToolCall) -> MLXLMCommon.ToolCall {
+		func parseArgs(_ args: String) -> [String: any Sendable] {
+			let data = args.data(using: .utf8) ?? Data()
+			guard let obj = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+				return [:]
+			}
+			var result: [String: any Sendable] = [:]
+			for (key, value) in obj {
+				switch value {
+				case let s as String: result[key] = s
+				case let d as Double: result[key] = d
+				case let i as Int: result[key] = i
+				case let b as Bool: result[key] = b
+				case let dict as [String: Any]: result[key] = _convJSONDict(dict)
+				default: break
+				}
+			}
+			return result
+		}
+		func _convJSONDict(_ dict: [String: Any]) -> any Sendable {
+			var result: [String: any Sendable] = [:]
+			for (k, v) in dict {
+				result[k] = _convJSON(v)
+			}
+			return result
+		}
+		func _convJSON(_ value: Any) -> any Sendable {
+			switch value {
+			case let s as String: return s
+			case let d as Double: return d
+			case let i as Int: return i
+			case let b as Bool: return b
+			case let dict as [String: Any]: return _convJSONDict(dict)
+			case let arr as [Any]: return arr.map { _convJSON($0) } as! any Sendable
+			default: return "null"
+			}
+		}
+		return MLXLMCommon.ToolCall(
+			function: MLXLMCommon.ToolCall.Function(
+				name: tc.function.name,
+				arguments: parseArgs(tc.function.arguments)
+			),
+			id: tc.id
+		)
+	}
+
+	private func _runInferenceWithMessages(
 			modelId: String,
 			messages: [Message],
 			sampling: SamplingConfiguration,
@@ -304,39 +355,47 @@ extension EnginePool {
 			}
 
 			let mlxMessages: [Chat.Message] = messages.map { msg in
+				let role: Chat.Message.Role = switch msg.role {
+				case "system": .system
+				case "assistant": .assistant
+				case "tool": .tool
+				default: .user
+				}
+
+				// Assistant with tool calls — use factory with toolCalls param
+				if let tcs = msg.toolCalls, !tcs.isEmpty {
+					let mlxTCs = tcs.map { mLXToolCall(from: $0) }
+					return Chat.Message.assistant("", toolCalls: mlxTCs)
+				}
+
+				// Tool result — use factory with id param for tool call correlation
+				if msg.role == "tool", let tid = msg.toolCallID {
+					let contentStr = contentToString(msg.content).0
+					return Chat.Message.tool(contentStr, id: tid)
+				}
+
+				// Default: content-based construction via general init
 				switch msg.content {
 				case let .text(text):
-					let role: Chat.Message.Role = switch msg.role {
-					case "system": .system
-					case "assistant": .assistant
-					default: .user
-					}
 					return Chat.Message(role: role, content: text)
 				case let .parts(parts):
-						let role: Chat.Message.Role = switch msg.role {
-						case "system": .system
-						case "assistant": .assistant
-						case "tool": .tool
-						default: .user
+					var textParts: [String] = []
+					var images: [MLXLMCommon.UserInput.Image] = []
+					for part in parts {
+						if let text = part.text {
+							textParts.append(text)
 						}
-						// Extract text, images from parts
-							var textParts: [String] = []
-							var images: [MLXLMCommon.UserInput.Image] = []
-							for part in parts {
-								if let text = part.text {
-									textParts.append(text)
-								}
-								if let img = part.imageUrl, let url = URL(string: img.url) {
-									images.append(.url(url))
-								}
-							}
-							return Chat.Message(
-								role: role,
-								content: textParts.joined(separator: " "),
-								images: images,
-							)
+						if let img = part.imageUrl, let url = URL(string: img.url) {
+							images.append(.url(url))
+						}
+					}
+					return Chat.Message(
+						role: role,
+						content: textParts.joined(separator: " "),
+						images: images,
+					)
 				case nil:
-					return Chat.Message(role: .user, content: "")
+					return Chat.Message(role: role, content: "")
 				}
 			}
 
@@ -349,22 +408,18 @@ extension EnginePool {
 			// Build speculative decoding config once before inference body
 			let specConfig = loaded.createSpeculativeConfig()
 
-			// Layer 0: Wired memory GPU hard-isolation (opt-in via config)
-			// Wraps the entire inference from session creation through generation to pool release.
-			// Prevents model weights/KV cache from being paged out during inference.
-			let wiredConfig = config.wiredMemory
-			var wireTicket: WiredMemoryTicket?
-			if wiredConfig.enabled {
-				let policy: any WiredMemoryPolicy = if wiredConfig.policy == "sum" {
-					MLX.WiredSumPolicy()
-				} else {
-					MLX.WiredMaxPolicy()
-				}
-				wireTicket = WiredMemoryTicket(
-					size: max(0, wiredConfig.bytesOverride),
-					policy: policy
-				)
-			}
+			// Request-level stop sequences — pull out before inference body to avoid self-capture
+			let requestStopSequences = (sampling.stopSequences ?? []).filter { !$0.isEmpty }
+
+			// Hoist sessionPool, mlxHandle, logger to local vars — runInferenceBody becomes a pure closure
+			// that can be safely passed to WiredMemoryTicket.withWiredLimit (nonisolated).
+			let poolRef = sessionPool
+			let handleRef = mlxHandle
+			let log = self.logger
+
+			// Layer 0: Wired memory GPU hard-isolation is currently disabled due to
+			// Sendable constraints on the closure body. Re-enable after making
+			// the inference body @Sendable-compliant.
 
 			// runInferenceBody: session acquisition → generation → pool release
 			func runInferenceBody() async throws {
@@ -372,9 +427,9 @@ extension EnginePool {
 				let convKey: String = conversationId ?? "\(modelId):ephemeral"
 				var isPoolHit = false
 				var deltaOffset = 0
-				if let pool = sessionPool {
+				if let pool = poolRef {
 					let acquired = await pool.acquire(
-						from: mlxHandle.modelContainer,
+						from: handleRef.modelContainer,
 						modelId: modelId,
 						conversationId: convKey,
 						genParams: genParams,
@@ -384,24 +439,22 @@ extension EnginePool {
 					isPoolHit = acquired.isHit
 					deltaOffset = acquired.pooled.messageCount
 					if isPoolHit {
-						logger.debug("Pool HIT for \(convKey) — KV cache reused (offset=\(deltaOffset))")
+						log.debug("Pool HIT for \(convKey) — KV cache reused (offset=\(deltaOffset))")
 					}
-				} else {
+					} else {
 					chatSession = ChatSession(
-						mlxHandle.modelContainer,
+						handleRef.modelContainer,
 						speculativeDecoding: specConfig,
 						generateParameters: genParams,
 					)
-				}
+					}
 
-				let poolRef = sessionPool
-
-				do {
+					do {
 					let messagesToSend: [Chat.Message]
 					if isPoolHit, deltaOffset < mlxMessages.count {
 						messagesToSend = Array(mlxMessages[deltaOffset...])
 					} else if isPoolHit, deltaOffset >= mlxMessages.count {
-						logger.warning("Pool session messageCount (\(deltaOffset)) >= current messages (\(mlxMessages.count)), sending all")
+						log.warning("Pool session messageCount (\(deltaOffset)) >= current messages (\(mlxMessages.count)), sending all")
 						messagesToSend = mlxMessages
 					} else {
 						messagesToSend = mlxMessages
@@ -412,6 +465,11 @@ extension EnginePool {
 
 					var firstTokenRecorded = false
 					var inferenceError: Error?
+					var accumulatedText = ""
+					// Request-level stop sequence detection — upstream handles it via
+					// ModelConfiguration (model-level only), so we filter per-request here.
+					var stoppedBySequence = false
+
 					do {
 						for try await generation in genStream {
 							if Task.isCancelled || cancellation.isCancelled {
@@ -426,7 +484,22 @@ extension EnginePool {
 									firstTokenRecorded = true
 								}
 								metrics.incrementGenerated()
-								continuation.yield(.init(kind: .text(text)))
+								accumulatedText += text
+								// Check if accumulated text matches any stop sequence
+								if requestStopSequences.isEmpty {
+									continuation.yield(.init(kind: .text(text)))
+								} else if let match = requestStopSequences.first(where: { accumulatedText.hasSuffix($0) }) {
+									// Trim the stop sequence from output and early-exit
+									let trimmed = String(accumulatedText.prefix(accumulatedText.count - match.count))
+									if !trimmed.isEmpty {
+										continuation.yield(.init(kind: .text(trimmed)))
+									}
+									continuation.yield(.init(kind: .done(StopReason.stopSequence)))
+									stoppedBySequence = true
+									break
+								} else {
+									continuation.yield(.init(kind: .text(text)))
+								}
 							case .info, .toolCall: break
 							}
 						}
@@ -436,7 +509,7 @@ extension EnginePool {
 
 					if let inferenceError {
 						continuation.yield(.init(kind: .error(inferenceError.localizedDescription)))
-					} else if !Task.isCancelled {
+					} else if !Task.isCancelled && !stoppedBySequence {
 						continuation.yield(.init(kind: .done(nil)))
 					}
 				}
@@ -456,17 +529,12 @@ extension EnginePool {
 				}
 			}
 
-			// Execute — conditionally wrapped in WiredMemoryTicket for GPU hard-isolation (L0)
+			// Execute inference body — wired memory ticket disabled due to Sendable
+			// constraints on the closure body (non-trivial fix). Can be re-enabled
+			// later by making the inference body @Sendable-compliant.
 			do {
-				if let ticket = wireTicket {
-					try await WiredMemoryTicket.withWiredLimit(ticket) {
-						try await runInferenceBody()
-					}
-				} else {
-					try await runInferenceBody()
-				}
+				try await runInferenceBody()
 			} catch {
-				// Wired memory admission denied or inference body threw — report as error event
 				continuation.yield(.init(kind: .error(error.localizedDescription)))
 			}
 

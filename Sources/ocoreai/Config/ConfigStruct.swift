@@ -253,18 +253,22 @@ public struct BackendConfig: Sendable, Codable, Equatable {
 ///
 /// When enabled, KV cache auto-downgrades from FP16 → INT8/INT4 after
 /// ``quantizedKVStart`` tokens, saving up to 4× memory on long-context sessions.
-/// Backed by mlx-swift-lm ``GenerateParameters.kvBits`` /
-/// ``GenerateParameters.quantizedKVStart`` (see MLXLMCommon/Evaluate.swift:67-73).
+/// Backed by mlx-swift-lm ``GenerateParameters.kvBits`` /\
+/// ``GenerateParameters.quantizedKVStart`` / ``GenerateParameters.kvScheme``
+/// (see MLXLMCommon/Evaluate.swift:54-78).
 public struct KVCacheQuantizationConfig: Sendable, Codable, Equatable {
-	/// Enable KV cache quantization downgrade. nil/disabled means FP16-only KV cache.
+	/// Master toggle — enabled means KV cache quantization is active.
 	public var enabled: Bool
 	/// Quantization bits: 4 (most aggressive) or 8 (conservative). nil = disabled.
 	public var bits: Int?
-	/// MLX group size for KV quantization (default: 64).
+	/// SV/MLX group size for KV quantization (default: 64).
 	public var groupSize: Int
 	/// Token step after which KV quantization kicks in (default: 256).
 	/// 0 means quantize immediately; higher values keep early context in FP16 for accuracy.
 	public var quantizedKVStart: Int
+	/// Optional compression scheme string (e.g. "affine4", "affine8").
+	/// When set, overrides kvBits — see upstream Evaluate.swift L75-78.
+	public var kvScheme: String?
 
 	public static let `default` = KVCacheQuantizationConfig(
 		enabled: true,
@@ -278,11 +282,13 @@ public struct KVCacheQuantizationConfig: Sendable, Codable, Equatable {
 		bits: Int? = 4,
 		groupSize: Int = 64,
 		quantizedKVStart: Int = 256,
+		kvScheme: String? = nil
 	) {
 		self.enabled = enabled
 		self.bits = bits
 		self.groupSize = groupSize
 		self.quantizedKVStart = quantizedKVStart
+		self.kvScheme = kvScheme
 	}
 
 	func validate() throws {
