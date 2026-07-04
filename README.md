@@ -14,7 +14,7 @@
 
 ```bash
 git clone https://github.com/uingei/ocoreai.git && cd ocoreai
-swift build -c release --traits mlx
+swift build -c release
 swift run
 ```
 
@@ -55,11 +55,16 @@ Evolving toward a full **Agent OS** — a device-level runtime where the LLM con
 | `POST` | `/v1/count-tokens` | Token count utility |
 | `GET`  | `/v1/models` | Model registry |
 | `GET`  | `/v1/models/:model/sampling` | Get sampling config |
-| `DELETE` | `/v1/models/:model/sampling` | Reset sampling config |
+| `PATCH` | `/v1/models/:model/sampling` | Hot-swap sampling config |
+| `DELETE` | `/v1/models/:model/sampling` | Reset single model sampling |
+| `DELETE` | `/v1/models/sampling` | Reset all model sampling |
 | `POST` | `/v1/models/download` | Download from ModelScope / HuggingFace |
 | `POST` | `/v1/multimodal/capture` | Capture camera frame or audio sample |
 | `POST` | `/v1/multimodal/speak` | TTS output |
+| `POST` | `/v1/multimodal/status` | Multimodal pipeline status |
 | `GET`  | `/sessions` | List sessions |
+| `GET`  | `/sessions/:id/memory` | Get session memory events |
+| `GET`  | `/sessions/search` | Full-text search sessions |
 | `POST` | `/mcp` | MCP JSON-RPC endpoint |
 | `GET`  | `/health` | Health check |
 | `GET`  | `/metrics` | Prometheus metrics (text format) |

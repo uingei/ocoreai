@@ -14,11 +14,13 @@
 
 ```bash
 git clone https://github.com/uingei/ocoreai.git && cd ocoreai
-swift build -c release --traits mlx
+swift build -c release
 ```
 
 通过 Xcode 构建并运行，或 `swift run` 启动。
 服务监听 `127.0.0.1:8080`。配置位于 `~/.ocoreai/config.yaml`。
+
+> ⚠️ **仅本机访问** — HTTP API 默认绑定 `127.0.0.1`，无认证、无 TLS。不要暴露在外部网络。
 
 ---
 
