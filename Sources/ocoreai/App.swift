@@ -283,16 +283,19 @@ public final class OcoreaiEngine {
 		await systemPromptBuilder.setRegistry(skillRegistry)
 
 		_auditTrail = AuditTrail()
-		_toolRegistry = ToolRegistry(auditTrail: _auditTrail!)
+		guard let auditTrail = _auditTrail else { return failStartup("Failed to create audit trail") }
+		_toolRegistry = ToolRegistry(auditTrail: auditTrail)
 
 		// Bootstrap built-in tools (info, skills_list, skills_lookup, echo)
+		guard let toolRegistry = _toolRegistry else { return failStartup("Failed to create tool registry") }
+		guard let skRegistry = _skillRegistry else { return failStartup("Skill registry unavailable") }
 		await bootstrapBuiltInTools(
-			registry: _toolRegistry! /* safe: direct init above */,
-			skillRegistry: _skillRegistry! /* safe: direct init above */,
+			registry: toolRegistry,
+			skillRegistry: skRegistry,
 		)
 		let mcpTransport = MCPStdioTransport(log: logger)
 		_mcpBridge = MCPBridge(
-			toolRegistry: _toolRegistry! /* safe: guard-let above */,
+			toolRegistry: toolRegistry,
 			transport: mcpTransport,
 		)
 

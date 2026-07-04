@@ -246,7 +246,7 @@ struct HTTPHandlerE2ESmokeTests {
 		}
 	}
 
-	@Test("POST /v1/chat/completions missing model → 400|500")
+	@Test("POST /v1/chat/completions missing model → 400|503")
 	func testMissingModel() async throws {
 		let db1 = Self.uuidPath(), db2 = Self.uuidPath()
 		defer { Self.cleanupDBs(db1, db2) }
@@ -261,8 +261,8 @@ struct HTTPHandlerE2ESmokeTests {
 				headers: headers,
 				body: buf
 			) { response in
-				// 400 (validation) or 500 (no model loaded) — both prove the HTTP pipeline works
-				#expect(response.status == .badRequest || response.status == .internalServerError)
+				// 400 (validation) or 503 (no model loaded → engineUnavailable) or 500 — all prove the pipeline works
+				#expect(response.status == .badRequest || response.status == .serviceUnavailable || response.status == .internalServerError)
 			}
 		}
 	}

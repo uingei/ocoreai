@@ -135,6 +135,10 @@ func chatCompletionsHandler(
 	/// Extract model identifier from the request payload.
 	let modelId = request.model
 
+	/// NOTE: Empty-messages guard is in the router (ChatCompletionsRouter:148).
+	/// If this handler is ever called directly, empty messages will still cause
+	/// downstream failures — the router guard is the source of truth.
+
 	/// Safety check: filter harmful input before scheduling
 	if let contentGuard = await OcoreaiEngine.shared.activeContentGuard {
 		let messageText = request.messages.map { $0.textContent() }.joined(separator: " ")

@@ -57,8 +57,10 @@ struct AdaptiveThreshold {
 
 		baseThreshold = min(max(baseThreshold + adjustment, 0.5), 0.95)
 		for modelId in modelThresholds.keys {
-			modelThresholds[modelId] = min(max(modelThresholds[modelId]! + adjustment * 0.5, 0.5), 0.95)
+		if var current = modelThresholds[modelId] {
+			modelThresholds[modelId] = min(max(current + adjustment * 0.5, 0.5), 0.95)
 		}
+	}
 	}
 
 	func getStats() -> (threshold: Double, observations: Int, recentSuccessRate: Double) {

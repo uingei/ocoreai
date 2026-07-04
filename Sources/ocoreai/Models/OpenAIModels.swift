@@ -708,7 +708,7 @@ struct ModelSamplingResponse: Encodable {
 ///
 /// Each case maps to an HTTP status code and a structured error description
 /// for consistent JSON error responses across all endpoints.
-enum AppError: Error, CustomStringConvertible, LocalizedError {
+enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError {
 	/// Bad Request — client sent malformed data
 	case invalidRequest(String)
 
@@ -778,5 +778,49 @@ enum AppError: Error, CustomStringConvertible, LocalizedError {
 	/// ``LocalizedError`` error description (used in JSON error responses)
 	var errorDescription: String? {
 		description
+	}
+
+	/// ``HTTPResponseError.status`` — Hummingbird uses this to map thrown errors to HTTP status codes.
+	///
+	/// Without this, Hummingbird treats any unhandled error as 500 Internal Server Error,
+	/// even when the error is a client error (4xx).
+	var status: HTTPResponse.Status {
+		switch self {
+		case .invalidRequest, .toolCallFailed:
+			.badRequest
+		case .modelNotFound, .coldStoreNotFound, .sessionNotFound:
+			.notFound
+		case .poolExhausted, .queueClosed, .engineUnavailable,
+		     .blockPoolExhausted, .sessionLimitExceeded:
+			.serviceUnavailable
+		case .sessionExpired:
+			.gone
+		case .generationError, .kvCacheCorruption, .inferenceFailed, .tokenizationFailed:
+			.internalServerError
+		}
+	}
+
+	/// ``HTTPResponseError.response(from:context:)`` — build a JSON error response.
+	nonisolated func response(
+		from request: Request,
+		context: some RequestContext
+	) throws -> Response {
+		let errorBody: [String: Any] = [
+			"error": [
+				"message": errorDescription ?? String(describing: self),
+				"type": "app_error",
+				"code": status.code,
+			],
+		]
+		var headers: HTTPFields = [:]
+		headers[.contentType] = "application/json"
+		guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
+			return Response(status: status)
+		}
+		return Response(
+			status: status,
+			headers: headers,
+			body: .init(contentsOf: [ByteBuffer(data: data)])
+		)
 	}
 }

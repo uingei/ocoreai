@@ -286,7 +286,10 @@ extension EnginePool {
 			case let i as Int: return i
 			case let b as Bool: return b
 			case let dict as [String: Any]: return _convJSONDict(dict)
-			case let arr as [Any]: return arr.map { _convJSON($0) } as! any Sendable
+			case let arr as [Any]:
+						let mapped = arr.map { _convJSON($0) }
+						// [any Sendable] conforms to Sendable
+						return mapped as any Sendable
 			default: return "null"
 			}
 		}

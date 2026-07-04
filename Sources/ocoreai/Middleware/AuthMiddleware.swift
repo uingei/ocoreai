@@ -258,7 +258,7 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
 ///
 /// Each case maps to an HTTP status code and a human-readable description
 /// for structured JSON error responses.
-enum AuthError: Error, LocalizedError {
+enum AuthError: Error, LocalizedError, HTTPResponseError {
 	/// 401 Unauthorized — provided API key is invalid or expired
 	case unauthorized
 
@@ -278,5 +278,26 @@ enum AuthError: Error, LocalizedError {
 		case .missingAPIKey:
 			"401 Unauthorized — API key required (use Authorization: Bearer *** or api-key header)"
 		}
+	}
+
+	/// ``HTTPResponseError.status`` — maps each error to its correct HTTP status.
+	var status: HTTPResponse.Status {
+		switch self {
+		case .unauthorized, .missingAPIKey:
+			.unauthorized
+		case .adminKeyRequired:
+			.forbidden
+		}
+	}
+
+	/// ``ResponseGenerator.response(from:context:)`` — build a JSON error response.
+	nonisolated func response(
+		from request: Request,
+		context: some RequestContext
+	) throws -> Response {
+		let body = #"{"error":"\#(errorDescription ?? "auth error")"}"#
+		var resp = Response(status: status, body: .init(byteBuffer: ByteBuffer(string: body)))
+		resp.headers[HTTPField.Name("content-type") ?? HTTPField.Name("application/json")!] = "application/json"
+		return resp
 	}
 }
