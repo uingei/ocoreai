@@ -218,6 +218,9 @@ private struct SectionHeaderLabel: View {
 	@MainActor
 	class AppDelegate: NSObject, NSApplicationDelegate {
 		func applicationDidFinishLaunching(_: Notification) {
+			// Register global crash handlers early — captures inference OOM, segfault, etc.
+			registerGlobalCrashHandlers()
+			
 			// macOS HIG: activate application so it becomes key window immediately
 			// This prevents the terminal/console from stealing keyboard focus
 			NSApplication.shared.setActivationPolicy(.regular)

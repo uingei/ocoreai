@@ -90,6 +90,7 @@ actor MCPServer {
 			return err(.parse, id: nil)
 		}
 		guard let req = try? JSONDecoder().decode(JsonRpcReq.self, from: data) else {
+			log.warning("Failed to parse JSON-RPC request: \(line.prefix(120))")
 			return err(.parse, id: nil)
 		}
 		guard req.jsonrpc == "2.0" else { return err(.invalid, id: req.id) }
@@ -155,7 +156,10 @@ actor MCPServer {
 		var d: [String: Any] = ["jsonrpc": "2.0"]
 		d.merge(body, uniquingKeysWith: { $1 })
 		if let id { d["id"] = id }
-		guard let data = try? JSONSerialization.data(withJSONObject: d, options: .sortedKeys) else { return "{}" }
+		guard let data = try? JSONSerialization.data(withJSONObject: d, options: .sortedKeys) else {
+			log.error("Failed to serialize JSON-RPC response for id: \(id ?? "nil")")
+			return err(.internalServerError, id: id)
+		}
 		return String(decoding: data, as: UTF8.self)
 	}
 }

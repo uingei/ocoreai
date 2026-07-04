@@ -407,7 +407,7 @@ actor MCPBridge {
 				}
 			}
 
-			let firstError: Error? = nil
+			var firstError: Error?
 			for try await result in group {
 				return result
 			}
@@ -709,7 +709,10 @@ actor MCPBridge {
 		var dict: [String: Any] = ["jsonrpc": "2.0", "result": body]
 		if let id { dict["id"] = id }
 		guard let data = try? JSONSerialization.data(withJSONObject: dict, options: .sortedKeys)
-		else { return "{}" }
+		else {
+			log.error("Failed to serialize JSON-RPC result for id: \(id ?? "nil")")
+			return jsonError("Internal serialization error", code: -32603, id: id)
+		}
 		return String(decoding: data, as: UTF8.self)
 	}
 
@@ -723,7 +726,11 @@ actor MCPBridge {
 		var dict: [String: Any] = ["jsonrpc": "2.0", "error": errorObj]
 		if let id { dict["id"] = id }
 		guard let data = try? JSONSerialization.data(withJSONObject: dict, options: .sortedKeys)
-		else { return "{}" }
+		else {
+			log.error("Failed to serialize JSON-RPC error for id: \(id ?? "nil")")
+			// Fallback: guaranteed-serializable error response
+			return #"{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"}}"#
+		}
 		return String(decoding: data, as: UTF8.self)
 	}
 

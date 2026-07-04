@@ -15,10 +15,15 @@
 ```bash
 git clone https://github.com/uingei/ocoreai.git && cd ocoreai
 swift build -c release --traits mlx
+swift run
 ```
 
 Build the Xcode project and run, or invoke via `swift run`.
 Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
+
+> ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. It has no auth, rate limiting, or TLS. Do not expose to external networks.
+
+> 🛠️ **Dev release** — This is a development build. Production use requires additional hardening (see Security section below).
 
 ---
 
@@ -152,6 +157,17 @@ Supported backends: `coreai` (macOS 27+, M4+, compiled via `--traits coreai`), `
 | **Multimodal** | `Multimodal/` | Camera capture, audio I/O, TTS (Apple Speech) |
 | **Security** | `Security/` | Keychain store, structured logger, audit trail |
 | **Metrics** | `Metrics/` | Prometheus metrics collection and export |
+
+---
+
+### Security
+
+- **Network** — Binds `127.0.0.1` only. No external address exposure.
+- **Auth** — Optional `auth.api_key` in config. Disable with `auth.enabled: false`.
+- **ContentGuard** — Built-in input/output filtering for sensitive content.
+- **StructuredLogger** — Structured audit trail, log file rotation, macOS Keychain integration.
+- **Global crash handler** — On uncaught exception or POSIX signal (segv/abort/bus), writes structured crash log to `~/Library/Application Support/ocoreai/logs/`, then exits.
+- **Concurrent safety** — Swift 6 strict concurrency, actor isolation on scheduler/tool registry/inference engine.
 
 ---
 
