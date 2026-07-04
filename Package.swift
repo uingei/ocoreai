@@ -65,6 +65,7 @@ let package = Package(
             name: "ocoreaiTests",
             dependencies: [
                 "ocoreai",
+                .product(name: "HummingbirdTesting", package: "hummingbird"),
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
