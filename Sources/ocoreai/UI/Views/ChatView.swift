@@ -130,10 +130,10 @@ struct ChatView: View {
 			}
 		}
 		#endif
-		// P0-6: listen for STT transcript completion → inject into input bar
+		// P0-6: listen for STT transcript completion → auto-send (voice loop)
 		.onReceive(NotificationCenter.default.publisher(for: .audioTranscriptAvailable)) { notification in
 			if let transcript = notification.userInfo?["transcript"] as? String {
-				inputText = transcript
+				sendVoiceMessage(transcript)
 			}
 		}
 		.toolbar {
@@ -377,9 +377,13 @@ struct ChatView: View {
 	// MARK: - Actions
 
 	private func sendMessage() {
-		let text = inputText.trimmingCharacters(in: .whitespaces)
-		guard !text.isEmpty && !isStreaming else { return }
+		sendVoiceMessage(inputText.trimmingCharacters(in: .whitespaces))
+	}
 
+	// Voice-to-voice: send transcript from STT — skips setting inputText
+	// so the user can still type while voice loop is active
+	private func sendVoiceMessage(_ text: String) {
+		guard !text.isEmpty && !isStreaming else { return }
 		inputText = ""
 		let modelID = currentModel.isEmpty
 			? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? ""
@@ -392,7 +396,7 @@ struct ChatView: View {
 			await chatState.chat(text, model: modelID)
 			activeTask = nil
 		}
-		}
+	}
 
 	private func stopStreaming() {
 		// P0-3: propagate cancellation to both the Task layer and the InferenceCancellation layer

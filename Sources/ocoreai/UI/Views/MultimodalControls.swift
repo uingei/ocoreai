@@ -201,12 +201,14 @@
 							Task {
 								_ = await audioIO.stopRecording()
 								if let transcript = await audioIO.transcribe(timeout: 15) {
-									// Post transcript so ChatView can inject it into input bar
-									NotificationCenter.default.post(
-										name: .audioTranscriptAvailable,
-										object: nil,
-									 userInfo: ["transcript": transcript]
-									)
+										// Save to shared state so UI can display it
+										MultimodalState.shared.lastTranscript = transcript
+										// Post transcript so ChatView auto-sends (voice loop)
+										NotificationCenter.default.post(
+											name: .audioTranscriptAvailable,
+											object: nil,
+										 userInfo: ["transcript": transcript]
+										)
 								}
 							}
 						} else {

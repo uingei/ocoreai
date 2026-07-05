@@ -48,6 +48,7 @@ final class CaptureService: NSObject {
 
 	// MARK: - Control
 
+	/// Start capturing — also begins background periodic frame sampling
 	@discardableResult
 	func startCapture() async -> Bool {
 		guard let deviceId = selectedCameraID,
@@ -63,11 +64,16 @@ final class CaptureService: NSObject {
 			for input in session.inputs {
 				session.removeInput(input)
 			}
+			for output in session.outputs {
+				session.removeOutput(output)
+			}
 			try session.addInput(AVCaptureDeviceInput(device: device))
+			session.addOutput(AVCapturePhotoOutput())
 			session.commitConfiguration()
 			// startRunning is synchronous — ObjC exceptions don't bridge to Swift throw
 			session.startRunning()
 			isCapturing = true
+			_ = startBackgroundSampling()
 		} catch {
 			captureLogger.error("[CaptureService] Start error: \(error.localizedDescription)")
 			return false
@@ -76,8 +82,36 @@ final class CaptureService: NSObject {
 	}
 
 	func stopCapture() {
+		stopBackgroundSampling()
 		session.stopRunning()
 		isCapturing = false
+	}
+
+	// MARK: - Background Sampling
+
+	/// Periodically sample frames so MultimodalState always has a fresh snapshot
+	/// without requiring the user to tap "Capture"
+	private var _sampleTask: Task<Void, Never>?
+
+	private func startBackgroundSampling() -> Task<Void, Never> {
+		stopBackgroundSampling()
+		let task = Task<Void, Never>(priority: .utility) {
+			while !Task.isCancelled {
+				// Use internal capture path — updates latestFrameDataURL so UI stays fresh
+				if let frameURL = await self.capturePhotoFromSession() {
+					self.latestFrameDataURL = frameURL
+				}
+				try? await Task.sleep(for: .seconds(self.frameInterval))
+			}
+		}
+		_sampleTask = task
+		captureLogger.info("[CaptureService] Background sampling started (interval=\(self.frameInterval)s)")
+		return task
+	}
+
+	private func stopBackgroundSampling() {
+		_sampleTask?.cancel()
+		_sampleTask = nil
 	}
 
 	// MARK: - Frame
@@ -92,6 +126,17 @@ final class CaptureService: NSObject {
 		guard now - lastFrameTime >= frameInterval else { return nil }
 		lastFrameTime = now
 
+		let dataURL = await capturePhotoFromSession()
+		// Always update shared state so UI previews stay fresh
+		if let url = dataURL {
+			latestFrameDataURL = url
+		}
+		return dataURL
+	}
+
+	/// Internal: perform the actual photo capture and compression.
+	/// Used by both foreground (user tap) and background (periodic sampling).
+	private func capturePhotoFromSession() async -> String? {
 		let out = session.outputs.first as? AVCapturePhotoOutput
 		guard let out else { return nil }
 
