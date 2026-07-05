@@ -407,7 +407,7 @@ actor MCPBridge {
 				}
 			}
 
-			var firstError: Error?
+			let firstError: Error? = nil
 			for try await result in group {
 				return result
 			}

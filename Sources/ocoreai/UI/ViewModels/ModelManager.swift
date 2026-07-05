@@ -187,7 +187,9 @@ final class ModelManager {
 					provider = .huggingFace
 					repoId = r
 				case .local:
-					fatalError("unreachable — handled by outer guard")
+					// Unreachable — handled by outer guard
+					assertionFailure("unreachable — handled by outer guard")
+					return false
 				}
 
 				// Check if already cached

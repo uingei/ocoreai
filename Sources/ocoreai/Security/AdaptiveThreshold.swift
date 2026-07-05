@@ -57,7 +57,7 @@ struct AdaptiveThreshold {
 
 		baseThreshold = min(max(baseThreshold + adjustment, 0.5), 0.95)
 		for modelId in modelThresholds.keys {
-		if var current = modelThresholds[modelId] {
+		if let current = modelThresholds[modelId] {
 			modelThresholds[modelId] = min(max(current + adjustment * 0.5, 0.5), 0.95)
 		}
 	}
