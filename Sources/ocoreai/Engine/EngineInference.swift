@@ -414,15 +414,10 @@ extension EnginePool {
 			// Request-level stop sequences — pull out before inference body to avoid self-capture
 			let requestStopSequences = (sampling.stopSequences ?? []).filter { !$0.isEmpty }
 
-			// Hoist sessionPool, mlxHandle, logger to local vars — runInferenceBody becomes a pure closure
-			// that can be safely passed to WiredMemoryTicket.withWiredLimit (nonisolated).
+			// Hoist sessionPool, mlxHandle, logger before creating inference closure
 			let poolRef = sessionPool
 			let handleRef = mlxHandle
 			let log = self.logger
-
-			// Layer 0: Wired memory GPU hard-isolation is currently disabled due to
-			// Sendable constraints on the closure body. Re-enable after making
-			// the inference body @Sendable-compliant.
 
 			// runInferenceBody: session acquisition → generation → pool release
 			func runInferenceBody() async throws {
@@ -453,69 +448,74 @@ extension EnginePool {
 					}
 
 					do {
-					let messagesToSend: [Chat.Message]
-					if isPoolHit, deltaOffset < mlxMessages.count {
-						messagesToSend = Array(mlxMessages[deltaOffset...])
-					} else if isPoolHit, deltaOffset >= mlxMessages.count {
-						log.warning("Pool session messageCount (\(deltaOffset)) >= current messages (\(mlxMessages.count)), sending all")
-						messagesToSend = mlxMessages
-					} else {
-						messagesToSend = mlxMessages
-					}
-
-					let genStream: AsyncThrowingStream<MLXLMCommon.Generation, Error> =
-						chatSession.streamDetails(to: messagesToSend)
-
-					var firstTokenRecorded = false
-					var inferenceError: Error?
-					var accumulatedText = ""
-					// Request-level stop sequence detection — upstream handles it via
-					// ModelConfiguration (model-level only), so we filter per-request here.
-					var stoppedBySequence = false
-
-					do {
-						for try await generation in genStream {
-							if Task.isCancelled || cancellation.isCancelled {
-								continuation.yield(.init(kind: .done(StopReason.cancelled)))
-								break
-							}
-							switch generation {
-							case let .chunk(text):
-								// firstTokenMs: record on first actual text chunk — isolates prefill/init time
-								if !firstTokenRecorded {
-									metrics.firstTokenMs = metrics.overallMs
-									firstTokenRecorded = true
-								}
-								metrics.incrementGenerated()
-								accumulatedText += text
-								// Check if accumulated text matches any stop sequence
-								if requestStopSequences.isEmpty {
-									continuation.yield(.init(kind: .text(text)))
-								} else if let match = requestStopSequences.first(where: { accumulatedText.hasSuffix($0) }) {
-									// Trim the stop sequence from output and early-exit
-									let trimmed = String(accumulatedText.prefix(accumulatedText.count - match.count))
-									if !trimmed.isEmpty {
-										continuation.yield(.init(kind: .text(trimmed)))
-									}
-									continuation.yield(.init(kind: .done(StopReason.stopSequence)))
-									stoppedBySequence = true
-									break
-								} else {
-									continuation.yield(.init(kind: .text(text)))
-								}
-							case .info, .toolCall: break
-							}
+						let messagesToSend: [Chat.Message]
+						if isPoolHit, deltaOffset < mlxMessages.count {
+							messagesToSend = Array(mlxMessages[deltaOffset...])
+						} else if isPoolHit, deltaOffset >= mlxMessages.count {
+							log.warning("Pool session messageCount (\\(deltaOffset)) >= current messages (\\(mlxMessages.count)), sending all")
+							messagesToSend = mlxMessages
+						} else {
+							messagesToSend = mlxMessages
 						}
-					} catch {
-						inferenceError = error
-					}
 
-					if let inferenceError {
-						continuation.yield(.init(kind: .error(inferenceError.localizedDescription)))
-					} else if !Task.isCancelled && !stoppedBySequence {
-						continuation.yield(.init(kind: .done(nil)))
+						let genStream: AsyncThrowingStream<MLXLMCommon.Generation, Error> =
+							chatSession.streamDetails(to: messagesToSend)
+
+						var firstTokenRecorded = false
+						var inferenceError: Error?
+						var accumulatedText = ""
+						// Request-level stop sequence detection — upstream handles it via
+						// ModelConfiguration (model-level only), so we filter per-request here.
+						var stoppedBySequence = false
+
+						// Layer 0: Wired memory GPU hard-isolation
+						// Currently disabled — requires async defer (Swift 6.4+) or significant
+						// refactoring of runInferenceBody to avoid actor isolation conflict.
+						// TODO: Re-enable once Swift 6.4 or higher is supported.
+
+						do {
+							for try await generation in genStream {
+								if Task.isCancelled || cancellation.isCancelled {
+									continuation.yield(.init(kind: .done(StopReason.cancelled)))
+									break
+								}
+								switch generation {
+								case let .chunk(text):
+									// firstTokenMs: record on first actual text chunk — isolates prefill/init time
+									if !firstTokenRecorded {
+										metrics.firstTokenMs = metrics.overallMs
+										firstTokenRecorded = true
+									}
+									metrics.incrementGenerated()
+									accumulatedText += text
+									// Check if accumulated text matches any stop sequence
+									if requestStopSequences.isEmpty {
+										continuation.yield(.init(kind: .text(text)))
+									} else if let match = requestStopSequences.first(where: { accumulatedText.hasSuffix($0) }) {
+										// Trim the stop sequence from output and early-exit
+										let trimmed = String(accumulatedText.prefix(accumulatedText.count - match.count))
+										if !trimmed.isEmpty {
+											continuation.yield(.init(kind: .text(trimmed)))
+										}
+										continuation.yield(.init(kind: .done(StopReason.stopSequence)))
+										stoppedBySequence = true
+										break
+									} else {
+										continuation.yield(.init(kind: .text(text)))
+									}
+								case .info, .toolCall: break
+								}
+							}
+						} catch {
+							inferenceError = error
+						}
+
+						if let inferenceError {
+							continuation.yield(.init(kind: .error(inferenceError.localizedDescription)))
+						} else if !Task.isCancelled && !stoppedBySequence {
+							continuation.yield(.init(kind: .done(nil)))
+						}
 					}
-				}
 
 				if let pool = poolRef {
 					let newMessageCount = isPoolHit ? (deltaOffset + mlxMessages.count - deltaOffset) : mlxMessages.count
@@ -532,9 +532,7 @@ extension EnginePool {
 				}
 			}
 
-			// Execute inference body — wired memory ticket disabled due to Sendable
-			// constraints on the closure body (non-trivial fix). Can be re-enabled
-			// later by making the inference body @Sendable-compliant.
+			// Execute inference body
 			do {
 				try await runInferenceBody()
 			} catch {
