@@ -379,13 +379,17 @@ private func nonStreamWithToolCalling(
 	let toolRegistry = await OcoreaiEngine.shared.activeToolRegistry
 	let messageBuilder = await OcoreaiEngine.shared.activeMessageBuilder
 	let budget = options.maxTokens ?? 4096
+	// Agent loop requires non-nil registry and builder
+	guard let registry = toolRegistry, let builder = messageBuilder else {
+		throw AppError.invalidRequest("Agent loop unavailable — engine not fully initialized")
+	}
 	let loopConfig = AgentLoopConfig(
 		maxIter: 30,
 		tokenBudget: budget,
 		guardMargin: 512,
 		timeoutSeconds: 120,
-		registry: toolRegistry!,
-		builder: messageBuilder!,
+		registry: registry,
+		builder: builder,
 		caller: "api"
 	)
 

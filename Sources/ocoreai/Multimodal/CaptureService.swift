@@ -130,8 +130,8 @@ final class CaptureService: NSObject {
 		}
 
 		// Convert CGImage back to JPEG at 0.6 quality
-		let dest = CFDataCreateMutable(nil, 0)!
-		guard let destination = CGImageDestinationCreateWithData(dest, UTType.jpeg.identifier as CFString, 1, nil) else {
+		guard let dest = CFDataCreateMutable(nil, 0),
+			  let destination = CGImageDestinationCreateWithData(dest, UTType.jpeg.identifier as CFString, 1, nil) else {
 			return data
 		}
 

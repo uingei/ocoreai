@@ -72,12 +72,15 @@ final actor ModelScopeSearchClient {
 	private let baseURL: URL
 	private let token: String?
 
+	/// Default base URL — hardcoded literal, always valid.
+	private static let defaultBaseURL = URL(string: "https://modelscope.cn")!
+
 	/// Create the client.
 	/// - Parameters:
 	///   - baseURL: API base URL (defaults to ModelScope main site)
 	///   - token: Optional access token for authed operations
 	init(
-		baseURL: URL = .init(string: "https://modelscope.cn")!,
+		baseURL: URL = ModelScopeSearchClient.defaultBaseURL,
 		token: String? = nil,
 	) {
 		self.baseURL = baseURL

@@ -311,12 +311,13 @@ enum AgentLoop {
             logger: logger
         )
         let tc = parseToolCalls(from: text)
+        let hasNonEmptyToolCalls = (tc?.count ?? 0) > 0
         return AgentLoopResult(
-            text: text,
-            toolCalls: tc,
-            iterationCount: 1,
-            finishReason: tc != nil && !tc!.isEmpty ? "tool_calls" : "stop",
-            totalTokens: tok
+        	text: text,
+        	toolCalls: tc,
+        	iterationCount: 1,
+        	finishReason: hasNonEmptyToolCalls ? "tool_calls" : "stop",
+        	totalTokens: tok
         )
     }
 

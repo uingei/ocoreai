@@ -263,10 +263,12 @@ public final class OcoreaiEngine {
 		_systemPromptBuilder = SystemPromptBuilder(
 			basePrompt: "You are oCoreAI, an intelligent assistant running on macOS.",
 		)
+		// _systemPromptBuilder is guaranteed non-nil after direct init above
+		guard let spb = _systemPromptBuilder else { return failStartup("SystemPromptBuilder init failed") }
 		do {
 			try await _skillRegistry?.bootstrap(
 				skillsDir: nil,
-				systemPromptBuilder: _systemPromptBuilder!,
+				systemPromptBuilder: spb,
 			)
 			logger.info("SkillRegistry bootstrapped")
 		} catch {

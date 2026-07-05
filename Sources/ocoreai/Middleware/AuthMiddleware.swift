@@ -259,6 +259,7 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
 /// Each case maps to an HTTP status code and a human-readable description
 /// for structured JSON error responses.
 enum AuthError: Error, LocalizedError, HTTPResponseError {
+
 	/// 401 Unauthorized — provided API key is invalid or expired
 	case unauthorized
 
@@ -297,7 +298,8 @@ enum AuthError: Error, LocalizedError, HTTPResponseError {
 	) throws -> Response {
 		let body = #"{"error":"\#(errorDescription ?? "auth error")"}"#
 		var resp = Response(status: status, body: .init(byteBuffer: ByteBuffer(string: body)))
-		resp.headers[HTTPField.Name("content-type") ?? HTTPField.Name("application/json")!] = "application/json"
+		// swiftlint:disable:next force_unwrapping
+		resp.headers[HTTPField.Name("content-type")!] = "application/json"
 		return resp
 	}
 }

@@ -21,8 +21,8 @@ struct ModelParamsView: View {
 		let store = SettingsStore.shared
 		let cfg = store.loadSamplingConfig(for: modelId)
 		_config = State(initialValue: cfg)
-		_topKText = State(initialValue: cfg.topK != nil ? "\(cfg.topK!)" : "")
-		_maxTokensText = State(initialValue: cfg.maxTokens != nil ? "\(cfg.maxTokens!)" : "")
+		_topKText = State(initialValue: cfg.topK.map(String.init) ?? "")
+		_maxTokensText = State(initialValue: cfg.maxTokens.map(String.init) ?? "")
 	}
 
 	var body: some View {
@@ -80,7 +80,7 @@ struct ModelParamsView: View {
 		SliderAutoSaveView(
 			label: StringKey.modelParamTopP.l,
 			hint: StringKey.modelParamTopPHint.l,
-			display: config.topP != nil ? String(format: "%.2f", config.topP!) : StringKey.modelParamDefaults.l,
+			display: config.topP.map { String(format: "%.2f", $0) } ?? StringKey.modelParamDefaults.l,
 			value: Binding(
 				get: { config.topP ?? 0.95 },
 				set: { config.topP = $0; autoSave() },
@@ -96,7 +96,7 @@ struct ModelParamsView: View {
 		TextFieldParamView(
 			label: StringKey.modelParamTopK.l,
 			hint: StringKey.modelParamTopKHint.l,
-			valueText: config.topK != nil ? "\(config.topK!)" : StringKey.modelParamDefaults.l,
+			valueText: config.topK.map(String.init) ?? StringKey.modelParamDefaults.l,
 			textBinding: $topKText,
 			onDone: {
 				config.topK = max(Int(topKText) ?? 1, 1)
@@ -110,7 +110,7 @@ struct ModelParamsView: View {
 		TextFieldParamView(
 			label: StringKey.modelParamMaxTokens.l,
 			hint: StringKey.modelParamMaxTokensHint.l,
-			valueText: config.maxTokens != nil ? "\(config.maxTokens!)" : StringKey.modelParamDefaults.l,
+			valueText: config.maxTokens.map(String.init) ?? StringKey.modelParamDefaults.l,
 			textBinding: $maxTokensText,
 			onDone: {
 				config.maxTokens = max(Int(maxTokensText) ?? 1, 1)

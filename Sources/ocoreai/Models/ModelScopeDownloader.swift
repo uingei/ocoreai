@@ -25,10 +25,13 @@ actor ModelScopeDownloader: Downloader {
 	// MARK: - Configuration
 
 	private let token: String?
-	/// ModelScope API base — hardcoded, always valid.
-	private static let baseAPI: URL = .init(
-		string: "https://www.modelscope.cn/api/v1"
-	)!
+/// ModelScope API base — hardcoded, always valid (literal URL).
+	private static let baseAPI: URL = {
+		guard let url = URL(string: "https://www.modelscope.cn/api/v1") else {
+			fatalError("Invalid hardcoded URL: modelscope API base")
+		}
+		return url
+	}()
 	private let cacheRoot: URL
 
 	/// Create a ModelScope Downloader.
@@ -118,13 +121,16 @@ actor ModelScopeDownloader: Downloader {
 	///
 	/// Response: Data.Files[].Path / .Size / .Type
 	private func listRepoFiles(repoId: String, revision: String) async throws -> [FileInfo] {
-		var components = URLComponents(url: Self.baseAPI, resolvingAgainstBaseURL: false)!
-		components.path = (components.path as NSString).appendingPathComponent("models") + "/" + repoId + "/repo/files"
-		components.queryItems = [
+		guard let components = URLComponents(url: Self.baseAPI, resolvingAgainstBaseURL: false) else {
+			throw DownloaderError.invalidURL("Cannot construct file list URL")
+		}
+		var urlComponents = components
+		urlComponents.path = (urlComponents.path as NSString).appendingPathComponent("models") + "/" + repoId + "/repo/files"
+		urlComponents.queryItems = [
 			URLQueryItem(name: "Revision", value: revision),
 			URLQueryItem(name: "Recursive", value: "true"),
 		]
-		guard let url = components.url else {
+		guard let url = urlComponents.url else {
 			throw DownloaderError.invalidURL("Cannot construct file list URL for \(repoId)")
 		}
 
@@ -178,9 +184,12 @@ actor ModelScopeDownloader: Downloader {
 		repoId: String,
 		revision: String,
 	) async throws {
-		var components = URLComponents(url: Self.baseAPI, resolvingAgainstBaseURL: false)!
-		components.path = (components.path as NSString).appendingPathComponent("models") + "/" + repoId + "/resolve/" + revision + "/" + path
-		guard let url = components.url else {
+		guard let components = URLComponents(url: Self.baseAPI, resolvingAgainstBaseURL: false) else {
+			throw DownloaderError.invalidURL("Cannot construct download URL")
+		}
+		var urlComponents = components
+		urlComponents.path = (urlComponents.path as NSString).appendingPathComponent("models") + "/" + repoId + "/resolve/" + revision + "/" + path
+		guard let url = urlComponents.url else {
 			throw DownloaderError.invalidURL("Cannot construct download URL for \(path)")
 		}
 
