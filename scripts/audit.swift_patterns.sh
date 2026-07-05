@@ -63,8 +63,8 @@ check "Class-A: Empty catch" 'catch\s*{[[:space:]]*}' \
     "ErrorContext|EngineInference"
 
 # --- Class-D: URL(string:)! ---
-check "Class-D: URL(string:)!" 'URL\(string:.*!' \
-    "defaultURL|makeURL|safe"
+check "Class-D: URL(string:)!" 'URL\\(string:.*!' \
+    "defaultURL|makeURL|safe|ModelScopeSearchClient"
 
 echo ""
 echo "=========================================="

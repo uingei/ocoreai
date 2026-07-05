@@ -9,69 +9,73 @@ on:
 
 permissions:
   contents: write
-  id-token: write
 
 jobs:
-  ## ── Static audit (fast, no build) ────────────────────────────────
+  ## ── Static audit — fast, no build ───────────────────────────────
   audit:
-    name: Static Audit + Lint
+    name: Static Audit
     runs-on: macos-26
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Setup SwiftLint
         run: brew install swiftlint
 
+      # Pattern-based static audit (whitelist-protected)
       - name: Run static audit
         run: bash scripts/audit.swift_patterns.sh
 
-      - name: Run SwiftLint
+      # Full lint report — advisory only (style errors expected)
+      - name: Run SwiftLint (report)
         run: |
-          echo "🔍 SwiftLint check..."
-          swiftlint lint --config .swiftlint.yml 2>&1 | tee /tmp/swiftlint-output.txt
-          ERRORS=$(grep -c 'error:' /tmp/swiftlint-output.txt || true)
-          WARNINGS=$(grep -c 'warning:' /tmp/swiftlint-output.txt || true)
+          set -euo pipefail
+          swiftlint lint --config .swiftlint.yml 2>&1 | tee /tmp/swiftlint-full.txt || true
+          ERRORS=$(grep -c 'error:' /tmp/swiftlint-full.txt || true)
+          WARNINGS=$(grep -c 'warning:' /tmp/swiftlint-full.txt || true)
           echo ""
           echo "📊 SwiftLint report: $ERRORS errors, $WARNINGS warnings"
-          echo "⚠️  Lint is advisory only — errors/warnings will become gates after baseline fix"
 
-  ## ── Build + test (single pass, feeds release) ────────────────────
+      # Crash-risk rules MUST be zero in Sources/
+      - name: SwiftLint crash-risk gate (Sources/)
+        run: |
+          set -euo pipefail
+          swiftlint lint --config .swiftlint.yml Sources/ 2>&1 \
+            | tee /tmp/swiftlint-sources.txt || true
+          FU=$(grep -c 'force_unwrapping' /tmp/swiftlint-sources.txt || true)
+          IU=$(grep -c 'implicitly_unwrapped_optional' /tmp/swiftlint-sources.txt || true)
+          FE=$(grep -c 'fatal_error_message' /tmp/swiftlint-sources.txt || true)
+          echo "🔒 force_unwrapping=$FU  implicitly_unwrapped=$IU  fatal_error_message=$FE"
+          FAIL=0
+          [ "$FU" -gt 0 ] && echo "❌ force_unwrapping in Sources/ — pipeline blocked" && FAIL=1
+          [ "$IU" -gt 0 ] && echo "❌ implicitly_unwrapped_optional in Sources/ — pipeline blocked" && FAIL=1
+          [ "$FE" -gt 0 ] && echo "❌ fatal_error_message in Sources/ — pipeline blocked" && FAIL=1
+          if [ "$FAIL" -eq 1 ]; then exit 1; fi
+          echo "✅ Crash-risk rules clean in Sources/"
+
+  ## ── Build + test ────────────────────────────────────────────────
   build-and-test:
     name: Build & Test (macos-26)
     runs-on: macos-26
     timeout-minutes: 45
     needs: [audit]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
-      - name: Clean & resolve dependencies
-        run: |
-          rm -rf .build
-          swift package resolve
+      - name: Resolve SPM dependencies
+        run: swift package resolve
         env:
           SWIFT_BUILD_NUM_WORKERS: 2
 
-      - name: Run tests with coverage
-        run: |
-          export SWIFT_BUILD_NUM_WORKERS=2
-          swift test --enable-code-coverage
-        env:
-          OCOREAI_BUILD: ci
-
-      - name: Generate coverage report
-        run: |
-          COVERAGE_PATH=$(swift test --show-code-coverage-path 2>/dev/null || echo ".build/arm64-apple-macosx/debug/codecov/ocoreai.json")
-          echo "Coverage data at: $COVERAGE_PATH"
-          python3 scripts/coverage_report.py || echo "⚠️ Coverage report failed (non-blocking)"
-
-      - name: Upload coverage artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
+      # SPM cache — key on resolved deps to bust on version bump
+      - name: Cache SPM build artifacts
+        uses: actions/cache@v4
         with:
-          name: coverage-data
-          path: .build/*/codecov/
-          retention-days: 7
+          path: |
+            .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            spm-${{ runner.os }}-
 
       - name: Setup MLX metallib
         run: |
@@ -87,10 +91,46 @@ jobs:
             fi
           }
 
-      - name: Build release binary
+      - name: Run tests with coverage
         run: |
+          set -euo pipefail
+          export SWIFT_BUILD_NUM_WORKERS=2
+          echo "🧪 Running tests with coverage..."
+          swift test --enable-code-coverage
+        env:
+          OCOREAI_BUILD: ci
+
+      - name: Generate coverage report
+        run: |
+          set -euo pipefail
+          COVERAGE_PATH=$(swift test --show-code-coverage-path 2>/dev/null \
+              || echo ".build/arm64-apple-macosx/debug/codecov/ocoreai.json")
+          echo "📊 Coverage data at: $COVERAGE_PATH"
+          python3 scripts/coverage_report.py \
+            || echo "⚠️ Coverage report failed (non-blocking)"
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-data
+          path: .build/*/codecov/
+          retention-days: 7
+
+      # Build both configurations — both are required gate
+      - name: Build release (MLX default)
+        run: |
+          set -euo pipefail
           export SWIFT_BUILD_NUM_WORKERS=2
           swift build -c release
+        env:
+          OCOREAI_BUILD: ci
+
+      - name: Build release (appStore trait)
+        run: |
+          set -euo pipefail
+          export SWIFT_BUILD_NUM_WORKERS=2
+          swift build -c release --traits appStore
         env:
           OCOREAI_BUILD: ci
 
@@ -103,7 +143,7 @@ jobs:
             .build/arm64-apple-macosx/release/mlx.metallib
           retention-days: 7
 
-  ## ── Release (tagged pushes only) ─────────────────────────────────
+  ## ── Release (tagged pushes only) ────────────────────────────────
   release:
     name: Release
     runs-on: macos-26
@@ -111,7 +151,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -129,19 +169,35 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Tag: $TAG → Version: $VERSION"
 
+      - name: Verify release prerequisites
+        run: |
+          set -euo pipefail
+          echo "📦 Verifying release prerequisites..."
+          if [ ! -f ".build/arm64-apple-macosx/release/ocoreai" ]; then
+            echo "❌ Release binary not found"
+            exit 1
+          fi
+          echo "✅ Binary OK"
+          if [ ! -f "PrivacyInfo.xcprivacy" ]; then
+            echo "❌ PrivacyInfo.xcprivacy missing — block release"
+            exit 1
+          fi
+          echo "✅ PrivacyInfo.xcprivacy OK"
+
       - name: Package macOS App
         run: |
+          set -euo pipefail
           APP_DIR="ocoreai.app/Contents"
           mkdir -p "$APP_DIR/MacOS"
           mkdir -p "$APP_DIR/Resources"
 
           cp .build/arm64-apple-macosx/release/ocoreai "$APP_DIR/MacOS/"
-          cp .build/arm64-apple-macosx/release/mlx.metallib "$APP_DIR/MacOS/" 2>/dev/null || true
-          cp PrivacyInfo.xcprivacy "$APP_DIR/Resources/" 2>/dev/null || true
+          cp .build/arm64-apple-macosx/release/mlx.metallib "$APP_DIR/MacOS/" \
+              2>/dev/null || echo "⚠️ No metallib"
+          cp PrivacyInfo.xcprivacy "$APP_DIR/Resources/"
 
           python3 -c "
           import xml.etree.ElementTree as ET
-          import os
           version = '${{ steps.version.outputs.version }}'
           root = ET.Element('plist', version='1.0')
           d = ET.SubElement(root, 'dict')
@@ -153,27 +209,38 @@ jobs:
             ('CFBundleVersion', version),
             ('LSMinimumSystemVersion', '15.0'),
             ('NSHighResolutionCapable', 'true'),
+            ('LSRequiresIPhoneOS', 'false'),
+            ('NSCameraUsageDescription',
+             'Camera access for multimodal AI vision input.'),
+            ('NSMicrophoneUsageDescription',
+             'Microphone access for voice input (STT).'),
           ]
           for k, v in items:
               ET.SubElement(d, 'key').text = k
               ET.SubElement(d, 'string').text = v
           tree = ET.ElementTree(root)
-          plist_path = '$APP_DIR/Info.plist'
-          with open(plist_path, 'wb') as f:
-              f.write(b'<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n')
-              f.write(b'<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n')
+          plist = '$APP_DIR/Info.plist'
+          with open(plist, 'wb') as f:
+              f.write(b'<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?>\\n')
+              f.write(b'<!DOCTYPE plist PUBLIC \\\"-//Apple//DTD PLIST 1.0//EN\\\" '
+                      b'\\\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\\\">\\n')
               tree.write(f, encoding='UTF-8', xml_declaration=False)
           "
 
       - name: Ad-hoc codesign
         run: |
+          set -euo pipefail
           codesign --sign - --force --deep --options runtime ocoreai.app
           codesign -vvv --strict ocoreai.app
+          echo "✅ Codesign verified"
 
       - name: Archive builds
         run: |
+          set -euo pipefail
           tar czf ocoreai-macos.tar.gz ocoreai.app
           shasum -a 256 ocoreai-macos.tar.gz > SHA256.txt
+          echo "📦 $(du -h ocoreai-macos.tar.gz | awk '{print $1}')"
+          echo "🔖 $(cat SHA256.txt)"
 
       - name: GitHub Release
         uses: softprops/action-gh-release@v2
@@ -181,5 +248,6 @@ jobs:
           files: |
             ocoreai-macos.tar.gz
             SHA256.txt
+          body_path: CHANGELOG.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,34 @@
+# ocoreai — SwiftFormat configuration
+# Compatible with SwiftFormat 0.61.1+
+
+lineAfterMarks: true
+indent: tabs
+indentStrings: true
+trim: true
+trimBlankLines: false
+insertBlankLines: true
+removeBlankLines: false
+indentCase: false
+wrapAttributes: wrapAfterFirst
+voidTypes: nil
+modifierOrder: true
+sortImports: true
+redundantSelf: remove
+redundantInit: remove
+redundantNilInit: true
+redundantGet: true
+redundantReturn: false
+redundantPattern: true
+redundantRawValues: true
+redundantType: error
+emptyBraces: false
+emptyCount: true
+emptyEnumerationCases: true
+redundantVoidReturn: true
+redundantBackticks: true
+redundantBreak: true
+spaceAroundBraces: true
+spaceAroundParens: false
+spaces: preserve
+sortDeclarations: false
+organizeDeclarations: false

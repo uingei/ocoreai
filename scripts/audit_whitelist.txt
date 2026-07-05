@@ -9,3 +9,7 @@ EngineInference
 # ErrorContext: the doc comment describes what try? / empty catch {} NOT to do —
 # it's a pattern description, not actual code.
 ErrorContext
+
+# ModelScopeSearchClient: defaultBaseURL is a compile-time literal —
+# URL(string: "https://modelscope.cn"!) can never fail at runtime.
+ModelScopeSearchClient
