@@ -2,7 +2,7 @@
 
 All notable changes to ocoreai will be documented in this file.
 
-## [v0.1.0-alpha] — 2026-07-05
+## [v0.1.0] — 2026-07-05
 
 ### 🚀 Features
 
