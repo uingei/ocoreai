@@ -81,10 +81,12 @@ jobs:
         run: |
           bash scripts/setup-metallib.sh || {
             echo "⚠️ setup-metallib.sh failed — searching system..."
-            METALLIB=$(find /opt/homebrew /Library/Developer -name 'mlx.metallib' -type f 2>/dev/null | head -1)
+            METALLIB=$(find /opt/homebrew /Library/Developer -maxdepth 8 -name 'mlx.metallib' -type f 2>/dev/null | head -1)
             if [ -n "$METALLIB" ]; then
+              mkdir -p .build/arm64-apple-macosx/debug/
+              mkdir -p .build/arm64-apple-macosx/release/ 2>/dev/null || true
               cp "$METALLIB" .build/arm64-apple-macosx/debug/
-              cp "$METALLIB" .build/arm64-apple-macosx/release/
+              cp "$METALLIB" .build/arm64-apple-macosx/release/ 2>/dev/null || true
               echo "✅ Copied from $METALLIB"
             else
               echo "⚠️ No mlx.metallib found — MLX will fall back to CPU"
