@@ -19,15 +19,30 @@ import Foundation
 import Logging
 
 /// Result of an admission check.
+///
+/// In addition to admit/reject, includes a `recommendedChannel` from the
+/// `HardwareRouter` so the dispatcher knows which compute accelerator
+/// (GPU/ANE/CPU) should handle this request.
 public struct AdmissionResult: Sendable, Codable {
 	public let admitted: Bool
 	public let reason: String?
 	public let estimatedCostMB: Double
 
-	public init(admitted: Bool, reason: String? = nil, estimatedCostMB: Double) {
+	/// Recommended compute channel from HardwareRouter (nil when router unavailable).
+	/// The dispatcher should respect this — e.g. .ane means the request was admitted
+	/// but should be routed to CoreAI/ANE rather than MLX/GPU.
+	public let recommendedChannel: ComputeChannel?
+
+	public init(
+		admitted: Bool,
+		reason: String? = nil,
+		estimatedCostMB: Double,
+		recommendedChannel: ComputeChannel? = nil
+	) {
 		self.admitted = admitted
 		self.reason = reason
 		self.estimatedCostMB = estimatedCostMB
+		self.recommendedChannel = recommendedChannel
 	}
 
 	public static var ok: AdmissionResult {
@@ -67,6 +82,9 @@ actor AdmissionGate {
 	/// MemoryTracker reference — source of truth for system memory state
 	private var memoryTracker: MemoryTracker?
 
+	/// Hardware router — runtime compute channel recommendation
+	private var hardwareRouter: HardwareRouter?
+
 	private let logger: Logger
 
 	// MARK: - Init
@@ -74,10 +92,12 @@ actor AdmissionGate {
 	init(
 		maxConcurrentPreFills: Int = 4,
 		memoryTracker: MemoryTracker?,
+		hardwareRouter: HardwareRouter? = nil,
 		log: Logger = Logger(label: "ocoreai.scheduler.admission"),
 	) {
 		self.maxConcurrentPreFills = maxConcurrentPreFills
 		self.memoryTracker = memoryTracker
+		self.hardwareRouter = hardwareRouter
 		logger = log
 	}
 
@@ -86,6 +106,11 @@ actor AdmissionGate {
 	/// Link or re-link to a MemoryTracker.
 	func setMemoryTracker(_ tracker: MemoryTracker?) {
 		memoryTracker = tracker
+	}
+
+	/// Link or re-link to a HardwareRouter.
+	func setHardwareRouter(_ router: HardwareRouter?) {
+		hardwareRouter = router
 	}
 
 	// MARK: - Admission
@@ -101,28 +126,44 @@ actor AdmissionGate {
 	}
 
 	/// Query available headroom from MemoryTracker + our reservations.
-	/// Returns (totalBudget, availableHeadroom) in bytes.
+	/// Returns (totalBudget, availableHeadroom, recommendedChannel).
 	///
 	/// On UMA, GPU active memory counts against the same physical RAM —
 	/// AdmissionGate queries MemoryTracker for gpuActiveBytes and includes
 	/// it in the headroom calculation so large requests are rejected when
 	/// GPU memory is already consuming most of the budget.
-	private func queryHeadroom() async -> (totalBudget: UInt64, available: UInt64) {
+	///
+	/// The `recommendedChannel` from `HardwareRouter` tells us which
+	/// compute accelerator should handle the request — this is the bridge
+	/// between "can we admit?" and "where should it run?".
+	private func queryHeadroom(
+		priority: RequestPriority = .chat
+	) async -> (totalBudget: UInt64, available: UInt64, channel: ComputeChannel?) {
 		guard let tracker = memoryTracker else {
 			// No tracker — allow everything (defer to downstream OOMGuard)
-			return (0, .max)
+			return (0, .max, nil)
 		}
 
 		// Query system memory state from tracker
 		let systemUsed = await tracker.currentUsage()
 		let gpuActive = await tracker.gpuActiveMemoryBytes()
 		let budget = await tracker.getBudget()
+
+		// Ask HardwareRouter to recommend a compute channel (once, cached locally)
+		let channel: ComputeChannel? = hardwareRouter.map {
+			$0.query(gpuActiveBytes: gpuActive, gpuBudgetBytes: budget, priority: priority)
+		}
+
+		if let ch = channel {
+			logger.debug("HardwareRouter → \(ch.rawValue)")
+		}
+
 		// Total pressure: system usage + our reservations + GPU active memory
 		let used = systemUsed + reservedBytes + gpuActive
 
 		// Available after accounting for reservations and GPU
 		let available = max(budget - used, 0)
-		return (budget, available)
+		return (budget, available, channel)
 	}
 
 	/// Check if a new request can be admitted.
@@ -130,11 +171,13 @@ actor AdmissionGate {
 	///   - requestId: Unique request identifier.
 	///   - inputTokens: Number of input tokens in the prompt.
 	///   - maxOutputTokens: Maximum tokens the model may generate.
-	/// - Returns: AdmissionResult with decision and cost estimate.
+	///   - priority: Request priority (affects hardware routing).
+	/// - Returns: AdmissionResult with decision, cost estimate, and recommended channel.
 	func check(
 		requestId: String,
 		inputTokens: Int,
 		maxOutputTokens: Int,
+		priority: RequestPriority = .chat
 	) async -> AdmissionResult {
 		let cost = estimatedCost(inputTokens: inputTokens, maxOutputTokens: maxOutputTokens)
 		let costMB = Double(cost) / (1024 * 1024)
@@ -149,8 +192,8 @@ actor AdmissionGate {
 			return .rejected("Jitter: \(activePreFills) pre-fills active (max \(maxConcurrentPreFills))", costMB: costMB)
 		}
 
-		// Query headroom from system + our reservations
-		let (_, available) = await queryHeadroom()
+		// Query headroom from system + our reservations + hardware router
+		let (_, available, channel) = await queryHeadroom(priority: priority)
 
 		// Calculate effective headroom after abort margin
 		let abortMargin = UInt64(Double(available) * abortMarginFraction)
@@ -165,7 +208,7 @@ actor AdmissionGate {
 			)
 		}
 
-		return AdmissionResult(admitted: true, estimatedCostMB: costMB)
+		return AdmissionResult(admitted: true, estimatedCostMB: costMB, recommendedChannel: channel)
 	}
 
 	/// Admit a request — reserve its memory cost.

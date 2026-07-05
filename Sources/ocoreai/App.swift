@@ -303,12 +303,27 @@ public final class OcoreaiEngine {
 
 		let tokenizerManager = TokenizerManager()
 
+		// MARK: - Hardware Router + Admission Gate (Runtime compute routing)
+
+		let hardwareRouter = HardwareRouter(
+			policy: .balanced,
+			log: logger
+		)
+
+		let admissionGate = AdmissionGate(
+			maxConcurrentPreFills: 4,
+			memoryTracker: memoryTracker,
+			hardwareRouter: hardwareRouter,
+			log: logger
+		)
+
 		// MARK: - Scheduler Layer (Priority queue + OOM protection)
 
 		scheduler = SchedulerActor(
 			maxQueueSize: 128,
 			memoryTracker: memoryTracker,
 			oomGuard: oomGuard,
+			admissionGate: admissionGate,
 			log: logger,
 		)
 
