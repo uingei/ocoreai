@@ -26,6 +26,8 @@ public enum MemoryLevel: String, Sendable, Codable {
 ///
 /// Uses Darwin host API for authoritative memory pressure on Apple Silicon UMA.
 /// Falls back to allocation accounting when Darwin API is unavailable.
+/// GPU telemetry: ``gpuActiveBytes`` tracks MLX GPU active memory independently
+/// of our own allocation accounting — on UMA, CPU/GPU share RAM so both matter.
 ///
 /// Reference: vm_statistics.6 — host_statistics64(HOST_VM_INFO64)
 actor MemoryTracker {
@@ -34,6 +36,10 @@ actor MemoryTracker {
 	/// Ocoreai's own KV cache reservations (allocation / deallocation accounting).
 	/// Independent of system-wide memory — this tracks what **we** have allocated.
 	private var reservedBytes: UInt64 = 0
+
+	/// GPU active memory from MLX Memory.activeMemory — not included in reservedBytes.
+	/// Updated via reportGPUActiveBytes(). On UMA this is real pressure on system RAM.
+	private var gpuActiveBytes: UInt64 = 0
 
 	private let logger: Logger
 
@@ -140,9 +146,28 @@ actor MemoryTracker {
 
 	/// Record the actual memory usage from a source (e.g. MLX report).
 	/// - Parameter bytes: Current memory usage.
+	///
+	/// WARNING: This overwrites `reservedBytes` — use sparingly, only when
+	/// you want to replace accounting with an authoritative measurement.
 	func reportUsage(_ bytes: UInt64) {
 		reservedBytes = bytes
 		checkAllocationLevel()
+	}
+
+	/// Report GPU active memory from MLX `Memory.activeMemory`.
+	/// - Parameter bytes: MLX GPU actively used bytes.
+	///
+	/// Updates ``gpuActiveBytes`` without touching ``reservedBytes``.
+	/// On UMA, GPU active memory counts against the same physical RAM budget,
+	/// so this is included in headroom calculations via ``currentUsage()``.
+	func reportGPUActiveBytes(_ bytes: UInt64) {
+		gpuActiveBytes = bytes
+		checkAllocationLevel()
+	}
+
+	/// Get current GPU active memory (from last `reportGPUActiveBytes` call).
+	func gpuActiveMemoryBytes() -> UInt64 {
+		gpuActiveBytes
 	}
 
 	/// Snapshot of current memory level.

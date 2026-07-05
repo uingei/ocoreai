@@ -81,7 +81,7 @@ actor EnginePool {
 	private let pagedKVCache: PagedKVCache?
 
 	/// Memory tracker — reports GPU memory allocations to MemoryTracker.
-	private let memoryTracker: MemoryTracker?
+	let memoryTracker: MemoryTracker?
 
 	// MARK: - Model Loading
 

@@ -102,6 +102,11 @@ actor AdmissionGate {
 
 	/// Query available headroom from MemoryTracker + our reservations.
 	/// Returns (totalBudget, availableHeadroom) in bytes.
+	///
+	/// On UMA, GPU active memory counts against the same physical RAM —
+	/// AdmissionGate queries MemoryTracker for gpuActiveBytes and includes
+	/// it in the headroom calculation so large requests are rejected when
+	/// GPU memory is already consuming most of the budget.
 	private func queryHeadroom() async -> (totalBudget: UInt64, available: UInt64) {
 		guard let tracker = memoryTracker else {
 			// No tracker — allow everything (defer to downstream OOMGuard)
@@ -110,10 +115,12 @@ actor AdmissionGate {
 
 		// Query system memory state from tracker
 		let systemUsed = await tracker.currentUsage()
+		let gpuActive = await tracker.gpuActiveMemoryBytes()
 		let budget = await tracker.getBudget()
-		let used = systemUsed + reservedBytes
+		// Total pressure: system usage + our reservations + GPU active memory
+		let used = systemUsed + reservedBytes + gpuActive
 
-		// Available after accounting for reservations
+		// Available after accounting for reservations and GPU
 		let available = max(budget - used, 0)
 		return (budget, available)
 	}

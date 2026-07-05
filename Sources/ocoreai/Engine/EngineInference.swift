@@ -532,7 +532,67 @@ extension EnginePool {
 				}
 			}
 
-			// Execute inference body
+			// Layer 0: Wired memory GPU hard-isolation + GPU telemetry
+			// Scopes wired limit to this inference request. Auto-released on completion/error.
+			// Policy: WiredMaxPolicy when config.wiredMemory.policy == "max", else WiredSumPolicy.
+			let logRef = self.logger
+			if config.wiredMemory.enabled {
+				// Estimate ticket size: weights + activations + KV reserve.
+				// vocab_size * 8 bytes (FP16→INT4 weights) + max_context * 64 (KV cache per token)
+				// bytesOverride from config takes priority when set.
+				let ticketSize: Int
+				if config.wiredMemory.bytesOverride > 0 {
+					ticketSize = Int(config.wiredMemory.bytesOverride)
+				} else {
+					ticketSize = Int(loaded.modelConfig.vocabSize) * 8
+						+ Int(loaded.modelConfig.maxContextLength) * 64
+				}
+
+				let wmPolicy: any WiredMemoryPolicy = if config.wiredMemory.policy == "sum" {
+					WiredSumPolicy(id: UUID(uuidString: "wired-memory-\(modelId)") ?? UUID())
+				} else {
+					WiredMaxPolicy(id: UUID(uuidString: "wired-memory-\(modelId)") ?? UUID())
+				}
+
+				let ticket = WiredMemoryTicket(
+					size: ticketSize,
+					policy: wmPolicy,
+					manager: .shared,
+					kind: WiredMemoryTicketKind.active,
+				)
+
+				// GPU telemetry: pre-inference snapshot
+				let preSnapshot = Memory.snapshot()
+				logRef.debug("GPU pre-inference [\(modelId)] active: \(preSnapshot.activeMemory / 1_048_576)MB, cache: \(preSnapshot.cacheMemory / 1_048_576)MB, peak: \(preSnapshot.peakMemory / 1_048_576)MB")
+				_ = await self.memoryTracker?.reportGPUActiveBytes(UInt64(preSnapshot.activeMemory))
+
+				// Acquire wired limit, run inference, then release
+				_ = await ticket.start()
+				let caughtError: (any Error)?
+				do {
+					try await runInferenceBody()
+					caughtError = nil
+				} catch {
+					caughtError = error
+				}
+				_ = await ticket.end()
+
+				// GPU telemetry: post-inference snapshot
+				let postSnapshot = Memory.snapshot()
+				let gpuDelta = preSnapshot.delta(postSnapshot)
+				logRef.debug("GPU post-inference delta [\(modelId)] active: \(gpuDelta.activeMemory / 1_048_576)MB, cache: \(gpuDelta.cacheMemory / 1_048_576)MB")
+
+				// Propagate error if caught
+				if let caughtError {
+					continuation.yield(.init(kind: .error(caughtError.localizedDescription)))
+				}
+
+				metrics.inferenceMs = metrics.overallMs
+				continuation.finish()
+				return
+			}
+
+			// Execute inference body without wired memory scoping
 			do {
 				try await runInferenceBody()
 			} catch {

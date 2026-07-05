@@ -149,7 +149,7 @@ public struct WiredMemoryConfig: Sendable, Codable, Equatable {
 	public static let `default` = WiredMemoryConfig()
 
 	public init(
-		enabled: Bool = false,
+		enabled: Bool = true,
 		policy: String = "max",
 		bytesOverride: Int = 0,
 	) {
