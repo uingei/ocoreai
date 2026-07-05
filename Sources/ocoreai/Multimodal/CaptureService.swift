@@ -9,6 +9,7 @@ import AVFoundation
 import Foundation
 import os.log
 import UniformTypeIdentifiers
+import Vision
 
 private let captureLogger = Logger(subsystem: "ocoreai", category: "capture")
 
@@ -25,6 +26,10 @@ final class CaptureService: NSObject {
 	var selectedCameraID: String?
 	var isCapturing: Bool = false
 	var latestFrameDataURL: String?
+	/// OCR-recognized text from the latest frame (via Vision).
+	/// If this is non-nil, the frame contains significant on-screen text
+	/// and can be sent as structured text (~20 tokens) instead of an image (~800 tokens).
+	var latestOCRText: String? = nil
 
 	private let session = AVCaptureSession()
 	private let frameInterval: TimeInterval = 2.0
@@ -148,6 +153,10 @@ final class CaptureService: NSObject {
 				if let d = data {
 					let compressed = self.compressCameraFrame(d)
 					cont.resume(returning: "data:image/jpeg;base64,\(compressed.base64EncodedString())")
+					// Run Vision OCR in background — updates latestOCRText for downstream
+					Task { @MainActor in
+						self.latestOCRText = await VisionOCR.extractText(from: compressed)
+					}
 				} else {
 					cont.resume(returning: nil)
 				}

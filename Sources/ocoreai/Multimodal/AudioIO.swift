@@ -3,7 +3,8 @@
 /// Audio I/O service — microphone capture + TTS playback + STT transcription
 ///
 /// Cross-platform: AVFoundation available on macOS, iOS, iPadOS.
-/// Recording via AVAudioRecorder, TTS via AVSpeechSynthesizer, STT via SFSpeechRecognizer.
+/// Recording via AVAudioRecorder (16kHz mono — STT sufficient),
+/// TTS via AVSpeechSynthesizer, STT via SFSpeechRecognizer.
 ///
 /// Migrated to @Observable (Swift 5.9+ standard per Apple API Design Guidelines)
 
@@ -89,14 +90,14 @@ extension AudioIO {
 		await AVCaptureDevice.requestAccess(for: .audio)
 	}
 
-	/// Start recording audio
+	/// Start recording audio — 16kHz mono (STT only needs 16kHz)
 	func startRecording(maxDuration _: TimeInterval = 30) async -> Bool {
 		guard !isRecording else { return false }
 		guard await requestMicPermission() else { return false }
 
 		let settings: [String: Any] = [
 			AVFormatIDKey: Int(kAudioFormatLinearPCM),
-			AVSampleRateKey: 44100.0,
+			AVSampleRateKey: 16000.0,
 			AVNumberOfChannelsKey: 1,
 			AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
 		]
@@ -168,6 +169,9 @@ extension AudioIO {
 		guard !text.isEmpty else { return }
 		synthesizer.stopSpeaking(at: .immediate)
 		let utterance = AVSpeechUtterance(string: text)
+		// Match TTS voice to current app locale (BCP 47 tag: "zh-Hans", "ja", "en", ...)
+		// AVSpeechSynthesisVoice falls back to system default if no matching voice exists
+		utterance.voice = AVSpeechSynthesisVoice(language: Locale.current.languageCode ?? "en")
 		synthesizer.speak(utterance)
 		isSpeaking = true
 	}
@@ -202,7 +206,8 @@ extension AudioIO {
 			return nil
 		}
 
-		guard let recognizer = SFSpeechRecognizer() else {
+		// Use current locale for STT — improves accuracy for non-English speech
+		guard let recognizer = SFSpeechRecognizer(locale: Locale.current) else {
 			audioLogger.error("[AudioIO] No available speech recognizer")
 			return nil
 		}
