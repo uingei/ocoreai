@@ -191,7 +191,22 @@ func chatCompletionsHandler(
 		prompt: request.messages.first?.textContent() ?? "",
 		tokenBudget: request.maxTokens ?? 4096,
 	)
-	try await scheduler.submitAndDispatch(schedulingRequest)
+	do {
+		try await scheduler.submitAndDispatch(schedulingRequest)
+	} catch let e as SchedulerError {
+		// Clean up scheduler state on admission failure
+		await scheduler.fail(schedulingRequest.id, with: e.localizedDescription)
+		switch e {
+		case .admissionRefused:
+			throw AppError.engineUnavailable
+		case .oomRefused:
+			throw AppError.engineUnavailable
+		case .queueFull:
+			throw AppError.poolExhausted(0)
+		default:
+			throw AppError.engineUnavailable
+		}
+	}
 
 	/// Phase 1b: Acquire engine handle
 	let handle: EngineHandle
