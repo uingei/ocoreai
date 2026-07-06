@@ -271,10 +271,7 @@ public final class HardwareRouter: Sendable {
 	/// Start periodic thermal/memory polling.
 	/// Calls `callback` when baseline channel recommendation changes.
 	/// - Parameter interval: Polling interval in seconds (default: 5s)
-	/// - Returns: A `Task` handle that can be cancelled to stop polling.
-	@discardableResult
-	public func startPolling(interval: UInt64 = 5) -> Task<Void, Never> {
-		// Start poller immediately so the Task is ours
+	public func startPolling(interval: UInt64 = 5) {
 		Task { await self.poller.startPolling(interval: interval) }
 	}
 

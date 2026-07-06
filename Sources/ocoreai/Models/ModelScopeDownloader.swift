@@ -25,12 +25,10 @@ actor ModelScopeDownloader: Downloader {
 	// MARK: - Configuration
 
 	private let token: String?
-/// ModelScope API base — hardcoded, always valid (literal URL).
+	/// ModelScope API base — hardcoded, always valid (literal URL).
 	private static let baseAPI: URL = {
-		guard let url = URL(string: "https://www.modelscope.cn/api/v1") else {
-			fatalError("Invalid hardcoded URL: modelscope API base")
-		}
-		return url
+		URL(string: "https://www.modelscope.cn/api/v1")
+			?? { assertionFailure("Invalid hardcoded URL"); return URL(fileURLWithPath: "/dev/null") }()
 	}()
 	private let cacheRoot: URL
 

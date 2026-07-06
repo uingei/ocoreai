@@ -79,6 +79,14 @@ public final class OcoreaiEngine {
 		scheduler
 	}
 
+	/// Direct accessor to the hardware router — consumers query compute channel (GPU/ANE/CPU).
+	var activeHardwareRouter: HardwareRouter? {
+		_hardwareRouter
+	}
+
+	/// Internal reference to HardwareRouter (not public to avoid leaking mutable init).
+	private var _hardwareRouter: HardwareRouter?
+
 	/// Direct accessor to session compressor — SwiftUI can persist/recall memory.
 	var activeSessionCompressor: SessionCompressor? {
 		_sessionCompressor
@@ -309,6 +317,7 @@ public final class OcoreaiEngine {
 			policy: .balanced,
 			log: logger
 		)
+		_hardwareRouter = hardwareRouter
 
 		let admissionGate = AdmissionGate(
 			maxConcurrentPreFills: 4,
