@@ -211,6 +211,25 @@ actor SchedulerActor {
 		return ids
 	}
 
+	/// Submit and immediately dispatch — atomic enqueue + admission + memory reservation.
+	/// This is the fast path for Handler pipelines that want to submit and dispatch
+	/// in one step (avoiding a separate dispatch call). If admission fails, the
+	/// request is removed from the queue before throwing (no orphaned entries).
+	/// - Parameter request: The scheduling request to submit and dispatch.
+	/// - Returns: The dispatched request if admitted, `nil` if other requests are waiting.
+	/// - Throws: ``SchedulerError`` on OOM, full queue, or admission refusal.
+	@discardableResult
+	func submitAndDispatch(_ request: SchedulingRequest) async throws -> SchedulingRequest? {
+		try await submit(request)
+		guard let dispatched = await dispatch() else {
+			// All requests rejected — remove our entry from queue to avoid orphan
+			_ = queue.remove(where: { $0.request.id == request.id })
+			requestStates.removeValue(forKey: request.id)
+			throw SchedulerError.admissionRefused
+		}
+		return dispatched
+	}
+
 	// MARK: - Dispatch
 
 	/// Dispatch the next request from the queue (highest priority).
@@ -475,6 +494,7 @@ actor SchedulerActor {
 public enum SchedulerError: Error, LocalizedError, Sendable, Equatable {
 	case queueFull
 	case oomRefused
+	case admissionRefused
 	case notFound(String)
 	case timeout(String)
 
@@ -482,6 +502,7 @@ public enum SchedulerError: Error, LocalizedError, Sendable, Equatable {
 		switch self {
 		case .queueFull: "Scheduler queue is full"
 		case .oomRefused: "Request refused due to OOM protection"
+		case .admissionRefused: "Request refused — insufficient admission headroom"
 		case let .notFound(id): "Request not found: \(id)"
 		case let .timeout(id): "Request timed out: \(id)"
 		}

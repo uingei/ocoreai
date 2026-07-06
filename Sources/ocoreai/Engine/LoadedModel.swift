@@ -86,15 +86,16 @@ final class LoadedModel: @unchecked Sendable {
 		/// - Speculative decoding is disabled in config (`enabled: false`)
 		/// - Mode is "mtp" — MTP does not use a separate draft model and needs
 		///   its own inference path (MTPSpeculativeTokenIterator), not yet wired.
+		///   Emits a user-visible warning so the operator knows SDC is off.
 		/// - No draft model has been loaded for "traditional" mode
 		func createSpeculativeConfig() -> MLXLMCommon.SpeculativeDecodingConfig? {
 			guard specDecodingConfig.enabled else { return nil }
 
 			// MTP mode: speculative decoding via main model's own MTP layers.
 			// This requires MTPSpeculativeTokenIterator — not yet connected, so we
-			// return nil and log a note rather than silently using traditional SDC.
+			// return nil and log a WARNING (not info) so the operator sees it.
 			if specDecodingConfig.mode == "mtp" {
-				logger.info("Speculative decoding mode 'mtp' — using main model inference path (MTP SDC not yet wired)")
+				logger.warning("Speculative decoding configured as mode='mtp' but MTP SDC not wired, running without speculation.")
 				return nil
 			}
 

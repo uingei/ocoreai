@@ -183,7 +183,7 @@ func chatCompletionsHandler(
 		}
 	}
 
-	/// Phase 1: Submit to scheduler (OOMGuard + priority queue)
+	/// Phase 1: Submit to scheduler + dispatch (OOMGuard + admission + hardware routing)
 	let schedulingRequest = SchedulingRequest(
 		id: "req-\(UUID().uuidString.prefix(8))",
 		priority: .chat,
@@ -191,7 +191,7 @@ func chatCompletionsHandler(
 		prompt: request.messages.first?.textContent() ?? "",
 		tokenBudget: request.maxTokens ?? 4096,
 	)
-	try await scheduler.submit(schedulingRequest)
+	try await scheduler.submitAndDispatch(schedulingRequest)
 
 	/// Phase 1b: Acquire engine handle
 	let handle: EngineHandle

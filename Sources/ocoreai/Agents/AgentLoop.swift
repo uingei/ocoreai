@@ -392,6 +392,9 @@ enum AgentLoop {
                     break
                 case let .text(t):
                     accumulatedText += t
+                    // NOTE: tokCount is a CHUNk count, not actual token count.
+                    // MLXLLM .text events deliver decoded text without token IDs,
+                    // so we cannot get accurate token spend. Underestimates budget by ~2x.
                     tokCount += 1
                 case let .error(e):
                     logger.warning("AgentLoop inference error: \(e)")

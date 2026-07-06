@@ -140,7 +140,7 @@ func anthropicMessagesHandler(
 		prompt: promptText,
 		tokenBudget: request.maxTokens ?? 4096,
 	)
-	try await scheduler.submit(schedulingRequest)
+	try await scheduler.submitAndDispatch(schedulingRequest)
 
 	// ═══════════════════════════════════════════════════════
 	// Phase 1b: Acquire engine handle

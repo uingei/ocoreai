@@ -162,7 +162,7 @@ extension DirectInferenceClient {
 		)
 		let fullMessages = try await messageBuilder.buildMessages(context: context)
 
-		// Phase 2: Submit to scheduler (streaming)
+		// Phase 2: Submit to scheduler + dispatch (streaming)
 		let schedulingRequest = SchedulingRequest(
 			id: "req-\(UUID().uuidString.prefix(8))",
 			priority: .chat,
@@ -170,7 +170,7 @@ extension DirectInferenceClient {
 			prompt: request.messages.first?.textContent() ?? "",
 			tokenBudget: request.maxTokens ?? 4096,
 		)
-		try await scheduler.submit(schedulingRequest)
+		try await scheduler.submitAndDispatch(schedulingRequest)
 
 		// Phase 3: Acquire engine handle
 		let handle: EngineHandle
@@ -286,7 +286,7 @@ extension DirectInferenceClient {
 		)
 		let fullMessages = try await messageBuilder.buildMessages(context: context)
 
-		// Phase 2: Scheduler (non-streaming)
+		// Phase 2: Submit to scheduler + dispatch (non-streaming)
 		let schedulingRequest = SchedulingRequest(
 			id: "req-\(UUID().uuidString.prefix(8))",
 			priority: .chat,
@@ -294,7 +294,7 @@ extension DirectInferenceClient {
 			prompt: request.messages.first?.textContent() ?? "",
 			tokenBudget: request.maxTokens ?? 4096,
 		)
-		try await scheduler.submit(schedulingRequest)
+		try await scheduler.submitAndDispatch(schedulingRequest)
 
 		// Phase 3: Acquire engine
 		let handle: EngineHandle
