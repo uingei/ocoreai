@@ -313,6 +313,26 @@ extension EnginePool {
 			cancellation: InferenceCancellation = .none,
 			skipLock: Bool = false,
 		) async {
+			// Query HardwareRouter for runtime compute channel decision.
+			// This establishes the data flow: HardwareRouter recommendation → inference dispatch.
+			// Currently MLX is the only active backend (#if mlx), so non-GPU channels are logged
+			// but inference still runs on GPU. Once CoreAI (ANE) is available, channel will drive
+			// backend selection.
+			if let router = hardwareRouter, let tracker = memoryTracker {
+				let recommendedChannel = router.query(
+					gpuActiveBytes: await tracker.gpuActiveMemoryBytes(),
+					gpuBudgetBytes: await tracker.getBudget(),
+					priority: .chat
+				)
+				if recommendedChannel != .gpu {
+					logger.warning("HardwareRouter recommends \(recommendedChannel.rawValue) for \(modelId), using GPU (MLX backend, ANE/CPU fallback pending CoreAI SDK)")
+				} else {
+					let gpuGB = String(format: "%.1f", Double(await tracker.gpuActiveMemoryBytes()) / 1_073_741_824.0)
+					let budgetGB = String(format: "%.1f", Double(await tracker.getBudget()) / 1_073_741_824.0)
+					logger.debug("HardwareRouter → GPU channel for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB)")
+				}
+			}
+
 			guard let loaded = loadedModels[modelId] else {
 				continuation.yield(.init(kind: .error("Model not loaded: \(modelId)")))
 				continuation.finish()

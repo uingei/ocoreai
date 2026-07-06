@@ -105,7 +105,12 @@ actor EnginePool {
 
 	/// Token for ModelScope Hub API (used by HubConfigFetcher + MLXModelLoader)
 	private let modelScopeToken: String?
-	
+
+	/// Runtime hardware-aware routing — nil when HardwareRouter is not available.
+	/// When set, every inference request queries the router for recommendedChannel
+	/// before dispatching to a backend.
+	internal let hardwareRouter: HardwareRouter?
+
 	init(
 		config: EnginePoolConfig,
 		logger: Logger,
@@ -116,8 +121,10 @@ actor EnginePool {
 		memoryTracker: MemoryTracker? = nil,
 		modelScopeToken: String? = nil,
 		hfToken: String? = nil,
+		hardwareRouter: HardwareRouter? = nil,
 	) {
 		self.modelScopeToken = modelScopeToken
+		self.hardwareRouter = hardwareRouter
 		precondition(config.maxConcurrentSessions > 0, "maxConcurrentSessions must be positive")
 		precondition(config.maxQueueSize > 0, "maxQueueSize must be positive")
 		precondition(config.warmupTokens > 0, "warmupTokens must be positive")

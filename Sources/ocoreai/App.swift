@@ -351,7 +351,9 @@ public final class OcoreaiEngine {
 			memoryTracker: memoryTracker,
 			modelScopeToken: msToken,
 			hfToken: hfToken,
+			hardwareRouter: hardwareRouter,
 		)
+		logger.info("EnginePool initialized with HardwareRouter integration")
 		// Build LLM summarizer callback for session compression
 		_sessionCompressor = SessionCompressor(
 			store: store,
