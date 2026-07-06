@@ -63,6 +63,8 @@ actor AdmissionGate {
 	private static let KBPerToken = 1024 // 1KB/token (bits4 q4_0)
 
 	/// Abort margin: percentage of remaining budget to always reserve
+	/// Production: 0.15. Tuning knob — increase if OOM still occurs, decrease if
+	/// admission is too aggressive and rejects valid requests.
 	private let abortMarginFraction: Double = 0.15
 
 	/// Maximum concurrent pre-fills (jitter protection)
