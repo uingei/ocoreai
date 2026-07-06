@@ -20,6 +20,8 @@ import Logging
 	import MLXLLM
 	import MLXLMCommon
 	import MLXVLM
+	import CoreImage
+	import CoreGraphics
 #endif
 
 // MARK: - Inference Extension
@@ -248,6 +250,31 @@ extension EnginePool {
 	}
 
 	#if mlx
+		// MARK: - MLX Image Helper
+
+	/// Convert a string that may be a data URL (`data:image/…;base64,…`) or a
+	/// regular URL into an ``MLXLMCommon/UserInput/Image``.
+	/// Data URLs are decoded to `CIImage`; remote/local URLs are passed through.
+	/// Top-level free function — does not capture `self` (avoids Sendable taint).
+	nonisolated func makeMLXImage(from urlString: String) -> MLXLMCommon.UserInput.Image? {
+		// Handle data: URIs (camera/screen snapshots come as base64 data URLs)
+		if urlString.hasPrefix("data:") {
+			// Strip the `data:image/...;base64,` prefix
+			let components = urlString.components(separatedBy: ",")
+			guard components.count == 2 else { return nil }
+			guard let data = Data(base64Encoded: components[1]) else { return nil }
+			guard let ciImage = CIImage(data: data) else { return nil }
+			return .ciImage(ciImage)
+		}
+
+		// Fallback: regular URL (http, file, etc.)
+		if let url = URL(string: urlString) {
+			return .url(url)
+		}
+
+		return nil
+	}
+
 		// MARK: - MLX ToolCall Conversion
 
 	/// Convert ocoreai ``ToolCall`` to upstream MLXLMCommon ``ToolCall``.
@@ -408,9 +435,9 @@ extension EnginePool {
 						if let text = part.text {
 							textParts.append(text)
 						}
-						if let img = part.imageUrl, let url = URL(string: img.url) {
-							images.append(.url(url))
-						}
+						if let img = part.imageUrl, let image = makeMLXImage(from: img.url) {
+								images.append(image)
+							}
 					}
 					return Chat.Message(
 						role: role,
