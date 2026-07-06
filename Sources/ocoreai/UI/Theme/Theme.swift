@@ -72,9 +72,9 @@ extension OcoreaiTheme {
 		let isDark = scheme == .dark
 
 #if os(macOS)
-		let windowBg: Color = Color(nsColor: NSColor.windowBackgroundColor)
+			let windowBg = Color(nsColor: NSColor.windowBackgroundColor)
 #else
-		let windowBg: Color = Color(.systemBackground)
+			let windowBg = Color(.systemBackground)
 #endif
 
 		return OcoreaiTheme(

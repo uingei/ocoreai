@@ -171,7 +171,7 @@ extension AudioIO {
 		let utterance = AVSpeechUtterance(string: text)
 		// Match TTS voice to current app locale (BCP 47 tag: "zh-Hans", "ja", "en", ...)
 		// AVSpeechSynthesisVoice falls back to system default if no matching voice exists
-		utterance.voice = AVSpeechSynthesisVoice(language: Locale.current.languageCode ?? "en")
+		utterance.voice = AVSpeechSynthesisVoice(language: Locale.current.language.languageCode?.identifier ?? "en")
 		synthesizer.speak(utterance)
 		isSpeaking = true
 	}

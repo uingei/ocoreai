@@ -83,9 +83,7 @@ struct OcoreaiApp: App {
 /// Root Shell View — two-column: sidebar + detail, HIG compliant
 
 struct OcoreaiShellView: View {
-	// swiftlint:disable:next identifier_name
 	@Environment(\.colorScheme) private var colorScheme
-	// swiftlint:disable:next identifier_name
 	@Environment(\.scenePhase) private var scenePhase
 	@State private var theme = OcoreaiTheme.theme(from: .light)
 	@Bindable private var appState = AppState.shared

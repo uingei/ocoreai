@@ -173,16 +173,16 @@ struct DashboardView: View {
 	}
 
 	private var avgInferPerMs: String {
-		let count = snap_inferenceCount
+		let count = snapInferenceCount
 		if count == 0 { return "0 ms" }
-		return String(format: "%.0f ms", Double(snap_inferenceDurationMs) / Double(count))
+		return String(format: "%.0f ms", Double(snapInferenceDurationMs) / Double(count))
 	}
 
-	private var snap_inferenceCount: Int64 {
+	private var snapInferenceCount: Int64 {
 		dashboardState.metricsSnapshot.inferenceCount
 	}
 
-	private var snap_inferenceDurationMs: Double {
+	private var snapInferenceDurationMs: Double {
 		dashboardState.metricsSnapshot.inferenceDurationMs
 	}
 

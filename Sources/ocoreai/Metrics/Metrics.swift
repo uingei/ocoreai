@@ -201,10 +201,8 @@ actor MetricsRegistry {
 		precondition(seconds >= 0, "duration must be non-negative")
 		inferenceDurationSum += seconds
 		inferenceDurationCount &+= 1
-		for bucket in Self.inferenceBuckets {
-			if seconds <= bucket {
-				inferenceBucketCounts[bucket, default: 0] &+= 1
-			}
+		for bucket in Self.inferenceBuckets where seconds <= bucket {
+			inferenceBucketCounts[bucket, default: 0] &+= 1
 		}
 		// Track token counts
 		if inputTokens > 0 {
@@ -226,10 +224,8 @@ actor MetricsRegistry {
 		precondition(seconds >= 0, "ttfb must be non-negative")
 		ttfbSum += seconds
 		ttfbCount &+= 1
-		for bucket in Self.ttfbBuckets {
-			if seconds <= bucket {
-				ttfbBucketCounts[bucket, default: 0] &+= 1
-			}
+		for bucket in Self.ttfbBuckets where seconds <= bucket {
+			ttfbBucketCounts[bucket, default: 0] &+= 1
 		}
 	}
 
