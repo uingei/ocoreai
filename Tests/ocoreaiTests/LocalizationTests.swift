@@ -129,7 +129,7 @@ struct WarningMarkerTests {
         // 间接验证：如果 base 表少任何 key，就会返回 ⚠️
         // 上面已验证没有 ⚠️，所以此处只需数量对得上
         let allKeys = StringKey.allCases
-        #expect(allKeys.count > 0, "StringKey 应至少有一个 case")
+        #expect(!allKeys.isEmpty, "StringKey 应至少有一个 case")
         for key in allKeys {
             let text = key.localized(for: .en)
             #expect(!text.hasPrefix("⚠️"), "base 表应覆盖: \(key.rawValue)")

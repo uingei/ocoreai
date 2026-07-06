@@ -99,14 +99,14 @@ private final class CrashHandler: @unchecked Sendable {
 
 	@discardableResult
 	private static func installSignalHandlers() -> Bool {
-		var all_ok = true
+		var allOk = true
 		for (sig, _) in crashSignals {
 			let old = signal(sig, signalHandler)
 			if old == nil {
-				all_ok = false
+				allOk = false
 			}
 		}
-		return all_ok
+		return allOk
 	}
 
 	// MARK: - Crash log persistence

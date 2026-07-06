@@ -79,8 +79,8 @@ struct AuditTrailRecordingTests {
             toolset: "test",
             arguments: ["input": "hello"]
         )
-        #expect(token.id.count > 0)
-        #expect(token.traceID.count > 0)
+        #expect(!token.id.isEmpty)
+        #expect(!token.traceID.isEmpty)
         #expect(token.caller == "agent")
         
         await trail.completeToken(token, status: .success, result: "ok result")

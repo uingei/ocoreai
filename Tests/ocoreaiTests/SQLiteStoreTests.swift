@@ -182,7 +182,7 @@ struct SQLiteFTS5Tests {
         let results = try await store.query(
             "SELECT rowid, content FROM messages_fts WHERE messages_fts MATCH 'debug' ORDER BY rank"
         )
-        #expect(results.count > 0)
+        #expect(!results.isEmpty)
         #expect(results[0]["content"]?.asString?.contains("debug") == true)
         await store.close()
         try? FileManager.default.removeItem(atPath: testPath())
@@ -204,7 +204,7 @@ struct SQLiteFTS5Tests {
         let results = try await store.query(
             "SELECT rowid, cause, result FROM memory_events_fts WHERE memory_events_fts MATCH 'inference' ORDER BY rank"
         )
-        #expect(results.count > 0)
+        #expect(!results.isEmpty)
         #expect(results[0]["cause"]?.asString?.contains("inference") == true)
         await store.close()
         try? FileManager.default.removeItem(atPath: testPath())

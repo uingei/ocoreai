@@ -199,7 +199,7 @@ enum AgentLoop {
             }
 
             iterCount = i
-            let t_start = ContinuousClock.now
+            let tStart = ContinuousClock.now
 
             // ── Inference ───────────────────────────────────────────────
             let (text, tokCount) = try await doInfer(
@@ -210,7 +210,7 @@ enum AgentLoop {
                 logger: log
             )
 
-            let elapsed = t_start.duration(to: ContinuousClock.now)
+            let elapsed = tStart.duration(to: ContinuousClock.now)
             let elapsedMs = Double(elapsed.components.seconds) * 1000.0 + Double(elapsed.components.attoseconds) / 1e13
             totalTok += tokCount
             budgetRemaining -= tokCount
