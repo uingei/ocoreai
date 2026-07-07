@@ -94,10 +94,9 @@
 
 		// MARK: - VLM Detection
 
-		/// VLM models have `preprocessor_config.json` (processor_class).
-		/// LLM models do not — this is the most reliable way to distinguish.
-		nonisolated static func isVLMModel(at directory: URL) -> Bool {
-			let processorPath = directory.appendingPathComponent("preprocessor_config.json")
+		/// VLM models have `processor_config.json` (processor_class).
+			nonisolated static func isVLMModel(at directory: URL) -> Bool {
+			let processorPath = directory.appendingPathComponent("processor_config.json")
 			return FileManager.default.fileExists(atPath: processorPath.path)
 		}
 
@@ -142,7 +141,7 @@
 				cacheRoot = baseDir
 					.appendingPathComponent("ocoreai/modelscope")
 					.appendingPathComponent(repoId)
-					.appendingPathComponent("main")
+					.appendingPathComponent("master")
 			case .huggingFace:
 				cacheRoot = baseDir
 					.appendingPathComponent("org.ml-explore.mlx-swift-lm")

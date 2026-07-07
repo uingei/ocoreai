@@ -56,7 +56,7 @@ public struct EnginePoolConfig: Sendable {
 		maxQueueSize: 32,
 		modelConfigPath: "./models/config.json",
 		modelDirectory: "./models",
-		defaultModelId: "hf:mlx-community/Qwen3.5-4B-OptiQ-4bit",
+		defaultModelId: "mlx-community/gemma-4-e2b-it-4bit",
 		warmupTokens: 4,
 		kvCacheConfig: nil,
 		inferenceTimeoutSeconds: 180,
