@@ -212,6 +212,10 @@ actor ModelScopeDownloader: Downloader {
 				throw DownloaderError.downloadFailed(path: path, statusCode: status)
 			}
 
+			// FileHandle(forWritingTo:) requires the file to already exist
+			// (Swift 6 API change — does not create the file implicitly).
+			try FileManager.default.createFile(atPath: tempURL.path(percentEncoded: false), contents: nil)
+
 			// Stream into file — O(1) memory regardless of file size.
 			let handle = try FileHandle(forWritingTo: tempURL)
 			defer { try? handle.close() }
