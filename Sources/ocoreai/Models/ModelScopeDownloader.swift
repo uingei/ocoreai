@@ -168,7 +168,8 @@ actor ModelScopeDownloader: Downloader {
 			)
 		}
 
-		return files.filter { $0.type == "file" }
+		// ModelScope returns "blob" for regular files (not "file")
+		return files.filter { $0.type == "blob" || $0.type == "file" }
 	}
 
 	/// Download a single file from ModelScope.
