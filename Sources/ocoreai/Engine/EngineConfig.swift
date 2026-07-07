@@ -23,8 +23,12 @@ public struct EnginePoolConfig: Sendable {
 	public var modelDirectory: String
 
 	/// Default model identifier (Hub id or local path)
-	/// Format: "hf:org/model" for HuggingFace, "mscope:org/model" for ModelScope, or "/path/to/model"
+	/// Format: "org/model" for hub, "/path/to/model" for local
 	public var defaultModelId: String
+
+	/// Model source hint — "modelscope" or "huggingface".
+	/// Controls which download/API endpoint is used.
+	public var defaultModelSource: String
 
 	/// Number of tokens for the prewarm (warmup) inference run
 	public var warmupTokens: Int
@@ -57,18 +61,19 @@ public struct EnginePoolConfig: Sendable {
 		modelConfigPath: "./models/config.json",
 		modelDirectory: "./models",
 		defaultModelId: "mlx-community/gemma-4-e2b-it-4bit",
+		defaultModelSource: "modelscope",
 		warmupTokens: 4,
 		kvCacheConfig: nil,
 		inferenceTimeoutSeconds: 180,
 		sessionPoolConfig: .default,
 		kvCacheQuantization: .default,
 		wiredMemory: .default,
-		specDecoding: .default, // disabled by default
+		specDecoding: .default,
 	)
 
 	/// Build from the config system's ``AppConfig``.
 	///
-	/// Maps `backend.*` → engine limits, `models.default` → model id,
+	/// Maps `backend.*` → engine limits, `models.default` → model id + source,
 	/// `backend.kvCacheQuantization` → KV cache policy.
 	/// Missing or invalid values fall back to `.default`.
 	///
@@ -85,15 +90,15 @@ public struct EnginePoolConfig: Sendable {
 		self.modelConfigPath = "./models/config.json"
 		self.modelDirectory = "./models"
 
-		// Resolve default model from config, fallback to hard-coded
+		// Resolve default model from config, fallback to hard-coded.
+		// source="huggingface" → strips to bare modelId (HF handled by source param, not prefix).
+		// source="modelscope" (or any other) → bare modelId, source param guides download/API.
 		if let defaultEntry = app.models["default"] {
-			self.defaultModelId = switch defaultEntry.source {
-			case "huggingface": "hf:\(defaultEntry.modelId)"
-			case "modelscope": "mscope:\(defaultEntry.modelId)"
-			default: defaultEntry.modelId
-			}
+			self.defaultModelId = defaultEntry.modelId
+			self.defaultModelSource = defaultEntry.source
 		} else {
 			self.defaultModelId = Self.default.defaultModelId
+			self.defaultModelSource = Self.default.defaultModelSource
 		}
 		self.warmupTokens = 4
 		self.kvCacheConfig = nil
@@ -103,7 +108,7 @@ public struct EnginePoolConfig: Sendable {
 		self.wiredMemory = app.backend.wiredMemory
 
 		let backendStr = app.backend.preference.joined(separator: ", ")
-		logger.info("EnginePoolConfig from AppConfig — backend: \(backendStr), defaultModel: \(self.defaultModelId), sessions: \(self.maxConcurrentSessions)")
+		logger.info("EnginePoolConfig from AppConfig — backend: \(backendStr), defaultModel: \(self.defaultModelId), source: \(self.defaultModelSource), sessions: \(self.maxConcurrentSessions)")
 	}
 
 	init(
@@ -112,6 +117,7 @@ public struct EnginePoolConfig: Sendable {
 		modelConfigPath: String,
 		modelDirectory: String,
 		defaultModelId: String,
+		defaultModelSource: String,
 		warmupTokens: Int,
 		kvCacheConfig: KVCacheManager.Config?,
 		inferenceTimeoutSeconds: Int,
@@ -125,6 +131,7 @@ public struct EnginePoolConfig: Sendable {
 		self.modelConfigPath = modelConfigPath
 		self.modelDirectory = modelDirectory
 		self.defaultModelId = defaultModelId
+		self.defaultModelSource = defaultModelSource
 		self.warmupTokens = warmupTokens
 		self.kvCacheConfig = kvCacheConfig
 		self.inferenceTimeoutSeconds = inferenceTimeoutSeconds

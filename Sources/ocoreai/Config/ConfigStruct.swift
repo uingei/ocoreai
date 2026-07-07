@@ -309,7 +309,10 @@ public struct KVCacheQuantizationConfig: Sendable, Codable, Equatable {
 /// Per-model settings stored in config.yaml under `models.<id>`.
 public struct ModelConfigEntry: Sendable, Codable, Equatable {
 	public var enabled: Bool
-	public var source: String
+	/// Source hint for EngineConfig prefix resolution.
+	/// `"huggingface"` → adds "hf:" prefix to force HF path.
+	/// Any other value (or omitted) → bare path, uses defaultHub ("modelscope").
+	public var source: String = "modelscope"
 	public var modelId: String
 	public var version: String?
 	public var sampling: SamplingConfig
@@ -318,7 +321,7 @@ public struct ModelConfigEntry: Sendable, Codable, Equatable {
 	public static let defaultEntry = ModelConfigEntry(
 		enabled: true,
 		source: "modelscope",
-		modelId: "mlx-community/Qwen3.5-4B-OptiQ-4bit",
+		modelId: "mlx-community/gemma-4-e2b-it-4bit",
 		version: nil,
 		sampling: .default,
 		maxSessionTokens: 32768,

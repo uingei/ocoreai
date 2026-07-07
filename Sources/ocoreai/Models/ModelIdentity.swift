@@ -49,20 +49,10 @@ struct ModelIdentity: Identifiable, Hashable, Codable, Sendable {
         ModelIdentity(id: path, source: .local(path: path))
     }
 
-    /// EnginePool-compatible prefixed model ID.
-    /// - HF: "org/repo" (no prefix needed — EnginePool defaults to HF)
-    /// - MS: "mscope:org/repo"
-    /// - Local: "/path/to/model" (unchanged)
-    var prefixedId: String {
-        switch source {
-        case .huggingFace:
-            return id
-        case .modelScope:
-            return "mscope:\(id)"
-        case .local:
-            return id
-        }
-    }
+    /// EnginePool-compatible model ID (bare repo path).
+    /// Source routing is now handled by the explicit `source` parameter,
+    /// so prefixes are no longer concatenated here.
+    var prefixedId: String { id }
 
     /// Plain repo ID without any prefix. Used for progress key alignment
     /// and display purposes.
@@ -122,10 +112,9 @@ struct ModelIdentity: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
-// MARK: - Progress Key Extension
-
 /// Extract the progress key from any modelId string.
-/// Progress key = repo ID without prefix — used to align UI progress with MLXBridge callbacks.
+/// Strips legacy prefixes (mscope:, hf:, huggingface:) for backward compatibility;
+/// new code should use bare repo IDs with an explicit source parameter.
 extension String {
     var progressKey: String {
         if self.hasPrefix("mscope:") { return String(self.dropFirst(7)) }

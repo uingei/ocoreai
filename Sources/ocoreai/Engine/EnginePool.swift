@@ -230,7 +230,7 @@ actor EnginePool {
 			return try await _acquireSession(modelId: modelId)
 		}
 
-		loadedModels[modelId] = try await loadModel(modelId)
+		loadedModels[modelId] = try await loadModel(modelId, source: config.defaultModelSource)
 
 		// 4. Load succeeded — acquire session
 		return try await _acquireSession(modelId: modelId)
@@ -315,84 +315,43 @@ actor EnginePool {
 	// MARK: - Model Loading
 
 	/// Check whether this model ID refers to a remote hub model.
-	/// Recognizes: hf:… / huggingface:… / mscope:… prefixes AND bare "org/repo" paths.
 	/// Exposed for ModelManager cache-check optimization.
 	nonisolated func isHubModel(_ modelId: String) -> Bool {
-		if modelId.hasPrefix("hf:") || modelId.hasPrefix("huggingface:") || modelId.hasPrefix("mscope:") {
-			return true
-		}
 		// Bare "org/repo" pattern: contains a slash and is not an absolute/local path
-		if modelId.contains("/"), !modelId.hasPrefix("/"), !modelId.hasPrefix("~/") {
-			return true
-		}
-		return false
+		return modelId.contains("/") && !modelId.hasPrefix("/") && !modelId.hasPrefix("~/")
 	}
 
-	private func loadModel(_ modelId: String) async throws -> LoadedModel {
-		logger.info("Loading model: \(modelId)")
+	private func loadModel(_ modelId: String, source: String = "modelscope") async throws -> LoadedModel {
+		logger.info("Loading model: \(modelId) (source: \(source))")
 
-		// Hub models (hf: / mscope: / huggingface:) are resolved by MLXModelLoader
-		// — no local config.json or weight files to discover pre-download.
-		// We fetch remote config.json to get real vocab_size and max_context_length,
-		// falling back to safe defaults on failure.
-		// Pass the raw modelId string as modelURL.pathContent — MLXModelLoader.parseSource
-		// reads modelURL.path to detect hf:/mscope: prefixes.
-		let (modelConfig, modelURL, configData): (ModelConfig, URL, Data)
-		if isHubModel(modelId) {
-			// Strip prefix to get raw repo id for config fetch
-			let repoId: String
-			if modelId.hasPrefix("mscope:") {
-				repoId = String(modelId.dropFirst(7))
-			} else if modelId.hasPrefix("hf:") || modelId.hasPrefix("huggingface:") {
-				let prefixLen = modelId.hasPrefix("hf:") ? 3 : 12
-				repoId = String(modelId.dropFirst(prefixLen))
-			} else {
-				repoId = modelId
-			}
-
-			// Fetch remote config — best effort with URLSession 10s internal timeout,
-			// never blocks model loading even on failure
-			let resolved: (vocabSize: Int, maxContextLength: Int)?
-			if modelId.hasPrefix("mscope:") {
-				resolved = await HubConfigFetcher.fetchModelScopeConfig(repoId: repoId, token: modelScopeToken, logger: logger)
-			} else {
-				resolved = await HubConfigFetcher.fetchHuggingFaceConfig(repoId: repoId, logger: logger)
-			}
-
-			modelConfig = ModelConfig(
-				name: modelId,
-				function: "default",
-				vocabSize: resolved?.vocabSize ?? 151_936,
-				maxContextLength: resolved?.maxContextLength ?? 131_072,
-				chunkThreshold: 8,
-				prefillChunkSize: 4096,
-			)
-			// Use fileURLWithPath so modelURL.path preserves the "hf:" / "mscope:" prefix
-			// for MLXModelLoader.parseSource() to match.
-			modelURL = URL(fileURLWithPath: modelId)
-			// Stub configData for coreai path; actual weights come from hub download
-			configData = "{}".data(using: .utf8) ?? Data()
-			logger.info("Model \(modelId) is a hub model — MLXModelLoader will resolve \(resolved != nil ? "(remote config resolved)" : "(using defaults)")")
+		// Resolve repo id — strip hf: prefix if present
+		let repoId: String = if modelId.hasPrefix("hf:") {
+			String(modelId.dropFirst(3))
 		} else {
-			var configURL = URL(fileURLWithPath: config.modelConfigPath)
-			let candidate = configURL
-				.appendingPathComponent(modelId)
-				.appendingPathComponent("config.json")
-			if candidate.isFileURL, FileManager.default.fileExists(atPath: candidate.path) {
-				configURL = candidate
-			}
-
-			configData = try Data(contentsOf: configURL)
-			modelConfig = try ModelConfig(parsing: configData)
-			try modelConfig.validate()
-
-			let baseDir = URL(fileURLWithPath: config.modelDirectory)
-				.appendingPathComponent(modelId)
-			let modelName = modelConfig.serializedModel.first ?? "\(modelId).aimodel"
-			modelURL = baseDir.appendingPathComponent(modelName)
-
-			logger.info("Model \(modelId) metadata loaded")
+			modelId
 		}
+
+		// Fetch remote config — source determines which API
+		let isHF = source == "huggingface" || modelId.hasPrefix("hf:")
+		let resolved: (vocabSize: Int, maxContextLength: Int)?
+		if isHF {
+			resolved = await HubConfigFetcher.fetchHuggingFaceConfig(repoId: repoId, logger: logger)
+		} else {
+			resolved = await HubConfigFetcher.fetchModelScopeConfig(repoId: repoId, token: modelScopeToken, logger: logger)
+		}
+
+		let modelConfig = ModelConfig(
+			name: modelId,
+			function: "default",
+			vocabSize: resolved?.vocabSize ?? 151_936,
+			maxContextLength: resolved?.maxContextLength ?? 131_072,
+			chunkThreshold: 8,
+			prefillChunkSize: 4096,
+		)
+		let modelURL = URL(fileURLWithPath: modelId)
+		// Stub configData for coreai path; actual weights come from hub download
+		let configData = "{}".data(using: .utf8) ?? Data()
+		logger.info("Model \(modelId) is a hub model — MLXModelLoader will resolve \(resolved != nil ? "(remote config resolved)" : "(using defaults)")")
 
 		#if coreai
 			let preparedModel = try await coreAIPreparedModelLoader.load(
@@ -420,6 +379,7 @@ actor EnginePool {
 			let mlxHandle = try await mlxModelLoader.load(
 				modelURL: modelURL,
 				modelId: modelId,
+				source: source,
 			)
 			logger.info("MLX model \(modelId) loaded successfully")
 
@@ -439,11 +399,13 @@ actor EnginePool {
 				} else if self.draftModelHandle == nil,
 				        let draftId = config.specDecoding.draftModelId {
 					// Lazy-load draft model once
-					let draftURL = URL(fileURLWithPath: "hf:\(draftId)")
+					// Draft models default to HF — no source param needed
+					let draftURL = URL(string: draftId)!
 					do {
 						let draftHandle = try await mlxModelLoader.load(
 							modelURL: draftURL,
-							modelId: draftId
+							modelId: draftId,
+							source: "huggingface"
 						)
 						self.draftModelHandle = draftHandle
 						model.setDraftModel(draftHandle)
