@@ -399,20 +399,19 @@ actor MCPBridge {
 		let argsJsonStr = argsJson.map { String(decoding: $0, as: UTF8.self) } ?? "{}"
 
 		return try await withThrowingTaskGroup(of: String.self) { group in
-			for (clientName, client) in resolvedClients {
-				_ = clientName
+			for (_, client) in resolvedClients {
 				group.addTask { @Sendable [weak self] in
 					guard let s = self else { throw MCPBridgeError.externalProcessNotManaged }
 					return try await s.forwardToolCall(to: client, tool: toolName, args: argsJsonStr)
 				}
 			}
 
-			let firstError: Error? = nil
 			for try await result in group {
 				return result
 			}
 
-			throw firstError ?? MCPBridgeError.allExternalServersFailed(toolName)
+			// All tasks returned without throwing (should not happen in practice).
+			throw MCPBridgeError.allExternalServersFailed(toolName)
 		}
 	}
 
