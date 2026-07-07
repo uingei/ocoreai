@@ -399,7 +399,7 @@ actor EnginePool {
 				        let draftId = config.specDecoding.draftModelId {
 					// Lazy-load draft model once
 					// Draft models default to HF — no source param needed
-					let draftURL = URL(string: draftId)!
+					let draftURL = URL(fileURLWithPath: draftId)
 					do {
 						let draftHandle = try await mlxModelLoader.load(
 							modelURL: draftURL,

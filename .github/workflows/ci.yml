@@ -65,9 +65,9 @@ jobs:
           set -euo pipefail
           swiftlint lint --config .swiftlint.yml Sources/ 2>&1 \
             | tee /tmp/swiftlint-sources.txt || true
-          FU=$(grep -c 'force_unwrapping.*error' /tmp/swiftlint-sources.txt || true)
-          IU=$(grep -c 'implicitly_unwrapped_optional.*error' /tmp/swiftlint-sources.txt || true)
-          FE=$(grep -c 'fatal_error_message.*error' /tmp/swiftlint-sources.txt || true)
+          FU=$(grep -c 'force_unwrapping.*warning' /tmp/swiftlint-sources.txt || true)
+          IU=$(grep -c 'implicitly_unwrapped_optional.*warning' /tmp/swiftlint-sources.txt || true)
+          FE=$(grep -c 'fatal_error_message.*warning' /tmp/swiftlint-sources.txt || true)
           echo "🔒 force_unwrapping=$FU  implicitly_unwrapped=$IU  fatal_error_message=$FE"
           FAIL=0
           [ "$FU" -gt 0 ] && echo "❌ force_unwrapping in Sources/ — pipeline blocked" && FAIL=1
