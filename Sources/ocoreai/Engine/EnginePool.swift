@@ -379,7 +379,6 @@ actor EnginePool {
 			let mlxHandle = try await mlxModelLoader.load(
 				modelURL: modelURL,
 				modelId: modelId,
-				source: source,
 			)
 			logger.info("MLX model \(modelId) loaded successfully")
 
