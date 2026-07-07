@@ -168,53 +168,52 @@
 		// MARK: - Public Load
 
 	/// Primary load entry point — called by ``EnginePool``.
-	/// `source` parameter decides the hub: "modelscope", "huggingface", or bare path (uses defaultHub).
-	func load(
-		modelURL: URL,
-		modelId: String,
-		source: String = "modelscope",
-	) async throws -> (any MLXModelHandle) {
-		logger.info("Loading MLX model \(modelId) from \(modelURL.path)")
-		let start = ContinuousClock.now
+	/// Hub routing is handled by the loader's `defaultHub` configuration property,
+	/// except for explicit "hf:" prefix override.
+		func load(
+			modelURL: URL,
+			modelId: String,
+		) async throws -> (any MLXModelHandle) {
+			logger.info("Loading MLX model \(modelId) from \(modelURL.path)")
+			let start = ContinuousClock.now
 
-		// Local path
-		if modelId.hasPrefix("/") || modelId.hasPrefix("~/") {
-			logger.info("Loading local model: \(modelId)")
-			let container = try await loadLocal(Path(modelId), modelId: modelId)
+			// Local path
+			if modelId.hasPrefix("/") || modelId.hasPrefix("~/") {
+				logger.info("Loading local model: \(modelId)")
+				let container = try await loadLocal(Path(modelId), modelId: modelId)
+				_ = logElapsed("MLX model \(modelId) loaded", start)
+				return MLXModelHandleImpl(modelContainer: container, modelId: modelId)
+			}
+
+			// Determine hub provider — defaultHub property decides, hf: prefix overrides
+			let provider: HubProvider
+			let repoId: String
+
+			if modelId.hasPrefix("hf:") || defaultHub == "huggingface" {
+				provider = .huggingFace
+				repoId = modelId.hasPrefix("hf:") ? String(modelId.dropFirst(3)) : modelId
+			} else {
+				provider = .modelScope
+				repoId = modelId
+			}
+
+			// Try configured provider, fall back to the other on failure
+			func loadFromHubWithFallback() async throws -> MLXLMCommon.ModelContainer {
+				do {
+					return try await loadFromHub(provider, repoId: repoId, modelId: modelId)
+				} catch {
+					logger.warning("\(provider == .modelScope ? "ModelScope" : "HuggingFace") failed for \(modelId) — falling back: \(error.localizedDescription)")
+					let fallback: HubProvider = provider == .modelScope ? .huggingFace : .modelScope
+					return try await loadFromHub(fallback, repoId: repoId, modelId: modelId)
+				}
+			}
+
+			let container: MLXLMCommon.ModelContainer = try await loadFromHubWithFallback()
+
 			_ = logElapsed("MLX model \(modelId) loaded", start)
+
 			return MLXModelHandleImpl(modelContainer: container, modelId: modelId)
 		}
-
-		// Determine hub provider from source parameter
-		let provider: HubProvider
-		let repoId: String
-
-		if source == "huggingface" || modelId.hasPrefix("hf:") {
-			provider = .huggingFace
-			repoId = modelId.hasPrefix("hf:") ? String(modelId.dropFirst(3)) : modelId
-		} else {
-			// Default: ModelScope
-			provider = .modelScope
-			repoId = modelId
-		}
-
-		// Try configured provider, fall back to the other on failure
-		func loadFromHubWithFallback() async throws -> MLXLMCommon.ModelContainer {
-			do {
-				return try await loadFromHub(provider, repoId: repoId, modelId: modelId)
-			} catch {
-				logger.warning("\(provider == .modelScope ? "ModelScope" : "HuggingFace") failed for \(modelId) — falling back: \(error.localizedDescription)")
-				let fallback: HubProvider = provider == .modelScope ? .huggingFace : .modelScope
-				return try await loadFromHub(fallback, repoId: repoId, modelId: modelId)
-			}
-		}
-
-		let container: MLXLMCommon.ModelContainer = try await loadFromHubWithFallback()
-
-		_ = logElapsed("MLX model \(modelId) loaded", start)
-
-		return MLXModelHandleImpl(modelContainer: container, modelId: modelId)
-	}
 
 		// MARK: - Local Load
 

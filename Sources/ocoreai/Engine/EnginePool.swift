@@ -230,7 +230,7 @@ actor EnginePool {
 			return try await _acquireSession(modelId: modelId)
 		}
 
-		loadedModels[modelId] = try await loadModel(modelId, source: config.defaultModelSource)
+		loadedModels[modelId] = try await loadModel(modelId)
 
 		// 4. Load succeeded — acquire session
 		return try await _acquireSession(modelId: modelId)
@@ -321,8 +321,8 @@ actor EnginePool {
 		return modelId.contains("/") && !modelId.hasPrefix("/") && !modelId.hasPrefix("~/")
 	}
 
-	private func loadModel(_ modelId: String, source: String = "modelscope") async throws -> LoadedModel {
-		logger.info("Loading model: \(modelId) (source: \(source))")
+	private func loadModel(_ modelId: String) async throws -> LoadedModel {
+		logger.info("Loading model: \(modelId)")
 
 		// Resolve repo id — strip hf: prefix if present
 		let repoId: String = if modelId.hasPrefix("hf:") {
@@ -331,8 +331,8 @@ actor EnginePool {
 			modelId
 		}
 
-		// Fetch remote config — source determines which API
-		let isHF = source == "huggingface" || modelId.hasPrefix("hf:")
+		// Fetch remote config — hf: prefix → HF, otherwise defaultHub (modelscope)
+		let isHF = modelId.hasPrefix("hf:")
 		let resolved: (vocabSize: Int, maxContextLength: Int)?
 		if isHF {
 			resolved = await HubConfigFetcher.fetchHuggingFaceConfig(repoId: repoId, logger: logger)
@@ -405,7 +405,6 @@ actor EnginePool {
 						let draftHandle = try await mlxModelLoader.load(
 							modelURL: draftURL,
 							modelId: draftId,
-							source: "huggingface"
 						)
 						self.draftModelHandle = draftHandle
 						model.setDraftModel(draftHandle)
