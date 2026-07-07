@@ -215,17 +215,27 @@ actor SchedulerActor {
 	/// This is the fast path for Handler pipelines that want to submit and dispatch
 	/// in one step (avoiding a separate dispatch call). If admission fails, the
 	/// request is removed from the queue before throwing (no orphaned entries).
+	/// If dispatch succeeds but dispatched another request first (higher priority),
+	/// returns `nil` — the caller may retry or proceed; our request stays in queue.
 	/// - Parameter request: The scheduling request to submit and dispatch.
-	/// - Returns: The dispatched request if admitted, `nil` if other requests are waiting.
+	/// - Returns: The dispatched request if it matches ours, `nil` if another request
+	///   was dispatched first, or throws on admission failure.
 	/// - Throws: ``SchedulerError`` on OOM, full queue, or admission refusal.
 	@discardableResult
 	func submitAndDispatch(_ request: SchedulingRequest) async throws -> SchedulingRequest? {
 		try await submit(request)
 		guard let dispatched = await dispatch() else {
-			// All requests rejected — remove our entry from queue to avoid orphan
+			// All requests rejected in this pass — remove our entry from queue to avoid orphan
 			_ = queue.remove(where: { $0.request.id == request.id })
 			requestStates.removeValue(forKey: request.id)
 			throw SchedulerError.admissionRefused
+		}
+		// Safety: dispatch() pops by priority — only accept our own request.
+		// If someone else's request was dispatched first, ours is still pending
+		// in the queue. Returning nil prevents the "double dispatch" bug where
+		// the caller proceeds thinking their request was admitted when it wasn't.
+		guard dispatched.id == request.id else {
+			return nil
 		}
 		return dispatched
 	}

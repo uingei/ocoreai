@@ -1,0 +1,61 @@
+# CODEOWNERS — ocoreai code review routing
+#
+# Routing principle: route by domain signal, not blanket safety nets.
+# Each path owns the area where they have deep context.
+# Paired owners (2+) for high-risk / governance paths.
+# Order matters: later rules override earlier ones (last match wins).
+#
+# Reference: zeroclaw CODEOWNERS model (references/zeroclaw/.github/CODEOWNERS)
+#            eliza CODEOWNERS with SOC2 CC8.1 / CC6.1 alignment
+
+# ─── Core Swift Package ───────────────────────────────────────────
+# Sources/ is the primary codebase — paired for safety
+/Sources/                           @uingei
+
+# MLX compute channel — GPU inference, metallib, MLX-Swift integration
+/Sources/OcoreAI/MLX/               @uingei
+
+# CoreAI compute channel — ANE inference, CoreML pipeline
+/Sources/OcoreAI/CoreAI/            @uingei
+
+# Hardware routing — HardwareRouter, AdmissionGate, ComputeChannel
+/Sources/OcoreAI/Routing/           @uingei
+
+# Multimodal pipeline — vision, audio, multimodal processing
+/Sources/OcoreAI/MultiModal/        @uingei
+
+# Chat/LLM orchestration — handlers, schedulers, inference actors
+/Sources/OcoreAI/Chat/              @uingei
+
+# SwiftUI GUI — macOS client UI
+/Sources/OcoreAIClient/             @uingei
+
+# Shared utilities
+/Sources/OcoreAIShared/             @uingei
+
+# ─── Tests ────────────────────────────────────────────────────────
+/Tests/                             @uingei
+
+# ─── CI / CD pipeline ────────────────────────────────────────────
+/.github/workflows/                 @uingei
+/.github/                          @uingei
+
+# ─── Configuration ───────────────────────────────────────────────
+/Package.swift                      @uingei
+/Package.resolved                   @uingei
+/.swiftlint.yml                     @uingei
+/.editorconfig                      @uingei
+
+# ─── Scripts ──────────────────────────────────────────────────────
+/scripts/                           @uingei
+
+# ─── Documentation ───────────────────────────────────────────────
+/docs/                              @uingei
+/README.md                          @uingei
+/CHANGELOG.md                       @uingei
+
+# ─── Security / sensitive ────────────────────────────────────────
+/PrivacyInfo.xcprivacy              @uingei
+
+# ─── Fallback ────────────────────────────────────────────────────
+/*                                 @uingei

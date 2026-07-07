@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# pre-push — build + test gate before push
+set -euo pipefail
+
+echo "🔧 Pre-push: build gate..."
+swift build -c release --quiet
+
+echo "🧪 Pre-push: test gate..."
+swift test --quiet
+
+echo "✅ Pre-push: green"

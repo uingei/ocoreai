@@ -11,11 +11,34 @@ permissions:
   contents: write
 
 jobs:
+  ## ── Governance — review infrastructure health ────────────────────
+  governance:
+    name: Governance Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # Verify review infrastructure exists (PR_EVIDENCE.md references)
+      - name: Review governance check
+        run: |
+          set -euo pipefail
+          FAIL=0
+          for f in .github/PULL_REQUEST_TEMPLATE.md .github/CODEOWNERS .github/PR_EVIDENCE.md .github/REVIEW.md CONTRIBUTING.md; do
+            if [ ! -f "$f" ]; then
+              echo "❌ Missing: $f — review infrastructure incomplete"
+              FAIL=1
+            fi
+          done
+          [ "$FAIL" -eq 1 ] && exit 1
+          echo "✅ Review governance: all infrastructure files present"
+
   ## ── Static audit — fast, no build ───────────────────────────────
   audit:
     name: Static Audit
     runs-on: macos-26
     timeout-minutes: 15
+    needs: [governance]
     steps:
       - uses: actions/checkout@v4
 
@@ -52,6 +75,39 @@ jobs:
           [ "$FE" -gt 0 ] && echo "❌ fatal_error_message in Sources/ — pipeline blocked" && FAIL=1
           if [ "$FAIL" -eq 1 ]; then exit 1; fi
           echo "✅ Crash-risk rules clean in Sources/"
+
+      # Secret scanning — detect hardcoded keys, tokens, passwords in the diff
+      # Source: references/zeroclaw/.githooks/pre-commit + gitleaks.toml
+      - name: Setup gitleaks
+        run: brew install gitleaks
+
+      - name: Secret scanning (diff scan)
+        run: |
+          set -euo pipefail
+          # In PR context, scan the diff between HEAD and base branch
+          if [ -n "${GITHUB_BASE_REF:-}" ]; then
+            git fetch origin +refs/heads/${GITHUB_BASE_REF}:
+            gitleaks detect --source "$(git diff origin/${GITHUB_BASE_REF})" --verbose || {
+              echo "❌ Secret detected in changes — pipeline blocked"
+              exit 1
+            }
+          else
+            # Fallback: scan staged content or current files
+            gitleaks detect --source "." --verbose --no-git || {
+              echo "❌ Secret detected — pipeline blocked"
+              exit 1
+            }
+          fi
+          echo "✅ Secret scan: clean"
+
+      # TODO: Add test coverage baseline check once threshold is established
+      # - name: Test coverage gate
+      #   run: |
+      #     set -euo pipefail
+      #     python3 scripts/coverage_report.py --min-coverage 40 || {
+      #       echo "⚠️ Coverage below 40% threshold"
+      #       exit 1
+      #     }
 
   ## ── Build + test ────────────────────────────────────────────────
   build-and-test:

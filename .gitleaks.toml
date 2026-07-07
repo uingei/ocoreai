@@ -1,0 +1,15 @@
+[allowlist]
+  description = "Allowlist for Swift project false positives"
+  # Swift test fixtures — these are test data, not real keys
+  paths = [
+    '''Tests/.*\.swift''',
+    '''Tests/.*\.json''',
+  ]
+  # Allow placeholder patterns in documentation
+  regexTargets = [
+    '''README\.md''',
+    '''docs/''',
+  ]
+
+[extend]
+  useDefault = true

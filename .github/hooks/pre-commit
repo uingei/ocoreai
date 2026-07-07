@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# pre-commit — block before secrets land in a commit
+set -euo pipefail
+
+if command -v gitleaks >/dev/null 2>&1; then
+  REPO_ROOT=$(git rev-parse --show-toplevel)
+  CONFIG="${REPO_ROOT}/.gitleaks.toml"
+  cfg_args=()
+  [[ -f "$CONFIG" ]] && cfg_args+=(--config "$CONFIG")
+  gitleaks protect --staged --redact "${cfg_args[@]}"
+fi

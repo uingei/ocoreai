@@ -259,12 +259,15 @@ extension EnginePool {
 	nonisolated func makeMLXImage(from urlString: String) -> MLXLMCommon.UserInput.Image? {
 		// Handle data: URIs (camera/screen snapshots come as base64 data URLs)
 		if urlString.hasPrefix("data:") {
-			// Strip the `data:image/...;base64,` prefix
-			let components = urlString.components(separatedBy: ",")
-			guard components.count == 2 else { return nil }
-			guard let data = Data(base64Encoded: components[1]) else { return nil }
-			guard let ciImage = CIImage(data: data) else { return nil }
-			return .ciImage(ciImage)
+			// Use the LAST comma — base64 payload or URL-encoded data may contain commas
+			if let lastComma = urlString.lastIndex(of: ",") {
+				let base64Data = String(urlString[urlString.index(after: lastComma)...])
+				guard let data = Data(base64Encoded: base64Data) else { return nil }
+				guard let ciImage = CIImage(data: data) else { return nil }
+				return .ciImage(ciImage)
+			}
+
+			return nil
 		}
 
 		// Fallback: regular URL (http, file, etc.)

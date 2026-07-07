@@ -170,7 +170,19 @@ extension DirectInferenceClient {
 			prompt: request.messages.first?.textContent() ?? "",
 			tokenBudget: request.maxTokens ?? 4096,
 		)
-		try await scheduler.submitAndDispatch(schedulingRequest)
+		do {
+			try await scheduler.submitAndDispatch(schedulingRequest)
+		} catch let e as SchedulerError {
+			await scheduler.fail(schedulingRequest.id, with: e.localizedDescription)
+			switch e {
+			case .admissionRefused, .oomRefused:
+				throw AppError.engineUnavailable
+			case .queueFull:
+				throw AppError.poolExhausted(0)
+			default:
+				throw AppError.engineUnavailable
+			}
+		}
 
 		// Phase 3: Acquire engine handle
 		let handle: EngineHandle
@@ -294,7 +306,19 @@ extension DirectInferenceClient {
 			prompt: request.messages.first?.textContent() ?? "",
 			tokenBudget: request.maxTokens ?? 4096,
 		)
-		try await scheduler.submitAndDispatch(schedulingRequest)
+		do {
+			try await scheduler.submitAndDispatch(schedulingRequest)
+		} catch let e as SchedulerError {
+			await scheduler.fail(schedulingRequest.id, with: e.localizedDescription)
+			switch e {
+			case .admissionRefused, .oomRefused:
+				throw AppError.engineUnavailable
+			case .queueFull:
+				throw AppError.poolExhausted(0)
+			default:
+				throw AppError.engineUnavailable
+			}
+		}
 
 		// Phase 3: Acquire engine
 		let handle: EngineHandle
