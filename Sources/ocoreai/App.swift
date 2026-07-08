@@ -221,6 +221,24 @@ public final class OcoreaiEngine {
 			Memory.cacheLimit = Int(memBudget)
 		#endif
 
+		// MARK: - HF Hub Environment Configuration
+
+		// Disable xet (Rust-based) downloader to prevent cooperative cancellation failure.
+		// xet swallows Python exceptions in its Rust frame, causing Task cancellation to hang.
+		// REFERENCE: omlx sets _hf_constants.HF_HUB_DISABLE_XET = True for the same reason.
+		// ProcessInfo.environment is read-only on macOS — use setenv directly.
+		setenv("HF_HUB_DISABLE_XET", "1", 1)
+
+		// HF_ENDPOINT: mirror/proxy override for restricted regions.
+		// #hubDownloader() auto-picks HF_ENDPOINT from ProcessInfo.
+		// Priority: explicit HF_ENDPOINT env var > HF_ENDPOINT_MIRROR > UserDefaults > default
+		if ProcessInfo.processInfo.environment["HF_ENDPOINT"] == nil {
+			if let mirror = ProcessInfo.processInfo.environment["HF_ENDPOINT_MIRROR"]
+				?? UserDefaults.standard.string(forKey: "settings.hub.hfEndpointMirror") {
+				setenv("HF_ENDPOINT", mirror, 1)
+			}
+		}
+
 		// Read hub tokens early — needed by BOTH Fast Path (UI) and Bridge Path (HTTP)
 		// Must happen before EnginePool init so MLXModelLoader has the token for MS downloads
 		// NOTE: ProcessInfo.setValue(forKey:) uses KVC, NOT environment vars — custom keys

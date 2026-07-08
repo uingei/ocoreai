@@ -126,6 +126,11 @@ actor ModelScopeDownloader: Downloader {
 			throw DownloaderError.noFilesMatching(repoId: id, patterns: patterns)
 		}
 
+		// LoRA/Adapter detection — block download if adapter indicators present
+		if hasAdapterIndicators(fileInfo) {
+			throw DownloaderError.adapterDetected(repoId: id)
+		}
+
 		let existingFilenames: Set<String> = Set((try? listLocalFiles(in: cacheDir)) ?? [])
 
 		try await downloadFiles(
@@ -190,6 +195,20 @@ actor ModelScopeDownloader: Downloader {
 		let path: String
 		let size: Int64?
 		let type: String // "file" or "dir"
+	}
+
+	/// Adapter detection helper — checks file tree for LoRA/adapter indicators.
+	private func hasAdapterIndicators(_ info: [FileInfo]) -> Bool {
+		for file in info {
+			let lower = file.path.lowercased()
+			if lower.contains("lora") || lower.contains("adapter") {
+				return true
+			}
+			if lower == "adapter_config.json" {
+				return true
+			}
+		}
+		return false
 	}
 
 	private func createHeaders() -> [String: String] {
@@ -368,7 +387,7 @@ actor ModelScopeDownloader: Downloader {
 	///
 	/// On partial failure: keeps pre-existing files, removes only new downloads
 	/// from this session so the user can retry without starting from zero.
-	/// On cancellation: skips cleanup — user can retry without re-downloading good files.
+	/// On cancellation: cleans up `.download-*` temp files immediately.
 	///
 	/// After download: verifies every file's size matches the remote manifest.
 	/// Files with size mismatch are treated as corrupted and removed.
@@ -393,6 +412,14 @@ actor ModelScopeDownloader: Downloader {
 		// Overall stall detection for the entire batch
 		let stallTimeout: TimeInterval = 600  // 10 min for full batch
 		var lastProgress = ContinuousClock.now
+
+		// Cancellation cleanup: ensure `.download-*` temp files are removed even
+		// if the task is cancelled mid-stream. Also prunes empty directories.
+		defer {
+			if Task.isCancelled {
+				cleanupTempFiles(in: cacheDir)
+			}
+		}
 
 		for chunk in files.chunked(into: 4) {
 			// Task.isCancelled checkpoint — allow user cancellation to take effect
@@ -508,6 +535,60 @@ actor ModelScopeDownloader: Downloader {
 
 	// MARK: - Helpers
 
+	/// Remove any `.download-*` or `.____temp` files left by cancelled downloads
+	/// and prune the resulting empty downward directories.
+	private func cleanupTempFiles(in directory: URL) {
+		guard let enumerator = FileManager.default.enumerator(
+			at: directory,
+			includingPropertiesForKeys: nil,
+			options: []
+		) else { return }
+
+		var tempURLsToRemove: [URL] = []
+		for case let url as URL in enumerator {
+			let name = url.lastPathComponent
+			if name.hasPrefix(".download-") || name.hasPrefix(".____temp") {
+				tempURLsToRemove.append(url)
+			}
+		}
+
+		// Remove all orphaned temp files first
+		for url in tempURLsToRemove {
+			try? FileManager.default.removeItem(at: url)
+		}
+
+		// Walk bottom-up to prune empty directories left by cleanup
+		try? pruneEmptyDirectories(directory)
+	}
+
+	/// Recursively prune empty directories after temp-file cleanup.
+	private func pruneEmptyDirectories(_ directory: URL) {
+		let subs: [URL]
+		do {
+			subs = try FileManager.default.contentsOfDirectory(
+				at: directory,
+				includingPropertiesForKeys: nil
+			).filter(\.hasDirectoryPath)
+		} catch {
+			return
+		}
+		for sub in subs {
+			pruneEmptyDirectories(sub)
+		}
+		// If the directory is now empty, remove it
+		do {
+			let remaining = try FileManager.default.contentsOfDirectory(
+				at: directory,
+				includingPropertiesForKeys: nil
+			)
+			if remaining.isEmpty {
+				try? FileManager.default.removeItem(at: directory)
+			}
+		} catch {
+			// Directory gone or unreadable — nothing to do
+		}
+	}
+
 	/// List all file paths recursively under directory.
 	/// Returns RELATIVE paths (relative to `directory`) so they match the
 	/// FileInfo.path strings from the ModelScope API.
@@ -552,6 +633,7 @@ actor ModelScopeDownloader: Downloader {
 enum DownloaderError: LocalizedError {
 	case noFilesMatching(repoId: String, patterns: [String])
 	case gatedRepository(repoId: String, hint: String)
+	case adapterDetected(repoId: String)
 	case apiError(statusCode: Int, body: String)
 	case downloadFailed(path: String, statusCode: Int)
 	case downloadStalled(path: String, timeout: Int)
@@ -567,6 +649,8 @@ enum DownloaderError: LocalizedError {
 			"No files in model '\(repo)' matching patterns \(patterns)"
 		case let .gatedRepository(repo, hint):
 			"ModelScope repository '\(repo)' is gated/private — \(hint)"
+		case let .adapterDetected(repo):
+			"Model '\(repo)' appears to be a LoRA/Adapter (not a full model) — adapter download is not supported"
 		case let .apiError(code, body):
 			"ModelScope API error (\(code)): \(body)"
 		case let .downloadFailed(path, code):

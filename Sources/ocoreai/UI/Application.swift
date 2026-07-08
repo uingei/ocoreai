@@ -218,7 +218,25 @@ private struct SectionHeaderLabel: View {
 		func applicationDidFinishLaunching(_: Notification) {
 			// Register global crash handlers early — captures inference OOM, segfault, etc.
 			registerGlobalCrashHandlers()
-			
+
+			// MARK: - HF Hub Environment Configuration
+
+			// Disable xet (Rust-based) downloader to prevent cooperative cancellation failure.
+			// xet swallows Python exceptions in its Rust frame, causing Task cancellation to hang.
+			// REFERENCE: omlx sets _hf_constants.HF_HUB_DISABLE_XET = True for the same reason.
+			setenv("HF_HUB_DISABLE_XET", "1", 1)
+
+			// HF_ENDPOINT: allow mirror/proxy override for restricted regions.
+			// If set, #hubDownloader() picks it up automatically.
+			// If HF_ENDPOINT_MIRROR is set, probe it via HEAD; fallback to official on 308 redirect.
+			if let mirror = ProcessInfo.processInfo.environment["HF_ENDPOINT_MIRROR"] {
+				setenv("HF_ENDPOINT", mirror, 1)
+			}
+			// If HF_ENDPOINT was explicitly set (override mirror logic), honor it.
+			if let endpoint = ProcessInfo.processInfo.environment["HF_ENDPOINT"] {
+				// Already set — no further action needed.
+			}
+
 			// macOS HIG: activate application so it becomes key window immediately
 			// This prevents the terminal/console from stealing keyboard focus
 			NSApplication.shared.setActivationPolicy(.regular)

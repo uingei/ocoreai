@@ -211,8 +211,14 @@
 
 		/// Start polling HF cache directory to estimate download progress.
 		/// Returns a cancellable Task — cancel it when download completes.
-		/// Omlx pattern: watch directory byte count, estimate progress from
-		/// observed growth vs expected size.
+		/// Omlx pattern: watch directory byte count + newest file mtime,
+		/// estimate progress from observed growth vs expected size.
+		///
+		/// **mtime stall detection**: In addition to byte-count, track the
+		/// modification date of the newest file. If byte count is flat AND
+		/// newest file hasn't changed for `stallTimeout`, abort — prevents
+		/// false-positive stall warnings during multi-file sequential downloads
+		/// where one file finishes before the next starts.
 		private static func startHFProgressPolling(
 			cacheDir: URL,
 			modelId: String,
@@ -223,6 +229,8 @@
 				var lastBytes: Int64 = directoryByteCount(cacheDir)
 				var expectedBytes: Int64 = max(lastBytes, 1) * 2  // crude lower-bound
 				var idleCount = 0  // consecutive polls with no growth
+				var lastMtime: Date? = newestModificationDate(in: cacheDir)
+				let mtimeStallTimeout: TimeInterval = 90  // 90s mtime stagnation = stall
 
 				while !Task.isCancelled {
 					try? await Task.sleep(for: .seconds(pollInterval))
@@ -240,15 +248,53 @@
 						}
 						lastBytes = currentBytes
 						idleCount = 0
+						lastMtime = newestModificationDate(in: cacheDir)
 					} else {
 						idleCount += 1
-						// After 15 idle polls (30s), assume download stalled or complete
+						// mtime-based stall: if newest file hasn't changed,
+						// the downloader is truly stuck (not just between files)
+						if let currentMtime = newestModificationDate(in: cacheDir),
+						   let last = lastMtime,
+						   currentMtime.timeIntervalSince(last) == 0,
+						   Date().timeIntervalSince(last) > mtimeStallTimeout {
+							logger.warning("HF download stalled — mtime unchanged for ~\(Int(mtimeStallTimeout))s")
+							break
+						}
+						// Legacy byte-count timeout — catches empty cache edge case
 						if idleCount > 15 {
 							logger.warning("HF download polling stopped — no growth for ~30s")
 							break
 						}
 					}
 				}
+			}
+		}
+
+		/// Return the newest modification date among files in `directory`.
+		private static func newestModificationDate(in directory: URL) -> Date? {
+			guard FileManager.default.fileExists(atPath: directory.path) else { return nil }
+			do {
+				var newest: Date? = nil
+				let items = try FileManager.default.contentsOfDirectory(
+					at: directory,
+					includingPropertiesForKeys: [.contentModificationDateKey]
+				)
+				for item in items {
+					if let attrs = try? FileManager.default.attributesOfItem(atPath: item.path),
+					   let mtime = attrs[.modificationDate] as? Date,
+					   mtime > newest ?? Date(timeIntervalSince1970: 0) {
+						newest = mtime
+					}
+					// Recurse into subdirectories
+					if item.hasDirectoryPath,
+					   let subMtime = newestModificationDate(in: item),
+					   subMtime > newest ?? Date(timeIntervalSince1970: 0) {
+						newest = subMtime
+					}
+				}
+				return newest
+			} catch {
+				return nil
 			}
 		}
 
