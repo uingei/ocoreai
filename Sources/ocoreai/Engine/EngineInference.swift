@@ -468,14 +468,26 @@ extension EnginePool {
 				kvCacheQuant: config.kvCacheQuantization,
 			)
 
-			// Build speculative decoding config once before inference body
-			let specConfig = loaded.createSpeculativeConfig()
+			// Build speculative decoding config once before inference body.
+			// CPU channel: disable session pool + speculative decoding (no shared memory, no Metal kernel).
+			let specConfig: MLXLMCommon.SpeculativeDecodingConfig?
+			if computeChannel == .cpu {
+				specConfig = nil
+			} else {
+				specConfig = loaded.createSpeculativeConfig()
+			}
 
 			// Request-level stop sequences — pull out before inference body to avoid self-capture
 			let requestStopSequences = (sampling.stopSequences ?? []).filter { !$0.isEmpty }
 
-			// Hoist sessionPool, mlxHandle, logger before creating inference closure
-			let poolRef = sessionPool
+			// Hoist sessionPool, mlxHandle, logger before creating inference closure.
+			// CPU channel: bypass session pool (KV cache not reusable across device boundaries).
+			let poolRef: MLXSessionPool?
+			if computeChannel == .cpu {
+				poolRef = nil
+			} else {
+				poolRef = sessionPool
+			}
 			let handleRef = mlxHandle
 			let log = self.logger
 
