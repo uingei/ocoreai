@@ -37,7 +37,7 @@ extension ComplexityAnalyzer {
 	///   - sessionId: Session identifier for per-user adaptive tracking
 	/// - Returns: Normalized complexity score
 	///
-	/// ### Score bands:
+	/// Score bands:
 	/// | Band    | Score Range  | Action                           |
 	/// |---------|-------------|----------------------------------|
 	/// | Simple  |  0.0 – 0.33 | Direct answer, no thinking chain |
@@ -49,13 +49,16 @@ extension ComplexityAnalyzer {
 		sessionId: String,
 	) -> ComplexityScore {
 		let lengthScore = scoreLength(input)
-		let intentScore = scoreIntent(input)
+		let taskType = classifyTaskType(input)
+		let intentScore = scoreIntent(from: taskType)
 		let historyScore = scoreHistory(messageCount)
+		let contextBoost = scoreContextLength(input)
 
 		let composite = compositeScore(
 			length: lengthScore,
 			intent: intentScore,
 			history: historyScore,
+			contextBoost: contextBoost,
 		)
 
 		// Update tracking state
@@ -74,6 +77,7 @@ extension ComplexityAnalyzer {
 			intent: intentScore,
 			history: historyScore,
 			band: ComplexityBand.for(score: composite),
+			taskType: taskType,
 		)
 	}
 
@@ -87,6 +91,12 @@ extension ComplexityAnalyzer {
 	/// Get the global complexity baseline across all sessions.
 	func globalBaseline() -> Double {
 		globalScore
+	}
+
+	/// Classify and return the task type from the raw input.
+	/// External caller for downstream scaffold / parameter selection.
+	func getTaskType(for input: String) -> TaskType {
+		classifyTaskType(input)
 	}
 }
 
@@ -105,52 +115,113 @@ extension ComplexityAnalyzer {
 		return 1.0 / (1.0 + exp(-(approxTokens - center) * steepness))
 	}
 
-	/// Intent score — classify by keyword/heuristic patterns.
-	/// Low: factual lookup, yes/no, simple commands
-	/// High: multi-step reasoning, code, analysis, comparison
-	private func scoreIntent(_ input: String) -> Double {
+	/// Intent score derived from task type — precision tasks get higher scores.
+	/// Code/math/json are inherently error-prone → should trigger more reasoning.
+	private func scoreIntent(from taskType: TaskType) -> Double {
+		switch taskType {
+		case .code: 0.85
+		case .math: 0.80
+		case .json: 0.70
+		case .comparison: 0.60
+		case .analysis: 0.55
+		case .factual: 0.30
+		case .casual: 0.15
+		case .general: 0.40
+		}
+	}
+
+	/// Context-length boost — long inputs (>2k chars) push score up because
+	/// they indicate documents, PR discussions, or multi-document analysis
+	/// that benefit from structured reasoning.
+	/// Returns 0.0–0.25 additive boost.
+	private func scoreContextLength(_ input: String) -> Double {
+		let chars = Double(input.utf8.count)
+		guard chars > 2000 else { return 0 }
+		// Logarithmic scale: 2k→~0.05, 10k→~0.15, 50k→~0.25
+		let raw = log2(chars / 2000) * 0.1
+		return min(0.25, raw)
+	}
+
+	/// Classify the input into a task type for downstream scaffold selection.
+	///
+	/// Priority: code > math > json > comparison > analysis > factual > casual.
+	/// Code/math/json always trigger enhanced reasoning because they require
+	/// precision (self-consistency, verification loops).
+	private func classifyTaskType(_ input: String) -> TaskType {
 		let lower = input.lowercased()
+		let hasCodeFence = lower.contains("```")
+		let lineCount = lower.components(separatedBy: "\n").count
 
-		// High-complexity signals
-		let highSignals: [String] = [
-			"analyze", "分析", "compare", "比较", "explain", "解释",
-			"why", "为什么", "how", "如何", "implement", "实现",
-			"debug", "debugging", "设计", "architecture", "架构",
-			"step by step", "步骤", "summarize", "总结",
-			"evaluate", "评估", "refactor", "重构",
-			"what if", "假设", "plan", "计划",
-			"write a", "写一个", "create", "创建",
-			"difference between", "区别", "trade-off", "权衡",
+		// Code detection — strongest signal
+		let codeSignals: [String] = [
+			"```.swift", "```.py", "```.js", "```.ts", "```.java", "```.c", "```.cpp",
+			"```.kotlin", "```.go", "```.rs", "```.rb", "```.php",
+			"```json", "```yaml", "```toml", "```xml", "```html", "```sql", "```bash",
+			"```python", "```javascript", "```typescript", "```markdown",
+			"write code", "实现", "implement", "function", "class ",
+			"def ", "func ", "fn ", "method", "endpoint", "api",
+			"bug", "fix this", "报错", "error:", "traceback", "crash",
+			"refactor", "重构", "optimize", "优化",
 		]
+		if hasCodeFence || codeSignals.contains(where: { lower.contains($0) }) {
+			return .code
+		}
 
-		// Low-complexity signals
-		let lowSignals: [String] = [
-			"hello", "hi", "你好", "what is", "是什么",
-			"who is", "是谁", "what time", "几点",
-			"yes", "no", "ok", "好", "确认",
+		// Math detection
+		let mathSignals: [String] = [
+			"calculate", "计算", "how many", "多少个", "what is 2",
+			"probability", "概率", "equation", "公式", "derivative", "导数", "integral", "积分",
+			"prove", "证明", "theorem", "不等式",
+		]
+		if mathSignals.contains(where: { lower.contains($0) }) {
+			return .math
+		}
+
+		// JSON/structured output detection
+		let jsonSignals: [String] = ["json", "json格式", "array", "object", "格式化为",
+		                             "output format", "schema", "structured"]
+		if jsonSignals.contains(where: { lower.contains($0) }) {
+			return .json
+		}
+
+		// Comparison/analysis detection
+		let comparisonSignals: [String] = [
+			"compare", "比较", "difference", "区别", "vs", "versus", "对比",
+			"trade-off", "权衡", "which is better", "哪个更好",
+		]
+		if comparisonSignals.contains(where: { lower.contains($0) }) {
+			return .comparison
+		}
+
+		// Deep analysis detection
+		let analysisSignals: [String] = [
+			"analyze", "分析", "explain", "解释", "why", "为什么", "how", "如何",
+			"evaluate", "评估", "review", "design", "设计", "architecture", "架构",
+			"step by step", "步骤", "summarize", "总结", "plan", "计划",
+		]
+		if analysisSignals.contains(where: { lower.contains($0) }) || lineCount > 5 {
+			return .analysis
+		}
+
+		// Factual/definition
+		let factualSignals: [String] = [
+			"what is", "是什么", "who is", "是谁", "define", "定义",
+			"when was", "什么时候", "how does", "怎么做",
+		]
+		if factualSignals.contains(where: { lower.contains($0) }) {
+			return .factual
+		}
+
+		// Casual/greeting
+		let casualSignals: [String] = [
+			"hello", "hi", "你好", "yes", "no", "ok", "好",
 			"list", "列表", "show me", "给我看",
 		]
-
-		var score = 0.5 // neutral prior
-
-		for signal in highSignals {
-			if lower.contains(signal) { score += 0.08; break }
-		}
-		for signal in lowSignals {
-			if lower.contains(signal) { score -= 0.15; break }
+		if casualSignals.contains(where: { lower.contains($0) }) {
+			return .casual
 		}
 
-		// Multi-line / structured input → higher complexity
-		if lower.contains("\n") {
-			score += 0.1
-		}
-
-		// Code snippets → higher complexity
-		if lower.contains("```") {
-			score += 0.15
-		}
-
-		return max(0.0, min(1.0, score))
+		return .general
 	}
 
 	/// History score — deeper conversations tend to need more context.
@@ -168,11 +239,12 @@ extension ComplexityAnalyzer {
 // MARK: - Composite Weighting
 
 extension ComplexityAnalyzer {
-	/// Weighted composite score with intent as dominant factor.
+	/// Weighted composite score with intent as dominant factor + context boost.
 	private func compositeScore(
 		length: Double,
 		intent: Double,
 		history: Double,
+		contextBoost: Double,
 	) -> Double {
 		// Weights: intent 45%, length 30%, history 25%
 		let wLength = 0.30
@@ -182,15 +254,36 @@ extension ComplexityAnalyzer {
 		let w1 = length * wLength
 		let w2 = intent * wIntent
 		let w3 = history * wHistory
-		let total = w1 + w2 + w3
-		return (total * 1000).rounded() / 1000
+		// Base + context boost, clamped to [0, 1]
+		let total = w1 + w2 + w3 + contextBoost
+		return min(1.0, max(0.0, (total * 1000).rounded() / 1000))
 	}
 }
 
 // MARK: - Data Types
 
+/// Task type classification — used for scaffold selection and parameter tuning.
+enum TaskType: String, Codable, Sendable {
+	/// Code generation, debugging, refactoring
+	case code
+	/// Math, calculation, proof
+	case math
+	/// JSON/structured output
+	case json
+	/// Comparison/evaluation between options
+	case comparison
+	/// Deep analysis, explanation, architecture
+	case analysis
+	/// Factual lookup, definitions
+	case factual
+	/// Greetings, simple commands
+	case casual
+	/// Uncategorized general purpose
+	case general
+}
+
 /// Complexity analysis result with breakdown by dimension.
-struct ComplexityScore {
+struct ComplexityScore: Sendable {
 	/// Composite score (0.0 = trivial, 1.0 = complex reasoning)
 	let composite: Double
 
@@ -202,12 +295,24 @@ struct ComplexityScore {
 	/// Resolved action band
 	let band: ComplexityBand
 
+	/// Detected task type — drives scaffold and parameter selection
+	let taskType: TaskType
+
 	/// Thinking budget in tokens for this score band.
+	/// Precision tasks (code/math/json) always get a minimum budget.
 	var thinkingBudgetTokens: Int {
+		// Override: precision tasks always need at least some reasoning
+		if [.code, .math, .json].contains(taskType) {
+			return max(512, baseBudget)
+		}
+		return baseBudget
+	}
+
+	private var baseBudget: Int {
 		switch band {
-		case .simple: 0 // direct answer
-		case .medium: 1024 // standard reasoning scaffold
-		case .complex: 4096 // deep reasoning + verification
+		case .simple: 0
+		case .medium: 1024
+		case .complex: 4096
 		}
 	}
 }

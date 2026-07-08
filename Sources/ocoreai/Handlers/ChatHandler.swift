@@ -295,10 +295,18 @@ func chatCompletionsHandler(
 		logitBias: nil, // logitBias 暂不暴露（ChatCompletionRequest 无对应字段）
 		combined: true,
 	)
-	let sampling = rawSampling.normalized()
+
+	/// Phase 4b: Task-aware parameter adjustment — precision tasks get lower temperature.
+	let taskType = await messageBuilder.lastTaskType()
+	let taskAwareSampling = rawSampling.withTaskAwareParams(for: taskType)
+	if taskAwareSampling != rawSampling {
+		logger.info("Task-aware params adjusted for \(taskType.rawValue): temp=\(String(describing: rawSampling.temperature))→\(String(describing: taskAwareSampling.temperature))")
+	}
+
+	let sampling = taskAwareSampling.normalized()
 
 	/// Log warning if normalization dropped parameters.
-	if sampling != rawSampling {
+	if sampling != taskAwareSampling {
 		logger.warning("Sampling config normalized (redundant params dropped)")
 	}
 

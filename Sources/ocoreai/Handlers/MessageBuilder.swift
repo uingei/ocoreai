@@ -63,6 +63,10 @@ actor MessageBuilder {
 		self.thinkingBudget = thinkingBudget
 	}
 
+	/// Last analyzed complexity score — cached so ChatHandler can peek at `taskType`
+	/// without duplicating the classification work.
+	private var lastScore: ComplexityScore?
+
 	/// Build the complete message list ready for tokenization.
 	///
 	/// This replaces the old `buildMessageList()` in ChatHandler.swift.
@@ -149,6 +153,7 @@ actor MessageBuilder {
 			messageCount: max(1, messages.count),
 			sessionId: context.sessionId,
 		)
+		lastScore = complexity // cache for taskType query
 		let reasoningScaffold = await thinkingBudget.scaffolding(
 			for: complexity,
 			sessionId: context.sessionId,
@@ -163,5 +168,17 @@ actor MessageBuilder {
 		}
 
 		return messages
+	}
+
+	/// Return the task type detected during the last `buildMessages` call.
+	/// Used by ChatHandler to apply task-aware sampling parameters.
+	/// Returns `.general` if no analysis has been run yet.
+	func lastTaskType() -> TaskType {
+		lastScore?.taskType ?? .general
+	}
+
+	/// Return the full complexity score from the last `buildMessages` call.
+	func lastComplexityScore() -> ComplexityScore? {
+		lastScore
 	}
 }

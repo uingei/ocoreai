@@ -14,7 +14,7 @@ struct ThinkingBudgetTests {
 	@Test("simpleBandReturnsEmpty")
 	func simpleBandReturnsEmpty() async throws {
 		let tb = ThinkingBudget()
-		let score = ComplexityScore(composite: 0.2, length: 0.1, intent: 0.2, history: 0.1, band: .simple)
+		let score = ComplexityScore(composite: 0.2, length: 0.1, intent: 0.2, history: 0.1, band: .simple, taskType: .general)
 		let scaffold = await tb.scaffolding(for: score, sessionId: "s1")
 		#expect(scaffold == "")
 	}
@@ -22,7 +22,7 @@ struct ThinkingBudgetTests {
 	@Test("mediumBandReturnsScaffold")
 	func mediumBandReturnsScaffold() async throws {
 		let tb = ThinkingBudget()
-		let score = ComplexityScore(composite: 0.5, length: 0.4, intent: 0.6, history: 0.5, band: .medium)
+		let score = ComplexityScore(composite: 0.5, length: 0.4, intent: 0.6, history: 0.5, band: .medium, taskType: .general)
 		let scaffold = await tb.scaffolding(for: score, sessionId: "s1")
 		#expect(!scaffold.isEmpty)
 		#expect(scaffold.contains("PERCEIVE"))
@@ -34,7 +34,7 @@ struct ThinkingBudgetTests {
 	@Test("complexBandReturnsFullScaffold")
 	func complexBandReturnsFullScaffold() async throws {
 		let tb = ThinkingBudget()
-		let score = ComplexityScore(composite: 0.9, length: 0.9, intent: 0.9, history: 0.8, band: .complex)
+		let score = ComplexityScore(composite: 0.9, length: 0.9, intent: 0.9, history: 0.8, band: .complex, taskType: .general)
 		let scaffold = await tb.scaffolding(for: score, sessionId: "s1")
 		#expect(!scaffold.isEmpty)
 		#expect(scaffold.contains("PERCEIVE"))

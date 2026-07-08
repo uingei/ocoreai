@@ -61,6 +61,44 @@ struct SamplingConfiguration: Codable, Equatable {
 		}
 		return config
 	}
+
+	/// Task-aware temperature adjustment — precision tasks (code/math/json) get
+	/// lower temperature for deterministic output, creative tasks keep original.
+	///
+	/// Only adjusts when temperature > 0.5 (user hasn't already set low temp).
+	/// This is the "model outperform itself" lever: right parameter for the right task.
+	///
+	/// - Parameter taskType: Detected task type from ``TaskType``
+	/// - Returns: Adjusted ``SamplingConfiguration``
+	func withTaskAwareParams(for taskType: TaskType) -> SamplingConfiguration {
+		var config = self
+
+		// Only adjust if user hasn't already set a low temperature — respect explicit user choice
+		guard let currentTemp = config.temperature else {
+			return config
+		}
+
+		switch taskType {
+		case .code, .math, .json:
+			// Precision tasks: lower temperature improves correctness
+			if currentTemp > 0.5 {
+				config.temperature = min(currentTemp, 0.4)
+				// Also tighten top_p for precision tasks
+				if let topP = config.topP, topP > 0.95 {
+					config.topP = 0.92
+				}
+			}
+		case .comparison:
+			// Comparison: moderate temperature for balanced, fair evaluation
+			if currentTemp > 0.6 {
+				config.temperature = min(currentTemp, 0.5)
+			}
+		default:
+			break // general/analysis/factual/casual — no adjustment
+		}
+
+		return config
+	}
 }
 
 /// Intermediate inference options — used by both CoreAI and MLX backends.
