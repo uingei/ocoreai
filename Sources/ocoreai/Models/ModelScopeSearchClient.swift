@@ -62,27 +62,35 @@ struct MSHubModel: Identifiable, Hashable {
 
 // MARK: - Search Client
 
-/// Lightweight HTTP client for ModelScope model search.
-///
-/// Uses only Foundation HTTP - no external dependency needed.
-final actor ModelScopeSearchClient {
-	// MARK: - Configuration
+	/// Lightweight HTTP client for ModelScope model search.
+	///
+	/// Uses only Foundation HTTP - no external dependency needed.
+	/// Endpoint is configurable via MODELSCOPE_ENDPOINT env var (mirror/proxy support).
+	final actor ModelScopeSearchClient {
+		// MARK: - Configuration
 
-	/// Base URL - follows the same pattern as the Python SDK.
-	private let baseURL: URL
-	private let token: String?
+		/// Base URL - follows the same pattern as the Python SDK.
+		private let baseURL: URL
+		private let token: String?
 
-	/// Default base URL — hardcoded literal, always valid.
-	private static let defaultBaseURL = URL(string: "https://modelscope.cn")!
+		/// Default base URL — reads MODELSCOPE_ENDPOINT env var when set,
+		/// otherwise falls back to modelscope.cn.
+		nonisolated private static func defaultBaseURL() -> URL {
+			let endpoint = ProcessInfo.processInfo.environment["MODELSCOPE_ENDPOINT"]
+				?? "https://modelscope.cn"
+			// Strip trailing slash for consistent path appending
+			return URL(string: endpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+				?? URL(string: "https://modelscope.cn")!
+		}
 
-	/// Create the client.
-	/// - Parameters:
-	///   - baseURL: API base URL (defaults to ModelScope main site)
-	///   - token: Optional access token for authed operations
-	init(
-		baseURL: URL = ModelScopeSearchClient.defaultBaseURL,
-		token: String? = nil,
-	) {
+		/// Create the client.
+		/// - Parameters:
+		///   - baseURL: API base URL (defaults to ModelScope main site or MODELSCOPE_ENDPOINT)
+		///   - token: Optional access token for authed operations
+		init(
+			baseURL: URL = ModelScopeSearchClient.defaultBaseURL(),
+			token: String? = nil,
+		) {
 		self.baseURL = baseURL
 		self.token = token
 	}

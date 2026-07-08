@@ -127,15 +127,30 @@
 	/// - Parameters:
 	///   - provider: Hub provider (ModelScope or HuggingFace)
 	///   - repoId: Repository identifier (e.g. "Qwen/Qwen2.5-7B-Instruct")
-	/// - Returns: true if a safetensors file exists in the expected cache directory
+	///   - logger: For diagnostic output (warning on incomplete cache)
+	/// - Returns: true if a valid safetensors file exists in the expected cache directory
+	///
+	/// Integrity: verifies .safetensors files have non-zero size.
+	/// Zero-length files indicate interrupted downloads — model is NOT cached.
+		static func isModelCached(_ provider: MLXModelLoader.HubProvider, repoId: String, logger: Logger) -> Bool {
+			Self.hasValidSafetensors(for: provider, repoId: repoId, log: logger)
+		}
+
+		/// Overload for callers without a Logger (e.g. UI ViewModel context).
 		static func isModelCached(_ provider: MLXModelLoader.HubProvider, repoId: String) -> Bool {
-			let cacheRoot: URL
+			Self.hasValidSafetensors(for: provider, repoId: repoId, log: nil)
+		}
 
+		/// Resolve cache directory for a provider/repo pair, then check for valid safetensors.
+		private static func hasValidSafetensors(
+			for provider: MLXModelLoader.HubProvider,
+			repoId: String,
+			log: Logger?
+		) -> Bool {
 			let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-			guard let baseDir = urls.first else {
-				return false
-			}
+			guard let baseDir = urls.first else { return false }
 
+			let cacheRoot: URL
 			switch provider {
 			case .modelScope:
 				cacheRoot = baseDir
@@ -148,20 +163,92 @@
 					.appendingPathComponent(repoId)
 			}
 
-			// Must have at least one safetensors file to be considered "downloaded"
-			return hasSafetensors(in: cacheRoot)
+			// Must have at least one non-empty safetensors file
+			return hasValidSafetensors(in: cacheRoot, log: log)
 		}
 
-		private static func hasSafetensors(in url: URL) -> Bool {
+		private static func hasValidSafetensors(in url: URL, log: Logger?) -> Bool {
 			guard FileManager.default.fileExists(atPath: url.path) else {
 				return false
 			}
 			do {
-				let files = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
-				return files.contains { $0.pathExtension == "safetensors" }
+				let files = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [.fileSizeKey])
+				for item in files where item.pathExtension == "safetensors" {
+					let size = (try? item.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+					if size > 0 {
+						return true
+					}
+					// Zero-length safetensors = incomplete download
+					log?.warning("Incomplete cache: \(item.lastPathComponent) is 0 bytes — model will re-download")
+				}
+				return false
 			} catch {
 				// If directory listing fails, assume not cached — caller will retry download
 				return false
+			}
+		}
+
+		/// Recursively sum directory size in bytes. Omlx-style: used for
+		/// progress estimation during HF downloads where we can't inject a callback.
+		private static func directoryByteCount(_ url: URL) -> Int64 {
+			guard FileManager.default.fileExists(atPath: url.path) else { return 0 }
+			var total: Int64 = 0
+			do {
+				let contents = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [.fileSizeKey])
+				for item in contents {
+					let size = (try? item.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+					if item.hasDirectoryPath {
+						total += directoryByteCount(item)
+					} else {
+						total += Int64(size)
+					}
+				}
+			} catch {
+				// Directory may have changed — return what we got so far
+			}
+			return total
+		}
+
+		/// Start polling HF cache directory to estimate download progress.
+		/// Returns a cancellable Task — cancel it when download completes.
+		/// Omlx pattern: watch directory byte count, estimate progress from
+		/// observed growth vs expected size.
+		private static func startHFProgressPolling(
+			cacheDir: URL,
+			modelId: String,
+			logger: Logger
+		) -> Task<Void, Never> {
+			Task.detached {
+				let pollInterval: TimeInterval = 2
+				var lastBytes: Int64 = directoryByteCount(cacheDir)
+				var expectedBytes: Int64 = max(lastBytes, 1) * 2  // crude lower-bound
+				var idleCount = 0  // consecutive polls with no growth
+
+				while !Task.isCancelled {
+					try? await Task.sleep(for: .seconds(pollInterval))
+
+					let currentBytes = directoryByteCount(cacheDir)
+
+					if currentBytes > lastBytes {
+						// Directory growing — update estimate and progress
+						expectedBytes = max(expectedBytes, currentBytes * 2)
+						let fraction = Double(currentBytes) / Double(max(expectedBytes, 1))
+						let progress = Progress(totalUnitCount: 100)
+						progress.completedUnitCount = Int64(min(max(1, fraction * 99), 99))
+						await MainActor.run {
+							OcoreaiDownloadProgress.shared.update(progress, for: modelId)
+						}
+						lastBytes = currentBytes
+						idleCount = 0
+					} else {
+						idleCount += 1
+						// After 15 idle polls (30s), assume download stalled or complete
+						if idleCount > 15 {
+							logger.warning("HF download polling stopped — no growth for ~30s")
+							break
+						}
+					}
+				}
 			}
 		}
 
@@ -290,17 +377,40 @@
 				// Auth auto-detected by HubClient from HF_TOKEN / filesystem.
 				// Equivalent to MLXChatExample: factory.loadContainer(from: downloader, ...)
 				// VLM: try LLMModelFactory first, fall back to VLMModelFactory on error.
+				//
+				// Progress: #hubDownloader() is a black-box macro with no callback injection.
+				// We use omlx-style directory polling to estimate progress.
 				logger.info("Downloading from HuggingFace: \(repoId)")
 				// Notify UI that download started
 				await MainActor.run {
 					OcoreaiDownloadProgress.shared.start(modelId: progressKey)
 				}
+
+				// Determine HF cache directory for polling
+				let hfCacheDir: URL = {
+					let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+					guard let baseDir = urls.first else {
+						return URL(fileURLWithPath: "/dev/null")
+					}
+					return baseDir
+						.appendingPathComponent("org.ml-explore.mlx-swift-lm")
+						.appendingPathComponent(repoId)
+				}()
+
+				// Start directory polling task for progress estimation
+				let pollTask = Self.startHFProgressPolling(
+					cacheDir: hfCacheDir,
+					modelId: progressKey,
+					logger: logger
+				)
+
 				do {
 					let container = try await LLMModelFactory.shared.loadContainer(
 						from: #hubDownloader(),
 						using: #huggingFaceTokenizerLoader(),
 						configuration: ModelConfiguration(id: repoId),
 					)
+					pollTask.cancel()
 					await MainActor.run {
 						OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
 					}
@@ -314,11 +424,13 @@
 							using: #huggingFaceTokenizerLoader(),
 							configuration: ModelConfiguration(id: repoId),
 						)
+						pollTask.cancel()
 						await MainActor.run {
 							OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
 						}
 						return container
 					} catch {
+						pollTask.cancel()
 						await MainActor.run {
 							OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
 						}
