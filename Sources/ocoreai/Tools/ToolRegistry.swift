@@ -141,6 +141,10 @@ actor ToolRegistry {
 			if let t = token {
 				await auditTrail?.completeToken(t, status: .error, result: error.localizedDescription)
 			}
+			// If handler already threw a ToolError, re-throw without double-wrapping
+			if let toolErr = error as? ToolError {
+				throw toolErr
+			}
 			let sanitized = sanitizeError(error)
 			throw ToolError.executionFailed(sanitized)
 		}

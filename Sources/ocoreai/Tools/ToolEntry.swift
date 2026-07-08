@@ -42,6 +42,57 @@ struct ToolEntry {
 		self.maxDepth = maxDepth
 		self.mcpSource = mcpSource
 	}
+
+	/// Factory: create a ToolEntry from a typed handler with automatic Codable decode/encode.
+	///
+	/// - Parameters:
+	///   - name: Tool identifier.
+	///   - toolset: Toolset group name.
+	///   - argsType: Codable type of the tool's arguments.
+	///   - description: Human-readable description (optional).
+	///   - isDestructive: Whether this tool performs side effects.
+	///   - handler: Typed handler that receives decoded `Args` and returns a `Codable` result.
+	/// - Returns: A `ToolEntry` ready for registration.
+	///
+	/// Example:
+	/// ```swift
+	/// struct InfoArgs: Codable { let topic: String? }
+	/// let entry = ToolEntry.typed(name: "info", toolset: "system", argsType: InfoArgs.self) {
+	///     args in
+	///     args.topic ?? "status"
+	/// }
+	/// ```
+	static func typed<Args: Codable>(
+		name: String,
+		toolset: String,
+		argsType: Args.Type,
+		description: String = "",
+		isDestructive: Bool = false,
+		handler: @Sendable @escaping (Args) async throws -> String
+	) -> ToolEntry {
+		let jsonDecoder = JSONDecoder()
+		assert(argsType == Args.self, "argsType unused — type inferred from generics")
+
+		return ToolEntry(
+			name: name,
+			toolset: toolset,
+			schema: ToolSchema(),
+			handler: { rawArgs in
+				guard let data = rawArgs.data(using: .utf8), !data.isEmpty else {
+					throw ToolError.invalidParameter("Arguments required for tool '\(name)'")
+				}
+				let args: Args
+				do {
+					args = try jsonDecoder.decode(Args.self, from: data)
+				} catch {
+					throw ToolError.invalidParameter("Invalid arguments for '\(name)': \(error.localizedDescription)")
+				}
+				return try await handler(args)
+			},
+			checkFn: { true },
+			isDestructive: isDestructive
+		)
+	}
 }
 
 /// JSON Schema describing tool parameters
@@ -59,32 +110,6 @@ enum ParameterType: String, Codable, CaseIterable {
 	case integer
 	case boolean
 	case array
-
-	/// Coerce a JSON string value to the target type
-	func coerce(_ raw: String) throws -> Any {
-		switch self {
-		case .string:
-			return raw
-		case .integer:
-			guard let int = Int(raw) else {
-				throw ToolError.invalidParameter("Expected integer, got '\"\(raw)\"'")
-			}
-			return int
-		case .boolean:
-			let lower = raw.lowercased()
-			guard ["true", "false"].contains(lower) else {
-				throw ToolError.invalidParameter("Expected boolean, got '\"\(raw)\"'")
-			}
-			return lower == "true"
-		case .array:
-			guard let data = raw.data(using: .utf8),
-			      let parsed = try? JSONSerialization.jsonObject(with: data) as? [Any]
-			else {
-				return [raw]
-			}
-			return parsed
-		}
-	}
 }
 
 /// Tool execution errors
