@@ -141,7 +141,12 @@ func anthropicMessagesHandler(
 		tokenBudget: request.maxTokens ?? 4096,
 	)
 	do {
-		try await scheduler.submitAndDispatch(schedulingRequest)
+		let dispatched = try await scheduler.submitAndDispatch(schedulingRequest)
+		guard dispatched != nil else {
+			// Higher-priority request dispatched instead — ours still in queue.
+			// Prevent scheduling state desync: do not proceed to acquire().
+			throw AppError.engineUnavailable
+		}
 	} catch let e as SchedulerError {
 		await scheduler.fail(schedulingRequest.id, with: e.localizedDescription)
 		switch e {

@@ -6,6 +6,7 @@
 /// Resolves ${KEYCHAIN:...} config references at runtime.
 
 import Foundation
+import os.log
 
 /// Keychain store for secure credential management.
 ///
@@ -14,6 +15,8 @@ import Foundation
 final class KeychainStore: Sendable {
 	/// Service name used for all ocoreai Keychain entries.
 	static let service = "com.ocoreai.runtime"
+
+	private static let osLogger = os.Logger(subsystem: "com.ocoreai.runtime", category: "KeychainStore")
 
 	/// Save a credential to the Keychain.
 	/// - Parameters:
@@ -109,6 +112,7 @@ final class KeychainStore: Sendable {
 			let store = KeychainStore()
 			return try store.retrieve(account: accountName)
 		} catch {
+			Self.osLogger.debug("Credential resolution failed for \(accountName): \(error)")
 			return nil
 		}
 	}

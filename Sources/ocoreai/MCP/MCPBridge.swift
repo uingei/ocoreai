@@ -395,8 +395,14 @@ actor MCPBridge {
 			return client.map { (name, $0) }
 		})
 
-		let argsJson = try? JSONSerialization.data(withJSONObject: arguments, options: [])
-		let argsJsonStr = argsJson.map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+		let argsJsonStr: String
+		do {
+			let data = try JSONSerialization.data(withJSONObject: arguments, options: [])
+			argsJsonStr = String(decoding: data, as: UTF8.self)
+		} catch {
+			log.error("Tool args serialization failed for \\(toolName): \\(error)")
+			argsJsonStr = "{}"
+		}
 
 		return try await withThrowingTaskGroup(of: String.self) { group in
 			for (_, client) in resolvedClients {
@@ -421,8 +427,14 @@ actor MCPBridge {
 		arguments: [String: Any],
 		names: [String],
 	) async throws -> String {
-		let argsJson = try? JSONSerialization.data(withJSONObject: arguments, options: [])
-		let argsJsonStr = argsJson.map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+		let argsJsonStr: String
+		do {
+			let data = try JSONSerialization.data(withJSONObject: arguments, options: [])
+			argsJsonStr = String(decoding: data, as: UTF8.self)
+		} catch {
+			log.error("Tool args serialization failed for \\(toolName): \\(error)")
+			argsJsonStr = "{}"
+		}
 
 		var lastError: Error?
 
@@ -461,6 +473,8 @@ actor MCPBridge {
 		   let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
 		{
 			argsDict = parsed
+		} else if !jsonStr.isEmpty {
+			log.warning("Failed to parse tool args JSON for \\(tool): \\(jsonStr.prefix(80))")
 		}
 
 		let contentBlocks = try await client.callTool(tool, arguments: argsDict)
@@ -561,6 +575,9 @@ actor MCPBridge {
 		if let data = argsData,
 		   let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
 			argsMap = parsed
+		} else if !arguments.isEmpty {
+			log.warning("Failed to parse tool arguments JSON for \\(name): \\(arguments.prefix(80))")
+			argsMap = [:]
 		} else {
 			argsMap = [:]
 		}
