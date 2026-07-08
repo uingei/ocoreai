@@ -344,8 +344,10 @@ extension EnginePool {
 			skipLock: Bool = false,
 		) async {
 			// Query HardwareRouter for runtime compute channel decision.
-			// Channel now drives the MLX device backend — .cpu → MLX Device.withDefaultDevice(.cpu),
-			// .gpu → default Metal device. .ane falls back to GPU when CoreAI is not available.
+			// Channel drives session pool + speculative decoding for .cpu.
+			// Note: per-request device switching (GPU→CPU) is not possible — device
+			// is bound at ModelContainer load time. True CPU inference requires
+			// architectural change (separate ModelContainer with CPU device).
 			let computeChannel: ComputeChannel
 			if let router = hardwareRouter, let tracker = memoryTracker {
 				computeChannel = router.query(
