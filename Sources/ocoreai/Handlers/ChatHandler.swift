@@ -195,7 +195,8 @@ func chatCompletionsHandler(
 		let dispatched = try await scheduler.submitAndDispatch(schedulingRequest)
 		guard dispatched != nil else {
 			// Higher-priority request dispatched instead — ours still in queue.
-			// Prevent scheduling state desync: do not proceed to acquire().
+			// Clean up scheduler state to prevent orphaned .pending entry.
+			await scheduler.fail(schedulingRequest.id, with: "Higher-priority request dispatched first")
 			throw AppError.engineUnavailable
 		}
 	} catch let e as SchedulerError {
