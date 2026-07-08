@@ -407,24 +407,24 @@ private func nonStreamWithToolCalling(
 	/// Falls back to single inference when no tools or agent loop disabled.
 	let toolRegistry = await OcoreaiEngine.shared.activeToolRegistry
 	let messageBuilder = await OcoreaiEngine.shared.activeMessageBuilder
-	let budget = options.maxTokens ?? 4096
-	// Agent loop requires non-nil registry and builder
-	guard let registry = toolRegistry, let builder = messageBuilder else {
-		throw AppError.invalidRequest("Agent loop unavailable — engine not fully initialized")
-	}
-	let loopConfig = AgentLoopConfig(
-		maxIter: 30,
-		tokenBudget: budget,
-		guardMargin: 512,
-		timeoutSeconds: 120,
-		registry: registry,
-		builder: builder,
-		caller: "api"
-	)
 
 	let agentResult: AgentLoopResult
 	if let tools = request.tools, !tools.isEmpty {
 		/// Agent loop path: multi-turn inference with tool execution
+		/// Agent loop requires non-nil registry and builder — guard scoped here only.
+		let budget = options.maxTokens ?? 4096
+		guard let registry = toolRegistry, let builder = messageBuilder else {
+			throw AppError.invalidRequest("Agent loop unavailable — engine not fully initialized")
+		}
+		let loopConfig = AgentLoopConfig(
+			maxIter: 30,
+			tokenBudget: budget,
+			guardMargin: 512,
+			timeoutSeconds: 120,
+			registry: registry,
+			builder: builder,
+			caller: "api"
+		)
 		agentResult = try await AgentLoop.run(
 			config: loopConfig,
 			handle: handle,
@@ -435,7 +435,7 @@ private func nonStreamWithToolCalling(
 			logger: logger
 		)
 	} else {
-		/// Single inference path (no tools available)
+		/// Single inference path (no tools available) — does NOT need registry/builder
 		agentResult = try await AgentLoop.oneInference(
 			handle: handle,
 			messages: messages,
