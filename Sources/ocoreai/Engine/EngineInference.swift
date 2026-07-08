@@ -344,23 +344,33 @@ extension EnginePool {
 			skipLock: Bool = false,
 		) async {
 			// Query HardwareRouter for runtime compute channel decision.
-			// This establishes the data flow: HardwareRouter recommendation → inference dispatch.
-			// Currently MLX is the only active backend (#if mlx), so non-GPU channels are logged
-			// but inference still runs on GPU. Once CoreAI (ANE) is available, channel will drive
-			// backend selection.
+			// Channel now drives the MLX device backend — .cpu → MLX Device.withDefaultDevice(.cpu),
+			// .gpu → default Metal device. .ane falls back to GPU when CoreAI is not available.
+			let computeChannel: ComputeChannel
 			if let router = hardwareRouter, let tracker = memoryTracker {
-				let recommendedChannel = router.query(
+				computeChannel = router.query(
 					gpuActiveBytes: await tracker.gpuActiveMemoryBytes(),
 					gpuBudgetBytes: await tracker.getBudget(),
 					priority: .chat
 				)
-				if recommendedChannel != .gpu {
-					logger.warning("HardwareRouter recommends \(recommendedChannel.rawValue) for \(modelId), using GPU (MLX backend, ANE/CPU fallback pending CoreAI SDK)")
-				} else {
-					let gpuGB = String(format: "%.1f", Double(await tracker.gpuActiveMemoryBytes()) / 1_073_741_824.0)
-					let budgetGB = String(format: "%.1f", Double(await tracker.getBudget()) / 1_073_741_824.0)
-					logger.debug("HardwareRouter → GPU channel for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB)")
+				let gpuGB = String(format: "%.1f", Double(await tracker.gpuActiveMemoryBytes()) / 1_073_741_824.0)
+				let budgetGB = String(format: "%.1f", Double(await tracker.getBudget()) / 1_073_741_824.0)
+			
+				switch computeChannel {
+				case .gpu:
+					logger.debug("HardwareRouter → GPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB)")
+				case .cpu:
+					logger.warning("HardwareRouter → CPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB) — disabling session pool + speculative decoding")
+				case .ane:
+					#if coreai
+						logger.info("HardwareRouter → ANE for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB)")
+					#else
+						logger.warning("HardwareRouter → ANE for \(modelId) but CoreAI unavailable, falling back to GPU (gpu: \(gpuGB)/\(budgetGB) GB)")
+					#endif
 				}
+			} else {
+				computeChannel = .gpu
+				logger.debug("HardwareRouter not initialized, defaulting to GPU for \(modelId)")
 			}
 
 			guard let loaded = loadedModels[modelId] else {

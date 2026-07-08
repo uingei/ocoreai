@@ -54,8 +54,8 @@ struct AgentLoopConfig {
 
     init(
         maxIter: Int = 30,
-        tokenBudget: Int = 4096,
-        guardMargin: Int = 256,
+        tokenBudget: Int = 8192,
+        guardMargin: Int = 512,
         timeoutSeconds: TimeInterval = 180,
         registry: ToolRegistry,
         builder: MessageBuilder,
