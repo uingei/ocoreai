@@ -1,90 +1,49 @@
 # Changelog
 
-All notable changes to ocoreai will be documented in this file.
+All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [v0.1.0] — 2026-07-05
+## [Unreleased] — 2026-07-09
 
-### 🚀 Features
+### Features
 
-- **Dual-channel inference** — MLX GPU (Metal, default) + CoreAI ANE stub (macOS 27+/M4+)
-- **MLXVLM multimodal inference pipeline** — VLM auto-detect, LLM/VLM factory routing, image input via `preprocessor_config.json`
-- **Speculative decoding** — MTP and traditional draft model modes end-to-end
-- **Multimodal I/O** — Camera capture, screen capture, microphone input, Apple Speech STT/TTS
-- **Multimodal visual feedback loop** — ScreenshotService → MultimodalState → Chat full pipeline
-- **Wired Memory GPU isolation** — hardware-level GPU memory bounds for inference
-- **Engine lifecycle state machine** — 6-state machine with circuit breaker + port conflict detection
-- **MCP bridge** — external MCP server tools routed to AgentLoop tool registry
-- **Scheduler + OOM guard** — P0→P4 priority dispatch, GPU memory budget, downgrade chain (4-bit → 8-bit → CPU → refuse)
-- **Config system** — YAML config with file watcher, hardware auto-detection for memory budget
-- **Session memory** — SQLite + FTS5 full-text search, LLM-driven session compression (hot/warm/cold)
-- **Agent loop** — multi-turn tool calling (up to 30 rounds, 120s timeout, 4096 token budget)
-- **Skill system** — YAML registry, loader, system prompt builder
-- **SwiftUI dashboard** — live metrics, model management, settings, chat interface, 6-language i18n
-- **Security** — ContentGuard 3-stage filtering, AdaptiveThreshold EMA, GlobalCrashHandler, structured audit logger
-- **API compatibility** — OpenAI chat completions + Anthropic messages API endpoints
+- **Typed tool factory** — `Codable` argument decoding, following the `Tool<Args, Output>` pattern
+- **Task-aware prompt engineering** — P0 optimization for prompt quality
+- **Gap analysis P0/P1/P2 fixes** — xet disable, cancel cleanup, config TTL cache, parameter estimation, adapter block, mtime stall detection
+- **HardwareRouter** — Adaptive GPU/ANE/CPU routing with agent loop token budget 2× compensation and broken-chain repair
+- **WiredMemory GPU isolation** — Real-time GPU telemetry and memory isolation
+- **WiredMemory** — Policy ID stability and cancel-safe ticket lifecycle
+- **Vision multimodal** — OCR + VLM dataURL→CIImage inference path
+- **Voice-to-voice loop** — 16 kHz STT + i18n TTS voice + camera integration
 
-### 🐛 Bug Fixes
+### Bug Fixes
 
-- **P0: AppError → HTTPResponseError** — unified error handling across Hummingbird middleware chain
-- **P0: force unwrap cleanup** — 5 force unwraps in App init path replaced with guard-let + failStartup
-- **P0: SwiftUI ModelView recursion crash** — ConditionalTypeDescriptor stack overflow fix (52k frames → 0)
-- **P0: multimodal pipeline** — DataURLPreview, stale cache fix, STT auto-transcribe on recording stop
-- **P0: AgentLoop security** — ContentGuard tool output filtering, maxToolRounds=10 context truncation, Task cancellation check every 128 tokens
-- **P0: fire-and-forget release anti-pattern** — ChatCompletionsRouter Task.detached → proper defer release
-- **P1: cross-platform Theme crash** — Color(nsColor:) guarded with #if os(macOS)
-- **P1: SpecDecoding mode routing** — LoadedModel.createSpeculativeConfig() now reads config.mode
-- **P1: HIG compliance** — accessibility annotations, reduced motion, keyboard shortcuts, monitor leak fix
-- **P1: HubConfigFetcher ModelScope revision** — main → master (config prefetch silent failure)
-- **P2: TTS content filtering** — code block / thinking tag stripping before TTS
-- **P2: camera frame compression** — resize 1280px + JPEG 0.6 before VLM input
-- **P2: stopSequences / logitBias hardcoded nil** — 4 handler sites now pass through user config
-- **P2: InferenceRequest.systemPrompt / .tools hardcoded nil** — Fast Path now passes all params
-- **P1: ChatState singleton** — tab-switch message persistence fix
-- **P1: EnginePool unloadModel** — now cleans SessionPool on model unload
+- **Request pipeline** — Scoping guard chain to tool path only; non-tool requests no longer blocked
+- **Compute channel** — Wired computeChannel to session pool + speculative decoding
+- **HardwareRouter data flow** — Wired HardwareRouter → inference pipeline (P0 disconnect fix); wired submitAndDispatch to activate admission gate + hardware router
+- **Download pipeline resilience** — Retry logic, stall detection, endpoint config, HF progress, cache integrity; ModelScope temp-file-before-handle and 'blob' type acceptance
+- **Scheduler** — Fixed state leak in ChatHandler + AnthropicMessagesHandler
+- **EnginePool** — Eliminated force unwrap; tightened CI crash-risk gate; removed leftover `source:` param from `mlxModelLoader.load()`
+- **Error mapping** — Wired SchedulerError → AppError in handlers
+- **Security** — Closed 2 P0 vulnerabilities from code review
+- **Build fixes** — Resolved build break, release warning, and release-mode crash
+- **Miscellaneous** — Removed dead HF_ENDPOINT check and dead firstError variable in MCP routeParallel
 
-### 🧪 Testing
+### Refactoring
 
-- **374 tests, 72 suites, all passing** (was 351/69)
-- HTTP E2E smoke tests — request → router → handler pipeline verification
-- Middleware chain tests — auth, rate limiting, error propagation
-- Added TokenBucket, OOMGuard, SamplingConfig, EngineConfig, AdaptiveThreshold suites
+- **Engine load API** — Removed `source` parameter; `defaultHub` property is sufficient; eliminated prefix-based routing
 
-### 📝 Documentation
+### Documentation
 
-- **@unchecked Sendable** — 10/10 sites now have concurrency justification comments
-- **README** — accuracy fix: removed `--traits mlx` (MLX now default), updated API endpoint table (17 endpoints), added localhost-only disclaimer (en + zh)
-- **CHANGELOG** — first release changelog
+- Synced README with recent changes (HardwareRouter, AdmissionGate, ThinkingBudget, VLM/OCR, Profiling, 6-language i18n)
+- Added tuning-knob documentation for admission gate abort margin fraction
+- Fixed misleading comment about per-request device switching
 
-### 🔧 Breaking Changes
+### Chores
 
-- MLX is now always-on — `--traits mlx` flag no longer needed (was already default)
-- `AppError` renamed to `HTTPResponseError` for Hummingbird H1 middleware compatibility
-
-### 📊 Build Info
-
-- Swift 6.3 · iOS SwiftUI · Hummingbird 2.25
-- 122 Swift source files, ~32,000 LOC
-- macOS 15+ · Apple Silicon only
-- Tests: 374/374 passed in 72 suites (1.1s)
-- Build: 0 warnings, 0 errors (20.75s)
+- Added complete code review infrastructure (governance)
+- Ran SwiftLint: errors → 0, hardened config thresholds, fixed style violations
+- Resolved deprecations and renamed symbols
 
 ---
 
-## [Unreleased]
-
-### Known Issues
-
-- **P2: ThinkingBudget indirect integration** — works in ChatHandler Phase 1 via MessageBuilder, but not in AgentLoop internal iterations
-- **P2: Skill body = description only** — builtin skills use description as body, no actionable instructions
-- **P2: Config hot-reload not propagated to EnginePool** — config reload updates internal state but EnginePool uses init-time snapshot
-- **P2: dead notifications** — `cameraFrameAvailable` / `screenFrameAvailable` posted but no consumer (low-priority cleanup)
-
-### App Store Release Checklist (Separate Track)
-
-- [ ] Xcode project file + schemes
-- [ ] PrivacyInfo.xcprivacy
-- [ ] App icon + launch screen
-- [ ] Code signing + entitlements
-- [ ] Info.plist permission descriptions (camera/microphone/screen capture)
-- [ ] `.lproj` resource bundles for 6 languages
-- [ ] `--traits appStore` build verification
+*Generated from git history: v0.1.0..6a601f4 (35 commits, 2026-07-05 → 2026-07-09).*
