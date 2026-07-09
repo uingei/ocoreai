@@ -622,10 +622,12 @@ extension EnginePool {
 						+ Int(loaded.modelConfig.maxContextLength) * 64
 				}
 
+				// FIXED: Hashable policies derive stable identity from their value (cap), not UUID.
+				// Custom ID broke WiredMemoryManager's grouping/hysteresis logic.
 				let wmPolicy: any WiredMemoryPolicy = if config.wiredMemory.policy == "sum" {
-					WiredSumPolicy(id: UUID(uuidString: "wired-memory-\(modelId)") ?? UUID())
+					WiredSumPolicy(cap: nil)
 				} else {
-					WiredMaxPolicy(id: UUID(uuidString: "wired-memory-\(modelId)") ?? UUID())
+					WiredMaxPolicy()
 				}
 
 				let ticket = WiredMemoryTicket(

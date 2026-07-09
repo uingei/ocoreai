@@ -138,7 +138,7 @@ final class MultimodalState {
 			let audio = MMAudioIO.shared
 			if value {
 				mmLogger.info("[MultimodalState] Microphone enabled — requesting permission")
-				_ = await audio.requestMicPermission()
+				_ = await audio.hasMicPermission()
 			} else {
 				mmLogger.info("[MultimodalState] Microphone disabled — stopping recording")
 				_ = await audio.stopRecording()

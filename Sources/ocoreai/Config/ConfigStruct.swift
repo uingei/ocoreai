@@ -185,8 +185,8 @@ public struct SpecDecodingConfig: Sendable, Codable, Equatable {
 	public static let `default` = SpecDecodingConfig()
 
 	public init(
-		enabled: Bool = false,
-		mode: String = "mtp",
+		enabled: Bool = true,
+		mode: String = "traditional",
 		draftModelId: String? = nil,
 		numDraftTokens: Int = 5,
 		memoryPolicy: String? = "recommendedWorkingSet"
@@ -202,9 +202,9 @@ public struct SpecDecodingConfig: Sendable, Codable, Equatable {
 		guard mode == "mtp" || mode == "traditional" else {
 			throw ConfigValidationError("backend.specDecoding.mode: must be 'mtp' or 'traditional' (got '\(mode)')")
 		}
-		if mode == "traditional", draftModelId == nil {
-			throw ConfigValidationError("backend.specDecoding: draftModelId required for 'traditional' mode")
-		}
+		// NOTE: draftModelId is optional — when nil, runtime uses the main model
+		// as the drafter (self-speculation). createSpeculativeConfig() logs a warning
+		// and falls back to mlxModelHandle at inference time.
 	}
 }
 
