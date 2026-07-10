@@ -230,6 +230,7 @@ public enum StringKey: String, CaseIterable {
 	case statusStopping = "Status.Stopping"
 	case statusStopped = "Status.Stopped"
 	case statusError = "Status.Error"
+	case dismissError = "Status.DismissError"
 
 	// — LogLevel Display Names —
 	case logLevelDebug = "LogLevel.Debug"
@@ -603,6 +604,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.statusStopping: "Stopping",
 		.statusStopped: "Stopped",
 		.statusError: "Error",
+		.dismissError: "Dismiss error",
 
 		// LogLevel display names
 		.logLevelDebug: "Debug",
@@ -926,6 +928,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.statusStopping: "停止中",
 		.statusStopped: "已停止",
 		.statusError: "错误",
+		.dismissError: "关闭错误",
 
 		// LogLevel display names
 		.logLevelDebug: "调试",

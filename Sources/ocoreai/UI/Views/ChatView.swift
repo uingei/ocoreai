@@ -183,7 +183,7 @@ struct ChatView: View {
 							.foregroundStyle(theme.textSecondary)
 					}
 					.buttonStyle(.plain)
-					.accessibilityLabel("Dismiss error")
+					.accessibilityLabel(StringKey.dismissError.l)
 				}
 				.padding(.horizontal, 12)
 				.padding(.vertical, 8)
