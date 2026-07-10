@@ -97,16 +97,16 @@ final class KeychainStore: Sendable {
 		return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
 	}
 
-	/// Resolve a ${KEYCHAIN:name} reference to its actual value.
+	/// Resolve a ``${KEYCHAIN:name}`` reference to its actual value.
 	/// Returns nil if the key does not exist in the Keychain.
 	static func resolveReference(_ value: String) -> String? {
-		guard let range = value.range(of: #"^\$\{KEYCHAIN:([^}]+)\}$"#, options: .regularExpression) else {
+		// Parse ${KEYCHAIN:accountName} — substring-based to avoid regex issues
+		let prefix = "${KEYCHAIN:"
+		let suffix = "}"
+		guard value.hasPrefix(prefix), value.hasSuffix(suffix), value.count > prefix.count + suffix.count else {
 			return nil
 		}
-		let keyName = String(value[range])
-		// Extract the name part after "KEYCHAIN:"
-		guard let colonRange = keyName.range(of: "KEYCHAIN:") else { return nil }
-		let accountName = String(keyName[keyName.index(colonRange.upperBound, offsetBy: 1)...].dropLast())
+		let accountName = String(value.dropFirst(prefix.count).dropLast())
 
 		do {
 			let store = KeychainStore()
