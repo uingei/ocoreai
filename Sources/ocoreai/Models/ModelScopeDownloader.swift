@@ -330,7 +330,7 @@ actor ModelScopeDownloader: Downloader {
 
 				// FileHandle(forWritingTo:) requires the file to already exist
 				// (Swift 6 API change — does not create the file implicitly).
-				try FileManager.default.createFile(atPath: tempURL.path(percentEncoded: false), contents: nil)
+				_ = FileManager.default.createFile(atPath: tempURL.path(percentEncoded: false), contents: nil)
 
 				// Stream into file — O(1) memory regardless of file size.
 				let handle = try FileHandle(forWritingTo: tempURL)
@@ -558,7 +558,7 @@ actor ModelScopeDownloader: Downloader {
 		}
 
 		// Walk bottom-up to prune empty directories left by cleanup
-		try? pruneEmptyDirectories(directory)
+		pruneEmptyDirectories(directory)
 	}
 
 	/// Recursively prune empty directories after temp-file cleanup.

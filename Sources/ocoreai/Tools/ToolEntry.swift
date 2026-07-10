@@ -62,7 +62,7 @@ struct ToolEntry {
 	///     args.topic ?? "status"
 	/// }
 	/// ```
-	static func typed<Args: Codable>(
+	static func typed<Args: Codable & Sendable>(
 		name: String,
 		toolset: String,
 		argsType: Args.Type,

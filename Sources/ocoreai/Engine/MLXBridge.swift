@@ -314,7 +314,7 @@
 			if modelId.hasPrefix("/") || modelId.hasPrefix("~/") {
 				logger.info("Loading local model: \(modelId)")
 				let container = try await loadLocal(Path(modelId), modelId: modelId)
-				_ = logElapsed("MLX model \(modelId) loaded", start)
+				logElapsed("MLX model \(modelId) loaded", start)
 				return MLXModelHandleImpl(modelContainer: container, modelId: modelId)
 			}
 
@@ -343,7 +343,7 @@
 
 			let container: MLXLMCommon.ModelContainer = try await loadFromHubWithFallback()
 
-			_ = logElapsed("MLX model \(modelId) loaded", start)
+			logElapsed("MLX model \(modelId) loaded", start)
 
 			return MLXModelHandleImpl(modelContainer: container, modelId: modelId)
 		}
