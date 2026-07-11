@@ -35,6 +35,11 @@ actor ThinkingBudget {
 extension ThinkingBudget {
 	/// Get scaffolding text for a given complexity score and context.
 	///
+	/// Reads the calibrated multiplier and adjusts scaffold depth:
+	/// - multiplier ≥ 1.5 → upgrade band one level (simple→medium, medium→complex)
+	/// - multiplier ≤ 0.7 → downgrade band one level (complex→medium, medium→simple)
+	/// - multiplier in (0.7, 1.5) → use score.band as-is
+	///
 	/// Selects scaffold by `taskType` first (code/math/json/comparison get
 	/// domain-specific reasoning protocols), falls back to generic protocol for
 	/// general/analysis tasks.
@@ -43,8 +48,28 @@ extension ThinkingBudget {
 	///   - score: Complexity score from ``ComplexityAnalyzer``
 	///   - sessionId: Session identifier for adaptive budget tracking
 	/// - Returns: System prompt scaffolding segment, or empty string for simple queries
-	func scaffolding(for score: ComplexityScore, sessionId _: String) -> String {
-		switch score.band {
+	func scaffolding(for score: ComplexityScore, sessionId: String) -> String {
+		let m = currentMultiplier(for: sessionId)
+		let adjustedBand: ComplexityBand
+		if m >= 1.5 {
+			// Adaptive upgrade — session has consistently high quality
+			switch score.band {
+			case .simple: adjustedBand = .medium
+			case .medium: adjustedBand = .complex
+			case .complex: adjustedBand = .complex
+			}
+		} else if m <= 0.7 {
+			// Adaptive downgrade — session has consistently low quality
+			switch score.band {
+			case .simple: adjustedBand = .simple
+			case .medium: adjustedBand = .simple
+			case .complex: adjustedBand = .medium
+			}
+		} else {
+			adjustedBand = score.band
+		}
+
+		switch adjustedBand {
 		case .simple:
 			// Precision tasks still get a minimal check even in simple band
 			switch score.taskType {
