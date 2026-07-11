@@ -467,24 +467,6 @@ struct ComplexityScore: Sendable {
 
 	/// Detected task type — drives scaffold and parameter selection
 	let taskType: TaskType
-
-	/// Thinking budget in tokens for this score band.
-	/// Precision tasks (code/math/json) always get a minimum budget.
-	var thinkingBudgetTokens: Int {
-		// Override: precision tasks always need at least some reasoning
-		if [.code, .math, .json].contains(taskType) {
-			return max(512, baseBudget)
-		}
-		return baseBudget
-	}
-
-	private var baseBudget: Int {
-		switch band {
-		case .simple: 0
-		case .medium: 1024
-		case .complex: 4096
-		}
-	}
 }
 
 /// Complexity classification band.
