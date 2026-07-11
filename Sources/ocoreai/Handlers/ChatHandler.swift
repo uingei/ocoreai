@@ -535,7 +535,24 @@ private func nonStreamWithToolCalling(
 	await metrics.observeInferenceDuration(elapsed / 1000.0)
 	await metrics.incrementTokens(kind: "generated", count: totalOutputTokens)
 	await metrics.incrementTokens(kind: "prompt", count: promptTokenCount)
-
+	
+	/// Post-inference quality signal → ThinkingBudget calibration loop.
+	// Complexity is cached in MessageBuilder from the buildMessages call upstream.
+	// OcoreaiEngine is @MainActor → cross-actor property access requires await.
+	// This is a fire-and-forget calibration signal — failures are silently ignored.
+	let budget = await OcoreaiEngine.shared.activeThinkingBudget
+	if let budget {
+		let complexity = await messageBuilder?.lastComplexityScore()?.composite ?? 0.5
+		let sessionId = String(resolveSessionId(for: request))
+		_ = await ThinkingTelemetry.signal(
+			result: agentResult,
+			maxTokens: options.maxTokens ?? 4096,
+			complexity: complexity,
+			sessionId: sessionId,
+			budget: budget
+		)
+	}
+	
 	/// Assemble full ChatCompletion response with usage statistics.
 	let completion = ChatCompletion(
 		id: requestId,
@@ -899,6 +916,29 @@ private func streamWithToolCalling(
 		}
 
 		logger.info("Stream request completed")
+		
+		/// Post-stream quality signal → ThinkingBudget calibration loop.
+		// Stream path: no agentResult, send raw signals.
+		// Resolve async properties before if-let guard:
+		//   - OcoreaiEngine is @MainActor → property access is async
+		//   - MessageBuilder.lastComplexityScore() is actor-isolated → async
+		let budget = await OcoreaiEngine.shared.activeThinkingBudget
+		let mbuilder = await OcoreaiEngine.shared.activeMessageBuilder
+		if let budget {
+			let complexity = await mbuilder?.lastComplexityScore()?.composite ?? 0.5
+			let sessionId = request.sessionID ?? "stream-unknown"
+			_ = await ThinkingTelemetry.signal(
+				sessionId: sessionId,
+				complexity: complexity,
+				outputTokens: totalOutputTokens,
+				maxTokens: options.maxTokens ?? 4096,
+				iterationCount: 1,
+				toolCallCount: 0,
+				finishReason: "stop",
+				budget: budget
+			)
+		}
+	
 		continuation.finish()
 	}
 
