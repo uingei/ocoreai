@@ -181,7 +181,6 @@ final class AudioIO: NSObject {
 	private func beginRecording(to url: URL, settings: [String: Any]) {
 		do {
 			recorder = try AVAudioRecorder(url: url, settings: settings)
-			recorder?.isMeteringEnabled = true
 			recorder?.prepareToRecord()
 			recorder?.record()
 			isRecording = true
