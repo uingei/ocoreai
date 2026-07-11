@@ -142,6 +142,16 @@ public final class OcoreaiEngine {
 		_thinkingBudget
 	}
 
+	/// Direct accessor to semantic search — SwiftUI can perform vector similarity search.
+	var activeSemanticSearch: SemanticSearch? {
+		_semanticSearch
+	}
+
+	/// Direct accessor to memory tracker — SwiftUI can monitor GPU/system memory.
+	var activeMemoryTracker: MemoryTracker? {
+		_memoryTracker
+	}
+
 	private(set) var enginePool: EnginePool?
 	private var _sessionCompressor: SessionCompressor?
 	private var _systemPromptBuilder: SystemPromptBuilder?
@@ -152,10 +162,12 @@ public final class OcoreaiEngine {
 	private var _mcpBridge: MCPBridge?
 	private var _toolRegistry: ToolRegistry?
 	private var _auditTrail: AuditTrail?
+	private var _memoryTracker: MemoryTracker?
 	private var _complexityAnalyzer: ComplexityAnalyzer?
 	private var _thinkingBudget: ThinkingBudget?
 	private var _contentGuard: ContentGuard?
-	
+	private var _semanticSearch: SemanticSearch?
+
 	/// Config system — loaded at startup, hot-reload capable
 	private var configSystem: ConfigSystem?
 	/// Config snapshot — set on start, updated on hot-reload. Reads are same-actor.
@@ -256,8 +268,9 @@ public final class OcoreaiEngine {
 			log: logger,
 		)
 		await memoryTracker.setOOMCallback { level in
-			await oomGuard.respond(to: level)
-		}
+				await oomGuard.respond(to: level)
+			}
+		_memoryTracker = memoryTracker
 
 		var sqliteStore: SQLiteStore?
 		do {
@@ -277,6 +290,8 @@ public final class OcoreaiEngine {
 		}
 
 		let fts5Search = FTS5Search(store: store)
+		let semanticSearch = SemanticSearch(store: store)
+		_semanticSearch = semanticSearch
 
 		// MARK: - Config System (YAML + env override + hot-reload)
 

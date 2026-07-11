@@ -647,7 +647,7 @@
 				// Run model + pool + normalize
 				let modelOutput = model(padded, positionIds: nil, tokenTypeIds: tokenTypes, attentionMask: mask)
 				let result = pooling(modelOutput, normalize: true, applyLayerNorm: true)
-				_ = result.eval()
+				result.eval()
 
 				return result.map { $0.asArray(Float.self) }
 			}
