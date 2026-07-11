@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# commit-msg — enforce Conventional Commits format
+set -euo pipefail
+
+# Git passes the commit message file path as $1, but only when called as
+# a real hook (not during manual testing). Fallback to standard path.
+COMMIT_MSG_FILE="${1:-.git/COMMIT_EDITMSG}"
+
+if [ ! -f "$COMMIT_MSG_FILE" ]; then
+  exit 0
+fi
+
+MSG=$(grep -v '^#' "$COMMIT_MSG_FILE" | head -1)
+
+# Allow merge commits through
+if [[ "$MSG" == Merge* ]]; then
+  exit 0
+fi
+
+# Conventional commit pattern: type(scope): message  |  type: message
+# Allowed types: feat, fix, test, docs, refactor, chore, style, lint, infra, dep
+if ! echo "$MSG" | grep -qE '^(feat|fix|test|docs|refactor|chore|style|lint|infra|dep)(\(.+\))?: .+'; then
+  echo ""
+  echo "❌ Commit message does not follow Conventional Commits format:"
+  echo ""
+  echo "   Got:      $MSG"
+  echo "   Expected: type(scope): description"
+  echo "   Types:    feat, fix, test, docs, refactor, chore, style, lint, infra, dep"
+  echo "   Examples:"
+  echo "             feat(client): add streaming cancellation support"
+  echo "             fix(reasoning): correct complexity score calculation"
+  echo "             test(profiling): add PerRequestMetrics unit tests"
+  echo ""
+  exit 1
+fi
