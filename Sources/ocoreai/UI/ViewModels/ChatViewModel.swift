@@ -28,18 +28,77 @@ enum HubSource: String, CaseIterable {
 // Note: HFModelInfo and MSModelInfo have been replaced by HFHubModel and MSHubModel
 // from HuggingFaceSearchClient and ModelScopeSearchClient respectively.
 
+/// ChatMessage — UI-layer message type with optional structured content.
+///
+/// Design:
+/// - `content: String` — flat text (legacy, SQLite-compatible, streaming accumulation)
+/// - `parts: [TranscriptPart]?` — structured semantic blocks (text/reasoning/toolCall/image)
+///   When present, `parts` is the source of truth for rendering; `content` is a fallback.
+///
+/// Backward compat: messages from DB restore or legacy code still set `content` only.
+/// New code should populate `parts` when available (e.g., AgentLoop tool call logs,
+/// reasoning traces). The `textContent` computed property joins parts into a flat
+/// string for persistence and fallback rendering.
 struct ChatMessage: Identifiable, Hashable {
 	let id = UUID()
 	let role: String
-	let content: String
+	let content: String /// Flat text — legacy + SQLite-compatible + streaming fallback
+	let parts: [TranscriptPart]? /// Structured content — source of truth when present
 	let timestamp: Date
 	let imageURLs: [String] /// Base64 data URLs for inline preview
 
+	/// Plain-text representation joining all parts for persistence and fallback.
+	var textContent: String {
+		if let partsParts = parts {
+			return partsParts.compactMap {
+				switch $0 {
+				case .text(let t): return t
+				case .reasoning(let r): return r
+				case .toolCall(let tc): return "[Tool: \(tc.name)]"
+				case .image: return nil
+				}
+			}.joined(separator: "\n")
+		}
+		return content
+	}
+
+	/// Whether this message has structured semantic parts for rich rendering.
+	var hasParts: Bool {
+		parts != nil && !(parts?.isEmpty ?? true)
+	}
+
+	/// Legacy initializer — sets flat content only (for SQLite restore, streaming)
 	init(role: String, content: String, timestamp: Date = .now, imageURLs: [String] = []) {
 		self.role = role
 		self.content = content
 		self.timestamp = timestamp
 		self.imageURLs = imageURLs
+		parts = nil
+	}
+
+	/// Structured initializer — builds parts from semantic blocks
+	init(role: String, parts: [TranscriptPart], timestamp: Date = .now) {
+		self.role = role
+		self.content = TranscriptPartMessage(texts: parts).flatText // fallback for persistence
+		self.parts = parts
+		self.timestamp = timestamp
+		self.imageURLs = []
+	}
+}
+
+/// Helper to flatten TranscriptPart array into a plain string for compatibility.
+private struct TranscriptPartMessage {
+	let texts: [TranscriptPart]
+
+	var flatText: String {
+		texts.compactMap {
+			switch $0 {
+			case .text(let t): return t
+			case .reasoning(let r): return r
+			case .toolCall(let tc): return "[Tool: \(tc.name): \(tc.resultSummary ?? "")]"
+			case .image: return nil
+			}
+		}.joined(separator: " ")
 	}
 }
 

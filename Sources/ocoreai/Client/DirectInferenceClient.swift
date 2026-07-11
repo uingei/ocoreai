@@ -428,22 +428,48 @@ extension DirectInferenceClient {
 
 // MARK: - Chunk Types
 
+/// Intermediate chunk emitted by the streaming inference loop.
+///
+/// The `text` field carries streaming text deltas for real-time display.
+/// The optional `metadata` field carries structured event data (tool calls,
+/// reasoning start/end) from the agent loop. When metadata is present,
+/// ChatViewModel accumulates structured parts alongside the flat text.
 struct DirectChatChunk {
 	let text: String
 	let isComplete: Bool
 	let stopReason: String?
 	let outputTokens: Int?
+	/// Structured metadata for agent loop events (optional).
+	/// When present, the client should accumulate these into a structured ChatMessage.
+	let metadata: DirectChunkMetadata?
+
+	/// Metadata for structured inference events beyond plain text deltas.
+	enum DirectChunkMetadata: Codable {
+		case toolCall(ToolCallMeta)
+		case reasoningStart
+		case reasoningEnd
+	}
+
+	/// Compact tool call metadata emitted during agent loop iterations.
+	struct ToolCallMeta: Codable {
+		let name: String
+		let arguments: String?
+		let resultSummary: String?
+		let durationMs: Double?
+	}
 
 	init(
 		text: String,
 		isComplete: Bool,
 		stopReason: String? = nil,
 		outputTokens: Int? = nil,
+		metadata: DirectChunkMetadata? = nil
 	) {
 		self.text = text
 		self.isComplete = isComplete
 		self.stopReason = stopReason
 		self.outputTokens = outputTokens
+		self.metadata = metadata
 	}
 }
 
@@ -451,6 +477,24 @@ struct DirectInferenceResult {
 	let content: String
 	let stopReason: String
 	let outputTokens: Int
+	/// Aggregated tool call logs from agent loop (available when AgentLoop ran).
+	let toolCallParts: [ToolCallPart]?
+	/// Total reasoning tokens (if reasoning trace was captured).
+	let reasoningContent: String?
+
+	init(
+		content: String,
+		stopReason: String,
+		outputTokens: Int,
+		toolCallParts: [ToolCallPart]? = nil,
+		reasoningContent: String? = nil
+	) {
+		self.content = content
+		self.stopReason = stopReason
+		self.outputTokens = outputTokens
+		self.toolCallParts = toolCallParts
+		self.reasoningContent = reasoningContent
+	}
 }
 
 // MARK: - Errors

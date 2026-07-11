@@ -15,12 +15,38 @@ import AppKit
 #endif
 
 /// Stable identity wrapper for chat messages — uses UUID string for deterministic identity
+///
+/// Mirrors ChatMessage structure: flat `content` for compatibility + optional `parts`
+/// for structured rendering (text/reasoning/toolCall/image segments).
+///
+/// `displayContent` is the rendering source: uses `parts` if available, falls back to `content`.
 struct ChatBubbleMessage: Identifiable, Hashable {
 	let id: String // stable UUID-based identity
 	let role: String
-	let content: String
+	let content: String /// Flat fallback text (compatibility + streaming)
+	let parts: [TranscriptPart]? /// Structured semantic blocks
 	let timestamp: Date
 	let imageURLs: [String] /// Base64 data URLs for inline image preview
+
+	/// Rendering content: structured parts preferred, flat content as fallback
+	var displayContent: String {
+		if let parts, !parts.isEmpty {
+			return parts.compactMap {
+				switch $0 {
+				case .text(let t): return t
+				case .reasoning(let r): return r
+				case .toolCall(let tc): return "[Tool: \(tc.name)]"
+				case .image: return nil
+				}
+			}.joined(separator: "\n")
+		}
+		return content
+	}
+
+	/// Has structured content for rich rendering?
+	var hasParts: Bool {
+		parts != nil && !(parts?.isEmpty ?? true)
+	}
 
 	init(id: String, role: String, content: String, timestamp: Date, imageURLs: [String] = []) {
 		self.id = id
@@ -28,6 +54,17 @@ struct ChatBubbleMessage: Identifiable, Hashable {
 		self.content = content
 		self.timestamp = timestamp
 		self.imageURLs = imageURLs
+		self.parts = nil
+	}
+
+	/// Convert ChatViewModel.ChatMessage → ChatBubbleMessage (preserves parts)
+	init(from cm: ChatMessage) {
+		self.id = cm.id.uuidString
+		self.role = cm.role
+		self.content = cm.content
+		self.parts = cm.parts
+		self.timestamp = cm.timestamp
+		self.imageURLs = cm.imageURLs
 	}
 }
 
@@ -237,14 +274,8 @@ struct ChatView: View {
 				} else {
 					LazyVStack(spacing: 10) {
 						ForEach(chatState.messages) { msg in
-							ChatBubble(message: ChatBubbleMessage(
-								id: msg.id.uuidString,
-								role: msg.role,
-								content: msg.content,
-								timestamp: msg.timestamp,
-								imageURLs: msg.imageURLs,
-							))
-							.id(msg.id)
+							ChatBubble(message: ChatBubbleMessage(from: msg))
+								.id(msg.id)
 						}
 						// Streaming preview — show assistant's partial response in real-time
 						if !chatState.responseText.isEmpty {
@@ -531,12 +562,18 @@ struct ChatBubble: View {
 			VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
 				ChatHeader(isUser: isUser, timestamp: message.timestamp)
 
-				// Inline image previews
+				// Inline image previews (from user attachments)
 				if !message.imageURLs.isEmpty {
 					imagePreview
 				}
 
-				ChatMessageInner(text: message.content, isUser: isUser)
+				// Structured content takes precedence over flat content
+				if message.hasParts, !isUser {
+					TranscriptContentView(parts: message.parts!, isUser: isUser)
+				} else {
+					// Fallback: flat content (legacy messages + user input)
+					ChatMessageInner(text: message.displayContent, isUser: isUser)
+				}
 			}
 			.accessibilityLabel("\(isUser ? StringKey.youLabel.l : StringKey.ocoreaiLabel.l): \(message.content)")
 			.accessibilityValue("Message sent at \(message.timestamp, formatter: timeFormatter)")
@@ -629,6 +666,135 @@ struct ChatHeader: View {
 				.foregroundStyle(theme.textTertiary.opacity(0.6))
 		}
 		.accessibilityHidden(true) // Redundant with ChatBubble label
+	}
+}
+
+// MARK: - Transcript Content View
+
+/// Renders structured TranscriptPart messages with semantic-aware layout:
+/// - `.text` → Markdown rendering (existing MarkdownMessage)
+/// - `.reasoning` → Collapsible section with "thinking" label
+/// - `.toolCall` → Compact badge/chip showing tool name + result
+/// - `.image` → Inline image display
+///
+/// Matches Apple FM Transcript presentation patterns: reasoning is collapsible,
+/// tool calls are informational badges, text flows through markdown rendering.
+struct TranscriptContentView: View {
+	let parts: [TranscriptPart]
+	let isUser: Bool
+
+	@Environment(\.ocoreaiTheme) private var theme
+	@State private var expandedReasoning: Set<Int> = []
+
+	private func toggleReasoning(_ index: Int) {
+		if expandedReasoning.contains(index) {
+			expandedReasoning.remove(index)
+		} else {
+			expandedReasoning.insert(index)
+		}
+	}
+
+	var body: some View {
+		VStack(alignment: .leading, spacing: 8) {
+			ForEach(Array(parts.enumerated()), id: \.offset) { idx, part in
+				switch part {
+				case .text(let text):
+					MarkdownMessage(content: text)
+						.padding(12)
+						.background(theme.cardBg, in: RoundedRectangle(cornerRadius: 14))
+
+				case .reasoning(let text):
+					reasoningSection(text: text, index: idx)
+
+				case .toolCall(let tc):
+					toolCallBadge(tc)
+
+				case .image(let url):
+					InlineImagePreview(dataURL: url)
+						.frame(height: 96)
+						.padding(.horizontal, 12)
+						.clipShape(RoundedRectangle(cornerRadius: 14))
+						.background(theme.cardBg)
+						.clipShape(RoundedRectangle(cornerRadius: 14))
+				}
+			}
+		}
+		.multilineTextAlignment(.leading)
+	}
+
+	// MARK: - Reasoning Section (Collapsible)
+
+	@ViewBuilder
+	private func reasoningSection(text: String, index: Int) -> some View {
+		let isExpanded = expandedReasoning.contains(index)
+		Button {
+			withAnimationRespectingAccessibility { toggleReasoning(index) }
+		} label: {
+			VStack(alignment: .leading, spacing: 6) {
+				// Header row — always visible
+				HStack(spacing: 6) {
+					Image(systemName: "brain")
+						.font(.ocoreaiText(10))
+						.foregroundStyle(theme.textTertiary)
+					Text("Agent Reasoning")
+						.font(.ocoreaiText(11, weight: .medium))
+						.foregroundStyle(theme.textTertiary)
+					Spacer()
+					Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+						.font(.ocoreaiText(10))
+						.foregroundStyle(theme.textTertiary)
+						.rotationEffect(isExpanded ? .degrees(180) : .degrees(0))
+				}
+				// Expanded reasoning body
+				if isExpanded {
+					Text(text)
+						.font(.ocoreaiText(13))
+						.foregroundStyle(theme.textSecondary)
+						.lineSpacing(2)
+						.padding(.horizontal, 12)
+						.padding(.vertical, 8)
+						.background(theme.cardBg, in: RoundedRectangle(cornerRadius: 8))
+				}
+			}
+			.padding(.horizontal, 4)
+		}
+		.buttonStyle(.plain)
+		.background(theme.cardBg, in: RoundedRectangle(cornerRadius: 14))
+	}
+
+	// MARK: - Tool Call Badge
+
+	@ViewBuilder
+	private func toolCallBadge(_ tc: ToolCallPart) -> some View {
+		HStack(spacing: 6) {
+			Image(systemName: "wrench.and.screwdriver")
+				.font(.ocoreaiText(10))
+				.foregroundStyle(theme.accent)
+				.frame(width: 20, height: 20)
+				.background(theme.accentSoft, in: Circle())
+
+			VStack(alignment: .leading, spacing: 1) {
+				Text(tc.name)
+					.font(.ocoreaiText(11, weight: .medium))
+					.foregroundStyle(theme.accent)
+				if let summary = tc.resultSummary, !summary.isEmpty {
+					Text(summary)
+						.font(.ocoreaiText(10))
+						.foregroundStyle(theme.textSecondary)
+						.lineLimit(1)
+				}
+			}
+
+			if let dur = tc.durationMs, dur > 0 {
+				Spacer()
+				Text(String(format: "%.0fms", dur))
+					.font(.ocoreaiMono(9))
+					.foregroundStyle(theme.textTertiary)
+			}
+		}
+		.padding(.horizontal, 10)
+		.padding(.vertical, 6)
+		.background(theme.cardBg, in: Capsule())
 	}
 }
 
