@@ -87,6 +87,17 @@ final class AudioIO: NSObject {
 	/// Whether speech is currently detected (based on VAD threshold)
 	var isSpeechDetected: Bool = false
 
+	/// VAD: power-level tracking via tap buffer RMS.
+	/// macOS AVAudioInputNode has no metering API — compute from tap buffers.
+	private var _vadRMS: Float = 0
+	private var _vadTapCount: Int = 0
+
+	/// Returns approximate dB level from recent tap buffers.
+	private var vadDBLevel: Float {
+		if _vadTapCount == 0 { return -160 }
+		return 20 * log10(_vadRMS)
+	}
+
 	// MARK: - VAD Configuration
 
 	/// VAD silence threshold in dB (default -40 dB)
@@ -255,13 +266,30 @@ extension AudioIO {
 		request.shouldReportPartialResults = true
 
 		let format = audioEngine.inputNode.outputFormat(forBus: 0)
-		audioEngine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+		audioEngine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
 			request.append(buffer)
+			// VAD: compute RMS from tap buffer for power-level tracking
+			if let self = self, useVAD {
+				let channelData = buffer.floatChannelData?.pointee
+				let frameCount = Int(buffer.frameLength)
+				if let channelData = channelData, frameCount > 0 {
+					var rmsSum: Float = 0
+					for i in 0..<frameCount {
+						let sample = channelData[i]
+						rmsSum += sample * sample
+					}
+					let rms = sqrt(rmsSum / Float(frameCount))
+					// Exponential moving average to smooth per-buffer spikes
+					self._vadRMS = self._vadRMS * 0.8 + rms * 0.2
+					self._vadTapCount += 1
+				}
+			}
 		}
 
-		// VAD: Enable metering on audio engine input for power-level detection
+		// VAD: power-level tracking via tap buffer RMS.
+		// AVAudioInputNode has no metering API on macOS — compute from audio buffers.
 		if useVAD {
-			audioLogger.info("[AudioIO] VAD enabled — power-level based silence detection")
+			audioLogger.info("[AudioIO] VAD enabled — RMS-based silence detection")
 		}
 
 		try? audioEngine.start()
@@ -288,14 +316,15 @@ extension AudioIO {
 
 			let deadline = Date().addingTimeInterval(timeout)
 			while Date() < deadline, isRecognizing {
-				// VAD: heuristic silence detection via partialText updates.
-				// If partialText hasn't changed in N cycles, likely silence/no speech segment.
+				// VAD: actual power-level based silence detection via tap buffer RMS.
+				// Reads dB level from exponential-moving-average of tap buffer.
 				if useVAD {
-					let textChanged = !partialText.isEmpty
-					if textChanged {
+					let power = vadDBLevel
+					audioPowerLevel = power
+
+					if power > vadSilenceThreshold {
 						vadConsecutiveSilence = 0
 						isSpeechDetected = true
-						audioPowerLevel = 0 // placeholder — activity detected
 					} else {
 						vadConsecutiveSilence += 1
 						isSpeechDetected = false
@@ -303,12 +332,13 @@ extension AudioIO {
 
 					// Auto-stop on extended silence (vadSilenceSamples * 100ms ≈ N seconds)
 					if vadConsecutiveSilence >= vadSilenceSamples {
-						audioLogger.info("[AudioIO] VAD: extended silence detected (\(vadConsecutiveSilence) samples), ending transcription")
+						audioLogger.info("[AudioIO] VAD: extended silence detected (\(vadConsecutiveSilence) samples, \(power)dB), ending transcription")
 						break
 					}
 				}
 
-				// Yield to let recognition process
+				// Yield to let recognition process — check cancellation per concurrency §28
+				try Task.checkCancellation()
 				try await Task.sleep(nanoseconds: 100_000_000) // 100ms
 			}
 

@@ -376,6 +376,12 @@ actor EnginePool {
 			)
 		#endif
 		#if mlx
+			// VLM detection: check processor_config.json before loading
+			let isVlmModel = MLXModelLoader.isVLMModel(at: modelURL)
+			logger.info(
+				"MLX model \(modelId) \(isVlmModel ? "VLM" : "LLM") detected via isVLMModel",
+			)
+
 			let mlxHandle = try await mlxModelLoader.load(
 				modelURL: modelURL,
 				modelId: modelId,
@@ -389,6 +395,7 @@ actor EnginePool {
 				logger: logger,
 			)
 			model.setMLXHandle(mlxHandle)
+			model.isVlm = isVlmModel
 			model.kvCacheQuantization = config.kvCacheQuantization
 			// Configure speculative decoding — lazy-load draft model on first model load
 			model.setSpecDecodingConfig(config.specDecoding)
@@ -446,6 +453,9 @@ actor EnginePool {
 				#if coreai
 					entry["specialized"] = String(model.preparedModel.isSpecialized)
 				#endif
+				#if mlx
+					entry["specialized"] = String(model.isVlm)
+				#endif
 				result.append(entry)
 			}
 		}
@@ -460,6 +470,8 @@ actor EnginePool {
 		}
 		#if coreai
 			let specializedCount = loadedModels.values.count(where: { $0.preparedModel.isSpecialized })
+		#elseif mlx
+			let specializedCount = loadedModels.values.count(where: { $0.isVlm })
 		#else
 			let specializedCount = 0
 		#endif

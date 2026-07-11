@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App Sandbox — required for App Store -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!-- Network -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <key>com.apple.security.network.server</key>
+    <true/>
+
+    <!-- Media & I/O -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
+    <key>com.apple.security.device.microphone</key>
+    <true/>
+
+    <!-- File Access — User-selected files only (RAG document upload) -->
+    <key>com.apple.security.files.user-selected</key>
+    <true/>
+
+    <!-- File Provider — for accessing documents in app container -->
+    <key>com.apple.security.files.downloads</key>
+    <true/>
+
+    <!-- Model downloads from HuggingFace / ModelScope -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- GPU Access — MLX/CoreAI Metal compute -->
+    <key>com.apple.security.device.gpu</key>
+    <true/>
+</dict>
+</plist>

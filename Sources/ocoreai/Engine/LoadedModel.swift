@@ -54,6 +54,9 @@ final class LoadedModel: @unchecked Sendable {
 	#if mlx
 		/// MLXLLM model handle — loaded once at load time, reused across inference
 		var mlxModelHandle: (any MLXModelHandle)?
+		/// Whether this model is a VLM (multi-modal: vision + language)
+		/// Set during loadModel() via MLXModelLoader.isVLMModel detection.
+		var isVlm: Bool = false
 		var kvCacheQuantization: KVCacheQuantizationConfig = .default
 		/// Speculative decoding config from backend settings. Set via setSpecDecodingConfig.
 		var specDecodingConfig: SpecDecodingConfig = .default

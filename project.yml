@@ -1,0 +1,121 @@
+name: ocoreai
+options:
+  bundleIdPrefix: com.ocoreai
+  deploymentTarget:
+    macOS: "15.0"
+  xcodeVersion: "26.0"
+
+packages:
+  hummingbird:
+    url: https://github.com/hummingbird-project/hummingbird.git
+    from: 2.25.0
+  swift-log:
+    url: https://github.com/apple/swift-log.git
+    from: 1.6.0
+  swift-atomics:
+    url: https://github.com/apple/swift-atomics.git
+    from: 1.3.0
+  yams:
+    url: https://github.com/jpsim/Yams.git
+    from: 5.0.0
+  mlx-swift-lm:
+    url: https://github.com/ml-explore/mlx-swift-lm.git
+    revision: 702e5a0eaf990e1f6d3db2b6e7d8872858a44055
+  swift-huggingface:
+    url: https://github.com/huggingface/swift-huggingface.git
+    from: 0.9.0
+  swift-transformers:
+    url: https://github.com/huggingface/swift-transformers.git
+    from: 1.3.3
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_LANGUAGE: "6"
+    SUPPORTS_MACCATALYST: "NO"
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+  configs:
+    debug:
+      base: debug
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG DEBUG_MODE mlx"
+      GCC_PREPROCESSOR_DEFINITIONS: "DEBUG=1 DEBUG_MODE=1 mlx=1"
+    release:
+      base: release
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "mlx"
+      GCC_PREPROCESSOR_DEFINITIONS: "mlx=1"
+
+targets:
+  ocoreai:
+    type: application
+    platform: macos
+    sources:
+      - path: Sources/ocoreai
+    dependencies:
+      - package: hummingbird
+        product: Hummingbird
+      - package: swift-log
+        product: Logging
+      - package: swift-atomics
+        product: Atomics
+      - package: yams
+        product: Yams
+      - package: mlx-swift-lm
+        product: MLXLLM
+      - package: mlx-swift-lm
+        product: MLXVLM
+      - package: mlx-swift-lm
+        product: MLXLMCommon
+      - package: mlx-swift-lm
+        product: MLXHuggingFace
+      - package: mlx-swift-lm
+        product: MLXEmbedders
+      - package: swift-huggingface
+        product: HuggingFace
+      - package: swift-transformers
+        product: Tokenizers
+    settings:
+      base:
+        INFOPLIST_FILE: Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ocoreai.entitlements
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "YES"
+        DEVELOPMENT_TEAM: ""
+    resources:
+      - Resources/Info.plist
+    preBuildScripts:
+      - name: Metallib Setup
+        script: |
+          METALLIB_DIR="$(pwd)/.build/metallib"
+          mkdir -p "$METALLIB_DIR"
+        basedOnDependencyAnalysis: false
+
+  ocoreaiTests:
+    type: bundle.unit-test
+    platform: macos
+    sources:
+      - path: Tests/ocoreaiTests
+    settings:
+      base:
+        FRAMEWORK_SEARCH_PATHS[arch=arm64]: /Library/Developer/CommandLineTools/Library/Developer/Frameworks
+        LIBRARY_SEARCH_PATHS[arch=arm64]: /Library/Developer/CommandLineTools/Library/Developer/usr/lib
+        LD_RUNPATH_SEARCH_PATHS[arch=arm64]: /Library/Developer/CommandLineTools/Library/Developer/Frameworks
+                          /Library/Developer/CommandLineTools/Library/Developer/usr/lib
+    dependencies:
+      - target: ocoreai
+        type: target
+      - package: hummingbird
+        product: HummingbirdTesting
+
+schemes:
+  ocoreai:
+    build:
+      targets:
+        all: build
+    test:
+      targets:
+        - ocoreaiTests
+    run:
+      config: debug
+    archive:
+      config: release

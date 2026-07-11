@@ -31,6 +31,14 @@
 	import MLXLMCommon
 	import MLXVLM
 
+	// MARK: - MLX Core (MLXArray, stacked — needed by EmbeddingService)
+
+	import MLX
+
+	// MARK: - MLXEmbedders Integration
+
+	import MLXEmbedders
+
 	// MARK: - HuggingFace Integration
 
 	import HuggingFace
@@ -574,6 +582,142 @@
 				"Hub download failed for '\(repo)': \(err)"
 			case let .invalidHubId(id):
 				"Invalid hub identifier: \(id)"
+			}
+		}
+	}
+
+	// MARK: - EmbeddingService (P0-2: MLXEmbedders real integration)
+
+	/// Lightweight bridge between MLXEmbedders and ocoreai's embedding pipeline.
+	///
+	/// - Loads `mlx-community/LFM2.5-Embedding-350M-4bit` (350M, 1024-dim, 4-bit quantized).
+	///   Falls back to bf16 if quantization fails.
+	/// - Produces dense [Float] vectors compatible with `MemoryConfig.vectorDim`.
+	/// - Thread-safe: shares one `EmbedderModelContainer` via `actor` isolation.
+	actor EmbeddingService {
+		static let logger = Logger(label: "ocoreai.embedding")
+
+		/// Lazy singleton — loads model on first `embed(_:)` call.
+		private var container: EmbedderModelContainer?
+
+		/// Current embedding dimension (1024 for LFM2.5 models).
+		var embeddingDim: Int { 1024 }
+
+		// MARK: - Public API
+
+		/// Embed a single string → normalized dense vector as raw `Data`.
+		/// Compatible with `SessionMessage.embedVector: Data?`.
+		func embedText(_ text: String) async throws -> Data {
+			try await embedTexts([text]).first ?? Data()
+		}
+
+		/// Batch-embed strings. Returns `[Data]` (one 1024-float32 vector per input).
+		func embedTexts(_ texts: [String]) async throws -> [Data] {
+			guard !texts.isEmpty else { return [] }
+
+			let container = try await ensureContainer()
+
+			// Perform embedding inside the container (non-isolated context)
+			let vectors: [[Float]] = await container.perform { context in
+				let tokenizer = context.tokenizer
+				let model = context.model
+				let pooling = context.pooling
+				let eosId = tokenizer.eosTokenId ?? 0
+
+				// Encode inputs
+				let encoded = texts.map {
+					tokenizer.encode(text: $0, addSpecialTokens: true)
+				}
+
+				// Pad to longest sequence
+				let maxLength = encoded.reduce(into: 16) { acc, elem in
+					acc = max(acc, elem.count)
+				}
+
+				let padded = stacked(
+					encoded.map { elem in
+						MLXArray(
+							elem + Array(repeating: eosId, count: maxLength - elem.count)
+						)
+					}
+				)
+				let mask = padded .!= eosId
+				let tokenTypes = MLXArray.zeros(like: padded)
+
+				// Run model + pool + normalize
+				let modelOutput = model(padded, positionIds: nil, tokenTypeIds: tokenTypes, attentionMask: mask)
+				let result = pooling(modelOutput, normalize: true, applyLayerNorm: true)
+				_ = result.eval()
+
+				return result.map { $0.asArray(Float.self) }
+			}
+
+			// Convert [Float] vectors to Data (float32 little-endian)
+			return vectors.map { Data(bytes: $0, count: $0.count * MemoryLayout<Float>.size) }
+		}
+
+		/// Cosine similarity between two already-embedded vectors.
+		static func cosineSimilarity(_ a: Data, _ b: Data) -> Float {
+			guard a.count == b.count else { return 0 }
+			let count = a.count / MemoryLayout<Float>.size
+			var result: Float = 0
+			withUnsafeBytes(of: a) { bufA in
+				guard let ptrA = bufA.bindMemory(to: Float.self).baseAddress else { return }
+				withUnsafeBytes(of: b) { bufB in
+					guard let ptrB = bufB.bindMemory(to: Float.self).baseAddress else { return }
+					for i in 0..<count {
+						result += ptrA[i] * ptrB[i]
+					}
+				}
+			}
+			return result
+		}
+
+		// MARK: - Model loading
+
+		private func ensureContainer() async throws -> EmbedderModelContainer {
+			if let container { return container }
+
+			// Try 4-bit quantized first (smaller, faster on Apple Silicon)
+			let configs: [ModelConfiguration] = [
+				EmbedderRegistry.lfm2_embedding_350m_4bit,  // 4-bit quantized
+				EmbedderRegistry.lfm2_embedding_350m,       // bf16 fallback
+			]
+
+			for config in configs {
+				do {
+					let container = try await EmbedderModelFactory.shared.loadContainer(
+						from: #hubDownloader(),
+						using: #huggingFaceTokenizerLoader(),
+						configuration: config
+					)
+					Self.logger.info(
+						"Embedding model loaded: \(config.id)",
+						metadata: ["embeddingDim": .string(String(embeddingDim))]
+					)
+					self.container = container
+					return container
+				} catch {
+					Self.logger.warning(
+						"Failed to load \(config.id), trying next: \(error.localizedDescription)"
+					)
+				}
+			}
+
+			throw EmbeddingError.modelLoadFailed(
+				"All embedding model candidates failed to load"
+			)
+		}
+
+		// MARK: - Errors
+
+		enum EmbeddingError: Error, LocalizedError {
+			case modelLoadFailed(String)
+
+			var errorDescription: String? {
+				switch self {
+				case .modelLoadFailed(let msg): "Embedding unavailable: \(msg)"
+				}
 			}
 		}
 	}
