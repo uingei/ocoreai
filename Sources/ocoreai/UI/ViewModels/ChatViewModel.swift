@@ -33,11 +33,13 @@ struct ChatMessage: Identifiable, Hashable {
 	let role: String
 	let content: String
 	let timestamp: Date
+	let imageURLs: [String] /// Base64 data URLs for inline preview
 
-	init(role: String, content: String, timestamp: Date = .now) {
+	init(role: String, content: String, timestamp: Date = .now, imageURLs: [String] = []) {
 		self.role = role
 		self.content = content
 		self.timestamp = timestamp
+		self.imageURLs = imageURLs
 	}
 }
 
@@ -207,6 +209,12 @@ final class ChatState {
 
 	// MARK: - Chat (Fast Path)
 
+	/// User-provided image attachment for multimodal input.
+	struct AttachedImage: Identifiable {
+		let id = UUID()
+		let dataURL: String /// Base64 data URL (data:image/png;base64,...)
+	}
+
 	/// Send chat message via Fast Path — bypasses HTTP entirely.
 	///
 	/// Flow: ChatMessage → multimodal context capture → Message (typed, may include
@@ -218,12 +226,13 @@ final class ChatState {
 	/// - If camera/screen capture is enabled, visual context is captured before inference
 	///   and injected as ContentPart.imageUrl parts in the user message.
 	/// - If speaker is enabled, the final response is spoken via AudioIO TTS.
+	/// - User-provided image attachments (via attach button) are merged as ContentPart.imageUrl
 	///
 	/// Fix: Filter out interrupted assistant messages from the inference context.
 	/// Interrupted messages (ending with "[Interrupted]") are kept in UI history
 	/// for display but excluded from the model's conversation context to prevent
 	/// degraded inference quality from partial responses.
-	func chat(_ text: String, model: String) async {
+	func chat(_ text: String, model: String, attachments: [AttachedImage] = []) async {
 		// Ensure persistent session exists
 		await ensureSession(for: model)
 
@@ -232,8 +241,19 @@ final class ChatState {
 		let mmState = MultimodalState.shared
 		let mmContext = await mmState.captureContext()
 
+		// Merge user attachment images into multimodal context
+		let allContext: [(name: String, dataURL: String)] = {
+			var merged = mmContext
+			for att in attachments {
+				merged.append(("attachment", att.dataURL))
+			}
+			return merged
+		}()
+
 		// Push and persist user message (text only for persistence)
-		let userMsg = ChatMessage(role: "user", content: text)
+		// Store attachment data URLs for inline preview
+		let attachmentURLs = attachments.map { $0.dataURL }
+		let userMsg = ChatMessage(role: "user", content: text, imageURLs: attachmentURLs)
 		messages.append(userMsg)
 		await persistMessage(role: "user", content: text)
 
@@ -258,10 +278,10 @@ final class ChatState {
 			for (idx, msg) in cleanMessages.enumerated() {
 				// If this is the last user message AND we have multimodal context,
 				// inject images as ContentPart.imageUrl parts
-				let isLastUserMsg = (msg.role == "user") && (idx == count - 1) && !mmContext.isEmpty
+				let isLastUserMsg = (msg.role == "user") && (idx == count - 1) && !allContext.isEmpty
 				if isLastUserMsg {
 					var parts: [ContentPart] = [ContentPart(type: "text", text: msg.content, imageUrl: nil)]
-					for ctx in mmContext {
+					for ctx in allContext {
 						parts.append(ContentPart(
 							type: "image_url",
 							text: nil,

@@ -96,6 +96,9 @@ public enum StringKey: String, CaseIterable {
 
 	// — Chat —
 	case chatPlaceholder = "Chat.Placeholder"
+	// — Attachment —
+	case attachFiles = "Attach.Files"
+	case attachFilesHint = "Attach.FilesHint"
 	case send = "Chat.Send"
 	case stop = "Chat.Stop"
 	case newConversation = "Chat.NewConversation"
@@ -315,6 +318,10 @@ public enum StringKey: String, CaseIterable {
 	// — Model Info —
 	case modelInfoContext = "ModelInfo.Context"
 	case modelInfoTokenizer = "ModelInfo.Tokenizer"
+	// — VLM badge —
+	case modelInfoVLM = "ModelInfo.VLM"
+	// — Vocab size —
+	case modelInfoVocab = "ModelInfo.Vocab"
 
 	// — Chart Axis Labels (macOS Charts) —
 	case chartTime = "Chart.Time"
@@ -333,6 +340,11 @@ public enum StringKey: String, CaseIterable {
 	case copyMessage = "Action.CopyMessage"
 	// — Undo —
 	case undoAction = "Action.Undo"
+	// — Regenerate —
+	case regenerateMessage = "Action.RegenerateMessage"
+	// — Copy code —
+	case copyCode = "Action.CopyCode"
+	case codeCopied = "Action.CodeCopied"
 
 	// — Sessions —
 	case tabSessions = "Tab.Sessions"
@@ -472,6 +484,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 
 		// Chat
 		.chatPlaceholder: "Type a message...",
+		.attachFiles: "Attach Files",
+		.attachFilesHint: "Choose an image to attach",
 		.send: "Send",
 		.stop: "Stop",
 		.newConversation: "New Conversation",
@@ -684,6 +698,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		// Model info
 		.modelInfoContext: "Context",
 		.modelInfoTokenizer: "Tokenizer",
+		.modelInfoVLM: "Vision",
+		.modelInfoVocab: "Vocab",
 
 		// Chart axis labels
 		.chartTime: "Time",
@@ -717,6 +733,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.tryAgain: "Try Again",
 		.copyMessage: "Copy Message",
 		.undoAction: "Undo",
+		.regenerateMessage: "Regenerate",
+		.copyCode: "Copy Code",
+		.codeCopied: "Copied!",
 
 		// Sessions
 		.tabSessions: "Sessions",
@@ -820,6 +839,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.gpuMemoryKVCache: "GPU 显存与 KV 缓存",
 		.loadingMetrics: "加载指标中...",
 		.chatPlaceholder: "输入消息...",
+		.attachFiles: "添加附件",
+		.attachFilesHint: "选择图片附件",
 		.send: "发送",
 		.stop: "停止",
 		.newConversation: "新对话",
@@ -1008,6 +1029,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		// Model info
 		.modelInfoContext: "上下文",
 		.modelInfoTokenizer: "分词器",
+		.modelInfoVLM: "多模态",
+		.modelInfoVocab: "词表",
 
 		// Chart
 		.chartTime: "时间",
@@ -1022,6 +1045,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.tryAgain: "重试",
 		.copyMessage: "复制消息",
 		.undoAction: "撤销",
+		.regenerateMessage: "重新生成",
+		.copyCode: "复制代码",
+		.codeCopied: "已复制!",
 
 		// Sessions
 		.tabSessions: "会话",

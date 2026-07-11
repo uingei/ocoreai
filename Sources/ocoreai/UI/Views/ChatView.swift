@@ -20,12 +20,14 @@ struct ChatBubbleMessage: Identifiable, Hashable {
 	let role: String
 	let content: String
 	let timestamp: Date
+	let imageURLs: [String] /// Base64 data URLs for inline image preview
 
-	init(id: String, role: String, content: String, timestamp: Date) {
+	init(id: String, role: String, content: String, timestamp: Date, imageURLs: [String] = []) {
 		self.id = id
 		self.role = role
 		self.content = content
 		self.timestamp = timestamp
+		self.imageURLs = imageURLs
 	}
 }
 
@@ -45,6 +47,9 @@ struct ChatView: View {
 
 	// Multimodal controls panel — collapsed by default
 	@State private var showMultimodal = false
+
+	// Image attachments for multimodal input
+	@State private var attachments: [ChatState.AttachedImage] = []
 
 	init() {
 		_chatState = State(initialValue: ChatState.shared)
@@ -237,12 +242,30 @@ struct ChatView: View {
 								role: msg.role,
 								content: msg.content,
 								timestamp: msg.timestamp,
+								imageURLs: msg.imageURLs,
 							))
 							.id(msg.id)
 						}
 						// Streaming preview — show assistant's partial response in real-time
 						if !chatState.responseText.isEmpty {
-							streamingPreview
+							VStack(spacing: 4) {
+								ChatHeader(isUser: false, timestamp: Date())
+								MarkdownMessage(content: chatState.responseText)
+									.opacity(0.85)
+									.transition(.opacity.combined(with: .move(edge: .bottom)))
+							}
+							.padding()
+							.accessibilityLabel(StringKey.assistantTyping.l)
+							.accessibilityHidden(false)
+						} else if isStreaming {
+							// No text yet — show typing indicator dots
+							HStack {
+								Spacer(minLength: 26) // Align with assistant avatar
+								TypingIndicator()
+							}
+							.padding()
+							.transition(.opacity)
+							.accessibilityLabel(StringKey.assistantTyping.l)
 						}
 						// Scroll anchor for automatic scroll-to-bottom
 						Color.clear
@@ -332,46 +355,120 @@ struct ChatView: View {
 	// MARK: - Input Bar
 
 	private var inputBar: some View {
-		HStack(spacing: 10) {
-			Button {
-				showMultimodal.toggle()
-			} label: {
-				Image(systemName: "waveform")
-					.font(.title3)
-					.foregroundStyle(showMultimodal ? theme.accent : theme.textSecondary)
-			}
-			.accessibilityLabel(StringKey.voiceInputLabel.l)
-			.accessibilityHint(StringKey.voiceInputHint.l)
+		VStack(spacing: 8) {
+			// Attachment preview strip — shows thumbnails of attached images
+			if !attachments.isEmpty {
+				HStack(spacing: 8) {
+					ForEach(attachments) { attachment in
+						ZStack(alignment: .topTrailing) {
+							Image(systemName: "photo")
+								.resizable()
+								.aspectRatio(contentMode: .fit)
+								.frame(width: 48, height: 48)
+								.clipShape(RoundedRectangle(cornerRadius: 8))
+								.background(theme.inputBg)
 
-			TextField(StringKey.chatPlaceholder.l, text: $inputText, axis: .vertical)
-				.font(.ocoreaiText(15))
-				.textFieldStyle(.plain)
-				.frame(minHeight: 36)
-				.submitLabel(.send)
-				.onSubmit { sendMessage() }
-				.padding(.horizontal, 12)
-				.padding(.vertical, 8)
-				.background(theme.inputBg)
-				.clipShape(RoundedRectangle(cornerRadius: 12))
-				.overlay(
-					RoundedRectangle(cornerRadius: 12)
-						.stroke(theme.inputBorder.opacity(0.5), lineWidth: 0.5),
-				)
-				.accessibilityLabel(StringKey.messageInputLabel.l)
-				.accessibilityHint(StringKey.messageInputHint.l)
+							Button {
+								attachments.removeAll { $0.id == attachment.id }
+							} label: {
+								Image(systemName: "xmark.circle.fill")
+									.font(.ocoreaiText(10))
+									.foregroundStyle(.red)
+									.background(theme.cardBg, in: Circle())
+							}
+							.buttonStyle(.plain)
+							.offset(x: 4, y: 4)
+						}
+					}
 
-			Button {
-				isStreaming ? stopStreaming() : sendMessage()
-			} label: {
-				Image(systemName: isStreaming ? "stop.circle.fill" : "arrow.up.circle.fill")
-					.font(.title2)
-					.foregroundStyle(isStreaming ? theme.redDot : theme.accent)
+					Spacer()
+				}
+				.padding(.horizontal)
+				.frame(height: 56)
 			}
-			.accessibilityLabel(isStreaming ? StringKey.stopStreamingLabel.l : StringKey.sendMessageLabel.l)
-			.accessibilityHint(isStreaming ? StringKey.stopStreamingHint.l : StringKey.sendMessageHint.l)
-			.disabled(isStreaming && inputText.trimmingCharacters(in: .whitespaces).isEmpty)
+
+			// Main input row
+			HStack(spacing: 10) {
+				// Attachment button
+				Button {
+					pickImages()
+				} label: {
+					Image(systemName: "plus.circle")
+						.font(.title3)
+						.foregroundStyle(theme.textSecondary)
+				}
+				.accessibilityLabel(StringKey.attachFiles.l)
+				.accessibilityHint(StringKey.attachFilesHint.l)
+
+				Button {
+					showMultimodal.toggle()
+				} label: {
+					Image(systemName: "waveform")
+						.font(.title3)
+						.foregroundStyle(showMultimodal ? theme.accent : theme.textSecondary)
+				}
+				.accessibilityLabel(StringKey.voiceInputLabel.l)
+				.accessibilityHint(StringKey.voiceInputHint.l)
+
+				TextField(StringKey.chatPlaceholder.l, text: $inputText, axis: .vertical)
+					.font(.ocoreaiText(15))
+					.textFieldStyle(.plain)
+					.frame(minHeight: 36)
+					.submitLabel(.send)
+					.onSubmit { sendMessage() }
+					.padding(.horizontal, 12)
+					.padding(.vertical, 8)
+					.background(theme.inputBg)
+					.clipShape(RoundedRectangle(cornerRadius: 12))
+					.overlay(
+						RoundedRectangle(cornerRadius: 12)
+							.stroke(theme.inputBorder.opacity(0.5), lineWidth: 0.5),
+					)
+					.accessibilityLabel(StringKey.messageInputLabel.l)
+					.accessibilityHint(StringKey.messageInputHint.l)
+
+				Button {
+					isStreaming ? stopStreaming() : sendMessage()
+				} label: {
+					Image(systemName: isStreaming ? "stop.circle.fill" : "arrow.up.circle.fill")
+						.font(.title2)
+						.foregroundStyle(isStreaming ? theme.redDot : theme.accent)
+				}
+				.accessibilityLabel(isStreaming ? StringKey.stopStreamingLabel.l : StringKey.sendMessageLabel.l)
+				.accessibilityHint(isStreaming ? StringKey.stopStreamingHint.l : StringKey.sendMessageHint.l)
+				.disabled(isStreaming && inputText.trimmingCharacters(in: .whitespaces).isEmpty)
+			}
 		}
 		.padding()
+	}
+
+	// MARK: - Image Picker
+
+	@MainActor
+	private func pickImages() {
+#if os(macOS)
+		let panel = NSOpenPanel()
+		panel.allowedContentTypes = [.png, .jpeg, .heic, .webP]
+		panel.allowsMultipleSelection = true
+		panel.canChooseDirectories = false
+
+		panel.begin { response in
+			guard response == .OK else { return }
+			for url in panel.urls {
+				do {
+					let data = try Data(contentsOf: url)
+					let base64 = data.base64EncodedString()
+					let dataURL = "data:image/png;base64,\(base64)"
+					let attachment = ChatState.AttachedImage(dataURL: dataURL)
+					attachments.append(attachment)
+				} catch {
+					// Skip files that fail to read
+				}
+			}
+		}
+#else
+		// iOS: UIImagePickerController via sheet — stub for now
+#endif
 	}
 
 	// MARK: - Actions
@@ -383,8 +480,11 @@ struct ChatView: View {
 	// Voice-to-voice: send transcript from STT — skips setting inputText
 	// so the user can still type while voice loop is active
 	private func sendVoiceMessage(_ text: String) {
-		guard !text.isEmpty && !isStreaming else { return }
+		let hasText = !text.isEmpty
+		guard (hasText || !attachments.isEmpty) && !isStreaming else { return }
 		inputText = ""
+		let currentAttachments = attachments
+		attachments.removeAll()
 		let modelID = currentModel.isEmpty
 			? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? ""
 			: currentModel
@@ -393,7 +493,7 @@ struct ChatView: View {
 		// and MainActor context is captured for updating chatState
 		// Reset activeTask on completion so isStreaming unblocks future sends
 		activeTask = Task { @MainActor in
-			await chatState.chat(text, model: modelID)
+			await chatState.chat(text.isEmpty ? "Image attachment" : text, model: modelID, attachments: currentAttachments)
 			activeTask = nil
 		}
 	}
@@ -431,15 +531,12 @@ struct ChatBubble: View {
 			VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
 				ChatHeader(isUser: isUser, timestamp: message.timestamp)
 
-				Text(message.content)
-					.font(.ocoreaiText(15))
-					.lineSpacing(3)
-					.multilineTextAlignment(isUser ? .trailing : .leading)
-					.padding(12)
-					.background(
-						isUser ? theme.accentSoft : theme.cardBg,
-					)
-					.clipShape(RoundedRectangle(cornerRadius: 14))
+				// Inline image previews
+				if !message.imageURLs.isEmpty {
+					imagePreview
+				}
+
+				ChatMessageInner(text: message.content, isUser: isUser)
 			}
 			.accessibilityLabel("\(isUser ? StringKey.youLabel.l : StringKey.ocoreaiLabel.l): \(message.content)")
 			.accessibilityValue("Message sent at \(message.timestamp, formatter: timeFormatter)")
@@ -468,6 +565,44 @@ struct ChatBubble: View {
 
 	private var timeFormatter: DateFormatter {
 		Self.sharedTimeFormatter
+	}
+
+	/// Inline image preview strip for data URL images
+	private var imagePreview: some View {
+		HStack(spacing: 6) {
+			ForEach(message.imageURLs.indices, id: \.self) { index in
+				let dataURL = message.imageURLs[index]
+				InlineImagePreview(dataURL: dataURL)
+					.frame(height: 80)
+					.clipShape(RoundedRectangle(cornerRadius: 8))
+					.overlay(
+						RoundedRectangle(cornerRadius: 8)
+							.stroke(theme.textTertiary.opacity(0.3), lineWidth: 0.5),
+					)
+			}
+		}
+		.padding(.horizontal, 12)
+		.padding(.vertical, 4)
+		.background(theme.cardBg, in: RoundedRectangle(cornerRadius: 14))
+		.accessibilityHidden(false)
+	}
+}
+
+/// Non-binding image preview for static data URLs (used in chat bubbles)
+private struct InlineImagePreview: View {
+	let dataURL: String
+
+	var body: some View {
+		Group {
+			if let nsImage = dataURL.dataURLImage {
+				Image(nsImage: nsImage)
+					.resizable()
+					.scaledToFit()
+			} else {
+				Image(systemName: "photo")
+					.foregroundStyle(.secondary)
+			}
+		}
 	}
 }
 

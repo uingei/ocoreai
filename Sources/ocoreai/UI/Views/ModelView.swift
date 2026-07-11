@@ -318,18 +318,53 @@ private struct LiveModelCard: View {
 		HStack(spacing: 12) {
 			ZStack {
 				Circle().fill(theme.accentSoft).frame(width: 32, height: 32)
-				Image(systemName: "cpu").font(.ocoreaiText(13, weight: .medium)).foregroundStyle(theme.accent)
-			}.accessibilityHidden(true)
+				Image(systemName: model.isVlm ? "eye" : "cpu")
+					.font(.ocoreaiText(13, weight: .medium))
+					.foregroundStyle(theme.accent)
+			}
+			.accessibilityHidden(true)
 
-			VStack(alignment: .leading, spacing: 4) {
-				Text(model.id).font(.ocoreaiText(15)).fontWeight(.semibold)
-				if model.maxContext > 0 {
-					Text("\(StringKey.modelInfoContext.l): \(model.maxContext)")
-						.font(.ocoreaiText(11)).foregroundStyle(theme.textSecondary)
+			VStack(alignment: .leading, spacing: 6) {
+				// Model name + metadata pills row
+				HStack(spacing: 6) {
+					Text(model.id)
+						.font(.ocoreaiText(15))
+						.fontWeight(.semibold)
+						.lineLimit(1)
+
+					// VLM badge
+					if model.isVlm {
+						Text(StringKey.modelInfoVLM.l)
+							.font(.ocoreaiMono(9))
+							.foregroundStyle(theme.accent)
+							.padding(.horizontal, 5)
+							.padding(.vertical, 1)
+							.background(theme.accentSoft, in: RoundedRectangle(cornerRadius: 4))
+					}
+
+					// Context window badge
+					if !model.contextString.isEmpty {
+						Text(model.contextString)
+							.font(.ocoreaiMono(9))
+							.foregroundStyle(theme.textSecondary)
+							.padding(.horizontal, 5)
+							.padding(.vertical, 1)
+							.background(theme.textTertiary.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+					}
 				}
-				if !model.tokenizer.isEmpty {
-					Text("\(StringKey.modelInfoTokenizer.l): \(model.tokenizer)")
-						.font(.ocoreaiText(11)).foregroundStyle(theme.textTertiary)
+
+				// Detail row: tokenizer + vocab
+				HStack(spacing: 12) {
+					if !model.tokenizer.isEmpty {
+						Label(model.tokenizer, systemImage: "text.format")
+							.font(.ocoreaiText(10))
+							.foregroundStyle(theme.textTertiary)
+					}
+					if !model.vocabString.isEmpty {
+						Label(model.vocabString, systemImage: "character.bubble.fill")
+							.font(.ocoreaiText(10))
+							.foregroundStyle(theme.textTertiary)
+					}
 				}
 			}
 
@@ -342,7 +377,8 @@ private struct LiveModelCard: View {
 					.accessibilityHidden(true)
 			}
 
-			StatusPill(status: .running, compact: false).accessibilityLabel(StringKey.modelRunningLabel.l)
+			StatusPill(status: .running, compact: false)
+				.accessibilityLabel(StringKey.modelRunningLabel.l)
 
 			Button(role: .destructive) {
 				showDeleteAlert = true
@@ -355,9 +391,11 @@ private struct LiveModelCard: View {
 			.accessibilityLabel(StringKey.modelDeleteButton.l)
 
 			Image(systemName: "gearshape").font(.ocoreaiText(12))
-				.foregroundStyle(theme.textTertiary).accessibilityHidden(true)
+				.foregroundStyle(theme.textTertiary)
+				.accessibilityHidden(true)
 		}
-		.padding(8).modifier(theme.cardStyle())
+		.padding(8)
+		.modifier(theme.cardStyle())
 		.accessibilityLabel("\(StringKey.a11yModel.l): \(model.id)")
 		.accessibilityAddTraits(.isStaticText)
 	}

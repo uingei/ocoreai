@@ -437,12 +437,16 @@ actor EnginePool {
 		let ids = loadedModels.keys
 		for id in ids {
 			if let model = loadedModels[id] {
-				result.append([
+				var entry: [String: String] = [
 					"id": id,
 					"max_context_length": String(model.modelConfig.maxContextLength),
 					"vocab_size": String(model.modelConfig.vocabSize),
 					"tokenizer": model.modelConfig.tokenizer,
-				])
+				]
+				#if coreai
+					entry["specialized"] = String(model.preparedModel.isSpecialized)
+				#endif
+				result.append(entry)
 			}
 		}
 		return result
