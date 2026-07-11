@@ -48,10 +48,10 @@ final class MemoryMonitorViewModel {
 	/// Start polling memory stats
 	func start() {
 		stop()
-		pollTask = Task.detached { [weak self] in
+		pollTask = Task { @MainActor [weak self] in
 			guard let self = self else { return }
 			while !Task.isCancelled {
-				await self.refreshMemory()
+				await self.pollAndUpdate()
 				try? await Task.sleep(nanoseconds: UInt64(self.pollInterval * 1_000_000_000))
 			}
 		}
@@ -63,23 +63,19 @@ final class MemoryMonitorViewModel {
 		pollTask = nil
 	}
 	
-	/// Fetch current memory state from OcoreaiEngine
-	private func refreshMemory() async {
+	/// Poll memory tracker and update state (runs on MainActor, safe for @Observable)
+	private func pollAndUpdate() async {
 		guard let tracker = OcoreaiEngine.shared.activeMemoryTracker else { return }
-		
 		let used = await tracker.currentUsage()
 		let budget = await tracker.getBudget()
 		let level = await tracker.snapshot()
-		
-		Task { @MainActor in
-			self.usedBytes = used
-			self.budgetBytes = budget
-			self.usagePercent = budget > 0 ? Double(used) / Double(budget) * 100 : 0
-			self.memoryLevel = level.rawValue
-			self.levelColor = level.color
-			self.memoryUsedString = Self.humanReadableSize(used)
-			self.memoryBudgetString = Self.humanReadableSize(budget)
-		}
+		self.usedBytes = used
+		self.budgetBytes = budget
+		self.usagePercent = budget > 0 ? Double(used) / Double(budget) * 100 : 0
+		self.memoryLevel = level.rawValue
+		self.levelColor = level.color
+		self.memoryUsedString = Self.humanReadableSize(used)
+		self.memoryBudgetString = Self.humanReadableSize(budget)
 	}
 }
 
