@@ -18,7 +18,7 @@ import Foundation
 /// A message's `.parts` array fully describes its content — replaces the
 /// flat `content: String` model for new messages. Legacy messages (from
 /// SQLite restore or API) still populate `content` as a convenience.
-public enum TranscriptPart: Codable, Hashable, Sendable {
+enum TranscriptPart: Codable, Hashable, Sendable {
 	
 	/// Plain text content (user input, assistant response body).
 	/// Equivalent to Transcript.TextSegment.
@@ -39,7 +39,7 @@ public enum TranscriptPart: Codable, Hashable, Sendable {
 	// MARK: - Properties
 	
 	/// Plain-text representation for legacy/fallback rendering.
-	public var displayText: String {
+	var displayText: String {
 		switch self {
 		case .text(let t): return t
 		case .reasoning(let r): return "[Reasoning: \(r)]"
@@ -49,7 +49,7 @@ public enum TranscriptPart: Codable, Hashable, Sendable {
 	}
 	
 	/// Whether this part is user-visible by default, or hidden/collapsible.
-	public var visibleByDefault: Bool {
+	var visibleByDefault: Bool {
 		switch self {
 		case .text, .image: return true
 		case .reasoning, .toolCall: return false
@@ -58,23 +58,23 @@ public enum TranscriptPart: Codable, Hashable, Sendable {
 }
 
 /// Structured data for a tool/function call part.
-public struct ToolCallPart: Codable, Hashable, Sendable {
+struct ToolCallPart: Codable, Hashable, Sendable {
 	/// Unique call identifier
-	public let callId: String
+	let callId: String
 	
 	/// Tool/function name
-	public let name: String
+	let name: String
 	
 	/// Arguments passed to the tool (JSON-serializable)
-	public let arguments: [String: String]
+	let arguments: [String: String]
 	
 	/// Brief summary of the result (for inline display)
-	public let resultSummary: String?
+	let resultSummary: String?
 	
 	/// Duration in milliseconds (if available)
-	public let durationMs: Double?
+	let durationMs: Double?
 	
-	public init(
+	init(
 		callId: String,
 		name: String,
 		arguments: [String: String] = [:],

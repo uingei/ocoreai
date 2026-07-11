@@ -172,7 +172,7 @@ final class ChatState {
 
 		// Unload the old model if it differs from the new one
 		if let oldModel = activeModelId, oldModel != newModelId {
-			Task {
+			Task { [oldModel] in
 				guard let pool = OcoreaiEngine.shared.activeEnginePool else { return }
 				await pool.unloadModel(oldModel)
 			}
