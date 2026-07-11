@@ -2,19 +2,26 @@
 // Licensed under MIT.
 /// ScreenshotService — macOS screen capture via ScreenCaptureKit
 ///
-/// Uses SCScreenshotManager.captureImage() for one-shot capture.
-/// Continuous mode polls captureScreen() at a configurable interval.
+/// Real-time capture powered by SCStream (delegate callbacks, no polling).
+/// One-shot fallback via SCScreenshotManager.captureImage() for backwards compatibility.
 ///
 /// Migrated to @Observable (Swift 5.9+ standard per Apple API Design Guidelines)
 
 #if os(macOS)
 
 import AppKit
+import CoreFoundation
+import CoreImage
+import CoreMedia
+import CoreVideo
 import Foundation
 import os.log
 import ScreenCaptureKit
 
 private let screenshotLogger = Logger(subsystem: "ocoreai", category: "screenshot")
+
+// Rate limit constant — not tied to MainActor so FrameOutput can read it directly.
+private let frameRateLimitSeconds: TimeInterval = 1.0
 
 extension Notification.Name {
 	static let screenFrameAvailable = Notification.Name("ScreenFrameAvailable")
@@ -30,11 +37,9 @@ final class ScreenshotService {
 	private(set) var screenCount: Int = 0
 	private(set) var latestFrameDataURL: String?
 
-	// Settings
-	private let frameInterval: TimeInterval = 2.0
-
-	// Background continuous task
-	private var captureTask: Task<Void, Never>?
+	// SCStream-based capture
+	private var stream: SCStream?
+	private var streamOutput: FrameOutput?
 
 	private init() {
 		self.screenCount = NSScreen.screens.count
@@ -52,27 +57,23 @@ final class ScreenshotService {
 
 	@discardableResult
 	func captureScreen() async -> String? {
-		// Only reuse cached frame when continuous capture is actively refreshing it.
-		// One-shot capture always takes a fresh frame.
+		// Reuse cached frame when continuous capture is active.
 		if self.isCapturing, let cached = self.latestFrameDataURL {
 			return cached
 		}
 
 		guard let url = await Self.captureOnce() else {
-			screenshotLogger.warning("[ScreenshotService] Capture failed")
+			screenshotLogger.warning("[ScreenshotService] One-shot capture failed")
 			return nil
 		}
 		self.latestFrameDataURL = url
-		// P2-1: Removed NotificationCenter.post — @Observable + MainActor property update
-		// already drives SwiftUI UI reactivity. Dead notification with no .onReceive listeners.
-		screenshotLogger.info("[ScreenshotService] Captured frame: \(url.prefix(20))...")
+		screenshotLogger.info("[ScreenshotService] One-shot frame: \(url.prefix(20))...")
 		return url
 	}
 
 	// MARK: - Internal capture implementation
 
 	nonisolated static func captureOnce() async -> String? {
-		// 1. Get shareable content
 		guard let content = try? await SCShareableContent.excludingDesktopWindows(
 			false,
 			onScreenWindowsOnly: true
@@ -81,21 +82,16 @@ final class ScreenshotService {
 			return nil
 		}
 
-		// 2. Get first display
 		guard let screen = content.displays.first else {
 			screenshotLogger.error("[ScreenshotService] No screens/displays available")
 			return nil
 		}
 
-		// 3. Build content filter
 		let filter = SCContentFilter(display: screen, including: [])
-
-		// 4. Stream configuration
 		let config = SCStreamConfiguration()
 		config.width = screen.width
 		config.height = screen.height
 
-		// 5. Capture screenshot via SCScreenshotManager (returns CGImage directly)
 		return await withCheckedContinuation { cont in
 			SCScreenshotManager.captureImage(
 				contentFilter: filter,
@@ -113,12 +109,7 @@ final class ScreenshotService {
 					return
 				}
 
-				// Encode to JPEG data URL
-				if let url = Self.encodeFrame(cgImage) {
-					cont.resume(returning: url)
-				} else {
-					cont.resume(returning: nil)
-				}
+				cont.resume(returning: Self.encodeFrame(cgImage))
 			}
 		}
 	}
@@ -155,45 +146,189 @@ final class ScreenshotService {
 		return "data:image/jpeg;base64,\(jpegData.base64EncodedString())"
 	}
 
-	// MARK: - Continuous capture
+	// MARK: - Continuous capture (SCStream)
 
-	/// Start continuous screen capture at configured interval
-	/// 直接调用 captureOnce() 更新最新帧 — 不经过 captureScreen() 缓存层，
-	/// 确保每帧都是新鲜数据，推理管线也能拿到实时截图。
+	/// Start real-time screen capture via SCStream.
+	/// Frames arrive at ~30fps; we rate-limit to 1fps for memory efficiency.
 	func startCapture() {
 		guard !isCapturing else { return }
-		isCapturing = true
-		captureTask = Task(priority: .utility) {
-			while !Task.isCancelled {
-				if let frameURL = await Self.captureOnce() {
-					Self.shared.updateCache(frameURL)
+
+		// SCStream setup runs off MainActor on a background task.
+		Task {
+			// 1. Get shareable content
+			guard let content = try? await SCShareableContent.excludingDesktopWindows(
+				false,
+				onScreenWindowsOnly: true
+			) else {
+				screenshotLogger.error("[ScreenshotService] SCStream: failed to get shareable content")
+				await MainActor.run { Self.shared.isCapturing = false }
+				return
+			}
+
+			guard let screen = content.displays.first else {
+				screenshotLogger.error("[ScreenshotService] SCStream: no displays available")
+				await MainActor.run { Self.shared.isCapturing = false }
+				return
+			}
+
+			// 2. Build content filter (screen-only, no window chrome)
+			let filter = SCContentFilter(display: screen, including: [])
+
+			// 3. Stream configuration
+			let config = SCStreamConfiguration()
+			config.width = screen.width
+			config.height = screen.height
+
+			// 4. Create the stream output handler (delegate for both lifecycle + frames)
+			let output = FrameOutput(service: Self.shared)
+
+			// 5. Create SCStream with delegate + output
+			do {
+				let newStream = SCStream(
+					filter: filter,
+					configuration: config,
+					delegate: output
+				)
+				try newStream.addStreamOutput(output, type: .screen, sampleHandlerQueue: nil)
+
+				// Store references on MainActor (isolated properties)
+				await MainActor.run {
+					Self.shared.stream = newStream
+					Self.shared.streamOutput = output
+					Self.shared.isCapturing = true
 				}
-				do { try await Task.sleep(for: .seconds(Self.shared.frameInterval)) }
-				catch { break }
+
+				// 6. Start capture — callback-driven, no polling
+				do {
+					try await newStream.startCapture()
+					screenshotLogger.info("[ScreenshotService] SCStream capture started")
+				} catch {
+					screenshotLogger.error("[ScreenshotService] SCStream startCapture error: \(error.localizedDescription)")
+					await MainActor.run { Self.shared.isCapturing = false }
+				}
+			} catch {
+				screenshotLogger.error("[ScreenshotService] SCStream setup failed: \(error.localizedDescription)")
+				await MainActor.run { Self.shared.isCapturing = false }
 			}
 		}
-		screenshotLogger.info("[ScreenshotService] Continuous capture started (interval=\(self.frameInterval)s)")
-	}
-	
-	/// 更新缓存帧 — MainActor 隔离
-	private func updateCache(_ frameURL: String) {
-		self.latestFrameDataURL = frameURL
-		// P2-1: Removed NotificationCenter.post — @Observable + MainActor property update
-		// already drives SwiftUI UI reactivity. Dead notification with no .onReceive listeners.
-		screenshotLogger.info("[ScreenshotService] Continuous frame refreshed: \(frameURL.prefix(20))...")
 	}
 
 	/// Stop continuous screen capture
 	func stopCapture() {
-		captureTask?.cancel()
-		captureTask = nil
-		isCapturing = false
-		screenshotLogger.info("[ScreenshotService] Continuous capture stopped")
+		// stopCapture is async — we await it, then immediately nil out references.
+		Task {
+			let s = self.stream
+			do { try await s?.stopCapture() } catch {
+				screenshotLogger.error("[ScreenshotService] SCStream stopCapture error: \(error.localizedDescription)")
+			}
+			self.stream = nil
+			self.streamOutput = nil
+			self.isCapturing = false
+		}
+		screenshotLogger.info("[ScreenshotService] SCStream capture stopped")
 	}
 
 	/// Toggle continuous capture
 	func toggleCapture() {
 		if self.isCapturing { stopCapture() } else { startCapture() }
+	}
+
+	// MARK: - Frame caching
+
+	/// Update latest frame data URL on MainActor for @Observable reactivity.
+	private func updateFrameURL(_ url: String) {
+		self.latestFrameDataURL = url
+		screenshotLogger.info("[ScreenshotService] Frame updated: \(url.prefix(20))...")
+	}
+
+	// MARK: - SCStream delegate + output (internal helper)
+
+	/// Handles SCStreamDelegate lifecycle and SCStreamOutput frame delivery.
+	/// NSObject subclass required by SCStream delegate protocols.
+	/// Carries its own rate-limit timer so the callback thread never blocks.
+	///
+	/// `service` is marked `nonisolated(unsafe)` because FrameOutput callbacks
+	/// fire on SCStream's internal queue (nonisolated), but we only interact
+	/// with the service from inside `Task { @MainActor }` or DispatchQueue.main
+	/// blocks where MainActor isolation is guaranteed.
+	private final class FrameOutput: NSObject, SCStreamDelegate, SCStreamOutput {
+
+		nonisolated(unsafe) private weak var service: ScreenshotService?
+		private let lock = NSLock()
+		private var _lastFrameTime: UInt64 = 0
+
+		init(service: ScreenshotService) {
+			self.service = service
+			super.init()
+		}
+
+		// — SCStreamDelegate —
+
+		func streamDidBecomeActive(_ stream: SCStream) {
+			screenshotLogger.info("[ScreenshotService] SCStream became active")
+		}
+
+		func streamDidBecomeInactive(_ stream: SCStream) {
+			screenshotLogger.info("[ScreenshotService] SCStream became inactive")
+		}
+
+		func stream(_ stream: SCStream, didStopWithError error: Error) {
+			screenshotLogger.error("[ScreenshotService] SCStream stopped with error: \(error.localizedDescription)")
+			let service = self.service
+			Task { @MainActor in
+				service?.isCapturing = false
+				service?.stream = nil
+			}
+		}
+
+		// — SCStreamOutput —
+
+		func stream(_ stream: SCStream, didOutput sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+			guard type == .screen else { return }
+
+			// Rate limit: skip frames arriving within frameRateLimitSeconds
+			let now = UInt64(DispatchTime.now().uptimeNanoseconds)
+			guard !shouldSkipFrame(now: now) else { return }
+
+			// Extract CGImage via CIImage (standard CVPixelBuffer → CGImage bridge)
+			guard let imageBuffer = sampleBuffer.imageBuffer else {
+				return
+			}
+
+			CVPixelBufferLockBaseAddress(imageBuffer, .readOnly)
+			defer { CVPixelBufferUnlockBaseAddress(imageBuffer, .readOnly) }
+
+			let ciImage = CIImage(cvPixelBuffer: imageBuffer)
+			let context = CIContext(options: nil)
+			guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
+				return
+			}
+
+			// Encode to JPEG data URL
+			guard let url = ScreenshotService.encodeFrame(cgImage) else {
+				return
+			}
+
+			// Dispatch frame update to MainActor — capture service reference first
+			// so `self` is not held across the closure boundary.
+			let service = self.service
+			Task { @MainActor in
+				service?.updateFrameURL(url)
+			}
+		}
+
+		// Checks rate limit under lock; returns true if the caller should drop this frame.
+		private func shouldSkipFrame(now: UInt64) -> Bool {
+			lock.lock()
+			defer { lock.unlock() }
+
+			let elapsed = Double(now - _lastFrameTime) / 1e9
+			guard elapsed >= frameRateLimitSeconds else {
+				return true
+			}
+			_lastFrameTime = now
+			return false
+		}
 	}
 }
 

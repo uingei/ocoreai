@@ -10,6 +10,154 @@
 /// └─────────────────────────────────────────────────────────────┘
 
 import Foundation
+import NaturalLanguage
+
+// MARK: - Semantic Intent Detector
+
+/// NLContextualEmbedding-powered semantic fallback classifier.
+///
+/// When keyword-based classification returns `.general`, this detector computes
+/// cosine similarity between the input and pre-defined task-type anchor phrases,
+/// then returns the highest-scoring TaskType above a confidence threshold.
+///
+/// API reality (macOS 14.0+ verified via SDK headers):
+/// - init?(language:) — failable, no contextLength param
+/// - embeddingResultForString(_:language:error:) → NLContextualEmbeddingResult
+///   returns per-subword vectors; we mean-pool into a single [Float] per text
+/// - hasAvailableAssets / requestAssets() for model asset downloads
+///
+/// Owned by the `ComplexityAnalyzer` actor — all state is immutable after init,
+/// so no cross-actor hops needed.
+class SemanticIntentDetector {
+	/// Anchor texts representative of each TaskType — used to build reference
+	/// embeddings against which user input is compared via cosine similarity.
+	private static let anchors: [(TaskType, String)] = [
+		(.code, "Write a function that processes API responses and handles errors in the application code"),
+		(.math, "Calculate the probability and solve the mathematical equation with integration"),
+		(.json, "Return the result as a JSON object with a structured schema and formatted array"),
+		(.comparison, "Compare these two approaches and explain the trade-offs versus the other option"),
+		(.analysis, "Analyze the architecture and explain why this design works with step by step reasoning"),
+		(.factual, "What is the definition and who was the first person to discover this fact"),
+		(.casual, "Hello there, just saying hi and having a casual conversation"),
+	]
+
+	/// Minimum cosine similarity to override a .general result.
+	/// 0.50 is conservative — moderate similarity is enough for high-level intent.
+	private static let confidenceThreshold: Double = 0.50
+
+	/// Pre-computed reference embeddings keyed by TaskType.
+	private let anchorEmbeddings: [TaskType: [Float]]
+
+	/// The embedding model used for scoring.
+	private let model: NLContextualEmbedding
+
+	/// Attempt to initialize with NLContextualEmbedding.
+	/// Returns nil if the system does not support contextual embeddings.
+	init?() {
+		// Step 1: Discover English-language embedding models on device
+		let criteria: [NLContextualEmbeddingKey: Any] = [
+			.languages: [NLLanguage.english],
+		]
+		let models = NLContextualEmbedding.contextualEmbeddings(forValues: criteria)
+		guard !models.isEmpty else {
+			return nil
+		}
+		// Step 2: Pick the first (best available) model
+		let model = models.first!
+		// Step 3: Load assets (load() can throw)
+		try? model.load()
+		self.model = model
+		self.anchorEmbeddings = Self.computeAnchors(using: model)
+	}
+
+	/// Extract a mean-pooled [Float] from NLContextualEmbeddingResult.
+	///
+	/// NLContextualEmbedding produces per-subword vectors. We average all
+	/// subword vectors into a single vector representing the whole string.
+	private static func meanPoolEmbedding(
+		_ result: NLContextualEmbeddingResult
+	) -> [Float]? {
+		var vectors: [[Float]] = []
+
+		// enumerateTokenVectors(in range: Range<String.Index>, using block: ([Double], Range<String.Index>) -> Bool)
+		result.enumerateTokenVectors(in: result.string.startIndex..<result.string.endIndex) { vector, _ in
+			vectors.append(vector.map { Float($0) })
+			return false // process all tokens
+		}
+
+		guard !vectors.isEmpty else { return nil }
+
+		// Use the first vector's length as the canonical dimension
+		let dim = vectors[0].count
+		var pooled = [Float](repeating: 0, count: dim)
+
+		for vec in vectors {
+			guard vec.count == dim else { continue }
+			for i in 0..<dim {
+				pooled[i] += vec[i]
+			}
+		}
+
+		pooled = pooled.map { $0 / Float(vectors.count) }
+		return pooled
+	}
+
+	/// Pre-compute anchor embeddings for all TaskTypes.
+	private static func computeAnchors(
+		using model: NLContextualEmbedding
+	) -> [TaskType: [Float]] {
+		var dict: [TaskType: [Float]] = [:]
+		for (taskType, anchorText) in anchors {
+			let result = try? model.embeddingResult(for: anchorText, language: NLLanguage.english)
+			if let result, let pooled = Self.meanPoolEmbedding(result) {
+				dict[taskType] = pooled
+			}
+		}
+		return dict
+	}
+
+	/// Classify input text by comparing against anchor embeddings via cosine similarity.
+	/// Returns the best-matching TaskType if confidence exceeds the threshold,
+	/// otherwise returns nil (meaning the input is truly ambiguous).
+	func classify(_ input: String) -> TaskType? {
+		guard
+			let result = try? model.embeddingResult(for: input, language: NLLanguage.english),
+			let inputEmbedding = Self.meanPoolEmbedding(result)
+		else { return nil }
+
+		var bestScore: Double = -1
+		var bestType: TaskType = .general
+
+		for (taskType, anchor) in anchorEmbeddings {
+			let sim = cosineSimilarity(inputEmbedding, anchor)
+			if sim > bestScore {
+				bestScore = sim
+				bestType = taskType
+			}
+		}
+
+		return bestScore >= Self.confidenceThreshold ? bestType : nil
+	}
+
+	/// Cosine similarity between two equal-length float vectors.
+	private func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Double {
+		let len = min(a.count, b.count)
+		guard len > 0 else { return 0 }
+
+		var dot: Float = 0
+		var magA: Float = 0
+		var magB: Float = 0
+
+		for i in 0..<len {
+			dot += a[i] * b[i]
+			magA += a[i] * a[i]
+			magB += b[i] * b[i]
+		}
+
+		guard magA > 0, magB > 0 else { return 0 }
+		return Double(dot / (sqrt(magA) * sqrt(magB)))
+	}
+}
 
 /// Complexity analyzer is actor-isolated for Swift 6 Sendable compliance.
 actor ComplexityAnalyzer {
@@ -24,6 +172,9 @@ actor ComplexityAnalyzer {
 
 	/// Score decay factor (EMA α = 0.3 → recent inputs weighted heavier).
 	private let decayAlpha: Double = 0.3
+
+	/// Semantic fallback classifier — initialized lazily on first .general result.
+	private var _semanticDetector: SemanticIntentDetector?
 }
 
 // MARK: - Public API
@@ -144,6 +295,10 @@ extension ComplexityAnalyzer {
 
 	/// Classify the input into a task type for downstream scaffold selection.
 	///
+	/// Two-phase classification:
+	/// 1. Keyword matching (fast, zero-download overhead)
+	/// 2. NLContextualEmbedding semantic fallback when keywords return .general
+	///
 	/// Priority: code > math > json > comparison > analysis > factual > casual.
 	/// Code/math/json always trigger enhanced reasoning because they require
 	/// precision (self-consistency, verification loops).
@@ -219,6 +374,21 @@ extension ComplexityAnalyzer {
 		]
 		if casualSignals.contains(where: { lower.contains($0) }) {
 			return .casual
+		}
+
+		// ── Phase 2: semantic fallback ──
+		// Keyword matching couldn't resolve a type — try NLContextualEmbedding
+		// cosine-similarity against task-type anchors.
+		if let detector = _semanticDetector {
+			if let semanticType = detector.classify(input) {
+				return semanticType
+			}
+		}
+		// Lazy-init detector on first .general result so we tolerate envs
+		// where NLContextualEmbedding is unavailable or initialization fails.
+		if let detector = SemanticIntentDetector() {
+			_semanticDetector = detector
+			return detector.classify(input) ?? .general
 		}
 
 		return .general
