@@ -48,16 +48,11 @@ struct ChatMessage: Identifiable, Hashable {
 	let imageURLs: [String] /// Base64 data URLs for inline preview
 
 	/// Plain-text representation joining all parts for persistence and fallback.
+	/// Uses the same logic as TranscriptPartMessage.flatText so textContent == content
+	/// when only text-only parts are present — the behavioral invariant from 2026-07-13.
 	var textContent: String {
 		if let partsParts = parts {
-			return partsParts.compactMap {
-				switch $0 {
-				case .text(let t): return t
-				case .reasoning(let r): return r
-				case .toolCall(let tc): return "[Tool: \(tc.name)]"
-				case .image: return nil
-				}
-			}.joined(separator: "\n")
+			return TranscriptPartMessage(texts: partsParts).flatText
 		}
 		return content
 	}
@@ -326,10 +321,15 @@ final class ChatState {
 		currentCancellation = cancellation
 
 		do {
-		// Build InferenceRequest — exclude interrupted messages and system messages
+		// Build InferenceRequest — exclude interrupted assistant messages and system messages
 		// to prevent partial responses degrading the model's context.
+		// NOTE: only filter assistant messages — user messages ending with " [Interrupted]"
+		// are legitimate input (e.g. user re-sending a previous response).
 		let cleanMessages = messages
-			.filter { $0.role != "system" && !$0.content.hasSuffix(" [Interrupted]") }
+			.filter {
+				$0.role != "system"
+				&& !($0.role == "assistant" && $0.content.hasSuffix(" [Interrupted]"))
+			}
 
 		// Convert to typed Messages — last user message gets multimodal parts if available
 		// OCR bridge: mmContext entries with OCR text are injected as text parts,

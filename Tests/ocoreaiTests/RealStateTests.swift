@@ -8,6 +8,9 @@ import Foundation
 @MainActor
 func _resetChat() {
   let s = ChatState.shared
+  // undoReset FIRST to consume any pending snapshot (prevents cross-test pollution),
+  // then clear all state to known defaults.
+  s.undoReset()
   s.messages = []; s.responseText = ""; s.errorMessage = nil; s.loading = false
 }
 

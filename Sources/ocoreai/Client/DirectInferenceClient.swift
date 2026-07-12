@@ -346,8 +346,8 @@ extension DirectInferenceClient {
 		// Phase 4: Sampling config
 		let runtimeDefaults = await enginePool.getSamplingConfig(modelId: request.modelId)
 		let effectiveTemp = request.temperature ?? Double(runtimeDefaults.temperature)
-		let effectiveTopP = Double(runtimeDefaults.topP ?? 1.0)
-		let effectiveTopK = runtimeDefaults.topK
+		let effectiveTopP = request.topP ?? Double(runtimeDefaults.topP ?? 1.0)
+		let effectiveTopK = request.topK ?? runtimeDefaults.topK
 		let effectiveMaxTokens = request.maxTokens ?? runtimeDefaults.maxTokens
 
 		let samplingConfig = SamplingConfiguration(
