@@ -162,19 +162,42 @@ final class MultimodalState {
 
 	// MARK: - Multimodal Context Capture
 
-	/// Capture current multimodal context snapshot for inference.
-	/// Returns an array of (serviceName: String, imageDataURL: String) pairs.
-	/// Only captures from services whose toggle is currently enabled.
-	@discardableResult
-	func captureContext() async -> [(name: String, dataURL: String)] {
-		var contexts: [(String, String)] = []
+	/// Multimodal context entry — image frame, optional OCR text, and source name.
+	/// If ocrText is non-nil and ≥ minCharacters, the frame contains significant
+	/// on-screen text and can be sent as structured text (~20 tokens) instead of
+	/// an image (~800 tokens), saving ~97% VLM token consumption.
+	struct MMContextEntry {
+		let name: String
+		let dataURL: String? /// nil when OCR text replaces the image
+		let ocrText: String? /// Significant text recognized from the frame
 
-		// Camera frame
+		/// Check if this entry should be sent as text (OCR significant) vs image.
+		var shouldSendAsText: Bool {
+			ocrText != nil && dataURL == nil
+		}
+	}
+
+	/// Capture current multimodal context snapshot for inference.
+	/// Returns an array of MMContextEntry — each entry has an image URL,
+	/// OCR text (if significant), or both.
+	///
+	/// OCR bridge: When camera is enabled and the latest frame contains
+	/// significant text (≥ VisionOCR.minCharacters), OCR text replaces
+	/// the image data URL, sending structured text instead of a ~800-token image.
+	@discardableResult
+	func captureContext() async -> [MMContextEntry] {
+		var contexts: [MMContextEntry] = []
+
+		// Camera frame — check OCR text first
 		if self.cameraEnabled {
 			let cs = MMCaptureService.shared
-			if let frameURL = await cs.captureFrame() {
+			// If OCR text is significant, send as text instead of image
+			if let ocrText = cs.latestOCRText, !ocrText.isEmpty {
+				contexts.append(MMContextEntry(name: "camera", dataURL: nil, ocrText: ocrText))
+				mmLogger.info("[MultimodalState] Context: camera OCR text captured (\\(ocrText.count) chars)")
+			} else if let frameURL = await cs.captureFrame() {
 				self.cameraSnapshot = frameURL
-				contexts.append(("camera", frameURL))
+				contexts.append(MMContextEntry(name: "camera", dataURL: frameURL, ocrText: nil))
 				mmLogger.info("[MultimodalState] Context: camera frame captured")
 			}
 		}
@@ -184,7 +207,7 @@ final class MultimodalState {
 			let ss = MMScreenshotService.shared
 			if let frameURL = await ss.captureScreen() {
 				self.screenSnapshot = frameURL
-				contexts.append(("screen", frameURL))
+				contexts.append(MMContextEntry(name: "screen", dataURL: frameURL, ocrText: nil))
 				mmLogger.info("[MultimodalState] Context: screen frame captured")
 			}
 		}
