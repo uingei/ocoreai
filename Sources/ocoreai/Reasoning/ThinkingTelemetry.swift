@@ -69,7 +69,7 @@ enum ThinkingTelemetry {
         sessionId: String,
         budget: ThinkingBudget
     ) async -> Double {
-        let quality = await computeQuality(input)
+        let quality = computeQuality(input)
         await budget.recordQuality(quality, for: sessionId)
         return quality
     }

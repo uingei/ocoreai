@@ -59,11 +59,9 @@ class SemanticIntentDetector {
 			.languages: [NLLanguage.english],
 		]
 		let models = NLContextualEmbedding.contextualEmbeddings(forValues: criteria)
-		guard !models.isEmpty else {
+		guard let model = models.first else {
 			return nil
 		}
-		// Step 2: Pick the first (best available) model
-		let model = models.first!
 		// Step 3: Load assets (load() can throw)
 		try? model.load()
 		self.model = model

@@ -566,8 +566,8 @@ struct ChatBubble: View {
 				}
 
 				// Structured content takes precedence over flat content
-				if message.hasParts, !isUser {
-					TranscriptContentView(parts: message.parts!, isUser: isUser)
+				if let parts = message.parts, !parts.isEmpty, !isUser {
+					TranscriptContentView(parts: parts, isUser: isUser)
 				} else {
 					// Fallback: flat content (legacy messages + user input)
 					ChatMessageInner(text: message.displayContent, isUser: isUser)

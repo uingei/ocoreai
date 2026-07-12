@@ -260,7 +260,6 @@ final class ModelManager {
 		guard let pool = _enginePool else { return }
 
 		let entries = await pool.listModels()
-		let summary = await pool.engineSummary()
 		let store = SettingsStore.shared
 
 		var models: [ModelID] = []
