@@ -56,7 +56,7 @@ check "Class-F: .first! force unwrap" '\.first!' \
 # Only flag lines from: AppState.swift, StatusPill.swift, StatusView.swift, SettingsStore.swift, AppTabs, Views/
 check "Class-B: Hardcoded UI in view layer" \
     'return\s*"[A-Z][a-z]' \
-    "Localization.swift|systemName|SystemName|errorDescription|ToolEntry|DownloadManager|ConfigStruct|KeychainStore|Scheduler|MCPServer|OpenAIModels|ModelScopeDownloader|HuggingFaceDownloader|SQLiteStore|SkillModels|MLXBridge|CoreAIBridge|EngineInference|Profiling"
+    "Localization.swift|systemName|SystemName|errorDescription|ToolEntry|DownloadManager|ConfigStruct|KeychainStore|Scheduler|MCPServer|OpenAIModels|ModelScopeDownloader|HuggingFaceDownloader|SQLiteStore|SkillModels|MLXBridge|CoreAIBridge|EngineInference|Profiling|ThinkingBudget"
 
 # --- Class-A: Empty catch ---
 check "Class-A: Empty catch" 'catch\s*{[[:space:]]*}' \
