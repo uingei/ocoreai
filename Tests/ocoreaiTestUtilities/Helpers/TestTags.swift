@@ -19,65 +19,65 @@ import Testing
 /// Nested structs become accessible as `.testTags.scope.unit` in attribute syntax.
 /// This mirrors the `pytest.mark` / `@pytest.fixture` pattern from omlx's conftest.py
 /// and coreai-models' TestUtilities tag conventions.
-enum testTags {
+public enum testTags {
     // MARK: - Scope
 
-    struct scope {
+    public struct scope {
         /// Pure unit test — no I/O, no actors, no GPU.
-        struct unit {}
+        public struct unit {}
 
         /// Integration test — multiple components, actors, or shared state.
-        struct integration {}
+        public struct integration {}
     }
 
     // MARK: - Requirements
 
-    struct requires {
+    public struct requires {
         /// Test requires GPU access (MLX inference, Metal).
-        struct gpu {}
+        public struct gpu {}
 
         /// Test requires network access (HTTP, ModelScope, Hub).
-        struct network {}
+        public struct network {}
 
         /// Test reads/writes disk (model cache, config file).
-        struct disk {}
+        public struct disk {}
     }
 
     // MARK: - Duration
 
-    struct duration {
+    public struct duration {
         /// Test typically takes > 1s (benchmark, large fixture).
-        struct slow {}
+        public struct slow {}
 
         /// Test typically takes < 10ms (pure computation).
-        struct fast {}
+        public struct fast {}
     }
 
     // MARK: - Domain
 
-    struct domain {
+    public struct domain {
         /// Tests related to the inference pipeline.
-        struct inference {}
+        public struct inference {}
 
         /// Tests related to model management (download, load, unload).
-        struct modelManagement {}
+        public struct modelManagement {}
 
         /// Tests related to the HTTP server layer.
-        struct http {}
+        public struct http {}
 
         /// Tests related to UI/ViewModel state machines.
-        struct ui {}
+        public struct ui {}
 
         /// Tests related to the MCP bridge.
-        struct mcp {}
+        public struct mcp {}
 
         /// Tests related to security (ContentGuard, auth, audit).
-        struct security {}
+        public struct security {}
 
         /// Tests related to reasoning/adaptation (ThinkingBudget, ComplexityAnalyzer).
-        struct reasoning {}
+        public struct reasoning {}
 
         /// Tests related to the multimodal pipeline.
-        struct multimodal {}
+        public struct multimodal {}
     }
 }
