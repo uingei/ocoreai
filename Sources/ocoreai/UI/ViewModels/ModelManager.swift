@@ -71,6 +71,10 @@ final class ModelManager {
 
 	var localModels: [ModelID] = []
 
+	/// Models currently serving inference requests (activeSessions > 0).
+	/// Updated alongside localModels during refresh.
+	var servingModelIds: Set<String> = []
+
 	// MARK: - Error state (typed)
 
 	var currentError: RepositoryError?
@@ -256,9 +260,11 @@ final class ModelManager {
 		guard let pool = _enginePool else { return }
 
 		let entries = await pool.listModels()
+		let summary = await pool.engineSummary()
 		let store = SettingsStore.shared
 
 		var models: [ModelID] = []
+		var serving: Set<String> = []
 		for entry in entries {
 			let model = ModelID.fromListModels(entry)
 			let config = store.loadSamplingConfig(for: model.id)
@@ -266,8 +272,14 @@ final class ModelManager {
 			var info = model
 			info.paramsCustomized = !config.isDefault
 			models.append(info)
+			// Track active inference sessions
+			if let activeStr = entry["active_sessions"],
+			   let active = Int(activeStr), active > 0 {
+				serving.insert(model.id)
+			}
 		}
 		localModels = models
+		servingModelIds = serving
 	}
 
 	/// Load models on view appearance — thin wrapper for .task{} usage.

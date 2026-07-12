@@ -277,6 +277,8 @@ public enum StringKey: String, CaseIterable {
 	case contextKey = "A11y.ContextKey"
 	case tokenizerKey = "A11y.TokenizerKey"
 	case modelRunningLabel = "A11y.ModelRunningLabel"
+	case modelStartingLabel = "A11y.ModelStartingLabel"
+	case modelServingLabel = "A11y.ModelServingLabel"
 	case multimodalControlsLabel = "A11y.MultimodalControlsLabel"
 	case enableCameraLabel = "A11y.EnableCameraLabel"
 	case enableCameraHint = "A11y.EnableCameraHint"
@@ -662,6 +664,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.contextKey: "Context",
 		.tokenizerKey: "Tokenizer",
 		.modelRunningLabel: "Model is running",
+		.modelStartingLabel: "Model is starting",
+		.modelServingLabel: "Model is serving inference",
 		.multimodalControlsLabel: "Multimodal Controls",
 		.enableCameraLabel: "Enable Camera",
 		.enableCameraHint: "Turn camera on or off",
@@ -993,6 +997,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.contextKey: "上下文",
 		.tokenizerKey: "分词器",
 		.modelRunningLabel: "模型运行中",
+		.modelStartingLabel: "模型加载中",
+		.modelServingLabel: "模型推理中",
 		.multimodalControlsLabel: "多模态控制",
 		.enableCameraLabel: "启用摄像头",
 		.enableCameraHint: "打开或关闭摄像头",

@@ -256,7 +256,10 @@ private struct ModelListContent: View {
 		Text(StringKey.sectionModels.l).font(.ocoreaiText(13)).foregroundStyle(.secondary).bold()
 		LazyVStack(spacing: 8) {
 			ForEach(modelManager.localModels, id: \.id) { model in
-				LiveModelCard(model: model, onEdit: {
+				// Model status: check lifecycle state
+				let isCurrentlyLoading = modelManager.downloadingModelId == model.id
+				let isCurrentlyServing = modelManager.servingModelIds.contains(model.id)
+				LiveModelCard(model: model, isDownloading: isCurrentlyLoading, isServing: isCurrentlyServing, onEdit: {
 					onEdit(model.id)
 				}, onDelete: {
 					Task {
@@ -289,6 +292,8 @@ private struct ModelEmptyState: View {
 
 private struct LiveModelCard: View {
 	let model: ModelID
+	let isDownloading: Bool
+	let isServing: Bool
 	let onEdit: () -> Void
 	let onDelete: () -> Void
 	@Environment(\.ocoreaiTheme) private var theme
@@ -312,6 +317,20 @@ private struct LiveModelCard: View {
 				Text(String(format: StringKey.modelViewDeleteConfirmMessage.l, model.id))
 			}
 			.accessibilityLabel(StringKey.modelViewTapToEdit.l)
+	}
+
+	/// Determine the appropriate status from the model's lifecycle state.
+	private var modelStatus: SPStatus {
+		if isDownloading { return .starting }
+		if isServing { return .stopping } // Orange = active work
+		return .running
+	}
+
+	/// Accessibility label describing the current status.
+	private var statusA11yLabel: String {
+		if isDownloading { return StringKey.modelStartingLabel.l }
+		if isServing { return StringKey.modelServingLabel.l }
+		return StringKey.modelRunningLabel.l
 	}
 
 	private var cardContent: some View {
@@ -377,8 +396,9 @@ private struct LiveModelCard: View {
 					.accessibilityHidden(true)
 			}
 
-			StatusPill(status: .running, compact: false)
-				.accessibilityLabel(StringKey.modelRunningLabel.l)
+			// Status pill: starting (blue) = loading, stopping (orange) = serving, running (green) = idle
+			StatusPill(status: modelStatus, compact: false)
+				.accessibilityLabel(statusA11yLabel)
 
 			Button(role: .destructive) {
 				showDeleteAlert = true

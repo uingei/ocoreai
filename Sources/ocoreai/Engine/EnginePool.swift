@@ -444,11 +444,13 @@ actor EnginePool {
 		let ids = loadedModels.keys
 		for id in ids {
 			if let model = loadedModels[id] {
+				let active = model.activeSessions
 				var entry: [String: String] = [
 					"id": id,
 					"max_context_length": String(model.modelConfig.maxContextLength),
 					"vocab_size": String(model.modelConfig.vocabSize),
 					"tokenizer": model.modelConfig.tokenizer,
+					"active_sessions": String(active),
 				]
 				#if coreai
 					entry["specialized"] = String(model.preparedModel.isSpecialized)
@@ -489,7 +491,17 @@ actor EnginePool {
 	func isModelLoaded(_ modelId: String) -> Bool {
 		loadedModels[modelId] != nil
 	}
-
+	
+	/// Check if a model is currently being loaded (download + warmup in progress).
+	func isModelLoading(_ modelId: String) -> Bool {
+		loadingModels.contains(modelId)
+	}
+	
+	/// Return the set of model IDs currently being loaded.
+	func getLoadingModelIds() -> Set<String> {
+		loadingModels
+	}
+	
 	/// Return the first loaded model ID (useful for fallback/summarization).
 	func firstLoadedModelId() -> String? {
 		loadedModels.keys.first
