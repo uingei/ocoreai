@@ -26,8 +26,8 @@ let package = Package(
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if coreai` guards
         // Pinned to exact revision — upstream main branch drifts; update via `swift package update`
-        // then bump .revision + test. Current pin: 2026-06-29 build-verified commit.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "702e5a0eaf990e1f6d3db2b6e7d8872858a44055"),
+        // then bump .revision + test. Current pin: 2026-07-10 — Gemma 4 VLM fix + ChatSession cancel-on-barge-in + Gemma 3 chunked prefill.
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "2c1dd13d41586f63f40ba9ce45ce201026ab52b0"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
@@ -62,10 +62,23 @@ let package = Package(
                 .linkedLibrary("sqlite3"),
             ],
         ),
+        // Shared test utilities — mocks, fixtures, helpers, tags
+        .target(
+            name: "ocoreaiTestUtilities",
+            dependencies: [
+                "ocoreai",
+            ],
+            path: "Tests/ocoreaiTestUtilities",
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .define("mlx"),
+            ],
+        ),
         .testTarget(
             name: "ocoreaiTests",
             dependencies: [
                 "ocoreai",
+                "ocoreaiTestUtilities",
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
             ],
             swiftSettings: [
