@@ -297,17 +297,18 @@ final class ChatState {
 
 		// MARK: - Multimodal context capture
 		// Capture visual context (camera + screen) if enabled before inference
+		// OCR bridge: camera frames with significant OCR text are sent as structured
+		// text (~20 tokens) instead of images (~800 tokens), saving ~97% VLM tokens.
 		let mmState = MultimodalState.shared
 		let mmContext = await mmState.captureContext()
 
 		// Merge user attachment images into multimodal context
-		let allContext: [(name: String, dataURL: String)] = {
-			var merged = mmContext
-			for att in attachments {
-				merged.append(("attachment", att.dataURL))
-			}
-			return merged
-		}()
+		var allContext = mmContext
+		for att in attachments {
+			allContext.append(MultimodalState.MMContextEntry(
+				name: "attachment", dataURL: att.dataURL, ocrText: nil
+			))
+		}
 
 		// Push and persist user message (text only for persistence)
 		// Store attachment data URLs for inline preview
@@ -331,21 +332,32 @@ final class ChatState {
 			.filter { $0.role != "system" && !$0.content.hasSuffix(" [Interrupted]") }
 
 		// Convert to typed Messages — last user message gets multimodal parts if available
+		// OCR bridge: mmContext entries with OCR text are injected as text parts,
+		// image entries as image_url parts, saving ~97% tokens for text-rich frames.
 		let typedMessages: [Message] = {
 			var result: [Message] = []
 			let count = cleanMessages.count
 			for (idx, msg) in cleanMessages.enumerated() {
 				// If this is the last user message AND we have multimodal context,
-				// inject images as ContentPart.imageUrl parts
+				// inject context as ContentPart text/image parts
 				let isLastUserMsg = (msg.role == "user") && (idx == count - 1) && !allContext.isEmpty
 				if isLastUserMsg {
 					var parts: [ContentPart] = [ContentPart(type: "text", text: msg.content, imageUrl: nil)]
 					for ctx in allContext {
-						parts.append(ContentPart(
-							type: "image_url",
-							text: nil,
-							imageUrl: ContentPart.ImageURL(url: ctx.dataURL)
-						))
+						// OCR bridge: if OCR text exists, send as text part
+						if let ocrText = ctx.ocrText, !ocrText.isEmpty {
+							parts.append(ContentPart(
+								type: "text",
+								text: "[Camera OCR: \(ocrText)]",
+								imageUrl: nil
+							))
+						} else if let url = ctx.dataURL {
+							parts.append(ContentPart(
+								type: "image_url",
+								text: nil,
+								imageUrl: ContentPart.ImageURL(url: url)
+							))
+						}
 					}
 					result.append(Message(role: "user", content: .parts(parts)))
 				} else {
@@ -372,9 +384,26 @@ final class ChatState {
 				if chunk.isComplete {
 					// Conversation complete — append and persist to history
 					if !responseText.isEmpty {
-						let assistantMsg = ChatMessage(role: "assistant", content: responseText)
-						messages.append(assistantMsg)
-						await persistMessage(role: "assistant", content: responseText)
+						// Detect tool calls from response text and build structured parts
+						var parts: [TranscriptPart] = [.text(responseText)]
+						if let detectedToolCalls = parseToolCalls(from: responseText) {
+							for tc in detectedToolCalls {
+								parts.append(.toolCall(ToolCallPart(
+									callId: tc.id,
+									name: tc.function.name,
+									resultSummary: tc.function.arguments.isEmpty ? "executed" : "\(tc.function.arguments.utf8.count) bytes args",
+									durationMs: nil
+								)))
+							}
+							// Build structured ChatMessage with tool call badges
+							let assistantMsg = ChatMessage(role: "assistant", parts: parts)
+							messages.append(assistantMsg)
+							await persistMessage(role: "assistant", content: responseText)
+						} else {
+							let assistantMsg = ChatMessage(role: "assistant", content: responseText)
+							messages.append(assistantMsg)
+							await persistMessage(role: "assistant", content: responseText)
+						}
 
 						// MARK: - Post-inference TTS
 						// If speaker is enabled, speak the final response

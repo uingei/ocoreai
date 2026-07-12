@@ -577,10 +577,14 @@ extension EnginePool {
 									} else {
 										continuation.yield(.init(kind: .text(text)))
 									}
-								case .info, .toolCall: break
+								case .info, .toolCall:
+									// Info and toolCall events from upstream — tool calls are handled
+									// by AgentLoop.parseToolCalls() on accumulated text at stream end,
+									// so we don't need to forward these mid-stream.
+									break
 								}
-							}
-						} catch {
+								}
+								} catch {
 							inferenceError = error
 						}
 

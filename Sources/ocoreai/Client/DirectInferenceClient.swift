@@ -371,6 +371,9 @@ extension DirectInferenceClient {
 		var completeText = ""
 		var outputTok = 0
 
+		// Collect tool call parts from agent loop iterations
+		var collectedToolCallParts: [ToolCallPart]? = nil
+		
 		// If tools are defined, try agent loop
 		if let tools = request.tools, !tools.isEmpty {
 			if let registry = OcoreaiEngine.shared.activeToolRegistry {
@@ -393,6 +396,24 @@ extension DirectInferenceClient {
 				)
 				completeText = agentResult.text
 				outputTok = agentResult.totalTokens
+				
+				// Extract tool calls from agent loop iterations
+				if !agentResult.iters.isEmpty {
+					var parts: [ToolCallPart] = []
+					for iter in agentResult.iters {
+						if iter.toolN > 0 {
+							parts.append(ToolCallPart(
+								callId: "iter-\(iter.iteration)",
+								name: iter.tag,
+								resultSummary: "\(iter.toolN) tool(s), \(iter.tok) tokens, \(Int(iter.ms))ms",
+								durationMs: iter.ms
+							))
+						}
+					}
+					if !parts.isEmpty {
+						collectedToolCallParts = parts
+					}
+				}
 			}
 		}
 
@@ -421,7 +442,8 @@ extension DirectInferenceClient {
 		return DirectInferenceResult(
 			content: completeText,
 			stopReason: "stop",
-			outputTokens: outputTok
+			outputTokens: outputTok,
+			toolCallParts: collectedToolCallParts
 		)
 	}
 }
@@ -477,23 +499,20 @@ struct DirectInferenceResult {
 	let content: String
 	let stopReason: String
 	let outputTokens: Int
-	/// Aggregated tool call logs from agent loop (available when AgentLoop ran).
+	/// Aggregated tool call parts from agent loop iterations.
+	/// Populated when AgentLoop ran multiple iterations with tool execution.
 	let toolCallParts: [ToolCallPart]?
-	/// Total reasoning tokens (if reasoning trace was captured).
-	let reasoningContent: String?
-
+	
 	init(
 		content: String,
 		stopReason: String,
 		outputTokens: Int,
-		toolCallParts: [ToolCallPart]? = nil,
-		reasoningContent: String? = nil
+		toolCallParts: [ToolCallPart]? = nil
 	) {
 		self.content = content
 		self.stopReason = stopReason
 		self.outputTokens = outputTokens
 		self.toolCallParts = toolCallParts
-		self.reasoningContent = reasoningContent
 	}
 }
 

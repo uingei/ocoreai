@@ -392,9 +392,7 @@ struct ChatView: View {
 				HStack(spacing: 8) {
 					ForEach(attachments) { attachment in
 						ZStack(alignment: .topTrailing) {
-							Image(systemName: "photo")
-								.resizable()
-								.aspectRatio(contentMode: .fit)
+							InlineImagePreview(dataURL: attachment.dataURL)
 								.frame(width: 48, height: 48)
 								.clipShape(RoundedRectangle(cornerRadius: 8))
 								.background(theme.inputBg)
@@ -434,12 +432,12 @@ struct ChatView: View {
 				Button {
 					showMultimodal.toggle()
 				} label: {
-					Image(systemName: "waveform")
+					Image(systemName: "camera.viewfinder")
 						.font(.title3)
 						.foregroundStyle(showMultimodal ? theme.accent : theme.textSecondary)
 				}
-				.accessibilityLabel(StringKey.voiceInputLabel.l)
-				.accessibilityHint(StringKey.voiceInputHint.l)
+				.accessibilityLabel(StringKey.multimodalToggleLabel.l)
+				.accessibilityHint(StringKey.multimodalToggleHint.l)
 
 				TextField(StringKey.chatPlaceholder.l, text: $inputText, axis: .vertical)
 					.font(.ocoreaiText(15))
