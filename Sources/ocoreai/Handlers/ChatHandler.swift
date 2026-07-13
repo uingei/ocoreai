@@ -144,14 +144,13 @@ func chatCompletionsHandler(
 		let messageText = request.messages.map { $0.textContent() }.joined(separator: " ")
 		let result = await contentGuard.checkInput(messageText)
 		if result.isBlocked {
-			let errorBody: [String: Any] = [
-				"error": [
-					"message": result.rejectionReason ?? "Content safety violation",
-					"type": "content_policy_violation",
-					"code": 400,
-					"categories": result.triggeredCategories.map(\.rawValue),
-				],
-			]
+			let detail = NSDictionary(dictionary: [
+				"message": result.rejectionReason ?? "Content safety violation",
+				"type": "content_policy_violation",
+				"code": 400,
+				"categories": result.triggeredCategories.map(\.rawValue),
+			])
+			let errorBody = NSDictionary(dictionary: ["error": detail])
 			guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
 				return Response(status: .badRequest)
 			}
@@ -167,13 +166,12 @@ func chatCompletionsHandler(
 			in: request.messages,
 			patterns: AuthConfig.defaultPromptInjectionRegexes,
 		) {
-			let errorBody: [String: Any] = [
-				"error": [
-					"message": "Potential prompt injection detected",
-					"type": "prompt_injection",
-					"code": 400,
-				],
-			]
+			let detail = NSDictionary(dictionary: [
+				"message": "Potential prompt injection detected",
+				"type": "prompt_injection",
+				"code": 400,
+			])
+			let errorBody = NSDictionary(dictionary: ["error": detail])
 			guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
 				return Response(status: .badRequest)
 			}

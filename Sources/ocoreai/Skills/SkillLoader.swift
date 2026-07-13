@@ -42,24 +42,28 @@ func parseSkillFile(at url: URL) throws -> Skill {
 func splitFrontmatter(_ content: String) -> (String, String)? {
 	let lines = content.components(separatedBy: .newlines)
 	guard let first = lines.first?.trimmingCharacters(in: .whitespaces),
-	      first == "---" else { return nil }
+		  first == "---" else { return nil }
 
-	var endRange: Range<String.Index>? = nil
+	var endLineIndex = 0
 	var lineIndex = 1
 	while lineIndex < lines.count {
 		let trimmed = lines[lineIndex].trimmingCharacters(in: .whitespaces)
 		if trimmed == "---" || trimmed == "..." {
-			endRange = content.startIndex ..< content.index(content.startIndex, offsetBy: lineIndex)
+			endLineIndex = lineIndex
 			break
 		}
 		lineIndex += 1
 	}
 
-	guard let endRange else { return nil }
-	let yamlPart = String(content[endRange])
-	let bodyStart = content.index(content.startIndex, offsetBy: lineIndex + 1)
-	let bodyPart = content.suffix(from: bodyStart)
-	return (yamlPart, String(bodyPart))
+	guard endLineIndex < lines.count else { return nil }
+
+	// Build yamlPart from lines 0..<endLineIndex (exclusive of closing ---)
+	let yamlPart = lines[..<endLineIndex].joined(separator: "\n")
+	// Build bodyPart from lines endLineIndex+1..<count (after closing ---)
+	let bodyLines = lines.suffix(from: endLineIndex + 1)
+	let bodyPart = String(bodyLines.joined(separator: "\n"))
+
+	return (yamlPart, bodyPart)
 }
 
 /// Parse YAML frontmatter into SkillMetadata.

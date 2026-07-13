@@ -77,14 +77,13 @@ public struct GuardResult: Sendable, Codable {
 
 	/// Generate an HTTP 400 response for content safety violations.
 	public func blockResponseData() -> Data? {
-		let body: [String: Any] = [
-			"error": [
-				"message": rejectionReason ?? "Content safety violation",
-				"type": "content_policy_violation",
-				"code": 400,
-				"categories": triggeredCategories.map(\.rawValue),
-			],
-		]
+		let detail = NSDictionary(dictionary: [
+			"message": rejectionReason ?? "Content safety violation",
+			"type": "content_policy_violation",
+			"code": 400,
+			"categories": triggeredCategories.map(\.rawValue),
+		])
+		let body = NSDictionary(dictionary: ["error": detail])
 		return try? JSONSerialization.data(withJSONObject: body, options: [])
 	}
 }

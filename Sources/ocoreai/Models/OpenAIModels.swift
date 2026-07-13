@@ -317,57 +317,88 @@ struct ToolCallFunction: Codable {
 
 // MARK: - Tool Call Parsing (Shared)
 
+/// Stateful tool call accumulator — chunk-by-chunk equivalent of upstream
+/// `ToolCallProcessor.processChunk` / `processEOS`.
+///
+/// Accumulates text fragments incrementally across multiple chunks. On EOS,
+/// attempts JSON array parse of the full buffer. If the buffer is incomplete
+/// or malformed at any intermediate point, parsing is deferred until `processEOS`.
+struct ToolCallAccumulator {
+
+	/// Raw accumulated text buffer
+	private var _buffer = ""
+
+	/// Append a text chunk. Mirrors ToolCallProcessor.processChunk.
+	mutating func processChunk(_ text: String) {
+		_buffer += text
+	}
+
+	/// Attempt to parse accumulated buffer as tool call JSON array on EOS.
+	/// Returns nil if buffer is empty or parse fails.
+	/// Mirrors ToolCallProcessor.processEOS.
+	mutating func processEOS() -> [ToolCall]? {
+		let trimmed = _buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+		let result = ToolCallAccumulator.parseInternal(from: trimmed)
+		_buffer = ""
+		return result
+	}
+
+	/// Current raw buffer (for test introspection)
+	var buffer: String { _buffer }
+}
+
 /// Parse tool calls from generated model content.
 ///
 /// Shared by ChatHandler (bridge path) and AgentLoop (fast path) to avoid
 /// duplicate parsing logic.
 ///
-/// Parses JSON array of `{"name": "...", "arguments": "..."}` objects.
-/// Falls back to nil if content does not match tool call format.
-///
 /// - Parameter content: Raw generated text from the model
 /// - Returns: Array of ``ToolCall`` if detected, otherwise nil
 func parseToolCalls(from content: String) -> [ToolCall]? {
-	guard !content.isEmpty else { return nil }
+	ToolCallAccumulator.parseInternal(from: content)
+}
 
-	/// Attempt standard JSON array parsing for tool call objects.
-	do {
-		let jsonData = content.data(using: .utf8) ?? Data()
-		if let toolArray = try JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] {
+// MARK: - Internal Parsing Logic
+
+extension ToolCallAccumulator {
+
+	/// Core parsing: JSON array of tool call objects.
+	/// Handles String, Dictionary, and NSNull arguments — never crashes.
+	fileprivate static func parseInternal(from content: String) -> [ToolCall]? {
+		guard !content.isEmpty else { return nil }
+
+		do {
+			let jsonData = content.data(using: .utf8) ?? Data()
+			guard let toolArray = try JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] else {
+				return nil
+			}
+
 			var toolCalls: [ToolCall] = []
 			for toolObj in toolArray {
-				if let name = toolObj["name"] as? String,
-				   let args = toolObj["arguments"] {
-					/// Serialize arguments back to JSON string for OpenAI compatibility.
-					/// `args` can be a Dictionary, Array, or String from JSON parsing.
-					/// `JSONSerialization.data` crashes on String, so handle it explicitly.
-					let argsJson: String
-					if let argsStr = args as? String {
-						// Arguments already a string (some models emit this)
-						argsJson = argsStr
-					} else {
-						argsJson = (try? String(data: JSONSerialization.data(
-							withJSONObject: args, options: []), encoding: .utf8)) ?? "{}"
-					}
-					let tc = ToolCall(
-						id: "call_\(UUID().uuidString.prefix(8))",
-						function: ToolCallFunction(name: name, arguments: argsJson)
-					)
-					toolCalls.append(tc)
+				guard let name = toolObj["name"] as? String,
+				      let args = toolObj["arguments"] else { continue }
+
+				let argsJson: String
+				if let argsStr = args as? String {
+					argsJson = argsStr
+				} else if args is NSNull {
+					argsJson = "{}"
+				} else {
+					argsJson = (try? String(data: JSONSerialization.data(
+						withJSONObject: args, options: []), encoding: .utf8)) ?? "{}"
 				}
+
+				let tc = ToolCall(
+					id: "call_\(UUID().uuidString.prefix(8))",
+					function: ToolCallFunction(name: name, arguments: argsJson)
+				)
+				toolCalls.append(tc)
 			}
 			return toolCalls.isEmpty ? nil : toolCalls
+		} catch {
+			return nil
 		}
-	} catch {
-		return nil
 	}
-
-	/// Legacy fallback: detect Claude-style tool_use markers.
-	if content.contains("<tool_code>") || (content.contains("\n\n") && content.contains("```json")) {
-		return nil
-	}
-
-	return nil
 }
 
 // MARK: - Message (Multi-Role + Content Polymorphism + Tool Calls)
@@ -818,13 +849,12 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
 		from request: Request,
 		context: some RequestContext
 	) throws -> Response {
-		let errorBody: [String: Any] = [
-			"error": [
-				"message": errorDescription ?? String(describing: self),
-				"type": "app_error",
-				"code": status.code,
-			],
-		]
+		let detail = NSDictionary(dictionary: [
+			"message": errorDescription ?? String(describing: self),
+			"type": "app_error",
+			"code": status.code,
+		])
+		let errorBody = NSDictionary(dictionary: ["error": detail])
 		var headers: HTTPFields = [:]
 		headers[.contentType] = "application/json"
 		guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {

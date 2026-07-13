@@ -70,14 +70,13 @@ func anthropicMessagesHandler(
 		if !messageText.isEmpty {
 			let result = await contentGuard.checkInput(messageText)
 			if result.isBlocked {
-				let errorBody: [String: Any] = [
-					"error": [
-						"message": result.rejectionReason ?? "Content safety violation",
-						"type": "content_policy_violation",
-						"code": 400,
-						"categories": result.triggeredCategories.map(\.rawValue),
-					],
-				]
+				let detail = NSDictionary(dictionary: [
+					"message": result.rejectionReason ?? "Content safety violation",
+					"type": "content_policy_violation",
+					"code": 400,
+					"categories": result.triggeredCategories.map(\.rawValue),
+				])
+				let errorBody = NSDictionary(dictionary: ["error": detail])
 				guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
 					return Response(status: .badRequest)
 				}
@@ -96,13 +95,12 @@ func anthropicMessagesHandler(
 			in: chatReq.messages,
 			patterns: AuthConfig.defaultPromptInjectionRegexes,
 		) {
-			let errorBody: [String: Any] = [
-				"error": [
-					"message": "Potential prompt injection detected",
-					"type": "prompt_injection",
-					"code": 400,
-				],
-			]
+			let detail = NSDictionary(dictionary: [
+				"message": "Potential prompt injection detected",
+				"type": "prompt_injection",
+				"code": 400,
+			])
+			let errorBody = NSDictionary(dictionary: ["error": detail])
 			guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
 				return Response(status: .badRequest)
 			}
@@ -390,14 +388,13 @@ private func nonStreamAnthropicResponse(
 		let checkResult = await contentGuard.checkOutput(content)
 		if !checkResult.passed {
 			logger.warning("Anthropic non-stream output blocked: \(checkResult.triggeredCategories)")
-			let errorBody: [String: Any] = [
-				"error": [
-					"message": checkResult.rejectionReason ?? "Content safety violation",
-					"type": "content_policy_violation",
-					"code": 400,
-					"categories": checkResult.triggeredCategories.map(\.rawValue),
-				],
-			]
+			let detail = NSDictionary(dictionary: [
+				"message": checkResult.rejectionReason ?? "Content safety violation",
+				"type": "content_policy_violation",
+				"code": 400,
+				"categories": checkResult.triggeredCategories.map(\.rawValue),
+			])
+			let errorBody = NSDictionary(dictionary: ["error": detail])
 			guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
 				return Response(status: .badRequest)
 			}
