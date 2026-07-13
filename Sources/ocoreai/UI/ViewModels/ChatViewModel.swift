@@ -46,6 +46,7 @@ struct ChatMessage: Identifiable, Hashable {
 	let parts: [TranscriptPart]? /// Structured content — source of truth when present
 	let timestamp: Date
 	let imageURLs: [String] /// Base64 data URLs for inline preview
+	let interrupted: Bool /// true when truncated by user cancel — used for context filtering, not string suffix check
 
 	/// Plain-text representation joining all parts for persistence and fallback.
 	/// Uses the same logic as TranscriptPartMessage.flatText so textContent == content
@@ -69,6 +70,7 @@ struct ChatMessage: Identifiable, Hashable {
 		self.timestamp = timestamp
 		self.imageURLs = imageURLs
 		parts = nil
+		self.interrupted = false
 	}
 
 	/// Structured initializer — builds parts from semantic blocks
@@ -78,6 +80,17 @@ struct ChatMessage: Identifiable, Hashable {
 		self.parts = parts
 		self.timestamp = timestamp
 		self.imageURLs = []
+		self.interrupted = false
+	}
+
+	/// Interrupted initializer — for truncated assistant messages
+	init(role: String, content: String, interrupted: Bool) {
+		self.role = role
+		self.content = content
+		self.timestamp = .now
+		self.imageURLs = []
+		parts = nil
+		self.interrupted = interrupted
 	}
 }
 
@@ -152,7 +165,7 @@ final class ChatState {
 		// P0-3 UX: Preserve the partial response instead of instantly blanking the screen.
 		// The user can still see what was generated before interruption.
 		if !responseText.isEmpty {
-			messages.append(ChatMessage(role: "assistant", content: responseText + " [Interrupted]"))
+			messages.append(ChatMessage(role: "assistant", content: responseText, interrupted: true))
 			responseText = ""
 		}
 	}
@@ -286,9 +299,12 @@ final class ChatState {
 	/// - User-provided image attachments (via attach button) are merged as ContentPart.imageUrl
 	///
 	/// Fix: Filter out interrupted assistant messages from the inference context.
-	/// Interrupted messages (ending with "[Interrupted]") are kept in UI history
+	/// Interrupted messages (truncated by user cancel) are kept in UI history
 	/// for display but excluded from the model's conversation context to prevent
 	/// degraded inference quality from partial responses.
+	///
+	/// FIX: Use structured .interrupted flag instead of string suffix matching
+	/// — avoids collision when the model legitimately outputs " [Interrupted]".
 	func chat(_ text: String, model: String, attachments: [AttachedImage] = []) async {
 		// Ensure persistent session exists
 		await ensureSession(for: model)
@@ -326,12 +342,12 @@ final class ChatState {
 		do {
 		// Build InferenceRequest — exclude interrupted assistant messages and system messages
 		// to prevent partial responses degrading the model's context.
-		// NOTE: only filter assistant messages — user messages ending with " [Interrupted]"
-		// are legitimate input (e.g. user re-sending a previous response).
+		// NOTE: only filter assistant messages — user messages are always included
+		// even if they contain interrupted text (e.g. user re-sending a previous response).
 		let cleanMessages = messages
 			.filter {
 				$0.role != "system"
-				&& !($0.role == "assistant" && $0.content.hasSuffix(" [Interrupted]"))
+				&& !($0.role == "assistant" && $0.interrupted)
 			}
 
 		// Convert to typed Messages — last user message gets multimodal parts if available
@@ -385,39 +401,46 @@ final class ChatState {
 					responseText += chunk.text
 				}
 				if chunk.isComplete {
-					// Conversation complete — append and persist to history
-					if !responseText.isEmpty {
-						// Detect tool calls from response text and build structured parts
-						var parts: [TranscriptPart] = [.text(responseText)]
-						if let detectedToolCalls = parseToolCalls(from: responseText) {
-							for tc in detectedToolCalls {
-								parts.append(.toolCall(ToolCallPart(
-									callId: tc.id,
-									name: tc.function.name,
-									resultSummary: tc.function.arguments.isEmpty ? "executed" : "\(tc.function.arguments.utf8.count) bytes args",
-									durationMs: nil
-								)))
+					// FIX: distinguish error terminal chunks from successful completion.
+					// Do not persist error-truncated responses as normal assistant messages.
+					if chunk.stopReason == "error" {
+						Self.logger.warning("Inference ended with error after accumulating \\(responseText.utf8.count) bytes")
+						errorMessage = "Generation failed internally"
+						responseText = ""
+					} else {
+						// Conversation complete — append and persist to history
+						if !responseText.isEmpty {
+							var parts: [TranscriptPart] = [.text(responseText)]
+							if let detectedToolCalls = parseToolCalls(from: responseText) {
+								for tc in detectedToolCalls {
+									parts.append(.toolCall(ToolCallPart(
+										callId: tc.id,
+										name: tc.function.name,
+										resultSummary: tc.function.arguments.isEmpty ? "executed" : "\(tc.function.arguments.utf8.count) bytes args",
+										durationMs: nil
+									)))
+								}
+								// Build structured ChatMessage with tool call badges
+								let assistantMsg = ChatMessage(role: "assistant", parts: parts)
+								messages.append(assistantMsg)
+								await persistMessage(role: "assistant", content: responseText)
+							} else {
+								let assistantMsg = ChatMessage(role: "assistant", content: responseText)
+								messages.append(assistantMsg)
+								await persistMessage(role: "assistant", content: responseText)
 							}
-							// Build structured ChatMessage with tool call badges
-							let assistantMsg = ChatMessage(role: "assistant", parts: parts)
-							messages.append(assistantMsg)
-							await persistMessage(role: "assistant", content: responseText)
-						} else {
-							let assistantMsg = ChatMessage(role: "assistant", content: responseText)
-							messages.append(assistantMsg)
-							await persistMessage(role: "assistant", content: responseText)
-						}
 
-						// MARK: - Post-inference TTS
-						// If speaker is enabled, speak the final response
-						mmState.speakIfEnabled(responseText)
+							// MARK: - Post-inference TTS
+							// If speaker is enabled, speak the final response
+							mmState.speakIfEnabled(responseText)
+						}
 					}
 				}
 			}
 			// If interrupted mid-stream but accumulated text exists, save it
 			if Task.isCancelled || cancellation.isCancelled {
 				if !responseText.isEmpty {
-					let assistantMsg = ChatMessage(role: "assistant", content: responseText + " [Interrupted]")
+					let assistantMsg = ChatMessage(role: "assistant", content: responseText, interrupted: true)
 					messages.append(assistantMsg)
 					await persistMessage(role: "assistant", content: assistantMsg.content)
 				}

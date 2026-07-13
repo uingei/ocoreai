@@ -339,8 +339,16 @@ func parseToolCalls(from content: String) -> [ToolCall]? {
 				if let name = toolObj["name"] as? String,
 				   let args = toolObj["arguments"] {
 					/// Serialize arguments back to JSON string for OpenAI compatibility.
-					let argsJson = (try? String(data: JSONSerialization.data(
-						withJSONObject: args, options: []), encoding: .utf8)) ?? "{}"
+					/// `args` can be a Dictionary, Array, or String from JSON parsing.
+					/// `JSONSerialization.data` crashes on String, so handle it explicitly.
+					let argsJson: String
+					if let argsStr = args as? String {
+						// Arguments already a string (some models emit this)
+						argsJson = argsStr
+					} else {
+						argsJson = (try? String(data: JSONSerialization.data(
+							withJSONObject: args, options: []), encoding: .utf8)) ?? "{}"
+					}
 					let tc = ToolCall(
 						id: "call_\(UUID().uuidString.prefix(8))",
 						function: ToolCallFunction(name: name, arguments: argsJson)

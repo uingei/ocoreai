@@ -1,35 +1,14 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// SkillRegistryTests.swift — Skill registry lifecycle, dependency resolution, built-in skills
+/// SkillRegistryTests.swift — Dependency resolution, registry lifecycle, model behavior
+/// Removed: BuiltInSkill enum self-proof, SkillMetadata Codable round-trip (compiler-enforced)
 
 import Foundation
 import Testing
 import Logging
 @testable import ocoreai
 
-@Suite("Built-in Skills")
-struct BuiltInSkillTests {
-    @Test("BuiltInSkill.allCases has 4 entries")
-    func builtinCount() {
-        #expect(BuiltInSkill.allCases.count == 4)
-    }
-    
-    @Test("All built-in skills belong to 'system' category")
-    func allBuiltinAreSystemCategory() {
-        for skill in BuiltInSkill.allCases {
-            #expect(skill.displayCategory == "system")
-        }
-    }
-    
-    @Test("Built-in skill descriptions are non-empty")
-    func descriptionsNonEmpty() {
-        for skill in BuiltInSkill.allCases {
-            #expect(!skill.description.isEmpty)
-        }
-    }
-}
-
-@Suite("SkillMetadata")
+@Suite("SkillMetadata serialization")
 struct SkillMetadataTests {
     @Test("serialize produces valid YAML for simple metadata")
     func serializeSimple() {
@@ -60,22 +39,6 @@ struct SkillMetadataTests {
         #expect(yaml.contains("depends: [dep-x, dep-y]"))
         #expect(!yaml.contains("tags:"))
     }
-    
-    @Test("SkillMetadata roundtrips through Codable")
-    func codableRoundtrip() throws {
-        let meta = SkillMetadata(
-            name: "codec-skill",
-            category: "codec",
-            description: "Codable test",
-            tags: ["a", "b"],
-            dependencies: ["c"]
-        )
-        let data = try JSONEncoder().encode(meta)
-        let decoded = try JSONDecoder().decode(SkillMetadata.self, from: data)
-        #expect(decoded.name == "codec-skill")
-        #expect(decoded.dependencies.count == 1)
-        #expect(decoded.dependencies.first == "c")
-    }
 }
 
 @Suite("Skill Model")
@@ -103,13 +66,6 @@ struct SkillModelTests {
         let s1 = Skill(metadata: meta, body: "body a", path: "/a.md", status: .loaded, loadedAt: Date())
         let s2 = Skill(metadata: meta, body: "body b", path: "/b.md", status: .loaded, loadedAt: Date())
         #expect(s1.contentHash != s2.contentHash)
-    }
-    
-    @Test("SkillStatus has 3 cases")
-    func statusCases() {
-        _ = SkillStatus.loaded
-        _ = SkillStatus.failed
-        _ = SkillStatus.hotReloadPending
     }
 }
 

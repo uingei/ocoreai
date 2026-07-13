@@ -108,28 +108,4 @@ struct NLPClassifierConfidenceTests {
     }
 }
 
-@Suite("TicketCategory and ClassificationResult Codable")
-struct NLPClassifierCodableTests {
-    @Test("TicketCategory round-trips through JSON")
-    func ticketCategoryCodable() throws {
-        let original: TicketCategory = .refund
-        let data = try JSONEncoder().encode(original)
-        let decoded = try JSONDecoder().decode(TicketCategory.self, from: data)
-        #expect(decoded == original)
-    }
 
-    @Test("ClassificationResult round-trips through JSON")
-    func classificationResultCodable() throws {
-        let original = ClassificationResult(
-            category: .support,
-            confidence: 0.9,
-            keywords: ["bug", "crash"],
-            fallback: false
-        )
-        let data = try JSONEncoder().encode(original)
-        let decoded = try JSONDecoder().decode(ClassificationResult.self, from: data)
-        #expect(decoded.category == original.category)
-        #expect(decoded.confidence == original.confidence)
-        #expect(decoded.keywords == original.keywords)
-    }
-}

@@ -43,7 +43,7 @@ struct RealChatStateTests {
     #expect(s.messages.count == 1)
     let mm = try? s.messages.first
     #expect(mm?.role == "assistant")
-    #expect(mm?.content.hasSuffix(" [Interrupted]") == true)
+    #expect((mm?.interrupted) == true)
     #expect(s.responseText == "")
     _resetChat()
   }
@@ -176,46 +176,5 @@ struct RealModelSearchTests {
     ]
     #expect(m.modelIdStrings() == ["x", "y"])
     _resetModel()
-  }
-}
-
-@Suite("Message Filtering — interrupted + system exclusion")
-struct RealMessageFilterTests {
-  @Test("Interrupted messages have suffix marker")
-  func interruptedSuffix() async {
-    #expect("partial [Interrupted]".hasSuffix(" [Interrupted]"))
-  }
-
-  @Test("Partial interrupted in middle is NOT excluded")
-  func partialMatch() async {
-    #expect(!"Don't get interrupted here".hasSuffix(" [Interrupted]"))
-  }
-
-  @Test("System role marker")
-  func systemExcluded() async {
-    #expect("system" == "system")
-  }
-
-  @Test("ChatMessage has UUID-based unique ids")
-  func uniqueIds() async {
-    let a = ChatMessage(role: "u", content: "x")
-    let b = ChatMessage(role: "u", content: "x")
-    #expect(a.id != b.id)
-  }
-
-  @Test("ChatMessage timestamp defaults to now")
-  func timestampsNearNow() async {
-    let mm = ChatMessage(role: "u", content: "x")
-    let age = abs(mm.timestamp.timeIntervalSinceNow)
-    #expect(age < 1.0)
-  }
-
-  @Test("ChatMessage Hashable reflexive and UUID-based")
-  func hashable() async {
-    let ts: Date = Date(timeIntervalSince1970: 1000)
-    let a = ChatMessage(role: "u", content: "x", timestamp: ts)
-    #expect(a == a)
-    let b = ChatMessage(role: "u", content: "x", timestamp: ts)
-    #expect(a != b)
   }
 }

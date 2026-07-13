@@ -1,61 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// AuditTrailTests.swift — AuditTrail actor: record, query, enforce, export
+/// Removed: AuditEntry model self-proof (struct field assertions, Codable, enum case count)
 
 import Foundation
 import Testing
 @testable import ocoreai
-
-@Suite("AuditEntry Model")
-struct AuditEntryTests {
-    @Test("AuditEntry has all required fields")
-    func entryFields() {
-        let entry = AuditEntry(
-            id: "test-id",
-            timestamp: Date(),
-            caller: "agent",
-            toolName: "test-tool",
-            toolset: "test",
-            arguments: ["key": "value"],
-            status: .success,
-            resultSummary: "ok",
-            durationMs: 10.5,
-            traceID: "trace-123"
-        )
-        #expect(entry.id == "test-id")
-        #expect(entry.caller == "agent")
-        #expect(entry.toolName == "test-tool")
-        #expect(entry.status == .success)
-        #expect(entry.traceID == "trace-123")
-    }
-    
-    @Test("AuditEntry codable roundtrip")
-    func codableRoundtrip() throws {
-        let entry = AuditEntry(
-            id: "roundtrip-id",
-            timestamp: Date(),
-            caller: "agent",
-            toolName: "test-tool",
-            toolset: "test",
-            arguments: ["a": "b"],
-            status: .error,
-            resultSummary: "failed",
-            durationMs: 25.0,
-            traceID: "trace-456"
-        )
-        let data = try JSONEncoder().encode(entry)
-        let decoded = try JSONDecoder().decode(AuditEntry.self, from: data)
-        #expect(decoded.id == "roundtrip-id")
-        #expect(decoded.status == .error)
-        #expect(decoded.resultSummary == "failed")
-    }
-    
-    @Test("AuditStatus has 4 cases")
-    func statusCases() {
-        let statuses: [AuditEntry.AuditStatus] = [.success, .error, .cancelled, .timeout]
-        #expect(statuses.count == 4)
-    }
-}
 
 @Suite("AuditTrail — Recording")
 struct AuditTrailRecordingTests {

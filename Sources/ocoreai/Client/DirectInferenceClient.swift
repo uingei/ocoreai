@@ -115,6 +115,15 @@ final class DirectInferenceClient {
 						continuation: continuation,
 					)
 				} catch {
+					// FIX: emit a terminal chunk so the caller knows the stream ended.
+					// Without this, the caller's for-await exits cleanly but responseText
+					// is never persisted (isComplete was never true).
+					continuation.yield(.init(
+						text: "",
+						isComplete: true,
+						stopReason: "error",
+						outputTokens: 0,
+					))
 					continuation.finish()
 				}
 			}
