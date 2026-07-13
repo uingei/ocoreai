@@ -205,9 +205,21 @@ extension DirectInferenceClient {
 			await scheduler.fail(schedulingRequest.id, with: error.localizedDescription)
 			throw AppError.engineUnavailable
 		}
+		// 1. Release handle — fire-and-forget is intentional: the inference stream
+		//    already exited, so we only need handle.release() to decref, not to block
+		//    on the finalizer. Placing it in a Task avoids holding the actor mailbox
+		//    while the stream unwinds.
 		defer {
 			Task {
 				await handle.release()
+			}
+		}
+
+		// 2. Signal scheduler completion synchronously — avoids actor mailbox round-trip
+		//    and ensures the scheduling request's memory reservation is cleared
+		//    immediately when this scope exits.
+		defer {
+			Task {
 				await scheduler.complete(schedulingRequest.id)
 			}
 		}
@@ -345,9 +357,21 @@ extension DirectInferenceClient {
 			await scheduler.fail(schedulingRequest.id, with: error.localizedDescription)
 			throw AppError.engineUnavailable
 		}
+		// 1. Release handle — fire-and-forget is intentional: the inference stream
+		//    already exited, so we only need handle.release() to decref, not to block
+		//    on the finalizer. Placing it in a Task avoids holding the actor mailbox
+		//    while the stream unwinds.
 		defer {
 			Task {
 				await handle.release()
+			}
+		}
+
+		// 2. Signal scheduler completion synchronously — avoids actor mailbox round-trip
+		//    and ensures the scheduling request's memory reservation is cleared
+		//    immediately when this scope exits.
+		defer {
+			Task {
 				await scheduler.complete(schedulingRequest.id)
 			}
 		}

@@ -98,6 +98,9 @@ final class MultimodalState {
 	/// Flag to guard didSet during restore — prevents services starting on cold boot.
 	private var _restoring = false
 
+	/// Debounce timer for async save — coalesces rapid toggle changes.
+	private var _saveDebounceTask: Task<Void, Never>?
+
 	init() {
 		_restoreFromDisk()
 	}
@@ -248,13 +251,26 @@ final class MultimodalState {
 	}
 
 	private func save() {
-		let data = Snapshot(
-			cameraEnabled: cameraEnabled,
-			microphoneEnabled: microphoneEnabled,
-			speakerEnabled: speakerEnabled,
-			screenCaptureEnabled: screenCaptureEnabled
-		)
-		try? encoder.encode(data).write(to: storageKey)
+		// Cancel any pending save — debounce coalesces rapid toggle changes
+		_saveDebounceTask?.cancel()
+		_saveDebounceTask = Task.detached { [
+			camera = self.cameraEnabled,
+			mic = self.microphoneEnabled,
+			spk = self.speakerEnabled,
+			screen = self.screenCaptureEnabled,
+			enc = self.encoder,
+			key = self.storageKey
+		] in
+			try? await Task.sleep(for: .milliseconds(200))
+			Task.isCancelled ? () : ()
+			let snapshot = Snapshot(
+				cameraEnabled: camera,
+				microphoneEnabled: mic,
+				speakerEnabled: spk,
+				screenCaptureEnabled: screen
+			)
+			try? enc.encode(snapshot).write(to: key)
+		}
 	}
 
 	private struct Snapshot: Codable {

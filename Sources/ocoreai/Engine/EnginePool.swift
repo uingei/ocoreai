@@ -535,9 +535,18 @@ actor EnginePool {
 		modelSamplingDefaults[modelId] ?? .default
 	}
 
+	/// Per-model sampling config override (lazy, single actor mailbox hop).
 	func updateSamplingConfig(modelId: String, config: ModelSamplingConfig) {
 		modelSamplingDefaults[modelId] = config
-		logger.info("Sampling config updated for model: \(modelId)")
+		logger.info("Sampling config updated for model: \\(modelId)")
+	}
+
+	/// Batch-update sampling configs in a single actor mailbox round-trip.
+	func updateSamplingConfigs(_ configs: [String: ModelSamplingConfig]) {
+		for (modelId, config) in configs {
+			modelSamplingDefaults[modelId] = config
+		}
+		logger.info("Batch sampling config updated for \\(configs.count) models")
 	}
 
 	func resetSamplingConfig(modelId: String) {

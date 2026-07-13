@@ -264,10 +264,12 @@ final class ModelManager {
 
 		var models: [ModelID] = []
 		var serving: Set<String> = []
+		var configBatch: [String: ModelSamplingConfig] = [:]
+
 		for entry in entries {
 			let model = ModelID.fromListModels(entry)
 			let config = store.loadSamplingConfig(for: model.id)
-			await pool.updateSamplingConfig(modelId: model.id, config: config)
+			configBatch[model.id] = config
 			var info = model
 			info.paramsCustomized = !config.isDefault
 			models.append(info)
@@ -277,6 +279,12 @@ final class ModelManager {
 				serving.insert(model.id)
 			}
 		}
+
+		// Batch-apply all configs in a single actor mailbox round-trip
+		if !configBatch.isEmpty {
+			await pool.updateSamplingConfigs(configBatch)
+		}
+
 		localModels = models
 		servingModelIds = serving
 	}
