@@ -181,6 +181,9 @@ final class ChatState {
 	private var undoResponseText: String?
 	/// Undo snapshot: error message text
 	private var undoErrorMessage: String?
+	/// Undo snapshot: session state
+	private var undoSessionId: Int64?
+	private var undoActiveModelId: String?
 
 	/// Returns true if there is an undoable action available.
 	var hasUndo: Bool {
@@ -437,13 +440,21 @@ final class ChatState {
 	}
 
 	/// Snapshot current state, then clear the conversation.
+	/// Also resets SQLite session ID to prevent new messages bleeding
+	/// into the old session's database record.
 	func resetConversation() {
 		undoSnapshot = messages
 		undoResponseText = responseText
 		undoErrorMessage = errorMessage
+		// Save session state for undo
+		undoSessionId = sessionId
+		undoActiveModelId = activeModelId
 		messages = []
 		responseText = ""
 		errorMessage = nil
+		// FIX: clear session state to prevent DB session bleed
+		sessionId = nil
+		activeModelId = nil
 		// Register undo with AppState for Cmd+Z access
 		AppState.shared.undoAction = { [weak self] in self?.undoReset() }
 	}
@@ -454,8 +465,13 @@ final class ChatState {
 		messages = snapshot
 		responseText = undoResponseText ?? ""
 		errorMessage = undoErrorMessage
+		// Restore session state
+		sessionId = undoSessionId
+		activeModelId = undoActiveModelId
 		undoSnapshot = nil
 		undoResponseText = nil
 		undoErrorMessage = nil
+		undoSessionId = nil
+		undoActiveModelId = nil
 	}
 }
