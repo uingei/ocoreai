@@ -155,9 +155,15 @@ final class ChatState {
 	/// When non-nil, a stream is in progress and can be cancelled.
 	private var currentCancellation: InferenceCancellation?
 
+	/// P0-fix: Idempotency barrier — `cancelInference()` appends the interrupted message
+	/// and clears it; the stream tail check must NOT append again.
+	private var _cancelledByUI = false
+
 	/// Cancel the current inference stream immediately.
 	/// Safe to call multiple times and when no stream is active.
 	func cancelInference() {
+		guard !_cancelledByUI else { return }  // idempotent — prevents double-appended interrupted messages
+		_cancelledByUI = true
 		currentCancellation?.cancel()
 		currentCancellation = nil
 		loading = false
@@ -174,13 +180,23 @@ final class ChatState {
 
 	/// Called when the user switches the model selector.
 	/// Unloads the old model from EnginePool to free GPU memory.
+	///
+	/// P1-fix: Serialize unload tasks — rapid model switching spawned orphan Tasks
+	/// that could concurrently modify EnginePool.loadedModels.
+	private var pendingUnloadTask: Task<Void, Error>?
+	
 	func onModelChanged(newModelId: String) {
 		// Cancel any in-flight inference before switching
 		cancelInference()
-
+		
+		// Cancel previous unload that hasn't finished yet
+		pendingUnloadTask?.cancel()
+		pendingUnloadTask = nil
+		
 		// Unload the old model if it differs from the new one
 		if let oldModel = activeModelId, oldModel != newModelId {
-			Task { [oldModel] in
+			pendingUnloadTask = Task { [oldModel] in
+				guard !Task.isCancelled else { return }
 				guard let pool = OcoreaiEngine.shared.activeEnginePool else { return }
 				await pool.unloadModel(oldModel)
 			}
@@ -334,6 +350,8 @@ final class ChatState {
 		responseText = ""
 		loading = true
 		errorMessage = nil
+		// P0-fix: reset idempotency barrier so cancelInference can fire clean this turn
+		_cancelledByUI = false
 
 		// P0-3: Create cancellable token for mid-stream interrupt
 		let cancellation = InferenceCancellation.cancellable()
@@ -437,8 +455,10 @@ final class ChatState {
 					}
 				}
 			}
-			// If interrupted mid-stream but accumulated text exists, save it
-			if Task.isCancelled || cancellation.isCancelled {
+			// If interrupted mid-stream but accumulated text exists, save it.
+			// P0-fix: skip if cancelInference() already ran — it appends the interrupted message
+			// itself; we only reach here when the stream was cancelled without UI intervention.
+			if !self._cancelledByUI && (Task.isCancelled || cancellation.isCancelled) {
 				if !responseText.isEmpty {
 					let assistantMsg = ChatMessage(role: "assistant", content: responseText, interrupted: true)
 					messages.append(assistantMsg)

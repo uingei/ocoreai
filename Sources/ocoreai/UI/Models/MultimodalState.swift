@@ -231,12 +231,13 @@ final class MultimodalState {
 		content = content.replacingOccurrences(of: "```[\\s\\S]*?```",
 		                                       with: "[code omitted]",
 		                                       options: .regularExpression)
-		// Truncate to 500 chars to avoid reading very long outputs
+		// Truncate to 500 chars to avoid reading out very long outputs
 		if content.count > 500 {
 			content = String(content.prefix(500)) + "..."
 		}
 		guard !content.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-		mmLogger.info("[MultimodalState] Speaker active — TTS: \(content.prefix(50))...")
+		mmLogger.info("[MultimodalState] Speaker active — TTS: \\(content.prefix(50))...")
+		// speak() is non-throwing — no TTS crash propagation risk
 		MMAudioIO.shared.speak(content)
 	}
 

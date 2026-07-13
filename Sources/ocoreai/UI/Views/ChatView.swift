@@ -150,8 +150,6 @@ struct ChatView: View {
 			_keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
 				let cmd = event.modifierFlags.contains(.command)
 				let opt = event.modifierFlags.contains(.option)
-				_ = event.modifierFlags.contains(.control)
-				_ = event.modifierFlags.contains(.shift)
 				// ⌘+Return — send message (even when TextField not focused)
 				if cmd && event.keyCode == 36 {
 					guard !isStreaming else { return event }
@@ -323,19 +321,7 @@ struct ChatView: View {
 
 	// MARK: - Streaming Preview
 
-	private var streamingPreview: some View {
-		ChatBubble(message: ChatBubbleMessage(
-			id: "_streaming", // stable placeholder identity for streaming preview
-			role: "assistant",
-			content: chatState.responseText,
-			timestamp: Date(),
-		))
-		.opacity(0.85)
-		.transition(.opacity.combined(with: .move(edge: .bottom)))
-		.padding()
-		.accessibilityLabel(StringKey.assistantTyping.l)
-		.accessibilityHidden(false)
-	}
+	// P2-fix: streamingPreview dead code removed — messageList renders inline (lines 290–310)
 
 	// MARK: - Empty State
 
@@ -475,7 +461,7 @@ struct ChatView: View {
 
 	@MainActor
 	private func pickImages() {
-#if os(macOS)
+	#if os(macOS)
 		let panel = NSOpenPanel()
 		panel.allowedContentTypes = [.png, .jpeg, .heic, .webP]
 		panel.allowsMultipleSelection = true
@@ -487,7 +473,17 @@ struct ChatView: View {
 				do {
 					let data = try Data(contentsOf: url)
 					let base64 = data.base64EncodedString()
-					let dataURL = "data:image/png;base64,\(base64)"
+					// P1-fix: infer MIME type from actual file extension instead of hardcoding
+					let ext = url.pathExtension.lowercased()
+					let mimeType: String
+					switch ext {
+					case "png": mimeType = "image/png"
+					case "jpeg", "jpg": mimeType = "image/jpeg"
+					case "heic", "heif": mimeType = "image/heic"
+					case "webp": mimeType = "image/webp"
+					default: mimeType = "image/png"
+					}
+					let dataURL = "data:\(mimeType);base64,\(base64)"
 					let attachment = ChatState.AttachedImage(dataURL: dataURL)
 					attachments.append(attachment)
 				} catch {
@@ -734,7 +730,7 @@ struct TranscriptContentView: View {
 					Image(systemName: "brain")
 						.font(.ocoreaiText(10))
 						.foregroundStyle(theme.textTertiary)
-					Text("Agent Reasoning")
+					Text(StringKey.systemReasoningSection.l)
 						.font(.ocoreaiText(11, weight: .medium))
 						.foregroundStyle(theme.textTertiary)
 					Spacer()
