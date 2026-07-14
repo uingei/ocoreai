@@ -7,6 +7,7 @@
 
 import Testing
 @testable import ocoreai
+import ocoreaiTestUtilities
 
 // MARK: - OOMGuard state machine
 

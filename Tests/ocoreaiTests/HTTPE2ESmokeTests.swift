@@ -13,6 +13,7 @@ import Logging
 import NIOCore
 import Testing
 @testable import ocoreai
+import ocoreaiTestUtilities
 
 @Suite("E2E Smoke — HTTP Handler Pipeline")
 struct HTTPHandlerE2ESmokeTests {

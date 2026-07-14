@@ -7,6 +7,7 @@ import Testing
 import Foundation
 import Logging
 @testable import ocoreai
+import ocoreaiTestUtilities
 
 @Suite("SchedulerActor Concurrent")
 struct SchedulerConcurrentTests {

@@ -7,6 +7,7 @@
 import Testing
 import Foundation
 @testable import ocoreai
+import ocoreaiTestUtilities
 
 @Suite("ThinkingTelemetry quality scoring")
 struct ThinkingTelemetryTests {

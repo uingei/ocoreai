@@ -9,6 +9,7 @@ import Testing
 import Foundation
 import Logging
 @testable import ocoreai
+import ocoreaiTestUtilities
 
 @Suite("SelfCorrectionPipeline Configuration")
 struct PipelineConfigTests {

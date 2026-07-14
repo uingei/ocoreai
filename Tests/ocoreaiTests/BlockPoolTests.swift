@@ -8,6 +8,7 @@ import Testing
 import Foundation
 import Logging
 @testable import ocoreai
+import ocoreaiTestUtilities
 
 @Suite("BlockPoolConfig Defaults")
 struct BlockPoolConfigTests {

@@ -13,11 +13,12 @@
 import Testing
 import Foundation
 @testable import ocoreai
+import ocoreaiTestUtilities
 
 // MARK: - L2: InferenceCancellation state machine
 
 @Suite("InferenceCancellation: cancel→propagate→idempotent")
-struct CancellationTests {
+struct PipelineCancellationTests {
     
     @Test("Cancellable token lifecycle: not cancelled → cancel → cancelled")
     func cancellableBecomesCancelled() async {

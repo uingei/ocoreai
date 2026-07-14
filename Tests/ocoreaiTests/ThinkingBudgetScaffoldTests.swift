@@ -9,9 +9,10 @@
 import Testing
 import Foundation
 @testable import ocoreai
+import ocoreaiTestUtilities
 
-@Suite("ThinkingBudget: adaptive scaffolding calibration")
-struct ThinkingBudgetScaffoldTests {
+@Suite("ThinkingBudget — Adaptive complexity band adjustment")
+struct ThinkingBudgetAdaptiveTests {
 
     // MARK: - Simple band: zero-overhead for non-precision tasks
 

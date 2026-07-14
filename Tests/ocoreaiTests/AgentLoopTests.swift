@@ -12,6 +12,7 @@
 import Testing
 import Foundation
 @testable import ocoreai
+import ocoreaiTestUtilities
 
 // MARK: - AgentLoopResult
 

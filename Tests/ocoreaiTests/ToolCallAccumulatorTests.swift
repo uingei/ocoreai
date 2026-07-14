@@ -13,7 +13,9 @@
 import Testing
 import Foundation
 @testable import ocoreai
+import ocoreaiTestUtilities
 
+/// Tool Call Accumulator tests — chunk-by-chunk injection, malformed recovery,
 // MARK: - Chunk-by-chunk injection (upstream ToolTests pattern)
 
 @Suite("ToolCallAccumulator: chunk-by-chunk injection")

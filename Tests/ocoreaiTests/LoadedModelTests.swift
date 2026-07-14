@@ -11,6 +11,7 @@ import Foundation
 import Logging
 import Atomics
 @testable import ocoreai
+import ocoreaiTestUtilities
 
 // MARK: - coreai-only types (compiled out when coreai unavailable)
 

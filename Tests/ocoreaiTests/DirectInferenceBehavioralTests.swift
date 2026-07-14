@@ -11,7 +11,9 @@
 ///   3. InferenceRequest default vs explicit sampling params
 
 import Testing
+import Foundation
 @testable import ocoreai
+import ocoreaiTestUtilities
 
 // MARK: - DirectChunkMetadata Codable round-trip
 
@@ -65,15 +67,15 @@ struct ChunkMetadataTests {
         let decodedEnd = try! JSONDecoder().decode(
             DirectChatChunk.DirectChunkMetadata.self, from: dataEnd
         )
-        #expect(try decodedStart.caseName() == "reasoningStart")
-        #expect(try decodedEnd.caseName() == "reasoningEnd")
+        #expect(try! decodedStart.caseName() == "reasoningStart")
+        #expect(try! decodedEnd.caseName() == "reasoningEnd")
     }
 }
 
 // MARK: - InferenceCancellation state machine
 
 @Suite("InferenceCancellation — cancel propagation")
-struct CancellationTests {
+struct DirectInferenceCancellationTests {
 
     @Test("fresh token is not cancelled")
     func freshNotCancelled() {

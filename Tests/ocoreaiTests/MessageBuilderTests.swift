@@ -15,6 +15,7 @@ import Testing
 import Foundation
 import Logging
 @testable import ocoreai
+import ocoreaiTestUtilities
 
 private func makeFixture() async throws -> MessageBuilder {
     let tmpPath = "/tmp/ocoreai_test_\(UUID().uuidString.prefix(8)).db"

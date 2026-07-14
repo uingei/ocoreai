@@ -14,6 +14,7 @@
 
 import Testing
 @testable import ocoreai
+import ocoreaiTestUtilities
 
 @Suite("MMContextEntry — shouldSendAsText routing logic")
 struct MMContextEntryRouteTests {

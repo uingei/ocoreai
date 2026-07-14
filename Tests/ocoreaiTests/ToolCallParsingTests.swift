@@ -13,7 +13,9 @@
 
 import Testing
 @testable import ocoreai
+import ocoreaiTestUtilities
 
+/// parseToolCalls tests — detection, false positive prevention, safe rejection.
 // MARK: - Helpers
 
 private func jsonToolCalls(_ entries: [[String: Any]]) -> String {

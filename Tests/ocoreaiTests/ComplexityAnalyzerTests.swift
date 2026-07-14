@@ -10,6 +10,7 @@
 import Testing
 import Foundation
 @testable import ocoreai
+import ocoreaiTestUtilities
 
 @Suite("ComplexityAnalyzer — Keyword Classification")
 struct ComplexityAnalyzerKeywordTests {
@@ -267,7 +268,7 @@ struct ComplexityAnalyzerTrackingTests {
 		let baseline = await analyzer.sessionBaseline(sessionId: "s1")
 		#expect(baseline != nil)
 		#expect((baseline ?? 0) >= 0.0)
-		#expect((baseline ?? 1) <= 1.0)
+		#expect((baseline ?? 0) <= 1.0)
 	}
 
 	@Test("Global baseline shifts toward recent low-complexity scores")
@@ -371,11 +372,15 @@ struct ComplexityAnalyzerEnumTests {
 			#expect(decoded.rawValue == type.rawValue)
 		}
 	}
+	// MARK: - Score bounds
 
-	@Test("ComplexityScore Sendable struct has all fields")
-	func testComplexityScoreFields() async {
-		let analyzer = ComplexityAnalyzer()
-		let score = await analyzer.analyze(input: "test", messageCount: 1, sessionId: "cs")
+	@Test("ComplexityScore fields bounded to [0.0, 1.0]")
+	func scoreFieldsBounded() async {
+		let score = await ComplexityAnalyzer().analyze(
+			input: "write a python function",
+			messageCount: 1,
+			sessionId: "cs"
+		)
 		#expect(score.composite >= 0)
 		#expect(score.composite <= 1)
 		#expect(score.length >= 0)
@@ -384,7 +389,5 @@ struct ComplexityAnalyzerEnumTests {
 		#expect(score.intent <= 1)
 		#expect(score.history >= 0)
 		#expect(score.history <= 1)
-		#expect(score.band != nil)
-		#expect(score.taskType != nil)
 	}
 }

@@ -10,6 +10,7 @@
 import Testing
 import Foundation
 @testable import ocoreai
+import ocoreaiTestUtilities
 
 // MARK: - ChatMessage textContent invariants
 
