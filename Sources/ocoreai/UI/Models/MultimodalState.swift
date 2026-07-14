@@ -232,10 +232,9 @@ final class MultimodalState {
 	/// not "any character", so multiline code blocks were never removed.
 	func speakIfEnabled(_ text: String) {
 		guard self.speakerEnabled, !text.isEmpty else { return }
-		// Strip <thinking> tags (single-line OK)
-		let stripped = text.replacingOccurrences(of: "<thinking>[^<]*</thinking>",
-		                                       with: "",
-		                                       options: .regularExpression)
+		// Strip <thinking> tags — greedy match handles multiline content and
+		// nested HTML/code fragments inside reasoning blocks.
+		let stripped = Self.stripThinkingTags(from: text)
 		// P0-fix: line-by-line code block scanner replaces broken [\\s\\S] regex
 		var content = stripCodeBlocks(from: stripped)
 		// Truncate to 500 chars to avoid reading out very long outputs
@@ -248,9 +247,22 @@ final class MultimodalState {
 		MMAudioIO.shared.speak(content)
 	}
 
+	/// Strip ``<thinking>`` blocks using NSRegularExpression so .*? matches
+	/// across newlines and nested content.
+	private nonisolated static func stripThinkingTags(from text: String) -> String {
+		guard text.contains("<thinking>") else { return text }
+		return (try? NSRegularExpression(
+			pattern: "<thinking>.*?</thinking>",
+			options: .dotMatchesLineSeparators,
+			encoding: NSUnicode(utf8Encoding)
+		).stringByReplacingMatches(in: text,
+		                          range: NSRange(text.startIndex..., in: text),
+		                          withTemplate: "")) ?? text
+	}
+
 	/// Remove fenced code blocks line-by-line.
 	/// Returns text with ``` … ``` regions replaced by "[code omitted]".
-	private func stripCodeBlocks(from content: String) -> String {
+	private nonisolated func stripCodeBlocks(from content: String) -> String {
 		let lines = content.components(separatedBy: "\n")
 		var filtered = [String]()
 		var inCodeBlock = false
@@ -286,16 +298,20 @@ final class MultimodalState {
 			screen = self.screenCaptureEnabled,
 			enc = self.encoder,
 			key = self.storageKey
-		] in
+			] in
 			try? await Task.sleep(for: .milliseconds(200))
-			Task.isCancelled ? () : ()
+			try? Task.checkCancellation()
 			let snapshot = Snapshot(
 				cameraEnabled: camera,
 				microphoneEnabled: mic,
 				speakerEnabled: spk,
 				screenCaptureEnabled: screen
 			)
-			try? enc.encode(snapshot).write(to: key)
+			do {
+				try enc.encode(snapshot).write(to: key)
+			} catch {
+				mmLogger.error("[MultimodalState] Failed to persist toggle state: \(error)")
+			}
 		}
 	}
 
