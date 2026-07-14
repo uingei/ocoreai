@@ -124,16 +124,4 @@ struct OOMGuardBehavioralTests {
     }
 }
 
-// MARK: - SamplingConfiguration normalized() edge cases
 
-@Suite("SamplingConfiguration.normalized() edge cases")
-struct SamplingNormalizationTests {
-
-    @Test("negative temperature is not treated as greedy")
-    func negativeTemperaturePreservesParams() {
-        let config = SamplingConfiguration(temperature: -0.5, topP: 0.9, topK: 50)
-        let normalized = config.normalized()
-        #expect(normalized.topP == 0.9)
-        #expect(normalized.topK == 50)
-    }
-}

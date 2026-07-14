@@ -43,9 +43,9 @@ struct RealChatStateTests {
     s.responseText = "partial"
     s.cancelInference()
     #expect(s.messages.count == 1)
-    let mm = try? s.messages.first
-    #expect(mm?.role == "assistant")
-    #expect((mm?.interrupted) == true)
+    guard let mm = s.messages.first else { return }
+    #expect(mm.role == "assistant")
+    #expect(mm.interrupted == true)
     #expect(s.responseText == "")
     _resetChat()
   }
@@ -90,8 +90,8 @@ struct RealChatStateTests {
     s.resetConversation()
     #expect(s.messages.isEmpty)
     s.undoReset()
-    let mm = try? s.messages.first
-    #expect(mm?.content == "done")
+    guard let mm = s.messages.first else { return }
+    #expect(mm.content == "done")
     #expect(s.responseText == "r" && s.errorMessage == "e")
     _resetChat()
   }

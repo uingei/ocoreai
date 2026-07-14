@@ -82,6 +82,14 @@ struct SamplingConfigNormalizedTests {
         #expect(normalized.topP == 0.95)
         #expect(normalized.topK == 40)
     }
+    
+    @Test("normalized() does NOT drop topK/topP when temperature is negative (not greedy)")
+    func normalizedNegativeTemperaturePreservesParams() {
+        let config = SamplingConfiguration(temperature: -0.5, topP: 0.9, topK: 50)
+        let normalized = config.normalized()
+        #expect(normalized.topP == 0.9)
+        #expect(normalized.topK == 50)
+    }
 }
 
 @Suite("SamplingConfiguration: task-aware temperature adjustment")

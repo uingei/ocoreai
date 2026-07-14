@@ -325,6 +325,9 @@ struct ComplexityCacheTests {
         let taskType = await builder.lastTaskType()
         #expect(taskType == .code, "Python linked-list prompt should be classified as .code (got \(taskType.rawValue))")
         // Verify score composite is populated — code task should yield a positive score
-        #expect(score?.composite ?? 0 > 0, "Code task should have positive composite score")
+        // ComplexityAnalyzer: 20 messages (messageCount=20 → complexity ≥ 0.15)
+        // + code keywords → task multiplier → composite ≥ 0.2
+        #expect(score?.composite ?? 0 >= 0.2,
+                "Code task composite should be ≥ 0.2 (got \(score?.composite ?? 0))")
     }
 }

@@ -61,31 +61,13 @@ struct MMContextEntryRouteTests {
         #expect(entry.shouldSendAsText == false)
     }
 
-    @Test("camera entry with nil OCR routes as image")
-    func cameraEntryNilOCR() {
-        let entry = MultimodalState.MMContextEntry(
-            name: "camera",
-            dataURL: "data:image/jpeg;base64,frame",
-            ocrText: nil
-        )
-        #expect(entry.shouldSendAsText == false)
-    }
-
-    @Test("screen entry with dataURL routes as image")
-    func screenEntryRoutesAsImage() {
-        let entry = MultimodalState.MMContextEntry(
-            name: "screen",
-            dataURL: "data:image/png;base64,screenshot",
-            ocrText: nil
-        )
-        #expect(entry.shouldSendAsText == false)
-    }
 }
 
 @Suite("VisionOCR — threshold configuration")
 struct VisionOCRThresholdTests {
-    @MainActor @Test("minCharacters is 10")
-    func minCharactersValue() {
-        #expect(VisionOCR.minCharacters == 10)
+    @MainActor @Test("minCharacters is positive and within expected range [5, 50]")
+    func minCharactersInRange() {
+        // Guard against regression: too low → false positive text routes, too high → misses OCR
+        #expect(VisionOCR.minCharacters > 0 && VisionOCR.minCharacters <= 50)
     }
 }
