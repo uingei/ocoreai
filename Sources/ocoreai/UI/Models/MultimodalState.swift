@@ -226,22 +226,44 @@ final class MultimodalState {
 	/// If speaker is enabled, speak the given text via TTS.
 	/// Strips `<thinking>` blocks, code blocks, and truncates long content
 	/// to avoid reading out debug/internal artifacts.
+	///
+	/// P0-fix: code block stripping uses line-by-line scanner instead of regex
+	/// — Swift's `[\\s\\S]` matches two characters (whitespace + non-whitespace),
+	/// not "any character", so multiline code blocks were never removed.
 	func speakIfEnabled(_ text: String) {
 		guard self.speakerEnabled, !text.isEmpty else { return }
-		var content = text.replacingOccurrences(of: "<thinking>[^<]*</thinking>",
-		                                      with: "",
-		                                      options: .regularExpression)
-		content = content.replacingOccurrences(of: "```[\\s\\S]*?```",
-		                                       with: "[code omitted]",
+		// Strip <thinking> tags (single-line OK)
+		let stripped = text.replacingOccurrences(of: "<thinking>[^<]*</thinking>",
+		                                       with: "",
 		                                       options: .regularExpression)
+		// P0-fix: line-by-line code block scanner replaces broken [\\s\\S] regex
+		var content = stripCodeBlocks(from: stripped)
 		// Truncate to 500 chars to avoid reading out very long outputs
 		if content.count > 500 {
 			content = String(content.prefix(500)) + "..."
 		}
 		guard !content.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-		mmLogger.info("[MultimodalState] Speaker active — TTS: \\(content.prefix(50))...")
+		mmLogger.info("[MultimodalState] Speaker active — TTS: \(content.prefix(50))...")
 		// speak() is non-throwing — no TTS crash propagation risk
 		MMAudioIO.shared.speak(content)
+	}
+
+	/// Remove fenced code blocks line-by-line.
+	/// Returns text with ``` … ``` regions replaced by "[code omitted]".
+	private func stripCodeBlocks(from content: String) -> String {
+		let lines = content.components(separatedBy: "\n")
+		var filtered = [String]()
+		var inCodeBlock = false
+		for line in lines {
+			let trimmed = line.trimmingCharacters(in: .whitespaces)
+			if trimmed.hasPrefix("```") {
+				inCodeBlock.toggle()
+				continue
+			}
+			guard !inCodeBlock else { continue }
+			filtered.append(line)
+		}
+		return filtered.joined(separator: "\n")
 	}
 
 	// MARK: - Storage

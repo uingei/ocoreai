@@ -223,9 +223,11 @@ extension EnginePool {
 			let promptText = await (try? detokenize(modelId: modelId, tokens: input))
 				?? "<detokenization failed>"
 		
-			// Check for known control tokens that will be lost in detokenize→retokenize roundtrip
-			let knownControlTokens = Set([151645, 151646, 198, 27]) // <|begin_of_thought|>, <|eot_id|>, newline, ESC
-			if input.contains(where: { knownControlTokens.contains(Int($0)) }) {
+			// Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
+			// P0-fix: removed universal ASCII control chars (newline=198, ESC=27) — they fire on every request
+			// and flood the log. Only flag reasoning-specific tokens (<|begin_of_thought|>, <|eot_id|>).
+			let reasoningControlTokens = Set([151645, 151646]) // <|begin_of_thought|>, <|eot_id|>
+			if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
 				logger.warning("MLX token→text→token path may drop control tokens for model \(modelId)")
 			}
 		
@@ -598,16 +600,17 @@ extension EnginePool {
 					}
 
 				if let pool = poolRef {
-					let newMessageCount = isPoolHit ? (deltaOffset + mlxMessages.count - deltaOffset) : mlxMessages.count
+					// P0-fix: deltaOffset + mlxMessages.count - deltaOffset == mlxMessages.count
+					// always — simplified to remove dead ternary.
 					await pool.release(
 						pooled: PooledChatSession(
 							session: chatSession,
 							lastAccessedAt: ContinuousClock.now,
-							messageCount: newMessageCount,
+							messageCount: mlxMessages.count,
 						),
 						modelId: modelId,
 						conversationId: convKey,
-						processedMessageCount: newMessageCount,
+						processedMessageCount: mlxMessages.count,
 					)
 				}
 			}
