@@ -253,11 +253,10 @@ final class MultimodalState {
 		guard text.contains("<thinking>") else { return text }
 		return (try? NSRegularExpression(
 			pattern: "<thinking>.*?</thinking>",
-			options: .dotMatchesLineSeparators,
-			encoding: NSUnicode(utf8Encoding)
+			options: .dotMatchesLineSeparators
 		).stringByReplacingMatches(in: text,
-		                          range: NSRange(text.startIndex..., in: text),
-		                          withTemplate: "")) ?? text
+	                          range: NSRange(text.startIndex..., in: text),
+	                          withTemplate: "")) ?? text
 	}
 
 	/// Remove fenced code blocks line-by-line.

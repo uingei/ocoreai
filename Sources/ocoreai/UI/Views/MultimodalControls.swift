@@ -70,11 +70,11 @@
 			)
 			.accessibilityLabel(StringKey.multimodalControlsLabel.l)
 			// React to service frame changes — update relay vars for DataURLPreview bindings
-			.onChange(of: captureService.latestFrameDataURL) {
-				cameraFrameURL = $0
+			.onChange(of: captureService.latestFrameDataURL) { _, newValue in
+				cameraFrameURL = newValue
 			}
-			.onChange(of: mmState.screenSnapshot) {
-				screenFrameURL = $0
+			.onChange(of: mmState.screenSnapshot) { _, newValue in
+				screenFrameURL = newValue
 			}
 		}
 
