@@ -10,17 +10,21 @@
 
 	struct MultimodalControls: View {
 		@Environment(\.ocoreaiTheme) private var theme
+		// Observation: these singletons are @Observable types — property access in body
+		// automatically establishes reactive dependencies (SE-0403 Observation framework).
+		// `let` is sufficient; no property wrapper needed.
 		private let mmState = MultimodalState.shared
 		private let captureService = CaptureService.shared
 		private let audioIO = AudioIO.shared
 		private let screenshotService = ScreenshotService.shared
 
-		// Camera preview frame — bound for DataURLPreview reactivity
+		// Camera/screen preview frame relay — needed solely because DataURLPreview
+		// requires a @Binding. The @Observable properties above make the rest of the
+		// body reactive to external state changes.
 		@State private var cameraFrameURL: String?
 		@State private var screenFrameURL: String?
 
 		init() {
-			// Seed initial frame URLs from services so previews render immediately
 			_cameraFrameURL = State(initialValue: CaptureService.shared.latestFrameDataURL)
 			_screenFrameURL = State(initialValue: MultimodalState.shared.screenSnapshot)
 		}
@@ -65,12 +69,12 @@
 					.stroke(theme.inputBorder.opacity(0.5), lineWidth: 1),
 			)
 			.accessibilityLabel(StringKey.multimodalControlsLabel.l)
-			// React to service frame changes
-			.onChange(of: captureService.latestFrameDataURL) { _, _ in
-				cameraFrameURL = captureService.latestFrameDataURL
+			// React to service frame changes — update relay vars for DataURLPreview bindings
+			.onChange(of: captureService.latestFrameDataURL) {
+				cameraFrameURL = $0
 			}
-			.onChange(of: mmState.screenSnapshot) { _, _ in
-				screenFrameURL = mmState.screenSnapshot
+			.onChange(of: mmState.screenSnapshot) {
+				screenFrameURL = $0
 			}
 		}
 

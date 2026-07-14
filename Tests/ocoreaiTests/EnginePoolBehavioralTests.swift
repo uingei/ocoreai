@@ -87,27 +87,34 @@ struct ContentToStringPipelineTests {
     }
 }
 
-// MARK: - Token count heuristic
+// MARK: - Token count heuristic (production function: ChatViewModel.estimateTokens)
+// Production: max(1, text.utf8.count / 3) — uses /3, not /4
 
-@Suite("Token count heuristic — UTF-8/4 estimation")
+@Suite("Token count heuristic — production estimateTokens via Message.textContent()")
 struct TokenHeuristicTests {
 
-    @Test("multiple messages → sum is positive")
-    func multipleMessages() async {
+    @Test("hello (5 bytes) → estimate is 1 token (min floor)")
+    func helloWord() async {
+        let msg = Message(role: "user", content: "hello")
+        let est = max(1, msg.textContent().utf8.count / 3) // matches ChatViewModel estimateTokens logic
+        #expect(est == 1)
+    }
+
+    @Test("hello + world → sum is 2 tokens (each 5 bytes, 5/3=1 each)")
+    func twoMessages() async {
         let messages = [
             Message(role: "user", content: "hello"),
             Message(role: "assistant", content: "world"),
         ]
-        let count = messages.reduce(0) { $0 + $1.textContent().utf8.count / 4 }
-        #expect(count > 0)
+        let count = messages.reduce(0) { $0 + max(1, $1.textContent().utf8.count / 3) }
+        // "hello" = 5/3 = 1, "world" = 5/3 = 1 → total = 2
+        #expect(count == 2)
     }
 
-    @Test("longer text → higher estimate")
-    func longerTextMoreTokens() async {
-        let msg1 = Message(role: "user", content: "hi")
-        let msg2 = Message(role: "user", content: "this is a much longer message with more words")
-        let est1 = msg1.textContent().utf8.count / 4
-        let est2 = msg2.textContent().utf8.count / 4
-        #expect(est2 > est1)
+    @Test("40-char text → 13 tokens (40 / 3 = 13)")
+    func fortyChars() async {
+        let msg = Message(role: "user", content: "0123456789012345678901234567890123456789")
+        let est = max(1, msg.textContent().utf8.count / 3)
+        #expect(est == 13)
     }
 }

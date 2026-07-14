@@ -50,11 +50,10 @@ struct MemoryPressureInvariantsTests {
         
         let poolStats = await cache.poolStats()
         #expect(poolStats.activeBlocks >= 0)
-        // Pool has sessions, active blocks should be tracked
     }
     
-    @Test("BUG: attach() creates session despite memory pressure after eviction")
-    func memoryBypassAfterEviction() async {
+    @Test("KNOWN: attach() allows session despite memory pressure when all sessions are active")
+    func memoryBypassAfterEvictionCurrent() async {
         let config = PagedKVCacheConfig(
             tokensPerBlock: 16,
             maxSessions: 10,
@@ -84,20 +83,10 @@ struct MemoryPressureInvariantsTests {
         
         // Known limitation: attach() checks memory pressure and calls evictIdleSessions,
         // but does NOT re-check pressure before creating the session.
-        // Since all sessions are active, eviction finds nothing to evict,
-        // yet the new session is still created.
-        // This test verifies the current (limitation) behavior — session IS created.
-        // Once fixed, this test should expect an error instead.
-        do {
-            try await cache.attach(sessionId: "should_reject")
-            // Current behavior: session is created despite pressure
-            let activeCount = await cache.activeSessions
-            #expect(activeCount == 6, "Session was still created despite memory pressure (active: \(activeCount))")
-        } catch {
-            // If the bug is fixed, attach will reject — test still passes
-            // This is the DESIRED behavior once the fix lands
-            Issue.record("Attach correctly rejected due to memory pressure: \(error)")
-        }
+        // Test documents current behavior — session IS still created.
+        try? await cache.attach(sessionId: "should_reject")
+        let activeCount = await cache.activeSessions
+        #expect(activeCount == 6, "Current behavior: session created despite pressure (active: \(activeCount))")
     }
     
     @Test("Session count respects maxSessions limit")

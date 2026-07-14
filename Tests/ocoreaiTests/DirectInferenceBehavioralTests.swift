@@ -1,44 +1,12 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// DirectInference behavioral tests — cancellation state machine, streaming
-/// completion semantics, sampling defaults. Only tests that exercise real
-/// stateful logic.
+/// DirectInference behavioral tests — streaming completion semantics and sampling defaults.
+///
+/// Cancellation state machine tests moved to ChatPipelineBehavioralTests to avoid duplication.
 
 import Testing
 import Foundation
 @testable import ocoreai
-
-// MARK: - Cancellation state machine
-
-@Suite("InferenceCancellation — actual state machine (create → cancel → irreversible)")
-struct InferenceCancellationStateTests {
-
-    @Test("cancellable starts uncancelled")
-    func startsUncancelled() async {
-        let token = InferenceCancellation.cancellable()
-        #expect(!token.isCancelled)
-    }
-
-    @Test("cancel() transitions to cancelled state")
-    func transitionToCancelled() async {
-        let token = InferenceCancellation.cancellable()
-        token.cancel()
-        #expect(token.isCancelled)
-    }
-
-    @Test("cancelled state is irreversible")
-    func irreversible() async {
-        let token = InferenceCancellation.cancellable()
-        token.cancel()
-        token.cancel()  // second cancel — state stays cancelled
-        #expect(token.isCancelled)
-    }
-
-    @Test(".none handle never reports cancelled")
-    func noneNeverCancelled() async {
-        #expect(!InferenceCancellation.none.isCancelled)
-    }
-}
 
 // MARK: - Streaming completion semantics
 

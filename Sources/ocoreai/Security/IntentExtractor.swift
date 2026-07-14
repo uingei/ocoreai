@@ -101,20 +101,16 @@ struct IntentExtractor {
 				? .askQuestion : .other
 		}
 
-		// Determine urgency
+		// Determine urgency — always keep the highest level found
 		var urgency: IntentUrgency = .medium
 		for (urgencyType, patterns) in urgencyPatterns {
 			for pattern in patterns {
 				if lowerText.contains(pattern) {
 					matchedKeywords.append(pattern)
-					// Use the highest urgency found
-					switch urgencyType {
-					case .urgent: break // Can't go higher
-					case .high: urgency = .high
-					case .medium: break // Default
-					case .low: break
-					}
-					if urgencyType.rawValue < urgency.rawValue || urgency == .medium {
+					// Upgrade only: .urgent > .high > .medium > .low
+					if urgencyType == .urgent ||
+					   (urgencyType == .high && urgency != .urgent) ||
+					   (urgencyType == .medium && urgency == .medium) {
 						urgency = urgencyType
 					}
 				}

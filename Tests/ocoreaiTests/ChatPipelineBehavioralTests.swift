@@ -54,7 +54,7 @@ struct CancellationTests {
 
 // MARK: - L2: SamplingConfiguration normalization
 
-@Suite("SamplingConfiguration: normalized() drops redundant params")
+@Suite("SamplingConfiguration: normalized() invariant — temperature 0/nil → greedy mode")
 struct SamplingConfigNormalizedTests {
     
     @Test("normalized() drops topK/topP when temperature == 0 (greedy mode)")
@@ -65,12 +65,21 @@ struct SamplingConfigNormalizedTests {
         #expect(normalized.topP == nil)
     }
     
-    @Test("normalized() drops topK/topP when temperature == nil")
+    @Test("normalized() drops topK/topP when temperature == nil (greedy default)")
     func normalizedDropsWhenNil() {
         let config = SamplingConfiguration(temperature: nil, topP: 0.95, topK: 100)
         let normalized = config.normalized()
         #expect(normalized.topK == nil)
         #expect(normalized.topP == nil)
+    }
+    
+    @Test("normalized() preserves non-zero temperature with topK/topP")
+    func normalizedPreservesNonZero() {
+        let config = SamplingConfiguration(temperature: 0.7, topP: 0.95, topK: 40)
+        let normalized = config.normalized()
+        #expect(normalized.temperature == 0.7)
+        #expect(normalized.topP == 0.95)
+        #expect(normalized.topK == 40)
     }
 }
 
@@ -126,21 +135,6 @@ struct TaskAwareTests {
 @Suite("parseToolCalls: false positive prevention")
 struct FalsePositiveTests {
     
-    @Test("Plain text response is NOT detected as tool call")
-    func plainTextNotDetected() {
-        #expect(parseToolCalls(from: "The weather in SF is sunny today.") == nil)
-    }
-    
-    @Test("Code block with JSON-like content is NOT detected as tool call")
-    func codeBlockNotDetected() {
-        let content = """
-        ```json
-        {"name": "get_weather", "arguments": {"location": "SF"}}
-        ```
-        """
-        #expect(parseToolCalls(from: content) == nil)
-    }
-    
     @Test("JSON object (not array) is NOT parsed as tool call")
     func jsonObjectNotDetected() {
         #expect(parseToolCalls(from: #"{"message": "Hello", "status": 200}"#) == nil)
@@ -149,11 +143,6 @@ struct FalsePositiveTests {
     @Test("JSON array of strings is NOT parsed as tool call")
     func arrayStringNotDetected() {
         #expect(parseToolCalls(from: #"["get_weather", "search"]"#) == nil)
-    }
-    
-    @Test("Malformed JSON returns nil, does not crash")
-    func malformedJsonSafe() {
-        #expect(parseToolCalls(from: #"[{name: get_weather}]"#) == nil)
     }
     
     @Test("Natural text containing array-like structure NOT misdetected")

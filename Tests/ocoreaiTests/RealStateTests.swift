@@ -12,6 +12,8 @@ func _resetChat() {
   // then clear all state to known defaults.
   s.undoReset()
   s.messages = []; s.responseText = ""; s.errorMessage = nil; s.loading = false
+  // P0-fix: reset idempotency barrier so cancelInference fires clean next test
+  s._cancelledByUI = false
 }
 
 @MainActor

@@ -236,7 +236,10 @@ struct ChatView: View {
 		// B4 fix: removed .sheet — model search/load already available via Models tab
 		// P0-2: On model selector change, unload old model to free GPU memory
 		.onChange(of: currentModel) { _, newModel in
-			let targetModel = newModel.isEmpty ? "local" : newModel
+			let targetModel = newModel.isEmpty
+				? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? ""
+				: newModel
+			guard !targetModel.isEmpty else { return }
 			chatState.onModelChanged(newModelId: targetModel)
 		}
 		.accessibilityLabel(StringKey.chatLabel.l)

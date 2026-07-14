@@ -256,8 +256,7 @@ struct AccEOS {
 	func trimsWhitespace() async {
 		var acc = ToolCallAccumulator()
 		acc.processChunk("   \n\t  ")
-		acc.processEOS()
-		#expect(true)  // No crash = pass
+		#expect(acc.processEOS() == nil)
 	}
 
 	@Test("Tool call IDs generated with call_ prefix")

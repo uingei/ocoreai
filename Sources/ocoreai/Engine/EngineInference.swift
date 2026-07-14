@@ -41,20 +41,21 @@ extension EnginePool {
 		AsyncThrowingStream { continuation in
 			Task { [self] in
 				let deadline = ContinuousClock.now + .seconds(config.inferenceTimeoutSeconds)
-				let tracker = Task<Void, Never> {
-					await self._runInference(
-						modelId: modelId,
-						input: input,
-						sampling: sampling,
-						options: options,
-						metrics: metrics,
-						continuation: continuation,
-						cancellation: cancellation,
-					)
-					()
-				}
-				registerTrackedTask(tracker)
+				// P0-2 fix: tracker, register, and cleanup inside group eliminates race window
 				await withTaskGroup(of: Void.self) { group in
+					let tracker = Task<Void, Never> {
+						await self._runInference(
+							modelId: modelId,
+							input: input,
+							sampling: sampling,
+							options: options,
+							metrics: metrics,
+							continuation: continuation,
+							cancellation: cancellation,
+						)
+						()
+					}
+					registerTrackedTask(tracker)
 					group.addTask {
 						await tracker.value
 					}
@@ -74,8 +75,8 @@ extension EnginePool {
 							cancellation.cancel()
 						}
 					}
+					removeTrackedTask(tracker)
 				}
-				removeTrackedTask(tracker)
 			}
 		}
 	}
@@ -94,21 +95,22 @@ extension EnginePool {
 			AsyncThrowingStream { continuation in
 				Task { [self] in
 					let deadline = ContinuousClock.now + .seconds(config.inferenceTimeoutSeconds)
-					let tracker = Task<Void, Never> {
-						await self._runInferenceWithMessages(
-							modelId: modelId,
-							messages: messages,
-							sampling: sampling,
-							options: options,
-							metrics: metrics,
-							continuation: continuation,
-							conversationId: conversationId,
-							cancellation: cancellation,
-						)
-						()
-					}
-					registerTrackedTask(tracker)
+					// P0-2 fix: tracker, register, and cleanup inside group eliminates race window
 					await withTaskGroup(of: Void.self) { group in
+						let tracker = Task<Void, Never> {
+							await self._runInferenceWithMessages(
+								modelId: modelId,
+								messages: messages,
+								sampling: sampling,
+								options: options,
+								metrics: metrics,
+								continuation: continuation,
+								conversationId: conversationId,
+								cancellation: cancellation,
+							)
+							()
+						}
+						registerTrackedTask(tracker)
 						group.addTask {
 							await tracker.value
 						}
@@ -128,8 +130,8 @@ extension EnginePool {
 								cancellation.cancel()
 							}
 						}
+						removeTrackedTask(tracker)
 					}
-					removeTrackedTask(tracker)
 				}
 			}
 		}

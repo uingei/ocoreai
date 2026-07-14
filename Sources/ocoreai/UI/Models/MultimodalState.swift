@@ -47,7 +47,7 @@ final class MultimodalState {
 	/// Camera enabled — starts/stops CaptureService automatically
 	var cameraEnabled: Bool = false {
 		didSet {
-			guard !_restoring else { return }
+			guard !_restoring, oldValue != self.cameraEnabled else { return }
 			save()
 			wireCamera(self.cameraEnabled)
 		}
@@ -56,7 +56,7 @@ final class MultimodalState {
 	/// Microphone enabled — starts/stops AudioIO automatically
 	var microphoneEnabled: Bool = false {
 		didSet {
-			guard !_restoring else { return }
+			guard !_restoring, oldValue != self.microphoneEnabled else { return }
 			save()
 			wireMicrophone(self.microphoneEnabled)
 		}
@@ -65,7 +65,7 @@ final class MultimodalState {
 	/// Speaker (TTS) enabled — starts/stops AudioIO TTS automatically
 	var speakerEnabled: Bool = false {
 		didSet {
-			guard !_restoring else { return }
+			guard !_restoring, oldValue != self.speakerEnabled else { return }
 			save()
 		}
 	}
@@ -73,7 +73,7 @@ final class MultimodalState {
 	/// Screen capture enabled — starts/stops ScreenshotService automatically
 	var screenCaptureEnabled: Bool = false {
 		didSet {
-			guard !_restoring else { return }
+			guard !_restoring, oldValue != self.screenCaptureEnabled else { return }
 			save()
 			wireScreen(self.screenCaptureEnabled)
 		}
@@ -174,9 +174,9 @@ final class MultimodalState {
 		let dataURL: String? /// nil when OCR text replaces the image
 		let ocrText: String? /// Significant text recognized from the frame
 
-		/// Check if this entry should be sent as text (OCR significant) vs image.
+		/// Check if this entry should be sent as text (OCR significant and non-empty) vs image.
 		var shouldSendAsText: Bool {
-			ocrText != nil && dataURL == nil
+			ocrText != nil && !ocrText!.isEmpty && dataURL == nil
 		}
 	}
 

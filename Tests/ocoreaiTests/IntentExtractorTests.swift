@@ -85,11 +85,10 @@ struct IntentActionTests {
 struct IntentUrgencyTests {
     let extractor = IntentExtractor()
 
-    @Test("urgent keywords detected — maps to .high due to rawValue ordering bug")
+    @Test("urgent keywords detected")
     func urgent() {
         let intent = extractor.extract(from: "Fix this immediately ASAP")
-        // NOTE: Source code has a rawValue comparison bug where .high > .urgent
-        #expect(intent.urgency == .high)
+        #expect(intent.urgency == .urgent)
     }
 
     @Test("high urgency detected")

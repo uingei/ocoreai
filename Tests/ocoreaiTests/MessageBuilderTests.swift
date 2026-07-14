@@ -317,10 +317,11 @@ struct ComplexityCacheTests {
             sessionId: "s1"
         )
         _ = try await builder.buildMessages(context: ctx)
-        let tt = await builder.lastTaskType()
-        // ComplexityAnalyzer uses keyword matching for code tasks — "function", "reverses", "linked list" should hit .code
         let score = await builder.lastComplexityScore()
         #expect(score != nil, "Complexity score should be populated after build")
-        #expect(tt == score?.taskType, "Cached taskType should match score.taskType")
+        // "function", "reverses", "linked list" → .code via keyword match
+        let taskType = await builder.lastTaskType()
+        #expect(taskType == .code, "Python linked-list prompt should be classified as .code (got \(taskType.rawValue))")
+        #expect(score?.taskType == .code, "Score.taskType should also be .code (got \(score?.taskType.rawValue ?? "nil"))")
     }
 }

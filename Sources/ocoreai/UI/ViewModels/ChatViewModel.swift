@@ -157,7 +157,20 @@ final class ChatState {
 
 	/// P0-fix: Idempotency barrier — `cancelInference()` appends the interrupted message
 	/// and clears it; the stream tail check must NOT append again.
-	private var _cancelledByUI = false
+	/// internal (not private) so @testable import can reset it for test isolation.
+	internal var _cancelledByUI = false
+	
+	// MARK: - Message filtering (exposed for test coverage)
+
+	/// Filter out system messages and interrupted assistant messages.
+	/// Same predicate used by `chat()` before sending to inference engine.
+	/// internal (not private) so @testable import can exercise the real predicate.
+	internal func cleanMessages(_ msgs: [ChatMessage]) -> [ChatMessage] {
+		msgs.filter {
+			$0.role != "system"
+			&& !($0.role == "assistant" && $0.interrupted)
+		}
+	}
 
 	/// Cancel the current inference stream immediately.
 	/// Safe to call multiple times and when no stream is active.
@@ -358,23 +371,17 @@ final class ChatState {
 		currentCancellation = cancellation
 
 		do {
-		// Build InferenceRequest — exclude interrupted assistant messages and system messages
-		// to prevent partial responses degrading the model's context.
-		// NOTE: only filter assistant messages — user messages are always included
-		// even if they contain interrupted text (e.g. user re-sending a previous response).
-		let cleanMessages = messages
-			.filter {
-				$0.role != "system"
-				&& !($0.role == "assistant" && $0.interrupted)
-			}
+		// Build InferenceRequest — exclude interrupted assistant messages and system messages.
+		// cleanMessages delegates to the same predicate exposed for test coverage.
+		let cleanMsgs = cleanMessages(messages)
 
 		// Convert to typed Messages — last user message gets multimodal parts if available
 		// OCR bridge: mmContext entries with OCR text are injected as text parts,
 		// image entries as image_url parts, saving ~97% tokens for text-rich frames.
 		let typedMessages: [Message] = {
 			var result: [Message] = []
-			let count = cleanMessages.count
-			for (idx, msg) in cleanMessages.enumerated() {
+			let count = cleanMsgs.count
+			for (idx, msg) in cleanMsgs.enumerated() {
 				// If this is the last user message AND we have multimodal context,
 				// inject context as ContentPart text/image parts
 				let isLastUserMsg = (msg.role == "user") && (idx == count - 1) && !allContext.isEmpty
@@ -481,7 +488,6 @@ final class ChatState {
 		let models = await pool.listModels()
 		return models.map { $0["id"] ?? "unknown" }
 	}
-
 	/// Snapshot current state, then clear the conversation.
 	/// Also resets SQLite session ID to prevent new messages bleeding
 	/// into the old session's database record.
@@ -498,6 +504,8 @@ final class ChatState {
 		// FIX: clear session state to prevent DB session bleed
 		sessionId = nil
 		activeModelId = nil
+		// P0-fix: reset idempotency barrier so cancelInference can fire clean this turn
+		_cancelledByUI = false
 		// Register undo with AppState for Cmd+Z access
 		AppState.shared.undoAction = { [weak self] in self?.undoReset() }
 	}

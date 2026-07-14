@@ -23,16 +23,10 @@ struct PipelineConfigTests {
     }
 }
 
-@Suite("SelfCorrectionPipeline Phase 1 Bypass")
+@Suite("SelfCorrectionPipeline Configuration")
 struct PipelineBypassTests {
-    let pipeline = SelfCorrectionPipeline()
-    let logger = Logger(label: "test")
-
-    @Test("Phase 1 bypass depends on classifier confidence — skipped")
-    func phase1BypassSkipped() {
-        // SelfCorrectionPipeline evaluation depends on NaturalLanguageClassifier + IntentExtractor
-        // internal scoring. Bypass threshold (0.85) is not reliably hit by short English prompts.
-        // This test verifies the threshold config is correct rather than runtime bypass.
+    @Test("bypassThreshold config value is 0.85")
+    func bypassThresholdValue() {
         #expect(SelfCorrectionPipeline.bypassThreshold == 0.85)
     }
 }

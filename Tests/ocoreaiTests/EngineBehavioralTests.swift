@@ -165,37 +165,10 @@ struct DirectInferenceSamplingTests {
     }
 }
 
-// MARK: - SamplingConfiguration.normalized() behavior
+// MARK: - SamplingConfiguration normalized() edge cases
 
-@Suite("SamplingConfiguration.normalized() clamps invalid values")
+@Suite("SamplingConfiguration.normalized() edge cases")
 struct SamplingNormalizationTests {
-
-    @Test("temperature == 0 drops topK and topP (greedy mode)")
-    func zeroTemperatureDropsTopKTopP() {
-        let config = SamplingConfiguration(temperature: 0, topP: 0.9, topK: 50)
-        let normalized = config.normalized()
-        #expect(normalized.temperature == 0)
-        #expect(normalized.topK == nil)
-        #expect(normalized.topP == nil)
-    }
-
-    @Test("temperature == nil drops topK and topP (greedy mode)")
-    func nilTemperatureDropsTopKTopP() {
-        let config = SamplingConfiguration(temperature: nil, topP: 0.9, topK: 50)
-        let normalized = config.normalized()
-        #expect(normalized.temperature == nil)
-        #expect(normalized.topK == nil)
-        #expect(normalized.topP == nil)
-    }
-
-    @Test("non-zero temperature preserves topK and topP")
-    func nonZeroTemperaturePreserves() {
-        let config = SamplingConfiguration(temperature: 0.7, topP: 0.95, topK: 40)
-        let normalized = config.normalized()
-        #expect(normalized.temperature == 0.7)
-        #expect(normalized.topP == 0.95)
-        #expect(normalized.topK == 40)
-    }
 
     @Test("negative temperature is not treated as greedy")
     func negativeTemperaturePreservesParams() {

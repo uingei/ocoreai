@@ -591,9 +591,24 @@ typealias Choice = CompletionChoice
 		}
 	}
 #else
-	/// Stub: return "stop" when CoreAI trait is not enabled
-	func stopReasonToString(_: StopReason?) -> String? {
-		"stop"
+	/// Convert ``StopReason`` to OpenAI-compatible finish_reason string.
+	///\n
+	/// - Parameter reason: Stop reason from inference engine
+	/// - Returns: "stop", "length", "stop_sequence", "cancelled", "error", or nil
+	///\n
+	/// P1-1 fix: The previous stub always returned "stop", which lost semantic
+	/// distinction between eos, max_tokens, cancellation, and error terminations.
+	/// This caused downstream consumers (ChatHandler, ChatView) to treat OOM/errors
+	/// as normal completion, preventing retry logic and KV-cache cleanup.
+	func stopReasonToString(_ reason: StopReason?) -> String? {
+		guard let reason else { return nil }
+		switch reason {
+		case .maxTokens: return "length"
+		case .eos: return "stop"
+		case .stopSequence: return "stop_sequence"
+		case .cancelled: return "cancelled"
+		case .error: return "error"
+		}
 	}
 #endif
 
