@@ -431,7 +431,8 @@ final class ChatState {
 					// Do not persist error-truncated responses as normal assistant messages.
 					if chunk.stopReason == "error" {
 						Self.logger.warning("Inference ended with error after accumulating \\(responseText.utf8.count) bytes")
-						errorMessage = "Generation failed internally"
+						// D1 fix: surface actual error from inference layer instead of generic placeholder
+						errorMessage = chunk.error ?? "Generation failed"
 						responseText = ""
 					} else {
 						// Conversation complete — append and persist to history

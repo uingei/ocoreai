@@ -118,11 +118,14 @@ final class DirectInferenceClient {
 					// FIX: emit a terminal chunk so the caller knows the stream ended.
 					// Without this, the caller's for-await exits cleanly but responseText
 					// is never persisted (isComplete was never true).
+					// D1 fix: propagate actual error message so UI can display it
+					// instead of a generic "Generation failed internally".
 					continuation.yield(.init(
 						text: "",
 						isComplete: true,
 						stopReason: "error",
 						outputTokens: 0,
+						error: error.localizedDescription,
 					))
 					continuation.finish()
 				}
@@ -494,6 +497,9 @@ struct DirectChatChunk {
 	let isComplete: Bool
 	let stopReason: String?
 	let outputTokens: Int?
+	/// Human-readable error description from the inference layer.
+	/// When non-nil, `stopReason` is `"error"` and the UI should surface this message.
+	let error: String?
 	/// Structured metadata for agent loop events (optional).
 	/// When present, the client should accumulate these into a structured ChatMessage.
 	let metadata: DirectChunkMetadata?
@@ -518,12 +524,14 @@ struct DirectChatChunk {
 		isComplete: Bool,
 		stopReason: String? = nil,
 		outputTokens: Int? = nil,
+		error: String? = nil,
 		metadata: DirectChunkMetadata? = nil
 	) {
 		self.text = text
 		self.isComplete = isComplete
 		self.stopReason = stopReason
 		self.outputTokens = outputTokens
+		self.error = error
 		self.metadata = metadata
 	}
 }
