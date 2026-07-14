@@ -172,11 +172,10 @@ final class LoadedModel: @unchecked Sendable {
 			)
 			let genStream: AsyncThrowingStream<MLXLMCommon.Generation, Error> =
 				session.streamDetails(to: mlxMessages)
-			// Consume first chunk then exit — no need to drain the full stream
-			for try await chunk in genStream {
-				_ = chunk
-				break
-			}
+			// Drain the full warmup stream — ensures Metal kernels are compiled
+			// and the pipeline is fully warm before the first real inference.
+			// The warmupTokens config limits how many tokens are generated.
+			for try await _ in genStream {}
 		} catch {
 			logger.warning("MLX warmup skipped (non-fatal): \(error)")
 		}

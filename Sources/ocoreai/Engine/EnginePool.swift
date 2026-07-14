@@ -574,6 +574,12 @@ actor EnginePool {
 	/// Unload a single model from the pool, releasing GPU memory.
 	/// Waits for active sessions to drain before removing.
 	///
+	/// P0-fix: Keeps model in `loadingModels` during the entire drain + cleanup
+	/// window so that concurrent `acquire()` calls will wait rather than trigger
+	/// a reload of a model being actively cleaned up.
+	/// Respects `Task.isCancelled` throughout the drain loop — cancelling
+	/// the unload aborts cleanup and puts the model back in `loadedModels`.
+	///
 	/// - Parameter modelId: The model to unload
 	/// - Returns: `true` if the model was unloaded, `false` if it wasn't loaded
 	@discardableResult
@@ -583,12 +589,25 @@ actor EnginePool {
 			return false
 		}
 
+		// P0-fix: mark as loading so concurrent acquire() won't trigger reload
+		loadingModels.insert(modelId)
+		defer { loadingModels.remove(modelId) }
+
 		logger.info("Unloading model: \(modelId)")
 
 		// Wait for active sessions to naturally drain (up to 30s)
+		// Responds to Task cancellation — if cancelled, restore model and abort.
 		let deadline = ContinuousClock.now + .seconds(30)
 		while model.activeSessions > 0, ContinuousClock.now < deadline {
-			try? await Task.sleep(for: .milliseconds(500))
+			do {
+				try Task.checkCancellation()
+				try await Task.sleep(for: .milliseconds(500))
+			} catch {
+				// Task was cancelled — restore model to loaded state and abort cleanup
+				loadedModels[modelId] = model
+				logger.info("Unload cancelled, model restored: \(modelId)")
+				return false
+			}
 		}
 
 		if model.activeSessions > 0 {

@@ -62,11 +62,14 @@ final class MultimodalState {
 		}
 	}
 
-	/// Speaker (TTS) enabled — starts/stops AudioIO TTS automatically
+	/// Speaker (TTS) enabled — does NOT auto-wire AudioIO like camera/mic/screen.
+	/// TTS is lazy-triggered: `speakIfEnabled(_:)` checks this flag at call time
+	/// (per-response) rather than maintaining a persistent background service.
 	var speakerEnabled: Bool = false {
 		didSet {
 			guard !_restoring, oldValue != self.speakerEnabled else { return }
 			save()
+			// Note: no wireSpeaker() call — TTS is lazy-activated on demand
 		}
 	}
 
