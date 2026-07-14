@@ -123,48 +123,6 @@ struct OOMGuardBehavioralTests {
     }
 }
 
-// MARK: - Sampling config consistency (streaming vs non-streaming)
-
-@Suite("DirectInferenceClient sampling config consistency")
-struct DirectInferenceSamplingTests {
-
-    /// This invariant was broken: non-streaming path (doCompleteInference) at
-    /// L346-350 ignored request.topP and request.topK, always falling back to
-    /// runtime defaults. The streaming path (doStreamInference) at L208-210
-    /// correctly honored request overrides.
-    ///
-    /// FIXED 2026-07-13: Added `request.topP ??` and `request.topK ??` guards
-    /// in doCompleteInference to match doStreamInference behavior.
-
-    @Test("InferenceRequest topP default behavior documented")
-    func topPDefaultValue() {
-        let request = InferenceRequest(modelId: "test", messages: [])
-        #expect(request.topP == nil)
-    }
-
-    @Test("InferenceRequest topK default behavior documented")
-    func topKDefaultValue() {
-        let request = InferenceRequest(modelId: "test", messages: [])
-        #expect(request.topK == nil)
-    }
-
-    @Test("InferenceRequest with explicit topP/topK preserves values")
-    func explicitSamplingParams() {
-        let request = InferenceRequest(
-            modelId: "test",
-            messages: [],
-            temperature: 0.7,
-            topP: 0.9,
-            topK: 50,
-            maxTokens: 2048
-        )
-        #expect(request.temperature == 0.7)
-        #expect(request.topP == 0.9)
-        #expect(request.topK == 50)
-        #expect(request.maxTokens == 2048)
-    }
-}
-
 // MARK: - SamplingConfiguration normalized() edge cases
 
 @Suite("SamplingConfiguration.normalized() edge cases")

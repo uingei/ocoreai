@@ -297,7 +297,8 @@ final class ChatState {
 	}
 
 	/// Rough token estimate: ~4 chars per token for English, ~2 for CJK.
-	private nonisolated func estimateTokens(_ text: String) -> Int {
+	/// Internal (not private) so @testable import can exercise the real formula.
+	internal nonisolated func estimateTokens(_ text: String) -> Int {
 		max(1, text.utf8.count / 3)
 	}
 
@@ -524,5 +525,31 @@ final class ChatState {
 		undoErrorMessage = nil
 		undoSessionId = nil
 		undoActiveModelId = nil
+	}
+	
+	/// Reset all internal state to initial values — exhaustive cleanup for test isolation.
+	/// Internal (not private) so @testable import in tests can use it.
+	internal func resetForTesting() {
+		// Cancel any in-flight operations
+		pendingUnloadTask?.cancel()
+		pendingUnloadTask = nil
+		currentCancellation = nil
+		// Clear all mutable state
+		messages = []
+		responseText = ""
+		errorMessage = nil
+		loading = false
+		_cancelledByUI = false
+		// Persistence state
+		sessionId = nil
+		activeModelId = nil
+		// Undo state
+		undoSnapshot = nil
+		undoResponseText = nil
+		undoErrorMessage = nil
+		undoSessionId = nil
+		undoActiveModelId = nil
+		// Disconnect undo from AppState to prevent stale captures
+		AppState.shared.undoAction = nil
 	}
 }

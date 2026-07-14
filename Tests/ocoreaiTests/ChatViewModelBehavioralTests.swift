@@ -86,11 +86,14 @@ struct ChatMessageTextContentTests {
         #expect(msg.textContent.contains("think"))
         #expect(msg.textContent.contains("Step 2"))
         // Order: first component appears before reasoning, which appears before second
-        let r1 = msg.textContent.range(of: "Step 1")!
-        let r2 = msg.textContent.range(of: "think")!
-        let r3 = msg.textContent.range(of: "Step 2")!
-        #expect(r1.lowerBound < r2.lowerBound)
-        #expect(r2.lowerBound < r3.lowerBound)
+        let r1 = msg.textContent.range(of: "Step 1")
+        let r2 = msg.textContent.range(of: "think")
+        let r3 = msg.textContent.range(of: "Step 2")
+        #expect(r1 != nil)
+        #expect(r2 != nil)
+        #expect(r3 != nil)
+        #expect(r1!.lowerBound < r2!.lowerBound)
+        #expect(r2!.lowerBound < r3!.lowerBound)
     }
 }
 

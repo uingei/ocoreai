@@ -87,34 +87,48 @@ struct ContentToStringPipelineTests {
     }
 }
 
-// MARK: - Token count heuristic (production function: ChatViewModel.estimateTokens)
+// MARK: - Token count heuristic — calls real ChatState.estimateTokens on shared singleton
 // Production: max(1, text.utf8.count / 3) — uses /3, not /4
 
-@Suite("Token count heuristic — production estimateTokens via Message.textContent()")
+@Suite("Token count heuristic — exercises actual ChatState.estimateTokens")
 struct TokenHeuristicTests {
 
     @Test("hello (5 bytes) → estimate is 1 token (min floor)")
-    func helloWord() async {
+    @MainActor func helloWord() async {
         let msg = Message(role: "user", content: "hello")
-        let est = max(1, msg.textContent().utf8.count / 3) // matches ChatViewModel estimateTokens logic
+        let est = ChatState.shared.estimateTokens(msg.textContent())
         #expect(est == 1)
     }
 
     @Test("hello + world → sum is 2 tokens (each 5 bytes, 5/3=1 each)")
-    func twoMessages() async {
+    @MainActor func twoMessages() async {
         let messages = [
             Message(role: "user", content: "hello"),
             Message(role: "assistant", content: "world"),
         ]
-        let count = messages.reduce(0) { $0 + max(1, $1.textContent().utf8.count / 3) }
+        let count = messages.reduce(0) { $0 + ChatState.shared.estimateTokens($1.textContent()) }
         // "hello" = 5/3 = 1, "world" = 5/3 = 1 → total = 2
         #expect(count == 2)
     }
 
     @Test("40-char text → 13 tokens (40 / 3 = 13)")
-    func fortyChars() async {
+    @MainActor func fortyChars() async {
         let msg = Message(role: "user", content: "0123456789012345678901234567890123456789")
-        let est = max(1, msg.textContent().utf8.count / 3)
+        let est = ChatState.shared.estimateTokens(msg.textContent())
         #expect(est == 13)
+    }
+
+    @Test("empty string returns 1 (min floor)")
+    @MainActor func emptyString() async {
+        let msg = Message(role: "user", content: "")
+        let est = ChatState.shared.estimateTokens(msg.textContent())
+        #expect(est == 1)
+    }
+
+    @Test("CJK text (3 bytes per char, 4 chars = 12 bytes / 3 = 4)")
+    @MainActor func cjkText() async {
+        let msg = Message(role: "user", content: "你好世界") // 12 UTF-8 bytes
+        let est = ChatState.shared.estimateTokens(msg.textContent())
+        #expect(est == 4)
     }
 }

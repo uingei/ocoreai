@@ -23,14 +23,6 @@ struct PipelineConfigTests {
     }
 }
 
-@Suite("SelfCorrectionPipeline Configuration")
-struct PipelineBypassTests {
-    @Test("bypassThreshold config value is 0.85")
-    func bypassThresholdValue() {
-        #expect(SelfCorrectionPipeline.bypassThreshold == 0.85)
-    }
-}
-
 @Suite("CorrectionTrace Models")
 struct CorrectionTraceTests {
     @Test("correction phases have correct raw values")

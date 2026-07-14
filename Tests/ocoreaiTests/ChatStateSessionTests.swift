@@ -10,22 +10,10 @@ import Foundation
 @Suite("ChatState: sessionId and activeModelId lifecycle")
 struct ChatStateSessionTests {
 
-    // Helper: full reset including undo snapshot and _cancelledByUI barrier
+    // Use production resetForTesting() — clears all mutable state including
+    // pendingUnloadTask, currentCancellation, sessionId, undo snapshot, AppState link.
     @MainActor func fullReset() {
-        let s = ChatState.shared
-        s.messages = []
-        s.responseText = ""
-        s.errorMessage = nil
-        s.loading = false
-        // P0-fix: reset _cancelledByUI so cancelInference fires clean next test
-        s._cancelledByUI = false
-        // Clear undo snapshot — the private undoSessionId/undoActiveModelId
-        // are cleared automatically by resetConversation/undoReset, so we
-        // only need to consume any pending undo before our next test.
-        if s.hasUndo { s.undoReset() }
-        // If undoReset left a message, consume it again.
-        if s.hasUndo { s.undoReset() }
-        s.messages = []
+        ChatState.shared.resetForTesting()
     }
 
     @MainActor @Test("resetConversation clears messages, responseText, errorMessage")

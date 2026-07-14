@@ -66,10 +66,8 @@ struct ToolCallDetectionTests {
     }
 
     @Test("Tool call with unicode in arguments is detected")
-    func unicodeArguments() throws {
-        let content = try String(data:
-            "[{\"name\":\"search\",\"arguments\":{\"query\":\"Swift 测试\"}}]"
-            .data(using: .utf8)!, encoding: .utf8)!
+    func unicodeArguments() {
+        let content = #"[{"name":"search","arguments":{"query":"Swift 测试"}}]"#
         let result = parseToolCalls(from: content)
         #expect(result != nil)
         #expect(result?.count == 1)

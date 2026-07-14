@@ -314,12 +314,11 @@ struct SendableSafetyTests {
             }
             for _ in 0..<20 {
                 group.addTask {
-                    // Release to balance — may wrap around, that's ok
-                    _ = model.activeSessions
+                    model.releaseSession()
                 }
             }
         }
-        // Just verify we survived without crash
-        _ = model.activeSessions
+        // Acquires and releases balanced — counter must be zero
+        #expect(model.activeSessions == 0)
     }
 }
