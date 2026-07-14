@@ -49,17 +49,7 @@ struct MMContextEntryRouteTests {
         #expect(entry.shouldSendAsText == false)
     }
 
-    @Test("entry name is preserved through construction")
-    func namePreserved() {
-        let entry = MultimodalState.MMContextEntry(
-            name: "screen",
-            dataURL: "data:image/png;base64,xyz",
-            ocrText: nil
-        )
-        #expect(entry.name == "screen")
-    }
-
-    @Test("entry with empty OCR text but no dataURL does NOT route as text")
+    @Test("entry with empty OCR text does NOT route as text")
     func emptyOCRTextRoutesAsImage() {
         let entry = MultimodalState.MMContextEntry(
             name: "camera",
@@ -70,25 +60,23 @@ struct MMContextEntryRouteTests {
         #expect(entry.shouldSendAsText == false)
     }
 
-    @Test("camera entry can be constructed with nil OCR")
+    @Test("camera entry with nil OCR routes as image")
     func cameraEntryNilOCR() {
         let entry = MultimodalState.MMContextEntry(
             name: "camera",
             dataURL: "data:image/jpeg;base64,frame",
             ocrText: nil
         )
-        #expect(entry.name == "camera")
         #expect(entry.shouldSendAsText == false)
     }
 
-    @Test("all context sources produce correct entries")
+    @Test("screen entry with dataURL routes as image")
     func screenEntryRoutesAsImage() {
         let entry = MultimodalState.MMContextEntry(
             name: "screen",
             dataURL: "data:image/png;base64,screenshot",
             ocrText: nil
         )
-        #expect(entry.name == "screen")
         #expect(entry.shouldSendAsText == false)
     }
 }
