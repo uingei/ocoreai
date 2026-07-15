@@ -5,7 +5,7 @@
 /// On Apple Silicon UMA, CPU and GPU share the same physical memory — there is
 /// no separate "GPU memory" to fall back to. Switching inference to CPU does NOT
 /// free memory; it only makes it slower. Therefore the downgrade chain is:
-///   4bit → 8bit → hard refuse
+/// UMA-correct downgrade chain: 8bit → 4bit → hard refuse.
 ///
 /// Each level is logged and emitted as an event for monitoring.
 import Foundation
@@ -13,11 +13,13 @@ import Logging
 
 /// Quantization levels in the downgrade chain.
 ///
-/// NOTE: No cpuFallback — on Apple Silicon UMA, CPU and GPU share
-/// physical RAM. Switching to CPU does not free memory, only adds latency.
+/// UMA-correct direction: 8bit (high precision, more memory) → 4bit
+/// (low precision, less memory) → hard refuse. Each step releases
+/// approximate weight memory (vocab_size × 4 bytes for the transition
+/// from fp16→nf4).
 public enum QuantizationLevel: String, Sendable, Codable {
-	case bits4 /// 4-bit quantization (most aggressive, fastest)
-	case bits8 /// 8-bit quantization (lower precision, less memory)
+	case bits8 /// 8-bit quantization (higher precision, more memory)
+	case bits4 /// 4-bit quantization (lower precision, less memory)
 	case refuse /// Hard refuse — all requests rejected
 }
 
@@ -49,7 +51,7 @@ public struct OOMEvent: Sendable, Codable {
 
 /// OOMGuard manager — responds to memory pressure by downgrading quantization.
 actor OOMGuard {
-	private var currentLevel: QuantizationLevel = .bits4
+	private var currentLevel: QuantizationLevel = .bits8
 	private let logger: Logger
 	private var eventHistory: [OOMEvent] = []
 	private let maxHistoryDepth = 50
@@ -99,28 +101,28 @@ actor OOMGuard {
 	/// Called when memory tracker signals a new level.
 	/// - Parameter level: Current memory level from tracker.
 	///
-	/// UMA-correct downgrade: 4bit → 8bit → refuse.
+	/// UMA-correct downgrade: 8bit → 4bit → refuse.
 	/// CPU fallback removed — on UMA it doesn't free memory, only adds latency.
 	func respond(to level: MemoryLevel) {
 		let fromLevel = currentLevel
 		switch level {
 		case .normal:
-			// Recover to 4-bit if we're at 8-bit
+			// Recover to 8-bit if we're at 4-bit
+			if currentLevel == .bits4 {
+				currentLevel = .bits8
+				emitEvent(from: fromLevel, to: .bits8, trigger: level)
+			}
+		case .warning:
+			// Downgrade to 4-bit (releases ~vocab_size × 4 bytes of weight memory)
 			if currentLevel == .bits8 {
 				currentLevel = .bits4
 				emitEvent(from: fromLevel, to: .bits4, trigger: level)
 			}
-		case .warning:
-			// Downgrade to 8-bit
-			if currentLevel == .bits4 {
-				currentLevel = .bits8
-				emitEvent(from: fromLevel, to: .bits8, trigger: level)
-			}
 		case .critical:
-			// Force to 8-bit if still at 4-bit
-			if currentLevel == .bits4 {
-				currentLevel = .bits8
-				emitEvent(from: fromLevel, to: .bits8, trigger: level)
+			// Force to 4-bit if still at 8-bit
+			if currentLevel == .bits8 {
+				currentLevel = .bits4
+				emitEvent(from: fromLevel, to: .bits4, trigger: level)
 			}
 		case .oom:
 			// Start refusing new requests

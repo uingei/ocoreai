@@ -244,23 +244,31 @@ actor SchedulerActor {
 
 	/// Dispatch the next request from the queue (highest priority).
 	/// Pre-fills are admitted through the admission gate — if headroom is
-	/// insufficient, the request is re-enqueued and dispatch pauses until
-	/// memory becomes available.
+	/// insufficient, the request is held and dispatch continues to lower
+	/// priority requests. Only when ALL requests are rejected does dispatch
+	/// return nil, allowing the caller to wait for memory.
 	/// - Returns: The next scheduling request, or nil if queue is empty.
 	func dispatch() async -> SchedulingRequest? {
-		// Track IDs we've rejected in this pass — if every request is
-		// rejected, all would sit in queue forever. Return nil so the
-		/// caller can wait for memory to free up before trying again.
-		var rejectedInThisPass: Set<String> = []
+		let initialCount = queue.count
+		// Collect rejected requests separately — we must try every request
+		// in priority order. A rejected high-priority request must not block
+		// lower-priority requests with smaller budgets that could fit.
+		var rejected: [ComparableRequest] = []
 
 		while let comparable = queue.pop() {
 			let request = comparable.request
 			let requestId = request.id
 
-			// Safety: if we already rejected this ID in this pass, stop —
-			// we've checked everyone and none fit.
-			if rejectedInThisPass.contains(requestId) {
-				logger.info("All queued requests rejected in this pass — waiting for memory")
+			// Safety: if we've already processed every request in the initial
+			// queue, all were rejected — stop and return nil so the caller
+			// can wait for memory to free up.
+			if rejected.count >= initialCount {
+				logger.info("All queued requests rejected — re-enqueueing \(rejected.count) to wait for memory")
+				// Re-enqueue rejected requests in their original order
+				for item in rejected {
+					queue.insert(item)
+				}
+				rejected.removeAll()
 				break
 			}
 
@@ -272,14 +280,20 @@ actor SchedulerActor {
 					maxOutputTokens: request.tokenBudget,
 				)
 				if !result.admitted {
-					// Re-enqueue — don't drop the request. Track it so we
-					// can detect "everyone rejected" and break the loop.
-					rejectedInThisPass.insert(requestId)
-					queue.insert(comparable)
+					rejected.append(comparable)
 					totalRejected += 1
-					logger.info("Admission failed for \(requestId): \(result.reason ?? "budget") — re-enqueued (\(rejectedInThisPass.count) rejected this pass)")
+					logger.info("Admission failed for \(requestId): \(result.reason ?? "budget") — (\(rejected.count)/\(initialCount) rejected this pass)")
 					continue
 				}
+			}
+
+			// All requests previously rejected get re-enqueued before we
+			// dispatch an admitted request (preserves their priority order).
+			if !rejected.isEmpty {
+				for item in rejected {
+					queue.insert(item)
+				}
+				rejected.removeAll()
 			}
 
 			// Admit — reserve memory for this request
