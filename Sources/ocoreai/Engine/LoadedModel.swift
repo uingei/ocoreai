@@ -185,6 +185,11 @@ final class LoadedModel: @unchecked Sendable {
 	/// Atomic lock — `true` while inference is running on this model
 	private let inferenceGuard = ManagedAtomic<Bool>(false)
 
+	/// Dedicated CAS for engine-cache initialization. Decoupled from ``inferenceGuard``
+	/// so that concurrent inference requests are NOT blocked/rejected while the
+	/// engine is still being created.
+	private let engineCacheGuard = ManagedAtomic<Bool>(false)
+
 	/// Attempt to acquire the inference lock (non-blocking CAS).
 	///
 	/// - Returns: `true` if lock acquired, `false` if another inference is active
@@ -222,21 +227,22 @@ final class LoadedModel: @unchecked Sendable {
 	#if canImport(CoreAI)
 		/// Get cached inference engine — create on first call, reuse thereafter.
 		/// CoreAI 34f0db3: engines should be singletons per LoadedModel to preserve KV cache.
-		/// Double-checked locking: inferenceGuard serializes access, but prewarm
-		/// can call getCachedEngine outside the guard. The CAS ensures only one
-		/// engine is created even under concurrent calls.
+		///
+		/// Uses dedicated ``engineCacheGuard`` CAS to protect cache initialization.
+		/// Decoupled from ``inferenceGuard`` so that concurrent inference requests
+		/// are NOT rejected while the engine is still being created.
 		func getCachedEngine() async throws -> any InferenceEngine {
 			// Fast path: check cache without lock
 			if let cached = cachedEngine {
 				return cached
 			}
-			// Slow path: serialise creation via inferenceGuard CAS
-			guard tryAcquireInference() else {
+			// Slow path: serialise creation via dedicated engine-cache CAS lock
+			guard engineCacheGuard.compareExchange(expected: false, desired: true, ordering: .acquiring).exchanged else {
 				// Another caller is creating the engine — wait briefly and retry
 				try await Task.sleep(for: .milliseconds(10))
 				return try await getCachedEngine()
 			}
-			defer { releaseInference() }
+			defer { engineCacheGuard.store(false, ordering: .releasing) }
 			// Double-check after acquiring lock
 			if let cached = cachedEngine {
 				return cached

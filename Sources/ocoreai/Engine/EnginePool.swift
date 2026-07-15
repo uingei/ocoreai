@@ -203,14 +203,14 @@ actor EnginePool {
 			return try await _acquireSession(model: model, modelId: modelId)
 		}
 
-		// 2. Another caller is loading this model — wait for it to finish
-		while loadingModels.contains(modelId) {
-			logger.info("Model \\(modelId) load in progress — waiting")
-			try? await Task.sleep(for: .milliseconds(200))
-			// Re-check: load may have completed while we slept
-			if let model = loadedModels[modelId] {
-				return try await _acquireSession(model: model, modelId: modelId)
-			}
+		// 2. Another caller is loading this model — wait for it to finish.
+		// Uses 1s sleep (down from 200ms) to reduce mailbox wake-up frequency
+		// on longer model downloads (30s+). Actor mailbox is NOT blocked during
+		// Task.sleep — Swift actors yield at each suspend point.
+		try await waitForLoading(modelId: modelId, timeoutSeconds: 120)
+		// Model should now be loaded — try acquire again
+		if let model = loadedModels[modelId] {
+			return try await _acquireSession(model: model, modelId: modelId)
 		}
 
 		// 3. Not loaded — start the load
@@ -271,6 +271,28 @@ actor EnginePool {
 
 	func markSessionActive(sessionId: String) async {
 		await pagedKVCache?.markActive(sessionId: sessionId)
+	}
+
+	/// Wait for another caller to finish loading ``modelId``.
+	///
+	/// Uses cooperative ``Task.sleep`` (actor mailbox is NOT blocked).
+	/// Includes a timeout to prevent waiting forever if the load hangs.
+	/// Responds to ``Task.checkCancellation()`` so that a cancelled caller
+	/// abandons the wait immediately.
+	private func waitForLoading(modelId: String, timeoutSeconds: Int) async throws {
+		var waited = 0
+		while loadingModels.contains(modelId) {
+			try Task.checkCancellation()
+			guard waited < timeoutSeconds else {
+				throw AppError.engineUnavailable
+			}
+			if waited % 10 == 0 {
+				let remaining = timeoutSeconds - waited
+				logger.info("Model \\(modelId) load in progress — \\(remaining)s remaining")
+			}
+			try await Task.sleep(for: .seconds(1))
+			waited += 1
+		}
 	}
 
 	// MARK: - Model LRU Eviction

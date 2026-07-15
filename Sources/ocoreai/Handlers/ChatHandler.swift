@@ -212,7 +212,10 @@ func chatCompletionsHandler(
 		}
 	}
 
-	/// Phase 1b: Acquire engine handle
+	/// Phase 1b: Acquire engine handle + structured cleanup.
+	///
+	/// Note: Swift does NOT support `await` inside `defer`, so we wrap the
+	/// entire pipeline body in a do/catch and perform cleanup on both paths.
 	let handle: EngineHandle
 	do {
 		handle = try await enginePool.acquire(model: modelId)
@@ -220,139 +223,146 @@ func chatCompletionsHandler(
 		await scheduler.fail(schedulingRequest.id, with: error.localizedDescription)
 		throw AppError.engineUnavailable
 	}
-	defer {
-		Task {
-			await handle.release()
-			await scheduler.complete(schedulingRequest.id)
-		}
-	}
 
-	/// Phase 2: Build complete message list including system prompt + tool info injection.
-	/// Delegates to shared MessageBuilder (same logic as Fast Path UI) to avoid duplication.
-	let fullMessages = try await messageBuilder.buildMessages(context: MessageBuilderContext(
-		modelId: modelId,
-		rawMessages: request.messages,
-		userSystemPrompt: request.system,
-		tools: request.tools,
-		sessionId: request.sessionID ?? UUID().uuidString,
-	))
-
-	/// Phase 3: Tokenize messages for prompt token count.
-	/// (Token count needed for metrics; actual inference passes messages directly on MLX path.)
-	/// On MLX backend the tokenizer manager is a stub (real tokenizer lives in ChatSession),
-	/// so we gracefully fall back to a character-based heuristic instead of blocking the request.
-	var promptTokenCount: Int
+	var result: Response?
 	do {
-		let tok = try await handle.tokenize(messages: fullMessages)
-		promptTokenCount = tok.isEmpty ? 1 : tok.count
+		/// Phase 2: Build complete message list including system prompt + tool info injection.
+		/// Delegates to shared MessageBuilder (same logic as Fast Path UI) to avoid duplication.
+		let fullMessages = try await messageBuilder.buildMessages(context: MessageBuilderContext(
+			modelId: modelId,
+			rawMessages: request.messages,
+			userSystemPrompt: request.system,
+			tools: request.tools,
+			sessionId: request.sessionID ?? UUID().uuidString,
+		))
+
+		/// Phase 3: Tokenize messages for prompt token count.
+		/// (Token count needed for metrics; actual inference passes messages directly on MLX path.)
+		/// On MLX backend the tokenizer manager is a stub (real tokenizer lives in ChatSession),
+		/// so we gracefully fall back to a character-based heuristic instead of blocking the request.
+		var promptTokenCount: Int
+		do {
+			let tok = try await handle.tokenize(messages: fullMessages)
+			promptTokenCount = tok.isEmpty ? 1 : tok.count
+		} catch {
+			logger.warning(
+				"Tokenization failed, using heuristic estimate for metrics — \(error.localizedDescription)"
+			)
+			promptTokenCount = max(1, fullMessages.reduce(0) {
+				$0 + $1.textContent().utf8.count / 4
+			})
+		}
+
+		/// Phase 4: Three-layer Parameter Fallback Chain.
+		/// Layer 1: Request body explicit params (highest priority)
+		/// Layer 2: Model runtime default (via PATCH /v1/models/:model/sampling)
+		/// Layer 3: System default (hardcoded)
+		let runtimeDefaults = await enginePool.getSamplingConfig(modelId: modelId)
+
+		/// Resolve effective temperature.
+		/// Note: ChatCompletionRequest.temperature is Float = 0.7 (non-optional),
+		/// so we cannot distinguish "user sent nothing" from "user sent 0.7".
+		/// Therefore request.temperature is always the source of truth —
+		/// runtimeDefaults can only help for optional fields (topP, topK, etc.).
+		/// Special case: temperature=0 is valid (deterministic mode).
+		let effectiveTemp: Float = request.temperature
+
+		/// Resolve optional parameters with nil → runtime → nil cascade.
+		let effectiveTopP = request.topP ?? runtimeDefaults.topP
+		let effectiveTopK = request.topK ?? runtimeDefaults.topK
+		let effectiveMaxTokens = request.maxTokens ?? runtimeDefaults.maxTokens
+
+		/// Resolve penalty parameters (0 = not set, non-zero = explicit value).
+		let effectivePresencePenalty = request.presencePenalty != 0
+			? request.presencePenalty
+			: runtimeDefaults.presencePenalty
+		let effectiveFrequencyPenalty = request.frequencyPenalty != 0
+			? request.frequencyPenalty
+			: runtimeDefaults.frequencyPenalty
+
+		/// Build normalized sampling configuration (drops redundant params when temperature == 0).
+		let rawSampling = SamplingConfiguration(
+			temperature: Double(effectiveTemp),
+			topP: effectiveTopP.map(Double.init),
+			topK: effectiveTopK,
+			minP: nil,
+			presencePenalty: Double(effectivePresencePenalty),
+			frequencyPenalty: Double(effectiveFrequencyPenalty),
+			stopSequences: request.stop,
+			logitBias: nil, // logitBias 暂不暴露（ChatCompletionRequest 无对应字段）
+			combined: true,
+		)
+
+		/// Phase 4b: Task-aware parameter adjustment — precision tasks get lower temperature.
+		let taskType = await messageBuilder.lastTaskType()
+		let taskAwareSampling = rawSampling.withTaskAwareParams(for: taskType)
+		if taskAwareSampling != rawSampling {
+			logger.info("Task-aware params adjusted for \(taskType.rawValue): temp=\(String(describing: rawSampling.temperature))→\(String(describing: taskAwareSampling.temperature))")
+		}
+
+		let sampling = taskAwareSampling.normalized()
+
+		/// Log warning if normalization dropped parameters.
+		if sampling != taskAwareSampling {
+			logger.warning("Sampling config normalized (redundant params dropped)")
+		}
+
+		/// Build inference options with same fallback chain.
+		let inferenceOpts = InferenceOptions(
+			maxTokens: effectiveMaxTokens,
+			includeLogits: false,
+		)
+
+		/// Log if runtime defaults override system defaults.
+		let hasOverride = (runtimeDefaults.temperature != ModelSamplingConfig.default.temperature ||
+			runtimeDefaults.topP != nil ||
+			runtimeDefaults.topK != nil ||
+			runtimeDefaults.maxTokens != nil)
+		if hasOverride {
+			logger.info("Using runtime sampling override for: \(modelId)")
+		}
+
+		/// Phase 5: Dispatch to stream OR non-stream path based on request flag.
+		/// Use ``generateFromMessages`` — MLX path passes messages directly to ChatSession,
+		/// eliminating the tokenize→detokenize→re-tokenize loop.
+		if request.stream == true {
+			result = try await streamWithToolCalling(
+				handle: handle,
+				promptTokenCount: promptTokenCount,
+				messages: fullMessages,
+				sampling: sampling,
+				options: inferenceOpts,
+				request: request,
+				modelId: modelId,
+				sessionCompressor: sessionCompressor,
+				logger: logger,
+				metrics: metrics,
+			)
+		} else {
+			result = try await nonStreamWithToolCalling(
+				handle: handle,
+				promptTokenCount: promptTokenCount,
+				messages: fullMessages,
+				sampling: sampling,
+				options: inferenceOpts,
+				request: request,
+				modelId: modelId,
+				sessionCompressor: sessionCompressor,
+				logger: logger,
+				metrics: metrics,
+			)
+		}
 	} catch {
-		logger.warning(
-			"Tokenization failed, using heuristic estimate for metrics — \(error.localizedDescription)"
-		)
-		promptTokenCount = max(1, fullMessages.reduce(0) {
-			$0 + $1.textContent().utf8.count / 4
-		})
+		/// Cleanup on error path
+		await handle.release()
+		await scheduler.complete(schedulingRequest.id)
+		throw error
 	}
 
-	/// Phase 4: Three-layer Parameter Fallback Chain.
-	/// Layer 1: Request body explicit params (highest priority)
-	/// Layer 2: Model runtime default (via PATCH /v1/models/:model/sampling)
-	/// Layer 3: System default (hardcoded)
-	let runtimeDefaults = await enginePool.getSamplingConfig(modelId: modelId)
-
-	/// Resolve effective temperature.
-	/// Note: ChatCompletionRequest.temperature is Float = 0.7 (non-optional),
-	/// so we cannot distinguish "user sent nothing" from "user sent 0.7".
-	/// Therefore request.temperature is always the source of truth —
-	/// runtimeDefaults can only help for optional fields (topP, topK, etc.).
-	/// Special case: temperature=0 is valid (deterministic mode).
-	let effectiveTemp: Float = request.temperature
-
-	/// Resolve optional parameters with nil → runtime → nil cascade.
-	let effectiveTopP = request.topP ?? runtimeDefaults.topP
-	let effectiveTopK = request.topK ?? runtimeDefaults.topK
-	let effectiveMaxTokens = request.maxTokens ?? runtimeDefaults.maxTokens
-
-	/// Resolve penalty parameters (0 = not set, non-zero = explicit value).
-	let effectivePresencePenalty = request.presencePenalty != 0
-		? request.presencePenalty
-		: runtimeDefaults.presencePenalty
-	let effectiveFrequencyPenalty = request.frequencyPenalty != 0
-		? request.frequencyPenalty
-		: runtimeDefaults.frequencyPenalty
-
-	/// Build normalized sampling configuration (drops redundant params when temperature == 0).
-	let rawSampling = SamplingConfiguration(
-		temperature: Double(effectiveTemp),
-		topP: effectiveTopP.map(Double.init),
-		topK: effectiveTopK,
-		minP: nil,
-		presencePenalty: Double(effectivePresencePenalty),
-		frequencyPenalty: Double(effectiveFrequencyPenalty),
-		stopSequences: request.stop,
-		logitBias: nil, // logitBias 暂不暴露（ChatCompletionRequest 无对应字段）
-		combined: true,
-	)
-
-	/// Phase 4b: Task-aware parameter adjustment — precision tasks get lower temperature.
-	let taskType = await messageBuilder.lastTaskType()
-	let taskAwareSampling = rawSampling.withTaskAwareParams(for: taskType)
-	if taskAwareSampling != rawSampling {
-		logger.info("Task-aware params adjusted for \(taskType.rawValue): temp=\(String(describing: rawSampling.temperature))→\(String(describing: taskAwareSampling.temperature))")
-	}
-
-	let sampling = taskAwareSampling.normalized()
-
-	/// Log warning if normalization dropped parameters.
-	if sampling != taskAwareSampling {
-		logger.warning("Sampling config normalized (redundant params dropped)")
-	}
-
-	/// Build inference options with same fallback chain.
-	let inferenceOpts = InferenceOptions(
-		maxTokens: effectiveMaxTokens,
-		includeLogits: false,
-	)
-
-	/// Log if runtime defaults override system defaults.
-	let hasOverride = (runtimeDefaults.temperature != ModelSamplingConfig.default.temperature ||
-		runtimeDefaults.topP != nil ||
-		runtimeDefaults.topK != nil ||
-		runtimeDefaults.maxTokens != nil)
-	if hasOverride {
-		logger.info("Using runtime sampling override for: \(modelId)")
-	}
-
-	/// Phase 5: Dispatch to stream OR non-stream path based on request flag.
-	/// Use ``generateFromMessages`` — MLX path passes messages directly to ChatSession,
-	/// eliminating the tokenize→detokenize→re-tokenize loop.
-	if request.stream == true {
-		return try await streamWithToolCalling(
-			handle: handle,
-			promptTokenCount: promptTokenCount,
-			messages: fullMessages,
-			sampling: sampling,
-			options: inferenceOpts,
-			request: request,
-			modelId: modelId,
-			sessionCompressor: sessionCompressor,
-			logger: logger,
-			metrics: metrics,
-		)
-	} else {
-		return try await nonStreamWithToolCalling(
-			handle: handle,
-			promptTokenCount: promptTokenCount,
-			messages: fullMessages,
-			sampling: sampling,
-			options: inferenceOpts,
-			request: request,
-			modelId: modelId,
-			sessionCompressor: sessionCompressor,
-			logger: logger,
-			metrics: metrics,
-		)
-	}
+	/// Cleanup on success path
+	await handle.release()
+	await scheduler.complete(schedulingRequest.id)
+	return result!
 }
 
 // MARK: - Tool Call Parsing — uses shared ``parseToolCalls`` from OpenAIModels

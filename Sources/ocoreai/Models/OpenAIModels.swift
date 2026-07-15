@@ -810,6 +810,9 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
 	/// Service Unavailable — session limit exceeded
 	case sessionLimitExceeded
 
+	/// Service Unavailable — memory pressure threshold exceeded
+	case memoryPressure
+
 	/// Not Found — session not found in PagedKVCache
 	case sessionNotFound(String)
 
@@ -830,7 +833,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
 		case let .sessionExpired(id): "Session \(id) expired"
 		case .blockPoolExhausted: "BlockPool exhausted — unable to evict"
 		case .sessionLimitExceeded: "Session limit exceeded"
-		case let .sessionNotFound(id): "Session \(id) not found"
+		case .memoryPressure: "Memory pressure threshold exceeded"
+				case .sessionNotFound: "Session not found"
 		}
 	}
 
@@ -850,7 +854,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
 		case .modelNotFound, .coldStoreNotFound, .sessionNotFound:
 			.notFound
 		case .poolExhausted, .queueClosed, .engineUnavailable,
-		     .blockPoolExhausted, .sessionLimitExceeded:
+		     .blockPoolExhausted, .sessionLimitExceeded, .memoryPressure:
 			.serviceUnavailable
 		case .sessionExpired:
 			.gone

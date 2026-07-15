@@ -162,10 +162,18 @@ actor PagedKVCache {
 		let poolBytes = await blockPool.estimatedBytes
 		if poolBytes > config.memoryPressureBytes {
 			logger.warning(
-				"内存压力: \(poolBytes / (1024 * 1024))MB > \(config.memoryPressureBytes / (1024 * 1024))MB, 拒绝新 session",
+				"内存压力: \\(poolBytes / (1024 * 1024))MB > \\(config.memoryPressureBytes / (1024 * 1024))MB, 拒绝新 session",
 			)
 			// 尝试先淘汰空闲 session
 			await evictIdleSessions()
+			// Re-check pressure after eviction — if still too high, reject
+			let poolBytesAfter = await blockPool.estimatedBytes
+			if poolBytesAfter > config.memoryPressureBytes {
+				logger.warning(
+					"内存压力仍高: \\(poolBytesAfter / (1024 * 1024))MB, 拒绝新 session \\(sessionId)",
+				)
+				throw AppError.memoryPressure
+			}
 		}
 
 		let state = SessionState(
@@ -407,15 +415,23 @@ actor PagedKVCache {
 	}
 
 	/// 获取内存使用估算（字节）。
+	///
+	/// Deprecated: uses a hardcoded formula (16 tokens/block, 4096 hidden size)
+	/// which is inaccurate for models with different hidden dimensions.
+	/// Call ``getMemoryBytes()`` instead — it delegates to ``BlockPool/estimatedBytes``
+	/// which uses ``BlockPoolConfig/hiddenSize`` for per-model accurate accounting.
 	var estimatedMemoryBytes: Int {
-		// blockPool.estimatedBytes is actor-isolated — need local tracking instead
-		// Track approximate memory here
 		sessions.values.reduce(0) { $0 + $1.blockTable.blocksUsed * 16 * 2 * 4096 * 2 }
 	}
 
-	/// Async accessor for memory bytes (actor-safe, callable from EnginePool).
+	/// Async accessor for memory bytes — delegates to ``BlockPool/estimatedBytes``
+	/// which uses accurate per-block accounting based on ``BlockPoolConfig/hiddenSize``.
+	///
+	/// Fixes: estimatedMemoryBytes hardcoded 4096 hiddenSize → actual BlockPool tracking.
+	/// BlockPool tracks `refCount > 0` blocks and their real `estimatedBytes` computed at
+	/// allocation time using `config.hiddenSize`, not a session-level guess.
 	func getMemoryBytes() async -> Int {
-		estimatedMemoryBytes
+		await blockPool.estimatedBytes
 	}
 
 	/// 优雅关闭（取消后台任务）。

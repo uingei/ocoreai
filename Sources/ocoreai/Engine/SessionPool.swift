@@ -230,13 +230,17 @@ struct SessionPoolConfig {
 			}
 
 			for (key, entry) in keysToRemove {
+				// Persist to disk in a detached Task so saveCache (which can be slow
+				// for large KV caches) does not block the actor mailbox.
 				if persistFlag, let cacheURL = entry.cacheFileURL {
 					let cachePath = cacheURL.lastPathComponent
-					do {
-						try await entry.session.saveCache(to: cacheURL)
-						logger.debug("Saved KV cache: \(cachePath)")
-					} catch {
-						logger.warning("Failed to save KV cache: \(error.localizedDescription)")
+					_ = Task.detached(priority: .utility) { [self] in
+						do {
+							try await entry.session.saveCache(to: cacheURL)
+							await self.logger.debug("Saved KV cache: \(cachePath)")
+						} catch {
+							await self.logger.warning("Failed to save KV cache: \(error.localizedDescription)")
+						}
 					}
 				}
 				logger.debug("Evicted expired session: \(key)")
@@ -254,15 +258,19 @@ struct SessionPoolConfig {
 			}
 			let oldestKey = oldestItem.key
 			let entry = oldestItem.value
-			// 先从 pool 移��，再做保存——缩短 actor 占用窗口
+			// 先从 pool 移除，再做保存——缩短 actor 占用窗口
 			pool.removeValue(forKey: oldestKey)
+			// Persist to disk in a detached Task so saveCache (which can be slow
+			// for large KV caches) does not block the actor mailbox.
 			if config.persistCache, let cacheURL = entry.cacheFileURL {
 				let cachePath = cacheURL.lastPathComponent
-				do {
-					try await entry.session.saveCache(to: cacheURL)
-					logger.debug("Saved KV cache (LRU): \(cachePath)")
-				} catch {
-					logger.warning("Failed to save KV cache (LRU): \(error.localizedDescription)")
+				_ = Task.detached(priority: .utility) { [self] in
+					do {
+						try await entry.session.saveCache(to: cacheURL)
+						await self.logger.debug("Saved KV cache (LRU): \(cachePath)")
+					} catch {
+						await self.logger.warning("Failed to save KV cache (LRU): \(error.localizedDescription)")
+					}
 				}
 			}
 			logger.info("LRU evicted: \(oldestKey) (pool: \(pool.count))")

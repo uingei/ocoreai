@@ -247,12 +247,12 @@ struct WarmupTests {
 
 @Suite("LoadedModel Speculative Decoding")
 struct SpecDecodingTests {
-    @Test("default spec decoding config enabled")
+    @Test("default spec decoding config disabled")
     func defaultConfigEnabled() {
-        let cfg = SpecDecodingConfig()
-        #expect(cfg.enabled == true)
-        #expect(cfg.mode == "traditional")
-        #expect(cfg.numDraftTokens == 5)
+    	let cfg = SpecDecodingConfig()
+    	#expect(cfg.enabled == false)
+    	#expect(cfg.mode == "traditional")
+    	#expect(cfg.numDraftTokens == 5)
     }
 
     @Test("spec decoding disabled returns nil from createSpeculativeConfig")

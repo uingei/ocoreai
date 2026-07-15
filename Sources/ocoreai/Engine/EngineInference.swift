@@ -40,41 +40,32 @@ extension EnginePool {
 			Task { [self] in
 				let deadline = ContinuousClock.now + .seconds(config.inferenceTimeoutSeconds)
 				// P0-2 fix: tracker, register, and cleanup inside group eliminates race window
+				let tracker = Task<Void, Never> {
+					await self._runInference(
+						modelId: modelId,
+						input: input,
+						sampling: sampling,
+						options: options,
+						metrics: metrics,
+						continuation: continuation,
+						cancellation: cancellation,
+					)
+					()
+				}
+				await registerTrackedTask(tracker)
 				await withTaskGroup(of: Void.self) { group in
-					let tracker = Task<Void, Never> {
-						await self._runInference(
-							modelId: modelId,
-							input: input,
-							sampling: sampling,
-							options: options,
-							metrics: metrics,
-							continuation: continuation,
-							cancellation: cancellation,
-						)
-						()
-					}
-					registerTrackedTask(tracker)
 					group.addTask {
 						await tracker.value
 					}
 					group.addTask {
-						do { try await Task.sleep(for: .milliseconds(500)) } catch {}
-						while cancellation.isCancelled == false, ContinuousClock.now < deadline {
-							do { try Task.checkCancellation() } catch {
-								cancellation.cancel()
-								break
-							}
-							do { try await Task.sleep(for: .milliseconds(500)) } catch {
-								cancellation.cancel()
-								break
-							}
-						}
-						if ContinuousClock.now >= deadline {
-							cancellation.cancel()
-						}
+						// Single-shot watchdog: sleep until deadline once, then cancel.
+						// Replaces the previous 500ms polling loop which woke up 600+ times
+						// per 300s request — pure CPU waste for a single deadline check.
+						do { try await Task.sleep(until: deadline, clock: .continuous) } catch {}
+						cancellation.cancel()
 					}
-					removeTrackedTask(tracker)
 				}
+				await removeTrackedTask(tracker)
 			}
 		}
 	}
@@ -92,46 +83,37 @@ extension EnginePool {
 			AsyncThrowingStream { continuation in
 				Task { [self] in
 					let deadline = ContinuousClock.now + .seconds(config.inferenceTimeoutSeconds)
-					// P0-2 fix: tracker, register, and cleanup inside group eliminates race window
+					// P0-2 fix: tracker, register, and cleanup outside group eliminates race window
+					let tracker = Task<Void, Never> {
+						await self._runInferenceWithMessages(
+							modelId: modelId,
+							messages: messages,
+							sampling: sampling,
+							options: options,
+							metrics: metrics,
+							continuation: continuation,
+							conversationId: conversationId,
+							cancellation: cancellation,
+						)
+						()
+					}
+					await registerTrackedTask(tracker)
 					await withTaskGroup(of: Void.self) { group in
-						let tracker = Task<Void, Never> {
-							await self._runInferenceWithMessages(
-								modelId: modelId,
-								messages: messages,
-								sampling: sampling,
-								options: options,
-								metrics: metrics,
-								continuation: continuation,
-								conversationId: conversationId,
-								cancellation: cancellation,
-							)
-							()
-						}
-						registerTrackedTask(tracker)
 						group.addTask {
 							await tracker.value
 						}
 						group.addTask {
-							do { try await Task.sleep(for: .milliseconds(500)) } catch {}
-							while cancellation.isCancelled == false, ContinuousClock.now < deadline {
-								do { try Task.checkCancellation() } catch {
-									cancellation.cancel()
-									break
-								}
-								do { try await Task.sleep(for: .milliseconds(500)) } catch {
-									cancellation.cancel()
-									break
-								}
-							}
-							if ContinuousClock.now >= deadline {
-								cancellation.cancel()
-							}
+							// Single-shot watchdog: sleep until deadline once, then cancel.
+							// Replaces the previous 500ms polling loop which woke up 600+ times
+							// per 300s request — pure CPU waste for a single deadline check.
+							do { try await Task.sleep(until: deadline, clock: .continuous) } catch {}
+							cancellation.cancel()
 						}
-						removeTrackedTask(tracker)
 					}
+					await removeTrackedTask(tracker)
 				}
 			}
-		}
+			}
 
 	// MARK: - Internal Runners
 

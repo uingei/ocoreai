@@ -185,7 +185,7 @@ public struct SpecDecodingConfig: Sendable, Codable, Equatable {
 	public static let `default` = SpecDecodingConfig()
 
 	public init(
-		enabled: Bool = true,
+		enabled: Bool = false,
 		mode: String = "traditional",
 		draftModelId: String? = nil,
 		numDraftTokens: Int = 5,
