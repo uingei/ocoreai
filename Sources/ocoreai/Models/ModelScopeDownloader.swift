@@ -444,8 +444,9 @@ actor ModelScopeDownloader: Downloader {
 			let tasks = chunk.map { fileInfo -> (String, Task<(FileInfo, Bool), Error>) in
 				let filePath = String(fileInfo.path)
 				return (filePath, Task {
+					// Second Bool = isNewlyDownloaded (false for pre-existing skips)
 					if existingFilenames.contains(filePath) {
-						return (fileInfo, true)
+						return (fileInfo, false)
 					}
 					let dest = cacheDir.appendingPathComponent(filePath)
 					try await downloadSingleFile(
@@ -460,8 +461,10 @@ actor ModelScopeDownloader: Downloader {
 
 			for (filePath, task) in tasks {
 				do {
-					let (info, _) = try await task.value
-					newlyDownloaded.insert(filePath)
+					let (info, isNewlyDownloaded) = try await task.value
+					if isNewlyDownloaded {
+						newlyDownloaded.insert(filePath)
+					}
 					downloadedCount += 1
 					let fileBytes = info.size ?? 0
 					downloadedBytes += fileBytes

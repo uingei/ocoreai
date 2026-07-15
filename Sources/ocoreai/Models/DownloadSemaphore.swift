@@ -58,12 +58,13 @@ final class DownloadSemaphore: @unchecked Sendable {
 	}
 
 	/// Release a download slot after completion (success or failure).
-	/// Safe to call from `defer` — synchronous, no async needed.
+	/// Idempotent: only decrements `_inFlight` if `modelId` is actively tracked,
+	/// preventing double-release from corrupting the slot counter.
 	func release(for modelId: String) {
 		_lock.lock()
 		defer { _lock.unlock() }
 
-		_activeDownloads.remove(modelId)
+		guard _activeDownloads.remove(modelId) != nil else { return }
 		_inFlight = Swift.max(0, _inFlight - 1)
 	}
 
