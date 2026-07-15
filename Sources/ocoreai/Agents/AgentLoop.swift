@@ -192,6 +192,18 @@ enum AgentLoop {
                 )
             }
 
+            // Respond to task cancellation before each iteration
+            guard !Task.isCancelled else {
+                log.info("AgentLoop: cancelled at iteration \(i)")
+                return AgentLoopResult(
+                    text: "[agent-loop: cancelled]",
+                    iterationCount: iterCount,
+                    iters: logs,
+                    finishReason: "cancelled",
+                    totalTokens: totalTok
+                )
+            }
+
             // Budget guard
             guard budgetRemaining >= config.guardMargin else {
                 log.info("AgentLoop: budget below guardMargin (\(budgetRemaining)), stopping")

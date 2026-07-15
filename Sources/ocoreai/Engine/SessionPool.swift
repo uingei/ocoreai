@@ -21,6 +21,8 @@
 
 import Foundation
 import Logging
+import MLXLLM
+import MLXLMCommon
 
 // MARK: - Configuration (trait-agnostic)
 
@@ -50,9 +52,6 @@ struct SessionPoolConfig {
 	static let `default`: SessionPoolConfig = .init()
 }
 
-
-	import MLXLLM
-	import MLXLMCommon
 
 	// MARK: - Pooled Session Entry
 

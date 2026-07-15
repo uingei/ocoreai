@@ -438,7 +438,7 @@ actor EnginePool {
 				#if canImport(CoreAI)
 					entry["specialized"] = String(model.preparedModel.isSpecialized)
 				#endif
-				entry["specialized"] = String(model.isVlm)
+				entry["vlm"] = String(model.isVlm)
 				result.append(entry)
 			}
 		}
