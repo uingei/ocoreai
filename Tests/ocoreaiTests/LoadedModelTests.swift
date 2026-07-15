@@ -13,9 +13,9 @@ import Atomics
 @testable import ocoreai
 import ocoreaiTestUtilities
 
-// MARK: - coreai-only types (compiled out when coreai unavailable)
+// MARK: - CoreAI-only types (compiled out when CoreAI unavailable)
 
-#if coreai
+#if canImport(CoreAI)
 /// Re-export StreamingDetokenizer for cross-context tests — no duplication.
 import Transformers
 #endif
@@ -35,7 +35,7 @@ func makeModelConfig(name: String = "test-model", vocabSize: Int = 32_000,
 }
 
 func makeLoadedModel(config: ModelConfig = makeModelConfig()) -> LoadedModel {
-    let data = "{}".data(using: .utf8)!
+    let data = Data("{}".utf8)
     return LoadedModel(
         configData: data,
         modelURL: URL(fileURLWithPath: "/tmp/test-model"),
@@ -70,7 +70,7 @@ struct MetadataTests {
 
     @Test("configData and modelURL preserved")
     func rawDataPreserved() {
-        let data = "{\"test\":true}".data(using: .utf8)!
+        let data = Data("{\"test\":true}".utf8)
         let cfg = makeModelConfig()
         let model = LoadedModel(
             configData: data,

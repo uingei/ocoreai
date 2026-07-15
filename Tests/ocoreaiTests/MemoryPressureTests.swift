@@ -14,7 +14,7 @@ import Logging
 
 @Suite("PagedKVCache Memory Pressure Invariants")
 struct MemoryPressureInvariantsTests {
-    @Test("attach() rejects new session when pool exceeds pressure threshold")
+    @Test("attach() fills pool and reports active blocks")
     func rejectsWhenAbovePressure() async {
         let config = PagedKVCacheConfig(
             tokensPerBlock: 16,
@@ -37,17 +37,17 @@ struct MemoryPressureInvariantsTests {
             logger: Logger(label: "test.memory")
         )
         
-        // Fill pool — check poolStats reflects active state
+        // Fill pool — verify setup succeeded
         for i in (0..<5) {
-            try? await cache.attach(sessionId: "s_\(i)")
+            try await cache.attach(sessionId: "s_\(i)")
         }
         
         let poolStats = await cache.poolStats()
-        #expect(poolStats.activeBlocks >= 0)
+        #expect(poolStats.activeBlocks > 0)
     }
     
     @Test("attach() should reject new session when memory pressure exceeded and eviction cannot help")
-    func memoryPressureRejection() async {
+    func memoryPressureRejection() async throws {
         let config = PagedKVCacheConfig(
             tokensPerBlock: 16,
             maxSessions: 10,
@@ -71,14 +71,14 @@ struct MemoryPressureInvariantsTests {
         
         // Fill pool with sessions — all active so evictIdleSessions finds nothing
         for i in (0..<5) {
-            try? await cache.attach(sessionId: "active_\(i)")
-            try? await cache.appendTokens(sessionId: "active_\(i)", numTokens: 32)
+            try await cache.attach(sessionId: "active_\(i)")
+            try await cache.appendTokens(sessionId: "active_\(i)", numTokens: 32)
         }
         
         // attach() should reject when pressure exceeded and eviction freed nothing.
-        // Bug: attach() does NOT re-check pressure after evictIdleSessions(),
-        // allowing the session through regardless (TOCTOU).
-        try? await cache.attach(sessionId: "should_reject")
+        _ = try #require(throws: (any Error).self) {
+            try await cache.attach(sessionId: "should_reject")
+        }
         let activeCount = await cache.activeSessions
         #expect(
             activeCount < 6,
@@ -87,7 +87,7 @@ struct MemoryPressureInvariantsTests {
     }
     
     @Test("Session count respects maxSessions limit")
-    func maxSessionsEnforced() async {
+    func maxSessionsEnforced() async throws {
         let config = PagedKVCacheConfig(
             tokensPerBlock: 16,
             maxSessions: 3,
@@ -109,10 +109,10 @@ struct MemoryPressureInvariantsTests {
             logger: Logger(label: "test.memory")
         )
         
-        // Fill to limit
-        try? await cache.attach(sessionId: "a")
-        try? await cache.attach(sessionId: "b")
-        try? await cache.attach(sessionId: "c")
+        // Fill to limit — setup must succeed
+        try await cache.attach(sessionId: "a")
+        try await cache.attach(sessionId: "b")
+        try await cache.attach(sessionId: "c")
         #expect(await cache.activeSessions == 3)
         
         // Exceed limit — should throw
@@ -120,13 +120,13 @@ struct MemoryPressureInvariantsTests {
             try await cache.attach(sessionId: "d")
             #expect(Bool(false), "Should have thrown sessionLimitExceeded")
         } catch {
-            // Expected — some error was thrown (session limit enforced)
+            // Expected — session limit enforced
             #expect(error is AppError)
         }
     }
     
     @Test("Evicting session releases block references")
-    func evictReleasesBlocks() async {
+    func evictReleasesBlocks() async throws {
         let config = PagedKVCacheConfig(
             tokensPerBlock: 16,
             maxSessions: 10,
@@ -150,8 +150,8 @@ struct MemoryPressureInvariantsTests {
         
         let beforeStats = await cache.poolStats()
         
-        try? await cache.attach(sessionId: "evict_me")
-        try? await cache.appendTokens(sessionId: "evict_me", numTokens: 48)
+        try await cache.attach(sessionId: "evict_me")
+        try await cache.appendTokens(sessionId: "evict_me", numTokens: 48)
         
         let afterAttach = await cache.poolStats()
         #expect(afterAttach.activeBlocks > beforeStats.activeBlocks)
@@ -164,7 +164,7 @@ struct MemoryPressureInvariantsTests {
     }
     
     @Test("Prefix sharing increments reference count correctly")
-    func prefixSharingRefCount() async {
+    func prefixSharingRefCount() async throws {
         let config = PagedKVCacheConfig(
             tokensPerBlock: 16,
             maxSessions: 10,
@@ -187,14 +187,14 @@ struct MemoryPressureInvariantsTests {
         )
         
         // Source session with blocks
-        try? await cache.attach(sessionId: "source")
-        try? await cache.appendTokens(sessionId: "source", numTokens: 48)
+        try await cache.attach(sessionId: "source")
+        try await cache.appendTokens(sessionId: "source", numTokens: 48)
         
         // Target session
-        try? await cache.attach(sessionId: "target")
+        try await cache.attach(sessionId: "target")
         
         // Share blocks from source
-        try? await cache.sharePrefix(sessionId: "target", sourceSessionId: "source", numBlocks: 2)
+        try await cache.sharePrefix(sessionId: "target", sourceSessionId: "source", numBlocks: 2)
         
         // Target should have blocks from prefix sharing
         let info = await cache.sessionInfo(sessionId: "target")
