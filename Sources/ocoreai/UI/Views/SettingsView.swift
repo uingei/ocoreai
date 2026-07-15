@@ -15,6 +15,9 @@ struct SettingsView: View {
 
 	init() {
 		_settingsState = State(initialValue: SettingsState())
+		// Initialize token fields from persisted values — prevents empty→filled flicker
+		_hfTokenField = SettingsStore.shared.hfToken ?? ""
+		_msTokenField = SettingsStore.shared.modelScopeToken ?? ""
 	}
 
 	var body: some View {
@@ -83,8 +86,6 @@ struct SettingsView: View {
 
 	// MARK: - Hub Tokens
 
-	@State private var _loadingHubTokens = false
-
 	private var hubTokenSection: some View {
 		Section {
 			VStack(alignment: .leading, spacing: 4) {
@@ -103,7 +104,6 @@ struct SettingsView: View {
 					}
 				}
 				SecureField(StringKey.enterTokenPlaceholder.l, text: $_hfTokenField)
-					.disabled(_loadingHubTokens)
 					.onChange(of: _hfTokenField) { _, newValue in
 						settingsState.hfToken = (newValue.isEmpty ? nil : newValue)
 					}
@@ -125,7 +125,6 @@ struct SettingsView: View {
 					}
 				}
 				SecureField(StringKey.enterTokenPlaceholder.l, text: $_msTokenField)
-					.disabled(_loadingHubTokens)
 					.onChange(of: _msTokenField) { _, newValue in
 						settingsState.modelScopeToken = (newValue.isEmpty ? nil : newValue)
 					}
@@ -134,13 +133,6 @@ struct SettingsView: View {
 			Text(StringKey.hubTokensTitle.l)
 		} footer: {
 			Text(StringKey.hubTokensHint.l)
-		}
-		.task {
-			// Load persisted tokens into local field bindings
-			_loadingHubTokens = true
-			_hfTokenField = settingsState.hfToken ?? ""
-			_msTokenField = settingsState.modelScopeToken ?? ""
-			_loadingHubTokens = false
 		}
 	}
 

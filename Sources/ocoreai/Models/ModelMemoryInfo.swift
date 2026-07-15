@@ -90,34 +90,43 @@ struct ModelMemoryInfo: Identifiable, Hashable, Sendable {
 	}
 	
 	/// Infer quantization and param count from model ID string.
+	/// Case-insensitive, specific patterns matched first to avoid short patterns
+	/// like "7b" matching "70b" or "17b".
 	mutating func inferMetadata() {
-		let id = self.id
-		// Quantization detection
-		if id.contains("4bit") || id.contains("4-bit") {
+		let lower = self.id.lowercased()
+
+		// Quantization detection — case-insensitive
+		if lower.contains("4bit") || lower.contains("4-bit") {
 			quantization = "4-bit"
-		} else if id.contains("8bit") || id.contains("8-bit") {
+		} else if lower.contains("8bit") || lower.contains("8-bit") {
 			quantization = "8-bit"
-		} else if id.contains("bf16") {
+		} else if lower.contains("bf16") {
 			quantization = "bf16"
-		} else if id.contains("q4f16") {
+		} else if lower.contains("q4f16") {
 			quantization = "q4f16"
 		}
-		
+
 		// Param count rough estimate from model name
+		// Sorted longest-first so "70b" matches before "7b"
 		let paramMap: [(String, String)] = [
-			("1b", "~1B"), ("2b", "~2B"), ("3b", "~3B"),
-			("7b", "~7B"), ("8b", "~8B"),
-			("14b", "~14B"), ("15b", "~15B"),
-			("30b", "~30B"), ("32b", "~32B"),
-			("65b", "~65B"), ("70b", "~70B"),
-			("27b", "~27B"), ("28b", "~28B"),
+			("70b", "~70B"),
+			("65b", "~65B"),
+			("32b", "~32B"),
+			("30b", "~30B"),
+			("28b", "~28B"),
+			("27b", "~27B"),
+			("15b", "~15B"),
+			("14b", "~14B"),
+			("8b", "~8B"),
+			("7b", "~7B"),
+			("3b", "~3B"),
+			("2b", "~2B"),
+			("1b", "~1B"),
 		]
-		paramMap.forEach { pattern, label in
-			if id.contains(pattern) {
-				paramCountString = label
-			}
+		if let matched = paramMap.first(where: { lower.contains($0.0) }) {
+			paramCountString = matched.1
 		}
-		
+
 		// VLM modalities
 		if isVlm {
 			modalities = ["vision", "language"]

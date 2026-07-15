@@ -373,7 +373,7 @@ final class ModelManager {
 		}
 	}
 
-	// MARK: - Convenience
+	// MARK: - Search Helpers
 
 	/// Clear search results and reset state for a fresh start.
 	func clearSearch() {

@@ -11,15 +11,17 @@ import Foundation
 import Observation
 
 /// Human-readable download status for a single model.
-struct OcoreaiDownloadProgressState {
+struct OcoreaiDownloadProgressState: Sendable {
 	/// Progress fraction 0.0–1.0
 	var fraction: Double
 	/// Number of completed files
 	let completedFiles: Int
 	/// Total number of files
 	let totalFiles: Int
-	/// Whether currently active
+	/// Whether currently active (downloading)
 	var active: Bool = true
+	/// Whether download completed successfully — shown briefly in UI before eviction
+	var completed: Bool = false
 
 	static let idle = OcoreaiDownloadProgressState(
 		fraction: 0, completedFiles: 0, totalFiles: 0, active: false,
@@ -63,11 +65,28 @@ final class OcoreaiDownloadProgress {
 		)
 	}
 
-	// B9 fix: success also evicts entry to prevent leaked stale state
 	/// Mark a download as complete (or failed).
-	/// On success the entry is evicted — stale completed entries are no-ops in UI.
+	/// On success the entry is marked as completed and auto-evicted after a brief
+	/// delay so the UI can show a "✓ completed" flash before cleanup.
+	/// On failure the entry is evicted immediately.
 	func finish(modelId: String, success: Bool = true) {
-		_progress.removeValue(forKey: modelId)
+		guard success else {
+			_progress.removeValue(forKey: modelId)
+			return
+		}
+		// Mark completed — UI sees fraction=1.0, completed=true
+		_progress[modelId] = OcoreaiDownloadProgressState(
+			fraction: 1.0,
+			completedFiles: _progress[modelId]?.completedFiles ?? 0,
+			totalFiles: _progress[modelId]?.totalFiles ?? 0,
+			active: false,
+			completed: true
+		)
+		// Auto-evict after delay so UI can render the completion flash
+		Task { @MainActor in
+			try? await Task.sleep(for: .seconds(2))
+			_progress.removeValue(forKey: modelId)
+		}
 	}
 
 	/// Clear all state (e.g. when sheet dismisses).
