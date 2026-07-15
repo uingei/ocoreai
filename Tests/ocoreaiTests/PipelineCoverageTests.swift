@@ -405,7 +405,7 @@ struct DownloadRequestValidationTests {
       try req.validate()
       Issue.record("should throw for empty model")
     } catch {
-      #expect((error as? AppError.invalidRequest) != nil)
+      #expect(error is AppError, "expected AppError.invalidRequest")
     }
   }
 
@@ -416,7 +416,7 @@ struct DownloadRequestValidationTests {
       try req.validate()
       Issue.record("should throw for unknown provider")
     } catch {
-      #expect((error as? AppError.invalidRequest) != nil)
+      #expect(error is AppError, "expected AppError.invalidRequest")
     }
   }
 

@@ -182,7 +182,7 @@ extension Model {
 
 // MARK: - Errors
 
-enum HFSearchError: Error, LocalizedError {
+enum HFSearchError: Error, LocalizedError, Equatable {
 	case invalidResponse
 	case invalidJSON
 	case badQuery

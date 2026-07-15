@@ -15,7 +15,7 @@ import Logging
 @Suite("PagedKVCache Memory Pressure Invariants")
 struct MemoryPressureInvariantsTests {
     @Test("attach() fills pool and reports active blocks")
-    func rejectsWhenAbovePressure() async {
+    func rejectsWhenAbovePressure() async throws {
         let config = PagedKVCacheConfig(
             tokensPerBlock: 16,
             maxSessions: 256,
@@ -76,8 +76,11 @@ struct MemoryPressureInvariantsTests {
         }
         
         // attach() should reject when pressure exceeded and eviction freed nothing.
-        _ = try #require(throws: (any Error).self) {
-            try await cache.attach(sessionId: "should_reject")
+        do {
+            _ = try await cache.attach(sessionId: "should_reject")
+            Issue.record("attach() should have thrown under memory pressure")
+        } catch {
+            // expected — attach rejected under memory pressure
         }
         let activeCount = await cache.activeSessions
         #expect(

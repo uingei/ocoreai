@@ -287,8 +287,7 @@ actor EnginePool {
 				throw AppError.engineUnavailable
 			}
 			if waited % 10 == 0 {
-				let remaining = timeoutSeconds - waited
-				logger.info("Model \\(modelId) load in progress — \\(remaining)s remaining")
+				logger.info("Model \\(modelId) load in progress — \\(timeoutSeconds - waited)s remaining")
 			}
 			try await Task.sleep(for: .seconds(1))
 			waited += 1
@@ -556,11 +555,11 @@ actor EnginePool {
 
 	// MARK: - Tracked Task Management
 
-	func registerTrackedTask(_ task: Task<Void, Never>) {
+	func registerTrackedTask(_ task: Task<Void, Never>) async {
 		trackedTasks.append(task)
 	}
 
-	func removeTrackedTask(_ task: Task<Void, Never>) {
+	func removeTrackedTask(_ task: Task<Void, Never>) async {
 		trackedTasks.removeAll { $0 == task }
 	}
 

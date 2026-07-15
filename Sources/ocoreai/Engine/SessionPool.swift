@@ -234,12 +234,13 @@ struct SessionPoolConfig {
 				// for large KV caches) does not block the actor mailbox.
 				if persistFlag, let cacheURL = entry.cacheFileURL {
 					let cachePath = cacheURL.lastPathComponent
-					_ = Task.detached(priority: .utility) { [self] in
+					let log = self.logger
+					_ = Task.detached(priority: .utility) { [entry, log, cachePath] in
 						do {
 							try await entry.session.saveCache(to: cacheURL)
-							await self.logger.debug("Saved KV cache: \(cachePath)")
+							log.debug("Saved KV cache: \(cachePath)")
 						} catch {
-							await self.logger.warning("Failed to save KV cache: \(error.localizedDescription)")
+							log.warning("Failed to save KV cache: \(error.localizedDescription)")
 						}
 					}
 				}
@@ -264,12 +265,13 @@ struct SessionPoolConfig {
 			// for large KV caches) does not block the actor mailbox.
 			if config.persistCache, let cacheURL = entry.cacheFileURL {
 				let cachePath = cacheURL.lastPathComponent
-				_ = Task.detached(priority: .utility) { [self] in
+				let log = self.logger
+				_ = Task.detached(priority: .utility) { [entry, log, cachePath] in
 					do {
 						try await entry.session.saveCache(to: cacheURL)
-						await self.logger.debug("Saved KV cache (LRU): \(cachePath)")
+						log.debug("Saved KV cache (LRU): \(cachePath)")
 					} catch {
-						await self.logger.warning("Failed to save KV cache (LRU): \(error.localizedDescription)")
+						log.warning("Failed to save KV cache (LRU): \(error.localizedDescription)")
 					}
 				}
 			}

@@ -190,7 +190,7 @@ actor ModelScopeDownloader: Downloader {
 
 	// MARK: - ModelScope API
 
-	private struct FileInfo: Decodable {
+	struct FileInfo: Decodable {
 		let path: String
 		let size: Int64?
 		let type: String // "file" or "dir"
