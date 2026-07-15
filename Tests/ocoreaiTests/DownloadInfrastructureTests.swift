@@ -151,9 +151,13 @@ struct DownloadSemaphoreTests {
     let result = await cancelTask.result
     let elapsed = started.duration(to: ContinuousClock.now)
 
-    // Task completed
-    let completedValue = result.get()
-    _ = completedValue
+    // Task should complete with a success value (false = cancelled)
+    switch result {
+    case .success(let value):
+      #expect(value == false)
+    case .failure:
+      #expect(false, "Task should not fail")
+    }
     // Completed relatively quickly (< 2s means cancellation was honored,
     // not that we waited for a blocker to release)
     #expect(elapsed < .seconds(2))
@@ -358,6 +362,7 @@ struct RetryDelayTests {
   func maxDelay() {
     for _ in 0..<10 {
       let delay = retryDelay(attempt: 10, maxDelay: 5.0)
+      #expect(delay > 0)
       #expect(delay <= 5.0)
     }
   }

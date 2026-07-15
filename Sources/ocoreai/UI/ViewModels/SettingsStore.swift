@@ -105,7 +105,7 @@ final class SettingsStore {
 	var hfToken: String? {
 		get {
 			ProcessInfo.processInfo.environment["HF_TOKEN"]
-				?? UserDefaults.standard.string(forKey: Key.hfToken.rawValue)
+				?? defaults.string(forKey: Key.hfToken.rawValue)
 		}
 		set { defaults.set(newValue, forKey: Key.hfToken.rawValue) }
 	}
@@ -115,7 +115,7 @@ final class SettingsStore {
 	var modelScopeToken: String? {
 		get {
 			ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
-				?? UserDefaults.standard.string(forKey: Key.modelScopeToken.rawValue)
+				?? defaults.string(forKey: Key.modelScopeToken.rawValue)
 		}
 		set { defaults.set(newValue, forKey: Key.modelScopeToken.rawValue) }
 	}
@@ -209,7 +209,7 @@ final class SettingsStore {
 	}
 
 	private let defaults: UserDefaults
-	private init(defaults: UserDefaults = .standard) {
+	@MainActor init(defaults: UserDefaults = .standard) {
 		self.defaults = defaults
 	}
 

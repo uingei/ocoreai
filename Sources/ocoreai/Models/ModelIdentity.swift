@@ -49,10 +49,19 @@ struct ModelIdentity: Identifiable, Hashable, Codable, Sendable {
         ModelIdentity(id: path, source: .local(path: path))
     }
 
-    /// EnginePool-compatible model ID (bare repo path).
-    /// Source routing is now handled by the explicit `source` parameter,
-    /// so prefixes are no longer concatenated here.
-    var prefixedId: String { id }
+    /// EnginePool-compatible model ID with hub prefix.
+    /// EnginePool.loadModel reads `hf:` prefix to route config fetch
+    /// and MLXModelLoader to HuggingFace vs ModelScope.
+    var prefixedId: String {
+        switch source {
+        case .huggingFace:
+            return "hf:" + id
+        case .modelScope:
+            return "mscope:" + id
+        case .local:
+            return id
+        }
+    }
 
     /// Plain repo ID without any prefix. Used for progress key alignment
     /// and display purposes.

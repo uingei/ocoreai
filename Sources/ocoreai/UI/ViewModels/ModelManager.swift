@@ -175,46 +175,9 @@ final class ModelManager {
 		// Progress key = repoId (no prefix) — aligns UI with MLXBridge callbacks
 		let progressKey = identity.repoId
 
-		// Fast-check: if model is already cached, load directly without progress UI
-		if pool.isHubModel(normalizedId) {
-			if case .local = identity.source {
-				// Local path — skip cache check, go to download path below
-			} else {
-				let provider: MLXModelLoader.HubProvider
-				let repoId: String
-				switch identity.source {
-				case .modelScope(let r):
-					provider = .modelScope
-					repoId = r
-				case .huggingFace(let r):
-					provider = .huggingFace
-					repoId = r
-				case .local:
-					// Unreachable — handled by outer guard
-					assertionFailure("unreachable — handled by outer guard")
-					return false
-				}
-
-				// Check if already cached
-				if MLXModelLoader.isModelCached(provider, repoId: repoId) {
-					currentError = nil
-					do {
-						let handle = try await pool.acquire(model: normalizedId)
-						// Use handle.release() — uses the real UUID sessionId from acquire(),
-						// ensuring pagedKVCache evicts the correct session entry.
-						// Fixes P0-2: pagedKVCache sessionId leak (UUID never evicted when sessionId="init")
-						await handle.release()
-						await refreshLocalModels()
-						return true
-					} catch {
-						currentError = .loadFailed(error.localizedDescription)
-						return false
-					}
-				}
-			}
-		}
-
-		// Model not cached or non-hub model — use full download path with progress UI
+		// EnginePool.acquire handles cache check internally (loadModel checks
+		// isModelCached before downloading), so we route everything through
+		// _downloadAndLoad for consistent progress tracking and semaphore gating.
 		return await _downloadAndLoad(normalizedId: normalizedId, progressKey: progressKey, pool: pool)
 	}
 
@@ -223,6 +186,14 @@ final class ModelManager {
 		progressKey: String,
 		pool: EnginePool
 	) async -> Bool {
+		// Acquire a download slot — prevents concurrent downloads from
+		// saturating disk I/O and rejects duplicate downloads of the same model.
+		guard await DownloadSemaphore.shared.acquireOrWait(for: progressKey) else {
+			currentError = .loadFailed("Model is already being downloaded")
+			return false
+		}
+		defer { DownloadSemaphore.shared.release(for: progressKey) }
+
 		isDownloading = true
 		downloadingModelId = progressKey
 		currentError = nil
