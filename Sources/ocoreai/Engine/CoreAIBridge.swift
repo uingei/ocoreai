@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 // CoreAI bridge — compiled only when 'coreai' trait is active
-#if coreai
+#if canImport(CoreAI)
 
 	/// CoreAIBridge.swift — Official Core AI two-phase loading bridge
 	///

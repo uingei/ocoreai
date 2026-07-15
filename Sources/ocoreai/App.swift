@@ -18,9 +18,7 @@ import Foundation
 import Hummingbird
 import Logging
 import ServiceLifecycle
-#if mlx
-	import MLX
-#endif
+import MLX
 
 // MARK: - Shared Engine Lifecycle (Unified for CLI + GUI)
 
@@ -228,10 +226,8 @@ public final class OcoreaiEngine {
 		let memBudget = ModelConfigEntry.computeMemoryBudget(physicalMemory: physicalMem)
 		logger.info("Hardware: \(physicalMem / 1_073_741_824) GB RAM, budget: \(memBudget / 1_073_741_824) GB")
 
-		// Set MLX memory cache limit early — prevents unbounded GPU memory growth
-		#if mlx
+			// Set MLX memory cache limit early — prevents unbounded GPU memory growth
 			Memory.cacheLimit = Int(memBudget)
-		#endif
 
 		// MARK: - HF Hub Environment Configuration
 

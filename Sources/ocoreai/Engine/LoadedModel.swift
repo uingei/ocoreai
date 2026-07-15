@@ -9,16 +9,14 @@ import Atomics
 import Foundation
 import Logging
 
-#if coreai
+#if canImport(CoreAI)
 	import CoreAI
 	import CoreAILanguageModels
 	import CoreAIShared
 #endif
 
-#if mlx
-	import MLXLLM
-	import MLXLMCommon
-#endif
+import MLXLLM
+import MLXLMCommon
 
 // MARK: - LoadedModel
 
@@ -39,7 +37,7 @@ final class LoadedModel: @unchecked Sendable {
 	/// Parsed model configuration (context length, vocab, tokenizer)
 	let modelConfig: ModelConfig
 
-	#if coreai
+	#if canImport(CoreAI)
 		/// v15: Specialized Core AI model — compiled once at load time, reused across requests
 		let preparedModel: CoreAIPreparedModel
 
@@ -51,7 +49,6 @@ final class LoadedModel: @unchecked Sendable {
 		private var cachedEngine: (any InferenceEngine)?
 	#endif
 
-	#if mlx
 		/// MLXLLM model handle — loaded once at load time, reused across inference
 		var mlxModelHandle: (any MLXModelHandle)?
 		/// Whether this model is a VLM (multi-modal: vision + language)
@@ -62,7 +59,6 @@ final class LoadedModel: @unchecked Sendable {
 		var specDecodingConfig: SpecDecodingConfig = .default
 		/// Draft model for speculative decoding — loaded by EnginePool, reused across sessions.
 		private var draftModelHandle: (any MLXModelHandle)?
-	#endif
 
 	/// Logger for observability
 	let logger: Logger
@@ -71,7 +67,6 @@ final class LoadedModel: @unchecked Sendable {
 
 	/// Configure speculative decoding for this loaded model.
 	/// Called once after model loading, before any inference session is created.
-	#if mlx
 		func setSpecDecodingConfig(_ config: SpecDecodingConfig) {
 			specDecodingConfig = config
 		}
@@ -113,8 +108,8 @@ final class LoadedModel: @unchecked Sendable {
 
 			let memPolicy: MLXLMCommon.SpeculativeDecodingMemoryPolicy? =
 				specDecodingConfig.memoryPolicy == "recommendedWorkingSet"
-					? .recommendedWorkingSet
-					: nil
+				? .recommendedWorkingSet
+				: nil
 
 			return MLXLMCommon.SpeculativeDecodingConfig(
 				draftModel: draftHandle.modelContainer,
@@ -122,7 +117,6 @@ final class LoadedModel: @unchecked Sendable {
 				memoryPolicy: memPolicy
 			)
 		}
-	#endif
 
 	// MARK: - Warmup (CAS-guarded, runs once)
 
@@ -139,7 +133,7 @@ final class LoadedModel: @unchecked Sendable {
 		logger.info("Prewarming \(modelConfig.name ?? "model")...")
 		let startTime = ContinuousClock.now
 
-#if coreai
+#if canImport(CoreAI)
 		do {
 			// Use cached engine — CoreAI 34f0db3: single engine per model preserves KV cache
 			let engine = try await getCachedEngine()
@@ -153,7 +147,7 @@ final class LoadedModel: @unchecked Sendable {
 		} catch {
 			logger.warning("Warmup skipped (non-fatal): \(error)")
 		}
-#elseif mlx
+	#else
 		do {
 			guard let handle = mlxModelHandle else {
 				logger.warning("MLX warmup skipped: no model handle")
@@ -179,10 +173,7 @@ final class LoadedModel: @unchecked Sendable {
 		} catch {
 			logger.warning("MLX warmup skipped (non-fatal): \(error)")
 		}
-#else
-		// Stub warmup — no inference backend available
-		logger.info("Warmup skipped (no inference trait)")
-#endif
+	#endif
 
 		let dur = startTime.duration(to: ContinuousClock.now)
 		let elapsed = Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
@@ -228,7 +219,7 @@ final class LoadedModel: @unchecked Sendable {
 
 	// MARK: - Engine Resolution (CoreAI)
 
-	#if coreai
+	#if canImport(CoreAI)
 		/// Get cached inference engine — create on first call, reuse thereafter.
 		/// CoreAI 34f0db3: engines should be singletons per LoadedModel to preserve KV cache.
 		/// Double-checked locking: inferenceGuard serializes access, but prewarm
@@ -275,44 +266,38 @@ final class LoadedModel: @unchecked Sendable {
 
 	// MARK: - Initialization
 
-	#if coreai
-		/// Create a loaded model instance with resolved config, weights, specialized model, and engine options.
-		///
-		/// - Parameters:
-		///   - configData: Raw config binary
-		///   - modelURL: Weight filesystem path
-		///   - modelConfig: Parsed model configuration
-		///   - preparedModel: v15 specialized Core AI model (cached for reuse)
-		///   - logger: Observability logger
-		init(configData: Data, modelURL: URL, modelConfig: ModelConfig, preparedModel: CoreAIPreparedModel, logger: Logger) {
-			self.configData = configData
-			self.modelURL = modelURL
-			self.modelConfig = modelConfig
-			self.preparedModel = preparedModel
-			engineOptions = EngineOptions(kvCacheStrategy: .auto)
-			#if mlx
+	#if canImport(CoreAI)
+			/// Create a loaded model instance with resolved config, weights, specialized model, and engine options.
+			///
+			/// - Parameters:
+			///   - configData: Raw config binary
+			///   - modelURL: Weight filesystem path
+			///   - modelConfig: Parsed model configuration
+			///   - preparedModel: v15 specialized Core AI model (cached for reuse)
+			///   - logger: Observability logger
+			init(configData: Data, modelURL: URL, modelConfig: ModelConfig, preparedModel: CoreAIPreparedModel, logger: Logger) {
+				self.configData = configData
+				self.modelURL = modelURL
+				self.modelConfig = modelConfig
+				self.preparedModel = preparedModel
+				engineOptions = EngineOptions(kvCacheStrategy: .auto)
 				mlxModelHandle = nil
-			#endif
-			self.logger = logger
-		}
-	#else // coreai — mlx path or stub
-		/// Initialize model (mlx handle or neither-build stub).
-		/// In mlx mode, ``mlxModelHandle`` is set via ``setMLXHandle(_:)`` after init.
-		init(configData: Data, modelURL: URL, modelConfig: ModelConfig, logger: Logger) {
-			self.configData = configData
-			self.modelURL = modelURL
-			self.modelConfig = modelConfig
-			#if mlx
+				self.logger = logger
+			}
+	#else // coreai — mlx path
+			/// Initialize model (mlx handle or neither-build stub).
+			/// In mlx mode, ``mlxModelHandle`` is set via ``setMLXHandle(_:)`` after init.
+			init(configData: Data, modelURL: URL, modelConfig: ModelConfig, logger: Logger) {
+				self.configData = configData
+				self.modelURL = modelURL
+				self.modelConfig = modelConfig
 				mlxModelHandle = nil
-			#endif
-			self.logger = logger
-		}
+				self.logger = logger
+			}
 
-		#if mlx
 			/// Set MLX model handle after model loading completes.
 			func setMLXHandle(_ handle: any MLXModelHandle) {
 				mlxModelHandle = handle
 			}
-		#endif
-	#endif // coreai
+	#endif
 }

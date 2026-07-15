@@ -50,7 +50,6 @@ struct SessionPoolConfig {
 	static let `default`: SessionPoolConfig = .init()
 }
 
-#if mlx
 
 	import MLXLLM
 	import MLXLMCommon
@@ -363,4 +362,3 @@ struct SessionPoolConfig {
 		}
 	}
 
-#endif // mlx

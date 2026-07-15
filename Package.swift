@@ -12,7 +12,6 @@ let package = Package(
         .executable(name: "ocoreai", targets: ["ocoreai"]),
     ],
     traits: [
-        .trait(name: "coreai", description: "Enable CoreAI backend (macOS 27+)"),
         .trait(name: "appStore", description: "App Store build: disable HTTP server, use direct inference only"),
     ],
     dependencies: [
@@ -54,8 +53,9 @@ let package = Package(
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
-                // MLX is always enabled — it's a real dependency, not an optional trait.
-                // The `mlx` swift flag keeps existing `#if mlx` guards functional.
+                // MLX is always enabled — it's a hard dependency, not an optional trait.
+                // .define("mlx") kept for backward compatibility with any #if mlx guards
+                // that may still exist in source.
                 .define("mlx"),
             ],
             linkerSettings: [

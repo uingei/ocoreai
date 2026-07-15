@@ -21,11 +21,7 @@ struct SemanticSearchResult: Identifiable, Sendable {
 /// Semantic search and embedding pipeline — actor-isolated via SQLiteStore.
 actor SemanticSearch {
 	private let store: SQLiteStore
-	#if mlx
-		private let embeddingService: EmbeddingService
-	#else
-		private var embeddingService: Any? = nil
-	#endif
+	private let embeddingService: EmbeddingService
 
 	private static let vectorDim = 1024
 	private static let defaultLimit = 20
@@ -33,11 +29,7 @@ actor SemanticSearch {
 
 	init(store: SQLiteStore) {
 		self.store = store
-		#if mlx
-			self.embeddingService = EmbeddingService()
-		#else
-			self.embeddingService = nil
-		#endif
+		self.embeddingService = EmbeddingService()
 	}
 
 	// MARK: - Embedding
@@ -45,26 +37,20 @@ actor SemanticSearch {
 	/// Embed a message and store the vector in SQLite.
 	@Sendable
 	func embedMessage(_ messageId: Int64, text: String) async {
-		#if mlx
-			self.embedMessage_impl(messageId, text: text)
-		#else
-			return
-		#endif
+		self.embedMessage_impl(messageId, text: text)
 	}
 
-	#if mlx
-		private func embedMessage_impl(_ messageId: Int64, text: String) {
-			Task {
-				let data = try? await embeddingService.embedText(text)
-				if let data {
-					_ = try? await store.execute(
-						sql: "UPDATE messages SET embed_vector = ? WHERE id = ?",
-						parameters: [data, messageId]
-					)
-				}
+	private func embedMessage_impl(_ messageId: Int64, text: String) {
+		Task {
+			let data = try? await embeddingService.embedText(text)
+			if let data {
+				_ = try? await store.execute(
+					sql: "UPDATE messages SET embed_vector = ? WHERE id = ?",
+					parameters: [data, messageId]
+				)
 			}
 		}
-	#endif
+	}
 
 	// MARK: - Semantic Search
 
@@ -75,12 +61,8 @@ actor SemanticSearch {
 		limit: Int? = nil
 	) async throws -> [SemanticSearchResult] {
 		let actualLimit = limit ?? Self.defaultLimit
-		#if mlx
-			let queryVector = try await embeddingService.embedText(query)
-			return try await searchWithVector(queryVector, sessionId: sessionId, limit: actualLimit)
-		#else
-			return []
-		#endif
+		let queryVector = try await embeddingService.embedText(query)
+		return try await searchWithVector(queryVector, sessionId: sessionId, limit: actualLimit)
 	}
 
 	/// Search using a pre-computed query vector directly.

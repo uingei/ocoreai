@@ -14,16 +14,14 @@ import Atomics
 import Foundation
 import Logging
 
-#if coreai
+#if canImport(CoreAI)
 	import CoreAI
 	import CoreAILanguageModels
 	import CoreAIShared
 #endif
 
-#if mlx
-	import MLXLLM
-	import MLXLMCommon
-#endif
+import MLXLLM
+import MLXLMCommon
 
 // MARK: - Content helper
 
@@ -85,16 +83,14 @@ actor EnginePool {
 
 	// MARK: - Model Loading
 
-	#if coreai
+	#if canImport(CoreAI)
 		private let coreAIPreparedModelLoader: CoreAIModelLoader
 	#endif
 
-	#if mlx
-		let mlxModelLoader: MLXModelLoader
-		let sessionPool: MLXSessionPool?
-		/// Shared draft model for speculative decoding — loaded once, reused across all models.
-		private var draftModelHandle: (any MLXModelHandle)?
-	#endif
+	let mlxModelLoader: MLXModelLoader
+	let sessionPool: MLXSessionPool?
+	/// Shared draft model for speculative decoding — loaded once, reused across all models.
+	private var draftModelHandle: (any MLXModelHandle)?
 
 	// MARK: - Runtime Parameter Store (hot-swappable)
 
@@ -142,42 +138,38 @@ actor EnginePool {
 		}
 		self.memoryTracker = memoryTracker
 		self.maxLoadedModels = 4
-		#if coreai
+		#if canImport(CoreAI)
 			coreAIPreparedModelLoader = CoreAIModelLoader(
 				config: coreAILoadingConfig,
 				logger: logger,
 			)
 			logger.info("CoreAIModelLoader initialized (v15 two-phase specialization)")
 		#endif
-		#if mlx
-			mlxModelLoader = MLXModelLoader(
-				logger: logger,
-				modelScopeToken: modelScopeToken,
-				hfToken: hfToken,
-			)
-			logger.info("MLXModelLoader initialized (MLXLLM backend)")
+		mlxModelLoader = MLXModelLoader(
+			logger: logger,
+			modelScopeToken: modelScopeToken,
+			hfToken: hfToken,
+		)
+		logger.info("MLXModelLoader initialized (MLXLLM backend)")
 
-			if let poolConfig = config.sessionPoolConfig, poolConfig.enabled {
-				sessionPool = MLXSessionPool(config: poolConfig, logger: logger)
-				logger.info("MLXSessionPool enabled (max=\(poolConfig.maxSessions), ttl=\(poolConfig.sessionTTLSeconds)s)")
-			} else {
-				sessionPool = nil
-				logger.info("MLXSessionPool disabled (create-and-destroy per request)")
-			}
+		if let poolConfig = config.sessionPoolConfig, poolConfig.enabled {
+			sessionPool = MLXSessionPool(config: poolConfig, logger: logger)
+			logger.info("MLXSessionPool enabled (max=\(poolConfig.maxSessions), ttl=\(poolConfig.sessionTTLSeconds)s)")
+		} else {
+			sessionPool = nil
+			logger.info("MLXSessionPool disabled (create-and-destroy per request)")
+		}
 
-			// Log speculative decoding status
-				if config.specDecoding.enabled {
-					if let draftId = config.specDecoding.draftModelId {
-						logger.info("Speculative decoding enabled (draft: \(draftId), lazy load on first model)")
-					} else {
-						logger.info("Speculative decoding enabled (draft model ID not set)")
-					}
+		// Log speculative decoding status
+			if config.specDecoding.enabled {
+				if let draftId = config.specDecoding.draftModelId {
+					logger.info("Speculative decoding enabled (draft: \(draftId), lazy load on first model)")
 				} else {
-					logger.info("Speculative decoding disabled")
+					logger.info("Speculative decoding enabled (draft model ID not set)")
 				}
-		#else
-			logger.info("EnginePool initialized (no inference trait — stub backend)")
-		#endif
+			} else {
+				logger.info("Speculative decoding disabled")
+			}
 	}
 
 	// MARK: - Tokenization
@@ -353,7 +345,7 @@ actor EnginePool {
 		let configData = "{}".data(using: .utf8) ?? Data()
 		logger.info("Model \(modelId) is a hub model — MLXModelLoader will resolve \(resolved != nil ? "(remote config resolved)" : "(using defaults)")")
 
-		#if coreai
+		#if canImport(CoreAI)
 			let preparedModel = try await coreAIPreparedModelLoader.load(
 				modelURL: modelURL,
 				modelId: modelId,
@@ -375,62 +367,53 @@ actor EnginePool {
 				logger: logger,
 			)
 		#endif
-		#if mlx
-			// VLM detection: check processor_config.json before loading
-			let isVlmModel = MLXModelLoader.isVLMModel(at: modelURL)
-			logger.info(
-				"MLX model \(modelId) \(isVlmModel ? "VLM" : "LLM") detected via isVLMModel",
-			)
+		// VLM detection: check processor_config.json before loading
+		let isVlmModel = MLXModelLoader.isVLMModel(at: modelURL)
+		logger.info(
+			"MLX model \(modelId) \(isVlmModel ? "VLM" : "LLM") detected via isVLMModel",
+		)
 
-			let mlxHandle = try await mlxModelLoader.load(
-				modelURL: modelURL,
-				modelId: modelId,
-			)
-			logger.info("MLX model \(modelId) loaded successfully")
+		let mlxHandle = try await mlxModelLoader.load(
+			modelURL: modelURL,
+			modelId: modelId,
+		)
+		logger.info("MLX model \(modelId) loaded successfully")
 
-			let model = LoadedModel(
-				configData: configData,
-				modelURL: modelURL,
-				modelConfig: modelConfig,
-				logger: logger,
-			)
-			model.setMLXHandle(mlxHandle)
-			model.isVlm = isVlmModel
-			model.kvCacheQuantization = config.kvCacheQuantization
-			// Configure speculative decoding — lazy-load draft model on first model load
-			model.setSpecDecodingConfig(config.specDecoding)
-			if config.specDecoding.enabled {
-				if let draft = self.draftModelHandle {
-					model.setDraftModel(draft)
-				} else if self.draftModelHandle == nil,
-				        let draftId = config.specDecoding.draftModelId {
-					// Lazy-load draft model once
-					// Draft models default to HF — no source param needed
-					let draftURL = URL(fileURLWithPath: draftId)
-					do {
-						let draftHandle = try await mlxModelLoader.load(
-							modelURL: draftURL,
-							modelId: draftId,
-						)
-						self.draftModelHandle = draftHandle
-						model.setDraftModel(draftHandle)
-						logger.info("Speculative decoding draft model loaded: \(draftId)")
-					} catch {
-						logger.warning("Speculative decoding draft model load failed: \(error)")
-					}
-				} else {
-					logger.warning("Speculative decoding enabled but no draft model — falling back to standard generation")
+		let model = LoadedModel(
+			configData: configData,
+			modelURL: modelURL,
+			modelConfig: modelConfig,
+			logger: logger,
+		)
+		model.setMLXHandle(mlxHandle)
+		model.isVlm = isVlmModel
+		model.kvCacheQuantization = config.kvCacheQuantization
+		// Configure speculative decoding — lazy-load draft model on first model load
+		model.setSpecDecodingConfig(config.specDecoding)
+		if config.specDecoding.enabled {
+			if let draft = self.draftModelHandle {
+				model.setDraftModel(draft)
+			} else if self.draftModelHandle == nil,
+			        let draftId = config.specDecoding.draftModelId {
+				// Lazy-load draft model once
+				// Draft models default to HF — no source param needed
+				let draftURL = URL(fileURLWithPath: draftId)
+				do {
+					let draftHandle = try await mlxModelLoader.load(
+						modelURL: draftURL,
+						modelId: draftId,
+					)
+					self.draftModelHandle = draftHandle
+					model.setDraftModel(draftHandle)
+					logger.info("Speculative decoding draft model loaded: \(draftId)")
+				} catch {
+					logger.warning("Speculative decoding draft model load failed: \(error)")
 				}
+			} else {
+				logger.warning("Speculative decoding enabled but no draft model — falling back to standard generation")
 			}
-			return model
-		#else
-			return LoadedModel(
-				configData: configData,
-				modelURL: modelURL,
-				modelConfig: modelConfig,
-				logger: logger,
-			)
-		#endif
+		}
+		return model
 	}
 
 	// MARK: - Inspection
@@ -452,12 +435,10 @@ actor EnginePool {
 					"tokenizer": model.modelConfig.tokenizer,
 					"active_sessions": String(active),
 				]
-				#if coreai
+				#if canImport(CoreAI)
 					entry["specialized"] = String(model.preparedModel.isSpecialized)
 				#endif
-				#if mlx
-					entry["specialized"] = String(model.isVlm)
-				#endif
+				entry["specialized"] = String(model.isVlm)
 				result.append(entry)
 			}
 		}
@@ -470,12 +451,10 @@ actor EnginePool {
 		} else {
 			0.0
 		}
-		#if coreai
+		#if canImport(CoreAI)
 			let specializedCount = loadedModels.values.count(where: { $0.preparedModel.isSpecialized })
-		#elseif mlx
-			let specializedCount = loadedModels.values.count(where: { $0.isVlm })
 		#else
-			let specializedCount = 0
+			let specializedCount = loadedModels.values.count(where: { $0.isVlm })
 		#endif
 		let modelIds = loadedModels.keys.sorted()
 		return EngineSummary(
@@ -516,18 +495,12 @@ actor EnginePool {
 		return await Double(paged.getMemoryBytes()) / 1_073_741_824.0
 	}
 
-	#if mlx
 		func getMLXModelAndTokenizer(modelId: String) -> MLXLMCommon.ModelContainer? {
 			guard let loaded = loadedModels[modelId], let handle = loaded.mlxModelHandle else {
 				return nil
 			}
 			return handle.modelContainer
 		}
-	#else
-		func getMLXModelAndTokenizer(modelId _: String) -> Bool? {
-			false
-		}
-	#endif
 
 	// MARK: - Runtime Parameter API (hot-swap)
 
@@ -623,9 +596,7 @@ actor EnginePool {
 		modelSamplingDefaults.removeValue(forKey: modelId)
 
 		// Clear session pool to prevent dangling GPU weight references
-		#if mlx
-			await sessionPool?.clear(modelId: modelId)
-		#endif
+		await sessionPool?.clear(modelId: modelId)
 
 		// Clear LRU access timestamp
 		modelLastAccess.removeValue(forKey: modelId)
@@ -649,11 +620,9 @@ actor EnginePool {
 		}
 		logger.info("All tracked inference tasks cancelled")
 
-		#if mlx
-			if let pool = sessionPool {
-				await pool.clear()
-			}
-		#endif
+		if let pool = sessionPool {
+			await pool.clear()
+		}
 
 		if let paged = pagedKVCache {
 			await paged.shutdown()

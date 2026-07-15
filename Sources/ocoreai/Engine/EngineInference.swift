@@ -9,20 +9,18 @@
 import Foundation
 import Logging
 
-#if coreai
+#if canImport(CoreAI)
 	import CoreAI
 	import CoreAILanguageModels
 	import CoreAIShared
 #endif
 
-#if mlx
-	import MLX
-	import MLXLLM
-	import MLXLMCommon
-	import MLXVLM
-	import CoreImage
-	import CoreGraphics
-#endif
+import MLX
+import MLXLLM
+import MLXLMCommon
+import MLXVLM
+import CoreImage
+import CoreGraphics
 
 // MARK: - Inference Extension
 
@@ -82,7 +80,6 @@ extension EnginePool {
 	}
 
 	/// MLX-specific inference entry — accepts messages directly.
-	#if mlx
 		func doInferenceMLX(
 			modelId: String,
 			messages: [Message],
@@ -135,7 +132,6 @@ extension EnginePool {
 				}
 			}
 		}
-	#endif
 
 	// MARK: - Internal Runners
 
@@ -173,7 +169,7 @@ extension EnginePool {
 		}
 		defer { loaded.releaseInference() }
 
-		#if coreai
+		#if canImport(CoreAI)
 			do {
 				// Use cached engine — CoreAI 34f0db3: single engine per model preserves
 				// KV cache across turns. TokenHistory.resolve handles prefix caching automatically.
@@ -212,9 +208,7 @@ extension EnginePool {
 			} catch {
 				continuation.yield(.init(kind: .error(error.localizedDescription)))
 			}
-		#endif
-
-		#if mlx
+		#else
 			// [KNOWN LIMITATION] MLXLLM ChatSession only accepts [Chat.Message], not raw tokens.
 			// Detokenize → Message → re-tokenize path drops special control tokens
 			// (e.g. <|begin_of_thought|>, <|eot_id|>). Track upstream for promptTokens API:
@@ -222,7 +216,7 @@ extension EnginePool {
 			// Mitigation: log warning when input may contain non-text tokens.
 			let promptText = await (try? detokenize(modelId: modelId, tokens: input))
 				?? "<detokenization failed>"
-		
+
 			// Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
 			// P0-fix: removed universal ASCII control chars (newline=198, ESC=27) — they fire on every request
 			// and flood the log. Only flag reasoning-specific tokens (<|begin_of_thought|>, <|eot_id|>).
@@ -230,7 +224,7 @@ extension EnginePool {
 			if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
 				logger.warning("MLX token→text→token path may drop control tokens for model \(modelId)")
 			}
-		
+
 			let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
 			await _runInferenceWithMessages(
 				modelId: modelId,
@@ -245,16 +239,10 @@ extension EnginePool {
 			)
 		#endif
 
-		#if !coreai && !mlx
-			continuation.yield(.init(kind: .error("Inference unavailable — neither coreai nor mlx trait enabled")))
-		#endif
-
 		metrics.inferenceMs = metrics.overallMs
 		continuation.finish()
 	}
-
-	#if mlx
-		// MARK: - MLX Image Helper
+// MARK: - MLX Image Helper
 
 	/// Convert a string that may be a data URL (`data:image/…;base64,…`) or a
 	/// regular URL into an ``MLXLMCommon/UserInput/Image``.
@@ -368,7 +356,7 @@ extension EnginePool {
 				case .cpu:
 					logger.warning("HardwareRouter → CPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB) — disabling session pool + speculative decoding")
 				case .ane:
-					#if coreai
+					#if canImport(CoreAI)
 						logger.info("HardwareRouter → ANE for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB)")
 					#else
 						logger.warning("HardwareRouter → ANE for \(modelId) but CoreAI unavailable, falling back to GPU (gpu: \(gpuGB)/\(budgetGB) GB)")
@@ -685,7 +673,6 @@ extension EnginePool {
 			}
 
 			metrics.inferenceMs = metrics.overallMs
-			continuation.finish()
-			}
-			#endif
+				continuation.finish()
+				}
 			}

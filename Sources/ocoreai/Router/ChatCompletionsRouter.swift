@@ -171,11 +171,9 @@ func buildRouter(
 		return try Response.json(countResponse)
 	}
 
-	#if mlx
+	// MARK: - LLM Lifecycle — Train + Evaluate
 
-		// MARK: LLM Lifecycle — Train + Evaluate
-
-		routes.post("/v1/models/train") { request, context in
+	routes.post("/v1/models/train") { request, context in
 			let trainRequest = try await request.decode(as: TrainRequest.self, context: context)
 			guard !trainRequest.model.isEmpty else {
 				throw AppError.invalidRequest("model must not be empty")
@@ -198,8 +196,6 @@ func buildRouter(
 				logger: logger,
 			)
 		}
-
-	#endif
 
 	// MARK: Runtime Parameter Hot-Swap API
 
@@ -233,11 +229,9 @@ func buildRouter(
 		return try Response.json(response)
 	}
 
-	#if mlx
+	// MARK: Model Download
 
-		// MARK: Model Download
-
-		routes.post("/v1/models/download") { request, context in
+	routes.post("/v1/models/download") { request, context in
 			let downloadRequest = try await request.decode(
 				as: DownloadModelRequest.self, context: context,
 			)
@@ -248,8 +242,6 @@ func buildRouter(
 				logger: logger,
 			)
 		}
-
-	#endif
 
 	// MARK: Multimodal (camera / microphone / TTS)
 

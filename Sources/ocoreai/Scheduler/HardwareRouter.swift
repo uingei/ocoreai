@@ -2,7 +2,7 @@
 // Licensed under MIT.
 /// HardwareRouter.swift — Runtime hardware-aware compute routing engine
 ///
-/// Replaces compile-time `#if coreai` / `#if mlx` binary choice with a
+/// Replaces compile-time `#if canImport(CoreAI)` / `#if mlx` binary choice with a
 /// dynamic routing decision based on:
 ///
 /// | Signal              | Source                             |
@@ -49,7 +49,7 @@ public enum RoutingPolicy: String, Codable, Sendable, CaseIterable {
 
 extension ComputeChannel {
 	/// Maps to CoreAI `ComputeTarget.Kind` for specialization.
-	#if coreai
+	#if canImport(CoreAI)
 		public var computeTargetKind: CoreAIModelLoader.ComputeTarget.Kind {
 			switch self {
 			case .gpu: .gpu
@@ -57,7 +57,7 @@ extension ComputeChannel {
 			case .cpu: .cpu
 			}
 		}
-	#endif // coreai
+	#endif
 }
 
 // MARK: - Thermal Pressure Event

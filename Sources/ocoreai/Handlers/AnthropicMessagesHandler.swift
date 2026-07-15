@@ -19,7 +19,7 @@
 /// | max_tokens | — | length |
 /// | tool_use | — | tool_calls |
 
-#if coreai
+#if canImport(CoreAI)
 	import CoreAI
 	import CoreAILanguageModels
 #endif

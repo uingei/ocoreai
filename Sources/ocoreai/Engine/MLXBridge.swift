@@ -21,7 +21,6 @@
 // Reference: MLXChatExample/Services/MLXService.swift (ml-explore upstream)
 //   — gold standard for native MLX loading pattern.
 
-#if mlx
 
 	// MARK: - Imports
 
@@ -722,4 +721,3 @@
 		}
 	}
 
-#endif // mlx

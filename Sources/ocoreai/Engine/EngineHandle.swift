@@ -142,41 +142,18 @@ struct EngineHandle {
 			}
 			Task {
 				do {
-					#if mlx
-						// MLX path: direct message-to-ChatSession, no tokenize detour
-						for try await event in await pool.doInferenceMLX(
-							modelId: modelId,
-							messages: messages,
-							sampling: sampling,
-							options: options,
-							metrics: metrics,
-							conversationId: conversationId,
-							cancellation: cancellation,
-						) {
-							guard !Task.isCancelled else { break }
-							continuation.yield(event)
-						}
-					#else
-						// CoreAI / stub path: tokenize then infer (unchanged)
-						let tokens = try await pool.tokenize(modelId: modelId, messages: messages)
-						guard !tokens.isEmpty else {
-							let err = NSError(domain: "ocoreai", code: 400,
-							                  userInfo: [NSLocalizedDescriptionKey: "Empty token output for model '\(modelId)'"])
-							continuation.finish(throwing: err)
-							return
-						}
-						for try await event in await pool.doInference(
-							modelId: modelId,
-							input: tokens,
-							sampling: sampling,
-							options: options,
-							metrics: metrics,
-							cancellation: cancellation,
-						) {
-							guard !Task.isCancelled else { break }
-							continuation.yield(event)
-						}
-					#endif
+					for try await event in await pool.doInferenceMLX(
+						modelId: modelId,
+						messages: messages,
+						sampling: sampling,
+						options: options,
+						metrics: metrics,
+						conversationId: conversationId,
+						cancellation: cancellation,
+					) {
+						guard !Task.isCancelled else { break }
+						continuation.yield(event)
+					}
 					continuation.finish()
 				} catch {
 					continuation.finish(throwing: error)

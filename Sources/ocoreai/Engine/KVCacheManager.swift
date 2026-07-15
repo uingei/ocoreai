@@ -6,7 +6,7 @@
 // latency with zero benefit. The OOMGuard downgrade chain (4bit→8bit→CPU→refuse)
 // handles memory pressure correctly. This module is retained for backward
 // compatibility and will be removed once CoreAI ships native session persistence.
-#if coreai
+#if canImport(CoreAI)
 
 	/// KVCacheManager — GPU KV cache manager (Shield Mode — CoreAI v1)
 	///

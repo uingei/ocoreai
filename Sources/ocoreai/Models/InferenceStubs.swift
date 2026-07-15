@@ -116,37 +116,33 @@ struct InferenceOptions: Codable {
 
 // MARK: - MLX-only stubs (TokenizerManager placeholder — MLX containers have built-in tokenizers)
 
-#if mlx
+/// Empty TokenizerManager for MLX-only builds — MLXLLM containers have built-in tokenizers.
+/// ``@unchecked Sendable``: this is a stub class with no properties — trivially
+/// Sendable, but the compiler cannot infer it because classes default to non-Sendable.
+final class StreamingDetokenizer: @unchecked Sendable {}
 
-	/// Empty TokenizerManager for MLX-only builds — MLXLLM containers have built-in tokenizers.
-	/// ``@unchecked Sendable``: this is a stub class with no properties — trivially
-	/// Sendable, but the compiler cannot infer it because classes default to non-Sendable.
-	final class StreamingDetokenizer: @unchecked Sendable {}
+protocol TokenizerProvider: Sendable {
+	var name: String { get }
+	func tokenize(messages: [[String: String]]) async throws -> [Int32]
+	func detokenize(tokenIds: [Int32]) async throws -> String
+	func streamingDetokenizer() -> StreamingDetokenizer
+	func countTokens(messages: [[String: String]]) async throws -> Int
+	func prewarm() async throws
+}
 
-	protocol TokenizerProvider: Sendable {
-		var name: String { get }
-		func tokenize(messages: [[String: String]]) async throws -> [Int32]
-		func detokenize(tokenIds: [Int32]) async throws -> String
-		func streamingDetokenizer() -> StreamingDetokenizer
-		func countTokens(messages: [[String: String]]) async throws -> Int
-		func prewarm() async throws
-	}
-
-	actor TokenizerManager {
-		init() {}
-		func registerTokenizer(for _: String, tokenizerPath _: String) async throws {}
-		func registerTokenizerFromHub(for _: String, hubId _: String) async throws {}
-		func getTokenizer(for _: String) -> (any TokenizerProvider)? { nil }
-		@discardableResult
-		func removeTokenizer(for _: String) -> Bool { false }
-		func shutdown() {}
-	}
-
-#endif // mlx
+actor TokenizerManager {
+	init() {}
+	func registerTokenizer(for _: String, tokenizerPath _: String) async throws {}
+	func registerTokenizerFromHub(for _: String, hubId _: String) async throws {}
+	func getTokenizer(for _: String) -> (any TokenizerProvider)? { nil }
+	@discardableResult
+	func removeTokenizer(for _: String) -> Bool { false }
+	func shutdown() {}
+}
 
 // MARK: - CoreAI stubs (when coreai trait is inactive — mlx also needs these)
 
-#if !coreai
+#if !canImport(CoreAI)
 
 	struct EngineOptions {
 		enum KVCacheStrategy: String, Codable {

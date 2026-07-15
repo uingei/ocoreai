@@ -7,7 +7,6 @@
 /// - "completed" with cache path
 /// - "error" with error message
 
-#if mlx
 
 	import Foundation
 	import HTTPTypes
@@ -208,4 +207,3 @@
 		return result.path(percentEncoded: false)
 	}
 
-#endif // mlx

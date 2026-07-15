@@ -18,7 +18,6 @@
 // All API paths, parameters, and response structures are derived from the
 // ModelScope Python SDK (modelscope v1.x) — this is an SDK-alignment port.
 
-#if mlx
 
 	import Foundation
 	import MLXLMCommon
@@ -679,4 +678,3 @@ extension Array {
 	}
 }
 
-#endif // mlx

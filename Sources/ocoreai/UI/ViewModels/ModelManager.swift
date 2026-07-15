@@ -176,7 +176,6 @@ final class ModelManager {
 		let progressKey = identity.repoId
 
 		// Fast-check: if model is already cached, load directly without progress UI
-		#if mlx
 		if pool.isHubModel(normalizedId) {
 			if case .local = identity.source {
 				// Local path — skip cache check, go to download path below
@@ -214,7 +213,6 @@ final class ModelManager {
 				}
 			}
 		}
-		#endif
 
 		// Model not cached or non-hub model — use full download path with progress UI
 		return await _downloadAndLoad(normalizedId: normalizedId, progressKey: progressKey, pool: pool)
