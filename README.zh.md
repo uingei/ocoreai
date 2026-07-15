@@ -5,13 +5,13 @@
 [![Swift 6.3](https://img.shields.io/badge/Swift-6.3-orange.svg)](https://www.swift.org)
 [![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue.svg)](https://www.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests: 374](https://img.shields.io/badge/Tests-374%2F374-brightgreen)](Tests/)
+[![Tests: 703](https://img.shields.io/badge/Tests-703%2F703-brightgreen)](Tests/)
 
 ---
 
 ### 快速开始
 
-**macOS 15+ · Apple Silicon · Swift 6.3**
+**macOS 15+ · Apple Silicon · Swift 6.3 · 纯 SwiftPM**
 
 ```bash
 git clone https://github.com/uingei/ocoreai.git && cd ocoreai
@@ -19,7 +19,7 @@ swift build -c release
 swift run
 ```
 
-通过 Xcode 构建并运行，或 `swift run` 启动。
+直接 SwiftPM 构建，无需 Xcode 工程。
 服务监听 `127.0.0.1:8080`。配置位于 `~/.ocoreai/config.yaml`。
 
 > ⚠️ **仅本机访问** — HTTP API 默认绑定 `127.0.0.1`，无认证、无 TLS。不要暴露在外部网络。
@@ -35,20 +35,15 @@ ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中
 - **双通道推理引擎** — MLX（Metal GPU，默认）+ CoreAI（Apple Neural Engine，macOS 27+ / M4+，当前为 Stub 等待 SDK）。零网络调用 — 推理在你的 Mac 上运行。
 - **自适应硬件路由** — HardwareRouter 根据热压力、内存余量、GPU 利用率实时将请求分发至 GPU / ANE / CPU。AdmissionGate 执行三级准入策略（允许 → 仅限 ANE → 拒绝），支持可配置 abort margin。
 - **Wired Memory 显存硬隔离** — 硬件级显存边界，防止推理 OOM。
-- **Thinking Budget（推理预算）** — 基于 ComplexityAnalyzer（长度、意图、历史三维度评分）的自适应 token 预算分配。简单查询跳过推理支架，零开销。
+- **Thinking Budget（推理预算）** — 基于 ComplexityAnalyzer（长度、意图、历史三维度评分）的自适应 token 预算分配。仅在 Bridge Path 生效；桌面 GUI（Fast Path）尚未接入。
 - **Agent 循环** — 多轮工具调用：模型推理 → 调用注册工具 → 读取结果 → 循环迭代（最多 30 轮，180 秒超时）。内置系统信息、技能、搜索工具。通过 `ToolRegistry` 扩展。
-- **技能系统** — YAML 注册表的模块化提示模板。启动时加载，注入系统提示管线。
-- **会话记忆** — SQLite + FTS5 全文搜索，LLM 驱动的会话压缩（热/温/冷分层）。记忆事件支持跨会话事实召回。
-- **MCP 桥接** — 连接外部 MCP 服务器；通过 HTTP 端点和 ToolRegistry 分发器可用。
+- **技能系统** — 模块化技能注册表，启动时加载，双向链接至系统提示管线。
+- **会话记忆** — SQLite + FTS5 全文搜索，LLM 驱动的会话压缩（热/温/冷分层）。记忆事件支持跨会话事实召回。语义记忆（向量搜索）代码存在但默认关闭（`autoEmbed: false`）。
+- **MCP 桥接** — 通过 stdio 传输连接外部 MCP 服务器；HTTP 端点可用。桌面 UI 尚无 MCP 入口。
 - **调度器 + OOM 防护** — 优先级分发（`P0` 系统 → `P4` 用户），GPU 显存预算强制，降级链（4-bit → 8-bit → CPU → 拒绝）。
 - **配置系统** — YAML 配置 + 文件监听器（轮询）。显存预算硬件自动检测。
-- **多模态 I/O** — 摄像头捕获、屏幕截图、麦克风输入、Vision OCR、16kHz Apple Speech STT、多语言 TTS — 全部原生，无外部依赖。
-- **VLM 多模态推理** — 视觉语言模型自动检测，通过 `preprocessor_config.json` 输入图片，dataURL→CIImage 完整路径。
-- **引擎生命周期** — 6 状态机（idle → starting → ready/degraded → stopping → idle），断路器（3 次失败 → 60 秒冷却），端口冲突检测。
-- **i18n** — 6 语种本地化（en, zh, ja, ko, fr, de）。
-- **SwiftUI 仪表盘** — 实时系统指标、模型管理、设置、聊天界面。
-- **推理模块** — ComplexityAnalyzer + ThinkingBudget 自适应推理深度。
-- **分析模块** — ErrorContext（结构化错误捕获）和 TimingHooks（请求级延迟/吞吐/TTFB）。
+- **多模态 I/O** — 摄像头捕获、屏幕截图、麦克风输入、Vision OCR、16kHz Apple Speech STT、多语言 TTS — 全部原生。摄像头/屏幕默认关闭；STT 需要麦克风权限。
+- **i18n** — StringKey 本地化框架完整；仅英文已部署。其他语种（zh, ja, ko, fr, de）已定义但未翻译为 `.strings` 文件。
 
 向完整 **Agent OS** 演进 —— 设备级运行时，LLM 通过统一工具接口控制工具、应用和桌面。
 
@@ -201,22 +196,25 @@ memory:
 |------|------|
 | MLX Metal 推理 | ✅ |
 | VLM 多模态推理 | ✅ |
-| CoreAI ANE 后端（macOS 27+） | ⚠️ Stub（等待 SDK） |
+| CoreAI ANE 后端（macOS 27+） | ⚠️ Stub（需 macOS 27.0 Beta + M4+） |
 | Wired Memory 显存硬隔离 | ✅ |
 | HardwareRouter（自适应 GPU/ANE/CPU） | ✅ |
 | AdmissionGate（三级准入） | ✅ |
 | 引擎生命周期状态机 + 断路器 | ✅ |
-| ThinkingBudget（自适应推理深度） | ✅ |
-| 推测解码（MTP + 传统） | ✅ |
+| ThinkingBudget（自适应推理深度） | ⚠️ 仅 Bridge Path — 桌面 GUI（Fast Path）未接入 |
+| 推测解码（传统模式） | ✅ |
+| 推测解码（MTP 模式） | ⚠️ `createSpeculativeConfig()` 返回 nil — MTP SDC 迭代器未连接 |
 | SSE 流式 + 非流式 | ✅ |
 | OpenAI + Anthropic 兼容 API | ✅ |
 | Agent 循环 + 工具调用 | ✅ |
 | 工具注册表（Actor 隔离） | ✅ |
 | SQLite 会话持久化 + FTS5 | ✅ |
 | 技能系统 + 提示构建器 | ✅ |
-| MCP 桥接 | ✅ |
-| 多模态（摄像头/屏幕/音频/OCR/STT/TTS） | ✅ |
-| 6 语种 i18n | ✅ |
+| MCP 桥接 | ⚠️ 仅 HTTP 端点 — 桌面 UI 无入口 |
+| 多模态 I/O（摄像头/屏幕/OCR/STT） | ⚠️ 已接入；摄像头/屏幕默认关闭，STT 需麦克风权限 |
+| TTS（语音输出） | ⚠️ 已接入；通过 `speakerEnabled` 惰性触发（默认关闭） |
+| Self Correction Pipeline | ⚠️ 仅 Bridge Path — 需显式 `selfCorrection: true`；无 UI 开关 |
+| i18n | ⚠️ 框架完整；仅英文已部署，另 5 语种已定义未翻译 |
 | SwiftUI 仪表盘 | ✅ |
 | 自适应健康（EMA） | ✅ |
 | 分析模块（ErrorContext + TimingHooks） | ✅ |
@@ -225,10 +223,10 @@ memory:
 
 ### 构建信息
 
-- Swift 6.3 · iOS SwiftUI · Hummingbird 2.25
-- 124 个 Swift 源文件，~32,000 LOC
+- Swift 6.3 · SwiftUI · Hummingbird 2.25
+- 134 个 Swift 源文件，~36,600 LOC
 - macOS 15+ · Apple Silicon only
-- 测试：374/374 通过，72 套件（1.1s）
+- 测试：703/703 通过，124 套件
 - 构建：0 警告，0 错误
 
 ---

@@ -5,13 +5,13 @@
 [![Swift 6.3](https://img.shields.io/badge/Swift-6.3-orange.svg)](https://www.swift.org)
 [![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue.svg)](https://www.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests: 374](https://img.shields.io/badge/Tests-374%2F374-brightgreen)](Tests/)
+[![Tests: 703](https://img.shields.io/badge/Tests-703%2F703-brightgreen)](Tests/)
 
 ---
 
 ### Quick Start
 
-**macOS 15+ · Apple Silicon · Swift 6.3**
+**macOS 15+ · Apple Silicon · Swift 6.3 · Pure SwiftPM**
 
 ```bash
 git clone https://github.com/uingei/ocoreai.git && cd ocoreai
@@ -19,7 +19,7 @@ swift build -c release
 swift run
 ```
 
-Build the Xcode project and run, or invoke via `swift run`.
+Direct SwiftPM build, no Xcode project required.
 Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
 > ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. It has no auth, rate limiting, or TLS. Do not expose to external networks.
@@ -35,20 +35,15 @@ ocoreai unifies inference engine, agent orchestration, and persistence in one pr
 - **Dual inference backends** — MLX (Metal GPU, default) + CoreAI (Apple Neural Engine, macOS 27+ / M4+, currently stub pending SDK). Zero network calls — inference runs on your Mac.
 - **Adaptive hardware routing** — Real-time HardwareRouter dispatches requests to GPU / ANE / CPU based on thermal pressure, memory headroom, and GPU utilization. AdmissionGate enforces a 3-tier admission policy (allow → ANE-only → reject) with configurable abort margin.
 - **Wired Memory GPU isolation** — hardware-level GPU memory bounds prevent OOM during inference.
-- **Thinking budget** — Adaptive token budget allocation driven by ComplexityAnalyzer scoring (length, intent, history dimensions). Simple queries skip reasoning scaffolding entirely.
+- **Thinking budget** — Adaptive token budget allocation driven by ComplexityAnalyzer scoring (length, intent, history dimensions). Bridge Path only — Fast Path (desktop GUI) does not yet use ThinkingBudget.
 - **Agent loop** — multi-turn tool use: the model reasons, calls registered tools, reads results, and iterates (up to 30 rounds, 180s timeout). Built-in tools for system info, skills, and search. Extensible via `ToolRegistry`.
-- **Skill system** — YAML registry of modular prompt templates. Loaded at boot, injected into the system prompt pipeline.
-- **Session memory** — SQLite + FTS5 full-text search with LLM-driven session compression (hot/warm/cold tiers). Memory events for cross-session fact recall.
-- **MCP bridge** — connect external MCP servers; available via HTTP endpoint and ToolRegistry dispatcher.
+- **Skill system** — Modular skill registry loaded at boot, bidirectional links to system prompt pipeline.
+- **Session memory** — SQLite + FTS5 full-text search with LLM-driven session compression (hot/warm/cold tiers). Memory events for cross-session fact recall. Semantic memory (vector/embedding search) exists but is off by default (`autoEmbed: false`).
+- **MCP bridge** — connect external MCP servers via stdio transport; HTTP endpoint available. Desktop UI has no MCP entry point yet.
 - **Scheduler + OOM guard** — priority dispatch (`P0` system → `P4` user), GPU memory budget enforcement, downgrade chain (4-bit → 8-bit → CPU → refuse).
 - **Config system** — YAML config with file watcher (poll-based). Hardware auto-detection for memory budget.
-- **Multimodal I/O** — camera capture, screen capture, microphone input, Vision OCR, 16kHz Apple Speech STT, i18n TTS with multi-voice support — all native, no external dependencies.
-- **VLM multimodal inference** — Vision-language model auto-detection, image input via `preprocessor_config.json`, dataURL→CIImage path.
-- **Engine lifecycle** — 6-state machine (idle → starting → ready/degraded → stopping → idle) with circuit breaker (3 failures → 60s cooldown) and port conflict detection.
-- **i18n** — 6-language localization (en, zh, ja, ko, fr, de).
-- **SwiftUI dashboard** — live system metrics, model management, settings, chat interface.
-- **Reasoning** — ComplexityAnalyzer + ThinkingBudget for adaptive reasoning depth.
-- **Profiling** — ErrorContext (structured error capture) and TimingHooks (per-request latency, throughput, TTFB).
+- **Multimodal I/O** — camera capture, screen capture, microphone input, Vision OCR, 16kHz Apple Speech STT, i18n TTS — all native. Camera/screen toggles are off by default; STT requires microphone permission.
+- **i18n** — StringKey localization framework complete; English is the shipped locale. Additional locales (zh, ja, ko, fr, de) defined but not yet translated into `.strings` files.
 
 Evolving toward a full **Agent OS** — a device-level runtime where the LLM controls tools, apps, and the desktop through a unified tool interface.
 
@@ -201,22 +196,25 @@ Supported backends: `coreai` (macOS 27+, M4+, compiled via `--traits coreai`), `
 |-----------|--------|
 | MLX Metal inference | ✅ |
 | VLM multimodal inference | ✅ |
-| CoreAI ANE backend (macOS 27+) | ⚠️ Stub (waiting for SDK) |
+| CoreAI ANE backend (macOS 27+) | ⚠️ Stub (requires macOS 27.0 Beta + M4+) |
 | Wired Memory GPU isolation | ✅ |
 | HardwareRouter (adaptive GPU/ANE/CPU) | ✅ |
 | AdmissionGate (3-tier) | ✅ |
 | Engine lifecycle state machine + circuit breaker | ✅ |
-| ThinkingBudget (adaptive reasoning depth) | ✅ |
-| Speculative decoding (MTP + traditional) | ✅ |
+| ThinkingBudget (adaptive reasoning depth) | ⚠️ Bridge Path only — not wired into Fast Path (desktop GUI) |
+| Speculative decoding (traditional) | ✅ |
+| Speculative decoding (MTP mode) | ⚠️ `createSpeculativeConfig()` returns nil — MTP SDC not yet connected |
 | SSE streaming + non-stream | ✅ |
 | OpenAI + Anthropic compatible API | ✅ |
 | Agent loop with tool use | ✅ |
 | Tool Registry (actor-isolated) | ✅ |
 | SQLite session persistence + FTS5 | ✅ |
 | Skill system + prompt builder | ✅ |
-| MCP bridge | ✅ |
-| Multimodal (camera/screen/audio/OCR/STT/TTS) | ✅ |
-| 6-language i18n | ✅ |
+| MCP bridge | ⚠️ HTTP endpoint only — no desktop UI entry point |
+| Multimodal I/O (camera/screen/OCR/STT) | ⚠️ Wired; camera/screen off by default, STT requires mic permission |
+| TTS (speech output) | ⚠️ Wired; lazy-triggered via `speakerEnabled` toggle (off by default) |
+| Self Correction Pipeline | ⚠️ Bridge Path only — requires explicit `selfCorrection: true`; no UI toggle |
+| i18n | ⚠️ framework complete; only en shipped, 5 locales defined but untranslated |
 | SwiftUI dashboard UI | ✅ |
 | Self-adaptation (EMA health) | ✅ |
 | Profiling (ErrorContext + TimingHooks) | ✅ |
@@ -225,10 +223,10 @@ Supported backends: `coreai` (macOS 27+, M4+, compiled via `--traits coreai`), `
 
 ### Build Info
 
-- Swift 6.3 · iOS SwiftUI · Hummingbird 2.25
-- 124 Swift source files, ~32,000 LOC
+- Swift 6.3 · SwiftUI · Hummingbird 2.25
+- 134 Swift source files, ~36,600 LOC
 - macOS 15+ · Apple Silicon only
-- Tests: 374/374 passed in 72 suites (1.1s)
+- Tests: 703/703 passed in 124 suites
 - Build: 0 warnings, 0 errors
 
 ---
