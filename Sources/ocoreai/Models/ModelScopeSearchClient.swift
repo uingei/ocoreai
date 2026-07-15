@@ -175,7 +175,7 @@ struct MSHubModel: Identifiable, Hashable {
 	// MARK: - Parsing
 
 	/// Parse the top-level list response into models.
-	private func parseModelList(_ data: Data) throws -> (models: [MSHubModel], totalCount: Int) {
+	internal func parseModelList(_ data: Data) throws -> (models: [MSHubModel], totalCount: Int) {
 		guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
 			throw MSError.invalidJSON
 		}

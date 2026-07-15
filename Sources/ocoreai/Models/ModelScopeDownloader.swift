@@ -197,7 +197,7 @@ actor ModelScopeDownloader: Downloader {
 	}
 
 	/// Adapter detection helper — checks file tree for LoRA/adapter indicators.
-	private func hasAdapterIndicators(_ info: [FileInfo]) -> Bool {
+	internal func hasAdapterIndicators(_ info: [FileInfo]) -> Bool {
 		for file in info {
 			let lower = file.path.lowercased()
 			if lower.contains("lora") || lower.contains("adapter") {
