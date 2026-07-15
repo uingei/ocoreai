@@ -362,7 +362,11 @@ func chatCompletionsHandler(
 	/// Cleanup on success path
 	await handle.release()
 	await scheduler.complete(schedulingRequest.id)
-	return result!
+	guard let finalResult = result else {
+		logger.error("Pipeline completed without producing a response")
+		throw AppError.inferenceFailed("No response generated")
+	}
+	return finalResult
 }
 
 // MARK: - Tool Call Parsing — uses shared ``parseToolCalls`` from OpenAIModels
