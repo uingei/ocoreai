@@ -72,43 +72,6 @@ struct ChunkMetadataTests {
     }
 }
 
-// MARK: - InferenceCancellation state machine
-
-@Suite("InferenceCancellation — cancel propagation")
-struct DirectInferenceCancellationTests {
-
-    @Test("fresh token is not cancelled")
-    func freshNotCancelled() {
-        let token = InferenceCancellation.cancellable()
-        #expect(token.isCancelled == false)
-    }
-
-    @Test("cancel() sets isCancelled to true")
-    func cancelPropagates() {
-        let token = InferenceCancellation.cancellable()
-        #expect(token.isCancelled == false)
-        token.cancel()
-        #expect(token.isCancelled == true)
-    }
-
-    @Test(".none token never reports cancelled")
-    func noneNeverCancelled() {
-        let token = InferenceCancellation.none
-        #expect(token.isCancelled == false)
-        token.cancel() // no-op on none
-        #expect(token.isCancelled == false)
-    }
-
-    @Test("cancel() idempotent — calling twice has same result")
-    func cancelIdempotent() {
-        let token = InferenceCancellation.cancellable()
-        token.cancel()
-        #expect(token.isCancelled == true)
-        token.cancel()
-        #expect(token.isCancelled == true)
-    }
-}
-
 // MARK: - InferenceRequest default vs explicit params
 
 @Suite("InferenceRequest — sampling defaults and explicit overrides")

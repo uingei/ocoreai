@@ -13,32 +13,31 @@ import ocoreaiTestUtilities
 struct SchedulerConcurrentTests {
 
     @Test("concurrent submits: 10 requests queued simultaneously")
-    func testConcurrentSubmits() async {
+    func testConcurrentSubmits() async throws {
         let sched = SchedulerActor(maxQueueSize: 64, log: Logger(label: "test.concurrent"))
 
-        // Use async let for concurrent submits
-        let r0 = try? await sched.submit(SchedulingRequest(id: "conc-0", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
-        let r1 = try? await sched.submit(SchedulingRequest(id: "conc-1", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
-        let r2 = try? await sched.submit(SchedulingRequest(id: "conc-2", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
-        let r3 = try? await sched.submit(SchedulingRequest(id: "conc-3", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
-        let r4 = try? await sched.submit(SchedulingRequest(id: "conc-4", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
-        let r5 = try? await sched.submit(SchedulingRequest(id: "conc-5", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
-        let r6 = try? await sched.submit(SchedulingRequest(id: "conc-6", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
-        let r7 = try? await sched.submit(SchedulingRequest(id: "conc-7", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
-        let r8 = try? await sched.submit(SchedulingRequest(id: "conc-8", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
-        let r9 = try? await sched.submit(SchedulingRequest(id: "conc-9", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
+        let r0 = try await sched.submit(SchedulingRequest(id: "conc-0", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
+        let r1 = try await sched.submit(SchedulingRequest(id: "conc-1", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
+        let r2 = try await sched.submit(SchedulingRequest(id: "conc-2", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
+        let r3 = try await sched.submit(SchedulingRequest(id: "conc-3", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
+        let r4 = try await sched.submit(SchedulingRequest(id: "conc-4", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
+        let r5 = try await sched.submit(SchedulingRequest(id: "conc-5", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
+        let r6 = try await sched.submit(SchedulingRequest(id: "conc-6", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
+        let r7 = try await sched.submit(SchedulingRequest(id: "conc-7", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
+        let r8 = try await sched.submit(SchedulingRequest(id: "conc-8", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
+        let r9 = try await sched.submit(SchedulingRequest(id: "conc-9", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
 
-        let ids: [String?] = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9]
-        #expect(ids.compactMap { $0 }.count == 10)
+        let ids: [String] = [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9]
+        #expect(ids.count == 10)
         #expect(await sched.pendingCount == 10)
     }
 
     @Test("queue overflow: 6th request rejected when maxQueueSize=5")
-    func testQueueOverflow() async {
+    func testQueueOverflow() async throws {
         let sched = SchedulerActor(maxQueueSize: 5, log: Logger(label: "test.overflow"))
 
         for i in (0..<5) {
-            _ = try? await sched.submit(SchedulingRequest(
+            _ = try await sched.submit(SchedulingRequest(
                 id: "fill-\(i)", priority: .chat, modelId: "m", prompt: "fill", tokenBudget: 256
             ))
         }
@@ -58,21 +57,21 @@ struct SchedulerConcurrentTests {
     }
 
     @Test("priority dispatch: interrupt before chat before background")
-    func testPriorityDispatchOrder() async {
+    func testPriorityDispatchOrder() async throws {
         let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.priority"))
 
         // Sequential submit (order matters for priority queue)
         for i in (0..<3) {
-            _ = try? await sched.submit(SchedulingRequest(
+            _ = try await sched.submit(SchedulingRequest(
                 id: "bg-\(i)", priority: .background, modelId: "m", prompt: "bg", tokenBudget: 128
             ))
         }
         for i in (0..<3) {
-            _ = try? await sched.submit(SchedulingRequest(
+            _ = try await sched.submit(SchedulingRequest(
                 id: "ch-\(i)", priority: .chat, modelId: "m", prompt: "ch", tokenBudget: 128
             ))
         }
-        _ = try? await sched.submit(SchedulingRequest(
+        _ = try await sched.submit(SchedulingRequest(
             id: "int-0", priority: .interrupt, modelId: "m", prompt: "int", tokenBudget: 128
         ))
         #expect(await sched.pendingCount == 7)
@@ -86,11 +85,11 @@ struct SchedulerConcurrentTests {
     }
 
     @Test("batch dispatch: 5 queued, batch 3, then complete 2")
-    func testBatchDispatch() async {
+    func testBatchDispatch() async throws {
         let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.batch"))
 
         for i in (0..<5) {
-            _ = try? await sched.submit(SchedulingRequest(
+            _ = try await sched.submit(SchedulingRequest(
                 id: "batch-\(i)", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 128
             ))
         }
@@ -106,11 +105,11 @@ struct SchedulerConcurrentTests {
     }
 
     @Test("active count after dispatch and complete")
-    func testActiveCountDrains() async {
+    func testActiveCountDrains() async throws {
         let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.drain"))
 
         for i in (0..<10) {
-            _ = try? await sched.submit(SchedulingRequest(
+            _ = try await sched.submit(SchedulingRequest(
                 id: "drain-\(i)", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 128
             ))
         }

@@ -109,7 +109,7 @@ struct SchedulerLifecycleTests {
             _ = try await sched.submit(SchedulingRequest(id: "c", priority: .chat, modelId: "m", prompt: "c", tokenBudget: 512))
             #expect(Bool(false))
         } catch {
-            #expect(error is SchedulerError)
+            #expect(error as? SchedulerError == .queueFull, "Expected .queueFull, got: \(error)")
         }
     }
 

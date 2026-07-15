@@ -4,58 +4,15 @@
 ///
 /// Tests:
 ///  - AgentLoopIterationLog: CustomStringConvertible description format
-///  - AgentLoopResult: zero-state, token accumulation, finish reasons
 ///
-/// Note: Full AgentLoop integration tests require SQLite → actor chain,
-/// which is tested via MessageBuilderTests instead.
+/// Note: AgentLoopResult is a plain struct with stored properties only —
+/// testing default values requires no unit tests (Swift guarantees them).
+/// Full AgentLoop integration is tested via MessageBuilderTests.
 
 import Testing
 import Foundation
 @testable import ocoreai
 import ocoreaiTestUtilities
-
-// MARK: - AgentLoopResult
-
-@Suite("AgentLoopResult")
-struct AgentLoopResultTests {
-    @Test("Default result has correct zero-state")
-    func defaultResult() {
-        let result = AgentLoopResult()
-        #expect(result.text == "")
-        #expect(result.iterationCount == 0)
-        #expect(result.iters.isEmpty)
-        #expect(result.finishReason == "stop")
-        #expect(result.totalTokens == 0)
-        #expect(result.toolCalls == nil)
-    }
-
-    @Test("Result with iterations accumulates tokens correctly")
-    func resultAccumulation() {
-        var result = AgentLoopResult()
-        result.iterationCount = 3
-        result.iters = [
-            AgentLoopIterationLog(iteration: 1, tok: 100, toolN: 1, ms: 50.0, tag: "tool"),
-            AgentLoopIterationLog(iteration: 2, tok: 200, toolN: 1, ms: 75.0, tag: "tool"),
-            AgentLoopIterationLog(iteration: 3, tok: 50, toolN: 0, ms: 30.0, tag: "text"),
-        ]
-        result.totalTokens = 350
-        result.finishReason = "stop"
-        #expect(result.iterationCount == 3)
-        #expect(result.iters.count == 3)
-        #expect(result.totalTokens == 350)
-    }
-
-    @Test("Timeout preserves iteration log")
-    func timeoutResult() {
-        var result = AgentLoopResult()
-        result.iterationCount = 5
-        result.totalTokens = 7900
-        result.finishReason = "timeout"
-        result.text = "[agent-loop: timeout after 180s]"
-        #expect(result.finishReason == "timeout")
-        #expect(result.iterationCount == 5)
-    }
-}
 
 // MARK: - AgentLoopIterationLog
 

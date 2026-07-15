@@ -6,12 +6,6 @@
 /// 1. PagedKVCache rejects when pool exceeds pressure threshold
 /// 2. BlockPool reference counting consistency
 /// 3. Memory pressure re-check after eviction
-///
-/// Upstream pattern: Memory safety tests verify hard limits cannot
-/// be silently bypassed under adversarial conditions.
-///
-/// Known bug: attach() (L163-179) checks memory pressure but continues
-/// to create the session regardless of whether eviction freed enough memory.
 
 import Testing
 import Foundation
@@ -52,8 +46,8 @@ struct MemoryPressureInvariantsTests {
         #expect(poolStats.activeBlocks >= 0)
     }
     
-    @Test("KNOWN: attach() allows session despite memory pressure when all sessions are active")
-    func memoryBypassAfterEvictionCurrent() async {
+    @Test("attach() should reject new session when memory pressure exceeded and eviction cannot help")
+    func memoryPressureRejection() async {
         let config = PagedKVCacheConfig(
             tokensPerBlock: 16,
             maxSessions: 10,
@@ -81,12 +75,15 @@ struct MemoryPressureInvariantsTests {
             try? await cache.appendTokens(sessionId: "active_\(i)", numTokens: 32)
         }
         
-        // Known limitation: attach() checks memory pressure and calls evictIdleSessions,
-        // but does NOT re-check pressure before creating the session.
-        // Test documents current behavior — session IS still created.
+        // attach() should reject when pressure exceeded and eviction freed nothing.
+        // Bug: attach() does NOT re-check pressure after evictIdleSessions(),
+        // allowing the session through regardless (TOCTOU).
         try? await cache.attach(sessionId: "should_reject")
         let activeCount = await cache.activeSessions
-        #expect(activeCount == 6, "Current behavior: session created despite pressure (active: \(activeCount))")
+        #expect(
+            activeCount < 6,
+            "Session should have been rejected under memory pressure (active: \(activeCount)). Bug: attach() does not re-check pressure after evictIdleSessions()"
+        )
     }
     
     @Test("Session count respects maxSessions limit")
