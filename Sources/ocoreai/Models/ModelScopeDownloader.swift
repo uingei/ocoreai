@@ -32,9 +32,9 @@
 	}
 
 	/// Standard exponential backoff with full jitter.
-	/// Max 3 retries → delays: ~1s, ~2s, ~4s (with jitter).
+	/// Max 3 retries → delays: ~1s (attempt 0), ~2s (attempt 1), ~4s (attempt 2).
 	nonisolated func retryDelay(attempt: Int, maxDelay: TimeInterval = 10.0) -> TimeInterval {
-		let base: TimeInterval = min(Double(1 << attempt) * 2, maxDelay)
+		let base: TimeInterval = min(Double(1 << (attempt + 1)), maxDelay)
 		let jitter = Double.random(in: 0 ... 1)
 		return base * (0.5 + jitter * 0.5)  // 50%-100% of base
 	}
@@ -332,6 +332,9 @@ actor ModelScopeDownloader: Downloader {
 				_ = FileManager.default.createFile(atPath: tempURL.path(percentEncoded: false), contents: nil)
 
 				// Stream into file — O(1) memory regardless of file size.
+				// Buffered writes: accumulate bytes into a Data buffer, flush at
+				// bufferSize (1 MB) to avoid per-byte syscalls. A 10 GB safetensors
+				// file with per-byte writes would trigger ~10 billion syscalls.
 				let handle = try FileHandle(forWritingTo: tempURL)
 				defer { try? handle.close() }
 
@@ -339,12 +342,16 @@ actor ModelScopeDownloader: Downloader {
 				// 300s stall timeout (matches omlx convention)
 				let stallTimeout: TimeInterval = 300
 				var lastActivity = ContinuousClock.now
-				var byteCount = 0
+				var writeBuffer = Data()
+				let bufferSize = 1 << 20  // 1 MB flush threshold
+				var bufferCount = 0
 
 				for try await byte in bytes {
-					// Stall check every 128 bytes (~128 B)
-					byteCount &+= 1
-					if byteCount.isMultiple(of: 128) {
+					writeBuffer.append(byte)
+					bufferCount &+= 1
+
+					// Stall check + cancellation every 128 bytes
+					if bufferCount.isMultiple(of: 128) {
 						try Task.checkCancellation()
 						let elapsed = lastActivity.duration(to: ContinuousClock.now)
 						if elapsed > .seconds(stallTimeout) {
@@ -355,16 +362,17 @@ actor ModelScopeDownloader: Downloader {
 						}
 					}
 					lastActivity = ContinuousClock.now
-					try handle.write(contentsOf: [byte])
+
+					// Flush buffer when full
+					if writeBuffer.count >= bufferSize {
+						handle.write(writeBuffer)
+						writeBuffer = Data()
+					}
 				}
 
-				// Verify stall didn't happen at the tail
-				let finalElapsed = lastActivity.duration(to: ContinuousClock.now)
-				if finalElapsed > .seconds(stallTimeout) {
-					throw DownloaderError.downloadStalled(
-						path: path,
-						timeout: Int(stallTimeout),
-					)
+				// Write any remaining bytes
+				if !writeBuffer.isEmpty {
+					handle.write(writeBuffer)
 				}
 
 				if FileManager.default.fileExists(atPath: destURL.path(percentEncoded: false)) {

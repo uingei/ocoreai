@@ -81,8 +81,21 @@ final class DownloadSemaphore: @unchecked Sendable {
 			case .duplicate:
 				return false
 			case .busy:
+				if Task.isCancelled { return false }
 				try? await Task.sleep(for: .milliseconds(250))
 			}
 		}
 	}
+
+	/// Force-reset all state — for testing only.
+	/// Atomically clears inFlight count and active set under the lock so there
+	/// is no race window for parallel tests.
+	#if DEBUG
+	func _test_reset() {
+		_lock.lock()
+		defer { _lock.unlock() }
+		_inFlight = 0
+		_activeDownloads.removeAll()
+	}
+	#endif
 }

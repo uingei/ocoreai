@@ -51,11 +51,13 @@
 			body: .init { writer in
 				// AsyncStream channel decouples download producer from SSE writer — avoids
 				// capturing non-Sendable `writer` in a Task/Sendable closure.
+				// Bounded buffer prevents unbounded memory growth if the client
+				// disconnects during a long download.
 				let (events, eventCont) = AsyncStream<DownloadSSEEvent>.makeStream(
-					bufferingPolicy: .unbounded,
+					bufferingPolicy: .bufferingOldest(64),
 				)
 
-				Task {
+				let downloadTask = Task {
 					do {
 						let cacheDir = try await doDownload(
 							downloadId: downloadId,
@@ -73,6 +75,13 @@
 						eventCont.yield(.error(downloadId, message: error.localizedDescription))
 					}
 					eventCont.finish()
+				}
+
+				defer {
+					// Cancel the download task if the client disconnects or the
+					// SSE writer loop exits — prevents orphaned downloads running
+					// after the HTTP response is gone.
+					downloadTask.cancel()
 				}
 
 				for await event in events {
