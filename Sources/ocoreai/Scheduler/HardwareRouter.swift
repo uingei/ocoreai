@@ -125,7 +125,10 @@ actor RouterPoller {
 
 		let thermal = ProcessInfo.processInfo.thermalState
 		let memoryPressure = HardwareRouter.globalMemoryPressure()
-		let gpuFraction: Double = 0.5 // Neutral — baseline ignores GPU saturation
+		// On UMA, system memory fraction IS the GPU fraction (CPU/GPU share RAM).
+		// Use the actual memory usage signal so the baseline reflects real pressure,
+		// rather than a neutral constant that never triggers GPU-saturation routing.
+		let gpuFraction = HardwareRouter.memoryUsageFraction()
 
 		let newChannel = HardwareRouter.route(
 			thermal: thermal,

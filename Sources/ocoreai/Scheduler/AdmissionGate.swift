@@ -130,10 +130,10 @@ actor AdmissionGate {
 	/// Query available headroom from MemoryTracker + our reservations.
 	/// Returns (totalBudget, availableHeadroom, recommendedChannel).
 	///
-	/// On UMA, GPU active memory counts against the same physical RAM —
-	/// AdmissionGate queries MemoryTracker for gpuActiveBytes and includes
-	/// it in the headroom calculation so large requests are rejected when
-	/// GPU memory is already consuming most of the budget.
+	/// On Apple Silicon UMA, system memory from `pollSystemMemory()` already
+	/// includes GPU pressure (CPU/GPU share physical RAM), so we do NOT add
+	/// `gpuActiveBytes` again — that would double-count GPU pressure.
+	/// We only query gpuActive for the HardwareRouter's channel recommendation.
 	///
 	/// The `recommendedChannel` from `HardwareRouter` tells us which
 	/// compute accelerator should handle the request — this is the bridge
@@ -160,10 +160,12 @@ actor AdmissionGate {
 			logger.debug("HardwareRouter → \(ch.rawValue)")
 		}
 
-		// Total pressure: system usage + our reservations + GPU active memory
-		let used = systemUsed + reservedBytes + gpuActive
+		// Total pressure: system usage (already includes GPU on UMA) + our reservations.
+		// On UMA, gpuActiveBytes is already part of systemUsed — adding it again
+		// would double-count GPU pressure and cause legitimate requests to be rejected.
+		let used = systemUsed + reservedBytes
 
-		// Available after accounting for reservations and GPU
+		// Available after accounting for reservations
 		let available = max(budget - used, 0)
 		return (budget, available, channel)
 	}

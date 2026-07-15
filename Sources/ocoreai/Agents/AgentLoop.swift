@@ -400,15 +400,17 @@ enum AgentLoop {
                     try Task.checkCancellation()
                 }
                 switch ev.kind {
-                case .done, .token:
+                case .token:
+                    // Each .token event is one generated token (CoreAI path)
+                    tokCount += 1
+                case .done:
                     break
                 case let .text(t):
                     accumulatedText += t
-                    // Each .text event may deliver multiple tokens decoded together.
-                    // We estimate ~2 tokens per text event to approximate actual token spend,
-                    // ensuring the budget guard fires within the configured tokenBudget rather
-                    // than drifting 2x over budget.
-                    tokCount += 2
+                    // Each .text event is at least one token decoded (MLX path).
+                    // Counting +1 per event keeps the budget guard proportional
+                    // across both backends without over-estimating.
+                    tokCount += 1
                 case let .error(e):
                     logger.warning("AgentLoop inference error: \(e)")
                 }
