@@ -334,8 +334,6 @@ public enum StringKey: String, CaseIterable {
 	case defaultModel = "Model.Default"
 	case noModelSelected = "Model.NoModelSelected"
 	case clear = "Chat.Clear"
-	case clearConfirmTitle = "Chat.ClearConfirmTitle"
-	case clearConfirmMessage = "Chat.ClearConfirmMessage"
 	// — Refresh —
 	case refreshButton = "Action.Refresh"
 	// — Retry —
@@ -735,8 +733,6 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.defaultModel: "default",
 		.noModelSelected: "No Model",
 		.clear: "Clear",
-		.clearConfirmTitle: "Clear Conversation",
-		.clearConfirmMessage: "This will remove all messages. This action can be undone with Cmd+Z.",
 		.refreshButton: "Refresh",
 		.tryAgain: "Try Again",
 		.copyMessage: "Copy Message",
@@ -1051,8 +1047,6 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.defaultModel: "默认",
 		.noModelSelected: "未选择模型",
 		.clear: "清空",
-		.clearConfirmTitle: "清空对话",
-		.clearConfirmMessage: "这将移除所有消息。此操作可通过 Cmd+Z 撤销。",
 		.refreshButton: "刷新",
 		.tryAgain: "重试",
 		.copyMessage: "复制消息",
