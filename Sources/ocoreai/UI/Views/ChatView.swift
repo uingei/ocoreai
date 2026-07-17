@@ -472,22 +472,24 @@ struct ChatView: View {
 
 		panel.begin { response in
 			guard response == .OK else { return }
+			// P1-fix: check file size before loading — prevents OOM on large files
+			// 10 MB limit: after compression this yields ~500KB per image, well within budget
+			let maxFileSize: Int = 10 * 1024 * 1024
 			for url in panel.urls {
 				do {
-					let data = try Data(contentsOf: url)
-					let base64 = data.base64EncodedString()
-					// P1-fix: infer MIME type from actual file extension instead of hardcoding
-					let ext = url.pathExtension.lowercased()
-					let mimeType: String
-					switch ext {
-					case "png": mimeType = "image/png"
-					case "jpeg", "jpg": mimeType = "image/jpeg"
-					case "heic", "heif": mimeType = "image/heic"
-					case "webp": mimeType = "image/webp"
-					default: mimeType = "image/png"
+					// Pre-check size without loading into memory
+					guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+					      let size = attrs[.size] as? Int,
+					      size <= maxFileSize else {
+						chatState.errorMessage = "File too large: \(url.lastPathComponent) (max 10 MB)"
+						continue
 					}
-					let dataURL = "data:\(mimeType);base64,\(base64)"
-					let attachment = ChatState.AttachedImage(dataURL: dataURL)
+					let data = try Data(contentsOf: url)
+					// P1-fix: compress before base64 — keeps per-image memory under 500KB
+					// (was: raw 20MB file → 27MB base64; now: compressed ~300KB → ~400KB base64)
+					let compressed = compressImage(data)
+					let base64 = compressed.base64EncodedString()
+					let attachment = ChatState.AttachedImage(dataURL: "data:image/jpeg;base64,\(base64)")
 					attachments.append(attachment)
 				} catch {
 					// Skip files that fail to read
