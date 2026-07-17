@@ -179,7 +179,7 @@ final class MultimodalState {
 
 		/// Check if this entry should be sent as text (OCR significant and non-empty) vs image.
 		var shouldSendAsText: Bool {
-			ocrText != nil && !ocrText!.isEmpty && dataURL == nil
+			ocrText?.isEmpty == false && dataURL == nil
 		}
 	}
 

@@ -9,6 +9,7 @@
 import Foundation
 import ImageIO
 import CoreGraphics
+import UniformTypeIdentifiers
 
 /// Compress image data to a JPEG bounded by maxPixel dimensions at 0.6 quality.
 /// Returns the original data if compression fails at any stage.
