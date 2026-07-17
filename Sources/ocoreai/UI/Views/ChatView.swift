@@ -76,6 +76,7 @@ struct ChatView: View {
 	@State private var inputText = ""
 	@State private var currentModel = ""
 	@State private var activeTask: Task<Void, Never>? = nil
+	@State private var showingClearConfirmation = false
 
 	// P1-fix: NSEvent monitor handle — disposed on .onDisappear to prevent leak
 	#if os(macOS)
@@ -198,7 +199,7 @@ struct ChatView: View {
 
 			ToolbarItem(placement: .primaryAction) {
 				Button(role: .destructive) {
-					chatState.resetConversation()
+					showingClearConfirmation = true
 				} label: {
 					Label(StringKey.clear.l, systemImage: "trash")
 				}
@@ -206,6 +207,14 @@ struct ChatView: View {
 				.accessibilityHint(StringKey.clearConversationHint.l)
 				.disabled(isStreaming)
 			}
+		}
+		// P3: confirmation dialog for destructive clear operation (HIG compliance)
+		.confirmationDialog(StringKey.clearConfirmTitle.l, isPresented: $showingClearConfirmation) {
+			Button(StringKey.clear.l, role: .destructive) {
+				chatState.resetConversation()
+			}
+		} message: {
+			Text(StringKey.clearConfirmMessage.l)
 		}
 		// P0: Show error banner when chat inference fails
 		.overlay(alignment: .bottom) {
