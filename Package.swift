@@ -23,10 +23,11 @@ let package = Package(
         // YAML config support
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
-        // not SwiftPM packages — imported directly in source via `#if coreai` guards
+        // not SwiftPM packages — imported directly in source via `#if canImport(CoreAI)` guards
         // Pinned to exact revision — upstream main branch drifts; update via `swift package update`
-        // then bump .revision + test. Current pin: 2026-07-10 — Gemma 4 VLM fix + ChatSession cancel-on-barge-in + Gemma 3 chunked prefill.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "2c1dd13d41586f63f40ba9ce45ce201026ab52b0"),
+        // then bump .revision + test. Current pin: 2026-07-18 — MLXFoundationModels, Gemma 4 MTP centroid,
+        // Qwen3.5/3.6 windowed prefill, cancellation race fix, tool round-trip fix, FoundationModels SDK.
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "343cae3799054b2e138ebfb1ae8d7d0f6c6a4a5b"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)

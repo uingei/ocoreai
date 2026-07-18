@@ -20,6 +20,7 @@
 
 
 	import Foundation
+	import Logging
 	import MLXLMCommon
 
 	/// Retryable HTTP error codes — these are transient and worth retrying.
@@ -85,7 +86,7 @@ actor ModelScopeDownloader: Downloader {
 		// Log if using non-default endpoint
 		let endpoint = resolvedEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
 		if endpoint != "https://www.modelscope.cn" {
-			print("[ModelScopeDownloader] Using custom endpoint: \(endpoint)")
+			Logger(label: "ModelScopeDownloader").info("Using custom endpoint: \(endpoint)")
 		}
 	}
 

@@ -80,7 +80,8 @@ struct MSHubModel: Identifiable, Hashable {
 				?? "https://modelscope.cn"
 			// Strip trailing slash for consistent path appending
 			return URL(string: endpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
-				?? URL(string: "https://modelscope.cn")!
+				?? URL(string: "https://modelscope.cn")
+				?? Bundle.main.bundleURL.appendingPathComponent("fallback")
 		}
 
 		/// Create the client.
@@ -176,7 +177,14 @@ struct MSHubModel: Identifiable, Hashable {
 
 	/// Parse the top-level list response into models.
 	internal func parseModelList(_ data: Data) throws -> (models: [MSHubModel], totalCount: Int) {
-		guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+		let json: [String: Any]
+		do {
+			guard let parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+				throw MSError.invalidJSON
+			}
+			json = parsed
+		} catch {
+			// Catch NSCocoaErrorDomain (invalid JSON) and re-wrap as MSError
 			throw MSError.invalidJSON
 		}
 

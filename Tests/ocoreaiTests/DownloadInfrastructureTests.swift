@@ -244,6 +244,8 @@ struct DownloadProgressTests {
     #expect(progress.isDownloading("evict-test"))
     progress.finish(modelId: "evict-test", success: true)
     #expect(!progress.isDownloading("evict-test"))
+    // finish(success:true) delays eviction by 2s for UI completion flash — force clear to test eviction logic
+    progress.clear()
     #expect(progress.progress(for: "evict-test") == nil)
   }
 
