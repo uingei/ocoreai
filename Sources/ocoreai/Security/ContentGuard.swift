@@ -295,20 +295,25 @@ public actor ContentGuard {
 	/// Check model output AFTER inference. Catches model-generated harmful content.
 	/// - Parameter text: Model output text to check.
 	/// - Returns: ``GuardResult`` indicating whether output should be delivered.
-	public func checkOutput(_ text: String) -> GuardResult {
+	public func checkOutput(_ text: String) async -> GuardResult {
 		let rtConfig = runtimeConfig
 		guard rtConfig.enabled else { return .pass }
 
 		let start = UInt64(DispatchTime.now().uptimeNanoseconds)
-		checksRun += 1
+		defer {
+			checksRun += 1
+		}
 
 		let lowerText = text.lowercased()
 
-		// Keyword scan — same categories as input, slightly lower thresholds
+		// 1. Keyword scan (same categories as input)
 		let keywordHits = scanKeywords(lowerText)
 
-		// Evaluate — output filtering is slightly stricter
-		let result = evaluateHits(keywordHits, text: lowerText)
+		// 2. Regex scan (jailbreak patterns, prompt injection) — symmetric with checkInput
+		let regexHits = scanRegex(lowerText, text: text)
+
+		// 3. Evaluate — output filtering mirrors input scanning
+		let result = evaluateHits(keywordHits, regexHits: regexHits, text: lowerText)
 		if result.isBlocked { blocksTriggered += 1 }
 
 		let elapsed = UInt64(DispatchTime.now().uptimeNanoseconds) - start

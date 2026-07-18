@@ -135,8 +135,8 @@ public struct ServerConfig: Sendable, Codable, Equatable {
 /// model weights and activations when the system is under memory pressure.
 /// This is Layer 0 — the hardware-level protection below OOMGuard.
 ///
-/// See upstream: references/mlx-swift/Source/MLX/WiredMemory.swift
-/// and references/mlx-swift-lm/Libraries/MLXLMCommon/WiredMemoryPolicies.swift
+/// See upstream: references/mlx-swift-lm/Libraries/MLXLMCommon/WiredMemoryPolicies.swift
+/// and references/mlx-swift-lm/Libraries/MLXLMCommon/WiredMemoryUtils.swift
 public struct WiredMemoryConfig: Sendable, Codable, Equatable {
 	/// Master toggle — disabled means wired memory is not applied per-request.
 	public var enabled: Bool

@@ -920,6 +920,7 @@ private func streamWithToolCalling(
 						persistMemory: { event in
 							_ = await sessionCompressor.addMemory(event)
 						},
+						maxPhases: 1, // SSE: Phase 1 trace only — stream already sent, generate is no-op
 					)
 				} catch {
 					logger.warning("Post-stream self-correction trace failed: \(error)")

@@ -102,6 +102,7 @@ public struct EnginePoolConfig: Sendable {
 		self.sessionPoolConfig = .default
 		self.kvCacheQuantization = app.backend.kvCacheQuantization
 		self.wiredMemory = app.backend.wiredMemory
+		self.specDecoding = app.backend.specDecoding
 
 		let backendStr = app.backend.preference.joined(separator: ", ")
 		logger.info("EnginePoolConfig from AppConfig — backend: \(backendStr), defaultModel: \(self.defaultModelId), sessions: \(self.maxConcurrentSessions)")

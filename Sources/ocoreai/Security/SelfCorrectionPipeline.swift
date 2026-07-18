@@ -102,6 +102,8 @@ struct SelfCorrectionPipeline {
 	///   - generate: Closure that produces a new response with given system prompt override
 	///   - logger: Structured logger
 	///   - persistMemory: Closure to persist MemoryEvent (optional)
+	///   - maxPhases: Maximum phases to attempt (1 = Phase 1 rule-based only; 3 = full pipeline).
+	///     SSE path should pass 1 to avoid calling generate() on an already-sent stream.
 	/// - Returns: (finalResponse, iterations, finalPhase, trace)
 	func evaluate(
 		prompt: String,
@@ -110,6 +112,7 @@ struct SelfCorrectionPipeline {
 		generate: @Sendable (String?, [String]?) async throws -> String,
 		logger: Logger,
 		persistMemory: @Sendable (MemoryEvent) async -> Void = { _ in },
+		maxPhases: Int = SelfCorrectionPipeline.maxIterations,
 	) async throws -> (finalResponse: String, iterations: Int, finalPhase: CorrectionPhase, trace: CorrectionTrace) {
 		// Phase 1: Rule-based critique — zero token cost
 		let phase1Result = phase1RuleBasedCritique(prompt: prompt, response: response)
@@ -130,6 +133,23 @@ struct SelfCorrectionPipeline {
 		}
 
 		logger.info("Self-correction: Phase 1 failed (confidence=\(phase1Result.confidence)), entering correction loop")
+
+		// SSE path (maxPhases == 1): skip correction loop — stream already sent,
+		// generate closure is no-op. Record Phase 1 trace and return.
+		if maxPhases <= 1 {
+			logger.info("Self-correction: maxPhases == 1, recording Phase 1 trace only (no regeneration)")
+			let trace = CorrectionTrace(
+				originalPrompt: prompt,
+				modelResponse: response,
+				phasesAttempted: [],
+				finalPhase: .converged,
+				iterations: 0,
+				converged: true,
+				timestamp: Int64(Date().timeIntervalSince1970 * 1_000_000),
+			)
+			await persistMemory(trace.toMemoryEvent(sessionId: sessionId))
+			return (response, 0, .converged, trace)
+		}
 
 		// Correction loop: Phase 2 → Phase 3
 		var currentResponse = response
