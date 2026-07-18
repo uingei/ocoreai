@@ -4,14 +4,21 @@
 # tests — last line must report "passed after"
 
 echo "🔧 Pre-push: debug build..."
-if ! swift build 2>&1 | tail -1 | grep -q "Build complete"; then
+BUILD_OK=$(swift build 2>&1 | tail -1 | grep -c "Build complete")
+if [ "$BUILD_OK" -eq 0 ]; then
+  echo "⚠️  Incremental build failed — retrying clean build..."
+  rm -rf .build
+  BUILD_OK=$(swift build 2>&1 | tail -1 | grep -c "Build complete")
+fi
+if [ "$BUILD_OK" -eq 0 ]; then
   echo "❌ Build failed"
   exit 1
 fi
 
 echo "🧪 Pre-push: tests..."
 TEST_LOG="$TMPDIR/.hermes-pre-push-tests.log"
-if ! swift test 2>&1 | tee "$TEST_LOG" | tail -1 | grep -q "passed after"; then
+TEST_OK=$(swift test 2>&1 | tee "$TEST_LOG" | tail -1 | grep -c "passed after")
+if [ "$TEST_OK" -eq 0 ]; then
   echo "❌ Tests failed — see full log above"
   rm -f "$TEST_LOG"
   exit 1
