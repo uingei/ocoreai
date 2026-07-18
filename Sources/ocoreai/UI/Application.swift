@@ -85,7 +85,11 @@ struct OcoreaiApp: App {
 struct OcoreaiShellView: View {
 	@Environment(\.colorScheme) private var colorScheme
 	@Environment(\.scenePhase) private var scenePhase
-	@State private var theme = OcoreaiTheme.theme(from: .light)
+	// P1-fix: derive theme directly from colorScheme — eliminates one-frame white flash
+	// where @State initialized from hardcoded .light
+	private var theme: OcoreaiTheme {
+		OcoreaiTheme.theme(from: colorScheme)
+	}
 	@Bindable private var appState = AppState.shared
 
 	var body: some View {
@@ -98,16 +102,11 @@ struct OcoreaiShellView: View {
 		.navigationSplitViewStyle(.balanced)
 		// swiftlint:disable:next identifier_name
 		.environment(\.ocoreaiTheme, theme)
-		.onChange(of: colorScheme) { _, scheme in
-			theme = OcoreaiTheme.theme(from: scheme)
-		}
 		// ScenePhase gating: tell AppState whether we're in foreground/background
 		.onChange(of: scenePhase) { _, phase in
 			appState.isForeground = (phase == .active)
 		}
 		.onAppear {
-			// Initial sync in case colorScheme changed before view appeared
-			theme = OcoreaiTheme.theme(from: colorScheme)
 			appState.initialize()
 		}
 		.onDisappear {

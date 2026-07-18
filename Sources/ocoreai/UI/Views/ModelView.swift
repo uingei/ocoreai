@@ -321,9 +321,9 @@ private struct LiveModelCard: View {
 
 	/// Determine the appropriate status from the model's lifecycle state.
 	private var modelStatus: SPStatus {
-		if isDownloading { return .starting }
-		if isServing { return .stopping } // Orange = active work
-		return .running
+		if isDownloading { return .starting }    // Blue = loading
+		if isServing { return .running }         // Green = serving
+		return .stopped                           // Gray = idle
 	}
 
 	/// Accessibility label describing the current status.

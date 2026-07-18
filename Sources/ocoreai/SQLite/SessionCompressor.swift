@@ -17,7 +17,8 @@ actor SessionCompressor {
 	private let logger: Logger
 	private let store: SQLiteStore
 	private let fts: FTS5Search
-	private let hotWindow: Int // Number of messages to keep in hot layer
+	/// Number of recent messages cached as the hot working set (exposed for UI layer boundary).
+	let hotWindow: Int
 	private let tokenThreshold: Int // Token count that triggers compression
 	private let ttlDays: Int // Default session retention
 	private var llmSummarizer: (@Sendable (String) async throws -> String)? // LLM summarization callback (nil = rule-based only)

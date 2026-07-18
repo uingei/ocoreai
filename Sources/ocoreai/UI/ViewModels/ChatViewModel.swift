@@ -242,7 +242,11 @@ final class ChatState {
 		}
 	}
 
-	func stop() {}
+	/// Stop streaming inference and cancel in-flight work.
+	/// Called from ChatView.onDisappear to clean up resources on tab switch.
+	func stop() {
+		cancelInference()
+	}
 
 	// MARK: - Persistence
 
@@ -253,7 +257,9 @@ final class ChatState {
 		guard messages.isEmpty else { return }
 		guard let compressor, let sid = sessionId else { return }
 		do {
-			let dbMessages = try await compressor.getMessages(sid, limit: nil, offset: 0)
+			// P0-fix: cap at hotWindow to prevent loading entire session into UI memory
+			let hotWindowLimit = compressor.hotWindow
+			let dbMessages = try await compressor.getMessages(sid, limit: hotWindowLimit, offset: 0)
 			// Messages come in reverse chronological order from DB — reverse for display
 			let chronMessages = dbMessages.reversed().map { fromMessageModel($0) }
 			messages = chronMessages
@@ -298,8 +304,14 @@ final class ChatState {
 
 	/// Rough token estimate: ~4 chars per token for English, ~2 for CJK.
 	/// Internal (not private) so @testable import can exercise the real formula.
+	/// P2-fix: CJK-aware estimation — Chinese/Japanese/Korean chars are 3 bytes in UTF-8
+	/// but represent ~1.5-2 chars per token, not 4 bytes per token like English.
 	internal nonisolated func estimateTokens(_ text: String) -> Int {
-		max(1, text.utf8.count / 3)
+		let utf16Count = text.utf16.count
+		// Swift String indexing uses UTF-16 code units, which maps closely to
+		// grapheme clusters for CJK (1 UTF-16 per CJK char) and handles emoji.
+		// ~3.5 UTF-16 units per token is a reasonable heuristic across EN/CJK mix
+		return max(1, utf16Count / 3)
 	}
 
 	/// Convert DB MessageModel to our ChatMessage.
@@ -494,7 +506,10 @@ final class ChatState {
 	/// Also resets SQLite session ID to prevent new messages bleeding
 	/// into the old session's database record.
 	func resetConversation() {
-		undoSnapshot = messages
+		// P2-fix: cap undo snapshot to last 50 messages — prevents holding entire
+		// conversation in memory when user clears a long-running session
+		let maxUndoMessages = 50
+		undoSnapshot = Array(messages.suffix(maxUndoMessages))
 		undoResponseText = responseText
 		undoErrorMessage = errorMessage
 		// Save session state for undo
