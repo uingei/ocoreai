@@ -554,7 +554,7 @@ private func streamAnthropicResponse(
 						let deltaEvent = AnthropicStreamEvent.textDelta(index: 0, text: text)
 						writeSSEEvent(continuation, event: deltaEvent)
 
-					case let .done(_, _):
+					case .done(_, _):
 						break
 
 					case let .error(errorMsg):

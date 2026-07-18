@@ -501,8 +501,8 @@ private func nonStreamWithToolCalling(
 							accTokens.append(id)
 						case let .text(txt):
 							accText = (accText ?? "") + txt
-						case let .done(_, _):
-							break
+						case .done(_, _):
+									break
 						case let .error(msg):
 							logger.warning("Self-correction re-gen error: \(msg)")
 						}

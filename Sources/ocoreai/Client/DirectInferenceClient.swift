@@ -467,7 +467,7 @@ extension DirectInferenceClient {
 				case let .text(text):
 					outputTok += 1
 					completeText += text
-				case let .done(_, _): break
+				case .done(_, _): break
 				case let .error(msg):
 					throw AppError.generationError(msg)
 				}
