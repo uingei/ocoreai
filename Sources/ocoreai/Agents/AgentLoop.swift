@@ -403,13 +403,16 @@ enum AgentLoop {
                 case .token:
                     // Each .token event is one generated token (CoreAI path)
                     tokCount += 1
-                case .done:
-                    break
+                case let .done(_, actualCount):
+                    // Use upstream-reported token count when available, fallback to our running count
+                    if let actualCount {
+                        tokCount = actualCount
+                    }
                 case let .text(t):
                     accumulatedText += t
                     // Each .text event is at least one token decoded (MLX path).
-                    // Counting +1 per event keeps the budget guard proportional
-                    // across both backends without over-estimating.
+                    // Counting +1 per event provides a lower bound until .done carries
+                    // the definitive count from upstream GenerateCompletionInfo.
                     tokCount += 1
                 case let .error(e):
                     logger.warning("AgentLoop inference error: \(e)")

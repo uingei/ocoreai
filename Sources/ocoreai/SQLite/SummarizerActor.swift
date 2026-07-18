@@ -121,8 +121,7 @@ actor SummarizerActor {
 					break
 				case let .text(t):
 					summary += t
-				case .done:
-					break
+				case let .done(_, _): break
 				case let .error(msg):
 					// Release before re-throwing
 					await handle.release()

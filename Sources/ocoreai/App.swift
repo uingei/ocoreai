@@ -592,6 +592,13 @@ public final class OcoreaiEngine {
 		metrics = nil
 		scheduler = nil
 
+		// MARK: - MLX GPU cache cleanup
+		//
+		// FIX: Without this, MLX's GPU resident cache persists after engine
+		// shutdown — on UMA this means Apple Silicon RAM is never freed even
+		// though EnginePool models are deinitialised.
+		MLX.Memory.clearCache()
+
 		// MARK: - Config cleanup
 
 		await configSystem?.stopWatching()
@@ -599,7 +606,7 @@ public final class OcoreaiEngine {
 		self.configSystem = nil
 
 		lifecycleState = .idle
-		logger.info("oCoreAI shut down complete")
+		logger.info("oCoreAI shut down complete (MLX caches cleared)")
 	}
 }
 

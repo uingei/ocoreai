@@ -165,7 +165,7 @@ extension EnginePool {
 				do {
 					for try await output in sequence {
 						if Task.isCancelled || cancellation.isCancelled {
-							continuation.yield(.init(kind: .done(StopReason.cancelled)))
+							continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: metrics.generatedTokenCount)))
 							break
 						}
 						metrics.incrementGenerated()
@@ -180,7 +180,7 @@ extension EnginePool {
 				}
 
 				if !Task.isCancelled {
-					continuation.yield(.init(kind: .done(sequence.stopReason)))
+					continuation.yield(.init(kind: .done(sequence.stopReason, tokenCount: metrics.generatedTokenCount)))
 				}
 
 				// CoreAI 34f0db3: no per-turn reset. KV cache persists across turns;
@@ -523,13 +523,17 @@ extension EnginePool {
 						// Request-level stop sequence detection — upstream handles it via
 						// ModelConfiguration (model-level only), so we filter per-request here.
 						var stoppedBySequence = false
+						// Capture actual token count from upstream .info event — .chunk can
+						// represent one-or-more tokens, so counting chunks would severely
+						// under-estimate generated tokens.
+						var actualTokenCount: Int?
 
 						// Wired memory GPU hard-isolation is handled at outer scope (L588+)
 						// via ticket.start()/ticket.end() — no defer needed.
 						do {
 							for try await generation in genStream {
 								if Task.isCancelled || cancellation.isCancelled {
-									continuation.yield(.init(kind: .done(StopReason.cancelled)))
+									continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
 									break
 								}
 								switch generation {
@@ -550,27 +554,28 @@ extension EnginePool {
 										if !trimmed.isEmpty {
 											continuation.yield(.init(kind: .text(trimmed)))
 										}
-										continuation.yield(.init(kind: .done(StopReason.stopSequence)))
+										continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
 										stoppedBySequence = true
 										break
 									} else {
 										continuation.yield(.init(kind: .text(text)))
 									}
-								case .info, .toolCall:
-									// Info and toolCall events from upstream — tool calls are handled
-									// by AgentLoop.parseToolCalls() on accumulated text at stream end,
-									// so we don't need to forward these mid-stream.
+								case let .info(completionInfo):
+									// Capture actual generation token count from upstream
+									actualTokenCount = completionInfo.generationTokenCount
+								case .toolCall:
+									// Tool calls are handled by AgentLoop.parseToolCalls() on accumulated text at stream end
 									break
 								}
-								}
-								} catch {
+							}
+						} catch {
 							inferenceError = error
 						}
 
 						if let inferenceError {
 							continuation.yield(.init(kind: .error(inferenceError.localizedDescription)))
 						} else if !Task.isCancelled && !stoppedBySequence {
-							continuation.yield(.init(kind: .done(nil)))
+							continuation.yield(.init(kind: .done(nil, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
 						}
 					}
 

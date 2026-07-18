@@ -54,8 +54,10 @@ struct InferenceEvent {
 		/// Generated text chunk (MLX path — already decoded)
 		case text(String)
 
-		/// Generation complete (optional `StopReason`)
-		case done(StopReason?)
+		/// Generation complete metadata — carries actual token count from upstream
+		/// when available. Essential for accurate token budgeting on MLX backend
+		/// where `.chunk` = one-or-more tokens.
+		case done(StopReason?, tokenCount: Int?)
 
 		/// Fatal inference error
 		case error(String)

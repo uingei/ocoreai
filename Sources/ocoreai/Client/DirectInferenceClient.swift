@@ -287,7 +287,7 @@ extension DirectInferenceClient {
 					}
 					accumulatedText += text
 					continuation.yield(.init(text: text, isComplete: false))
-				case let .done(reason):
+				case let .done(reason, _):
 					finishReason = stopReasonToString(reason) ?? "stop"
 				case let .error(errorMsg):
 					continuation.finish()
@@ -467,8 +467,7 @@ extension DirectInferenceClient {
 				case let .text(text):
 					outputTok += 1
 					completeText += text
-				case .done:
-					break
+				case let .done(_, _): break
 				case let .error(msg):
 					throw AppError.generationError(msg)
 				}
