@@ -474,7 +474,7 @@ enum ContentPolymorphic: Codable {
 	}
 }
 
-/// Single content part inside a multi-part message.
+/// Multi-part message part types (text + image_url + audio).
 struct ContentPart: Codable {
 	/// Part type: "text" | "image_url" | "audio"
 	let type: String
@@ -485,9 +485,18 @@ struct ContentPart: Codable {
 	/// Image URL reference (if applicable)
 	let imageUrl: ImageURL?
 
+	/// Audio URL reference (if applicable)
+	var audioURL: AudioURL? = nil
+
 	/// Image URL wrapper.
 	struct ImageURL: Codable {
 		/// URL string (http/https or base64 data URL)
+		let url: String
+	}
+
+	/// Audio URL wrapper.
+	struct AudioURL: Codable {
+		/// URL string (http/https or local file path)
 		let url: String
 	}
 }

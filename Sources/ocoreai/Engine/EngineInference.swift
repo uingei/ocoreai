@@ -420,18 +420,26 @@ extension EnginePool {
 				case let .parts(parts):
 					var textParts: [String] = []
 					var images: [MLXLMCommon.UserInput.Image] = []
+					var audios: [MLXLMCommon.UserInput.Audio] = []
 					for part in parts {
 						if let text = part.text {
 							textParts.append(text)
 						}
 						if let img = part.imageUrl, let image = makeMLXImage(from: img.url) {
-								images.append(image)
+							images.append(image)
 							}
+						if let audio = part.audioURL {
+							// Audio URL directly into VLM — upstream handles decoding via .asMLXArray()
+							if let url = URL(string: audio.url) {
+								audios.append(.url(url))
+							}
+						}
 					}
 					return Chat.Message(
 						role: role,
 						content: textParts.joined(separator: " "),
 						images: images,
+						audios: audios,
 					)
 				case nil:
 					return Chat.Message(role: role, content: "")
@@ -516,11 +524,8 @@ extension EnginePool {
 						// ModelConfiguration (model-level only), so we filter per-request here.
 						var stoppedBySequence = false
 
-						// Layer 0: Wired memory GPU hard-isolation
-						// Currently disabled — requires async defer (Swift 6.4+) or significant
-						// refactoring of runInferenceBody to avoid actor isolation conflict.
-						// TODO: Re-enable once Swift 6.4 or higher is supported.
-
+						// Wired memory GPU hard-isolation is handled at outer scope (L588+)
+						// via ticket.start()/ticket.end() — no defer needed.
 						do {
 							for try await generation in genStream {
 								if Task.isCancelled || cancellation.isCancelled {
