@@ -262,7 +262,9 @@ extension DirectInferenceClient {
 			cancellation: cancellation,
 		)
 
-		var outputTokens = 0
+		// Use the token count from .done event — per-event counting is wrong
+		// because a single .text event can contain multiple tokens.
+		var outputTokens: Int? = nil
 		var accumulatedText = ""
 		var finishReason: String? = nil
 
@@ -273,9 +275,9 @@ extension DirectInferenceClient {
 			for try await event in tokenStream {
 				switch event.kind {
 				case .token:
-					outputTokens += 1
+					// Individual token events — text will arrive in .text events
+					break
 				case let .text(text):
-					outputTokens += 1
 					// Safety check: filter harmful output
 					if let contentGuard = streamGuard {
 						let checkResult = await contentGuard.checkOutput(text)
@@ -287,8 +289,11 @@ extension DirectInferenceClient {
 					}
 					accumulatedText += text
 					continuation.yield(.init(text: text, isComplete: false))
-				case let .done(reason, _):
+				case let .done(reason, tokenCount):
 					finishReason = stopReasonToString(reason) ?? "stop"
+					// Use actual token count from upstream .info/.done — per-event
+					// counting would severely underestimate when .text spans multiple tokens
+					outputTokens = tokenCount ?? 0
 				case let .error(errorMsg):
 					continuation.finish()
 					throw AppError.generationError(errorMsg)

@@ -104,6 +104,11 @@ final class MultimodalState {
 	/// Debounce timer for async save — coalesces rapid toggle changes.
 	private var _saveDebounceTask: Task<Void, Never>?
 
+	/// Wire tasks — cancel previous on rapid toggle to prevent concurrent start/stop race.
+	private var _wireCameraTask: Task<Void, Never>?
+	private var _wireMicTask: Task<Void, Never>?
+	private var _wireScreenTask: Task<Void, Never>?
+
 	init() {
 		_restoreFromDisk()
 	}
@@ -126,7 +131,8 @@ final class MultimodalState {
 
 	/// Wire camera toggle to CaptureService lifecycle
 	private func wireCamera(_ value: Bool) {
-		Task {
+		_wireCameraTask?.cancel()
+		_wireCameraTask = Task {
 			let service = MMCaptureService.shared
 			if value {
 				mmLogger.info("[MultimodalState] Camera enabled — starting CaptureService")
@@ -140,7 +146,8 @@ final class MultimodalState {
 
 	/// Wire microphone toggle to AudioIO lifecycle
 	private func wireMicrophone(_ value: Bool) {
-		Task {
+		_wireMicTask?.cancel()
+		_wireMicTask = Task {
 			let audio = MMAudioIO.shared
 			if value {
 				mmLogger.info("[MultimodalState] Microphone enabled — requesting permission")
@@ -154,7 +161,8 @@ final class MultimodalState {
 
 	/// Wire screen capture toggle to ScreenshotService lifecycle
 	private func wireScreen(_ value: Bool) {
-		Task {
+		_wireScreenTask?.cancel()
+		_wireScreenTask = Task {
 			let service = MMScreenshotService.shared
 			if value {
 				mmLogger.info("[MultimodalState] Screen capture enabled — starting ScreenshotService")
