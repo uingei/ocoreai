@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
-# pre-push — build + test gate before push
-set -euo pipefail
+# pre-push — fast gate before push
+# debug build (not release) — release takes too long on every push
+# tests — last line must report "passed after"
 
-echo "🔧 Pre-push: build gate..."
-swift build -c release --quiet
+echo "🔧 Pre-push: debug build..."
+if ! swift build 2>&1 | tail -1 | grep -q "Build complete"; then
+  echo "❌ Build failed"
+  exit 1
+fi
 
-echo "🧪 Pre-push: test gate..."
-swift test --quiet
+echo "🧪 Pre-push: tests..."
+TEST_LOG="$TMPDIR/.hermes-pre-push-tests.log"
+if ! swift test 2>&1 | tee "$TEST_LOG" | tail -1 | grep -q "passed after"; then
+  echo "❌ Tests failed — see full log above"
+  rm -f "$TEST_LOG"
+  exit 1
+fi
+rm -f "$TEST_LOG"
 
 echo "✅ Pre-push: green"
