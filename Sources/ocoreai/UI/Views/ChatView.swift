@@ -92,9 +92,12 @@ struct ChatView: View {
 		_chatState = State(initialValue: ChatState.shared)
 	}
 
-	/// Dispose NSEvent monitor handle — breaks RC cycle on tab switch
+	/// Dispose NSEvent monitor handle — cancels DispatchSource to break RC cycle on tab switch
 	private func disposeKeyboardMonitor() {
 		#if os(macOS)
+			if let monitor = self._keyboardMonitor as? DispatchSource {
+				monitor.cancel()
+			}
 			self._keyboardMonitor = nil
 		#endif
 	}
@@ -144,9 +147,11 @@ struct ChatView: View {
 			disposeKeyboardMonitor()
 			chatState.stop()
 		}
-		// P1-4: macOS HIG keyboard shortcuts
+		// P1-fix: dispose-before-register — rapid tab switching spawns duplicate monitors
+		// that outlive the view because onDisappear never fires for the replaced view
 		#if os(macOS)
 		.onAppear {
+			disposeKeyboardMonitor()
 			_keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
 				let cmd = event.modifierFlags.contains(.command)
 				let opt = event.modifierFlags.contains(.option)
@@ -196,7 +201,9 @@ struct ChatView: View {
 				.accessibilityValue(currentModel.isEmpty ? StringKey.modelSelectorValueDefault.l : currentModel)
 			}
 
-			ToolbarItem(placement: .primaryAction) {
+			// HIG-02: destructive non-modal operations shouldn't be in .primaryAction —
+			// .automatic is the neutral placement for secondary/destructive toolbar items
+			ToolbarItem(placement: .automatic) {
 				Button(role: .destructive) {
 					chatState.resetConversation()
 				} label: {
@@ -391,7 +398,7 @@ struct ChatView: View {
 							} label: {
 								Image(systemName: "xmark.circle.fill")
 									.font(.ocoreaiText(10))
-									.foregroundStyle(.red)
+									.foregroundStyle(theme.redDot)
 									.background(theme.cardBg, in: Circle())
 							}
 							.buttonStyle(.plain)
@@ -462,6 +469,7 @@ struct ChatView: View {
 
 	// MARK: - Image Picker
 
+/// Image picker — disk I/O and compression offloaded to background to avoid main-thread blocking
 	@MainActor
 	private func pickImages() {
 	#if os(macOS)
@@ -472,27 +480,41 @@ struct ChatView: View {
 
 		panel.begin { response in
 			guard response == .OK else { return }
-			// P1-fix: check file size before loading — prevents OOM on large files
-			// 10 MB limit: after compression this yields ~500KB per image, well within budget
-			let maxFileSize: Int = 10 * 1024 * 1024
-			for url in panel.urls {
-				do {
-					// Pre-check size without loading into memory
-					guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-					      let size = attrs[.size] as? Int,
-					      size <= maxFileSize else {
-						chatState.errorMessage = "File too large: \(url.lastPathComponent) (max 10 MB)"
-						continue
+			// P0-fix: capture URLs on main actor before detaching (panel.urls is @MainActor-isolated)
+			// then offload disk I/O + CPU compression to background
+			// to keep main-thread response < 100ms per Apple HIG
+			let selectedURLs = panel.urls
+			Task.detached(priority: .utility) {
+				// P1-fix: check file size before loading — prevents OOM on large files
+				// 10 MB limit: after compression this yields ~500KB per image, well within budget
+				let maxFileSize = 10 * 1024 * 1024
+				var attachmentsToAppend: [ChatState.AttachedImage] = []
+				for url in selectedURLs {
+					do {
+						// Pre-check size without loading into memory
+						guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+							  let size = attrs[.size] as? Int,
+							  size <= maxFileSize else {
+							// Report oversized files back on main thread
+							await MainActor.run {
+								chatState.errorMessage = "File too large: \(url.lastPathComponent) (max 10 MB)"
+							}
+							continue
+						}
+						let data = try Data(contentsOf: url)
+						// P1-fix: compress before base64 — keeps per-image memory under 500KB
+						// (was: raw 20MB file → 27MB base64; now: compressed ~300KB → ~400KB base64)
+						let compressed = compressImage(data)
+						attachmentsToAppend.append(ChatState.AttachedImage(
+							dataURL: "data:image/jpeg;base64,\(compressed.base64EncodedString())"
+						))
+					} catch {
+						// Skip files that fail to read
 					}
-					let data = try Data(contentsOf: url)
-					// P1-fix: compress before base64 — keeps per-image memory under 500KB
-					// (was: raw 20MB file → 27MB base64; now: compressed ~300KB → ~400KB base64)
-					let compressed = compressImage(data)
-					let base64 = compressed.base64EncodedString()
-					let attachment = ChatState.AttachedImage(dataURL: "data:image/jpeg;base64,\(base64)")
-					attachments.append(attachment)
-				} catch {
-					// Skip files that fail to read
+				}
+				// Batch result back to main thread
+				await MainActor.run {
+					attachments.append(contentsOf: attachmentsToAppend)
 				}
 			}
 		}
