@@ -298,8 +298,10 @@ enum AuthError: Error, LocalizedError, HTTPResponseError {
 	) throws -> Response {
 		let body = #"{"error":"\#(errorDescription ?? "auth error")"}"#
 		var resp = Response(status: status, body: .init(byteBuffer: ByteBuffer(string: body)))
-		// swiftlint:disable:next force_unwrapping
-		resp.headers[HTTPField.Name("content-type")!] = "application/json"
+		// HTTPField.Name for standard keys is guaranteed by Hummingbird — safe to unwrap
+		if let ctKey = HTTPField.Name("content-type") {
+			resp.headers[ctKey] = "application/json"
+		}
 		return resp
 	}
 }

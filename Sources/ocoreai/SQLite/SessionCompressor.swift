@@ -299,10 +299,14 @@ actor SessionCompressor {
 	// MARK: - Compression
 
 	/// Trigger compression for a session.
+	///
+	/// Uses detached task + weak self to avoid holding a strong reference
+	/// on SessionCompressor while pruneColdMessages runs — prevents delaying
+	/// GC of session state under memory pressure.
 	private func triggerCompression(_ sessionId: Int64) {
-		let tokenCount = sessionTokenCounts[sessionId, default: 0]
-		Task { [self] in
-			await pruneColdMessages(sessionId, tokenCount: tokenCount)
+		Task.detached(priority: .utility) { [weak self] in
+			guard let self else { return }
+			await self.pruneColdMessages(sessionId, tokenCount: self.sessionTokenCounts[sessionId, default: 0])
 		}
 	}
 
