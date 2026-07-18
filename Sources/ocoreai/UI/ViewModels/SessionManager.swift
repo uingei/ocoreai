@@ -32,10 +32,12 @@ final class SessionManager {
 	var errorMessage: String?
 
 	// MARK: - Engine access
-
 	private var compressor: SessionCompressor? {
 		OcoreaiEngine.shared.activeSessionCompressor
 	}
+
+	/// Summary fetch task — cancel on rapid switch to prevent stale summary overwriting.
+	private var _summaryTask: Task<Void, Never>?
 
 	// MARK: - Lifecycle
 
@@ -58,7 +60,10 @@ final class SessionManager {
 		selectedSession = session
 		// Clear stale error when user selects a session
 		errorMessage = nil
-		Task { @MainActor [weak self] in
+		// Cancel previous summary fetch — rapid session switching would otherwise
+		// let stale results overwrite the current session's summary.
+		_summaryTask?.cancel()
+		_summaryTask = Task { @MainActor [weak self] in
 			guard let self, let compressor else { return }
 			do {
 				sessionSummary = try await compressor.getSessionSummary(session.id)
