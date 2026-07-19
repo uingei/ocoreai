@@ -44,11 +44,11 @@ final class SettingsState {
     // MARK: - Server Connection (persisted via SettingsStore)
 
     var serverHost: String = SettingsStore.shared.serverHost {
-        didSet { SettingsStore.shared.serverHost = serverHost }
+        didSet { guard oldValue != serverHost else { return }; SettingsStore.shared.serverHost = serverHost }
     }
 
     var serverPort: Int = SettingsStore.shared.serverPort {
-        didSet { SettingsStore.shared.serverPort = serverPort }
+        didSet { guard oldValue != serverPort else { return }; SettingsStore.shared.serverPort = serverPort }
     }
 
     var portField: String {
@@ -63,55 +63,55 @@ final class SettingsState {
     // MARK: - Performance Settings
 
     var pollIntervalSec: Int = SettingsStore.shared.pollIntervalSec {
-        didSet { SettingsStore.shared.pollIntervalSec = pollIntervalSec }
+        didSet { guard oldValue != pollIntervalSec else { return }; SettingsStore.shared.pollIntervalSec = pollIntervalSec }
     }
 
     var chartWindowSec: Int = SettingsStore.shared.chartWindowSec {
-        didSet { SettingsStore.shared.chartWindowSec = chartWindowSec }
+        didSet { guard oldValue != chartWindowSec else { return }; SettingsStore.shared.chartWindowSec = chartWindowSec }
     }
 
     // MARK: - KV Cache Settings
 
     var kvQuantizationEnabled: Bool = SettingsStore.shared.kvQuantizationEnabled {
-        didSet { SettingsStore.shared.kvQuantizationEnabled = kvQuantizationEnabled }
+        didSet { guard oldValue != kvQuantizationEnabled else { return }; SettingsStore.shared.kvQuantizationEnabled = kvQuantizationEnabled }
     }
 
     var kvQuantizationBits: Int = SettingsStore.shared.kvQuantizationBits {
-        didSet { SettingsStore.shared.kvQuantizationBits = kvQuantizationBits }
+        didSet { guard oldValue != kvQuantizationBits else { return }; SettingsStore.shared.kvQuantizationBits = kvQuantizationBits }
     }
 
     var kvCacheBudgetGB: Double = SettingsStore.shared.kvCacheBudgetGB {
-        didSet { SettingsStore.shared.kvCacheBudgetGB = kvCacheBudgetGB }
+        didSet { guard oldValue != kvCacheBudgetGB else { return }; SettingsStore.shared.kvCacheBudgetGB = kvCacheBudgetGB }
     }
 
     // MARK: - Logs & Profiling
 
     var logLevel: LogLevelRaw = SettingsStore.shared.logLevel {
-        didSet { SettingsStore.shared.logLevel = logLevel }
+        didSet { guard oldValue != logLevel else { return }; SettingsStore.shared.logLevel = logLevel }
     }
 
     var profileEnabled: Bool = SettingsStore.shared.profileEnabled {
-        didSet { SettingsStore.shared.profileEnabled = profileEnabled }
+        didSet { guard oldValue != profileEnabled else { return }; SettingsStore.shared.profileEnabled = profileEnabled }
     }
 
     // MARK: - App Preferences
 
     var appLocale: OCALocale = SettingsStore.shared.appLocale {
-        didSet { SettingsStore.shared.appLocale = appLocale }
+        didSet { guard oldValue != appLocale else { return }; SettingsStore.shared.appLocale = appLocale }
     }
 
     var appThemeMode: ThemeModeRaw = SettingsStore.shared.appThemeMode {
-        didSet { SettingsStore.shared.appThemeMode = appThemeMode }
+        didSet { guard oldValue != appThemeMode else { return }; SettingsStore.shared.appThemeMode = appThemeMode }
     }
 
     // MARK: - Hub Tokens (persisted via SettingsStore)
 
     var hfToken: String? = SettingsStore.shared.hfToken {
-        didSet { SettingsStore.shared.hfToken = hfToken }
+        didSet { guard oldValue != hfToken else { return }; SettingsStore.shared.hfToken = hfToken }
     }
 
     var modelScopeToken: String? = SettingsStore.shared.modelScopeToken {
-        didSet { SettingsStore.shared.modelScopeToken = modelScopeToken }
+        didSet { guard oldValue != modelScopeToken else { return }; SettingsStore.shared.modelScopeToken = modelScopeToken }
     }
 
     /// Masked tokens for UI display

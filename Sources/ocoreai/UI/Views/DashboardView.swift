@@ -16,7 +16,6 @@ import SwiftUI
 
 struct DashboardView: View {
     @State private var dashboardState: DashboardState
-    @State private var startTime: Date = .now
     @Environment(\.ocoreaiTheme) private var theme
 
     init() {
@@ -29,13 +28,22 @@ struct DashboardView: View {
         }
         .background(theme.windowBg)
         .task {
-            startTime = .now
             await dashboardState.startPolling()
         }
         .onDisappear {
             dashboardState.stopPolling()
         }
         .accessibilityLabel(StringKey.dashboardLabel.l)
+    }
+
+    // MARK: - Uptime
+
+    /// Engine uptime — sourced from DashboardState singleton so it survives
+    /// tab switches and view recreation. Falls back to .now during the first
+    /// frame before polling starts.
+    private var engineUptime: TimeInterval {
+        dashboardState.launchTime.map { max(1.0, Date().timeIntervalSince($0)) }
+            ?? 1.0
     }
 
     // MARK: - Content
@@ -313,7 +321,7 @@ struct DashboardView: View {
     // MARK: - Uptime helpers
 
     private var uptimeSeconds: Double {
-        max(1.0, Date().timeIntervalSince(startTime))
+        engineUptime
     }
 
     private var uptimeLabel: String {

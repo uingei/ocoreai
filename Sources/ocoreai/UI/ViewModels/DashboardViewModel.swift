@@ -26,6 +26,9 @@ final class DashboardState {
 
     /// Connection state
     var connected: Bool = false
+    /// Time the engine first became ready — survives view recreation, tab switches, etc.
+    /// Used by DashboardView for the uptime display; `nil` before first engine boot.
+    private(set) var launchTime: Date?
     var isLive: Bool {
         connected
     }
@@ -37,9 +40,20 @@ final class DashboardState {
 
     /// Consume metrics from AppState (single source of truth).
     /// AppState.metricsTask does the actual polling — we track chart history here.
+    /// Idempotent — safe to call on every DashboardView appearance (.task{} block).
     /// Fixes: P0-1 (eliminated duplicate polling), P1-1 (no [self] strong capture)
     @MainActor
     func startPolling() async {
+        // Idempotency guard — prevents duplicate polling on tab switch / view recreation.
+        // Also avoids the old task being orphaned (not cancelled but reference lost).
+        guard pollingTask == nil else { return }
+
+        // Record launch time on first polling start — persists across view recreation
+        // since DashboardState is a singleton. Used by DashboardView for uptime display.
+        if launchTime == nil {
+            launchTime = .now
+        }
+
         // Wait until engine core is fully initialized — 30s timeout guard
         let deadline = Date().addingTimeInterval(30.0)
         while !OcoreaiEngine.shared.engineReady, Date() < deadline, !Task.isCancelled {
@@ -50,7 +64,7 @@ final class DashboardState {
             return
         }
 
-        // P0-fix: poll on MainActor directly — DashboardState is @MainActor,
+        // Poll on MainActor directly — DashboardState is @MainActor,
         // consumeMetrics reads AppState.currentMetrics (same-actor), no detached task needed.
         pollingTask = Task(priority: .utility) {
             while !Task.isCancelled {
