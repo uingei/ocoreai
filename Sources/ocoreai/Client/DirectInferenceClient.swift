@@ -268,8 +268,32 @@ extension DirectInferenceClient {
 		var accumulatedText = ""
 		var finishReason: String? = nil
 
+		// Real-time metrics tracking — so the UI can show tok/s + TTFT during streaming
+		var firstChunkTime: ContinuousClock.Instant?
+		var chunkCount = 0
+		let streamStartTime = ContinuousClock.now
+
 		// Streaming output safety guard
 		let streamGuard = OcoreaiEngine.shared.activeContentGuard
+
+		func currentMetrics() -> (ttftMs: Double?, tokPerSec: Double?, promptTokPerSec: Double?) {
+			guard let ttft = firstChunkTime else { return (nil, nil, nil) }
+			// TTFT: duration from stream start to first chunk
+			let ttftDuration = streamStartTime.duration(to: ttft)
+			let ttftMs = Double(ttftDuration.components.seconds) * 1000
+				+ Double(ttftDuration.components.attoseconds) / 1e15
+			// tok/s: chunks per second since stream start (rough proxy for tokens)
+			let elapsed = streamStartTime.duration(to: ContinuousClock.now)
+			let elapsedMs = Double(elapsed.components.seconds) * 1000
+				+ Double(elapsed.components.attoseconds) / 1e15
+			let tokPerSec: Double?
+			if chunkCount > 0, elapsedMs > 0 {
+				tokPerSec = Double(chunkCount) / (elapsedMs / 1000.0)
+			} else {
+				tokPerSec = nil
+			}
+			return (ttftMs, tokPerSec, nil)
+		}
 
 		do {
 			for try await event in tokenStream {
@@ -287,8 +311,14 @@ extension DirectInferenceClient {
 							return
 						}
 					}
+					// TTFT: record on first text chunk
+					if firstChunkTime == nil {
+						firstChunkTime = ContinuousClock.now
+					}
+					chunkCount += 1
 					accumulatedText += text
-					continuation.yield(.init(text: text, isComplete: false))
+					let (ttftMs, tokPerSec, _) = currentMetrics()
+					continuation.yield(.init(text: text, isComplete: false, ttftMs: ttftMs, tokPerSec: tokPerSec))
 				case let .done(reason, tokenCount):
 					finishReason = stopReasonToString(reason) ?? "stop"
 					// Use actual token count from upstream .info/.done — per-event
@@ -301,12 +331,15 @@ extension DirectInferenceClient {
 			}
 		}
 
-		// Send final chunk
+		// Send final chunk with metrics
+		let (finalTtftMs, finalTokPerSec, _) = firstChunkTime != nil ? currentMetrics() : (nil, nil, nil)
 		continuation.yield(.init(
 			text: "",
 			isComplete: true,
 			stopReason: finishReason ?? "stop",
 			outputTokens: outputTokens,
+			ttftMs: finalTtftMs,
+			tokPerSec: finalTokPerSec,
 		))
 		continuation.finish()
 	}
@@ -504,6 +537,12 @@ struct DirectChatChunk {
 	/// Human-readable error description from the inference layer.
 	/// When non-nil, `stopReason` is `"error"` and the UI should surface this message.
 	let error: String?
+	/// Per-request metrics: time to first token (ms). Nil until first chunk arrives.
+	let ttftMs: Double?
+	/// Estimated tokens/second generation rate. Updated per chunk as more data arrives.
+	let tokPerSec: Double?
+	/// Prompt processing throughput (tokens per second). Available on stream completion.
+	let promptTokPerSec: Double?
 	/// Structured metadata for agent loop events (optional).
 	/// When present, the client should accumulate these into a structured ChatMessage.
 	let metadata: DirectChunkMetadata?
@@ -529,6 +568,9 @@ struct DirectChatChunk {
 		stopReason: String? = nil,
 		outputTokens: Int? = nil,
 		error: String? = nil,
+		ttftMs: Double? = nil,
+		tokPerSec: Double? = nil,
+		promptTokPerSec: Double? = nil,
 		metadata: DirectChunkMetadata? = nil
 	) {
 		self.text = text
@@ -536,6 +578,9 @@ struct DirectChatChunk {
 		self.stopReason = stopReason
 		self.outputTokens = outputTokens
 		self.error = error
+		self.ttftMs = ttftMs
+		self.tokPerSec = tokPerSec
+		self.promptTokPerSec = promptTokPerSec
 		self.metadata = metadata
 	}
 }

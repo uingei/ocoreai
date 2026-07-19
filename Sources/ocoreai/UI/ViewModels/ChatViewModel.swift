@@ -127,6 +127,10 @@ final class ChatState {
     var responseText: String = ""
     var errorMessage: String?
     var loading: Bool = false
+    /// Live streaming throughput — estimated tokens/second. Updated per chunk.
+    var currentTokPerSec: Double?
+    /// Live streaming time-to-first-token (ms). Set on first chunk.
+    var currentTTFTMs: Double?
 
     // Single source of truth — no separate health polling task
     var connected: Bool {
@@ -388,6 +392,12 @@ final class ChatState {
         // cleanMessages delegates to the same predicate exposed for test coverage.
         let cleanMsgs = cleanMessages(messages)
 
+        // P1-fix: Extract system messages from cleanMessages so they reach the engine
+        // via the systemPrompt path (MessageBuilderContext.userSystemPrompt).
+        // cleanMessages strips them, but they still carry the conversation's system instructions.
+        let systemMessages = messages.filter { $0.role == "system" }
+        let systemPrompt = systemMessages.map { $0.content }.joined(separator: "\n")
+
         // Convert to typed Messages — last user message gets multimodal parts if available
         // OCR bridge: mmContext entries with OCR text are injected as text parts,
         // image entries as image_url parts, saving ~97% tokens for text-rich frames.
@@ -427,6 +437,7 @@ final class ChatState {
             let request = InferenceRequest(
                 modelId: model,
                 messages: typedMessages,
+                systemPrompt: systemPrompt.isEmpty ? nil : systemPrompt,
                 sessionId: "chat-\(UUID().uuidString.prefix(8))",
                 cancellation: cancellation,
             )
@@ -435,6 +446,13 @@ final class ChatState {
             for await chunk in try await DirectInferenceClient.shared.stream(request: request) {
                 // P0-3: respect cancellation from both the token and outer Task
                 guard !cancellation.isCancelled, !Task.isCancelled else { break }
+                // Wire live metrics to ChatState so the UI can display them
+                if let ttft = chunk.ttftMs {
+                    currentTTFTMs = ttft
+                }
+                if let tokPerSec = chunk.tokPerSec {
+                    currentTokPerSec = tokPerSec
+                }
                 if !chunk.text.isEmpty {
                     responseText += chunk.text
                 }
@@ -495,6 +513,8 @@ final class ChatState {
             currentCancellation = nil
         }
         loading = false
+        currentTokPerSec = nil
+        currentTTFTMs = nil
     }
 
     func loadModels() async -> [String] {

@@ -292,6 +292,23 @@ struct ChatView: View {
                                 MarkdownMessage(content: chatState.responseText)
                                     .opacity(0.85)
                                     .transition(.opacity.combined(with: .move(edge: .bottom)))
+                                // Live streaming metrics indicator
+                                if isStreaming {
+                                    HStack(spacing: 8) {
+                                        if let tok = chatState.currentTokPerSec {
+                                            Text("\(String(format: "%.1f", tok)) tok/s")
+                                                .font(.system(.caption, design: .monospaced))
+                                                .foregroundStyle(theme.textTertiary)
+                                        }
+                                        Divider().frame(height: 12)
+                                        if let ttft = chatState.currentTTFTMs {
+                                            Text("TTFT \(String(format: "%.0f", ttft))ms")
+                                                .font(.system(.caption, design: .monospaced))
+                                                .foregroundStyle(theme.textTertiary)
+                                        }
+                                    }
+                                    .transition(.opacity)
+                                }
                             }
                             .padding()
                             .accessibilityLabel(StringKey.assistantTyping.l)

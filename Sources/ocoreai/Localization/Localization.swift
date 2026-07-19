@@ -162,6 +162,8 @@ public enum StringKey: String, CaseIterable {
 
 	// — Sidebar Sections —
 	case sectionServer = "Sidebar.Section.Server"
+	case sectionWorkflow = "Sidebar.Section.Workflow"
+	case sectionSystem = "Sidebar.Section.System"
 	case sectionModels = "Sidebar.Section.Models"
 	case sectionGeneral = "Sidebar.Section.General"
 

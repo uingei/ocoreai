@@ -168,16 +168,16 @@ enum AppTab: String, CaseIterable, Identifiable {
         }
     }
 
-    // Sidebar section groups
+    // Sidebar section groups — HIG compliant: max 2-3 groups, balanced size
     static var serverGroup: [AppTab] {
         [.dashboard, .chat]
     }
 
-    static var modelGroup: [AppTab] {
-        [.models]
+    static var workflowGroup: [AppTab] {
+        [.models, .sessions]
     }
 
-    static var generalGroup: [AppTab] {
-        [.sessions, .skills, .system, .settings, .status]
+    static var systemGroup: [AppTab] {
+        [.skills, .system, .status, .settings]
     }
 }

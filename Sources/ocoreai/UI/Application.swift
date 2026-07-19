@@ -153,8 +153,8 @@ private struct SidebarView: View {
     var body: some View {
         List(selection: $appState.selectedTab) {
             sidebarSection(icon: "server.rack", title: StringKey.sectionServer.l, tabs: AppTab.serverGroup)
-            sidebarSection(icon: "brain.head.profile", title: StringKey.sectionModels.l, tabs: AppTab.modelGroup)
-            sidebarSection(icon: "gearshape.2", title: StringKey.sectionGeneral.l, tabs: AppTab.generalGroup)
+            sidebarSection(icon: "brain.head.profile", title: StringKey.sectionWorkflow.l, tabs: AppTab.workflowGroup)
+            sidebarSection(icon: "gearshape.2", title: StringKey.sectionSystem.l, tabs: AppTab.systemGroup)
         }
         .listStyle(.sidebar)
         .accessibilityLabel(StringKey.sidebarNavigation.l)
