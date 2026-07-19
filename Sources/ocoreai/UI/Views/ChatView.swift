@@ -175,12 +175,15 @@ struct ChatView: View {
             }
         }
         #endif
-        // P0-6: listen for STT transcript completion → auto-send (voice loop)
-        .onReceive(NotificationCenter.default.publisher(for: .audioTranscriptAvailable)) { notification in
-            if let transcript = notification.userInfo?["transcript"] as? String {
+        // Voice loop: observe MultimodalState.pendingVoiceTranscript via @Observable —
+        // replaces NotificationCenter (P0-fix: cross-module coupling through @Observable singleton)
+        #if os(macOS)
+        .onChange(of: MultimodalState.shared.pendingVoiceTranscript) { _, transcript in
+            if let transcript, !transcript.isEmpty {
                 sendVoiceMessage(transcript)
             }
         }
+        #endif
         .toolbar {
             // Model selector moved to toolbar — HIG: global controls belong in toolbar
             ToolbarItem(placement: .automatic) {
@@ -332,6 +335,11 @@ struct ChatView: View {
                 }
             }
             .scrollIndicators(.never)
+            // .defaultScrollAnchor is the native SwiftUI mechanism for chat auto-scroll.
+            // Applied here so the framework keeps bottom-aligned during token-by-token growth.
+            // The two .onChange handlers below handle explicit state transitions
+            // (new message added / responseText cleared) where the anchor alone is insufficient.
+            .defaultScrollAnchor(.bottom)
             .onChange(of: chatState.messages.count) {
                 withAnimationRespectingAccessibility {
                     proxy.scrollTo("bottom", anchor: .bottom)
@@ -613,8 +621,10 @@ struct ChatBubble: View {
                     ChatMessageInner(text: message.displayContent, isUser: isUser)
                 }
             }
-            .accessibilityLabel("\(isUser ? StringKey.youLabel.l : StringKey.ocoreaiLabel.l): \(message.content)")
-            .accessibilityValue("Message sent at \(message.timestamp, formatter: timeFormatter)")
+            .accessibilityLabel("\(isUser ? StringKey.youLabel.l : StringKey.ocoreaiLabel.l)")
+            .accessibilityValue(
+                "\(message.content.prefix(200))\(message.content.count > 200 ? "…" : "") — \(message.timestamp, formatter: timeFormatter)"
+            )
             .accessibilityAddTraits(.isStaticText)
             .contextMenu {
             #if os(macOS)

@@ -207,12 +207,8 @@
                                 if let transcript = await audioIO.transcribe(timeout: 15) {
                                         // Save to shared state so UI can display it
                                         MultimodalState.shared.lastTranscript = transcript
-                                        // Post transcript so ChatView auto-sends (voice loop)
-                                        NotificationCenter.default.post(
-                                            name: .audioTranscriptAvailable,
-                                            object: nil,
-                                         userInfo: ["transcript": transcript]
-                                        )
+                                        // Signal ChatView to auto-send via @Observable (voice loop)
+                                        MultimodalState.shared.pendingVoiceTranscript = transcript
                                 }
                             }
                         } else {

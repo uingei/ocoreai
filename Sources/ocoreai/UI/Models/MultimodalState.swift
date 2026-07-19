@@ -96,7 +96,13 @@ final class MultimodalState {
     /// Last audio recording data URL
     var lastRecordingDataURL: String?
 
+    /// Last completed STT transcript — displayed in MultimodalControls
     var lastTranscript: String?
+    
+    /// One-shot voice transcript → auto-send to ChatView.
+    /// ChatView observes this property, consumes the value, and clears it.
+    /// Replaces NotificationCenter (P0-fix: cross-module @Observable coupling).
+    var pendingVoiceTranscript: String?
 
     /// Flag to guard didSet during restore — prevents services starting on cold boot.
     private var _restoring = false
@@ -328,10 +334,4 @@ final class MultimodalState {
         var speakerEnabled: Bool
         var screenCaptureEnabled: Bool = false
     }
-}
-
-// P0-6: STT transcript notification — delivered when voice recording finishes transcription
-extension Notification.Name {
-    /// Posted when STT transcription completes — userInfo contains "transcript": String
-    static let audioTranscriptAvailable = Notification.Name("AudioTranscriptAvailable")
 }
