@@ -50,18 +50,12 @@ final class DashboardState {
             return
         }
 
-        // Weak self + detached: no strong reference retained beyond cancel point
-        pollingTask = Task.detached(priority: .utility) { [weak self] in
+        // P0-fix: poll on MainActor directly — DashboardState is @MainActor,
+        // consumeMetrics reads AppState.currentMetrics (same-actor), no detached task needed.
+        pollingTask = Task(priority: .utility) {
             while !Task.isCancelled {
-                guard let self else { return }
-
-                // Read metrics from AppState (single poller) — zero extra I/O
-                await MainActor.run {
-                    self.consumeMetrics()
-                }
-
-                // Use user-configured poll interval in foreground; throttle in background
-                let interval = await AppState.shared.isForeground
+                self.consumeMetrics()
+                let interval = AppState.shared.isForeground
                     ? SettingsStore.shared.pollIntervalSec
                     : max(SettingsStore.shared.pollIntervalSec, 10)
                 try? await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)

@@ -102,9 +102,10 @@ struct OcoreaiShellView: View {
         .navigationSplitViewStyle(.balanced)
         // swiftlint:disable:next identifier_name
         .environment(\.ocoreaiTheme, theme)
-        // ScenePhase gating: tell AppState whether we're in foreground/background
+        // P1-fix: ScenePhase .inactive (command-tab, alert popup) should not throttle
+        // polling — only background truly means the user isn't looking.
         .onChange(of: scenePhase) { _, phase in
-            appState.isForeground = (phase == .active)
+            appState.isForeground = (phase != .background)
         }
         .onAppear {
             appState.initialize()
@@ -162,7 +163,7 @@ private struct SidebarView: View {
     private func sidebarSection(icon: String, title: String, tabs: [AppTab]) -> some View {
         Section {
             ForEach(tabs) { tab in
-                SidebarRow(tab: tab, active: appState.selectedTab == tab)
+                SidebarRow(tab: tab)
                     .tag(tab)
             }
         } header: {
@@ -173,23 +174,19 @@ private struct SidebarView: View {
 
 private struct SidebarRow: View {
     let tab: AppTab
-    let active: Bool
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: tab.icon)
                 .font(.ocoreaiText(14, weight: .medium))
                 .frame(width: 22, height: 22)
-                .foregroundStyle(active ? .accentColor : Color.primary)
-                .accessibilityHidden(true) // Redundant with label
+                .symbolRenderingMode(.monochrome)
             Text(tab.title)
                 .font(.ocoreaiText(14))
         }
-        .accessibilityLabel("\(tab.title)")
-        .accessibilityAddTraits(active ? [.isSelected] : [])
-        .accessibilityAction(named: "\(StringKey.selectTab.l) \(tab.title)") {
-            AppState.shared.selectedTab = tab
-        }
+        .accessibilityLabel(tab.title)
+        // List(selection:) already provides selection state, accent highlighting,
+        // and VoiceOver traits — no need to duplicate those responsibilities.
     }
 }
 
