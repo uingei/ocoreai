@@ -6,9 +6,9 @@
 import SwiftUI
 
 #if os(macOS)
-	import AppKit
+    import AppKit
 #else
-	import UIKit
+    import UIKit
 #endif
 
 /// Whether the user prefers reduced motion (Apple Accessibility → Reduce Motion).
@@ -17,11 +17,11 @@ import SwiftUI
 /// HIG compliance: every `.animation(...)` and `withAnimation { }` in the app
 /// should gate through this property.
 public var reduceMotion: Bool {
-	#if os(macOS)
-		NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-	#else
-		UIAccessibility.isReduceMotionEnabled
-	#endif
+    #if os(macOS)
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    #else
+        UIAccessibility.isReduceMotionEnabled
+    #endif
 }
 
 /// Execute a closure with animation automatically suppressed for reduced-motion users.
@@ -34,9 +34,9 @@ public var reduceMotion: Bool {
 ///         }
 ///     }
 public func withAnimationRespectingAccessibility(_ animation: Animation = .easeInOut(duration: 0.2), _ actions: () -> Void) {
-	if reduceMotion {
-		actions()
-	} else {
-		withAnimation(animation, actions)
-	}
+    if reduceMotion {
+        actions()
+    } else {
+        withAnimation(animation, actions)
+    }
 }

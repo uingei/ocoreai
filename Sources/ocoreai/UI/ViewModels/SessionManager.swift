@@ -9,115 +9,115 @@ import Observation
 @Observable
 @MainActor
 final class SessionManager {
-	/// Shared singleton — survives view recreation (tab switch, NavigationSplitView).
-	static let shared = SessionManager()
-	private init() {}
+    /// Shared singleton — survives view recreation (tab switch, NavigationSplitView).
+    static let shared = SessionManager()
+    private init() {}
 
-	// MARK: - Session data
+    // MARK: - Session data
 
-	private(set) var sessions: [SessionModel] = []
-	private(set) var selectedSession: SessionModel?
-	private(set) var sessionSummary: String?
+    private(set) var sessions: [SessionModel] = []
+    private(set) var selectedSession: SessionModel?
+    private(set) var sessionSummary: String?
 
-	// MARK: - Memory data
+    // MARK: - Memory data
 
-	private(set) var memoryEvents: [MemoryEvent] = []
-	private(set) var memorySearchResults: [MemoryEvent] = []
+    private(set) var memoryEvents: [MemoryEvent] = []
+    private(set) var memorySearchResults: [MemoryEvent] = []
 
-	// MARK: - UI state
+    // MARK: - UI state
 
-	var searchQuery: String = ""
-	var memorySearchQuery: String = ""
-	var isLoading: Bool = false
-	var errorMessage: String?
+    var searchQuery: String = ""
+    var memorySearchQuery: String = ""
+    var isLoading: Bool = false
+    var errorMessage: String?
 
-	// MARK: - Engine access
-	private var compressor: SessionCompressor? {
-		OcoreaiEngine.shared.activeSessionCompressor
-	}
+    // MARK: - Engine access
+    private var compressor: SessionCompressor? {
+        OcoreaiEngine.shared.activeSessionCompressor
+    }
 
-	/// Summary fetch task — cancel on rapid switch to prevent stale summary overwriting.
-	private var _summaryTask: Task<Void, Never>?
+    /// Summary fetch task — cancel on rapid switch to prevent stale summary overwriting.
+    private var _summaryTask: Task<Void, Never>?
 
-	// MARK: - Lifecycle
+    // MARK: - Lifecycle
 
-	func load() async {
-		guard let compressor else {
-			errorMessage = "Session compressor not available"
-			return
-		}
-		isLoading = true
-		defer { isLoading = false }
+    func load() async {
+        guard let compressor else {
+            errorMessage = "Session compressor not available"
+            return
+        }
+        isLoading = true
+        defer { isLoading = false }
 
-		do {
-			sessions = try await compressor.listSessions(limit: 200)
-		} catch {
-			errorMessage = "Failed to load sessions: \(error.localizedDescription)"
-		}
-	}
+        do {
+            sessions = try await compressor.listSessions(limit: 200)
+        } catch {
+            errorMessage = "Failed to load sessions: \(error.localizedDescription)"
+        }
+    }
 
-	func selectSession(_ session: SessionModel) {
-		selectedSession = session
-		// Clear stale error when user selects a session
-		errorMessage = nil
-		// Cancel previous summary fetch — rapid session switching would otherwise
-		// let stale results overwrite the current session's summary.
-		_summaryTask?.cancel()
-		_summaryTask = Task { @MainActor [weak self] in
-			guard let self, let compressor else { return }
-			do {
-				sessionSummary = try await compressor.getSessionSummary(session.id)
-			} catch {
-				sessionSummary = nil
-				self.errorMessage = "Failed to load session summary: \(error.localizedDescription)"
-			}
-		}
-	}
+    func selectSession(_ session: SessionModel) {
+        selectedSession = session
+        // Clear stale error when user selects a session
+        errorMessage = nil
+        // Cancel previous summary fetch — rapid session switching would otherwise
+        // let stale results overwrite the current session's summary.
+        _summaryTask?.cancel()
+        _summaryTask = Task { @MainActor [weak self] in
+            guard let self, let compressor else { return }
+            do {
+                sessionSummary = try await compressor.getSessionSummary(session.id)
+            } catch {
+                sessionSummary = nil
+                self.errorMessage = "Failed to load session summary: \(error.localizedDescription)"
+            }
+        }
+    }
 
-	func deleteSession(_ session: SessionModel) async {
-		guard let compressor else { return }
-		do {
-			try await compressor.deleteSession(session.id)
-			sessions.removeAll { $0.id == session.id }
-			if selectedSession?.id == session.id {
-				selectedSession = nil
-				sessionSummary = nil
-			}
-		} catch {
-			errorMessage = "Failed to delete session: \(error.localizedDescription)"
-		}
-	}
+    func deleteSession(_ session: SessionModel) async {
+        guard let compressor else { return }
+        do {
+            try await compressor.deleteSession(session.id)
+            sessions.removeAll { $0.id == session.id }
+            if selectedSession?.id == session.id {
+                selectedSession = nil
+                sessionSummary = nil
+            }
+        } catch {
+            errorMessage = "Failed to delete session: \(error.localizedDescription)"
+        }
+    }
 
-	// MARK: - Memory
+    // MARK: - Memory
 
-	func searchMemory(_ query: String) async {
-		guard let compressor, !query.isEmpty else { return }
-		do {
-			memorySearchResults = try await compressor.searchMemoryEvents(query: query, limit: 50)
-		} catch {
-			memorySearchResults = []
-			errorMessage = "Memory search failed: \(error.localizedDescription)"
-		}
-	}
+    func searchMemory(_ query: String) async {
+        guard let compressor, !query.isEmpty else { return }
+        do {
+            memorySearchResults = try await compressor.searchMemoryEvents(query: query, limit: 50)
+        } catch {
+            memorySearchResults = []
+            errorMessage = "Memory search failed: \(error.localizedDescription)"
+        }
+    }
 
-	func loadMemoryForSession(_ session: SessionModel) async {
-		guard let compressor else { return }
-		do {
-			memoryEvents = try await compressor.searchMemoryEvents(
-				query: session.modelId,
-				sessionId: session.id,
-				limit: 30,
-			)
-		} catch {
-			memoryEvents = []
-			errorMessage = "Failed to load memory: \(error.localizedDescription)"
-		}
-	}
+    func loadMemoryForSession(_ session: SessionModel) async {
+        guard let compressor else { return }
+        do {
+            memoryEvents = try await compressor.searchMemoryEvents(
+                query: session.modelId,
+                sessionId: session.id,
+                limit: 30,
+            )
+        } catch {
+            memoryEvents = []
+            errorMessage = "Failed to load memory: \(error.localizedDescription)"
+        }
+    }
 
-	// MARK: - Search sessions
+    // MARK: - Search sessions
 
-	func searchSessions(_ query: String) -> [SessionModel] {
-		guard !query.isEmpty else { return sessions }
-		return sessions.filter { $0.modelId.localizedCaseInsensitiveContains(query) }
-	}
+    func searchSessions(_ query: String) -> [SessionModel] {
+        guard !query.isEmpty else { return sessions }
+        return sessions.filter { $0.modelId.localizedCaseInsensitiveContains(query) }
+    }
 }

@@ -15,30 +15,30 @@
 import SwiftUI
 
 struct OcoreaiErrorBanner: View {
-	let error: any LocalizedError
-	let onDismiss: () -> Void
+    let error: any LocalizedError
+    let onDismiss: () -> Void
 
-	@Environment(\.ocoreaiTheme) private var theme
+    @Environment(\.ocoreaiTheme) private var theme
 
-	var body: some View {
-		HStack(spacing: 8) {
-			Image(systemName: "exclamationmark.triangle.fill")
-				.foregroundStyle(theme.redDot)
-				.font(.ocoreaiText(13))
-				.accessibilityHidden(true)
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(theme.redDot)
+                .font(.ocoreaiText(13))
+                .accessibilityHidden(true)
 
-			Text(error.errorDescription ?? StringKey.modelSearchNoResults.l)
-				.font(.ocoreaiText(13))
-				.foregroundStyle(theme.redDot)
-				.accessibilityAddTraits(.isStaticText)
+            Text(error.errorDescription ?? StringKey.modelSearchNoResults.l)
+                .font(.ocoreaiText(13))
+                .foregroundStyle(theme.redDot)
+                .accessibilityAddTraits(.isStaticText)
 
-			Spacer()
+            Spacer()
 
-			Button(StringKey.modelSearchDismiss.l, action: onDismiss)
-				.buttonStyle(.plain)
-				.font(.ocoreaiText(12, weight: .medium))
-				.foregroundStyle(theme.textSecondary)
-		}
-		.padding(.vertical, 4)
-	}
+            Button(StringKey.modelSearchDismiss.l, action: onDismiss)
+                .buttonStyle(.plain)
+                .font(.ocoreaiText(12, weight: .medium))
+                .foregroundStyle(theme.textSecondary)
+        }
+        .padding(.vertical, 4)
+    }
 }

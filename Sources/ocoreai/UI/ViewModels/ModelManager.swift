@@ -18,26 +18,26 @@ import Observation
 // MARK: - Unified Error Type
 
 enum RepositoryError: LocalizedError {
-	case engineUnavailable
-	case searchFailed(String)
-	case loadFailed(String)
-	case deleteFailed(String)
-	case noResults
+    case engineUnavailable
+    case searchFailed(String)
+    case loadFailed(String)
+    case deleteFailed(String)
+    case noResults
 
-	var errorDescription: String? {
-		switch self {
-		case .engineUnavailable:
-			return StringKey.engineNotAvailable.l
-		case .searchFailed(let msg):
-			return "\(StringKey.modelSearchNoResults.l): \(msg)"
-		case .loadFailed(let msg):
-			return "\(StringKey.modelLoadError.l): \(msg)"
-		case .deleteFailed(let msg):
-			return "\(StringKey.modelDeleteError.l): \(msg)"
-		case .noResults:
-			return StringKey.modelSearchNoResults.l
-		}
-	}
+    var errorDescription: String? {
+        switch self {
+        case .engineUnavailable:
+            return StringKey.engineNotAvailable.l
+        case .searchFailed(let msg):
+            return "\(StringKey.modelSearchNoResults.l): \(msg)"
+        case .loadFailed(let msg):
+            return "\(StringKey.modelLoadError.l): \(msg)"
+        case .deleteFailed(let msg):
+            return "\(StringKey.modelDeleteError.l): \(msg)"
+        case .noResults:
+            return StringKey.modelSearchNoResults.l
+        }
+    }
 }
 
 // MARK: - Unified Model Manager
@@ -45,332 +45,332 @@ enum RepositoryError: LocalizedError {
 @Observable
 @MainActor
 final class ModelManager {
-	// MARK: - Shared instance
+    // MARK: - Shared instance
 
-	/// Singleton shared across all views — ensures model list, progress
-	/// and download state are consistent no matter which tab is active.
-	static let shared = ModelManager()
+    /// Singleton shared across all views — ensures model list, progress
+    /// and download state are consistent no matter which tab is active.
+    static let shared = ModelManager()
 
-	private init() {}
+    private init() {}
 
-	// MARK: - Search state
+    // MARK: - Search state
 
-	var searchQuery: String = ""
-	var selectedSource: HubSource = .huggingFace
-	var isSearching: Bool = false
+    var searchQuery: String = ""
+    var selectedSource: HubSource = .huggingFace
+    var isSearching: Bool = false
 
-	var hfResults: [HFHubModel] = []
-	var msResults: [MSHubModel] = []
+    var hfResults: [HFHubModel] = []
+    var msResults: [MSHubModel] = []
 
-	// MARK: - Download state
+    // MARK: - Download state
 
-	var isDownloading: Bool = false
-	var downloadingModelId: String = ""
+    var isDownloading: Bool = false
+    var downloadingModelId: String = ""
 
-	// MARK: - Local models (single source of truth)
+    // MARK: - Local models (single source of truth)
 
-	var localModels: [ModelID] = []
+    var localModels: [ModelID] = []
 
-	/// Models currently serving inference requests (activeSessions > 0).
-	/// Updated alongside localModels during refresh.
-	var servingModelIds: Set<String> = []
+    /// Models currently serving inference requests (activeSessions > 0).
+    /// Updated alongside localModels during refresh.
+    var servingModelIds: Set<String> = []
 
-	// MARK: - Error state (typed)
+    // MARK: - Error state (typed)
 
-	var currentError: RepositoryError?
+    var currentError: RepositoryError?
 
-	// MARK: - EnginePool accessor
+    // MARK: - EnginePool accessor
 
-	private var _enginePool: EnginePool? {
-		OcoreaiEngine.shared.activeEnginePool
-	}
+    private var _enginePool: EnginePool? {
+        OcoreaiEngine.shared.activeEnginePool
+    }
 
-	// MARK: - Search
+    // MARK: - Search
 
-	/// Search the selected Hub source and populate the corresponding results array.
-	func search(_ query: String) async {
-		guard !query.isEmpty else {
-			hfResults = []
-			msResults = []
-			return
-		}
+    /// Search the selected Hub source and populate the corresponding results array.
+    func search(_ query: String) async {
+        guard !query.isEmpty else {
+            hfResults = []
+            msResults = []
+            return
+        }
 
-		isSearching = true
-		currentError = nil
+        isSearching = true
+        currentError = nil
 
-		switch selectedSource {
-		case .huggingFace:
-			let results = await _searchHF(query)
-			hfResults = results
-			if results.isEmpty {
-				currentError = .noResults
-			}
-		case .modelScope:
-			let results = await _searchMS(query)
-			msResults = results
-			if results.isEmpty {
-				currentError = .noResults
-			}
-		}
+        switch selectedSource {
+        case .huggingFace:
+            let results = await _searchHF(query)
+            hfResults = results
+            if results.isEmpty {
+                currentError = .noResults
+            }
+        case .modelScope:
+            let results = await _searchMS(query)
+            msResults = results
+            if results.isEmpty {
+                currentError = .noResults
+            }
+        }
 
-		isSearching = false
-	}
+        isSearching = false
+    }
 
-	private func _searchHF(_ query: String) async -> [HFHubModel] {
-		let client = HuggingFaceSearchClient()
-		do {
-			return try await client.search(query: query, limit: 15)
-		} catch {
-			currentError = .searchFailed(error.localizedDescription)
-			return []
-		}
-	}
+    private func _searchHF(_ query: String) async -> [HFHubModel] {
+        let client = HuggingFaceSearchClient()
+        do {
+            return try await client.search(query: query, limit: 15)
+        } catch {
+            currentError = .searchFailed(error.localizedDescription)
+            return []
+        }
+    }
 
-	private func _searchMS(_ query: String) async -> [MSHubModel] {
-		// Inject MODELSCOPE_TOKEN so search hits (including gated repos) work correctly
-		// Priority: env var > UserDefaults (persisted from Settings UI)
-		let msToken = SettingsStore.shared.modelScopeToken
-		let client = ModelScopeSearchClient(token: msToken)
-		do {
-			let result = try await client.search(keyword: query, pageSize: 15)
-			return result.models
-		} catch {
-			currentError = .searchFailed(error.localizedDescription)
-			return []
-		}
-	}
+    private func _searchMS(_ query: String) async -> [MSHubModel] {
+        // Inject MODELSCOPE_TOKEN so search hits (including gated repos) work correctly
+        // Priority: env var > UserDefaults (persisted from Settings UI)
+        let msToken = SettingsStore.shared.modelScopeToken
+        let client = ModelScopeSearchClient(token: msToken)
+        do {
+            let result = try await client.search(keyword: query, pageSize: 15)
+            return result.models
+        } catch {
+            currentError = .searchFailed(error.localizedDescription)
+            return []
+        }
+    }
 
-	// MARK: - Load / Download
+    // MARK: - Load / Download
 
-	/// Acquire a model from the EnginePool (triggers download if needed), then release.
-	/// Refreshes the local model list afterwards.
-	///
-	/// Uses `selectedSource` to determine the Hub source — prevents ModelScope results
-	/// from being routed to HuggingFace due to bare "org/repo" string ambiguity.
-	@discardableResult
-	func load(_ modelId: String) async -> Bool {
-		await load(modelId, hub: selectedSource)
-	}
+    /// Acquire a model from the EnginePool (triggers download if needed), then release.
+    /// Refreshes the local model list afterwards.
+    ///
+    /// Uses `selectedSource` to determine the Hub source — prevents ModelScope results
+    /// from being routed to HuggingFace due to bare "org/repo" string ambiguity.
+    @discardableResult
+    func load(_ modelId: String) async -> Bool {
+        await load(modelId, hub: selectedSource)
+    }
 
-	/// Acquire a model from the EnginePool with an explicit Hub source override.
-	/// - Parameters:
-	///   - modelId: The raw model ID (with or without prefix)
-	///   - hub: Override Hub source. When nil, ModelIdentity.parse uses its own heuristic.
-	@discardableResult
-	private func load(_ modelId: String, hub: HubSource?) async -> Bool {
-		guard let pool = _enginePool else {
-			currentError = .engineUnavailable
-			return false
-		}
+    /// Acquire a model from the EnginePool with an explicit Hub source override.
+    /// - Parameters:
+    ///   - modelId: The raw model ID (with or without prefix)
+    ///   - hub: Override Hub source. When nil, ModelIdentity.parse uses its own heuristic.
+    @discardableResult
+    private func load(_ modelId: String, hub: HubSource?) async -> Bool {
+        guard let pool = _enginePool else {
+            currentError = .engineUnavailable
+            return false
+        }
 
-		// Resolve identity with hub override
-		let identity: ModelIdentity
-		if let hub {
-			identity = ModelIdentity.parse(modelId, hub: hub)
-		} else {
-			identity = ModelIdentity.parse(modelId)
-		}
-		let normalizedId = identity.prefixedId
+        // Resolve identity with hub override
+        let identity: ModelIdentity
+        if let hub {
+            identity = ModelIdentity.parse(modelId, hub: hub)
+        } else {
+            identity = ModelIdentity.parse(modelId)
+        }
+        let normalizedId = identity.prefixedId
 
-		// Progress key = repoId (no prefix) — aligns UI with MLXBridge callbacks
-		let progressKey = identity.repoId
+        // Progress key = repoId (no prefix) — aligns UI with MLXBridge callbacks
+        let progressKey = identity.repoId
 
-		// EnginePool.acquire handles cache check internally (loadModel checks
-		// isModelCached before downloading), so we route everything through
-		// _downloadAndLoad for consistent progress tracking and semaphore gating.
-		return await _downloadAndLoad(normalizedId: normalizedId, progressKey: progressKey, pool: pool)
-	}
+        // EnginePool.acquire handles cache check internally (loadModel checks
+        // isModelCached before downloading), so we route everything through
+        // _downloadAndLoad for consistent progress tracking and semaphore gating.
+        return await _downloadAndLoad(normalizedId: normalizedId, progressKey: progressKey, pool: pool)
+    }
 
-	private func _downloadAndLoad(
-		normalizedId: String,
-		progressKey: String,
-		pool: EnginePool
-	) async -> Bool {
-		// Acquire a download slot — prevents concurrent downloads from
-		// saturating disk I/O and rejects duplicate downloads of the same model.
-		guard await DownloadSemaphore.shared.acquireOrWait(for: progressKey) else {
-			currentError = .loadFailed("Model is already being downloaded")
-			return false
-		}
-		defer { DownloadSemaphore.shared.release(for: progressKey) }
+    private func _downloadAndLoad(
+        normalizedId: String,
+        progressKey: String,
+        pool: EnginePool
+    ) async -> Bool {
+        // Acquire a download slot — prevents concurrent downloads from
+        // saturating disk I/O and rejects duplicate downloads of the same model.
+        guard await DownloadSemaphore.shared.acquireOrWait(for: progressKey) else {
+            currentError = .loadFailed("Model is already being downloaded")
+            return false
+        }
+        defer { DownloadSemaphore.shared.release(for: progressKey) }
 
-		isDownloading = true
-		downloadingModelId = progressKey
-		currentError = nil
-		OcoreaiDownloadProgress.shared.start(modelId: progressKey)
+        isDownloading = true
+        downloadingModelId = progressKey
+        currentError = nil
+        OcoreaiDownloadProgress.shared.start(modelId: progressKey)
 
-		do {
-			let handle = try await pool.acquire(model: normalizedId)
-			// Use handle.release() — real UUID sessionId from acquire()
-			// (same fix as P0-2 above)
-			await handle.release()
+        do {
+            let handle = try await pool.acquire(model: normalizedId)
+            // Use handle.release() — real UUID sessionId from acquire()
+            // (same fix as P0-2 above)
+            await handle.release()
 
-			OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
+            OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
 
-			await refreshLocalModels()
+            await refreshLocalModels()
 
-			isDownloading = false
-			downloadingModelId = ""
-			return true
-		} catch {
-			OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
-			currentError = .loadFailed(error.localizedDescription)
-			isDownloading = false
-			downloadingModelId = ""
-			return false
-		}
-	}
+            isDownloading = false
+            downloadingModelId = ""
+            return true
+        } catch {
+            OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
+            currentError = .loadFailed(error.localizedDescription)
+            isDownloading = false
+            downloadingModelId = ""
+            return false
+        }
+    }
 
-	// MARK: - Local models
+    // MARK: - Local models
 
-	/// Refresh the list of currently loaded models from EnginePool,
-	/// applying persisted sampling configs.
-	func refreshLocalModels() async {
-		guard let pool = _enginePool else { return }
+    /// Refresh the list of currently loaded models from EnginePool,
+    /// applying persisted sampling configs.
+    func refreshLocalModels() async {
+        guard let pool = _enginePool else { return }
 
-		let entries = await pool.listModels()
-		let store = SettingsStore.shared
+        let entries = await pool.listModels()
+        let store = SettingsStore.shared
 
-		var models: [ModelID] = []
-		var serving: Set<String> = []
-		var configBatch: [String: ModelSamplingConfig] = [:]
+        var models: [ModelID] = []
+        var serving: Set<String> = []
+        var configBatch: [String: ModelSamplingConfig] = [:]
 
-		for entry in entries {
-			let model = ModelID.fromListModels(entry)
-			let config = store.loadSamplingConfig(for: model.id)
-			configBatch[model.id] = config
-			var info = model
-			info.paramsCustomized = !config.isDefault
-			models.append(info)
-			// Track active inference sessions
-			if let activeStr = entry["active_sessions"],
-			   let active = Int(activeStr), active > 0 {
-				serving.insert(model.id)
-			}
-		}
+        for entry in entries {
+            let model = ModelID.fromListModels(entry)
+            let config = store.loadSamplingConfig(for: model.id)
+            configBatch[model.id] = config
+            var info = model
+            info.paramsCustomized = !config.isDefault
+            models.append(info)
+            // Track active inference sessions
+            if let activeStr = entry["active_sessions"],
+               let active = Int(activeStr), active > 0 {
+                serving.insert(model.id)
+            }
+        }
 
-		// Batch-apply all configs in a single actor mailbox round-trip
-		if !configBatch.isEmpty {
-			await pool.updateSamplingConfigs(configBatch)
-		}
+        // Batch-apply all configs in a single actor mailbox round-trip
+        if !configBatch.isEmpty {
+            await pool.updateSamplingConfigs(configBatch)
+        }
 
-		localModels = models
-		servingModelIds = serving
-	}
+        localModels = models
+        servingModelIds = serving
+    }
 
-	/// Load models on view appearance — thin wrapper for .task{} usage.
-	func loadModels() async {
-		await refreshLocalModels()
-	}
+    /// Load models on view appearance — thin wrapper for .task{} usage.
+    func loadModels() async {
+        await refreshLocalModels()
+    }
 
-	/// Get model IDs as plain strings — for ChatView toolbar picker.
-	func modelIdStrings() -> [String] {
-		localModels.map { $0.id }
-	}
+    /// Get model IDs as plain strings — for ChatView toolbar picker.
+    func modelIdStrings() -> [String] {
+        localModels.map { $0.id }
+    }
 
-	// MARK: - Convenience
+    // MARK: - Convenience
 
-	/// Unload a model from memory without removing cached files.
-	@discardableResult
-	func unload(_ modelId: String) async -> Bool {
-		guard let pool = _enginePool else {
-			currentError = .engineUnavailable
-			return false
-		}
-		let ok = await pool.unloadModel(modelId)
-		if ok {
-			await SettingsStore.shared.resetSamplingConfig(for: modelId)
-			await refreshLocalModels()
-		}
-		return ok
-	}
+    /// Unload a model from memory without removing cached files.
+    @discardableResult
+    func unload(_ modelId: String) async -> Bool {
+        guard let pool = _enginePool else {
+            currentError = .engineUnavailable
+            return false
+        }
+        let ok = await pool.unloadModel(modelId)
+        if ok {
+            await SettingsStore.shared.resetSamplingConfig(for: modelId)
+            await refreshLocalModels()
+        }
+        return ok
+    }
 
-	/// Delete a model: unload from memory, remove cached files from disk, clear settings.
-	/// Returns true if the model was successfully removed.
-	@discardableResult
-	func deleteModel(_ modelId: String) async -> Bool {
-		guard let pool = _enginePool else {
-			currentError = .engineUnavailable
-			return false
-		}
+    /// Delete a model: unload from memory, remove cached files from disk, clear settings.
+    /// Returns true if the model was successfully removed.
+    @discardableResult
+    func deleteModel(_ modelId: String) async -> Bool {
+        guard let pool = _enginePool else {
+            currentError = .engineUnavailable
+            return false
+        }
 
-		// 1. Unload from memory (best-effort — continue even if not loaded)
-		_ = await pool.unloadModel(modelId)
+        // 1. Unload from memory (best-effort — continue even if not loaded)
+        _ = await pool.unloadModel(modelId)
 
-		// 2. Remove cached files from disk
-		let identity = ModelIdentity.parse(modelId)
-		do {
-			try await deleteCachedFiles(for: identity)
-		} catch {
-			currentError = .deleteFailed(error.localizedDescription)
-			return false
-		}
+        // 2. Remove cached files from disk
+        let identity = ModelIdentity.parse(modelId)
+        do {
+            try await deleteCachedFiles(for: identity)
+        } catch {
+            currentError = .deleteFailed(error.localizedDescription)
+            return false
+        }
 
-		// 3. Clear persisted sampling config
-		await SettingsStore.shared.resetSamplingConfig(for: modelId)
+        // 3. Clear persisted sampling config
+        await SettingsStore.shared.resetSamplingConfig(for: modelId)
 
-		// 4. Clear download progress state
-		OcoreaiDownloadProgress.shared.finish(modelId: identity.repoId, success: false)
+        // 4. Clear download progress state
+        OcoreaiDownloadProgress.shared.finish(modelId: identity.repoId, success: false)
 
-		currentError = nil
-		await refreshLocalModels()
-		return true
-	}
+        currentError = nil
+        await refreshLocalModels()
+        return true
+    }
 
-	private func deleteCachedFiles(for identity: ModelIdentity) async throws {
-		let fileManager = FileManager.default
-		guard let cachesDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
-			throw RepositoryError.deleteFailed("Cannot locate cache directory")
-		}
+    private func deleteCachedFiles(for identity: ModelIdentity) async throws {
+        let fileManager = FileManager.default
+        guard let cachesDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            throw RepositoryError.deleteFailed("Cannot locate cache directory")
+        }
 
-		switch identity.source {
-		case .modelScope(let repoId):
-				let dir = cachesDir
-					.appendingPathComponent("ocoreai/modelscope")
-					.appendingPathComponent(repoId)
-				if fileManager.fileExists(atPath: dir.path) {
-					try fileManager.removeItem(at: dir)
-				}
-		case .huggingFace(let repoId):
-			let dir = cachesDir
-				.appendingPathComponent("org.ml-explore.mlx-swift-lm")
-				.appendingPathComponent(repoId)
-			if fileManager.fileExists(atPath: dir.path) {
-				try fileManager.removeItem(at: dir)
-			}
-		case .local:
-			// Local models are not managed in cache — nothing to delete
-			break
-		}
-	}
+        switch identity.source {
+        case .modelScope(let repoId):
+                let dir = cachesDir
+                    .appendingPathComponent("ocoreai/modelscope")
+                    .appendingPathComponent(repoId)
+                if fileManager.fileExists(atPath: dir.path) {
+                    try fileManager.removeItem(at: dir)
+                }
+        case .huggingFace(let repoId):
+            let dir = cachesDir
+                .appendingPathComponent("org.ml-explore.mlx-swift-lm")
+                .appendingPathComponent(repoId)
+            if fileManager.fileExists(atPath: dir.path) {
+                try fileManager.removeItem(at: dir)
+            }
+        case .local:
+            // Local models are not managed in cache — nothing to delete
+            break
+        }
+    }
 
-	// MARK: - Search Helpers
+    // MARK: - Search Helpers
 
-	/// Clear search results and reset state for a fresh start.
-	func clearSearch() {
-		searchQuery = ""
-		hfResults = []
-		msResults = []
-		currentError = nil
-	}
+    /// Clear search results and reset state for a fresh start.
+    func clearSearch() {
+        searchQuery = ""
+        hfResults = []
+        msResults = []
+        currentError = nil
+    }
 
-	/// Switch hub source and clear stale results from the other source.
-	func switchSource(to source: HubSource) {
-		selectedSource = source
-		if source == .huggingFace {
-			msResults = []
-		} else {
-			hfResults = []
-		}
-	}
+    /// Switch hub source and clear stale results from the other source.
+    func switchSource(to source: HubSource) {
+        selectedSource = source
+        if source == .huggingFace {
+            msResults = []
+        } else {
+            hfResults = []
+        }
+    }
 
-	/// Check if a specific model is currently downloading.
-	func isDownloading(_ modelId: String) -> Bool {
-		isDownloading && downloadingModelId == modelId
-	}
+    /// Check if a specific model is currently downloading.
+    func isDownloading(_ modelId: String) -> Bool {
+        isDownloading && downloadingModelId == modelId
+    }
 
-	/// Get download progress for a model (bridge to OcoreaiDownloadProgress).
-	func downloadProgress(for modelId: String) -> OcoreaiDownloadProgressState? {
-		OcoreaiDownloadProgress.shared.progress(for: modelId)
-	}
+    /// Get download progress for a model (bridge to OcoreaiDownloadProgress).
+    func downloadProgress(for modelId: String) -> OcoreaiDownloadProgressState? {
+        OcoreaiDownloadProgress.shared.progress(for: modelId)
+    }
 }
