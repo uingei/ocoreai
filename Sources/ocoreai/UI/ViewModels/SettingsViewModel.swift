@@ -19,12 +19,12 @@ final class SettingsState {
     /// Shared singleton — survives view recreation (tab switch, NavigationSplitView).
     static let shared = SettingsState()
     private init() {
-        // Load from disk on first creation
-        reloadFromStore()
+        // Properties are initialized below with SettingsStore defaults —
+        // @Observable macro requires all stored properties initialized before
+        // calling any method on self.
     }
 
-    /// Reload all settings from SettingsStore — called when the view is recreated.
-    /// Unlike init(), this is safe to call multiple times without side effects.
+    /// Reload all settings from SettingsStore — safe to call multiple times.
     func reloadFromStore() {
         serverHost = SettingsStore.shared.serverHost
         serverPort = SettingsStore.shared.serverPort
@@ -43,11 +43,11 @@ final class SettingsState {
 
     // MARK: - Server Connection (persisted via SettingsStore)
 
-    var serverHost: String {
+    var serverHost: String = SettingsStore.shared.serverHost {
         didSet { SettingsStore.shared.serverHost = serverHost }
     }
 
-    var serverPort: Int {
+    var serverPort: Int = SettingsStore.shared.serverPort {
         didSet { SettingsStore.shared.serverPort = serverPort }
     }
 
@@ -62,55 +62,55 @@ final class SettingsState {
 
     // MARK: - Performance Settings
 
-    var pollIntervalSec: Int {
+    var pollIntervalSec: Int = SettingsStore.shared.pollIntervalSec {
         didSet { SettingsStore.shared.pollIntervalSec = pollIntervalSec }
     }
 
-    var chartWindowSec: Int {
+    var chartWindowSec: Int = SettingsStore.shared.chartWindowSec {
         didSet { SettingsStore.shared.chartWindowSec = chartWindowSec }
     }
 
     // MARK: - KV Cache Settings
 
-    var kvQuantizationEnabled: Bool {
+    var kvQuantizationEnabled: Bool = SettingsStore.shared.kvQuantizationEnabled {
         didSet { SettingsStore.shared.kvQuantizationEnabled = kvQuantizationEnabled }
     }
 
-    var kvQuantizationBits: Int {
+    var kvQuantizationBits: Int = SettingsStore.shared.kvQuantizationBits {
         didSet { SettingsStore.shared.kvQuantizationBits = kvQuantizationBits }
     }
 
-    var kvCacheBudgetGB: Double {
+    var kvCacheBudgetGB: Double = SettingsStore.shared.kvCacheBudgetGB {
         didSet { SettingsStore.shared.kvCacheBudgetGB = kvCacheBudgetGB }
     }
 
     // MARK: - Logs & Profiling
 
-    var logLevel: LogLevelRaw {
+    var logLevel: LogLevelRaw = SettingsStore.shared.logLevel {
         didSet { SettingsStore.shared.logLevel = logLevel }
     }
 
-    var profileEnabled: Bool {
+    var profileEnabled: Bool = SettingsStore.shared.profileEnabled {
         didSet { SettingsStore.shared.profileEnabled = profileEnabled }
     }
 
     // MARK: - App Preferences
 
-    var appLocale: OCALocale {
+    var appLocale: OCALocale = SettingsStore.shared.appLocale {
         didSet { SettingsStore.shared.appLocale = appLocale }
     }
 
-    var appThemeMode: ThemeModeRaw {
+    var appThemeMode: ThemeModeRaw = SettingsStore.shared.appThemeMode {
         didSet { SettingsStore.shared.appThemeMode = appThemeMode }
     }
 
     // MARK: - Hub Tokens (persisted via SettingsStore)
 
-    var hfToken: String? {
+    var hfToken: String? = SettingsStore.shared.hfToken {
         didSet { SettingsStore.shared.hfToken = hfToken }
     }
 
-    var modelScopeToken: String? {
+    var modelScopeToken: String? = SettingsStore.shared.modelScopeToken {
         didSet { SettingsStore.shared.modelScopeToken = modelScopeToken }
     }
 
