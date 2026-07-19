@@ -644,7 +644,8 @@ struct ChatBubble: View {
 
     private static let sharedTimeFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "HH:mm"
+        f.dateStyle = .none
+        f.timeStyle = .short
         return f
     }()
 
@@ -699,7 +700,8 @@ struct ChatHeader: View {
 
     static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "HH:mm"
+        f.dateStyle = .none
+        f.timeStyle = .short
         return f
     }()
 

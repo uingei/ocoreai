@@ -7,9 +7,9 @@
 import SwiftUI
 
 struct StatusView: View {
-    private var appState: AppState {
-        AppState.shared
-    }
+    // Observation: reading @Observable public properties in body via `let`
+    // establishes reactive dependencies (SE-0403). No property wrapper needed.
+    private let appState = AppState.shared
 
     @Environment(\.ocoreaiTheme) private var theme
 

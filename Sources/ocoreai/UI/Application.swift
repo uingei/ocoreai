@@ -28,6 +28,7 @@ struct OcoreaiApp: App {
             // .windowResizability(.default) is the macOS standard — .contentSize
             // can cause window activation issues with TextField focus (radar 91608726)
             .windowStyle(.titleBar)
+            .windowResizability(.minSize)
             // Settings via Cmd+, — macOS standard
             .commands {
                 CommandGroup(replacing: .newItem) {}
