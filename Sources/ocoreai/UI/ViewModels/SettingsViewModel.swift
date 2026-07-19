@@ -16,6 +16,31 @@ import SwiftUI
 @Observable
 @MainActor
 final class SettingsState {
+	/// Shared singleton — survives view recreation (tab switch, NavigationSplitView).
+	static let shared = SettingsState()
+	private init() {
+		// Load from disk on first creation
+		reloadFromStore()
+	}
+
+	/// Reload all settings from SettingsStore — called when the view is recreated.
+	/// Unlike init(), this is safe to call multiple times without side effects.
+	func reloadFromStore() {
+		serverHost = SettingsStore.shared.serverHost
+		serverPort = SettingsStore.shared.serverPort
+		pollIntervalSec = SettingsStore.shared.pollIntervalSec
+		chartWindowSec = SettingsStore.shared.chartWindowSec
+		kvQuantizationEnabled = SettingsStore.shared.kvQuantizationEnabled
+		kvQuantizationBits = SettingsStore.shared.kvQuantizationBits
+		kvCacheBudgetGB = SettingsStore.shared.kvCacheBudgetGB
+		logLevel = SettingsStore.shared.logLevel
+		profileEnabled = SettingsStore.shared.profileEnabled
+		appLocale = SettingsStore.shared.appLocale
+		appThemeMode = SettingsStore.shared.appThemeMode
+		hfToken = SettingsStore.shared.hfToken
+		modelScopeToken = SettingsStore.shared.modelScopeToken
+	}
+
 	// MARK: - Server Connection (persisted via SettingsStore)
 
 	var serverHost: String {
@@ -116,25 +141,6 @@ final class SettingsState {
 	private var undoSettings: SettingsSnapshot?
 	var hasUndo: Bool {
 		undoSettings != nil
-	}
-
-	// MARK: - Init
-
-	init() {
-		// Load from disk — must assign default first for Swift init rules with @Observable macro
-		serverHost = SettingsStore.shared.serverHost
-		serverPort = SettingsStore.shared.serverPort
-		pollIntervalSec = SettingsStore.shared.pollIntervalSec
-		chartWindowSec = SettingsStore.shared.chartWindowSec
-		kvQuantizationEnabled = SettingsStore.shared.kvQuantizationEnabled
-		kvQuantizationBits = SettingsStore.shared.kvQuantizationBits
-		kvCacheBudgetGB = SettingsStore.shared.kvCacheBudgetGB
-		logLevel = SettingsStore.shared.logLevel
-		profileEnabled = SettingsStore.shared.profileEnabled
-		appLocale = SettingsStore.shared.appLocale
-		appThemeMode = SettingsStore.shared.appThemeMode
-		hfToken = SettingsStore.shared.hfToken
-		modelScopeToken = SettingsStore.shared.modelScopeToken
 	}
 
 	// MARK: - Lifecycle

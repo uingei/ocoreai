@@ -11,6 +11,12 @@ import SwiftUI
 @Observable
 @MainActor
 final class DashboardState {
+	/// Shared singleton — survives view recreation (tab switch, NavigationSplitView).
+	/// @State<DashboardState.shared> is the correct SwiftUI observation pattern,
+	/// same as ChatState, ModelManager, MultimodalState.
+	static let shared = DashboardState()
+	private init() {}
+
 	/// Live metrics snapshot
 	var metricsSnapshot = MetricsSnapshot.empty
 	/// Token throughput history for chart

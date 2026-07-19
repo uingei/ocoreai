@@ -14,7 +14,7 @@ struct SettingsView: View {
 	@State private var _msTokenField: String = ""
 
 	init() {
-		_settingsState = State(initialValue: SettingsState())
+		_settingsState = State(initialValue: SettingsState.shared)
 		// Initialize token fields from persisted values — prevents empty→filled flicker
 		_hfTokenField = SettingsStore.shared.hfToken ?? ""
 		_msTokenField = SettingsStore.shared.modelScopeToken ?? ""

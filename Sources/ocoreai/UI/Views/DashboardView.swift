@@ -20,7 +20,7 @@ struct DashboardView: View {
 	@Environment(\.ocoreaiTheme) private var theme
 
 	init() {
-		_dashboardState = State(initialValue: DashboardState())
+		_dashboardState = State(initialValue: DashboardState.shared)
 	}
 
 	var body: some View {
