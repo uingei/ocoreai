@@ -126,10 +126,11 @@ struct TokenHeuristicTests {
         #expect(est == 1)
     }
 
-    @Test("CJK text (3 bytes per char, 4 chars = 12 bytes / 3 = 4)")
+    @Test("CJK text (estimates ~1 token per 3 UTF-16 units)")
     @MainActor func cjkText() async {
-        let msg = Message(role: "user", content: "你好世界") // 12 UTF-8 bytes
+        // "你好世界" = 4 UTF-16 code units → 4 / 3 = 1 token (integer division)
+        let msg = Message(role: "user", content: "你好世界")
         let est = ChatState.shared.estimateTokens(msg.textContent())
-        #expect(est == 4)
+        #expect(est == 1)
     }
 }
