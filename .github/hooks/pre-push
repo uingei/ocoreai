@@ -3,6 +3,12 @@
 # debug build (not release) — release takes too long on every push
 # tests — last line must report "passed after"
 
+# Local beta-SDK escape hatch: macOS 27 beta SDKs ship CoreAI.framework without a
+# compilable module, which breaks the CoreAI backend compile locally. Force it off
+# for the local gate so the project builds (MLX path only). CI does not run this
+# hook and has no CoreAI.framework, so its behavior is unchanged.
+export OCOREAI_DISABLE_COREAI=1
+
 echo "🔧 Pre-push: debug build..."
 BUILD_OK=$(swift build 2>&1 | tail -1 | grep -c "Build complete")
 if [ "$BUILD_OK" -eq 0 ]; then

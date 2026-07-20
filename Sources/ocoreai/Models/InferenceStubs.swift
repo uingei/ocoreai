@@ -142,7 +142,7 @@ actor TokenizerManager {
 
 // MARK: - CoreAI stubs (when coreai trait is inactive — mlx also needs these)
 
-#if !canImport(CoreAI)
+#if !canImport(CoreAI) || OCOREAI_DISABLE_COREAI
 
 	struct EngineOptions {
 		enum KVCacheStrategy: String, Codable {

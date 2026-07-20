@@ -33,3 +33,6 @@ reference/
 references/
 docs/
 .status.md
+
+# Local scrapling venv (tooling, not project code)
+.scrapling_venv/

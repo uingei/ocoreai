@@ -17,7 +17,7 @@
 /// - ``DirectTokenizer``: wraps swift-transformers ``Tokenizer`` + prewarm
 /// - ``StreamingDetokenizer``: streaming detokenization with prefix preservation
 
-#if canImport(CoreAI)
+#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 
 	import Foundation
 	import Transformers

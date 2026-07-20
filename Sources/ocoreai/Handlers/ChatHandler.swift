@@ -27,7 +27,7 @@
 /// 2. Model runtime defaults (PATCH endpoint)
 /// 3. System hard-coded defaults
 
-#if canImport(CoreAI)
+#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 	import CoreAI
 	import CoreAILanguageModels
 #endif

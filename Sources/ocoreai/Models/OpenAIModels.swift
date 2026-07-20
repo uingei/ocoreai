@@ -584,7 +584,7 @@ typealias Choice = CompletionChoice
 
 // MARK: - SSE Streaming
 
-#if canImport(CoreAI)
+#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 	/// Convert ``CoreAILanguageModels/StopReason`` to OpenAI-compatible finish_reason string.
 	///
 	/// - Parameter reason: Stop reason from inference engine

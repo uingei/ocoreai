@@ -19,7 +19,7 @@
 /// | max_tokens | — | length |
 /// | tool_use | — | tool_calls |
 
-#if canImport(CoreAI)
+#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 	import CoreAI
 	import CoreAILanguageModels
 #endif

@@ -15,7 +15,7 @@ import ocoreaiTestUtilities
 
 // MARK: - CoreAI-only types (compiled out when CoreAI unavailable)
 
-#if canImport(CoreAI)
+#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 /// Re-export StreamingDetokenizer for cross-context tests — no duplication.
 import Transformers
 #endif

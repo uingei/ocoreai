@@ -1,6 +1,15 @@
 // swift-tools-version: 6.3
 
 import PackageDescription
+import Foundation
+
+// Local beta-SDK escape hatch: on macOS 27 beta SDKs, `CoreAI.framework` is
+// physically present (so `#if canImport(CoreAI)` evaluates true) but ships
+// without a compilable module map / swiftinterface, so the CoreAI backend
+// cannot build locally. Setting OCOREAI_DISABLE_COREAI=1 forces the CoreAI
+// branch off (MLX path only) — matching CI, where CoreAI is absent.
+// CI is unaffected: the macro is only defined when this env var is set.
+let coreAIDisabled = ProcessInfo.processInfo.environment["OCOREAI_DISABLE_COREAI"] == "1"
 
 let package = Package(
     name: "ocoreai",
@@ -58,7 +67,11 @@ let package = Package(
                 // .define("mlx") kept for backward compatibility with any #if mlx guards
                 // that may still exist in source.
                 .define("mlx"),
-            ],
+                // Beta-SDK escape hatch (see top of file): forces the CoreAI backend
+                // off locally so the project builds on macOS 27 beta SDKs. Inert on CI
+                // and normal SDKs, where this macro is never defined.
+                coreAIDisabled ? .define("OCOREAI_DISABLE_COREAI") : nil,
+            ].compactMap { $0 },
             linkerSettings: [
                 .linkedLibrary("sqlite3"),
             ],
@@ -73,7 +86,11 @@ let package = Package(
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .define("mlx"),
-            ],
+                // Beta-SDK escape hatch — see top of file. Mirrors the main target so
+                // tests compile on macOS 27 beta SDKs where CoreAI.framework is present
+                // but non-compilable.
+                coreAIDisabled ? .define("OCOREAI_DISABLE_COREAI") : nil,
+            ].compactMap { $0 },
         ),
         .testTarget(
             name: "ocoreaiTests",
@@ -85,7 +102,9 @@ let package = Package(
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .unsafeFlags(["-F/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]),
-            ],
+                // Beta-SDK escape hatch — see top of file.
+                coreAIDisabled ? .define("OCOREAI_DISABLE_COREAI") : nil,
+            ].compactMap { $0 },
             linkerSettings: [
                 .unsafeFlags(["-F/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]),
                 .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]),

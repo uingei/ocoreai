@@ -9,7 +9,7 @@ import Atomics
 import Foundation
 import Logging
 
-#if canImport(CoreAI)
+#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 	import CoreAI
 	import CoreAILanguageModels
 	import CoreAIShared
@@ -37,7 +37,7 @@ final class LoadedModel: @unchecked Sendable {
 	/// Parsed model configuration (context length, vocab, tokenizer)
 	let modelConfig: ModelConfig
 
-	#if canImport(CoreAI)
+	#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 		/// v15: Specialized Core AI model — compiled once at load time, reused across requests
 		let preparedModel: CoreAIPreparedModel
 
@@ -133,7 +133,7 @@ final class LoadedModel: @unchecked Sendable {
 		logger.info("Prewarming \(modelConfig.name ?? "model")...")
 		let startTime = ContinuousClock.now
 
-#if canImport(CoreAI)
+#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 		do {
 			// Use cached engine — CoreAI 34f0db3: single engine per model preserves KV cache
 			let engine = try await getCachedEngine()
@@ -224,7 +224,7 @@ final class LoadedModel: @unchecked Sendable {
 
 	// MARK: - Engine Resolution (CoreAI)
 
-	#if canImport(CoreAI)
+	#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 		/// Get cached inference engine — create on first call, reuse thereafter.
 		/// CoreAI 34f0db3: engines should be singletons per LoadedModel to preserve KV cache.
 		///
@@ -272,7 +272,7 @@ final class LoadedModel: @unchecked Sendable {
 
 	// MARK: - Initialization
 
-	#if canImport(CoreAI)
+	#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 			/// Create a loaded model instance with resolved config, weights, specialized model, and engine options.
 			///
 			/// - Parameters:

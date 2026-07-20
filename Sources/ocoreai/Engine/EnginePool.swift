@@ -14,7 +14,7 @@ import Atomics
 import Foundation
 import Logging
 
-#if canImport(CoreAI)
+#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 	import CoreAI
 	import CoreAILanguageModels
 	import CoreAIShared
@@ -83,7 +83,7 @@ actor EnginePool {
 
 	// MARK: - Model Loading
 
-	#if canImport(CoreAI)
+	#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 		private let coreAIPreparedModelLoader: CoreAIModelLoader
 	#endif
 
@@ -138,7 +138,7 @@ actor EnginePool {
 		}
 		self.memoryTracker = memoryTracker
 		self.maxLoadedModels = 4
-		#if canImport(CoreAI)
+		#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 			coreAIPreparedModelLoader = CoreAIModelLoader(
 				config: coreAILoadingConfig,
 				logger: logger,
@@ -366,7 +366,7 @@ actor EnginePool {
 		let configData = "{}".data(using: .utf8) ?? Data()
 		logger.info("Model \(modelId) is a hub model — MLXModelLoader will resolve \(resolved != nil ? "(remote config resolved)" : "(using defaults)")")
 
-		#if canImport(CoreAI)
+		#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 			let preparedModel = try await coreAIPreparedModelLoader.load(
 				modelURL: modelURL,
 				modelId: modelId,
@@ -456,7 +456,7 @@ actor EnginePool {
 					"tokenizer": model.modelConfig.tokenizer,
 					"active_sessions": String(active),
 				]
-				#if canImport(CoreAI)
+				#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 					entry["specialized"] = String(model.preparedModel.isSpecialized)
 				#endif
 				entry["vlm"] = String(model.isVlm)
@@ -472,7 +472,7 @@ actor EnginePool {
 		} else {
 			0.0
 		}
-		#if canImport(CoreAI)
+		#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 			let specializedCount = loadedModels.values.count(where: { $0.preparedModel.isSpecialized })
 		#else
 			let specializedCount = loadedModels.values.count(where: { $0.isVlm })

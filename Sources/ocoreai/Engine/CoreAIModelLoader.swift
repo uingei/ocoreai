@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 // CoreAI model loader — compiled only when 'coreai' trait is active
-#if canImport(CoreAI)
+#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 
 	/// CoreAIModelLoader.swift — Two-phase Core AI model loading bridge (v15)
 	///

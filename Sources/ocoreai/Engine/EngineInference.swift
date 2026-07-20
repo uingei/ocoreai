@@ -9,7 +9,7 @@
 import Foundation
 import Logging
 
-#if canImport(CoreAI)
+#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 	import CoreAI
 	import CoreAILanguageModels
 	import CoreAIShared
@@ -151,7 +151,7 @@ extension EnginePool {
 		}
 		defer { loaded.releaseInference() }
 
-		#if canImport(CoreAI)
+		#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 			do {
 				// Use cached engine — CoreAI 34f0db3: single engine per model preserves
 				// KV cache across turns. TokenHistory.resolve handles prefix caching automatically.
@@ -338,7 +338,7 @@ extension EnginePool {
 				case .cpu:
 					logger.warning("HardwareRouter → CPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB) — disabling session pool + speculative decoding")
 				case .ane:
-					#if canImport(CoreAI)
+					#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 						logger.info("HardwareRouter → ANE for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB)")
 					#else
 						logger.warning("HardwareRouter → ANE for \(modelId) but CoreAI unavailable, falling back to GPU (gpu: \(gpuGB)/\(budgetGB) GB)")
