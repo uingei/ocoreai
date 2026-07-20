@@ -268,9 +268,16 @@ extension DirectInferenceClient {
 		var accumulatedText = ""
 		var finishReason: String? = nil
 
-		// Real-time metrics tracking — so the UI can show tok/s + TTFT during streaming
+		// Real-time metrics tracking — so the UI can show TTFT during streaming.
+		//
+		// IMPORTANT (fix: real tok/s): the MLX backend emits `.text` chunks where a
+		// single chunk may encode one-or-more tokens, so chunk count is NOT a token
+		// count. We therefore do NOT estimate tok/s from chunk count (that produced a
+		// fake, systematically-inflated speed). Instead we surface the REAL TTFT as
+		// soon as the first chunk arrives, and only compute the accurate tok/s once
+		// the stream completes — using the genuine `outputTokens` from the `.done`
+		// event (actualTokenCount ?? metrics.generatedTokenCount from MLXLMCommon).
 		var firstChunkTime: ContinuousClock.Instant?
-		var chunkCount = 0
 		let streamStartTime = ContinuousClock.now
 
 		// Streaming output safety guard
@@ -278,21 +285,27 @@ extension DirectInferenceClient {
 
 		func currentMetrics() -> (ttftMs: Double?, tokPerSec: Double?, promptTokPerSec: Double?) {
 			guard let ttft = firstChunkTime else { return (nil, nil, nil) }
-			// TTFT: duration from stream start to first chunk
+			// TTFT: duration from stream start to first chunk (genuine prefill/init time)
 			let ttftDuration = streamStartTime.duration(to: ttft)
 			let ttftMs = Double(ttftDuration.components.seconds) * 1000
 				+ Double(ttftDuration.components.attoseconds) / 1e15
-			// tok/s: chunks per second since stream start (rough proxy for tokens)
-			let elapsed = streamStartTime.duration(to: ContinuousClock.now)
-			let elapsedMs = Double(elapsed.components.seconds) * 1000
-				+ Double(elapsed.components.attoseconds) / 1e15
-			let tokPerSec: Double?
-			if chunkCount > 0, elapsedMs > 0 {
-				tokPerSec = Double(chunkCount) / (elapsedMs / 1000.0)
-			} else {
-				tokPerSec = nil
+			// tok/s is intentionally nil during streaming — see note above. The UI
+			// shows only TTFT until the accurate final tok/s is yielded at completion.
+			return (ttftMs, nil, nil)
+		}
+
+		/// Accurate tok/s computed from the real generated token count at stream end.
+		func finalMetrics(outputTokens: Int?) -> (ttftMs: Double?, tokPerSec: Double?) {
+			let ttft = firstChunkTime.map { ft -> Double in
+				let d = streamStartTime.duration(to: ft)
+				return Double(d.components.seconds) * 1000 + Double(d.components.attoseconds) / 1e15
 			}
-			return (ttftMs, tokPerSec, nil)
+			guard let total = outputTokens, total > 0 else { return (ttft, nil) }
+			let elapsed = streamStartTime.duration(to: ContinuousClock.now)
+			let elapsedSec = Double(elapsed.components.seconds)
+				+ Double(elapsed.components.attoseconds) / 1e18
+			guard elapsedSec > 0 else { return (ttft, nil) }
+			return (ttft, Double(total) / elapsedSec)
 		}
 
 		do {
@@ -315,10 +328,11 @@ extension DirectInferenceClient {
 					if firstChunkTime == nil {
 						firstChunkTime = ContinuousClock.now
 					}
-					chunkCount += 1
 					accumulatedText += text
-					let (ttftMs, tokPerSec, _) = currentMetrics()
-					continuation.yield(.init(text: text, isComplete: false, ttftMs: ttftMs, tokPerSec: tokPerSec))
+					// Streaming metrics: report the REAL TTFT only (tokPerSec stays nil
+					// until completion — see note on currentMetrics()).
+					let (ttftMs, _, _) = currentMetrics()
+					continuation.yield(.init(text: text, isComplete: false, ttftMs: ttftMs, tokPerSec: nil))
 				case let .done(reason, tokenCount):
 					finishReason = stopReasonToString(reason) ?? "stop"
 					// Use actual token count from upstream .info/.done — per-event
@@ -331,8 +345,10 @@ extension DirectInferenceClient {
 			}
 		}
 
-		// Send final chunk with metrics
-		let (finalTtftMs, finalTokPerSec, _) = firstChunkTime != nil ? currentMetrics() : (nil, nil, nil)
+		// Send final chunk with accurate metrics.
+		// tokPerSec is computed from the REAL generated token count (outputTokens),
+		// not from chunk count — eliminating the previously fake/inflated speed.
+		let (finalTtftMs, finalTokPerSec) = finalMetrics(outputTokens: outputTokens)
 		continuation.yield(.init(
 			text: "",
 			isComplete: true,

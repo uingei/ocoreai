@@ -64,9 +64,20 @@ struct ContentRouter: View {
                     copiedIndex: $copiedIndex
                 )
             } else {
-                Text(content)
-                    .font(.ocoreaiText(15))
-                    .lineSpacing(3)
+                // Render genuine Markdown (headings, lists, bold/italic, links) via
+                // AttributedString. Previously this path used a plain `Text(content)`
+                // String, which displayed raw markdown syntax instead of formatting —
+                // a regression vs the upstream MLXChatExample `LocalizedStringKey` approach.
+                if let attributed = try? AttributedString(markdown: content, options: .init(allowsExtendedAttributes: false, interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+                    Text(attributed)
+                        .font(.ocoreaiText(15))
+                        .lineSpacing(3)
+                        .textSelection(.enabled)
+                } else {
+                    Text(content)
+                        .font(.ocoreaiText(15))
+                        .lineSpacing(3)
+                }
             }
         }
     }

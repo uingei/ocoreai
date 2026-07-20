@@ -569,8 +569,10 @@ struct ChatView: View {
         // Use regular Task (not detached) so cancellation propagates
         // and MainActor context is captured for updating chatState
         // Reset activeTask on completion so isStreaming unblocks future sends
+        // Pure-image send: pass empty text (no hard-coded English placeholder into
+        // the user bubble / SQLite); attachment thumbnails render inline instead.
         activeTask = Task { @MainActor in
-            await chatState.chat(text.isEmpty ? "Image attachment" : text, model: modelID, attachments: currentAttachments)
+            await chatState.chat(text.isEmpty ? "" : text, model: modelID, attachments: currentAttachments)
             activeTask = nil
         }
     }
