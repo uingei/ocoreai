@@ -85,6 +85,9 @@ struct ChatView: View {
     // Multimodal controls panel — collapsed by default
     @State private var showMultimodal = false
 
+    // P2-fix: confirmation dialog for destructive operations (HIG requirement)
+    @State private var showClearConfirmation = false
+
     // Image attachments for multimodal input
     @State private var attachments: [ChatState.AttachedImage] = []
 
@@ -155,8 +158,9 @@ struct ChatView: View {
             _keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 let cmd = event.modifierFlags.contains(.command)
                 let opt = event.modifierFlags.contains(.option)
-                // ⌘+Return — send message (even when TextField not focused)
-                if cmd && event.keyCode == 36 {
+                // ⌘+Return — send message (even when TextField not focused).
+                // P2 fix: use keyEquivalent instead of hardcoded keyCode (keyCode varies by layout).
+                if cmd && (event.keyEquivalent ?? event.characters) == "\r" {
                     guard !isStreaming else { return event }
                     guard inputText.trimmingCharacters(in: .whitespaces).isEmpty else {
                         sendMessage()
@@ -208,7 +212,7 @@ struct ChatView: View {
             // .automatic is the neutral placement for secondary/destructive toolbar items
             ToolbarItem(placement: .automatic) {
                 Button(role: .destructive) {
-                    chatState.resetConversation()
+                    showClearConfirmation = true
                 } label: {
                     Label(StringKey.clear.l, systemImage: "trash")
                 }
@@ -216,6 +220,17 @@ struct ChatView: View {
                 .accessibilityHint(StringKey.clearConversationHint.l)
                 .disabled(isStreaming)
             }
+        }
+        // P2-fix: confirmation dialog for clear conversation (HIG: destructive actions must confirm)
+        .confirmationDialog("Clear Conversation?",
+                           isPresented: $showClearConfirmation,
+                           titleVisibility: .visible) {
+            Button("Clear All", role: .destructive) {
+                chatState.resetConversation()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will delete all messages in this chat. You can undo with ⌘Z.")
         }
         // P0: Show error banner when chat inference fails
         .overlay(alignment: .bottom) {
@@ -288,11 +303,13 @@ struct ChatView: View {
                             ChatBubble(message: ChatBubbleMessage(from: msg))
                                 .id(msg.id)
                         }
-                        // Streaming preview — show assistant's partial response in real-time
-                        if !chatState.responseText.isEmpty {
+                        // Streaming preview — show assistant's partial response in real-time.
+                        // P0-2 fix: use responseTextDisplay (strips <thinking> tags) so raw
+                        // reasoning markup doesn't render in the live preview.
+                        if !chatState.responseTextDisplay.isEmpty {
                             VStack(spacing: 4) {
                                 ChatHeader(isUser: false, timestamp: Date())
-                                MarkdownMessage(content: chatState.responseText)
+                                MarkdownMessage(content: chatState.responseTextDisplay)
                                     .opacity(0.85)
                                     .transition(.opacity.combined(with: .move(edge: .bottom)))
                                 // Live streaming metrics indicator

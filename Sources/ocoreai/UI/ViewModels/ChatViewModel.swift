@@ -125,6 +125,11 @@ final class ChatState {
 
     var messages: [ChatMessage] = []
     var responseText: String = ""
+    /// Display version — strips <thinking> tags so the live streaming preview
+    /// doesn't render raw reasoning markup. Raw responseText kept for completion-time structured parsing.
+    var responseTextDisplay: String {
+        Self.stripThinkingTags(from: responseText)
+    }
     var errorMessage: String?
     var loading: Bool = false
     /// Live streaming throughput — estimated tokens/second. Updated per chunk.
@@ -138,6 +143,49 @@ final class ChatState {
     }
 
 
+
+    /// Strip `<thinking>...</thinking>` blocks so they don't appear in the live preview.
+    /// Raw text retained for completion-time structured parsing.
+    private nonisolated static func stripThinkingTags(from text: String) -> String {
+        guard text.contains("<thinking>") else { return text }
+        let pattern = "<thinking>.*?</thinking>"
+        return (try? NSRegularExpression(
+            pattern: pattern,
+            options: .dotMatchesLineSeparators
+        ).stringByReplacingMatches(
+            in: text,
+            range: NSRange(text.startIndex..., in: text),
+            withTemplate: ""
+        )) ?? text
+    }
+
+    /// Extract reasoning text from `<thinking>` tags and remaining text.
+    /// Returns (reasoning, remainingText). If no tags found, returns (nil, text).
+    private nonisolated static func splitThinkingTags(from text: String) -> (reasoning: String?, remaining: String) {
+        guard text.contains("<thinking>") else { return (nil, text) }
+        var reasoningPieces: [String] = []
+        let pattern = "<thinking>(.*?)</thinking>"
+        if let regex = try? NSRegularExpression(
+            pattern: pattern,
+            options: .dotMatchesLineSeparators
+        ) {
+            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            // Extract reasoning content
+            for match in matches {
+                if let range = Range(match.range(withCaptureGroup: 1), in: text) {
+                    reasoningPieces.append(String(text[range]))
+                }
+            }
+            // Remove thinking tags for remaining text
+            let cleaned = regex.stringByReplacingMatches(
+                in: text,
+                range: NSRange(text.startIndex..., in: text),
+                withTemplate: ""
+            )
+            return (reasoningPieces.joined(separator: "\n"), cleaned)
+        }
+        return (nil, text)
+    }
 
     // MARK: - Persistence state
 
@@ -460,36 +508,62 @@ final class ChatState {
                     // FIX: distinguish error terminal chunks from successful completion.
                     // Do not persist error-truncated responses as normal assistant messages.
                     if chunk.stopReason == "error" {
-                        Self.logger.warning("Inference ended with error after accumulating \\(responseText.utf8.count) bytes")
+                        Self.logger.warning("Inference ended with error after accumulating \(responseText.utf8.count) bytes")
                         // D1 fix: surface actual error from inference layer instead of generic placeholder
                         errorMessage = chunk.error ?? "Generation failed"
                         responseText = ""
                     } else {
-                        // Conversation complete — append and persist to history
-                        if !responseText.isEmpty {
-                            var parts: [TranscriptPart] = [.text(responseText)]
-                            if let detectedToolCalls = parseToolCalls(from: responseText) {
-                                for tc in detectedToolCalls {
-                                    parts.append(.toolCall(ToolCallPart(
-                                        callId: tc.id,
-                                        name: tc.function.name,
-                                        resultSummary: tc.function.arguments.isEmpty ? "executed" : "\(tc.function.arguments.utf8.count) bytes args",
-                                        durationMs: nil
-                                    )))
-                                }
-                                // Build structured ChatMessage with tool call badges
-                                let assistantMsg = ChatMessage(role: "assistant", parts: parts)
-                                messages.append(assistantMsg)
-                                await persistMessage(role: "assistant", content: responseText)
-                            } else {
-                                let assistantMsg = ChatMessage(role: "assistant", content: responseText)
-                                messages.append(assistantMsg)
-                                await persistMessage(role: "assistant", content: responseText)
-                            }
+                        // Conversation complete — build structured parts from responseText.
+                        // P0-1 fix: Always enter this branch (even when responseText is empty)
+                        // so tool-call-only models and empty outputs still get an assistant message.
+                        // P0-2 fix: Split <thinking> tags into structured .reasoning parts.
 
-                            // MARK: - Post-inference TTS
-                            // If speaker is enabled, speak the final response
-                            mmState.speakIfEnabled(responseText)
+                        let (reasoning, cleanedText) = Self.splitThinkingTags(from: responseText)
+                        var parts: [TranscriptPart] = []
+
+                        // Append reasoning part if thinking tags were present
+                        if let reasoningText = reasoning, !reasoningText.isEmpty {
+                            parts.append(.reasoning(reasoningText))
+                        }
+
+                        // Append text body (with thinking tags removed)
+                        if !cleanedText.trimmingCharacters(in: .whitespaces).isEmpty {
+                            parts.append(.text(cleanedText))
+                        }
+
+                        // Detect tool calls in raw response
+                        if let detectedToolCalls = parseToolCalls(from: responseText) {
+                            for tc in detectedToolCalls {
+                                parts.append(.toolCall(ToolCallPart(
+                                    callId: tc.id,
+                                    name: tc.function.name,
+                                    resultSummary: tc.function.arguments.isEmpty ? "executed" : "\(tc.function.arguments.utf8.count) bytes args",
+                                    durationMs: nil
+                                )))
+                            }
+                        }
+
+                        // Build assistant message — use structured parts when available,
+                        // fallback to flat content (including empty messages for tool-use models)
+                        if !parts.isEmpty {
+                            let assistantMsg = ChatMessage(role: "assistant", parts: parts)
+                            messages.append(assistantMsg)
+                        } else {
+                            // Tool-use model returned empty — still create the message
+                            // so the conversation state is correct
+                            let assistantMsg = ChatMessage(role: "assistant", content: "")
+                            messages.append(assistantMsg)
+                        }
+
+                        // Persist cleaned text (without thinking tags) for readability
+                        if !cleanedText.trimmingCharacters(in: .whitespaces).isEmpty {
+                            await persistMessage(role: "assistant", content: cleanedText)
+                        }
+
+                        // MARK: - Post-inference TTS
+                        // If speaker is enabled, speak the cleaned response (no thinking tags)
+                        if !cleanedText.trimmingCharacters(in: .whitespaces).isEmpty {
+                            mmState.speakIfEnabled(cleanedText)
                         }
                     }
                 }
