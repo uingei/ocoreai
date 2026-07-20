@@ -21,7 +21,6 @@
 
 #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 	import CoreAI
-	import CoreAILanguageModels
 #endif
 import Foundation
 import HTTPTypes

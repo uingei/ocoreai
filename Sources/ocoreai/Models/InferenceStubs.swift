@@ -114,35 +114,57 @@ struct InferenceOptions: Codable {
 	init() {}
 }
 
-// MARK: - MLX-only stubs (TokenizerManager placeholder — MLX containers have built-in tokenizers)
+// MARK: - Shared types (both CoreAI and MLX backends)
 
-/// Empty TokenizerManager for MLX-only builds — MLXLLM containers have built-in tokenizers.
-/// ``@unchecked Sendable``: this is a stub class with no properties — trivially
-/// Sendable, but the compiler cannot infer it because classes default to non-Sendable.
-final class StreamingDetokenizer: @unchecked Sendable {}
+/// Inference stop reason — used by `InferenceEvent.done` across all backends
+/// (MLX and CoreAI). Defined unconditionally since the CoreAI beta SDK
+/// does not export this type.
+enum StopReason: Int, Codable, Error {
+	case maxTokens = 0
+	case eos = 1
+	case stopSequence = 2
+	case cancelled = 3
+	case error = 4
 
-protocol TokenizerProvider: Sendable {
-	var name: String { get }
-	func tokenize(messages: [[String: String]]) async throws -> [Int32]
-	func detokenize(tokenIds: [Int32]) async throws -> String
-	func streamingDetokenizer() -> StreamingDetokenizer
-	func countTokens(messages: [[String: String]]) async throws -> Int
-	func prewarm() async throws
+	static let maxTokensCase: StopReason = .maxTokens
+	static let eosCase: StopReason = .eos
+	static let stopSequenceCase: StopReason = .stopSequence
+	static let cancelledCase: StopReason = .cancelled
+	static let errorCase: StopReason = .error
 }
 
-actor TokenizerManager {
-	init() {}
-	func registerTokenizer(for _: String, tokenizerPath _: String) async throws {}
-	func registerTokenizerFromHub(for _: String, hubId _: String) async throws {}
-	func getTokenizer(for _: String) -> (any TokenizerProvider)? { nil }
-	@discardableResult
-	func removeTokenizer(for _: String) -> Bool { false }
-	func shutdown() {}
-}
-
-// MARK: - CoreAI stubs (when coreai trait is inactive — mlx also needs these)
+// MARK: - Fallback stubs (when CoreAI is unavailable)
 
 #if !canImport(CoreAI) || OCOREAI_DISABLE_COREAI
+
+	// MARK: - MLX-only tokenizer stubs (CoreAI path uses TokenizerManager.swift)
+
+	/// Empty StreamingDetokenizer for MLX-only builds — MLXLLM containers have
+	/// built-in tokenizers.
+	/// ``@unchecked Sendable``: this is a stub class with no properties — trivially
+	/// Sendable, but the compiler cannot infer it because classes default to non-Sendable.
+	final class StreamingDetokenizer: @unchecked Sendable {}
+
+	protocol TokenizerProvider: Sendable {
+		var name: String { get }
+		func tokenize(messages: [[String: String]]) async throws -> [Int32]
+		func detokenize(tokenIds: [Int32]) async throws -> String
+		func streamingDetokenizer() -> StreamingDetokenizer
+		func countTokens(messages: [[String: String]]) async throws -> Int
+		func prewarm() async throws
+	}
+
+	actor TokenizerManager {
+		init() {}
+		func registerTokenizer(for _: String, tokenizerPath _: String) async throws {}
+		func registerTokenizerFromHub(for _: String, hubId _: String) async throws {}
+		func getTokenizer(for _: String) -> (any TokenizerProvider)? { nil }
+		@discardableResult
+		func removeTokenizer(for _: String) -> Bool { false }
+		func shutdown() {}
+	}
+
+	// MARK: - CoreAI type stubs
 
 	struct EngineOptions {
 		enum KVCacheStrategy: String, Codable {
@@ -197,20 +219,6 @@ actor TokenizerManager {
 
 		func coldStoreActiveSessions() async {}
 		func shutdown() {}
-	}
-
-	enum StopReason: Int, Codable, Error {
-		case maxTokens = 0
-		case eos = 1
-		case stopSequence = 2
-		case cancelled = 3
-		case error = 4
-
-		static let maxTokensCase: StopReason = .maxTokens
-		static let eosCase: StopReason = .eos
-		static let stopSequenceCase: StopReason = .stopSequence
-		static let cancelledCase: StopReason = .cancelled
-		static let errorCase: StopReason = .error
 	}
 
 	enum EngineFactory {

@@ -19,7 +19,6 @@
 	/// - Falls back gracefully to ``EngineFactory.createEngine`` if specialization fails.
 
 	import CoreAI
-	import CoreAILanguageModels
 	import Foundation
 	import Logging
 

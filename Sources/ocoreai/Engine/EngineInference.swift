@@ -11,8 +11,6 @@ import Logging
 
 #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 	import CoreAI
-	import CoreAILanguageModels
-	import CoreAIShared
 #endif
 
 import MLX
