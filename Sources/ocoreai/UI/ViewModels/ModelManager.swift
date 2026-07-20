@@ -53,6 +53,42 @@ final class ModelManager {
 
     private init() {}
 
+    // MARK: - Quick Load recommended models
+
+    /// Recommended models for first-time users and empty-state quick load.
+    /// Curated list of lightweight-to-medium models available on both HF and ModelScope.
+    struct RecommendedQuickModel: Identifiable, Sendable {
+        let id: String
+        let description: String
+        let hub: HubSource
+    }
+
+    /// Returns recommended models — ordered from lightest to heaviest.
+    static var recommendedModels: [RecommendedQuickModel] {
+        [
+            RecommendedQuickModel(
+                displayId: "Qwen/Qwen2.5-3B-Instruct",
+                description: "General purpose, fast, ~2 GB",
+                hub: .modelScope
+            ),
+            RecommendedQuickModel(
+                displayId: "Qwen/Qwen2.5-Coder-3B-Instruct",
+                description: "Code generation, ~2 GB",
+                hub: .modelScope
+            ),
+            RecommendedQuickModel(
+                displayId: "Qwen/Qwen2.5-7B-Instruct",
+                description: "Balanced quality & speed, ~5 GB",
+                hub: .modelScope
+            ),
+            RecommendedQuickModel(
+                displayId: "meta-llama/Llama-3.2-3B-Instruct",
+                description: "Llama 3.2, general purpose, ~2 GB",
+                hub: .huggingFace
+            ),
+        ]
+    }
+
     // MARK: - Search state
 
     var searchQuery: String = ""
@@ -150,6 +186,12 @@ final class ModelManager {
     @discardableResult
     func load(_ modelId: String) async -> Bool {
         await load(modelId, hub: selectedSource)
+    }
+
+    /// Quick-load a recommended model by its identity.
+    @discardableResult
+    func quickLoad(_ model: RecommendedQuickModel) async -> Bool {
+        await load(model.id, hub: model.hub)
     }
 
     /// Acquire a model from the EnginePool with an explicit Hub source override.

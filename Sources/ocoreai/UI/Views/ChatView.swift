@@ -222,15 +222,15 @@ struct ChatView: View {
             }
         }
         // P2-fix: confirmation dialog for clear conversation (HIG: destructive actions must confirm)
-        .confirmationDialog("Clear Conversation?",
+        .confirmationDialog(StringKey.clearConversationTitle.l,
                            isPresented: $showClearConfirmation,
                            titleVisibility: .visible) {
-            Button("Clear All", role: .destructive) {
+            Button(StringKey.clearAllAction.l, role: .destructive) {
                 chatState.resetConversation()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This will delete all messages in this chat. You can undo with ⌘Z.")
+            Text(StringKey.clearConversationMessage.l)
         }
         // P0: Show error banner when chat inference fails
         .overlay(alignment: .bottom) {

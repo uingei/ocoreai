@@ -430,6 +430,21 @@ public enum StringKey: String, CaseIterable {
 	case modelParamDefaults = "Models.ParamDefaults"
 	case modelViewTapToEdit = "Models.TapToEdit"
 
+	// — Chat i18n gaps (UX-03 fix) —
+	case clearConversationTitle = "Chat.ClearConversationTitle"
+	case clearAllAction = "Chat.ClearAllAction"
+	case clearConversationMessage = "Chat.ClearConversationMessage"
+	case fileTooLarge = "Chat.FileTooLarge"
+	case generationFailed = "Chat.GenerationFailed"
+	case skillRegistryUnavailable = "Common.SkillRegistryUnavailable"
+	case sessionCompressorUnavailable = "Common.SessionCompressorUnavailable"
+	case sessionLoadFailed = "Common.SessionLoadFailed"
+	case sessionSummaryLoadFailed = "Common.SessionSummaryLoadFailed"
+	case sessionDeleteFailed = "Common.SessionDeleteFailed"
+	case memorySearchFailed = "Common.MemorySearchFailed"
+	case memoryLoadFailed = "Common.MemoryLoadFailed"
+	case settingsResetToDefaults = "Settings.ResetToDefaults"
+
 	// — Model Search —
 	case modelSearchQuickLoad = "ModelSearch.QuickLoad"
 	case modelSearchExample = "ModelSearch.Example"
@@ -737,6 +752,21 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.defaultModel: "default",
 		.noModelSelected: "No Model",
 		.clear: "Clear",
+
+		// Chat i18n gaps (UX-03)
+		.clearConversationTitle: "Clear Conversation?",
+		.clearAllAction: "Clear All",
+		.clearConversationMessage: "This will delete all messages in this chat. You can undo with ⌘Z.",
+		.fileTooLarge: "File too large (%@) (max 10 MB)",
+		.generationFailed: "Generation failed",
+		.skillRegistryUnavailable: "Skill registry not available",
+		.sessionCompressorUnavailable: "Session compressor not available",
+		.sessionLoadFailed: "Failed to load sessions",
+		.sessionSummaryLoadFailed: "Failed to load session summary",
+		.sessionDeleteFailed: "Failed to delete session",
+		.memorySearchFailed: "Memory search failed",
+		.memoryLoadFailed: "Failed to load memory",
+		.settingsResetToDefaults: "Settings reset to defaults",
 		.refreshButton: "Refresh",
 		.tryAgain: "Try Again",
 		.copyMessage: "Copy Message",
@@ -940,6 +970,21 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.multimodalSTTListening: "语音识别中",
 		.multimodalSTTListeningHint: "语音识别已激活 — 语音转文字",
 		.multimodalSTTPartialLabel: "实时转录",
+
+		// Chat i18n gaps (UX-03)
+		.clearConversationTitle: "清空对话？",
+		.clearAllAction: "全部清空",
+		.clearConversationMessage: "此操作将删除当前对话的所有消息。可使用 ⌘Z 撤销。",
+		.fileTooLarge: "文件过大 (max 10 MB)",
+		.generationFailed: "生成失败",
+		.skillRegistryUnavailable: "Skills registry not available",
+		.sessionCompressorUnavailable: "Session compressor not available",
+		.sessionLoadFailed: "Failed to load sessions",
+		.sessionSummaryLoadFailed: "Failed to load session summary",
+		.sessionDeleteFailed: "Failed to delete session",
+		.memorySearchFailed: "Memory search failed",
+		.memoryLoadFailed: "Failed to load memory",
+		.settingsResetToDefaults: "Settings reset to defaults",
 
 		// Dashboard
 		.dashboardTitle: "仪表盘",

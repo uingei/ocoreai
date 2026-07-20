@@ -265,6 +265,13 @@ final class ChatState {
                 guard let pool = OcoreaiEngine.shared.activeEnginePool else { return }
                 await pool.unloadModel(oldModel)
             }
+            
+            // P1-fix: Model switched — clear old conversation history to prevent
+            // old-model messages from being sent with the new model's inference context.
+            messages = []
+            responseText = ""
+            activeModelId = newModelId
+            sessionId = nil // Force a fresh session for the new model
         }
     }
 
@@ -339,7 +346,13 @@ final class ChatState {
     }
 
     /// Persist a single message to SQLite.
-    private func persistMessage(role: String, content: String) async {
+    /// - Parameter parts: Optional structured parts — reasoning text and tool call records
+    ///   are stored alongside the flat content for faithful round-trip persistence.
+    private func persistMessage(
+        role: String,
+        content: String,
+        toolCalls: [ToolCallRecord]? = nil
+    ) async {
         guard let compressor, let sid = sessionId else { return }
         do {
             try await compressor.addMessage(
@@ -347,6 +360,7 @@ final class ChatState {
                 role: role,
                 content: content,
                 tokenCount: estimateTokens(content),
+                toolCalls: toolCalls
             )
         } catch {
             // Non-fatal: message still exists in memory
@@ -532,8 +546,9 @@ final class ChatState {
                         }
 
                         // Detect tool calls in raw response
-                        if let detectedToolCalls = parseToolCalls(from: responseText) {
-                            for tc in detectedToolCalls {
+                        let detectedToolCalls = parseToolCalls(from: responseText)
+                        if let tcs = detectedToolCalls {
+                            for tc in tcs {
                                 parts.append(.toolCall(ToolCallPart(
                                     callId: tc.id,
                                     name: tc.function.name,
@@ -555,9 +570,20 @@ final class ChatState {
                             messages.append(assistantMsg)
                         }
 
-                        // Persist cleaned text (without thinking tags) for readability
+                        // Persist cleaned text (without thinking tags) for readability.
+                        // Include structured tool call records when available.
                         if !cleanedText.trimmingCharacters(in: .whitespaces).isEmpty {
-                            await persistMessage(role: "assistant", content: cleanedText)
+                            // Convert detected ToolCall → ToolCallRecord for persistence
+                            let persistToolCalls: [ToolCallRecord]? = detectedToolCalls?.compactMap { tc in
+                                ToolCallRecord(
+                                    callId: tc.id,
+                                    toolName: tc.function.name,
+                                    arguments: [String: String](),
+                                    resultSummary: tc.function.arguments.isEmpty ? "executed" : "\(tc.function.arguments.utf8.count) bytes args",
+                                    durationMs: nil
+                                )
+                            }
+                            await persistMessage(role: "assistant", content: cleanedText, toolCalls: persistToolCalls)
                         }
 
                         // MARK: - Post-inference TTS

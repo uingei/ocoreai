@@ -214,7 +214,21 @@ private struct ModelResultRow: View {
     @ViewBuilder
     private var downloadButton: some View {
         if modelManager.downloadingModelId == modelId {
-            ProgressView()
+            // Show download progress with percentage
+            if let progress = OcoreaiDownloadProgress.shared.progress(for: modelId) {
+                VStack(spacing: 2) {
+                    ProgressView(value: progress.fraction)
+                        .progressViewStyle(CircularProgressViewStyle(tint: theme.accent))
+                        .scaleEffect(0.85)
+                    Text("\(Int(progress.fraction * 100))%")
+                        .font(.ocoreaiMono(8))
+                        .foregroundStyle(theme.textTertiary)
+                }
+            } else {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: theme.accent))
+                    .scaleEffect(0.85)
+            }
         } else {
             Button {
                 Task {
@@ -239,7 +253,7 @@ private struct ModelLocalListView: View {
 
     var body: some View {
         if modelManager.localModels.isEmpty {
-            ModelEmptyState()
+            ModelEmptyState(modelManager: modelManager)
         } else {
             ModelListContent(modelManager: modelManager, onEdit: onEdit)
         }
@@ -274,17 +288,85 @@ private struct ModelListContent: View {
     }
 }
 
-// MARK: - Empty State
+// MARK: - Empty State with Quick Load recommendations
 
 private struct ModelEmptyState: View {
     @Environment(\.ocoreaiTheme) private var theme
+    // modelManager is @Observable passed from parent — use stored property, not @State
+    let modelManager: ModelManager
+    @State private var quickLoading: String?
+
+    init(modelManager: ModelManager) {
+        self.modelManager = modelManager
+    }
 
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "brain.head.profile").font(.ocoreaiText(36, weight: .light)).foregroundStyle(theme.textTertiary)
-            Text(StringKey.noModelsLoaded.l).font(.ocoreaiText(14)).foregroundStyle(theme.textSecondary)
+        VStack(spacing: 12) {
+            Image(systemName: "brain.head.profile")
+                .font(.ocoreaiText(36, weight: .light))
+                .foregroundStyle(theme.textTertiary)
+            Text(StringKey.noModelsLoaded.l)
+                .font(.ocoreaiText(14))
+                .foregroundStyle(theme.textSecondary)
+
+            Text(StringKey.modelSearchQuickLoad.l)
+                .font(.ocoreaiText(12, weight: .semibold))
+                .foregroundStyle(theme.textTertiary)
+                .padding(.top, 8)
+
+            // Quick load cards
+            LazyVStack(spacing: 8) {
+                ForEach(ModelManager.recommendedModels) { rec in
+                    quickLoadCard(rec: rec)
+                }
+            }
         }
-        .frame(maxWidth: .infinity, minHeight: 120).modifier(theme.cardStyle())
+        .padding(16)
+        .modifier(theme.cardStyle())
+        .accessibilityLabel(StringKey.noModelsLoaded.l)
+    }
+
+    @ViewBuilder
+    private func quickLoadCard(rec: ModelManager.RecommendedQuickModel) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "cpu")
+                .font(.ocoreaiText(14))
+                .foregroundStyle(theme.accent)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(rec.id)
+                    .font(.ocoreaiText(13))
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+                Text(rec.description)
+                    .font(.ocoreaiText(10))
+                    .foregroundStyle(theme.textTertiary)
+            }
+
+            Spacer()
+
+            if quickLoading == rec.id {
+                ProgressView()
+                    .scaleEffect(0.8)
+            } else {
+                Button {
+                    Task {
+                        quickLoading = rec.id
+                        _ = await modelManager.quickLoad(rec)
+                        quickLoading = nil
+                    }
+                } label: {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(theme.accent)
+                }
+                .accessibilityLabel("Load \\(rec.id)")
+            }
+        }
+        .padding(10)
+        .background(theme.cardBg.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
 
