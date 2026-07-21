@@ -82,7 +82,9 @@ actor EnginePool {
 	// MARK: - Model Loading
 
 	#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-		private let coreAIPreparedModelLoader: CoreAIModelLoader
+		// Type-erased storage — CoreAIModelLoader is @available(macOS 27.0, *)
+		// so it leaks transitively into EnginePool (dep target 26).
+		private var _coreAIPreparedModelLoader: Any?
 	#endif
 
 	let mlxModelLoader: MLXModelLoader
@@ -111,7 +113,7 @@ actor EnginePool {
 		tokenizerManager: TokenizerManager,
 		pagedKVCacheConfig: PagedKVCacheConfig? = nil,
 		blockPoolConfig: BlockPoolConfig? = nil,
-		coreAILoadingConfig: CoreAILoadingConfig = .init(),
+		coreAILoadingConfig: Any? = nil,
 		memoryTracker: MemoryTracker? = nil,
 		modelScopeToken: String? = nil,
 		hfToken: String? = nil,
@@ -137,11 +139,15 @@ actor EnginePool {
 		self.memoryTracker = memoryTracker
 		self.maxLoadedModels = 4
 		#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-			coreAIPreparedModelLoader = CoreAIModelLoader(
-				config: coreAILoadingConfig,
-				logger: logger,
-			)
-			logger.info("CoreAIModelLoader initialized (v15 two-phase specialization)")
+			if #available(macOS 27.0, *) {
+				_coreAIPreparedModelLoader = CoreAIModelLoader(
+					config: coreAILoadingConfig as? CoreAILoadingConfig ?? CoreAILoadingConfig(),
+					logger: logger,
+				)
+				logger.info("CoreAIModelLoader initialized (v15 two-phase specialization)")
+			} else {
+				logger.info("CoreAI SDK present but macOS < 27.0 — skipping CoreAI backend")
+			}
 		#endif
 		mlxModelLoader = MLXModelLoader(
 			logger: logger,
@@ -365,26 +371,32 @@ actor EnginePool {
 		logger.info("Model \(modelId) is a hub model — MLXModelLoader will resolve \(resolved != nil ? "(remote config resolved)" : "(using defaults)")")
 
 		#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-			let preparedModel = try await coreAIPreparedModelLoader.load(
-				modelURL: modelURL,
-				modelId: modelId,
-			)
+			if #available(macOS 27.0, *),
+			   let loader = _coreAIPreparedModelLoader as? CoreAIModelLoader
+			{
+				let preparedModel = try await loader.load(
+					modelURL: modelURL,
+					modelId: modelId,
+				)
 
-			let loadTag = preparedModel.isSpecialized ? "specialized" : "fallback (EngineFactory)"
-			logger.info(
-				"Model \(modelId) prepared: \(loadTag)",
-				metadata: [
-					"specialized": .string(String(preparedModel.isSpecialized)),
-				],
-			)
+				let loadTag = preparedModel.isSpecialized ? "specialized" : "fallback (EngineFactory)"
+				logger.info(
+					"Model \(modelId) prepared: \(loadTag)",
+					metadata: [
+						"specialized": .string(String(preparedModel.isSpecialized)),
+					],
+				)
 
-			return LoadedModel(
-				configData: configData,
-				modelURL: modelURL,
-				modelConfig: modelConfig,
-				preparedModel: preparedModel,
-				logger: logger,
-			)
+				return LoadedModel(
+					configData: configData,
+					modelURL: modelURL,
+					modelConfig: modelConfig,
+					preparedModel: preparedModel,
+					logger: logger,
+				)
+			} else {
+				logger.info("CoreAI unavailable on this macOS version — falling back to MLX")
+			}
 		#endif
 		// VLM detection: check processor_config.json before loading
 		let isVlmModel = MLXModelLoader.isVLMModel(at: modelURL)
@@ -398,13 +410,34 @@ actor EnginePool {
 		)
 		logger.info("MLX model \(modelId) loaded successfully")
 
-		let model = LoadedModel(
-			configData: configData,
-			modelURL: modelURL,
-			modelConfig: modelConfig,
-			preparedModel: CoreAIPreparedModel.fallback(),
-			logger: logger,
-		)
+		#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+			var model: LoadedModel
+			if #available(macOS 27.0, *) {
+				let prepared = CoreAIPreparedModel.fallback()
+				model = LoadedModel(
+					configData: configData,
+					modelURL: modelURL,
+					modelConfig: modelConfig,
+					preparedModel: prepared,
+					logger: logger,
+				)
+			} else {
+				model = LoadedModel(
+					configData: configData,
+					modelURL: modelURL,
+					modelConfig: modelConfig,
+					preparedModel: nil,
+					logger: logger,
+				)
+			}
+		#else
+			var model = LoadedModel(
+				configData: configData,
+				modelURL: modelURL,
+				modelConfig: modelConfig,
+				logger: logger,
+			)
+		#endif
 		model.setMLXHandle(mlxHandle)
 		model.isVlm = isVlmModel
 		model.kvCacheQuantization = config.kvCacheQuantization
@@ -456,7 +489,11 @@ actor EnginePool {
 					"active_sessions": String(active),
 				]
 				#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-					entry["specialized"] = String(model.preparedModel.isSpecialized)
+					if #available(macOS 27.0, *) {
+						entry["specialized"] = String(
+							(model._preparedModel as? CoreAIPreparedModel)?.isSpecialized ?? false
+						)
+					}
 				#endif
 				entry["vlm"] = String(model.isVlm)
 				result.append(entry)
@@ -472,7 +509,14 @@ actor EnginePool {
 			0.0
 		}
 		#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-			let specializedCount = loadedModels.values.count(where: { $0.preparedModel.isSpecialized })
+			var specializedCount: Int
+			if #available(macOS 27.0, *) {
+				specializedCount = loadedModels.values.count(
+					where: { ($0._preparedModel as? CoreAIPreparedModel)?.isSpecialized == true }
+				)
+			} else {
+				specializedCount = loadedModels.values.count(where: { $0.isVlm })
+			}
 		#else
 			let specializedCount = loadedModels.values.count(where: { $0.isVlm })
 		#endif

@@ -150,48 +150,53 @@ extension EnginePool {
 		defer { loaded.releaseInference() }
 
 		#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-			do {
-				// Use cached engine — CoreAI 34f0db3: single engine per model preserves
-				// KV cache across turns. TokenHistory.resolve handles prefix caching automatically.
-				let engine = try await loaded.getCachedEngine()
-				let sequence = try await engine.generate(
-					with: input,
-					samplingConfiguration: sampling,
-					inferenceOptions: options,
-				)
-
+			if #available(macOS 27.0, *) {
 				do {
-					for try await output in sequence {
-						if Task.isCancelled || cancellation.isCancelled {
-							continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: metrics.generatedTokenCount)))
-							break
+					// Use cached engine — CoreAI 34f0db3: single engine per model preserves
+					// KV cache across turns. TokenHistory.resolve handles prefix caching automatically.
+					let engine = try await loaded.getCachedEngine()
+					let sequence = try await engine.generate(
+						with: input,
+						samplingConfiguration: sampling,
+						inferenceOptions: options,
+					)
+
+					do {
+						for try await output in sequence {
+							if Task.isCancelled || cancellation.isCancelled {
+								continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: metrics.generatedTokenCount)))
+								break
+							}
+							metrics.incrementGenerated()
+							if metrics.generatedTokenCount == 1 {
+								metrics.firstTokenMs = metrics.overallMs
+							}
+							continuation.yield(.init(kind: .token(
+								(output as? InferenceOutput)?.tokenId ?? 0
+							)))
 						}
-						metrics.incrementGenerated()
-						if metrics.generatedTokenCount == 1 {
-							metrics.firstTokenMs = metrics.overallMs
-						}
-						continuation.yield(.init(kind: .token(
-							(output as? InferenceOutput)?.tokenId ?? 0
-						)))
+					} catch {
+						continuation.yield(.init(kind: .error(error.localizedDescription)))
+						return
 					}
+
+					if !Task.isCancelled {
+						// Read actual stop reason from sequence; default to maxTokens if unset
+						// (e.g., empty prefix-hit path or early termination edge case)
+						let stopReason: StopReason = sequence.stopReason?.stopReason ?? .maxTokens
+						continuation.yield(.init(kind: .done(stopReason, tokenCount: metrics.generatedTokenCount)))
+					}
+
+					// CoreAI 34f0db3: no per-turn reset. KV cache persists across turns;
+					// TokenHistory.resolve manages prefix reuse and divergence rewind.
+					// Explicit reset only on model switch or hard error.
+
 				} catch {
 					continuation.yield(.init(kind: .error(error.localizedDescription)))
-					return
 				}
-
-				if !Task.isCancelled {
-					// Read actual stop reason from sequence; default to maxTokens if unset
-					// (e.g., empty prefix-hit path or early termination edge case)
-					let stopReason: StopReason = sequence.stopReason?.stopReason ?? .maxTokens
-					continuation.yield(.init(kind: .done(stopReason, tokenCount: metrics.generatedTokenCount)))
-				}
-
-				// CoreAI 34f0db3: no per-turn reset. KV cache persists across turns;
-				// TokenHistory.resolve manages prefix reuse and divergence rewind.
-				// Explicit reset only on model switch or hard error.
-
-			} catch {
-				continuation.yield(.init(kind: .error(error.localizedDescription)))
+			} else {
+				// CoreAI unavailable on this macOS version
+				continuation.yield(.init(kind: .error("CoreAI requires macOS 27.0")))
 			}
 		#else
 			// [KNOWN LIMITATION] MLXLLM ChatSession only accepts [Chat.Message], not raw tokens.

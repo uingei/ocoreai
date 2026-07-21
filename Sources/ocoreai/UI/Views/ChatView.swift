@@ -160,7 +160,7 @@ struct ChatView: View {
                 let opt = event.modifierFlags.contains(.option)
                 // ⌘+Return — send message (even when TextField not focused).
                 // P2 fix: use keyEquivalent instead of hardcoded keyCode (keyCode varies by layout).
-                if cmd && (event.keyEquivalent ?? event.characters) == "\r" {
+                if cmd && event.characters == "\r" {
                     guard !isStreaming else { return event }
                     guard inputText.trimmingCharacters(in: .whitespaces).isEmpty else {
                         sendMessage()

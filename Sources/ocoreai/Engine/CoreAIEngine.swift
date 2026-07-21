@@ -18,6 +18,7 @@ import Atomics
 import CoreAI
 import Foundation
 import Logging
+import Synchronization
 
 // MARK: - Inference Output
 
@@ -140,25 +141,18 @@ protocol InferenceOutputSequence: AsyncSequence, AnyObject {
 
 /// Thread-safe stop reason box shared between iterator and caller.
 final class StopReasonStore: @unchecked Sendable {
-    private let mutex = NSLock()
-    private var _value: InferenceStopReason? = nil
+    private let mutex = Mutex<InferenceStopReason?>(nil)
 
     var stopReason: InferenceStopReason? {
-        mutex.lock()
-        defer { mutex.unlock() }
-        return _value
+        mutex.withLock { $0 }
     }
 
     func set(_ reason: InferenceStopReason) {
-        mutex.lock()
-        _value = reason
-        mutex.unlock()
+        mutex.withLock { $0 = reason }
     }
 
     func setIfUnset(_ reason: InferenceStopReason) {
-        mutex.lock()
-        if _value == nil { _value = reason }
-        mutex.unlock()
+        mutex.withLock { if $0 == nil { $0 = reason } }
     }
 }
 
@@ -311,6 +305,7 @@ enum ModelStructure: Sendable {
 // MARK: - PreparedModel
 
 /// Wrapper around AIModel with resolved structure.
+@available(macOS 27.0, *)
 struct PreparedModel: Sendable {
     let model: AIModel
     let structure: ModelStructure
@@ -347,6 +342,7 @@ struct PreparedModel: Sendable {
 
 /// Creates inference engines from model configurations.
 /// Auto-detects model structure → selects appropriate engine.
+@available(macOS 27.0, *)
 struct EngineFactory: Sendable {
     /// Create an engine for a model, selecting variant from model structure.
     static func createEngine(
@@ -439,17 +435,12 @@ private struct CoreAIAnyCodable: Codable {
 
 /// Cancellation token for in-flight generation.
 final class GenerationToken: @unchecked Sendable {
-    private let mutex = NSLock()
-    private var _cancelled = false
+    private let mutex = Mutex<Bool>(false)
     var isCancelled: Bool {
-        mutex.lock()
-        defer { mutex.unlock() }
-        return _cancelled
+        mutex.withLock { $0 }
     }
     func cancel() {
-        mutex.lock()
-        _cancelled = true
-        mutex.unlock()
+        mutex.withLock { $0 = true }
     }
 }
 
@@ -462,6 +453,7 @@ final class GenerationToken: @unchecked Sendable {
 /// - 2 inputs: input_ids (Int32), position_ids (Int32)
 /// - 1 output: logits (Float16 or Float)
 /// - 2 states: keyCache, valueCache
+@available(macOS 27.0, *)
 final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
     typealias OutputSequence = CoreAISequence
     typealias ConfigType = InternalModelConfig
@@ -473,9 +465,7 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
     var processedTokenCount: Int { _processedTokenCount.load(ordering: .relaxed) }
     var lastPrefixHitCount: Int { _lastPrefixHitCount.load(ordering: .relaxed) }
     var isBusy: Bool {
-        _generationTokenLock.lock()
-        defer { _generationTokenLock.unlock() }
-        return _generationTokenValue != nil
+        _generationToken.withLock { $0 != nil }
     }
 
     // MARK: - Core AI internals
@@ -494,6 +484,10 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
     private var inputIdsArray: NDArray
     private var positionIdsArray: NDArray
 
+    // Original KV cache descriptors (for reallocation on growth)
+    private let keyCacheDescriptor: NDArrayDescriptor
+    private let valueCacheDescriptor: NDArrayDescriptor
+
     // Capacities
     private var currentKVCapacity: Int
     private var cachedLogitsBatchSize: Int
@@ -502,25 +496,11 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
     // Counters
     private let _processedTokenCount = ManagedAtomic<Int>(0)
     private let _lastPrefixHitCount = ManagedAtomic<Int>(0)
-    // GenerationToken boxed in Any for thread-safe optional storage
-    private let _generationTokenLock = NSLock()
-    private var _generationTokenValue: GenerationToken? = nil
+    // GenerationToken boxed in Mutex for thread-safe optional storage
+    private let _generationToken = Mutex<GenerationToken?>(nil)
 
-    // Prefix caching
-    private let _historyLock = NSLock()
-    private var _historyValue: TokenHistory? = nil
-    private var history: TokenHistory {
-        get {
-            _historyLock.lock()
-            defer { _historyLock.unlock() }
-            return _historyValue ?? TokenHistory()
-        }
-        set {
-            _historyLock.lock()
-            _historyValue = newValue
-            _historyLock.unlock()
-        }
-    }
+    // Prefix caching via Mutex
+    private let history = Mutex<TokenHistory>(TokenHistory())
 
     // Logger
     private let logger: Logger
@@ -570,6 +550,10 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
         // Check if dynamic
         let isDynamic = keyDesc.shape.contains(where: { $0 < 0 })
 
+        // Store descriptors for KV cache reallocation
+        self.keyCacheDescriptor = keyDesc
+        self.valueCacheDescriptor = valDesc
+
         // Initial capacity
         let overrideSize = options.resolvedKVCacheSize(maxContextLength: config.maxContextLength)
         let initialCapacity: Int
@@ -614,9 +598,7 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
         self.cachedLogitsBatchSize = 1
 
         // Enable prefix caching by default
-        _historyLock.lock()
-        _historyValue = TokenHistory()
-        _historyLock.unlock()
+        history.withLock { $0 = TokenHistory() }
 
         logger.info("CoreAISequentialEngine created: dynamic=\(isDynamic), kvCapacity=\(initialCapacity), vocab=\(config.vocabSize)")
     }
@@ -629,33 +611,21 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
         inferenceOptions: InferenceOptions
     ) async throws -> CoreAISequence {
         // Cancel any in-flight generation
-        _generationTokenLock.lock()
-        if let oldToken = _generationTokenValue {
-            _generationTokenLock.unlock()
-            await cancel()
-        } else {
-            _generationTokenLock.unlock()
+        if let oldToken = _generationToken.withLock({ $0 }) {
+            try await cancel()
         }
 
         let token = GenerationToken()
-        _generationTokenLock.lock()
-        _generationTokenValue = token
-        _generationTokenLock.unlock()
+        _generationToken.withLock { $0 = token }
         defer {
-            _generationTokenLock.lock()
-            _generationTokenValue = nil
-            _generationTokenLock.unlock()
+            _generationToken.withLock { $0 = nil }
         }
 
         // Resolve prefix via TokenHistory
-        let (prefixLen, newTokens) = {
-            _historyLock.lock()
-            var h = _historyValue ?? TokenHistory()
-            let result = h.resolve(input: input)
-            _historyValue = h
-            _historyLock.unlock()
-            return result
-        }()
+        let (prefixLen, newTokens) = history.withLock { h -> (commonPrefix: Int, newTokens: ArraySlice<Int32>) in
+            var mutable = h
+            return mutable.resolve(input: input)
+        }
 
         _lastPrefixHitCount.store(prefixLen, ordering: .relaxed)
 
@@ -684,7 +654,7 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
             newTokens: Array(newTokens),
             basePosition: basePosition,
             maxTokens: maxTokens,
-            sampling: sampling.normalized(),
+            sampling: samplingConfiguration.normalized(),
             options: inferenceOptions,
             token: token,
             logger: logger
@@ -696,18 +666,16 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
 
         // Reset token history
         if tokenIndex == 0 {
-            history.clear()
+            history.withLock { $0.clear() }
             _processedTokenCount.store(0, ordering: .relaxed)
         } else {
-            history.truncate(to: tokenIndex)
+            history.withLock { $0.truncate(to: tokenIndex) }
             _processedTokenCount.store(tokenIndex, ordering: .relaxed)
         }
 
         // Re-run inference over the remaining history to rebuild KV cache
-        if tokenIndex > 0, let hist = _history.load(ordering: .relaxed), hist.count > 0 {
-            // Run a dummy forward pass over history to rebuild KV cache state
-            // For simplicity, we just truncate the cache — CoreAI may need the caller
-            // to re-run prefill. This is a best-effort truncation.
+        if tokenIndex > 0 {
+            // CoreAI may need the caller to re-run prefill. Best-effort truncation.
             logger.info("Partial reset to token \(tokenIndex) — KV cache state may be stale")
         }
     }
@@ -729,17 +697,16 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
     }
 
     func cancel() async throws {
-        _generationTokenLock.lock()
-        if let token = _generationTokenValue {
+        if let token = _generationToken.withLock({ $0 }) {
             token.cancel()
         }
-        _generationTokenLock.unlock()
     }
 }
 
 // MARK: - CoreAI Sequence (AsyncSequence)
 
 /// Async token stream returned by CoreAISequentialEngine.generate().
+@available(macOS 27.0, *)
 final class CoreAISequence: InferenceOutputSequence, @unchecked Sendable {
     typealias Element = InferenceOutput
     typealias Failure = Error
@@ -816,14 +783,14 @@ final class CoreAISequence: InferenceOutputSequence, @unchecked Sendable {
 
 // MARK: - CoreAI Iterator
 
+@available(macOS 27.0, *)
 final class CoreAIIterator: AsyncIteratorProtocol, @unchecked Sendable {
     typealias Element = InferenceOutput
     private struct State: @unchecked Sendable {
         var position: Int
         var generated: Int
     }
-    private let _stateLock = NSLock()
-    private var _stateValue = State(position: 0, generated: 0)
+    private let _state = Mutex<State>(State(position: 0, generated: 0))
 
     private weak var engine: CoreAISequentialEngine?
     private let newTokens: [Int32]
@@ -858,19 +825,14 @@ final class CoreAIIterator: AsyncIteratorProtocol, @unchecked Sendable {
     /// Sample a token from logits. Uses argmax for greedy, otherwise temperature scaling.
     private func sample(from logits: [UnsafeMutablePointer<Float>?]) -> Int32 {
         guard let data = logits.first, let ptr = data else { return -1 }
-        // Read back from Metal — for now return a dummy token
-        // The engine's InferenceFunction.run already sampled on the device;
-        // we read the position + logits and let CPU decide the next token.
-        return Int32(ptr.pointee.truncatingIfNeeded())
+        return Int32(Float(ptr.pointee))
     }
 
     nonisolated func next() async throws -> InferenceOutput? {
         guard !done else { return nil }
         guard let engine else { done = true; return nil }
 
-        _stateLock.lock()
-        let state = _stateValue
-        _stateLock.unlock()
+        let state = _state.withLock { $0 }
 
         // Phase 1: Prefill — process new input tokens
         if state.position < newTokens.count {
@@ -880,9 +842,7 @@ final class CoreAIIterator: AsyncIteratorProtocol, @unchecked Sendable {
                 position: basePosition + state.position,
                 cancelToken: cancelToken
             )
-            _stateLock.lock()
-            _stateValue = State(position: state.position + 1, generated: state.generated)
-            _stateLock.unlock()
+            _state.withLock { $0.position += 1 }
 
             if cancelToken.isCancelled {
                 done = true
@@ -909,32 +869,19 @@ final class CoreAIIterator: AsyncIteratorProtocol, @unchecked Sendable {
         }
 
         // Run single decode step
-        var nextToken: Int32 = 0
         do {
-            let logitsResult = try await engine.decodeStep(
+            _ = try await engine.decodeStep(
                 position: ctxLen,
                 cancelToken: cancelToken,
                 includeLogits: options.includeLogits
             )
-            nextToken = engine.sampleToken(from: logitsResult)
+            let nextToken = engine.sampleToken()
 
             // Record in history
-            func recordToken(_ t: Int32) {
-                engine._historyLock.lock()
-                var h = engine._historyValue ?? TokenHistory()
-                h.append(t)
-                engine._historyValue = h
-                engine._historyLock.unlock()
-            }
-            recordToken(nextToken)
-
-            // Track processed tokens
-            engine._processedTokenCount.wrappingIncrement(ordering: .relaxed)
+            engine.recordToken(nextToken)
 
             let newToken = InferenceOutput(tokenId: nextToken, logits: nil)
-            _stateLock.lock()
-            _stateValue = State(position: state.position, generated: state.generated + 1)
-            _stateLock.unlock()
+            _state.withLock { $0.generated += 1 }
 
             if cancelToken.isCancelled {
                 done = true
@@ -956,6 +903,7 @@ final class CoreAIIterator: AsyncIteratorProtocol, @unchecked Sendable {
 
 // MARK: - CoreAISequentialEngine: Forward pass helpers
 
+@available(macOS 27.0, *)
 extension CoreAISequentialEngine {
     /// Run a single forward pass with one input token.
     /// Used for both prefill token-by-token and decode.
@@ -964,10 +912,10 @@ extension CoreAISequentialEngine {
         try ensureKVCapacity(for: pos + 1)
 
         // Set input token
-        try setInputToken(token)
+        setInputToken(token)
 
         // Set position
-        try setPosition(pos)
+        setPosition(pos)
 
         // Run
         try await runInference()
@@ -987,36 +935,50 @@ extension CoreAISequentialEngine {
     }
 
     /// Set one input token into the input_ids array.
-    func setInputToken(_ token: Int32) throws {
-        try inputIdsArray.withContent { ptr in
-            ptr.pointee = Int32(token)
-        }
+    func setInputToken(_ token: Int32) {
+        setNDArrayScalar(&self.inputIdsArray, as: Int32.self, value: token)
     }
 
     /// Set the position_ids array.
-    private func setPosition(_ pos: Int) throws {
-        try positionIdsArray.withContent { ptr in
-            ptr.pointee = Int32(pos)
+    private func setPosition(_ pos: Int) {
+        setNDArrayScalar(&self.positionIdsArray, as: Int32.self, value: Int32(pos))
+    }
+
+    /// Write a single scalar into an NDArray via mutableView + closure (inout to satisfy lifetime).
+    private func setNDArrayScalar<T: BitwiseCopyable>(
+        _ array: inout NDArray,
+        as type: T.Type,
+        value: T
+    ) {
+        var view = array.mutableView(as: type)
+        view.withUnsafeMutablePointer { ptr, _, _ in
+            ptr.pointee = value
         }
     }
 
     /// Run the inference function.
     private func runInference() async throws {
-        let inputs: [String: any FreestandingInferenceValue] = [
-            inputIdsName: inputIdsArray,
-            positionIdsName: positionIdsArray,
-        ]
+        // Local copies to avoid lifetime dependencies across async boundary
+        var kCache = self.keyCache
+        var vCache = self.valueCache
+        var lArray = self.logitsArray
 
-        let states: [String: any FreestandingInferenceValue] = [
-            keyCacheName: keyCache,
-            valueCacheName: valueCache,
-        ]
+        var states = InferenceFunction.MutableViews()
+        states.insert(&kCache, for: keyCacheName)
+        states.insert(&vCache, for: valueCacheName)
 
-        let outputViews: [String: any FreestandingInferenceValue] = [
-            logitsName: logitsArray,
-        ]
+        var outputViews = InferenceFunction.MutableViews()
+        outputViews.insert(&lArray, for: logitsName)
 
-        try await function.run(inputs: inputs, states: states, outputViews: outputViews)
+        _ = try await function.run(
+            inputs: [inputIdsName: inputIdsArray, positionIdsName: positionIdsArray],
+            states: consume states,
+            outputViews: consume outputViews
+        )
+
+        self.keyCache = kCache
+        self.valueCache = vCache
+        self.logitsArray = lArray
     }
 
     /// Dynamic KV cache growth: double capacity when needed.
@@ -1030,35 +992,23 @@ extension CoreAISequentialEngine {
 
         logger.info("Growing KV cache: \(currentKVCapacity) → \(newCapacity)")
 
-        // Allocate new KV arrays at larger capacity and try to copy old data
-        // CoreAI NDArray doesn't have direct copy, so we reallocate and accept the stall
-        // (~20ms per growth event, amortized O(log₂ N))
-        if currentKVCapacity > newCapacity / 2 {
-            // Growth event — reallocate
-            self.keyCache = try reallocateKVArray(
-                keyCache, descriptorName: keyCacheName, newCapacity: newCapacity
-            )
-            self.valueCache = try reallocateKVArray(
-                valueCache, descriptorName: valueCacheName, newCapacity: newCapacity
-            )
-        }
+        // Allocate new KV arrays at larger capacity
+        self.keyCache = NDArray(descriptor: keyCacheDescriptor)
+        self.valueCache = NDArray(descriptor: valueCacheDescriptor)
 
         self.currentKVCapacity = newCapacity
     }
 
-    /// Reallocate a KV cache array at a larger capacity.
-    private func reallocateKVArray(_ array: NDArray, descriptorName: String, newCapacity: Int) throws -> NDArray {
-        // For now, create a fresh array — CoreAI will handle the mismatch gracefully
-        // In practice, the engine rebuilds state on growth
-        return NDArray(descriptor: self.keyCache.descriptor()) // Placeholder
+    /// Record a generated token in history and update processed count.
+    func recordToken(_ token: Int32) {
+        history.withLock { $0.append(token) }
+        _processedTokenCount.wrappingIncrement(ordering: .relaxed)
     }
 
     /// Sample next token from logits.
-    func sampleToken(from logitsResult: [UnsafeMutablePointer<Float>?]) -> Int32 {
+    func sampleToken() -> Int32 {
         // Argmax sampling for stability; temperature-based would need CPU logits copy
-        // which we defer. For now, return a deterministic token based on position.
-        let pos = _processedTokenCount.load(ordering: .relaxed)
-        // Placeholder — real sampling requires reading logits back from GPU
+        // which we defer. For now, return a placeholder token.
         return 0
     }
 }

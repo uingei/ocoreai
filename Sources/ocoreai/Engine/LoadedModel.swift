@@ -36,27 +36,28 @@ final class LoadedModel: @unchecked Sendable {
 	let modelConfig: ModelConfig
 
 	#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-		/// v15: Specialized Core AI model — compiled once at load time, reused across requests
-		let preparedModel: CoreAIPreparedModel
-
-		/// Engine options (KV cache strategy, etc.)
-		let engineOptions: EngineOptions
+		/// v15: Specialized Core AI model — compiled once at load time, reused across requests.
+		/// Stored as Any? to break @available(27.0) transitive leakage into LoadedModel.
+		var _preparedModel: Any?
 
 		/// Cached inference engine — created once per LoadedModel, reused across requests.
 		/// CoreAI 34f0db3: engine preserves KV cache across turns; no per-turn reset needed.
 		private var cachedEngine: (any InferenceEngine)?
 	#endif
 
-		/// MLXLLM model handle — loaded once at load time, reused across inference
-		var mlxModelHandle: (any MLXModelHandle)?
-		/// Whether this model is a VLM (multi-modal: vision + language)
-		/// Set during loadModel() via MLXModelLoader.isVLMModel detection.
-		var isVlm: Bool = false
-		var kvCacheQuantization: KVCacheQuantizationConfig = .default
-		/// Speculative decoding config from backend settings. Set via setSpecDecodingConfig.
-		var specDecodingConfig: SpecDecodingConfig = .default
-		/// Draft model for speculative decoding — loaded by EnginePool, reused across sessions.
-		private var draftModelHandle: (any MLXModelHandle)?
+	/// Engine options (KV cache strategy, etc.)
+	let engineOptions: EngineOptions
+
+	/// MLXLLM model handle — loaded once at load time, reused across inference
+	var mlxModelHandle: (any MLXModelHandle)?
+	/// Whether this model is a VLM (multi-modal: vision + language)
+	/// Set during loadModel() via MLXModelLoader.isVLMModel detection.
+	var isVlm: Bool = false
+	var kvCacheQuantization: KVCacheQuantizationConfig = .default
+	/// Speculative decoding config from backend settings. Set via setSpecDecodingConfig.
+	var specDecodingConfig: SpecDecodingConfig = .default
+	/// Draft model for speculative decoding — loaded by EnginePool, reused across sessions.
+	private var draftModelHandle: (any MLXModelHandle)?
 
 	/// Logger for observability
 	let logger: Logger
@@ -65,7 +66,7 @@ final class LoadedModel: @unchecked Sendable {
 
 	/// Configure speculative decoding for this loaded model.
 	/// Called once after model loading, before any inference session is created.
-		func setSpecDecodingConfig(_ config: SpecDecodingConfig) {
+	func setSpecDecodingConfig(_ config: SpecDecodingConfig) {
 			specDecodingConfig = config
 		}
 
@@ -132,18 +133,20 @@ final class LoadedModel: @unchecked Sendable {
 		let startTime = ContinuousClock.now
 
 #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-		do {
-			// Use cached engine — CoreAI 34f0db3: single engine per model preserves KV cache
-			let engine = try await getCachedEngine()
-			let seq = try await engine.generate(
-				with: Array(repeating: 0, count: 8),
-				samplingConfiguration: SamplingConfiguration(),
-				inferenceOptions: InferenceOptions(maxTokens: warmupTokens),
-			)
-			// Drain stream to complete warmup
-			for try await _ in seq {}
-		} catch {
-			logger.warning("Warmup skipped (non-fatal): \(error)")
+		if #available(macOS 27.0, *) {
+			do {
+				// Use cached engine — CoreAI 34f0db3: single engine per model preserves KV cache
+				let engine = try await getCachedEngine()
+				let seq = try await engine.generate(
+					with: Array(repeating: 0, count: 8),
+					samplingConfiguration: SamplingConfiguration(),
+					inferenceOptions: InferenceOptions(maxTokens: warmupTokens),
+				)
+				// Drain stream to complete warmup
+				for try await _ in seq {}
+			} catch {
+				logger.warning("Warmup skipped (non-fatal): \(error)")
+			}
 		}
 	#else
 		do {
@@ -229,6 +232,7 @@ final class LoadedModel: @unchecked Sendable {
 		/// Uses dedicated ``engineCacheGuard`` CAS to protect cache initialization.
 		/// Decoupled from ``inferenceGuard`` so that concurrent inference requests
 		/// are NOT rejected while the engine is still being created.
+		@available(macOS 27.0, *)
 		func getCachedEngine() async throws -> any InferenceEngine {
 			// Fast path: check cache without lock
 			if let cached = cachedEngine {
@@ -270,43 +274,37 @@ final class LoadedModel: @unchecked Sendable {
 
 	// MARK: - Initialization
 
-	#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-				/// Create a loaded model instance with resolved config, weights, specialized model, and engine options.
-				///
-				/// - Parameters:
-				///   - configData: Raw config binary
-				///   - modelURL: Weight filesystem path
-				///   - modelConfig: Parsed model configuration
-				///   - preparedModel: v15 specialized Core AI model (cached for reuse)
-				///   - logger: Observability logger
-				init(configData: Data, modelURL: URL, modelConfig: ModelConfig, preparedModel: CoreAIPreparedModel, logger: Logger) {
-					self.configData = configData
-					self.modelURL = modelURL
-					self.modelConfig = modelConfig
-					self.preparedModel = preparedModel
-					engineOptions = EngineOptions(kvCacheStrategy: .auto)
-					mlxModelHandle = nil
-					self.logger = logger
-				}
-
-				/// Set MLX model handle (used by fallback path when CoreAI load crashes).
-				func setMLXHandle(_ handle: any MLXModelHandle) {
-					mlxModelHandle = handle
-				}
-	#else // coreai — mlx path
-			/// Initialize model (mlx handle or neither-build stub).
-			/// In mlx mode, ``mlxModelHandle`` is set via ``setMLXHandle(_:)`` after init.
-			init(configData: Data, modelURL: URL, modelConfig: ModelConfig, logger: Logger) {
-				self.configData = configData
-				self.modelURL = modelURL
-				self.modelConfig = modelConfig
-				mlxModelHandle = nil
-				self.logger = logger
-			}
-
-			/// Set MLX model handle after model loading completes.
-			func setMLXHandle(_ handle: any MLXModelHandle) {
-				mlxModelHandle = handle
-			}
+	/// Set MLX model handle after model loading completes.
+	/// Defined at class level — `mlxModelHandle` is always available regardless of #if config.
+	func setMLXHandle(_ handle: any MLXModelHandle) {
+		mlxModelHandle = handle
+	}
+	
+#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+		/// CoreAI-specific initializer.
+		init(configData: Data, modelURL: URL, modelConfig: ModelConfig, preparedModel: Any?, logger: Logger) {
+			self.configData = configData
+			self.modelURL = modelURL
+			self.modelConfig = modelConfig
+			self._preparedModel = preparedModel
+			engineOptions = EngineOptions(kvCacheStrategy: .auto)
+			mlxModelHandle = nil
+			self.logger = logger
+		}
+	#else
+		/// MLX/fallback initializer (CoreAI disabled or absent).
+		init(configData: Data, modelURL: URL, modelConfig: ModelConfig, logger: Logger) {
+			self.configData = configData
+			self.modelURL = modelURL
+			self.modelConfig = modelConfig
+			engineOptions = EngineOptions(kvCacheStrategy: .auto)
+			#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+				_preparedModel = nil
+			#else
+				// _preparedModel not declared when CoreAI absent
+			#endif
+			mlxModelHandle = nil
+			self.logger = logger
+		}
 	#endif
 }

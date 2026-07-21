@@ -29,7 +29,8 @@
 	///
 	/// Created once at model load time. Reused for every inference call on that model,
 	/// eliminating the per-request ``EngineFactory.createEngine`` compilation overhead.
-	final class CoreAIModelHandle: @unchecked Sendable {
+	@available(macOS 27.0, *)
+final class CoreAIModelHandle: @unchecked Sendable {
 		// MARK: - Core AI State
 
 		/// The specialized model instance, alive for the model's entire lifecycle.
@@ -79,27 +80,27 @@
 
 				let model: AIModel
 				if let cache {
-					model = try await asset.specialize(options: specializationOptions, cache: cache)
+					model = try await AIModel.specialize(contentsOf: modelURL, options: specializationOptions, cache: cache)
 					logger.info("AIModel specialized with cache")
 				} else {
-					model = try await asset.specialize(options: specializationOptions)
+					model = try await AIModel.specialize(contentsOf: modelURL, options: specializationOptions)
 					logger.info("AIModel specialized without cache")
 				}
 
+				let elapsed = start.duration(to: start + (ContinuousClock.now - start))
 				let end = ContinuousClock.now
-				let elapsed = end.duration(from: start)
-				logger.info("Specialization completed in \(String(format: "%.1fms", Double(elapsed.components.seconds) * 1000 + Double(elapsed.components.attoseconds) / 1e15))")
+				logger.info("Specialization completed in \(String(format: "%.1fms", Double((end - start).components.seconds) * 1000 + Double((end - start).components.attoseconds) / 1e15))")
 
 				return CoreAIModelHandle(
 					isSpecialized: true,
 					computeUnitKind: computeUnitKind,
-					specializationDuration: elapsed,
+					specializationDuration: end - start,
 					specializationError: nil,
 				)
 
-			} catch {
+				} catch {
 				// Record the error so callers can inspect it later.
-				let errorMsg = (error as? AssetError).map(String.init) ?? error.localizedDescription
+				let errorMsg = error.localizedDescription
 				logger.warning("Core AI specialization failed (\(errorMsg)) — falling back to EngineFactory")
 				return CoreAIModelHandle(
 					isSpecialized: false,
@@ -136,7 +137,8 @@
 	/// Retained as structural placeholder so the specialization pipeline wires
 	/// through a consistent cache reference. Replace with real AIModelCache
 	/// once SDK is available. See ROADMAP.md.
-	final class CoreAICacheManager: @unchecked Sendable {
+	@available(macOS 27.0, *)
+final class CoreAICacheManager: @unchecked Sendable {
 		/// Default cache directory path
 		static let defaultCachePath = "/tmp/ocoreai-model-cache"
 
@@ -167,7 +169,8 @@
 	// MARK: - Compute Unit Configuration
 
 	/// Configurable compute unit targeting for model specialization.
-	enum CoreAIComputeTarget: String, Codable {
+	@available(macOS 27.0, *)
+enum CoreAIComputeTarget: String, Codable {
 		/// Automatic selection (recommended default)
 		case automatic
 
@@ -194,7 +197,8 @@
 	// MARK: - Specialization Result
 
 	/// Result of a model specialization attempt.
-	struct SpecializationResult {
+	@available(macOS 27.0, *)
+struct SpecializationResult {
 		/// Whether specialization succeeded
 		let succeeded: Bool
 
@@ -211,7 +215,8 @@
 	// MARK: - Error Types
 
 	/// Errors specific to Core AI bridge operations.
-	enum CoreAIBridgeError: Error, LocalizedError {
+	@available(macOS 27.0, *)
+enum CoreAIBridgeError: Error, LocalizedError {
 		/// The official Core AI specialization failed, fell back to EngineFactory
 		case specializationFailed(String)
 

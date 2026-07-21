@@ -15,6 +15,7 @@ import Logging
 ///
 /// - **After (v15)**: `AIModel(contentsOf:options:)` at load time,
 ///   `InferenceFunction` reused across requests via ``CoreAIModelHandle``
+@available(macOS 27.0, *)
 struct CoreAIPreparedModel: @unchecked Sendable {
 	/// The specialized AIModel, ready for inference (nil when using fallback path).
 	let aiModel: AIModel?
@@ -76,6 +77,7 @@ public struct ComputeTarget: Codable, Sendable {
 		case neuralEngine
 
 		/// Convert to ``ComputeUnitKind``
+		@available(macOS 27.0, *)
 		var computeUnitKind: ComputeUnitKind {
 			switch self {
 			case .any: .gpu
@@ -90,6 +92,7 @@ public struct ComputeTarget: Codable, Sendable {
 	var kind: Kind = .any
 
 	/// Convert to ``ComputeUnitKind``
+	@available(macOS 27.0, *)
 	var computeUnitKind: ComputeUnitKind {
 		kind.computeUnitKind
 	}
@@ -127,6 +130,8 @@ struct CoreAILoadingConfig: Codable, Sendable {
 ///
 /// Reference: coreai-models uses `AIModel(contentsOf:options:)` directly.
 /// `AIModelAsset` is only used for structure probing (not specialization).
+/// @available(macOS 27.0, *) because this actor stores AIModel references.
+@available(macOS 27.0, *)
 actor CoreAIModelLoader {
 	// MARK: - State
 
