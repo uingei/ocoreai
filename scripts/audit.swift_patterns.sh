@@ -52,11 +52,12 @@ touch "$WHITELIST" 2>/dev/null || true
 check "Class-F: .first! force unwrap" '\.first!' \
     "test|Test"
 
-# --- Class-B: Hardcoded UI strings (user-facing only) ---
+# --- Class-B: Hardcoded UI in view layer ---
 # Only flag lines from: AppState.swift, StatusPill.swift, StatusView.swift, SettingsStore.swift, AppTabs, Views/
+# CoreAIEngine: errorDescription switch cases are LocalizedError implementations, not UI strings
 check "Class-B: Hardcoded UI in view layer" \
     'return\s*"[A-Z][a-z]' \
-    "Localization.swift|systemName|SystemName|errorDescription|ToolEntry|DownloadManager|ConfigStruct|KeychainStore|Scheduler|MCPServer|OpenAIModels|ModelScopeDownloader|HuggingFaceDownloader|SQLiteStore|SkillModels|MLXBridge|CoreAIBridge|EngineInference|Profiling|ThinkingBudget"
+    "Localization.swift|systemName|SystemName|errorDescription|ToolEntry|DownloadManager|ConfigStruct|KeychainStore|Scheduler|MCPServer|OpenAIModels|ModelScopeDownloader|HuggingFaceDownloader|SQLiteStore|SkillModels|MLXBridge|CoreAIBridge|EngineInference|Profiling|ThinkingBudget|CoreAIEngine"
 
 # --- Class-A: Empty catch ---
 check "Class-A: Empty catch" 'catch\s*{[[:space:]]*}' \
