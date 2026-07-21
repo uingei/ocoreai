@@ -282,7 +282,7 @@ final class LoadedModel: @unchecked Sendable {
 	
 #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 		/// CoreAI-specific initializer.
-		init(configData: Data, modelURL: URL, modelConfig: ModelConfig, preparedModel: Any?, logger: Logger) {
+		init(configData: Data, modelURL: URL, modelConfig: ModelConfig, preparedModel: Any? = nil, logger: Logger) {
 			self.configData = configData
 			self.modelURL = modelURL
 			self.modelConfig = modelConfig
@@ -291,7 +291,7 @@ final class LoadedModel: @unchecked Sendable {
 			mlxModelHandle = nil
 			self.logger = logger
 		}
-	#else
+#else
 		/// MLX/fallback initializer (CoreAI disabled or absent).
 		init(configData: Data, modelURL: URL, modelConfig: ModelConfig, logger: Logger) {
 			self.configData = configData
@@ -306,5 +306,5 @@ final class LoadedModel: @unchecked Sendable {
 			mlxModelHandle = nil
 			self.logger = logger
 		}
-	#endif
+#endif
 }
