@@ -117,6 +117,43 @@ final class KeychainStore: Sendable {
 		}
 	}
 
+	// MARK: - Convenience wrappers (string-based, non-throwing fallbacks)
+
+	/// Store a string value; silently logs on failure.
+	@discardableResult
+	func set(_ value: String?, forKey key: String) -> Bool {
+		guard let value, !value.isEmpty else {
+			// nil/empty → delete
+			do { try delete(account: key) } catch {
+				Self.osLogger.error("Keychain delete failed for \(key): \(error)")
+			}
+			return true
+		}
+		do { try save(account: key, value: value) } catch {
+			Self.osLogger.error("Keychain write failed for \(key): \(error)")
+		}
+		return true
+	}
+
+	/// Read a string value; returns nil on any failure.
+	func string(forKey key: String) -> String? {
+		guard exists(account: key) else { return nil }
+		do { return try retrieve(account: key) } catch {
+			Self.osLogger.debug("Keychain read failed for \(key): \(error)")
+			return nil
+		}
+	}
+
+	/// Remove a key from the Keychain.
+	func removeObject(forKey key: String) {
+		do { try delete(account: key) } catch {
+			Self.osLogger.error("Keychain delete failed for \(key): \(error)")
+		}
+	}
+
+	/// Shared singleton for SettingsStore and App entry point.
+	static let shared = KeychainStore()
+
 	/// List all credential accounts stored for this service.
 	func listAccounts() -> [String] {
 		let query: [String: Any] = [

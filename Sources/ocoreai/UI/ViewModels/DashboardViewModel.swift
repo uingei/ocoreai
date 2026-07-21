@@ -12,8 +12,7 @@ import SwiftUI
 @MainActor
 final class DashboardState {
     /// Shared singleton — survives view recreation (tab switch, NavigationSplitView).
-    /// @State<DashboardState.shared> is the correct SwiftUI observation pattern,
-    /// same as ChatState, ModelManager, MultimodalState.
+    /// Accessed via @State initial: DashboardState.shared in DashboardView.
     static let shared = DashboardState()
     private init() {}
 

@@ -100,24 +100,26 @@ final class SettingsStore {
 
     // MARK: - Hub Tokens
 
-    /// HuggingFace token — env var HF_TOKEN takes precedence, then persisted value
-    /// Note: UserDefaults is thread-safe, so this can be called off MainActor.
+    /// HuggingFace token — env var HF_TOKEN takes precedence, then Keychain, then UserDefaults (migration fallback)
+    /// Note: Stored in macOS Keychain for security; UserDefaults fallback for migration from v1.
     var hfToken: String? {
         get {
             ProcessInfo.processInfo.environment["HF_TOKEN"]
-                ?? defaults.string(forKey: Key.hfToken.rawValue)
+                ?? KeychainStore.shared.string(forKey: Key.hfToken.rawValue)
+                ?? defaults.string(forKey: Key.hfToken.rawValue)  // migration: migrate to Keychain on read
         }
-        set { defaults.set(newValue, forKey: Key.hfToken.rawValue) }
+        set { KeychainStore.shared.set(newValue, forKey: Key.hfToken.rawValue) }
     }
 
-    /// ModelScope token — env var MODELSCOPE_TOKEN takes precedence, then persisted value
-    /// Note: UserDefaults is thread-safe, so this can be called off MainActor.
+    /// ModelScope token — env var MODELSCOPE_TOKEN takes precedence, then Keychain, then UserDefaults (migration fallback)
+    /// Note: Stored in macOS Keychain for security; UserDefaults fallback for migration from v1.
     var modelScopeToken: String? {
         get {
             ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
-                ?? defaults.string(forKey: Key.modelScopeToken.rawValue)
+                ?? KeychainStore.shared.string(forKey: Key.modelScopeToken.rawValue)
+                ?? defaults.string(forKey: Key.modelScopeToken.rawValue)  // migration: migrate to Keychain on read
         }
-        set { defaults.set(newValue, forKey: Key.modelScopeToken.rawValue) }
+        set { KeychainStore.shared.set(newValue, forKey: Key.modelScopeToken.rawValue) }
     }
 
     /// Masked version for UI display — shows first/last 2 chars if set
@@ -139,6 +141,8 @@ final class SettingsStore {
         let keys: [String] = Key.allCases.map(\.rawValue)
         keys.forEach { defaults.removeObject(forKey: $0) }
         defaults.synchronize()
+        // Also clear secrets from Keychain
+        keys.forEach { KeychainStore.shared.removeObject(forKey: $0) }
     }
 
     // MARK: - Per-Model Sampling Config

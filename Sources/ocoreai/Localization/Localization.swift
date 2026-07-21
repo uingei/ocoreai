@@ -550,7 +550,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.resetConfirm: "Are you sure? This wipes all saved settings.",
 		.allSections: "All Settings",
 		.hubTokensTitle: "Hub Tokens",
-		.hubTokensHint: "Tokens for accessing model hubs (HuggingFace, ModelScope). Stored securely in UserDefaults.",
+		.hubTokensHint: "Tokens for accessing model hubs (HuggingFace, ModelScope). Stored securely in macOS Keychain.",
 		.notConfigured: "Not configured",
 		.enterTokenPlaceholder: "Enter token...",
 		.hubHuggingFace: "HuggingFace",

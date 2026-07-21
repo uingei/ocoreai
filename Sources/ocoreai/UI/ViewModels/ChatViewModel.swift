@@ -119,7 +119,8 @@ final class ChatState {
     private static let logger = Logger(label: "ocoreai.chat")
 
     /// Shared singleton — survives view recreation (tab switch, NavigationSplitView).
-    /// @State<ChatState.shared> is the correct SwiftUI observation pattern, same as ModelManager.
+    /// Accessed as `@State initial: ChatState.shared` in ChatView to hold the
+    /// @Observable reference — mutation tracking works through the singleton's identity.
     static let shared = ChatState()
     private init() {}
 
