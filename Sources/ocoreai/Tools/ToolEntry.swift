@@ -112,7 +112,51 @@ enum ParameterType: String, Codable, CaseIterable {
 	case array
 }
 
-/// Tool execution errors
+// MARK: - ToolDef bridge
+
+extension ToolEntry {
+	/// Convert to OpenAI-format ToolDef — used by Fast Path callers.
+	func toToolDef() -> ToolDef {
+		let function = FunctionDef(
+			name: name,
+			description: "Tool: \(name) [\(toolset)]. Parameters: \(parametersDescription)",
+			parameters: buildParametersJSON()
+		)
+		return ToolDef(type: "function", function: function)
+	}
+
+	private var parametersDescription: String {
+		schema.parameters.map { "\($0.key):\($0.value.rawValue)" }.joined(separator: ", ")
+	}
+
+	private func buildParametersJSON() -> [String: AnyCodable]? {
+		guard !schema.parameters.isEmpty else { return nil }
+		var properties: [String: AnyCodable] = [:]
+		for (paramName, paramType) in schema.parameters {
+			properties[paramName] = AnyCodable(paramType.jsonSchemaType)
+		}
+		var json: [String: AnyCodable] = [
+			"type": AnyCodable("object"),
+			"properties": AnyCodable(properties),
+		]
+		// Mark all declared parameters as required
+		json["required"] = AnyCodable(Array(schema.parameters.keys))
+		return json
+	}
+}
+
+private extension ParameterType {
+	var jsonSchemaType: String {
+		switch self {
+		case .string: return "string"
+		case .integer: return "integer"
+		case .boolean: return "boolean"
+		case .array: return "array"
+		}
+	}
+}
+
+// MARK: - Tool execution errors
 enum ToolError: Error, LocalizedError {
 	case notFound(String)
 	case invalidParameter(String)

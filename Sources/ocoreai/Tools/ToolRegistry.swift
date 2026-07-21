@@ -73,6 +73,22 @@ actor ToolRegistry {
 		Array(tools.keys).sorted()
 	}
 
+	/// List all registered tool entries (name + schema) — used to expose tools
+	/// to Fast Path callers for function calling.
+	func listToolEntries() -> [(name: String, toolset: String, schema: ToolSchema)] {
+		tools.values.compactMap { entry in
+			(entry.name, entry.toolset, entry.schema)
+		}
+	}
+
+	/// Convert all registered tools to OpenAI-format ToolDef array.
+	/// Bridges ToolRegistry → InferenceRequest / AgentLoop tool definitions.
+	func toToolDefs() -> [ToolDef] {
+		tools.values.compactMap { entry in
+			entry.toToolDef()
+		}
+	}
+
 	/// List tools in a specific toolset
 	func listByToolset(_ toolset: String) -> [String] {
 		byToolset[toolset] ?? []

@@ -194,6 +194,11 @@ final class ChatState {
     /// nil means no session yet (will be created on first chat).
     private var sessionId: Int64?
 
+    /// Stable UUID string passed to InferenceRequest.sessionId.
+    /// P0-fix: persists across multiple chat() calls within the same conversation,
+    /// so ThinkingBudget adaptive calibration and ComplexityAnalyzer tracking actually work.
+    private var inferenceSessionId: String?
+
     /// Current model for session scoping.
     private var activeModelId: String?
 
@@ -261,18 +266,27 @@ final class ChatState {
         
         // Unload the old model if it differs from the new one
         if let oldModel = activeModelId, oldModel != newModelId {
-            pendingUnloadTask = Task { [oldModel] in
+            // P1-fix: Asynchronous model cleanup — unload old model, reset session
+            // for new model, but preserve UI message history for conversation continuity.
+            Task { @MainActor in
                 guard !Task.isCancelled else { return }
-                guard let pool = OcoreaiEngine.shared.activeEnginePool else { return }
-                await pool.unloadModel(oldModel)
+                // Unload old model from GPU
+                if let pool = OcoreaiEngine.shared.activeEnginePool {
+                    await pool.unloadModel(oldModel)
+                }
+                // Create new SQLite session for the new model
+                if let sc = OcoreaiEngine.shared.activeSessionCompressor {
+                    do {
+                        self.sessionId = try await sc.createSession(modelId: newModelId)
+                    } catch {
+                        Self.logger.warning("Model switch: failed to create session: \(error.localizedDescription)")
+                    }
+                }
+                self.activeModelId = newModelId
+                self.inferenceSessionId = "chat-\(UUID().uuidString.prefix(8))"
+                // P1-fix: Clear only the streaming response text — preserve messages
+                self.responseText = ""
             }
-            
-            // P1-fix: Model switched — clear old conversation history to prevent
-            // old-model messages from being sent with the new model's inference context.
-            messages = []
-            responseText = ""
-            activeModelId = newModelId
-            sessionId = nil // Force a fresh session for the new model
         }
     }
 
@@ -340,6 +354,10 @@ final class ChatState {
             // Clean up old session model association before creating new one
             activeModelId = modelId
             sessionId = try await compressor.createSession(modelId: modelId)
+            // P0-fix: Create a stable inference session UUID that persists across
+            // multiple chat() calls — ThinkingBudget adaptive calibration requires
+            // a consistent key to accumulate quality multipliers.
+            inferenceSessionId = "chat-\(UUID().uuidString.prefix(8))"
         } catch {
             // Non-fatal: continue with in-memory mode
             Self.logger.warning("Failed to create session: \(error.localizedDescription)")
@@ -501,7 +519,7 @@ final class ChatState {
                 modelId: model,
                 messages: typedMessages,
                 systemPrompt: systemPrompt.isEmpty ? nil : systemPrompt,
-                sessionId: "chat-\(UUID().uuidString.prefix(8))",
+                sessionId: inferenceSessionId ?? "chat-\(UUID().uuidString.prefix(8))",
                 cancellation: cancellation,
             )
 
