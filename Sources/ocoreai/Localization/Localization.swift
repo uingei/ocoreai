@@ -444,6 +444,7 @@ public enum StringKey: String, CaseIterable {
 	case memorySearchFailed = "Common.MemorySearchFailed"
 	case memoryLoadFailed = "Common.MemoryLoadFailed"
 	case settingsResetToDefaults = "Settings.ResetToDefaults"
+	case cancelButton = "Common.Cancel"
 
 	// — Model Search —
 	case modelSearchQuickLoad = "ModelSearch.QuickLoad"
@@ -570,6 +571,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.sectionServer: "Server",
 		.sectionModels: "Models",
 		.sectionGeneral: "General",
+		.sectionSystem: "System",
+		.sectionWorkflow: "Workflow",
 
 		// Quick Metrics
 		.metricOverview: "Overview",
@@ -767,6 +770,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.memorySearchFailed: "Memory search failed",
 		.memoryLoadFailed: "Failed to load memory",
 		.settingsResetToDefaults: "Settings reset to defaults",
+		.cancelButton: "Cancel",
 		.refreshButton: "Refresh",
 		.tryAgain: "Try Again",
 		.copyMessage: "Copy Message",
@@ -975,16 +979,39 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.clearConversationTitle: "清空对话？",
 		.clearAllAction: "全部清空",
 		.clearConversationMessage: "此操作将删除当前对话的所有消息。可使用 ⌘Z 撤销。",
-		.fileTooLarge: "文件过大 (max 10 MB)",
+		.fileTooLarge: "文件过大 (%@) (max 10 MB)",
 		.generationFailed: "生成失败",
-		.skillRegistryUnavailable: "Skills registry not available",
-		.sessionCompressorUnavailable: "Session compressor not available",
-		.sessionLoadFailed: "Failed to load sessions",
-		.sessionSummaryLoadFailed: "Failed to load session summary",
-		.sessionDeleteFailed: "Failed to delete session",
-		.memorySearchFailed: "Memory search failed",
-		.memoryLoadFailed: "Failed to load memory",
-		.settingsResetToDefaults: "Settings reset to defaults",
+		.skillRegistryUnavailable: "技能注册表不可用",
+		.sessionCompressorUnavailable: "会话压缩器不可用",
+		.sessionLoadFailed: "加载会话失败",
+		.sessionSummaryLoadFailed: "加载会话摘要失败",
+		.sessionDeleteFailed: "删除会话失败",
+		.memorySearchFailed: "记忆搜索失败",
+		.memoryLoadFailed: "加载记忆失败",
+		.settingsResetToDefaults: "设置已恢复默认",
+		
+		// Missing zhHans keys (P1 fix: 18 keys)
+		.enterTokenPlaceholder: "输入 Token…",
+		.hubHuggingFace: "HuggingFace",
+		.hubModelScope: "ModelScope",
+		.hubTokensHint: "模型 Hub 访问 Token（HuggingFace、ModelScope）。安全存储在 macOS 钥匙串中。",
+		.hubTokensTitle: "Hub Token",
+		.metricGPUMemory: "GPU 显存",
+		.metricOverview: "概览",
+		.metricOverviewAccessibility: "系统概览",
+		.metricSessions: "会话",
+		.metricStatus: "状态",
+		.metricStatusActive: "活跃",
+		.metricStatusIdle: "空闲",
+		.metricThroughput: "吞吐量",
+		.notConfigured: "未配置",
+		.sectionGeneral: "通用",
+		.sectionModels: "模型",
+		.sectionServer: "服务",
+		.sectionSystem: "系统",
+		.sectionWorkflow: "工作流",
+		.sidebarNavigation: "导航",
+		.cancelButton: "取消",
 
 		// Dashboard
 		.dashboardTitle: "仪表盘",

@@ -543,7 +543,7 @@ final class ChatState {
                     if chunk.stopReason == "error" {
                         Self.logger.warning("Inference ended with error after accumulating \(responseText.utf8.count) bytes")
                         // D1 fix: surface actual error from inference layer instead of generic placeholder
-                        errorMessage = chunk.error ?? "Generation failed"
+                        errorMessage = chunk.error ?? StringKey.generationFailed.l
                         responseText = ""
                     } else {
                         // Conversation complete — build structured parts from responseText.

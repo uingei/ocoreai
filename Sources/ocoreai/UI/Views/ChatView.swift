@@ -539,7 +539,10 @@ struct ChatView: View {
                               size <= maxFileSize else {
                             // Report oversized files back on main thread
                             await MainActor.run {
-                                chatState.errorMessage = "File too large: \(url.lastPathComponent) (max 10 MB)"
+                                chatState.errorMessage = String(
+                                    format: StringKey.fileTooLarge.l,
+                                    url.lastPathComponent
+                                )
                             }
                             continue
                         }

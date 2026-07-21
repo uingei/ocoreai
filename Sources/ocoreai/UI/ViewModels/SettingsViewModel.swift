@@ -194,7 +194,7 @@ final class SettingsState {
         appThemeMode = SettingsStore.shared.appThemeMode
         hfToken = nil
         modelScopeToken = nil
-        errorMessage = "Settings reset to defaults"
+        errorMessage = StringKey.settingsResetToDefaults.l
         // Register undo with AppState for Cmd+Z access
         AppState.shared.undoAction = { [weak self] in self?.undoResetToDefaults() }
     }

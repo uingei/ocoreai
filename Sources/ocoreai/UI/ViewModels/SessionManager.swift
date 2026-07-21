@@ -43,7 +43,7 @@ final class SessionManager {
 
     func load() async {
         guard let compressor else {
-            errorMessage = "Session compressor not available"
+            errorMessage = StringKey.sessionCompressorUnavailable.l
             return
         }
         isLoading = true
@@ -52,7 +52,7 @@ final class SessionManager {
         do {
             sessions = try await compressor.listSessions(limit: 200)
         } catch {
-            errorMessage = "Failed to load sessions: \(error.localizedDescription)"
+            errorMessage = "\(StringKey.sessionLoadFailed.l): \(error.localizedDescription)"
         }
     }
 
@@ -69,7 +69,7 @@ final class SessionManager {
                 sessionSummary = try await compressor.getSessionSummary(session.id)
             } catch {
                 sessionSummary = nil
-                self.errorMessage = "Failed to load session summary: \(error.localizedDescription)"
+                self.errorMessage = "\(StringKey.sessionSummaryLoadFailed.l): \(error.localizedDescription)"
             }
         }
     }
@@ -84,7 +84,7 @@ final class SessionManager {
                 sessionSummary = nil
             }
         } catch {
-            errorMessage = "Failed to delete session: \(error.localizedDescription)"
+            errorMessage = "\(StringKey.sessionDeleteFailed.l): \(error.localizedDescription)"
         }
     }
 
@@ -96,7 +96,7 @@ final class SessionManager {
             memorySearchResults = try await compressor.searchMemoryEvents(query: query, limit: 50)
         } catch {
             memorySearchResults = []
-            errorMessage = "Memory search failed: \(error.localizedDescription)"
+            errorMessage = "\(StringKey.memorySearchFailed.l): \(error.localizedDescription)"
         }
     }
 
@@ -110,7 +110,7 @@ final class SessionManager {
             )
         } catch {
             memoryEvents = []
-            errorMessage = "Failed to load memory: \(error.localizedDescription)"
+            errorMessage = "\(StringKey.memoryLoadFailed.l): \(error.localizedDescription)"
         }
     }
 

@@ -40,7 +40,7 @@ struct SessionView: View {
                     Task { await viewModel.deleteSession(session) }
                 }
             }
-            Button(StringKey.tryAgain.l, role: .cancel) {}
+            Button(StringKey.cancelButton.l, role: .cancel) {}
         } message: {
             Text(StringKey.sessionDeleteConfirm.l)
         }

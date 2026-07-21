@@ -23,7 +23,7 @@ final class SkillsState {
 
     func load() async {
         guard let registry = registryRef else {
-            errorMessage = "Skill registry not available"
+            errorMessage = StringKey.skillRegistryUnavailable.l
             return
         }
         isLoading = true
