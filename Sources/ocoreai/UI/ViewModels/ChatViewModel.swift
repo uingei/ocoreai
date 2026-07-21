@@ -172,7 +172,7 @@ final class ChatState {
             let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
             // Extract reasoning content
             for match in matches {
-                if let range = Range(match.range(withCaptureGroup: 1), in: text) {
+                if let range = Range(match.range(at: 1), in: text) {
                     reasoningPieces.append(String(text[range]))
                 }
             }

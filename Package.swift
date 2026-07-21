@@ -14,7 +14,7 @@ let coreAIDisabled = ProcessInfo.processInfo.environment["OCOREAI_DISABLE_COREAI
 let package = Package(
     name: "ocoreai",
     platforms: [
-        .macOS(.v15),
+        .macOS(.v26),
         .iOS(.v17),
     ],
     products: [

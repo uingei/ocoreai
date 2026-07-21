@@ -1,16 +1,15 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-// TokenizerManager.swift — Rust-backed tokenizer via swift-transformers
+// TokenizerManager.swift — Rust-backed tokenizer via swift-transformers (v1.3.3)
 //
 /// Multi-tokenizer registry (per-model) managed as an actor for thread-safe access.
 ///
 /// Wraps swift-transformers ``AutoTokenizer`` — the same Rust-backed tokenizer
-/// engine that powers the entire HuggingFace ecosystem. Zero reinvention needed.
+/// engine that powers the entire HuggingFace ecosystem.
 ///
 /// ### API:
 /// - `tokenizer.applyChatTemplate(messages:)` → `[Int]`
 /// - `tokenizer.decode(tokens:)` → `String`
-/// - `streamingDetokenizer()` → per-token text chunk output for SSE
 ///
 /// ### Architecture:
 /// - ``TokenizerManager`` actor: per-model tokenizer registry
@@ -20,48 +19,42 @@
 #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 
 	import Foundation
-	import Transformers
+	import Hub
+	import Tokenizers
 
 	// MARK: - StreamingDetokenizer Wrapper
 
-	/// Wraps swift-transformers ``StreamingDetokenizer`` for incremental per-token text output.
+	/// Manual streaming detokenizer — swift-transformers v1.3 dropped
+	/// ``streamingDetokenizer()`` so we build it ourselves: incremental decode
+	/// on each new token, returning only the delta (new text) since last call.
 	///
-	/// Each N tokens, outputs a text chunk via ``consume(_:)``.
-	/// Maintains internal state of processed token IDs.
-	///
-	/// ``@unchecked Sendable``: `_stream` (swift-transformers object) holds an internal C pointer
-	/// that the compiler cannot verify as thread-safe. In practice, this instance lives exclusively
-	/// on `LoadedModel`'s CAS-guarded inference actor and is never shared across concurrency contexts.
-	/// `@unchecked Sendable` satisfies the Swift requirement without unsafe wrapping.
+	/// ``@unchecked Sendable``: lives exclusively on `LoadedModel`'s
+	/// CAS-guarded inference path and is never shared across contexts.
 	final class StreamingDetokenizer: @unchecked Sendable {
 		private let _tokenizer: any Tokenizer
 		private var _ids: [Int] = []
-		private var _stream: StreamingAdapter?
+		private var _lastText = ""
 
 		init(tokenizer: any Tokenizer) {
 			_tokenizer = tokenizer
 		}
 
+		/// Feed one token and return the new text delta.
 		func consume(_ token: Int32) throws -> String? {
 			let id = Int(token)
 			_ids.append(id)
 
-			if let stream = _stream {
-				return try stream.consume(id) ?? nil
-			}
-
-			// First token: initialize the StreamingDetokenizer from Transformers
-			if _ids.count == 1 {
-				_stream = try StreamingAdapter(tokenizer: _tokenizer, ids: [id])
-			}
-
-			// Return empty string for the first token
-			return ""
+			// Full decode is the only reliable way — we diff the result
+			let fullText = _tokenizer.decode(tokens: _ids)
+			// Return the delta since last call and update the baseline
+			let delta = String(fullText.dropFirst(_lastText.count))
+			_lastText = fullText
+			return delta.isEmpty ? "" : delta
 		}
 
 		func reset(initialTokenIds ids: [Int32]) {
 			_ids = ids.map(Int.init)
-			_stream = nil
+			_lastText = ""
 		}
 
 		var currentTokenIds: [Int32] {
@@ -86,7 +79,8 @@
 
 			let tokenizerURL = URL(fileURLWithPath: tokenizerPath)
 			let tokenizer: any Tokenizer = try await AutoTokenizer.from(
-				modelFolder: tokenizerURL, hub: nil,
+				modelFolder: tokenizerURL,
+				hubApi: HubApi.shared,
 			)
 
 			let provider = DirectTokenizer(modelId: modelId, tokenizer: tokenizer)
@@ -148,7 +142,7 @@
 
 		func detokenize(tokenIds: [Int32]) async throws -> String {
 			let ids = tokenIds.map(Int.init)
-			return try _tokenizer.decode(tokenIds: ids)
+			return _tokenizer.decode(tokens: ids)
 		}
 
 		func streamingDetokenizer() -> StreamingDetokenizer {
@@ -156,40 +150,14 @@
 		}
 
 		func countTokens(messages: [[String: String]]) async throws -> Int {
-			try tokenize(messages: messages).count
+			let tokenIds = try await tokenize(messages: messages)
+			return tokenIds.count
 		}
 
 		/// Warm up tokenizer with minimal chat template to ensure internal init completes.
 		func prewarm() async throws {
 			let warmupIds = try _tokenizer.applyChatTemplate(messages: [["role": "user", "content": "Hello"]])
-			_ = try _tokenizer.decode(tokenIds: warmupIds)
-		}
-	}
-
-	// MARK: - Sendable Bridging
-
-	/// Internal Sendable adapter wrapping a non-Sendable swift-transformers StreamingDetokenizer.
-	///
-	/// Uses closure capture to bridge the Sendable boundary safely.
-	private final class StreamingAdapter: Sendable {
-		private let _consume: @Sendable (Int) -> Result<String?, Error>
-
-		init(tokenizer: any Tokenizer, ids: [Int]) throws {
-			let stream = tokenizer.streamingDetokenizer()
-			_consume = { count in
-				Result { try stream.consume(count) }
-			}
-			_ = try stream.consume(ids[0])
-			for id in ids.dropFirst() {
-				let _ = try self._consume(id).get { error in throw error }
-			}
-		}
-
-		func consume(_ id: Int) throws -> String? {
-			switch _consume(id) {
-			case .success(let value): return value
-			case .failure(let error): throw error
-			}
+			_ = _tokenizer.decode(tokens: warmupIds)
 		}
 	}
 

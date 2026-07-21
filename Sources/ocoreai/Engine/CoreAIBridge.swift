@@ -7,19 +7,13 @@
 	///
 	/// ### v15 Architecture:
 	/// - **Before (v14)**: `EngineFactory.createEngine()` per-request → no specialization, no cache
-	/// - **After (v15)**: `AIModelAsset → specialize(options:) → AIModel` at load time,
+	/// - **After (v15)**: `AIModel(contentsOf:options:)` at load time,
 	///   `InferenceFunction` reused across requests via ``CoreAIModelHandle``
 	///
 	/// ### Apple best-practice alignment:
-	/// 1. Two-phase loading (§ AIModelAsset → specialize → AIModel) ✅
-	/// 2. AIModelCache integration ✅
-	/// 3. SpecializationOptions with ComputeUnitKind ✅
-	/// 4. InferenceFunction + InferenceValue for typed inference ✅
-	/// 5. AssetError typed error handling ✅
-	///
-	/// ### Backward compatibility:
-	/// - Falls back to `EngineFactory.createEngine()` when specialized path fails
-	/// - ``LoadedModel`` remains unchanged externally; only internal engine creation shifts
+	/// 1. SpecializationOptions with preferredComputeUnitKind ✅
+	/// 2. InferenceFunction + InferenceValue for typed inference ✅
+	/// 3. AssetError typed error handling ✅
 	///
 	/// NOTE: This file targets macOS 27.0+ with Core AI framework.
 	/// On older platforms, all calls gracefully fall through to the EngineFactory fallback.
@@ -35,7 +29,7 @@
 	///
 	/// Created once at model load time. Reused for every inference call on that model,
 	/// eliminating the per-request ``EngineFactory.createEngine`` compilation overhead.
-	final class CoreAIModelHandle: Sendable {
+	final class CoreAIModelHandle: @unchecked Sendable {
 		// MARK: - Core AI State
 
 		/// The specialized model instance, alive for the model's entire lifecycle.
@@ -64,7 +58,7 @@
 		///
 		/// - Parameters:
 		///   - modelURL: Filesystem path to the ``.aimodel`` file
-		///   - computeUnitKind: Target compute unit (``.any`` for automatic selection)
+		///   - preferredComputeUnitKind: Target compute unit (``.gpu`` recommended)
 		///   - cache: Optional model cache for persisting compiled artifacts
 		///   - logger: Observability logger
 		/// - Returns: A model handle instance (specialized or fallback)
@@ -81,7 +75,7 @@
 
 				// Phase 2: Specialize with device targeting
 				let start = ContinuousClock.now
-				let specializationOptions = SpecializationOptions(computeUnitKind: computeUnitKind)
+				let specializationOptions = SpecializationOptions(preferredComputeUnitKind: computeUnitKind)
 
 				let model: AIModel
 				if let cache {
@@ -92,8 +86,9 @@
 					logger.info("AIModel specialized without cache")
 				}
 
-				let elapsed = ContinuousClock.now.timeIntervalSinceInstant(start)
-				logger.info("Specialization completed in \(String(format: "%.1fms", Double(elapsed.components.seconds) * 1000 + Double(elapsed.components.attoseconds / 1_000_000_000_000_000)))")
+				let end = ContinuousClock.now
+				let elapsed = end.duration(from: start)
+				logger.info("Specialization completed in \(String(format: "%.1fms", Double(elapsed.components.seconds) * 1000 + Double(elapsed.components.attoseconds) / 1e15))")
 
 				return CoreAIModelHandle(
 					isSpecialized: true,
@@ -141,15 +136,12 @@
 	/// Retained as structural placeholder so the specialization pipeline wires
 	/// through a consistent cache reference. Replace with real AIModelCache
 	/// once SDK is available. See ROADMAP.md.
-	final class CoreAICacheManager: Sendable {
+	final class CoreAICacheManager: @unchecked Sendable {
 		/// Default cache directory path
 		static let defaultCachePath = "/tmp/ocoreai-model-cache"
 
 		/// Whether the cache system is enabled
 		private let _enabled: Bool
-
-		/// The active cache instance (created lazily)
-		private let _cache: ManagedAtomic<UnsafeRawPointer?> = ManagedAtomic(nil)
 
 		/// Create a cache manager with the given configuration.
 		///
@@ -191,10 +183,10 @@
 		/// Map to Core AI ``ComputeUnitKind``
 		var computeUnitKind: ComputeUnitKind {
 			switch self {
-			case .automatic: .any
+			case .automatic: .gpu
 			case .cpu: .cpu
 			case .gpu: .gpu
-			case .neuralEngine: .ne
+			case .neuralEngine: .neuralEngine
 			}
 		}
 	}
@@ -221,7 +213,7 @@
 	/// Errors specific to Core AI bridge operations.
 	enum CoreAIBridgeError: Error, LocalizedError {
 		/// The official Core AI specialization failed, fell back to EngineFactory
-		case specializationFailed(error: String)
+		case specializationFailed(String)
 
 		/// Model file not found at expected path
 		case modelFileNotFound(URL)

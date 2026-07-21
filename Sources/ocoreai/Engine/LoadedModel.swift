@@ -135,7 +135,7 @@ final class LoadedModel: @unchecked Sendable {
 		do {
 			// Use cached engine — CoreAI 34f0db3: single engine per model preserves KV cache
 			let engine = try await getCachedEngine()
-			let seq = try engine.generate(
+			let seq = try await engine.generate(
 				with: Array(repeating: 0, count: 8),
 				samplingConfiguration: SamplingConfiguration(),
 				inferenceOptions: InferenceOptions(maxTokens: warmupTokens),
@@ -271,23 +271,28 @@ final class LoadedModel: @unchecked Sendable {
 	// MARK: - Initialization
 
 	#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-			/// Create a loaded model instance with resolved config, weights, specialized model, and engine options.
-			///
-			/// - Parameters:
-			///   - configData: Raw config binary
-			///   - modelURL: Weight filesystem path
-			///   - modelConfig: Parsed model configuration
-			///   - preparedModel: v15 specialized Core AI model (cached for reuse)
-			///   - logger: Observability logger
-			init(configData: Data, modelURL: URL, modelConfig: ModelConfig, preparedModel: CoreAIPreparedModel, logger: Logger) {
-				self.configData = configData
-				self.modelURL = modelURL
-				self.modelConfig = modelConfig
-				self.preparedModel = preparedModel
-				engineOptions = EngineOptions(kvCacheStrategy: .auto)
-				mlxModelHandle = nil
-				self.logger = logger
-			}
+				/// Create a loaded model instance with resolved config, weights, specialized model, and engine options.
+				///
+				/// - Parameters:
+				///   - configData: Raw config binary
+				///   - modelURL: Weight filesystem path
+				///   - modelConfig: Parsed model configuration
+				///   - preparedModel: v15 specialized Core AI model (cached for reuse)
+				///   - logger: Observability logger
+				init(configData: Data, modelURL: URL, modelConfig: ModelConfig, preparedModel: CoreAIPreparedModel, logger: Logger) {
+					self.configData = configData
+					self.modelURL = modelURL
+					self.modelConfig = modelConfig
+					self.preparedModel = preparedModel
+					engineOptions = EngineOptions(kvCacheStrategy: .auto)
+					mlxModelHandle = nil
+					self.logger = logger
+				}
+
+				/// Set MLX model handle (used by fallback path when CoreAI load crashes).
+				func setMLXHandle(_ handle: any MLXModelHandle) {
+					mlxModelHandle = handle
+				}
 	#else // coreai — mlx path
 			/// Initialize model (mlx handle or neither-build stub).
 			/// In mlx mode, ``mlxModelHandle`` is set via ``setMLXHandle(_:)`` after init.

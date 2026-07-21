@@ -67,22 +67,22 @@ final class ModelManager {
     static var recommendedModels: [RecommendedQuickModel] {
         [
             RecommendedQuickModel(
-                displayId: "Qwen/Qwen2.5-3B-Instruct",
+                id: "Qwen/Qwen2.5-3B-Instruct",
                 description: "General purpose, fast, ~2 GB",
                 hub: .modelScope
             ),
             RecommendedQuickModel(
-                displayId: "Qwen/Qwen2.5-Coder-3B-Instruct",
+                id: "Qwen/Qwen2.5-Coder-3B-Instruct",
                 description: "Code generation, ~2 GB",
                 hub: .modelScope
             ),
             RecommendedQuickModel(
-                displayId: "Qwen/Qwen2.5-7B-Instruct",
+                id: "Qwen/Qwen2.5-7B-Instruct",
                 description: "Balanced quality & speed, ~5 GB",
                 hub: .modelScope
             ),
             RecommendedQuickModel(
-                displayId: "meta-llama/Llama-3.2-3B-Instruct",
+                id: "meta-llama/Llama-3.2-3B-Instruct",
                 description: "Llama 3.2, general purpose, ~2 GB",
                 hub: .huggingFace
             ),

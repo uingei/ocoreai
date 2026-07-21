@@ -402,6 +402,7 @@ actor EnginePool {
 			configData: configData,
 			modelURL: modelURL,
 			modelConfig: modelConfig,
+			preparedModel: CoreAIPreparedModel.fallback(),
 			logger: logger,
 		)
 		model.setMLXHandle(mlxHandle)

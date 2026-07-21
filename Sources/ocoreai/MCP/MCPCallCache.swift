@@ -8,7 +8,7 @@
 import Foundation
 
 /// 缓存条目
-private struct CacheEntry {
+private struct MCPCacheEntry {
 	let value: String
 	let timestamp: Date
 
@@ -25,7 +25,7 @@ actor MCPCallCache {
 	/// 缓存条目存活时间（秒）
 	private let ttlSeconds: TimeInterval
 	/// 有序条目列表：尾部 = 最近访问，头部 = 最旧
-	private var entries: [String: CacheEntry] = [:]
+	private var entries: [String: MCPCacheEntry] = [:]
 	private var accessOrder: [String] = []
 
 	/// 创建缓存实例。
@@ -69,7 +69,7 @@ actor MCPCallCache {
 		}
 
 		// 插入新条目
-		entries[key] = CacheEntry(value: value, timestamp: Date())
+		entries[key]  = MCPCacheEntry(value: value, timestamp: Date())
 		accessOrder.append(key)
 	}
 

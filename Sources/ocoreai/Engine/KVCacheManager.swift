@@ -75,7 +75,7 @@
 		private let config: Config
 
 		/// Atomic GPU byte counter for lock-free memory tracking.
-		private let gpuBytesUsed = ManagedAtomic<Int>(0)
+		private var gpuBytesUsed: Int64 = 0
 
 		/// Logger for observability.
 		private let logger: Logger
@@ -88,6 +88,7 @@
 
 		/// Background eviction loop task.
 		private var evictionTask: Task<Void, Never>?
+		private var evictionStarted = false
 
 		// MARK: - Initialization
 
@@ -109,14 +110,21 @@
 				"ssdCacheLimitGB must be positive, got \(config.ssdCacheLimitGB)",
 			)
 			precondition(
-				config.idleTimeoutSeconds > 0,
-				"idleTimeoutSeconds must be positive, got \(config.idleTimeoutSeconds)",
-			)
-			// Launch background eviction loop task
-			evictionTask = Task { [weak self] in
-				await self?.evictionLoop()
+					config.idleTimeoutSeconds > 0,
+					"idleTimeoutSeconds must be positive, got \(config.idleTimeoutSeconds)",
+				)
 			}
-		}
+
+			// MARK: - Eviction Task Lifecycle
+
+			/// Lazily start eviction loop on first cache operation.
+			func ensureEvictionTask() {
+				guard evictionStarted == false else { return }
+				evictionStarted = true
+				evictionTask = Task { [weak self] in
+					await self?.evictionLoop()
+				}
+			}
 
 		// MARK: - Public API
 
@@ -128,6 +136,8 @@
 		///   - sessionId: Unique session identifier
 		///   - kvState: CoreAI KV state reference
 		func register(sessionId: String, kvState: AsyncKVState) async {
+			// Ensure the background eviction loop is running
+			ensureEvictionTask()
 			// Defensive check: sessionId must not be empty (developer invariant)
 			guard !sessionId.isEmpty else { return }
 
@@ -146,7 +156,7 @@
 
 			// Write to active cache and increment GPU atomic byte counter
 			activeCaches[sessionId] = entry
-			gpuBytesUsed.wrappingAdd(by: entry.estimatedBytes, ordering: .relaxed)
+			gpuBytesUsed += Int64(entry.estimatedBytes)
 
 			logger.info("Registered KV cache \(sessionId) size=\(entry.estimatedBytes / (1024 * 1024))MB")
 
@@ -195,7 +205,7 @@
 		func unregister(sessionId: String) {
 			guard let entry = activeCaches.removeValue(forKey: sessionId) else { return }
 			// Subtract estimated bytes from atomic counter
-			gpuBytesUsed.wrappingSubtract(by: entry.estimatedBytes, ordering: .relaxed)
+			gpuBytesUsed -= Int64(entry.estimatedBytes)
 			// Clear SSD index
 			ssdIndex.removeValue(forKey: sessionId)
 			logger.info("Unregistered KV cache \(sessionId)")
@@ -228,7 +238,7 @@
 
 			// Update SSD index, decrement GPU counter, remove active entry
 			ssdIndex[sessionId] = ssdURL
-			gpuBytesUsed.wrappingSubtract(by: entry.estimatedBytes, ordering: .relaxed)
+			gpuBytesUsed -= Int64(entry.estimatedBytes)
 			activeCaches.removeValue(forKey: sessionId)
 
 			logger.info("Cold-stored \(sessionId) to \(ssdURL.path) size=\(kvData.count / (1024 * 1024))MB")
@@ -268,7 +278,7 @@
 
 			// Restore GPU atomic count and remove SSD index
 			let bytes = activeCaches[sessionId]?.estimatedBytes ?? 0
-			gpuBytesUsed.wrappingAdd(by: bytes, ordering: .relaxed)
+			gpuBytesUsed += Int64(bytes)
 			ssdIndex.removeValue(forKey: sessionId)
 
 			logger.info("Warmed back \(sessionId) from SSD size=\(bytes / (1024 * 1024))MB")
@@ -279,7 +289,7 @@
 		///
 		/// - Returns: GPU cache usage in GB
 		func gpuUsageGB() -> Double {
-			Double(gpuBytesUsed.load(ordering: .relaxed)) / (1024 * 1024 * 1024)
+			Double(gpuBytesUsed) / (1024 * 1024 * 1024)
 		}
 
 		// MARK: - Eviction Check
@@ -420,7 +430,7 @@
 		/// Creation timestamp
 		let created: ContinuousClock.Instant
 		/// Last access timestamp (updated on each active request)
-		let lastAccessed: ContinuousClock.Instant
+		var lastAccessed: ContinuousClock.Instant
 		/// Estimated GPU memory footprint in bytes
 		let estimatedBytes: Int
 
@@ -457,18 +467,17 @@
 		/// - Parameters:
 		///   - processedTokenCount: Current token count
 		///   - config: Model configuration
-		///   - keyCache: Key cache NDArray
-		///   - valueCache: Value cache NDArray
+		///   - keyData: Key cache raw data
 		init(
 			processedTokenCount: Int,
 			config: ModelConfig,
-			keyCache: NDArray,
-			valueCache: NDArray,
+			keyData: Data,
+			valueData: Data,
 		) {
 			self.processedTokenCount = processedTokenCount
 			self.config = config
-			_keyCacheData = Self.arrayToData(keyCache)
-			_valueCacheData = Self.arrayToData(valueCache)
+			_keyCacheData = keyData
+			_valueCacheData = valueData
 			precondition(processedTokenCount >= 0, "processedTokenCount must be non-negative")
 		}
 
@@ -484,8 +493,8 @@
 					chunkThreshold: 0,
 					prefillChunkSize: 0,
 				),
-				keyCache: NDArray.zeros(shape: [1, 1, 1, 1], scalarType: .float16),
-				valueCache: NDArray.zeros(shape: [1, 1, 1, 1], scalarType: .float16),
+				keyData: Data(),
+				valueData: Data(),
 			)
 		}
 
@@ -496,9 +505,9 @@
 		func serialize() throws -> Data {
 			var combined = Data()
 			// Header: token count + vocab size + max context length
-			combined.append(Int(processedTokenCount).bigEndian)
-			combined.append(Int(config.vocabSize).bigEndian)
-			combined.append(Int(config.maxContextLength).bigEndian)
+			var pt = Int64(processedTokenCount).bigEndian; combined.append(Data(bytes: &pt, count: MemoryLayout<Int64>.stride))
+			var vs = Int64(config.vocabSize).bigEndian; combined.append(Data(bytes: &vs, count: MemoryLayout<Int64>.stride))
+			var mc = Int64(config.maxContextLength).bigEndian; combined.append(Data(bytes: &mc, count: MemoryLayout<Int64>.stride))
 			// Payload: key + value cache data
 			combined.append(_keyCacheData)
 			combined.append(_valueCacheData)
@@ -533,10 +542,6 @@
 			let keyData = data.subdata(in: headerSize ..< headerSize + half)
 			let valueData = data.subdata(in: headerSize + half ..< headerSize + payloadSize)
 
-			// Reconstruct NDArray from Data (Float16 layout)
-			let keyArray = try NDArray.fromData(keyData, scalarType: .float16)
-			let valueArray = try NDArray.fromData(valueData, scalarType: .float16)
-
 			let config = ModelConfig(
 				name: "restored",
 				function: "default",
@@ -549,22 +554,9 @@
 			return AsyncKVState(
 				processedTokenCount: processedTokenCount,
 				config: config,
-				keyCache: keyArray,
-				valueCache: valueArray,
+				keyData: keyData,
+				valueData: valueData,
 			)
-		}
-
-		/// Convert NDArray to raw binary ``Data`` (Int16/Float16 layout).
-		///
-		/// - Parameter array: Source NDArray
-		/// - Returns: Raw byte buffer
-		private static func arrayToData(_ array: NDArray) -> Data {
-			let count = array.shape.reduce(1, *)
-			precondition(count > 0, "NDArray must have non-zero element count")
-			var view = array.view(as: Int16.self)
-			return view.withUnsafePointer { ptr, bytes, _ in
-				Data(bytes: ptr, count: bytes)
-			}
 		}
 	}
 #endif
