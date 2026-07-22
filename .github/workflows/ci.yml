@@ -153,6 +153,7 @@ jobs:
         run: |
           set -euo pipefail
           export SWIFT_BUILD_NUM_WORKERS=2
+          export SWIFTC_SCAN_FOR_DEPS=0
           echo "🧪 Running tests with coverage..."
           swift test --enable-code-coverage
         env:
@@ -161,6 +162,7 @@ jobs:
       - name: Generate coverage report
         run: |
           set -euo pipefail
+          export SWIFTC_SCAN_FOR_DEPS=0
           COVERAGE_PATH=$(swift test --show-code-coverage-path 2>/dev/null \
               || echo ".build/arm64-apple-macosx/debug/codecov/ocoreai.json")
           echo "📊 Coverage data at: $COVERAGE_PATH"
@@ -180,6 +182,7 @@ jobs:
         run: |
           set -euo pipefail
           export SWIFT_BUILD_NUM_WORKERS=2
+          export SWIFTC_SCAN_FOR_DEPS=0
           swift build -c release
         env:
           OCOREAI_BUILD: ci
@@ -188,6 +191,7 @@ jobs:
         run: |
           set -euo pipefail
           export SWIFT_BUILD_NUM_WORKERS=2
+          export SWIFTC_SCAN_FOR_DEPS=0
           swift build -c release --traits appStore
         env:
           OCOREAI_BUILD: ci
