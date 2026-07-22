@@ -626,7 +626,11 @@ final class ChatState {
             // Finalize cancellation handle
             currentCancellation = nil
         } catch {
-            self.errorMessage = error.localizedDescription
+            // P1-fix: Do not surface raw localizedDescription to the user —
+            // it leaks technical details and may not match UI language.
+            // Instead, show a localized, user-facing error message.
+            self.errorMessage = StringKey.generationFailed.l
+            Self.logger.warning("Chat failed: \(error.localizedDescription)")
             // Clear streaming preview on error — the error banner shows the message
             responseText = ""
             currentCancellation = nil
