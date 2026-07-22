@@ -105,10 +105,18 @@ struct SamplingConfiguration: Codable, Equatable {
 struct InferenceOptions: Codable {
 	var maxTokens: Int?
 	var includeLogits: Bool = false
+	/// When true, use GuidedGenerationLoop for grammar-constrained output
+	/// (e.g., tool calls, JSON schema responses).
+	var useGuidedGeneration: Bool = false
+	/// The JSON schema string to constrain output grammar.
+	/// Used by tools (tool call schema) or response_format.json_schema.
+	var grammarSchema: String? = nil
 
-	init(maxTokens: Int? = nil, includeLogits: Bool = false) {
+	init(maxTokens: Int? = nil, includeLogits: Bool = false, useGuidedGeneration: Bool = false, grammarSchema: String? = nil) {
 		self.maxTokens = maxTokens
 		self.includeLogits = includeLogits
+		self.useGuidedGeneration = useGuidedGeneration
+		self.grammarSchema = grammarSchema
 	}
 
 	init() {}

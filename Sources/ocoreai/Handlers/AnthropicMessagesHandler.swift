@@ -48,6 +48,7 @@ func anthropicMessagesHandler(
 	scheduler: SchedulerActor,
 	metrics: MetricsRegistry,
 	sessionCompressor _: SessionCompressor,
+	semanticSearch _: SemanticSearch?,
 	systemPromptBuilder _: SystemPromptBuilder,
 	logger: Logger,
 ) async throws -> Response {

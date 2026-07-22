@@ -275,6 +275,7 @@ public struct KVCacheQuantizationConfig: Sendable, Codable, Equatable {
 		bits: 4,
 		groupSize: 64,
 		quantizedKVStart: 256,
+		kvScheme: "turbo4"
 	)
 
 	public init(
@@ -282,7 +283,7 @@ public struct KVCacheQuantizationConfig: Sendable, Codable, Equatable {
 		bits: Int? = 4,
 		groupSize: Int = 64,
 		quantizedKVStart: Int = 256,
-		kvScheme: String? = nil
+		kvScheme: String? = "turbo4"
 	) {
 		self.enabled = enabled
 		self.bits = bits

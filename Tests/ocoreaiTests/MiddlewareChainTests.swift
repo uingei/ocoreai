@@ -64,6 +64,7 @@ struct MiddlewareChainTests {
 		let app = try await buildApplication(
 			enginePool: enginePool, scheduler: scheduler, metrics: MetricsRegistry(),
 			sessionCompressor: compressor,
+			semanticSearch: nil,
 			mcpBridge: MCPBridge(toolRegistry: ToolRegistry(log: Self.log), transport: MCPStdioTransport(log: Self.log)),
 			systemPromptBuilder: SystemPromptBuilder(basePrompt: "test"),
 			messageBuilder: mb, logger: Self.log,

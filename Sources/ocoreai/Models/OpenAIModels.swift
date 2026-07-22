@@ -895,3 +895,64 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
 		)
 	}
 }
+
+// MARK: - Grammar Schema Construction (shared: ChatHandler + DirectInferenceClient)
+
+/// Build a JSON Schema string for GrammarConstraint from tool definitions.
+/// Returns `nil` when no tools are provided.
+///
+/// Used by both the HTTP API layer (ChatHandler) and the UI fast path
+/// (DirectInferenceClient) to enable GuidedGeneration grammar-constrained output.
+/// When tools are present, the schema constrains the model to emit a valid
+/// oneOf array of tool call objects — eliminating regex post-processing failures.
+func buildGrammarSchema(
+	from tools: [ToolDef]?,
+	responseFormat: ResponseFormat? = nil
+) -> String? {
+	// Helper: convert [String: AnyCodable] → [String: Any] for JSONSerialization
+	let toAny: ([String: AnyCodable]) -> [String: Any] = { dict in
+		Dictionary(uniqueKeysWithValues: dict.map { ($0, $1.value) })
+	}
+
+	// Tools path: build function_call-style schema
+	if let toolsDef = tools, !toolsDef.isEmpty {
+		let functionSchemas: [[String: Any]] = toolsDef.compactMap { tool in
+			let funcDef = tool.function
+			guard let params = funcDef.parameters else { return nil }
+			return [
+				"type": "object",
+				"properties": [
+					"name": ["type": "string", "const": funcDef.name],
+					"arguments": toAny(params),
+				],
+				"required": ["name", "arguments"],
+			]
+		}
+		guard !functionSchemas.isEmpty,
+			  let data = try? JSONSerialization.data(
+				withJSONObject: [
+					"type": "array",
+					"items": ["oneOf": functionSchemas],
+				],
+				options: []
+			  ), let s = String(data: data, encoding: .utf8) else {
+			return nil
+		}
+		return s
+	}
+
+	// JSON schema path: passthrough or fallback
+	if let responseFmt = responseFormat,
+	   (responseFmt.type == "json_schema" || responseFmt.type == "json_object") {
+		if let schemaReq = responseFmt.jsonSchema,
+		   let data = try? JSONSerialization.data(
+			withJSONObject: toAny(schemaReq.schema),
+			options: []
+		   ), let s = String(data: data, encoding: .utf8) {
+			return s
+		}
+		// Generic JSON object fallback
+		return "{\"type\":\"object\",\"properties\":{}}"
+	}
+	return nil
+}

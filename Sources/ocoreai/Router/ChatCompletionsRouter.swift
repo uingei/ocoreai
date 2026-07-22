@@ -72,6 +72,7 @@ func buildRouter(
 	scheduler: SchedulerActor,
 	metrics: MetricsRegistry,
 	sessionCompressor: SessionCompressor,
+	semanticSearch: SemanticSearch?,
 	mcpBridge: MCPBridge,
 	systemPromptBuilder: SystemPromptBuilder,
 	messageBuilder: MessageBuilder,
@@ -136,6 +137,7 @@ func buildRouter(
 			scheduler: scheduler,
 			metrics: metrics,
 			sessionCompressor: sessionCompressor,
+			semanticSearch: semanticSearch,
 			systemPromptBuilder: systemPromptBuilder,
 			logger: logger,
 		)
@@ -154,6 +156,7 @@ func buildRouter(
 			scheduler: scheduler,
 			metrics: metrics,
 			sessionCompressor: sessionCompressor,
+			semanticSearch: semanticSearch,
 			messageBuilder: messageBuilder,
 			logger: logger,
 		)

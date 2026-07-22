@@ -175,9 +175,9 @@ actor SessionCompressor {
 		content: String,
 		tokenCount: Int,
 		toolCalls: [ToolCallRecord]? = nil,
-	) async throws {
+	) async throws -> Int64 {
 		guard ["user", "assistant", "system", "tool"].contains(role) else { throw SQLiteError.executionFailed(detail: "Invalid role: \(role)") }
-		try await addUnsafe(sessionId: sessionId, role: role, content: content,
+		return try await addUnsafe(sessionId: sessionId, role: role, content: content,
 		                    tokenCount: tokenCount, toolCalls: toolCalls)
 	}
 
@@ -187,7 +187,7 @@ actor SessionCompressor {
 		content: String,
 		tokenCount: Int,
 		toolCalls: [ToolCallRecord]? = nil,
-	) async throws {
+	) async throws -> Int64 {
 		let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
 		let toolCallsJson: String?
 		do {
@@ -211,6 +211,9 @@ actor SessionCompressor {
 			}
 			try await store.execute(sql: sql, parameters: params)
 
+			// Capture row id for embedding
+			let messageRowId = try await store.scalarQuery(sql: "SELECT last_insert_rowid()")?.asInt64 ?? 0
+
 			// Update session metadata
 			try await updateSession(sessionId, messageDelta: 1, tokenDelta: tokenCount)
 
@@ -223,6 +226,8 @@ actor SessionCompressor {
 				// Trigger compression event
 				triggerCompression(sessionId)
 			}
+
+			return messageRowId
 		} catch let sqliteErr as SQLiteError {
 			throw sqliteErr
 		} catch {

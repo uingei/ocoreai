@@ -128,6 +128,7 @@ func chatCompletionsHandler(
 	scheduler: SchedulerActor,
 	metrics: MetricsRegistry,
 	sessionCompressor: SessionCompressor,
+	semanticSearch: SemanticSearch?,
 	messageBuilder: MessageBuilder,
 	logger: Logger,
 ) async throws -> Response {
@@ -306,11 +307,37 @@ func chatCompletionsHandler(
 			logger.warning("Sampling config normalized (redundant params dropped)")
 		}
 
+		/// Determine if guided generation should be used for this request.
+		/// Guided generation enforces grammar-constrained output for:
+		/// - Tool calls (structured function_call/tool_calling JSON)
+		/// - JSON Schema responses (strict JSON output validation)
+		let useGuidedGeneration: Bool = {
+			let hasTools = request.tools != nil && !request.tools!.isEmpty
+			let hasJsonSchema = request.responseFormat?.type == "json_schema" || request.responseFormat?.type == "json_object"
+			return hasTools || hasJsonSchema
+		}()
+
+		/// Build grammar schema string for GuidedGeneration constraint.
+		let grammarSchema = useGuidedGeneration ? buildGrammarSchema(from: request) : nil
+
 		/// Build inference options with same fallback chain.
 		let inferenceOpts = InferenceOptions(
 			maxTokens: effectiveMaxTokens,
 			includeLogits: false,
+			useGuidedGeneration: useGuidedGeneration,
+			grammarSchema: grammarSchema,
 		)
+
+		/// Log if guided generation is enabled for this request.
+		if useGuidedGeneration {
+			let schemaInfo: String
+			if grammarSchema != nil {
+				schemaInfo = " + grammar schema"
+			} else {
+				schemaInfo = ""
+			}
+			logger.info("Guided generation enabled for request with tools/json_schema\(schemaInfo)")
+		}
 
 		/// Log if runtime defaults override system defaults.
 		let hasOverride = (runtimeDefaults.temperature != ModelSamplingConfig.default.temperature ||
@@ -334,6 +361,7 @@ func chatCompletionsHandler(
 				request: request,
 				modelId: modelId,
 				sessionCompressor: sessionCompressor,
+				semanticSearch: semanticSearch,
 				logger: logger,
 				metrics: metrics,
 			)
@@ -347,6 +375,7 @@ func chatCompletionsHandler(
 				request: request,
 				modelId: modelId,
 				sessionCompressor: sessionCompressor,
+				semanticSearch: semanticSearch,
 				logger: logger,
 				metrics: metrics,
 			)
@@ -397,6 +426,7 @@ private func nonStreamWithToolCalling(
 	request: ChatCompletionRequest,
 	modelId: String,
 	sessionCompressor: SessionCompressor,
+	semanticSearch: SemanticSearch?,
 	logger: Logger,
 	metrics: MetricsRegistry,
 ) async throws -> Response {
@@ -584,6 +614,7 @@ private func nonStreamWithToolCalling(
 			promptTokens: promptTokenCount,
 			outputTokens: totalOutputTokens,
 			compressor: sessionCompressor,
+			semanticSearch: semanticSearch,
 		)
 	}
 
@@ -623,6 +654,7 @@ private func streamWithToolCalling(
 	request: ChatCompletionRequest,
 	modelId: String,
 	sessionCompressor: SessionCompressor,
+	semanticSearch: SemanticSearch?,
 	logger: Logger,
 	metrics: MetricsRegistry,
 ) async throws -> Response {
@@ -898,6 +930,7 @@ private func streamWithToolCalling(
 			promptTokens: promptTokenCount,
 			outputTokens: totalOutputTokens,
 			compressor: sessionCompressor,
+			semanticSearch: semanticSearch,
 		)
 
 		// MARK: Post-stream Self-Correction Trace (Phase 1 only — zero token cost)
@@ -966,6 +999,7 @@ private func streamWithToolCalling(
 
 /// Persist user/assistant messages to SQLite after inference completes.
 /// Fire-and-forget — errors are logged but do not affect the response.
+/// After persistence, embeds each message for semantic search via MLXEmbedders.
 private func persistConversation(
 	request: ChatCompletionRequest,
 	messages: [Message],
@@ -974,6 +1008,7 @@ private func persistConversation(
 	promptTokens: Int,
 	outputTokens: Int,
 	compressor: SessionCompressor,
+	semanticSearch: SemanticSearch?,
 ) async {
 	let logger = Logger(label: "ocoreai.persist")
 
@@ -991,21 +1026,33 @@ private func persistConversation(
 
 		for msg in messages where msg.role != "system" && msg.role != "assistant" {
 			let text = msg.textContent()
-			try await compressor.addMessage(
+			let rowId = try await compressor.addMessage(
 				sessionId: sessionId,
 				role: msg.role,
 				content: text,
 				tokenCount: tokensPerMsg,
 			)
+			// Embed for semantic search (fire-and-forget, non-blocking)
+			if let ss = semanticSearch {
+				Task {
+					await ss.embedMessage(rowId, text: text)
+				}
+			}
 		}
 
 		// Persist assistant response
-		try await compressor.addMessage(
+		let assistantRowId = try await compressor.addMessage(
 			sessionId: sessionId,
 			role: "assistant",
 			content: assistantContent,
 			tokenCount: outputTokens,
 		)
+		// Embed assistant response for semantic search
+		if let ss = semanticSearch {
+			Task {
+				await ss.embedMessage(assistantRowId, text: assistantContent)
+			}
+		}
 	} catch {
 		// Non-fatal — response already sent to client
 		logger.error("Persist failed: \(error)")
@@ -1025,3 +1072,9 @@ extension Message {
 
 /// SSEErrorWrapper has been replaced by yieldSSE(yieldSSError:) + ChatCompletionChunk.
 /// All error paths now use structured chat chunk format consistently.
+
+/// Build JSON schema for GuidedGeneration grammar constraint from request tools/schema.
+/// Returns a JSON string that GrammarConstraint can parse.
+private func buildGrammarSchema(from request: ChatCompletionRequest) -> String? {
+	buildGrammarSchema(from: request.tools, responseFormat: request.responseFormat)
+}

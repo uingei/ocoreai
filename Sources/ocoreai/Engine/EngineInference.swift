@@ -16,6 +16,7 @@ import Logging
 import MLX
 import MLXLLM
 import MLXLMCommon
+import MLXGuidedGeneration
 import MLXVLM
 import CoreImage
 import CoreGraphics
@@ -151,6 +152,14 @@ extension EnginePool {
 
 		#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 			if #available(macOS 27.0, *) {
+				// CoreAI SDK does not support grammar constraints — if the caller
+				// requested grammar-constrained output (tool calls, JSON schema),
+				// log a so the operator knows this generation is unconstrained.
+				if options.grammarSchema != nil {
+					logger.warning(
+						"CoreAI backend: grammar constraint requested but not supported by SDK. Output will be unconstrained (fallback regex post-processing will apply)."
+					)
+				}
 				do {
 					// Use cached engine — CoreAI 34f0db3: single engine per model preserves
 					// KV cache across turns. TokenHistory.resolve handles prefix caching automatically.
@@ -483,63 +492,165 @@ extension EnginePool {
 			let handleRef = mlxHandle
 			let log = self.logger
 
+			// handleGuidedGeneration: MLXGuidedGeneration grammar-constrained path
+			/// Bridges GuidedGenerationLoop (sync emit callback) → SSE continuation.
+			/// All inference within modelContainer.perform for thread-safe ModelContext.
+			func handleGuidedGeneration(
+				messagePairs: [(role: String, content: String)],
+				grammarSchema: String,
+				maxTokens: Int,
+			) async throws {
+				try await handleRef.modelContainer.perform { context in
+					// Rebuild Chat.Message inside the @Sendable closure to avoid
+					// cross-actor capture of non-Sendable [Chat.Message].
+					let messages = messagePairs.map { pair in
+						Chat.Message(
+							role: Chat.Message.Role(rawValue: pair.role) ?? .system,
+							content: pair.content
+						)
+					}
+					let userInput = UserInput(prompt: .chat(messages))
+					let lmInput = try await context.processor.prepare(input: userInput)
+
+					// Build GrammarTokenizer from the model's tokenizer — canonical path
+					// mirrors MLXFoundationModels.MLXLanguageModel.makeGrammarTokenizer.
+					let grammarVocab = TokenizerVocabExtractor.extractForGrammar(from: context.tokenizer)
+					let grammarTokenizer: GrammarTokenizer
+					do {
+						grammarTokenizer = try GrammarTokenizer(
+							vocab: grammarVocab.vocab,
+							vocabType: grammarVocab.vocabType,
+							eosTokenId: Int32(context.tokenizer.eosTokenId ?? 0),
+						)
+					} catch {
+						continuation.yield(.init(kind: .error(
+							"GrammarTokenizer build failed: \(error.localizedDescription)")))
+						continuation.finish()
+						return
+					}
+
+					// Build GrammarConstraint from JSON schema string via native compile path
+					let constraint: GrammarConstraint
+					do {
+						constraint = try GrammarConstraint(
+							tokenizer: grammarTokenizer,
+							jsonSchema: grammarSchema,
+						)
+					} catch {
+						continuation.yield(.init(kind: .error(
+							"GrammarConstraint build failed: \(error.localizedDescription)")))
+						continuation.finish()
+						return
+					}
+
+					// Token count tracking for guided path
+					var guidedTokenCount = 0
+					var firstYielded = false
+
+					// Run GuidedGenerationLoop with emit callback → SSE yield
+					let tokenCount = try GuidedGenerationLoop.run(
+						input: lmInput,
+						context: context,
+						constraint: constraint,
+						maxTokens: maxTokens,
+						vocabSize: Int(loaded.modelConfig.vocabSize),
+					) { text in
+						guard !Task.isCancelled && !cancellation.isCancelled else {
+							continuation.yield(.init(
+								kind: .done(StopReason.cancelled,
+									tokenCount: guidedTokenCount)))
+							continuation.finish()
+							return false
+						}
+						// Record TTFT on first text chunk
+						if !firstYielded {
+							metrics.firstTokenMs = metrics.overallMs
+							firstYielded = true
+						}
+						metrics.incrementGenerated()
+						guidedTokenCount += 1
+						continuation.yield(.init(kind: .text(text)))
+						return true
+					}
+
+					// Complete guided generation
+					if !Task.isCancelled && !cancellation.isCancelled {
+						continuation.yield(.init(
+							kind: .done(.eos, tokenCount: tokenCount)))
+					}
+					continuation.finish()
+				}
+			}
+
 			// runInferenceBody: session acquisition → generation → pool release
+			/// When useGuidedGeneration is true, routes through GuidedGenerationLoop
+			/// for grammar-constrained output (tool calls, JSON schema).
+			/// Otherwise uses upstream ChatSession.streamDetails for standard generation.
 			func runInferenceBody() async throws {
-				var chatSession: ChatSession
 				let convKey: String = conversationId ?? "\(modelId):ephemeral"
 				var isPoolHit = false
 				var deltaOffset = 0
-				if let pool = poolRef {
-					let acquired = await pool.acquire(
-						from: handleRef.modelContainer,
-						modelId: modelId,
-						conversationId: convKey,
-						genParams: genParams,
-						speculativeDecoding: specConfig,
-					)
-					chatSession = acquired.pooled.session
-					isPoolHit = acquired.isHit
-					deltaOffset = acquired.pooled.messageCount
-					if isPoolHit {
-						log.debug("Pool HIT for \(convKey) — KV cache reused (offset=\(deltaOffset))")
-					}
-					} else {
-					chatSession = ChatSession(
-						handleRef.modelContainer,
-						speculativeDecoding: specConfig,
-						generateParameters: genParams,
-					)
-					}
+				var chatSession: ChatSession?
 
-					do {
-						let messagesToSend: [Chat.Message]
-						if isPoolHit, deltaOffset < mlxMessages.count {
-							messagesToSend = Array(mlxMessages[deltaOffset...])
-						} else if isPoolHit, deltaOffset >= mlxMessages.count {
-							log.warning("Pool session messageCount (\\(deltaOffset)) >= current messages (\\(mlxMessages.count)), sending all")
-							messagesToSend = mlxMessages
-						} else {
-							messagesToSend = mlxMessages
+				// ChatSession path: acquire or create session
+				if options.useGuidedGeneration == false {
+					if let pool = poolRef {
+						let acquired = await pool.acquire(
+							from: handleRef.modelContainer,
+							modelId: modelId,
+							conversationId: convKey,
+							genParams: genParams,
+							speculativeDecoding: specConfig,
+						)
+						chatSession = acquired.pooled.session
+						isPoolHit = acquired.isHit
+						deltaOffset = acquired.pooled.messageCount
+						if isPoolHit {
+							log.debug("Pool HIT for \(convKey) — KV cache reused (offset=\(deltaOffset))")
 						}
+					} else {
+						chatSession = ChatSession(
+							handleRef.modelContainer,
+							speculativeDecoding: specConfig,
+							generateParameters: genParams,
+						)
+					}
+				}
 
+				do {
+					let messagesToSend: [Chat.Message]
+					if isPoolHit, deltaOffset < mlxMessages.count {
+						messagesToSend = Array(mlxMessages[deltaOffset...])
+					} else if isPoolHit, deltaOffset >= mlxMessages.count {
+						log.warning("Pool session messageCount (\\(deltaOffset)) >= current messages (\\(mlxMessages.count)), sending all")
+						messagesToSend = mlxMessages
+					} else {
+						messagesToSend = mlxMessages
+					}
+
+					var inferenceError: Error?
+					var accumulatedText = ""
+					var actualTokenCount: Int?
+					var lastStopReason: StopReason?
+					var stoppedBySequence = false
+					var firstTokenRecorded = false
+
+					// MARK: - Guided Generation Path (grammar-constrained)
+					if let schema = options.grammarSchema {
+						log.info("Routing through GuidedGenerationLoop with grammar constraint")
+						// Guided path: prepare input, build constraint, run token loop
+						// All within modelContainer.perform for thread-safe ModelContext access
+						try await handleGuidedGeneration(
+							messagePairs: mlxMessages.map { (role: $0.role.rawValue, content: $0.content) },
+							grammarSchema: schema,
+							maxTokens: options.maxTokens ?? loaded.modelConfig.maxContextLength,
+						)
+					}
+					// MARK: - Standard ChatSession Path
+					else if let session = chatSession {
 						let genStream: AsyncThrowingStream<MLXLMCommon.Generation, Error> =
-							chatSession.streamDetails(to: messagesToSend)
+							session.streamDetails(to: messagesToSend)
 
-						var firstTokenRecorded = false
-						var inferenceError: Error?
-						var accumulatedText = ""
-						// Upstream stop reason captured from .info event
-						var lastStopReason: StopReason?
-						// Request-level stop sequence detection — upstream handles it via
-						// ModelConfiguration (model-level only), so we filter per-request here.
-						var stoppedBySequence = false
-						// Capture actual token count from upstream .info event — .chunk can
-						// represent one-or-more tokens, so counting chunks would severely
-						// under-estimate generated tokens.
-						var actualTokenCount: Int?
-
-						// Wired memory GPU hard-isolation is handled at outer scope (L588+)
-						// via ticket.start()/ticket.end() — no defer needed.
 						do {
 							for try await generation in genStream {
 								if Task.isCancelled || cancellation.isCancelled {
@@ -599,13 +710,14 @@ extension EnginePool {
 							continuation.yield(.init(kind: .done(stopReason, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
 						}
 					}
+					}
 
-				if let pool = poolRef {
-					// P0-fix: deltaOffset + mlxMessages.count - deltaOffset == mlxMessages.count
-					// always — simplified to remove dead ternary.
+				if let pool = poolRef, let session = chatSession {
+					// Only release pooled session when ChatSession path was used
+					// (Guided path creates its own context, no pool management needed)
 					await pool.release(
 						pooled: PooledChatSession(
-							session: chatSession,
+							session: session,
 							lastAccessedAt: ContinuousClock.now,
 							messageCount: mlxMessages.count,
 						),

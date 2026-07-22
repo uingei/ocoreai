@@ -246,6 +246,8 @@ extension DirectInferenceClient {
 		let inferenceOpts = InferenceOptions(
 			maxTokens: effectiveMaxTokens,
 			includeLogits: false,
+			useGuidedGeneration: request.tools.map { !$0.isEmpty } ?? false,
+			grammarSchema: request.tools.map { buildGrammarSchema(from: $0) }.flatMap { $0 },
 		)
 
 		// Phase 5: Dispatch inference

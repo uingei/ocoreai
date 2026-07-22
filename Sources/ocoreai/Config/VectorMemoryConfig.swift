@@ -7,7 +7,7 @@ import Foundation
 /// Configuration for the vector-based semantic memory system.
 struct VectorMemoryConfig: Sendable {
 	/// Enable automatic embedding of new messages
-	var autoEmbed: Bool = false
+	var autoEmbed: Bool = true
 	
 	/// Embedding model ID (for MLXEmbedders)
 	var embeddingModel: String = "mlx-community/LFM2.5-Embedding-350M-4bit"

@@ -279,22 +279,18 @@ actor EnginePool {
 
 	/// Wait for another caller to finish loading ``modelId``.
 	///
-	/// Uses cooperative ``Task.sleep`` (actor mailbox is NOT blocked).
-	/// Includes a timeout to prevent waiting forever if the load hangs.
-	/// Responds to ``Task.checkCancellation()`` so that a cancelled caller
-	/// abandons the wait immediately.
+	/// Uses a ``ContinuousClock`` deadline instead of busy-spinning.
+	/// Each tick: check cancellation, check deadline, check if model is now loaded,
+	/// then suspend for 1 s.  The actor mailbox is NOT blocked during the sleep —
+	/// Swift actors yield at each suspend point.
 	private func waitForLoading(modelId: String, timeoutSeconds: Int) async throws {
-		var waited = 0
+		let deadline = ContinuousClock.now + .seconds(timeoutSeconds)
 		while loadingModels.contains(modelId) {
 			try Task.checkCancellation()
-			guard waited < timeoutSeconds else {
+			guard ContinuousClock.now < deadline else {
 				throw AppError.engineUnavailable
 			}
-			if waited % 10 == 0 {
-				logger.info("Model \\(modelId) load in progress — \\(timeoutSeconds - waited)s remaining")
-			}
-			try await Task.sleep(for: .seconds(1))
-			waited += 1
+			try await Task.sleep(until: deadline, clock: .continuous)
 		}
 	}
 

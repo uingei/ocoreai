@@ -55,6 +55,7 @@ let package = Package(
                 .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
                 .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
                 .product(name: "MLXEmbedders", package: "mlx-swift-lm"),
+                .product(name: "MLXGuidedGeneration", package: "mlx-swift-lm"),
                 .product(name: "HuggingFace", package: "swift-huggingface"),
                 .product(name: "Tokenizers", package: "swift-transformers"),
             ],

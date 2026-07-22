@@ -374,7 +374,7 @@ final class ChatState {
     ) async {
         guard let compressor, let sid = sessionId else { return }
         do {
-            try await compressor.addMessage(
+            _ = try await compressor.addMessage(
                 sessionId: sid,
                 role: role,
                 content: content,
