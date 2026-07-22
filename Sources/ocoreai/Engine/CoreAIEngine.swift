@@ -1015,17 +1015,16 @@ extension CoreAISequentialEngine {
     /// Float16 on ARM / Float on x86_64 matching LogitsScalarType.
     func sampleFromLogits() -> Int32? {
         #if !arch(x86_64)
-        return argmaxLogits(logitsArray, as: Float16.self)
+        return argmaxLogitsF16(logitsArray)
         #else
-        return argmaxLogits(logitsArray, as: Float.self)
+        return argmaxLogitsF32(logitsArray)
         #endif
     }
 
-    /// Argmax over an NDArray of Float16 or Float scalars.
+    /// Argmax over an NDArray of Float16 scalars.
     func argmaxLogitsF16(_ array: NDArray) -> Int32? {
         array.view(as: Float16.self).withUnsafePointer { ptr, shape, _ in
-            guard let ptr = ptr else { return Int32(-1) }
-            let count = shape.reduce(1, *)
+            let count = Int(shape.count)
             var bestIdx: Int = 0
             var bestVal: Float = Float(ptr[0])
             for i in 1..<count {
@@ -1039,10 +1038,10 @@ extension CoreAISequentialEngine {
         }
     }
 
+    /// Argmax over an NDArray of Float scalars.
     func argmaxLogitsF32(_ array: NDArray) -> Int32? {
         array.view(as: Float.self).withUnsafePointer { ptr, shape, _ in
-            guard let ptr = ptr else { return Int32(-1) }
-            let count = shape.reduce(1, *)
+            let count = Int(shape.count)
             var bestIdx: Int = 0
             var bestVal = ptr[0]
             for i in 1..<count {

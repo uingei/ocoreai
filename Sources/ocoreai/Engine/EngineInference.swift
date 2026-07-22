@@ -152,12 +152,12 @@ extension EnginePool {
 
 		#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 			if #available(macOS 27.0, *) {
-				// CoreAI SDK does not support grammar constraints — if the caller
-				// requested grammar-constrained output (tool calls, JSON schema),
-				// log a so the operator knows this generation is unconstrained.
+				// CoreAI supports grammar constraints via ConstrainedDecodingSession (+ xgrammar bitmask),
+				// but bridging requires vocabulary extraction from the CoreAI tokenizer.
+				// For now, grammar-constrained requests on CoreAI paths are unconstrained.
 				if options.grammarSchema != nil {
 					logger.warning(
-						"CoreAI backend: grammar constraint requested but not supported by SDK. Output will be unconstrained (fallback regex post-processing will apply)."
+						"CoreAI backend: grammar constraint requested but not yet bridged (pending ConstrainedGenerationSession/vocabulary integration). Output will be unconstrained."
 					)
 				}
 				do {
