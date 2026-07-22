@@ -244,4 +244,32 @@ actor ToolRegistry {
 			logger.info("Batch-unregistered \(toolNames.count) tools from MCP source: \(source)")
 		}
 	}
+
+	/// Convert all registered tools to MLXLMCommon-style `[ToolSpec]` for ChatSession.
+	/// ToolSpec == `[String: any Sendable]` matching upstream OpenAI function-calling schema.
+	func toToolSpecs() -> [[String: any Sendable]] {
+		tools.values.map { entry in
+			var properties: [String: String] = [:]
+			for (paramName, paramType) in entry.schema.parameters {
+				properties[paramName] = switch paramType {
+				case .string: "string"
+				case .integer: "integer"
+				case .boolean: "boolean"
+				case .array: "array"
+				}
+			}
+			var params: [String: any Sendable] = ["type": "object", "properties": properties]
+			if !entry.schema.parameters.isEmpty {
+				params["required"] = Array(entry.schema.parameters.keys)
+			}
+			return [
+				"type": "function" as any Sendable,
+				"function": [
+					"name": entry.name as any Sendable,
+					"description": "Tool: \(entry.name) [\(entry.toolset)]" as any Sendable,
+					"parameters": params as any Sendable,
+				] as [String: any Sendable],
+			] as [String: any Sendable]
+		}
+	}
 }

@@ -383,6 +383,7 @@ public final class OcoreaiEngine {
 			modelScopeToken: msToken,
 			hfToken: hfToken,
 			hardwareRouter: hardwareRouter,
+			toolRegistry: toolRegistry,
 		)
 		logger.info("EnginePool initialized with HardwareRouter integration")
 		// Build LLM summarizer callback for session compression

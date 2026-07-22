@@ -106,6 +106,9 @@ actor EnginePool {
 	/// When set, every inference request queries the router for recommendedChannel
 	/// before dispatching to a backend.
 	internal let hardwareRouter: HardwareRouter?
+	
+	/// Tool registry for bridging to ChatSession tool dispatch.
+	internal let toolRegistry: ToolRegistry?
 
 	init(
 		config: EnginePoolConfig,
@@ -118,8 +121,10 @@ actor EnginePool {
 		modelScopeToken: String? = nil,
 		hfToken: String? = nil,
 		hardwareRouter: HardwareRouter? = nil,
+		toolRegistry: ToolRegistry? = nil,
 	) {
 		self.modelScopeToken = modelScopeToken
+		self.toolRegistry = toolRegistry
 		self.hardwareRouter = hardwareRouter
 		precondition(config.maxConcurrentSessions > 0, "maxConcurrentSessions must be positive")
 		precondition(config.maxQueueSize > 0, "maxQueueSize must be positive")

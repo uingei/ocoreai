@@ -586,14 +586,29 @@ extension EnginePool {
 			/// When useGuidedGeneration is true, routes through GuidedGenerationLoop
 			/// for grammar-constrained output (tool calls, JSON schema).
 			/// Otherwise uses upstream ChatSession.streamDetails for standard generation.
+			///
+			/// Bridge: when tools are registered, we pass them to ChatSession along with
+			/// a toolDispatch closure that routes ToolCall → ToolRegistry.call() and back.
+			/// This activates the ChatSession's built-in tool-dispatch agent loop (L774-817)
+			/// instead of relying solely on the local AgentLoop coordinator.
 			func runInferenceBody() async throws {
 				let convKey: String = conversationId ?? "\(modelId):ephemeral"
 				var isPoolHit = false
 				var deltaOffset = 0
 				var chatSession: ChatSession?
+				var registeredToolSpecs: [ToolSpec]?
+
+				// Bridge ToolRegistry → ChatSession tools + toolDispatch
+				if let registry = toolRegistry {
+					let specs = await registry.toToolSpecs()
+					if !specs.isEmpty {
+						registeredToolSpecs = specs
+					}
+				}
 
 				// ChatSession path: acquire or create session
 				if options.useGuidedGeneration == false {
+					// Hoist registry ref before closure — ToolRegistry is an actor, capture is safe
 					if let pool = poolRef {
 						let acquired = await pool.acquire(
 							from: handleRef.modelContainer,
@@ -608,11 +623,41 @@ extension EnginePool {
 						if isPoolHit {
 							log.debug("Pool HIT for \(convKey) — KV cache reused (offset=\(deltaOffset))")
 						}
-					} else {
+						// Inject tools + toolDispatch into pooled session
+						if let specs = registeredToolSpecs {
+							chatSession?.tools = specs
+							if let registry = toolRegistry {
+								chatSession?.toolDispatch = { toolCall in
+									let argsData = toolCall.function.arguments.mapValues { $0.anyValue }
+									let jsonEncoded = try JSONSerialization.data(
+										withJSONObject: argsData
+									)
+									let argsString = String(decoding: jsonEncoded, as: UTF8.self)
+									return try await registry.call(toolCall.function.name, arguments: argsString)
+								}
+							}
+						}
+						} else {
+						let spec: MLXLMCommon.SpeculativeDecodingConfig? = specConfig
+						let gp: MLXLMCommon.GenerateParameters = genParams
+						var toolSpecs: [ToolSpec]? = registeredToolSpecs
+						var toolDispatchClosure: (@Sendable (MLXLMCommon.ToolCall) async throws -> String)? = nil
+						if let specs = toolSpecs, let registry = toolRegistry {
+							toolDispatchClosure = { toolCall in
+								let argsDict = toolCall.function.arguments.mapValues { $0.anyValue }
+								let jsonEncoded = try JSONSerialization.data(
+									withJSONObject: argsDict
+								)
+								let argsString = String(decoding: jsonEncoded, as: UTF8.self)
+								return try await registry.call(toolCall.function.name, arguments: argsString)
+							}
+						}
 						chatSession = ChatSession(
 							handleRef.modelContainer,
-							speculativeDecoding: specConfig,
-							generateParameters: genParams,
+							speculativeDecoding: spec,
+							generateParameters: gp,
+							tools: toolSpecs,
+							toolDispatch: toolDispatchClosure
 						)
 					}
 				}
