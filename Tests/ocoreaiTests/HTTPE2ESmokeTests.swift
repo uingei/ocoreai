@@ -261,7 +261,7 @@ struct HTTPHandlerE2ESmokeTests {
 				uri: "/v1/chat/completions",
 				method: .post,
 				headers: headers,
-				body: buf
+				body: buf// DEBUG: print status
 			) { response in
 				// 400 (validation) or 503 (no model loaded → engineUnavailable) or 500 — all prove the pipeline works
 				#expect(response.status == .badRequest || response.status == .serviceUnavailable || response.status == .internalServerError)

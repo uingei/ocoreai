@@ -37,8 +37,8 @@ import Hummingbird
 /// OpenAI API uses ``snake_case`` keys. Swift properties are ``camelCase``.
 /// Explicit ``CodingKeys`` below bridge the two formats.
 struct ChatCompletionRequest: Decodable {
-	/// Model identifier (defaults to "default")
-	var model: String = "default"
+	/// Model identifier (required — missing model returns 400)
+	var model: String
 
 	/// Message history (system, user, assistant, tool roles)
 	var messages: [Message]
@@ -117,7 +117,7 @@ struct ChatCompletionRequest: Decodable {
 	}
 
 	init(
-		model: String = "default",
+		model: String,
 		messages: [Message],
 		temperature: Float = 0.7,
 		topP: Float? = nil,
@@ -156,7 +156,7 @@ struct ChatCompletionRequest: Decodable {
 
 	init(from decoder: Decoder) throws {
 		let c = try decoder.container(keyedBy: CodingKeys.self)
-		model = try c.decodeIfPresent(String.self, forKey: .model) ?? "default"
+		model = try c.decode(String.self, forKey: .model)
 		messages = try c.decode([Message].self, forKey: .messages)
 		temperature = try c.decodeIfPresent(Float.self, forKey: .temperature) ?? 0.7
 		stream = (try? c.decodeIfPresent(Bool.self, forKey: .stream)) ?? false

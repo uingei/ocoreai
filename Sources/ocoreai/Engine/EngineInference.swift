@@ -152,13 +152,31 @@ extension EnginePool {
 
 		#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 			if #available(macOS 27.0, *) {
-				// CoreAI supports grammar constraints via ConstrainedDecodingSession (+ xgrammar bitmask),
-				// but bridging requires vocabulary extraction from the CoreAI tokenizer.
-				// For now, grammar-constrained requests on CoreAI paths are unconstrained.
-				if options.grammarSchema != nil {
-					logger.warning(
-						"CoreAI backend: grammar constraint requested but not yet bridged (pending ConstrainedGenerationSession/vocabulary integration). Output will be unconstrained."
+				// CoreAI lacks grammar constraints and tool dispatch — fall back to MLX
+				if options.grammarSchema != nil || options.useGuidedGeneration {
+					logger.info("Falling back to MLX for grammar/tool-constrained request on model \\(modelId)")
+					let promptText = await (try? detokenize(modelId: modelId, tokens: input))
+						?? "<detokenization failed>"
+
+					// Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
+					let reasoningControlTokens = Set([151645, 151646])
+					if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
+						logger.warning("MLX token→text→token path may drop control tokens for model \\(modelId)")
+					}
+
+					let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
+					await _runInferenceWithMessages(
+						modelId: modelId,
+						messages: mlxMessages,
+						sampling: sampling,
+						options: options,
+						metrics: metrics,
+						continuation: continuation,
+						conversationId: nil,
+						cancellation: cancellation,
+						skipLock: true
 					)
+					return
 				}
 				do {
 					// Use cached engine — CoreAI 34f0db3: single engine per model preserves
