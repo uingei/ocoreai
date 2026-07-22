@@ -1007,9 +1007,53 @@ extension CoreAISequentialEngine {
 
     /// Sample next token from logits.
     func sampleToken() -> Int32 {
-        // Argmax sampling for stability; temperature-based would need CPU logits copy
-        // which we defer. For now, return a placeholder token.
-        return 0
+        guard let token = sampleFromLogits() else { return -1 }
+        return token
+    }
+
+    /// Argmax over logitsArray → token ID.
+    /// Float16 on ARM / Float on x86_64 matching LogitsScalarType.
+    func sampleFromLogits() -> Int32? {
+        #if !arch(x86_64)
+        return argmaxLogits(logitsArray, as: Float16.self)
+        #else
+        return argmaxLogits(logitsArray, as: Float.self)
+        #endif
+    }
+
+    /// Argmax over an NDArray of Float16 or Float scalars.
+    func argmaxLogitsF16(_ array: NDArray) -> Int32? {
+        array.view(as: Float16.self).withUnsafePointer { ptr, shape, _ in
+            guard let ptr = ptr else { return Int32(-1) }
+            let count = shape.reduce(1, *)
+            var bestIdx: Int = 0
+            var bestVal: Float = Float(ptr[0])
+            for i in 1..<count {
+                let v = Float(ptr[i])
+                if v > bestVal {
+                    bestVal = v
+                    bestIdx = i
+                }
+            }
+            return Int32(bestIdx)
+        }
+    }
+
+    func argmaxLogitsF32(_ array: NDArray) -> Int32? {
+        array.view(as: Float.self).withUnsafePointer { ptr, shape, _ in
+            guard let ptr = ptr else { return Int32(-1) }
+            let count = shape.reduce(1, *)
+            var bestIdx: Int = 0
+            var bestVal = ptr[0]
+            for i in 1..<count {
+                let v = ptr[i]
+                if v > bestVal {
+                    bestVal = v
+                    bestIdx = i
+                }
+            }
+            return Int32(bestIdx)
+        }
     }
 }
 
