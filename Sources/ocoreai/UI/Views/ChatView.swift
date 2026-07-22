@@ -228,7 +228,7 @@ struct ChatView: View {
             Button(StringKey.clearAllAction.l, role: .destructive) {
                 chatState.resetConversation()
             }
-            Button("Cancel", role: .cancel) {}
+            Button(StringKey.cancelButton.l, role: .cancel) {}
         } message: {
             Text(StringKey.clearConversationMessage.l)
         }
