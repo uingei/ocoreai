@@ -92,6 +92,7 @@ struct HTTPHandlerE2ESmokeTests {
 			scheduler: scheduler,
 			metrics: MetricsRegistry(),
 			sessionCompressor: compressor,
+			semanticSearch: nil,
 			mcpBridge: makeMCPBridge(),
 			systemPromptBuilder: SystemPromptBuilder(basePrompt: "test"),
 			messageBuilder: mb,
