@@ -129,9 +129,7 @@ jobs:
         with:
           path: |
             .build
-          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: |
-            spm-${{ runner.os }}-
+          key: spm-v2-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
 
       - name: Setup MLX metallib
         run: |
