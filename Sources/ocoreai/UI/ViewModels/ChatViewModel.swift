@@ -268,6 +268,7 @@ final class ChatState {
         if let oldModel = activeModelId, oldModel != newModelId {
             // P1-fix: Asynchronous model cleanup — unload old model, reset session
             // for new model, but preserve UI message history for conversation continuity.
+            loading = true
             Task { @MainActor in
                 guard !Task.isCancelled else { return }
                 // Unload old model from GPU
@@ -286,6 +287,7 @@ final class ChatState {
                 self.inferenceSessionId = "chat-\(UUID().uuidString.prefix(8))"
                 // P1-fix: Clear only the streaming response text — preserve messages
                 self.responseText = ""
+                loading = false
             }
         }
     }
@@ -320,6 +322,30 @@ final class ChatState {
     /// Called from ChatView.onDisappear to clean up resources on tab switch.
     func stop() {
         cancelInference()
+    }
+
+    /// Reload messages from SQLite for the given session.
+    /// Called when the user switches sessions in the Session tab.
+    func reloadSession(for session: SessionModel) async {
+        cancelInference()
+        loading = true
+        messages = []
+        responseText = ""
+        errorMessage = nil
+        if let compressor {
+            do {
+                sessionId = session.id
+                activeModelId = session.modelId
+                let hotWindowLimit = compressor.hotWindow
+                let dbMessages = try await compressor.getMessages(session.id, limit: hotWindowLimit, offset: 0)
+                let chronMessages = dbMessages.reversed().map { fromMessageModel($0) }
+                messages = chronMessages
+                inferenceSessionId = "chat-\(UUID().uuidString.prefix(8))"
+            } catch {
+                Self.logger.warning("Failed to load session \(session.id): \(error.localizedDescription)")
+            }
+        }
+        loading = false
     }
 
     // MARK: - Persistence

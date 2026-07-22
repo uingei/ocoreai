@@ -179,6 +179,16 @@ struct ChatView: View {
             }
         }
         #endif
+        // P1-fix: observe session selection from Session tab — reload chat when user switches
+        .onChange(of: SessionManager.shared.selectedSession?.id) { _, newSessionId in
+            if let newId = newSessionId {
+                if let session = SessionManager.shared.sessions.first(where: { $0.id == newId }) {
+                    Task { @MainActor in
+                        await chatState.reloadSession(for: session)
+                    }
+                }
+            }
+        }
         // Voice loop: observe MultimodalState.pendingVoiceTranscript via @Observable —
         // replaces NotificationCenter (P0-fix: cross-module coupling through @Observable singleton)
         #if os(macOS)
