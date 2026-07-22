@@ -57,7 +57,7 @@ struct InferenceEvent {
 		/// Generation complete metadata — carries actual token count from upstream
 		/// when available. Essential for accurate token budgeting on MLX backend
 		/// where `.chunk` = one-or-more tokens.
-		case done(StopReason?, tokenCount: Int?)
+		case done(StopReason, tokenCount: Int?)
 
 		/// Fatal inference error
 		case error(String)

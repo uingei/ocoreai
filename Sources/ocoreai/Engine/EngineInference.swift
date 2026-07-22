@@ -528,6 +528,8 @@ extension EnginePool {
 						var firstTokenRecorded = false
 						var inferenceError: Error?
 						var accumulatedText = ""
+						// Upstream stop reason captured from .info event
+						var lastStopReason: StopReason?
 						// Request-level stop sequence detection — upstream handles it via
 						// ModelConfiguration (model-level only), so we filter per-request here.
 						var stoppedBySequence = false
@@ -569,8 +571,17 @@ extension EnginePool {
 										continuation.yield(.init(kind: .text(text)))
 									}
 								case let .info(completionInfo):
-									// Capture actual generation token count from upstream
+									// Capture actual generation token count and stop reason from upstream
 									actualTokenCount = completionInfo.generationTokenCount
+									// Map upstream GenerateStopReason → our StopReason:
+									//   .stop → .eos (model hit EOS)
+									//   .length → .maxTokens (hit max token limit)
+									//   .cancelled → .cancelled (task cancelled)
+									lastStopReason = switch completionInfo.stopReason {
+									case .stop: .eos
+									case .length: .maxTokens
+									case .cancelled: .cancelled
+									}
 								case .toolCall:
 									// Tool calls are handled by AgentLoop.parseToolCalls() on accumulated text at stream end
 									break
@@ -583,7 +594,9 @@ extension EnginePool {
 						if let inferenceError {
 							continuation.yield(.init(kind: .error(inferenceError.localizedDescription)))
 						} else if !Task.isCancelled && !stoppedBySequence {
-							continuation.yield(.init(kind: .done(nil, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
+							// Use upstream stop reason if available, fallback to .maxTokens
+							let stopReason: StopReason = lastStopReason ?? .maxTokens
+							continuation.yield(.init(kind: .done(stopReason, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
 						}
 					}
 
