@@ -29,6 +29,10 @@ struct SamplingConfiguration: Codable, Equatable {
 	// GenerateParameters fields that control prefill/KV cache/windowing
 	var prefillStepSize: Int? = nil
 	var maxKVSize: Int? = nil
+	var kvBits: Int? = nil
+	var kvGroupSize: Int = 64
+	var quantizedKVStart: Int = 0
+	var kvScheme: String? = nil
 	var repetitionContextSize: Int = 20
 	var presenceContextSize: Int = 20
 	var frequencyContextSize: Int = 20
@@ -47,6 +51,10 @@ struct SamplingConfiguration: Codable, Equatable {
 		combined: Bool = true,
 		prefillStepSize: Int? = nil,
 		maxKVSize: Int? = nil,
+		kvBits: Int? = nil,
+		kvGroupSize: Int = 64,
+		quantizedKVStart: Int = 0,
+		kvScheme: String? = nil,
 		repetitionContextSize: Int = 20,
 		presenceContextSize: Int = 20,
 		frequencyContextSize: Int = 20,
@@ -64,6 +72,10 @@ struct SamplingConfiguration: Codable, Equatable {
 		self.combined = combined
 		self.prefillStepSize = prefillStepSize
 		self.maxKVSize = maxKVSize
+		self.kvBits = kvBits
+		self.kvGroupSize = kvGroupSize
+		self.quantizedKVStart = quantizedKVStart
+		self.kvScheme = kvScheme
 		self.repetitionContextSize = repetitionContextSize
 		self.presenceContextSize = presenceContextSize
 		self.frequencyContextSize = frequencyContextSize

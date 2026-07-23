@@ -598,6 +598,16 @@
 		params.repetitionContextSize = sampling.repetitionContextSize
 		params.presenceContextSize = sampling.presenceContextSize
 		params.frequencyContextSize = sampling.frequencyContextSize
+		// KV quantization fallback — SamplingConfiguration fields override when kvCacheQuant nil
+		if params.kvBits == nil, let bits = sampling.kvBits {
+			params.kvBits = bits
+		}
+		if params.kvScheme == nil, let scheme = sampling.kvScheme {
+			params.kvScheme = scheme
+		}
+		if params.quantizedKVStart == 0, sampling.quantizedKVStart > 0 {
+			params.quantizedKVStart = sampling.quantizedKVStart
+		}
 		return params
 	}
 
