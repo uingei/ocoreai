@@ -80,6 +80,21 @@ struct ChatCompletionRequest: Decodable {
 	/// Deterministic seed for reproducible sampling
 	var seed: Int64? = nil
 
+	/// Prefill step size for prompt chunking (nil = model default)
+	var prefillStepSize: Int? = nil
+
+	/// Max KV cache size — enables RotatingKVCache when set
+	var maxKVSize: Int? = nil
+
+	/// Context window for repetition penalty
+	var repetitionContextSize: Int? = nil
+
+	/// Context window for presence penalty
+	var presenceContextSize: Int? = nil
+
+	/// Context window for frequency penalty
+	var frequencyContextSize: Int? = nil
+
 	// MARK: Session Management
 
 	/// Persistent session ID for multi-turn conversations
@@ -117,6 +132,11 @@ struct ChatCompletionRequest: Decodable {
 		case presencePenalty = "presence_penalty"
 		case minP = "min_p"
 		case seed
+		case prefillStepSize = "prefill_step_size"
+		case maxKVSize = "max_kv_size"
+		case repetitionContextSize = "repetition_context_size"
+		case presenceContextSize = "presence_context_size"
+		case frequencyContextSize = "frequency_context_size"
 		case sessionID = "session_id"
 		case tools, toolChoice
 		case parallelToolCalls = "parallel_tool_calls"
@@ -701,6 +721,21 @@ struct ModelSamplingConfig: Codable {
 	/// Deterministic seed for reproducible sampling
 	var seed: Int64? = nil
 
+	/// Prefill step size for prompt chunking
+	var prefillStepSize: Int? = nil
+
+	/// Max KV cache size (enables RotatingKVCache when set)
+	var maxKVSize: Int? = nil
+
+	/// Context window for repetition penalty
+	var repetitionContextSize: Int = 20
+
+	/// Context window for presence penalty
+	var presenceContextSize: Int = 20
+
+	/// Context window for frequency penalty
+	var frequencyContextSize: Int = 20
+
 	/// Response format override ("text" | "json_object")
 	var responseFormat: String? = nil
 
@@ -711,6 +746,7 @@ struct ModelSamplingConfig: Codable {
 	var isDefault: Bool {
 		temperature == 0.7 && topP == nil && topK == nil && maxTokens == nil
 			&& frequencyPenalty == 0 && presencePenalty == 0 && minP == nil && seed == nil && responseFormat == nil
+			&& prefillStepSize == nil && maxKVSize == nil
 	}
 
 	// MARK: - Snake-Case Key Mapping (OpenAI API compat for PATCH)
@@ -724,6 +760,11 @@ struct ModelSamplingConfig: Codable {
 		case presencePenalty = "presence_penalty"
 		case minP = "min_p"
 		case seed
+		case prefillStepSize = "prefill_step_size"
+		case maxKVSize = "max_kv_size"
+		case repetitionContextSize = "repetition_context_size"
+		case presenceContextSize = "presence_context_size"
+		case frequencyContextSize = "frequency_context_size"
 		case responseFormat = "response_format"
 	}
 }
@@ -738,6 +779,11 @@ struct ModelSamplingPatch: Decodable {
 	var presencePenalty: Float? = nil
 	var minP: Float? = nil
 	var seed: Int64? = nil
+	var prefillStepSize: Int? = nil
+	var maxKVSize: Int? = nil
+	var repetitionContextSize: Int? = nil
+	var presenceContextSize: Int? = nil
+	var frequencyContextSize: Int? = nil
 	var responseFormat: String? = nil
 
 	/// Merge partial fields into a full ``ModelSamplingConfig``.

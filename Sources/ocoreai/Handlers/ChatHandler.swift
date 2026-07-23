@@ -282,6 +282,13 @@ func chatCompletionsHandler(
 			? request.frequencyPenalty
 			: runtimeDefaults.frequencyPenalty
 
+		/// Resolve prefill/KV cache parameters with nil → runtime → nil cascade.
+		let effectivePrefillStepSize = request.prefillStepSize ?? runtimeDefaults.prefillStepSize
+		let effectiveMaxKVSize = request.maxKVSize ?? runtimeDefaults.maxKVSize
+		let effectiveRepetitionContextSize = request.repetitionContextSize ?? runtimeDefaults.repetitionContextSize
+		let effectivePresenceContextSize = request.presenceContextSize ?? runtimeDefaults.presenceContextSize
+		let effectiveFrequencyContextSize = request.frequencyContextSize ?? runtimeDefaults.frequencyContextSize
+
 		/// Build normalized sampling configuration (drops redundant params when temperature == 0).
 		let rawSampling = SamplingConfiguration(
 			seed: effectiveSeed,
@@ -294,6 +301,11 @@ func chatCompletionsHandler(
 			stopSequences: request.stop,
 			logitBias: nil, // logitBias 暂不暴露（ChatCompletionRequest 无对应字段）
 			combined: true,
+			prefillStepSize: effectivePrefillStepSize,
+			maxKVSize: effectiveMaxKVSize,
+			repetitionContextSize: effectiveRepetitionContextSize,
+			presenceContextSize: effectivePresenceContextSize,
+			frequencyContextSize: effectiveFrequencyContextSize,
 		)
 
 		/// Phase 4b: Task-aware parameter adjustment — precision tasks get lower temperature.
