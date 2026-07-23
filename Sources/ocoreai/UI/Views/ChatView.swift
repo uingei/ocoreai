@@ -665,9 +665,23 @@ struct ChatBubble: View {
                 Button(StringKey.copyMessage.l) {
                     NSPasteboard.general.setString(message.content, forType: .string)
                 }
+                if message.role == "user" {
+                    Divider()
+                    Button(StringKey.regenerateMessage.l) {
+                        guard let uuid = UUID(uuidString: message.id) else { return }
+                        ChatState.shared.resendFromMessage(with: uuid)
+                    }
+                }
             #else
                 Button(StringKey.copyMessage.l) {
                     copyToPasteboard(message.content)
+                }
+                if message.role == "user" {
+                    Divider()
+                    Button(StringKey.regenerateMessage.l) {
+                        guard let uuid = UUID(uuidString: message.id) else { return }
+                        ChatState.shared.resendFromMessage(with: uuid)
+                    }
                 }
             #endif
             }

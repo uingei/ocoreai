@@ -247,6 +247,26 @@ final class ChatState {
         }
     }
 
+    // MARK: - P7: Resend / Regenerate
+
+    /// Resend from a given user message — truncates all messages after it
+    /// (including interrupted assistant reply) and re-infers with the same model.
+    func resendFromMessage(with uuid: UUID) {
+        // Cancel any in-flight stream
+        cancelInference()
+
+        guard let idx = messages.firstIndex(where: { $0.id == uuid && $0.role == "user" }) else { return }
+        let userMsg = messages[idx]
+        // Truncate: keep the user message as the last one, discard everything after
+        messages.removeSubrange(idx + 1..<messages.endIndex)
+        // Kick off inference with the same text and current model
+        let modelID = activeModelId ?? ""
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.chat(userMsg.content, model: modelID.isEmpty ? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? "" : modelID, attachments: [])
+        }
+    }
+
     // MARK: - Model lifecycle (P0-2: hot-switch)
 
     /// Called when the user switches the model selector.
