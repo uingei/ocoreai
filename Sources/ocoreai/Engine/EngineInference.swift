@@ -178,6 +178,22 @@ extension EnginePool {
 					)
 					return
 				}
+				// Warn about sampling fields CoreAI SDK cannot honor
+				// (CoreAI.SamplingConfiguration only supports temperature/topK/topP/minP/combined)
+				let coreaiUnhonoredFields: [String] = [
+					sampling.seed != nil ? "seed" : "",
+					sampling.repetitionPenalty != nil ? "repetitionPenalty" : "",
+					sampling.presencePenalty != nil ? "presencePenalty" : "",
+					sampling.frequencyPenalty != nil ? "frequencyPenalty" : "",
+					(sampling.stopSequences ?? []).isEmpty ? "" : "stopSequences",
+					(sampling.logitBias ?? [:]).isEmpty ? "" : "logitBias",
+				].filter { !$0.isEmpty }
+				if !coreaiUnhonoredFields.isEmpty {
+					logger.warning(
+						"[\(type(of: self))] CoreAI path: sampling fields not honored by SDK: \(coreaiUnhonoredFields.joined(separator: ", "))"
+					)
+				}
+
 				do {
 					// Use cached engine — CoreAI 34f0db3: single engine per model preserves
 					// KV cache across turns. TokenHistory.resolve handles prefix caching automatically.
@@ -188,10 +204,13 @@ extension EnginePool {
 						inferenceOptions: options,
 					)
 
+					var streamCancelled = false
 					do {
 						for try await output in sequence {
 							if Task.isCancelled || cancellation.isCancelled {
-								continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: metrics.generatedTokenCount)))
+								streamCancelled = true
+								// Drain remaining output to release GPU memory
+								// (CoreAI keeps pending tokens on GPU until consumed or drained)
 								break
 							}
 							metrics.incrementGenerated()
@@ -207,7 +226,18 @@ extension EnginePool {
 						return
 					}
 
-					if !Task.isCancelled {
+					if streamCancelled {
+						// Drain remaining tokens to free CoreAI GPU memory
+						// (upstream #113 fix: pipelined sequence retains output until consumed)
+						logger.debug("CoreAI stream cancelled — draining remaining output")
+						do {
+							for try await _ in sequence {}
+						} catch {
+							// Drain error — the stream was already cancelled, this is expected
+							logger.debug("CoreAI drain error: \(error.localizedDescription)")
+						}
+						continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: metrics.generatedTokenCount)))
+					} else if !Task.isCancelled {
 						// Read actual stop reason from sequence; default to maxTokens if unset
 						// (e.g., empty prefix-hit path or early termination edge case)
 						let stopReason: StopReason = sequence.stopReason?.stopReason ?? .maxTokens
@@ -389,6 +419,40 @@ extension EnginePool {
 				continuation.finish()
 				return
 			}
+
+			// ANE path: delegate to _runInference → CoreAI engine (which supports ANE hardware)
+			// Skip MLX-specific setup (session pool, guided gen, spec decoding) which requires GPU.
+			#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+				if computeChannel == .ane {
+					logger.info("ANE channel: routing model \(modelId) through CoreAI engine")
+					do {
+						let tokens = try await tokenize(modelId: modelId, messages: messages)
+						let count = tokens.count
+						if count > loaded.modelConfig.maxContextLength {
+							continuation.yield(.init(kind: .error(
+								"Input \(count) exceeds max context \(loaded.modelConfig.maxContextLength)")))
+							continuation.finish()
+							return
+						}
+						metrics.promptTokenCount = count
+						metrics.start()
+						await _runInference(
+							modelId: modelId,
+							input: tokens,
+							sampling: sampling,
+							options: options,
+							metrics: metrics,
+							continuation: continuation,
+							cancellation: cancellation
+						)
+					} catch {
+						continuation.yield(.init(kind: .error(error.localizedDescription)))
+						continuation.finish()
+						return
+					}
+					return
+				}
+			#endif
 
 			let tokenCount: Int
 			do {
@@ -658,9 +722,9 @@ extension EnginePool {
 						} else {
 						let spec: MLXLMCommon.SpeculativeDecodingConfig? = specConfig
 						let gp: MLXLMCommon.GenerateParameters = genParams
-						var toolSpecs: [ToolSpec]? = registeredToolSpecs
+						let toolSpecs: [ToolSpec]? = registeredToolSpecs
 						var toolDispatchClosure: (@Sendable (MLXLMCommon.ToolCall) async throws -> String)? = nil
-						if let specs = toolSpecs, let registry = toolRegistry {
+						if toolSpecs != nil, let registry = toolRegistry {
 							toolDispatchClosure = { toolCall in
 								let argsDict = toolCall.function.arguments.mapValues { $0.anyValue }
 								let jsonEncoded = try JSONSerialization.data(
