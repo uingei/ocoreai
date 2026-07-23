@@ -13,6 +13,7 @@
 import Atomics
 import Foundation
 import Logging
+import MLXVLM
 
 #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 	import CoreAI
@@ -91,6 +92,8 @@ actor EnginePool {
 	let sessionPool: MLXSessionPool?
 	/// Shared draft model for speculative decoding — loaded once, reused across all models.
 	private var draftModelHandle: (any MLXModelHandle)?
+	/// MTP assistant drafter container — loaded once, reused across MTP inference calls.
+	internal var mtpDrafterContainer: MLXLMCommon.MTPDrafterContainer?
 
 	// MARK: - Runtime Parameter Store (hot-swappable)
 
@@ -179,6 +182,11 @@ actor EnginePool {
 			} else {
 				logger.info("Speculative decoding disabled")
 			}
+		// Register MTP drafter types (idempotent, async)
+		Task {
+			await Gemma4AssistantRegistration.register()
+			logger.info("MTP drafter types registered")
+		}
 	}
 
 	// MARK: - Tokenization
@@ -445,6 +453,22 @@ actor EnginePool {
 		// Configure speculative decoding — lazy-load draft model on first model load
 		model.setSpecDecodingConfig(config.specDecoding)
 		if config.specDecoding.enabled {
+			// MTP mode: load assistant drafter via MLXModelLoader
+			if config.specDecoding.mode == "mtp" && !model.hasMTPDrafter {
+				let drafterModelId: String
+				if modelId.contains("31B") || modelId.contains("31b") {
+					drafterModelId = "mlx-community/gemma-4-31B-it-assistant-bf16"
+				} else {
+					drafterModelId = "mlx-community/gemma-4-26B-A4B-it-assistant-bf16"
+				}
+				do {
+					self.mtpDrafterContainer = try await mlxModelLoader.loadMTPDrafter(modelId: drafterModelId)
+					logger.info("MTP drafter loaded for \(modelId): \(drafterModelId)")
+				} catch {
+					logger.warning("MTP drafter load failed: \(error)")
+				}
+			}
+			// Traditional mode: lazy-load draft model
 			if let draft = self.draftModelHandle {
 				model.setDraftModel(draft)
 			} else if self.draftModelHandle == nil,

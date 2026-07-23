@@ -58,6 +58,8 @@ final class LoadedModel: @unchecked Sendable {
 	var specDecodingConfig: SpecDecodingConfig = .default
 	/// Draft model for speculative decoding — loaded by EnginePool, reused across sessions.
 	private var draftModelHandle: (any MLXModelHandle)?
+	/// MTP assistant drafter container — loaded by EnginePool, reused across MTP inference calls.
+	private var _mtpDrafterContainer: MLXLMCommon.MTPDrafterContainer?
 
 	/// Logger for observability
 	let logger: Logger
@@ -77,13 +79,22 @@ final class LoadedModel: @unchecked Sendable {
 			logger.info("Speculative decoding enabled — draft model loaded")
 		}
 
+		/// Check if MTP drafter is loaded.
+		var hasMTPDrafter: Bool {
+			_mtpDrafterContainer != nil
+		}
+		/// EnginePool loads the drafter via MLXModelLoader.loadMTPDrafter and stores it here.
+		func setMTPDrafter(_ drafter: MLXLMCommon.MTPDrafterContext) {
+			_mtpDrafterContainer = MLXLMCommon.MTPDrafterContainer(context: drafter)
+			logger.info("MTP drafer container set on loaded model")
+		}
+
 		/// Build ``SpeculativeDecodingConfig`` for ChatSession initialization.
 		///
 		/// Returns `nil` when:
 		/// - Speculative decoding is disabled in config (`enabled: false`)
-		/// - Mode is "mtp" — MTP does not use a separate draft model and needs
-		///   its own inference path (MTPSpeculativeTokenIterator), not yet wired.
-		///   Emits a user-visible warning so the operator knows SDC is off.
+		/// - Mode is "mtp" — MTP uses its own inference path via `generate(...,
+		///   mtpDrafer:, blockSize:)`, not ChatSession-based speculative decoding.
 		/// - No draft model has been loaded for "traditional" mode
 		func createSpeculativeConfig() -> MLXLMCommon.SpeculativeDecodingConfig? {
 			guard specDecodingConfig.enabled else { return nil }

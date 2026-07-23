@@ -506,7 +506,30 @@
 			}
 		}
 
-		// MARK: - Teardown
+		// MARK: - MTP Drafter
+
+		func loadMTPDrafter(modelId: String) async throws -> MLXLMCommon.MTPDrafterContainer {
+			logger.info("Loading MTP drafter: \(modelId)")
+			// ModelScope path
+			if defaultHub != "huggingface" && !modelId.hasPrefix("hf:") {
+				let msDownloader = ModelScopeDownloader(token: modelScopeToken)
+				let drafter = try await MLXLMCommon.MTPDrafterModelFactory.shared.load(
+					from: msDownloader as any Downloader,
+					using: NoOpTokenizerLoader(),
+					configuration: MLXLMCommon.ModelConfiguration(id: modelId)
+				)
+				return MLXLMCommon.MTPDrafterContainer(context: drafter)
+			} else {
+				let drafter = try await MLXLMCommon.MTPDrafterModelFactory.shared.load(
+					from: #hubDownloader(),
+					using: NoOpTokenizerLoader(),
+					configuration: MLXLMCommon.ModelConfiguration(id: modelId)
+				)
+				return MLXLMCommon.MTPDrafterContainer(context: drafter)
+			}
+		}
+
+	// MARK: - Teardown
 
 		func teardown() {
 			logger.info("MLXModelLoader teardown requested")

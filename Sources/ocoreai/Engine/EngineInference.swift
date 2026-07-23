@@ -13,6 +13,19 @@ import Logging
 	import CoreAI
 #endif
 
+// MARK: - Sendable wrappers for MTP speculative decoding
+//
+// MLXLMCommon's SendableBox is package-private, so we provide local wrappers
+// to safely cross @Sendable closure boundaries. These are safe because
+// both model and drafter sit behind SerialAccessContainers that enforce
+// single-threaded access within modelContainer.perform / mtpDrafterContainer.perform.
+
+/// @unchecked Sendable wrapper for MTP drafter model — enables injection into
+/// modelContainer.perform(nonSendable:) closure via perform(nonSendable:values:_:).
+struct MTPDrafterModelWrapper: @unchecked Sendable {
+	let model: any MLXLMCommon.MTPDrafterModel
+}
+
 import MLX
 import MLXLLM
 import MLXLMCommon
@@ -773,68 +786,111 @@ extension EnginePool {
 							maxTokens: options.maxTokens ?? loaded.modelConfig.maxContextLength,
 						)
 					}
-					// MARK: - Standard ChatSession Path
-					else if let session = chatSession {
-						let genStream: AsyncThrowingStream<MLXLMCommon.Generation, Error> =
-							session.streamDetails(to: messagesToSend)
+					// MARK: - MTP Speculative Decoding Path
+					else if self.mtpDrafterContainer != nil, mlxMessages.count > 0 {
+						log.info("Routing through MTP speculative decoding")
+						let messagePairs: [(role: String, content: String)] = mlxMessages.map {
+							(role: $0.role.rawValue, content: $0.content)
+						}
 
-						do {
-							for try await generation in genStream {
+						struct MTPResult: Sendable {
+							let accumulatedText: String
+							let tokenCount: Int?
+							let stopReason: StopReason?
+							let stoppedBySequence: Bool
+						}
+
+						// Extract drafter model via local wrapper — allows injection into
+						// modelContainer.perform(nonSendable:) closure
+						let drafterWrapper: MTPDrafterModelWrapper
+						drafterWrapper = await self.mtpDrafterContainer!.perform { drafterCtx in
+							MTPDrafterModelWrapper(model: drafterCtx.model)
+						}
+
+						let mtpResult = try await handleRef.modelContainer.perform(nonSendable: drafterWrapper) { context, wrapped in
+							let drafterModel = wrapped.model
+
+							// All state scoped inside closure — @Sendable compliant
+							var localAccumulatedText = ""
+							var localFirstToken = false
+							var localTokenCount: Int?
+							var localStopReason: StopReason?
+							var localStoppedBySeq = false
+
+							let mtpMessages: [Chat.Message] = messagePairs.map { pair in
+								Chat.Message(
+									role: Chat.Message.Role(rawValue: pair.role) ?? .system,
+									content: pair.content
+								)
+							}
+
+							let mtpUserInput = UserInput(prompt: .chat(mtpMessages))
+							let mtpInput = try await context.processor.prepare(input: mtpUserInput)
+
+							let mtpGenStream = try MLXLMCommon.generate(
+								input: mtpInput,
+								parameters: genParams,
+								context: context,
+								mtpDrafter: drafterModel,
+								blockSize: 4
+							)
+
+							for try await generation in mtpGenStream {
 								if Task.isCancelled || cancellation.isCancelled {
-									continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
+									localStoppedBySeq = true
 									break
 								}
 								switch generation {
 								case let .chunk(text):
-									// firstTokenMs: record on first actual text chunk — isolates prefill/init time
-									if !firstTokenRecorded {
+									if !localFirstToken {
 										metrics.firstTokenMs = metrics.overallMs
-										firstTokenRecorded = true
+										localFirstToken = true
 									}
 									metrics.incrementGenerated()
-									accumulatedText += text
-									// Check if accumulated text matches any stop sequence
+									localAccumulatedText += text
 									if requestStopSequences.isEmpty {
 										continuation.yield(.init(kind: .text(text)))
-									} else if let match = requestStopSequences.first(where: { accumulatedText.hasSuffix($0) }) {
-										// Trim the stop sequence from output and early-exit
-										let trimmed = String(accumulatedText.prefix(accumulatedText.count - match.count))
+									} else if let match = requestStopSequences.first(where: { localAccumulatedText.hasSuffix($0) }) {
+										let trimmed = String(localAccumulatedText.prefix(localAccumulatedText.count - match.count))
 										if !trimmed.isEmpty {
 											continuation.yield(.init(kind: .text(trimmed)))
 										}
-										continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
-										stoppedBySequence = true
+										continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount)))
+										localStoppedBySeq = true
 										break
 									} else {
 										continuation.yield(.init(kind: .text(text)))
 									}
 								case let .info(completionInfo):
-									// Capture actual generation token count and stop reason from upstream
-									actualTokenCount = completionInfo.generationTokenCount
-									// Map upstream GenerateStopReason → our StopReason:
-									//   .stop → .eos (model hit EOS)
-									//   .length → .maxTokens (hit max token limit)
-									//   .cancelled → .cancelled (task cancelled)
-									lastStopReason = switch completionInfo.stopReason {
+									localTokenCount = completionInfo.generationTokenCount
+									localStopReason = switch completionInfo.stopReason {
 									case .stop: .eos
 									case .length: .maxTokens
 									case .cancelled: .cancelled
 									}
 								case .toolCall:
-									// Tool calls are handled by AgentLoop.parseToolCalls() on accumulated text at stream end
 									break
 								}
 							}
-						} catch {
-							inferenceError = error
+
+							return MTPResult(
+								accumulatedText: localAccumulatedText,
+								tokenCount: localTokenCount,
+								stopReason: localStopReason,
+								stoppedBySequence: localStoppedBySeq
+							)
 						}
 
-						if let inferenceError {
-							continuation.yield(.init(kind: .error(inferenceError.localizedDescription)))
-						} else if !Task.isCancelled && !stoppedBySequence {
-							// Use upstream stop reason if available, fallback to .maxTokens
-							let stopReason: StopReason = lastStopReason ?? .maxTokens
-							continuation.yield(.init(kind: .done(stopReason, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
+						// Sync MTP result back to outer scope
+						accumulatedText = mtpResult.accumulatedText
+						if let tc = mtpResult.tokenCount {
+							actualTokenCount = tc
+						}
+						if let sr = mtpResult.stopReason {
+							lastStopReason = sr
+						}
+						if !mtpResult.stoppedBySequence && actualTokenCount != nil {
+							continuation.yield(.init(kind: .done(lastStopReason ?? .maxTokens, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
 						}
 					}
 					}
