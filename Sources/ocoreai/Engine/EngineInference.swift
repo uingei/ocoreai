@@ -787,7 +787,9 @@ extension EnginePool {
 						)
 					}
 					// MARK: - MTP Speculative Decoding Path
-					else if self.mtpDrafterContainer != nil, mlxMessages.count > 0 {
+					// Note: upstream MTP generate does NOT support tools parameter —
+					// when tools are registered, we fall through to ChatSession (full tool round-trip).
+					else if self.mtpDrafterContainer != nil, registeredToolSpecs == nil, mlxMessages.count > 0 {
 						log.info("Routing through MTP speculative decoding")
 						let messagePairs: [(role: String, content: String)] = mlxMessages.map {
 							(role: $0.role.rawValue, content: $0.content)
