@@ -33,6 +33,8 @@ final class SettingsState {
         kvQuantizationEnabled = SettingsStore.shared.kvQuantizationEnabled
         kvQuantizationBits = SettingsStore.shared.kvQuantizationBits
         kvCacheBudgetGB = SettingsStore.shared.kvCacheBudgetGB
+        specDecodingEnabled = SettingsStore.shared.specDecodingEnabled
+        specDecodingMode = SettingsStore.shared.specDecodingMode
         logLevel = SettingsStore.shared.logLevel
         profileEnabled = SettingsStore.shared.profileEnabled
         appLocale = SettingsStore.shared.appLocale
@@ -83,6 +85,16 @@ final class SettingsState {
 
     var kvCacheBudgetGB: Double = SettingsStore.shared.kvCacheBudgetGB {
         didSet { guard oldValue != kvCacheBudgetGB else { return }; SettingsStore.shared.kvCacheBudgetGB = kvCacheBudgetGB }
+    }
+
+    // MARK: - Speculative Decoding
+
+    var specDecodingEnabled: Bool = SettingsStore.shared.specDecodingEnabled {
+        didSet { guard oldValue != specDecodingEnabled else { return }; SettingsStore.shared.specDecodingEnabled = specDecodingEnabled }
+    }
+
+    var specDecodingMode: String = SettingsStore.shared.specDecodingMode {
+        didSet { guard oldValue != specDecodingMode else { return }; SettingsStore.shared.specDecodingMode = specDecodingMode }
     }
 
     // MARK: - Logs & Profiling
@@ -194,6 +206,8 @@ final class SettingsState {
         kvQuantizationEnabled = SettingsStore.shared.kvQuantizationEnabled
         kvQuantizationBits = SettingsStore.shared.kvQuantizationBits
         kvCacheBudgetGB = SettingsStore.shared.kvCacheBudgetGB
+        specDecodingEnabled = SettingsStore.shared.specDecodingEnabled
+        specDecodingMode = SettingsStore.shared.specDecodingMode
         logLevel = SettingsStore.shared.logLevel
         profileEnabled = SettingsStore.shared.profileEnabled
         appLocale = SettingsStore.shared.appLocale
@@ -226,6 +240,8 @@ extension SettingsState {
     	let kvQuantizationEnabled: Bool
     	let kvQuantizationBits: Int
     	let kvCacheBudgetGB: Double
+    	let specDecodingEnabled: Bool
+    	let specDecodingMode: String
     	let logLevel: LogLevelRaw
     	let profileEnabled: Bool
     	let appLocale: OCALocale
@@ -242,6 +258,8 @@ extension SettingsState {
         	kvQuantizationEnabled = state.kvQuantizationEnabled
         	kvQuantizationBits = state.kvQuantizationBits
         	kvCacheBudgetGB = state.kvCacheBudgetGB
+        	specDecodingEnabled = state.specDecodingEnabled
+        	specDecodingMode = state.specDecodingMode
         	logLevel = state.logLevel
         	profileEnabled = state.profileEnabled
         	appLocale = state.appLocale
@@ -257,6 +275,8 @@ extension SettingsState {
             state.kvQuantizationEnabled = kvQuantizationEnabled
             state.kvQuantizationBits = kvQuantizationBits
             state.kvCacheBudgetGB = kvCacheBudgetGB
+            state.specDecodingEnabled = specDecodingEnabled
+            state.specDecodingMode = specDecodingMode
             state.logLevel = logLevel
             state.profileEnabled = profileEnabled
             state.appLocale = appLocale
@@ -270,6 +290,8 @@ extension SettingsState {
             SettingsStore.shared.kvQuantizationEnabled = kvQuantizationEnabled
             SettingsStore.shared.kvQuantizationBits = kvQuantizationBits
             SettingsStore.shared.kvCacheBudgetGB = kvCacheBudgetGB
+            SettingsStore.shared.specDecodingEnabled = specDecodingEnabled
+            SettingsStore.shared.specDecodingMode = specDecodingMode
             SettingsStore.shared.logLevel = logLevel
             SettingsStore.shared.profileEnabled = profileEnabled
             SettingsStore.shared.appLocale = appLocale

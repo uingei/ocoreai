@@ -168,15 +168,45 @@ extension EnginePool {
 				// CoreAI lacks grammar constraints and tool dispatch — fall back to MLX
 				if options.grammarSchema != nil || options.useGuidedGeneration {
 					logger.info("Falling back to MLX for grammar/tool-constrained request on model \(modelId)")
+							let promptText = await (try? detokenize(modelId: modelId, tokens: input))
+								?? "<detokenization failed>"
+
+							// Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
+							let reasoningControlTokens = Set([151645, 151646])
+							if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
+								logger.warning("MLX token→text→token path may drop control tokens for model \(modelId)")
+							}
+
+							let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
+							await _runInferenceWithMessages(
+								modelId: modelId,
+								messages: mlxMessages,
+								sampling: sampling,
+								options: options,
+								metrics: metrics,
+								continuation: continuation,
+								conversationId: nil,
+									cancellation: cancellation,
+					skipLock: true
+				)
+				return
+			}
+				// Warn about sampling fields CoreAI SDK cannot honor
+				// (CoreAI.SamplingConfiguration only supports temperature/topK/topP/minP/combined)
+				let coreaiUnhonoredFields: [String] = [
+					sampling.seed != nil ? "seed" : "",
+					sampling.repetitionPenalty != nil ? "repetitionPenalty" : "",
+					sampling.presencePenalty != nil ? "presencePenalty" : "",
+					sampling.frequencyPenalty != nil ? "frequencyPenalty" : "",
+				].filter { !$0.isEmpty }
+
+				// stopSequences are NOT supported by CoreAI's engine.generate
+				// → explicitly fall back to MLX path to avoid silent failures
+				let hasStopSeq = !(sampling.stopSequences ?? []).isEmpty
+				if hasStopSeq {
+					logger.info("Falling back to MLX for stopSequences on model \(modelId)")
 					let promptText = await (try? detokenize(modelId: modelId, tokens: input))
 						?? "<detokenization failed>"
-
-					// Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
-					let reasoningControlTokens = Set([151645, 151646])
-					if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
-						logger.warning("MLX token→text→token path may drop control tokens for model \(modelId)")
-					}
-
 					let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
 					await _runInferenceWithMessages(
 						modelId: modelId,
@@ -191,19 +221,10 @@ extension EnginePool {
 					)
 					return
 				}
-				// Warn about sampling fields CoreAI SDK cannot honor
-				// (CoreAI.SamplingConfiguration only supports temperature/topK/topP/minP/combined)
-				let coreaiUnhonoredFields: [String] = [
-					sampling.seed != nil ? "seed" : "",
-					sampling.repetitionPenalty != nil ? "repetitionPenalty" : "",
-					sampling.presencePenalty != nil ? "presencePenalty" : "",
-					sampling.frequencyPenalty != nil ? "frequencyPenalty" : "",
-					(sampling.stopSequences ?? []).isEmpty ? "" : "stopSequences",
-					(sampling.logitBias ?? [:]).isEmpty ? "" : "logitBias",
-				].filter { !$0.isEmpty }
+
 				if !coreaiUnhonoredFields.isEmpty {
 					logger.warning(
-						"[\(type(of: self))] CoreAI path: sampling fields not honored by SDK: \(coreaiUnhonoredFields.joined(separator: ", "))"
+						"[CoreAI] Sampling fields not honored by SDK: \(coreaiUnhonoredFields.joined(separator: ", "))"
 					)
 				}
 
@@ -641,6 +662,7 @@ extension EnginePool {
 					// Token count tracking for guided path
 					var guidedTokenCount = 0
 					var firstYielded = false
+					var guidedAccumulated = "" // for stop-sequence matching
 
 					// Run GuidedGenerationLoop with emit callback → SSE yield
 					let tokenCount = try GuidedGenerationLoop.run(
@@ -664,6 +686,17 @@ extension EnginePool {
 						}
 						metrics.incrementGenerated()
 						guidedTokenCount += 1
+						guidedAccumulated += text
+						// Check stop sequences in guided path
+						if let match = requestStopSequences.first(where: { guidedAccumulated.hasSuffix($0) }) {
+							let trimmed = String(guidedAccumulated.prefix(guidedAccumulated.count - match.count))
+							if !trimmed.isEmpty {
+								continuation.yield(.init(kind: .text(trimmed)))
+							}
+							continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: guidedTokenCount)))
+							continuation.finish()
+							return false
+						}
 						continuation.yield(.init(kind: .text(text)))
 						return true
 					}
@@ -781,7 +814,10 @@ extension EnginePool {
 					// MARK: - MTP Speculative Decoding Path
 					// Note: upstream MTP generate does NOT support tools parameter —
 					// when tools are registered, we fall through to ChatSession (full tool round-trip).
-					else if self.mtpDrafterContainer != nil, registeredToolSpecs == nil, mlxMessages.count > 0 {
+					// VLM messages (with images/audios) also fall through because MTP cannot
+					// carry multimodal data across the Sendable closure boundary.
+					else if self.mtpDrafterContainer != nil, registeredToolSpecs == nil, mlxMessages.count > 0,
+					        mlxMessages.allSatisfy({ $0.images.isEmpty && $0.audios.isEmpty }) {
 						log.info("Routing through MTP speculative decoding")
 						let messagePairs: [(role: String, content: String)] = mlxMessages.map {
 							(role: $0.role.rawValue, content: $0.content)
@@ -895,16 +931,15 @@ extension EnginePool {
 						// (mirrors MTP path localAccumulatedText at L808)
 						var localStandardAccumulated = ""
 
-						// Chat.Message content is a String — no multipart yet.
-						// Multimodal (images/audio) is routed through convertToChatMessages in the
-						// message assembly pipeline upstream; for standard text generation, pass
-						// empty image/audio arrays.
-						let allImages: [MLXLMCommon.UserInput.Image] = []
-						let allAudios: [MLXLMCommon.UserInput.Audio] = []
-
 						let lastMsg = mlxMessages.last
 						let lastRole: Chat.Message.Role = lastMsg?.role ?? .user
 						let lastContent = lastMsg?.content ?? ""
+
+						// Extract images/audio from last message for multimodal support. VLM requests
+						// carry .images/.audios on the last Chat.Message — pass them through so
+						// streamDetails can actually see the media instead of dropping silently.
+						let allImages: [MLXLMCommon.UserInput.Image] = lastMsg?.images ?? []
+						let allAudios: [MLXLMCommon.UserInput.Audio] = lastMsg?.audios ?? []
 
 						for try await generation in chatSession!.streamDetails(
 							to: lastContent,

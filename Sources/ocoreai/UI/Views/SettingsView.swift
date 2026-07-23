@@ -27,6 +27,7 @@ struct SettingsView: View {
             hubTokenSection
             performanceSection
             kvCacheSection
+            specDecodingSection
             logsSection
             appSection
             customSystemPromptSection
@@ -170,6 +171,23 @@ struct SettingsView: View {
             }
         } header: { Text(StringKey.kvCacheSection.l) }
             footer: { Text(StringKey.kvQuantToggleHint.l) }
+    }
+
+    private var specDecodingSection: some View {
+        Section {
+            Toggle(StringKey.specDecodingToggle.l, isOn: $settingsState.specDecodingEnabled)
+                .accessibilityLabel(StringKey.specDecodingToggle.l)
+            if settingsState.specDecodingEnabled {
+                Picker(StringKey.specDecodingMode.l, selection: $settingsState.specDecodingMode) {
+                    Text(StringKey.specDecodingModeMtp.l).tag("mtp")
+                    Text(StringKey.specDecodingModeTraditional.l).tag("traditional")
+                }
+                .accessibilityLabel(StringKey.specDecodingMode.l)
+                Text(StringKey.specDecodingHint.l)
+                    .font(.ocoreaiText(12)).foregroundStyle(.secondary)
+            }
+        } header: { Text(StringKey.specDecodingSection.l) }
+            footer: { Text(StringKey.specDecodingFooter.l) }
     }
 
     // MARK: - Logs & Profiling

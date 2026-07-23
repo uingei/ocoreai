@@ -133,6 +133,13 @@ public enum StringKey: String, CaseIterable {
 	case kvQuantBits = "Settings.KVQuantBits"
 	case kvBudget = "Settings.KVBudget"
 	case kvBudgetHint = "Settings.KVBudgetHint"
+	case specDecodingSection = "Settings.SpecDecodingSection"
+	case specDecodingToggle = "Settings.SpecDecodingToggle"
+	case specDecodingMode = "Settings.SpecDecodingMode"
+	case specDecodingModeMtp = "Settings.SpecDecodingModeMTP"
+	case specDecodingModeTraditional = "Settings.SpecDecodingModeTraditional"
+	case specDecodingHint = "Settings.SpecDecodingHint"
+	case specDecodingFooter = "Settings.SpecDecodingFooter"
 	case logsSection = "Settings.LogsSection"
 	case logLevel = "Settings.LogLevel"
 	case profileToggle = "Settings.ProfileToggle"
@@ -536,6 +543,13 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.kvQuantBits: "Quantization Bits",
 		.kvBudget: "KV Cache Budget (GB)",
 		.kvBudgetHint: "Maximum memory reserved for KV cache",
+		.specDecodingSection: "Speculative Decoding",
+		.specDecodingToggle: "Enable Speculative Decoding",
+		.specDecodingMode: "Decoding Mode",
+		.specDecodingModeMtp: "MTP (Multi-Token Prediction)",
+		.specDecodingModeTraditional: "Traditional (Draft Model)",
+		.specDecodingHint: "MTP uses the main model's built-in MTP layers for speculation",
+		.specDecodingFooter: "Speculative decoding can significantly improve throughput",
 		.logsSection: "Logs & Profiling",
 		.logLevel: "Log Level",
 		.profileToggle: "Enable Performance Profiling",
@@ -913,6 +927,13 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.kvQuantBits: "量化精度",
 		.kvBudget: "KV 缓存预算（GB）",
 		.kvBudgetHint: "为 KV 缓存保留的最大内存",
+		.specDecodingSection: "推测解码",
+		.specDecodingToggle: "启用推测解码",
+		.specDecodingMode: "解码模式",
+		.specDecodingModeMtp: "MTP（多 Token 预测）",
+		.specDecodingModeTraditional: "传统（草稿模型）",
+		.specDecodingHint: "MTP 使用主模型内置 MTP 层进行推测",
+		.specDecodingFooter: "推测解码可显著提升生成吞吐量，重启应用后生效",
 		.logsSection: "日志与性能分析",
 		.logLevel: "日志级别",
 		.profileToggle: "启用性能分析",

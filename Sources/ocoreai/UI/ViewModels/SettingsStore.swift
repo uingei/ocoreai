@@ -74,6 +74,23 @@ final class SettingsStore {
         set { defaults.set(max(0.5, min(newValue, 128)), forKey: Key.kvCacheBudgetGB.rawValue) }
     }
 
+    // MARK: - Speculative Decoding
+
+    /// Master toggle for speculative decoding
+    var specDecodingEnabled: Bool {
+        get { defaults.bool(forKey: Key.specDecodingEnabled.rawValue) }
+        set { defaults.set(newValue, forKey: Key.specDecodingEnabled.rawValue) }
+    }
+
+    /// Mode: "mtp" or "traditional"
+    var specDecodingMode: String {
+        get { defaults.string(forKey: Key.specDecodingMode.rawValue) ?? "mtp" }
+        set {
+            let val = (newValue == "mtp" || newValue == "traditional") ? newValue : "mtp"
+            defaults.set(val, forKey: Key.specDecodingMode.rawValue)
+        }
+    }
+
     // MARK: - Logs & Profiling
 
     var logLevel: LogLevelRaw {
@@ -214,6 +231,10 @@ final class SettingsStore {
         // Logs
         case logLevel = "settings.logs.level"
         case profileEnabled = "settings.logs.profile"
+
+        // Speculative Decoding
+        case specDecodingEnabled = "settings.specDecoding.enabled"
+        case specDecodingMode = "settings.specDecoding.mode"
 
         // App
         case appLocale = "settings.app.locale"

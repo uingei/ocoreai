@@ -454,20 +454,26 @@ actor EnginePool {
 		model.setSpecDecodingConfig(config.specDecoding)
 		if config.specDecoding.enabled {
 			// MTP mode: load assistant drafter via MLXModelLoader
-			if config.specDecoding.mode == "mtp" && !model.hasMTPDrafter {
-				let drafterModelId: String
-				if modelId.contains("31B") || modelId.contains("31b") {
-					drafterModelId = "mlx-community/gemma-4-31B-it-assistant-bf16"
-				} else {
-					drafterModelId = "mlx-community/gemma-4-26B-A4B-it-assistant-bf16"
+				// Guard: only Gemma-4 models have known-compatible assistant drafter
+				// Unknown families skip loading to prevent token table mismatch
+				if config.specDecoding.mode == "mtp" && !model.hasMTPDrafter {
+					let isGemma = modelId.lowercased().contains("gemma")
+					if !isGemma {
+						logger.warning(
+							"Speculative decoding in 'mtp' mode requires a Gemma-4 model — model \(modelId) is not Gemma, MTP drafter skipped. Set specDecoding.mode to 'traditional' or disable specDecoding."
+						)
+					} else {
+						let drafterModelId: String = modelId.lowercased().contains("31")
+							? "mlx-community/gemma-4-31B-it-assistant-bf16"
+							: "mlx-community/gemma-4-26B-A4B-it-assistant-bf16"
+						do {
+							self.mtpDrafterContainer = try await mlxModelLoader.loadMTPDrafter(modelId: drafterModelId)
+							logger.info("MTP Drafter loaded for \(modelId): \(drafterModelId)")
+						} catch {
+							logger.warning("MTP Drafter load failed: \(error)")
+						}
+					}
 				}
-				do {
-					self.mtpDrafterContainer = try await mlxModelLoader.loadMTPDrafter(modelId: drafterModelId)
-					logger.info("MTP drafter loaded for \(modelId): \(drafterModelId)")
-				} catch {
-					logger.warning("MTP drafter load failed: \(error)")
-				}
-			}
 			// Traditional mode: lazy-load draft model
 			if let draft = self.draftModelHandle {
 				model.setDraftModel(draft)

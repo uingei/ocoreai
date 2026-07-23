@@ -146,18 +146,30 @@ final class ChatState {
 
 
     /// Strip `<thinking>...</thinking>` blocks so they don't appear in the live preview.
+    /// During streaming, incomplete tags (has `<thinking>` but missing `</thinking>`) are
+    /// also stripped — prevents raw reasoning markup from flashing on screen mid-stream.
     /// Raw text retained for completion-time structured parsing.
     private nonisolated static func stripThinkingTags(from text: String) -> String {
         guard text.contains("<thinking>") else { return text }
-        let pattern = "<thinking>.*?</thinking>"
-        return (try? NSRegularExpression(
-            pattern: pattern,
+        // First strip complete <thinking>...</thinking> blocks
+        var result = text
+        if let regex = try? NSRegularExpression(
+            pattern: "<thinking>.*?</thinking>",
             options: .dotMatchesLineSeparators
-        ).stringByReplacingMatches(
-            in: text,
-            range: NSRange(text.startIndex..., in: text),
-            withTemplate: ""
-        )) ?? text
+        ) {
+            result = regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: ""
+            )
+        }
+        // Strip incomplete tags — everything from <thinking> to end of string
+        if result.contains("<thinking>") {
+            if let range = result.range(of: "<thinking>") {
+                result = String(result[..<range.lowerBound])
+            }
+        }
+        return result
     }
 
     /// Extract reasoning text from `<thinking>` tags and remaining text.
