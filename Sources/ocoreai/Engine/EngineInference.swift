@@ -154,14 +154,14 @@ extension EnginePool {
 			if #available(macOS 27.0, *) {
 				// CoreAI lacks grammar constraints and tool dispatch — fall back to MLX
 				if options.grammarSchema != nil || options.useGuidedGeneration {
-					logger.info("Falling back to MLX for grammar/tool-constrained request on model \\(modelId)")
+					logger.info("Falling back to MLX for grammar/tool-constrained request on model \(modelId)")
 					let promptText = await (try? detokenize(modelId: modelId, tokens: input))
 						?? "<detokenization failed>"
 
 					// Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
 					let reasoningControlTokens = Set([151645, 151646])
 					if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
-						logger.warning("MLX token→text→token path may drop control tokens for model \\(modelId)")
+						logger.warning("MLX token→text→token path may drop control tokens for model \(modelId)")
 					}
 
 					let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
@@ -749,7 +749,7 @@ extension EnginePool {
 					if isPoolHit, deltaOffset < mlxMessages.count {
 						messagesToSend = Array(mlxMessages[deltaOffset...])
 					} else if isPoolHit, deltaOffset >= mlxMessages.count {
-						log.warning("Pool session messageCount (\\(deltaOffset)) >= current messages (\\(mlxMessages.count)), sending all")
+						log.warning("Pool session messageCount (\(deltaOffset)) >= current messages (\(mlxMessages.count)), sending all")
 						messagesToSend = mlxMessages
 					} else {
 						messagesToSend = mlxMessages

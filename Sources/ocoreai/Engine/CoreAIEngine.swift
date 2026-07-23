@@ -611,8 +611,8 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
         inferenceOptions: InferenceOptions
     ) async throws -> CoreAISequence {
         // Cancel any in-flight generation
-        if let oldToken = _generationToken.withLock({ $0 }) {
-            try await cancel()
+        if _generationToken.withLock({ $0 != nil }) {
+        	try await cancel()
         }
 
         let token = GenerationToken()
@@ -889,7 +889,7 @@ final class CoreAIIterator: AsyncIteratorProtocol, @unchecked Sendable {
             }
 
             // Update input arrays for next step (feed back the sampled token)
-            try engine.setInputToken(nextToken)
+            engine.setInputToken(nextToken)
 
             return newToken
 
@@ -936,21 +936,21 @@ extension CoreAISequentialEngine {
 
     /// Set one input token into the input_ids array.
     func setInputToken(_ token: Int32) {
-        setNDArrayScalar(&self.inputIdsArray, as: Int32.self, value: token)
+        Self.setNDArrayScalar(&self.inputIdsArray, as: Int32.self, value: token)
     }
 
     /// Set the position_ids array.
     private func setPosition(_ pos: Int) {
-        setNDArrayScalar(&self.positionIdsArray, as: Int32.self, value: Int32(pos))
+        Self.setNDArrayScalar(&self.positionIdsArray, as: Int32.self, value: Int32(pos))
     }
 
     /// Write a single scalar into an NDArray via mutableView + closure (inout to satisfy lifetime).
-    private func setNDArrayScalar<T: BitwiseCopyable>(
+    private static func setNDArrayScalar<T: BitwiseCopyable>(
         _ array: inout NDArray,
         as type: T.Type,
         value: T
     ) {
-        var view = array.mutableView(as: type)
+        let view = array.mutableView(as: type)
         view.withUnsafeMutablePointer { ptr, _, _ in
             ptr.pointee = value
         }

@@ -70,24 +70,18 @@ final class CoreAIModelHandle: @unchecked Sendable {
 			logger: Logger,
 		) async -> CoreAIModelHandle {
 			do {
-				// Phase 1: Load as AIModelAsset (unspecialized)
-				let asset = try AIModelAsset(contentsOf: modelURL)
+				_ = try AIModelAsset(contentsOf: modelURL)
 				logger.info("AIModelAsset loaded from \(modelURL.lastPathComponent)")
 
 				// Phase 2: Specialize with device targeting
 				let start = ContinuousClock.now
 				let specializationOptions = SpecializationOptions(preferredComputeUnitKind: computeUnitKind)
 
-				let model: AIModel
 				if let cache {
-					model = try await AIModel.specialize(contentsOf: modelURL, options: specializationOptions, cache: cache)
-					logger.info("AIModel specialized with cache")
+					_ = try await AIModel.specialize(contentsOf: modelURL, options: specializationOptions, cache: cache)
 				} else {
-					model = try await AIModel.specialize(contentsOf: modelURL, options: specializationOptions)
-					logger.info("AIModel specialized without cache")
+					_ = try await AIModel.specialize(contentsOf: modelURL, options: specializationOptions)
 				}
-
-				let elapsed = start.duration(to: start + (ContinuousClock.now - start))
 				let end = ContinuousClock.now
 				logger.info("Specialization completed in \(String(format: "%.1fms", Double((end - start).components.seconds) * 1000 + Double((end - start).components.attoseconds) / 1e15))")
 
