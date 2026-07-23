@@ -74,6 +74,12 @@ struct ChatCompletionRequest: Decodable {
 	/// Presence penalty (penalize tokens already in output)
 	var presencePenalty: Float = 0
 
+	/// Min-p sampling threshold
+	var minP: Float? = nil
+
+	/// Deterministic seed for reproducible sampling
+	var seed: Int64? = nil
+
 	// MARK: Session Management
 
 	/// Persistent session ID for multi-turn conversations
@@ -109,6 +115,8 @@ struct ChatCompletionRequest: Decodable {
 		case responseFormat = "response_format"
 		case frequencyPenalty = "frequency_penalty"
 		case presencePenalty = "presence_penalty"
+		case minP = "min_p"
+		case seed
 		case sessionID = "session_id"
 		case tools, toolChoice
 		case parallelToolCalls = "parallel_tool_calls"
@@ -687,6 +695,12 @@ struct ModelSamplingConfig: Codable {
 	/// Presence penalty
 	var presencePenalty: Float = 0
 
+	/// Min-p sampling threshold
+	var minP: Float? = nil
+
+	/// Deterministic seed for reproducible sampling
+	var seed: Int64? = nil
+
 	/// Response format override ("text" | "json_object")
 	var responseFormat: String? = nil
 
@@ -696,7 +710,7 @@ struct ModelSamplingConfig: Codable {
 	/// Test whether this config is all-defaults (useful to mark "customized" state)
 	var isDefault: Bool {
 		temperature == 0.7 && topP == nil && topK == nil && maxTokens == nil
-			&& frequencyPenalty == 0 && presencePenalty == 0 && responseFormat == nil
+			&& frequencyPenalty == 0 && presencePenalty == 0 && minP == nil && seed == nil && responseFormat == nil
 	}
 
 	// MARK: - Snake-Case Key Mapping (OpenAI API compat for PATCH)
@@ -708,6 +722,8 @@ struct ModelSamplingConfig: Codable {
 		case maxTokens = "max_tokens"
 		case frequencyPenalty = "frequency_penalty"
 		case presencePenalty = "presence_penalty"
+		case minP = "min_p"
+		case seed
 		case responseFormat = "response_format"
 	}
 }
@@ -720,6 +736,8 @@ struct ModelSamplingPatch: Decodable {
 	var maxTokens: Int? = nil
 	var frequencyPenalty: Float? = nil
 	var presencePenalty: Float? = nil
+	var minP: Float? = nil
+	var seed: Int64? = nil
 	var responseFormat: String? = nil
 
 	/// Merge partial fields into a full ``ModelSamplingConfig``.
@@ -731,6 +749,8 @@ struct ModelSamplingPatch: Decodable {
 		if let m = maxTokens { config.maxTokens = m }
 		if let f = frequencyPenalty { config.frequencyPenalty = f }
 		if let p = presencePenalty { config.presencePenalty = p }
+		if let mp = minP { config.minP = mp }
+		if let s = seed { config.seed = s }
 		if let r = responseFormat { config.responseFormat = r }
 		return config
 	}
@@ -744,6 +764,8 @@ struct ModelSamplingPatch: Decodable {
 		case maxTokens = "max_tokens"
 		case frequencyPenalty = "frequency_penalty"
 		case presencePenalty = "presence_penalty"
+		case minP = "min_p"
+		case seed
 		case responseFormat = "response_format"
 	}
 }

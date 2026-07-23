@@ -270,7 +270,9 @@ func chatCompletionsHandler(
 		/// Resolve optional parameters with nil → runtime → nil cascade.
 		let effectiveTopP = request.topP ?? runtimeDefaults.topP
 		let effectiveTopK = request.topK ?? runtimeDefaults.topK
+		let effectiveMinP = request.minP ?? runtimeDefaults.minP
 		let effectiveMaxTokens = request.maxTokens ?? runtimeDefaults.maxTokens
+		let effectiveSeed = request.seed ?? runtimeDefaults.seed
 
 		/// Resolve penalty parameters (0 = not set, non-zero = explicit value).
 		let effectivePresencePenalty = request.presencePenalty != 0
@@ -282,10 +284,11 @@ func chatCompletionsHandler(
 
 		/// Build normalized sampling configuration (drops redundant params when temperature == 0).
 		let rawSampling = SamplingConfiguration(
+			seed: effectiveSeed,
 			temperature: Double(effectiveTemp),
 			topP: effectiveTopP.map(Double.init),
 			topK: effectiveTopK,
-			minP: nil,
+			minP: effectiveMinP.map(Double.init),
 			presencePenalty: Double(effectivePresencePenalty),
 			frequencyPenalty: Double(effectiveFrequencyPenalty),
 			stopSequences: request.stop,

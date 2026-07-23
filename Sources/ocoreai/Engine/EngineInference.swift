@@ -758,22 +758,9 @@ extension EnginePool {
 				}
 
 				do {
-					let messagesToSend: [Chat.Message]
-					if isPoolHit, deltaOffset < mlxMessages.count {
-						messagesToSend = Array(mlxMessages[deltaOffset...])
-					} else if isPoolHit, deltaOffset >= mlxMessages.count {
-						log.warning("Pool session messageCount (\(deltaOffset)) >= current messages (\(mlxMessages.count)), sending all")
-						messagesToSend = mlxMessages
-					} else {
-						messagesToSend = mlxMessages
-					}
-
-					var inferenceError: Error?
-					var accumulatedText = ""
+					// State for Guided/MTP branches — standard ChatSession manages its own
 					var actualTokenCount: Int?
 					var lastStopReason: StopReason?
-					var stoppedBySequence = false
-					var firstTokenRecorded = false
 
 					// MARK: - Guided Generation Path (grammar-constrained)
 					if let schema = options.grammarSchema {
@@ -884,14 +871,13 @@ extension EnginePool {
 						}
 
 						// Sync MTP result back to outer scope
-						accumulatedText = mtpResult.accumulatedText
 						if let tc = mtpResult.tokenCount {
 							actualTokenCount = tc
 						}
 						if let sr = mtpResult.stopReason {
 							lastStopReason = sr
 						}
-						if !mtpResult.stoppedBySequence && actualTokenCount != nil {
+						if !mtpResult.stoppedBySequence, actualTokenCount != nil {
 							continuation.yield(.init(kind: .done(lastStopReason ?? .maxTokens, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
 						}
 					}

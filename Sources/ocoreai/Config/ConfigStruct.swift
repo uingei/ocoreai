@@ -438,6 +438,9 @@ public struct SamplingConfig: Sendable, Codable, Equatable {
 	public var topK: Int?
 	public var minP: Double?
 	public var repetitionPenalty: Double?
+	public var presencePenalty: Double?
+	public var frequencyPenalty: Double?
+	public var seed: Int64?
 	public var maxTokens: Int?
 	public var stopSequences: [String]
 
@@ -449,6 +452,9 @@ public struct SamplingConfig: Sendable, Codable, Equatable {
 		topK: Int? = nil,
 		minP: Double? = nil,
 		repetitionPenalty: Double? = nil,
+		presencePenalty: Double? = nil,
+		frequencyPenalty: Double? = nil,
+		seed: Int64? = nil,
 		maxTokens: Int? = nil,
 		stopSequences: [String] = [],
 	) {
@@ -457,6 +463,9 @@ public struct SamplingConfig: Sendable, Codable, Equatable {
 		self.topK = topK
 		self.minP = minP
 		self.repetitionPenalty = repetitionPenalty
+		self.presencePenalty = presencePenalty
+		self.frequencyPenalty = frequencyPenalty
+		self.seed = seed
 		self.maxTokens = maxTokens
 		self.stopSequences = stopSequences
 	}
