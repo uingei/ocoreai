@@ -503,7 +503,14 @@ final class ChatState {
         // via the systemPrompt path (MessageBuilderContext.userSystemPrompt).
         // cleanMessages strips them, but they still carry the conversation's system instructions.
         let systemMessages = messages.filter { $0.role == "system" }
-        let systemPrompt = systemMessages.map { $0.content }.joined(separator: "\n")
+        var systemPrompt = systemMessages.map { $0.content }.joined(separator: "\n")
+
+        // Merge user's custom system prompt from SettingsStore — highest priority.
+        // If both are present, custom prompt takes precedence, history prompt is appended as context.
+        let custom = SettingsStore.shared.customSystemPrompt
+        if !custom.isEmpty {
+        	systemPrompt = custom + (systemPrompt.isEmpty ? "" : "\n\n" + systemPrompt)
+        }
 
         // Convert to typed Messages — last user message gets multimodal parts if available
         // OCR bridge: mmContext entries with OCR text are injected as text parts,

@@ -94,8 +94,15 @@ final class SettingsStore {
     }
 
     var appThemeMode: ThemeModeRaw {
-        get { ThemeModeRaw(rawValue: defaults.string(forKey: Key.appThemeMode.rawValue) ?? "auto") ?? .auto }
-        set { defaults.set(newValue.rawValue, forKey: Key.appThemeMode.rawValue) }
+    	get { ThemeModeRaw(rawValue: defaults.string(forKey: Key.appThemeMode.rawValue) ?? "auto") ?? .auto }
+    	set { defaults.set(newValue.rawValue, forKey: Key.appThemeMode.rawValue) }
+    }
+
+    /// User's custom system prompt — injected into the system prompt chain
+    /// with highest priority in MessageBuilderContext.userSystemPrompt.
+    var customSystemPrompt: String {
+    	get { defaults.string(forKey: Key.customSystemPrompt.rawValue) ?? "" }
+    	set { defaults.set(newValue, forKey: Key.customSystemPrompt.rawValue) }
     }
 
     // MARK: - Hub Tokens
@@ -206,6 +213,9 @@ final class SettingsStore {
         // App
         case appLocale = "settings.app.locale"
         case appThemeMode = "settings.app.themeMode"
+
+        // Custom System Prompt
+        case customSystemPrompt = "settings.app.customSystemPrompt"
 
         // Hub Tokens
         case hfToken = "settings.hub.hfToken"

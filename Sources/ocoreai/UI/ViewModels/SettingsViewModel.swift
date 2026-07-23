@@ -37,6 +37,7 @@ final class SettingsState {
         profileEnabled = SettingsStore.shared.profileEnabled
         appLocale = SettingsStore.shared.appLocale
         appThemeMode = SettingsStore.shared.appThemeMode
+        customSystemPrompt = SettingsStore.shared.customSystemPrompt
         hfToken = SettingsStore.shared.hfToken
         modelScopeToken = SettingsStore.shared.modelScopeToken
     }
@@ -101,7 +102,12 @@ final class SettingsState {
     }
 
     var appThemeMode: ThemeModeRaw = SettingsStore.shared.appThemeMode {
-        didSet { guard oldValue != appThemeMode else { return }; SettingsStore.shared.appThemeMode = appThemeMode }
+    	didSet { guard oldValue != appThemeMode else { return }; SettingsStore.shared.appThemeMode = appThemeMode }
+    }
+
+    /// User's custom system prompt — every new inference uses this value.
+    var customSystemPrompt: String = SettingsStore.shared.customSystemPrompt {
+    	didSet { guard oldValue != customSystemPrompt else { return }; SettingsStore.shared.customSystemPrompt = customSystemPrompt }
     }
 
     // MARK: - Hub Tokens (persisted via SettingsStore)
@@ -192,6 +198,7 @@ final class SettingsState {
         profileEnabled = SettingsStore.shared.profileEnabled
         appLocale = SettingsStore.shared.appLocale
         appThemeMode = SettingsStore.shared.appThemeMode
+        customSystemPrompt = SettingsStore.shared.customSystemPrompt
         hfToken = nil
         modelScopeToken = nil
         errorMessage = StringKey.settingsResetToDefaults.l
@@ -212,32 +219,34 @@ final class SettingsState {
 extension SettingsState {
     @MainActor
     struct SettingsSnapshot {
-        let serverHost: String
-        let serverPort: Int
-        let pollIntervalSec: Int
-        let chartWindowSec: Int
-        let kvQuantizationEnabled: Bool
-        let kvQuantizationBits: Int
-        let kvCacheBudgetGB: Double
-        let logLevel: LogLevelRaw
-        let profileEnabled: Bool
-        let appLocale: OCALocale
-        let appThemeMode: ThemeModeRaw
+    	let serverHost: String
+    	let serverPort: Int
+    	let pollIntervalSec: Int
+    	let chartWindowSec: Int
+    	let kvQuantizationEnabled: Bool
+    	let kvQuantizationBits: Int
+    	let kvCacheBudgetGB: Double
+    	let logLevel: LogLevelRaw
+    	let profileEnabled: Bool
+    	let appLocale: OCALocale
+    	let appThemeMode: ThemeModeRaw
+    	let customSystemPrompt: String
 
         /// Create snapshot. Tokens are intentionally excluded for security —
         /// they should never be restored via Cmd+Z.
         init(from state: SettingsState, includeTokens: Bool = false) {
-            serverHost = state.serverHost
-            serverPort = state.serverPort
-            pollIntervalSec = state.pollIntervalSec
-            chartWindowSec = state.chartWindowSec
-            kvQuantizationEnabled = state.kvQuantizationEnabled
-            kvQuantizationBits = state.kvQuantizationBits
-            kvCacheBudgetGB = state.kvCacheBudgetGB
-            logLevel = state.logLevel
-            profileEnabled = state.profileEnabled
-            appLocale = state.appLocale
-            appThemeMode = state.appThemeMode
+        	serverHost = state.serverHost
+        	serverPort = state.serverPort
+        	pollIntervalSec = state.pollIntervalSec
+        	chartWindowSec = state.chartWindowSec
+        	kvQuantizationEnabled = state.kvQuantizationEnabled
+        	kvQuantizationBits = state.kvQuantizationBits
+        	kvCacheBudgetGB = state.kvCacheBudgetGB
+        	logLevel = state.logLevel
+        	profileEnabled = state.profileEnabled
+        	appLocale = state.appLocale
+        	appThemeMode = state.appThemeMode
+        	customSystemPrompt = state.customSystemPrompt
         }
 
         func apply(to state: SettingsState) {
@@ -252,6 +261,7 @@ extension SettingsState {
             state.profileEnabled = profileEnabled
             state.appLocale = appLocale
             state.appThemeMode = appThemeMode
+            state.customSystemPrompt = customSystemPrompt
             // Persist to disk
             SettingsStore.shared.serverHost = serverHost
             SettingsStore.shared.serverPort = serverPort
@@ -264,6 +274,7 @@ extension SettingsState {
             SettingsStore.shared.profileEnabled = profileEnabled
             SettingsStore.shared.appLocale = appLocale
             SettingsStore.shared.appThemeMode = appThemeMode
-        }
+            SettingsStore.shared.customSystemPrompt = customSystemPrompt
+            }
     }
 }

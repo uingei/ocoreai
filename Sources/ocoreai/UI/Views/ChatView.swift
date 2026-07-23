@@ -361,7 +361,9 @@ struct ChatView: View {
                     .padding()
                 }
             }
-            .scrollIndicators(.never)
+            // HIG: keep scroll indicators visible so users can manually scroll
+            // when not at the bottom of the chat.
+            // .scrollIndicators(.automatic) is the default; we do not force .never.
             // .defaultScrollAnchor is the native SwiftUI mechanism for chat auto-scroll.
             // Applied here so the framework keeps bottom-aligned during token-by-token growth.
             // The two .onChange handlers below handle explicit state transitions

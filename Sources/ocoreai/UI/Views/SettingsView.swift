@@ -29,6 +29,7 @@ struct SettingsView: View {
             kvCacheSection
             logsSection
             appSection
+            customSystemPromptSection
             aboutSection
             dangerSection
         }
@@ -201,6 +202,24 @@ struct SettingsView: View {
                 }
             }
         } header: { Text(StringKey.appSection.l) }
+    }
+
+    // MARK: - Custom System Prompt
+
+    private var customSystemPromptSection: some View {
+        Section {
+            Text(StringKey.customSystemPromptHint.l)
+                .font(.ocoreaiText(12))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading)
+            TextEditor(text: $settingsState.customSystemPrompt)
+                #if os(macOS)
+                .frame(minHeight: 120)
+                #endif
+                .font(.ocoreaiText(13))
+                .accessibilityLabel(StringKey.customSystemPrompt.l)
+                .accessibilityHint(StringKey.customSystemPromptPlaceholder.l)
+        } header: { Text(StringKey.customSystemPrompt.l) }
     }
 
     // MARK: - About

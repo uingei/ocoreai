@@ -150,6 +150,9 @@ public enum StringKey: String, CaseIterable {
 	case resetSettings = "Settings.ResetSettings"
 	case resetConfirm = "Settings.ResetConfirm"
 	case allSections = "Settings.AllSections"
+	case customSystemPrompt = "Settings.CustomSystemPrompt"
+	case customSystemPromptHint = "Settings.CustomSystemPromptHint"
+	case customSystemPromptPlaceholder = "Settings.CustomSystemPromptPlaceholder"
 
 	// — Navigation —
 	case tabDashboard = "Navigation.Dashboard"
@@ -550,6 +553,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.resetSettings: "Reset All Settings",
 		.resetConfirm: "Are you sure? This wipes all saved settings.",
 		.allSections: "All Settings",
+		.customSystemPrompt: "Custom System Prompt",
+		.customSystemPromptHint: "Your custom instructions are prepended to the system prompt with highest priority.",
+		.customSystemPromptPlaceholder: "e.g. Be concise and answer in the user's preferred language.",
 		.hubTokensTitle: "Hub Tokens",
 		.hubTokensHint: "Tokens for accessing model hubs (HuggingFace, ModelScope). Stored securely in macOS Keychain.",
 		.notConfigured: "Not configured",
@@ -923,7 +929,10 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 		.license: "许可证",
 		.resetSettings: "恢复默认设置",
 		.resetConfirm: "确定吗？这将清除所有已保存的设置。",
-		.allSections: "全部设置",
+		.allSections: "所有设置",
+		.customSystemPrompt: "自定义系统提示",
+		.customSystemPromptHint: "自定义指令会以最高优先级注入到系统提示中。",
+		.customSystemPromptPlaceholder: "例如：保持简洁，使用用户首选语言回答。",
 
 		// Navigation
 		.tabDashboard: "仪表盘",
