@@ -51,6 +51,8 @@ final class SessionManager {
 
         do {
             sessions = try await compressor.listSessions(limit: 200)
+            // P8: auto-restore previously selected session
+            restoreLastSelectedSession()
         } catch {
             errorMessage = "\(StringKey.sessionLoadFailed.l): \(error.localizedDescription)"
         }
@@ -58,6 +60,8 @@ final class SessionManager {
 
     func selectSession(_ session: SessionModel) {
         selectedSession = session
+        // P8: persist selected session ID for restore on next app launch
+        SettingsStore.shared.lastSessionId = session.id
         // Clear stale error when user selects a session
         errorMessage = nil
         // Cancel previous summary fetch — rapid session switching would otherwise
@@ -82,6 +86,10 @@ final class SessionManager {
             if selectedSession?.id == session.id {
                 selectedSession = nil
                 sessionSummary = nil
+                // P8: clear persisted selection if deleted session was the last selected
+                if SettingsStore.shared.lastSessionId == session.id {
+                    SettingsStore.shared.lastSessionId = nil
+                }
             }
         } catch {
             errorMessage = "\(StringKey.sessionDeleteFailed.l): \(error.localizedDescription)"
@@ -119,5 +127,24 @@ final class SessionManager {
     func searchSessions(_ query: String) -> [SessionModel] {
         guard !query.isEmpty else { return sessions }
         return sessions.filter { $0.modelId.localizedCaseInsensitiveContains(query) }
+    }
+
+    // MARK: - Session Restore
+
+    /// P8: Auto-restore the previously selected session after listSessions loads.
+    /// Selects the persisted session if it still exists and reloads its messages
+    /// into ChatState so the chat tab is ready on app launch.
+    private func restoreLastSelectedSession() {
+        guard let persistedId = SettingsStore.shared.lastSessionId else { return }
+        guard let session = sessions.first(where: { $0.id == persistedId }) else {
+            // Persisted session was deleted or expired — clean up
+            SettingsStore.shared.lastSessionId = nil
+            return
+        }
+        selectedSession = session
+        // Load messages into ChatState synchronously so the chat tab has content
+        Task { @MainActor in
+            await ChatState.shared.reloadSession(for: session)
+        }
     }
 }

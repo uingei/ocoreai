@@ -105,6 +105,11 @@ final class SettingsStore {
     	set { defaults.set(newValue, forKey: Key.customSystemPrompt.rawValue) }
     }
 
+    var lastSessionId: Int64? {
+    	get { defaults.object(forKey: Key.lastSessionId.rawValue) as? Int64 }
+    	set { if let v = newValue { defaults.set(v, forKey: Key.lastSessionId.rawValue) } else { defaults.removeObject(forKey: Key.lastSessionId.rawValue) } }
+    }
+
     // MARK: - Hub Tokens
 
     /// HuggingFace token — env var HF_TOKEN takes precedence, then Keychain, then UserDefaults (migration fallback)
@@ -216,6 +221,9 @@ final class SettingsStore {
 
         // Custom System Prompt
         case customSystemPrompt = "settings.app.customSystemPrompt"
+
+        // Last selected session for restore on app launch
+        case lastSessionId = "settings.app.lastSessionId"
 
         // Hub Tokens
         case hfToken = "settings.hub.hfToken"
