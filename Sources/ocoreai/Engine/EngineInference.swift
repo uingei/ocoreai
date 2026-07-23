@@ -891,6 +891,10 @@ extension EnginePool {
 					else {
 						log.info("Routing through ChatSession for standard generation")
 
+						// Accumulate text across chunks for stop sequence matching
+						// (mirrors MTP path localAccumulatedText at L808)
+						var localStandardAccumulated = ""
+
 						// Chat.Message content is a String — no multipart yet.
 						// Multimodal (images/audio) is routed through convertToChatMessages in the
 						// message assembly pipeline upstream; for standard text generation, pass
@@ -919,7 +923,22 @@ extension EnginePool {
 										metrics.firstTokenMs = metrics.overallMs
 									}
 									metrics.incrementGenerated()
-									continuation.yield(.init(kind: .text(text)))
+									if requestStopSequences.isEmpty {
+										continuation.yield(.init(kind: .text(text)))
+									} else {
+										localStandardAccumulated += text
+										if let match = requestStopSequences.first(where: { localStandardAccumulated.hasSuffix($0) }) {
+											let trimmed = String(localStandardAccumulated.prefix(localStandardAccumulated.count - match.count))
+											if !trimmed.isEmpty {
+												continuation.yield(.init(kind: .text(trimmed)))
+											}
+											continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
+											lastStopReason = .stopSequence
+											break
+										} else {
+											continuation.yield(.init(kind: .text(text)))
+										}
+									}
 								case let .info(completionInfo):
 									if actualTokenCount == nil {
 										actualTokenCount = completionInfo.generationTokenCount
