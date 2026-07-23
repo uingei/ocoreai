@@ -441,6 +441,16 @@ public struct SamplingConfig: Sendable, Codable, Equatable {
 	public var presencePenalty: Double?
 	public var frequencyPenalty: Double?
 	public var seed: Int64?
+	/// Prefill step size for prompt chunking
+	public var prefillStepSize: Int? = nil
+	/// Max KV cache size (enables RotatingKVCache when set)
+	public var maxKVSize: Int? = nil
+	/// Context window for repetition penalty
+	public var repetitionContextSize: Int = 20
+	/// Context window for presence penalty
+	public var presenceContextSize: Int = 20
+	/// Context window for frequency penalty
+	public var frequencyContextSize: Int = 20
 	public var maxTokens: Int?
 	public var stopSequences: [String]
 
@@ -455,6 +465,11 @@ public struct SamplingConfig: Sendable, Codable, Equatable {
 		presencePenalty: Double? = nil,
 		frequencyPenalty: Double? = nil,
 		seed: Int64? = nil,
+		prefillStepSize: Int? = nil,
+		maxKVSize: Int? = nil,
+		repetitionContextSize: Int = 20,
+		presenceContextSize: Int = 20,
+		frequencyContextSize: Int = 20,
 		maxTokens: Int? = nil,
 		stopSequences: [String] = [],
 	) {
@@ -466,6 +481,11 @@ public struct SamplingConfig: Sendable, Codable, Equatable {
 		self.presencePenalty = presencePenalty
 		self.frequencyPenalty = frequencyPenalty
 		self.seed = seed
+		self.prefillStepSize = prefillStepSize
+		self.maxKVSize = maxKVSize
+		self.repetitionContextSize = repetitionContextSize
+		self.presenceContextSize = presenceContextSize
+		self.frequencyContextSize = frequencyContextSize
 		self.maxTokens = maxTokens
 		self.stopSequences = stopSequences
 	}

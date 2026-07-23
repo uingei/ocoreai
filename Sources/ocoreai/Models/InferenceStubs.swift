@@ -26,6 +26,13 @@ struct SamplingConfiguration: Codable, Equatable {
 	var logitBias: [String: Double]?
 	var combined: Bool = true
 
+	// GenerateParameters fields that control prefill/KV cache/windowing
+	var prefillStepSize: Int? = nil
+	var maxKVSize: Int? = nil
+	var repetitionContextSize: Int = 20
+	var presenceContextSize: Int = 20
+	var frequencyContextSize: Int = 20
+
 	init(
 		seed: Int64? = nil,
 		temperature: Double? = nil,
@@ -38,6 +45,11 @@ struct SamplingConfiguration: Codable, Equatable {
 		stopSequences: [String]? = nil,
 		logitBias: [String: Double]? = nil,
 		combined: Bool = true,
+		prefillStepSize: Int? = nil,
+		maxKVSize: Int? = nil,
+		repetitionContextSize: Int = 20,
+		presenceContextSize: Int = 20,
+		frequencyContextSize: Int = 20,
 	) {
 		self.seed = seed
 		self.temperature = temperature
@@ -50,6 +62,11 @@ struct SamplingConfiguration: Codable, Equatable {
 		self.stopSequences = stopSequences
 		self.logitBias = logitBias
 		self.combined = combined
+		self.prefillStepSize = prefillStepSize
+		self.maxKVSize = maxKVSize
+		self.repetitionContextSize = repetitionContextSize
+		self.presenceContextSize = presenceContextSize
+		self.frequencyContextSize = frequencyContextSize
 	}
 
 	/// Apply normalization — drops topK/topP when temperature == 0 (greedy).

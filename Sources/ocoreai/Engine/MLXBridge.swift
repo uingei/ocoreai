@@ -586,6 +586,18 @@
 		if let s = sampling.seed {
 			params.seed = UInt64(s)
 		}
+		// Prefill step size — controls prompt chunking for long inputs
+		if let prefillStepSize = sampling.prefillStepSize {
+			params.prefillStepSize = prefillStepSize
+		}
+		// Max KV cache size — enables RotatingKVCache when set
+		if let maxKVSize = sampling.maxKVSize {
+			params.maxKVSize = maxKVSize
+		}
+		// Context window sizes for repetition/presence/frequency penalties
+		params.repetitionContextSize = sampling.repetitionContextSize
+		params.presenceContextSize = sampling.presenceContextSize
+		params.frequencyContextSize = sampling.frequencyContextSize
 		return params
 	}
 
