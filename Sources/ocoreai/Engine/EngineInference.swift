@@ -886,6 +886,61 @@ extension EnginePool {
 							continuation.yield(.init(kind: .done(lastStopReason ?? .maxTokens, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
 						}
 					}
+					// MARK: - Standard ChatSession Path (default fallback)
+					/// Uses ChatSession.streamDetails for text + multimodal generation.
+					else {
+						log.info("Routing through ChatSession for standard generation")
+
+						// Chat.Message content is a String — no multipart yet.
+						// Multimodal (images/audio) is routed through convertToChatMessages in the
+						// message assembly pipeline upstream; for standard text generation, pass
+						// empty image/audio arrays.
+						let allImages: [MLXLMCommon.UserInput.Image] = []
+						let allAudios: [MLXLMCommon.UserInput.Audio] = []
+
+						let lastMsg = mlxMessages.last
+						let lastRole: Chat.Message.Role = lastMsg?.role ?? .user
+						let lastContent = lastMsg?.content ?? ""
+
+						for try await generation in chatSession!.streamDetails(
+							to: lastContent,
+							role: lastRole,
+							images: allImages,
+							videos: [],
+							audios: allAudios
+						) {
+							if Task.isCancelled || cancellation.isCancelled {
+								continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: actualTokenCount ?? 0)))
+								break
+							}
+							switch generation {
+								case let .chunk(text):
+									if actualTokenCount == nil {
+										metrics.firstTokenMs = metrics.overallMs
+									}
+									metrics.incrementGenerated()
+									continuation.yield(.init(kind: .text(text)))
+								case let .info(completionInfo):
+									if actualTokenCount == nil {
+										actualTokenCount = completionInfo.generationTokenCount
+									}
+									lastStopReason = switch completionInfo.stopReason {
+										case .stop: .eos
+										case .length: .maxTokens
+										case .cancelled: .cancelled
+									}
+								case .toolCall:
+									// ChatSession handles tool calling internally
+									break
+								}
+							}
+
+							// Emit final .done event
+							if !Task.isCancelled {
+								continuation.yield(.init(kind: .done(lastStopReason ?? .eos, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
+							}
+						}
+
 					}
 
 				if let pool = poolRef, let session = chatSession {
