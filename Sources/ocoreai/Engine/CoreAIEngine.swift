@@ -982,10 +982,15 @@ extension CoreAISequentialEngine {
     }
 
     /// Dynamic KV cache growth: double capacity when needed.
+    ///
+    /// CRITICAL: Must copy existing KV data to the new arrays before replacing.
+    /// Without copyCache(), the old KV state is lost and generated tokens
+    /// become uncorrelated (regresses to first-token repetition).
+    /// Upstream reference: coreai-models#113 (CoreAISequentialEngine.ensureKVCapacity)
     private func ensureKVCapacity(for position: Int) throws {
-        guard position >= currentKVCapacity else { return }
+        guard position > currentKVCapacity else { return }
 
-        let newCapacity = min(currentKVCapacity * 2, config.maxContextLength)
+        let newCapacity = computeGrowCapacity(from: currentKVCapacity, needed: position)
         guard newCapacity >= position else {
             throw InferenceError.invalidState("Context length exceeded: \(position) >= \(config.maxContextLength)")
         }
@@ -993,10 +998,61 @@ extension CoreAISequentialEngine {
         logger.info("Growing KV cache: \(currentKVCapacity) → \(newCapacity)")
 
         // Allocate new KV arrays at larger capacity
-        self.keyCache = NDArray(descriptor: keyCacheDescriptor)
-        self.valueCache = NDArray(descriptor: valueCacheDescriptor)
+        var newKeyCache = NDArray(descriptor: keyCacheDescriptor)
+        var newValueCache = NDArray(descriptor: valueCacheDescriptor)
+
+        // CRITICAL: Copy existing KV state into new arrays — preserves context
+        try Self.copyCache(from: keyCache, to: &newKeyCache)
+        try Self.copyCache(from: valueCache, to: &newValueCache)
+
+        self.keyCache = newKeyCache
+        self.valueCache = newValueCache
 
         self.currentKVCapacity = newCapacity
+    }
+
+    /// Double capacity iteratively until it covers the needed position.
+    /// Matches upstream: `while newCapacity < needed { newCapacity *= 2 }`.
+    private func computeGrowCapacity(from current: Int, needed: Int) -> Int {
+        var newCapacity = current
+        while newCapacity < needed { newCapacity *= 2 }
+        return min(newCapacity, config.maxContextLength)
+    }
+
+    /// Copy KV cache contents from source to destination NDArray.
+    /// Shape/dtype are identical; only the sequence dimension (last axis) is larger in
+    /// the destination. We copy block-by-block so we never touch the uninitialized tail.
+    ///
+    /// Upstream reference: coreai-models CoreAISequentialEngine.copyCache
+    private static func copyCache(from source: NDArray, to destination: inout NDArray) throws {
+        let srcShape = source.shape
+        let dstShape = destination.shape
+        guard !srcShape.isEmpty else { return }
+
+        // Last dimension is the sequence length (old → new capacity)
+        let seqDim = srcShape.indices.dropLast().last ?? 0
+        let headDim = srcShape[srcShape.count - 1]
+
+        // Number of independent blocks before the sequence dimension
+        let numBlocks = srcShape[..<seqDim].reduce(1, *)
+        let oldSeqLen = srcShape[seqDim]
+        let copySize = oldSeqLen * headDim
+
+        // Strides in elements for one block
+        let srcBlockStride = srcShape[seqDim...].reduce(1, *)
+        let dstBlockStride = dstShape[seqDim...].reduce(1, *)
+
+        source.view(as: LogitsScalarType.self).withUnsafePointer { srcPtr, _, _ in
+        	destination.mutableView(as: LogitsScalarType.self).withUnsafeMutablePointer { dstPtr, _, _ in
+                for block in 0..<numBlocks {
+                    let srcOff = block * srcBlockStride
+                    let dstOff = block * dstBlockStride
+                    dstPtr.advanced(by: dstOff).update(
+                        from: srcPtr.advanced(by: srcOff), count: copySize
+                    )
+                }
+            }
+        }
     }
 
     /// Record a generated token in history and update processed count.

@@ -248,9 +248,13 @@ func chatCompletionsHandler(
 			logger.warning(
 				"Tokenization failed, using heuristic estimate for metrics — \(error.localizedDescription)"
 			)
-			promptTokenCount = max(1, fullMessages.reduce(0) {
-				$0 + $1.textContent().utf8.count / 4
-			})
+			/// P1-fix: CJK-aware estimation — UTF-8 bytes/4 overestimates for CJK text.
+			/// Use bytes/3 for CJK-heavy content, bytes/4 for Latin-heavy.
+			let totalBytes = fullMessages.reduce(0) { $0 + $1.textContent().utf8.count }
+			let totalChars = fullMessages.reduce(0) { $0 + $1.textContent().count }
+			let avgBytesPerChar = totalChars > 0 ? Double(totalBytes) / Double(totalChars) : 1.0
+			let divisor = avgBytesPerChar > 1.5 ? 3 : 4
+			promptTokenCount = max(1, Int(Double(totalBytes) / Double(divisor)))
 		}
 
 		/// Phase 4: Three-layer Parameter Fallback Chain.

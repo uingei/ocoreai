@@ -463,9 +463,18 @@ actor EnginePool {
 							"Speculative decoding in 'mtp' mode requires a Gemma-4 model — model \(modelId) is not Gemma, MTP drafter skipped. Set specDecoding.mode to 'traditional' or disable specDecoding."
 						)
 					} else {
-						let drafterModelId: String = modelId.lowercased().contains("31")
-							? "mlx-community/gemma-4-31B-it-assistant-bf16"
-							: "mlx-community/gemma-4-26B-A4B-it-assistant-bf16"
+						// P0-fix (mlx-swift-lm#415 78eaa5b): Gemma 4 12B (gemma4_unified)
+						// uses a distinct drafter — gemma4_unified_assistant. The 12B model
+						// id contains neither "31" nor "26", so defaulting to 26B drafter
+						// causes token-table mismatch and MTP failure.
+						let drafterModelId: String
+						if modelId.lowercased().contains("12") {
+							drafterModelId = "mlx-community/gemma-4-12B-it-assistant-bf16"
+						} else if modelId.lowercased().contains("31") {
+							drafterModelId = "mlx-community/gemma-4-31B-it-assistant-bf16"
+						} else {
+							drafterModelId = "mlx-community/gemma-4-26B-A4B-it-assistant-bf16"
+						}
 						do {
 							self.mtpDrafterContainer = try await mlxModelLoader.loadMTPDrafter(modelId: drafterModelId)
 							logger.info("MTP Drafter loaded for \(modelId): \(drafterModelId)")

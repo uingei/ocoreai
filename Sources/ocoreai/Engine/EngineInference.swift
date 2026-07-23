@@ -500,9 +500,18 @@ extension EnginePool {
 				return
 			}
 			} catch {
-			// Fallback: mlx containers have their own tokenizer, use heuristic estimate
+			/// Fallback: mlx containers have their own tokenizer, use heuristic estimate
+			/// P1-fix: CJK-aware estimation — UTF-8 bytes/4 overestimates for CJK text
+			/// (CJK chars are 3 bytes UTF-8 but ~1.5 tokens on average, not 1).
+			/// Use bytes/3 for CJK-heavy content, bytes/4 for Latin-heavy.
+			/// Character-level detection: if avg bytes per char > 1.5, likely CJK.
 			logger.warning("Tokenization failed, using heuristic estimate for metrics — \(error.localizedDescription)")
-			tokenCount = messages.reduce(0) { $0 + contentToString($1.content).0.utf8.count / 4 }
+			let totalBytes = messages.reduce(0) { $0 + $1.textContent().utf8.count }
+			let totalChars = messages.reduce(0) { $0 + $1.textContent().count }
+			let avgBytesPerChar = totalChars > 0 ? Double(totalBytes) / Double(totalChars) : 1.0
+			// CJK threshold: avg bytes/char > 1.5 indicates non-Latin dominant text
+			let divisor = avgBytesPerChar > 1.5 ? 3 : 4
+			tokenCount = max(1, Int(Double(totalBytes) / Double(divisor)))
 			}
 
 			metrics.promptTokenCount = tokenCount

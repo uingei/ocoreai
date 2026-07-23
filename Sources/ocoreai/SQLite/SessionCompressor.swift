@@ -321,8 +321,11 @@ actor SessionCompressor {
 	/// and appends it to the session's summary field.
 	private func pruneColdMessages(_ sessionId: Int64, tokenCount: Int) async {
 		// 1. Fetch cold messages that will be deleted
+		// P1-fix: Include tool_calls so that tool-use context is preserved in the summary.
+		// Without this, function call + result pairs are lost during compression,
+		// breaking the conversation context for subsequent tool-assisted turns.
 		let coldSql = """
-		SELECT role, content FROM messages
+		SELECT role, content, tool_calls FROM messages
 		WHERE session_id = ?
 		AND id NOT IN (
 		    SELECT id FROM messages WHERE session_id = ?
@@ -330,13 +333,13 @@ actor SessionCompressor {
 		)
 		ORDER BY created_at ASC
 		"""
-		let coldMessages: [(role: String, content: String)]
+		let coldMessages: [(role: String, content: String, toolCalls: String?)]
 		do {
 			let rows = try await store.query(coldSql, parameters: [sessionId, sessionId, hotWindow])
-			coldMessages = rows.compactMap { row -> (String, String)? in
+			coldMessages = rows.compactMap { row -> (String, String, String?)? in
 				guard let role = row["role"]?.asString,
 				      let content = row["content"]?.asString else { return nil }
-				return (role, content)
+				return (role, content, row["tool_calls"]?.asString)
 			}
 		} catch {
 			logger.warning("Failed to fetch cold messages for session \(sessionId): \(error.localizedDescription)")
@@ -390,9 +393,16 @@ actor SessionCompressor {
 
 	/// LLM-driven summary generation from cold messages.
 	/// Attempts LLM summarization first; falls back to rule-based extraction on failure.
-	private func generateCompressionSummary(_ messages: [(role: String, content: String)]) async -> String {
-		// Build conversation context for the summarizer
-		let conversationText = messages.map { "\($0.role): \($0.content)" }.joined(separator: "\n\n")
+	/// P1-fix: toolCalls are included so that tool-use context survives compression.
+	private func generateCompressionSummary(_ messages: [(role: String, content: String, toolCalls: String?)]) async -> String {
+		// Build conversation context for the summarizer — include tool call info
+		let conversationText = messages.map { msg -> String in
+			let base = "\(msg.role): \(msg.content)"
+			if let tc = msg.toolCalls, !tc.isEmpty {
+				return base + "\n[tool_calls: \(tc)]"
+			}
+			return base
+		}.joined(separator: "\n\n")
 
 		// Attempt LLM summarization
 		if let llmCallback = llmSummarizer {
@@ -415,14 +425,20 @@ actor SessionCompressor {
 	}
 
 	/// Rule-based summary generation from cold messages.
-	/// Extracts conversation topics, questions, and key assistant responses.
+	/// Extracts conversation topics, questions, tool calls, and key assistant responses.
 	/// Used as fallback when LLM summarization is unavailable or fails.
-	private static func generateRuleBasedSummary(coldMessages messages: [(role: String, content: String)]) -> String {
+	/// P1-fix: now accepts toolCalls parameter for tool-use tracking.
+	private static func generateRuleBasedSummary(coldMessages messages: [(role: String, content: String, toolCalls: String?)]) -> String {
 		var topics: Set<String> = []
 		var questions: [String] = []
 		var resolutions: [String] = []
+		var toolUses: [String] = []
 
 		for msg in messages {
+			// Capture tool call context so the summary knows what was attempted
+			if let tc = msg.toolCalls, !tc.isEmpty {
+				toolUses.append(String(tc.prefix(200)))
+			}
 			switch msg.role {
 			case "user":
 				if msg.content.contains("?") {
@@ -449,6 +465,9 @@ actor SessionCompressor {
 		}
 		if !resolutions.isEmpty {
 			parts.append("Resolutions: \(resolutions.prefix(2).joined(separator: "; "))")
+		}
+		if !toolUses.isEmpty {
+			parts.append("Tool calls: \(toolUses.prefix(3).joined(separator: "; "))")
 		}
 		return parts.joined(separator: " | ")
 	}

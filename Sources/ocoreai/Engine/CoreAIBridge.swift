@@ -127,17 +127,19 @@ final class CoreAIModelHandle: @unchecked Sendable {
 
 	// MARK: - Core AI Cache Manager
 
-	/// DEFENSIVE: CoreAICacheManager stub — blocked on macOS 27 SDK shipping.
-	/// Retained as structural placeholder so the specialization pipeline wires
-	/// through a consistent cache reference. Replace with real AIModelCache
-	/// once SDK is available. See ROADMAP.md.
+	/// Managed the Core AI ``AIModelCache`` for persisting compiled model artifacts
+	/// across runs, reducing cold-start specialization latency.
+	/// macOS 27 SDK ships real AIModelCache — no longer a stub.
 	@available(macOS 27.0, *)
-final class CoreAICacheManager: @unchecked Sendable {
+	final class CoreAICacheManager: @unchecked Sendable {
 		/// Default cache directory path
 		static let defaultCachePath = "/tmp/ocoreai-model-cache"
 
 		/// Whether the cache system is enabled
 		private let _enabled: Bool
+
+		/// Lazily created cache instance — `nil` until first call with _enabled=true.
+		private var _cache: AIModelCache?
 
 		/// Create a cache manager with the given configuration.
 		///
@@ -154,9 +156,14 @@ final class CoreAICacheManager: @unchecked Sendable {
 		}
 
 		/// Return the cache instance if enabled, nil otherwise.
+		/// P1-fix: creates real ``AIModelCache`` backed by the configured directory.
+		/// Callers pass this to ``AIModel`` specialization to reuse compiled artifacts.
 		func cache() -> AIModelCache? {
 			guard _enabled else { return nil }
-			return nil // TODO: Return actual AIModelCache once macOS 27 SDK available
+			if let existing = _cache { return existing }
+			guard let newCache = AIModelCache(appGroup: Self.defaultCachePath) else { return nil }
+			_cache = newCache
+			return newCache
 		}
 	}
 
