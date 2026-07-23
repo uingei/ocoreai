@@ -747,10 +747,15 @@ extension EnginePool {
 								return try await registry.call(toolCall.function.name, arguments: argsString)
 							}
 						}
+						/// ChatSession creation — includes reasoning toggle if enabled.
+						let additionalContext: [String: any Sendable]? =
+							options.enableReasoning ? ["enable_thinking": true] : nil
+
 						chatSession = ChatSession(
 							handleRef.modelContainer,
 							speculativeDecoding: spec,
 							generateParameters: gp,
+							additionalContext: additionalContext,
 							tools: toolSpecs,
 							toolDispatch: toolDispatchClosure
 						)

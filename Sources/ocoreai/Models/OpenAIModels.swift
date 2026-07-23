@@ -120,6 +120,9 @@ struct ChatCompletionRequest: Decodable {
 	/// Enable deep reasoning mode (三思而后行) — multi-step reasoning scaffold
 	var reasoning: Bool? = false
 
+	/// Stream options for controlling streaming behavior.
+	var streamOptions: StreamOptions? = nil
+
 	// MARK: - Snake-Case Key Mapping (OpenAI API compat)
 
 	enum CodingKeys: String, CodingKey {
@@ -142,6 +145,7 @@ struct ChatCompletionRequest: Decodable {
 		case parallelToolCalls = "parallel_tool_calls"
 		case selfCorrection
 		case reasoning
+		case streamOptions = "stream_options"
 	}
 
 	init(
@@ -606,6 +610,16 @@ struct Usage: Encodable {
 	}
 }
 
+/// Stream options for controlling streaming behavior (OpenAI compat).
+struct StreamOptions: Decodable {
+	/// Whether to include usage statistics in the final stream chunk.
+	var includeUsage: Bool = false
+
+	enum CodingKeys: String, CodingKey {
+		case includeUsage = "include_usage"
+	}
+}
+
 /// Backward compatibility aliases.
 typealias ChatCompletionResponse = ChatCompletion
 typealias Choice = CompletionChoice
@@ -665,6 +679,23 @@ struct ChatCompletionChunk: Encodable {
 
 	/// Delta choices
 	let choices: [ChunkChoice]
+
+	/// Token usage statistics (only when stream_options.include_usage is true)
+	let usage: Usage?
+
+	init(
+		id: String,
+		created: Int64,
+		model: String,
+		choices: [ChunkChoice],
+		usage: Usage? = nil
+	) {
+		self.id = id
+		self.created = created
+		self.model = model
+		self.choices = choices
+		self.usage = usage
+	}
 }
 
 /// Single delta choice inside ``ChatCompletionChunk``.

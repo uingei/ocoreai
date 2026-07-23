@@ -128,12 +128,16 @@ struct InferenceOptions: Codable {
 	/// The JSON schema string to constrain output grammar.
 	/// Used by tools (tool call schema) or response_format.json_schema.
 	var grammarSchema: String? = nil
+	/// When true, enable reasoning/chain-of-thought mode.
+	/// Passed as additionalContext["enable_thinking"] to ChatSession.
+	var enableReasoning: Bool = false
 
-	init(maxTokens: Int? = nil, includeLogits: Bool = false, useGuidedGeneration: Bool = false, grammarSchema: String? = nil) {
+	init(maxTokens: Int? = nil, includeLogits: Bool = false, useGuidedGeneration: Bool = false, grammarSchema: String? = nil, enableReasoning: Bool = false) {
 		self.maxTokens = maxTokens
 		self.includeLogits = includeLogits
 		self.useGuidedGeneration = useGuidedGeneration
 		self.grammarSchema = grammarSchema
+		self.enableReasoning = enableReasoning
 	}
 
 	init() {}

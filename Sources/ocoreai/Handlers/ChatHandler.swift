@@ -322,7 +322,7 @@ func chatCompletionsHandler(
 			logger.warning("Sampling config normalized (redundant params dropped)")
 		}
 
-		/// Determine if guided generation should be used for this request.
+	/// Determine if guided generation should be used for this request.
 		/// Guided generation enforces grammar-constrained output for:
 		/// - Tool calls (structured function_call/tool_calling JSON)
 		/// - JSON Schema responses (strict JSON output validation)
@@ -331,6 +331,14 @@ func chatCompletionsHandler(
 			let hasJsonSchema = request.responseFormat?.type == "json_schema" || request.responseFormat?.type == "json_object"
 			return hasTools || hasJsonSchema
 		}()
+
+		/// Reasoning toggle — passed to ChatSession via additionalContext
+		let reasoningEnabled: Bool = request.reasoning == true
+
+		/// Tool choice strategy — log and pass through to Engine
+		if let tc = request.toolChoice {
+			logger.info("Tool choice: \(tc)")
+		}
 
 		/// Build grammar schema string for GuidedGeneration constraint.
 		let grammarSchema = useGuidedGeneration ? buildGrammarSchema(from: request) : nil
@@ -341,6 +349,7 @@ func chatCompletionsHandler(
 			includeLogits: false,
 			useGuidedGeneration: useGuidedGeneration,
 			grammarSchema: grammarSchema,
+			enableReasoning: reasoningEnabled
 		)
 
 		/// Log if guided generation is enabled for this request.
@@ -885,7 +894,19 @@ private func streamWithToolCalling(
 					)
 					_ = yieldSSE(stopChunk, to: continuation)
 
-				/// .error — send error chunk and terminate.
+					/// If stream_options.include_usage is true, emit usage in final SSE chunk.
+					if request.streamOptions?.includeUsage == true {
+						let usageChunk = ChatCompletionChunk(
+							id: requestId,
+							created: created,
+							model: modelId,
+							choices: [],
+							usage: Usage(input: promptTokenCount, output: totalOutputTokens),
+						)
+						_ = yieldSSE(usageChunk, to: continuation)
+					}
+
+					/// .error — send error chunk and terminate.
 				case let .error(errorMsg):
 					let errChunk = ChatCompletionChunk(
 						id: requestId,
