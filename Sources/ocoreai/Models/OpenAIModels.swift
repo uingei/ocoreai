@@ -506,9 +506,9 @@ enum ContentPolymorphic: Codable {
 	}
 }
 
-/// Multi-part message part types (text + image_url + audio).
+/// Multi-part message part types (text + image_url + video + audio).
 struct ContentPart: Codable {
-	/// Part type: "text" | "image_url" | "audio"
+	/// Part type: "text" | "image_url" | "video" | "audio"
 	let type: String
 
 	/// Text content (if applicable)
@@ -517,6 +517,9 @@ struct ContentPart: Codable {
 	/// Image URL reference (if applicable)
 	let imageUrl: ImageURL?
 
+	/// Video URL reference (if applicable)
+	var videoUrl: VideoURL? = nil
+
 	/// Audio URL reference (if applicable)
 	var audioURL: AudioURL? = nil
 
@@ -524,6 +527,18 @@ struct ContentPart: Codable {
 	struct ImageURL: Codable {
 		/// URL string (http/https or base64 data URL)
 		let url: String
+	}
+
+	/// Video URL wrapper.
+	struct VideoURL: Codable {
+		/// URL string (http/https or base64 data URL)
+		let url: String
+		/// Maximum frames to extract per video (default: 16)
+		let maxFrames: Int
+		init(url: String, maxFrames: Int = 16) {
+			self.url = url
+			self.maxFrames = maxFrames
+		}
 	}
 
 	/// Audio URL wrapper.

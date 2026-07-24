@@ -284,8 +284,17 @@ enum AgentLoop {
                 logs.append(AgentLoopIterationLog(
                     iteration: i, tok: tokCount, toolN: 0, ms: elapsedMs, tag: "converged"
                 ))
+                // Safety filter final user-facing response through ContentGuard
+                let guardedText: String
+                if let contentGuard = await OcoreaiEngine.shared.activeContentGuard,
+                   await contentGuard.checkOutput(text).isBlocked {
+                    log.warning("AgentLoop: final response blocked by ContentGuard")
+                    guardedText = "[response filtered by safety guard]"
+                } else {
+                    guardedText = text
+                }
                 return AgentLoopResult(
-                    text: text,
+                    text: guardedText,
                     iterationCount: i,
                     iters: logs,
                     finishReason: "stop",
@@ -324,8 +333,22 @@ enum AgentLoop {
         )
         let tc = parseToolCalls(from: text)
         let hasNonEmptyToolCalls = (tc?.count ?? 0) > 0
+        // Safety filter user-facing response through ContentGuard
+        // (tool_calls responses skip filtering — they're structured payloads, not free text)
+        let guardedText: String
+        if hasNonEmptyToolCalls {
+            guardedText = text
+        } else {
+            if let contentGuard = await OcoreaiEngine.shared.activeContentGuard,
+               await contentGuard.checkOutput(text).isBlocked {
+                logger.warning("AgentLoop: response blocked by ContentGuard")
+                guardedText = "[response filtered by safety guard]"
+            } else {
+                guardedText = text
+            }
+        }
         return AgentLoopResult(
-        	text: text,
+        	text: guardedText,
         	toolCalls: tc,
         	iterationCount: 1,
         	finishReason: hasNonEmptyToolCalls ? "tool_calls" : "stop",

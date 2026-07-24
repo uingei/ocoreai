@@ -359,6 +359,25 @@ extension DirectInferenceClient {
 			ttftMs: finalTtftMs,
 			tokPerSec: finalTokPerSec,
 		))
+	// Post-stream quality signal → ThinkingBudget calibration loop.
+	// Fire-and-forget: failures silently ignored to avoid blocking stream end.
+	if let budget = OcoreaiEngine.shared.activeThinkingBudget {
+		let outputLen = (outputTokens ?? 0) > 0
+			? min(1.0, Double(outputTokens!) / Double(effectiveMaxTokens ?? 4096))
+			: 0.0
+		let qualityInput = ThinkingQualityInput(
+			complexity: 0.5, // Desktop UI has no upstream ComplexityAnalyzer
+			outputLength: outputLen,
+			iterationCount: 1,
+			toolCallCount: 0,
+			finishReason: finishReason ?? "stop"
+		)
+		_ = await ThinkingTelemetry.signal(
+			input: qualityInput,
+			sessionId: request.sessionId ?? "0",
+			budget: budget
+		)
+	}
 		continuation.finish()
 	}
 }

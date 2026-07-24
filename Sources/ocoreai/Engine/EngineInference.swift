@@ -944,17 +944,18 @@ extension EnginePool {
 						let lastRole: Chat.Message.Role = lastMsg?.role ?? .user
 						let lastContent = lastMsg?.content ?? ""
 
-						// Extract images/audio from last message for multimodal support. VLM requests
-						// carry .images/.audios on the last Chat.Message — pass them through so
+						// Extract images/audio/video from last message for multimodal support. VLM requests
+						// carry .images/.audios/.videos on the last Chat.Message — pass them through so
 						// streamDetails can actually see the media instead of dropping silently.
 						let allImages: [MLXLMCommon.UserInput.Image] = lastMsg?.images ?? []
 						let allAudios: [MLXLMCommon.UserInput.Audio] = lastMsg?.audios ?? []
+						let allVideos: [MLXLMCommon.UserInput.Video] = lastMsg?.videos ?? []
 
 						for try await generation in chatSession!.streamDetails(
 							to: lastContent,
 							role: lastRole,
 							images: allImages,
-							videos: [],
+							videos: allVideos,
 							audios: allAudios
 						) {
 							if Task.isCancelled || cancellation.isCancelled {

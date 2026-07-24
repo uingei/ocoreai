@@ -99,11 +99,11 @@ final class LoadedModel: @unchecked Sendable {
 		func createSpeculativeConfig() -> MLXLMCommon.SpeculativeDecodingConfig? {
 			guard specDecodingConfig.enabled else { return nil }
 
-			// MTP mode: speculative decoding via main model's own MTP layers.
-			// This requires MTPSpeculativeTokenIterator — not yet connected, so we
-			// return nil and log a WARNING (not info) so the operator sees it.
+			// MTP mode does NOT use ChatSession's speculativeDecoding parameter —
+			// it has its own inference path via MLXLMCommon.generate(mtpDrafter:,blockSize:)
+			// wired in EnginePool._runInferenceWithMessages. Returning nil here
+			// is correct: MTP does not go through ChatSession's SDC.
 			if specDecodingConfig.mode == "mtp" {
-				logger.warning("Speculative decoding configured as mode='mtp' but MTP SDC not wired, running without speculation.")
 				return nil
 			}
 
