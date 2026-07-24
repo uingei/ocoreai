@@ -562,6 +562,7 @@ extension EnginePool {
 				case let .parts(parts):
 					var textParts: [String] = []
 					var images: [MLXLMCommon.UserInput.Image] = []
+					var videos: [MLXLMCommon.UserInput.Video] = []
 					var audios: [MLXLMCommon.UserInput.Audio] = []
 					for part in parts {
 						if let text = part.text {
@@ -569,7 +570,13 @@ extension EnginePool {
 						}
 						if let img = part.imageUrl, let image = makeMLXImage(from: img.url) {
 							images.append(image)
+						}
+						if let video = part.videoUrl {
+							// Video URL into VLM — upstream processes frames via Gemma4Processor
+							if let url = URL(string: video.url) {
+								videos.append(.url(url))
 							}
+						}
 						if let audio = part.audioURL {
 							// Audio URL directly into VLM — upstream handles decoding via .asMLXArray()
 							if let url = URL(string: audio.url) {
@@ -581,6 +588,7 @@ extension EnginePool {
 						role: role,
 						content: textParts.joined(separator: " "),
 						images: images,
+						videos: videos,
 						audios: audios,
 					)
 				case nil:
