@@ -279,8 +279,25 @@ final class LoadedModel: @unchecked Sendable {
 	// MARK: - Cleanup
 
 	/// Release all session state on shutdown.
+	/// P1-fix: clear CoreAI cached artifacts and MLX model handles to free
+	/// Unified Memory held by compiled models, KV cache, and GPU weights.
 	func cleanup() {
 		sessionCount.store(0, ordering: .relaxed)
+
+#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+		// P1-fix: Clear CoreAI engine cache + prepared model to release GPU memory.
+		// Without this, the cached InferenceFunction + NDArrays + AIModel asset
+		// stay resident even after unloadModel() completes, causing Unified Memory
+		// accumulation under model-switch workloads.
+		cachedEngine = nil
+		_preparedModel = nil
+		logger.info("CoreAI engine + prepared model released")
+#endif
+
+		// P1-fix: Clear MLX model handles + drafter to release GPU weights
+		mlxModelHandle = nil
+		draftModelHandle = nil
+		_mtpDrafterContainer = nil
 	}
 
 	// MARK: - Initialization
