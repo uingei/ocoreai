@@ -402,30 +402,31 @@ extension EnginePool {
 	/// regular URL into an ``MLXLMCommon/UserInput/Audio``.
 	/// Data URLs are decoded to a temp `.caf` file; remote/local URLs are passed through.
 	/// Top-level free function — does not capture `self` (avoids Sendable taint).
-	nonisolated func makeMLXAudio(from urlString: String) -> MLXLMCommon.UserInput.Audio? {
+	/// Returns the created temp file URL (if any) so callers can clean up after inference.
+	nonisolated func makeMLXAudio(from urlString: String) -> (audio: MLXLMCommon.UserInput.Audio?, tempURL: URL?) {
 		// Handle data: URIs (recordings come as base64 data URLs)
 		if urlString.hasPrefix("data:") {
 			// Use the LAST comma — base64 payload may contain commas
-			guard let lastComma = urlString.lastIndex(of: ",") else { return nil }
+			guard let lastComma = urlString.lastIndex(of: ",") else { return (nil, nil) }
 			let base64Data = String(urlString[urlString.index(after: lastComma)...])
-			guard let data = Data(base64Encoded: base64Data) else { return nil }
+			guard let data = Data(base64Encoded: base64Data) else { return (nil, nil) }
 			// Write to temp file so AVAssetReader can decode it
 			let tmpName = "ocoreai_audio_\(UUID().uuidString.prefix(8)).caf"
 			let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(tmpName)
 			do {
 				try data.write(to: tmpURL)
-				return .url(tmpURL)
+				return (.url(tmpURL), tmpURL)
 			} catch {
-				return nil
+				return (nil, nil)
 			}
 		}
 
-		// Fallback: regular URL (http, file, etc.)
+		// Fallback: regular URL (http, file, etc.) — no temp file created
 		if let url = URL(string: urlString) {
-			return .url(url)
+			return (.url(url), nil)
 		}
 
-		return nil
+		return (nil, nil)
 	}
 
 		// MARK: - MLX ToolCall Conversion
@@ -612,6 +613,16 @@ extension EnginePool {
 				return
 			}
 
+			// Convert messages to MLX format, collecting temp audio file URLs for later cleanup.
+			// Data: audio URLs are decoded to /tmp .caf files — we must delete them after
+			// inference completes (success or failure) to prevent disk leaks.
+			var tempAudioURLs: [URL] = []
+			defer {
+				for url in tempAudioURLs {
+					try? FileManager.default.removeItem(at: url)
+				}
+			}
+
 			let mlxMessages: [Chat.Message] = messages.map { msg in
 				let role: Chat.Message.Role = switch msg.role {
 				case "system": .system
@@ -656,8 +667,12 @@ extension EnginePool {
 						}
 						if let audio = part.audioURL {
 							// Data URLs are decoded to temp .caf files via makeMLXAudio helper
-							if let audioInput = makeMLXAudio(from: audio.url) {
+							let result = makeMLXAudio(from: audio.url)
+							if let audioInput = result.audio {
 								audios.append(audioInput)
+							}
+							if let tempFile = result.tempURL {
+								tempAudioURLs.append(tempFile)
 							}
 						}
 					}
