@@ -683,11 +683,17 @@ extension EnginePool {
 				try await handleRef.modelContainer.perform { context in
 					// Rebuild Chat.Message inside the @Sendable closure to avoid
 					// cross-actor capture of non-Sendable [Chat.Message].
-					let messages = messagePairs.map { pair in
+					var messages = messagePairs.map { pair in
 						Chat.Message(
 							role: Chat.Message.Role(rawValue: pair.role) ?? .system,
 							content: pair.content
 						)
+					}
+					// Strip trailing empty assistant message so the chat template
+					// leaves the assistant turn open for generation — mirrors upstream
+					// MLXChatExample pattern (see upstream L104-107)
+					if let last = messages.last, last.role == .assistant, last.content.isEmpty {
+						messages.removeLast()
 					}
 					let userInput = UserInput(prompt: .chat(messages))
 					let lmInput = try await context.processor.prepare(input: userInput)
@@ -962,11 +968,15 @@ extension EnginePool {
 							var localStopReason: StopReason?
 							var localStoppedBySeq = false
 
-							let mtpMessages: [Chat.Message] = messagePairs.map { pair in
+							var mtpMessages: [Chat.Message] = messagePairs.map { pair in
 								Chat.Message(
 									role: Chat.Message.Role(rawValue: pair.role) ?? .system,
 									content: pair.content
 								)
+							}
+							// Strip trailing empty assistant message — mirrors upstream MLXChatExample
+							if let last = mtpMessages.last, last.role == .assistant, last.content.isEmpty {
+								mtpMessages.removeLast()
 							}
 
 							let mtpUserInput = UserInput(prompt: .chat(mtpMessages))
