@@ -398,6 +398,36 @@ extension EnginePool {
 		return nil
 	}
 
+	/// Convert a string that may be a data URL (`data:audio/…;base64,…`) or a
+	/// regular URL into an ``MLXLMCommon/UserInput/Audio``.
+	/// Data URLs are decoded to a temp `.caf` file; remote/local URLs are passed through.
+	/// Top-level free function — does not capture `self` (avoids Sendable taint).
+	nonisolated func makeMLXAudio(from urlString: String) -> MLXLMCommon.UserInput.Audio? {
+		// Handle data: URIs (recordings come as base64 data URLs)
+		if urlString.hasPrefix("data:") {
+			// Use the LAST comma — base64 payload may contain commas
+			guard let lastComma = urlString.lastIndex(of: ",") else { return nil }
+			let base64Data = String(urlString[urlString.index(after: lastComma)...])
+			guard let data = Data(base64Encoded: base64Data) else { return nil }
+			// Write to temp file so AVAssetReader can decode it
+			let tmpName = "ocoreai_audio_\(UUID().uuidString.prefix(8)).caf"
+			let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(tmpName)
+			do {
+				try data.write(to: tmpURL)
+				return .url(tmpURL)
+			} catch {
+				return nil
+			}
+		}
+
+		// Fallback: regular URL (http, file, etc.)
+		if let url = URL(string: urlString) {
+			return .url(url)
+		}
+
+		return nil
+	}
+
 		// MARK: - MLX ToolCall Conversion
 
 	/// Convert ocoreai ``ToolCall`` to upstream MLXLMCommon ``ToolCall``.
@@ -625,9 +655,9 @@ extension EnginePool {
 							}
 						}
 						if let audio = part.audioURL {
-							// Audio URL directly into VLM — upstream handles decoding via .asMLXArray()
-							if let url = URL(string: audio.url) {
-								audios.append(.url(url))
+							// Data URLs are decoded to temp .caf files via makeMLXAudio helper
+							if let audioInput = makeMLXAudio(from: audio.url) {
+								audios.append(audioInput)
 							}
 						}
 					}
