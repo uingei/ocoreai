@@ -680,6 +680,9 @@ extension EnginePool {
 						constraint: constraint,
 						maxTokens: maxTokens,
 						vocabSize: Int(loaded.modelConfig.vocabSize),
+						kvBits: genParams.kvBits,
+						kvGroupSize: genParams.kvGroupSize,
+						quantizedKVStart: genParams.quantizedKVStart,
 					) { text in
 						guard !Task.isCancelled && !cancellation.isCancelled else {
 							continuation.yield(.init(

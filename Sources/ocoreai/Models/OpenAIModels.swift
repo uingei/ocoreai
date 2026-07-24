@@ -1019,6 +1019,11 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
 /// (DirectInferenceClient) to enable GuidedGeneration grammar-constrained output.
 /// When tools are present, the schema constrains the model to emit a valid
 /// oneOf array of tool call objects — eliminating regex post-processing failures.
+///
+/// Named sub-schemas ($defs) in tool parameters are hoisted to the envelope
+/// root with per-tool namespaced keys (<tool>__<def>) and $refs are rewritten
+/// to match — preventing dangling pointers that cause xgrammar compilation failure.
+/// (Mirrors upstream commit 1032402)
 func buildGrammarSchema(
 	from tools: [ToolDef]?,
 	responseFormat: ResponseFormat? = nil
@@ -1028,28 +1033,43 @@ func buildGrammarSchema(
 		Dictionary(uniqueKeysWithValues: dict.map { ($0, $1.value) })
 	}
 
-	// Tools path: build function_call-style schema
+	// Tools path: build function_call-style schema with $defs hoisting
 	if let toolsDef = tools, !toolsDef.isEmpty {
-		let functionSchemas: [[String: Any]] = toolsDef.compactMap { tool in
+		var hoistedDefs: [String: Any] = [:]
+		let oneOf: [[String: Any]] = toolsDef.compactMap { tool in
 			let funcDef = tool.function
 			guard let params = funcDef.parameters else { return nil }
+
+			// Hoist $defs to envelope root, rewrite $refs with per-tool namespace
+			let hoistedParams = buildGrammarSchemaHoistDefs(
+				in: toAny(params),
+				toolName: funcDef.name,
+				into: &hoistedDefs
+			)
+
 			return [
 				"type": "object",
 				"properties": [
 					"name": ["type": "string", "const": funcDef.name],
-					"arguments": toAny(params),
+					"arguments": hoistedParams,
 				],
 				"required": ["name", "arguments"],
 			]
 		}
-		guard !functionSchemas.isEmpty,
-			  let data = try? JSONSerialization.data(
-				withJSONObject: [
-					"type": "array",
-					"items": ["oneOf": functionSchemas],
-				],
-				options: []
-			  ), let s = String(data: data, encoding: .utf8) else {
+		guard !oneOf.isEmpty else { return nil }
+
+		var envelope: [String: Any] = ["oneOf": oneOf]
+		if !hoistedDefs.isEmpty {
+			envelope["$defs"] = hoistedDefs
+		}
+
+		guard let data = try? JSONSerialization.data(
+			withJSONObject: [
+				"type": "array",
+				"items": envelope,
+			],
+			options: []
+		  ), let s = String(data: data, encoding: .utf8) else {
 			return nil
 		}
 		return s
@@ -1069,4 +1089,56 @@ func buildGrammarSchema(
 		return "{\"type\":\"object\",\"properties\":{}}"
 	}
 	return nil
+}
+
+/// Hoist `$defs` from a tool parameter schema to the envelope root,
+/// namespacing keys with `<toolName>__` and rewriting `$ref` pointers.
+/// Mirrors upstream commit 1032402 — structure-aware rewrite that only
+/// touches `$ref` values, leaving description/const/enum/pattern strings intact.
+private func buildGrammarSchemaHoistDefs(
+	in params: [String: Any],
+	toolName: String,
+	into hoistedDefs: inout [String: Any]
+) -> [String: Any] {
+	// Rewrite $refs in the entire tree first (before hoisting, since refs
+	// can appear inside other $defs bodies)
+	let rewritten = buildGrammarSchemaRewriteRefs(
+		in: params as Any,
+		toolName: toolName
+	) as? [String: Any] ?? params
+
+	// Extract and remove $defs from the rewritten tree
+	var result = rewritten
+	if let defs = result.removeValue(forKey: "$defs") as? [String: Any] {
+		for (key, value) in defs {
+			hoistedDefs["\(toolName)__\(key)"] = value
+		}
+	}
+	return result
+}
+
+/// Recursively rewrite `"$ref": "#/$defs/<name>"` → `"#/$defs/<toolName>__<name>"`
+/// in a parsed JSON schema tree. Structure-aware: only rewrites string values
+/// directly under `$ref` keys, so other strings survive verbatim.
+private func buildGrammarSchemaRewriteRefs(
+	in value: Any,
+	toolName: String
+) -> Any {
+	switch value {
+	case let object as [String: Any]:
+		var result: [String: Any] = [:]
+		result.reserveCapacity(object.count)
+		for (key, nested) in object {
+			if key == "$ref", let ref = nested as? String, ref.hasPrefix("#/$defs/") {
+				result[key] = "#/$defs/\(toolName)__" + String(ref.dropFirst(8))
+			} else {
+				result[key] = buildGrammarSchemaRewriteRefs(in: nested, toolName: toolName)
+			}
+		}
+		return result
+	case let array as [Any]:
+		return array.map { buildGrammarSchemaRewriteRefs(in: $0, toolName: toolName) }
+	default:
+		return value
+	}
 }
