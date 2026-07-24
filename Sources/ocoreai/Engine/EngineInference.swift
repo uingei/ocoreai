@@ -907,7 +907,12 @@ extension EnginePool {
 					var lastStopReason: StopReason?
 
 					// MARK: - Guided Generation Path (grammar-constrained)
-					if let schema = options.grammarSchema {
+					// NOTE: Guided path uses pure-text messagePairs — cannot carry images/videos/audios.
+					// Multimodal messages with grammar schema fall through to ChatSession (full round-trip).
+					// This mirrors upstream MTP path at L925 and aligns with MLXChatExample pattern
+					// where Chat.Message carries images/videos directly without loss.
+					if let schema = options.grammarSchema,
+					   mlxMessages.allSatisfy({ $0.images.isEmpty && $0.videos.isEmpty && $0.audios.isEmpty }) {
 						log.info("Routing through GuidedGenerationLoop with grammar constraint")
 						// Guided path: prepare input, build constraint, run token loop
 						// All within modelContainer.perform for thread-safe ModelContext access
@@ -916,6 +921,10 @@ extension EnginePool {
 							grammarSchema: schema,
 							maxTokens: options.maxTokens ?? loaded.modelConfig.maxContextLength,
 						)
+					} else if options.grammarSchema != nil {
+						// Grammar requested but multimodal content present — guided path cannot handle it.
+						// Fall through to ChatSession below; grammar will be best-effort ignored.
+						log.warning("Dropping grammar constraint for multimodal message on model \(modelId)")
 					}
 					// MARK: - MTP Speculative Decoding Path
 					// Note: upstream MTP generate does NOT support tools parameter —
