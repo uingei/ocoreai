@@ -36,7 +36,7 @@ let package = Package(
         // Pinned to exact revision — upstream main branch drifts; update via `swift package update`
         // then bump .revision + test. Current pin: 2026-07-22 — TurboQuant KV cache, Gemma 4 MTP spec decode,
         // Qwen3.5 M-RoPE, Gemma3 surface, EOS token nesting, memory leak fixes (autorelease pool), clearCache.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "78eaa5bbcc722ead5c03b0460cdc3ac4de85071e"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "18edd22"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
