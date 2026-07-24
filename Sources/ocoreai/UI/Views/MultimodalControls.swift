@@ -203,12 +203,15 @@
                         if audioIO.isRecording {
                             // Stop recording then auto-transcribe
                             Task {
-                                _ = await audioIO.stopRecording()
+                                if let audioDataURL = await audioIO.stopRecording() {
+                                    // Save raw audio for VLM — bypasses STT so VLM can "hear" directly
+                                    MultimodalState.shared.lastRecordingDataURL = audioDataURL
+                                }
                                 if let transcript = await audioIO.transcribe(timeout: 15) {
-                                        // Save to shared state so UI can display it
-                                        MultimodalState.shared.lastTranscript = transcript
-                                        // Signal ChatView to auto-send via @Observable (voice loop)
-                                        MultimodalState.shared.pendingVoiceTranscript = transcript
+                                    // Save to shared state so UI can display it
+                                    MultimodalState.shared.lastTranscript = transcript
+                                    // Signal ChatView to auto-send via @Observable (voice loop)
+                                    MultimodalState.shared.pendingVoiceTranscript = transcript
                                 }
                             }
                         } else {

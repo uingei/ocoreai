@@ -190,6 +190,7 @@ final class MultimodalState {
         let name: String
         let dataURL: String? /// nil when OCR text replaces the image
         let ocrText: String? /// Significant text recognized from the frame
+        var audioURL: String? = nil /// Raw audio recording data URL (bypasses STT for VLM native audio understanding)
 
         /// Check if this entry should be sent as text (OCR significant and non-empty) vs image.
         var shouldSendAsText: Bool {
@@ -213,27 +214,33 @@ final class MultimodalState {
             let cs = MMCaptureService.shared
             // If OCR text is significant, send as text instead of image
             if let ocrText = cs.latestOCRText, !ocrText.isEmpty {
-                contexts.append(MMContextEntry(name: "camera", dataURL: nil, ocrText: ocrText))
+                contexts.append(MMContextEntry(name: "camera", dataURL: nil, ocrText: ocrText, audioURL: nil))
                 mmLogger.info("[MultimodalState] Context: camera OCR text captured (\\(ocrText.count) chars)")
             } else if let frameURL = await cs.captureFrame() {
                 self.cameraSnapshot = frameURL
-                contexts.append(MMContextEntry(name: "camera", dataURL: frameURL, ocrText: nil))
+                contexts.append(MMContextEntry(name: "camera", dataURL: frameURL, ocrText: nil, audioURL: nil))
                 mmLogger.info("[MultimodalState] Context: camera frame captured")
             }
         }
 
         // Screen frame — check OCR text first (screen frames often contain terminal/IDE/docs text)
         if self.screenCaptureEnabled {
-        	let ss = MMScreenshotService.shared
-        	// If OCR text is significant, send as text instead of image
-        	if let ocrText = ss.latestOCRText, !ocrText.isEmpty {
-        		contexts.append(MMContextEntry(name: "screen", dataURL: nil, ocrText: ocrText))
-        		mmLogger.info("[MultimodalState] Context: screen OCR text captured (\\(ocrText.count) chars)")
-        	} else if let frameURL = await ss.captureScreen() {
-        		self.screenSnapshot = frameURL
-        		contexts.append(MMContextEntry(name: "screen", dataURL: frameURL, ocrText: nil))
-        		mmLogger.info("[MultimodalState] Context: screen frame captured")
-        	}
+       	let ss = MMScreenshotService.shared
+       	// If OCR text is significant, send as text instead of image
+       	if let ocrText = ss.latestOCRText, !ocrText.isEmpty {
+       	contexts.append(MMContextEntry(name: "screen", dataURL: nil, ocrText: ocrText, audioURL: nil))
+       		mmLogger.info("[MultimodalState] Context: screen OCR text captured (\\(ocrText.count) chars)")
+       	} else if let frameURL = await ss.captureScreen() {
+       		self.screenSnapshot = frameURL
+       		contexts.append(MMContextEntry(name: "screen", dataURL: frameURL, ocrText: nil, audioURL: nil))
+       		mmLogger.info("[MultimodalState] Context: screen frame captured")
+       	}
+        }
+
+        // Audio recording — inject raw audio so VLM can "hear" directly (bypasses STT)
+        if let recordingURL = self.lastRecordingDataURL {
+            contexts.append(MMContextEntry(name: "audio", dataURL: nil, ocrText: nil, audioURL: recordingURL))
+            mmLogger.info("[MultimodalState] Context: raw audio recording captured")
         }
 
         return contexts

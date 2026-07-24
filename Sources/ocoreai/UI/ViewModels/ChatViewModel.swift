@@ -505,7 +505,7 @@ final class ChatState {
         var allContext = mmContext
         for att in attachments {
             allContext.append(MultimodalState.MMContextEntry(
-                name: "attachment", dataURL: att.dataURL, ocrText: nil
+                name: "attachment", dataURL: att.dataURL, ocrText: nil, audioURL: nil
             ))
         }
 
@@ -569,6 +569,16 @@ final class ChatState {
                                 type: "image_url",
                                 text: nil,
                                 imageUrl: ContentPart.ImageURL(url: url)
+                            ))
+                        }
+                        // Audio: inject raw recording so VLM can "hear" directly
+                        if let audioUrl = ctx.audioURL {
+                            parts.append(ContentPart(
+                                type: "audio",
+                                text: nil,
+                                imageUrl: nil,
+                                videoUrl: nil,
+                                audioURL: ContentPart.AudioURL(url: audioUrl)
                             ))
                         }
                     }
