@@ -37,17 +37,31 @@ public struct PagedKVCacheConfig: Sendable {
 	/// 默认配置
 	public static let `default`: PagedKVCacheConfig = .init()
 
+	/// Compute memory pressure threshold from physical RAM.
+	///
+	/// On Apple Silicon UMA the entire pool (CPU + GPU + KV cache) is shared,
+	/// so reserve ≈45 % for system + model weights and leave the rest for KV
+	/// cache before triggering admission control.
+	/// Floor  3 GB — even an 8 GB Mac should guard.
+	/// Ceiling 64 GB — beyond that the fixed 12 GB was already generous.
+	private static func pressureBytes(from physicalBytes: UInt64) -> Int {
+		let ratio: Double = 0.45
+		let pressure = UInt64(Double(physicalBytes) * ratio)
+		return Int(max(3 * 1024 * 1024 * 1024, min(pressure, 64 * 1024 * 1024 * 1024)))
+	}
+
 	init(
 		tokensPerBlock: Int = 16,
 		maxSessions: Int = 256,
 		sessionTimeoutSeconds: Int = 300,
-		memoryPressureBytes: Int = Int(12 * 1024 * 1024 * 1024),
+		memoryPressureBytes: Int? = nil,
 		prefixSharingEnabled: Bool = true,
 	) {
 		self.tokensPerBlock = tokensPerBlock
 		self.maxSessions = maxSessions
 		self.sessionTimeoutSeconds = sessionTimeoutSeconds
 		self.memoryPressureBytes = memoryPressureBytes
+			?? Self.pressureBytes(from: ProcessInfo.processInfo.physicalMemory)
 		self.prefixSharingEnabled = prefixSharingEnabled
 	}
 }
