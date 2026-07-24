@@ -44,10 +44,15 @@ public struct PagedKVCacheConfig: Sendable {
 	/// cache before triggering admission control.
 	/// Floor  3 GB — even an 8 GB Mac should guard.
 	/// Ceiling 64 GB — beyond that the fixed 12 GB was already generous.
-	private static func pressureBytes(from physicalBytes: UInt64) -> Int {
-		let ratio: Double = 0.45
-		let pressure = UInt64(Double(physicalBytes) * ratio)
-		return Int(max(3 * 1024 * 1024 * 1024, min(pressure, 64 * 1024 * 1024 * 1024)))
+	private static func pressureBytes(from physicalMemory: UInt64) -> Int {
+		// Use integer-only math (0.45 = 9/20) to avoid double→Int64 casts that
+		// trip Swift 6 CI type-check time limits on macos-26.
+		let scaled: UInt64 = (physicalMemory * 9) / 20
+		let giga3:  UInt64 = 3  * 1024 * 1024 * 1024
+		let giga64: UInt64 = 64 * 1024 * 1024 * 1024
+		var result: UInt64 = scaled < giga3 ? giga3 : scaled
+		result = result > giga64 ? giga64 : result
+		return Int(result)
 	}
 
 	init(
