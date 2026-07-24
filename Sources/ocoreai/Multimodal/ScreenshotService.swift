@@ -17,6 +17,7 @@ import CoreVideo
 import Foundation
 import os.log
 import ScreenCaptureKit
+import Vision
 
 private let screenshotLogger = Logger(subsystem: "ocoreai", category: "screenshot")
 
@@ -36,6 +37,11 @@ final class ScreenshotService {
 	var isCapturing: Bool = false
 	private(set) var screenCount: Int = 0
 	private(set) var latestFrameDataURL: String?
+	
+	/// OCR-recognized text from the latest screen frame (via Vision).
+	/// If this is non-nil, the frame contains significant on-screen text
+	/// and can be sent as structured text (~20 tokens) instead of an image (~800 tokens).
+	var latestOCRText: String? = nil
 
 	// SCStream-based capture
 	private var stream: SCStream?
@@ -112,6 +118,14 @@ final class ScreenshotService {
 				cont.resume(returning: Self.encodeFrame(cgImage))
 			}
 		}
+	}
+
+	/// Helper: extract JPEG bytes from a base64 data URL so downstream can reuse
+	/// without re-decoding the full frame.
+	nonisolated static func jpegDataFromDataURL(_ dataURL: String) -> Data? {
+		guard dataURL.hasPrefix("data:image/jpeg;base64,") else { return nil }
+		let base64 = String(dataURL.dropFirst("data:image/jpeg;base64,".count))
+		return Data(base64Encoded: base64)
 	}
 
 	// MARK: - Image encoding
@@ -314,6 +328,17 @@ final class ScreenshotService {
 			let service = self.service
 			Task { @MainActor in
 				service?.updateFrameURL(url)
+			}
+			
+			// Run Vision OCR in background — updates latestOCRText for downstream
+			// Screen frames often contain more text than camera frames (terminal, IDE, docs),
+			// so OCR bridge saves even more tokens here (~97% reduction).
+			Task {
+				guard let jpegData = ScreenshotService.jpegDataFromDataURL(url) else { return }
+				let ocrText = await VisionOCR.extractText(from: jpegData)
+				Task { @MainActor in
+					service?.latestOCRText = ocrText
+				}
 			}
 		}
 

@@ -222,14 +222,18 @@ final class MultimodalState {
             }
         }
 
-        // Screen frame
+        // Screen frame — check OCR text first (screen frames often contain terminal/IDE/docs text)
         if self.screenCaptureEnabled {
-            let ss = MMScreenshotService.shared
-            if let frameURL = await ss.captureScreen() {
-                self.screenSnapshot = frameURL
-                contexts.append(MMContextEntry(name: "screen", dataURL: frameURL, ocrText: nil))
-                mmLogger.info("[MultimodalState] Context: screen frame captured")
-            }
+        	let ss = MMScreenshotService.shared
+        	// If OCR text is significant, send as text instead of image
+        	if let ocrText = ss.latestOCRText, !ocrText.isEmpty {
+        		contexts.append(MMContextEntry(name: "screen", dataURL: nil, ocrText: ocrText))
+        		mmLogger.info("[MultimodalState] Context: screen OCR text captured (\\(ocrText.count) chars)")
+        	} else if let frameURL = await ss.captureScreen() {
+        		self.screenSnapshot = frameURL
+        		contexts.append(MMContextEntry(name: "screen", dataURL: frameURL, ocrText: nil))
+        		mmLogger.info("[MultimodalState] Context: screen frame captured")
+        	}
         }
 
         return contexts
