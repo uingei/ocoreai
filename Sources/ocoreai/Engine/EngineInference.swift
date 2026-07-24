@@ -34,6 +34,53 @@ import MLXVLM
 import CoreImage
 import CoreGraphics
 
+// MARK: - Guided Gen Diagnostic Diagnostics
+
+/// Result carried out of the `GuidedGenerationDiagnosticSink.$current.withValue` block
+/// so downstream can log structured diagnostic data even after the sink is unbound.
+private enum GuidedGenerationDiagnosticResult {
+	case success(tokenCount: Int, sink: GuidedGenerationDiagnosticSink)
+}
+
+// MARK: - Guided Gen Diagnostic Logging
+
+/// Log guided generation completion diagnostics.
+private func logGuidedGen(
+	_ logger: Logger,
+	modelId: String,
+	grammarTerminated: Bool,
+	tokenCount: Int,
+	sampledTokens: Int,
+	fastForwardTokens: Int,
+	incomplete: Bool,
+	finalBufferPresent: Bool,
+	parsedAsToolCall: Bool?,
+	parsedName: String?)
+{
+	let tc = parsedAsToolCall.map(String.init) ?? "nil"
+	let nm = parsedName ?? "nil"
+	logger.info(
+		"Guided gen diagnostics: model=\(modelId) grammarTerm=\(grammarTerminated) tokens=\(tokenCount) sampled=\(sampledTokens) ff=\(fastForwardTokens) incomplete=\(incomplete) finalBuf=\(finalBufferPresent) toolCall=\(tc) name=\(nm)")
+}
+
+/// Log guided generation error diagnostics.
+private func logGuidedGenError(
+	_ logger: Logger,
+	modelId: String,
+	error: Error,
+	grammarTerminated: Bool,
+	tokenCountBeforeFailure: Int,
+	sampledTokens: Int,
+	fastForwardTokens: Int,
+	incomplete: Bool,
+	finalBuffer: String?)
+{
+	let errDesc = error.localizedDescription
+	let buf = finalBuffer.map { "\($0.prefix(120))" } ?? "nil"
+	logger.error(
+		"Guided gen ERROR: model=\(modelId) err=\(errDesc) grammarTerm=\(grammarTerminated) tokensBeforeFail=\(tokenCountBeforeFailure) sampled=\(sampledTokens) ff=\(fastForwardTokens) incomplete=\(incomplete) finalBuf=\(buf)")
+}
+
 // MARK: - Inference Extension
 
 extension EnginePool {
@@ -677,56 +724,95 @@ extension EnginePool {
 					}
 
 					// Token count tracking for guided path
-					var guidedTokenCount = 0
-					var firstYielded = false
-					var guidedAccumulated = "" // for stop-sequence matching
+						var guidedTokenCount = 0
+						var firstYielded = false
+						var guidedAccumulated = "" // for stop-sequence matching
 
-					// Run GuidedGenerationLoop with emit callback → SSE yield
-					let tokenCount = try GuidedGenerationLoop.run(
-						input: lmInput,
-						context: context,
-						constraint: constraint,
-						maxTokens: maxTokens,
-						vocabSize: Int(loaded.modelConfig.vocabSize),
-						kvBits: genParams.kvBits,
-						kvGroupSize: genParams.kvGroupSize,
-						quantizedKVStart: genParams.quantizedKVStart,
-					) { text in
-						guard !Task.isCancelled && !cancellation.isCancelled else {
-							continuation.yield(.init(
-								kind: .done(StopReason.cancelled,
-									tokenCount: guidedTokenCount)))
-							continuation.finish()
-							return false
-						}
-						// Record TTFT on first text chunk
-						if !firstYielded {
-							metrics.firstTokenMs = metrics.overallMs
-							firstYielded = true
-						}
-						metrics.incrementGenerated()
-						guidedTokenCount += 1
-						guidedAccumulated += text
-						// Check stop sequences in guided path
-						if let match = requestStopSequences.first(where: { guidedAccumulated.hasSuffix($0) }) {
-							let trimmed = String(guidedAccumulated.prefix(guidedAccumulated.count - match.count))
-							if !trimmed.isEmpty {
-								continuation.yield(.init(kind: .text(trimmed)))
+						// GuidedGenerationDiagnosticSink: zero-cost in production (TaskLocal,
+						// nil when unbound). Binds here so upstream recording sites in
+						// GuidedGenerationLoop capture token IDs, termination reason, and
+						// buffer integrity — structured data for debugging guided gen failures.
+						let diagnosticSink = GuidedGenerationDiagnosticSink()
+						let diagnosticResult: GuidedGenerationDiagnosticResult
+				
+						do {
+							diagnosticResult = try GuidedGenerationDiagnosticSink.$current.withValue(diagnosticSink) {
+								// Run GuidedGenerationLoop with emit callback → SSE yield
+								let tokenCount = try GuidedGenerationLoop.run(
+									input: lmInput,
+									context: context,
+									constraint: constraint,
+									maxTokens: maxTokens,
+									vocabSize: Int(loaded.modelConfig.vocabSize),
+									kvBits: genParams.kvBits,
+									kvGroupSize: genParams.kvGroupSize,
+									quantizedKVStart: genParams.quantizedKVStart,
+								) { text in
+									guard !Task.isCancelled && !cancellation.isCancelled else {
+										continuation.yield(.init(
+											kind: .done(StopReason.cancelled,
+												tokenCount: guidedTokenCount)))
+										continuation.finish()
+										return false
+									}
+									// Record TTFT on first text chunk
+									if !firstYielded {
+										metrics.firstTokenMs = metrics.overallMs
+										firstYielded = true
+									}
+									metrics.incrementGenerated()
+									guidedTokenCount += 1
+									guidedAccumulated += text
+									// Check stop sequences in guided path
+									if let match = requestStopSequences.first(where: { guidedAccumulated.hasSuffix($0) }) {
+										let trimmed = String(guidedAccumulated.prefix(guidedAccumulated.count - match.count))
+										if !trimmed.isEmpty {
+											continuation.yield(.init(kind: .text(trimmed)))
+										}
+										continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: guidedTokenCount)))
+										continuation.finish()
+										return false
+									}
+									continuation.yield(.init(kind: .text(text)))
+									return true
+								}
+								// Snapshot diagnostics after loop completes
+								return .success(tokenCount: tokenCount, sink: diagnosticSink)
 							}
-							continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: guidedTokenCount)))
-							continuation.finish()
-							return false
-						}
-						continuation.yield(.init(kind: .text(text)))
-						return true
-					}
 
-					// Complete guided generation
-					if !Task.isCancelled && !cancellation.isCancelled {
-						continuation.yield(.init(
-							kind: .done(.eos, tokenCount: tokenCount)))
-					}
-					continuation.finish()
+							// Complete guided generation
+							if !Task.isCancelled && !cancellation.isCancelled {
+								switch diagnosticResult {
+								case .success(let tc, _):
+									logGuidedGen(log,
+										modelId: modelId,
+										grammarTerminated: diagnosticSink.grammarTerminated,
+										tokenCount: tc,
+										sampledTokens: diagnosticSink.sampledTokenIDs.count,
+										fastForwardTokens: diagnosticSink.fastForwardTokenIDs.count,
+										incomplete: diagnosticSink.incompleteOutput,
+										finalBufferPresent: diagnosticSink.finalBuffer != nil,
+										parsedAsToolCall: diagnosticSink.parsedAsToolCall,
+										parsedName: diagnosticSink.parsedName)
+									continuation.yield(.init(
+										kind: .done(.eos, tokenCount: tc)))
+								}
+							}
+							continuation.finish()
+						} catch {
+							// Log diagnostic data even on failure — grammar/schema mismatch
+							// is one of the hardest-to-debug guided gen issues.
+							logGuidedGenError(log,
+								modelId: modelId,
+								error: error,
+								grammarTerminated: diagnosticSink.grammarTerminated,
+								tokenCountBeforeFailure: diagnosticSink.generatedTokenCount,
+								sampledTokens: diagnosticSink.sampledTokenIDs.count,
+								fastForwardTokens: diagnosticSink.fastForwardTokenIDs.count,
+								incomplete: diagnosticSink.incompleteOutput,
+								finalBuffer: diagnosticSink.finalBuffer)
+							throw error
+						}
 				}
 			}
 
