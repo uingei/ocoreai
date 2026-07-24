@@ -1,6 +1,6 @@
 # ocoreai — Self-Contained AI Agent OS
 
-**macOS 原生 AI Agent 平台** — 双通道推理（MLX GPU + CoreAI ANE）、自适应硬件路由、Agent 循环与工具调用、技能系统、会话记忆、多模态 I/O，一体成型。基于 Swift 6.3、Hummingbird 2.25、SwiftUI 构建。
+**macOS 原生 AI Agent 平台** — 双通道端侧推理（MLX Metal GPU + CoreAI）、Prefix Cache、KV Cache 量化、推测解码（MTP + Drafter）、Agent 循环与工具调用、技能系统、会话记忆、多模态 I/O，一体成型。基于 Swift 6.3、Hummingbird 2.25、SwiftUI 构建。
 
 [![Swift 6.3](https://img.shields.io/badge/Swift-6.3-orange.svg)](https://www.swift.org)
 [![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue.svg)](https://www.apple.com/macos/)
@@ -32,7 +32,7 @@ swift run
 
 ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中：
 
-- **双通道推理引擎** — MLX（Metal GPU，默认）+ CoreAI（Apple Neural Engine，macOS 27+ / M4+，当前为 Stub 等待 SDK）。零网络调用 — 推理在你的 Mac 上运行。
+- **双通道推理引擎** — MLX（Metal GPU，默认）+ CoreAI（1,115 LOC，动态 KV Cache、TokenHistory prefix caching、GenerationToken + Mutex cancel-and-replace）。零网络调用 — 推理在你的 Mac 上运行。
 - **自适应硬件路由** — HardwareRouter 根据热压力、内存余量、GPU 利用率实时将请求分发至 GPU / ANE / CPU。AdmissionGate 执行三级准入策略（允许 → 仅限 ANE → 拒绝），支持可配置 abort margin。
 - **Wired Memory 显存硬隔离** — 硬件级显存边界，防止推理 OOM。
 - **Thinking Budget（推理预算）** — 基于 ComplexityAnalyzer（长度、意图、历史三维度评分）的自适应 token 预算分配。仅在 Bridge Path 生效；桌面 GUI（Fast Path）尚未接入。
@@ -41,6 +41,8 @@ ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中
 - **会话记忆** — SQLite + FTS5 全文搜索，LLM 驱动的会话压缩（热/温/冷分层）。记忆事件支持跨会话事实召回。语义记忆（向量搜索）代码存在但默认关闭（`autoEmbed: false`）。
 - **MCP 桥接** — 通过 stdio 传输连接外部 MCP 服务器；HTTP 端点可用。桌面 UI 尚无 MCP 入口。
 - **调度器 + OOM 防护** — 优先级分发（`P0` 系统 → `P4` 用户），GPU 显存预算强制，降级链（4-bit → 8-bit → CPU → 拒绝）。
+- **KV Cache 量化** — turbo4/INT8 自动降级，通过 `GenerateParameters.kvBits`/`kvScheme` 配置。
+- **推测解码** — Gemma drafter 模型支持（12B/26B/31B 独立路由），MTP 模式已接入。
 - **配置系统** — YAML 配置 + 文件监听器（轮询）。显存预算硬件自动检测。
 - **多模态 I/O** — 摄像头捕获、屏幕截图、麦克风输入、Vision OCR、16kHz Apple Speech STT、多语言 TTS — 全部原生。摄像头/屏幕默认关闭；STT 需要麦克风权限。
 - **i18n** — StringKey 本地化框架完整；仅英文已部署。其他语种（zh, ja, ko, fr, de）已定义但未翻译为 `.strings` 文件。
@@ -143,14 +145,14 @@ auth:
 
 models:
   default:
-    modelScope: "qwen/qwen3.5-4b-4bit"
-    hub: modelscope
+    modelScope: "mlx-community/gemma-4-e2b-it-4bit"
+    hub: huggingface
 
 memory:
   budget_gb: 0      # 0 = 自动检测（70% RAM）
 ```
 
-支持的推理后端：`coreai`（macOS 27+，M4+，通过 `--traits coreai` 编译），`mlx`（默认，Metal）。
+支持的推理后端：`coreai`（macOS 27+ SDK，需 `#available` 运行时检查），`mlx`（默认，Metal）。
 
 ---
 
@@ -195,14 +197,15 @@ memory:
 | 组件 | 状态 |
 |------|------|
 | MLX Metal 推理 | ✅ |
+| CoreAI 推理（动态 KV Cache、Prefix Cache） | ✅ |
+| KV Cache 量化（turbo4/INT8） | ✅ |
 | VLM 多模态推理 | ✅ |
-| CoreAI ANE 后端（macOS 27+） | ⚠️ Stub（需 macOS 27.0 Beta + M4+） |
 | Wired Memory 显存硬隔离 | ✅ |
 | HardwareRouter（自适应 GPU/ANE/CPU） | ✅ |
 | AdmissionGate（三级准入） | ✅ |
 | 引擎生命周期状态机 + 断路器 | ✅ |
 | ThinkingBudget（自适应推理深度） | ⚠️ 仅 Bridge Path — 桌面 GUI（Fast Path）未接入 |
-| 推测解码（传统模式） | ✅ |
+| 推测解码（传统 drafter 模式） | ✅ |
 | 推测解码（MTP 模式） | ⚠️ `createSpeculativeConfig()` 返回 nil — MTP SDC 迭代器未连接 |
 | SSE 流式 + 非流式 | ✅ |
 | OpenAI + Anthropic 兼容 API | ✅ |
@@ -224,9 +227,9 @@ memory:
 ### 构建信息
 
 - Swift 6.3 · SwiftUI · Hummingbird 2.25
-- 134 个 Swift 源文件，~36,600 LOC
+- 137 个 Swift 源文件，~39,713 LOC
 - macOS 15+ · Apple Silicon only
-- 测试：703/703 通过，124 套件
+- 测试：52 个测试文件，124 套件
 - 构建：0 警告，0 错误
 
 ---

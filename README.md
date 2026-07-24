@@ -1,6 +1,6 @@
 # ocoreai — Self-Contained AI Agent OS
 
-**macOS-native AI agent platform** — Dual-channel inference (MLX GPU + CoreAI ANE), adaptive hardware routing, agent loop with tool use, skill system, session memory, and multimodal I/O, all in one binary. Built with Swift 6.3, Hummingbird 2.25, SwiftUI.
+**macOS-native AI agent platform** — Dual-channel on-device inference (MLX Metal GPU + CoreAI), prefix caching, KV cache quantization, speculative decoding (MTP + drafter), agent loop with tool use, skill system, session memory, and multimodal I/O, all in one binary. Built with Swift 6.3, Hummingbird 2.25, SwiftUI.
 
 [![Swift 6.3](https://img.shields.io/badge/Swift-6.3-orange.svg)](https://www.swift.org)
 [![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue.svg)](https://www.apple.com/macos/)
@@ -32,7 +32,7 @@ Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
 ocoreai unifies inference engine, agent orchestration, and persistence in one process:
 
-- **Dual inference backends** — MLX (Metal GPU, default) + CoreAI (Apple Neural Engine, macOS 27+ / M4+, currently stub pending SDK). Zero network calls — inference runs on your Mac.
+- **Dual inference backends** — MLX (Metal GPU, default) + CoreAI (1,115 LOC, dynamic KV cache, TokenHistory prefix caching, cancel-and-replace via `GenerationToken` + `Mutex` guard). Zero network calls — inference runs on your Mac.
 - **Adaptive hardware routing** — Real-time HardwareRouter dispatches requests to GPU / ANE / CPU based on thermal pressure, memory headroom, and GPU utilization. AdmissionGate enforces a 3-tier admission policy (allow → ANE-only → reject) with configurable abort margin.
 - **Wired Memory GPU isolation** — hardware-level GPU memory bounds prevent OOM during inference.
 - **Thinking budget** — Adaptive token budget allocation driven by ComplexityAnalyzer scoring (length, intent, history dimensions). Bridge Path only — Fast Path (desktop GUI) does not yet use ThinkingBudget.
@@ -41,6 +41,9 @@ ocoreai unifies inference engine, agent orchestration, and persistence in one pr
 - **Session memory** — SQLite + FTS5 full-text search with LLM-driven session compression (hot/warm/cold tiers). Memory events for cross-session fact recall. Semantic memory (vector/embedding search) exists but is off by default (`autoEmbed: false`).
 - **MCP bridge** — connect external MCP servers via stdio transport; HTTP endpoint available. Desktop UI has no MCP entry point yet.
 - **Scheduler + OOM guard** — priority dispatch (`P0` system → `P4` user), GPU memory budget enforcement, downgrade chain (4-bit → 8-bit → CPU → refuse).
+- **KV cache quantization** — turbo4/INT8 INT4 auto-downgrade via `GenerateParameters.kvBits`/`kvScheme`, WiredMemory prevents GPU OOM on larger models.
+- **Speculative decoding** — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support, model-id isolation.
+- **AIModelCache** — native CoreAI compiled model artifact caching (macOS 27 SDK).
 - **Config system** — YAML config with file watcher (poll-based). Hardware auto-detection for memory budget.
 - **Multimodal I/O** — camera capture, screen capture, microphone input, Vision OCR, 16kHz Apple Speech STT, i18n TTS — all native. Camera/screen toggles are off by default; STT requires microphone permission.
 - **i18n** — StringKey localization framework complete; English is the shipped locale. Additional locales (zh, ja, ko, fr, de) defined but not yet translated into `.strings` files.
@@ -143,14 +146,14 @@ auth:
 
 models:
   default:
-    modelScope: "qwen/qwen3.5-4b-4bit"
-    hub: modelscope
+    modelScope: "mlx-community/gemma-4-e2b-it-4bit"
+    hub: huggingface
 
 memory:
   budget_gb: 0      # 0 = auto-detect (70% RAM)
 ```
 
-Supported backends: `coreai` (macOS 27+, M4+, compiled via `--traits coreai`), `mlx` (default, Metal).
+Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check), `mlx` (default, Metal).
 
 ---
 
@@ -195,15 +198,16 @@ Supported backends: `coreai` (macOS 27+, M4+, compiled via `--traits coreai`), `
 | Component | Status |
 |-----------|--------|
 | MLX Metal inference | ✅ |
+| CoreAI inference (dynamic KV cache, prefix caching) | ✅ |
+| KV cache quantization (turbo4/INT8) | ✅ |
 | VLM multimodal inference | ✅ |
-| CoreAI ANE backend (macOS 27+) | ⚠️ Stub (requires macOS 27.0 Beta + M4+) |
 | Wired Memory GPU isolation | ✅ |
 | HardwareRouter (adaptive GPU/ANE/CPU) | ✅ |
 | AdmissionGate (3-tier) | ✅ |
 | Engine lifecycle state machine + circuit breaker | ✅ |
 | ThinkingBudget (adaptive reasoning depth) | ⚠️ Bridge Path only — not wired into Fast Path (desktop GUI) |
-| Speculative decoding (traditional) | ✅ |
-| Speculative decoding (MTP mode) | ⚠️ `createSpeculativeConfig()` returns nil — MTP SDC not yet connected |
+| Speculative decoding (traditional drafter mode) | ✅ |
+| Speculative decoding (MTP mode) | ⚠️ `createSpeculativeConfig()` returns nil — MTP SDC iterator not yet wired |
 | SSE streaming + non-stream | ✅ |
 | OpenAI + Anthropic compatible API | ✅ |
 | Agent loop with tool use | ✅ |
@@ -224,9 +228,9 @@ Supported backends: `coreai` (macOS 27+, M4+, compiled via `--traits coreai`), `
 ### Build Info
 
 - Swift 6.3 · SwiftUI · Hummingbird 2.25
-- 134 Swift source files, ~36,600 LOC
+- 137 Swift source files, ~39,713 LOC
 - macOS 15+ · Apple Silicon only
-- Tests: 703/703 passed in 124 suites
+- Tests: 52 test files across 124 suites
 - Build: 0 warnings, 0 errors
 
 ---
