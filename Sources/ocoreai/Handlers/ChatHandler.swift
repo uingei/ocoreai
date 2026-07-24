@@ -698,6 +698,12 @@ private func streamWithToolCalling(
 	// Cancellation token: bridges client disconnect → inference loop
 	let canceller = InferenceCancellation.cancellable()
 
+	// Bridge SSE stream closure → inference cancellation so client disconnect
+	// stops GPU work (Hummingbird does not cancel the upstream task automatically).
+	continuation.onTermination = { @Sendable _ in
+		canceller.cancel()
+	}
+
 	_ = Task {
 		/// Generate unique request ID for this stream session.
 		let requestId = "req-\(UUID().uuidString.prefix(8))"

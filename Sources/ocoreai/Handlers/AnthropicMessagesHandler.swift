@@ -453,6 +453,12 @@ private func streamAnthropicResponse(
 	// Cancellation token: bridges client disconnect → inference loop
 	let canceller = InferenceCancellation.cancellable()
 
+	// Bridge SSE stream closure → inference cancellation so client disconnect
+	// stops GPU work.
+	continuation.onTermination = { @Sendable _ in
+		canceller.cancel()
+	}
+
 	// Safety guard for streaming — captured early for inline safety checks
 	let streamGuard = contentGuard
 

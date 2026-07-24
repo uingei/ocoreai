@@ -12,31 +12,61 @@ import Foundation
 
 /// Lightweight cancellation token for propagating cancellation across task boundaries.
 ///
+/// Uses a lock-guarded Bool flag instead of a dangling `Task<Void, Error>` — the old design
+/// spawned `Task { () }` on every call to ``cancellable()`` which never completed, so the
+/// Task object leaked for the lifetime of every inference request.
+///
 /// Used by SSE handlers to cancel inference running in unrelated root Tasks.
-struct InferenceCancellation {
-	private let _token: Task<Void, Error>?
+final class CancellationFlag: @unchecked Sendable {
+	private var _cancelled = false
+	private let _lock = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: 1)
+
+	init() {
+		_lock.initialize(to: os_unfair_lock())
+	}
+
+	deinit {
+		_lock.deinitialize(count: 1)
+		_lock.deallocate()
+	}
+
+	var isCancelled: Bool {
+		os_unfair_lock_lock(_lock)
+		defer { os_unfair_lock_unlock(_lock) }
+		return _cancelled
+	}
+
+	func cancel() {
+		os_unfair_lock_lock(_lock)
+		defer { os_unfair_lock_unlock(_lock) }
+		_cancelled = true
+	}
+}
+
+struct InferenceCancellation: Sendable {
+	private let _flag: CancellationFlag?
 
 	/// Non-cancellable handle (used for non-stream endpoints)
 	static let none: Self = .init()
 
-	/// Cancellable handle — cancels underlying task when ``cancel()`` is called
+	/// Cancellable handle — allocates a fresh flag
 	static func cancellable() -> Self {
-		.init(_token: Task { () })
+		.init(_flag: CancellationFlag())
 	}
 
 	/// Check if this token has been cancelled
 	/// - Returns: true if the cancel signal has been sent
 	var isCancelled: Bool {
-		_token?.isCancelled == true
+		_flag?.isCancelled ?? false
 	}
 
 	/// Send cancellation signal to all holders of this token
 	func cancel() {
-		_token?.cancel()
+		_flag?.cancel()
 	}
 
-	private init(_token: Task<Void, Error>? = nil) {
-		self._token = _token
+	private init(_flag: CancellationFlag? = nil) {
+		self._flag = _flag
 	}
 }
 
