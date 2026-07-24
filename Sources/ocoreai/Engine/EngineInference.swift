@@ -1144,15 +1144,21 @@ extension EnginePool {
 			// Policy: WiredMaxPolicy when config.wiredMemory.policy == "max", else WiredSumPolicy.
 			let logRef = self.logger
 			if config.wiredMemory.enabled {
-				// Estimate ticket size: weights + activations + KV reserve.
-				// vocab_size * 8 bytes (FP16→INT4 weights) + max_context * 64 (KV cache per token)
+				// Estimate ticket size: per-request GPU memory delta (KV cache + activations).
+				// Weights are already resident in the LoadedModel's GPU memory — they are NOT
+				// per-request overhead and must not be counted here (P0-fix: prev formula included
+				// vocabSize*8 which double-counted resident weights, causing admission gate to
+				// under-estimate per-request headroom and over-accept requests that could OOM).
+				//
+				// KV cache per-token estimate for 4bit quantized models:
+				//   ~2 KiB/token (covers K+V across all layers at 4-bit quantization).
+				// For context lengths L: ticket ≈ L * 2048 bytes.
 				// bytesOverride from config takes priority when set.
 				let ticketSize: Int
 				if config.wiredMemory.bytesOverride > 0 {
 					ticketSize = Int(config.wiredMemory.bytesOverride)
 				} else {
-					ticketSize = Int(loaded.modelConfig.vocabSize) * 8
-						+ Int(loaded.modelConfig.maxContextLength) * 64
+					ticketSize = Int(loaded.modelConfig.maxContextLength) * 2048
 				}
 
 				// FIXED: Hashable policies derive stable identity from their value (cap), not UUID.

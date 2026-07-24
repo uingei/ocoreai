@@ -148,8 +148,30 @@ actor MessageBuilder {
 		// Phase 7: Inject adaptive reasoning scaffold (三思而后行)
 		let userMessage = messages.first(where: { $0.role == "user" })?.textContent()
 			?? context.rawMessages.first?.textContent() ?? ""
+
+		// FIX: VLM requests with .parts (images/audio/video) produce empty textContent(),
+		// causing ComplexityAnalyzer to score 0 and ThinkingBudget to return no scaffold.
+		// Detect multimodal messages and provide a fallback for complexity analysis.
+		let totalMediaParts = messages.reduce(0) { sum, msg in
+			if case .parts(let pts) = msg.content {
+				let media = pts.filter { $0.imageUrl != nil || $0.videoUrl != nil || $0.audioURL != nil }.count
+				return sum + media
+			}
+			return sum
+		}
+		let hasMultimodal = totalMediaParts > 0
+
+		let effectiveInput = if userMessage.isEmpty && hasMultimodal {
+			"[multimodal: \(totalMediaParts) media part(s)]"
+		} else {
+			userMessage
+		}
+		guard !effectiveInput.isEmpty else {
+			return messages // nothing to analyze, skip scaffold
+		}
+
 		let complexity = await complexityAnalyzer.analyze(
-			input: userMessage,
+			input: effectiveInput,
 			messageCount: max(1, messages.count),
 			sessionId: context.sessionId,
 		)
@@ -160,10 +182,27 @@ actor MessageBuilder {
 		)
 		if !reasoningScaffold.isEmpty {
 			if let sysIdx = messages.firstIndex(where: { $0.role == "system" }) {
-				if case var .text(existingContent) = messages[sysIdx].content {
+				switch messages[sysIdx].content {
+				case var .text(existingContent):
 					existingContent += "\n\n" + reasoningScaffold
 					messages[sysIdx].content = .text(existingContent)
+				case .none:
+					messages[sysIdx].content = .text(reasoningScaffold)
+				case .parts:
+					// System message with .parts — append scaffold as text part
+					var parts: [ContentPart]
+					if case .parts(let p) = messages[sysIdx].content {
+						parts = p
+					} else {
+						parts = []
+					}
+					parts.append(ContentPart(type: "text", text: reasoningScaffold, imageUrl: nil))
+					messages[sysIdx].content = .parts(parts)
 				}
+			} else {
+				// No system message found — prepend one with the scaffold
+				let sysMsg = Message(role: "system", content: reasoningScaffold)
+				messages.insert(sysMsg, at: 0)
 			}
 		}
 

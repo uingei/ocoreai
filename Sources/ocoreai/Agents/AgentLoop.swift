@@ -418,8 +418,9 @@ enum AgentLoop {
         do {
             for try await ev in stream {
                 // Respond to upstream task cancellation (e.g., user interrupt, model switch)
-                // Check every 128 tokens to balance responsiveness vs overhead
-                if tokCount.isMultiple(of: 128), tokCount > 0 {
+                // Check every 16 tokens — aligns with main engine path that checks every token.
+                // At ~30ms/token on CoreAI, 128-token gaps meant ~4s cancellation latency.
+                if tokCount.isMultiple(of: 16), tokCount > 0 {
                     try Task.checkCancellation()
                 }
                 switch ev.kind {
