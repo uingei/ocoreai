@@ -246,23 +246,38 @@ actor MemoryTracker {
 	}
 
 	/// Check memory level from a system-wide usage reading (Darwin poll path).
-	/// Updates currentLevel without touching our own reservation accounting.
-	private func checkSystemLevel(using systemUsage: UInt64) {
-		guard budgetBytes > 0 else { return }
-		let fraction = Double(systemUsage) / Double(budgetBytes)
-		let newLevel: MemoryLevel = if fraction < 0.2 {
-			.normal
-		} else if fraction < 0.5 {
-			.warning
-		} else if fraction < 0.8 {
-			.critical
-		} else {
-			.oom
-		}
+		/// Updates currentLevel without touching our own reservation accounting.
+		/// FIX: Uses same hysteresis as checkAllocationLevel to prevent rapid level
+		/// oscillation when system memory hovers near thresholds (e.g. 79% ↔ 81%).
+		private func checkSystemLevel(using systemUsage: UInt64) {
+			guard budgetBytes > 0 else { return }
+			let fraction = Double(systemUsage) / Double(budgetBytes)
+			let newLevel: MemoryLevel = if fraction < 0.2 {
+				.normal
+			} else if fraction < 0.5 {
+				.warning
+			} else if fraction < 0.8 {
+				.critical
+			} else {
+				.oom
+			}
 
-		if newLevel != currentLevel {
-			logger.warning("System memory: \(currentLevel.rawValue) -> \(newLevel.rawValue) (\(Int(fraction * 100))%)")
-			currentLevel = newLevel
+			levelHistory.append(newLevel)
+			if levelHistory.count > hysteresisWindow {
+				levelHistory.removeFirst()
+			}
+
+			// Hysteresis: require consistent readings before changing level
+			if levelHistory.count >= hysteresisWindow, newLevel != currentLevel {
+				let allSame = levelHistory.allSatisfy { $0 == newLevel }
+				if allSame {
+					let pct = Int(fraction * 100)
+					logger.warning("System memory: \(currentLevel.rawValue) -> \(newLevel.rawValue) (\(pct)%)")
+					currentLevel = newLevel
+					if let callback = oomCallback {
+						Task { await callback(newLevel) }
+					}
+				}
+			}
 		}
-	}
 	}

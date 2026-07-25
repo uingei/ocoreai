@@ -756,7 +756,6 @@ extension EnginePool {
 					} catch {
 						continuation.yield(.init(kind: .error(
 							"GrammarTokenizer build failed: \(error.localizedDescription)")))
-						continuation.finish()
 						return
 					}
 
@@ -770,7 +769,6 @@ extension EnginePool {
 					} catch {
 						continuation.yield(.init(kind: .error(
 							"GrammarConstraint build failed: \(error.localizedDescription)")))
-						continuation.finish()
 						return
 					}
 
@@ -803,7 +801,6 @@ extension EnginePool {
 										continuation.yield(.init(
 											kind: .done(StopReason.cancelled,
 												tokenCount: guidedTokenCount)))
-										continuation.finish()
 										return false
 									}
 									// Record TTFT on first text chunk
@@ -821,7 +818,6 @@ extension EnginePool {
 											continuation.yield(.init(kind: .text(trimmed)))
 										}
 										continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: guidedTokenCount)))
-										continuation.finish()
 										return false
 									}
 									continuation.yield(.init(kind: .text(text)))
@@ -849,7 +845,6 @@ extension EnginePool {
 										kind: .done(.eos, tokenCount: tc)))
 								}
 							}
-							continuation.finish()
 						} catch {
 							// Log diagnostic data even on failure — grammar/schema mismatch
 							// is one of the hardest-to-debug guided gen issues.
@@ -892,7 +887,10 @@ extension EnginePool {
 				}
 
 				// ChatSession path: acquire or create session
-				if options.useGuidedGeneration == false {
+				// Always create chatSession — guided path (grammarSchema) and MTP/standard path
+		// all consume the shared chatSession variable below. Even when useGuidedGeneration
+		// is true, the guided path may fall through (e.g., multimodal + grammar conflict)
+		// and still need a valid session.
 					// Hoist registry ref before closure — ToolRegistry is an actor, capture is safe
 					if let pool = poolRef {
 						let acquired = await pool.acquire(
@@ -949,10 +947,9 @@ extension EnginePool {
 							tools: toolSpecs,
 							toolDispatch: toolDispatchClosure
 						)
-					}
-				}
+						}
 
-				do {
+						do {
 					// State for Guided/MTP branches — standard ChatSession manages its own
 					var actualTokenCount: Int?
 					var lastStopReason: StopReason?
@@ -983,7 +980,7 @@ extension EnginePool {
 					// VLM messages (with images/audios) also fall through because MTP cannot
 					// carry multimodal data across the Sendable closure boundary.
 					else if self.mtpDrafterContainer != nil, registeredToolSpecs == nil, mlxMessages.count > 0,
-					        mlxMessages.allSatisfy({ $0.images.isEmpty && $0.audios.isEmpty }) {
+						mlxMessages.allSatisfy({ $0.images.isEmpty && $0.audios.isEmpty && $0.videos.isEmpty }) {
 						log.info("Routing through MTP speculative decoding")
 						let messagePairs: [(role: String, content: String)] = mlxMessages.map {
 							(role: $0.role.rawValue, content: $0.content)
