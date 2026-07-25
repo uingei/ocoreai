@@ -245,39 +245,20 @@ actor MemoryTracker {
 		}
 	}
 
-	/// Check memory level from a system-wide usage reading (Darwin poll path).
-		/// Updates currentLevel without touching our own reservation accounting.
-		/// FIX: Uses same hysteresis as checkAllocationLevel to prevent rapid level
-		/// oscillation when system memory hovers near thresholds (e.g. 79% ↔ 81%).
-		private func checkSystemLevel(using systemUsage: UInt64) {
-			guard budgetBytes > 0 else { return }
-			let fraction = Double(systemUsage) / Double(budgetBytes)
-			let newLevel: MemoryLevel = if fraction < 0.2 {
-				.normal
-			} else if fraction < 0.5 {
-				.warning
-			} else if fraction < 0.8 {
-				.critical
-			} else {
-				.oom
-			}
-
-			levelHistory.append(newLevel)
-			if levelHistory.count > hysteresisWindow {
-				levelHistory.removeFirst()
-			}
-
-			// Hysteresis: require consistent readings before changing level
-			if levelHistory.count >= hysteresisWindow, newLevel != currentLevel {
-				let allSame = levelHistory.allSatisfy { $0 == newLevel }
-				if allSame {
-					let pct = Int(fraction * 100)
-					logger.warning("System memory: \(currentLevel.rawValue) -> \(newLevel.rawValue) (\(pct)%)")
-					currentLevel = newLevel
-					if let callback = oomCallback {
-						Task { await callback(newLevel) }
-					}
-				}
-			}
-		}
+	/// Check system-wide memory usage for advisory logging only.
+	/// Does NOT modify currentLevel or levelHistory — that belongs exclusively
+	/// to checkAllocationLevel, which tracks what we actually allocated.
+	/// Mixing system-level readings (denominator: physical RAM) with
+	/// allocation-level readings (denominator: our budget) would produce
+	/// incorrect ratios since systemUsage >> budgetBytes.
+	///
+	/// FIX: Previously this appended to levelHistory using systemUsage / budgetBytes,
+	/// which is always >>1.0 → permanently stuck at .oom. Now purely advisory.
+	private func checkSystemLevel(using systemUsage: UInt64) {
+		// Advisory logging — system memory stats may be useful for debugging
+		// but should not drive the degradation chain (that's what allocation
+		// tracking is for).
+		let usageGB = Double(systemUsage) / 1_073_741_824
+		logger.info("System memory: \(String(format: "%.1f", usageGB))GB in use")
+	}
 	}
