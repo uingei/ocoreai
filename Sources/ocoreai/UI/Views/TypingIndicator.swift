@@ -48,8 +48,14 @@ struct TypingIndicator: View {
     }
 
     /// Infinite loop: pulse each dot with 0.3s stagger, 1.2s cycle.
+    /// Respects runtime Reduce Motion toggle — checks each cycle tick.
     private func animateDots() async {
         while !Task.isCancelled {
+            guard !reduceMotion else {
+                // Wait a beat before rechecking — avoids busy-waiting
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                continue
+            }
             // Dot 1 rises
             withAnimation(.easeInOut(duration: 0.3)) {
                 dot1Opacity = 1.0

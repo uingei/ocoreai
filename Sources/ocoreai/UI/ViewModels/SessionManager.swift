@@ -54,7 +54,7 @@ final class SessionManager {
             // P8: auto-restore previously selected session
             restoreLastSelectedSession()
         } catch {
-            errorMessage = "\(StringKey.sessionLoadFailed.l): \(error.localizedDescription)"
+            errorMessage = StringKey.sessionLoadFailed.l
         }
     }
 
@@ -73,7 +73,7 @@ final class SessionManager {
                 sessionSummary = try await compressor.getSessionSummary(session.id)
             } catch {
                 sessionSummary = nil
-                self.errorMessage = "\(StringKey.sessionSummaryLoadFailed.l): \(error.localizedDescription)"
+                self.errorMessage = StringKey.sessionSummaryLoadFailed.l
             }
         }
     }
@@ -92,7 +92,7 @@ final class SessionManager {
                 }
             }
         } catch {
-            errorMessage = "\(StringKey.sessionDeleteFailed.l): \(error.localizedDescription)"
+            errorMessage = StringKey.sessionDeleteFailed.l
         }
     }
 
@@ -104,7 +104,7 @@ final class SessionManager {
             memorySearchResults = try await compressor.searchMemoryEvents(query: query, limit: 50)
         } catch {
             memorySearchResults = []
-            errorMessage = "\(StringKey.memorySearchFailed.l): \(error.localizedDescription)"
+            errorMessage = StringKey.memorySearchFailed.l
         }
     }
 
@@ -118,7 +118,7 @@ final class SessionManager {
             )
         } catch {
             memoryEvents = []
-            errorMessage = "\(StringKey.memoryLoadFailed.l): \(error.localizedDescription)"
+            errorMessage = StringKey.memoryLoadFailed.l
         }
     }
 

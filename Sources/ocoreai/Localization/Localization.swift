@@ -360,6 +360,10 @@ public enum StringKey: String, CaseIterable {
     // — Copy code —
     case copyCode = "Action.CopyCode"
     case codeCopied = "Action.CodeCopied"
+    // — Code language fallback —
+    case codeLanguageFallback = "Markdown.CodeLanguageFallback"
+    // — Model error —
+    case modelErrorOccurred = "Models.ErrorOccurred"
 
     // — Sessions —
     case tabSessions = "Tab.Sessions"
@@ -799,6 +803,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .copyCode: "Copy Code",
         .codeCopied: "Copied!",
 
+        // Markdown fallback
+        .codeLanguageFallback: "code",
+
         // Sessions
         .tabSessions: "Sessions",
         .sessionSearchPlaceholder: "Search sessions...",
@@ -877,6 +884,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .a11yMLXFormat: "MLX format",
         .a11yModelScopeSource: "ModelScope",
         .engineNotAvailable: "Engine not available",
+
+        // Model search
+        .modelErrorOccurred: "An error occurred",
     ]
 
     // Translation overrides per locale
@@ -1261,6 +1271,10 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .a11yMLXFormat: "MLX 格式",
         .a11yModelScopeSource: "ModelScope 源",
         .engineNotAvailable: "引擎不可用",
+
+        // Model search
+        .codeLanguageFallback: "代码",
+        .modelErrorOccurred: "发生错误",
     ]
 
     // Add more locale tables here as needed (ja, ko, fr, es...)

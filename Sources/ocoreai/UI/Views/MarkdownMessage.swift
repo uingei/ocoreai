@@ -169,7 +169,7 @@ struct CodeBlock: View {
                         .foregroundStyle(textTertiaryColor)
                         .textCase(.uppercase)
                 } else {
-                    Text("code")
+                    Text(StringKey.codeLanguageFallback.l)
                         .font(.ocoreaiMono(10))
                         .foregroundStyle(textTertiaryColor)
                         .textCase(.uppercase)

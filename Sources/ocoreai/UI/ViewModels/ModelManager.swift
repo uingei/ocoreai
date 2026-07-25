@@ -22,6 +22,7 @@ enum RepositoryError: LocalizedError {
     case searchFailed(String)
     case loadFailed(String)
     case deleteFailed(String)
+    case errorOccurred
     case noResults
 
     var errorDescription: String? {
@@ -34,6 +35,8 @@ enum RepositoryError: LocalizedError {
             return "\(StringKey.modelLoadError.l): \(msg)"
         case .deleteFailed(let msg):
             return "\(StringKey.modelDeleteError.l): \(msg)"
+        case .errorOccurred:
+            return StringKey.modelErrorOccurred.l
         case .noResults:
             return StringKey.modelSearchNoResults.l
         }
@@ -157,7 +160,7 @@ final class ModelManager {
         do {
             return try await client.search(query: query, limit: 15)
         } catch {
-            currentError = .searchFailed(error.localizedDescription)
+            currentError = .errorOccurred
             return []
         }
     }
@@ -171,7 +174,7 @@ final class ModelManager {
             let result = try await client.search(keyword: query, pageSize: 15)
             return result.models
         } catch {
-            currentError = .searchFailed(error.localizedDescription)
+            currentError = .errorOccurred
             return []
         }
     }
@@ -256,7 +259,7 @@ final class ModelManager {
             return true
         } catch {
             OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
-            currentError = .loadFailed(error.localizedDescription)
+            currentError = .errorOccurred
             isDownloading = false
             downloadingModelId = ""
             return false
@@ -344,7 +347,7 @@ final class ModelManager {
         do {
             try await deleteCachedFiles(for: identity)
         } catch {
-            currentError = .deleteFailed(error.localizedDescription)
+            currentError = .errorOccurred
             return false
         }
 
