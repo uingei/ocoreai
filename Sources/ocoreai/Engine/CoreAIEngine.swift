@@ -12,6 +12,42 @@
 /// to avoid importing reference repo (macOS 27 requirement). Types match reference API
 /// for compatibility.
 
+// MARK: - Engine Errors (always available — used by EngineInference outside CoreAI path too)
+
+enum InferenceError: Error, Sendable {
+    case functionNotFound(String)
+    case modelNotFound(String)
+    case modelLoadingFailed(String)
+    case invalidState(String)
+    case unsupportedEngineVariant(String)
+    case guidedGenerationFailed(String)
+    case mtpPathFailed(String)
+    case tokenizerBuildFailed(String)
+    case grammarBuildFailed(String)
+    case standardPathFailed(String)
+    case contextExceeded(Int, Int)
+    case engineUnavailable(String)
+    case genericError(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .functionNotFound(let name): return "Function '\(name)' not found"
+        case .modelNotFound(let path): return "Model not found: \(path)"
+        case .modelLoadingFailed(let msg): return "Model loading failed: \(msg)"
+        case .invalidState(let d): return "Invalid state: \(d)"
+        case .unsupportedEngineVariant(let v): return "Unsupported variant: \(v)"
+        case .guidedGenerationFailed(let msg): return "Guided generation failed: \(msg)"
+        case .mtpPathFailed(let msg): return "MTP generation failed: \(msg)"
+        case .tokenizerBuildFailed(let msg): return "Grammar tokenizer failed: \(msg)"
+        case .grammarBuildFailed(let msg): return "Grammar constraint failed: \(msg)"
+        case .standardPathFailed(let msg): return "Inference failed: \(msg)"
+        case .contextExceeded(let tokens, let max): return "Input \(tokens) exceeds max context \(max)"
+        case .engineUnavailable(let msg): return "Engine unavailable: \(msg)"
+        case .genericError(let m): return m
+        }
+    }
+}
+
 #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
 
 import Atomics
@@ -257,28 +293,6 @@ struct TokenHistory: Sendable {
 
     mutating func clear() {
         tokens.removeAll(keepingCapacity: true)
-    }
-}
-
-// MARK: - Engine Errors
-
-enum InferenceError: Error, LocalizedError {
-    case functionNotFound(String)
-    case modelNotFound(String)
-    case modelLoadingFailed(underlying: Error)
-    case invalidState(String)
-    case unsupportedEngineVariant(String)
-    case genericError(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .functionNotFound(let name): return "Function '\(name)' not found"
-        case .modelNotFound(let path): return "Model not found: \(path)"
-        case .modelLoadingFailed(let e): return "Model loading failed: \(e.localizedDescription)"
-        case .invalidState(let d): return "Invalid state: \(d)"
-        case .unsupportedEngineVariant(let v): return "Unsupported variant: \(v)"
-        case .genericError(let m): return m
-        }
     }
 }
 

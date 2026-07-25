@@ -303,7 +303,8 @@ extension EnginePool {
                             )))
                         }
                     } catch {
-                        continuation.yield(.init(kind: .error(error.localizedDescription)))
+                        continuation.yield(.init(kind: .error(
+                            InferenceError.guidedGenerationFailed("generation failed").errorDescription ?? "error")))
                         return
                     }
 
@@ -330,11 +331,13 @@ extension EnginePool {
                     // Explicit reset only on model switch or hard error.
 
                 } catch {
-                    continuation.yield(.init(kind: .error(error.localizedDescription)))
+                    continuation.yield(.init(kind: .error(
+                        InferenceError.standardPathFailed("CoreAI generation failed").errorDescription ?? "error")))
                 }
             } else {
                 // CoreAI unavailable on this macOS version
-                continuation.yield(.init(kind: .error("CoreAI requires macOS 27.0")))
+                continuation.yield(.init(kind: .error(
+                    InferenceError.engineUnavailable("CoreAI requires macOS 27.0").errorDescription ?? "error")))
             }
         #else
             // [KNOWN LIMITATION] MLXLLM ChatSession only accepts [Chat.Message], not raw tokens.
@@ -558,7 +561,8 @@ extension EnginePool {
                             cancellation: cancellation
                         )
                     } catch {
-                        continuation.yield(.init(kind: .error(error.localizedDescription)))
+                        continuation.yield(.init(kind: .error(
+                            InferenceError.standardPathFailed("MTP/standard inference failed").errorDescription ?? "error")))
                         continuation.finish()
                         return
                     }
@@ -770,7 +774,7 @@ extension EnginePool {
                         )
                     } catch {
                         continuation.yield(.init(kind: .error(
-                            "GrammarTokenizer build failed: \(error.localizedDescription)")))
+                            InferenceError.tokenizerBuildFailed("Grammar tokenizer build failed").errorDescription ?? "error")))
                         return
                     }
 
@@ -783,7 +787,7 @@ extension EnginePool {
                         )
                     } catch {
                         continuation.yield(.init(kind: .error(
-                            "GrammarConstraint build failed: \(error.localizedDescription)")))
+                            InferenceError.grammarBuildFailed("Grammar constraint build failed").errorDescription ?? "error")))
                         return
                     }
 
@@ -1293,7 +1297,8 @@ extension EnginePool {
 
                 // Propagate error if caught
                 if let caughtError {
-                    continuation.yield(.init(kind: .error(caughtError.localizedDescription)))
+                    continuation.yield(.init(kind: .error(
+                        InferenceError.standardPathFailed("inference failed").errorDescription ?? "error")))
                 }
 
                 metrics.inferenceMs = metrics.overallMs
@@ -1305,7 +1310,8 @@ extension EnginePool {
             do {
                 try await runInferenceBody()
             } catch {
-                continuation.yield(.init(kind: .error(error.localizedDescription)))
+                continuation.yield(.init(kind: .error(
+                    InferenceError.standardPathFailed("inference failed").errorDescription ?? "error")))
             }
 
             metrics.inferenceMs = metrics.overallMs
