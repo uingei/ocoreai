@@ -791,6 +791,10 @@ extension EnginePool {
                         var guidedTokenCount = 0
                         var firstYielded = false
                         var guidedAccumulated = "" // for stop-sequence matching
+                        // Track whether emit callback already yielded a .done event —
+                        // prevents double .done emission when the callback breaks the
+                        // loop early (stop sequence, cancellation).
+                        var doneAlreadyYielded = false
 
                         // GuidedGenerationDiagnosticSink: zero-cost in production (TaskLocal,
                         // nil when unbound). Binds here so upstream recording sites in
@@ -813,6 +817,7 @@ extension EnginePool {
                                     quantizedKVStart: genParams.quantizedKVStart,
                                 ) { text in
                                     guard !Task.isCancelled && !cancellation.isCancelled else {
+                                        doneAlreadyYielded = true
                                         continuation.yield(.init(
                                             kind: .done(StopReason.cancelled,
                                                 tokenCount: guidedTokenCount)))
@@ -828,6 +833,7 @@ extension EnginePool {
                                     guidedAccumulated += text
                                     // Check stop sequences in guided path
                                     if let match = requestStopSequences.first(where: { guidedAccumulated.hasSuffix($0) }) {
+                                        doneAlreadyYielded = true
                                         let trimmed = String(guidedAccumulated.prefix(guidedAccumulated.count - match.count))
                                         if !trimmed.isEmpty {
                                             continuation.yield(.init(kind: .text(trimmed)))
@@ -843,7 +849,7 @@ extension EnginePool {
                             }
 
                             // Complete guided generation
-                            if !Task.isCancelled && !cancellation.isCancelled {
+                            if !Task.isCancelled && !cancellation.isCancelled || doneAlreadyYielded {
                                 switch diagnosticResult {
                                 case .success(let tc, _):
                                     logGuidedGen(log,
@@ -856,8 +862,16 @@ extension EnginePool {
                                         finalBufferPresent: diagnosticSink.finalBuffer != nil,
                                         parsedAsToolCall: diagnosticSink.parsedAsToolCall,
                                         parsedName: diagnosticSink.parsedName)
-                                    continuation.yield(.init(
-                                        kind: .done(.eos, tokenCount: tc)))
+                                    // P1-fix: respect grammar lifecycle — upstream GuidedGenerationLoop.run()
+                                    // only calls grammar-terminated when the constraint accepted the output.
+                                    // When grammar didn't terminate (maxTokens exhausted), reporting .eos
+                                    // misleads downstream (structured parsing, UI, metrics).
+                                    if !doneAlreadyYielded {
+                                        let stopReason: StopReason = diagnosticSink.grammarTerminated
+                                            ? .eos : .maxTokens
+                                        continuation.yield(.init(
+                                            kind: .done(stopReason, tokenCount: tc)))
+                                    }
                                 }
                             }
                         } catch {
@@ -872,6 +886,14 @@ extension EnginePool {
                                 fastForwardTokens: diagnosticSink.fastForwardTokenIDs.count,
                                 incomplete: diagnosticSink.incompleteOutput,
                                 finalBuffer: diagnosticSink.finalBuffer)
+                            // P1-fix: emit .done before throwing — prevents continuation leak.
+                            // The outer do-catch (L1259/1283) will propagate the error as
+                            // .error event, but downstream also expects a terminal .done.
+                            if !doneAlreadyYielded {
+                                continuation.yield(.init(
+                                    kind: .done(.error,
+                                    tokenCount: diagnosticSink.generatedTokenCount)))
+                            }
                             throw error
                         }
                 }
