@@ -35,18 +35,19 @@ ocoreai unifies inference engine, agent orchestration, and persistence in one pr
 - **Dual inference backends** — MLX (Metal GPU, default) + CoreAI (1,115 LOC, dynamic KV cache, TokenHistory prefix caching, cancel-and-replace via `GenerationToken` + `Mutex` guard). Zero network calls — inference runs on your Mac.
 - **Adaptive hardware routing** — Real-time HardwareRouter dispatches requests to GPU / ANE / CPU based on thermal pressure, memory headroom, and GPU utilization. AdmissionGate enforces a 3-tier admission policy (allow → ANE-only → reject) with configurable abort margin.
 - **Wired Memory GPU isolation** — hardware-level GPU memory bounds prevent OOM during inference.
-- **Thinking budget** — Adaptive token budget allocation driven by ComplexityAnalyzer scoring (length, intent, history dimensions). Bridge Path only — Fast Path (desktop GUI) does not yet use ThinkingBudget.
+- **Thinking budget** — Adaptive token budget allocation driven by ComplexityAnalyzer scoring (length, intent, history dimensions) on Bridge Path. Fast Path (desktop GUI) has ThinkingBudget calibration loop wired but with simplified complexity input (constant 0.5 — no upstream ComplexityAnalyzer).
 - **Agent loop** — multi-turn tool use: the model reasons, calls registered tools, reads results, and iterates (up to 30 rounds, 180s timeout). Built-in tools for system info, skills, and search. Extensible via `ToolRegistry`.
 - **Skill system** — Modular skill registry loaded at boot, bidirectional links to system prompt pipeline.
 - **Session memory** — SQLite + FTS5 full-text search with LLM-driven session compression (hot/warm/cold tiers). Memory events for cross-session fact recall. Semantic memory (vector/embedding search) exists but is off by default (`autoEmbed: false`).
-- **MCP bridge** — connect external MCP servers via stdio transport; HTTP endpoint available. Desktop UI has no MCP entry point yet.
+- **MCP bridge** — connect external MCP servers via stdio transport; HTTP endpoint available. Desktop UI has MCP section in SystemView.
 - **Scheduler + OOM guard** — priority dispatch (`P0` system → `P4` user), GPU memory budget enforcement, downgrade chain (4-bit → 8-bit → CPU → refuse).
 - **KV cache quantization** — turbo4/INT8 INT4 auto-downgrade via `GenerateParameters.kvBits`/`kvScheme`, WiredMemory prevents GPU OOM on larger models.
+- **Guided generation** — Grammar-constrained output via `MLXGuidedGeneration` (xgrammar/JSON schema), with DiagnosticSink observability. Auto-enabled when tool calling or explicit grammar schema is set. Multimodal messages bypass grammar constraints.
 - **Speculative decoding** — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support, model-id isolation.
 - **AIModelCache** — native CoreAI compiled model artifact caching (macOS 27 SDK).
 - **Config system** — YAML config with file watcher (poll-based). Hardware auto-detection for memory budget.
 - **Multimodal I/O** — camera capture, screen capture, microphone input, Vision OCR, 16kHz Apple Speech STT, i18n TTS — all native. Camera/screen toggles are off by default; STT requires microphone permission.
-- **i18n** — StringKey localization framework complete; English is the shipped locale. Additional locales (zh, ja, ko, fr, de) defined but not yet translated into `.strings` files.
+- **i18n** — StringKey localization framework complete; English is the shipped locale. Chinese (zh-Hans) base translations applied via locale override. Additional locales (ja, ko, fr, de, es) defined but not yet translated into `.strings` files.
 
 Evolving toward a full **Agent OS** — a device-level runtime where the LLM controls tools, apps, and the desktop through a unified tool interface.
 
@@ -205,7 +206,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 | HardwareRouter (adaptive GPU/ANE/CPU) | ✅ |
 | AdmissionGate (3-tier) | ✅ |
 | Engine lifecycle state machine + circuit breaker | ✅ |
-| ThinkingBudget (adaptive reasoning depth) | ⚠️ Bridge Path only — not wired into Fast Path (desktop GUI) |
+| ThinkingBudget (adaptive reasoning depth) | ⚠️ Bridge Path: full ComplexityAnalyzer. Fast Path: calibration loop wired with simplified complexity input |
 | Speculative decoding (traditional drafter mode) | ✅ |
 | Speculative decoding (MTP mode) | ⚠️ `createSpeculativeConfig()` returns nil — MTP SDC iterator not yet wired |
 | SSE streaming + non-stream | ✅ |
