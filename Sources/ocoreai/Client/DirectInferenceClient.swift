@@ -37,6 +37,10 @@ struct InferenceRequest {
     /// When nil (default), the request is non-cancellable.
     let cancellation: InferenceCancellation?
 
+    /// Enable reasoning/chain-of-thought mode.
+    /// When true, passed as additionalContext["enable_thinking"] to ChatSession.
+    let reasoning: Bool?
+
     init(
         modelId: String,
         messages: [Message],
@@ -50,6 +54,7 @@ struct InferenceRequest {
         logitBias: [String: Double]? = nil,
         sessionId: String? = nil,
         cancellation: InferenceCancellation? = nil,
+        reasoning: Bool? = nil,
     ) {
         self.modelId = modelId
         self.messages = messages
@@ -63,6 +68,7 @@ struct InferenceRequest {
         self.logitBias = logitBias
         self.sessionId = sessionId
         self.cancellation = cancellation
+        self.reasoning = reasoning
     }
 }
 
@@ -82,6 +88,25 @@ final class DirectInferenceClient {
     static let shared = DirectInferenceClient()
 
     private init() {}
+
+    /// Strip MLX/Metal/framework internals from engine error messages before surfacing to UI.
+    /// Returns a user-safe description that still preserves the root cause category.
+    @MainActor private static func sanitizeEngineError(_ raw: String) -> String {
+        var msg = raw
+        // Strip Metal device names
+        if let range = msg.range(of: #"; device = .*?"#, options: .regularExpression) {
+            msg.removeSubrange(range)
+        }
+        // Strip framework-internal stack info
+        if let range = msg.range(of: #"mlx\.|#MLX|#mlx\.swift"#, options: .regularExpression) {
+            msg.replaceSubrange(range, with: "engine")
+        }
+        // Truncate excessively long messages (token IDs, hex dumps, etc.)
+        if msg.count > 200 {
+            msg = String(msg.prefix(197)) + "..."
+        }
+        return msg
+    }
 
     /// Stream inference results directly from EnginePool.
     func stream(request: InferenceRequest) async throws -> AsyncStream<DirectChatChunk> {
@@ -118,14 +143,14 @@ final class DirectInferenceClient {
                     // FIX: emit a terminal chunk so the caller knows the stream ended.
                     // Without this, the caller's for-await exits cleanly but responseText
                     // is never persisted (isComplete was never true).
-                    // D1 fix: propagate actual error message so UI can display it
-                    // instead of a generic "Generation failed internally".
+                    // D1 fix: sanitize error message — strip MLX/Metal internals before UI
+                    let msg = DirectInferenceClient.sanitizeEngineError(error.localizedDescription)
                     continuation.yield(.init(
                         text: "",
                         isComplete: true,
                         stopReason: "error",
                         outputTokens: 0,
-                        error: error.localizedDescription,
+                        error: msg,
                     ))
                     continuation.finish()
                 }
@@ -248,6 +273,7 @@ extension DirectInferenceClient {
             includeLogits: false,
             useGuidedGeneration: request.tools.map { !$0.isEmpty } ?? false,
             grammarSchema: request.tools.map { buildGrammarSchema(from: $0) }.flatMap { $0 },
+            enableReasoning: request.reasoning == true,
         )
 
         // Phase 5: Dispatch inference
@@ -473,6 +499,9 @@ extension DirectInferenceClient {
         let infOpts = InferenceOptions(
             maxTokens: effectiveMaxTokens,
             includeLogits: false,
+            useGuidedGeneration: request.tools.map { !$0.isEmpty } ?? false,
+            grammarSchema: request.tools.map { buildGrammarSchema(from: $0) }.flatMap { $0 },
+            enableReasoning: request.reasoning == true,
         )
 
         // Phase 5: Dispatch inference — Agent loop if tools available
