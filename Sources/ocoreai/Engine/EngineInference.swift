@@ -740,7 +740,12 @@ extension EnginePool {
 					if let last = messages.last, last.role == .assistant, last.content.isEmpty {
 						messages.removeLast()
 					}
-					let userInput = UserInput(prompt: .chat(messages))
+					// Pass processing params (resize) to control VLM image scale — mirrors
+					// MLXChatExample: UserInput.Processing(resize: CGSize(width:1024, height:1024))
+					// Default 1024x1024 limits token overhead from high-res camera frames while
+					// preserving enough detail for VLM understanding.
+					let uiProcessing = UserInput.Processing(resize: .init(width: 1024, height: 1024))
+					let userInput = UserInput(prompt: .chat(messages), processing: uiProcessing)
 					let lmInput = try await context.processor.prepare(input: userInput)
 
 					// Build GrammarTokenizer from the model's tokenizer — canonical path
