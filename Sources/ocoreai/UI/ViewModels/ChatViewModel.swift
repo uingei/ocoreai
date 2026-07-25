@@ -131,10 +131,16 @@ final class ChatState {
     var responseTextDisplay: String {
         Self.stripThinkingTags(from: responseText)
     }
+    /// Live reasoning text being accumulated during streaming.
+    /// Updated incrementally when </thinking> blocks close mid-stream,
+    /// so the UI can render reasoning progressively instead of after completion.
+    var currentReasoningText: String = ""
     var errorMessage: String?
     var loading: Bool = false
     /// Live streaming throughput — estimated tokens/second. Updated per chunk.
     var currentTokPerSec: Double?
+    /// Live streaming prompt-phase throughput (tokens/second). Available at completion.
+    var currentPromptTokPerSec: Double?
     /// Live streaming time-to-first-token (ms). Set on first chunk.
     var currentTTFTMs: Double?
 
@@ -517,6 +523,7 @@ final class ChatState {
         await persistMessage(role: "user", content: text)
 
         responseText = ""
+        currentReasoningText = ""
         loading = true
         errorMessage = nil
         // P0-fix: reset idempotency barrier so cancelInference can fire clean this turn
@@ -611,6 +618,18 @@ final class ChatState {
                 }
                 if !chunk.text.isEmpty {
                     responseText += chunk.text
+                    // Progressively extract closed reasoning blocks during streaming
+                    // so UI can render reasoning text before the message completes.
+                    // Only extracts completed <thinking>...</thinking> pairs; incomplete
+                    // blocks (open tag, no close yet) wait for completion-time parsing.
+                    let (partialReasoning, _) = Self.splitThinkingTags(from: responseText)
+                    if let rText = partialReasoning, !rText.isEmpty {
+                        currentReasoningText = rText
+                    }
+                }
+                // Wire prompt throughput from final chunk
+                if let ptps = chunk.promptTokPerSec {
+                    currentPromptTokPerSec = ptps
                 }
                 if chunk.isComplete {
                     // FIX: distinguish error terminal chunks from successful completion.

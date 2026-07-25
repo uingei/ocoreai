@@ -356,7 +356,7 @@ private func nonStreamAnthropicResponse(
                 totalOutputTokens += 1
                 accumulatedText = (accumulatedText ?? "") + text
 
-            case let .done(reason, _):
+            case let .done(reason, _, _):
                     let openaiReason = stopReasonToString(reason) ?? "stop"
                 finishReason = openAIToAnthropicStopReason(openaiReason)
 
@@ -560,7 +560,7 @@ private func streamAnthropicResponse(
                         let deltaEvent = AnthropicStreamEvent.textDelta(index: 0, text: text)
                         writeSSEEvent(continuation, event: deltaEvent)
 
-                    case .done(_, _):
+                    case .done(_, _, _):
                         break
 
                     case let .error(errorMsg):

@@ -319,6 +319,16 @@ struct ChatView: View {
                         if !chatState.responseTextDisplay.isEmpty {
                             VStack(spacing: 4) {
                                 ChatHeader(isUser: false, timestamp: Date())
+                                // P0: Progressive reasoning block — renders closed thinking blocks
+                                // during streaming so users see reasoning in real-time instead of
+                                // only after the message completes.
+                                if !chatState.currentReasoningText.isEmpty {
+                                    Text(chatState.currentReasoningText)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(theme.textSecondary)
+                                        .lineLimit(4)
+                                        .transition(.opacity.combined(with: .move(edge: .top)))
+                                }
                                 MarkdownMessage(content: chatState.responseTextDisplay)
                                     .opacity(0.85)
                                     .transition(.opacity.combined(with: .move(edge: .bottom)))

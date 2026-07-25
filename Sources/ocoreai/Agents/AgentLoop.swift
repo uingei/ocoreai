@@ -427,7 +427,7 @@ enum AgentLoop {
                 case .token:
                     // Each .token event is one generated token (CoreAI path)
                     tokCount += 1
-                case let .done(_, actualCount):
+                case let .done(_, actualCount, _):
                     // Use upstream-reported token count when available, fallback to our running count
                     if let actualCount {
                         tokCount = actualCount

@@ -311,6 +311,9 @@ extension DirectInferenceClient {
         // Streaming output safety guard
         let streamGuard = OcoreaiEngine.shared.activeContentGuard
 
+        // Capture prompt throughput from engine layer — populated when .info fires
+        var enginePromptTokPerSec: Double?
+
         func currentMetrics() -> (ttftMs: Double?, tokPerSec: Double?, promptTokPerSec: Double?) {
             guard let ttft = firstChunkTime else { return (nil, nil, nil) }
             // TTFT: duration from stream start to first chunk (genuine prefill/init time)
@@ -361,11 +364,13 @@ extension DirectInferenceClient {
                     // until completion — see note on currentMetrics()).
                     let (ttftMs, _, _) = currentMetrics()
                     continuation.yield(.init(text: text, isComplete: false, ttftMs: ttftMs, tokPerSec: nil))
-                case let .done(reason, tokenCount):
+                case let .done(reason, tokenCount, ptokPs):
                     finishReason = stopReasonToString(reason) ?? "stop"
                     // Use actual token count from upstream .info/.done — per-event
                     // counting would severely underestimate when .text spans multiple tokens
                     outputTokens = tokenCount ?? 0
+                    // Capture prompt throughput from engine layer
+                    enginePromptTokPerSec = ptokPs
                 case let .error(errorMsg):
                     continuation.finish()
                     throw AppError.generationError(errorMsg)
@@ -384,6 +389,7 @@ extension DirectInferenceClient {
             outputTokens: outputTokens,
             ttftMs: finalTtftMs,
             tokPerSec: finalTokPerSec,
+            promptTokPerSec: enginePromptTokPerSec
         ))
     // Post-stream quality signal → ThinkingBudget calibration loop.
     // Fire-and-forget: failures silently ignored to avoid blocking stream end.
@@ -571,7 +577,7 @@ extension DirectInferenceClient {
                 case let .text(text):
                     outputTok += 1
                     completeText += text
-                case .done(_, _): break
+                case .done(_, _, _): break
                 case let .error(msg):
                     throw AppError.generationError(msg)
                 }

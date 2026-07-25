@@ -558,7 +558,7 @@ private func nonStreamWithToolCalling(
                             accTokens.append(id)
                         case let .text(txt):
                             accText = (accText ?? "") + txt
-                        case .done(_, _):
+                        case .done(_, _, _):
                                     break
                         case let .error(msg):
                             logger.warning("Self-correction re-gen error: \(msg)")
@@ -829,7 +829,7 @@ private func streamWithToolCalling(
                     _ = yieldSSE(tChunk, to: continuation)
 
                 /// .done — flush remaining tokens, detect tool calls, send stop chunk.
-                case let .done(reason, _):
+                case let .done(reason, _, _):
                     /// Final flush: detokenize any remaining tokens not yet emitted.
                     if !accumulatedTokens.isEmpty, accumulatedTokens.count % decodeBatchSize != 0 {
                         do {
