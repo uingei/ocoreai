@@ -313,6 +313,7 @@ extension DirectInferenceClient {
 
         // Capture prompt throughput from engine layer — populated when .info fires
         var enginePromptTokPerSec: Double?
+        var engineTokPerSec: Double?
 
         func currentMetrics() -> (ttftMs: Double?, tokPerSec: Double?, promptTokPerSec: Double?) {
             guard let ttft = firstChunkTime else { return (nil, nil, nil) }
@@ -323,20 +324,6 @@ extension DirectInferenceClient {
             // tok/s is intentionally nil during streaming — see note above. The UI
             // shows only TTFT until the accurate final tok/s is yielded at completion.
             return (ttftMs, nil, nil)
-        }
-
-        /// Accurate tok/s computed from the real generated token count at stream end.
-        func finalMetrics(outputTokens: Int?) -> (ttftMs: Double?, tokPerSec: Double?) {
-            let ttft = firstChunkTime.map { ft -> Double in
-                let d = streamStartTime.duration(to: ft)
-                return Double(d.components.seconds) * 1000 + Double(d.components.attoseconds) / 1e15
-            }
-            guard let total = outputTokens, total > 0 else { return (ttft, nil) }
-            let elapsed = streamStartTime.duration(to: ContinuousClock.now)
-            let elapsedSec = Double(elapsed.components.seconds)
-                + Double(elapsed.components.attoseconds) / 1e18
-            guard elapsedSec > 0 else { return (ttft, nil) }
-            return (ttft, Double(total) / elapsedSec)
         }
 
         do {
@@ -364,12 +351,13 @@ extension DirectInferenceClient {
                     // until completion — see note on currentMetrics()).
                     let (ttftMs, _, _) = currentMetrics()
                     continuation.yield(.init(text: text, isComplete: false, ttftMs: ttftMs, tokPerSec: nil))
-                case let .done(reason, tokenCount, ptokPs):
+                case let .done(reason, tokenCount, tokPS, ptokPs):
                     finishReason = stopReasonToString(reason) ?? "stop"
                     // Use actual token count from upstream .info/.done — per-event
                     // counting would severely underestimate when .text spans multiple tokens
                     outputTokens = tokenCount ?? 0
-                    // Capture prompt throughput from engine layer
+                    // Capture BOTH throughput metrics from engine layer (upstream GenerateCompletionInfo)
+                    engineTokPerSec = tokPS
                     enginePromptTokPerSec = ptokPs
                 case let .error(errorMsg):
                     continuation.finish()
@@ -378,17 +366,21 @@ extension DirectInferenceClient {
             }
         }
 
-        // Send final chunk with accurate metrics.
-        // tokPerSec is computed from the REAL generated token count (outputTokens),
-        // not from chunk count — eliminating the previously fake/inflated speed.
-        let (finalTtftMs, finalTokPerSec) = finalMetrics(outputTokens: outputTokens)
+        // Send final chunk with metrics from upstream GenerateCompletionInfo.
+        // tokPerSec comes directly from .info.tokensPerSecond — generation-phase
+        // measurement (generationTokenCount / generateTime), not the previously
+        // inaccurate total-stream estimate (outputTokens / totalElapsed).
+        let finalTtftMs = firstChunkTime.map { ft -> Double in
+            let d = streamStartTime.duration(to: ft)
+            return Double(d.components.seconds) * 1000 + Double(d.components.attoseconds) / 1e15
+        }
         continuation.yield(.init(
             text: "",
             isComplete: true,
             stopReason: finishReason ?? "stop",
             outputTokens: outputTokens,
             ttftMs: finalTtftMs,
-            tokPerSec: finalTokPerSec,
+            tokPerSec: engineTokPerSec,
             promptTokPerSec: enginePromptTokPerSec
         ))
     // Post-stream quality signal → ThinkingBudget calibration loop.
@@ -577,7 +569,7 @@ extension DirectInferenceClient {
                 case let .text(text):
                     outputTok += 1
                     completeText += text
-                case .done(_, _, _): break
+                case .done(_, _, _, _): break
                 case let .error(msg):
                     throw AppError.generationError(msg)
                 }

@@ -1004,6 +1004,7 @@ extension EnginePool {
                         do {
                     // State for Guided/MTP branches — standard ChatSession manages its own
                     var actualTokenCount: Int?
+                    var generationTokPerSec: Double?
                     var promptTokPerSec: Double?
                     var lastStopReason: StopReason?
 
@@ -1047,6 +1048,7 @@ extension EnginePool {
                             let tokenCount: Int?
                             let stopReason: StopReason?
                             let stoppedBySequence: Bool
+                            let generationTokPerSec: Double?
                             let promptTokPerSec: Double?
                         }
 
@@ -1070,6 +1072,7 @@ extension EnginePool {
                             var localFirstToken = false
                             var localTokenCount: Int?
                             var localStopReason: StopReason?
+                            var localGenerationTokPerSec: Double?
                             var localPromptTokPerSec: Double?
                             var localStoppedBySeq = false
 
@@ -1124,8 +1127,9 @@ extension EnginePool {
                                     }
                                 case let .info(completionInfo):
                                     localTokenCount = completionInfo.generationTokenCount
-                                    // Capture prompt throughput from upstream GenerateCompletionInfo
+                                    // Capture both throughput metrics from upstream GenerateCompletionInfo
                                     localPromptTokPerSec = completionInfo.promptTokensPerSecond
+                                    localGenerationTokPerSec = completionInfo.tokensPerSecond
                                     localStopReason = switch completionInfo.stopReason {
                                     case .stop: .eos
                                     case .length: .maxTokens
@@ -1141,6 +1145,7 @@ extension EnginePool {
                                 tokenCount: localTokenCount,
                                 stopReason: localStopReason,
                                 stoppedBySequence: localStoppedBySeq,
+                                generationTokPerSec: localGenerationTokPerSec,
                                 promptTokPerSec: localPromptTokPerSec
                             )
                         }
@@ -1152,11 +1157,17 @@ extension EnginePool {
                         if let sr = mtpResult.stopReason {
                             lastStopReason = sr
                         }
+                        if let generationPS = mtpResult.generationTokPerSec {
+                            generationTokPerSec = generationPS
+                        }
                         if let ptokPs = mtpResult.promptTokPerSec {
                             promptTokPerSec = ptokPs
                         }
                         if !mtpResult.stoppedBySequence, actualTokenCount != nil {
-                            continuation.yield(.init(kind: .done(lastStopReason ?? .maxTokens, tokenCount: actualTokenCount ?? metrics.generatedTokenCount, promptTokPerSec: promptTokPerSec)))
+                            continuation.yield(.init(kind: .done(lastStopReason ?? .maxTokens,
+                                tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
+                                tokPerSec: generationTokPerSec,
+                                promptTokPerSec: promptTokPerSec)))
                         }
                     }
                     // MARK: - Standard ChatSession Path (default fallback)
@@ -1211,8 +1222,9 @@ extension EnginePool {
                                     if actualTokenCount == nil {
                                         actualTokenCount = completionInfo.generationTokenCount
                                     }
-                                    // Capture prompt throughput from upstream GenerateCompletionInfo
+                                    // Capture both throughput metrics from upstream GenerateCompletionInfo
                                     promptTokPerSec = completionInfo.promptTokensPerSecond
+                                    generationTokPerSec = completionInfo.tokensPerSecond
                                     lastStopReason = switch completionInfo.stopReason {
                                         case .stop: .eos
                                         case .length: .maxTokens
@@ -1226,7 +1238,10 @@ extension EnginePool {
 
                             // Emit final .done event with prompt throughput
                             if !Task.isCancelled {
-                                continuation.yield(.init(kind: .done(lastStopReason ?? .eos, tokenCount: actualTokenCount ?? metrics.generatedTokenCount, promptTokPerSec: promptTokPerSec)))
+                                continuation.yield(.init(kind: .done(lastStopReason ?? .eos,
+                                    tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
+                                    tokPerSec: generationTokPerSec,
+                                    promptTokPerSec: promptTokPerSec)))
                             }
                         }
 

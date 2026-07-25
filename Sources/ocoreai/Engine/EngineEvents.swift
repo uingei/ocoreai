@@ -86,9 +86,9 @@ struct InferenceEvent {
 
         /// Generation complete metadata — carries actual token count from upstream
         /// when available. Essential for accurate token budgeting on MLX backend
-        /// where `.chunk` = one-or-more tokens. Prompt throughput sourced from
-        /// upstream GenerateCompletionInfo.promptTokensPerSecond.
-        case done(StopReason, tokenCount: Int?, promptTokPerSec: Double? = nil)
+        /// where `.chunk` = one-or-more tokens. Both promptTokPerSec and tokPerSec
+        /// sourced from upstream GenerateCompletionInfo — not locally estimated.
+        case done(StopReason, tokenCount: Int?, tokPerSec: Double? = nil, promptTokPerSec: Double? = nil)
 
         /// Fatal inference error
         case error(String)
