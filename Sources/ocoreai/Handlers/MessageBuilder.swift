@@ -25,199 +25,199 @@ import Foundation
 /// Dependencies required for message assembly — passed by the caller.
 /// Fast Path and Bridge Path both provide their own context.
 struct MessageBuilderContext {
-	/// Model identifier
-	let modelId: String
+    /// Model identifier
+    let modelId: String
 
-	/// Raw user messages from the request (no system prompt yet)
-	let rawMessages: [Message]
+    /// Raw user messages from the request (no system prompt yet)
+    let rawMessages: [Message]
 
-	/// Optional user-provided system prompt override
-	let userSystemPrompt: String?
+    /// Optional user-provided system prompt override
+    let userSystemPrompt: String?
 
-	/// Optional tool definitions (for function calling)
-	let tools: [ToolDef]?
+    /// Optional tool definitions (for function calling)
+    let tools: [ToolDef]?
 
-	/// Session identifier (for memory + complexity tracking)
-	let sessionId: String
+    /// Session identifier (for memory + complexity tracking)
+    let sessionId: String
 }
 
 // MARK: - Message Builder (Async Actor-Backed)
 
 /// Shared actor for message assembly. Thread-safe, dual-channel compatible.
 actor MessageBuilder {
-	private let systemPromptBuilder: SystemPromptBuilder
-	private let sessionCompressor: SessionCompressor
-	private let complexityAnalyzer: ComplexityAnalyzer
-	private let thinkingBudget: ThinkingBudget
+    private let systemPromptBuilder: SystemPromptBuilder
+    private let sessionCompressor: SessionCompressor
+    private let complexityAnalyzer: ComplexityAnalyzer
+    private let thinkingBudget: ThinkingBudget
 
-	/// Internal initializer — takes actor references directly.
-	init(
-		systemPromptBuilder: SystemPromptBuilder,
-		sessionCompressor: SessionCompressor,
-		complexityAnalyzer: ComplexityAnalyzer,
-		thinkingBudget: ThinkingBudget,
-	) {
-		self.systemPromptBuilder = systemPromptBuilder
-		self.sessionCompressor = sessionCompressor
-		self.complexityAnalyzer = complexityAnalyzer
-		self.thinkingBudget = thinkingBudget
-	}
+    /// Internal initializer — takes actor references directly.
+    init(
+        systemPromptBuilder: SystemPromptBuilder,
+        sessionCompressor: SessionCompressor,
+        complexityAnalyzer: ComplexityAnalyzer,
+        thinkingBudget: ThinkingBudget,
+    ) {
+        self.systemPromptBuilder = systemPromptBuilder
+        self.sessionCompressor = sessionCompressor
+        self.complexityAnalyzer = complexityAnalyzer
+        self.thinkingBudget = thinkingBudget
+    }
 
-	/// Last analyzed complexity score — cached so ChatHandler can peek at `taskType`
-	/// without duplicating the classification work.
-	private var lastScore: ComplexityScore?
+    /// Last analyzed complexity score — cached so ChatHandler can peek at `taskType`
+    /// without duplicating the classification work.
+    private var lastScore: ComplexityScore?
 
-	/// Build the complete message list ready for tokenization.
-	///
-	/// This replaces the old `buildMessageList()` in ChatHandler.swift.
-	/// Both Fast Path (UI) and Bridge Path (HTTP) call this.
-	///
-	/// - Parameter ctx: Context with raw messages, tools, session ID
-	/// - Returns: Ordered ``Message`` array ready for inference
-	/// - Throws: ``AppError.invalidRequest`` if validation fails
-	func buildMessages(context: MessageBuilderContext) async throws -> [Message] {
-		var messages = context.rawMessages
+    /// Build the complete message list ready for tokenization.
+    ///
+    /// This replaces the old `buildMessageList()` in ChatHandler.swift.
+    /// Both Fast Path (UI) and Bridge Path (HTTP) call this.
+    ///
+    /// - Parameter ctx: Context with raw messages, tools, session ID
+    /// - Returns: Ordered ``Message`` array ready for inference
+    /// - Throws: ``AppError.invalidRequest`` if validation fails
+    func buildMessages(context: MessageBuilderContext) async throws -> [Message] {
+        var messages = context.rawMessages
 
-		// Phase 1: Build system prompt from skills
-		let builtSystemPrompt = await systemPromptBuilder.buildSystemPrompt()
+        // Phase 1: Build system prompt from skills
+        let builtSystemPrompt = await systemPromptBuilder.buildSystemPrompt()
 
-		// Phase 2: Recall permanent memory (non-fatal)
-		var memoryContext = ""
-		do {
-			let recalled = try await sessionCompressor.recallPermanentMemory(limit: 10)
-			if !recalled.isEmpty {
-				let summaries = recalled.map {
-					"**[\($0.memoryType.rawValue)]** \($0.cause) → \($0.result)"
-				}.joined(separator: "\n")
-				memoryContext = """
+        // Phase 2: Recall permanent memory (non-fatal)
+        var memoryContext = ""
+        do {
+            let recalled = try await sessionCompressor.recallPermanentMemory(limit: 10)
+            if !recalled.isEmpty {
+                let summaries = recalled.map {
+                    "**[\($0.memoryType.rawValue)]** \($0.cause) → \($0.result)"
+                }.joined(separator: "\n")
+                memoryContext = """
 
-				## Recalled Memory
-				The following structured knowledge from past sessions is relevant:
+                ## Recalled Memory
+                The following structured knowledge from past sessions is relevant:
 
-				\(summaries)
-				"""
-			}
-		} catch {
-			// Memory recall failure is non-fatal — proceed without it
-		}
+                \(summaries)
+                """
+            }
+        } catch {
+            // Memory recall failure is non-fatal — proceed without it
+        }
 
-		// Phase 3: Compose final system prompt (priority: user > built > memory)
-		let finalSystem: String = if let userSystem = context.userSystemPrompt, !userSystem.isEmpty {
-			userSystem + "\n\n" + builtSystemPrompt + memoryContext
-		} else if !builtSystemPrompt.isEmpty {
-			builtSystemPrompt + memoryContext
-		} else {
-			memoryContext.isEmpty ? "" : memoryContext
-		}
+        // Phase 3: Compose final system prompt (priority: user > built > memory)
+        let finalSystem: String = if let userSystem = context.userSystemPrompt, !userSystem.isEmpty {
+            userSystem + "\n\n" + builtSystemPrompt + memoryContext
+        } else if !builtSystemPrompt.isEmpty {
+            builtSystemPrompt + memoryContext
+        } else {
+            memoryContext.isEmpty ? "" : memoryContext
+        }
 
-		// Phase 4: Inject system message at the front
-		if !finalSystem.isEmpty {
-			messages.insert(Message(role: "system", content: finalSystem), at: 0)
-		}
+        // Phase 4: Inject system message at the front
+        if !finalSystem.isEmpty {
+            messages.insert(Message(role: "system", content: finalSystem), at: 0)
+        }
 
-		// Phase 5: Inject tool definitions into system message (if tools present)
-		if let tools = context.tools, !tools.isEmpty {
-			let toolDefs = tools.compactMap { tool -> String? in
-				guard let desc = tool.function.description else { return nil }
-				return "## Tool: \(tool.function.name)\nDescription: \(desc)"
-			}.joined(separator: "\n\n")
+        // Phase 5: Inject tool definitions into system message (if tools present)
+        if let tools = context.tools, !tools.isEmpty {
+            let toolDefs = tools.compactMap { tool -> String? in
+                guard let desc = tool.function.description else { return nil }
+                return "## Tool: \(tool.function.name)\nDescription: \(desc)"
+            }.joined(separator: "\n\n")
 
-			if !toolDefs.isEmpty {
-				if let firstSystem = messages.firstIndex(where: { $0.role == "system" }) {
-					if case var .text(existingContent) = messages[firstSystem].content {
-						existingContent += "\n\nAvailable tools:\n\(toolDefs)"
-						messages[firstSystem].content = .text(existingContent)
-					}
-				} else {
-					let toolMessage = Message(
-						role: "system",
-						content: "You have access to the following tools:\n\n\(toolDefs)",
-					)
-					messages.insert(toolMessage, at: 0)
-				}
-			}
-		}
+            if !toolDefs.isEmpty {
+                if let firstSystem = messages.firstIndex(where: { $0.role == "system" }) {
+                    if case var .text(existingContent) = messages[firstSystem].content {
+                        existingContent += "\n\nAvailable tools:\n\(toolDefs)"
+                        messages[firstSystem].content = .text(existingContent)
+                    }
+                } else {
+                    let toolMessage = Message(
+                        role: "system",
+                        content: "You have access to the following tools:\n\n\(toolDefs)",
+                    )
+                    messages.insert(toolMessage, at: 0)
+                }
+            }
+        }
 
-		// Phase 6: Guard — message list must not be empty
-		guard !messages.isEmpty else {
-			throw AppError.invalidRequest(
-				"Message list is empty for model '\(context.modelId)'",
-			)
-		}
+        // Phase 6: Guard — message list must not be empty
+        guard !messages.isEmpty else {
+            throw AppError.invalidRequest(
+                "Message list is empty for model '\(context.modelId)'",
+            )
+        }
 
-		// Phase 7: Inject adaptive reasoning scaffold (三思而后行)
-		let userMessage = messages.first(where: { $0.role == "user" })?.textContent()
-			?? context.rawMessages.first?.textContent() ?? ""
+        // Phase 7: Inject adaptive reasoning scaffold (三思而后行)
+        let userMessage = messages.first(where: { $0.role == "user" })?.textContent()
+            ?? context.rawMessages.first?.textContent() ?? ""
 
-		// FIX: VLM requests with .parts (images/audio/video) produce empty textContent(),
-		// causing ComplexityAnalyzer to score 0 and ThinkingBudget to return no scaffold.
-		// Detect multimodal messages and provide a fallback for complexity analysis.
-		let totalMediaParts = messages.reduce(0) { sum, msg in
-			if case .parts(let pts) = msg.content {
-				let media = pts.filter { $0.imageUrl != nil || $0.videoUrl != nil || $0.audioURL != nil }.count
-				return sum + media
-			}
-			return sum
-		}
-		let hasMultimodal = totalMediaParts > 0
+        // FIX: VLM requests with .parts (images/audio/video) produce empty textContent(),
+        // causing ComplexityAnalyzer to score 0 and ThinkingBudget to return no scaffold.
+        // Detect multimodal messages and provide a fallback for complexity analysis.
+        let totalMediaParts = messages.reduce(0) { sum, msg in
+            if case .parts(let pts) = msg.content {
+                let media = pts.filter { $0.imageUrl != nil || $0.videoUrl != nil || $0.audioURL != nil }.count
+                return sum + media
+            }
+            return sum
+        }
+        let hasMultimodal = totalMediaParts > 0
 
-		let effectiveInput = if userMessage.isEmpty && hasMultimodal {
-			"[multimodal: \(totalMediaParts) media part(s)]"
-		} else {
-			userMessage
-		}
-		guard !effectiveInput.isEmpty else {
-			return messages // nothing to analyze, skip scaffold
-		}
+        let effectiveInput = if userMessage.isEmpty && hasMultimodal {
+            "[multimodal: \(totalMediaParts) media part(s)]"
+        } else {
+            userMessage
+        }
+        guard !effectiveInput.isEmpty else {
+            return messages // nothing to analyze, skip scaffold
+        }
 
-		let complexity = await complexityAnalyzer.analyze(
-			input: effectiveInput,
-			messageCount: max(1, messages.count),
-			sessionId: context.sessionId,
-		)
-		lastScore = complexity // cache for taskType query
-		let reasoningScaffold = await thinkingBudget.scaffolding(
-			for: complexity,
-			sessionId: context.sessionId,
-		)
-		if !reasoningScaffold.isEmpty {
-			if let sysIdx = messages.firstIndex(where: { $0.role == "system" }) {
-				switch messages[sysIdx].content {
-				case var .text(existingContent):
-					existingContent += "\n\n" + reasoningScaffold
-					messages[sysIdx].content = .text(existingContent)
-				case .none:
-					messages[sysIdx].content = .text(reasoningScaffold)
-				case .parts:
-					// System message with .parts — append scaffold as text part
-					var parts: [ContentPart]
-					if case .parts(let p) = messages[sysIdx].content {
-						parts = p
-					} else {
-						parts = []
-					}
-					parts.append(ContentPart(type: "text", text: reasoningScaffold, imageUrl: nil))
-					messages[sysIdx].content = .parts(parts)
-				}
-			} else {
-				// No system message found — prepend one with the scaffold
-				let sysMsg = Message(role: "system", content: reasoningScaffold)
-				messages.insert(sysMsg, at: 0)
-			}
-		}
+        let complexity = await complexityAnalyzer.analyze(
+            input: effectiveInput,
+            messageCount: max(1, messages.count),
+            sessionId: context.sessionId,
+        )
+        lastScore = complexity // cache for taskType query
+        let reasoningScaffold = await thinkingBudget.scaffolding(
+            for: complexity,
+            sessionId: context.sessionId,
+        )
+        if !reasoningScaffold.isEmpty {
+            if let sysIdx = messages.firstIndex(where: { $0.role == "system" }) {
+                switch messages[sysIdx].content {
+                case var .text(existingContent):
+                    existingContent += "\n\n" + reasoningScaffold
+                    messages[sysIdx].content = .text(existingContent)
+                case .none:
+                    messages[sysIdx].content = .text(reasoningScaffold)
+                case .parts:
+                    // System message with .parts — append scaffold as text part
+                    var parts: [ContentPart]
+                    if case .parts(let p) = messages[sysIdx].content {
+                        parts = p
+                    } else {
+                        parts = []
+                    }
+                    parts.append(ContentPart(type: "text", text: reasoningScaffold, imageUrl: nil))
+                    messages[sysIdx].content = .parts(parts)
+                }
+            } else {
+                // No system message found — prepend one with the scaffold
+                let sysMsg = Message(role: "system", content: reasoningScaffold)
+                messages.insert(sysMsg, at: 0)
+            }
+        }
 
-		return messages
-	}
+        return messages
+    }
 
-	/// Return the task type detected during the last `buildMessages` call.
-	/// Used by ChatHandler to apply task-aware sampling parameters.
-	/// Returns `.general` if no analysis has been run yet.
-	func lastTaskType() -> TaskType {
-		lastScore?.taskType ?? .general
-	}
+    /// Return the task type detected during the last `buildMessages` call.
+    /// Used by ChatHandler to apply task-aware sampling parameters.
+    /// Returns `.general` if no analysis has been run yet.
+    func lastTaskType() -> TaskType {
+        lastScore?.taskType ?? .general
+    }
 
-	/// Return the full complexity score from the last `buildMessages` call.
-	func lastComplexityScore() -> ComplexityScore? {
-		lastScore
-	}
+    /// Return the full complexity score from the last `buildMessages` call.
+    func lastComplexityScore() -> ComplexityScore? {
+        lastScore
+    }
 }

@@ -12,95 +12,95 @@ import Observation
 
 /// Human-readable download status for a single model.
 struct OcoreaiDownloadProgressState: Sendable {
-	/// Progress fraction 0.0–1.0
-	var fraction: Double
-	/// Number of completed files
-	let completedFiles: Int
-	/// Total number of files
-	let totalFiles: Int
-	/// Whether currently active (downloading)
-	var active: Bool = true
-	/// Whether download completed successfully — shown briefly in UI before eviction
-	var completed: Bool = false
+    /// Progress fraction 0.0–1.0
+    var fraction: Double
+    /// Number of completed files
+    let completedFiles: Int
+    /// Total number of files
+    let totalFiles: Int
+    /// Whether currently active (downloading)
+    var active: Bool = true
+    /// Whether download completed successfully — shown briefly in UI before eviction
+    var completed: Bool = false
 
-	static let idle = OcoreaiDownloadProgressState(
-		fraction: 0, completedFiles: 0, totalFiles: 0, active: false,
-	)
+    static let idle = OcoreaiDownloadProgressState(
+        fraction: 0, completedFiles: 0, totalFiles: 0, active: false,
+    )
 }
 
 @Observable
 @MainActor
 final class OcoreaiDownloadProgress {
-	static let shared = OcoreaiDownloadProgress()
+    static let shared = OcoreaiDownloadProgress()
 
-	/// Per-model progress state.
-	private var _progress: [String: OcoreaiDownloadProgressState] = [:]
+    /// Per-model progress state.
+    private var _progress: [String: OcoreaiDownloadProgressState] = [:]
 
-	private init() {}
+    private init() {}
 
-	/// Start tracking a download for the given model ID.
-	/// Idempotent: if the model is already downloading, keep the current progress
-	/// instead of resetting to zero.
-	func start(modelId: String) {
-		// Don't reset progress if download is already in progress
-		if _progress[modelId]?.active == true {
-			return
-		}
-		_progress[modelId] = OcoreaiDownloadProgressState(
-			fraction: 0, completedFiles: 0, totalFiles: 0, active: true,
-		)
-	}
+    /// Start tracking a download for the given model ID.
+    /// Idempotent: if the model is already downloading, keep the current progress
+    /// instead of resetting to zero.
+    func start(modelId: String) {
+        // Don't reset progress if download is already in progress
+        if _progress[modelId]?.active == true {
+            return
+        }
+        _progress[modelId] = OcoreaiDownloadProgressState(
+            fraction: 0, completedFiles: 0, totalFiles: 0, active: true,
+        )
+    }
 
-	/// Update progress from a Swift `Progress` instance.
-	func update(_ progress: Foundation.Progress, for modelId: String) {
-		let total: Int64 = progress.totalUnitCount
-		let completed: Int64 = progress.completedUnitCount
-		let fraction = total > 0 ? Double(completed) / Double(total) : 0
+    /// Update progress from a Swift `Progress` instance.
+    func update(_ progress: Foundation.Progress, for modelId: String) {
+        let total: Int64 = progress.totalUnitCount
+        let completed: Int64 = progress.completedUnitCount
+        let fraction = total > 0 ? Double(completed) / Double(total) : 0
 
-		_progress[modelId] = OcoreaiDownloadProgressState(
-			fraction: fraction,
-			completedFiles: Int(completed),
-			totalFiles: Int(total),
-			active: true,
-		)
-	}
+        _progress[modelId] = OcoreaiDownloadProgressState(
+            fraction: fraction,
+            completedFiles: Int(completed),
+            totalFiles: Int(total),
+            active: true,
+        )
+    }
 
-	/// Mark a download as complete (or failed).
-	/// On success the entry is marked as completed and auto-evicted after a brief
-	/// delay so the UI can show a "✓ completed" flash before cleanup.
-	/// On failure the entry is evicted immediately.
-	func finish(modelId: String, success: Bool = true) {
-		guard success else {
-			_progress.removeValue(forKey: modelId)
-			return
-		}
-		// Mark completed — UI sees fraction=1.0, completed=true
-		_progress[modelId] = OcoreaiDownloadProgressState(
-			fraction: 1.0,
-			completedFiles: _progress[modelId]?.completedFiles ?? 0,
-			totalFiles: _progress[modelId]?.totalFiles ?? 0,
-			active: false,
-			completed: true
-		)
-		// Auto-evict after delay so UI can render the completion flash
-		Task { @MainActor in
-			try? await Task.sleep(for: .seconds(2))
-			_progress.removeValue(forKey: modelId)
-		}
-	}
+    /// Mark a download as complete (or failed).
+    /// On success the entry is marked as completed and auto-evicted after a brief
+    /// delay so the UI can show a "✓ completed" flash before cleanup.
+    /// On failure the entry is evicted immediately.
+    func finish(modelId: String, success: Bool = true) {
+        guard success else {
+            _progress.removeValue(forKey: modelId)
+            return
+        }
+        // Mark completed — UI sees fraction=1.0, completed=true
+        _progress[modelId] = OcoreaiDownloadProgressState(
+            fraction: 1.0,
+            completedFiles: _progress[modelId]?.completedFiles ?? 0,
+            totalFiles: _progress[modelId]?.totalFiles ?? 0,
+            active: false,
+            completed: true
+        )
+        // Auto-evict after delay so UI can render the completion flash
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            _progress.removeValue(forKey: modelId)
+        }
+    }
 
-	/// Clear all state (e.g. when sheet dismisses).
-	func clear() {
-		_progress.removeAll()
-	}
+    /// Clear all state (e.g. when sheet dismisses).
+    func clear() {
+        _progress.removeAll()
+    }
 
-	/// Get current progress for a model, or nil if not downloading.
-	func progress(for modelId: String) -> OcoreaiDownloadProgressState? {
-		_progress[modelId]
-	}
+    /// Get current progress for a model, or nil if not downloading.
+    func progress(for modelId: String) -> OcoreaiDownloadProgressState? {
+        _progress[modelId]
+    }
 
-	/// Is this model currently downloading?
-	func isDownloading(_ modelId: String) -> Bool {
-		(_progress[modelId]?.active ?? false)
-	}
+    /// Is this model currently downloading?
+    func isDownloading(_ modelId: String) -> Bool {
+        (_progress[modelId]?.active ?? false)
+    }
 }

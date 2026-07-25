@@ -17,47 +17,47 @@ import Logging
 ///   `InferenceFunction` reused across requests via ``CoreAIModelHandle``
 @available(macOS 27.0, *)
 struct CoreAIPreparedModel: @unchecked Sendable {
-	/// The specialized AIModel, ready for inference (nil when using fallback path).
-	let aiModel: AIModel?
+    /// The specialized AIModel, ready for inference (nil when using fallback path).
+    let aiModel: AIModel?
 
-	/// Whether this model was successfully specialized (vs. legacy fallback).
-	let isSpecialized: Bool
+    /// Whether this model was successfully specialized (vs. legacy fallback).
+    let isSpecialized: Bool
 
-	/// Configuration used for specialization (for diagnostics).
-	let specializationOptions: SpecializationOptions
+    /// Configuration used for specialization (for diagnostics).
+    let specializationOptions: SpecializationOptions
 
-	/// Creation timestamp for observability.
-	let preparedAt: Date
+    /// Creation timestamp for observability.
+    let preparedAt: Date
 
-	/// Create a prepared model with specialization.
-	///
-	/// - Parameters:
-	///   - aiModel: The specialized AIModel instance
-	///   - specializationOptions: Configuration used during specialization
-	/// - Returns: Prepared model ready for inference
-	static func prepared(
-		aiModel: AIModel,
-		specializationOptions: SpecializationOptions,
-	) -> CoreAIPreparedModel {
-		CoreAIPreparedModel(
-			aiModel: aiModel,
-			isSpecialized: true,
-			specializationOptions: specializationOptions,
-			preparedAt: Date(),
-		)
-	}
+    /// Create a prepared model with specialization.
+    ///
+    /// - Parameters:
+    ///   - aiModel: The specialized AIModel instance
+    ///   - specializationOptions: Configuration used during specialization
+    /// - Returns: Prepared model ready for inference
+    static func prepared(
+        aiModel: AIModel,
+        specializationOptions: SpecializationOptions,
+    ) -> CoreAIPreparedModel {
+        CoreAIPreparedModel(
+            aiModel: aiModel,
+            isSpecialized: true,
+            specializationOptions: specializationOptions,
+            preparedAt: Date(),
+        )
+    }
 
-	/// Create an unprepared (fallback) placeholder.
-	///
-	/// - Returns: Fallback instance used when specialization is skipped or fails
-	static func fallback() -> CoreAIPreparedModel {
-		CoreAIPreparedModel(
-			aiModel: nil,
-			isSpecialized: false,
-			specializationOptions: SpecializationOptions(preferredComputeUnitKind: .gpu),
-			preparedAt: Date(),
-		)
-	}
+    /// Create an unprepared (fallback) placeholder.
+    ///
+    /// - Returns: Fallback instance used when specialization is skipped or fails
+    static func fallback() -> CoreAIPreparedModel {
+        CoreAIPreparedModel(
+            aiModel: nil,
+            isSpecialized: false,
+            specializationOptions: SpecializationOptions(preferredComputeUnitKind: .gpu),
+            preparedAt: Date(),
+        )
+    }
 }
 
 // MARK: - Compute Target Configuration
@@ -65,63 +65,63 @@ struct CoreAIPreparedModel: @unchecked Sendable {
 /// Configurable compute unit targeting for model specialization.
 /// Maps to ``ComputeUnitKind`` internally.
 public struct ComputeTarget: Codable, Sendable {
-	/// Target compute unit
-	public enum Kind: String, Codable, Sendable {
-		/// Automatic selection (default, recommended)
-		case any
-		/// CPU only
-		case cpu
-		/// GPU accelerated
-		case gpu
-		/// Neural Engine (most energy efficient on Apple Silicon)
-		case neuralEngine
+    /// Target compute unit
+    public enum Kind: String, Codable, Sendable {
+        /// Automatic selection (default, recommended)
+        case any
+        /// CPU only
+        case cpu
+        /// GPU accelerated
+        case gpu
+        /// Neural Engine (most energy efficient on Apple Silicon)
+        case neuralEngine
 
-		/// Convert to ``ComputeUnitKind``
-		@available(macOS 27.0, *)
-		var computeUnitKind: ComputeUnitKind {
-			switch self {
-			case .any: .gpu
-			case .cpu: .cpu
-			case .gpu: .gpu
-			case .neuralEngine: .neuralEngine
-			}
-		}
-	}
+        /// Convert to ``ComputeUnitKind``
+        @available(macOS 27.0, *)
+        var computeUnitKind: ComputeUnitKind {
+            switch self {
+            case .any: .gpu
+            case .cpu: .cpu
+            case .gpu: .gpu
+            case .neuralEngine: .neuralEngine
+            }
+        }
+    }
 
-	/// Target compute unit kind (defaults to automatic)
-	var kind: Kind = .any
+    /// Target compute unit kind (defaults to automatic)
+    var kind: Kind = .any
 
-	/// Convert to ``ComputeUnitKind``
-	@available(macOS 27.0, *)
-	var computeUnitKind: ComputeUnitKind {
-		kind.computeUnitKind
-	}
+    /// Convert to ``ComputeUnitKind``
+    @available(macOS 27.0, *)
+    var computeUnitKind: ComputeUnitKind {
+        kind.computeUnitKind
+    }
 }
 
 // MARK: - Model Loading Configuration
 
 /// Configuration for the two-phase Core AI model loading pipeline.
 struct CoreAILoadingConfig: Codable, Sendable {
-	/// Whether to enable specialized model loading (default: true)
-	var enableSpecialization: Bool = true
+    /// Whether to enable specialized model loading (default: true)
+    var enableSpecialization: Bool = true
 
-	/// Timeout for model specialization (seconds)
-	var specializationTimeout: TimeInterval = 120.0
+    /// Timeout for model specialization (seconds)
+    var specializationTimeout: TimeInterval = 120.0
 
-	/// Whether to fall back to EngineFactory if specialization fails
-	var fallBackToEngineFactory: Bool = true
+    /// Whether to fall back to EngineFactory if specialization fails
+    var fallBackToEngineFactory: Bool = true
 
-	/// Target compute unit for specialization
-	var computeTarget: ComputeTarget = .init()
+    /// Target compute unit for specialization
+    var computeTarget: ComputeTarget = .init()
 
-	/// Default production configuration
-	static let production: CoreAILoadingConfig = {
-		var config = CoreAILoadingConfig()
-		config.enableSpecialization = true
-		config.fallBackToEngineFactory = true
-		config.computeTarget = ComputeTarget(kind: .any)
-		return config
-	}()
+    /// Default production configuration
+    static let production: CoreAILoadingConfig = {
+        var config = CoreAILoadingConfig()
+        config.enableSpecialization = true
+        config.fallBackToEngineFactory = true
+        config.computeTarget = ComputeTarget(kind: .any)
+        return config
+    }()
 }
 
 // MARK: - Core AI Model Loader
@@ -133,84 +133,84 @@ struct CoreAILoadingConfig: Codable, Sendable {
 /// @available(macOS 27.0, *) because this actor stores AIModel references.
 @available(macOS 27.0, *)
 actor CoreAIModelLoader {
-	// MARK: - State
+    // MARK: - State
 
-	private let config: CoreAILoadingConfig
-	private let logger: Logger
+    private let config: CoreAILoadingConfig
+    private let logger: Logger
 
-	// MARK: - Initialization
+    // MARK: - Initialization
 
-	/// Create a model loader with the given configuration.
-	///
-	/// - Parameters:
-	///   - config: Loading configuration
-	///   - logger: Observability logger
-	init(config: CoreAILoadingConfig, logger: Logger) {
-		self.config = config
-		self.logger = logger
-	}
+    /// Create a model loader with the given configuration.
+    ///
+    /// - Parameters:
+    ///   - config: Loading configuration
+    ///   - logger: Observability logger
+    init(config: CoreAILoadingConfig, logger: Logger) {
+        self.config = config
+        self.logger = logger
+    }
 
-	// MARK: - Model Loading
+    // MARK: - Model Loading
 
-	/// Load and specialize a model using the official Core AI pipeline.
-	///
-	/// - Parameters:
-	///   - modelURL: Filesystem path to the ``.aimodel`` file
-	///   - modelId: Model identifier (for logging)
-	/// - Returns: Prepared model ready for inference
-	/// - Throws: ``CoreAIBridgeError`` if loading fails
-	func load(modelURL: URL, modelId: String) async throws -> CoreAIPreparedModel {
-		guard config.enableSpecialization else {
-			logger.info("Specialization disabled for \(modelId), using fallback")
-			return CoreAIPreparedModel.fallback()
-		}
+    /// Load and specialize a model using the official Core AI pipeline.
+    ///
+    /// - Parameters:
+    ///   - modelURL: Filesystem path to the ``.aimodel`` file
+    ///   - modelId: Model identifier (for logging)
+    /// - Returns: Prepared model ready for inference
+    /// - Throws: ``CoreAIBridgeError`` if loading fails
+    func load(modelURL: URL, modelId: String) async throws -> CoreAIPreparedModel {
+        guard config.enableSpecialization else {
+            logger.info("Specialization disabled for \(modelId), using fallback")
+            return CoreAIPreparedModel.fallback()
+        }
 
-		logger.info("Starting Core AI load for \(modelId) from \(modelURL.path)")
-		let start = ContinuousClock.now
+        logger.info("Starting Core AI load for \(modelId) from \(modelURL.path)")
+        let start = ContinuousClock.now
 
-		do {
-			// Load and specialize in one step — this is how coreai-models does it
-			let options = SpecializationOptions(
-				preferredComputeUnitKind: config.computeTarget.computeUnitKind,
-			)
+        do {
+            // Load and specialize in one step — this is how coreai-models does it
+            let options = SpecializationOptions(
+                preferredComputeUnitKind: config.computeTarget.computeUnitKind,
+            )
 
-			let aiModel = try await AIModel(
-				contentsOf: modelURL,
-				options: options,
-			)
+            let aiModel = try await AIModel(
+                contentsOf: modelURL,
+                options: options,
+            )
 
-			let prepared = CoreAIPreparedModel.prepared(
-				aiModel: aiModel,
-				specializationOptions: options,
-			)
+            let prepared = CoreAIPreparedModel.prepared(
+                aiModel: aiModel,
+                specializationOptions: options,
+            )
 
-			let elapsed = ContinuousClock.now - start
-			let ms = Double(elapsed.components.seconds) * 1000.0
-				+ Double(elapsed.components.attoseconds) / 1e15
-			logger.info(
-				"Core AI load complete: \(modelId) \(prepared.isSpecialized ? "specialized" : "loaded") in \(String(format: "%.0fms", ms))",
-			)
+            let elapsed = ContinuousClock.now - start
+            let ms = Double(elapsed.components.seconds) * 1000.0
+                + Double(elapsed.components.attoseconds) / 1e15
+            logger.info(
+                "Core AI load complete: \(modelId) \(prepared.isSpecialized ? "specialized" : "loaded") in \(String(format: "%.0fms", ms))",
+            )
 
-			return prepared
+            return prepared
 
-		} catch {
-			if config.fallBackToEngineFactory {
-				logger.warning(
-					"Core AI specialization failed for \(modelId): \(error.localizedDescription). Falling back to EngineFactory.",
-				)
-				return CoreAIPreparedModel.fallback()
-			} else {
-				throw CoreAIBridgeError.specializationFailed(error.localizedDescription)
-			}
-		}
-	}
+        } catch {
+            if config.fallBackToEngineFactory {
+                logger.warning(
+                    "Core AI specialization failed for \(modelId): \(error.localizedDescription). Falling back to EngineFactory.",
+                )
+                return CoreAIPreparedModel.fallback()
+            } else {
+                throw CoreAIBridgeError.specializationFailed(error.localizedDescription)
+            }
+        }
+    }
 
-	// MARK: - Teardown
+    // MARK: - Teardown
 
-	/// Clear any cached state.
-	func teardown() {
-		logger.info("CoreAIModelLoader teardown complete")
-	}
+    /// Clear any cached state.
+    func teardown() {
+        logger.info("CoreAIModelLoader teardown complete")
+    }
 }
 
 #endif

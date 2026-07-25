@@ -10,7 +10,7 @@ import Foundation
 import Logging
 
 #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-	import CoreAI
+    import CoreAI
 #endif
 
 // MARK: - Sendable wrappers for MTP speculative decoding
@@ -23,7 +23,7 @@ import Logging
 /// @unchecked Sendable wrapper for MTP drafter model — enables injection into
 /// modelContainer.perform(nonSendable:) closure via perform(nonSendable:values:_:).
 struct MTPDrafterModelWrapper: @unchecked Sendable {
-	let model: any MLXLMCommon.MTPDrafterModel
+    let model: any MLXLMCommon.MTPDrafterModel
 }
 
 import MLX
@@ -39,1229 +39,1230 @@ import CoreGraphics
 /// Result carried out of the `GuidedGenerationDiagnosticSink.$current.withValue` block
 /// so downstream can log structured diagnostic data even after the sink is unbound.
 private enum GuidedGenerationDiagnosticResult {
-	case success(tokenCount: Int, sink: GuidedGenerationDiagnosticSink)
+    case success(tokenCount: Int, sink: GuidedGenerationDiagnosticSink)
 }
 
 // MARK: - Guided Gen Diagnostic Logging
 
 /// Log guided generation completion diagnostics.
 private func logGuidedGen(
-	_ logger: Logger,
-	modelId: String,
-	grammarTerminated: Bool,
-	tokenCount: Int,
-	sampledTokens: Int,
-	fastForwardTokens: Int,
-	incomplete: Bool,
-	finalBufferPresent: Bool,
-	parsedAsToolCall: Bool?,
-	parsedName: String?)
+    _ logger: Logger,
+    modelId: String,
+    grammarTerminated: Bool,
+    tokenCount: Int,
+    sampledTokens: Int,
+    fastForwardTokens: Int,
+    incomplete: Bool,
+    finalBufferPresent: Bool,
+    parsedAsToolCall: Bool?,
+    parsedName: String?)
 {
-	let tc = parsedAsToolCall.map(String.init) ?? "nil"
-	let nm = parsedName ?? "nil"
-	logger.info(
-		"Guided gen diagnostics: model=\(modelId) grammarTerm=\(grammarTerminated) tokens=\(tokenCount) sampled=\(sampledTokens) ff=\(fastForwardTokens) incomplete=\(incomplete) finalBuf=\(finalBufferPresent) toolCall=\(tc) name=\(nm)")
+    let tc = parsedAsToolCall.map(String.init) ?? "nil"
+    let nm = parsedName ?? "nil"
+    logger.info(
+        "Guided gen diagnostics: model=\(modelId) grammarTerm=\(grammarTerminated) tokens=\(tokenCount) sampled=\(sampledTokens) ff=\(fastForwardTokens) incomplete=\(incomplete) finalBuf=\(finalBufferPresent) toolCall=\(tc) name=\(nm)")
 }
 
 /// Log guided generation error diagnostics.
 private func logGuidedGenError(
-	_ logger: Logger,
-	modelId: String,
-	error: Error,
-	grammarTerminated: Bool,
-	tokenCountBeforeFailure: Int,
-	sampledTokens: Int,
-	fastForwardTokens: Int,
-	incomplete: Bool,
-	finalBuffer: String?)
+    _ logger: Logger,
+    modelId: String,
+    error: Error,
+    grammarTerminated: Bool,
+    tokenCountBeforeFailure: Int,
+    sampledTokens: Int,
+    fastForwardTokens: Int,
+    incomplete: Bool,
+    finalBuffer: String?)
 {
-	let errDesc = error.localizedDescription
-	let buf = finalBuffer.map { "\($0.prefix(120))" } ?? "nil"
-	logger.error(
-		"Guided gen ERROR: model=\(modelId) err=\(errDesc) grammarTerm=\(grammarTerminated) tokensBeforeFail=\(tokenCountBeforeFailure) sampled=\(sampledTokens) ff=\(fastForwardTokens) incomplete=\(incomplete) finalBuf=\(buf)")
+    let errDesc = error.localizedDescription
+    let buf = finalBuffer.map { "\($0.prefix(120))" } ?? "nil"
+    logger.error(
+        "Guided gen ERROR: model=\(modelId) err=\(errDesc) grammarTerm=\(grammarTerminated) tokensBeforeFail=\(tokenCountBeforeFailure) sampled=\(sampledTokens) ff=\(fastForwardTokens) incomplete=\(incomplete) finalBuf=\(buf)")
 }
 
 // MARK: - Inference Extension
 
 extension EnginePool {
-	// MARK: - Entry Points (TaskGroup dispatch)
+    // MARK: - Entry Points (TaskGroup dispatch)
 
-	/// Start inference, returning an ``AsyncThrowingStream`` the caller consumes.
-	func doInference(
-		modelId: String,
-		input: [Int32],
-		sampling: SamplingConfiguration,
-		options: InferenceOptions,
-		metrics: PerRequestMetrics,
-		cancellation: InferenceCancellation = .none,
-	) -> AsyncThrowingStream<InferenceEvent, Error> {
-		AsyncThrowingStream { continuation in
-			Task { [self] in
-				let deadline = ContinuousClock.now + .seconds(config.inferenceTimeoutSeconds)
-				// P0-2 fix: tracker, register, and cleanup inside group eliminates race window
-				let tracker = Task<Void, Never> {
-					await self._runInference(
-						modelId: modelId,
-						input: input,
-						sampling: sampling,
-						options: options,
-						metrics: metrics,
-						continuation: continuation,
-						cancellation: cancellation,
-					)
-					()
-				}
-				await registerTrackedTask(tracker)
-				await withTaskGroup(of: Void.self) { group in
-					group.addTask {
-						await tracker.value
-					}
-					group.addTask {
-						// Single-shot watchdog: sleep until deadline once, then cancel.
-						// Replaces the previous 500ms polling loop which woke up 600+ times
-						// per 300s request — pure CPU waste for a single deadline check.
-						do { try await Task.sleep(until: deadline, clock: .continuous) } catch {}
-						cancellation.cancel()
-					}
-				}
-				await removeTrackedTask(tracker)
-			}
-		}
-	}
+    /// Start inference, returning an ``AsyncThrowingStream`` the caller consumes.
+    func doInference(
+        modelId: String,
+        input: [Int32],
+        sampling: SamplingConfiguration,
+        options: InferenceOptions,
+        metrics: PerRequestMetrics,
+        cancellation: InferenceCancellation = .none,
+    ) -> AsyncThrowingStream<InferenceEvent, Error> {
+        AsyncThrowingStream { continuation in
+            Task { [self] in
+                let deadline = ContinuousClock.now + .seconds(config.inferenceTimeoutSeconds)
+                // P0-2 fix: tracker, register, and cleanup inside group eliminates race window
+                let tracker = Task<Void, Never> {
+                    await self._runInference(
+                        modelId: modelId,
+                        input: input,
+                        sampling: sampling,
+                        options: options,
+                        metrics: metrics,
+                        continuation: continuation,
+                        cancellation: cancellation,
+                    )
+                    ()
+                }
+                await registerTrackedTask(tracker)
+                await withTaskGroup(of: Void.self) { group in
+                    group.addTask {
+                        await tracker.value
+                    }
+                    group.addTask {
+                        // Single-shot watchdog: sleep until deadline once, then cancel.
+                        // Replaces the previous 500ms polling loop which woke up 600+ times
+                        // per 300s request — pure CPU waste for a single deadline check.
+                        do { try await Task.sleep(until: deadline, clock: .continuous) } catch {}
+                        cancellation.cancel()
+                    }
+                }
+                await removeTrackedTask(tracker)
+            }
+        }
+    }
 
-	/// MLX-specific inference entry — accepts messages directly.
-		func doInferenceMLX(
-			modelId: String,
-			messages: [Message],
-			sampling: SamplingConfiguration,
-			options: InferenceOptions,
-			metrics: PerRequestMetrics,
-			conversationId: String? = nil,
-			cancellation: InferenceCancellation = .none,
-		) -> AsyncThrowingStream<InferenceEvent, Error> {
-			AsyncThrowingStream { continuation in
-				Task { [self] in
-					let deadline = ContinuousClock.now + .seconds(config.inferenceTimeoutSeconds)
-					// P0-2 fix: tracker, register, and cleanup outside group eliminates race window
-					let tracker = Task<Void, Never> {
-						await self._runInferenceWithMessages(
-							modelId: modelId,
-							messages: messages,
-							sampling: sampling,
-							options: options,
-							metrics: metrics,
-							continuation: continuation,
-							conversationId: conversationId,
-							cancellation: cancellation,
-						)
-						()
-					}
-					await registerTrackedTask(tracker)
-					await withTaskGroup(of: Void.self) { group in
-						group.addTask {
-							await tracker.value
-						}
-						group.addTask {
-							// Single-shot watchdog: sleep until deadline once, then cancel.
-							// Replaces the previous 500ms polling loop which woke up 600+ times
-							// per 300s request — pure CPU waste for a single deadline check.
-							do { try await Task.sleep(until: deadline, clock: .continuous) } catch {}
-							cancellation.cancel()
-						}
-					}
-					await removeTrackedTask(tracker)
-				}
-			}
-			}
+    /// MLX-specific inference entry — accepts messages directly.
+        func doInferenceMLX(
+            modelId: String,
+            messages: [Message],
+            sampling: SamplingConfiguration,
+            options: InferenceOptions,
+            metrics: PerRequestMetrics,
+            conversationId: String? = nil,
+            cancellation: InferenceCancellation = .none,
+        ) -> AsyncThrowingStream<InferenceEvent, Error> {
+            AsyncThrowingStream { continuation in
+                Task { [self] in
+                    let deadline = ContinuousClock.now + .seconds(config.inferenceTimeoutSeconds)
+                    // P0-2 fix: tracker, register, and cleanup outside group eliminates race window
+                    let tracker = Task<Void, Never> {
+                        await self._runInferenceWithMessages(
+                            modelId: modelId,
+                            messages: messages,
+                            sampling: sampling,
+                            options: options,
+                            metrics: metrics,
+                            continuation: continuation,
+                            conversationId: conversationId,
+                            cancellation: cancellation,
+                        )
+                        ()
+                    }
+                    await registerTrackedTask(tracker)
+                    await withTaskGroup(of: Void.self) { group in
+                        group.addTask {
+                            await tracker.value
+                        }
+                        group.addTask {
+                            // Single-shot watchdog: sleep until deadline once, then cancel.
+                            // Replaces the previous 500ms polling loop which woke up 600+ times
+                            // per 300s request — pure CPU waste for a single deadline check.
+                            do { try await Task.sleep(until: deadline, clock: .continuous) } catch {}
+                            cancellation.cancel()
+                        }
+                    }
+                    await removeTrackedTask(tracker)
+                }
+            }
+            }
 
-	// MARK: - Internal Runners
+    // MARK: - Internal Runners
 
-	private func _runInference(
-		modelId: String,
-		input: [Int32],
-		sampling: SamplingConfiguration,
-		options: InferenceOptions,
-		metrics: PerRequestMetrics,
-		continuation: AsyncThrowingStream<InferenceEvent, Error>.Continuation,
-		cancellation: InferenceCancellation = .none,
-	) async {
-		guard let loaded = loadedModels[modelId] else {
-			continuation.yield(.init(kind: .error("Model not loaded: \(modelId)")))
-			continuation.finish()
-			return
-		}
+    private func _runInference(
+        modelId: String,
+        input: [Int32],
+        sampling: SamplingConfiguration,
+        options: InferenceOptions,
+        metrics: PerRequestMetrics,
+        continuation: AsyncThrowingStream<InferenceEvent, Error>.Continuation,
+        cancellation: InferenceCancellation = .none,
+    ) async {
+        guard let loaded = loadedModels[modelId] else {
+            continuation.yield(.init(kind: .error("Model not loaded: \(modelId)")))
+            continuation.finish()
+            return
+        }
 
-		let tokenCount = input.count
-		if tokenCount > loaded.modelConfig.maxContextLength {
-			continuation.yield(.init(kind: .error(
-				"Input \(tokenCount) exceeds max context \(loaded.modelConfig.maxContextLength)",
-			)))
-			continuation.finish()
-			return
-		}
+        let tokenCount = input.count
+        if tokenCount > loaded.modelConfig.maxContextLength {
+            continuation.yield(.init(kind: .error(
+                "Input \(tokenCount) exceeds max context \(loaded.modelConfig.maxContextLength)",
+            )))
+            continuation.finish()
+            return
+        }
 
-		metrics.promptTokenCount = tokenCount
-		metrics.start()
+        metrics.promptTokenCount = tokenCount
+        metrics.start()
 
-		guard loaded.tryAcquireInference() else {
-			continuation.yield(.init(kind: .error("Engine busy")))
-			continuation.finish()
-			return
-		}
-		defer { loaded.releaseInference() }
+        guard loaded.tryAcquireInference() else {
+            continuation.yield(.init(kind: .error("Engine busy")))
+            continuation.finish()
+            return
+        }
+        defer { loaded.releaseInference() }
 
-		#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-			if #available(macOS 27.0, *) {
-				// CoreAI lacks grammar constraints and tool dispatch — fall back to MLX
-				if options.grammarSchema != nil || options.useGuidedGeneration {
-					logger.info("Falling back to MLX for grammar/tool-constrained request on model \(modelId)")
-							let promptText = await (try? detokenize(modelId: modelId, tokens: input))
-								?? "<detokenization failed>"
+        #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+            if #available(macOS 27.0, *) {
+                // CoreAI lacks grammar constraints and tool dispatch — fall back to MLX
+                if options.grammarSchema != nil || options.useGuidedGeneration {
+                    logger.info("Falling back to MLX for grammar/tool-constrained request on model \(modelId)")
+                            let promptText = await (try? detokenize(modelId: modelId, tokens: input))
+                                ?? "<detokenization failed>"
 
-							// Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
-							let reasoningControlTokens = Set([151645, 151646])
-							if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
-								logger.warning("MLX token→text→token path may drop control tokens for model \(modelId)")
-							}
+                            // Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
+                            let reasoningControlTokens = Set([151645, 151646])
+                            if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
+                                logger.warning("MLX token→text→token path may drop control tokens for model \(modelId)")
+                            }
 
-							let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
-							await _runInferenceWithMessages(
-								modelId: modelId,
-								messages: mlxMessages,
-								sampling: sampling,
-								options: options,
-								metrics: metrics,
-								continuation: continuation,
-								conversationId: nil,
-									cancellation: cancellation,
-					skipLock: true
-				)
-				return
-			}
-				// Warn about sampling fields CoreAI SDK cannot honor
-				// (CoreAI.SamplingConfiguration only supports temperature/topK/topP/minP/combined)
-				let coreaiUnhonoredFields: [String] = [
-					sampling.seed != nil ? "seed" : "",
-					sampling.repetitionPenalty != nil ? "repetitionPenalty" : "",
-					sampling.presencePenalty != nil ? "presencePenalty" : "",
-					sampling.frequencyPenalty != nil ? "frequencyPenalty" : "",
-				].filter { !$0.isEmpty }
+                            let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
+                            await _runInferenceWithMessages(
+                                modelId: modelId,
+                                messages: mlxMessages,
+                                sampling: sampling,
+                                options: options,
+                                metrics: metrics,
+                                continuation: continuation,
+                                conversationId: nil,
+                                    cancellation: cancellation,
+                    skipLock: true
+                )
+                return
+            }
+                // Warn about sampling fields CoreAI SDK cannot honor
+                // (CoreAI.SamplingConfiguration only supports temperature/topK/topP/minP/combined)
+                let coreaiUnhonoredFields: [String] = [
+                    sampling.seed != nil ? "seed" : "",
+                    sampling.repetitionPenalty != nil ? "repetitionPenalty" : "",
+                    sampling.presencePenalty != nil ? "presencePenalty" : "",
+                    sampling.frequencyPenalty != nil ? "frequencyPenalty" : "",
+                ].filter { !$0.isEmpty }
 
-				// stopSequences are NOT supported by CoreAI's engine.generate
-				// → explicitly fall back to MLX path to avoid silent failures
-				let hasStopSeq = !(sampling.stopSequences ?? []).isEmpty
-				if hasStopSeq {
-					logger.info("Falling back to MLX for stopSequences on model \(modelId)")
-					let promptText = await (try? detokenize(modelId: modelId, tokens: input))
-						?? "<detokenization failed>"
-					let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
-					await _runInferenceWithMessages(
-						modelId: modelId,
-						messages: mlxMessages,
-						sampling: sampling,
-						options: options,
-						metrics: metrics,
-						continuation: continuation,
-						conversationId: nil,
-						cancellation: cancellation,
-						skipLock: true
-					)
-					return
-				}
+                // stopSequences are NOT supported by CoreAI's engine.generate
+                // → explicitly fall back to MLX path to avoid silent failures
+                let hasStopSeq = !(sampling.stopSequences ?? []).isEmpty
+                if hasStopSeq {
+                    logger.info("Falling back to MLX for stopSequences on model \(modelId)")
+                    let promptText = await (try? detokenize(modelId: modelId, tokens: input))
+                        ?? "<detokenization failed>"
+                    let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
+                    await _runInferenceWithMessages(
+                        modelId: modelId,
+                        messages: mlxMessages,
+                        sampling: sampling,
+                        options: options,
+                        metrics: metrics,
+                        continuation: continuation,
+                        conversationId: nil,
+                        cancellation: cancellation,
+                        skipLock: true
+                    )
+                    return
+                }
 
-				if !coreaiUnhonoredFields.isEmpty {
-					logger.warning(
-						"[CoreAI] Sampling fields not honored by SDK: \(coreaiUnhonoredFields.joined(separator: ", "))"
-					)
-				}
+                if !coreaiUnhonoredFields.isEmpty {
+                    logger.warning(
+                        "[CoreAI] Sampling fields not honored by SDK: \(coreaiUnhonoredFields.joined(separator: ", "))"
+                    )
+                }
 
-				do {
-					// Use cached engine — CoreAI 34f0db3: single engine per model preserves
-					// KV cache across turns. TokenHistory.resolve handles prefix caching automatically.
-					let engine = try await loaded.getCachedEngine()
-					let sequence = try await engine.generate(
-						with: input,
-						samplingConfiguration: sampling,
-						inferenceOptions: options,
-					)
+                do {
+                    // Use cached engine — CoreAI 34f0db3: single engine per model preserves
+                    // KV cache across turns. TokenHistory.resolve handles prefix caching automatically.
+                    let engine = try await loaded.getCachedEngine()
+                    let sequence = try await engine.generate(
+                        with: input,
+                        samplingConfiguration: sampling,
+                        inferenceOptions: options,
+                    )
 
-					var streamCancelled = false
-					do {
-						for try await output in sequence {
-							if Task.isCancelled || cancellation.isCancelled {
-								streamCancelled = true
-								// Drain remaining output to release GPU memory
-								// (CoreAI keeps pending tokens on GPU until consumed or drained)
-								break
-							}
-							metrics.incrementGenerated()
-							if metrics.generatedTokenCount == 1 {
-								metrics.firstTokenMs = metrics.overallMs
-							}
-							continuation.yield(.init(kind: .token(
-								(output as? InferenceOutput)?.tokenId ?? 0
-							)))
-						}
-					} catch {
-						continuation.yield(.init(kind: .error(error.localizedDescription)))
-						return
-					}
+                    var streamCancelled = false
+                    do {
+                        for try await output in sequence {
+                            if Task.isCancelled || cancellation.isCancelled {
+                                streamCancelled = true
+                                // Drain remaining output to release GPU memory
+                                // (CoreAI keeps pending tokens on GPU until consumed or drained)
+                                break
+                            }
+                            metrics.incrementGenerated()
+                            if metrics.generatedTokenCount == 1 {
+                                metrics.firstTokenMs = metrics.overallMs
+                            }
+                            continuation.yield(.init(kind: .token(
+                                (output as? InferenceOutput)?.tokenId ?? 0
+                            )))
+                        }
+                    } catch {
+                        continuation.yield(.init(kind: .error(error.localizedDescription)))
+                        return
+                    }
 
-					if streamCancelled {
-						// Drain remaining tokens to free CoreAI GPU memory
-						// (upstream #113 fix: pipelined sequence retains output until consumed)
-						logger.debug("CoreAI stream cancelled — draining remaining output")
-						do {
-							for try await _ in sequence {}
-						} catch {
-							// Drain error — the stream was already cancelled, this is expected
-							logger.debug("CoreAI drain error: \(error.localizedDescription)")
-						}
-						continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: metrics.generatedTokenCount)))
-					} else if !Task.isCancelled {
-						// Read actual stop reason from sequence; default to maxTokens if unset
-						// (e.g., empty prefix-hit path or early termination edge case)
-						let stopReason: StopReason = sequence.stopReason?.stopReason ?? .maxTokens
-						continuation.yield(.init(kind: .done(stopReason, tokenCount: metrics.generatedTokenCount)))
-					}
+                    if streamCancelled {
+                        // Drain remaining tokens to free CoreAI GPU memory
+                        // (upstream #113 fix: pipelined sequence retains output until consumed)
+                        logger.debug("CoreAI stream cancelled — draining remaining output")
+                        do {
+                            for try await _ in sequence {}
+                        } catch {
+                            // Drain error — the stream was already cancelled, this is expected
+                            logger.debug("CoreAI drain error: \(error.localizedDescription)")
+                        }
+                        continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: metrics.generatedTokenCount)))
+                    } else if !Task.isCancelled {
+                        // Read actual stop reason from sequence; default to maxTokens if unset
+                        // (e.g., empty prefix-hit path or early termination edge case)
+                        let stopReason: StopReason = sequence.stopReason?.stopReason ?? .maxTokens
+                        continuation.yield(.init(kind: .done(stopReason, tokenCount: metrics.generatedTokenCount)))
+                    }
 
-					// CoreAI 34f0db3: no per-turn reset. KV cache persists across turns;
-					// TokenHistory.resolve manages prefix reuse and divergence rewind.
-					// Explicit reset only on model switch or hard error.
+                    // CoreAI 34f0db3: no per-turn reset. KV cache persists across turns;
+                    // TokenHistory.resolve manages prefix reuse and divergence rewind.
+                    // Explicit reset only on model switch or hard error.
 
-				} catch {
-					continuation.yield(.init(kind: .error(error.localizedDescription)))
-				}
-			} else {
-				// CoreAI unavailable on this macOS version
-				continuation.yield(.init(kind: .error("CoreAI requires macOS 27.0")))
-			}
-		#else
-			// [KNOWN LIMITATION] MLXLLM ChatSession only accepts [Chat.Message], not raw tokens.
-			// Detokenize → Message → re-tokenize path drops special control tokens
-			// (e.g. <|begin_of_thought|>, <|eot_id|>). Track upstream for promptTokens API:
-			// https://github.com/ml-explore/mlx-swift-examples/issues
-			// Mitigation: log warning when input may contain non-text tokens.
-			let promptText = await (try? detokenize(modelId: modelId, tokens: input))
-				?? "<detokenization failed>"
+                } catch {
+                    continuation.yield(.init(kind: .error(error.localizedDescription)))
+                }
+            } else {
+                // CoreAI unavailable on this macOS version
+                continuation.yield(.init(kind: .error("CoreAI requires macOS 27.0")))
+            }
+        #else
+            // [KNOWN LIMITATION] MLXLLM ChatSession only accepts [Chat.Message], not raw tokens.
+            // Detokenize → Message → re-tokenize path drops special control tokens
+            // (e.g. <|begin_of_thought|>, <|eot_id|>). Track upstream for promptTokens API:
+            // https://github.com/ml-explore/mlx-swift-examples/issues
+            // Mitigation: log warning when input may contain non-text tokens.
+            let promptText = await (try? detokenize(modelId: modelId, tokens: input))
+                ?? "<detokenization failed>"
 
-			// Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
-			// P0-fix: removed universal ASCII control chars (newline=198, ESC=27) — they fire on every request
-			// and flood the log. Only flag reasoning-specific tokens (<|begin_of_thought|>, <|eot_id|>).
-			let reasoningControlTokens = Set([151645, 151646]) // <|begin_of_thought|>, <|eot_id|>
-			if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
-				logger.warning("MLX token→text→token path may drop control tokens for model \(modelId)")
-			}
+            // Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
+            // P0-fix: removed universal ASCII control chars (newline=198, ESC=27) — they fire on every request
+            // and flood the log. Only flag reasoning-specific tokens (<|begin_of_thought|>, <|eot_id|>).
+            let reasoningControlTokens = Set([151645, 151646]) // <|begin_of_thought|>, <|eot_id|>
+            if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
+                logger.warning("MLX token→text→token path may drop control tokens for model \(modelId)")
+            }
 
-			let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
-			await _runInferenceWithMessages(
-				modelId: modelId,
-				messages: mlxMessages,
-				sampling: sampling,
-				options: options,
-				metrics: metrics,
-				continuation: continuation,
-				conversationId: nil,
-				cancellation: cancellation,
-				skipLock: true, // caller (_runInference) already holds inference guard
-			)
-		#endif
+            let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
+            await _runInferenceWithMessages(
+                modelId: modelId,
+                messages: mlxMessages,
+                sampling: sampling,
+                options: options,
+                metrics: metrics,
+                continuation: continuation,
+                conversationId: nil,
+                cancellation: cancellation,
+                skipLock: true, // caller (_runInference) already holds inference guard
+            )
+        #endif
 
-		metrics.inferenceMs = metrics.overallMs
-		continuation.finish()
-	}
+        metrics.inferenceMs = metrics.overallMs
+        continuation.finish()
+    }
 // MARK: - MLX Image Helper
 
-	/// Convert a string that may be a data URL (`data:image/…;base64,…`) or a
-	/// regular URL into an ``MLXLMCommon/UserInput/Image``.
-	/// Data URLs are decoded to `CIImage`; remote/local URLs are passed through.
-	/// Top-level free function — does not capture `self` (avoids Sendable taint).
-	nonisolated func makeMLXImage(from urlString: String) -> MLXLMCommon.UserInput.Image? {
-		// Handle data: URIs (camera/screen snapshots come as base64 data URLs)
-		if urlString.hasPrefix("data:") {
-			// Use the LAST comma — base64 payload or URL-encoded data may contain commas
-			if let lastComma = urlString.lastIndex(of: ",") {
-				let base64Data = String(urlString[urlString.index(after: lastComma)...])
-				guard let data = Data(base64Encoded: base64Data) else { return nil }
-				guard let ciImage = CIImage(data: data) else { return nil }
-				return .ciImage(ciImage)
-			}
+    /// Convert a string that may be a data URL (`data:image/…;base64,…`) or a
+    /// regular URL into an ``MLXLMCommon/UserInput/Image``.
+    /// Data URLs are decoded to `CIImage`; remote/local URLs are passed through.
+    /// Top-level free function — does not capture `self` (avoids Sendable taint).
+    nonisolated func makeMLXImage(from urlString: String) -> MLXLMCommon.UserInput.Image? {
+        // Handle data: URIs (camera/screen snapshots come as base64 data URLs)
+        if urlString.hasPrefix("data:") {
+            // Use the LAST comma — base64 payload or URL-encoded data may contain commas
+            if let lastComma = urlString.lastIndex(of: ",") {
+                let base64Data = String(urlString[urlString.index(after: lastComma)...])
+                guard let data = Data(base64Encoded: base64Data) else { return nil }
+                guard let ciImage = CIImage(data: data) else { return nil }
+                return .ciImage(ciImage)
+            }
 
-			return nil
-		}
+            return nil
+        }
 
-		// Fallback: regular URL (http, file, etc.)
-		if let url = URL(string: urlString) {
-			return .url(url)
-		}
+        // Fallback: regular URL (http, file, etc.)
+        if let url = URL(string: urlString) {
+            return .url(url)
+        }
 
-		return nil
-	}
+        return nil
+    }
 
-	/// Convert a string that may be a data URL (`data:audio/…;base64,…`) or a
-	/// regular URL into an ``MLXLMCommon/UserInput/Audio``.
-	/// Data URLs are decoded to a temp `.caf` file; remote/local URLs are passed through.
-	/// Top-level free function — does not capture `self` (avoids Sendable taint).
-	/// Returns the created temp file URL (if any) so callers can clean up after inference.
-	nonisolated func makeMLXAudio(from urlString: String) -> (audio: MLXLMCommon.UserInput.Audio?, tempURL: URL?) {
-		// Handle data: URIs (recordings come as base64 data URLs)
-		if urlString.hasPrefix("data:") {
-			// Use the LAST comma — base64 payload may contain commas
-			guard let lastComma = urlString.lastIndex(of: ",") else { return (nil, nil) }
-			let base64Data = String(urlString[urlString.index(after: lastComma)...])
-			guard let data = Data(base64Encoded: base64Data) else { return (nil, nil) }
-			// Write to temp file so AVAssetReader can decode it
-			let tmpName = "ocoreai_audio_\(UUID().uuidString.prefix(8)).caf"
-			let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(tmpName)
-			do {
-				try data.write(to: tmpURL)
-				return (.url(tmpURL), tmpURL)
-			} catch {
-				return (nil, nil)
-			}
-		}
+    /// Convert a string that may be a data URL (`data:audio/…;base64,…`) or a
+    /// regular URL into an ``MLXLMCommon/UserInput/Audio``.
+    /// Data URLs are decoded to a temp `.caf` file; remote/local URLs are passed through.
+    /// Top-level free function — does not capture `self` (avoids Sendable taint).
+    /// Returns the created temp file URL (if any) so callers can clean up after inference.
+    nonisolated func makeMLXAudio(from urlString: String) -> (audio: MLXLMCommon.UserInput.Audio?, tempURL: URL?) {
+        // Handle data: URIs (recordings come as base64 data URLs)
+        if urlString.hasPrefix("data:") {
+            // Use the LAST comma — base64 payload may contain commas
+            guard let lastComma = urlString.lastIndex(of: ",") else { return (nil, nil) }
+            let base64Data = String(urlString[urlString.index(after: lastComma)...])
+            guard let data = Data(base64Encoded: base64Data) else { return (nil, nil) }
+            // Write to temp file so AVAssetReader can decode it
+            let tmpName = "ocoreai_audio_\(UUID().uuidString.prefix(8)).caf"
+            let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(tmpName)
+            do {
+                try data.write(to: tmpURL)
+                return (.url(tmpURL), tmpURL)
+            } catch {
+                return (nil, nil)
+            }
+        }
 
-		// Fallback: regular URL (http, file, etc.) — no temp file created
-		if let url = URL(string: urlString) {
-			return (.url(url), nil)
-		}
+        // Fallback: regular URL (http, file, etc.) — no temp file created
+        if let url = URL(string: urlString) {
+            return (.url(url), nil)
+        }
 
-		return (nil, nil)
-	}
+        return (nil, nil)
+    }
 
-		// MARK: - MLX ToolCall Conversion
+        // MARK: - MLX ToolCall Conversion
 
-	/// Convert ocoreai ``ToolCall`` to upstream MLXLMCommon ``ToolCall``.
-	/// Top-level free function so it doesn't capture EnginePool self — avoids
-	/// Sendable taint in the inference body closure for WiredMemoryTicket.
-	nonisolated func mLXToolCall(from tc: ToolCall) -> MLXLMCommon.ToolCall {
-		func parseArgs(_ args: String) -> [String: any Sendable] {
-			let data = args.data(using: .utf8) ?? Data()
-			guard let obj = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
-				return [:]
-			}
-			var result: [String: any Sendable] = [:]
-			for (key, value) in obj {
-				switch value {
-				case let s as String: result[key] = s
-				case let d as Double: result[key] = d
-				case let i as Int: result[key] = i
-				case let b as Bool: result[key] = b
-				case let dict as [String: Any]: result[key] = _convJSONDict(dict)
-				default: break
-				}
-			}
-			return result
-		}
-		func _convJSONDict(_ dict: [String: Any]) -> any Sendable {
-			var result: [String: any Sendable] = [:]
-			for (k, v) in dict {
-				result[k] = _convJSON(v)
-			}
-			return result
-		}
-		func _convJSON(_ value: Any) -> any Sendable {
-			switch value {
-			case let s as String: return s
-			case let d as Double: return d
-			case let i as Int: return i
-			case let b as Bool: return b
-			case let dict as [String: Any]: return _convJSONDict(dict)
-			case let arr as [Any]:
-						let mapped = arr.map { _convJSON($0) }
-						// [any Sendable] conforms to Sendable
-						return mapped as any Sendable
-			default: return "null"
-			}
-		}
-		return MLXLMCommon.ToolCall(
-			function: MLXLMCommon.ToolCall.Function(
-				name: tc.function.name,
-				arguments: parseArgs(tc.function.arguments)
-			),
-			id: tc.id
-		)
-	}
+    /// Convert ocoreai ``ToolCall`` to upstream MLXLMCommon ``ToolCall``.
+    /// Top-level free function so it doesn't capture EnginePool self — avoids
+    /// Sendable taint in the inference body closure for WiredMemoryTicket.
+    nonisolated func mLXToolCall(from tc: ToolCall) -> MLXLMCommon.ToolCall {
+        func parseArgs(_ args: String) -> [String: any Sendable] {
+            let data = args.data(using: .utf8) ?? Data()
+            guard let obj = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+                return [:]
+            }
+            var result: [String: any Sendable] = [:]
+            for (key, value) in obj {
+                switch value {
+                case let s as String: result[key] = s
+                case let d as Double: result[key] = d
+                case let i as Int: result[key] = i
+                case let b as Bool: result[key] = b
+                case let dict as [String: Any]: result[key] = _convJSONDict(dict)
+                default: break
+                }
+            }
+            return result
+        }
+        func _convJSONDict(_ dict: [String: Any]) -> any Sendable {
+            var result: [String: any Sendable] = [:]
+            for (k, v) in dict {
+                result[k] = _convJSON(v)
+            }
+            return result
+        }
+        func _convJSON(_ value: Any) -> any Sendable {
+            switch value {
+            case let s as String: return s
+            case let d as Double: return d
+            case let i as Int: return i
+            case let b as Bool: return b
+            case let dict as [String: Any]: return _convJSONDict(dict)
+            case let arr as [Any]:
+                        let mapped = arr.map { _convJSON($0) }
+                        // [any Sendable] conforms to Sendable
+                        return mapped as any Sendable
+            default: return "null"
+            }
+        }
+        return MLXLMCommon.ToolCall(
+            function: MLXLMCommon.ToolCall.Function(
+                name: tc.function.name,
+                arguments: parseArgs(tc.function.arguments)
+            ),
+            id: tc.id
+        )
+    }
 
-	private func _runInferenceWithMessages(
-			modelId: String,
-			messages: [Message],
-			sampling: SamplingConfiguration,
-			options: InferenceOptions,
-			metrics: PerRequestMetrics,
-			continuation: AsyncThrowingStream<InferenceEvent, Error>.Continuation,
-			conversationId: String?,
-			cancellation: InferenceCancellation = .none,
-			skipLock: Bool = false,
-		) async {
-			// Query HardwareRouter for runtime compute channel decision.
-			// Channel drives session pool + speculative decoding for .cpu.
-			// Note: per-request device switching (GPU→CPU) is not possible — device
-			// is bound at ModelContainer load time. True CPU inference requires
-			// architectural change (separate ModelContainer with CPU device).
-			let computeChannel: ComputeChannel
-			if let router = hardwareRouter, let tracker = memoryTracker {
-				computeChannel = router.query(
-					gpuActiveBytes: await tracker.gpuActiveMemoryBytes(),
-					gpuBudgetBytes: await tracker.getBudget(),
-					priority: .chat
-				)
-				let gpuGB = String(format: "%.1f", Double(await tracker.gpuActiveMemoryBytes()) / 1_073_741_824.0)
-				let budgetGB = String(format: "%.1f", Double(await tracker.getBudget()) / 1_073_741_824.0)
-			
-				switch computeChannel {
-				case .gpu:
-					logger.debug("HardwareRouter → GPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB)")
-				case .cpu:
-					logger.warning("HardwareRouter → CPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB) — disabling session pool + speculative decoding")
-				case .ane:
-					#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-						logger.info("HardwareRouter → ANE for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB)")
-					#else
-						logger.warning("HardwareRouter → ANE for \(modelId) but CoreAI unavailable, falling back to GPU (gpu: \(gpuGB)/\(budgetGB) GB)")
-					#endif
-				}
-			} else {
-				computeChannel = .gpu
-				logger.debug("HardwareRouter not initialized, defaulting to GPU for \(modelId)")
-			}
+    private func _runInferenceWithMessages(
+            modelId: String,
+            messages: [Message],
+            sampling: SamplingConfiguration,
+            options: InferenceOptions,
+            metrics: PerRequestMetrics,
+            continuation: AsyncThrowingStream<InferenceEvent, Error>.Continuation,
+            conversationId: String?,
+            cancellation: InferenceCancellation = .none,
+            skipLock: Bool = false,
+        ) async {
+            // Query HardwareRouter for runtime compute channel decision.
+            // Channel drives session pool + speculative decoding for .cpu.
+            // Note: per-request device switching (GPU→CPU) is not possible — device
+            // is bound at ModelContainer load time. True CPU inference requires
+            // architectural change (separate ModelContainer with CPU device).
+            let computeChannel: ComputeChannel
+            if let router = hardwareRouter, let tracker = memoryTracker {
+                computeChannel = router.query(
+                    gpuActiveBytes: await tracker.gpuActiveMemoryBytes(),
+                    gpuBudgetBytes: await tracker.getBudget(),
+                    priority: .chat
+                )
+                let gpuGB = String(format: "%.1f", Double(await tracker.gpuActiveMemoryBytes()) / 1_073_741_824.0)
+                let budgetGB = String(format: "%.1f", Double(await tracker.getBudget()) / 1_073_741_824.0)
+            
+                switch computeChannel {
+                case .gpu:
+                    logger.debug("HardwareRouter → GPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB)")
+                case .cpu:
+                    logger.warning("HardwareRouter → CPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB) — disabling session pool + speculative decoding")
+                case .ane:
+                    #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+                        logger.info("HardwareRouter → ANE for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB)")
+                    #else
+                        logger.warning("HardwareRouter → ANE for \(modelId) but CoreAI unavailable, falling back to GPU (gpu: \(gpuGB)/\(budgetGB) GB)")
+                    #endif
+                }
+            } else {
+                computeChannel = .gpu
+                logger.debug("HardwareRouter not initialized, defaulting to GPU for \(modelId)")
+            }
 
-			guard let loaded = loadedModels[modelId] else {
-				continuation.yield(.init(kind: .error("Model not loaded: \(modelId)")))
-				continuation.finish()
-				return
-			}
+            guard let loaded = loadedModels[modelId] else {
+                continuation.yield(.init(kind: .error("Model not loaded: \(modelId)")))
+                continuation.finish()
+                return
+            }
 
-			// ANE path: delegate to _runInference → CoreAI engine (which supports ANE hardware)
-			// Skip MLX-specific setup (session pool, guided gen, spec decoding) which requires GPU.
-			#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-				if computeChannel == .ane {
-					logger.info("ANE channel: routing model \(modelId) through CoreAI engine")
-					do {
-						let tokens = try await tokenize(modelId: modelId, messages: messages)
-						let count = tokens.count
-						if count > loaded.modelConfig.maxContextLength {
-							continuation.yield(.init(kind: .error(
-								"Input \(count) exceeds max context \(loaded.modelConfig.maxContextLength)")))
-							continuation.finish()
-							return
-						}
-						metrics.promptTokenCount = count
-						metrics.start()
-						await _runInference(
-							modelId: modelId,
-							input: tokens,
-							sampling: sampling,
-							options: options,
-							metrics: metrics,
-							continuation: continuation,
-							cancellation: cancellation
-						)
-					} catch {
-						continuation.yield(.init(kind: .error(error.localizedDescription)))
-						continuation.finish()
-						return
-					}
-					return
-				}
-			#endif
+            // ANE path: delegate to _runInference → CoreAI engine (which supports ANE hardware)
+            // Skip MLX-specific setup (session pool, guided gen, spec decoding) which requires GPU.
+            #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+                if computeChannel == .ane {
+                    logger.info("ANE channel: routing model \(modelId) through CoreAI engine")
+                    do {
+                        let tokens = try await tokenize(modelId: modelId, messages: messages)
+                        let count = tokens.count
+                        if count > loaded.modelConfig.maxContextLength {
+                            continuation.yield(.init(kind: .error(
+                                "Input \(count) exceeds max context \(loaded.modelConfig.maxContextLength)")))
+                            continuation.finish()
+                            return
+                        }
+                        metrics.promptTokenCount = count
+                        metrics.start()
+                        await _runInference(
+                            modelId: modelId,
+                            input: tokens,
+                            sampling: sampling,
+                            options: options,
+                            metrics: metrics,
+                            continuation: continuation,
+                            cancellation: cancellation
+                        )
+                    } catch {
+                        continuation.yield(.init(kind: .error(error.localizedDescription)))
+                        continuation.finish()
+                        return
+                    }
+                    return
+                }
+            #endif
 
-			let tokenCount: Int
-			do {
-			let tokens = try await tokenize(modelId: modelId, messages: messages)
-			tokenCount = tokens.count
-			if tokenCount > loaded.modelConfig.maxContextLength {
-				continuation.yield(.init(kind: .error(
-					"Input \(tokenCount) exceeds max context \(loaded.modelConfig.maxContextLength)",
-				)))
-				continuation.finish()
-				return
-			}
-			} catch {
-			/// Fallback: mlx containers have their own tokenizer, use heuristic estimate
-			/// P1-fix: CJK-aware estimation — UTF-8 bytes/4 overestimates for CJK text
-			/// (CJK chars are 3 bytes UTF-8 but ~1.5 tokens on average, not 1).
-			/// Use bytes/3 for CJK-heavy content, bytes/4 for Latin-heavy.
-			/// Character-level detection: if avg bytes per char > 1.5, likely CJK.
-			logger.warning("Tokenization failed, using heuristic estimate for metrics — \(error.localizedDescription)")
-			let totalBytes = messages.reduce(0) { $0 + $1.textContent().utf8.count }
-			let totalChars = messages.reduce(0) { $0 + $1.textContent().count }
-			let avgBytesPerChar = totalChars > 0 ? Double(totalBytes) / Double(totalChars) : 1.0
-			// CJK threshold: avg bytes/char > 1.5 indicates non-Latin dominant text
-			let divisor = avgBytesPerChar > 1.5 ? 3 : 4
-			tokenCount = max(1, Int(Double(totalBytes) / Double(divisor)))
-			}
+            let tokenCount: Int
+            do {
+            let tokens = try await tokenize(modelId: modelId, messages: messages)
+            tokenCount = tokens.count
+            if tokenCount > loaded.modelConfig.maxContextLength {
+                continuation.yield(.init(kind: .error(
+                    "Input \(tokenCount) exceeds max context \(loaded.modelConfig.maxContextLength)",
+                )))
+                continuation.finish()
+                return
+            }
+            } catch {
+            /// Fallback: mlx containers have their own tokenizer, use heuristic estimate
+            /// P1-fix: CJK-aware estimation — UTF-8 bytes/4 overestimates for CJK text
+            /// (CJK chars are 3 bytes UTF-8 but ~1.5 tokens on average, not 1).
+            /// Use bytes/3 for CJK-heavy content, bytes/4 for Latin-heavy.
+            /// Character-level detection: if avg bytes per char > 1.5, likely CJK.
+            logger.warning("Tokenization failed, using heuristic estimate for metrics — \(error.localizedDescription)")
+            let totalBytes = messages.reduce(0) { $0 + $1.textContent().utf8.count }
+            let totalChars = messages.reduce(0) { $0 + $1.textContent().count }
+            let avgBytesPerChar = totalChars > 0 ? Double(totalBytes) / Double(totalChars) : 1.0
+            // CJK threshold: avg bytes/char > 1.5 indicates non-Latin dominant text
+            let divisor = avgBytesPerChar > 1.5 ? 3 : 4
+            tokenCount = max(1, Int(Double(totalBytes) / Double(divisor)))
+            }
 
-			metrics.promptTokenCount = tokenCount
-			metrics.start()
+            metrics.promptTokenCount = tokenCount
+            metrics.start()
 
-			// skipLock: caller already holds inference guard (e.g. _runInference delegate path)
-			var lockHeldByUs = false
-			if !skipLock {
-				guard loaded.tryAcquireInference() else {
-					continuation.yield(.init(kind: .error("Engine busy")))
-					continuation.finish()
-					return
-				}
-				lockHeldByUs = true
-			}
-			defer { if lockHeldByUs { loaded.releaseInference() } }
+            // skipLock: caller already holds inference guard (e.g. _runInference delegate path)
+            var lockHeldByUs = false
+            if !skipLock {
+                guard loaded.tryAcquireInference() else {
+                    continuation.yield(.init(kind: .error("Engine busy")))
+                    continuation.finish()
+                    return
+                }
+                lockHeldByUs = true
+            }
+            defer { if lockHeldByUs { loaded.releaseInference() } }
 
-			guard let mlxHandle = loaded.mlxModelHandle else {
-				continuation.yield(.init(kind: .error("MLX model handle not loaded: \(modelId)")))
-				continuation.finish()
-				return
-			}
+            guard let mlxHandle = loaded.mlxModelHandle else {
+                continuation.yield(.init(kind: .error("MLX model handle not loaded: \(modelId)")))
+                continuation.finish()
+                return
+            }
 
-			// Convert messages to MLX format, collecting temp audio file URLs for later cleanup.
-			// Data: audio URLs are decoded to /tmp .caf files — we must delete them after
-			// inference completes (success or failure) to prevent disk leaks.
-			var tempAudioURLs: [URL] = []
-			defer {
-				for url in tempAudioURLs {
-					try? FileManager.default.removeItem(at: url)
-				}
-			}
+            // Convert messages to MLX format, collecting temp audio file URLs for later cleanup.
+            // Data: audio URLs are decoded to /tmp .caf files — we must delete them after
+            // inference completes (success or failure) to prevent disk leaks.
+            var tempAudioURLs: [URL] = []
+            defer {
+                for url in tempAudioURLs {
+                    try? FileManager.default.removeItem(at: url)
+                }
+            }
 
-			let mlxMessages: [Chat.Message] = messages.map { msg in
-				let role: Chat.Message.Role = switch msg.role {
-				case "system": .system
-				case "assistant": .assistant
-				case "tool": .tool
-				default: .user
-				}
+            let mlxMessages: [Chat.Message] = messages.map { msg in
+                let role: Chat.Message.Role = switch msg.role {
+                case "system": .system
+                case "assistant": .assistant
+                case "tool": .tool
+                default: .user
+                }
 
-				// Assistant with tool calls — use factory with toolCalls param
-				if let tcs = msg.toolCalls, !tcs.isEmpty {
-					let mlxTCs = tcs.map { mLXToolCall(from: $0) }
-					return Chat.Message.assistant("", toolCalls: mlxTCs)
-				}
+                // Assistant with tool calls — use factory with toolCalls param
+                if let tcs = msg.toolCalls, !tcs.isEmpty {
+                    let mlxTCs = tcs.map { mLXToolCall(from: $0) }
+                    return Chat.Message.assistant("", toolCalls: mlxTCs)
+                }
 
-				// Tool result — use factory with id param for tool call correlation
-				if msg.role == "tool", let tid = msg.toolCallID {
-					let contentStr = contentToString(msg.content).0
-					return Chat.Message.tool(contentStr, id: tid)
-				}
+                // Tool result — use factory with id param for tool call correlation
+                if msg.role == "tool", let tid = msg.toolCallID {
+                    let contentStr = contentToString(msg.content).0
+                    return Chat.Message.tool(contentStr, id: tid)
+                }
 
-				// Default: content-based construction via general init
-				switch msg.content {
-				case let .text(text):
-					return Chat.Message(role: role, content: text)
-				case let .parts(parts):
-					var textParts: [String] = []
-					var images: [MLXLMCommon.UserInput.Image] = []
-					var videos: [MLXLMCommon.UserInput.Video] = []
-					var audios: [MLXLMCommon.UserInput.Audio] = []
-					for part in parts {
-						if let text = part.text {
-							textParts.append(text)
-						}
-						if let img = part.imageUrl, let image = makeMLXImage(from: img.url) {
-							images.append(image)
-						}
-						if let video = part.videoUrl {
-							// Video URL into VLM — upstream processes frames via Gemma4Processor
-							if let url = URL(string: video.url) {
-								videos.append(.url(url))
-							}
-						}
-						if let audio = part.audioURL {
-							// Data URLs are decoded to temp .caf files via makeMLXAudio helper
-							let result = makeMLXAudio(from: audio.url)
-							if let audioInput = result.audio {
-								audios.append(audioInput)
-							}
-							if let tempFile = result.tempURL {
-								tempAudioURLs.append(tempFile)
-							}
-						}
-					}
-					return Chat.Message(
-						role: role,
-						content: textParts.joined(separator: " "),
-						images: images,
-						videos: videos,
-						audios: audios,
-					)
-				case nil:
-					return Chat.Message(role: role, content: "")
-				}
-			}
+                // Default: content-based construction via general init
+                switch msg.content {
+                case let .text(text):
+                    return Chat.Message(role: role, content: text)
+                case let .parts(parts):
+                    var textParts: [String] = []
+                    var images: [MLXLMCommon.UserInput.Image] = []
+                    var videos: [MLXLMCommon.UserInput.Video] = []
+                    var audios: [MLXLMCommon.UserInput.Audio] = []
+                    for part in parts {
+                        if let text = part.text {
+                            textParts.append(text)
+                        }
+                        if let img = part.imageUrl, let image = makeMLXImage(from: img.url) {
+                            images.append(image)
+                        }
+                        if let video = part.videoUrl {
+                            // Video URL into VLM — upstream processes frames via Gemma4Processor
+                            if let url = URL(string: video.url) {
+                                videos.append(.url(url))
+                            }
+                        }
+                        if let audio = part.audioURL {
+                            // Data URLs are decoded to temp .caf files via makeMLXAudio helper
+                            let result = makeMLXAudio(from: audio.url)
+                            if let audioInput = result.audio {
+                                audios.append(audioInput)
+                            }
+                            if let tempFile = result.tempURL {
+                                tempAudioURLs.append(tempFile)
+                            }
+                        }
+                    }
+                    return Chat.Message(
+                        role: role,
+                        content: textParts.joined(separator: " "),
+                        images: images,
+                        videos: videos,
+                        audios: audios,
+                    )
+                case nil:
+                    return Chat.Message(role: role, content: "")
+                }
+            }
 
-			let genParams = makeGenerateParameters(
-				from: sampling,
-				maxTokens: options.maxTokens,
-				kvCacheQuant: config.kvCacheQuantization,
-			)
+            let genParams = makeGenerateParameters(
+                from: sampling,
+                maxTokens: options.maxTokens,
+                kvCacheQuant: config.kvCacheQuantization,
+            )
 
-			// Build speculative decoding config once before inference body.
-			// CPU channel: disable session pool + speculative decoding (no shared memory, no Metal kernel).
-			let specConfig: MLXLMCommon.SpeculativeDecodingConfig?
-			if computeChannel == .cpu {
-				specConfig = nil
-			} else {
-				specConfig = loaded.createSpeculativeConfig()
-			}
+            // Build speculative decoding config once before inference body.
+            // CPU channel: disable session pool + speculative decoding (no shared memory, no Metal kernel).
+            let specConfig: MLXLMCommon.SpeculativeDecodingConfig?
+            if computeChannel == .cpu {
+                specConfig = nil
+            } else {
+                specConfig = loaded.createSpeculativeConfig()
+            }
 
-			// Request-level stop sequences — pull out before inference body to avoid self-capture
-			let requestStopSequences = (sampling.stopSequences ?? []).filter { !$0.isEmpty }
+            // Request-level stop sequences — pull out before inference body to avoid self-capture
+            let requestStopSequences = (sampling.stopSequences ?? []).filter { !$0.isEmpty }
 
-			// Hoist sessionPool, mlxHandle, logger before creating inference closure.
-			// CPU channel: bypass session pool (KV cache not reusable across device boundaries).
-			let poolRef: MLXSessionPool?
-			if computeChannel == .cpu {
-				poolRef = nil
-			} else {
-				poolRef = sessionPool
-			}
-			let handleRef = mlxHandle
-			let log = self.logger
+            // Hoist sessionPool, mlxHandle, logger before creating inference closure.
+            // CPU channel: bypass session pool (KV cache not reusable across device boundaries).
+            let poolRef: MLXSessionPool?
+            if computeChannel == .cpu {
+                poolRef = nil
+            } else {
+                poolRef = sessionPool
+            }
+            let handleRef = mlxHandle
+            let log = self.logger
 
-			// handleGuidedGeneration: MLXGuidedGeneration grammar-constrained path
-			/// Bridges GuidedGenerationLoop (sync emit callback) → SSE continuation.
-			/// All inference within modelContainer.perform for thread-safe ModelContext.
-			func handleGuidedGeneration(
-				messagePairs: [(role: String, content: String)],
-				grammarSchema: String,
-				maxTokens: Int,
-			) async throws {
-				try await handleRef.modelContainer.perform { context in
-					// Rebuild Chat.Message inside the @Sendable closure to avoid
-					// cross-actor capture of non-Sendable [Chat.Message].
-					var messages = messagePairs.map { pair in
-						Chat.Message(
-							role: Chat.Message.Role(rawValue: pair.role) ?? .system,
-							content: pair.content
-						)
-					}
-					// Strip trailing empty assistant message so the chat template
-					// leaves the assistant turn open for generation — mirrors upstream
-					// MLXChatExample pattern (see upstream L104-107)
-					if let last = messages.last, last.role == .assistant, last.content.isEmpty {
-						messages.removeLast()
-					}
-					// Pass processing params (resize) to control VLM image scale — mirrors
-					// MLXChatExample: UserInput.Processing(resize: CGSize(width:1024, height:1024))
-					// Default 1024x1024 limits token overhead from high-res camera frames while
-					// preserving enough detail for VLM understanding.
-					let uiProcessing = UserInput.Processing(resize: .init(width: 1024, height: 1024))
-					let userInput = UserInput(prompt: .chat(messages), processing: uiProcessing)
-					let lmInput = try await context.processor.prepare(input: userInput)
+            // handleGuidedGeneration: MLXGuidedGeneration grammar-constrained path
+            /// Bridges GuidedGenerationLoop (sync emit callback) → SSE continuation.
+            /// All inference within modelContainer.perform for thread-safe ModelContext.
+            func handleGuidedGeneration(
+                messagePairs: [(role: String, content: String)],
+                grammarSchema: String,
+                maxTokens: Int,
+            ) async throws {
+                try await handleRef.modelContainer.perform { context in
+                    // Rebuild Chat.Message inside the @Sendable closure to avoid
+                    // cross-actor capture of non-Sendable [Chat.Message].
+                    var messages = messagePairs.map { pair in
+                        Chat.Message(
+                            role: Chat.Message.Role(rawValue: pair.role) ?? .system,
+                            content: pair.content
+                        )
+                    }
+                    // Strip trailing empty assistant message so the chat template
+                    // leaves the assistant turn open for generation — mirrors upstream
+                    // MLXChatExample pattern (see upstream L104-107)
+                    if let last = messages.last, last.role == .assistant, last.content.isEmpty {
+                        messages.removeLast()
+                    }
+                    // Pass processing params (resize) to control VLM image scale — mirrors
+                    // MLXChatExample: UserInput.Processing(resize: CGSize(width:1024, height:1024))
+                    // Default 1024x1024 limits token overhead from high-res camera frames while
+                    // preserving enough detail for VLM understanding.
+                    let uiProcessing = UserInput.Processing(resize: .init(width: 1024, height: 1024))
+                    let userInput = UserInput(prompt: .chat(messages), processing: uiProcessing)
+                    let lmInput = try await context.processor.prepare(input: userInput)
 
-					// Build GrammarTokenizer from the model's tokenizer — canonical path
-					// mirrors MLXFoundationModels.MLXLanguageModel.makeGrammarTokenizer.
-					let grammarVocab = TokenizerVocabExtractor.extractForGrammar(from: context.tokenizer)
-					let grammarTokenizer: GrammarTokenizer
-					do {
-						grammarTokenizer = try GrammarTokenizer(
-							vocab: grammarVocab.vocab,
-							vocabType: grammarVocab.vocabType,
-							eosTokenId: Int32(context.tokenizer.eosTokenId ?? 0),
-						)
-					} catch {
-						continuation.yield(.init(kind: .error(
-							"GrammarTokenizer build failed: \(error.localizedDescription)")))
-						return
-					}
+                    // Build GrammarTokenizer from the model's tokenizer — canonical path
+                    // mirrors MLXFoundationModels.MLXLanguageModel.makeGrammarTokenizer.
+                    let grammarVocab = TokenizerVocabExtractor.extractForGrammar(from: context.tokenizer)
+                    let grammarTokenizer: GrammarTokenizer
+                    do {
+                        grammarTokenizer = try GrammarTokenizer(
+                            vocab: grammarVocab.vocab,
+                            vocabType: grammarVocab.vocabType,
+                            eosTokenId: Int32(context.tokenizer.eosTokenId ?? 0),
+                        )
+                    } catch {
+                        continuation.yield(.init(kind: .error(
+                            "GrammarTokenizer build failed: \(error.localizedDescription)")))
+                        return
+                    }
 
-					// Build GrammarConstraint from JSON schema string via native compile path
-					let constraint: GrammarConstraint
-					do {
-						constraint = try GrammarConstraint(
-							tokenizer: grammarTokenizer,
-							jsonSchema: grammarSchema,
-						)
-					} catch {
-						continuation.yield(.init(kind: .error(
-							"GrammarConstraint build failed: \(error.localizedDescription)")))
-						return
-					}
+                    // Build GrammarConstraint from JSON schema string via native compile path
+                    let constraint: GrammarConstraint
+                    do {
+                        constraint = try GrammarConstraint(
+                            tokenizer: grammarTokenizer,
+                            jsonSchema: grammarSchema,
+                        )
+                    } catch {
+                        continuation.yield(.init(kind: .error(
+                            "GrammarConstraint build failed: \(error.localizedDescription)")))
+                        return
+                    }
 
-					// Token count tracking for guided path
-						var guidedTokenCount = 0
-						var firstYielded = false
-						var guidedAccumulated = "" // for stop-sequence matching
+                    // Token count tracking for guided path
+                        var guidedTokenCount = 0
+                        var firstYielded = false
+                        var guidedAccumulated = "" // for stop-sequence matching
 
-						// GuidedGenerationDiagnosticSink: zero-cost in production (TaskLocal,
-						// nil when unbound). Binds here so upstream recording sites in
-						// GuidedGenerationLoop capture token IDs, termination reason, and
-						// buffer integrity — structured data for debugging guided gen failures.
-						let diagnosticSink = GuidedGenerationDiagnosticSink()
-						let diagnosticResult: GuidedGenerationDiagnosticResult
-				
-						do {
-							diagnosticResult = try GuidedGenerationDiagnosticSink.$current.withValue(diagnosticSink) {
-								// Run GuidedGenerationLoop with emit callback → SSE yield
-								let tokenCount = try GuidedGenerationLoop.run(
-									input: lmInput,
-									context: context,
-									constraint: constraint,
-									maxTokens: maxTokens,
-									vocabSize: Int(loaded.modelConfig.vocabSize),
-									kvBits: genParams.kvBits,
-									kvGroupSize: genParams.kvGroupSize,
-									quantizedKVStart: genParams.quantizedKVStart,
-								) { text in
-									guard !Task.isCancelled && !cancellation.isCancelled else {
-										continuation.yield(.init(
-											kind: .done(StopReason.cancelled,
-												tokenCount: guidedTokenCount)))
-										return false
-									}
-									// Record TTFT on first text chunk
-									if !firstYielded {
-										metrics.firstTokenMs = metrics.overallMs
-										firstYielded = true
-									}
-									metrics.incrementGenerated()
-									guidedTokenCount += 1
-									guidedAccumulated += text
-									// Check stop sequences in guided path
-									if let match = requestStopSequences.first(where: { guidedAccumulated.hasSuffix($0) }) {
-										let trimmed = String(guidedAccumulated.prefix(guidedAccumulated.count - match.count))
-										if !trimmed.isEmpty {
-											continuation.yield(.init(kind: .text(trimmed)))
-										}
-										continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: guidedTokenCount)))
-										return false
-									}
-									continuation.yield(.init(kind: .text(text)))
-									return true
-								}
-								// Snapshot diagnostics after loop completes
-								return .success(tokenCount: tokenCount, sink: diagnosticSink)
-							}
+                        // GuidedGenerationDiagnosticSink: zero-cost in production (TaskLocal,
+                        // nil when unbound). Binds here so upstream recording sites in
+                        // GuidedGenerationLoop capture token IDs, termination reason, and
+                        // buffer integrity — structured data for debugging guided gen failures.
+                        let diagnosticSink = GuidedGenerationDiagnosticSink()
+                        let diagnosticResult: GuidedGenerationDiagnosticResult
+                
+                        do {
+                            diagnosticResult = try GuidedGenerationDiagnosticSink.$current.withValue(diagnosticSink) {
+                                // Run GuidedGenerationLoop with emit callback → SSE yield
+                                let tokenCount = try GuidedGenerationLoop.run(
+                                    input: lmInput,
+                                    context: context,
+                                    constraint: constraint,
+                                    maxTokens: maxTokens,
+                                    vocabSize: Int(loaded.modelConfig.vocabSize),
+                                    kvBits: genParams.kvBits,
+                                    kvGroupSize: genParams.kvGroupSize,
+                                    quantizedKVStart: genParams.quantizedKVStart,
+                                ) { text in
+                                    guard !Task.isCancelled && !cancellation.isCancelled else {
+                                        continuation.yield(.init(
+                                            kind: .done(StopReason.cancelled,
+                                                tokenCount: guidedTokenCount)))
+                                        return false
+                                    }
+                                    // Record TTFT on first text chunk
+                                    if !firstYielded {
+                                        metrics.firstTokenMs = metrics.overallMs
+                                        firstYielded = true
+                                    }
+                                    metrics.incrementGenerated()
+                                    guidedTokenCount += 1
+                                    guidedAccumulated += text
+                                    // Check stop sequences in guided path
+                                    if let match = requestStopSequences.first(where: { guidedAccumulated.hasSuffix($0) }) {
+                                        let trimmed = String(guidedAccumulated.prefix(guidedAccumulated.count - match.count))
+                                        if !trimmed.isEmpty {
+                                            continuation.yield(.init(kind: .text(trimmed)))
+                                        }
+                                        continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: guidedTokenCount)))
+                                        return false
+                                    }
+                                    continuation.yield(.init(kind: .text(text)))
+                                    return true
+                                }
+                                // Snapshot diagnostics after loop completes
+                                return .success(tokenCount: tokenCount, sink: diagnosticSink)
+                            }
 
-							// Complete guided generation
-							if !Task.isCancelled && !cancellation.isCancelled {
-								switch diagnosticResult {
-								case .success(let tc, _):
-									logGuidedGen(log,
-										modelId: modelId,
-										grammarTerminated: diagnosticSink.grammarTerminated,
-										tokenCount: tc,
-										sampledTokens: diagnosticSink.sampledTokenIDs.count,
-										fastForwardTokens: diagnosticSink.fastForwardTokenIDs.count,
-										incomplete: diagnosticSink.incompleteOutput,
-										finalBufferPresent: diagnosticSink.finalBuffer != nil,
-										parsedAsToolCall: diagnosticSink.parsedAsToolCall,
-										parsedName: diagnosticSink.parsedName)
-									continuation.yield(.init(
-										kind: .done(.eos, tokenCount: tc)))
-								}
-							}
-						} catch {
-							// Log diagnostic data even on failure — grammar/schema mismatch
-							// is one of the hardest-to-debug guided gen issues.
-							logGuidedGenError(log,
-								modelId: modelId,
-								error: error,
-								grammarTerminated: diagnosticSink.grammarTerminated,
-								tokenCountBeforeFailure: diagnosticSink.generatedTokenCount,
-								sampledTokens: diagnosticSink.sampledTokenIDs.count,
-								fastForwardTokens: diagnosticSink.fastForwardTokenIDs.count,
-								incomplete: diagnosticSink.incompleteOutput,
-								finalBuffer: diagnosticSink.finalBuffer)
-							throw error
-						}
-				}
-			}
+                            // Complete guided generation
+                            if !Task.isCancelled && !cancellation.isCancelled {
+                                switch diagnosticResult {
+                                case .success(let tc, _):
+                                    logGuidedGen(log,
+                                        modelId: modelId,
+                                        grammarTerminated: diagnosticSink.grammarTerminated,
+                                        tokenCount: tc,
+                                        sampledTokens: diagnosticSink.sampledTokenIDs.count,
+                                        fastForwardTokens: diagnosticSink.fastForwardTokenIDs.count,
+                                        incomplete: diagnosticSink.incompleteOutput,
+                                        finalBufferPresent: diagnosticSink.finalBuffer != nil,
+                                        parsedAsToolCall: diagnosticSink.parsedAsToolCall,
+                                        parsedName: diagnosticSink.parsedName)
+                                    continuation.yield(.init(
+                                        kind: .done(.eos, tokenCount: tc)))
+                                }
+                            }
+                        } catch {
+                            // Log diagnostic data even on failure — grammar/schema mismatch
+                            // is one of the hardest-to-debug guided gen issues.
+                            logGuidedGenError(log,
+                                modelId: modelId,
+                                error: error,
+                                grammarTerminated: diagnosticSink.grammarTerminated,
+                                tokenCountBeforeFailure: diagnosticSink.generatedTokenCount,
+                                sampledTokens: diagnosticSink.sampledTokenIDs.count,
+                                fastForwardTokens: diagnosticSink.fastForwardTokenIDs.count,
+                                incomplete: diagnosticSink.incompleteOutput,
+                                finalBuffer: diagnosticSink.finalBuffer)
+                            throw error
+                        }
+                }
+            }
 
-			// runInferenceBody: session acquisition → generation → pool release
-			/// When useGuidedGeneration is true, routes through GuidedGenerationLoop
-			/// for grammar-constrained output (tool calls, JSON schema).
-			/// Otherwise uses upstream ChatSession.streamDetails for standard generation.
-			///
-			/// Bridge: when tools are registered, we pass them to ChatSession along with
-			/// a toolDispatch closure that routes ToolCall → ToolRegistry.call() and back.
-			/// This activates the ChatSession's built-in tool-dispatch agent loop (L774-817)
-			/// instead of relying solely on the local AgentLoop coordinator.
-			func runInferenceBody() async throws {
-				let convKey: String = conversationId ?? "\(modelId):ephemeral"
-				var isPoolHit = false
-				var deltaOffset = 0
-				var chatSession: ChatSession?
-				var registeredToolSpecs: [ToolSpec]?
+            // runInferenceBody: session acquisition → generation → pool release
+            /// When useGuidedGeneration is true, routes through GuidedGenerationLoop
+            /// for grammar-constrained output (tool calls, JSON schema).
+            /// Otherwise uses upstream ChatSession.streamDetails for standard generation.
+            ///
+            /// Bridge: when tools are registered, we pass them to ChatSession along with
+            /// a toolDispatch closure that routes ToolCall → ToolRegistry.call() and back.
+            /// This activates the ChatSession's built-in tool-dispatch agent loop (L774-817)
+            /// instead of relying solely on the local AgentLoop coordinator.
+            func runInferenceBody() async throws {
+                let convKey: String = conversationId ?? "\(modelId):ephemeral"
+                var isPoolHit = false
+                var deltaOffset = 0
+                var chatSession: ChatSession?
+                var registeredToolSpecs: [ToolSpec]?
 
-				// Bridge ToolRegistry → ChatSession tools + toolDispatch
-				if let registry = toolRegistry {
-					let specs = await registry.toToolSpecs()
-					if !specs.isEmpty {
-						registeredToolSpecs = specs
-					}
-				}
+                // Bridge ToolRegistry → ChatSession tools + toolDispatch
+                if let registry = toolRegistry {
+                    let specs = await registry.toToolSpecs()
+                    if !specs.isEmpty {
+                        registeredToolSpecs = specs
+                    }
+                }
 
-				// ChatSession path: acquire or create session
-				// Always create chatSession — guided path (grammarSchema) and MTP/standard path
-		// all consume the shared chatSession variable below. Even when useGuidedGeneration
-		// is true, the guided path may fall through (e.g., multimodal + grammar conflict)
-		// and still need a valid session.
-					// Hoist registry ref before closure — ToolRegistry is an actor, capture is safe
-					if let pool = poolRef {
-						let acquired = await pool.acquire(
-							from: handleRef.modelContainer,
-							modelId: modelId,
-							conversationId: convKey,
-							genParams: genParams,
-							speculativeDecoding: specConfig,
-						)
-						chatSession = acquired.pooled.session
-						isPoolHit = acquired.isHit
-						deltaOffset = acquired.pooled.messageCount
-						if isPoolHit {
-							log.debug("Pool HIT for \(convKey) — KV cache reused (offset=\(deltaOffset))")
-						}
-						// Inject tools + toolDispatch into pooled session
-						if let specs = registeredToolSpecs {
-							chatSession?.tools = specs
-							if let registry = toolRegistry {
-								chatSession?.toolDispatch = { toolCall in
-									let argsData = toolCall.function.arguments.mapValues { $0.anyValue }
-									let jsonEncoded = try JSONSerialization.data(
-										withJSONObject: argsData
-									)
-									let argsString = String(decoding: jsonEncoded, as: UTF8.self)
-									return try await registry.call(toolCall.function.name, arguments: argsString)
-								}
-							}
-						}
-						} else {
-						let spec: MLXLMCommon.SpeculativeDecodingConfig? = specConfig
-						let gp: MLXLMCommon.GenerateParameters = genParams
-						let toolSpecs: [ToolSpec]? = registeredToolSpecs
-						var toolDispatchClosure: (@Sendable (MLXLMCommon.ToolCall) async throws -> String)? = nil
-						if toolSpecs != nil, let registry = toolRegistry {
-							toolDispatchClosure = { toolCall in
-								let argsDict = toolCall.function.arguments.mapValues { $0.anyValue }
-								let jsonEncoded = try JSONSerialization.data(
-									withJSONObject: argsDict
-								)
-								let argsString = String(decoding: jsonEncoded, as: UTF8.self)
-								return try await registry.call(toolCall.function.name, arguments: argsString)
-							}
-						}
-						/// ChatSession creation — includes reasoning toggle if enabled.
-						let additionalContext: [String: any Sendable]? =
-							options.enableReasoning ? ["enable_thinking": true] : nil
+                // ChatSession path: acquire or create session
+                // Always create chatSession — guided path (grammarSchema) and MTP/standard path
+        // all consume the shared chatSession variable below. Even when useGuidedGeneration
+        // is true, the guided path may fall through (e.g., multimodal + grammar conflict)
+        // and still need a valid session.
+                    // Hoist registry ref before closure — ToolRegistry is an actor, capture is safe
+                    if let pool = poolRef {
+                        let acquired = await pool.acquire(
+                            from: handleRef.modelContainer,
+                            modelId: modelId,
+                            conversationId: convKey,
+                            genParams: genParams,
+                            speculativeDecoding: specConfig,
+                        )
+                        chatSession = acquired.pooled.session
+                        isPoolHit = acquired.isHit
+                        deltaOffset = acquired.pooled.messageCount
+                        if isPoolHit {
+                            log.debug("Pool HIT for \(convKey) — KV cache reused (offset=\(deltaOffset))")
+                        }
+                        // Inject tools + toolDispatch into pooled session
+                        if let specs = registeredToolSpecs {
+                            chatSession?.tools = specs
+                            if let registry = toolRegistry {
+                                chatSession?.toolDispatch = { toolCall in
+                                    let argsData = toolCall.function.arguments.mapValues { $0.anyValue }
+                                    let jsonEncoded = try JSONSerialization.data(
+                                        withJSONObject: argsData
+                                    )
+                                    let argsString = String(decoding: jsonEncoded, as: UTF8.self)
+                                    return try await registry.call(toolCall.function.name, arguments: argsString)
+                                }
+                            }
+                        }
+                        } else {
+                        let spec: MLXLMCommon.SpeculativeDecodingConfig? = specConfig
+                        let gp: MLXLMCommon.GenerateParameters = genParams
+                        let toolSpecs: [ToolSpec]? = registeredToolSpecs
+                        var toolDispatchClosure: (@Sendable (MLXLMCommon.ToolCall) async throws -> String)? = nil
+                        if toolSpecs != nil, let registry = toolRegistry {
+                            toolDispatchClosure = { toolCall in
+                                let argsDict = toolCall.function.arguments.mapValues { $0.anyValue }
+                                let jsonEncoded = try JSONSerialization.data(
+                                    withJSONObject: argsDict
+                                )
+                                let argsString = String(decoding: jsonEncoded, as: UTF8.self)
+                                return try await registry.call(toolCall.function.name, arguments: argsString)
+                            }
+                        }
+                        /// ChatSession creation — includes reasoning toggle if enabled.
+                        let additionalContext: [String: any Sendable]? =
+                            options.enableReasoning ? ["enable_thinking": true] : nil
 
-						chatSession = ChatSession(
-							handleRef.modelContainer,
-							speculativeDecoding: spec,
-							generateParameters: gp,
-							additionalContext: additionalContext,
-							tools: toolSpecs,
-							toolDispatch: toolDispatchClosure
-						)
-						}
+                        chatSession = ChatSession(
+                            handleRef.modelContainer,
+                            speculativeDecoding: spec,
+                            generateParameters: gp,
+                            additionalContext: additionalContext,
+                            tools: toolSpecs,
+                            toolDispatch: toolDispatchClosure
+                        )
+                        }
 
-						do {
-					// State for Guided/MTP branches — standard ChatSession manages its own
-					var actualTokenCount: Int?
-					var lastStopReason: StopReason?
+                        do {
+                    // State for Guided/MTP branches — standard ChatSession manages its own
+                    var actualTokenCount: Int?
+                    var lastStopReason: StopReason?
 
-					// MARK: - Guided Generation Path (grammar-constrained)
-					// NOTE: Guided path uses pure-text messagePairs — cannot carry images/videos/audios.
-					// Multimodal messages with grammar schema fall through to ChatSession (full round-trip).
-					// This mirrors upstream MTP path at L925 and aligns with MLXChatExample pattern
-					// where Chat.Message carries images/videos directly without loss.
-					if let schema = options.grammarSchema,
-					   mlxMessages.allSatisfy({ $0.images.isEmpty && $0.videos.isEmpty && $0.audios.isEmpty }) {
-						log.info("Routing through GuidedGenerationLoop with grammar constraint")
-						// Guided path: prepare input, build constraint, run token loop
-						// All within modelContainer.perform for thread-safe ModelContext access
-						try await handleGuidedGeneration(
-							messagePairs: mlxMessages.map { (role: $0.role.rawValue, content: $0.content) },
-							grammarSchema: schema,
-							maxTokens: options.maxTokens ?? loaded.modelConfig.maxContextLength,
-						)
-					} else if options.grammarSchema != nil {
-						// Grammar requested but multimodal content present — guided path cannot handle it.
-						// Fall through to ChatSession below; grammar will be best-effort ignored.
-						log.warning("Dropping grammar constraint for multimodal message on model \(modelId)")
-					}
-					// MARK: - MTP Speculative Decoding Path
-					// Note: upstream MTP generate does NOT support tools parameter —
-					// when tools are registered, we fall through to ChatSession (full tool round-trip).
-					// VLM messages (with images/audios) also fall through because MTP cannot
-					// carry multimodal data across the Sendable closure boundary.
-					else if self.mtpDrafterContainer != nil, registeredToolSpecs == nil, mlxMessages.count > 0,
-						mlxMessages.allSatisfy({ $0.images.isEmpty && $0.audios.isEmpty && $0.videos.isEmpty }) {
-						log.info("Routing through MTP speculative decoding")
-						let messagePairs: [(role: String, content: String)] = mlxMessages.map {
-							(role: $0.role.rawValue, content: $0.content)
-						}
+                    // MARK: - Guided Generation Path (grammar-constrained)
+                    // NOTE: Guided path uses pure-text messagePairs — cannot carry images/videos/audios.
+                    // Multimodal messages with grammar schema fall through to ChatSession (full round-trip).
+                    // This mirrors upstream MTP path at L925 and aligns with MLXChatExample pattern
+                    // where Chat.Message carries images/videos directly without loss.
+                    if let schema = options.grammarSchema,
+                       mlxMessages.allSatisfy({ $0.images.isEmpty && $0.videos.isEmpty && $0.audios.isEmpty }) {
+                        log.info("Routing through GuidedGenerationLoop with grammar constraint")
+                        // Guided path: prepare input, build constraint, run token loop
+                        // All within modelContainer.perform for thread-safe ModelContext access
+                        try await handleGuidedGeneration(
+                            messagePairs: mlxMessages.map { (role: $0.role.rawValue, content: $0.content) },
+                            grammarSchema: schema,
+                            maxTokens: options.maxTokens ?? loaded.modelConfig.maxContextLength,
+                        )
+                    } else if options.grammarSchema != nil {
+                        // Grammar requested but multimodal content present — guided path cannot handle it.
+                        // Fall through to ChatSession below; grammar will be best-effort ignored.
+                        log.warning("Dropping grammar constraint for multimodal message on model \(modelId)")
+                    }
+                    // MARK: - MTP Speculative Decoding Path
+                    // Note: upstream MTP generate does NOT support tools parameter —
+                    // when tools are registered, we fall through to ChatSession (full tool round-trip).
+                    // VLM messages (with images/audios) also fall through because MTP cannot
+                    // carry multimodal data across the Sendable closure boundary.
+                    else if self.mtpDrafterContainer != nil, registeredToolSpecs == nil, mlxMessages.count > 0,
+                        mlxMessages.allSatisfy({ $0.images.isEmpty && $0.audios.isEmpty && $0.videos.isEmpty }) {
+                        log.info("Routing through MTP speculative decoding")
+                        let messagePairs: [(role: String, content: String)] = mlxMessages.map {
+                            (role: $0.role.rawValue, content: $0.content)
+                        }
 
-						struct MTPResult: Sendable {
-							let accumulatedText: String
-							let tokenCount: Int?
-							let stopReason: StopReason?
-							let stoppedBySequence: Bool
-						}
+                        struct MTPResult: Sendable {
+                            let accumulatedText: String
+                            let tokenCount: Int?
+                            let stopReason: StopReason?
+                            let stoppedBySequence: Bool
+                        }
 
-						// Extract drafter model via local wrapper — allows injection into
-						// modelContainer.perform(nonSendable:) closure
-						let drafterWrapper: MTPDrafterModelWrapper
-						drafterWrapper = await self.mtpDrafterContainer!.perform { drafterCtx in
-							MTPDrafterModelWrapper(model: drafterCtx.model)
-						}
+                        // Extract drafter model via local wrapper — allows injection into
+                        // modelContainer.perform(nonSendable:) closure
+                        let drafterWrapper: MTPDrafterModelWrapper
+                        drafterWrapper = await self.mtpDrafterContainer!.perform { drafterCtx in
+                            MTPDrafterModelWrapper(model: drafterCtx.model)
+                        }
 
-						let mtpResult = try await handleRef.modelContainer.perform(nonSendable: drafterWrapper) { context, wrapped in
-							let drafterModel = wrapped.model
+                        let mtpResult = try await handleRef.modelContainer.perform(nonSendable: drafterWrapper) { context, wrapped in
+                            let drafterModel = wrapped.model
 
-							// All state scoped inside closure — @Sendable compliant
-							var localAccumulatedText = ""
-							var localFirstToken = false
-							var localTokenCount: Int?
-							var localStopReason: StopReason?
-							var localStoppedBySeq = false
+                            // All state scoped inside closure — @Sendable compliant
+                            var localAccumulatedText = ""
+                            var localFirstToken = false
+                            var localTokenCount: Int?
+                            var localStopReason: StopReason?
+                            var localStoppedBySeq = false
 
-							var mtpMessages: [Chat.Message] = messagePairs.map { pair in
-								Chat.Message(
-									role: Chat.Message.Role(rawValue: pair.role) ?? .system,
-									content: pair.content
-								)
-							}
-							// Strip trailing empty assistant message — mirrors upstream MLXChatExample
-							if let last = mtpMessages.last, last.role == .assistant, last.content.isEmpty {
-								mtpMessages.removeLast()
-							}
+                            var mtpMessages: [Chat.Message] = messagePairs.map { pair in
+                                Chat.Message(
+                                    role: Chat.Message.Role(rawValue: pair.role) ?? .system,
+                                    content: pair.content
+                                )
+                            }
+                            // Strip trailing empty assistant message — mirrors upstream MLXChatExample
+                            if let last = mtpMessages.last, last.role == .assistant, last.content.isEmpty {
+                                mtpMessages.removeLast()
+                            }
 
-							let mtpUserInput = UserInput(prompt: .chat(mtpMessages))
-							let mtpInput = try await context.processor.prepare(input: mtpUserInput)
+                                let mtpProcessing = UserInput.Processing(resize: .init(width: 1024, height: 1024))
+                                let mtpUserInput = UserInput(prompt: .chat(mtpMessages), processing: mtpProcessing)
+                            let mtpInput = try await context.processor.prepare(input: mtpUserInput)
 
-							let mtpGenStream = try MLXLMCommon.generate(
-								input: mtpInput,
-								parameters: genParams,
-								context: context,
-								mtpDrafter: drafterModel,
-								blockSize: 4
-							)
+                            let mtpGenStream = try MLXLMCommon.generate(
+                                input: mtpInput,
+                                parameters: genParams,
+                                context: context,
+                                mtpDrafter: drafterModel,
+                                blockSize: 4
+                            )
 
-							for try await generation in mtpGenStream {
-								if Task.isCancelled || cancellation.isCancelled {
-									localStoppedBySeq = true
-									break
-								}
-								switch generation {
-								case let .chunk(text):
-									if !localFirstToken {
-										metrics.firstTokenMs = metrics.overallMs
-										localFirstToken = true
-									}
-									metrics.incrementGenerated()
-									localAccumulatedText += text
-									if requestStopSequences.isEmpty {
-										continuation.yield(.init(kind: .text(text)))
-									} else if let match = requestStopSequences.first(where: { localAccumulatedText.hasSuffix($0) }) {
-										let trimmed = String(localAccumulatedText.prefix(localAccumulatedText.count - match.count))
-										if !trimmed.isEmpty {
-											continuation.yield(.init(kind: .text(trimmed)))
-										}
-										continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount)))
-										localStoppedBySeq = true
-										break
-									} else {
-										continuation.yield(.init(kind: .text(text)))
-									}
-								case let .info(completionInfo):
-									localTokenCount = completionInfo.generationTokenCount
-									localStopReason = switch completionInfo.stopReason {
-									case .stop: .eos
-									case .length: .maxTokens
-									case .cancelled: .cancelled
-									}
-								case .toolCall:
-									break
-								}
-							}
+                            for try await generation in mtpGenStream {
+                                if Task.isCancelled || cancellation.isCancelled {
+                                    localStoppedBySeq = true
+                                    break
+                                }
+                                switch generation {
+                                case let .chunk(text):
+                                    if !localFirstToken {
+                                        metrics.firstTokenMs = metrics.overallMs
+                                        localFirstToken = true
+                                    }
+                                    metrics.incrementGenerated()
+                                    localAccumulatedText += text
+                                    if requestStopSequences.isEmpty {
+                                        continuation.yield(.init(kind: .text(text)))
+                                    } else if let match = requestStopSequences.first(where: { localAccumulatedText.hasSuffix($0) }) {
+                                        let trimmed = String(localAccumulatedText.prefix(localAccumulatedText.count - match.count))
+                                        if !trimmed.isEmpty {
+                                            continuation.yield(.init(kind: .text(trimmed)))
+                                        }
+                                        continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount)))
+                                        localStoppedBySeq = true
+                                        break
+                                    } else {
+                                        continuation.yield(.init(kind: .text(text)))
+                                    }
+                                case let .info(completionInfo):
+                                    localTokenCount = completionInfo.generationTokenCount
+                                    localStopReason = switch completionInfo.stopReason {
+                                    case .stop: .eos
+                                    case .length: .maxTokens
+                                    case .cancelled: .cancelled
+                                    }
+                                case .toolCall:
+                                    break
+                                }
+                            }
 
-							return MTPResult(
-								accumulatedText: localAccumulatedText,
-								tokenCount: localTokenCount,
-								stopReason: localStopReason,
-								stoppedBySequence: localStoppedBySeq
-							)
-						}
+                            return MTPResult(
+                                accumulatedText: localAccumulatedText,
+                                tokenCount: localTokenCount,
+                                stopReason: localStopReason,
+                                stoppedBySequence: localStoppedBySeq
+                            )
+                        }
 
-						// Sync MTP result back to outer scope
-						if let tc = mtpResult.tokenCount {
-							actualTokenCount = tc
-						}
-						if let sr = mtpResult.stopReason {
-							lastStopReason = sr
-						}
-						if !mtpResult.stoppedBySequence, actualTokenCount != nil {
-							continuation.yield(.init(kind: .done(lastStopReason ?? .maxTokens, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
-						}
-					}
-					// MARK: - Standard ChatSession Path (default fallback)
-					/// Uses ChatSession.streamDetails for text + multimodal generation.
-					else {
-						log.info("Routing through ChatSession for standard generation")
+                        // Sync MTP result back to outer scope
+                        if let tc = mtpResult.tokenCount {
+                            actualTokenCount = tc
+                        }
+                        if let sr = mtpResult.stopReason {
+                            lastStopReason = sr
+                        }
+                        if !mtpResult.stoppedBySequence, actualTokenCount != nil {
+                            continuation.yield(.init(kind: .done(lastStopReason ?? .maxTokens, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
+                        }
+                    }
+                    // MARK: - Standard ChatSession Path (default fallback)
+                    /// Uses ChatSession.streamDetails for text + multimodal generation.
+                    else {
+                        log.info("Routing through ChatSession for standard generation")
 
-						// Accumulate text across chunks for stop sequence matching
-						// (mirrors MTP path localAccumulatedText at L808)
-						var localStandardAccumulated = ""
+                        // Accumulate text across chunks for stop sequence matching
+                        // (mirrors MTP path localAccumulatedText at L808)
+                        var localStandardAccumulated = ""
 
-						let lastMsg = mlxMessages.last
-						let lastRole: Chat.Message.Role = lastMsg?.role ?? .user
-						let lastContent = lastMsg?.content ?? ""
+                        let lastMsg = mlxMessages.last
+                        let lastRole: Chat.Message.Role = lastMsg?.role ?? .user
+                        let lastContent = lastMsg?.content ?? ""
 
-						// Extract images/audio/video from last message for multimodal support. VLM requests
-						// carry .images/.audios/.videos on the last Chat.Message — pass them through so
-						// streamDetails can actually see the media instead of dropping silently.
-						let allImages: [MLXLMCommon.UserInput.Image] = lastMsg?.images ?? []
-						let allAudios: [MLXLMCommon.UserInput.Audio] = lastMsg?.audios ?? []
-						let allVideos: [MLXLMCommon.UserInput.Video] = lastMsg?.videos ?? []
+                        // Extract images/audio/video from last message for multimodal support. VLM requests
+                        // carry .images/.audios/.videos on the last Chat.Message — pass them through so
+                        // streamDetails can actually see the media instead of dropping silently.
+                        let allImages: [MLXLMCommon.UserInput.Image] = lastMsg?.images ?? []
+                        let allAudios: [MLXLMCommon.UserInput.Audio] = lastMsg?.audios ?? []
+                        let allVideos: [MLXLMCommon.UserInput.Video] = lastMsg?.videos ?? []
 
-						for try await generation in chatSession!.streamDetails(
-							to: lastContent,
-							role: lastRole,
-							images: allImages,
-							videos: allVideos,
-							audios: allAudios
-						) {
-							if Task.isCancelled || cancellation.isCancelled {
-								continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: actualTokenCount ?? 0)))
-								break
-							}
-							switch generation {
-								case let .chunk(text):
-									if actualTokenCount == nil {
-										metrics.firstTokenMs = metrics.overallMs
-									}
-									metrics.incrementGenerated()
-									if requestStopSequences.isEmpty {
-										continuation.yield(.init(kind: .text(text)))
-									} else {
-										localStandardAccumulated += text
-										if let match = requestStopSequences.first(where: { localStandardAccumulated.hasSuffix($0) }) {
-											let trimmed = String(localStandardAccumulated.prefix(localStandardAccumulated.count - match.count))
-											if !trimmed.isEmpty {
-												continuation.yield(.init(kind: .text(trimmed)))
-											}
-											continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
-											lastStopReason = .stopSequence
-											break
-										} else {
-											continuation.yield(.init(kind: .text(text)))
-										}
-									}
-								case let .info(completionInfo):
-									if actualTokenCount == nil {
-										actualTokenCount = completionInfo.generationTokenCount
-									}
-									lastStopReason = switch completionInfo.stopReason {
-										case .stop: .eos
-										case .length: .maxTokens
-										case .cancelled: .cancelled
-									}
-								case .toolCall:
-									// ChatSession handles tool calling internally
-									break
-								}
-							}
+                        for try await generation in chatSession!.streamDetails(
+                            to: lastContent,
+                            role: lastRole,
+                            images: allImages,
+                            videos: allVideos,
+                            audios: allAudios
+                        ) {
+                            if Task.isCancelled || cancellation.isCancelled {
+                                continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: actualTokenCount ?? 0)))
+                                break
+                            }
+                            switch generation {
+                                case let .chunk(text):
+                                    if actualTokenCount == nil {
+                                        metrics.firstTokenMs = metrics.overallMs
+                                    }
+                                    metrics.incrementGenerated()
+                                    if requestStopSequences.isEmpty {
+                                        continuation.yield(.init(kind: .text(text)))
+                                    } else {
+                                        localStandardAccumulated += text
+                                        if let match = requestStopSequences.first(where: { localStandardAccumulated.hasSuffix($0) }) {
+                                            let trimmed = String(localStandardAccumulated.prefix(localStandardAccumulated.count - match.count))
+                                            if !trimmed.isEmpty {
+                                                continuation.yield(.init(kind: .text(trimmed)))
+                                            }
+                                            continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
+                                            lastStopReason = .stopSequence
+                                            break
+                                        } else {
+                                            continuation.yield(.init(kind: .text(text)))
+                                        }
+                                    }
+                                case let .info(completionInfo):
+                                    if actualTokenCount == nil {
+                                        actualTokenCount = completionInfo.generationTokenCount
+                                    }
+                                    lastStopReason = switch completionInfo.stopReason {
+                                        case .stop: .eos
+                                        case .length: .maxTokens
+                                        case .cancelled: .cancelled
+                                    }
+                                case .toolCall:
+                                    // ChatSession handles tool calling internally
+                                    break
+                                }
+                            }
 
-							// Emit final .done event
-							if !Task.isCancelled {
-								continuation.yield(.init(kind: .done(lastStopReason ?? .eos, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
-							}
-						}
+                            // Emit final .done event
+                            if !Task.isCancelled {
+                                continuation.yield(.init(kind: .done(lastStopReason ?? .eos, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
+                            }
+                        }
 
-					}
+                    }
 
-				if let pool = poolRef, let session = chatSession {
-					// Only release pooled session when ChatSession path was used
-					// (Guided path creates its own context, no pool management needed)
-					await pool.release(
-						pooled: PooledChatSession(
-							session: session,
-							lastAccessedAt: ContinuousClock.now,
-							messageCount: mlxMessages.count,
-						),
-						modelId: modelId,
-						conversationId: convKey,
-						processedMessageCount: mlxMessages.count,
-					)
-				}
-			}
+                if let pool = poolRef, let session = chatSession {
+                    // Only release pooled session when ChatSession path was used
+                    // (Guided path creates its own context, no pool management needed)
+                    await pool.release(
+                        pooled: PooledChatSession(
+                            session: session,
+                            lastAccessedAt: ContinuousClock.now,
+                            messageCount: mlxMessages.count,
+                        ),
+                        modelId: modelId,
+                        conversationId: convKey,
+                        processedMessageCount: mlxMessages.count,
+                    )
+                }
+            }
 
-			// Layer 0: Wired memory GPU hard-isolation + GPU telemetry
-			// Scopes wired limit to this inference request. Auto-released on completion/error.
-			// Policy: WiredMaxPolicy when config.wiredMemory.policy == "max", else WiredSumPolicy.
-			let logRef = self.logger
-			if config.wiredMemory.enabled {
-				// Estimate ticket size: per-request GPU memory delta (KV cache + activations).
-				// Weights are already resident in the LoadedModel's GPU memory — they are NOT
-				// per-request overhead and must not be counted here (P0-fix: prev formula included
-				// vocabSize*8 which double-counted resident weights, causing admission gate to
-				// under-estimate per-request headroom and over-accept requests that could OOM).
-				//
-				// KV cache per-token estimate for 4bit quantized models:
-				//   ~2 KiB/token (covers K+V across all layers at 4-bit quantization).
-				// For context lengths L: ticket ≈ L * 2048 bytes.
-				// bytesOverride from config takes priority when set.
-				let ticketSize: Int
-				if config.wiredMemory.bytesOverride > 0 {
-					ticketSize = Int(config.wiredMemory.bytesOverride)
-				} else {
-					ticketSize = Int(loaded.modelConfig.maxContextLength) * 2048
-				}
+            // Layer 0: Wired memory GPU hard-isolation + GPU telemetry
+            // Scopes wired limit to this inference request. Auto-released on completion/error.
+            // Policy: WiredMaxPolicy when config.wiredMemory.policy == "max", else WiredSumPolicy.
+            let logRef = self.logger
+            if config.wiredMemory.enabled {
+                // Estimate ticket size: per-request GPU memory delta (KV cache + activations).
+                // Weights are already resident in the LoadedModel's GPU memory — they are NOT
+                // per-request overhead and must not be counted here (P0-fix: prev formula included
+                // vocabSize*8 which double-counted resident weights, causing admission gate to
+                // under-estimate per-request headroom and over-accept requests that could OOM).
+                //
+                // KV cache per-token estimate for 4bit quantized models:
+                //   ~2 KiB/token (covers K+V across all layers at 4-bit quantization).
+                // For context lengths L: ticket ≈ L * 2048 bytes.
+                // bytesOverride from config takes priority when set.
+                let ticketSize: Int
+                if config.wiredMemory.bytesOverride > 0 {
+                    ticketSize = Int(config.wiredMemory.bytesOverride)
+                } else {
+                    ticketSize = Int(loaded.modelConfig.maxContextLength) * 2048
+                }
 
-				// FIXED: Hashable policies derive stable identity from their value (cap), not UUID.
-				// Custom ID broke WiredMemoryManager's grouping/hysteresis logic.
-				let wmPolicy: any WiredMemoryPolicy = if config.wiredMemory.policy == "sum" {
-					WiredSumPolicy(cap: nil)
-				} else {
-					WiredMaxPolicy()
-				}
+                // FIXED: Hashable policies derive stable identity from their value (cap), not UUID.
+                // Custom ID broke WiredMemoryManager's grouping/hysteresis logic.
+                let wmPolicy: any WiredMemoryPolicy = if config.wiredMemory.policy == "sum" {
+                    WiredSumPolicy(cap: nil)
+                } else {
+                    WiredMaxPolicy()
+                }
 
-				let ticket = WiredMemoryTicket(
-					size: ticketSize,
-					policy: wmPolicy,
-					manager: .shared,
-					kind: WiredMemoryTicketKind.active,
-				)
+                let ticket = WiredMemoryTicket(
+                    size: ticketSize,
+                    policy: wmPolicy,
+                    manager: .shared,
+                    kind: WiredMemoryTicketKind.active,
+                )
 
-				// GPU telemetry: pre-inference snapshot
-				let preSnapshot = Memory.snapshot()
-				logRef.debug("GPU pre-inference [\(modelId)] active: \(preSnapshot.activeMemory / 1_048_576)MB, cache: \(preSnapshot.cacheMemory / 1_048_576)MB, peak: \(preSnapshot.peakMemory / 1_048_576)MB")
-				_ = await self.memoryTracker?.reportGPUActiveBytes(UInt64(preSnapshot.activeMemory))
+                // GPU telemetry: pre-inference snapshot
+                let preSnapshot = Memory.snapshot()
+                logRef.debug("GPU pre-inference [\(modelId)] active: \(preSnapshot.activeMemory / 1_048_576)MB, cache: \(preSnapshot.cacheMemory / 1_048_576)MB, peak: \(preSnapshot.peakMemory / 1_048_576)MB")
+                _ = await self.memoryTracker?.reportGPUActiveBytes(UInt64(preSnapshot.activeMemory))
 
-				// Acquire wired limit, run inference, then release
-				_ = await ticket.start()
-				let caughtError: (any Error)?
-				do {
-					try await runInferenceBody()
-					caughtError = nil
-				} catch {
-					caughtError = error
-				}
-				_ = await ticket.end()
+                // Acquire wired limit, run inference, then release
+                _ = await ticket.start()
+                let caughtError: (any Error)?
+                do {
+                    try await runInferenceBody()
+                    caughtError = nil
+                } catch {
+                    caughtError = error
+                }
+                _ = await ticket.end()
 
-				// GPU telemetry: post-inference snapshot
-				let postSnapshot = Memory.snapshot()
-				let gpuDelta = preSnapshot.delta(postSnapshot)
-				logRef.debug("GPU post-inference delta [\(modelId)] active: \(gpuDelta.activeMemory / 1_048_576)MB, cache: \(gpuDelta.cacheMemory / 1_048_576)MB")
+                // GPU telemetry: post-inference snapshot
+                let postSnapshot = Memory.snapshot()
+                let gpuDelta = preSnapshot.delta(postSnapshot)
+                logRef.debug("GPU post-inference delta [\(modelId)] active: \(gpuDelta.activeMemory / 1_048_576)MB, cache: \(gpuDelta.cacheMemory / 1_048_576)MB")
 
-				// Propagate error if caught
-				if let caughtError {
-					continuation.yield(.init(kind: .error(caughtError.localizedDescription)))
-				}
+                // Propagate error if caught
+                if let caughtError {
+                    continuation.yield(.init(kind: .error(caughtError.localizedDescription)))
+                }
 
-				metrics.inferenceMs = metrics.overallMs
-				continuation.finish()
-				return
-			}
+                metrics.inferenceMs = metrics.overallMs
+                continuation.finish()
+                return
+            }
 
-			// Execute inference body without wired memory scoping
-			do {
-				try await runInferenceBody()
-			} catch {
-				continuation.yield(.init(kind: .error(error.localizedDescription)))
-			}
+            // Execute inference body without wired memory scoping
+            do {
+                try await runInferenceBody()
+            } catch {
+                continuation.yield(.init(kind: .error(error.localizedDescription)))
+            }
 
-			metrics.inferenceMs = metrics.overallMs
-				continuation.finish()
-				}
-			}
+            metrics.inferenceMs = metrics.overallMs
+                continuation.finish()
+                }
+            }

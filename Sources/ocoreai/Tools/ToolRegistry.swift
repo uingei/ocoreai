@@ -10,266 +10,266 @@ import Foundation
 import Logging
 
 actor ToolRegistry {
-	/// Audit trail for tool execution logging (nil = auditing disabled)
-	private let auditTrail: AuditTrail?
-	/// Read-only tool lookup table (published after registration changes)
-	private var tools: [String: ToolEntry] = [:]
-	/// Toolset → [tool name] mapping for batch queries
-	private var byToolset: [String: [String]] = [:]
-	/// Read-only whitelist — these tools may execute concurrently
-	private let readOnlyWhitelist: Set<String>
-	/// Destructive blacklist — these tools must execute serially
-	private let destructiveBlacklist: Set<String>
+    /// Audit trail for tool execution logging (nil = auditing disabled)
+    private let auditTrail: AuditTrail?
+    /// Read-only tool lookup table (published after registration changes)
+    private var tools: [String: ToolEntry] = [:]
+    /// Toolset → [tool name] mapping for batch queries
+    private var byToolset: [String: [String]] = [:]
+    /// Read-only whitelist — these tools may execute concurrently
+    private let readOnlyWhitelist: Set<String>
+    /// Destructive blacklist — these tools must execute serially
+    private let destructiveBlacklist: Set<String>
 
-	/// Loop detection: tracks (tool_name, last_input_hash) to prevent cycles
-	private var executionHistory: [(name: String, hash: String, time: ContinuousClock.Instant)] = []
-	private let maxHistoryDepth = 3
+    /// Loop detection: tracks (tool_name, last_input_hash) to prevent cycles
+    private var executionHistory: [(name: String, hash: String, time: ContinuousClock.Instant)] = []
+    private let maxHistoryDepth = 3
 
-	let logger: Logger
+    let logger: Logger
 
-	init(
-		readOnlyWhitelist: [String] = ["search_files", "read_file", "memory_search"],
-		destructiveBlacklist: [String] = ["write_file", "delete_file", "execute_code"],
-		auditTrail: AuditTrail? = nil,
-		log: Logger = Logger(label: "ocoreai.tools.registry"),
-	) {
-		self.readOnlyWhitelist = Set(readOnlyWhitelist)
-		self.destructiveBlacklist = Set(destructiveBlacklist)
-		self.auditTrail = auditTrail
-		logger = log
-	}
+    init(
+        readOnlyWhitelist: [String] = ["search_files", "read_file", "memory_search"],
+        destructiveBlacklist: [String] = ["write_file", "delete_file", "execute_code"],
+        auditTrail: AuditTrail? = nil,
+        log: Logger = Logger(label: "ocoreai.tools.registry"),
+    ) {
+        self.readOnlyWhitelist = Set(readOnlyWhitelist)
+        self.destructiveBlacklist = Set(destructiveBlacklist)
+        self.auditTrail = auditTrail
+        logger = log
+    }
 
-	// MARK: - Registration
+    // MARK: - Registration
 
-	/// Register a new tool entry.
-	/// - Parameter entry: The tool to register.
-	/// - Throws: ``ToolError`` if a tool with the same name already exists.
-	func register(_ entry: ToolEntry) async throws {
-		guard tools[entry.name] == nil else {
-			logger.warning("Tool '\(entry.name)' already registered — skipping")
-			return
-		}
+    /// Register a new tool entry.
+    /// - Parameter entry: The tool to register.
+    /// - Throws: ``ToolError`` if a tool with the same name already exists.
+    func register(_ entry: ToolEntry) async throws {
+        guard tools[entry.name] == nil else {
+            logger.warning("Tool '\(entry.name)' already registered — skipping")
+            return
+        }
 
-		// Preflight checkFn
-		guard await entry.checkFn() else {
-			throw ToolError.checkFailed(entry.name)
-		}
+        // Preflight checkFn
+        guard await entry.checkFn() else {
+            throw ToolError.checkFailed(entry.name)
+        }
 
-		tools[entry.name] = entry
-		// Index by toolset
-		byToolset[entry.toolset, default: []].append(entry.name)
-		logger.info("Registered tool: \(entry.name) [\(entry.toolset)]")
-	}
+        tools[entry.name] = entry
+        // Index by toolset
+        byToolset[entry.toolset, default: []].append(entry.name)
+        logger.info("Registered tool: \(entry.name) [\(entry.toolset)]")
+    }
 
-	// MARK: - Lookup
+    // MARK: - Lookup
 
-	/// Find a tool by name
-	func lookup(_ name: String) -> ToolEntry? {
-		tools[name]
-	}
+    /// Find a tool by name
+    func lookup(_ name: String) -> ToolEntry? {
+        tools[name]
+    }
 
-	/// List all registered tool names
-	func listTools() -> [String] {
-		Array(tools.keys).sorted()
-	}
+    /// List all registered tool names
+    func listTools() -> [String] {
+        Array(tools.keys).sorted()
+    }
 
-	/// List all registered tool entries (name + schema) — used to expose tools
-	/// to Fast Path callers for function calling.
-	func listToolEntries() -> [(name: String, toolset: String, schema: ToolSchema)] {
-		tools.values.compactMap { entry in
-			(entry.name, entry.toolset, entry.schema)
-		}
-	}
+    /// List all registered tool entries (name + schema) — used to expose tools
+    /// to Fast Path callers for function calling.
+    func listToolEntries() -> [(name: String, toolset: String, schema: ToolSchema)] {
+        tools.values.compactMap { entry in
+            (entry.name, entry.toolset, entry.schema)
+        }
+    }
 
-	/// Convert all registered tools to OpenAI-format ToolDef array.
-	/// Bridges ToolRegistry → InferenceRequest / AgentLoop tool definitions.
-	func toToolDefs() -> [ToolDef] {
-		tools.values.compactMap { entry in
-			entry.toToolDef()
-		}
-	}
+    /// Convert all registered tools to OpenAI-format ToolDef array.
+    /// Bridges ToolRegistry → InferenceRequest / AgentLoop tool definitions.
+    func toToolDefs() -> [ToolDef] {
+        tools.values.compactMap { entry in
+            entry.toToolDef()
+        }
+    }
 
-	/// List tools in a specific toolset
-	func listByToolset(_ toolset: String) -> [String] {
-		byToolset[toolset] ?? []
-	}
+    /// List tools in a specific toolset
+    func listByToolset(_ toolset: String) -> [String] {
+        byToolset[toolset] ?? []
+    }
 
-	/// List tools registered from a specific MCP endpoint source.
-	func listByMcpSource(_ source: String) -> [String] {
-		tools.values.filter { $0.mcpSource == source }.map(\.name)
-	}
+    /// List tools registered from a specific MCP endpoint source.
+    func listByMcpSource(_ source: String) -> [String] {
+        tools.values.filter { $0.mcpSource == source }.map(\.name)
+    }
 
-	/// Get schema for a tool
-	func schema(for name: String) -> ToolSchema? {
-		tools[name]?.schema
-	}
+    /// Get schema for a tool
+    func schema(for name: String) -> ToolSchema? {
+        tools[name]?.schema
+    }
 
-	// MARK: - Execution
+    // MARK: - Execution
 
-	/// Dispatch a tool call after safety checks.
-	/// - Parameters:
-	///   - name: Tool name to invoke
-	///   - arguments: JSON-encoded argument string
-	///   - caller: Optional caller identity for audit trail (default: "unknown")
-	/// - Returns: Tool result string
-	/// - Throws: ``ToolError`` on validation or execution failure
-	func call(_ name: String, arguments: String, caller: String = "unknown") async throws -> String {
-		// 1. Lookup
-		guard let entry = tools[name] else {
-			throw ToolError.notFound(name)
-		}
+    /// Dispatch a tool call after safety checks.
+    /// - Parameters:
+    ///   - name: Tool name to invoke
+    ///   - arguments: JSON-encoded argument string
+    ///   - caller: Optional caller identity for audit trail (default: "unknown")
+    /// - Returns: Tool result string
+    /// - Throws: ``ToolError`` on validation or execution failure
+    func call(_ name: String, arguments: String, caller: String = "unknown") async throws -> String {
+        // 1. Lookup
+        guard let entry = tools[name] else {
+            throw ToolError.notFound(name)
+        }
 
-		// 2. Loop detection via SHA256 of input
-		let inputHash = String(format: "%llX", arguments.hashValue)
-		try checkLoop(entry: entry, inputHash: inputHash)
+        // 2. Loop detection via SHA256 of input
+        let inputHash = String(format: "%llX", arguments.hashValue)
+        try checkLoop(entry: entry, inputHash: inputHash)
 
-		// 3. Destructive tool serialization check
-		if destructiveBlacklist.contains(name) {
-			logger.info("Serial execution of destructive tool: \(name)")
-		}
+        // 3. Destructive tool serialization check
+        if destructiveBlacklist.contains(name) {
+            logger.info("Serial execution of destructive tool: \(name)")
+        }
 
-		// 4. Begin audit trail
-		let token: AuditToken?
-		if let at = auditTrail {
-			let argsMap: [String: String] = if let data = arguments.data(using: .utf8),
-			                                   let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: String]
-			{
-				decoded
-			} else {
-				["raw": arguments]
-			}
-			token = await at.beginCall(caller: caller, toolName: name, toolset: entry.toolset, arguments: argsMap)
-		} else {
-			token = nil
-		}
+        // 4. Begin audit trail
+        let token: AuditToken?
+        if let at = auditTrail {
+            let argsMap: [String: String] = if let data = arguments.data(using: .utf8),
+                                               let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: String]
+            {
+                decoded
+            } else {
+                ["raw": arguments]
+            }
+            token = await at.beginCall(caller: caller, toolName: name, toolset: entry.toolset, arguments: argsMap)
+        } else {
+            token = nil
+        }
 
-		// 5. Execute
-		do {
-			let result = try await entry.handler(arguments)
-			recordExecution(name, hash: inputHash)
-			// Complete audit on success
-			if let t = token {
-				await auditTrail?.completeToken(t, status: .success, result: result)
-			}
-			return result
-		} catch {
-			// Complete audit on error
-			if let t = token {
-				await auditTrail?.completeToken(t, status: .error, result: error.localizedDescription)
-			}
-			// If handler already threw a ToolError, re-throw without double-wrapping
-			if let toolErr = error as? ToolError {
-				throw toolErr
-			}
-			let sanitized = sanitizeError(error)
-			throw ToolError.executionFailed(sanitized)
-		}
-	}
+        // 5. Execute
+        do {
+            let result = try await entry.handler(arguments)
+            recordExecution(name, hash: inputHash)
+            // Complete audit on success
+            if let t = token {
+                await auditTrail?.completeToken(t, status: .success, result: result)
+            }
+            return result
+        } catch {
+            // Complete audit on error
+            if let t = token {
+                await auditTrail?.completeToken(t, status: .error, result: error.localizedDescription)
+            }
+            // If handler already threw a ToolError, re-throw without double-wrapping
+            if let toolErr = error as? ToolError {
+                throw toolErr
+            }
+            let sanitized = sanitizeError(error)
+            throw ToolError.executionFailed(sanitized)
+        }
+    }
 
-	// MARK: - Safety
+    // MARK: - Safety
 
-	/// Check if a tool is read-only (safe for concurrent execution)
-	func isReadOnly(_ name: String) -> Bool {
-		readOnlyWhitelist.contains(name)
-	}
+    /// Check if a tool is read-only (safe for concurrent execution)
+    func isReadOnly(_ name: String) -> Bool {
+        readOnlyWhitelist.contains(name)
+    }
 
-	/// Check if a tool is destructive (must serialize)
-	func isDestructive(_ name: String) -> Bool {
-		destructiveBlacklist.contains(name) || tools[name]?.isDestructive == true
-	}
+    /// Check if a tool is destructive (must serialize)
+    func isDestructive(_ name: String) -> Bool {
+        destructiveBlacklist.contains(name) || tools[name]?.isDestructive == true
+    }
 
-	/// Sanitize error output to prevent prompt injection
-	private func sanitizeError(_ error: Error) -> Error {
-		let msg = error.localizedDescription
-			.replacingOccurrences(of: "<", with: "&lt;")
-			.replacingOccurrences(of: ">", with: "&gt;")
-		return NSError(domain: "ocoreai.tool.sanitized", code: 0, userInfo: [NSLocalizedDescriptionKey: msg])
-	}
+    /// Sanitize error output to prevent prompt injection
+    private func sanitizeError(_ error: Error) -> Error {
+        let msg = error.localizedDescription
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+        return NSError(domain: "ocoreai.tool.sanitized", code: 0, userInfo: [NSLocalizedDescriptionKey: msg])
+    }
 
-	/// SHA256-based loop detection
-	private func checkLoop(
-		entry: ToolEntry,
-		inputHash: String,
-	) throws {
-		// Clean old entries (> 60 seconds)
-		let now = ContinuousClock.now
-		executionHistory.removeAll { $0.time.duration(to: now) >= .seconds(60) }
+    /// SHA256-based loop detection
+    private func checkLoop(
+        entry: ToolEntry,
+        inputHash: String,
+    ) throws {
+        // Clean old entries (> 60 seconds)
+        let now = ContinuousClock.now
+        executionHistory.removeAll { $0.time.duration(to: now) >= .seconds(60) }
 
-		// Check for recent identical calls (cycle = same tool + same input ≥ maxDepth times)
-		let recentCount = executionHistory.count(where: {
-			$0.name == entry.name && $0.hash == inputHash
-		})
+        // Check for recent identical calls (cycle = same tool + same input ≥ maxDepth times)
+        let recentCount = executionHistory.count(where: {
+            $0.name == entry.name && $0.hash == inputHash
+        })
 
-		guard recentCount < maxHistoryDepth else {
-			throw ToolError.loopDetected(entry.name)
-		}
-	}
+        guard recentCount < maxHistoryDepth else {
+            throw ToolError.loopDetected(entry.name)
+        }
+    }
 
-	/// Record a successful execution for loop detection
-	private func recordExecution(_ name: String, hash: String) {
-		executionHistory.append((name: name, hash: hash, time: ContinuousClock.now))
-		// Trim history
-		if executionHistory.count > 100 {
-			executionHistory.removeFirst(50)
-		}
-	}
+    /// Record a successful execution for loop detection
+    private func recordExecution(_ name: String, hash: String) {
+        executionHistory.append((name: name, hash: hash, time: ContinuousClock.now))
+        // Trim history
+        if executionHistory.count > 100 {
+            executionHistory.removeFirst(50)
+        }
+    }
 
-	// MARK: - Lifecycle
+    // MARK: - Lifecycle
 
-	/// Unregister a single tool by name.
-	/// - Returns: `true` if the tool was found and removed.
-	func unregister(_ toolName: String) -> Bool {
-		guard let entry = tools.removeValue(forKey: toolName) else {
-			logger.warning("Unregister miss: \(toolName)")
-			return false
-		}
-		// Remove from toolset index
-		if var names = byToolset[entry.toolset] {
-			names.removeAll { $0 == toolName }
-			if names.isEmpty {
-				byToolset.removeValue(forKey: entry.toolset)
-			} else {
-				byToolset[entry.toolset] = names
-			}
-		}
-		logger.info("Unregistered tool: \(toolName)")
-		return true
-	}
+    /// Unregister a single tool by name.
+    /// - Returns: `true` if the tool was found and removed.
+    func unregister(_ toolName: String) -> Bool {
+        guard let entry = tools.removeValue(forKey: toolName) else {
+            logger.warning("Unregister miss: \(toolName)")
+            return false
+        }
+        // Remove from toolset index
+        if var names = byToolset[entry.toolset] {
+            names.removeAll { $0 == toolName }
+            if names.isEmpty {
+                byToolset.removeValue(forKey: entry.toolset)
+            } else {
+                byToolset[entry.toolset] = names
+            }
+        }
+        logger.info("Unregistered tool: \(toolName)")
+        return true
+    }
 
-	/// Batch-unregister all tools that came from a specific MCP endpoint.
-	func unregisterToolsFromSource(_ source: String) {
-		let toolNames = listByMcpSource(source)
-		_ = toolNames.map { unregister($0) }
-		if !toolNames.isEmpty {
-			logger.info("Batch-unregistered \(toolNames.count) tools from MCP source: \(source)")
-		}
-	}
+    /// Batch-unregister all tools that came from a specific MCP endpoint.
+    func unregisterToolsFromSource(_ source: String) {
+        let toolNames = listByMcpSource(source)
+        _ = toolNames.map { unregister($0) }
+        if !toolNames.isEmpty {
+            logger.info("Batch-unregistered \(toolNames.count) tools from MCP source: \(source)")
+        }
+    }
 
-	/// Convert all registered tools to MLXLMCommon-style `[ToolSpec]` for ChatSession.
-	/// ToolSpec == `[String: any Sendable]` matching upstream OpenAI function-calling schema.
-	func toToolSpecs() -> [[String: any Sendable]] {
-		tools.values.map { entry in
-			var properties: [String: String] = [:]
-			for (paramName, paramType) in entry.schema.parameters {
-				properties[paramName] = switch paramType {
-				case .string: "string"
-				case .integer: "integer"
-				case .boolean: "boolean"
-				case .array: "array"
-				}
-			}
-			var params: [String: any Sendable] = ["type": "object", "properties": properties]
-			if !entry.schema.parameters.isEmpty {
-				params["required"] = Array(entry.schema.parameters.keys)
-			}
-			return [
-				"type": "function" as any Sendable,
-				"function": [
-					"name": entry.name as any Sendable,
-					"description": "Tool: \(entry.name) [\(entry.toolset)]" as any Sendable,
-					"parameters": params as any Sendable,
-				] as [String: any Sendable],
-			] as [String: any Sendable]
-		}
-	}
+    /// Convert all registered tools to MLXLMCommon-style `[ToolSpec]` for ChatSession.
+    /// ToolSpec == `[String: any Sendable]` matching upstream OpenAI function-calling schema.
+    func toToolSpecs() -> [[String: any Sendable]] {
+        tools.values.map { entry in
+            var properties: [String: String] = [:]
+            for (paramName, paramType) in entry.schema.parameters {
+                properties[paramName] = switch paramType {
+                case .string: "string"
+                case .integer: "integer"
+                case .boolean: "boolean"
+                case .array: "array"
+                }
+            }
+            var params: [String: any Sendable] = ["type": "object", "properties": properties]
+            if !entry.schema.parameters.isEmpty {
+                params["required"] = Array(entry.schema.parameters.keys)
+            }
+            return [
+                "type": "function" as any Sendable,
+                "function": [
+                    "name": entry.name as any Sendable,
+                    "description": "Tool: \(entry.name) [\(entry.toolset)]" as any Sendable,
+                    "parameters": params as any Sendable,
+                ] as [String: any Sendable],
+            ] as [String: any Sendable]
+        }
+    }
 }

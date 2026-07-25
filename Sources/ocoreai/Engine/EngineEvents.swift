@@ -18,56 +18,56 @@ import Foundation
 ///
 /// Used by SSE handlers to cancel inference running in unrelated root Tasks.
 final class CancellationFlag: @unchecked Sendable {
-	private var _cancelled = false
-	private let _lock = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: 1)
+    private var _cancelled = false
+    private let _lock = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: 1)
 
-	init() {
-		_lock.initialize(to: os_unfair_lock())
-	}
+    init() {
+        _lock.initialize(to: os_unfair_lock())
+    }
 
-	deinit {
-		_lock.deinitialize(count: 1)
-		_lock.deallocate()
-	}
+    deinit {
+        _lock.deinitialize(count: 1)
+        _lock.deallocate()
+    }
 
-	var isCancelled: Bool {
-		os_unfair_lock_lock(_lock)
-		defer { os_unfair_lock_unlock(_lock) }
-		return _cancelled
-	}
+    var isCancelled: Bool {
+        os_unfair_lock_lock(_lock)
+        defer { os_unfair_lock_unlock(_lock) }
+        return _cancelled
+    }
 
-	func cancel() {
-		os_unfair_lock_lock(_lock)
-		defer { os_unfair_lock_unlock(_lock) }
-		_cancelled = true
-	}
+    func cancel() {
+        os_unfair_lock_lock(_lock)
+        defer { os_unfair_lock_unlock(_lock) }
+        _cancelled = true
+    }
 }
 
 struct InferenceCancellation: Sendable {
-	private let _flag: CancellationFlag?
+    private let _flag: CancellationFlag?
 
-	/// Non-cancellable handle (used for non-stream endpoints)
-	static let none: Self = .init()
+    /// Non-cancellable handle (used for non-stream endpoints)
+    static let none: Self = .init()
 
-	/// Cancellable handle — allocates a fresh flag
-	static func cancellable() -> Self {
-		.init(_flag: CancellationFlag())
-	}
+    /// Cancellable handle — allocates a fresh flag
+    static func cancellable() -> Self {
+        .init(_flag: CancellationFlag())
+    }
 
-	/// Check if this token has been cancelled
-	/// - Returns: true if the cancel signal has been sent
-	var isCancelled: Bool {
-		_flag?.isCancelled ?? false
-	}
+    /// Check if this token has been cancelled
+    /// - Returns: true if the cancel signal has been sent
+    var isCancelled: Bool {
+        _flag?.isCancelled ?? false
+    }
 
-	/// Send cancellation signal to all holders of this token
-	func cancel() {
-		_flag?.cancel()
-	}
+    /// Send cancellation signal to all holders of this token
+    func cancel() {
+        _flag?.cancel()
+    }
 
-	private init(_flag: CancellationFlag? = nil) {
-		self._flag = _flag
-	}
+    private init(_flag: CancellationFlag? = nil) {
+        self._flag = _flag
+    }
 }
 
 // MARK: - Inference Event
@@ -76,23 +76,23 @@ struct InferenceCancellation: Sendable {
 ///
 /// Events flow through ``AsyncThrowingStream`` so the HTTP layer can emit SSE chunks.
 struct InferenceEvent {
-	/// Event kind discriminator
-	enum Kind {
-		/// Generated token (`Int32` token ID — Core AI path)
-		case token(Int32)
+    /// Event kind discriminator
+    enum Kind {
+        /// Generated token (`Int32` token ID — Core AI path)
+        case token(Int32)
 
-		/// Generated text chunk (MLX path — already decoded)
-		case text(String)
+        /// Generated text chunk (MLX path — already decoded)
+        case text(String)
 
-		/// Generation complete metadata — carries actual token count from upstream
-		/// when available. Essential for accurate token budgeting on MLX backend
-		/// where `.chunk` = one-or-more tokens.
-		case done(StopReason, tokenCount: Int?)
+        /// Generation complete metadata — carries actual token count from upstream
+        /// when available. Essential for accurate token budgeting on MLX backend
+        /// where `.chunk` = one-or-more tokens.
+        case done(StopReason, tokenCount: Int?)
 
-		/// Fatal inference error
-		case error(String)
-	}
+        /// Fatal inference error
+        case error(String)
+    }
 
-	/// Event payload
-	var kind: Kind
+    /// Event payload
+    var kind: Kind
 }

@@ -15,57 +15,57 @@ import Foundation
 
 /// Locales supported by ocoreai. Expand this array to add new languages.
 public enum OCALocale: String, CaseIterable {
-	/// English (base language — fallback for missing translation)
-	case en
-	/// Simplified中文 — 简体中文
-	case zhHans
-	/// 日本語
-	case ja
-	/// 한국어
-	case ko
-	/// Français
-	case fr
-	/// Español
-	case es
+    /// English (base language — fallback for missing translation)
+    case en
+    /// Simplified中文 — 简体中文
+    case zhHans
+    /// 日本語
+    case ja
+    /// 한국어
+    case ko
+    /// Français
+    case fr
+    /// Español
+    case es
 
-	public var displayName: String {
-		switch self {
-		case .en: "English"
-		case .zhHans: "简体中文"
-		case .ja: "日本語"
-		case .ko: "한국어"
-		case .fr: "Français"
-		case .es: "Español"
-		}
-	}
+    public var displayName: String {
+        switch self {
+        case .en: "English"
+        case .zhHans: "简体中文"
+        case .ja: "日本語"
+        case .ko: "한국어"
+        case .fr: "Français"
+        case .es: "Español"
+        }
+    }
 
-	/// BCP 47 language tag
-	public var bcp47Tag: String {
-		switch self {
-		case .en: "en"
-		case .zhHans: "zh-Hans"
-		case .ja: "ja"
-		case .ko: "ko"
-		case .fr: "fr"
-		case .es: "es"
-		}
-	}
+    /// BCP 47 language tag
+    public var bcp47Tag: String {
+        switch self {
+        case .en: "en"
+        case .zhHans: "zh-Hans"
+        case .ja: "ja"
+        case .ko: "ko"
+        case .fr: "fr"
+        case .es: "es"
+        }
+    }
 
-	/// Detect user locale from system. Falls back to ``.en``.
-	/// Uses `Locale.preferredLanguages` which returns full BCP 47 tags (e.g. "zh-Hans-CN").
-	public static func systemLocale() -> OCALocale {
-		// preferredLanguages returns e.g. ["zh-Hans-CN", "en-US"]
-		let preferredTags = Locale.preferredLanguages
-		// Match from most-specific to least-specific so "zh-Hans-CN" hits zhHans before en
-		for tag in preferredTags {
-			for locale in OCALocale.allCases.sorted(by: { $0.bcp47Tag.count > $1.bcp47Tag.count })
-				where tag.starts(with: locale.bcp47Tag)
-			{
-				return locale
-			}
-		}
-		return .en
-	}
+    /// Detect user locale from system. Falls back to ``.en``.
+    /// Uses `Locale.preferredLanguages` which returns full BCP 47 tags (e.g. "zh-Hans-CN").
+    public static func systemLocale() -> OCALocale {
+        // preferredLanguages returns e.g. ["zh-Hans-CN", "en-US"]
+        let preferredTags = Locale.preferredLanguages
+        // Match from most-specific to least-specific so "zh-Hans-CN" hits zhHans before en
+        for tag in preferredTags {
+            for locale in OCALocale.allCases.sorted(by: { $0.bcp47Tag.count > $1.bcp47Tag.count })
+                where tag.starts(with: locale.bcp47Tag)
+            {
+                return locale
+            }
+        }
+        return .en
+    }
 }
 
 // MARK: - String Keys (type-safe)
@@ -73,1206 +73,1206 @@ public enum OCALocale: String, CaseIterable {
 /// Every UI string gets a typed key. New text = new key + translations.
 /// No runtime string literal lookup — compile-time safe.
 public enum StringKey: String, CaseIterable {
-	// — Dashboard —
-	case systemOnline = "Dashboard.SystemOnline"
-	case backend = "Dashboard.Backend"
-	case systemLoading = "Dashboard.SystemLoading"
-	case metrics = "Dashboard.Metrics"
-	case throughput = "Dashboard.Throughput"
-	case ttft = "Dashboard.TTFT"
-	case ttfb = "Dashboard.TTFB"
-	case gpuMemory = "Dashboard.GPUMemory"
-	case kvCache = "Dashboard.KVCache"
-	case kvEvictions = "Dashboard.KVEvictions"
-	case sessions = "Dashboard.Sessions"
-	case modelsLoaded = "Dashboard.ModelsLoaded"
-	case inferences = "Dashboard.Inferences"
-	case rateLimit = "Dashboard.RateLimit"
-	case uptime = "Dashboard.Uptime"
-	case avgInfer = "Dashboard.AvgInfer"
-	case tokenThroughput = "Dashboard.TokenThroughput"
-	case gpuMemoryKVCache = "Dashboard.GPUMemoryKVCache"
-	case loadingMetrics = "Dashboard.LoadingMetrics"
+    // — Dashboard —
+    case systemOnline = "Dashboard.SystemOnline"
+    case backend = "Dashboard.Backend"
+    case systemLoading = "Dashboard.SystemLoading"
+    case metrics = "Dashboard.Metrics"
+    case throughput = "Dashboard.Throughput"
+    case ttft = "Dashboard.TTFT"
+    case ttfb = "Dashboard.TTFB"
+    case gpuMemory = "Dashboard.GPUMemory"
+    case kvCache = "Dashboard.KVCache"
+    case kvEvictions = "Dashboard.KVEvictions"
+    case sessions = "Dashboard.Sessions"
+    case modelsLoaded = "Dashboard.ModelsLoaded"
+    case inferences = "Dashboard.Inferences"
+    case rateLimit = "Dashboard.RateLimit"
+    case uptime = "Dashboard.Uptime"
+    case avgInfer = "Dashboard.AvgInfer"
+    case tokenThroughput = "Dashboard.TokenThroughput"
+    case gpuMemoryKVCache = "Dashboard.GPUMemoryKVCache"
+    case loadingMetrics = "Dashboard.LoadingMetrics"
 
-	// — Chat —
-	case chatPlaceholder = "Chat.Placeholder"
-	// — Attachment —
-	case attachFiles = "Attach.Files"
-	case attachFilesHint = "Attach.FilesHint"
-	case imageAttachment = "Attach.ImageAttachment"
-	case send = "Chat.Send"
-	case stop = "Chat.Stop"
-	case newConversation = "Chat.NewConversation"
+    // — Chat —
+    case chatPlaceholder = "Chat.Placeholder"
+    // — Attachment —
+    case attachFiles = "Attach.Files"
+    case attachFilesHint = "Attach.FilesHint"
+    case imageAttachment = "Attach.ImageAttachment"
+    case send = "Chat.Send"
+    case stop = "Chat.Stop"
+    case newConversation = "Chat.NewConversation"
 
-	// — Hub Tokens —
-	case hubTokensTitle = "Settings.HubTokensTitle"
-	case hubTokensHint = "Settings.HubTokensHint"
-	case hubHuggingFace = "Settings.HubHuggingFace"
-	case hubModelScope = "Settings.HubModelScope"
-	case notConfigured = "Common.NotConfigured"
-	case enterTokenPlaceholder = "Common.EnterTokenPlaceholder"
+    // — Hub Tokens —
+    case hubTokensTitle = "Settings.HubTokensTitle"
+    case hubTokensHint = "Settings.HubTokensHint"
+    case hubHuggingFace = "Settings.HubHuggingFace"
+    case hubModelScope = "Settings.HubModelScope"
+    case notConfigured = "Common.NotConfigured"
+    case enterTokenPlaceholder = "Common.EnterTokenPlaceholder"
 
-	// — Settings —
-	case settingsTitle = "Settings.Title"
-	case serverAddress = "Settings.ServerAddress"
-	case port = "Settings.Port"
-	case verifyConnection = "Settings.VerifyConnection"
-	case connected = "Settings.Connected"
-	case disconnected = "Settings.Disconnected"
-	case connecting = "Settings.Connecting"
-	case connectionFailed = "Settings.ConnectionFailed"
-	case serverSection = "Settings.ServerSection"
-	case ensureBackend = "Settings.EnsureBackend"
-	case performanceSection = "Settings.PerformanceSection"
-	case pollInterval = "Settings.PollInterval"
-	case chartWindow = "Settings.ChartWindow"
-	case chartWindowHint = "Settings.ChartWindowHint"
-	case kvCacheSection = "Settings.KVCacheSection"
-	case kvQuantToggle = "Settings.KVQuantToggle"
-	case kvQuantToggleHint = "Settings.KVQuantToggleHint"
-	case kvQuantBits = "Settings.KVQuantBits"
-	case kvBudget = "Settings.KVBudget"
-	case kvBudgetHint = "Settings.KVBudgetHint"
-	case specDecodingSection = "Settings.SpecDecodingSection"
-	case specDecodingToggle = "Settings.SpecDecodingToggle"
-	case specDecodingMode = "Settings.SpecDecodingMode"
-	case specDecodingModeMtp = "Settings.SpecDecodingModeMTP"
-	case specDecodingModeTraditional = "Settings.SpecDecodingModeTraditional"
-	case specDecodingHint = "Settings.SpecDecodingHint"
-	case specDecodingFooter = "Settings.SpecDecodingFooter"
-	case logsSection = "Settings.LogsSection"
-	case logLevel = "Settings.LogLevel"
-	case profileToggle = "Settings.ProfileToggle"
-	case profileToggleHint = "Settings.ProfileToggleHint"
-	case appSection = "Settings.AppSection"
-	case localePicker = "Settings.LocalePicker"
-	case themeMode = "Settings.ThemeMode"
-	case themeModeAuto = "Settings.ThemeModeAuto"
-	case themeModeLight = "Settings.ThemeModeLight"
-	case themeModeDark = "Settings.ThemeModeDark"
-	case aboutSection = "Settings.AboutSection"
-	case version = "Settings.Version"
-	case commitHash = "Settings.CommitHash"
-	case license = "Settings.License"
-	case resetSettings = "Settings.ResetSettings"
-	case resetConfirm = "Settings.ResetConfirm"
-	case allSections = "Settings.AllSections"
-	case customSystemPrompt = "Settings.CustomSystemPrompt"
-	case customSystemPromptHint = "Settings.CustomSystemPromptHint"
-	case customSystemPromptPlaceholder = "Settings.CustomSystemPromptPlaceholder"
+    // — Settings —
+    case settingsTitle = "Settings.Title"
+    case serverAddress = "Settings.ServerAddress"
+    case port = "Settings.Port"
+    case verifyConnection = "Settings.VerifyConnection"
+    case connected = "Settings.Connected"
+    case disconnected = "Settings.Disconnected"
+    case connecting = "Settings.Connecting"
+    case connectionFailed = "Settings.ConnectionFailed"
+    case serverSection = "Settings.ServerSection"
+    case ensureBackend = "Settings.EnsureBackend"
+    case performanceSection = "Settings.PerformanceSection"
+    case pollInterval = "Settings.PollInterval"
+    case chartWindow = "Settings.ChartWindow"
+    case chartWindowHint = "Settings.ChartWindowHint"
+    case kvCacheSection = "Settings.KVCacheSection"
+    case kvQuantToggle = "Settings.KVQuantToggle"
+    case kvQuantToggleHint = "Settings.KVQuantToggleHint"
+    case kvQuantBits = "Settings.KVQuantBits"
+    case kvBudget = "Settings.KVBudget"
+    case kvBudgetHint = "Settings.KVBudgetHint"
+    case specDecodingSection = "Settings.SpecDecodingSection"
+    case specDecodingToggle = "Settings.SpecDecodingToggle"
+    case specDecodingMode = "Settings.SpecDecodingMode"
+    case specDecodingModeMtp = "Settings.SpecDecodingModeMTP"
+    case specDecodingModeTraditional = "Settings.SpecDecodingModeTraditional"
+    case specDecodingHint = "Settings.SpecDecodingHint"
+    case specDecodingFooter = "Settings.SpecDecodingFooter"
+    case logsSection = "Settings.LogsSection"
+    case logLevel = "Settings.LogLevel"
+    case profileToggle = "Settings.ProfileToggle"
+    case profileToggleHint = "Settings.ProfileToggleHint"
+    case appSection = "Settings.AppSection"
+    case localePicker = "Settings.LocalePicker"
+    case themeMode = "Settings.ThemeMode"
+    case themeModeAuto = "Settings.ThemeModeAuto"
+    case themeModeLight = "Settings.ThemeModeLight"
+    case themeModeDark = "Settings.ThemeModeDark"
+    case aboutSection = "Settings.AboutSection"
+    case version = "Settings.Version"
+    case commitHash = "Settings.CommitHash"
+    case license = "Settings.License"
+    case resetSettings = "Settings.ResetSettings"
+    case resetConfirm = "Settings.ResetConfirm"
+    case allSections = "Settings.AllSections"
+    case customSystemPrompt = "Settings.CustomSystemPrompt"
+    case customSystemPromptHint = "Settings.CustomSystemPromptHint"
+    case customSystemPromptPlaceholder = "Settings.CustomSystemPromptPlaceholder"
 
-	// — Navigation —
-	case tabDashboard = "Navigation.Dashboard"
-	case tabChat = "Navigation.Chat"
-	case tabModels = "Navigation.Models"
-	case tabStatus = "Navigation.Status"
-	case tabSettings = "Navigation.Settings"
-	case selectPanel = "Navigation.SelectPanel"
-	case navigationTitle = "Navigation.Title"
-	case sidebarNavigation = "Navigation.Sidebar"
+    // — Navigation —
+    case tabDashboard = "Navigation.Dashboard"
+    case tabChat = "Navigation.Chat"
+    case tabModels = "Navigation.Models"
+    case tabStatus = "Navigation.Status"
+    case tabSettings = "Navigation.Settings"
+    case selectPanel = "Navigation.SelectPanel"
+    case navigationTitle = "Navigation.Title"
+    case sidebarNavigation = "Navigation.Sidebar"
 
-	// — Sidebar Sections —
-	case sectionServer = "Sidebar.Section.Server"
-	case sectionWorkflow = "Sidebar.Section.Workflow"
-	case sectionSystem = "Sidebar.Section.System"
-	case sectionModels = "Sidebar.Section.Models"
-	case sectionGeneral = "Sidebar.Section.General"
+    // — Sidebar Sections —
+    case sectionServer = "Sidebar.Section.Server"
+    case sectionWorkflow = "Sidebar.Section.Workflow"
+    case sectionSystem = "Sidebar.Section.System"
+    case sectionModels = "Sidebar.Section.Models"
+    case sectionGeneral = "Sidebar.Section.General"
 
-	// — Quick Metrics —
-	case metricOverview = "Metrics.Overview"
-	case metricOverviewAccessibility = "Metrics.Overview.Descripción"
-	case metricThroughput = "Metrics.Throughput"
-	case metricGPUMemory = "Metrics.GPUMemory"
-	case metricSessions = "Metrics.Sessions"
-	case metricStatus = "Metrics.Status"
-	case metricStatusActive = "Metrics.Status.Active"
-	case metricStatusIdle = "Metrics.Status.Idle"
+    // — Quick Metrics —
+    case metricOverview = "Metrics.Overview"
+    case metricOverviewAccessibility = "Metrics.Overview.Descripción"
+    case metricThroughput = "Metrics.Throughput"
+    case metricGPUMemory = "Metrics.GPUMemory"
+    case metricSessions = "Metrics.Sessions"
+    case metricStatus = "Metrics.Status"
+    case metricStatusActive = "Metrics.Status.Active"
+    case metricStatusIdle = "Metrics.Status.Idle"
 
-	// — Chat —
-	case chatWelcomeTitle = "Chat.WelcomeTitle"
-	case chatWelcomeDesc = "Chat.WelcomeDesc"
-	case chatSuggestionExplainMlx = "Chat.SuggestionExplainMlx"
-	case chatSuggestionCompareCoreAi = "Chat.SuggestionCompareCoreAi"
-	case chatSuggestionDebugSwiftui = "Chat.SuggestionDebugSwiftui"
+    // — Chat —
+    case chatWelcomeTitle = "Chat.WelcomeTitle"
+    case chatWelcomeDesc = "Chat.WelcomeDesc"
+    case chatSuggestionExplainMlx = "Chat.SuggestionExplainMlx"
+    case chatSuggestionCompareCoreAi = "Chat.SuggestionCompareCoreAi"
+    case chatSuggestionDebugSwiftui = "Chat.SuggestionDebugSwiftui"
 
-	// — Models —
-	case noModelsLoaded = "Models.NoModelsLoaded"
-	case loadingModels = "Models.Loading"
-	case modelLoadError = "Models.LoadError"
-	case modelLoadErrorDesc = "Models.LoadErrorDesc"
-	case modelDeleteError = "Models.DeleteError"
-	case modelDeleteTitle = "Models.DeleteTitle"
-	case modelDeleteConfirm = "Models.DeleteConfirm"
-	case modelDeleteSuccess = "Models.DeleteSuccess"
-	case modelUnload = "Models.Unload"
-	case modelDeleteButton = "Models.DeleteButton"
-	case modelViewDeleteConfirmTitle = "Models.DeleteConfirmTitle"
-	case modelViewDeleteConfirmMessage = "Models.DeleteConfirmMessage"
-	case modelViewDeleteConfirmAction = "Models.DeleteConfirmAction"
-	case modelViewDeleteCancelAction = "Models.DeleteCancelAction"
+    // — Models —
+    case noModelsLoaded = "Models.NoModelsLoaded"
+    case loadingModels = "Models.Loading"
+    case modelLoadError = "Models.LoadError"
+    case modelLoadErrorDesc = "Models.LoadErrorDesc"
+    case modelDeleteError = "Models.DeleteError"
+    case modelDeleteTitle = "Models.DeleteTitle"
+    case modelDeleteConfirm = "Models.DeleteConfirm"
+    case modelDeleteSuccess = "Models.DeleteSuccess"
+    case modelUnload = "Models.Unload"
+    case modelDeleteButton = "Models.DeleteButton"
+    case modelViewDeleteConfirmTitle = "Models.DeleteConfirmTitle"
+    case modelViewDeleteConfirmMessage = "Models.DeleteConfirmMessage"
+    case modelViewDeleteConfirmAction = "Models.DeleteConfirmAction"
+    case modelViewDeleteCancelAction = "Models.DeleteCancelAction"
 
-	// — Multimodal —
-	case multimodalTitle = "Multimodal.Title"
-	case multimodalCamera = "Multimodal.Camera"
-	case multimodalLiveFeed = "Multimodal.LiveFeed"
-	case multimodalMic = "Multimodal.Mic"
-	case multimodalSpeaker = "Multimodal.Speaker"
-	case multimodalTtsHint = "Multimodal.TtsHint"
-	case multimodalToggleLabel = "Multimodal.ToggleLabel"
-	case multimodalToggleHint = "Multimodal.ToggleHint"
-	case multimodalScreen = "Multimodal.Screen"
-	case multimodalScreenCaptureLabel = "Multimodal.ScreenCaptureLabel"
-	case multimodalScreenCaptureHint = "Multimodal.ScreenCaptureHint"
-	case multimodalScreenLiveFeed = "Multimodal.ScreenLiveFeed"
-	case multimodalScreenCaptureActive = "Multimodal.ScreenCaptureActive"
-	case multimodalSTTListening = "Multimodal.STTListening"
-	case multimodalSTTListeningHint = "Multimodal.STTListeningHint"
-	case multimodalSTTPartialLabel = "Multimodal.STTPartialLabel"
+    // — Multimodal —
+    case multimodalTitle = "Multimodal.Title"
+    case multimodalCamera = "Multimodal.Camera"
+    case multimodalLiveFeed = "Multimodal.LiveFeed"
+    case multimodalMic = "Multimodal.Mic"
+    case multimodalSpeaker = "Multimodal.Speaker"
+    case multimodalTtsHint = "Multimodal.TtsHint"
+    case multimodalToggleLabel = "Multimodal.ToggleLabel"
+    case multimodalToggleHint = "Multimodal.ToggleHint"
+    case multimodalScreen = "Multimodal.Screen"
+    case multimodalScreenCaptureLabel = "Multimodal.ScreenCaptureLabel"
+    case multimodalScreenCaptureHint = "Multimodal.ScreenCaptureHint"
+    case multimodalScreenLiveFeed = "Multimodal.ScreenLiveFeed"
+    case multimodalScreenCaptureActive = "Multimodal.ScreenCaptureActive"
+    case multimodalSTTListening = "Multimodal.STTListening"
+    case multimodalSTTListeningHint = "Multimodal.STTListeningHint"
+    case multimodalSTTPartialLabel = "Multimodal.STTPartialLabel"
 
-	// — Dashboard —
-	case dashboardTitle = "Dashboard.Title"
-	case dashboardPerformance = "Dashboard.Performance"
-	case dashboardSystemInfo = "Dashboard.SystemInfo"
-	case dashboardTokenChartDesc = "Dashboard.TokenChartDesc"
-	case dashboardMemChartDesc = "Dashboard.MemChartDesc"
+    // — Dashboard —
+    case dashboardTitle = "Dashboard.Title"
+    case dashboardPerformance = "Dashboard.Performance"
+    case dashboardSystemInfo = "Dashboard.SystemInfo"
+    case dashboardTokenChartDesc = "Dashboard.TokenChartDesc"
+    case dashboardMemChartDesc = "Dashboard.MemChartDesc"
 
-	// — ViewState —
-	case connectionFailedTitle = "State.ConnectionFailed"
-	case connectionFailedDesc = "State.ConnectionFailedDesc"
+    // — ViewState —
+    case connectionFailedTitle = "State.ConnectionFailed"
+    case connectionFailedDesc = "State.ConnectionFailedDesc"
 
-	// — Status Pill —
-	case statusRunning = "Status.Running"
-	case statusStarting = "Status.Starting"
-	case statusStopping = "Status.Stopping"
-	case statusStopped = "Status.Stopped"
-	case statusError = "Status.Error"
-	case dismissError = "Status.DismissError"
+    // — Status Pill —
+    case statusRunning = "Status.Running"
+    case statusStarting = "Status.Starting"
+    case statusStopping = "Status.Stopping"
+    case statusStopped = "Status.Stopped"
+    case statusError = "Status.Error"
+    case dismissError = "Status.DismissError"
 
-	// — LogLevel Display Names —
-	case logLevelDebug = "LogLevel.Debug"
-	case logLevelInfo = "LogLevel.Info"
-	case logLevelWarning = "LogLevel.Warning"
-	case logLevelError = "LogLevel.Error"
+    // — LogLevel Display Names —
+    case logLevelDebug = "LogLevel.Debug"
+    case logLevelInfo = "LogLevel.Info"
+    case logLevelWarning = "LogLevel.Warning"
+    case logLevelError = "LogLevel.Error"
 
-	// — Accessibility Labels —
-	case appLabel = "A11y.AppLabel"
-	case appTitle = "A11y.AppTitle"
-	case noPanelSelected = "A11y.NoPanelSelected"
-	case selectTab = "A11y.SelectTab"
-	case modelSelectorLabel = "A11y.ModelSelectorLabel"
-	case modelSelectorValueDefault = "A11y.ModelSelectorValueDefault"
-	case clearConversationLabel = "A11y.ClearConversationLabel"
-	case clearConversationHint = "A11y.ClearConversationHint"
-	case chatLabel = "A11y.ChatLabel"
-	case chatConnected = "A11y.ChatConnected"
-	case chatLoading = "A11y.ChatLoading"
-	case messagesLabel = "A11y.MessagesLabel"
-	case assistantTyping = "A11y.AssistantTyping"
-	case voiceInputLabel = "A11y.VoiceInputLabel"
-	case voiceInputHint = "A11y.VoiceInputHint"
-	case messageInputLabel = "A11y.MessageInputLabel"
-	case messageInputHint = "A11y.MessageInputHint"
-	case stopStreamingLabel = "A11y.StopStreamingLabel"
-	case stopStreamingHint = "A11y.StopStreamingHint"
-	case sendMessageLabel = "A11y.SendMessageLabel"
-	case sendMessageHint = "A11y.SendMessageHint"
-	case youLabel = "A11y.YouLabel"
-	case ocoreaiLabel = "A11y.OcoreaiLabel"
-	case suggestionHint = "A11y.SuggestionHint"
-	case localLabel = "A11y.LocalLabel"
-	case dashboardLabel = "A11y.DashboardLabel"
-	case systemInfoLabel = "A11y.SystemInfoLabel"
-	case areaGraphTokenDesc = "A11y.AreaGraphTokenDesc"
-	case areaGraphGpuDesc = "A11y.AreaGraphGpuDesc"
-	case kvCacheLineDesc = "A11y.KVCacheLineDesc"
-	case refreshModelLabel = "A11y.RefreshModelLabel"
-	case refreshModelHint = "A11y.RefreshModelHint"
-	case contextKey = "A11y.ContextKey"
-	case tokenizerKey = "A11y.TokenizerKey"
-	case modelRunningLabel = "A11y.ModelRunningLabel"
-	case modelStartingLabel = "A11y.ModelStartingLabel"
-	case modelServingLabel = "A11y.ModelServingLabel"
-	case multimodalControlsLabel = "A11y.MultimodalControlsLabel"
-	case enableCameraLabel = "A11y.EnableCameraLabel"
-	case enableCameraHint = "A11y.EnableCameraHint"
-	case cameraPreviewLabel = "A11y.CameraPreviewLabel"
-	case captureFrameLabel = "A11y.CaptureFrameLabel"
-	case captureFrameHint = "A11y.CaptureFrameHint"
-	case enableMicLabel = "A11y.EnableMicLabel"
-	case enableMicHint = "A11y.EnableMicHint"
-	case stopRecordingLabel = "A11y.StopRecordingLabel"
-	case stopRecordingHint = "A11y.StopRecordingHint"
-	case startRecordingLabel = "A11y.StartRecordingLabel"
-	case startRecordingHint = "A11y.StartRecordingHint"
-	case lastTranscriptLabel = "A11y.LastTranscriptLabel"
-	case enableSpeakerLabel = "A11y.EnableSpeakerLabel"
-	case enableSpeakerHint = "A11y.EnableSpeakerHint"
-	case ttsActiveLabel = "A11y.TtsActiveLabel"
-	case statusIndicatorsLabel = "A11y.StatusIndicatorsLabel"
+    // — Accessibility Labels —
+    case appLabel = "A11y.AppLabel"
+    case appTitle = "A11y.AppTitle"
+    case noPanelSelected = "A11y.NoPanelSelected"
+    case selectTab = "A11y.SelectTab"
+    case modelSelectorLabel = "A11y.ModelSelectorLabel"
+    case modelSelectorValueDefault = "A11y.ModelSelectorValueDefault"
+    case clearConversationLabel = "A11y.ClearConversationLabel"
+    case clearConversationHint = "A11y.ClearConversationHint"
+    case chatLabel = "A11y.ChatLabel"
+    case chatConnected = "A11y.ChatConnected"
+    case chatLoading = "A11y.ChatLoading"
+    case messagesLabel = "A11y.MessagesLabel"
+    case assistantTyping = "A11y.AssistantTyping"
+    case voiceInputLabel = "A11y.VoiceInputLabel"
+    case voiceInputHint = "A11y.VoiceInputHint"
+    case messageInputLabel = "A11y.MessageInputLabel"
+    case messageInputHint = "A11y.MessageInputHint"
+    case stopStreamingLabel = "A11y.StopStreamingLabel"
+    case stopStreamingHint = "A11y.StopStreamingHint"
+    case sendMessageLabel = "A11y.SendMessageLabel"
+    case sendMessageHint = "A11y.SendMessageHint"
+    case youLabel = "A11y.YouLabel"
+    case ocoreaiLabel = "A11y.OcoreaiLabel"
+    case suggestionHint = "A11y.SuggestionHint"
+    case localLabel = "A11y.LocalLabel"
+    case dashboardLabel = "A11y.DashboardLabel"
+    case systemInfoLabel = "A11y.SystemInfoLabel"
+    case areaGraphTokenDesc = "A11y.AreaGraphTokenDesc"
+    case areaGraphGpuDesc = "A11y.AreaGraphGpuDesc"
+    case kvCacheLineDesc = "A11y.KVCacheLineDesc"
+    case refreshModelLabel = "A11y.RefreshModelLabel"
+    case refreshModelHint = "A11y.RefreshModelHint"
+    case contextKey = "A11y.ContextKey"
+    case tokenizerKey = "A11y.TokenizerKey"
+    case modelRunningLabel = "A11y.ModelRunningLabel"
+    case modelStartingLabel = "A11y.ModelStartingLabel"
+    case modelServingLabel = "A11y.ModelServingLabel"
+    case multimodalControlsLabel = "A11y.MultimodalControlsLabel"
+    case enableCameraLabel = "A11y.EnableCameraLabel"
+    case enableCameraHint = "A11y.EnableCameraHint"
+    case cameraPreviewLabel = "A11y.CameraPreviewLabel"
+    case captureFrameLabel = "A11y.CaptureFrameLabel"
+    case captureFrameHint = "A11y.CaptureFrameHint"
+    case enableMicLabel = "A11y.EnableMicLabel"
+    case enableMicHint = "A11y.EnableMicHint"
+    case stopRecordingLabel = "A11y.StopRecordingLabel"
+    case stopRecordingHint = "A11y.StopRecordingHint"
+    case startRecordingLabel = "A11y.StartRecordingLabel"
+    case startRecordingHint = "A11y.StartRecordingHint"
+    case lastTranscriptLabel = "A11y.LastTranscriptLabel"
+    case enableSpeakerLabel = "A11y.EnableSpeakerLabel"
+    case enableSpeakerHint = "A11y.EnableSpeakerHint"
+    case ttsActiveLabel = "A11y.TtsActiveLabel"
+    case statusIndicatorsLabel = "A11y.StatusIndicatorsLabel"
 
-	// — Accessibility —
-	case a11yMLXFormat = "A11y.MLXFormat"
-	case a11yModelScopeSource = "A11y.ModelScopeSource"
-	case engineNotAvailable = "Engine.NotAvailable"
+    // — Accessibility —
+    case a11yMLXFormat = "A11y.MLXFormat"
+    case a11yModelScopeSource = "A11y.ModelScopeSource"
+    case engineNotAvailable = "Engine.NotAvailable"
 
-	// — Status Dot Labels —
-	case statusCameraActive = "Status.CameraActive"
-	case statusRecording = "Status.Recording"
-	case statusSpeaking = "Status.Speaking"
-	case statusActive = "Status.Active"
-	case statusInactive = "Status.Inactive"
+    // — Status Dot Labels —
+    case statusCameraActive = "Status.CameraActive"
+    case statusRecording = "Status.Recording"
+    case statusSpeaking = "Status.Speaking"
+    case statusActive = "Status.Active"
+    case statusInactive = "Status.Inactive"
 
-	// — Accessibility label templates —
-	case a11yStatus = "A11y.Status"
-	case a11yModel = "A11y.Model"
+    // — Accessibility label templates —
+    case a11yStatus = "A11y.Status"
+    case a11yModel = "A11y.Model"
 
-	// — Settings / About —
-	case aboutTitle = "About.Title"
-	case aboutVersion = "About.Version"
+    // — Settings / About —
+    case aboutTitle = "About.Title"
+    case aboutVersion = "About.Version"
 
-	// — Model Info —
-	case modelInfoContext = "ModelInfo.Context"
-	case modelInfoTokenizer = "ModelInfo.Tokenizer"
-	// — VLM badge —
-	case modelInfoVLM = "ModelInfo.VLM"
-	// — Vocab size —
-	case modelInfoVocab = "ModelInfo.Vocab"
+    // — Model Info —
+    case modelInfoContext = "ModelInfo.Context"
+    case modelInfoTokenizer = "ModelInfo.Tokenizer"
+    // — VLM badge —
+    case modelInfoVLM = "ModelInfo.VLM"
+    // — Vocab size —
+    case modelInfoVocab = "ModelInfo.Vocab"
 
-	// — Chart Axis Labels (macOS Charts) —
-	case chartTime = "Chart.Time"
-	case chartTokPerSec = "Chart.TokPerSec"
-	case chartGB = "Chart.GB"
+    // — Chart Axis Labels (macOS Charts) —
+    case chartTime = "Chart.Time"
+    case chartTokPerSec = "Chart.TokPerSec"
+    case chartGB = "Chart.GB"
 
-	// — Default Model —
-	case defaultModel = "Model.Default"
-	case noModelSelected = "Model.NoModelSelected"
-	case clear = "Chat.Clear"
-	// — Refresh —
-	case refreshButton = "Action.Refresh"
-	// — Retry —
-	case tryAgain = "Action.TryAgain"
-	// — Copy —
-	case copyMessage = "Action.CopyMessage"
-	// — Undo —
-	case undoAction = "Action.Undo"
-	// — Regenerate —
-	case regenerateMessage = "Action.RegenerateMessage"
-	// — Copy code —
-	case copyCode = "Action.CopyCode"
-	case codeCopied = "Action.CodeCopied"
+    // — Default Model —
+    case defaultModel = "Model.Default"
+    case noModelSelected = "Model.NoModelSelected"
+    case clear = "Chat.Clear"
+    // — Refresh —
+    case refreshButton = "Action.Refresh"
+    // — Retry —
+    case tryAgain = "Action.TryAgain"
+    // — Copy —
+    case copyMessage = "Action.CopyMessage"
+    // — Undo —
+    case undoAction = "Action.Undo"
+    // — Regenerate —
+    case regenerateMessage = "Action.RegenerateMessage"
+    // — Copy code —
+    case copyCode = "Action.CopyCode"
+    case codeCopied = "Action.CodeCopied"
 
-	// — Sessions —
-	case tabSessions = "Tab.Sessions"
-	case sessionSearchPlaceholder = "Session.SearchPlaceholder"
-	case sessionListEmpty = "Session.ListEmpty"
-	case sessionSelectHint = "Session.SelectHint"
-	case sessionCreate = "Session.Create"
-	case sessionDelete = "Session.Delete"
-	case sessionDeleteConfirm = "Session.DeleteConfirm"
-	case sessionSummary = "Session.Summary"
-	case sessionModel = "Session.Model"
-	case sessionCreatedAt = "Session.CreatedAt"
-	case sessionMessageCount = "Session.MessageCount"
-	case sessionTokenCount = "Session.TokenCount"
-	case memoryTitle = "Session.MemoryTitle"
-	case memoryEmpty = "Session.MemoryEmpty"
-	case memorySearchPlaceholder = "Session.MemorySearchPlaceholder"
+    // — Sessions —
+    case tabSessions = "Tab.Sessions"
+    case sessionSearchPlaceholder = "Session.SearchPlaceholder"
+    case sessionListEmpty = "Session.ListEmpty"
+    case sessionSelectHint = "Session.SelectHint"
+    case sessionCreate = "Session.Create"
+    case sessionDelete = "Session.Delete"
+    case sessionDeleteConfirm = "Session.DeleteConfirm"
+    case sessionSummary = "Session.Summary"
+    case sessionModel = "Session.Model"
+    case sessionCreatedAt = "Session.CreatedAt"
+    case sessionMessageCount = "Session.MessageCount"
+    case sessionTokenCount = "Session.TokenCount"
+    case memoryTitle = "Session.MemoryTitle"
+    case memoryEmpty = "Session.MemoryEmpty"
+    case memorySearchPlaceholder = "Session.MemorySearchPlaceholder"
 
-	// — Skills —
-	case tabSkills = "Tab.Skills"
-	case skillListEmpty = "Skill.ListEmpty"
-	case skillSelectHint = "Skill.SelectHint"
-	case skillName = "Skill.Name"
-	case skillCategory = "Skill.Category"
-	case skillDescription = "Skill.Description"
-	case skillTags = "Skill.Tags"
-	case skillContentTitle = "Skill.ContentTitle"
-	case skillDependencies = "Skill.Dependencies"
-	case skillAll = "Skill.All"
+    // — Skills —
+    case tabSkills = "Tab.Skills"
+    case skillListEmpty = "Skill.ListEmpty"
+    case skillSelectHint = "Skill.SelectHint"
+    case skillName = "Skill.Name"
+    case skillCategory = "Skill.Category"
+    case skillDescription = "Skill.Description"
+    case skillTags = "Skill.Tags"
+    case skillContentTitle = "Skill.ContentTitle"
+    case skillDependencies = "Skill.Dependencies"
+    case skillAll = "Skill.All"
 
-	// — System —
-	case tabSystem = "Tab.System"
-	case systemMCPSection = "System.MCPSection"
-	case systemMCPEmpty = "System.MCPEmpty"
-	case systemMCPConnected = "System.MCPConnected"
-	case systemMCPDisconnected = "System.MCPDisconnected"
-	case systemMCPName = "System.MCPName"
-	case systemMCPCommand = "System.MCPCommand"
-	case systemToolsSection = "System.ToolsSection"
-	case systemToolsEmpty = "System.ToolsEmpty"
-	case systemToolName = "System.ToolName"
-	case systemToolReadOnly = "System.ToolReadOnly"
-	case systemToolDestructive = "System.ToolDestructive"
-	case systemAuditSection = "System.AuditSection"
-	case systemAuditEmpty = "System.AuditEmpty"
-	case systemAuditTool = "System.AuditTool"
-	case systemAuditCaller = "System.AuditCaller"
-	case systemAuditDuration = "System.AuditDuration"
-	case systemAuditStatus = "System.AuditStatus"
-	case systemReasoningSection = "System.ReasoningSection"
-	case systemComplexityScore = "System.ComplexityScore"
-	case systemThinkingBudget = "System.ThinkingBudget"
-	case systemRefresh = "System.Refresh"
-	case systemClearAudit = "System.ClearAudit"
-	case systemClearAuditConfirm = "System.ClearAuditConfirm"
+    // — System —
+    case tabSystem = "Tab.System"
+    case systemMCPSection = "System.MCPSection"
+    case systemMCPEmpty = "System.MCPEmpty"
+    case systemMCPConnected = "System.MCPConnected"
+    case systemMCPDisconnected = "System.MCPDisconnected"
+    case systemMCPName = "System.MCPName"
+    case systemMCPCommand = "System.MCPCommand"
+    case systemToolsSection = "System.ToolsSection"
+    case systemToolsEmpty = "System.ToolsEmpty"
+    case systemToolName = "System.ToolName"
+    case systemToolReadOnly = "System.ToolReadOnly"
+    case systemToolDestructive = "System.ToolDestructive"
+    case systemAuditSection = "System.AuditSection"
+    case systemAuditEmpty = "System.AuditEmpty"
+    case systemAuditTool = "System.AuditTool"
+    case systemAuditCaller = "System.AuditCaller"
+    case systemAuditDuration = "System.AuditDuration"
+    case systemAuditStatus = "System.AuditStatus"
+    case systemReasoningSection = "System.ReasoningSection"
+    case systemComplexityScore = "System.ComplexityScore"
+    case systemThinkingBudget = "System.ThinkingBudget"
+    case systemRefresh = "System.Refresh"
+    case systemClearAudit = "System.ClearAudit"
+    case systemClearAuditConfirm = "System.ClearAuditConfirm"
 
-	// — System complexity bands —
-	case systemComplexityLow = "System.ComplexityLow"
-	case systemComplexityMedium = "System.ComplexityMedium"
-	case systemComplexityHigh = "System.ComplexityHigh"
+    // — System complexity bands —
+    case systemComplexityLow = "System.ComplexityLow"
+    case systemComplexityMedium = "System.ComplexityMedium"
+    case systemComplexityHigh = "System.ComplexityHigh"
 
-	// — Per-model Inference Params —
-	case modelParamsTitle = "Models.ParamsTitle"
-	case modelParamTemperature = "Models.ParamTemperature"
-	case modelParamTemperatureHint = "Models.ParamTemperatureHint"
-	case modelParamTopP = "Models.ParamTopP"
-	case modelParamTopPHint = "Models.ParamTopPHint"
-	case modelParamTopK = "Models.ParamTopK"
-	case modelParamTopKHint = "Models.ParamTopKHint"
-	case modelParamMaxTokens = "Models.ParamMaxTokens"
-	case modelParamMaxTokensHint = "Models.ParamMaxTokensHint"
-	case modelParamRepeatPenalty = "Models.ParamRepeatPenalty"
-	case modelParamRepeatPenaltyHint = "Models.ParamRepeatPenaltyHint"
-	case modelParamFrequencyPenalty = "Models.ParamFrequencyPenalty"
-	case modelParamPresencePenalty = "Models.ParamPresencePenalty"
-	case modelParamSave = "Models.ParamSave"
-	case modelParamReset = "Models.ParamReset"
-	case modelParamDefaults = "Models.ParamDefaults"
-	case modelViewTapToEdit = "Models.TapToEdit"
+    // — Per-model Inference Params —
+    case modelParamsTitle = "Models.ParamsTitle"
+    case modelParamTemperature = "Models.ParamTemperature"
+    case modelParamTemperatureHint = "Models.ParamTemperatureHint"
+    case modelParamTopP = "Models.ParamTopP"
+    case modelParamTopPHint = "Models.ParamTopPHint"
+    case modelParamTopK = "Models.ParamTopK"
+    case modelParamTopKHint = "Models.ParamTopKHint"
+    case modelParamMaxTokens = "Models.ParamMaxTokens"
+    case modelParamMaxTokensHint = "Models.ParamMaxTokensHint"
+    case modelParamRepeatPenalty = "Models.ParamRepeatPenalty"
+    case modelParamRepeatPenaltyHint = "Models.ParamRepeatPenaltyHint"
+    case modelParamFrequencyPenalty = "Models.ParamFrequencyPenalty"
+    case modelParamPresencePenalty = "Models.ParamPresencePenalty"
+    case modelParamSave = "Models.ParamSave"
+    case modelParamReset = "Models.ParamReset"
+    case modelParamDefaults = "Models.ParamDefaults"
+    case modelViewTapToEdit = "Models.TapToEdit"
 
-	// — Chat i18n gaps (UX-03 fix) —
-	case clearConversationTitle = "Chat.ClearConversationTitle"
-	case clearAllAction = "Chat.ClearAllAction"
-	case clearConversationMessage = "Chat.ClearConversationMessage"
-	case fileTooLarge = "Chat.FileTooLarge"
-	case generationFailed = "Chat.GenerationFailed"
-	case skillRegistryUnavailable = "Common.SkillRegistryUnavailable"
-	case sessionCompressorUnavailable = "Common.SessionCompressorUnavailable"
-	case sessionLoadFailed = "Common.SessionLoadFailed"
-	case sessionSummaryLoadFailed = "Common.SessionSummaryLoadFailed"
-	case sessionDeleteFailed = "Common.SessionDeleteFailed"
-	case memorySearchFailed = "Common.MemorySearchFailed"
-	case memoryLoadFailed = "Common.MemoryLoadFailed"
-	case settingsResetToDefaults = "Settings.ResetToDefaults"
-	case cancelButton = "Common.Cancel"
+    // — Chat i18n gaps (UX-03 fix) —
+    case clearConversationTitle = "Chat.ClearConversationTitle"
+    case clearAllAction = "Chat.ClearAllAction"
+    case clearConversationMessage = "Chat.ClearConversationMessage"
+    case fileTooLarge = "Chat.FileTooLarge"
+    case generationFailed = "Chat.GenerationFailed"
+    case skillRegistryUnavailable = "Common.SkillRegistryUnavailable"
+    case sessionCompressorUnavailable = "Common.SessionCompressorUnavailable"
+    case sessionLoadFailed = "Common.SessionLoadFailed"
+    case sessionSummaryLoadFailed = "Common.SessionSummaryLoadFailed"
+    case sessionDeleteFailed = "Common.SessionDeleteFailed"
+    case memorySearchFailed = "Common.MemorySearchFailed"
+    case memoryLoadFailed = "Common.MemoryLoadFailed"
+    case settingsResetToDefaults = "Settings.ResetToDefaults"
+    case cancelButton = "Common.Cancel"
 
-	// — Model Search —
-	case modelSearchQuickLoad = "ModelSearch.QuickLoad"
-	case modelSearchExample = "ModelSearch.Example"
-	case modelSearchLoad = "ModelSearch.Load"
-	case modelSearchHubSource = "ModelSearch.HubSource"
-	case modelSearchSelectHub = "ModelSearch.SelectHub"
-	case modelSearchHFHub = "ModelSearch.HFHub"
-	case modelSearchModelScope = "ModelSearch.ModelScope"
-	case modelSearchSearching = "ModelSearch.Searching"
-	case modelSearchResults = "ModelSearch.Results"
-	case modelSearchLoading = "ModelSearch.Loading"
-	case modelSearchDismiss = "ModelSearch.Dismiss"
-	case modelSearchTitle = "ModelSearch.Title"
-	case modelSearchLabel = "ModelSearch.Label"
-	case modelSearchHint = "ModelSearch.Hint"
-	case modelSearchNoResults = "ModelSearch.NoResults"
-	case modelSearchEmpty = "ModelSearch.Empty"
+    // — Model Search —
+    case modelSearchQuickLoad = "ModelSearch.QuickLoad"
+    case modelSearchExample = "ModelSearch.Example"
+    case modelSearchLoad = "ModelSearch.Load"
+    case modelSearchHubSource = "ModelSearch.HubSource"
+    case modelSearchSelectHub = "ModelSearch.SelectHub"
+    case modelSearchHFHub = "ModelSearch.HFHub"
+    case modelSearchModelScope = "ModelSearch.ModelScope"
+    case modelSearchSearching = "ModelSearch.Searching"
+    case modelSearchResults = "ModelSearch.Results"
+    case modelSearchLoading = "ModelSearch.Loading"
+    case modelSearchDismiss = "ModelSearch.Dismiss"
+    case modelSearchTitle = "ModelSearch.Title"
+    case modelSearchLabel = "ModelSearch.Label"
+    case modelSearchHint = "ModelSearch.Hint"
+    case modelSearchNoResults = "ModelSearch.NoResults"
+    case modelSearchEmpty = "ModelSearch.Empty"
 }
 
 // MARK: - Translation Table (per locale)
 
 public extension StringKey {
-	/// Quick inline access to resolved string
-	var l: String {
-		localized(for: .systemLocale())
-	}
+    /// Quick inline access to resolved string
+    var l: String {
+        localized(for: .systemLocale())
+    }
 
-	/// Resolve via fallback chain: requested locale → base (en).
-	func localized(for locale: OCALocale = .systemLocale()) -> String {
-		resolve(key: self, locale: locale)
-	}
+    /// Resolve via fallback chain: requested locale → base (en).
+    func localized(for locale: OCALocale = .systemLocale()) -> String {
+        resolve(key: self, locale: locale)
+    }
 }
 
 private func resolve(key: StringKey, locale: OCALocale) -> String {
-	// Base translations (en) — fallback for missing
-	let base: [StringKey: String] = [
-		// Dashboard
-		.systemOnline: "System Online",
-		.backend: "Backend",
-		.systemLoading: "System Loading",
-		.metrics: "Metrics",
-		.throughput: "Throughput",
-		.ttft: "TTFT",
-		.ttfb: "TTFB",
-		.gpuMemory: "GPU Memory",
-		.kvCache: "KV Cache",
-		.kvEvictions: "KV Evictions",
-		.sessions: "Sessions",
-		.modelsLoaded: "Models Loaded",
-		.inferences: "Inferences",
-		.rateLimit: "Rate Limit",
-		.uptime: "Uptime",
-		.avgInfer: "Avg Infer",
-		.tokenThroughput: "Token Throughput",
-		.gpuMemoryKVCache: "GPU Memory & KV Cache",
-		.loadingMetrics: "Loading metrics...",
+    // Base translations (en) — fallback for missing
+    let base: [StringKey: String] = [
+        // Dashboard
+        .systemOnline: "System Online",
+        .backend: "Backend",
+        .systemLoading: "System Loading",
+        .metrics: "Metrics",
+        .throughput: "Throughput",
+        .ttft: "TTFT",
+        .ttfb: "TTFB",
+        .gpuMemory: "GPU Memory",
+        .kvCache: "KV Cache",
+        .kvEvictions: "KV Evictions",
+        .sessions: "Sessions",
+        .modelsLoaded: "Models Loaded",
+        .inferences: "Inferences",
+        .rateLimit: "Rate Limit",
+        .uptime: "Uptime",
+        .avgInfer: "Avg Infer",
+        .tokenThroughput: "Token Throughput",
+        .gpuMemoryKVCache: "GPU Memory & KV Cache",
+        .loadingMetrics: "Loading metrics...",
 
-		// Chat
-		.chatPlaceholder: "Type a message...",
-		.attachFiles: "Attach Files",
-		.attachFilesHint: "Choose an image to attach",
-		.imageAttachment: "Image attachment",
-		.send: "Send",
-		.stop: "Stop",
-		.newConversation: "New Conversation",
+        // Chat
+        .chatPlaceholder: "Type a message...",
+        .attachFiles: "Attach Files",
+        .attachFilesHint: "Choose an image to attach",
+        .imageAttachment: "Image attachment",
+        .send: "Send",
+        .stop: "Stop",
+        .newConversation: "New Conversation",
 
-		// Settings
-		.settingsTitle: "Settings",
-		.serverAddress: "Server Address",
-		.port: "Port",
-		.verifyConnection: "Verify Connection",
-		.connected: "Connected",
-		.disconnected: "Disconnected",
-		.connecting: "Connecting...",
-		.connectionFailed: "Connection Failed",
-		.serverSection: "Server",
-		.ensureBackend: "Ensure the backend is running and reachable",
-		.performanceSection: "Performance",
-		.pollInterval: "Metrics Poll Interval",
-		.chartWindow: "Chart History Window",
-		.chartWindowHint: "Number of seconds to display in charts",
-		.kvCacheSection: "KV Cache",
-		.kvQuantToggle: "Enable Quantization Downgrade",
-		.kvQuantToggleHint: "Auto-downgrade KV cache from FP16 → INT4 to save memory",
-		.kvQuantBits: "Quantization Bits",
-		.kvBudget: "KV Cache Budget (GB)",
-		.kvBudgetHint: "Maximum memory reserved for KV cache",
-		.specDecodingSection: "Speculative Decoding",
-		.specDecodingToggle: "Enable Speculative Decoding",
-		.specDecodingMode: "Decoding Mode",
-		.specDecodingModeMtp: "MTP (Multi-Token Prediction)",
-		.specDecodingModeTraditional: "Traditional (Draft Model)",
-		.specDecodingHint: "MTP uses the main model's built-in MTP layers for speculation",
-		.specDecodingFooter: "Speculative decoding can significantly improve throughput",
-		.logsSection: "Logs & Profiling",
-		.logLevel: "Log Level",
-		.profileToggle: "Enable Performance Profiling",
-		.profileToggleHint: "Record timing hooks for inference pipeline",
-		.appSection: "Application",
-		.localePicker: "Language",
-		.themeMode: "Theme",
-		.themeModeAuto: "Auto",
-		.themeModeLight: "Light",
-		.themeModeDark: "Dark",
-		.aboutSection: "About",
-		.version: "Version",
-		.commitHash: "Commit",
-		.license: "License",
-		.resetSettings: "Reset All Settings",
-		.resetConfirm: "Are you sure? This wipes all saved settings.",
-		.allSections: "All Settings",
-		.customSystemPrompt: "Custom System Prompt",
-		.customSystemPromptHint: "Your custom instructions are prepended to the system prompt with highest priority.",
-		.customSystemPromptPlaceholder: "e.g. Be concise and answer in the user's preferred language.",
-		.hubTokensTitle: "Hub Tokens",
-		.hubTokensHint: "Tokens for accessing model hubs (HuggingFace, ModelScope). Stored securely in macOS Keychain.",
-		.notConfigured: "Not configured",
-		.enterTokenPlaceholder: "Enter token...",
-		.hubHuggingFace: "HuggingFace",
-		.hubModelScope: "ModelScope",
+        // Settings
+        .settingsTitle: "Settings",
+        .serverAddress: "Server Address",
+        .port: "Port",
+        .verifyConnection: "Verify Connection",
+        .connected: "Connected",
+        .disconnected: "Disconnected",
+        .connecting: "Connecting...",
+        .connectionFailed: "Connection Failed",
+        .serverSection: "Server",
+        .ensureBackend: "Ensure the backend is running and reachable",
+        .performanceSection: "Performance",
+        .pollInterval: "Metrics Poll Interval",
+        .chartWindow: "Chart History Window",
+        .chartWindowHint: "Number of seconds to display in charts",
+        .kvCacheSection: "KV Cache",
+        .kvQuantToggle: "Enable Quantization Downgrade",
+        .kvQuantToggleHint: "Auto-downgrade KV cache from FP16 → INT4 to save memory",
+        .kvQuantBits: "Quantization Bits",
+        .kvBudget: "KV Cache Budget (GB)",
+        .kvBudgetHint: "Maximum memory reserved for KV cache",
+        .specDecodingSection: "Speculative Decoding",
+        .specDecodingToggle: "Enable Speculative Decoding",
+        .specDecodingMode: "Decoding Mode",
+        .specDecodingModeMtp: "MTP (Multi-Token Prediction)",
+        .specDecodingModeTraditional: "Traditional (Draft Model)",
+        .specDecodingHint: "MTP uses the main model's built-in MTP layers for speculation",
+        .specDecodingFooter: "Speculative decoding can significantly improve throughput",
+        .logsSection: "Logs & Profiling",
+        .logLevel: "Log Level",
+        .profileToggle: "Enable Performance Profiling",
+        .profileToggleHint: "Record timing hooks for inference pipeline",
+        .appSection: "Application",
+        .localePicker: "Language",
+        .themeMode: "Theme",
+        .themeModeAuto: "Auto",
+        .themeModeLight: "Light",
+        .themeModeDark: "Dark",
+        .aboutSection: "About",
+        .version: "Version",
+        .commitHash: "Commit",
+        .license: "License",
+        .resetSettings: "Reset All Settings",
+        .resetConfirm: "Are you sure? This wipes all saved settings.",
+        .allSections: "All Settings",
+        .customSystemPrompt: "Custom System Prompt",
+        .customSystemPromptHint: "Your custom instructions are prepended to the system prompt with highest priority.",
+        .customSystemPromptPlaceholder: "e.g. Be concise and answer in the user's preferred language.",
+        .hubTokensTitle: "Hub Tokens",
+        .hubTokensHint: "Tokens for accessing model hubs (HuggingFace, ModelScope). Stored securely in macOS Keychain.",
+        .notConfigured: "Not configured",
+        .enterTokenPlaceholder: "Enter token...",
+        .hubHuggingFace: "HuggingFace",
+        .hubModelScope: "ModelScope",
 
-		// Navigation
-		.tabDashboard: "Dashboard",
-		.tabChat: "Chat",
-		.tabModels: "Models",
-		.tabStatus: "Status",
-		.tabSettings: "Settings",
-		.selectPanel: "Select a panel",
-		.navigationTitle: "Navigation",
-		.sidebarNavigation: "Navigation",
+        // Navigation
+        .tabDashboard: "Dashboard",
+        .tabChat: "Chat",
+        .tabModels: "Models",
+        .tabStatus: "Status",
+        .tabSettings: "Settings",
+        .selectPanel: "Select a panel",
+        .navigationTitle: "Navigation",
+        .sidebarNavigation: "Navigation",
 
-		// Sidebar Sections
-		.sectionServer: "Server",
-		.sectionModels: "Models",
-		.sectionGeneral: "General",
-		.sectionSystem: "System",
-		.sectionWorkflow: "Workflow",
+        // Sidebar Sections
+        .sectionServer: "Server",
+        .sectionModels: "Models",
+        .sectionGeneral: "General",
+        .sectionSystem: "System",
+        .sectionWorkflow: "Workflow",
 
-		// Quick Metrics
-		.metricOverview: "Overview",
-		.metricOverviewAccessibility: "System Overview",
-		.metricThroughput: "Throughput",
-		.metricGPUMemory: "GPU Memory",
-		.metricSessions: "Sessions",
-		.metricStatus: "Status",
-		.metricStatusActive: "Active",
-		.metricStatusIdle: "Idle",
+        // Quick Metrics
+        .metricOverview: "Overview",
+        .metricOverviewAccessibility: "System Overview",
+        .metricThroughput: "Throughput",
+        .metricGPUMemory: "GPU Memory",
+        .metricSessions: "Sessions",
+        .metricStatus: "Status",
+        .metricStatusActive: "Active",
+        .metricStatusIdle: "Idle",
 
-		// Chat
-		.chatWelcomeTitle: "Start a conversation",
-		.chatWelcomeDesc: "Send a message to begin local AI inference",
-		.chatSuggestionExplainMlx: "Explain MLX tensor operations",
-		.chatSuggestionCompareCoreAi: "Compare CoreAI vs MLX on Apple Silicon",
-		.chatSuggestionDebugSwiftui: "Debug my SwiftUI view hierarchy",
+        // Chat
+        .chatWelcomeTitle: "Start a conversation",
+        .chatWelcomeDesc: "Send a message to begin local AI inference",
+        .chatSuggestionExplainMlx: "Explain MLX tensor operations",
+        .chatSuggestionCompareCoreAi: "Compare CoreAI vs MLX on Apple Silicon",
+        .chatSuggestionDebugSwiftui: "Debug my SwiftUI view hierarchy",
 
-		// Models
-		.noModelsLoaded: "No models loaded",
-		.loadingModels: "Loading models...",
-		.modelLoadError: "Load Failed",
-		.modelLoadErrorDesc: "The backend server may be unavailable",
-		.modelDeleteError: "Delete Failed",
-		.modelDeleteTitle: "Model Actions",
-		.modelDeleteConfirm: "This will unload the model and remove cached files from disk.",
-		.modelDeleteSuccess: "Model deleted",
-		.modelUnload: "Unload",
-		.modelDeleteButton: "Delete",
-		.modelViewDeleteConfirmTitle: "Delete Model",
-		.modelViewDeleteConfirmMessage: "This will remove \\(model) from memory and delete all cached files. This cannot be undone.",
-		.modelViewDeleteConfirmAction: "Delete",
-		.modelViewDeleteCancelAction: "Cancel",
+        // Models
+        .noModelsLoaded: "No models loaded",
+        .loadingModels: "Loading models...",
+        .modelLoadError: "Load Failed",
+        .modelLoadErrorDesc: "The backend server may be unavailable",
+        .modelDeleteError: "Delete Failed",
+        .modelDeleteTitle: "Model Actions",
+        .modelDeleteConfirm: "This will unload the model and remove cached files from disk.",
+        .modelDeleteSuccess: "Model deleted",
+        .modelUnload: "Unload",
+        .modelDeleteButton: "Delete",
+        .modelViewDeleteConfirmTitle: "Delete Model",
+        .modelViewDeleteConfirmMessage: "This will remove \\(model) from memory and delete all cached files. This cannot be undone.",
+        .modelViewDeleteConfirmAction: "Delete",
+        .modelViewDeleteCancelAction: "Cancel",
 
-		// Multimodal
-		.multimodalTitle: "Multimodal I/O",
-		.multimodalCamera: "Camera (Eyes)",
-		.multimodalLiveFeed: "Live Feed",
-		.multimodalMic: "Microphone (Ears)",
-		.multimodalSpeaker: "Speaker (Mouth)",
-		.multimodalScreen: "Screen (Desktop)",
-		.multimodalTtsHint: "TTS is active — assistant responses will be spoken aloud",
-		.multimodalToggleLabel: "Toggle Multimodal Controls",
-		.multimodalToggleHint: "Show/hide camera, microphone, and speaker controls",
-		.multimodalScreenCaptureLabel: "Capture Screen",
-		.multimodalScreenCaptureHint: "Take a screenshot of the current display",
-		.multimodalScreenLiveFeed: "Screen Feed",
-		.multimodalScreenCaptureActive: "Capturing",
-		.multimodalSTTListening: "STT Listening",
-		.multimodalSTTListeningHint: "Speech recognition is active — transcribe to text",
-		.multimodalSTTPartialLabel: "Live Transcription",
+        // Multimodal
+        .multimodalTitle: "Multimodal I/O",
+        .multimodalCamera: "Camera (Eyes)",
+        .multimodalLiveFeed: "Live Feed",
+        .multimodalMic: "Microphone (Ears)",
+        .multimodalSpeaker: "Speaker (Mouth)",
+        .multimodalScreen: "Screen (Desktop)",
+        .multimodalTtsHint: "TTS is active — assistant responses will be spoken aloud",
+        .multimodalToggleLabel: "Toggle Multimodal Controls",
+        .multimodalToggleHint: "Show/hide camera, microphone, and speaker controls",
+        .multimodalScreenCaptureLabel: "Capture Screen",
+        .multimodalScreenCaptureHint: "Take a screenshot of the current display",
+        .multimodalScreenLiveFeed: "Screen Feed",
+        .multimodalScreenCaptureActive: "Capturing",
+        .multimodalSTTListening: "STT Listening",
+        .multimodalSTTListeningHint: "Speech recognition is active — transcribe to text",
+        .multimodalSTTPartialLabel: "Live Transcription",
 
-		// Dashboard
-		.dashboardTitle: "Dashboard",
-		.dashboardPerformance: "System information",
-		.dashboardSystemInfo: "System information",
-		.dashboardTokenChartDesc: "Token throughput chart",
-		.dashboardMemChartDesc: "Memory chart: GPU usage and KV cache trends",
+        // Dashboard
+        .dashboardTitle: "Dashboard",
+        .dashboardPerformance: "System information",
+        .dashboardSystemInfo: "System information",
+        .dashboardTokenChartDesc: "Token throughput chart",
+        .dashboardMemChartDesc: "Memory chart: GPU usage and KV cache trends",
 
-		// ViewState
-		.connectionFailedTitle: "Connection Failed",
-		.connectionFailedDesc: "The backend server may be unavailable",
+        // ViewState
+        .connectionFailedTitle: "Connection Failed",
+        .connectionFailedDesc: "The backend server may be unavailable",
 
-		// Status Pill
-		.statusRunning: "Running",
-		.statusStarting: "Starting",
-		.statusStopping: "Stopping",
-		.statusStopped: "Stopped",
-		.statusError: "Error",
-		.dismissError: "Dismiss error",
+        // Status Pill
+        .statusRunning: "Running",
+        .statusStarting: "Starting",
+        .statusStopping: "Stopping",
+        .statusStopped: "Stopped",
+        .statusError: "Error",
+        .dismissError: "Dismiss error",
 
-		// LogLevel display names
-		.logLevelDebug: "Debug",
-		.logLevelInfo: "Info",
-		.logLevelWarning: "Warning",
-		.logLevelError: "Error",
+        // LogLevel display names
+        .logLevelDebug: "Debug",
+        .logLevelInfo: "Info",
+        .logLevelWarning: "Warning",
+        .logLevelError: "Error",
 
-		// Accessibility Labels
-		.appLabel: "ocoreai",
-		.appTitle: "ocoreai",
-		.noPanelSelected: "No panel selected",
-		.selectTab: "Select",
-		.modelSelectorLabel: "Model Selector",
-		.modelSelectorValueDefault: "No model selected",
-		.clearConversationLabel: "Clear Conversation",
-		.clearConversationHint: "Removes all messages from this conversation",
-		.chatLabel: "Chat",
-		.chatConnected: "Local backend connected",
-		.chatLoading: "Backend loading",
-		.messagesLabel: "Messages",
-		.assistantTyping: "Assistant typing",
-		.voiceInputLabel: "Voice Input",
-		.voiceInputHint: "Tap to use voice input (coming soon)",
-		.messageInputLabel: "Message Input",
-		.messageInputHint: "Type your message and press Enter to send",
-		.stopStreamingLabel: "Stop Streaming",
-		.stopStreamingHint: "Tap to stop the current response",
-		.sendMessageLabel: "Send Message",
-		.sendMessageHint: "Tap to send your message",
-		.youLabel: "You",
-		.ocoreaiLabel: "ocoreai",
-		.suggestionHint: "Tap to use this suggestion as your message",
-		.localLabel: "Local",
-		.dashboardLabel: "Dashboard",
-		.systemInfoLabel: "System information",
-		.areaGraphTokenDesc: "Area graph showing token throughput over time",
-		.areaGraphGpuDesc: "Area graph showing GPU memory usage over time",
-		.kvCacheLineDesc: "KV cache usage line graph",
-		.refreshModelLabel: "Refresh Model List",
-		.refreshModelHint: "Fetch the latest model list from the backend",
-		.contextKey: "Context",
-		.tokenizerKey: "Tokenizer",
-		.modelRunningLabel: "Model is running",
-		.modelStartingLabel: "Model is starting",
-		.modelServingLabel: "Model is serving inference",
-		.multimodalControlsLabel: "Multimodal Controls",
-		.enableCameraLabel: "Enable Camera",
-		.enableCameraHint: "Turn camera on or off",
-		.cameraPreviewLabel: "Camera live feed preview",
-		.captureFrameLabel: "Capture Frame",
-		.captureFrameHint: "Take a snapshot from the camera",
-		.enableMicLabel: "Enable Microphone",
-		.enableMicHint: "Turn microphone on or off",
-		.stopRecordingLabel: "Stop Recording",
-		.stopRecordingHint: "Stop the current audio recording",
-		.startRecordingLabel: "Start Recording",
-		.startRecordingHint: "Begin recording audio",
-		.lastTranscriptLabel: "Last transcript",
-		.enableSpeakerLabel: "Enable Speaker",
-		.enableSpeakerHint: "Turn text-to-speech on or off",
-		.ttsActiveLabel: "Text-to-speech is active",
-		.statusIndicatorsLabel: "Multimodal status indicators",
+        // Accessibility Labels
+        .appLabel: "ocoreai",
+        .appTitle: "ocoreai",
+        .noPanelSelected: "No panel selected",
+        .selectTab: "Select",
+        .modelSelectorLabel: "Model Selector",
+        .modelSelectorValueDefault: "No model selected",
+        .clearConversationLabel: "Clear Conversation",
+        .clearConversationHint: "Removes all messages from this conversation",
+        .chatLabel: "Chat",
+        .chatConnected: "Local backend connected",
+        .chatLoading: "Backend loading",
+        .messagesLabel: "Messages",
+        .assistantTyping: "Assistant typing",
+        .voiceInputLabel: "Voice Input",
+        .voiceInputHint: "Tap to use voice input (coming soon)",
+        .messageInputLabel: "Message Input",
+        .messageInputHint: "Type your message and press Enter to send",
+        .stopStreamingLabel: "Stop Streaming",
+        .stopStreamingHint: "Tap to stop the current response",
+        .sendMessageLabel: "Send Message",
+        .sendMessageHint: "Tap to send your message",
+        .youLabel: "You",
+        .ocoreaiLabel: "ocoreai",
+        .suggestionHint: "Tap to use this suggestion as your message",
+        .localLabel: "Local",
+        .dashboardLabel: "Dashboard",
+        .systemInfoLabel: "System information",
+        .areaGraphTokenDesc: "Area graph showing token throughput over time",
+        .areaGraphGpuDesc: "Area graph showing GPU memory usage over time",
+        .kvCacheLineDesc: "KV cache usage line graph",
+        .refreshModelLabel: "Refresh Model List",
+        .refreshModelHint: "Fetch the latest model list from the backend",
+        .contextKey: "Context",
+        .tokenizerKey: "Tokenizer",
+        .modelRunningLabel: "Model is running",
+        .modelStartingLabel: "Model is starting",
+        .modelServingLabel: "Model is serving inference",
+        .multimodalControlsLabel: "Multimodal Controls",
+        .enableCameraLabel: "Enable Camera",
+        .enableCameraHint: "Turn camera on or off",
+        .cameraPreviewLabel: "Camera live feed preview",
+        .captureFrameLabel: "Capture Frame",
+        .captureFrameHint: "Take a snapshot from the camera",
+        .enableMicLabel: "Enable Microphone",
+        .enableMicHint: "Turn microphone on or off",
+        .stopRecordingLabel: "Stop Recording",
+        .stopRecordingHint: "Stop the current audio recording",
+        .startRecordingLabel: "Start Recording",
+        .startRecordingHint: "Begin recording audio",
+        .lastTranscriptLabel: "Last transcript",
+        .enableSpeakerLabel: "Enable Speaker",
+        .enableSpeakerHint: "Turn text-to-speech on or off",
+        .ttsActiveLabel: "Text-to-speech is active",
+        .statusIndicatorsLabel: "Multimodal status indicators",
 
-		// Status dot labels
-		.statusCameraActive: "Camera Active",
-		.statusRecording: "Recording",
-		.statusSpeaking: "Speaking",
-		.statusActive: "Active",
-		.statusInactive: "Inactive",
+        // Status dot labels
+        .statusCameraActive: "Camera Active",
+        .statusRecording: "Recording",
+        .statusSpeaking: "Speaking",
+        .statusActive: "Active",
+        .statusInactive: "Inactive",
 
-		// A11y templates
-		.a11yStatus: "Status",
-		.a11yModel: "Model",
+        // A11y templates
+        .a11yStatus: "Status",
+        .a11yModel: "Model",
 
-		// Settings / About
-		.aboutTitle: "ocoreai",
-		.aboutVersion: "v1.0.0 · macOS 15+ / iOS 17+",
+        // Settings / About
+        .aboutTitle: "ocoreai",
+        .aboutVersion: "v1.0.0 · macOS 15+ / iOS 17+",
 
-		// Model info
-		.modelInfoContext: "Context",
-		.modelInfoTokenizer: "Tokenizer",
-		.modelInfoVLM: "Vision",
-		.modelInfoVocab: "Vocab",
+        // Model info
+        .modelInfoContext: "Context",
+        .modelInfoTokenizer: "Tokenizer",
+        .modelInfoVLM: "Vision",
+        .modelInfoVocab: "Vocab",
 
-		// Chart axis labels
-		.chartTime: "Time",
-		.chartTokPerSec: "tok/s",
-		.chartGB: "GB",
+        // Chart axis labels
+        .chartTime: "Time",
+        .chartTokPerSec: "tok/s",
+        .chartGB: "GB",
 
-		// Per-model inference params
-		.modelParamsTitle: "Inference Parameters",
-		.modelParamTemperature: "Temperature",
-		.modelParamTemperatureHint: "Controls randomness (0.0–2.0)",
-		.modelParamTopP: "Top P",
-		.modelParamTopPHint: "Nucleus sampling threshold",
-		.modelParamTopK: "Top K",
-		.modelParamTopKHint: "Keep K most likely tokens",
-		.modelParamMaxTokens: "Max Tokens",
-		.modelParamMaxTokensHint: "Maximum output tokens",
-		.modelParamRepeatPenalty: "Repeat Penalty",
-		.modelParamRepeatPenaltyHint: "Penalty for repeated tokens",
-		.modelParamFrequencyPenalty: "Frequency Penalty",
-		.modelParamPresencePenalty: "Presence Penalty",
-		.modelParamSave: "Save",
-		.modelParamReset: "Reset to Defaults",
-		.modelParamDefaults: "Defaults",
-		.modelViewTapToEdit: "Tap to edit parameters",
+        // Per-model inference params
+        .modelParamsTitle: "Inference Parameters",
+        .modelParamTemperature: "Temperature",
+        .modelParamTemperatureHint: "Controls randomness (0.0–2.0)",
+        .modelParamTopP: "Top P",
+        .modelParamTopPHint: "Nucleus sampling threshold",
+        .modelParamTopK: "Top K",
+        .modelParamTopKHint: "Keep K most likely tokens",
+        .modelParamMaxTokens: "Max Tokens",
+        .modelParamMaxTokensHint: "Maximum output tokens",
+        .modelParamRepeatPenalty: "Repeat Penalty",
+        .modelParamRepeatPenaltyHint: "Penalty for repeated tokens",
+        .modelParamFrequencyPenalty: "Frequency Penalty",
+        .modelParamPresencePenalty: "Presence Penalty",
+        .modelParamSave: "Save",
+        .modelParamReset: "Reset to Defaults",
+        .modelParamDefaults: "Defaults",
+        .modelViewTapToEdit: "Tap to edit parameters",
 
-		// Models
-		.defaultModel: "default",
-		.noModelSelected: "No Model",
-		.clear: "Clear",
+        // Models
+        .defaultModel: "default",
+        .noModelSelected: "No Model",
+        .clear: "Clear",
 
-		// Chat i18n gaps (UX-03)
-		.clearConversationTitle: "Clear Conversation?",
-		.clearAllAction: "Clear All",
-		.clearConversationMessage: "This will delete all messages in this chat. You can undo with ⌘Z.",
-		.fileTooLarge: "File too large (%@) (max 10 MB)",
-		.generationFailed: "Generation failed",
-		.skillRegistryUnavailable: "Skill registry not available",
-		.sessionCompressorUnavailable: "Session compressor not available",
-		.sessionLoadFailed: "Failed to load sessions",
-		.sessionSummaryLoadFailed: "Failed to load session summary",
-		.sessionDeleteFailed: "Failed to delete session",
-		.memorySearchFailed: "Memory search failed",
-		.memoryLoadFailed: "Failed to load memory",
-		.settingsResetToDefaults: "Settings reset to defaults",
-		.cancelButton: "Cancel",
-		.refreshButton: "Refresh",
-		.tryAgain: "Try Again",
-		.copyMessage: "Copy Message",
-		.undoAction: "Undo",
-		.regenerateMessage: "Regenerate",
-		.copyCode: "Copy Code",
-		.codeCopied: "Copied!",
+        // Chat i18n gaps (UX-03)
+        .clearConversationTitle: "Clear Conversation?",
+        .clearAllAction: "Clear All",
+        .clearConversationMessage: "This will delete all messages in this chat. You can undo with ⌘Z.",
+        .fileTooLarge: "File too large (%@) (max 10 MB)",
+        .generationFailed: "Generation failed",
+        .skillRegistryUnavailable: "Skill registry not available",
+        .sessionCompressorUnavailable: "Session compressor not available",
+        .sessionLoadFailed: "Failed to load sessions",
+        .sessionSummaryLoadFailed: "Failed to load session summary",
+        .sessionDeleteFailed: "Failed to delete session",
+        .memorySearchFailed: "Memory search failed",
+        .memoryLoadFailed: "Failed to load memory",
+        .settingsResetToDefaults: "Settings reset to defaults",
+        .cancelButton: "Cancel",
+        .refreshButton: "Refresh",
+        .tryAgain: "Try Again",
+        .copyMessage: "Copy Message",
+        .undoAction: "Undo",
+        .regenerateMessage: "Regenerate",
+        .copyCode: "Copy Code",
+        .codeCopied: "Copied!",
 
-		// Sessions
-		.tabSessions: "Sessions",
-		.sessionSearchPlaceholder: "Search sessions...",
-		.sessionListEmpty: "No sessions yet",
-		.sessionSelectHint: "Select a session to view details",
-		.sessionCreate: "New Session",
-		.sessionDelete: "Delete Session",
-		.sessionDeleteConfirm: "Delete this session? All messages will be lost.",
-		.sessionSummary: "Session Summary",
-		.sessionModel: "Model",
-		.sessionCreatedAt: "Started",
-		.sessionMessageCount: "Messages",
-		.sessionTokenCount: "Tokens",
-		.memoryTitle: "Memory Events",
-		.memoryEmpty: "No memory events",
-		.memorySearchPlaceholder: "Search memory...",
+        // Sessions
+        .tabSessions: "Sessions",
+        .sessionSearchPlaceholder: "Search sessions...",
+        .sessionListEmpty: "No sessions yet",
+        .sessionSelectHint: "Select a session to view details",
+        .sessionCreate: "New Session",
+        .sessionDelete: "Delete Session",
+        .sessionDeleteConfirm: "Delete this session? All messages will be lost.",
+        .sessionSummary: "Session Summary",
+        .sessionModel: "Model",
+        .sessionCreatedAt: "Started",
+        .sessionMessageCount: "Messages",
+        .sessionTokenCount: "Tokens",
+        .memoryTitle: "Memory Events",
+        .memoryEmpty: "No memory events",
+        .memorySearchPlaceholder: "Search memory...",
 
-		// Skills
-		.tabSkills: "Skills",
-		.skillListEmpty: "No skills registered",
-		.skillSelectHint: "Select a skill to view details",
-		.skillName: "Name",
-		.skillCategory: "Category",
-		.skillDescription: "Description",
-		.skillTags: "Tags",
-		.skillContentTitle: "Content",
-		.skillDependencies: "Dependencies",
-		.skillAll: "All",
+        // Skills
+        .tabSkills: "Skills",
+        .skillListEmpty: "No skills registered",
+        .skillSelectHint: "Select a skill to view details",
+        .skillName: "Name",
+        .skillCategory: "Category",
+        .skillDescription: "Description",
+        .skillTags: "Tags",
+        .skillContentTitle: "Content",
+        .skillDependencies: "Dependencies",
+        .skillAll: "All",
 
-		// System
-		.tabSystem: "System",
-		.systemMCPSection: "MCP Servers",
-		.systemMCPEmpty: "No MCP servers connected",
-		.systemMCPConnected: "Connected",
-		.systemMCPDisconnected: "Disconnected",
-		.systemMCPName: "Server",
-		.systemMCPCommand: "Command",
-		.systemComplexityLow: "Low",
-		.systemComplexityMedium: "Medium",
-		.systemComplexityHigh: "High",
-		.systemToolsSection: "Tools",
-		.systemToolsEmpty: "No tools registered",
-		.systemToolName: "Tool",
-		.systemToolReadOnly: "Read-only",
-		.systemToolDestructive: "Destructive",
-		.systemAuditSection: "Audit Trail",
-		.systemAuditEmpty: "No audit entries",
-		.systemAuditTool: "Tool",
-		.systemAuditCaller: "Caller",
-		.systemAuditDuration: "Duration",
-		.systemAuditStatus: "Status",
-		.systemReasoningSection: "Reasoning Pipeline",
-		.systemComplexityScore: "Complexity Score",
-		.systemThinkingBudget: "Thinking Budget",
-		.systemRefresh: "Refresh",
-		.systemClearAudit: "Clear Audit Log",
-		.systemClearAuditConfirm: "Clear all audit trail entries?",
+        // System
+        .tabSystem: "System",
+        .systemMCPSection: "MCP Servers",
+        .systemMCPEmpty: "No MCP servers connected",
+        .systemMCPConnected: "Connected",
+        .systemMCPDisconnected: "Disconnected",
+        .systemMCPName: "Server",
+        .systemMCPCommand: "Command",
+        .systemComplexityLow: "Low",
+        .systemComplexityMedium: "Medium",
+        .systemComplexityHigh: "High",
+        .systemToolsSection: "Tools",
+        .systemToolsEmpty: "No tools registered",
+        .systemToolName: "Tool",
+        .systemToolReadOnly: "Read-only",
+        .systemToolDestructive: "Destructive",
+        .systemAuditSection: "Audit Trail",
+        .systemAuditEmpty: "No audit entries",
+        .systemAuditTool: "Tool",
+        .systemAuditCaller: "Caller",
+        .systemAuditDuration: "Duration",
+        .systemAuditStatus: "Status",
+        .systemReasoningSection: "Reasoning Pipeline",
+        .systemComplexityScore: "Complexity Score",
+        .systemThinkingBudget: "Thinking Budget",
+        .systemRefresh: "Refresh",
+        .systemClearAudit: "Clear Audit Log",
+        .systemClearAuditConfirm: "Clear all audit trail entries?",
 
-		// Model Search
-		.modelSearchQuickLoad: "Quick Load",
-		.modelSearchExample: "e.g. Qwen/Qwen2.5-7B-Instruct",
-		.modelSearchLoad: "Load",
-		.modelSearchHubSource: "Hub Source",
-		.modelSearchSelectHub: "Select Hub",
-		.modelSearchHFHub: "Search HF Hub…",
-		.modelSearchModelScope: "Search ModelScope…",
-		.modelSearchSearching: "Searching…",
-		.modelSearchResults: "Results",
-		.modelSearchLoading: "Loading",
-		.modelSearchDismiss: "Dismiss",
-		.modelSearchTitle: "Load Model",
-		.modelSearchLabel: "Load Model",
-		.modelSearchHint: "Search and load models from HuggingFace or ModelScope",
-		.modelSearchNoResults: "No models found for your search",
-		.modelSearchEmpty: "No results found",
-		.a11yMLXFormat: "MLX format",
-		.a11yModelScopeSource: "ModelScope",
-		.engineNotAvailable: "Engine not available",
-	]
+        // Model Search
+        .modelSearchQuickLoad: "Quick Load",
+        .modelSearchExample: "e.g. Qwen/Qwen2.5-7B-Instruct",
+        .modelSearchLoad: "Load",
+        .modelSearchHubSource: "Hub Source",
+        .modelSearchSelectHub: "Select Hub",
+        .modelSearchHFHub: "Search HF Hub…",
+        .modelSearchModelScope: "Search ModelScope…",
+        .modelSearchSearching: "Searching…",
+        .modelSearchResults: "Results",
+        .modelSearchLoading: "Loading",
+        .modelSearchDismiss: "Dismiss",
+        .modelSearchTitle: "Load Model",
+        .modelSearchLabel: "Load Model",
+        .modelSearchHint: "Search and load models from HuggingFace or ModelScope",
+        .modelSearchNoResults: "No models found for your search",
+        .modelSearchEmpty: "No results found",
+        .a11yMLXFormat: "MLX format",
+        .a11yModelScopeSource: "ModelScope",
+        .engineNotAvailable: "Engine not available",
+    ]
 
-	// Translation overrides per locale
-	let zh: [StringKey: String] = [
-		.systemOnline: "系统在线",
-		.backend: "后端服务",
-		.systemLoading: "系统加载中",
-		.metrics: "指标",
-		.throughput: "吞吐量",
-		.ttft: "首字延迟",
-		.ttfb: "首字节延迟",
-		.gpuMemory: "GPU 显存",
-		.kvCache: "KV 缓存",
-		.kvEvictions: "KV 驱逐",
-		.sessions: "会话",
-		.modelsLoaded: "已加载模型",
-		.inferences: "推理数",
-		.rateLimit: "速率限制",
-		.uptime: "运行时间",
-		.avgInfer: "平均推理",
-		.tokenThroughput: "Token 吞吐量",
-		.gpuMemoryKVCache: "GPU 显存与 KV 缓存",
-		.loadingMetrics: "加载指标中...",
-		.chatPlaceholder: "输入消息...",
-		.attachFiles: "添加附件",
-		.attachFilesHint: "选择图片附件",
-		.imageAttachment: "图片附件",
-		.send: "发送",
-		.stop: "停止",
-		.newConversation: "新对话",
-		.settingsTitle: "设置",
-		.serverAddress: "服务器地址",
-		.port: "端口",
-		.verifyConnection: "验证连接",
-		.connected: "已连接",
-		.disconnected: "未连接",
-		.connecting: "连接中...",
-		.connectionFailed: "连接失败",
-		.serverSection: "服务器",
-		.ensureBackend: "确保推理后端正在运行并可访问",
-		.performanceSection: "性能",
-		.pollInterval: "指标轮询间隔",
-		.chartWindow: "图表历史窗口",
-		.chartWindowHint: "图表中展示的历史秒数",
-		.kvCacheSection: "KV 缓存",
-		.kvQuantToggle: "启用量化降级",
-		.kvQuantToggleHint: "自动将 KV 缓存从 FP16 降级到 INT4 以节省内存",
-		.kvQuantBits: "量化精度",
-		.kvBudget: "KV 缓存预算（GB）",
-		.kvBudgetHint: "为 KV 缓存保留的最大内存",
-		.specDecodingSection: "推测解码",
-		.specDecodingToggle: "启用推测解码",
-		.specDecodingMode: "解码模式",
-		.specDecodingModeMtp: "MTP（多 Token 预测）",
-		.specDecodingModeTraditional: "传统（草稿模型）",
-		.specDecodingHint: "MTP 使用主模型内置 MTP 层进行推测",
-		.specDecodingFooter: "推测解码可显著提升生成吞吐量，重启应用后生效",
-		.logsSection: "日志与性能分析",
-		.logLevel: "日志级别",
-		.profileToggle: "启用性能分析",
-		.profileToggleHint: "记录推理流水线性能指标",
-		.appSection: "应用",
-		.localePicker: "语言",
-		.themeMode: "主题",
-		.themeModeAuto: "自动",
-		.themeModeLight: "浅色",
-		.themeModeDark: "深色",
-		.aboutSection: "关于",
-		.version: "版本",
-		.commitHash: "提交",
-		.license: "许可证",
-		.resetSettings: "恢复默认设置",
-		.resetConfirm: "确定吗？这将清除所有已保存的设置。",
-		.allSections: "所有设置",
-		.customSystemPrompt: "自定义系统提示",
-		.customSystemPromptHint: "自定义指令会以最高优先级注入到系统提示中。",
-		.customSystemPromptPlaceholder: "例如：保持简洁，使用用户首选语言回答。",
+    // Translation overrides per locale
+    let zh: [StringKey: String] = [
+        .systemOnline: "系统在线",
+        .backend: "后端服务",
+        .systemLoading: "系统加载中",
+        .metrics: "指标",
+        .throughput: "吞吐量",
+        .ttft: "首字延迟",
+        .ttfb: "首字节延迟",
+        .gpuMemory: "GPU 显存",
+        .kvCache: "KV 缓存",
+        .kvEvictions: "KV 驱逐",
+        .sessions: "会话",
+        .modelsLoaded: "已加载模型",
+        .inferences: "推理数",
+        .rateLimit: "速率限制",
+        .uptime: "运行时间",
+        .avgInfer: "平均推理",
+        .tokenThroughput: "Token 吞吐量",
+        .gpuMemoryKVCache: "GPU 显存与 KV 缓存",
+        .loadingMetrics: "加载指标中...",
+        .chatPlaceholder: "输入消息...",
+        .attachFiles: "添加附件",
+        .attachFilesHint: "选择图片附件",
+        .imageAttachment: "图片附件",
+        .send: "发送",
+        .stop: "停止",
+        .newConversation: "新对话",
+        .settingsTitle: "设置",
+        .serverAddress: "服务器地址",
+        .port: "端口",
+        .verifyConnection: "验证连接",
+        .connected: "已连接",
+        .disconnected: "未连接",
+        .connecting: "连接中...",
+        .connectionFailed: "连接失败",
+        .serverSection: "服务器",
+        .ensureBackend: "确保推理后端正在运行并可访问",
+        .performanceSection: "性能",
+        .pollInterval: "指标轮询间隔",
+        .chartWindow: "图表历史窗口",
+        .chartWindowHint: "图表中展示的历史秒数",
+        .kvCacheSection: "KV 缓存",
+        .kvQuantToggle: "启用量化降级",
+        .kvQuantToggleHint: "自动将 KV 缓存从 FP16 降级到 INT4 以节省内存",
+        .kvQuantBits: "量化精度",
+        .kvBudget: "KV 缓存预算（GB）",
+        .kvBudgetHint: "为 KV 缓存保留的最大内存",
+        .specDecodingSection: "推测解码",
+        .specDecodingToggle: "启用推测解码",
+        .specDecodingMode: "解码模式",
+        .specDecodingModeMtp: "MTP（多 Token 预测）",
+        .specDecodingModeTraditional: "传统（草稿模型）",
+        .specDecodingHint: "MTP 使用主模型内置 MTP 层进行推测",
+        .specDecodingFooter: "推测解码可显著提升生成吞吐量，重启应用后生效",
+        .logsSection: "日志与性能分析",
+        .logLevel: "日志级别",
+        .profileToggle: "启用性能分析",
+        .profileToggleHint: "记录推理流水线性能指标",
+        .appSection: "应用",
+        .localePicker: "语言",
+        .themeMode: "主题",
+        .themeModeAuto: "自动",
+        .themeModeLight: "浅色",
+        .themeModeDark: "深色",
+        .aboutSection: "关于",
+        .version: "版本",
+        .commitHash: "提交",
+        .license: "许可证",
+        .resetSettings: "恢复默认设置",
+        .resetConfirm: "确定吗？这将清除所有已保存的设置。",
+        .allSections: "所有设置",
+        .customSystemPrompt: "自定义系统提示",
+        .customSystemPromptHint: "自定义指令会以最高优先级注入到系统提示中。",
+        .customSystemPromptPlaceholder: "例如：保持简洁，使用用户首选语言回答。",
 
-		// Navigation
-		.tabDashboard: "仪表盘",
-		.tabChat: "聊天",
-		.tabModels: "模型",
-		.tabStatus: "状态",
-		.tabSettings: "设置",
-		.selectPanel: "选择面板",
-		.navigationTitle: "导航",
+        // Navigation
+        .tabDashboard: "仪表盘",
+        .tabChat: "聊天",
+        .tabModels: "模型",
+        .tabStatus: "状态",
+        .tabSettings: "设置",
+        .selectPanel: "选择面板",
+        .navigationTitle: "导航",
 
-		// Chat
-		.chatWelcomeTitle: "开始对话",
-		.chatWelcomeDesc: "发送消息以开始本地 AI 推理",
-		.chatSuggestionExplainMlx: "解释 MLX 张量运算",
-		.chatSuggestionCompareCoreAi: "比较 CoreAI 和 MLX 在 Apple Silicon 上的表现",
-		.chatSuggestionDebugSwiftui: "调试 SwiftUI 视图层级",
+        // Chat
+        .chatWelcomeTitle: "开始对话",
+        .chatWelcomeDesc: "发送消息以开始本地 AI 推理",
+        .chatSuggestionExplainMlx: "解释 MLX 张量运算",
+        .chatSuggestionCompareCoreAi: "比较 CoreAI 和 MLX 在 Apple Silicon 上的表现",
+        .chatSuggestionDebugSwiftui: "调试 SwiftUI 视图层级",
 
-		// Models
-		.noModelsLoaded: "未加载模型",
-		.loadingModels: "加载模型中…",
-		.modelLoadError: "加载失败",
-		.modelLoadErrorDesc: "推理后端服务器可能不可用",
-		.modelDeleteError: "删除失败",
-		.modelDeleteTitle: "模型操作",
-		.modelDeleteConfirm: "此操作将从内存卸载模型并删除磁盘上的缓存文件。",
-		.modelDeleteSuccess: "模型已删除",
-		.modelUnload: "卸载",
-		.modelDeleteButton: "删除",
-		.modelViewDeleteConfirmTitle: "删除模型",
-		.modelViewDeleteConfirmMessage: "此操作将从内存中移除 %@ 并删除所有缓存文件，无法撤销。",
-		.modelViewDeleteConfirmAction: "删除",
-		.modelViewDeleteCancelAction: "取消",
+        // Models
+        .noModelsLoaded: "未加载模型",
+        .loadingModels: "加载模型中…",
+        .modelLoadError: "加载失败",
+        .modelLoadErrorDesc: "推理后端服务器可能不可用",
+        .modelDeleteError: "删除失败",
+        .modelDeleteTitle: "模型操作",
+        .modelDeleteConfirm: "此操作将从内存卸载模型并删除磁盘上的缓存文件。",
+        .modelDeleteSuccess: "模型已删除",
+        .modelUnload: "卸载",
+        .modelDeleteButton: "删除",
+        .modelViewDeleteConfirmTitle: "删除模型",
+        .modelViewDeleteConfirmMessage: "此操作将从内存中移除 %@ 并删除所有缓存文件，无法撤销。",
+        .modelViewDeleteConfirmAction: "删除",
+        .modelViewDeleteCancelAction: "取消",
 
-	// Multimodal
-		.multimodalTitle: "多模态输入/输出",
-		.multimodalCamera: "摄像头（视觉）",
-		.multimodalLiveFeed: "实时画面",
-		.multimodalMic: "麦克风（听觉）",
-		.multimodalSpeaker: "扬声器（语音）",
-		.multimodalScreen: "屏幕（桌面捕获）",
-		.multimodalTtsHint: "TTS 已激活 — 助手回复将以语音播报",
-		.multimodalToggleLabel: "多模态控制",
-		.multimodalToggleHint: "显示/隐藏摄像头、麦克风和扬声器控制",
-		.multimodalScreenCaptureLabel: "捕获屏幕",
-		.multimodalScreenCaptureHint: "截取当前显示器画面",
-		.multimodalScreenLiveFeed: "屏幕画面",
-		.multimodalScreenCaptureActive: "捕获中",
-		.multimodalSTTListening: "语音识别中",
-		.multimodalSTTListeningHint: "语音识别已激活 — 语音转文字",
-		.multimodalSTTPartialLabel: "实时转录",
+    // Multimodal
+        .multimodalTitle: "多模态输入/输出",
+        .multimodalCamera: "摄像头（视觉）",
+        .multimodalLiveFeed: "实时画面",
+        .multimodalMic: "麦克风（听觉）",
+        .multimodalSpeaker: "扬声器（语音）",
+        .multimodalScreen: "屏幕（桌面捕获）",
+        .multimodalTtsHint: "TTS 已激活 — 助手回复将以语音播报",
+        .multimodalToggleLabel: "多模态控制",
+        .multimodalToggleHint: "显示/隐藏摄像头、麦克风和扬声器控制",
+        .multimodalScreenCaptureLabel: "捕获屏幕",
+        .multimodalScreenCaptureHint: "截取当前显示器画面",
+        .multimodalScreenLiveFeed: "屏幕画面",
+        .multimodalScreenCaptureActive: "捕获中",
+        .multimodalSTTListening: "语音识别中",
+        .multimodalSTTListeningHint: "语音识别已激活 — 语音转文字",
+        .multimodalSTTPartialLabel: "实时转录",
 
-		// Chat i18n gaps (UX-03)
-		.clearConversationTitle: "清空对话？",
-		.clearAllAction: "全部清空",
-		.clearConversationMessage: "此操作将删除当前对话的所有消息。可使用 ⌘Z 撤销。",
-		.fileTooLarge: "文件过大 (%@) (max 10 MB)",
-		.generationFailed: "生成失败",
-		.skillRegistryUnavailable: "技能注册表不可用",
-		.sessionCompressorUnavailable: "会话压缩器不可用",
-		.sessionLoadFailed: "加载会话失败",
-		.sessionSummaryLoadFailed: "加载会话摘要失败",
-		.sessionDeleteFailed: "删除会话失败",
-		.memorySearchFailed: "记忆搜索失败",
-		.memoryLoadFailed: "加载记忆失败",
-		.settingsResetToDefaults: "设置已恢复默认",
-		
-		// Missing zhHans keys (P1 fix: 18 keys)
-		.enterTokenPlaceholder: "输入 Token…",
-		.hubHuggingFace: "HuggingFace",
-		.hubModelScope: "ModelScope",
-		.hubTokensHint: "模型 Hub 访问 Token（HuggingFace、ModelScope）。安全存储在 macOS 钥匙串中。",
-		.hubTokensTitle: "Hub Token",
-		.metricGPUMemory: "GPU 显存",
-		.metricOverview: "概览",
-		.metricOverviewAccessibility: "系统概览",
-		.metricSessions: "会话",
-		.metricStatus: "状态",
-		.metricStatusActive: "活跃",
-		.metricStatusIdle: "空闲",
-		.metricThroughput: "吞吐量",
-		.notConfigured: "未配置",
-		.sectionGeneral: "通用",
-		.sectionModels: "模型",
-		.sectionServer: "服务",
-		.sectionSystem: "系统",
-		.sectionWorkflow: "工作流",
-		.sidebarNavigation: "导航",
-		.cancelButton: "取消",
+        // Chat i18n gaps (UX-03)
+        .clearConversationTitle: "清空对话？",
+        .clearAllAction: "全部清空",
+        .clearConversationMessage: "此操作将删除当前对话的所有消息。可使用 ⌘Z 撤销。",
+        .fileTooLarge: "文件过大 (%@) (max 10 MB)",
+        .generationFailed: "生成失败",
+        .skillRegistryUnavailable: "技能注册表不可用",
+        .sessionCompressorUnavailable: "会话压缩器不可用",
+        .sessionLoadFailed: "加载会话失败",
+        .sessionSummaryLoadFailed: "加载会话摘要失败",
+        .sessionDeleteFailed: "删除会话失败",
+        .memorySearchFailed: "记忆搜索失败",
+        .memoryLoadFailed: "加载记忆失败",
+        .settingsResetToDefaults: "设置已恢复默认",
+        
+        // Missing zhHans keys (P1 fix: 18 keys)
+        .enterTokenPlaceholder: "输入 Token…",
+        .hubHuggingFace: "HuggingFace",
+        .hubModelScope: "ModelScope",
+        .hubTokensHint: "模型 Hub 访问 Token（HuggingFace、ModelScope）。安全存储在 macOS 钥匙串中。",
+        .hubTokensTitle: "Hub Token",
+        .metricGPUMemory: "GPU 显存",
+        .metricOverview: "概览",
+        .metricOverviewAccessibility: "系统概览",
+        .metricSessions: "会话",
+        .metricStatus: "状态",
+        .metricStatusActive: "活跃",
+        .metricStatusIdle: "空闲",
+        .metricThroughput: "吞吐量",
+        .notConfigured: "未配置",
+        .sectionGeneral: "通用",
+        .sectionModels: "模型",
+        .sectionServer: "服务",
+        .sectionSystem: "系统",
+        .sectionWorkflow: "工作流",
+        .sidebarNavigation: "导航",
+        .cancelButton: "取消",
 
-		// Dashboard
-		.dashboardTitle: "仪表盘",
-		.dashboardPerformance: "系统信息",
-		.dashboardSystemInfo: "系统信息",
-		.dashboardTokenChartDesc: "Token 吞吐量图表",
-		.dashboardMemChartDesc: "内存图表：GPU 显存与 KV 缓存",
+        // Dashboard
+        .dashboardTitle: "仪表盘",
+        .dashboardPerformance: "系统信息",
+        .dashboardSystemInfo: "系统信息",
+        .dashboardTokenChartDesc: "Token 吞吐量图表",
+        .dashboardMemChartDesc: "内存图表：GPU 显存与 KV 缓存",
 
-		// ViewState
-		.connectionFailedTitle: "连接失败",
-		.connectionFailedDesc: "推理后端服务器可能不可用",
+        // ViewState
+        .connectionFailedTitle: "连接失败",
+        .connectionFailedDesc: "推理后端服务器可能不可用",
 
-		// Status Pill
-		.statusRunning: "运行中",
-		.statusStarting: "启动中",
-		.statusStopping: "停止中",
-		.statusStopped: "已停止",
-		.statusError: "错误",
-		.dismissError: "关闭错误",
+        // Status Pill
+        .statusRunning: "运行中",
+        .statusStarting: "启动中",
+        .statusStopping: "停止中",
+        .statusStopped: "已停止",
+        .statusError: "错误",
+        .dismissError: "关闭错误",
 
-		// LogLevel display names
-		.logLevelDebug: "调试",
-		.logLevelInfo: "信息",
-		.logLevelWarning: "警告",
-		.logLevelError: "错误",
+        // LogLevel display names
+        .logLevelDebug: "调试",
+        .logLevelInfo: "信息",
+        .logLevelWarning: "警告",
+        .logLevelError: "错误",
 
-		// Accessibility Labels
-		.appLabel: "ocoreai",
-		.appTitle: "ocoreai",
-		.noPanelSelected: "未选择面板",
-		.selectTab: "选择",
-		.modelSelectorLabel: "模型选择器",
-		.modelSelectorValueDefault: "未选择模型",
-		.clearConversationLabel: "清空对话",
-		.clearConversationHint: "移除此对话的所有消息",
-		.chatLabel: "聊天",
-		.chatConnected: "本地后端已连接",
-		.chatLoading: "后端加载中",
-		.messagesLabel: "消息",
-		.assistantTyping: "助手正在输入",
-		.voiceInputLabel: "语音输入",
-		.voiceInputHint: "点击使用语音输入（即将推出）",
-		.messageInputLabel: "消息输入框",
-		.messageInputHint: "输入消息后按回车发送",
-		.stopStreamingLabel: "停止流式输出",
-		.stopStreamingHint: "点击停止当前回复",
-		.sendMessageLabel: "发送消息",
-		.sendMessageHint: "点击发送你的消息",
-		.youLabel: "你",
-		.ocoreaiLabel: "ocoreai",
-		.suggestionHint: "点击使用此建议作为你的消息",
-		.localLabel: "本地",
-		.dashboardLabel: "仪表盘",
-		.systemInfoLabel: "系统信息",
-		.areaGraphTokenDesc: "显示 Token 吞吐量随时间变化的区域图",
-		.areaGraphGpuDesc: "显示 GPU 显存使用随时间变化的区域图",
-		.kvCacheLineDesc: "KV 缓存使用量折线图",
-		.refreshModelLabel: "刷新模型列表",
-		.refreshModelHint: "从后端获取最新模型列表",
-		.contextKey: "上下文",
-		.tokenizerKey: "分词器",
-		.modelRunningLabel: "模型运行中",
-		.modelStartingLabel: "模型加载中",
-		.modelServingLabel: "模型推理中",
-		.multimodalControlsLabel: "多模态控制",
-		.enableCameraLabel: "启用摄像头",
-		.enableCameraHint: "打开或关闭摄像头",
-		.cameraPreviewLabel: "摄像头实时画面预览",
-		.captureFrameLabel: "捕获帧",
-		.captureFrameHint: "从摄像头拍摄快照",
-		.enableMicLabel: "启用麦克风",
-		.enableMicHint: "打开或关闭麦克风",
-		.stopRecordingLabel: "停止录音",
-		.stopRecordingHint: "停止当前录音",
-		.startRecordingLabel: "开始录音",
-		.startRecordingHint: "开始录制音频",
-		.lastTranscriptLabel: "最后语音识别结果",
-		.enableSpeakerLabel: "启用扬声器",
-		.enableSpeakerHint: "打开或关闭语音合成",
-		.ttsActiveLabel: "语音合成已激活",
-		.statusIndicatorsLabel: "多模态状态指示器",
+        // Accessibility Labels
+        .appLabel: "ocoreai",
+        .appTitle: "ocoreai",
+        .noPanelSelected: "未选择面板",
+        .selectTab: "选择",
+        .modelSelectorLabel: "模型选择器",
+        .modelSelectorValueDefault: "未选择模型",
+        .clearConversationLabel: "清空对话",
+        .clearConversationHint: "移除此对话的所有消息",
+        .chatLabel: "聊天",
+        .chatConnected: "本地后端已连接",
+        .chatLoading: "后端加载中",
+        .messagesLabel: "消息",
+        .assistantTyping: "助手正在输入",
+        .voiceInputLabel: "语音输入",
+        .voiceInputHint: "点击使用语音输入（即将推出）",
+        .messageInputLabel: "消息输入框",
+        .messageInputHint: "输入消息后按回车发送",
+        .stopStreamingLabel: "停止流式输出",
+        .stopStreamingHint: "点击停止当前回复",
+        .sendMessageLabel: "发送消息",
+        .sendMessageHint: "点击发送你的消息",
+        .youLabel: "你",
+        .ocoreaiLabel: "ocoreai",
+        .suggestionHint: "点击使用此建议作为你的消息",
+        .localLabel: "本地",
+        .dashboardLabel: "仪表盘",
+        .systemInfoLabel: "系统信息",
+        .areaGraphTokenDesc: "显示 Token 吞吐量随时间变化的区域图",
+        .areaGraphGpuDesc: "显示 GPU 显存使用随时间变化的区域图",
+        .kvCacheLineDesc: "KV 缓存使用量折线图",
+        .refreshModelLabel: "刷新模型列表",
+        .refreshModelHint: "从后端获取最新模型列表",
+        .contextKey: "上下文",
+        .tokenizerKey: "分词器",
+        .modelRunningLabel: "模型运行中",
+        .modelStartingLabel: "模型加载中",
+        .modelServingLabel: "模型推理中",
+        .multimodalControlsLabel: "多模态控制",
+        .enableCameraLabel: "启用摄像头",
+        .enableCameraHint: "打开或关闭摄像头",
+        .cameraPreviewLabel: "摄像头实时画面预览",
+        .captureFrameLabel: "捕获帧",
+        .captureFrameHint: "从摄像头拍摄快照",
+        .enableMicLabel: "启用麦克风",
+        .enableMicHint: "打开或关闭麦克风",
+        .stopRecordingLabel: "停止录音",
+        .stopRecordingHint: "停止当前录音",
+        .startRecordingLabel: "开始录音",
+        .startRecordingHint: "开始录制音频",
+        .lastTranscriptLabel: "最后语音识别结果",
+        .enableSpeakerLabel: "启用扬声器",
+        .enableSpeakerHint: "打开或关闭语音合成",
+        .ttsActiveLabel: "语音合成已激活",
+        .statusIndicatorsLabel: "多模态状态指示器",
 
-		// Status dot labels
-		.statusCameraActive: "摄像头活动中",
-		.statusRecording: "录音中",
-		.statusSpeaking: "语音播放中",
-		.statusActive: "活动中",
-		.statusInactive: "非活动",
+        // Status dot labels
+        .statusCameraActive: "摄像头活动中",
+        .statusRecording: "录音中",
+        .statusSpeaking: "语音播放中",
+        .statusActive: "活动中",
+        .statusInactive: "非活动",
 
-		// A11y templates
-		.a11yStatus: "状态",
-		.a11yModel: "模型",
+        // A11y templates
+        .a11yStatus: "状态",
+        .a11yModel: "模型",
 
-		// Settings / About
-		.aboutTitle: "ocoreai",
-		.aboutVersion: "v1.0.0 · macOS 15+ / iOS 17+",
+        // Settings / About
+        .aboutTitle: "ocoreai",
+        .aboutVersion: "v1.0.0 · macOS 15+ / iOS 17+",
 
-		// Model info
-		.modelInfoContext: "上下文",
-		.modelInfoTokenizer: "分词器",
-		.modelInfoVLM: "多模态",
-		.modelInfoVocab: "词表",
+        // Model info
+        .modelInfoContext: "上下文",
+        .modelInfoTokenizer: "分词器",
+        .modelInfoVLM: "多模态",
+        .modelInfoVocab: "词表",
 
-		// Chart
-		.chartTime: "时间",
-		.chartTokPerSec: "tok/s",
-		.chartGB: "GB",
+        // Chart
+        .chartTime: "时间",
+        .chartTokPerSec: "tok/s",
+        .chartGB: "GB",
 
-		// Models
-		.defaultModel: "默认",
-		.noModelSelected: "未选择模型",
-		.clear: "清空",
-		.refreshButton: "刷新",
-		.tryAgain: "重试",
-		.copyMessage: "复制消息",
-		.undoAction: "撤销",
-		.regenerateMessage: "重新生成",
-		.copyCode: "复制代码",
-		.codeCopied: "已复制!",
+        // Models
+        .defaultModel: "默认",
+        .noModelSelected: "未选择模型",
+        .clear: "清空",
+        .refreshButton: "刷新",
+        .tryAgain: "重试",
+        .copyMessage: "复制消息",
+        .undoAction: "撤销",
+        .regenerateMessage: "重新生成",
+        .copyCode: "复制代码",
+        .codeCopied: "已复制!",
 
-		// Sessions
-		.tabSessions: "会话",
-		.sessionSearchPlaceholder: "搜索会话...",
-		.sessionListEmpty: "暂无会话",
-		.sessionSelectHint: "选择会话查看详情",
-		.sessionCreate: "新建会话",
-		.sessionDelete: "删除会话",
-		.sessionDeleteConfirm: "确定删除此会话？所有消息将丢失。",
-		.sessionSummary: "会话摘要",
-		.sessionModel: "模型",
-		.sessionCreatedAt: "开始于",
-		.sessionMessageCount: "消息",
-		.sessionTokenCount: "Token 数",
-		.memoryTitle: "记忆事件",
-		.memoryEmpty: "暂无记忆事件",
-		.memorySearchPlaceholder: "搜索记忆...",
+        // Sessions
+        .tabSessions: "会话",
+        .sessionSearchPlaceholder: "搜索会话...",
+        .sessionListEmpty: "暂无会话",
+        .sessionSelectHint: "选择会话查看详情",
+        .sessionCreate: "新建会话",
+        .sessionDelete: "删除会话",
+        .sessionDeleteConfirm: "确定删除此会话？所有消息将丢失。",
+        .sessionSummary: "会话摘要",
+        .sessionModel: "模型",
+        .sessionCreatedAt: "开始于",
+        .sessionMessageCount: "消息",
+        .sessionTokenCount: "Token 数",
+        .memoryTitle: "记忆事件",
+        .memoryEmpty: "暂无记忆事件",
+        .memorySearchPlaceholder: "搜索记忆...",
 
-		// Skills
-		.tabSkills: "技能",
-		.skillListEmpty: "暂无技能",
-		.skillSelectHint: "选择技能查看详情",
-		.skillName: "名称",
-		.skillCategory: "分类",
-		.skillDescription: "描述",
-		.skillTags: "标签",
-		.skillContentTitle: "内容",
-		.skillDependencies: "依赖",
+        // Skills
+        .tabSkills: "技能",
+        .skillListEmpty: "暂无技能",
+        .skillSelectHint: "选择技能查看详情",
+        .skillName: "名称",
+        .skillCategory: "分类",
+        .skillDescription: "描述",
+        .skillTags: "标签",
+        .skillContentTitle: "内容",
+        .skillDependencies: "依赖",
 
-		// System
-		.tabSystem: "系统",
-		.systemMCPSection: "MCP 服务",
-		.systemMCPEmpty: "未连接 MCP 服务",
-		.systemMCPConnected: "已连接",
-		.systemMCPDisconnected: "未连接",
-		.systemMCPName: "服务名称",
-		.systemMCPCommand: "命令",
-		.systemToolsSection: "工具",
-		.systemToolsEmpty: "暂无工具",
-		.systemToolName: "工具",
-		.systemToolReadOnly: "只读",
-		.systemToolDestructive: "破坏性",
-		.systemAuditSection: "审计日志",
-		.systemAuditEmpty: "暂无审计记录",
-		.systemAuditTool: "工具",
-		.systemAuditCaller: "调用者",
-		.systemAuditDuration: "耗时",
-		.systemAuditStatus: "状态",
-		.systemReasoningSection: "推理管线",
-		.systemComplexityScore: "复杂度评分",
-		.systemThinkingBudget: "思考预算",
-		.systemRefresh: "刷新",
-		.systemClearAudit: "清空审计日志",
-		.systemClearAuditConfirm: "清空所有审计记录？",
-		.systemComplexityLow: "低",
-		.systemComplexityMedium: "中",
-		.systemComplexityHigh: "高",
+        // System
+        .tabSystem: "系统",
+        .systemMCPSection: "MCP 服务",
+        .systemMCPEmpty: "未连接 MCP 服务",
+        .systemMCPConnected: "已连接",
+        .systemMCPDisconnected: "未连接",
+        .systemMCPName: "服务名称",
+        .systemMCPCommand: "命令",
+        .systemToolsSection: "工具",
+        .systemToolsEmpty: "暂无工具",
+        .systemToolName: "工具",
+        .systemToolReadOnly: "只读",
+        .systemToolDestructive: "破坏性",
+        .systemAuditSection: "审计日志",
+        .systemAuditEmpty: "暂无审计记录",
+        .systemAuditTool: "工具",
+        .systemAuditCaller: "调用者",
+        .systemAuditDuration: "耗时",
+        .systemAuditStatus: "状态",
+        .systemReasoningSection: "推理管线",
+        .systemComplexityScore: "复杂度评分",
+        .systemThinkingBudget: "思考预算",
+        .systemRefresh: "刷新",
+        .systemClearAudit: "清空审计日志",
+        .systemClearAuditConfirm: "清空所有审计记录？",
+        .systemComplexityLow: "低",
+        .systemComplexityMedium: "中",
+        .systemComplexityHigh: "高",
 
-		// Skills
-		.skillAll: "全部",
+        // Skills
+        .skillAll: "全部",
 
-		// Per-model inference params
-		.modelParamsTitle: "推理参数",
-		.modelParamTemperature: "温度",
-		.modelParamTemperatureHint: "控制随机性 (0.0–2.0)",
-		.modelParamTopP: "Top P",
-		.modelParamTopPHint: "核采样阈值",
-		.modelParamTopK: "Top K",
-		.modelParamTopKHint: "保留 K 个最可能的 token",
-		.modelParamMaxTokens: "最大 Token 数",
-		.modelParamMaxTokensHint: "最大输出 token 数",
-		.modelParamRepeatPenalty: "重复惩罚",
-		.modelParamRepeatPenaltyHint: "重复 token 的惩罚系数",
-		.modelParamFrequencyPenalty: "频率惩罚",
-		.modelParamPresencePenalty: "存在惩罚",
-		.modelParamSave: "保存",
-		.modelParamReset: "恢复默认",
-		.modelParamDefaults: "默认值",
-		.modelViewTapToEdit: "点击编辑参数",
+        // Per-model inference params
+        .modelParamsTitle: "推理参数",
+        .modelParamTemperature: "温度",
+        .modelParamTemperatureHint: "控制随机性 (0.0–2.0)",
+        .modelParamTopP: "Top P",
+        .modelParamTopPHint: "核采样阈值",
+        .modelParamTopK: "Top K",
+        .modelParamTopKHint: "保留 K 个最可能的 token",
+        .modelParamMaxTokens: "最大 Token 数",
+        .modelParamMaxTokensHint: "最大输出 token 数",
+        .modelParamRepeatPenalty: "重复惩罚",
+        .modelParamRepeatPenaltyHint: "重复 token 的惩罚系数",
+        .modelParamFrequencyPenalty: "频率惩罚",
+        .modelParamPresencePenalty: "存在惩罚",
+        .modelParamSave: "保存",
+        .modelParamReset: "恢复默认",
+        .modelParamDefaults: "默认值",
+        .modelViewTapToEdit: "点击编辑参数",
 
-		// Model Search
-		.modelSearchQuickLoad: "快速加载",
-		.modelSearchExample: "e.g. Qwen/Qwen2.5-7B-Instruct",
-		.modelSearchLoad: "加载",
-		.modelSearchHubSource: "模型源",
-		.modelSearchSelectHub: "选择源",
-		.modelSearchHFHub: "搜索 HuggingFace Hub…",
-		.modelSearchModelScope: "搜索 ModelScope…",
-		.modelSearchSearching: "搜索中…",
-		.modelSearchResults: "结果",
-		.modelSearchLoading: "加载中",
-		.modelSearchDismiss: "关闭",
-		.modelSearchTitle: "加载模型",
-		.modelSearchLabel: "加载模型",
-		.modelSearchHint: "从 HuggingFace 或 ModelScope 搜索并加载模型",
-		.modelSearchNoResults: "未找到匹配的模型",
-		.modelSearchEmpty: "未找到结果",
-		.a11yMLXFormat: "MLX 格式",
-		.a11yModelScopeSource: "ModelScope 源",
-		.engineNotAvailable: "引擎不可用",
-	]
+        // Model Search
+        .modelSearchQuickLoad: "快速加载",
+        .modelSearchExample: "e.g. Qwen/Qwen2.5-7B-Instruct",
+        .modelSearchLoad: "加载",
+        .modelSearchHubSource: "模型源",
+        .modelSearchSelectHub: "选择源",
+        .modelSearchHFHub: "搜索 HuggingFace Hub…",
+        .modelSearchModelScope: "搜索 ModelScope…",
+        .modelSearchSearching: "搜索中…",
+        .modelSearchResults: "结果",
+        .modelSearchLoading: "加载中",
+        .modelSearchDismiss: "关闭",
+        .modelSearchTitle: "加载模型",
+        .modelSearchLabel: "加载模型",
+        .modelSearchHint: "从 HuggingFace 或 ModelScope 搜索并加载模型",
+        .modelSearchNoResults: "未找到匹配的模型",
+        .modelSearchEmpty: "未找到结果",
+        .a11yMLXFormat: "MLX 格式",
+        .a11yModelScopeSource: "ModelScope 源",
+        .engineNotAvailable: "引擎不可用",
+    ]
 
-	// Add more locale tables here as needed (ja, ko, fr, es...)
+    // Add more locale tables here as needed (ja, ko, fr, es...)
 
-	let tables: [OCALocale: [StringKey: String]] = [
-		.zhHans: zh,
-		// .ja: jaTrans,
-		// .ko: koTrans,
-	]
+    let tables: [OCALocale: [StringKey: String]] = [
+        .zhHans: zh,
+        // .ja: jaTrans,
+        // .ko: koTrans,
+    ]
 
-	if let override = tables[locale]?[key] {
-		return override
-	}
-	return base[key] ?? "⚠️ \(key.rawValue)"
+    if let override = tables[locale]?[key] {
+        return override
+    }
+    return base[key] ?? "⚠️ \(key.rawValue)"
 }

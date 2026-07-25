@@ -18,155 +18,155 @@ import Logging
 /// approximate weight memory (vocab_size × 4 bytes for the transition
 /// from fp16→nf4).
 public enum QuantizationLevel: String, Sendable, Codable {
-	case bits8 /// 8-bit quantization (higher precision, more memory)
-	case bits4 /// 4-bit quantization (lower precision, less memory)
-	case refuse /// Hard refuse — all requests rejected
+    case bits8 /// 8-bit quantization (higher precision, more memory)
+    case bits4 /// 4-bit quantization (lower precision, less memory)
+    case refuse /// Hard refuse — all requests rejected
 }
 
 /// OOMGuard event for monitoring
 public struct OOMEvent: Sendable, Codable {
-	public let timestamp: Date
-	public let triggerLevel: MemoryLevel
-	public let fromLevel: QuantizationLevel
-	public let toLevel: QuantizationLevel
-	public let memoryUsedGB: Double
-	public let memoryBudgetGB: Double
+    public let timestamp: Date
+    public let triggerLevel: MemoryLevel
+    public let fromLevel: QuantizationLevel
+    public let toLevel: QuantizationLevel
+    public let memoryUsedGB: Double
+    public let memoryBudgetGB: Double
 
-	public init(
-		timestamp: Date,
-		triggerLevel: MemoryLevel,
-		fromLevel: QuantizationLevel,
-		toLevel: QuantizationLevel,
-		memoryUsedGB: Double,
-		memoryBudgetGB: Double,
-	) {
-		self.timestamp = timestamp
-		self.triggerLevel = triggerLevel
-		self.fromLevel = fromLevel
-		self.toLevel = toLevel
-		self.memoryUsedGB = memoryUsedGB
-		self.memoryBudgetGB = memoryBudgetGB
-	}
+    public init(
+        timestamp: Date,
+        triggerLevel: MemoryLevel,
+        fromLevel: QuantizationLevel,
+        toLevel: QuantizationLevel,
+        memoryUsedGB: Double,
+        memoryBudgetGB: Double,
+    ) {
+        self.timestamp = timestamp
+        self.triggerLevel = triggerLevel
+        self.fromLevel = fromLevel
+        self.toLevel = toLevel
+        self.memoryUsedGB = memoryUsedGB
+        self.memoryBudgetGB = memoryBudgetGB
+    }
 }
 
 /// OOMGuard manager — responds to memory pressure by downgrading quantization.
 actor OOMGuard {
-	private var currentLevel: QuantizationLevel = .bits8
-	private let logger: Logger
-	private var eventHistory: [OOMEvent] = []
-	private let maxHistoryDepth = 50
+    private var currentLevel: QuantizationLevel = .bits8
+    private let logger: Logger
+    private var eventHistory: [OOMEvent] = []
+    private let maxHistoryDepth = 50
 
-	/// Budget tracking — updated by MemoryTracker via ``updateUsage(_:budget:)``.
-	private var budgetBytes: UInt64 = 0
-	private var budgetBytesUsed: UInt64 = 0
+    /// Budget tracking — updated by MemoryTracker via ``updateUsage(_:budget:)``.
+    private var budgetBytes: UInt64 = 0
+    private var budgetBytesUsed: UInt64 = 0
 
-	/// Minimum quantization level before hard refuse.
-	var minLevel: QuantizationLevel = .refuse
+    /// Minimum quantization level before hard refuse.
+    var minLevel: QuantizationLevel = .refuse
 
-	/// Maximum allowed requests at current level.
-	var maxRequests: [QuantizationLevel: Int] = [
-		.bits4: 16,
-		.bits8: 8,
-		.refuse: 0,
-	]
+    /// Maximum allowed requests at current level.
+    var maxRequests: [QuantizationLevel: Int] = [
+        .bits4: 16,
+        .bits8: 8,
+        .refuse: 0,
+    ]
 
-	/// Initialize OOMGuard.
-	init(log: Logger = Logger(label: "ocoreai.scheduler.oomguard")) {
-		logger = log
-	}
+    /// Initialize OOMGuard.
+    init(log: Logger = Logger(label: "ocoreai.scheduler.oomguard")) {
+        logger = log
+    }
 
-	// MARK: - Budget Sync (called by MemoryTracker)
+    // MARK: - Budget Sync (called by MemoryTracker)
 
-	/// Update budget and usage from the memory tracker.
-	func updateUsage(_ used: UInt64, budget: UInt64) {
-		budgetBytesUsed = used
-		budgetBytes = budget
-	}
+    /// Update budget and usage from the memory tracker.
+    func updateUsage(_ used: UInt64, budget: UInt64) {
+        budgetBytesUsed = used
+        budgetBytes = budget
+    }
 
-	// MARK: - State
+    // MARK: - State
 
-	/// Get current quantization level.
-	func currentQuantization() -> QuantizationLevel {
-		currentLevel
-	}
+    /// Get current quantization level.
+    func currentQuantization() -> QuantizationLevel {
+        currentLevel
+    }
 
-	/// Get recent downgrade events.
-	/// - Parameter count: Number of events to return (default: 10).
-	func recentEvents(count: Int = 10) -> [OOMEvent] {
-		Array(eventHistory.suffix(count))
-	}
+    /// Get recent downgrade events.
+    /// - Parameter count: Number of events to return (default: 10).
+    func recentEvents(count: Int = 10) -> [OOMEvent] {
+        Array(eventHistory.suffix(count))
+    }
 
-	// MARK: - Downgrade Chain
+    // MARK: - Downgrade Chain
 
-	/// Called when memory tracker signals a new level.
-	/// - Parameter level: Current memory level from tracker.
-	///
-	/// UMA-correct downgrade: 8bit → 4bit → refuse.
-	/// CPU fallback removed — on UMA it doesn't free memory, only adds latency.
-	func respond(to level: MemoryLevel) {
-		let fromLevel = currentLevel
-		switch level {
-		case .normal:
-			// Recover to 8-bit if we're at 4-bit
-			if currentLevel == .bits4 {
-				currentLevel = .bits8
-				emitEvent(from: fromLevel, to: .bits8, trigger: level)
-			}
-		case .warning:
-			// Downgrade to 4-bit (releases ~vocab_size × 4 bytes of weight memory)
-			if currentLevel == .bits8 {
-				currentLevel = .bits4
-				emitEvent(from: fromLevel, to: .bits4, trigger: level)
-			}
-		case .critical:
-			// Force to 4-bit if still at 8-bit
-			if currentLevel == .bits8 {
-				currentLevel = .bits4
-				emitEvent(from: fromLevel, to: .bits4, trigger: level)
-			}
-		case .oom:
-			// Start refusing new requests
-			currentLevel = .refuse
-			emitEvent(from: fromLevel, to: .refuse, trigger: level)
-		}
-	}
+    /// Called when memory tracker signals a new level.
+    /// - Parameter level: Current memory level from tracker.
+    ///
+    /// UMA-correct downgrade: 8bit → 4bit → refuse.
+    /// CPU fallback removed — on UMA it doesn't free memory, only adds latency.
+    func respond(to level: MemoryLevel) {
+        let fromLevel = currentLevel
+        switch level {
+        case .normal:
+            // Recover to 8-bit if we're at 4-bit
+            if currentLevel == .bits4 {
+                currentLevel = .bits8
+                emitEvent(from: fromLevel, to: .bits8, trigger: level)
+            }
+        case .warning:
+            // Downgrade to 4-bit (releases ~vocab_size × 4 bytes of weight memory)
+            if currentLevel == .bits8 {
+                currentLevel = .bits4
+                emitEvent(from: fromLevel, to: .bits4, trigger: level)
+            }
+        case .critical:
+            // Force to 4-bit if still at 8-bit
+            if currentLevel == .bits8 {
+                currentLevel = .bits4
+                emitEvent(from: fromLevel, to: .bits4, trigger: level)
+            }
+        case .oom:
+            // Start refusing new requests
+            currentLevel = .refuse
+            emitEvent(from: fromLevel, to: .refuse, trigger: level)
+        }
+    }
 
-	/// Check if a new request should be accepted.
-	/// - Returns: true if the request can be queued.
-	func shouldAcceptRequest() -> Bool {
-		currentLevel != .refuse
-	}
+    /// Check if a new request should be accepted.
+    /// - Returns: true if the request can be queued.
+    func shouldAcceptRequest() -> Bool {
+        currentLevel != .refuse
+    }
 
-	// MARK: - Manual Override
+    // MARK: - Manual Override
 
-	/// Manually set quantization level (for admin overrides).
-	/// - Parameter level: Desired quantization level.
-	func setLevel(_ level: QuantizationLevel) {
-		let fromLevel = currentLevel
-		currentLevel = level
-		emitEvent(from: fromLevel, to: level, trigger: .normal)
-		logger.info("OOMGuard override: \(fromLevel.rawValue) → \(level.rawValue)")
-	}
+    /// Manually set quantization level (for admin overrides).
+    /// - Parameter level: Desired quantization level.
+    func setLevel(_ level: QuantizationLevel) {
+        let fromLevel = currentLevel
+        currentLevel = level
+        emitEvent(from: fromLevel, to: level, trigger: .normal)
+        logger.info("OOMGuard override: \(fromLevel.rawValue) → \(level.rawValue)")
+    }
 
-	// MARK: - Internal
+    // MARK: - Internal
 
-	private func emitEvent(from: QuantizationLevel, to: QuantizationLevel, trigger: MemoryLevel) {
-		let event = OOMEvent(
-			timestamp: Date(),
-			triggerLevel: trigger,
-			fromLevel: from,
-			toLevel: to,
-			memoryUsedGB: Double(budgetBytesUsed) / 1_073_741_824.0,
-			memoryBudgetGB: Double(budgetBytes) / 1_073_741_824.0,
-		)
-		eventHistory.append(event)
-		if eventHistory.count > maxHistoryDepth {
-			eventHistory.removeFirst()
-		}
-		if to == .refuse {
-			logger.critical("OOMGuard: HARD REFUSE — all requests rejected")
-		} else {
-			logger.info("OOMGuard: \(from.rawValue) → \(to.rawValue) (trigger: \(trigger.rawValue))")
-		}
-	}
+    private func emitEvent(from: QuantizationLevel, to: QuantizationLevel, trigger: MemoryLevel) {
+        let event = OOMEvent(
+            timestamp: Date(),
+            triggerLevel: trigger,
+            fromLevel: from,
+            toLevel: to,
+            memoryUsedGB: Double(budgetBytesUsed) / 1_073_741_824.0,
+            memoryBudgetGB: Double(budgetBytes) / 1_073_741_824.0,
+        )
+        eventHistory.append(event)
+        if eventHistory.count > maxHistoryDepth {
+            eventHistory.removeFirst()
+        }
+        if to == .refuse {
+            logger.critical("OOMGuard: HARD REFUSE — all requests rejected")
+        } else {
+            logger.info("OOMGuard: \(from.rawValue) → \(to.rawValue) (trigger: \(trigger.rawValue))")
+        }
+    }
 }

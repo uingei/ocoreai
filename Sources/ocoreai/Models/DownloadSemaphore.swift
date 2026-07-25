@@ -18,85 +18,85 @@ import Foundation
 /// `@unchecked Sendable` — all mutable state (`_inFlight`, `_activeDownloads`)
 /// is protected by `_lock`. No concurrent access is possible without the lock.
 final class DownloadSemaphore: @unchecked Sendable {
-	static let shared = DownloadSemaphore()
+    static let shared = DownloadSemaphore()
 
-	// MARK: - State (protected by _lock)
+    // MARK: - State (protected by _lock)
 
-	private let _lock = NSLock()
-	private var _inFlight = 0
-	private var _activeDownloads: Set<String> = []
-	private let maxConcurrent: Int
+    private let _lock = NSLock()
+    private var _inFlight = 0
+    private var _activeDownloads: Set<String> = []
+    private let maxConcurrent: Int
 
-	private init(maxConcurrent: Int = 2) {
-		self.maxConcurrent = maxConcurrent
-	}
+    private init(maxConcurrent: Int = 2) {
+        self.maxConcurrent = maxConcurrent
+    }
 
-	// MARK: - Public API (synchronous, safe for use in `defer`)
+    // MARK: - Public API (synchronous, safe for use in `defer`)
 
-	/// Result of a try-acquire attempt.
-	enum Result: Sendable {
-		case ok /// Slot acquired — caller must call `release(for:)` when done
-		case duplicate /// Same model already downloading
-		case busy /// All slots full
-	}
+    /// Result of a try-acquire attempt.
+    enum Result: Sendable {
+        case ok /// Slot acquired — caller must call `release(for:)` when done
+        case duplicate /// Same model already downloading
+        case busy /// All slots full
+    }
 
-	/// Try to acquire a download slot. Thread-safe, non-blocking, synchronous.
-	/// Safe to call from any isolation context (MainActor, task, defer, etc.)
-	func tryAcquire(for modelId: String) -> Result {
-		_lock.lock()
-		defer { _lock.unlock() }
+    /// Try to acquire a download slot. Thread-safe, non-blocking, synchronous.
+    /// Safe to call from any isolation context (MainActor, task, defer, etc.)
+    func tryAcquire(for modelId: String) -> Result {
+        _lock.lock()
+        defer { _lock.unlock() }
 
-		if _activeDownloads.contains(modelId) {
-			return .duplicate
-		}
-		if _inFlight >= maxConcurrent {
-			return .busy
-		}
-		_inFlight += 1
-		_activeDownloads.insert(modelId)
-		return .ok
-	}
+        if _activeDownloads.contains(modelId) {
+            return .duplicate
+        }
+        if _inFlight >= maxConcurrent {
+            return .busy
+        }
+        _inFlight += 1
+        _activeDownloads.insert(modelId)
+        return .ok
+    }
 
-	/// Release a download slot after completion (success or failure).
-	/// Idempotent: only decrements `_inFlight` if `modelId` is actively tracked,
-	/// preventing double-release from corrupting the slot counter.
-	func release(for modelId: String) {
-		_lock.lock()
-		defer { _lock.unlock() }
+    /// Release a download slot after completion (success or failure).
+    /// Idempotent: only decrements `_inFlight` if `modelId` is actively tracked,
+    /// preventing double-release from corrupting the slot counter.
+    func release(for modelId: String) {
+        _lock.lock()
+        defer { _lock.unlock() }
 
-		guard _activeDownloads.remove(modelId) != nil else { return }
-		_inFlight = Swift.max(0, _inFlight - 1)
-	}
+        guard _activeDownloads.remove(modelId) != nil else { return }
+        _inFlight = Swift.max(0, _inFlight - 1)
+    }
 
-	/// Convenience: acquire-or-wait. Polls `tryAcquire` with short sleeps until
-	/// a slot opens or the task is cancelled.
-	///
-	/// Returns `true` if this caller should proceed to download (caller must
-	/// call `release(for:)`). Returns `false` if the model is already being
-	/// downloaded by another caller.
-	func acquireOrWait(for modelId: String) async -> Bool {
-		while true {
-			switch tryAcquire(for: modelId) {
-			case .ok:
-				return true
-			case .duplicate:
-				return false
-			case .busy:
-				if Task.isCancelled { return false }
-				try? await Task.sleep(for: .milliseconds(250))
-			}
-		}
-	}
+    /// Convenience: acquire-or-wait. Polls `tryAcquire` with short sleeps until
+    /// a slot opens or the task is cancelled.
+    ///
+    /// Returns `true` if this caller should proceed to download (caller must
+    /// call `release(for:)`). Returns `false` if the model is already being
+    /// downloaded by another caller.
+    func acquireOrWait(for modelId: String) async -> Bool {
+        while true {
+            switch tryAcquire(for: modelId) {
+            case .ok:
+                return true
+            case .duplicate:
+                return false
+            case .busy:
+                if Task.isCancelled { return false }
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+        }
+    }
 
-	/// Force-reset all state — for testing only.
-	/// Atomically clears inFlight count and active set under the lock so there
-	/// is no race window for parallel tests.
-	#if DEBUG
-	func _test_reset() {
-		_lock.lock()
-		defer { _lock.unlock() }
-		_inFlight = 0
-		_activeDownloads.removeAll()
-	}
-	#endif
+    /// Force-reset all state — for testing only.
+    /// Atomically clears inFlight count and active set under the lock so there
+    /// is no race window for parallel tests.
+    #if DEBUG
+    func _test_reset() {
+        _lock.lock()
+        defer { _lock.unlock() }
+        _inFlight = 0
+        _activeDownloads.removeAll()
+    }
+    #endif
 }
