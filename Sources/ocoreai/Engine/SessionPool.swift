@@ -134,12 +134,22 @@ struct SessionPoolConfig {
         ///
         /// If no pooled session exists (or it expired), the pool attempts to restore
         /// from on-disk KV cache. If that fails, a new session is created.
+        ///
+        /// - Parameters:
+        ///   - instructions: System prompt via ChatSession's `instructions:` parameter
+        ///     (upstream L186/L219). Per upstream L319-322: when restoring from a
+        ///     pre-built cache that already encodes a system prompt, pass `nil`
+        ///     to avoid duplicate tokenization producing incoherent output.
+        ///   - processing: VLM resize config. Aligned across all inference paths
+        ///     to avoid inconsistent per-image token counts.
         func acquire(
             from modelContainer: MLXLMCommon.ModelContainer,
             modelId: String,
             conversationId: String,
             genParams: MLXLMCommon.GenerateParameters,
             speculativeDecoding: MLXLMCommon.SpeculativeDecodingConfig? = nil,
+            instructions: String? = nil,
+            processing: MLXLMCommon.UserInput.Processing? = nil,
         ) async -> (pooled: PooledChatSession, isHit: Bool) {
             // 1. Expire stale sessions (with on-disk save)
             await evictExpired()
@@ -179,11 +189,13 @@ struct SessionPoolConfig {
                 return (freshPooled, isHit: false)
             }
 
-            // 5. Cold miss — create fresh session
+            // 5. Cold miss — create fresh session with instructions + processing
             let freshSession = ChatSession(
                 modelContainer,
+                instructions: instructions,
                 speculativeDecoding: speculativeDecoding,
                 generateParameters: genParams,
+                processing: processing ?? .init(resize: CGSize(width: 1024, height: 1024)),
             )
             let cacheFile = cacheFileURL(key: key)
             let freshPooled = PooledChatSession(
@@ -281,6 +293,9 @@ struct SessionPoolConfig {
         // MARK: - On-disk KV cache I/O
 
         /// Restore a ChatSession from on-disk KV cache.
+        /// Per upstream L319-322: restore from a pre-built cache that already encodes
+        /// a system prompt — pass `instructions: nil` to avoid duplicate tokenization.
+        ///
         /// Returns (ChatSession, restoredTokenCount) on success, nil otherwise.
         private static func restoreCachedSession(
             _ modelContainer: MLXLMCommon.ModelContainer,
@@ -288,6 +303,7 @@ struct SessionPoolConfig {
             genParams: MLXLMCommon.GenerateParameters,
             logger: Logger,
             speculativeDecoding: MLXLMCommon.SpeculativeDecodingConfig? = nil,
+            processing: MLXLMCommon.UserInput.Processing? = nil,
         ) -> (session: ChatSession, tokenCount: Int)? {
             guard FileManager.default.fileExists(atPath: cacheURL.path) else {
                 return nil
@@ -301,9 +317,11 @@ struct SessionPoolConfig {
                 logger.info("Restoring KV cache from: \(cacheURL.lastPathComponent) (tokens: \(restoredTokenCount))")
                 let restoredSession = ChatSession(
                     modelContainer,
+                    instructions: nil, // cache encodes system prompt — upstream L319-322
                     cache: caches,
                     speculativeDecoding: speculativeDecoding,
                     generateParameters: genParams,
+                    processing: processing ?? .init(resize: CGSize(width: 1024, height: 1024)),
                 )
                 return (restoredSession, restoredTokenCount)
             } catch {

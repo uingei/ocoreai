@@ -554,7 +554,9 @@
         kvCacheQuant: KVCacheQuantizationConfig? = nil,
     ) -> MLXLMCommon.GenerateParameters {
         var params = MLXLMCommon.GenerateParameters()
-        params.maxTokens = maxTokens ?? 1024
+        // P1-fix: Pass maxTokens through directly — upstream default is nil (no limit).
+        // Hard-coding 1024 truncated all requests without explicit maxTokens config.
+        params.maxTokens = maxTokens
         if let config = kvCacheQuant, config.enabled {
             params.kvBits = config.bits
             params.kvGroupSize = config.groupSize

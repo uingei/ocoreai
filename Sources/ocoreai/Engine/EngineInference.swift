@@ -623,9 +623,19 @@ extension EnginePool {
                 }
             }
 
-            let mlxMessages: [Chat.Message] = messages.map { msg in
+            // Extract system prompt for ChatSession's instructions: channel.
+            // Upstream L186/L219: instructions are prepended as .system messages
+            // inside ChatSession — passing them via messages: triggers duplicate
+            // tokenization (upstream L319-322).
+            let systemInstructions: String? = switch messages.first(where: { $0.role == "system" })?.content {
+            case let .text(t): t
+            case let .parts(p): p.first(where: { $0.text != nil })?.text
+            case nil: nil
+            }
+            let nonSystemMessages = messages.filter { $0.role != "system" }
+
+            let mlxMessages: [Chat.Message] = nonSystemMessages.map { msg in
                 let role: Chat.Message.Role = switch msg.role {
-                case "system": .system
                 case "assistant": .assistant
                 case "tool": .tool
                 default: .user
@@ -891,6 +901,13 @@ extension EnginePool {
                     }
                 }
 
+                // Unified processing config for VLM resize — consistent across all
+                // inference paths (ChatSession, Guided gen, MTP). Default 1024x1024
+                // preserves VLM detail while bounding token overhead.
+                let sessionProcessing = MLXLMCommon.UserInput.Processing(
+                    resize: .init(width: 1024, height: 1024)
+                )
+
                 // ChatSession path: acquire or create session
                 // Always create chatSession — guided path (grammarSchema) and MTP/standard path
         // all consume the shared chatSession variable below. Even when useGuidedGeneration
@@ -904,6 +921,8 @@ extension EnginePool {
                             conversationId: convKey,
                             genParams: genParams,
                             speculativeDecoding: specConfig,
+                            instructions: systemInstructions,
+                            processing: sessionProcessing,
                         )
                         chatSession = acquired.pooled.session
                         isPoolHit = acquired.isHit
@@ -946,8 +965,10 @@ extension EnginePool {
 
                         chatSession = ChatSession(
                             handleRef.modelContainer,
+                            instructions: systemInstructions,
                             speculativeDecoding: spec,
                             generateParameters: gp,
+                            processing: sessionProcessing,
                             additionalContext: additionalContext,
                             tools: toolSpecs,
                             toolDispatch: toolDispatchClosure
@@ -965,6 +986,7 @@ extension EnginePool {
                     // This mirrors upstream MTP path at L925 and aligns with MLXChatExample pattern
                     // where Chat.Message carries images/videos directly without loss.
                     if let schema = options.grammarSchema,
+                       let maxTokens = options.maxTokens,
                        mlxMessages.allSatisfy({ $0.images.isEmpty && $0.videos.isEmpty && $0.audios.isEmpty }) {
                         log.info("Routing through GuidedGenerationLoop with grammar constraint")
                         // Guided path: prepare input, build constraint, run token loop
@@ -972,7 +994,7 @@ extension EnginePool {
                         try await handleGuidedGeneration(
                             messagePairs: mlxMessages.map { (role: $0.role.rawValue, content: $0.content) },
                             grammarSchema: schema,
-                            maxTokens: options.maxTokens ?? loaded.modelConfig.maxContextLength,
+                            maxTokens: maxTokens,
                         )
                     } else if options.grammarSchema != nil {
                         // Grammar requested but multimodal content present — guided path cannot handle it.
@@ -980,10 +1002,12 @@ extension EnginePool {
                         log.warning("Dropping grammar constraint for multimodal message on model \(modelId)")
                     }
                     // MARK: - MTP Speculative Decoding Path
-                    // Note: upstream MTP generate does NOT support tools parameter —
-                    // when tools are registered, we fall through to ChatSession (full tool round-trip).
-                    // VLM messages (with images/audios) also fall through because MTP cannot
-                    // carry multimodal data across the Sendable closure boundary.
+                    // Known limitation: upstream generate(input:cache:parameters:context:mtpDrafter:) has
+                    // no `tools` parameter (Evaluate.swift L1730-1760) — tool dispatch cannot happen
+                    // inside MTP path. While the internal TextToolTokenLoopHandler can detect tool
+                    // calls at the token level, there is no mechanism to dispatch them. When tools
+                    // are registered, we fall through to ChatSession for full tool round-trip support.
+                    // VLM requests also fall through because MTP cannot carry images/videos/audios.
                     else if self.mtpDrafterContainer != nil, registeredToolSpecs == nil, mlxMessages.count > 0,
                         mlxMessages.allSatisfy({ $0.images.isEmpty && $0.audios.isEmpty && $0.videos.isEmpty }) {
                         log.info("Routing through MTP speculative decoding")
@@ -998,10 +1022,15 @@ extension EnginePool {
                             let stoppedBySequence: Bool
                         }
 
-                        // Extract drafter model via local wrapper — allows injection into
-                        // modelContainer.perform(nonSendable:) closure
+                        // SAFETY: mtpDrafterContainer is an actor; its contents could be
+                        // released between the if-let guard (L1009) and this point via an
+                        // await boundary. Hoist to a local optional and bail gracefully.
+                        guard let drafterContainer = self.mtpDrafterContainer else {
+                            log.warning("MTP drafter released during inference — falling back to ChatSession")
+                            return
+                        }
                         let drafterWrapper: MTPDrafterModelWrapper
-                        drafterWrapper = await self.mtpDrafterContainer!.perform { drafterCtx in
+                        drafterWrapper = await drafterContainer.perform { drafterCtx in
                             MTPDrafterModelWrapper(model: drafterCtx.model)
                         }
 
@@ -1104,23 +1133,18 @@ extension EnginePool {
                         // (mirrors MTP path localAccumulatedText at L808)
                         var localStandardAccumulated = ""
 
-                        let lastMsg = mlxMessages.last
-                        let lastRole: Chat.Message.Role = lastMsg?.role ?? .user
-                        let lastContent = lastMsg?.content ?? ""
-
-                        // Extract images/audio/video from last message for multimodal support. VLM requests
-                        // carry .images/.audios/.videos on the last Chat.Message — pass them through so
-                        // streamDetails can actually see the media instead of dropping silently.
-                        let allImages: [MLXLMCommon.UserInput.Image] = lastMsg?.images ?? []
-                        let allAudios: [MLXLMCommon.UserInput.Audio] = lastMsg?.audios ?? []
-                        let allVideos: [MLXLMCommon.UserInput.Video] = lastMsg?.videos ?? []
+                        // P0-fix: Pass full mlxMessages array (or delta slice for pool hits)
+                        // instead of only the last message. When pool hits, deltaOffset tracks
+                        // how many messages were already baked into the KV cache — slice those
+                        // off so streamDetails only appends new messages. When pool miss/fresh,
+                        // deltaOffset=0 so all messages pass through.
+                        // Safety: min(deltaOffset, mlxMessages.count) prevents out-of-bounds
+                        // when restored sessions track token count rather than message count.
+                        let sliceStart = min(deltaOffset, mlxMessages.count)
+                        let messagesForStream: [Chat.Message] = Array(mlxMessages[sliceStart...])
 
                         for try await generation in chatSession!.streamDetails(
-                            to: lastContent,
-                            role: lastRole,
-                            images: allImages,
-                            videos: allVideos,
-                            audios: allAudios
+                            to: messagesForStream
                         ) {
                             if Task.isCancelled || cancellation.isCancelled {
                                 continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: actualTokenCount ?? 0)))
