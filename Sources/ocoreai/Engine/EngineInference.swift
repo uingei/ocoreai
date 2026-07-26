@@ -956,19 +956,16 @@ extension EnginePool {
                         if isPoolHit {
                             log.debug("Pool HIT for \(convKey) — KV cache reused (offset=\(deltaOffset))")
                         }
-                        // Inject tools + toolDispatch into pooled session
+                        // Inject tools spec into pooled session so ChatSession can detect
+                        // tool calls and return .toolCall events. We do NOT inject toolDispatch
+                        // — the external AgentLoop coordinator (Agents/AgentLoop.swift) owns
+                        // tool execution, budget control, iteration limits, and context pruning.
+                        // If we injected both tools and toolDispatch, ChatSession's internal
+                        // tool loop would execute tools during generation, then AgentLoop would
+                        // re-execute them from the result text → double execution of side effects.
                         if let specs = registeredToolSpecs {
                             chatSession?.tools = specs
-                            if let registry = toolRegistry {
-                                chatSession?.toolDispatch = { toolCall in
-                                    let argsData = toolCall.function.arguments.mapValues { $0.anyValue }
-                                    let jsonEncoded = try JSONSerialization.data(
-                                        withJSONObject: argsData
-                                    )
-                                    let argsString = String(decoding: jsonEncoded, as: UTF8.self)
-                                    return try await registry.call(toolCall.function.name, arguments: argsString)
-                                }
-                            }
+                            // toolDispatch intentionally nil — AgentLoop handles execution
                         }
                         } else {
                         let spec: MLXLMCommon.SpeculativeDecodingConfig? = specConfig
@@ -1326,7 +1323,7 @@ extension EnginePool {
                 logRef.debug("GPU post-inference delta [\(modelId)] active: \(gpuDelta.activeMemory / 1_048_576)MB, cache: \(gpuDelta.cacheMemory / 1_048_576)MB")
 
                 // Propagate error if caught
-                if let caughtError {
+                if caughtError != nil {
                     continuation.yield(.init(kind: .error(
                         InferenceError.standardPathFailed("inference failed").errorDescription ?? "error")))
                 }

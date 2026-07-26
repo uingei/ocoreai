@@ -174,12 +174,17 @@ struct SessionPoolConfig {
                 speculativeDecoding: speculativeDecoding,
             ) {
                 // Disk restore gives us a ChatSession with baked-in KV cache.
-                // Message count restored from cache metadata — callers can compute delta
-                // correctly instead of re-prefilling the entire context.
+                // messageCount = 0 because this is a fresh session from the pool's perspective —
+                // streamDetails will receive the full message array to continue the conversation.
+                // The on-disk KV cache holds the prefill context; it does NOT track message
+                // count (it tracks token offset), so using token offset as messageCount
+                // would cause sliceStart = min(tokenOffset, messageCount) to skip messages
+                // when tokenOffset > messageCount (which is always the case for multi-token
+                // prefill caches).
                 let freshPooled = PooledChatSession(
                     session: restoredSession,
                     lastAccessedAt: ContinuousClock.now,
-                    messageCount: restoredTokenCount,
+                    messageCount: 0,
                     cacheFileURL: cacheURL,
                 )
                 missCount += 1
@@ -221,6 +226,11 @@ struct SessionPoolConfig {
             let key = poolKey(modelId: modelId, conversationId: conversationId)
             var session = pooled
             session.messageCount = processedMessageCount
+            // Clear tools + toolDispatch to prevent cross-session tool leakage.
+            // Without this, a pooled session reused by a different request could
+            // carry over tool specs and dispatch closures from the previous caller.
+            session.session.tools = nil
+            session.session.toolDispatch = nil
             pool[key] = session
 
             // LRU eviction if pool exceeds max
