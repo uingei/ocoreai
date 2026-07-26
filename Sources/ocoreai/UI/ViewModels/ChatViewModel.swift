@@ -105,6 +105,7 @@ private struct TranscriptPartMessage {
             case .reasoning(let r): return r
             case .toolCall(let tc): return "[Tool: \(tc.name): \(tc.resultSummary ?? "")]"
             case .image: return nil
+            case .video: return nil
             }
         }.joined(separator: " ")
     }

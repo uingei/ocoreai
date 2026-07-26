@@ -18,6 +18,9 @@ import Foundation
 /// A message's `.parts` array fully describes its content — replaces the
 /// flat `content: String` model for new messages. Legacy messages (from
 /// SQLite restore or API) still populate `content` as a convenience.
+///
+/// Mirrors upstream MLXChatExample transcript parts: .text, .reasoning,
+/// .toolCall, .image, .video — see MediaPreviewView.swift for reference.
 enum TranscriptPart: Codable, Hashable, Sendable {
     
     /// Plain text content (user input, assistant response body).
@@ -36,6 +39,10 @@ enum TranscriptPart: Codable, Hashable, Sendable {
     /// Equivalent to Transcript.ImageAttachment.
     case image(String) // base64 data URL
     
+    /// Video attachment (VLM input — Gemma4, Qwen2.5VL).
+    /// Mirrors upstream UserInput.Video in MLXChatExample.
+    case video(String) // URL or data URL
+    
     // MARK: - Properties
     
     /// Plain-text representation for legacy/fallback rendering.
@@ -45,13 +52,14 @@ enum TranscriptPart: Codable, Hashable, Sendable {
         case .reasoning(let r): return "[Reasoning: \(r)]"
         case .toolCall(let tc): return "[Tool: \(tc.name) → \(tc.resultSummary ?? "…")]"
         case .image: return "[Image]"
+        case .video: return "[Video]"
         }
     }
     
     /// Whether this part is user-visible by default, or hidden/collapsible.
     var visibleByDefault: Bool {
         switch self {
-        case .text, .image: return true
+        case .text, .image, .video: return true
         case .reasoning, .toolCall: return false
         }
     }

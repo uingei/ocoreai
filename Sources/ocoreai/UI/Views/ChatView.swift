@@ -37,6 +37,7 @@ struct ChatBubbleMessage: Identifiable, Hashable {
                 case .reasoning(let r): return r
                 case .toolCall(let tc): return "[Tool: \(tc.name)]"
                 case .image: return nil
+                case .video: return nil
                 }
             }.joined(separator: "\n")
         }
@@ -820,6 +821,16 @@ struct TranscriptContentView: View {
                 case .image(let url):
                     InlineImagePreview(dataURL: url)
                         .frame(height: 96)
+                        .padding(.horizontal, 12)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .background(theme.cardBg)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                    
+                case .video(let videoUrl):
+                    // Mirrors upstream MLXChatExample MediaPreviewView: VideoPlayer + AVPlayer
+                    // for displaying video attachments from VLM multimodal input.
+                    InlineVideoPreview(videoURL: videoUrl)
+                        .frame(height: 120)
                         .padding(.horizontal, 12)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .background(theme.cardBg)
