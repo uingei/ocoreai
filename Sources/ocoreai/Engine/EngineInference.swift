@@ -1136,6 +1136,10 @@ extension EnginePool {
                                     case .cancelled: .cancelled
                                     }
                                 case .toolCall:
+                                    // MTP entry guard requires registeredToolSpecs == nil; if
+                                    // tool calls still appear (e.g. model hallucination from
+                                    // system prompt), they are dropped here since ChatSession
+                                    // tool loop was not enabled for this request.
                                     break
                                 }
                             }
