@@ -1132,12 +1132,9 @@ extension EnginePool {
                                     case .length: .maxTokens
                                     case .cancelled: .cancelled
                                     }
-                                case .toolCall:
-                                    // MTP entry guard requires registeredToolSpecs == nil; if
-                                    // tool calls still appear (e.g. model hallucination from
-                                    // system prompt), they are dropped here since ChatSession
-                                    // tool loop was not enabled for this request.
-                                    break
+                                case let .toolCall(mlxTC):
+                                    let tc = InferenceEvent.mlxToolCall(from: mlxTC)
+                                    continuation.yield(.init(kind: .toolCall(tc)))
                                 }
                             }
 
@@ -1231,9 +1228,9 @@ extension EnginePool {
                                         case .length: .maxTokens
                                         case .cancelled: .cancelled
                                     }
-                                case .toolCall:
-                                    // ChatSession handles tool calling internally
-                                    break
+                                case let .toolCall(mlxTC):
+                                    let tc = InferenceEvent.mlxToolCall(from: mlxTC)
+                                    continuation.yield(.init(kind: .toolCall(tc)))
                                 }
                             }
 

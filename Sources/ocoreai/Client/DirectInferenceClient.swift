@@ -362,6 +362,8 @@ extension DirectInferenceClient {
                 case let .error(errorMsg):
                     continuation.finish()
                     throw AppError.generationError(errorMsg)
+                case .toolCall:
+                    break
                 }
             }
         }
@@ -572,6 +574,8 @@ extension DirectInferenceClient {
                 case .done(_, _, _, _): break
                 case let .error(msg):
                     throw AppError.generationError(msg)
+                case .toolCall:
+                    break
                 }
             }
         }

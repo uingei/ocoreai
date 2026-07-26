@@ -363,6 +363,8 @@ private func nonStreamAnthropicResponse(
             case let .error(errorMsg):
                 finishReason = "error"
                 logger.error("Generation error: \(errorMsg)")
+            case .toolCall:
+                break
             }
         }
     } catch {
@@ -562,9 +564,10 @@ private func streamAnthropicResponse(
 
                     case .done(_, _, _, _):
                         break
-
                     case let .error(errorMsg):
                         logger.error("Stream generation error: \(errorMsg)")
+                    case .toolCall:
+                        break
                     }
                 }
             } catch {

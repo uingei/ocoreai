@@ -92,8 +92,37 @@ struct InferenceEvent {
 
         /// Fatal inference error
         case error(String)
+
+        /// Structured tool call detected upstream by TextToolTokenLoopHandler.
+        /// Carries the ocoreai ``ToolCall`` (from OpenAIModels) which is decoded from
+        /// the upstream ``MLXLMCommon/ToolCall`` via `InferenceEvent.mlxToolCall(from:)`.
+        case toolCall(ToolCall)
     }
 
     /// Event payload
     var kind: Kind
+}
+
+// MARK: - Upstream → ocoreai type bridge
+
+import MLXLMCommon
+
+extension InferenceEvent {
+    /// Bridge: upstream `MLXLMCommon.ToolCall` (`[String: JSONValue]` arguments)
+    /// → ocoreai `ToolCall` (JSON-string arguments).
+    static func mlxToolCall(from mlx: MLXLMCommon.ToolCall) -> ToolCall {
+        let argsJSON: String
+        do {
+            let mapped = mlx.function.arguments.mapValues { $0.anyValue }
+            let data = try JSONSerialization.data(withJSONObject: mapped)
+            argsJSON = String(decoding: data, as: UTF8.self)
+        } catch {
+            argsJSON = "{}"
+        }
+        return ToolCall(
+            id: mlx.id ?? "",
+            type: "function",
+            function: ToolCallFunction(name: mlx.function.name, arguments: argsJSON)
+        )
+    }
 }

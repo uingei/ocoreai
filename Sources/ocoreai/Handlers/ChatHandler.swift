@@ -562,6 +562,8 @@ private func nonStreamWithToolCalling(
                                     break
                         case let .error(msg):
                             logger.warning("Self-correction re-gen error: \(msg)")
+                        case .toolCall:
+                            break
                         }
                     }
                     if let pre = accText { return pre }
@@ -915,6 +917,23 @@ private func streamWithToolCalling(
                         )
                         _ = yieldSSE(usageChunk, to: continuation)
                     }
+
+                    /// .toolCall — upstream TextToolTokenLoopHandler detected a tool call.
+                    /// Emit as SSE delta chunk with tool_calls in the delta.
+                case let .toolCall(tc):
+                    let tcChunk = ChatCompletionChunk(
+                        id: requestId,
+                        created: created,
+                        model: modelId,
+                        choices: [ChunkChoice(
+                            delta: ChatDelta(
+                                role: "assistant",
+                                toolCalls: [tc],
+                            ),
+                            finishReason: "tool_calls",
+                        )],
+                    )
+                    _ = yieldSSE(tcChunk, to: continuation)
 
                     /// .error — send error chunk and terminate.
                 case let .error(errorMsg):

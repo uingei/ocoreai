@@ -127,6 +127,8 @@ actor SummarizerActor {
                     await handle.release()
                     throw NSError(domain: "SummarizerActor", code: 1,
                                   userInfo: [NSLocalizedDescriptionKey: msg])
+                case .toolCall:
+                    break
                 }
             }
         }

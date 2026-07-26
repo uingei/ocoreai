@@ -214,7 +214,7 @@ enum AgentLoop {
             let tStart = ContinuousClock.now
 
             // ── Inference ───────────────────────────────────────────────
-            let (text, tokCount) = try await doInfer(
+            let (text, tokCount, inferredToolCalls) = try await doInfer(
                 handle: handle,
                 messages: msgs,
                 sampling: sampling,
@@ -228,7 +228,17 @@ enum AgentLoop {
             budgetRemaining -= tokCount
 
             // ── Check for tool calls ────────────────────────────────────
-            if let tc = parseToolCalls(from: text), !tc.isEmpty {
+            // Merge streaming-detected tool calls with legacy post-hoc parse for safety.
+            let tc: [ToolCall]
+            if !inferredToolCalls.isEmpty {
+                tc = inferredToolCalls
+            } else if let parsed = parseToolCalls(from: text), !parsed.isEmpty {
+                tc = parsed
+            } else {
+                tc = []
+            }
+
+            if !tc.isEmpty {
                 log.info("AgentLoop iter \\(i): \\(tc.count) tool_calls in \\(tokCount) tokens (\\(elapsedMs)ms)")
 
                 // ── Execute tools ───────────────────────────────────────
@@ -324,14 +334,15 @@ enum AgentLoop {
         options: InferenceOptions,
         logger: Logger
     ) async throws -> AgentLoopResult {
-        let (text, tok) = try await doInfer(
+        let (text, tok, inferredTC) = try await doInfer(
             handle: handle,
             messages: messages,
             sampling: sampling,
             options: options,
             logger: logger
         )
-        let tc = parseToolCalls(from: text)
+        // Prefer streaming-detected tool calls; fall back to post-hoc parse.
+        let tc: [ToolCall]? = if !inferredTC.isEmpty { inferredTC } else { parseToolCalls(from: text) }
         let hasNonEmptyToolCalls = (tc?.count ?? 0) > 0
         // Safety filter user-facing response through ContentGuard
         // (tool_calls responses skip filtering — they're structured payloads, not free text)
@@ -400,14 +411,14 @@ enum AgentLoop {
 
     // MARK: - Inference
 
-    /// Run one inference, return decoded text + token count.
+    /// Run one inference, return decoded text + token count + structured tool calls.
     private static func doInfer(
         handle: EngineHandle,
         messages: [Message],
         sampling: SamplingConfiguration,
         options: InferenceOptions,
         logger: Logger
-    ) async throws -> (text: String, tokens: Int) {
+    ) async throws -> (text: String, tokens: Int, toolCalls: [ToolCall]) {
         let stream = handle.generateFromMessages(
             messages: messages,
             sampling: sampling,
@@ -415,6 +426,7 @@ enum AgentLoop {
         )
         var accumulatedText = ""
         var tokCount = 0
+        var collectedToolCalls: [ToolCall] = []
         do {
             for try await ev in stream {
                 // Respond to upstream task cancellation (e.g., user interrupt, model switch)
@@ -438,6 +450,10 @@ enum AgentLoop {
                     // Counting +1 per event provides a lower bound until .done carries
                     // the definitive count from upstream GenerateCompletionInfo.
                     tokCount += 1
+                case let .toolCall(tc):
+                    // Upstream TextToolTokenLoopHandler detected structured tool calls.
+                    // Collect them — this replaces the old parseToolCalls post-hoc approach.
+                    collectedToolCalls.append(tc)
                 case let .error(e):
                     logger.warning("AgentLoop inference error: \(e)")
                 }
@@ -448,6 +464,6 @@ enum AgentLoop {
             }
             throw error
         }
-        return (accumulatedText, tokCount)
+        return (accumulatedText, tokCount, collectedToolCalls)
     }
 }
