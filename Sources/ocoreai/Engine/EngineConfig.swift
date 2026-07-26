@@ -29,9 +29,6 @@ public struct EnginePoolConfig: Sendable {
     /// Number of tokens for the prewarm (warmup) inference run
     public var warmupTokens: Int
 
-    /// Optional KV cache management configuration (nil = kvCache disabled)
-    var kvCacheConfig: KVCacheManager.Config?
-
     /// Hard timeout for a single inference request (seconds).
     /// Prevents hung inference from permanently holding resources.
     var inferenceTimeoutSeconds: Int
@@ -58,7 +55,6 @@ public struct EnginePoolConfig: Sendable {
         modelDirectory: "./models",
         defaultModelId: "mlx-community/gemma-4-e2b-it-4bit",
         warmupTokens: 4,
-        kvCacheConfig: nil,
         inferenceTimeoutSeconds: 180,
         sessionPoolConfig: .default,
         kvCacheQuantization: .default,
@@ -97,7 +93,6 @@ public struct EnginePoolConfig: Sendable {
             self.defaultModelId = Self.default.defaultModelId
         }
         self.warmupTokens = 4
-        self.kvCacheConfig = nil
         self.inferenceTimeoutSeconds = 180
         self.sessionPoolConfig = .default
         self.kvCacheQuantization = app.backend.kvCacheQuantization
@@ -115,7 +110,6 @@ public struct EnginePoolConfig: Sendable {
         modelDirectory: String,
         defaultModelId: String,
         warmupTokens: Int,
-        kvCacheConfig: KVCacheManager.Config?,
         inferenceTimeoutSeconds: Int,
         sessionPoolConfig: SessionPoolConfig?,
         kvCacheQuantization: KVCacheQuantizationConfig,
@@ -128,7 +122,6 @@ public struct EnginePoolConfig: Sendable {
         self.modelDirectory = modelDirectory
         self.defaultModelId = defaultModelId
         self.warmupTokens = warmupTokens
-        self.kvCacheConfig = kvCacheConfig
         self.inferenceTimeoutSeconds = inferenceTimeoutSeconds
         self.sessionPoolConfig = sessionPoolConfig
         self.kvCacheQuantization = kvCacheQuantization

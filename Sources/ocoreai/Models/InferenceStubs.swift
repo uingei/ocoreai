@@ -240,26 +240,8 @@ enum StopReason: Int, Codable, Error {
     }
 
     actor KVCacheManager {
-        struct Config: Codable {
-            var maxGpuCacheGB: Double = 16.0
-            var idleTimeoutSeconds: Int = 300
-            static var `default`: Config {
-                Config()
-            }
 
-            init() {}
-        }
-
-        init(config _: Config, logger _: Logging.Logger?) {}
-        func registerZeroSession(sessionId _: String) {}
-        func unregister(sessionId _: String) {}
-        func markActive(sessionId _: String) {}
-        func gpuUsageGB() -> Double {
-            0.0
-        }
-
-        func coldStoreActiveSessions() async {}
-        func shutdown() {}
+        init(config _: Logging.Logger?) {}
     }
 
     enum EngineFactory {

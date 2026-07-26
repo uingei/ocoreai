@@ -18,4 +18,3 @@
 /// | CoreAIBridge        | CoreAI-specific backend logic              |
 /// | CoreAIModelLoader   | v15 two-phase CoreAI model loading         |
 /// | SessionPool         | MLX ChatSession pooling                    |
-/// | KVCacheManager      | GPU cache accounting + eviction            |

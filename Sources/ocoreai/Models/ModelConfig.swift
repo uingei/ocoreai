@@ -91,7 +91,7 @@ private struct _ModelConfigJSON: Decodable {
 }
 
 extension ModelConfig {
-    /// Direct initializer used by ``KVCacheManager`` and hub-model stub creation in ``EnginePool``.
+    /// Direct initializer for hub-model stub creation in ``EnginePool``.
     init(
         name: String,
         function: String,

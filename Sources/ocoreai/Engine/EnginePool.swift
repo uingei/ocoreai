@@ -72,11 +72,6 @@ actor EnginePool {
     /// Maximum models to keep in memory before LRU eviction kicks in
     let maxLoadedModels: Int
 
-    /// Paged KV cache (optional — nil when feature disabled).
-    /// In-memory block pool with LRU eviction, replacing old KVCacheManager
-    /// SSD cold-store anti-pattern. Tracks active sessions and evicts on memory pressure.
-    private let pagedKVCache: PagedKVCache?
-
     /// Memory tracker — reports GPU memory allocations to MemoryTracker.
     let memoryTracker: MemoryTracker?
 
@@ -117,8 +112,6 @@ actor EnginePool {
         config: EnginePoolConfig,
         logger: Logger,
         tokenizerManager: TokenizerManager,
-        pagedKVCacheConfig: PagedKVCacheConfig? = nil,
-        blockPoolConfig: BlockPoolConfig? = nil,
         coreAILoadingConfig: Any? = nil,
         memoryTracker: MemoryTracker? = nil,
         modelScopeToken: String? = nil,
@@ -135,15 +128,6 @@ actor EnginePool {
         self.config = config
         self.logger = logger
         self.tokenizerManager = tokenizerManager
-        if let pagedKVConfig = pagedKVCacheConfig, let poolConfig = blockPoolConfig {
-            pagedKVCache = PagedKVCache(
-                poolConfig: poolConfig,
-                cacheConfig: pagedKVConfig,
-                logger: logger,
-            )
-        } else {
-            pagedKVCache = nil
-        }
         self.memoryTracker = memoryTracker
         self.maxLoadedModels = 4
         #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
@@ -265,9 +249,6 @@ actor EnginePool {
         model.acquireSession()
 
         let sessionId = UUID().uuidString
-        if let paged = pagedKVCache {
-            try await paged.attach(sessionId: sessionId)
-        }
 
         logger.info(
             "Session acquired",
@@ -283,11 +264,9 @@ actor EnginePool {
 
     func releaseSession(modelId: String, sessionId: String) async {
         loadedModels[modelId]?.releaseSession()
-        await pagedKVCache?.evictSession(sessionId: sessionId)
     }
 
     func markSessionActive(sessionId: String) async {
-        await pagedKVCache?.markActive(sessionId: sessionId)
     }
 
     /// Wait for another caller to finish loading ``modelId``.
@@ -543,11 +522,7 @@ actor EnginePool {
     }
 
     func engineSummary() async -> EngineSummary {
-        let gpuCacheGB: Double = if let paged = pagedKVCache {
-            await Double(paged.getMemoryBytes()) / 1_073_741_824.0
-        } else {
-            0.0
-        }
+        let gpuCacheGB: Double = 0.0
         #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
             var specializedCount: Int
             if #available(macOS 27.0, *) {
@@ -595,8 +570,7 @@ actor EnginePool {
     }
 
     func gpuCacheUsageGB() async -> Double {
-        guard let paged = pagedKVCache else { return 0.0 }
-        return await Double(paged.getMemoryBytes()) / 1_073_741_824.0
+        0.0
     }
 
         func getMLXModelAndTokenizer(modelId: String) -> MLXLMCommon.ModelContainer? {
@@ -726,10 +700,6 @@ actor EnginePool {
 
         if let pool = sessionPool {
             await pool.clear()
-        }
-
-        if let paged = pagedKVCache {
-            await paged.shutdown()
         }
 
         for model in loadedModels.values {

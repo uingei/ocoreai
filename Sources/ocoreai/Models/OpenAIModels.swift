@@ -927,17 +927,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// Gone — session expired or invalidated
     case sessionExpired(String)
 
-    /// Service Unavailable — BlockPool exhausted and unable to evict
-    case blockPoolExhausted
-
     /// Service Unavailable — session limit exceeded
     case sessionLimitExceeded
-
-    /// Service Unavailable — memory pressure threshold exceeded
-    case memoryPressure
-
-    /// Not Found — session not found in PagedKVCache
-    case sessionNotFound(String)
 
     /// ``CustomStringConvertible`` description (used in logs)
     var description: String {
@@ -953,11 +944,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         case let .inferenceFailed(msg): "Inference failed: \(msg)"
         case let .tokenizationFailed(msg): "Tokenization failed: \(msg)"
         case let .toolCallFailed(msg): "Tool call failed: \(msg)"
-        case let .sessionExpired(id): "Session \(id) expired"
-        case .blockPoolExhausted: "BlockPool exhausted — unable to evict"
+        case let .sessionExpired(id): "Session - \(id) expired"
         case .sessionLimitExceeded: "Session limit exceeded"
-        case .memoryPressure: "Memory pressure threshold exceeded"
-                case .sessionNotFound: "Session not found"
         }
     }
 
@@ -974,10 +962,10 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         switch self {
         case .invalidRequest, .toolCallFailed:
             .badRequest
-        case .modelNotFound, .coldStoreNotFound, .sessionNotFound:
+        case .modelNotFound, .coldStoreNotFound:
             .notFound
         case .poolExhausted, .queueClosed, .engineUnavailable,
-             .blockPoolExhausted, .sessionLimitExceeded, .memoryPressure:
+             .sessionLimitExceeded:
             .serviceUnavailable
         case .sessionExpired:
             .gone

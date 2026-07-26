@@ -376,8 +376,6 @@ public final class OcoreaiEngine {
             config: engineConfig,
             logger: logger,
             tokenizerManager: tokenizerManager,
-            pagedKVCacheConfig: .default,
-            blockPoolConfig: .default,
             coreAILoadingConfig: coreAILoadingConfig,
             memoryTracker: memoryTracker,
             modelScopeToken: msToken,
