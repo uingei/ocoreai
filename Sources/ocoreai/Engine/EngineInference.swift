@@ -1027,13 +1027,11 @@ extension EnginePool {
                         log.warning("Dropping grammar constraint for multimodal message on model \(modelId)")
                     }
                     // MARK: - MTP Speculative Decoding Path
-                    // Known limitation: upstream generate(input:cache:parameters:context:mtpDrafter:) has
-                    // no `tools` parameter (Evaluate.swift L1730-1760) — tool dispatch cannot happen
-                    // inside MTP path. While the internal TextToolTokenLoopHandler can detect tool
-                    // calls at the token level, there is no mechanism to dispatch them. When tools
-                    // are registered, we fall through to ChatSession for full tool round-trip support.
-                    // VLM requests also fall through because MTP cannot carry images/videos/audios.
-                    else if self.mtpDrafterContainer != nil, registeredToolSpecs == nil, mlxMessages.count > 0,
+                    // MTP generate() uses TextToolTokenLoopHandler internally (Evaluate.swift L1750)
+                    // — tool call detection works. Tool dispatch happens externally via AgentLoop
+                    // consuming .toolCall InferenceEvents, avoiding double-execution risk.
+                    // VLM requests fall through to ChatSession (MTP cannot carry images/videos/audios).
+                    else if self.mtpDrafterContainer != nil, mlxMessages.count > 0,
                         mlxMessages.allSatisfy({ $0.images.isEmpty && $0.audios.isEmpty && $0.videos.isEmpty }) {
                         log.info("Routing through MTP speculative decoding")
                         let messagePairs: [(role: String, content: String)] = mlxMessages.map {
