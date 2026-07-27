@@ -1083,15 +1083,7 @@ extension EnginePool {
                             var localPassthroughReason: String?
                             var localStoppedBySeq = false
 
-                            // ReasoningEventEmitter: upstream segment router for reasoning
-                            // vs response. Only activate when reasoning config is present —
-                            // non-reasoning models bypass emitter and pass text through.
-                            let reasoningConfig = context.configuration.reasoningConfig
-                            var reasonEmitter: ReasoningEventEmitter?
-                            if let rc = reasoningConfig {
-                                reasonEmitter = ReasoningEventEmitter(config: rc, primedInside: false)
-                            }
-
+                            // MARK: - MTP Message Preparation
                             var mtpMessages: [Chat.Message] = messagePairs.map { pair in
                                 Chat.Message(
                                     role: Chat.Message.Role(rawValue: pair.role) ?? .system,
@@ -1103,9 +1095,30 @@ extension EnginePool {
                                 mtpMessages.removeLast()
                             }
 
-                                let mtpProcessing = UserInput.Processing(resize: .init(width: 1024, height: 1024))
-                                let mtpUserInput = UserInput(prompt: .chat(mtpMessages), processing: mtpProcessing)
+                            let mtpProcessing = UserInput.Processing(resize: .init(width: 1024, height: 1024))
+                            let mtpUserInput = UserInput(prompt: .chat(mtpMessages), processing: mtpProcessing)
                             let mtpInput = try await context.processor.prepare(input: mtpUserInput)
+
+                            // ReasoningEventEmitter: upstream segment router for reasoning
+                            // vs response. Only activate when reasoning config is present —
+                            // non-reasoning models bypass emitter and pass text through.
+                            // primedInside must be computed from rendered prompt tail so the
+                            // emitter doesn't misroute the entire reasoning block to .response
+                            // on model families that prefill the opening delimiter (Qwen3, R1).
+                            let reasoningConfig = context.configuration.reasoningConfig
+                            var reasonEmitter: ReasoningEventEmitter?
+                            if let rc = reasoningConfig {
+                                // Decode the last 64 tokens of the prepared input as the
+                                // rendered prompt tail — mirrors upstream reasoningPrimedInside().
+                                let tokens = mtpInput.text.tokens.asArray(Int32.self)
+                                let renderedTail = context.tokenizer.decode(
+                                    tokenIds: tokens.suffix(64).map(Int.init)
+                                )
+                                let primed = ReasoningEventEmitter.promptEndsInsideReasoning(
+                                    renderedPromptTail: renderedTail, config: rc
+                                )
+                                reasonEmitter = ReasoningEventEmitter(config: rc, primedInside: primed)
+                            }
 
                             let mtpGenStream = try MLXLMCommon.generate(
                                 input: mtpInput,
@@ -1253,10 +1266,25 @@ extension EnginePool {
 
                         // ReasoningEventEmitter: upstream segment router. Only activate when
                         // reasoning config is present — non-reasoning models bypass emitter.
+                        // Primed state: when ChatSession pre-fills the opening delimiter (Qwen3, R1),
+                        // the emitter must start inside reasoning or it misroutes the entire block.
+                        // Since streamDetails renders internally and we can't read LMInput tokens,
+                        // infer primedInside from reasoningPromptStrategy — mirrors upstream behavior.
                         let standardReasoningConfig = await handleRef.modelContainer.configuration.reasoningConfig
                         var standardEmitter: ReasoningEventEmitter?
                         if let rc = standardReasoningConfig {
-                            standardEmitter = ReasoningEventEmitter(config: rc, primedInside: false)
+                            // PromptStrategy inference: alwaysOn = model always reasons (primed),
+                            // templateFlag with defaultOn = thinking enabled by template (primed),
+                            // .none = no reasoning (shouldn't have config, but default false).
+                            let primed = switch rc.promptStrategy {
+                            case .alwaysOn:
+                                true
+                            case .templateFlag(_, let defaultOn):
+                                defaultOn
+                            case .none:
+                                false
+                            }
+                            standardEmitter = ReasoningEventEmitter(config: rc, primedInside: primed)
                         }
 
                         // Accumulate text across chunks for stop sequence matching
