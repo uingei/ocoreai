@@ -456,6 +456,10 @@ enum AgentLoop {
                     collectedToolCalls.append(tc)
                 case let .error(e):
                     logger.warning("AgentLoop inference error: \(e)")
+                case let .reasoning(r):
+                    // Reasoning chunk from ReasoningEventEmitter — accumulate alongside text
+                    accumulatedText += r
+                    tokCount += 1
                 }
             }
         } catch {

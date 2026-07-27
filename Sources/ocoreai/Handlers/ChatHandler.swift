@@ -564,6 +564,9 @@ private func nonStreamWithToolCalling(
                             logger.warning("Self-correction re-gen error: \(msg)")
                         case .toolCall:
                             break
+                        case let .reasoning(r):
+                            // Reasoning text accumulates into accText for self-correction
+                            accText = (accText ?? "") + r
                         }
                     }
                     if let pre = accText { return pre }
@@ -947,6 +950,26 @@ private func streamWithToolCalling(
                         )],
                     )
                     _ = yieldSSE(errChunk, to: continuation)
+
+                /// .reasoning — ReasoningEventEmitter routed reasoning segment.
+                /// Emit as SSE delta chunk with reasoning_content.
+                case let .reasoning(reasoningText):
+                    try Task.checkCancellation()
+                    totalOutputTokens += 1
+                    if ttfbTime == nil {
+                        ttfbTime = ContinuousClock.now
+                    }
+                    let rChoice = ChunkChoice(
+                        delta: ChatDelta(reasoningContent: reasoningText),
+                        finishReason: nil,
+                    )
+                    let rChunk = ChatCompletionChunk(
+                        id: requestId,
+                        created: created,
+                        model: modelId,
+                        choices: [rChoice],
+                    )
+                    _ = yieldSSE(rChunk, to: continuation)
                 }
             }
         } catch {

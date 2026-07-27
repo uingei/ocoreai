@@ -365,6 +365,11 @@ private func nonStreamAnthropicResponse(
                 logger.error("Generation error: \(errorMsg)")
             case .toolCall:
                 break
+            case let .reasoning(r):
+                // Anthropic non-stream: reasoning text flows into accumulatedText
+                try Task.checkCancellation()
+                totalOutputTokens += 1
+                accumulatedText = (accumulatedText ?? "") + r
             }
         }
     } catch {
@@ -567,6 +572,9 @@ private func streamAnthropicResponse(
                     case let .error(errorMsg):
                         logger.error("Stream generation error: \(errorMsg)")
                     case .toolCall:
+                        break
+                    case let .reasoning(_):
+                        // Reasoning text flows into Anthropic text delta as normal content
                         break
                     }
                 }

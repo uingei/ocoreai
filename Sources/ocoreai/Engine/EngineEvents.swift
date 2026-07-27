@@ -81,6 +81,9 @@ struct InferenceEvent {
         /// Generated token (`Int32` token ID — Core AI path)
         case token(Int32)
 
+        /// Generated reasoning chunk (upstream ReasoningEventEmitter routed)
+        case reasoning(String)
+
         /// Generated text chunk (MLX path — already decoded)
         case text(String)
 

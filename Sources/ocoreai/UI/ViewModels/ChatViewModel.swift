@@ -617,16 +617,13 @@ final class ChatState {
                 if let tokPerSec = chunk.tokPerSec {
                     currentTokPerSec = tokPerSec
                 }
-                if !chunk.text.isEmpty {
-                    responseText += chunk.text
-                    // Progressively extract closed reasoning blocks during streaming
-                    // so UI can render reasoning text before the message completes.
-                    // Only extracts completed <thinking>...</thinking> pairs; incomplete
-                    // blocks (open tag, no close yet) wait for completion-time parsing.
-                    let (partialReasoning, _) = Self.splitThinkingTags(from: responseText)
-                    if let rText = partialReasoning, !rText.isEmpty {
-                        currentReasoningText = rText
-                    }
+                if let text = chunk.text, !text.isEmpty {
+                    responseText += text
+                }
+                // Reasoning content is now properly separated upstream via ReasoningEventEmitter.
+                // Consume directly instead of regex-based post-processing.
+                if let reasoningText = chunk.reasoningContent, !reasoningText.isEmpty {
+                    currentReasoningText += reasoningText
                 }
                 // Wire prompt throughput from final chunk
                 if let ptps = chunk.promptTokPerSec {

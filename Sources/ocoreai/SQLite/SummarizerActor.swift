@@ -129,6 +129,9 @@ actor SummarizerActor {
                                   userInfo: [NSLocalizedDescriptionKey: msg])
                 case .toolCall:
                     break
+                case let .reasoning(r):
+                    // Reasoning text from ReasoningEventEmitter — include in summary
+                    summary += r
                 }
             }
         }

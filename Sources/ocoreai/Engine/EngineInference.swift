@@ -982,17 +982,18 @@ extension EnginePool {
                                 return try await registry.call(toolCall.function.name, arguments: argsString)
                             }
                         }
-                        /// ChatSession creation — includes reasoning toggle if enabled.
-                        let additionalContext: [String: any Sendable]? =
-                            options.enableReasoning ? ["enable_thinking": true] : nil
-
+                        /// ChatSession creation — reasoning toggle removed. Upstream factory
+                        /// (LLMModelFactory._load L625-628) already infers reasoningConfig from
+                        /// config.json and sets reasoningPromptStrategy. The ReasoningEventEmitter
+                        /// below reads context.configuration.reasoningConfig to activate segment
+                        /// routing, so no additionalContext hack is needed.
                         chatSession = ChatSession(
                             handleRef.modelContainer,
                             instructions: systemInstructions,
                             speculativeDecoding: spec,
                             generateParameters: gp,
                             processing: sessionProcessing,
-                            additionalContext: additionalContext,
+                            additionalContext: nil,
                             tools: toolSpecs,
                             toolDispatch: toolDispatchClosure
                         )
@@ -1071,6 +1072,15 @@ extension EnginePool {
                             var localPromptTokPerSec: Double?
                             var localStoppedBySeq = false
 
+                            // ReasoningEventEmitter: upstream segment router for reasoning
+                            // vs response. Only activate when reasoning config is present —
+                            // non-reasoning models bypass emitter and pass text through.
+                            let reasoningConfig = context.configuration.reasoningConfig
+                            var reasonEmitter: ReasoningEventEmitter?
+                            if let rc = reasoningConfig {
+                                reasonEmitter = ReasoningEventEmitter(config: rc, primedInside: false)
+                            }
+
                             var mtpMessages: [Chat.Message] = messagePairs.map { pair in
                                 Chat.Message(
                                     role: Chat.Message.Role(rawValue: pair.role) ?? .system,
@@ -1106,19 +1116,59 @@ extension EnginePool {
                                         localFirstToken = true
                                     }
                                     metrics.incrementGenerated()
-                                    localAccumulatedText += text
-                                    if requestStopSequences.isEmpty {
-                                        continuation.yield(.init(kind: .text(text)))
-                                    } else if let match = requestStopSequences.first(where: { localAccumulatedText.hasSuffix($0) }) {
-                                        let trimmed = String(localAccumulatedText.prefix(localAccumulatedText.count - match.count))
-                                        if !trimmed.isEmpty {
-                                            continuation.yield(.init(kind: .text(trimmed)))
+                                    // If reasoning config is available, route through emitter.
+                                    // Otherwise pass text through directly as .text.
+                                    if reasonEmitter != nil {
+                                        for segment in reasonEmitter!.process(text) {
+                                            switch segment {
+                                            case .reasoning(let segmentText):
+                                                localAccumulatedText += segmentText
+                                                if requestStopSequences.isEmpty {
+                                                    continuation.yield(.init(kind: .reasoning(segmentText)))
+                                                } else if let match = requestStopSequences.first(where: { localAccumulatedText.hasSuffix($0) }) {
+                                                    let trimmed = String(localAccumulatedText.prefix(localAccumulatedText.count - match.count))
+                                                    if !trimmed.isEmpty {
+                                                        continuation.yield(.init(kind: .reasoning(segmentText)))
+                                                    }
+                                                    continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount)))
+                                                    localStoppedBySeq = true
+                                                    break
+                                                } else {
+                                                    continuation.yield(.init(kind: .reasoning(segmentText)))
+                                                }
+                                            case .response(let segmentText):
+                                                localAccumulatedText += segmentText
+                                                if requestStopSequences.isEmpty {
+                                                    continuation.yield(.init(kind: .text(segmentText)))
+                                                } else if let match = requestStopSequences.first(where: { localAccumulatedText.hasSuffix($0) }) {
+                                                    let trimmed = String(localAccumulatedText.prefix(localAccumulatedText.count - match.count))
+                                                    if !trimmed.isEmpty {
+                                                        continuation.yield(.init(kind: .text(trimmed)))
+                                                    }
+                                                    continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount)))
+                                                    localStoppedBySeq = true
+                                                    break
+                                                } else {
+                                                    continuation.yield(.init(kind: .text(segmentText)))
+                                                }
+                                            }
                                         }
-                                        continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount)))
-                                        localStoppedBySeq = true
-                                        break
                                     } else {
-                                        continuation.yield(.init(kind: .text(text)))
+                                        // No reasoning config — pass through as plain text
+                                        localAccumulatedText += text
+                                        if requestStopSequences.isEmpty {
+                                            continuation.yield(.init(kind: .text(text)))
+                                        } else if let match = requestStopSequences.first(where: { localAccumulatedText.hasSuffix($0) }) {
+                                            let trimmed = String(localAccumulatedText.prefix(localAccumulatedText.count - match.count))
+                                            if !trimmed.isEmpty {
+                                                continuation.yield(.init(kind: .text(trimmed)))
+                                            }
+                                            continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount)))
+                                            localStoppedBySeq = true
+                                            break
+                                        } else {
+                                            continuation.yield(.init(kind: .text(text)))
+                                        }
                                     }
                                 case let .info(completionInfo):
                                     localTokenCount = completionInfo.generationTokenCount
@@ -1171,6 +1221,14 @@ extension EnginePool {
                     else {
                         log.info("Routing through ChatSession for standard generation")
 
+                        // ReasoningEventEmitter: upstream segment router. Only activate when
+                        // reasoning config is present — non-reasoning models bypass emitter.
+                        let standardReasoningConfig = await handleRef.modelContainer.configuration.reasoningConfig
+                        var standardEmitter: ReasoningEventEmitter?
+                        if let rc = standardReasoningConfig {
+                            standardEmitter = ReasoningEventEmitter(config: rc, primedInside: false)
+                        }
+
                         // Accumulate text across chunks for stop sequence matching
                         // (mirrors MTP path localAccumulatedText at L808)
                         var localStandardAccumulated = ""
@@ -1198,11 +1256,48 @@ extension EnginePool {
                                         metrics.firstTokenMs = metrics.overallMs
                                     }
                                     metrics.incrementGenerated()
-                                    if requestStopSequences.isEmpty {
-                                        continuation.yield(.init(kind: .text(text)))
+                                    // Conditionally route through emitter if reasoning config present
+                                    if standardEmitter != nil {
+                                        for segment in standardEmitter!.process(text) {
+                                            switch segment {
+                                            case .reasoning(let segmentText):
+                                                localStandardAccumulated += segmentText
+                                                if requestStopSequences.isEmpty {
+                                                    continuation.yield(.init(kind: .reasoning(segmentText)))
+                                                } else if let match = requestStopSequences.first(where: { localStandardAccumulated.hasSuffix($0) }) {
+                                                    let trimmed = String(localStandardAccumulated.prefix(localStandardAccumulated.count - match.count))
+                                                    if !trimmed.isEmpty {
+                                                        continuation.yield(.init(kind: .reasoning(segmentText)))
+                                                    }
+                                                    continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
+                                                    lastStopReason = .stopSequence
+                                                    break
+                                                } else {
+                                                    continuation.yield(.init(kind: .reasoning(segmentText)))
+                                                }
+                                            case .response(let segmentText):
+                                                localStandardAccumulated += segmentText
+                                                if requestStopSequences.isEmpty {
+                                                    continuation.yield(.init(kind: .text(segmentText)))
+                                                } else if let match = requestStopSequences.first(where: { localStandardAccumulated.hasSuffix($0) }) {
+                                                    let trimmed = String(localStandardAccumulated.prefix(localStandardAccumulated.count - match.count))
+                                                    if !trimmed.isEmpty {
+                                                        continuation.yield(.init(kind: .text(trimmed)))
+                                                    }
+                                                    continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
+                                                    lastStopReason = .stopSequence
+                                                    break
+                                                } else {
+                                                    continuation.yield(.init(kind: .text(segmentText)))
+                                                }
+                                            }
+                                        }
                                     } else {
+                                        // No reasoning config — pass through as plain text
                                         localStandardAccumulated += text
-                                        if let match = requestStopSequences.first(where: { localStandardAccumulated.hasSuffix($0) }) {
+                                        if requestStopSequences.isEmpty {
+                                            continuation.yield(.init(kind: .text(text)))
+                                        } else if let match = requestStopSequences.first(where: { localStandardAccumulated.hasSuffix($0) }) {
                                             let trimmed = String(localStandardAccumulated.prefix(localStandardAccumulated.count - match.count))
                                             if !trimmed.isEmpty {
                                                 continuation.yield(.init(kind: .text(trimmed)))

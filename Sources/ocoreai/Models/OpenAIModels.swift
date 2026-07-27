@@ -733,6 +733,9 @@ struct ChatDelta: Encodable {
     /// Text content delta
     var content: String?
 
+    /// Reasoning/thinking content delta (OpenAI reasoning models protocol)
+    var reasoningContent: String?
+
     /// Tool calls delta (if model is requesting tool execution)
     var toolCalls: [ToolCall]?
 }

@@ -351,6 +351,13 @@ extension DirectInferenceClient {
                     // until completion — see note on currentMetrics()).
                     let (ttftMs, _, _) = currentMetrics()
                     continuation.yield(.init(text: text, isComplete: false, ttftMs: ttftMs, tokPerSec: nil))
+                case let .reasoning(reasoningText):
+                    // Reasoning chunk from ReasoningEventEmitter — emit as reasoning content delta
+                    if firstChunkTime == nil {
+                        firstChunkTime = ContinuousClock.now
+                    }
+                    accumulatedText += reasoningText
+                    continuation.yield(.init(isComplete: false, reasoningContent: reasoningText))
                 case let .done(reason, tokenCount, tokPS, ptokPs):
                     finishReason = stopReasonToString(reason) ?? "stop"
                     // Use actual token count from upstream .info/.done — per-event
@@ -576,6 +583,10 @@ extension DirectInferenceClient {
                     throw AppError.generationError(msg)
                 case .toolCall:
                     break
+                case let .reasoning(r):
+                    // Reasoning text from ReasoningEventEmitter
+                    outputTok += 1
+                    completeText += r
                 }
             }
         }
@@ -598,7 +609,10 @@ extension DirectInferenceClient {
 /// reasoning start/end) from the agent loop. When metadata is present,
 /// ChatViewModel accumulates structured parts alongside the flat text.
 struct DirectChatChunk {
-    let text: String
+    /// Text delta content
+    let text: String?
+    /// Reasoning/thinking content delta (separate from text for proper UI rendering)
+    let reasoningContent: String?
     let isComplete: Bool
     let stopReason: String?
     let outputTokens: Int?
@@ -631,8 +645,9 @@ struct DirectChatChunk {
     }
 
     init(
-        text: String,
+        text: String? = nil,
         isComplete: Bool,
+        reasoningContent: String? = nil,
         stopReason: String? = nil,
         outputTokens: Int? = nil,
         error: String? = nil,
@@ -643,6 +658,7 @@ struct DirectChatChunk {
     ) {
         self.text = text
         self.isComplete = isComplete
+        self.reasoningContent = reasoningContent
         self.stopReason = stopReason
         self.outputTokens = outputTokens
         self.error = error
