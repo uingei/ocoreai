@@ -111,12 +111,35 @@ jobs:
 
   ## ── Build + test ────────────────────────────────────────────────
   build-and-test:
-    name: Build & Test (macos-26)
-    runs-on: macos-26
-    timeout-minutes: 45
+    name: "Build & Test (${{ matrix.os }})"
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     needs: [audit]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            label: "macOS 15 (minimum deploy)"
+          - os: macos-26
+            label: "macOS 26 (CoreAI)"
+          - os: macos-26
+            xcode: "27A412840a"
+            install_xcode: true
+            label: "Xcode-27 (latest)"
     steps:
       - uses: actions/checkout@v4
+
+      # Install Xcode via xcode-install on older runner to get CoreAI SDK
+      - name: "Install Xcode ${{ matrix.xcode }}"
+        if: ${{ matrix.xcode != runner['xcode-version'] }}
+        run: |
+          set -euo pipefail
+          sudo gem install xcode-install --no-doc --no-ri
+          sudo xcode-install install ${{ matrix.xcode }}
+          sudo xcode-install use ${{ matrix.xcode }}
+          sudo xcode-select -s "/Applications/Xcode_${{ matrix.xcode }}.app"
+          swift --version
 
       - name: Resolve SPM dependencies
         run: swift package resolve
@@ -129,7 +152,7 @@ jobs:
         with:
           path: |
             .build
-          key: spm-v2-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: spm-${{ matrix.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
 
       - name: Setup MLX metallib
         run: |
@@ -158,6 +181,7 @@ jobs:
           OCOREAI_BUILD: ci
 
       - name: Generate coverage report
+        if: ${{ matrix.os == 'macos-26' && matrix.xcode == '26C104' }}
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
@@ -171,7 +195,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-data
+          name: coverage-data-${{ matrix.os }}-${{ matrix.xcode }}
           path: .build/*/codecov/
           retention-days: 7
 
