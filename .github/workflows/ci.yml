@@ -120,11 +120,8 @@ jobs:
       matrix:
         include:
           - os: macos-15
-            label: "macOS 15 (minimum deploy)"
           - os: macos-26
-            label: "macOS 26 (Xcode 26.6)"
           - os: xcode-27
-            label: "Xcode-27 (latest)"
     steps:
       - uses: actions/checkout@v4
 
