@@ -326,7 +326,6 @@ final class LoadedModel: @unchecked Sendable {
             self.modelURL = modelURL
             self.modelConfig = modelConfig
             engineOptions = EngineOptions(kvCacheStrategy: .auto)
-            _preparedModel = nil
             mlxModelHandle = nil
             self.logger = logger
         }
