@@ -1005,6 +1005,10 @@ extension EnginePool {
                     var generationTokPerSec: Double?
                     var promptTokPerSec: Double?
                     var lastStopReason: StopReason?
+                    // MTP speculative decoding metrics — thread from MTPResult to .done
+                    var mtpProposedDraftTokens: Int?
+                    var mtpAcceptedDraftTokens: Int?
+                    var mtpPassthroughReason: String?
 
                     // MARK: - Guided Generation Path (grammar-constrained)
                     // NOTE: Guided path uses pure-text messagePairs — cannot carry images/videos/audios.
@@ -1046,6 +1050,9 @@ extension EnginePool {
                             let stoppedBySequence: Bool
                             let generationTokPerSec: Double?
                             let promptTokPerSec: Double?
+                            let proposedDraftTokens: Int?
+                            let acceptedDraftTokens: Int?
+                            let passthroughReason: String?
                         }
 
                         // SAFETY: mtpDrafterContainer is an actor; its contents could be
@@ -1070,6 +1077,10 @@ extension EnginePool {
                             var localStopReason: StopReason?
                             var localGenerationTokPerSec: Double?
                             var localPromptTokPerSec: Double?
+                            // MTP speculative decoding metrics — only populated on MTP path
+                            var localProposedDraftTokens: Int?
+                            var localAcceptedDraftTokens: Int?
+                            var localPassthroughReason: String?
                             var localStoppedBySeq = false
 
                             // ReasoningEventEmitter: upstream segment router for reasoning
@@ -1180,6 +1191,10 @@ extension EnginePool {
                                     case .length: .maxTokens
                                     case .cancelled: .cancelled
                                     }
+                                    // Capture MTP speculative decoding metrics from upstream
+                                    localProposedDraftTokens = completionInfo.proposedDraftTokens
+                                    localAcceptedDraftTokens = completionInfo.acceptedDraftTokens
+                                    localPassthroughReason = completionInfo.passthroughReason
                                 case let .toolCall(mlxTC):
                                     let tc = InferenceEvent.mlxToolCall(from: mlxTC)
                                     continuation.yield(.init(kind: .toolCall(tc)))
@@ -1192,7 +1207,10 @@ extension EnginePool {
                                 stopReason: localStopReason,
                                 stoppedBySequence: localStoppedBySeq,
                                 generationTokPerSec: localGenerationTokPerSec,
-                                promptTokPerSec: localPromptTokPerSec
+                                promptTokPerSec: localPromptTokPerSec,
+                                proposedDraftTokens: localProposedDraftTokens,
+                                acceptedDraftTokens: localAcceptedDraftTokens,
+                                passthroughReason: localPassthroughReason
                             )
                         }
 
@@ -1209,11 +1227,23 @@ extension EnginePool {
                         if let ptokPs = mtpResult.promptTokPerSec {
                             promptTokPerSec = ptokPs
                         }
+                        if let proposedDraft = mtpResult.proposedDraftTokens {
+                            mtpProposedDraftTokens = proposedDraft
+                        }
+                        if let acceptedDraft = mtpResult.acceptedDraftTokens {
+                            mtpAcceptedDraftTokens = acceptedDraft
+                        }
+                        if let passthrough = mtpResult.passthroughReason {
+                            mtpPassthroughReason = passthrough
+                        }
                         if !mtpResult.stoppedBySequence, actualTokenCount != nil {
                             continuation.yield(.init(kind: .done(lastStopReason ?? .maxTokens,
                                 tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
                                 tokPerSec: generationTokPerSec,
-                                promptTokPerSec: promptTokPerSec)))
+                                promptTokPerSec: promptTokPerSec,
+                                proposedDraftTokens: mtpProposedDraftTokens,
+                                acceptedDraftTokens: mtpAcceptedDraftTokens,
+                                passthroughReason: mtpPassthroughReason)))
                         }
                     }
                     // MARK: - Standard ChatSession Path (default fallback)

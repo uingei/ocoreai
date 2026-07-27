@@ -91,7 +91,17 @@ struct InferenceEvent {
         /// when available. Essential for accurate token budgeting on MLX backend
         /// where `.chunk` = one-or-more tokens. Both promptTokPerSec and tokPerSec
         /// sourced from upstream GenerateCompletionInfo — not locally estimated.
-        case done(StopReason, tokenCount: Int?, tokPerSec: Double? = nil, promptTokPerSec: Double? = nil)
+        /// MTP/speculative decoding metrics (proposedDraftTokens, acceptedDraftTokens,
+        /// passthroughReason) sourced from GenerateCompletionInfo when MTP iterates are active.
+        case done(
+            StopReason,
+            tokenCount: Int?,
+            tokPerSec: Double? = nil,
+            promptTokPerSec: Double? = nil,
+            proposedDraftTokens: Int? = nil,
+            acceptedDraftTokens: Int? = nil,
+            passthroughReason: String? = nil
+        )
 
         /// Fatal inference error
         case error(String)
