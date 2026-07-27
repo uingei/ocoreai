@@ -49,7 +49,7 @@ public enum RoutingPolicy: String, Codable, Sendable, CaseIterable {
 
 extension ComputeChannel {
     /// Maps to CoreAI `ComputeTarget.Kind` for specialization.
-    #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+    #if canImport(CoreAI)
         @available(macOS 27.0, *)
         public var computeTargetKind: ComputeTarget.Kind {
             switch self {

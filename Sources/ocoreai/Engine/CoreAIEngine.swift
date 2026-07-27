@@ -48,7 +48,7 @@ enum InferenceError: Error, Sendable {
     }
 }
 
-#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+#if canImport(CoreAI)
 
 import Atomics
 import CoreAI

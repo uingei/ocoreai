@@ -176,7 +176,7 @@ enum StopReason: Int, Codable, Error {
 
 // MARK: - Fallback stubs (when CoreAI is unavailable)
 
-#if !canImport(CoreAI) || OCOREAI_DISABLE_COREAI
+#if !canImport(CoreAI)
 
     // MARK: - MLX-only tokenizer stubs (CoreAI path uses TokenizerManager.swift)
 

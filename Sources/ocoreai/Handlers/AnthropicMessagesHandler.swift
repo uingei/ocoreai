@@ -19,7 +19,7 @@
 /// | max_tokens | — | length |
 /// | tool_use | — | tool_calls |
 
-#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+#if canImport(CoreAI)
     import CoreAI
 #endif
 import Foundation

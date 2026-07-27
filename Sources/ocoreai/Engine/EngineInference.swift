@@ -9,7 +9,7 @@
 import Foundation
 import Logging
 
-#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+#if canImport(CoreAI)
     import CoreAI
 #endif
 
@@ -210,7 +210,7 @@ extension EnginePool {
         }
         defer { loaded.releaseInference() }
 
-        #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+        #if canImport(CoreAI)
             if #available(macOS 27.0, *) {
                 // CoreAI lacks grammar constraints and tool dispatch — fall back to MLX
                 if options.grammarSchema != nil || options.useGuidedGeneration {
@@ -526,7 +526,7 @@ extension EnginePool {
                 case .cpu:
                     logger.warning("HardwareRouter → CPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB) — disabling session pool + speculative decoding")
                 case .ane:
-                    #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+                    #if canImport(CoreAI)
                         logger.info("HardwareRouter → ANE for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB)")
                     #else
                         logger.warning("HardwareRouter → ANE for \(modelId) but CoreAI unavailable, falling back to GPU (gpu: \(gpuGB)/\(budgetGB) GB)")
@@ -545,7 +545,7 @@ extension EnginePool {
 
             // ANE path: delegate to _runInference → CoreAI engine (which supports ANE hardware)
             // Skip MLX-specific setup (session pool, guided gen, spec decoding) which requires GPU.
-            #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+            #if canImport(CoreAI)
                 if computeChannel == .ane {
                     logger.info("ANE channel: routing model \(modelId) through CoreAI engine")
                     do {

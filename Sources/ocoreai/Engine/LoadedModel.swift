@@ -9,7 +9,7 @@ import Atomics
 import Foundation
 import Logging
 
-#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+#if canImport(CoreAI)
     import CoreAI
 #endif
 
@@ -35,7 +35,7 @@ final class LoadedModel: @unchecked Sendable {
     /// Parsed model configuration (context length, vocab, tokenizer)
     let modelConfig: ModelConfig
 
-    #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+    #if canImport(CoreAI)
         /// v15: Specialized Core AI model — compiled once at load time, reused across requests.
         /// Stored as Any? to break @available(27.0) transitive leakage into LoadedModel.
         var _preparedModel: Any?
@@ -143,7 +143,7 @@ final class LoadedModel: @unchecked Sendable {
         logger.info("Prewarming \(modelConfig.name ?? "model")...")
         let startTime = ContinuousClock.now
 
-#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+#if canImport(CoreAI)
         if #available(macOS 27.0, *) {
             do {
                 // Use cached engine — CoreAI 34f0db3: single engine per model preserves KV cache
@@ -236,7 +236,7 @@ final class LoadedModel: @unchecked Sendable {
 
     // MARK: - Engine Resolution (CoreAI)
 
-    #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+    #if canImport(CoreAI)
         /// Get cached inference engine — create on first call, reuse thereafter.
         /// CoreAI 34f0db3: engines should be singletons per LoadedModel to preserve KV cache.
         ///
@@ -284,7 +284,7 @@ final class LoadedModel: @unchecked Sendable {
     func cleanup() {
         sessionCount.store(0, ordering: .relaxed)
 
-#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+#if canImport(CoreAI)
         // P1-fix: Clear CoreAI engine cache + prepared model to release GPU memory.
         // Without this, the cached InferenceFunction + NDArrays + AIModel asset
         // stay resident even after unloadModel() completes, causing Unified Memory
@@ -308,7 +308,7 @@ final class LoadedModel: @unchecked Sendable {
         mlxModelHandle = handle
     }
     
-#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+#if canImport(CoreAI)
         /// CoreAI-specific initializer.
         init(configData: Data, modelURL: URL, modelConfig: ModelConfig, preparedModel: Any? = nil, logger: Logger) {
             self.configData = configData
@@ -326,11 +326,7 @@ final class LoadedModel: @unchecked Sendable {
             self.modelURL = modelURL
             self.modelConfig = modelConfig
             engineOptions = EngineOptions(kvCacheStrategy: .auto)
-            #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
-                _preparedModel = nil
-            #else
-                // _preparedModel not declared when CoreAI absent
-            #endif
+            _preparedModel = nil
             mlxModelHandle = nil
             self.logger = logger
         }

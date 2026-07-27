@@ -27,7 +27,7 @@
 /// 2. Model runtime defaults (PATCH endpoint)
 /// 3. System hard-coded defaults
 
-#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+#if canImport(CoreAI)
     import CoreAI
 #endif
 import Foundation

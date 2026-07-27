@@ -15,7 +15,7 @@ import Foundation
 import Logging
 import MLXVLM
 
-#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+#if canImport(CoreAI)
     import CoreAI
 #endif
 
@@ -77,7 +77,7 @@ actor EnginePool {
 
     // MARK: - Model Loading
 
-    #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+    #if canImport(CoreAI)
         // Type-erased storage — CoreAIModelLoader is @available(macOS 27.0, *)
         // so it leaks transitively into EnginePool (dep target 26).
         private var _coreAIPreparedModelLoader: Any?
@@ -130,7 +130,7 @@ actor EnginePool {
         self.tokenizerManager = tokenizerManager
         self.memoryTracker = memoryTracker
         self.maxLoadedModels = 4
-        #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+        #if canImport(CoreAI)
             if #available(macOS 27.0, *) {
                 _coreAIPreparedModelLoader = CoreAIModelLoader(
                     config: coreAILoadingConfig as? CoreAILoadingConfig ?? CoreAILoadingConfig(),
@@ -358,7 +358,7 @@ actor EnginePool {
         let configData = "{}".data(using: .utf8) ?? Data()
         logger.info("Model \(modelId) is a hub model — MLXModelLoader will resolve \(resolved != nil ? "(remote config resolved)" : "(using defaults)")")
 
-        #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+        #if canImport(CoreAI)
             if #available(macOS 27.0, *),
                let loader = _coreAIPreparedModelLoader as? CoreAIModelLoader
             {
@@ -398,7 +398,7 @@ actor EnginePool {
         )
         logger.info("MLX model \(modelId) loaded successfully")
 
-        #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+        #if canImport(CoreAI)
             var model: LoadedModel
             if #available(macOS 27.0, *) {
                 let prepared = CoreAIPreparedModel.fallback()
@@ -507,7 +507,7 @@ actor EnginePool {
                     "tokenizer": model.modelConfig.tokenizer,
                     "active_sessions": String(active),
                 ]
-                #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+                #if canImport(CoreAI)
                     if #available(macOS 27.0, *) {
                         entry["specialized"] = String(
                             (model._preparedModel as? CoreAIPreparedModel)?.isSpecialized ?? false
@@ -523,7 +523,7 @@ actor EnginePool {
 
     func engineSummary() async -> EngineSummary {
         let gpuCacheGB: Double = 0.0
-        #if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+        #if canImport(CoreAI)
             var specializedCount: Int
             if #available(macOS 27.0, *) {
                 specializedCount = loadedModels.values.count(

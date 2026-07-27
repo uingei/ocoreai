@@ -2,7 +2,7 @@
 // Licensed under MIT.
 // CoreAI model loader — two-phase load with specialization and caching
 // Compiled only when 'coreai' trait is active
-#if canImport(CoreAI) && !OCOREAI_DISABLE_COREAI
+#if canImport(CoreAI)
 
 import CoreAI
 import Foundation

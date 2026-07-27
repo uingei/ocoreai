@@ -33,7 +33,7 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 -ANE path: Stub/empty via CoreAI — no specialization yet
 - MTP path: Bypasses session pool entirely, tool calls collected but dispatched after (no multi-turn)
 
-**Key:** `OCOREAI_DISABLE_COREAI=1` escapes CoreAI entirely; `sampleToken()` → argmax; toolDispatch wired in both MLX and CoreAI paths.
+**Key:** `#if canImport(CoreAI)` single-layer compile-time gate; `sampleToken()` → argmax; toolDispatch wired in both MLX and CoreAI paths.
 
 ---
 
