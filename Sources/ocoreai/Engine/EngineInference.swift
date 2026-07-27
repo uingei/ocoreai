@@ -318,12 +318,20 @@ extension EnginePool {
                             // Drain error — the stream was already cancelled, this is expected
                             logger.debug("CoreAI drain error: \(error.localizedDescription)")
                         }
-                        continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: metrics.generatedTokenCount)))
+                        continuation.yield(.init(kind: .done(StopReason.cancelled,
+                            tokenCount: metrics.generatedTokenCount,
+                            tokPerSec: metrics.generatedTokenCount > 0
+                                ? Double(metrics.generatedTokenCount) / (Double(metrics.overallMs) / 1000.0)
+                                : nil)))
                     } else if !Task.isCancelled {
                         // Read actual stop reason from sequence; default to maxTokens if unset
                         // (e.g., empty prefix-hit path or early termination edge case)
                         let stopReason: StopReason = sequence.stopReason?.stopReason ?? .maxTokens
-                        continuation.yield(.init(kind: .done(stopReason, tokenCount: metrics.generatedTokenCount)))
+                        continuation.yield(.init(kind: .done(stopReason,
+                            tokenCount: metrics.generatedTokenCount,
+                            tokPerSec: metrics.generatedTokenCount > 0
+                                ? Double(metrics.generatedTokenCount) / (Double(metrics.overallMs) / 1000.0)
+                                : nil)))
                     }
 
                     // CoreAI 34f0db3: no per-turn reset. KV cache persists across turns;
@@ -822,9 +830,13 @@ extension EnginePool {
                                 ) { text in
                                     guard !Task.isCancelled && !cancellation.isCancelled else {
                                         doneAlreadyYielded = true
+                                        let tokPerSec = guidedTokenCount > 0
+                                            ? Double(guidedTokenCount) / (Double(metrics.overallMs) / 1000.0)
+                                            : nil
                                         continuation.yield(.init(
                                             kind: .done(StopReason.cancelled,
-                                                tokenCount: guidedTokenCount)))
+                                                tokenCount: guidedTokenCount,
+                                                tokPerSec: tokPerSec)))
                                         return false
                                     }
                                     // Record TTFT on first text chunk
@@ -842,7 +854,10 @@ extension EnginePool {
                                         if !trimmed.isEmpty {
                                             continuation.yield(.init(kind: .text(trimmed)))
                                         }
-                                        continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: guidedTokenCount)))
+                                        let tokPerSec = guidedTokenCount > 0
+                                            ? Double(guidedTokenCount) / (Double(metrics.overallMs) / 1000.0)
+                                            : nil
+                                        continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: guidedTokenCount, tokPerSec: tokPerSec)))
                                         return false
                                     }
                                     continuation.yield(.init(kind: .text(text)))
@@ -873,8 +888,11 @@ extension EnginePool {
                                     if !doneAlreadyYielded {
                                         let stopReason: StopReason = diagnosticSink.grammarTerminated
                                             ? .eos : .maxTokens
+                                        let tokPerSec = tc > 0
+                                            ? Double(tc) / (Double(metrics.overallMs) / 1000.0)
+                                            : nil
                                         continuation.yield(.init(
-                                            kind: .done(stopReason, tokenCount: tc)))
+                                            kind: .done(stopReason, tokenCount: tc, tokPerSec: tokPerSec)))
                                     }
                                 }
                             }
@@ -894,9 +912,13 @@ extension EnginePool {
                             // The outer do-catch (L1259/1283) will propagate the error as
                             // .error event, but downstream also expects a terminal .done.
                             if !doneAlreadyYielded {
+                                let tokPerSec = diagnosticSink.generatedTokenCount > 0
+                                    ? Double(diagnosticSink.generatedTokenCount) / (Double(metrics.overallMs) / 1000.0)
+                                    : nil
                                 continuation.yield(.init(
                                     kind: .done(.error,
-                                    tokenCount: diagnosticSink.generatedTokenCount)))
+                                    tokenCount: diagnosticSink.generatedTokenCount,
+                                    tokPerSec: tokPerSec)))
                             }
                             throw error
                         }
@@ -1013,14 +1035,14 @@ extension EnginePool {
                     // MARK: - Guided Generation Path (grammar-constrained)
                     // NOTE: Guided path uses pure-text messagePairs — cannot carry images/videos/audios.
                     // Multimodal messages with grammar schema fall through to ChatSession (full round-trip).
+                    // Reasoning models fall through to ChatSession (Guided lacks ReasoningEventEmitter).
                     // This mirrors upstream MTP path at L925 and aligns with MLXChatExample pattern
                     // where Chat.Message carries images/videos directly without loss.
                     if let schema = options.grammarSchema,
                        let maxTokens = options.maxTokens,
+                       await handleRef.modelContainer.configuration.reasoningConfig == nil,
                        mlxMessages.allSatisfy({ $0.images.isEmpty && $0.videos.isEmpty && $0.audios.isEmpty }) {
                         log.info("Routing through GuidedGenerationLoop with grammar constraint")
-                        // Guided path: prepare input, build constraint, run token loop
-                        // All within modelContainer.perform for thread-safe ModelContext access
                         try await handleGuidedGeneration(
                             messagePairs: mlxMessages.map { (role: $0.role.rawValue, content: $0.content) },
                             grammarSchema: schema,
@@ -1154,7 +1176,11 @@ extension EnginePool {
                                                     if !trimmed.isEmpty {
                                                         continuation.yield(.init(kind: .reasoning(segmentText)))
                                                     }
-                                                    continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount)))
+                                                    let mtpTokPerSec = (localTokenCount ?? metrics.generatedTokenCount) > 0
+                                                        ? Double(localTokenCount ?? metrics.generatedTokenCount)
+                                                          / (Double(metrics.overallMs) / 1000.0)
+                                                        : nil
+                                                    continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount, tokPerSec: mtpTokPerSec)))
                                                     localStoppedBySeq = true
                                                     break
                                                 } else {
@@ -1169,7 +1195,11 @@ extension EnginePool {
                                                     if !trimmed.isEmpty {
                                                         continuation.yield(.init(kind: .text(trimmed)))
                                                     }
-                                                    continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount)))
+                                                    let mtpTokPerSec = (localTokenCount ?? metrics.generatedTokenCount) > 0
+                                                        ? Double(localTokenCount ?? metrics.generatedTokenCount)
+                                                          / (Double(metrics.overallMs) / 1000.0)
+                                                        : nil
+                                                    continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount, tokPerSec: mtpTokPerSec)))
                                                     localStoppedBySeq = true
                                                     break
                                                 } else {
@@ -1187,7 +1217,11 @@ extension EnginePool {
                                             if !trimmed.isEmpty {
                                                 continuation.yield(.init(kind: .text(trimmed)))
                                             }
-                                            continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount)))
+                                            let mtpTokPerSec = (localTokenCount ?? metrics.generatedTokenCount) > 0
+                                                ? Double(localTokenCount ?? metrics.generatedTokenCount)
+                                                  / (Double(metrics.overallMs) / 1000.0)
+                                                : nil
+                                            continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount, tokPerSec: mtpTokPerSec)))
                                             localStoppedBySeq = true
                                             break
                                         } else {
@@ -1305,7 +1339,10 @@ extension EnginePool {
                             to: messagesForStream
                         ) {
                             if Task.isCancelled || cancellation.isCancelled {
-                                continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: actualTokenCount ?? 0)))
+                                let cancelTokPerSec = (actualTokenCount ?? 0) > 0
+                                    ? Double(actualTokenCount ?? 0) / (Double(metrics.overallMs) / 1000.0)
+                                    : nil
+                                continuation.yield(.init(kind: .done(StopReason.cancelled, tokenCount: actualTokenCount ?? 0, tokPerSec: cancelTokPerSec)))
                                 break
                             }
                             switch generation {
@@ -1327,7 +1364,11 @@ extension EnginePool {
                                                     if !trimmed.isEmpty {
                                                         continuation.yield(.init(kind: .reasoning(segmentText)))
                                                     }
-                                                    continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
+                                                    let stdTokPerSec = (actualTokenCount ?? metrics.generatedTokenCount) > 0
+                                                        ? Double(actualTokenCount ?? metrics.generatedTokenCount)
+                                                          / (Double(metrics.overallMs) / 1000.0)
+                                                        : nil
+                                                    continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: actualTokenCount ?? metrics.generatedTokenCount, tokPerSec: stdTokPerSec)))
                                                     lastStopReason = .stopSequence
                                                     break
                                                 } else {
@@ -1342,7 +1383,11 @@ extension EnginePool {
                                                     if !trimmed.isEmpty {
                                                         continuation.yield(.init(kind: .text(trimmed)))
                                                     }
-                                                    continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
+                                                    let stdTokPerSec = (actualTokenCount ?? metrics.generatedTokenCount) > 0
+                                                        ? Double(actualTokenCount ?? metrics.generatedTokenCount)
+                                                          / (Double(metrics.overallMs) / 1000.0)
+                                                        : nil
+                                                    continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: actualTokenCount ?? metrics.generatedTokenCount, tokPerSec: stdTokPerSec)))
                                                     lastStopReason = .stopSequence
                                                     break
                                                 } else {
@@ -1360,7 +1405,11 @@ extension EnginePool {
                                             if !trimmed.isEmpty {
                                                 continuation.yield(.init(kind: .text(trimmed)))
                                             }
-                                            continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: actualTokenCount ?? metrics.generatedTokenCount)))
+                                            let stdTokPerSec = (actualTokenCount ?? metrics.generatedTokenCount) > 0
+                                                ? Double(actualTokenCount ?? metrics.generatedTokenCount)
+                                                  / (Double(metrics.overallMs) / 1000.0)
+                                                : nil
+                                            continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: actualTokenCount ?? metrics.generatedTokenCount, tokPerSec: stdTokPerSec)))
                                             lastStopReason = .stopSequence
                                             break
                                         } else {

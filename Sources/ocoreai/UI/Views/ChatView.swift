@@ -324,11 +324,27 @@ struct ChatView: View {
                                 // during streaming so users see reasoning in real-time instead of
                                 // only after the message completes.
                                 if !chatState.currentReasoningText.isEmpty {
-                                    Text(chatState.currentReasoningText)
-                                        .font(.system(.caption, design: .monospaced))
-                                        .foregroundStyle(theme.textSecondary)
-                                        .lineLimit(4)
-                                        .transition(.opacity.combined(with: .move(edge: .top)))
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        HStack(spacing: 6) {
+                                            Image(systemName: "brain")
+                                                .font(.ocoreaiText(10))
+                                                .foregroundStyle(theme.textTertiary)
+                                            Text(StringKey.systemReasoningSection.l)
+                                                .font(.ocoreaiText(11, weight: .medium))
+                                                .foregroundStyle(theme.textTertiary)
+                                        }
+                                        Text(chatState.currentReasoningText)
+                                            .font(.ocoreaiText(13))
+                                            .foregroundStyle(theme.textSecondary)
+                                            .lineSpacing(2)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                            .background(theme.cardBg, in: RoundedRectangle(cornerRadius: 8))
+                                    }
+                                    .padding(.horizontal, 4)
+                                    .background(theme.cardBg, in: RoundedRectangle(cornerRadius: 14))
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                                    .animation(.spring(response: 0.25, dampingFraction: 0.9), value: chatState.currentReasoningText)
                                 }
                                 MarkdownMessage(content: chatState.responseTextDisplay)
                                     .opacity(0.85)
