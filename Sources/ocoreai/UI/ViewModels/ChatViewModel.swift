@@ -638,16 +638,38 @@ final class ChatState {
                         errorMessage = chunk.error ?? StringKey.generationFailed.l
                         responseText = ""
                     } else {
-                        // Conversation complete — build structured parts from responseText.
-                        // P0-1 fix: Always enter this branch (even when responseText is empty)
-                        // so tool-call-only models and empty outputs still get an assistant message.
-                        // P0-2 fix: Split <thinking> tags into structured .reasoning parts.
+                        // Conversation complete — build structured parts.
+                        // P0-1: Always enter even when responseText empty (tool-call-only models).
+                        // P0-2: Use currentReasoningText which accumulated .reasoningContent
+                        // during streaming. splitThinkingTags stays as fallback for models
+                        // without ReasoningEventEmitter support (primedInside was false).
+                        // NOTE: After primedInside fix, responseText contains no reasoning markup,
+                        // so splitThinkingTags is now purely a fallback for older model configs.
+                        var reasoningTextFinal: String?
+                        if !currentReasoningText.isEmpty {
+                            // Primary: use streaming-accumulated reasoning (ReasoningEventEmitter path)
+                            reasoningTextFinal = currentReasoningText
+                        } else {
+                            // Fallback: extract <thinking> tags from responseText (pre-emitter path)
+                            let split = Self.splitThinkingTags(from: responseText)
+                            if let reasoning = split.reasoning, !reasoning.isEmpty {
+                                reasoningTextFinal = reasoning
+                            }
+                        }
 
-                        let (reasoning, cleanedText) = Self.splitThinkingTags(from: responseText)
+                        // Clean text: if reasoning was streamed separately, responseText is already clean.
+                        // If it came via splitThinkingTags fallback, use the cleaned version.
+                        let cleanedText = if reasoningTextFinal != nil && currentReasoningText.isEmpty {
+                            // Fallback path — use cleaned text from splitThinkingTags
+                            Self.splitThinkingTags(from: responseText).remaining
+                        } else {
+                            responseText
+                        }
+
                         var parts: [TranscriptPart] = []
 
-                        // Append reasoning part if thinking tags were present
-                        if let reasoningText = reasoning, !reasoningText.isEmpty {
+                        // Append reasoning part if present
+                        if let reasoningText = reasoningTextFinal, !reasoningText.isEmpty {
                             parts.append(.reasoning(reasoningText))
                         }
 
