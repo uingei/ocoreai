@@ -22,6 +22,15 @@ struct OcoreaiDownloadProgressState: Sendable {
     var active: Bool = true
     /// Whether download completed successfully — shown briefly in UI before eviction
     var completed: Bool = false
+    /// Rolling throughput in bytes per second (~5s window). nil until at least
+    /// two samples span a meaningful interval. Mirrors upstream MLXDownloadProgress.
+    var throughputBytesPerSec: Double?
+    /// Bytes downloaded so far. Mirrors upstream MLXDownloadProgress.completedBytes.
+    var completedBytes: Int64 = 0
+    /// Total bytes. Zero before first progress report.
+    var totalBytes: Int64 = 0
+    /// When the current download started. nil when inactive.
+    var startedAt: Date?
 
     static let idle = OcoreaiDownloadProgressState(
         fraction: 0, completedFiles: 0, totalFiles: 0, active: false,
@@ -35,6 +44,13 @@ final class OcoreaiDownloadProgress {
 
     /// Per-model progress state.
     private var _progress: [String: OcoreaiDownloadProgressState] = [:]
+
+    /// Rolling throughput samples per model (mirrors upstream MLXDownloadProgress).
+    private var _samples: [String: [(time: Date, bytes: Int64)]] = [:]
+
+    /// Throughput rolling window width. Short enough that stalls show within seconds;
+    /// long enough to smooth out HF chunk arrival jitter.
+    private let throughputWindow: TimeInterval = 5.0
 
     private init() {}
 
@@ -57,12 +73,42 @@ final class OcoreaiDownloadProgress {
         let completed: Int64 = progress.completedUnitCount
         let fraction = total > 0 ? Double(completed) / Double(total) : 0
 
-        _progress[modelId] = OcoreaiDownloadProgressState(
+        // Track startedAt on first update
+        var state = _progress[modelId] ?? OcoreaiDownloadProgressState(
+            fraction: 0, completedFiles: 0, totalFiles: 0, active: true,
+        )
+        if state.startedAt == nil {
+            state.startedAt = Date()
+            _samples[modelId]?.removeAll()
+        }
+
+        state = OcoreaiDownloadProgressState(
             fraction: fraction,
             completedFiles: Int(completed),
             totalFiles: Int(total),
             active: true,
+            throughputBytesPerSec: nil,
+            completedBytes: completed,
+            totalBytes: total,
+            startedAt: state.startedAt
         )
+
+        // Compute rolling throughput (mirrors upstream MLXDownloadProgress.appendSampleAndRecompute)
+        _samples[modelId, default: []].append((time: Date(), bytes: completed))
+        let cutoff = Date().addingTimeInterval(-throughputWindow)
+        _samples[modelId] = _samples[modelId]?.filter { $0.time >= cutoff }
+
+        if let oldest = _samples[modelId]?.first,
+           let newest = _samples[modelId]?.last,
+           (_samples[modelId]?.count ?? 0) >= 2 {
+            let dt = newest.time.timeIntervalSince(oldest.time)
+            if dt > 0.1 {
+                let db = newest.bytes - oldest.bytes
+                state.throughputBytesPerSec = Double(db) / dt
+            }
+        }
+
+        _progress[modelId] = state
     }
 
     /// Mark a download as complete (or failed).

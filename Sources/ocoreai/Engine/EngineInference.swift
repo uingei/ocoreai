@@ -835,10 +835,25 @@ extension EnginePool {
                         // buffer integrity — structured data for debugging guided gen failures.
                         let diagnosticSink = GuidedGenerationDiagnosticSink()
                         let diagnosticResult: GuidedGenerationDiagnosticResult
-                
+
+                        // Closing token bias + whitespace bias: mirrors upstream MLXFoundationModels
+                        // MLXLanguageModel.makeTokenizerBias(). Closing bias soft-pushes the model
+                        // toward completing JSON structure (closing braces/brackets).
+                        // Whitespace bias penalizes pure-whitespace tokens to reduce degenerate loops.
+                        let closingBias = ClosingTokenBias.compute(
+                            tokenizer: context.tokenizer,
+                            eosTokenId: context.tokenizer.eosTokenId
+                        )
+                        let (whitespaceBias, whitespaceTokenIDs) = WhitespaceTokenBias.compute(
+                            tokenizer: context.tokenizer
+                        )
+
                         do {
                             diagnosticResult = try GuidedGenerationDiagnosticSink.$current.withValue(diagnosticSink) {
                                 // Run GuidedGenerationLoop with emit callback → SSE yield
+                                // Bias parameters: completionReserve + hardReserve provide soft/hard
+                                // closing zones so JSON output gracefully terminates instead of
+                                // running out of tokens mid-structure.
                                 let tokenCount = try GuidedGenerationLoop.run(
                                     input: lmInput,
                                     context: context,
@@ -848,6 +863,12 @@ extension EnginePool {
                                     kvBits: genParams.kvBits,
                                     kvGroupSize: genParams.kvGroupSize,
                                     quantizedKVStart: genParams.quantizedKVStart,
+                                    completionReserve: 64,
+                                    hardReserve: 0,
+                                    closingBias: closingBias,
+                                    whitespaceBias: whitespaceBias,
+                                    whitespaceTokenIDs: whitespaceTokenIDs,
+                                    diagnosticLog: false,
                                 ) { text in
                                     guard !Task.isCancelled && !cancellation.isCancelled else {
                                         doneAlreadyYielded = true

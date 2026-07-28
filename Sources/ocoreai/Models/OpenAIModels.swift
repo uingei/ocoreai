@@ -770,6 +770,9 @@ struct ModelSamplingConfig: Codable {
     /// Deterministic seed for reproducible sampling
     var seed: Int64? = nil
 
+    /// Sampling mode selection (mirrors upstream MLXSamplingMode). nil → per-field behavior.
+    var mode: SamplingMode? = nil
+
     /// Prefill step size for prompt chunking
     var prefillStepSize: Int? = nil
 

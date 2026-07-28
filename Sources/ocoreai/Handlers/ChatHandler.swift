@@ -299,6 +299,7 @@ func chatCompletionsHandler(
             temperature: Double(effectiveTemp),
             topP: effectiveTopP.map(Double.init),
             topK: effectiveTopK,
+            mode: runtimeDefaults.mode,
             minP: effectiveMinP.map(Double.init),
             presencePenalty: Double(effectivePresencePenalty),
             frequencyPenalty: Double(effectiveFrequencyPenalty),

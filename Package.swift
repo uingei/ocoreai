@@ -48,6 +48,13 @@ let package = Package(
                 .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
                 .product(name: "MLXEmbedders", package: "mlx-swift-lm"),
                 .product(name: "MLXGuidedGeneration", package: "mlx-swift-lm"),
+                // MLXFoundationModels: bridges Apple's FoundationModels framework to MLX.
+                // Gated by #if FoundationModelsIntegration + canImport(FoundationModels, _version: 2).
+                // On macOS 26 SDK this compiles to an empty library — zero impact.
+                // On macOS 27 SDK it brings in MLXLanguageModel, MLXDownloadProgress,
+                // AllowedToolOutputRouter, TranscriptConverter, SchemaConverter, SamplingModeMapper,
+                // ModelConfigurationResolver, and ModelDescriptor.
+                .product(name: "MLXFoundationModels", package: "mlx-swift-lm"),
                 .product(name: "HuggingFace", package: "swift-huggingface"),
                 .product(name: "Tokenizers", package: "swift-transformers"),
             ],

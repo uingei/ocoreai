@@ -431,11 +431,28 @@ public struct ModelConfigEntry: Sendable, Codable, Equatable {
     }
 }
 
+/// Sampling-strategy selection mirrored from upstream MLXSamplingMode.
+/// When set, this takes precedence over individual topP/topK fields
+/// (explicit-zero-wins semantics: greedy → temperature 0, ignores filters).
+public enum SamplingMode: Sendable, Codable, Equatable {
+    /// Deterministic decoding — always pick the most likely token.
+    case greedy
+    /// Nucleus (top-p) sampling. Value is the probability cutoff (0-1).
+    case nucleus(Double)
+    /// Top-k sampling. Value is the k parameter (1-vocabSize).
+    case topK(Int)
+
+    public static let `default`: SamplingMode? = nil
+}
+
 /// Sampling parameters per model.
 public struct SamplingConfig: Sendable, Codable, Equatable {
     public var temperature: Double?
     public var topP: Double?
     public var topK: Int?
+    /// Explicit mode selection (mirrors upstream MLXSamplingMode). Takes precedence
+    /// over topP/topK when set. nil → legacy behavior (respect topP/topK individually).
+    public var mode: SamplingMode?
     public var minP: Double?
     public var repetitionPenalty: Double?
     public var presencePenalty: Double?
@@ -460,6 +477,7 @@ public struct SamplingConfig: Sendable, Codable, Equatable {
         temperature: Double? = nil,
         topP: Double? = nil,
         topK: Int? = nil,
+        mode: SamplingMode? = nil,
         minP: Double? = nil,
         repetitionPenalty: Double? = nil,
         presencePenalty: Double? = nil,
@@ -476,6 +494,7 @@ public struct SamplingConfig: Sendable, Codable, Equatable {
         self.temperature = temperature
         self.topP = topP
         self.topK = topK
+        self.mode = mode
         self.minP = minP
         self.repetitionPenalty = repetitionPenalty
         self.presencePenalty = presencePenalty

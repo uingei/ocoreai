@@ -13,11 +13,15 @@ import Foundation
 import Logging
 
 /// Intermediate sampling configuration — used by both CoreAI and MLX backends.
+/// `mode` field mirrors upstream MLXSamplingMode (greedy/nucleus/topK) for mode-driven
+/// sampling parameter resolution (explicit-zero-wins semantics).
 struct SamplingConfiguration: Codable, Equatable {
     var seed: Int64?
     var temperature: Double?
     var topP: Double?
     var topK: Int?
+    /// Sampling mode (mirrors ConfigStruct.SamplingMode). nil → legacy per-field behavior.
+    var mode: SamplingMode?
     var minP: Double?
     var repetitionPenalty: Double?
     var presencePenalty: Double?
@@ -42,6 +46,7 @@ struct SamplingConfiguration: Codable, Equatable {
         temperature: Double? = nil,
         topP: Double? = nil,
         topK: Int? = nil,
+        mode: SamplingMode? = nil,
         minP: Double? = nil,
         repetitionPenalty: Double? = nil,
         presencePenalty: Double? = nil,
@@ -63,6 +68,7 @@ struct SamplingConfiguration: Codable, Equatable {
         self.temperature = temperature
         self.topP = topP
         self.topK = topK
+        self.mode = mode
         self.minP = minP
         self.repetitionPenalty = repetitionPenalty
         self.presencePenalty = presencePenalty

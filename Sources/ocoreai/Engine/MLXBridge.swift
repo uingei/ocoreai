@@ -563,17 +563,61 @@
             params.quantizedKVStart = config.quantizedKVStart
             params.kvScheme = config.kvScheme
         }
-        if let temp = sampling.temperature {
-            params.temperature = Float(temp)
-        }
-        if let topP = sampling.topP, topP > 0 {
-            params.topP = Float(topP)
-        }
-        if let topK = sampling.topK {
-            params.topK = topK
-        }
-        if let minP = sampling.minP, minP > 0 {
-            params.minP = Float(minP)
+        // Mode-driven sampling: mirrors upstream MLXSamplingMode + resolveSamplingParameters().
+        // When mode is set, it takes precedence over individual topP/topK fields.
+        // If mode is nil, fall back to legacy per-field behavior with explicit-zero-wins.
+        if let mode = sampling.mode {
+            switch mode {
+            case .greedy:
+                // Deterministic — temperature forced to 0, filters disabled
+                params.temperature = 0
+            case .nucleus(let p):
+                // Nucleus sampling — use provided probability cutoff
+                if let temp = sampling.temperature {
+                    params.temperature = Float(temp)
+                }
+                if (sampling.temperature ?? 0) != 0 {
+                    params.topP = Float(p)
+                }
+            case .topK(let k):
+                // Top-k sampling — use provided k parameter
+                if let temp = sampling.temperature {
+                    params.temperature = Float(temp)
+                }
+                if (sampling.temperature ?? 0) != 0 {
+                    params.topK = k
+                }
+            }
+        } else {
+            // Legacy per-field behavior with explicit-zero-wins
+            // temperature == 0 is a deliberate determinism signal → forces argmax,
+            // disables topP/topK filters. nil → leaves upstream default (0.6) in place.
+            if let temp = sampling.temperature {
+                params.temperature = Float(temp)
+                // When temperature is exactly zero, skip filters — argmax already deterministic
+                if temp != 0 {
+                    if let topP = sampling.topP, topP > 0 {
+                        params.topP = Float(topP)
+                    }
+                    if let topK = sampling.topK {
+                        params.topK = topK
+                    }
+                    if let minP = sampling.minP, minP > 0 {
+                        params.minP = Float(minP)
+                    }
+                }
+            } else {
+                // No temperature set — still apply filters at upstream default temperature
+                if let topP = sampling.topP, topP > 0 {
+                    params.topP = Float(topP)
+                }
+                if let topK = sampling.topK {
+                    params.topK = topK
+                }
+                if let minP = sampling.minP, minP > 0 {
+                    params.minP = Float(minP)
+                }
+            }
         }
         if let repPen = sampling.repetitionPenalty, repPen > 0 {
             params.repetitionPenalty = Float(repPen)

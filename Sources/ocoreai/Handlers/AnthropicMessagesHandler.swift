@@ -207,6 +207,7 @@ func anthropicMessagesHandler(
         temperature: Double(effectiveTemp),
         topP: effectiveTopP.map(Double.init),
         topK: effectiveTopK,
+        mode: runtimeDefaults.mode,
         stopSequences: request.stopSequences,
         logitBias: nil,
         combined: true,
