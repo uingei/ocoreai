@@ -1010,9 +1010,18 @@ extension EnginePool {
                     // AgentLoop (Agents/AgentLoop.swift) is no longer used for MLX/ChatSession
                     // paths — it serves only as a fallback for CoreAI/bridge paths where
                     // ChatSession is unavailable.
+                    //
+                    // Fix: ChatSession L780 intercepts .toolCall events when toolDispatch != nil
+                    // ("collect tool calls for dispatch; if no toolDispatch the caller handles
+                    //  them via the transform") — they never reach streamDetails. Intercepted
+                    // tool calls are tracked here so we can emit .toolCall events downstream
+                    // after the stream loop completes but before .done.
+                    // Thread-safe via actor — @Sendable closures can't mutate outer vars in Swift 6.
+                    let tracker = _InterceptedToolCallTracker()
                     var toolDispatchClosure: (@Sendable (MLXLMCommon.ToolCall) async throws -> String)? = nil
                     if let registry = toolRegistry {
                         toolDispatchClosure = { toolCall in
+                            await tracker.record(toolCall)
                             let argsDict = toolCall.function.arguments.mapValues { $0.anyValue }
                             let jsonEncoded = try JSONSerialization.data(
                                 withJSONObject: argsDict
@@ -1477,6 +1486,18 @@ extension EnginePool {
                                 }
                             }
 
+                            // Emit any tool calls intercepted by ChatSession's internal
+                            // tool loop (L780). When toolDispatch was set, ChatSession
+                            // internally collects & dispatches tools — the caller never
+                            // sees .toolCall in streamDetails. Track-and-emit ensures
+                            // downstream consumers (ChatHandler, DirectInferenceClient)
+                            // still receive tool call events for telemetry/UI.
+                            let trackedCalls = await tracker.fetch()
+                            for mlxTC in trackedCalls {
+                                let tc = InferenceEvent.mlxToolCall(from: mlxTC)
+                                continuation.yield(.init(kind: .toolCall(tc)))
+                            }
+
                             // Emit final .done event with prompt throughput
                             if !Task.isCancelled {
                                 continuation.yield(.init(kind: .done(lastStopReason ?? .eos,
@@ -1582,6 +1603,24 @@ extension EnginePool {
             }
 
             metrics.inferenceMs = metrics.overallMs
-                continuation.finish()
-                }
-            }
+            continuation.finish()
+        }
+}
+
+// MARK: - Tool Call Tracking
+
+/// Thread-safe tracker for tool calls intercepted by ChatSession's internal loop.
+/// When `toolDispatch` is set on ChatSession, `.toolCall` events are consumed internally
+/// and never reach `streamDetails` (ChatSession.swift L780). This actor records each
+/// intercepted call so we can re-emit them downstream after the stream completes.
+actor _InterceptedToolCallTracker: @unchecked Sendable {
+    private var calls: [MLXLMCommon.ToolCall] = []
+
+    func record(_ call: MLXLMCommon.ToolCall) {
+        calls.append(call)
+    }
+
+    func fetch() -> [MLXLMCommon.ToolCall] {
+        calls
+    }
+}
