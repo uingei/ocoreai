@@ -119,9 +119,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-15
           - os: macos-26
+            run_tests: true
           - os: xcode-27
+            run_tests: false  # MLX metal shader steel_attention.metal fails on Metal Toolchain 27 (upstream mlx-swift issue)
     steps:
       - uses: actions/checkout@v4
 
@@ -155,6 +156,7 @@ jobs:
           }
 
       - name: Run tests with coverage
+        if: ${{ matrix.run_tests == true }}
         run: |
           set -euo pipefail
           export SWIFT_BUILD_NUM_WORKERS=2
@@ -185,6 +187,7 @@ jobs:
 
       # Build both configurations — both are required gate
       - name: Build release (MLX default)
+        if: ${{ matrix.run_tests == false }}
         run: |
           set -euo pipefail
           export SWIFT_BUILD_NUM_WORKERS=2
@@ -194,6 +197,7 @@ jobs:
           OCOREAI_BUILD: ci
 
       - name: Build release (appStore trait)
+        if: ${{ matrix.run_tests == false }}
         run: |
           set -euo pipefail
           export SWIFT_BUILD_NUM_WORKERS=2
