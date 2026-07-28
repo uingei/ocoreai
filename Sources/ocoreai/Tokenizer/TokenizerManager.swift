@@ -44,10 +44,20 @@
             let id = Int(token)
             _ids.append(id)
 
-            // Full decode is the only reliable way — we diff the result
+            // Full decode is the only reliable way — we diff the result.
             let fullText = _tokenizer.decode(tokens: _ids)
-            // Return the delta since last call and update the baseline
-            let delta = String(fullText.dropFirst(_lastText.count))
+
+            // DIFF by common prefix, not character count.
+            // Character-count diff (`dropFirst(_lastText.count)`) assumes decode() is
+            // append-only, but SentencePiece decoding is not: appending a token can
+            // rewrite earlier whitespace (e.g. Gemma: decode([newline, "  ", ","])
+            // collapses a space). Count-based diff then computes dropFirst(0) and
+            // silently drops the newly decoded character, including structural JSON
+            // commas, which corrupts guided-generation output.
+            //
+            // Upstream fix: mlx-swift-lm 45693f6 (P1).
+            let common = fullText.commonPrefix(with: _lastText)
+            let delta = String(fullText.dropFirst(common.count))
             _lastText = fullText
             return delta.isEmpty ? "" : delta
         }
