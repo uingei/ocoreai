@@ -97,11 +97,30 @@ struct ToolEntry {
 
 /// JSON Schema describing tool parameters
 struct ToolSchema: Codable {
-    let parameters: [String: ParameterType]
+    let parameters: [String: ToolParameter]
 
-    init(parameters: [String: ParameterType] = [:]) {
+    init(parameters: [String: ToolParameter] = [:]) {
         self.parameters = parameters
     }
+}
+
+/// Tool parameter with type and description — aligns with upstream MLXLMCommon.ToolParameter.
+/// Each parameter exposes `["type": ..., "description": ...]` in JSON Schema, which is
+/// required for the model to understand tool inputs accurately.
+struct ToolParameter: Codable {
+    let type: ParameterType
+    let description: String
+
+    init(type: ParameterType, description: String = "") {
+        self.type = type
+        self.description = description
+    }
+
+    /// Static shorthands for dictionary literals — e.g. `["key": .string]`.
+    static let string = ToolParameter(type: .string)
+    static let integer = ToolParameter(type: .integer)
+    static let boolean = ToolParameter(type: .boolean)
+    static let array = ToolParameter(type: .array)
 }
 
 /// Supported parameter types for tool argument coercion
@@ -126,14 +145,20 @@ extension ToolEntry {
     }
 
     private var parametersDescription: String {
-        schema.parameters.map { "\($0.key):\($0.value.rawValue)" }.joined(separator: ", ")
+        schema.parameters.map { "\($0.key):\($0.value.type.rawValue)" }.joined(separator: ", ")
     }
 
     private func buildParametersJSON() -> [String: AnyCodable]? {
         guard !schema.parameters.isEmpty else { return nil }
+        // Build properties as [String: AnyCodable] where each value is a JSON Schema object
+        // containing both "type" and "description" — aligns with upstream ToolParameter.schema.
         var properties: [String: AnyCodable] = [:]
-        for (paramName, paramType) in schema.parameters {
-            properties[paramName] = AnyCodable(paramType.jsonSchemaType)
+        for (paramName, param) in schema.parameters {
+            var propSchema: [String: Any] = ["type": param.type.rawValue]
+            if !param.description.isEmpty {
+                propSchema["description"] = param.description
+            }
+            properties[paramName] = AnyCodable(propSchema)
         }
         var json: [String: AnyCodable] = [
             "type": AnyCodable("object"),

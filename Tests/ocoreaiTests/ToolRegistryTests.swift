@@ -28,7 +28,7 @@ struct ToolRegistryRegistrationTests {
         let entry = ToolEntry(
             name: "test_tool",
             toolset: "test",
-            schema: ToolSchema(parameters: ["key": .string]),
+            schema: ToolSchema(parameters: ["key": ToolParameter(type: .string)]),
             handler: { _ in "ok" }
         )
         try? await registry.register(entry)
@@ -99,13 +99,18 @@ struct ToolRegistryRegistrationTests {
     @Test("schema returns correct schema")
     func schemaReturns() async {
         let registry = makeRegistry()
-        let schema = ToolSchema(parameters: ["msg": .string, "count": .integer])
+        let schema = ToolSchema(parameters: [
+            "msg": ToolParameter(type: .string, description: "message text"),
+            "count": ToolParameter(type: .integer, description: "count value"),
+        ])
         try? await registry.register(
             ToolEntry(name: "typed", toolset: "t", schema: schema, handler: { _ in "" }))
         let got = await registry.schema(for: "typed")
         #expect(got != nil)
-        #expect(got?.parameters["msg"] == .string)
-        #expect(got?.parameters["count"] == .integer)
+        #expect(got?.parameters["msg"]?.type == .string)
+        #expect(got?.parameters["msg"]?.description == "message text")
+        #expect(got?.parameters["count"]?.type == .integer)
+        #expect(got?.parameters["count"]?.description == "count value")
     }
 }
 

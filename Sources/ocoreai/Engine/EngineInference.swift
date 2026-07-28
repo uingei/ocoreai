@@ -1031,6 +1031,31 @@ extension EnginePool {
                         }
                     }
 
+                    // Compute reasoning additionalContext from upstream reasoning config.
+                    // This aligns with ReasoningConfig.swift:106-124 — promptStrategy
+                    // translates the user's reasoning preference into chat-template kwargs
+                    // (e.g. Qwen3's enable_thinking: true/false). Without this, the
+                    // reasoning toggle is dead code and thinking is always-on.
+                    let reasoningContext: [String: any Sendable]?
+                    if let rc = await handleRef.modelContainer.configuration.reasoningConfig {
+                        let thinkingEnabled = options.enableReasoning ? true : nil
+                        do {
+                            reasoningContext = try rc.promptStrategy.additionalContext(
+                                forThinkingEnabled: thinkingEnabled
+                            )
+                        } catch {
+                            if let err = error as? MLXLMCommon.ReasoningError,
+                               err == .cannotDisableReasoning {
+                                log.warning(
+                                    "Model \(modelId) cannot disable reasoning — ignoring user request"
+                                )
+                            }
+                            reasoningContext = nil
+                        }
+                    } else {
+                        reasoningContext = nil
+                    }
+
                     if let pool = poolRef {
                         let acquired = await pool.acquire(
                             from: handleRef.modelContainer,
@@ -1047,27 +1072,29 @@ extension EnginePool {
                         if isPoolHit {
                             log.debug("Pool HIT for \(convKey) — KV cache reused (offset=\(deltaOffset))")
                         }
-                        // Inject tools spec AND toolDispatch into pooled session.
-                        // ChatSession's internal tool loop handles execution, iteration, and
-                        // result injection — no external AgentLoop coordinator needed.
-                        if let specs = registeredToolSpecs {
-                            chatSession?.tools = specs
-                            chatSession?.toolDispatch = toolDispatchClosure
-                        }
+                        // Set reasoning context + tools for both hit and cold-miss paths.
+                        // additionalContext is public var (runtime mutable) — controls per-turn
+                        // thinking toggle. ChatSession stores reasoningContext internally (upstream L314)
+                        // and uses it for each turn (L317). Override before generation so per-request
+                        // reasoningEnabled takes effect.
+                        chatSession?.additionalContext = reasoningContext
+                        chatSession?.tools = registeredToolSpecs
+                        chatSession?.toolDispatch = toolDispatchClosure
                     } else {
                         let spec: MLXLMCommon.SpeculativeDecodingConfig? = specConfig
                         let gp: MLXLMCommon.GenerateParameters = genParams
-                        /// ChatSession creation — reasoning config inferred from model config.
-                        /// Upstream factory (LLMModelFactory._load) already sets reasoningPromptStrategy
-                        /// from config.json. The ReasoningEventEmitter below reads from
-                        /// context.configuration.reasoningConfig to activate segment routing.
+                        /// ChatSession creation — reasoning context injected via
+                        /// reasoningConfig.promptStrategy.additionalContext().
+                        /// Upstream reasonnigConfig already has the prompt strategy baked in via
+                        /// LLMModelFactory._load. The ReasoningEventEmitter below parses
+                        /// model-rendered thinking tags (ReasoningConfig.swift:106-124).
                         chatSession = ChatSession(
                             handleRef.modelContainer,
                             instructions: systemInstructions,
                             speculativeDecoding: spec,
                             generateParameters: gp,
                             processing: sessionProcessing,
-                            additionalContext: nil,
+                            additionalContext: reasoningContext,
                             tools: registeredToolSpecs,
                             toolDispatch: toolDispatchClosure
                         )

@@ -32,8 +32,11 @@ actor MCPTools {
         for name in toolNames {
             if let schema = await registry.schema(for: name) {
                 var props: [String: [String: Any]] = [:]
-                for (paramName, type) in schema.parameters {
-                    props[paramName] = ["type": type.rawValue]
+                for (paramName, param) in schema.parameters {
+                    props[paramName] = ["type": param.type.rawValue]
+                    if !param.description.isEmpty {
+                        props[paramName]?["description"] = param.description
+                    }
                 }
                 result.append([
                     "name": name,

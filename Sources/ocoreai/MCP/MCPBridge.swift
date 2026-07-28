@@ -523,7 +523,7 @@ actor MCPBridge {
             let inputSchema = toolInfo["inputSchema"] as? [String: Any] ?? [:]
             let properties = inputSchema["properties"] as? [String: [String: Any]] ?? [:]
 
-            var parameters: [String: ParameterType] = [:]
+            var parameters: [String: ToolParameter] = [:]
             for (paramName, paramInfo) in properties {
                 let typeString = (paramInfo["type"] as? String)?.lowercased() ?? "string"
                 let paramType: ParameterType
@@ -534,7 +534,8 @@ actor MCPBridge {
                 case "array": paramType = .array
                 default: paramType = .string
                 }
-                parameters[paramName] = paramType
+                let description = (paramInfo["description"] as? String) ?? ""
+                parameters[paramName] = ToolParameter(type: paramType, description: description)
             }
 
             let schema = ToolSchema(parameters: parameters)

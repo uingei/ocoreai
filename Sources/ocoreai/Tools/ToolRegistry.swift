@@ -247,15 +247,15 @@ actor ToolRegistry {
 
     /// Convert all registered tools to MLXLMCommon-style `[ToolSpec]` for ChatSession.
     /// ToolSpec == `[String: any Sendable]` matching upstream OpenAI function-calling schema.
+    /// Each parameter includes `["type": ..., "description": ...]` dict — aligns with
+    /// upstream ToolParameter.schema behavior (MLXLMCommon/Tool/ToolParameter.swift).
     func toToolSpecs() -> [[String: any Sendable]] {
         tools.values.map { entry in
-            var properties: [String: String] = [:]
-            for (paramName, paramType) in entry.schema.parameters {
-                properties[paramName] = switch paramType {
-                case .string: "string"
-                case .integer: "integer"
-                case .boolean: "boolean"
-                case .array: "array"
+            var properties: [String: [String: any Sendable]] = [:]
+            for (paramName, param) in entry.schema.parameters {
+                properties[paramName] = ["type": param.type.rawValue]
+                if !param.description.isEmpty {
+                    properties[paramName]?["description"] = param.description
                 }
             }
             var params: [String: any Sendable] = ["type": "object", "properties": properties]
@@ -266,7 +266,7 @@ actor ToolRegistry {
                 "type": "function" as any Sendable,
                 "function": [
                     "name": entry.name as any Sendable,
-                    "description": "Tool: \(entry.name) [\(entry.toolset)]" as any Sendable,
+                    "description": "Tool: \\(entry.name) [\\(entry.toolset)]" as any Sendable,
                     "parameters": params as any Sendable,
                 ] as [String: any Sendable],
             ] as [String: any Sendable]
