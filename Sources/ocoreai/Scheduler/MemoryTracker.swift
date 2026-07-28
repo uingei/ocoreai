@@ -74,9 +74,13 @@ actor MemoryTracker {
             var size1 = MemoryLayout<Int>.size
             sysctlbyname("vm.pagesize", &pageSize, &size1, nil, 0)
 
-            var vmStat = vm_statistics()
+            // vm_statistics64: required by HOST_VM_INFO64 (host_statistics64 expects
+            // the 64-bit layout, which also carries compressor_page_count). Using the
+            // 32-bit vm_statistics here is a type-contract violation (UB) and silently
+            // drops compressed-page accounting. Reference: omlx SystemStatsSampler.swift.
+            var vmStat = vm_statistics64()
             var count: mach_msg_type_number_t = mach_msg_type_number_t(
-                MemoryLayout<vm_statistics>.size / MemoryLayout<integer_t>.size
+                MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size
             )
 
             let kr = withUnsafeMutablePointer(to: &vmStat) { ptr -> kern_return_t in
@@ -95,10 +99,13 @@ actor MemoryTracker {
                 return nil
             }
 
-            // active_count + inactive_count + wire_count = memory in use
+            // active + inactive + wire + compressor pages = true physical RAM in use
+            // on Apple UMA. compressor_page_count accounts for 10–20% compressed pages
+            // that the legacy vm_statistics layout cannot represent.
             let usedPages = UInt64(vmStat.active_count)
                 + UInt64(vmStat.inactive_count)
                 + UInt64(vmStat.wire_count)
+                + UInt64(vmStat.compressor_page_count)
             return usedPages * pageSize
         #else
             return nil
