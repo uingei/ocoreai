@@ -215,29 +215,36 @@ extension EnginePool {
                 // CoreAI lacks grammar constraints and tool dispatch — fall back to MLX
                 if options.grammarSchema != nil || options.useGuidedGeneration {
                     logger.info("Falling back to MLX for grammar/tool-constrained request on model \(modelId)")
-                            let promptText = await (try? detokenize(modelId: modelId, tokens: input))
-                                ?? "<detokenization failed>"
+                    let promptText: String
+                    do {
+                        promptText = try await detokenize(modelId: modelId, tokens: input)
+                    } catch {
+                        logger.warning("Detokenize failed for CoreAI→MLX fallback: \(error.localizedDescription)")
+                        continuation.yield(.init(kind: .error("Detokenization failed — cannot fall back MLX path")))
+                        continuation.finish()
+                        return
+                    }
 
-                            // Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
-                            let reasoningControlTokens = Set([151645, 151646])
-                            if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
-                                logger.warning("MLX token→text→token path may drop control tokens for model \(modelId)")
-                            }
+                    // Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
+                    let reasoningControlTokens = Set([151645, 151646])
+                    if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
+                        logger.warning("MLX token→text→token path may drop control tokens for model \(modelId)")
+                    }
 
-                            let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
-                            await _runInferenceWithMessages(
-                                modelId: modelId,
-                                messages: mlxMessages,
-                                sampling: sampling,
-                                options: options,
-                                metrics: metrics,
-                                continuation: continuation,
-                                conversationId: nil,
-                                    cancellation: cancellation,
-                    skipLock: true
-                )
-                return
-            }
+                    let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
+                    await _runInferenceWithMessages(
+                        modelId: modelId,
+                        messages: mlxMessages,
+                        sampling: sampling,
+                        options: options,
+                        metrics: metrics,
+                        continuation: continuation,
+                        conversationId: nil,
+                        cancellation: cancellation,
+                        skipLock: true
+                    )
+                    return
+                }
                 // Warn about sampling fields CoreAI SDK cannot honor
                 // (CoreAI.SamplingConfiguration only supports temperature/topK/topP/minP/combined)
                 let coreaiUnhonoredFields: [String] = [
@@ -252,8 +259,15 @@ extension EnginePool {
                 let hasStopSeq = !(sampling.stopSequences ?? []).isEmpty
                 if hasStopSeq {
                     logger.info("Falling back to MLX for stopSequences on model \(modelId)")
-                    let promptText = await (try? detokenize(modelId: modelId, tokens: input))
-                        ?? "<detokenization failed>"
+                    let promptText: String
+                    do {
+                        promptText = try await detokenize(modelId: modelId, tokens: input)
+                    } catch {
+                        logger.warning("Detokenize failed for stopSeq MLX fallback: \(error.localizedDescription)")
+                        continuation.yield(.init(kind: .error("Detokenization failed — cannot fall back MLX path")))
+                        continuation.finish()
+                        return
+                    }
                     let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
                     await _runInferenceWithMessages(
                         modelId: modelId,
@@ -353,8 +367,15 @@ extension EnginePool {
             // (e.g. <|begin_of_thought|>, <|eot_id|>). Track upstream for promptTokens API:
             // https://github.com/ml-explore/mlx-swift-examples/issues
             // Mitigation: log warning when input may contain non-text tokens.
-            let promptText = await (try? detokenize(modelId: modelId, tokens: input))
-                ?? "<detokenization failed>"
+            let promptText: String
+            do {
+                promptText = try await detokenize(modelId: modelId, tokens: input)
+            } catch {
+                logger.warning("Detokenize failed in #else fallback: \(error.localizedDescription)")
+                continuation.yield(.init(kind: .error("Detokenization failed — inference cannot proceed")))
+                continuation.finish()
+                return
+            }
 
             // Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
             // P0-fix: removed universal ASCII control chars (newline=198, ESC=27) — they fire on every request
