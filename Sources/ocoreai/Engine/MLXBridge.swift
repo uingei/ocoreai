@@ -46,6 +46,9 @@
     /// Auth auto-detected by HubClient from HF_TOKEN env var / filesystem.
     import MLXHuggingFace
     import Tokenizers
+    // MARK: - MLXFoundationModels (macOS 26+-safe: SamplingModeMapper, no _version:2 gate)
+
+    import MLXFoundationModels
 
     // MARK: - MLX Model Handle
 
@@ -563,60 +566,38 @@
             params.quantizedKVStart = config.quantizedKVStart
             params.kvScheme = config.kvScheme
         }
-        // Mode-driven sampling: mirrors upstream MLXSamplingMode + resolveSamplingParameters().
-        // When mode is set, it takes precedence over individual topP/topK fields.
-        // If mode is nil, fall back to legacy per-field behavior with explicit-zero-wins.
-        if let mode = sampling.mode {
-            switch mode {
-            case .greedy:
-                // Deterministic — temperature forced to 0, filters disabled
-                params.temperature = 0
-            case .nucleus(let p):
-                // Nucleus sampling — use provided probability cutoff
-                if let temp = sampling.temperature {
-                    params.temperature = Float(temp)
-                }
-                if (sampling.temperature ?? 0) != 0 {
-                    params.topP = Float(p)
-                }
-            case .topK(let k):
-                // Top-k sampling — use provided k parameter
-                if let temp = sampling.temperature {
-                    params.temperature = Float(temp)
-                }
-                if (sampling.temperature ?? 0) != 0 {
-                    params.topK = k
-                }
+        // Mode-driven sampling using upstream resolveSamplingParameters() (macOS 26+-safe).
+        // ocoreai SamplingMode (Codable) → MLXSamplingMode mapped locally, then delegation.
+        //
+        // Upstream does not handle minP, so the explicit-zero-wins rule is still applied
+        // here after resolved parameters take effect.
+        let mlxMode: MLXSamplingMode?
+        switch sampling.mode {
+        case .none:           mlxMode = nil
+        case .some(.greedy):  mlxMode = .greedy
+        case .some(.nucleus(let p)): mlxMode = .nucleus(p)
+        case .some(.topK(let k)):    mlxMode = .topK(k)
+        }
+        let resolved = resolveSamplingParameters(
+            mode: mlxMode,
+            clampedTemperature: sampling.temperature.map(Float.init)
+        )
+        // Apply upstream-resolved temperature/topP/topK — explicit-zero-wins wired
+        // inside resolveSamplingParameters (temp==0 → forced argmax, filters dropped).
+        resolved.apply(to: &params)
+        // Upstream does not handle minP — apply with same explicit-zero-wins semantics.
+        // When temperature is exactly zero, argmax is deterministic, skip minP too.
+        if params.temperature != 0, let minP = sampling.minP, minP > 0 {
+            params.minP = Float(minP)
+        }
+        // Legacy per-field topP/topK: if mode was nil, the caller's explicit topP/topK
+        // values were ignored by resolveSamplingParameters — restore them when safe.
+        if mlxMode == nil, params.temperature != 0 {
+            if let topP = sampling.topP, topP > 0 {
+                params.topP = Float(topP)
             }
-        } else {
-            // Legacy per-field behavior with explicit-zero-wins
-            // temperature == 0 is a deliberate determinism signal → forces argmax,
-            // disables topP/topK filters. nil → leaves upstream default (0.6) in place.
-            if let temp = sampling.temperature {
-                params.temperature = Float(temp)
-                // When temperature is exactly zero, skip filters — argmax already deterministic
-                if temp != 0 {
-                    if let topP = sampling.topP, topP > 0 {
-                        params.topP = Float(topP)
-                    }
-                    if let topK = sampling.topK {
-                        params.topK = topK
-                    }
-                    if let minP = sampling.minP, minP > 0 {
-                        params.minP = Float(minP)
-                    }
-                }
-            } else {
-                // No temperature set — still apply filters at upstream default temperature
-                if let topP = sampling.topP, topP > 0 {
-                    params.topP = Float(topP)
-                }
-                if let topK = sampling.topK {
-                    params.topK = topK
-                }
-                if let minP = sampling.minP, minP > 0 {
-                    params.minP = Float(minP)
-                }
+            if let topK = sampling.topK {
+                params.topK = topK
             }
         }
         if let repPen = sampling.repetitionPenalty, repPen > 0 {
