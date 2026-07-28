@@ -25,9 +25,10 @@ let package = Package(
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if canImport(CoreAI)` guards
         // Pinned to exact revision — upstream main branch drifts; update via `swift package update`
-        // then bump .revision + test. Current pin: 2026-07-22 — TurboQuant KV cache, Gemma 4 MTP spec decode,
-        // Qwen3.5 M-RoPE, Gemma3 surface, EOS token nesting, memory leak fixes (autorelease pool), clearCache.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "3cbf928"),
+        // then bump .revision + test. Current pin: 2026-07-28 — guided gen comma-drop fix (#465),
+        // GLM4MOE routing tests (#463), FoundationModels test gating (#478), TurboQuant KV cache,
+        // Gemma 4 MTP spec decode, Qwen3.5 M-RoPE, Gemma3 surface, EOS nesting, memory leak fixes.
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "a65e78f"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
