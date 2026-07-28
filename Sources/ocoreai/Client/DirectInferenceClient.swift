@@ -511,88 +511,54 @@ extension DirectInferenceClient {
             enableReasoning: request.reasoning == true,
         )
 
-        // Phase 5: Dispatch inference — Agent loop if tools available
+        // Phase 5: Dispatch inference — direct stream via generateFromMessages
+        /// ChatSession owns tool execution internally (toolDispatch closure).
+        /// AgentLoop is no longer used — it served only as a wrapper that duplicated
+        /// ChatSession's built-in tool loop and swallowed streaming output.
         await handle.markActive()
 
-        let tokenBudget = effectiveMaxTokens ?? 4096
-        var completeText = ""
+        let tokenStream = handle.generateFromMessages(
+            messages: fullMessages,
+            sampling: samplingConfig,
+            options: infOpts,
+            conversationId: request.sessionId,
+        )
+
+        var accumulatedText = ""
         var outputTok = 0
-
-        // Collect tool call parts from agent loop iterations
         var collectedToolCallParts: [ToolCallPart]? = nil
-        
-        // If tools are defined, try agent loop
-        if let tools = request.tools, !tools.isEmpty {
-            if let registry = OcoreaiEngine.shared.activeToolRegistry {
-                let loopConfig = AgentLoopConfig(
-                    maxIter: 30,
-                    tokenBudget: tokenBudget,
-                    guardMargin: 512,
-                    timeoutSeconds: 120,
-                    registry: registry,
-                    builder: messageBuilder,
-                    caller: "ui-direct"
-                )
-                let agentResult = try await AgentLoop.run(
-                    config: loopConfig,
-                    handle: handle,
-                    initialMessages: fullMessages,
-                    modelId: request.modelId,
-                    sampling: samplingConfig,
-                    options: infOpts
-                )
-                completeText = agentResult.text
-                outputTok = agentResult.totalTokens
-                
-                // Extract tool calls from agent loop iterations
-                if !agentResult.iters.isEmpty {
-                    var parts: [ToolCallPart] = []
-                    for iter in agentResult.iters {
-                        if iter.toolN > 0 {
-                            parts.append(ToolCallPart(
-                                callId: "iter-\(iter.iteration)",
-                                name: iter.tag,
-                                resultSummary: "\(iter.toolN) tool(s), \(iter.tok) tokens, \(Int(iter.ms))ms",
-                                durationMs: iter.ms
-                            ))
-                        }
-                    }
-                    if !parts.isEmpty {
-                        collectedToolCallParts = parts
-                    }
-                }
-            }
-        }
+        var reasoningContent = ""
 
-        // If agent loop was not triggered (no tools or no registry), do single inference
-        if completeText.isEmpty && outputTok == 0 {
-            let tokenStream = handle.generateFromMessages(
-                messages: fullMessages,
-                sampling: samplingConfig,
-                options: infOpts
-            )
-            for try await event in tokenStream {
-                switch event.kind {
-                case .token:
-                    outputTok += 1
-                case let .text(text):
-                    outputTok += 1
-                    completeText += text
-                case .done(_, _, _, _, _, _, _): break
-                case let .error(msg):
-                    throw AppError.generationError(msg)
-                case .toolCall:
-                    break
-                case let .reasoning(r):
-                    // Reasoning text from ReasoningEventEmitter
-                    outputTok += 1
-                    completeText += r
+        for try await event in tokenStream {
+            switch event.kind {
+            case .token:
+                outputTok += 1
+            case let .text(text):
+                outputTok += 1
+                accumulatedText += text
+            case let .done(_, tokenCount, _, _, _, _, _):
+                if let tokenCount {
+                    outputTok = tokenCount
                 }
+            case let .error(msg):
+                throw AppError.generationError(msg)
+            case let .toolCall(tc):
+                // Collect tool call info for UI display
+                collectedToolCallParts = collectedToolCallParts ?? []
+                collectedToolCallParts?.append(ToolCallPart(
+                    callId: tc.id,
+                    name: tc.function.name,
+                    resultSummary: "Tool executed",
+                    durationMs: 0
+                ))
+            case let .reasoning(r):
+                outputTok += 1
+                reasoningContent += r
             }
         }
 
         return DirectInferenceResult(
-            content: completeText,
+            content: accumulatedText,
             stopReason: "stop",
             outputTokens: outputTok,
             toolCallParts: collectedToolCallParts

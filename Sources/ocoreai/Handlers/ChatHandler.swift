@@ -472,56 +472,58 @@ private func nonStreamWithToolCalling(
     /// Mark session active — resets KV cache idle eviction timer.
     await handle.markActive()
 
-    // MARK: Agent Loop — multi-turn tool execution
-    /// If tools are available, attempt agent loop (inference → tool execution → repeat).
-    /// Falls back to single inference when no tools or agent loop disabled.
-    let toolRegistry = await OcoreaiEngine.shared.activeToolRegistry
-    let messageBuilder = await OcoreaiEngine.shared.activeMessageBuilder
+    // MARK: Inference — direct stream via generateFromMessages
+    /// ChatSession owns tool execution internally (toolDispatch closure).
+    /// AgentLoop is no longer used for MLX paths — it served only as a wrapper
+    /// that duplicated ChatSession's built-in tool loop. We now call the stream
+    /// directly and collect the result.
+    let tokenStream = handle.generateFromMessages(
+        messages: messages,
+        sampling: sampling,
+        options: options,
+        conversationId: conversationId,
+    )
 
-    let agentResult: AgentLoopResult
-    if let tools = request.tools, !tools.isEmpty {
-        /// Agent loop path: multi-turn inference with tool execution
-        /// Agent loop requires non-nil registry and builder — guard scoped here only.
-        let budget = options.maxTokens ?? 4096
-        guard let registry = toolRegistry, let builder = messageBuilder else {
-            throw AppError.invalidRequest("Agent loop unavailable — engine not fully initialized")
+    var accumulatedContent = ""
+    var totalOutputTokens = 0
+    var finishReason: String = "stop"
+    var detectedToolCalls: [ToolCall]? = nil
+
+    do {
+        for try await event in tokenStream {
+            switch event.kind {
+            case .token:
+                totalOutputTokens += 1
+            case let .text(text):
+                accumulatedContent += text
+                totalOutputTokens += 1
+            case let .done(reason, tokenCount, _, _, _, _, _):
+                if let tokenCount {
+                    totalOutputTokens = tokenCount
+                }
+                finishReason = switch reason {
+                case .maxTokens: "length"
+                case .eos: "stop"
+                case .stopSequence: "stop_sequence"
+                case .cancelled: "cancelled"
+                case .error: "error"
+                }
+            case let .error(msg):
+                throw AppError.generationError(msg)
+            case let .toolCall(tc):
+                // tc is already ocoreai's ToolCall type (via InferenceEvent.mlxToolCall).
+                // Collect for post-processing.
+                detectedToolCalls = [tc]
+            case let .reasoning(r):
+                // Reasoning text from ReasoningEventEmitter — accumulate for self-correction
+                accumulatedContent += r
+            }
         }
-        let loopConfig = AgentLoopConfig(
-            maxIter: 30,
-            tokenBudget: budget,
-            guardMargin: 512,
-            timeoutSeconds: 120,
-            registry: registry,
-            builder: builder,
-            caller: "api"
-        )
-        agentResult = try await AgentLoop.run(
-            config: loopConfig,
-            handle: handle,
-            initialMessages: messages,
-            modelId: modelId,
-            sampling: sampling,
-            options: options,
-            logger: logger
-        )
-    } else {
-        /// Single inference path (no tools available) — does NOT need registry/builder
-        agentResult = try await AgentLoop.oneInference(
-            handle: handle,
-            messages: messages,
-            sampling: sampling,
-            options: options,
-            logger: logger
-        )
+    } catch {
+        throw error
     }
 
-    let content = agentResult.text
-    let totalOutputTokens = agentResult.totalTokens
-    let finishReason = agentResult.finishReason
-
-    if agentResult.iterationCount > 1 {
-        logger.info("Agent loop completed in \(agentResult.iterationCount) iterations, \(agentResult.totalTokens) tokens total")
-    }
+    let content = accumulatedContent
 
     // MARK: Post-inference Self-Correction (zero overhead when disabled)
 
@@ -618,13 +620,16 @@ private func nonStreamWithToolCalling(
     // This is a fire-and-forget calibration signal — failures are silently ignored.
     let budget = await OcoreaiEngine.shared.activeThinkingBudget
     if let budget {
-        let complexity = await messageBuilder?.lastComplexityScore()?.composite ?? 0.5
+        let complexity = await OcoreaiEngine.shared.activeMessageBuilder?.lastComplexityScore()?.composite ?? 0.5
         let sessionId = String(resolveSessionId(for: request))
         _ = await ThinkingTelemetry.signal(
-            result: agentResult,
-            maxTokens: options.maxTokens ?? 4096,
-            complexity: complexity,
             sessionId: sessionId,
+            complexity: complexity,
+            outputTokens: totalOutputTokens,
+            maxTokens: options.maxTokens ?? 4096,
+            iterationCount: 1,
+            toolCallCount: detectedToolCalls?.count ?? 0,
+            finishReason: finishReason,
             budget: budget
         )
     }

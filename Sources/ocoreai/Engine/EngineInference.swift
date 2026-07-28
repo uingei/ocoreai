@@ -1004,6 +1004,24 @@ extension EnginePool {
         // is true, the guided path may fall through (e.g., multimodal + grammar conflict)
         // and still need a valid session.
                     // Hoist registry ref before closure — ToolRegistry is an actor, capture is safe
+                    // Tool dispatch closure: ChatSession owns tool execution via its built-in
+                    // loop (ChatSession.swift L774-817). Both pool-hit and new-session paths
+                    // set tools+toolDispatch so tool calls are handled internally.
+                    // AgentLoop (Agents/AgentLoop.swift) is no longer used for MLX/ChatSession
+                    // paths — it serves only as a fallback for CoreAI/bridge paths where
+                    // ChatSession is unavailable.
+                    var toolDispatchClosure: (@Sendable (MLXLMCommon.ToolCall) async throws -> String)? = nil
+                    if let registry = toolRegistry {
+                        toolDispatchClosure = { toolCall in
+                            let argsDict = toolCall.function.arguments.mapValues { $0.anyValue }
+                            let jsonEncoded = try JSONSerialization.data(
+                                withJSONObject: argsDict
+                            )
+                            let argsString = String(decoding: jsonEncoded, as: UTF8.self)
+                            return try await registry.call(toolCall.function.name, arguments: argsString)
+                        }
+                    }
+
                     if let pool = poolRef {
                         let acquired = await pool.acquire(
                             from: handleRef.modelContainer,
@@ -1020,37 +1038,20 @@ extension EnginePool {
                         if isPoolHit {
                             log.debug("Pool HIT for \(convKey) — KV cache reused (offset=\(deltaOffset))")
                         }
-                        // Inject tools spec into pooled session so ChatSession can detect
-                        // tool calls and return .toolCall events. We do NOT inject toolDispatch
-                        // — the external AgentLoop coordinator (Agents/AgentLoop.swift) owns
-                        // tool execution, budget control, iteration limits, and context pruning.
-                        // If we injected both tools and toolDispatch, ChatSession's internal
-                        // tool loop would execute tools during generation, then AgentLoop would
-                        // re-execute them from the result text → double execution of side effects.
+                        // Inject tools spec AND toolDispatch into pooled session.
+                        // ChatSession's internal tool loop handles execution, iteration, and
+                        // result injection — no external AgentLoop coordinator needed.
                         if let specs = registeredToolSpecs {
                             chatSession?.tools = specs
-                            // toolDispatch intentionally nil — AgentLoop handles execution
+                            chatSession?.toolDispatch = toolDispatchClosure
                         }
-                        } else {
+                    } else {
                         let spec: MLXLMCommon.SpeculativeDecodingConfig? = specConfig
                         let gp: MLXLMCommon.GenerateParameters = genParams
-                        let toolSpecs: [ToolSpec]? = registeredToolSpecs
-                        var toolDispatchClosure: (@Sendable (MLXLMCommon.ToolCall) async throws -> String)? = nil
-                        if toolSpecs != nil, let registry = toolRegistry {
-                            toolDispatchClosure = { toolCall in
-                                let argsDict = toolCall.function.arguments.mapValues { $0.anyValue }
-                                let jsonEncoded = try JSONSerialization.data(
-                                    withJSONObject: argsDict
-                                )
-                                let argsString = String(decoding: jsonEncoded, as: UTF8.self)
-                                return try await registry.call(toolCall.function.name, arguments: argsString)
-                            }
-                        }
-                        /// ChatSession creation — reasoning toggle removed. Upstream factory
-                        /// (LLMModelFactory._load L625-628) already infers reasoningConfig from
-                        /// config.json and sets reasoningPromptStrategy. The ReasoningEventEmitter
-                        /// below reads context.configuration.reasoningConfig to activate segment
-                        /// routing, so no additionalContext hack is needed.
+                        /// ChatSession creation — reasoning config inferred from model config.
+                        /// Upstream factory (LLMModelFactory._load) already sets reasoningPromptStrategy
+                        /// from config.json. The ReasoningEventEmitter below reads from
+                        /// context.configuration.reasoningConfig to activate segment routing.
                         chatSession = ChatSession(
                             handleRef.modelContainer,
                             instructions: systemInstructions,
@@ -1058,10 +1059,10 @@ extension EnginePool {
                             generateParameters: gp,
                             processing: sessionProcessing,
                             additionalContext: nil,
-                            tools: toolSpecs,
+                            tools: registeredToolSpecs,
                             toolDispatch: toolDispatchClosure
                         )
-                        }
+                    }
 
                         do {
                     // State for Guided/MTP branches — standard ChatSession manages its own
