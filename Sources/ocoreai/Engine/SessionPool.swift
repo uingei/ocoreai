@@ -47,6 +47,12 @@ struct SessionPoolConfig {
     /// later with loadPromptCache(url:) instead of cold-start.
     var persistCache: Bool = true
 
+    /// Maximum total on-disk KV cache size in bytes. When the cache directory
+    /// exceeds this budget, oldest cache files are pruned before new ones are saved.
+    /// Set to 0 to disable capping (not recommended for long-running services).
+    /// Default: 1 GiB (enough for ~8 concurrent 128K-context sessions at ~50MB/session).
+    var persistCacheMaxBytes: UInt64 = 1_073_741_824 // 1 GiB
+
     /// Directory for on-disk KV cache files (nil = auto-derive)
     var cacheDirectory: URL?
 
@@ -263,6 +269,10 @@ struct SessionPoolConfig {
             }
 
             for (key, entry) in keysToRemove {
+                // Enforce disk budget before persisting to prevent unbounded growth
+                if persistFlag {
+                    enforceDiskBudget()
+                }
                 // Persist to disk in a detached Task so saveCache (which can be slow
                 // for large KV caches) does not block the actor mailbox.
                 if persistFlag, let cacheURL = entry.cacheFileURL {
@@ -294,6 +304,10 @@ struct SessionPoolConfig {
             let entry = oldestItem.value
             // 先从 pool 移除，再做保存——缩短 actor 占用窗口
             pool.removeValue(forKey: oldestKey)
+            // Enforce disk budget before persisting to prevent unbounded growth
+            if config.persistCache {
+                enforceDiskBudget()
+            }
             // Persist to disk in a detached Task so saveCache (which can be slow
             // for large KV caches) does not block the actor mailbox.
             if config.persistCache, let cacheURL = entry.cacheFileURL {
@@ -356,6 +370,52 @@ struct SessionPoolConfig {
             // Sanitize key to avoid URL-unfriendly chars
             let safeKey = key.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ":", with: "_")
             return cacheDirectory.appendingPathComponent(safeKey + ".mlx")
+        }
+
+        // MARK: - Disk Budget
+
+        /// Total size of all on-disk KV cache files (bytes).
+        private func diskCacheTotalBytes() -> UInt64 {
+            guard let urls = try? FileManager.default.contentsOfDirectory(
+                at: cacheDirectory, includingPropertiesForKeys: [.totalFileAllocatedSizeKey],
+            ) else { return 0 }
+            var total: UInt64 = 0
+            for url in urls {
+                if let attrs = try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey]) {
+                    total += UInt64(attrs.totalFileAllocatedSize ?? 0)
+                }
+            }
+            return total
+        }
+
+        /// Evict oldest on-disk cache files until total usage is at or below budget.
+        /// Used before persisting a new cache to prevent unbounded disk growth.
+        private func enforceDiskBudget() {
+            let budget = config.persistCacheMaxBytes
+            guard budget > 0 else { return } // 0 = no cap
+            var current: UInt64 = diskCacheTotalBytes()
+            guard current > budget else { return } // already under budget
+
+            guard let urls = try? FileManager.default.contentsOfDirectory(
+                at: cacheDirectory, includingPropertiesForKeys: [.contentAccessDateKey],
+            ) else { return }
+
+            // Sort by last access date (oldest first) to evict LRU
+            let sorted = urls.sorted {
+                let da = try? $0.resourceValues(forKeys: [.contentAccessDateKey]).contentAccessDate ?? .distantPast
+                let db = try? $1.resourceValues(forKeys: [.contentAccessDateKey]).contentAccessDate ?? .distantPast
+                return (da ?? .distantPast) < (db ?? .distantPast)
+            }
+
+            for url in sorted {
+                guard diskCacheTotalBytes() > budget else { break }
+                do {
+                    try FileManager.default.removeItem(at: url)
+                    logger.debug("Pruned cache file to enforce budget: \(url.lastPathComponent)")
+                } catch {
+                    logger.warning("Failed to prune cache file: \(error.localizedDescription)")
+                }
+            }
         }
 
         // MARK: - Inspection

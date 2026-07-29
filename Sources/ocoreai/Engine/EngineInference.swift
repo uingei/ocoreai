@@ -592,10 +592,12 @@ extension EnginePool {
                 return
             }
 
-            // ANE path: delegate to _runInference → CoreAI engine (which supports ANE hardware)
-            // Skip MLX-specific setup (session pool, guided gen, spec decoding) which requires GPU.
+            // P0 fix: CoreAI `_runInference` cannot tokenize multimodal content —
+            // `contentToString()` in EnginePool.tokenize() silently drops images/videos/audio,
+            // producing text-only output for VLM requests. When ANE is selected but multimodal
+            // content is present, force GPU fallback to MLX path which handles VLM natively.
             #if canImport(CoreAI)
-                if computeChannel == .ane {
+                if computeChannel == .ane, !hasMultimodalContent(messages) {
                     logger.info("ANE channel: routing model \(modelId) through CoreAI engine")
                     do {
                         let tokens = try await tokenize(modelId: modelId, messages: messages)
