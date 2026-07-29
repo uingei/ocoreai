@@ -1004,7 +1004,6 @@ extension EnginePool {
             func runInferenceBody() async throws {
                 let convKey: String = conversationId ?? "\(modelId):ephemeral"
                 var isPoolHit = false
-                var deltaOffset = 0
                 var chatSession: ChatSession?
                 var registeredToolSpecs: [ToolSpec]?
 
@@ -1081,6 +1080,11 @@ extension EnginePool {
                         reasoningContext = nil
                     }
 
+                    // Track which messages to feed to ChatSession. ChatSession accumulates
+                    // KV cache internally — on pool hits we only feed the new message(s),
+                    // on pool miss / no pool we feed the full history.
+                    var newMessages: [Chat.Message]
+
                     if let pool = poolRef {
                         let acquired = await pool.acquire(
                             from: handleRef.modelContainer,
@@ -1093,19 +1097,22 @@ extension EnginePool {
                         )
                         chatSession = acquired.pooled.session
                         isPoolHit = acquired.isHit
-                        deltaOffset = acquired.pooled.messageCount
                         if isPoolHit {
-                            log.debug("Pool HIT for \(convKey) — KV cache reused (offset=\(deltaOffset))")
+                            log.debug("Pool HIT for \(convKey) — KV cache reused")
+                            // Pool hit: ChatSession's KV cache already has history baked in.
+                            // Only pass new messages — don't re-tokenize or re-prefill old ones.
+                            newMessages = [mlxMessages.last ?? Chat.Message(role: .user, content: "")]
+                        } else {
+                            // Pool miss / cold start: pass full history including system
+                            // instructions so processor.prepare() can prefill the complete context.
+                            newMessages = mlxMessages
                         }
-                        // Set reasoning context + tools for both hit and cold-miss paths.
-                        // additionalContext is public var (runtime mutable) — controls per-turn
-                        // thinking toggle. ChatSession stores reasoningContext internally (upstream L314)
-                        // and uses it for each turn (L317). Override before generation so per-request
-                        // reasoningEnabled takes effect.
                         chatSession?.additionalContext = reasoningContext
                         chatSession?.tools = registeredToolSpecs
                         chatSession?.toolDispatch = toolDispatchClosure
                     } else {
+                        // No pool — always cold start
+                        newMessages = mlxMessages
                         let spec: MLXLMCommon.SpeculativeDecodingConfig? = specConfig
                         let gp: MLXLMCommon.GenerateParameters = genParams
                         /// ChatSession creation — reasoning context injected via
@@ -1429,18 +1436,12 @@ extension EnginePool {
                         // (mirrors MTP path localAccumulatedText at L808)
                         var localStandardAccumulated = ""
 
-                        // P0-fix: Pass full mlxMessages array (or delta slice for pool hits)
-                        // instead of only the last message. When pool hits, deltaOffset tracks
-                        // how many messages were already baked into the KV cache — slice those
-                        // off so streamDetails only appends new messages. When pool miss/fresh,
-                        // deltaOffset=0 so all messages pass through.
-                        // Safety: min(deltaOffset, mlxMessages.count) prevents out-of-bounds
-                        // when restored sessions track token count rather than message count.
-                        let sliceStart = min(deltaOffset, mlxMessages.count)
-                        let messagesForStream: [Chat.Message] = Array(mlxMessages[sliceStart...])
-
+                        // ChatSession's KV cache already holds context from previous rounds.
+                        // newMessages (set above) contains only what's not yet cached:
+                        //   - pool hit  → new user message only
+                        //   - pool miss → full history including system instructions
                         for try await generation in chatSession!.streamDetails(
-                            to: messagesForStream
+                            to: newMessages
                         ) {
                             if Task.isCancelled || cancellation.isCancelled {
                                 let cancelTokPerSec = (actualTokenCount ?? 0) > 0
@@ -1568,11 +1569,9 @@ extension EnginePool {
                         pooled: PooledChatSession(
                             session: session,
                             lastAccessedAt: ContinuousClock.now,
-                            messageCount: mlxMessages.count,
                         ),
                         modelId: modelId,
                         conversationId: convKey,
-                        processedMessageCount: mlxMessages.count,
                     )
                 }
             }
