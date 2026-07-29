@@ -1,11 +1,11 @@
-// swift-tools-version: 6.3
+// swift-tools-version: 6.1
 
 import PackageDescription
 
 let package = Package(
     name: "ocoreai",
     platforms: [
-        .macOS(.v26),
+        .macOS(.v15),
         .iOS(.v17),
     ],
     products: [
