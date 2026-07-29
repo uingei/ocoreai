@@ -564,6 +564,24 @@ extension EnginePool {
                 return
             }
 
+            // Vision capability guard: reject multimodal input for LLM-only models.
+            // Aligns with MLXLanguageModel Executor.respond() L950-965 — the adapter
+            // is the only place that can enforce .vision before loading any weights.
+            func hasMultimodalContent(_ msgs: [Message]) -> Bool {
+                msgs.contains { msg in
+                    if case let .parts(parts) = msg.content {
+                        return !parts.lazy.filter { $0.imageUrl != nil || $0.videoUrl != nil || $0.audioURL != nil }.isEmpty
+                    }
+                    return false
+                }
+            }
+            if !loaded.isVlm, hasMultimodalContent(messages) {
+                continuation.yield(.init(kind: .error(
+                    "Model \(modelId) does not support multimodal input — images, videos, or audio require a VLM")))
+                continuation.finish()
+                return
+            }
+
             // ANE path: delegate to _runInference → CoreAI engine (which supports ANE hardware)
             // Skip MLX-specific setup (session pool, guided gen, spec decoding) which requires GPU.
             #if canImport(CoreAI)
