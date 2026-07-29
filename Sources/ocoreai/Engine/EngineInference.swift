@@ -33,6 +33,7 @@ import MLXGuidedGeneration
 import MLXVLM
 import CoreImage
 import CoreGraphics
+import ImageIO
 
 // MARK: - Guided Gen Diagnostic Diagnostics
 
@@ -415,8 +416,17 @@ extension EnginePool {
             if let lastComma = urlString.lastIndex(of: ",") {
                 let base64Data = String(urlString[urlString.index(after: lastComma)...])
                 guard let data = Data(base64Encoded: base64Data) else { return nil }
-                guard let ciImage = CIImage(data: data) else { return nil }
-                return .ciImage(ciImage)
+                // Decode via CGImageSource with auto-orient so EXIF orientation
+                // is baked into pixel data before CIImage consumes it (CIImage
+                // ignores EXIF orientation, causing rotated output.  Aligns with
+                // mlx-swift-examples ChatView.swift L105-128.)
+                guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                      let cgImage = CGImageSourceCreateImageAtIndex(
+                          source,
+                          0,
+                          ["ShouldAutoOrient": true] as CFDictionary
+                      ) else { return nil }
+                return .ciImage(CIImage(cgImage: cgImage))
             }
 
             return nil

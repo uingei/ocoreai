@@ -27,6 +27,7 @@ struct ChatBubbleMessage: Identifiable, Hashable {
     let parts: [TranscriptPart]? /// Structured semantic blocks
     let timestamp: Date
     let imageURLs: [String] /// Base64 data URLs for inline image preview
+    let interrupted: Bool /// true when truncated by user cancel — drives UI badge
 
     /// Rendering content: structured parts preferred, flat content as fallback
     var displayContent: String {
@@ -56,9 +57,10 @@ struct ChatBubbleMessage: Identifiable, Hashable {
         self.timestamp = timestamp
         self.imageURLs = imageURLs
         self.parts = nil
+        self.interrupted = false
     }
 
-    /// Convert ChatViewModel.ChatMessage → ChatBubbleMessage (preserves parts)
+    /// Convert ChatViewModel.ChatMessage → ChatBubbleMessage (preserves parts and interrupted)
     init(from cm: ChatMessage) {
         self.id = cm.id.uuidString
         self.role = cm.role
@@ -66,6 +68,7 @@ struct ChatBubbleMessage: Identifiable, Hashable {
         self.parts = cm.parts
         self.timestamp = cm.timestamp
         self.imageURLs = cm.imageURLs
+        self.interrupted = cm.interrupted
     }
 }
 
@@ -680,6 +683,16 @@ struct ChatBubble: View {
                 } else {
                     // Fallback: flat content (legacy messages + user input)
                     ChatMessageInner(text: message.displayContent, isUser: isUser)
+                }
+                // Interrupted indicator — shows when generation was cancelled
+                if message.interrupted, !isUser {
+                    HStack(spacing: 4) {
+                        Image(systemName: "stop.circle")
+                            .font(.ocoreaiText(10))
+                        Text("Interrupted")
+                            .font(.ocoreaiText(10))
+                    }
+                    .foregroundStyle(.tertiary)
                 }
             }
             .accessibilityLabel("\(isUser ? StringKey.youLabel.l : StringKey.ocoreaiLabel.l)")

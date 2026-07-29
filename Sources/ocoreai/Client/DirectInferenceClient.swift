@@ -543,12 +543,15 @@ extension DirectInferenceClient {
             case let .error(msg):
                 throw AppError.generationError(msg)
             case let .toolCall(tc):
-                // Collect tool call info for UI display
+                // Collect tool call info for UI display with meaningful summary
                 collectedToolCallParts = collectedToolCallParts ?? []
+                let summary = tc.function.arguments.isEmpty
+                    ? "\(tc.function.name)(no args)"
+                    : String(tc.function.arguments.prefix(60)) + (tc.function.arguments.count > 60 ? "…" : "")
                 collectedToolCallParts?.append(ToolCallPart(
                     callId: tc.id,
                     name: tc.function.name,
-                    resultSummary: "Tool executed",
+                    resultSummary: summary,
                     durationMs: 0
                 ))
             case let .reasoning(r):

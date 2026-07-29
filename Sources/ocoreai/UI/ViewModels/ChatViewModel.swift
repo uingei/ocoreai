@@ -74,13 +74,13 @@ struct ChatMessage: Identifiable, Hashable {
     }
 
     /// Structured initializer — builds parts from semantic blocks
-    init(role: String, parts: [TranscriptPart], timestamp: Date = .now) {
+    init(role: String, parts: [TranscriptPart], timestamp: Date = .now, interrupted: Bool = false) {
         self.role = role
         self.content = TranscriptPartMessage(texts: parts).flatText // fallback for persistence
         self.parts = parts
         self.timestamp = timestamp
         self.imageURLs = []
-        self.interrupted = false
+        self.interrupted = interrupted
     }
 
     /// Interrupted initializer — for truncated assistant messages
@@ -633,6 +633,9 @@ final class ChatState {
                 if chunk.isComplete {
                     // FIX: distinguish error terminal chunks from successful completion.
                     // Do not persist error-truncated responses as normal assistant messages.
+                    // Also detect cancelled (user stopped generation) — build parts with
+                    // interrupted flag so UI can show the interrupted badge.
+                    let isCancelled = chunk.stopReason == "cancelled"
                     if chunk.stopReason == "error" {
                         Self.logger.warning("Inference ended with error after accumulating \(responseText.utf8.count) bytes")
                         // D1 fix: surface actual error from inference layer instead of generic placeholder
@@ -694,13 +697,14 @@ final class ChatState {
 
                         // Build assistant message — use structured parts when available,
                         // fallback to flat content (including empty messages for tool-use models)
+                        // Wire interrupted flag when cancelled so UI shows the interrupted badge.
                         if !parts.isEmpty {
-                            let assistantMsg = ChatMessage(role: "assistant", parts: parts)
+                            let assistantMsg = ChatMessage(role: "assistant", parts: parts, interrupted: isCancelled)
                             messages.append(assistantMsg)
                         } else {
                             // Tool-use model returned empty — still create the message
                             // so the conversation state is correct
-                            let assistantMsg = ChatMessage(role: "assistant", content: "")
+                            let assistantMsg = ChatMessage(role: "assistant", content: "", interrupted: isCancelled)
                             messages.append(assistantMsg)
                         }
 
