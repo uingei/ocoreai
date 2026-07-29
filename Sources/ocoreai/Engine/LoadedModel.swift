@@ -13,6 +13,7 @@ import Logging
     import CoreAI
 #endif
 
+import MLXGuidedGeneration
 import MLXLLM
 import MLXLMCommon
 
@@ -63,6 +64,32 @@ final class LoadedModel: @unchecked Sendable {
 
     /// Logger for observability
     let logger: Logger
+
+    // MARK: - Guided Generation Cache
+
+    /// Cached GrammarTokenizer for guided generation — built once per model, reused
+    /// across inference requests. Mirrors upstream MLXLanguageModel.swift L163-180
+    /// ModelCache.xgTokenizers caching pattern.
+    private var _cachedGrammarTokenizer: GrammarTokenizer?
+
+    /// Get or build the cached GrammarTokenizer for guided generation.
+    /// First call extracts vocab from the model's tokenizer and caches;
+    /// subsequent calls return the cached instance — mirrors upstream
+    /// MLXLanguageModel.swift L163 `ModelCache.makeXGTokenizer`.
+    func getOrCreateGrammarTokenizer(from tokenizer: any MLXLMCommon.Tokenizer) throws -> GrammarTokenizer {
+        if let cached = _cachedGrammarTokenizer {
+            return cached
+        }
+        let vocab = TokenizerVocabExtractor.extractForGrammar(from: tokenizer)
+        let xgTok = try GrammarTokenizer(
+            vocab: vocab.vocab,
+            vocabType: vocab.vocabType,
+            eosTokenId: Int32(tokenizer.eosTokenId ?? 0)
+        )
+        _cachedGrammarTokenizer = xgTok
+        self.logger.info("GrammarTokenizer cached for model: \(modelConfig.name ?? "\(modelURL.lastPathComponent)")")
+        return xgTok
+    }
 
     // MARK: - Speculative Decoding (MLX only)
 

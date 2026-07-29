@@ -809,16 +809,12 @@ extension EnginePool {
                     let userInput = UserInput(prompt: .chat(messages), processing: uiProcessing)
                     let lmInput = try await context.processor.prepare(input: userInput)
 
-                    // Build GrammarTokenizer from the model's tokenizer — canonical path
-                    // mirrors MLXFoundationModels.MLXLanguageModel.makeGrammarTokenizer.
-                    let grammarVocab = TokenizerVocabExtractor.extractForGrammar(from: context.tokenizer)
+                    // Build GrammarTokenizer — cached per-model via LoadedModel mirror of
+                    // MLXFoundationModels.MLXLanguageModel.swift L163 ModelCache.xgTokenizers.
+                    // First call builds + caches; subsequent guided gen requests reuse cached.
                     let grammarTokenizer: GrammarTokenizer
                     do {
-                        grammarTokenizer = try GrammarTokenizer(
-                            vocab: grammarVocab.vocab,
-                            vocabType: grammarVocab.vocabType,
-                            eosTokenId: Int32(context.tokenizer.eosTokenId ?? 0),
-                        )
+                        grammarTokenizer = try loaded.getOrCreateGrammarTokenizer(from: context.tokenizer)
                     } catch {
                         continuation.yield(.init(kind: .error(
                             InferenceError.tokenizerBuildFailed("Grammar tokenizer build failed").errorDescription ?? "error")))

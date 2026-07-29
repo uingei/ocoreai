@@ -261,7 +261,8 @@ final class ChatState {
         // P0-3 UX: Preserve the partial response instead of instantly blanking the screen.
         // The user can still see what was generated before interruption.
         if !responseText.isEmpty {
-            messages.append(ChatMessage(role: "assistant", content: responseText, interrupted: true))
+            let interruptedContent = responseText + "\n\n...[interrupted]"
+            messages.append(ChatMessage(role: "assistant", content: interruptedContent, interrupted: true))
             responseText = ""
         }
     }
@@ -732,7 +733,8 @@ final class ChatState {
             // itself; we only reach here when the stream was cancelled without UI intervention.
             if !self._cancelledByUI && (Task.isCancelled || cancellation.isCancelled) {
                 if !responseText.isEmpty {
-                    let assistantMsg = ChatMessage(role: "assistant", content: responseText, interrupted: true)
+                    let interruptedContent = responseText + "\n\n...[interrupted]"
+                    let assistantMsg = ChatMessage(role: "assistant", content: interruptedContent, interrupted: true)
                     messages.append(assistantMsg)
                     await persistMessage(role: "assistant", content: assistantMsg.content)
                 }
