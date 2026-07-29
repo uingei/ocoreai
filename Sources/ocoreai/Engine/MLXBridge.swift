@@ -46,9 +46,11 @@
     /// Auth auto-detected by HubClient from HF_TOKEN env var / filesystem.
     import MLXHuggingFace
     import Tokenizers
-    // MARK: - MLXFoundationModels (macOS 26+-safe: SamplingModeMapper, no _version:2 gate)
+    // MARK: - MLXFoundationModels (gated: trait + _version:2)
 
-    import MLXFoundationModels
+    #if FoundationModelsIntegration
+        import MLXFoundationModels
+    #endif
 
     // MARK: - MLX Model Handle
 

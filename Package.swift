@@ -13,6 +13,14 @@ let package = Package(
     ],
     traits: [
         .trait(name: "appStore", description: "App Store build: disable HTTP server, use direct inference only"),
+        // MLXFoundationModels adapter for Apple's FoundationModels framework.
+        // Default-on. macOS 27 SDK: brings MLXLanguageModel/Executor etc;
+        // macOS 15/26 SDK: compiles to empty — zero impact.
+        .trait(
+            name: "FoundationModelsIntegration",
+            description: "Enables the MLXLanguageModel adapter for Apple's FoundationModels framework."
+        ),
+        .default(enabledTraits: ["FoundationModelsIntegration"]),
     ],
     dependencies: [
         // Hummingbird 2.x API (respond/to/passing: pattern)
