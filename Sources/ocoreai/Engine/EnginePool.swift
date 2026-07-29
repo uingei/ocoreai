@@ -22,7 +22,9 @@ import MLXVLM
 import MLXLLM
 import MLXLMCommon
 
-// MARK: - Content helper
+#if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
+    import MLXFoundationModels
+#endif
 
 /// Convert ContentPolymorphic to String for tokenization input.
 /// - Returns: (text to tokenize, count of non-text parts silently dropped)
@@ -392,11 +394,55 @@ actor EnginePool {
             "MLX model \(modelId) \(isVlmModel ? "VLM" : "LLM") detected via isVLMModel",
         )
 
-        let mlxHandle = try await mlxModelLoader.load(
-            modelURL: modelURL,
-            modelId: modelId,
-        )
-        logger.info("MLX model \(modelId) loaded successfully")
+        #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
+            var mlxHandleToSet: any MLXModelHandle
+            if #available(macOS 27.0, *) {
+                // Primary hub provider — MLXModelLoader defaults to "modelscope", hf: prefix means HF
+                let hubProviderStr: String = isHF ? "huggingface" : "modelscope"
+
+                // Construct MLXLanguageModel that routes through ModelCache (concurrency-safe, download-tracked, error-recorded)
+                let mlxLM = MLXLanguageModel(
+                    configuration: ModelConfiguration(id: modelId),
+                    capabilities: isVlmModel ? [.guidedGeneration, .vision] : [.guidedGeneration],
+                    configurationResolver: DefaultConfigurationResolver(),
+                    weightsLocation: { _ in modelURL },
+                    load: { [weak self, logger, providerName = hubProviderStr, rId = repoId, mId = modelId] cfg, progressHandler in
+                        guard let self else {
+                            throw AppError.engineUnavailable
+                        }
+                        let actualProvider: MLXModelLoader.HubProvider = providerName == "huggingface" ? .huggingFace : .modelScope
+                        do {
+                            let container = try await self.mlxModelLoader.loadFromHub(actualProvider, repoId: rId, modelId: mId, progressHandler: progressHandler)
+                            return container
+                        } catch {
+                            logger.warning("\(actualProvider == .modelScope ? "ModelScope" : "HuggingFace") failed for \(mId) — falling back: \(error.localizedDescription)")
+                            let fb: MLXModelLoader.HubProvider = actualProvider == .modelScope ? .huggingFace : .modelScope
+                            let container = try await self.mlxModelLoader.loadFromHub(fb, repoId: rId, modelId: mId, progressHandler: progressHandler)
+                            return container
+                        }
+                    }
+                )
+
+                // loadContainer() → ModelCache.load() — concurrent-safe, deduped, tracked
+                let container = try await mlxLM.loadContainer()
+                mlxHandleToSet = MLXModelHandleImpl(modelContainer: container, modelId: modelId)
+                logger.info("MLX model \(modelId) loaded via ModelCache")
+            } else {
+                // FoundationModelsIntegration trait enabled but macOS < 27 — fall back to direct loader
+                mlxHandleToSet = try await mlxModelLoader.load(
+                    modelURL: modelURL,
+                    modelId: modelId,
+                )
+                logger.info("MLX model \(modelId) loaded via MLXModelLoader (macOS < 27 fallback)")
+            }
+        #else
+            // Fallback: direct MLXModelLoader path when FoundationModelsIntegration is not available
+            mlxHandleToSet = try await mlxModelLoader.load(
+                modelURL: modelURL,
+                modelId: modelId,
+            )
+            logger.info("MLX model \(modelId) loaded via MLXModelLoader")
+        #endif
 
         #if canImport(CoreAI)
             var model: LoadedModel
@@ -426,7 +472,7 @@ actor EnginePool {
                 logger: logger,
             )
         #endif
-        model.setMLXHandle(mlxHandle)
+        model.setMLXHandle(mlxHandleToSet)
         model.isVlm = isVlmModel
         model.kvCacheQuantization = config.kvCacheQuantization
         // Configure speculative decoding — lazy-load draft model on first model load

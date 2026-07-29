@@ -48,7 +48,7 @@
     import Tokenizers
     // MARK: - MLXFoundationModels (gated: trait + _version:2)
 
-    #if FoundationModelsIntegration
+    #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
         import MLXFoundationModels
     #endif
 
@@ -318,6 +318,7 @@
         func load(
             modelURL: URL,
             modelId: String,
+            progressHandler: (@Sendable (Progress) -> Void)? = nil,
         ) async throws -> (any MLXModelHandle) {
             logger.info("Loading MLX model \(modelId) from \(modelURL.path)")
             let start = ContinuousClock.now
@@ -345,11 +346,11 @@
             // Try configured provider, fall back to the other on failure
             func loadFromHubWithFallback() async throws -> MLXLMCommon.ModelContainer {
                 do {
-                    return try await loadFromHub(provider, repoId: repoId, modelId: modelId)
+                    return try await loadFromHub(provider, repoId: repoId, modelId: modelId, progressHandler: progressHandler)
                 } catch {
                     logger.warning("\(provider == .modelScope ? "ModelScope" : "HuggingFace") failed for \(modelId) — falling back: \(error.localizedDescription)")
                     let fallback: HubProvider = provider == .modelScope ? .huggingFace : .modelScope
-                    return try await loadFromHub(fallback, repoId: repoId, modelId: modelId)
+                    return try await loadFromHub(fallback, repoId: repoId, modelId: modelId, progressHandler: progressHandler)
                 }
             }
 
@@ -389,7 +390,7 @@
         enum HubProvider { case modelScope, huggingFace }
 
         @inline(never)
-        func loadFromHub(_ provider: MLXModelLoader.HubProvider, repoId: String, modelId: String) async throws -> MLXLMCommon.ModelContainer {
+        func loadFromHub(_ provider: MLXModelLoader.HubProvider, repoId: String, modelId: String, progressHandler: (@Sendable (Progress) -> Void)? = nil) async throws -> MLXLMCommon.ModelContainer {
             let start = ContinuousClock.now
 
             // Strip prefix for progress tracking — UI components query by the plain repo id
@@ -410,6 +411,8 @@
                 let directory = try await msDownloader.download(
                     id: repoId, revision: nil, matching: ["*.safetensors", "*.json", "*.jinja"], useLatest: false,
                     progressHandler: { [progressKey] progress in
+                        // Forward to upstream progressHandler (e.g. MLXDownloadProgress on macOS 27)
+                        progressHandler?(progress)
                         Task { @MainActor in
                             OcoreaiDownloadProgress.shared.update(progress, for: progressKey)
                         }
