@@ -98,6 +98,11 @@
             modelScopeToken: String? = nil,
             hfToken _: String? = nil,
         ) {
+            // Set GPU cache limit to prevent OOM on constrained hardware.
+            // Matches MLXLanguageModel.configureGPUCacheOnce (256 MB).
+            // macOS 27 path: MLXLanguageModel also sets this lazily via configureGPUCacheOnce.
+            // macOS <27 fallback + CoreAI path: no MLXLanguageModel wrapper, so this is the only guard.
+            MLX.Memory.cacheLimit = 256 * 1024 * 1024
             self.logger = logger
             self.defaultHub = defaultHub
             self.modelScopeToken = modelScopeToken
