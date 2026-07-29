@@ -26,6 +26,8 @@ import MLXLMCommon
 
 // MARK: - Configuration (trait-agnostic)
 
+import CoreGraphics
+
 /// Session pool configuration — per-pool limits and TTL.
 struct SessionPoolConfig {
     /// Whether conversation pooling is enabled.
@@ -47,6 +49,14 @@ struct SessionPoolConfig {
 
     /// Directory for on-disk KV cache files (nil = auto-derive)
     var cacheDirectory: URL?
+
+    /// Static fallback for cold-miss when caller passes nil processing (defensive;
+    /// EngineInference always provides processing so this path is unreachable in practice).
+    static let defaultResize: CGSize = .init(width: 1024, height: 1024)
+
+    /// VLM image resize dimensions — fallback for callers that pass nil
+    /// for the `processing` parameter.
+    var vlmImageResize: CGSize = .init(width: 1024, height: 1024)
 
     /// Default configuration
     static let `default`: SessionPoolConfig = .init()
@@ -172,6 +182,7 @@ struct SessionPoolConfig {
             if let (restoredSession, restoredTokenCount) = Self.restoreCachedSession(
                 modelContainer, cacheURL: cacheURL, genParams: genParams, logger: logger,
                 speculativeDecoding: speculativeDecoding,
+                processing: processing,
             ) {
                 // Disk restore gives us a ChatSession with baked-in KV cache.
                 // messageCount = 0 because this is a fresh session from the pool's perspective —
@@ -200,7 +211,7 @@ struct SessionPoolConfig {
                 instructions: instructions,
                 speculativeDecoding: speculativeDecoding,
                 generateParameters: genParams,
-                processing: processing ?? .init(resize: CGSize(width: 1024, height: 1024)),
+                processing: processing ?? .init(resize: config.vlmImageResize),
             )
             let cacheFile = cacheFileURL(key: key)
             let freshPooled = PooledChatSession(

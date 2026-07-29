@@ -813,9 +813,8 @@ extension EnginePool {
                     }
                     // Pass processing params (resize) to control VLM image scale — mirrors
                     // MLXChatExample: UserInput.Processing(resize: CGSize(width:1024, height:1024))
-                    // Default 1024x1024 limits token overhead from high-res camera frames while
-                    // preserving enough detail for VLM understanding.
-                    let uiProcessing = UserInput.Processing(resize: .init(width: 1024, height: 1024))
+                    // Value read from config so users can tune per-image token overhead.
+                    let uiProcessing = UserInput.Processing(resize: config.vlmImageResize)
                     let userInput = UserInput(prompt: .chat(messages), processing: uiProcessing)
                     let lmInput = try await context.processor.prepare(input: userInput)
 
@@ -1016,10 +1015,10 @@ extension EnginePool {
                 }
 
                 // Unified processing config for VLM resize — consistent across all
-                // inference paths (ChatSession, Guided gen, MTP). Default 1024x1024
-                // preserves VLM detail while bounding token overhead.
+                // inference paths (ChatSession, Guided gen, MTP). Value read from config
+                // so users can tune per-image token overhead.
                 let sessionProcessing = MLXLMCommon.UserInput.Processing(
-                    resize: .init(width: 1024, height: 1024)
+                    resize: config.vlmImageResize
                 )
 
                 // ChatSession path: acquire or create session
@@ -1220,7 +1219,7 @@ extension EnginePool {
                                 mtpMessages.removeLast()
                             }
 
-                            let mtpProcessing = UserInput.Processing(resize: .init(width: 1024, height: 1024))
+                            let mtpProcessing = UserInput.Processing(resize: config.vlmImageResize)
                             let mtpUserInput = UserInput(prompt: .chat(mtpMessages), processing: mtpProcessing)
                             let mtpInput = try await context.processor.prepare(input: mtpUserInput)
 

@@ -2,6 +2,7 @@
 // Licensed under MIT.
 /// EngineConfig.swift — EnginePool configuration
 
+import CoreGraphics
 import Foundation
 import Logging
 
@@ -47,6 +48,10 @@ public struct EnginePoolConfig: Sendable {
     /// Defaults to disabled (zero behavior change).
     var specDecoding: SpecDecodingConfig = .default
 
+    /// VLM image resize dimensions. Applied to all inference paths so per-image
+    /// token counts are consistent.
+    public var vlmImageResize: CGSize
+
     /// Default configuration with sensible production values
     public static let `default`: EnginePoolConfig = .init(
         maxConcurrentSessions: 8,
@@ -60,6 +65,7 @@ public struct EnginePoolConfig: Sendable {
         kvCacheQuantization: .default,
         wiredMemory: .default,
         specDecoding: .default,
+        vlmImageResize: .init(width: 1024, height: 1024),
     )
 
     /// Build from the config system's ``AppConfig``.
@@ -98,6 +104,7 @@ public struct EnginePoolConfig: Sendable {
         self.kvCacheQuantization = app.backend.kvCacheQuantization
         self.wiredMemory = app.backend.wiredMemory
         self.specDecoding = app.backend.specDecoding
+        self.vlmImageResize = .init(width: app.backend.vlmImageResizeWidth, height: app.backend.vlmImageResizeHeight)
 
         let backendStr = app.backend.preference.joined(separator: ", ")
         logger.info("EnginePoolConfig from AppConfig — backend: \(backendStr), defaultModel: \(self.defaultModelId), sessions: \(self.maxConcurrentSessions)")
@@ -115,6 +122,7 @@ public struct EnginePoolConfig: Sendable {
         kvCacheQuantization: KVCacheQuantizationConfig,
         wiredMemory: WiredMemoryConfig,
         specDecoding: SpecDecodingConfig = .default,
+        vlmImageResize: CGSize? = nil,
     ) {
         self.maxConcurrentSessions = maxConcurrentSessions
         self.maxQueueSize = maxQueueSize
@@ -127,5 +135,6 @@ public struct EnginePoolConfig: Sendable {
         self.kvCacheQuantization = kvCacheQuantization
         self.wiredMemory = wiredMemory
         self.specDecoding = specDecoding
+        self.vlmImageResize = vlmImageResize ?? .init(width: 1024, height: 1024)
     }
 }

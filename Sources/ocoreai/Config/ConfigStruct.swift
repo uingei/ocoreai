@@ -216,6 +216,11 @@ public struct BackendConfig: Sendable, Codable, Equatable {
     public var kvCacheQuantization: KVCacheQuantizationConfig
     public var wiredMemory: WiredMemoryConfig
     public var specDecoding: SpecDecodingConfig
+    /// VLM image resize dimensions. Applied to all inference paths so per-image
+    /// token counts are consistent. Default 1024×1024 preserves VLM detail while
+    /// bounding token overhead.
+    public var vlmImageResizeWidth: Int
+    public var vlmImageResizeHeight: Int
 
     public static let `default` = BackendConfig()
 
@@ -226,6 +231,8 @@ public struct BackendConfig: Sendable, Codable, Equatable {
         kvCacheQuantization: KVCacheQuantizationConfig? = nil,
         wiredMemory: WiredMemoryConfig? = nil,
         specDecoding: SpecDecodingConfig? = nil,
+        vlmImageResizeWidth: Int = 1024,
+        vlmImageResizeHeight: Int = 1024,
     ) {
         self.preference = preference
         self.maxConcurrentSessions = maxConcurrentSessions
@@ -233,6 +240,8 @@ public struct BackendConfig: Sendable, Codable, Equatable {
         self.kvCacheQuantization = kvCacheQuantization ?? .default
         self.wiredMemory = wiredMemory ?? .default
         self.specDecoding = specDecoding ?? .default
+        self.vlmImageResizeWidth = max(64, min(vlmImageResizeWidth, 4096))
+        self.vlmImageResizeHeight = max(64, min(vlmImageResizeHeight, 4096))
     }
 
     func validate() throws {

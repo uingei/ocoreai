@@ -151,7 +151,9 @@ actor EnginePool {
         logger.info("MLXModelLoader initialized (MLXLLM backend)")
 
         if let poolConfig = config.sessionPoolConfig, poolConfig.enabled {
-            sessionPool = MLXSessionPool(config: poolConfig, logger: logger)
+            var wiredPoolConfig = poolConfig
+            wiredPoolConfig.vlmImageResize = config.vlmImageResize
+            sessionPool = MLXSessionPool(config: wiredPoolConfig, logger: logger)
             logger.info("MLXSessionPool enabled (max=\(poolConfig.maxSessions), ttl=\(poolConfig.sessionTTLSeconds)s)")
         } else {
             sessionPool = nil
