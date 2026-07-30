@@ -150,6 +150,32 @@ jobs:
 
 
 
+      - name: Build release first (generates metallib for later test step)
+        if: ${{ matrix.run_tests == true }}
+        run: |
+          set -euo pipefail
+          export SWIFT_BUILD_NUM_WORKERS=2
+          export SWIFTC_SCAN_FOR_DEPS=0
+          echo "🔨 Building release for MLX metallib..."
+          swift build -c release
+
+      - name: Copy metallib to debug build dir
+        if: ${{ matrix.run_tests == true }}
+        run: |
+          set -euo pipefail
+          # macOS-26 runner: SPM debug build does NOT compile Metal shaders → no metallib
+          # → MLX test teardown crashes with "Failed to load the default metallib"
+          # → Copy metallib from release build (which DID compile it) to debug build dir
+          METALLIB_SRC="$(find .build/out/Products/Release -name 'default.metallib' 2>/dev/null | head -1)"
+          if [ -n "$METALLIB_SRC" ]; then
+            METALLIB_DST_DIR=".build/artifacts/debug/macosx"
+            mkdir -p "$METALLIB_DST_DIR"
+            cp "$METALLIB_SRC" "$METALLIB_DST_DIR/default.metallib"
+            echo "✅ Copied metallib: $METALLIB_SRC → $METALLIB_DST_DIR/"
+          else
+            echo "⚠️ No metallib found — MLX will fall back to CPU in tests"
+          fi
+
       - name: Run tests with coverage
         if: ${{ matrix.run_tests == true }}
         run: |
@@ -157,15 +183,7 @@ jobs:
           export SWIFT_BUILD_NUM_WORKERS=2
           export SWIFTC_SCAN_FOR_DEPS=0
           echo "🧪 Running tests with coverage..."
-          # MLX Metal backend may throw on init when metallib can't be loaded
-          # (macOS-26 runner Metal Toolchain compat issue — metalc not detected by SPM)
-          # swift test exits non-zero but all tests may have passed. Check summary.
-          swift test --enable-code-coverage 2>&1 | tee /tmp/test-output.txt || true
-          if ! grep -q "Test Suite 'All tests' passed" /tmp/test-output.txt; then
-            echo "❌ Tests failed"
-            grep -E "Recorded test failure|Test Suite.*failed|Test.*errored" /tmp/test-output.txt | tail -20 || true
-            exit 1
-          fi
+          swift test --enable-code-coverage
           echo "✅ All tests passed"
         env:
           OCOREAI_BUILD: ci
