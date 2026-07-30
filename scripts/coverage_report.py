@@ -12,7 +12,7 @@ import json
 import sys
 import os
 
-COVERAGE_PATH = ".build/arm64-apple-macosx/debug/codecov/ocoreai.json"
+COVERAGE_PATH = ".build/out/Products/Debug/codecov/ocoreai.json"
 PROJECT_SOURCES = "Sources/ocoreai/"
 
 
@@ -145,7 +145,7 @@ def main():
 
     json_path = os.path.join(
         project_dir,
-        ".build/arm64-apple-macosx/debug/codecov/ocoreai.json"
+        ".build/out/Products/Debug/codecov/ocoreai.json"
     )
 
     # Fallback: try to find coverage file if it's in a different build config

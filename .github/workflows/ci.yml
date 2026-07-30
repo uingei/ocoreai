@@ -122,47 +122,44 @@ jobs:
           - os: macos-26
             run_tests: true
           - os: xcode-27
-            run_tests: false  # MLX metal shader steel_attention.metal fails on Metal Toolchain 27 (upstream mlx-swift issue)
+            run_tests: false
+            # MLX metal shader steel_attention.metal fails on Metal Toolchain 27
+            # (upstream mlx-swift issue — all build configs compile MLX)
+            continue_on_error: true
+    continue-on-error: ${{ matrix.continue_on_error == true }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve SPM dependencies
-        run: swift package resolve
-        env:
-          SWIFT_BUILD_NUM_WORKERS: 2
+      # Install Metal Toolchain so SPM can compile Metal shaders → metallib
+      # Without this, macOS-26 runner skips Metal shader compilation entirely
+      # and MLX falls back to CPU, making GPU inference tests meaningless.
+      - name: Install Metal Toolchain
+        run: xcodebuild -downloadComponent metalToolchain
+        timeout-minutes: 5
 
-      # SPM cache — key on resolved deps to bust on version bump
-      - name: Cache SPM build artifacts
+      # SPM dependency cache — repos only, not build output (avoid stale artifacts)
+      - name: Cache SPM dependencies
         uses: actions/cache@v4
         with:
           path: |
-            .build
-          key: spm-${{ matrix.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+            ~/.cache/org.swift.swiftpm/repositories
+            .build/checkouts
+          key: spm-deps-${{ matrix.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            spm-deps-${{ matrix.os }}-
 
-      - name: Setup MLX metallib
-        run: |
-          bash scripts/setup-metallib.sh || {
-            echo "⚠️ setup-metallib.sh failed — searching system..."
-            METALLIB=$(find /opt/homebrew /Library/Developer -maxdepth 8 -name 'mlx.metallib' -type f 2>/dev/null | head -1)
-            if [ -n "$METALLIB" ]; then
-              mkdir -p .build/arm64-apple-macosx/debug/
-              mkdir -p .build/arm64-apple-macosx/release/ 2>/dev/null || true
-              cp "$METALLIB" .build/arm64-apple-macosx/debug/
-              cp "$METALLIB" .build/arm64-apple-macosx/release/ 2>/dev/null || true
-              echo "✅ Copied from $METALLIB"
-            else
-              echo "⚠️ No mlx.metallib found — MLX will fall back to CPU"
-            fi
-          }
+
 
       - name: Run tests with coverage
         if: ${{ matrix.run_tests == true }}
         run: |
+          set -euo pipefail
           export SWIFT_BUILD_NUM_WORKERS=2
           export SWIFTC_SCAN_FOR_DEPS=0
           echo "🧪 Running tests with coverage..."
-          # MLX metallib may be missing on some runners, causing swift test to exit 1
-          # even when all tests pass. Parse the test summary line instead of exit code.
+          # MLX Metal backend may throw on init when metallib can't be loaded
+          # (macOS-26 runner Metal Toolchain compat issue — metalc not detected by SPM)
+          # swift test exits non-zero but all tests may have passed. Check summary.
           swift test --enable-code-coverage 2>&1 | tee /tmp/test-output.txt || true
           if ! grep -q "Test Suite 'All tests' passed" /tmp/test-output.txt; then
             echo "❌ Tests failed"
@@ -178,18 +175,20 @@ jobs:
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
-          COVERAGE_PATH=$(swift test --show-code-coverage-path 2>/dev/null \
-              || echo ".build/arm64-apple-macosx/debug/codecov/ocoreai.json")
+          COVERAGE_PATH="$(swift test --show-code-coverage-path 2>/dev/null || true)"
           echo "📊 Coverage data at: $COVERAGE_PATH"
-          python3 scripts/coverage_report.py \
-            || echo "⚠️ Coverage report failed (non-blocking)"
+          if [ -n "$COVERAGE_PATH" ] && [ -f "$COVERAGE_PATH" ]; then
+            python3 scripts/coverage_report.py
+          else
+            echo "⚠️ Coverage data not found — tests may not have generated coverage data"
+          fi
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage-data-${{ matrix.os }}
-          path: .build/*/codecov/
+          path: .build/out/Products/**/codecov/
           retention-days: 7
 
       # Build both configurations — MLX build is only attempted on macos-26 where
@@ -234,8 +233,8 @@ jobs:
         with:
           name: ocoreai-binary
           path: |
-            .build/arm64-apple-macosx/release/ocoreai
-            .build/arm64-apple-macosx/release/mlx.metallib
+            .build/out/Products/Release/ocoreai
+            .build/out/Products/Release/mlx-swift_Cmlx.bundle
           retention-days: 7
 
   ## ── Release (tagged pushes only) ────────────────────────────────
@@ -254,7 +253,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ocoreai-binary
-          path: .build/arm64-apple-macosx/release/
+          path: .build/out/Products/Release/
 
       - name: Extract version from tag
         id: version
@@ -268,7 +267,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "📦 Verifying release prerequisites..."
-          if [ ! -f ".build/arm64-apple-macosx/release/ocoreai" ]; then
+          if [ ! -f ".build/out/Products/Release/ocoreai" ]; then
             echo "❌ Release binary not found"
             exit 1
           fi
@@ -286,8 +285,9 @@ jobs:
           mkdir -p "$APP_DIR/MacOS"
           mkdir -p "$APP_DIR/Resources"
 
-          cp .build/arm64-apple-macosx/release/ocoreai "$APP_DIR/MacOS/"
-          cp .build/arm64-apple-macosx/release/mlx.metallib "$APP_DIR/MacOS/" \
+          cp .build/out/Products/Release/ocoreai "$APP_DIR/MacOS/"
+          cp .build/out/Products/Release/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib \
+              "$APP_DIR/MacOS/mlx.metallib" \
               2>/dev/null || echo "⚠️ No metallib"
           cp PrivacyInfo.xcprivacy "$APP_DIR/Resources/"
 
