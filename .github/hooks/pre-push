@@ -17,12 +17,16 @@ fi
 
 echo "🧪 Pre-push: tests..."
 # Swift Testing exits 1 when MLX metallib warning appears even if all tests pass.
-# grep for actual test failures instead of relying on exit code.
+# Check for actual test assertion failures, not framework noise.
+# A real failure shows "Test Suite 'All tests' failed" or "Recorded test failure".
 TEST_OUT=$(swift test 2>&1)
-TEST_FAIL=$(echo "$TEST_OUT" | grep -cE "Test.*errored|Test.*fail|with [1-9]+ failure|RECORD.*fail")
-if [ "$TEST_FAIL" -gt 0 ]; then
+# Match "All tests" summary line — if it says "passed" we're green
+ALL_PASSED=$(echo "$TEST_OUT" | grep "Test Suite 'All tests' passed" | grep -c "")
+if [ "$ALL_PASSED" -eq 1 ]; then
+  echo "✅ Pre-push: tests passed"
+else
   echo "❌ Tests failed"
-  echo "$TEST_OUT" | tail -30
+  echo "$TEST_OUT" | grep -E "Recorded test failure|Test Suite.*failed|errored" | tail -20
   exit 1
 fi
 
