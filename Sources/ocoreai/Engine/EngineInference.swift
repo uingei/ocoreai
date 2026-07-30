@@ -1410,7 +1410,7 @@ extension EnginePool {
                                     }
                                     // Append tool result message for next iteration
                                     mtpMessages.append(
-                                        Chat.Message(role: .tool, content: result)
+                                        Chat.Message.tool(result, id: toolCall.id)
                                     )
                                 }
                             }

@@ -248,6 +248,10 @@ struct SessionPoolConfig {
             // carry over tool specs and dispatch closures from the previous caller.
             pooled.session.tools = nil
             pooled.session.toolDispatch = nil
+            // synchronize KV cache before returning to pool — ensures any async GPU
+            // cache operations from the last stream are flushed. Without this, a
+            // reused pooled session could serve stale cache state.
+            await pooled.session.synchronize()
             pool[key] = pooled
 
             // LRU eviction if pool exceeds max
