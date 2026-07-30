@@ -576,40 +576,60 @@
             params.quantizedKVStart = config.quantizedKVStart
             params.kvScheme = config.kvScheme
         }
-        // Mode-driven sampling using upstream resolveSamplingParameters() (macOS 26+-safe).
-        // ocoreai SamplingMode (Codable) → MLXSamplingMode mapped locally, then delegation.
-        //
-        // Upstream does not handle minP, so the explicit-zero-wins rule is still applied
-        // here after resolved parameters take effect.
-        let mlxMode: MLXSamplingMode?
-        switch sampling.mode {
-        case .none:           mlxMode = nil
-        case .some(.greedy):  mlxMode = .greedy
-        case .some(.nucleus(let p)): mlxMode = .nucleus(p)
-        case .some(.topK(let k)):    mlxMode = .topK(k)
-        }
-        let resolved = resolveSamplingParameters(
-            mode: mlxMode,
-            clampedTemperature: sampling.temperature.map(Float.init)
-        )
-        // Apply upstream-resolved temperature/topP/topK — explicit-zero-wins wired
-        // inside resolveSamplingParameters (temp==0 → forced argmax, filters dropped).
-        resolved.apply(to: &params)
-        // Upstream does not handle minP — apply with same explicit-zero-wins semantics.
-        // When temperature is exactly zero, argmax is deterministic, skip minP too.
-        if params.temperature != 0, let minP = sampling.minP, minP > 0 {
-            params.minP = Float(minP)
-        }
-        // Legacy per-field topP/topK: if mode was nil, the caller's explicit topP/topK
-        // values were ignored by resolveSamplingParameters — restore them when safe.
-        if mlxMode == nil, params.temperature != 0 {
-            if let topP = sampling.topP, topP > 0 {
-                params.topP = Float(topP)
+        // Mode-driven sampling — macOS 27: delegate to upstream resolveSamplingParameters();
+        // macOS <27: inline equivalent since MLXFoundationModels symbols are absent.
+        #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
+            let mlxMode: MLXSamplingMode?
+            switch sampling.mode {
+            case .none:           mlxMode = nil
+            case .some(.greedy):  mlxMode = .greedy
+            case .some(.nucleus(let p)): mlxMode = .nucleus(p)
+            case .some(.topK(let k)):    mlxMode = .topK(k)
             }
-            if let topK = sampling.topK {
-                params.topK = topK
+            let resolved = resolveSamplingParameters(
+                mode: mlxMode,
+                clampedTemperature: sampling.temperature.map(Float.init)
+            )
+            resolved.apply(to: &params)
+            // minP — upstream doesn't handle it, same explicit-zero-wins semantics.
+            if params.temperature != 0, let minP = sampling.minP, minP > 0 {
+                params.minP = Float(minP)
             }
-        }
+            // Legacy per-field topP/topK restored when mode was nil.
+            if mlxMode == nil, params.temperature != 0 {
+                if let topP = sampling.topP, topP > 0 {
+                    params.topP = Float(topP)
+                }
+                if let topK = sampling.topK {
+                    params.topK = topK
+                }
+            }
+        #else
+            // macOS <27: inline resolveSamplingParameters since MLXFoundationModels is unavailable.
+            // Explicit-zero-wins rule: temperature==0 → forced argmax, filters dropped.
+            if sampling.temperature == 0 {
+                // argmax: explicit zero means deterministic output
+            } else {
+                switch sampling.mode {
+                case .greedy:
+                    break // argmax without temperature
+                case .nucleus(let p):
+                    params.topP = Float(p)
+                case .topK(let k):
+                    params.topK = k
+                case .none:
+                    if let topP = sampling.topP, topP > 0 {
+                        params.topP = Float(topP)
+                    }
+                    if let topK = sampling.topK {
+                        params.topK = topK
+                    }
+                }
+            }
+            if params.temperature != 0, let minP = sampling.minP, minP > 0 {
+                params.minP = Float(minP)
+            }
+        #endif
         if let repPen = sampling.repetitionPenalty, repPen > 0 {
             params.repetitionPenalty = Float(repPen)
         }

@@ -396,8 +396,10 @@ actor EnginePool {
             "MLX model \(modelId) \(isVlmModel ? "VLM" : "LLM") detected via isVLMModel",
         )
 
+        // Note: mlxHandleToSet declared outside the #if block so
+        // the #else branch (no FoundationModels) and L477 can both see it.
+        var mlxHandleToSet: any MLXModelHandle
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-            var mlxHandleToSet: any MLXModelHandle
             if #available(macOS 27.0, *) {
                 // Primary hub provider — MLXModelLoader defaults to "modelscope", hf: prefix means HF
                 let hubProviderStr: String = isHF ? "huggingface" : "modelscope"
