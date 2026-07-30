@@ -2,22 +2,9 @@
 // Licensed under MIT.
 /// ThinkingTelemetry — post-inference quality signal emitter for ThinkingBudget calibration.
 ///
-/// Problem: ThinkingBudget.recordQuality() is defined but never called — the
-/// adaptive budget multiplier never deviates from 1.0, making the adaptive
-/// thinking-scaffold system a no-op.
+/// Call sites: ChatHandler:L625, ChatHandler:L1070, DirectInferenceClient:L408.
+/// The quality signal feeds into ThinkingBudget.recordQuality() for adaptive calibration.
 ///
-/// This module sits between the inference completion point and ThinkingBudget,
-/// computing a heuristic quality score from observable inference signals:
-///   - Complexity vs actual output (did the model engage with the task?)
-///   - Iteration count / tool usage (multi-turn tool calls = higher engagement)
-///   - Finish reason (stop vs max_tokens vs timeout)
-///   - Error state (error = 0.0 quality)
-///
-/// The quality signal is recorded per-session, enabling adaptive calibration
-/// of the thinking budget multiplier for future requests in the same session.
-///
-/// Design: Stateless pure function — no actors, no mutable state.
-/// Call once at the end of the inference pipeline (stream or non-stream).
 
 import Logging
 
