@@ -16,13 +16,14 @@ if [ "$BUILD_OK" -eq 0 ]; then
 fi
 
 echo "🧪 Pre-push: tests..."
-TEST_LOG="$TMPDIR/.hermes-pre-push-tests.log"
-TEST_OK=$(swift test 2>&1 | tee "$TEST_LOG" | tail -1 | grep -c "passed after")
-if [ "$TEST_OK" -eq 0 ]; then
-  echo "❌ Tests failed — see full log above"
-  rm -f "$TEST_LOG"
+# Swift Testing exits 1 when MLX metallib warning appears even if all tests pass.
+# grep for actual test failures instead of relying on exit code.
+TEST_OUT=$(swift test 2>&1)
+TEST_FAIL=$(echo "$TEST_OUT" | grep -cE "Test.*errored|Test.*fail|with [1-9]+ failure|RECORD.*fail")
+if [ "$TEST_FAIL" -gt 0 ]; then
+  echo "❌ Tests failed"
+  echo "$TEST_OUT" | tail -30
   exit 1
 fi
-rm -f "$TEST_LOG"
 
 echo "✅ Pre-push: green"
