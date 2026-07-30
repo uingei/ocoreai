@@ -1253,7 +1253,11 @@ extension EnginePool {
 
                                 // Re-prepare input for each iteration (includes tool results)
                                 let mtpProcessing = UserInput.Processing(resize: config.vlmImageResize)
-                                let mtpUserInput = UserInput(prompt: .chat(mtpMessages), processing: mtpProcessing)
+                                let mtpUserInput = UserInput(
+                                    prompt: .chat(mtpMessages),
+                                    processing: mtpProcessing,
+                                    additionalContext: reasoningContext
+                                )
                                 let mtpInput = try await context.processor.prepare(input: mtpUserInput)
 
                                 // Reset per-iteration state
