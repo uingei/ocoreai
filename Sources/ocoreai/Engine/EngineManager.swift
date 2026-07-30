@@ -7,7 +7,6 @@
 ///
 /// | File                | Responsibility                             |
 /// |---------------------|--------------------------------------------|
-/// | BackendProtocol     | Backend abstraction protocol               |
 /// | EngineConfig        | EnginePoolConfig struct                    |
 /// | EngineEvents        | InferenceCancellation + InferenceEvent     |
 /// | EnginePool          | Actor orchestration + model loading        |

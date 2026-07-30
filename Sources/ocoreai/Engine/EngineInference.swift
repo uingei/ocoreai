@@ -1664,7 +1664,7 @@ extension EnginePool {
 /// When `toolDispatch` is set on ChatSession, `.toolCall` events are consumed internally
 /// and never reach `streamDetails` (ChatSession.swift L780). This actor records each
 /// intercepted call so we can re-emit them downstream after the stream completes.
-actor _InterceptedToolCallTracker: @unchecked Sendable {
+actor _InterceptedToolCallTracker {
     private var calls: [MLXLMCommon.ToolCall] = []
 
     func record(_ call: MLXLMCommon.ToolCall) {

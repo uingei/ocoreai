@@ -1,20 +1,18 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ProfilingTests.swift — L0 contract tests for PerRequestMetrics and ErrorContext
+/// ProfilingTests.swift — L0 contract tests for PerRequestMetrics
 ///
 /// Seam: Public lifecycle of PerRequestMetrics (start → track → summary)
-/// and Result.withLog error-capture behavior.
 ///
-/// These are contract tests — they verify the profiling/error-capture
-/// helpers behave correctly at their public boundary without mocking
-/// the inference engine.
+/// These are contract tests — they verify the profiling helpers behave
+/// correctly at their public boundary without mocking the inference engine.
 
 import Testing
 import Foundation
 import Logging
 @testable import ocoreai
 
-@Suite("Profiling — Metrics & Error Context")
+@Suite("Profiling — Metrics")
 struct ProfilingTests {
     
     // MARK: - PerRequestMetrics lifecycle
@@ -91,84 +89,5 @@ struct ProfilingTests {
     func testFirstTokenMsDefault() async throws {
         let metrics = PerRequestMetrics()
         #expect(metrics.firstTokenMs == 0)
-    }
-    
-    // MARK: - ErrorContext — Result.withLog
-    
-    @Test("withLog returns success value when no error")
-    func testWithLogReturnsSuccess() async throws {
-        let result = Result<Int, Error>.withLog(
-            service: "test",
-            context: "addition"
-        ) {
-            return 42
-        }
-        #expect(result == 42)
-    }
-    
-    @Test("withLog returns nil and does not crash on error")
-    func testWithLogReturnsNilOnError() async throws {
-        enum TestErr: Error { case boom }
-        let result: Int? = Result<Int, Error>.withLog(
-            service: "test",
-            context: "division"
-        ) {
-            throw TestErr.boom
-        }
-        #expect(result == nil)
-    }
-    
-    @Test("withLogAsync returns success value")
-    func testWithLogAsyncReturnsSuccess() async throws {
-        let result = await Result<Int, Error>.withLogAsync(
-            service: "test",
-            context: "fetch"
-        ) {
-            return 99
-        }
-        #expect(result == 99)
-    }
-    
-    @Test("withLogAsync returns nil on async error")
-    func testWithLogAsyncReturnsNilOnError() async throws {
-        enum TestErr: Error { case network }
-        let result: Int? = await Result<Int, Error>.withLogAsync(
-            service: "test",
-            context: "api"
-        ) {
-            throw TestErr.network
-        }
-        #expect(result == nil)
-    }
-    
-    // MARK: - Optional extensions
-    
-    @Test("mapLogResult preserves nil")
-    func testMapLogResultPreservesNil() async throws {
-        let opt: String? = nil
-        let result = opt.mapLogResult(service: "test", context: "transform") { $0.uppercased() }
-        #expect(result == nil)
-    }
-    
-    @Test("mapLogResult transforms value")
-    func testMapLogResultTransforms() async throws {
-        let opt: String? = "hello"
-        let result = opt.mapLogResult(service: "test", context: "transform") { $0.uppercased() }
-        #expect(result == "HELLO")
-    }
-    
-    @Test("flatMapLogResult double-flattens to nil")
-    func testFlatMapLogResultFlattens() async throws {
-        let opt: Int? = 5
-        // Returns Int? — flatMap should preserve the optional
-        let result = opt.flatMapLogResult(service: "test", context: "double") { Optional($0 * 2) }
-        #expect(result == 10)
-    }
-    
-    @Test("flatMapLogResult flattens inner nil")
-    func testFlatMapLogResultInnerNil() async throws {
-        let opt: Int? = 5
-        let result: String? = opt.flatMapLogResult(service: "test", context: "null") { _ in nil as String? }
-        #expect(result == nil)
     }
 }
