@@ -194,11 +194,11 @@ struct SessionPoolConfig {
                    cacheURL: cacheURL,
                    genParams: genParams,
                    speculativeDecoding: speculativeDecoding,
-                   processing: sessionProcessing
+                   processing: processing
                )
             {
-                pooled = PooledChatSession(
-                    session: restoredSession,
+                let diskPooled = PooledChatSession(
+                    session: restored,
                     lastAccessedAt: ContinuousClock.now,
                     cacheFileURL: cacheURL,
                 )

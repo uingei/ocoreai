@@ -574,7 +574,7 @@ private func streamAnthropicResponse(
                         logger.error("Stream generation error: \(errorMsg)")
                     case .toolCall:
                         break
-                    case let .reasoning(_):
+                    case .reasoning:
                         // Reasoning text flows into Anthropic text delta as normal content
                         break
                     }

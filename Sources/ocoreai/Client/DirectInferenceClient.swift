@@ -358,7 +358,7 @@ extension DirectInferenceClient {
                     }
                     accumulatedText += reasoningText
                     continuation.yield(.init(isComplete: false, reasoningContent: reasoningText))
-                case let .done(reason, tokenCount, tokPS, ptokPs, proposedDraft, acceptedDraft, passthrough):
+                case let .done(reason, tokenCount, tokPS, ptokPs, _, _, _):
                     finishReason = stopReasonToString(reason) ?? "stop"
                     // Use actual token count from upstream .info/.done — per-event
                     // counting would severely underestimate when .text spans multiple tokens
