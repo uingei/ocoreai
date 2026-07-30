@@ -36,7 +36,7 @@ let package = Package(
         // then bump .revision + test. Current pin: 2026-07-28 — guided gen comma-drop fix (#465),
         // GLM4MOE routing tests (#463), FoundationModels test gating (#478), TurboQuant KV cache,
         // Gemma 4 MTP spec decode, Qwen3.5 M-RoPE, Gemma3 surface, EOS nesting, memory leak fixes.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "a65e78f"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "b207f60"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)

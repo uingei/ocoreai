@@ -1165,9 +1165,9 @@ extension EnginePool {
                         log.warning("Dropping grammar constraint for multimodal message on model \(modelId)")
                     }
                     // MARK: - MTP Speculative Decoding Path
-                    // MTP generate() uses TextToolTokenLoopHandler internally (Evaluate.swift L1750)
-                    // — tool call detection works. Tool dispatch happens externally via AgentLoop
-                    // consuming .toolCall InferenceEvents, avoiding double-execution risk.
+                    // MTP tool dispatch loop: .toolCall detected → dispatch via toolDispatchClosure
+                    // → collect results → append tool/response messages → re-generate.
+                    // Mirrors ChatSession.swift L774-817 restart loop.
                     // VLM requests fall through to ChatSession (MTP cannot carry images/videos/audios).
                     else if self.mtpDrafterContainer != nil, mlxMessages.count > 0,
                         mlxMessages.allSatisfy({ $0.images.isEmpty && $0.audios.isEmpty && $0.videos.isEmpty }) {
@@ -1186,6 +1186,7 @@ extension EnginePool {
                             let proposedDraftTokens: Int?
                             let acceptedDraftTokens: Int?
                             let passthroughReason: String?
+                            let collectedToolCalls: [MLXLMCommon.ToolCall]
                         }
 
                         // SAFETY: mtpDrafterContainer is an actor; its contents could be
@@ -1199,6 +1200,10 @@ extension EnginePool {
                         drafterWrapper = await drafterContainer.perform { drafterCtx in
                             MTPDrafterModelWrapper(model: drafterCtx.model)
                         }
+
+                        // Snapshot toolDispatchClosure before entering nonSendable closure to avoid
+                        // Swift 6 concurrency warning (var captured in concurrently-executing code).
+                        let mtpToolDispatch = toolDispatchClosure
 
                         let mtpResult = try await handleRef.modelContainer.perform(nonSendable: drafterWrapper) { context, wrapped in
                             let drafterModel = wrapped.model
@@ -1216,7 +1221,10 @@ extension EnginePool {
                             var localPassthroughReason: String?
                             var localStoppedBySeq = false
 
-                            // MARK: - MTP Message Preparation
+                            // MARK: - MTP Tool Dispatch Loop
+                            // Accumulate tool call / result messages across iterations.
+                            // Mirrors ChatSession restart-loop: collect tool calls → dispatch →
+                            // append tool results → re-prepare input → regenerate.
                             var mtpMessages: [Chat.Message] = messagePairs.map { pair in
                                 Chat.Message(
                                     role: Chat.Message.Role(rawValue: pair.role) ?? .system,
@@ -1228,134 +1236,182 @@ extension EnginePool {
                                 mtpMessages.removeLast()
                             }
 
-                            let mtpProcessing = UserInput.Processing(resize: config.vlmImageResize)
-                            let mtpUserInput = UserInput(prompt: .chat(mtpMessages), processing: mtpProcessing)
-                            let mtpInput = try await context.processor.prepare(input: mtpUserInput)
-
+                            // MARK: - Reasoning setup (shared across loop iterations)
                             // ReasoningEventEmitter: upstream segment router for reasoning
                             // vs response. Only activate when reasoning config is present —
                             // non-reasoning models bypass emitter and pass text through.
-                            // primedInside must be computed from rendered prompt tail so the
-                            // emitter doesn't misroute the entire reasoning block to .response
-                            // on model families that prefill the opening delimiter (Qwen3, R1).
                             let reasoningConfig = context.configuration.reasoningConfig
-                            var reasonEmitter: ReasoningEventEmitter?
-                            if let rc = reasoningConfig {
-                                // Decode the last 64 tokens of the prepared input as the
-                                // rendered prompt tail — mirrors upstream reasoningPrimedInside().
-                                let tokens = mtpInput.text.tokens.asArray(Int32.self)
-                                let renderedTail = context.tokenizer.decode(
-                                    tokenIds: tokens.suffix(64).map(Int.init)
-                                )
-                                let primed = ReasoningEventEmitter.promptEndsInsideReasoning(
-                                    renderedPromptTail: renderedTail, config: rc
-                                )
-                                reasonEmitter = ReasoningEventEmitter(config: rc, primedInside: primed)
-                            }
 
-                            let mtpGenStream = try MLXLMCommon.generate(
-                                input: mtpInput,
-                                parameters: genParams,
-                                context: context,
-                                mtpDrafter: drafterModel,
-                                blockSize: 4
-                            )
-
-                            for try await generation in mtpGenStream {
+                            // Tool dispatch loop: max 8 iterations prevents infinite loops
+                            // from models that keep requesting tools.
+                            var toolCallDetected = false
+                            for _ in 0..<8 {
                                 if Task.isCancelled || cancellation.isCancelled {
                                     localStoppedBySeq = true
                                     break
                                 }
-                                switch generation {
-                                case let .chunk(text):
-                                    if !localFirstToken {
-                                        metrics.firstTokenMs = metrics.overallMs
-                                        localFirstToken = true
+
+                                // Re-prepare input for each iteration (includes tool results)
+                                let mtpProcessing = UserInput.Processing(resize: config.vlmImageResize)
+                                let mtpUserInput = UserInput(prompt: .chat(mtpMessages), processing: mtpProcessing)
+                                let mtpInput = try await context.processor.prepare(input: mtpUserInput)
+
+                                // Reset per-iteration state
+                                toolCallDetected = false
+                                var iterationToolCalls: [MLXLMCommon.ToolCall] = []
+
+                                // Reset reason emitter per iteration — compute primedInside
+                                // from rendered prompt tail so it doesn't misroute reasoning blocks.
+                                var reasonEmitter: ReasoningEventEmitter?
+                                if let rc = reasoningConfig {
+                                    let tokens = mtpInput.text.tokens.asArray(Int32.self)
+                                    let renderedTail = context.tokenizer.decode(
+                                        tokenIds: tokens.suffix(64).map(Int.init)
+                                    )
+                                    let primed = ReasoningEventEmitter.promptEndsInsideReasoning(
+                                        renderedPromptTail: renderedTail, config: rc
+                                    )
+                                    reasonEmitter = ReasoningEventEmitter(config: rc, primedInside: primed)
+                                }
+
+                                let mtpGenStream = try MLXLMCommon.generate(
+                                    input: mtpInput,
+                                    parameters: genParams,
+                                    context: context,
+                                    mtpDrafter: drafterModel,
+                                    blockSize: 4
+                                )
+
+                                for try await generation in mtpGenStream {
+                                    if Task.isCancelled || cancellation.isCancelled {
+                                        localStoppedBySeq = true
+                                        break
                                     }
-                                    metrics.incrementGenerated()
-                                    // If reasoning config is available, route through emitter.
-                                    // Otherwise pass text through directly as .text.
-                                    if reasonEmitter != nil {
-                                        for segment in reasonEmitter!.process(text) {
-                                            switch segment {
-                                            case .reasoning(let segmentText):
-                                                localAccumulatedText += segmentText
-                                                if requestStopSequences.isEmpty {
-                                                    continuation.yield(.init(kind: .reasoning(segmentText)))
-                                                } else if let match = requestStopSequences.first(where: { localAccumulatedText.hasSuffix($0) }) {
-                                                    let trimmed = String(localAccumulatedText.prefix(localAccumulatedText.count - match.count))
-                                                    if !trimmed.isEmpty {
+                                    switch generation {
+                                    case let .chunk(text):
+                                        if !localFirstToken {
+                                            metrics.firstTokenMs = metrics.overallMs
+                                            localFirstToken = true
+                                        }
+                                        metrics.incrementGenerated()
+                                        // If reasoning config is available, route through emitter.
+                                        // Otherwise pass text through directly as .text.
+                                        if reasonEmitter != nil {
+                                            for segment in reasonEmitter!.process(text) {
+                                                switch segment {
+                                                case .reasoning(let segmentText):
+                                                    localAccumulatedText += segmentText
+                                                    if requestStopSequences.isEmpty {
+                                                        continuation.yield(.init(kind: .reasoning(segmentText)))
+                                                    } else if let match = requestStopSequences.first(where: { localAccumulatedText.hasSuffix($0) }) {
+                                                        let trimmed = String(localAccumulatedText.prefix(localAccumulatedText.count - match.count))
+                                                        if !trimmed.isEmpty {
+                                                            continuation.yield(.init(kind: .reasoning(segmentText)))
+                                                        }
+                                                        let mtpTokPerSec = (localTokenCount ?? metrics.generatedTokenCount) > 0
+                                                            ? Double(localTokenCount ?? metrics.generatedTokenCount)
+                                                              / (Double(metrics.overallMs) / 1000.0)
+                                                            : nil
+                                                        continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount, tokPerSec: mtpTokPerSec)))
+                                                        localStoppedBySeq = true
+                                                        break
+                                                    } else {
                                                         continuation.yield(.init(kind: .reasoning(segmentText)))
                                                     }
-                                                    let mtpTokPerSec = (localTokenCount ?? metrics.generatedTokenCount) > 0
-                                                        ? Double(localTokenCount ?? metrics.generatedTokenCount)
-                                                          / (Double(metrics.overallMs) / 1000.0)
-                                                        : nil
-                                                    continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount, tokPerSec: mtpTokPerSec)))
-                                                    localStoppedBySeq = true
-                                                    break
-                                                } else {
-                                                    continuation.yield(.init(kind: .reasoning(segmentText)))
-                                                }
-                                            case .response(let segmentText):
-                                                localAccumulatedText += segmentText
-                                                if requestStopSequences.isEmpty {
-                                                    continuation.yield(.init(kind: .text(segmentText)))
-                                                } else if let match = requestStopSequences.first(where: { localAccumulatedText.hasSuffix($0) }) {
-                                                    let trimmed = String(localAccumulatedText.prefix(localAccumulatedText.count - match.count))
-                                                    if !trimmed.isEmpty {
-                                                        continuation.yield(.init(kind: .text(trimmed)))
+                                                case .response(let segmentText):
+                                                    localAccumulatedText += segmentText
+                                                    if requestStopSequences.isEmpty {
+                                                        continuation.yield(.init(kind: .text(segmentText)))
+                                                    } else if let match = requestStopSequences.first(where: { localAccumulatedText.hasSuffix($0) }) {
+                                                        let trimmed = String(localAccumulatedText.prefix(localAccumulatedText.count - match.count))
+                                                        if !trimmed.isEmpty {
+                                                            continuation.yield(.init(kind: .text(trimmed)))
+                                                        }
+                                                        let mtpTokPerSec = (localTokenCount ?? metrics.generatedTokenCount) > 0
+                                                            ? Double(localTokenCount ?? metrics.generatedTokenCount)
+                                                              / (Double(metrics.overallMs) / 1000.0)
+                                                            : nil
+                                                        continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount, tokPerSec: mtpTokPerSec)))
+                                                        localStoppedBySeq = true
+                                                        break
+                                                    } else {
+                                                        continuation.yield(.init(kind: .text(segmentText)))
                                                     }
-                                                    let mtpTokPerSec = (localTokenCount ?? metrics.generatedTokenCount) > 0
-                                                        ? Double(localTokenCount ?? metrics.generatedTokenCount)
-                                                          / (Double(metrics.overallMs) / 1000.0)
-                                                        : nil
-                                                    continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount, tokPerSec: mtpTokPerSec)))
-                                                    localStoppedBySeq = true
-                                                    break
-                                                } else {
-                                                    continuation.yield(.init(kind: .text(segmentText)))
                                                 }
                                             }
-                                        }
-                                    } else {
-                                        // No reasoning config — pass through as plain text
-                                        localAccumulatedText += text
-                                        if requestStopSequences.isEmpty {
-                                            continuation.yield(.init(kind: .text(text)))
-                                        } else if let match = requestStopSequences.first(where: { localAccumulatedText.hasSuffix($0) }) {
-                                            let trimmed = String(localAccumulatedText.prefix(localAccumulatedText.count - match.count))
-                                            if !trimmed.isEmpty {
-                                                continuation.yield(.init(kind: .text(trimmed)))
-                                            }
-                                            let mtpTokPerSec = (localTokenCount ?? metrics.generatedTokenCount) > 0
-                                                ? Double(localTokenCount ?? metrics.generatedTokenCount)
-                                                  / (Double(metrics.overallMs) / 1000.0)
-                                                : nil
-                                            continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount, tokPerSec: mtpTokPerSec)))
-                                            localStoppedBySeq = true
-                                            break
                                         } else {
-                                            continuation.yield(.init(kind: .text(text)))
+                                            // No reasoning config — pass through as plain text
+                                            localAccumulatedText += text
+                                            if requestStopSequences.isEmpty {
+                                                continuation.yield(.init(kind: .text(text)))
+                                            } else if let match = requestStopSequences.first(where: { localAccumulatedText.hasSuffix($0) }) {
+                                                let trimmed = String(localAccumulatedText.prefix(localAccumulatedText.count - match.count))
+                                                if !trimmed.isEmpty {
+                                                    continuation.yield(.init(kind: .text(trimmed)))
+                                                }
+                                                let mtpTokPerSec = (localTokenCount ?? metrics.generatedTokenCount) > 0
+                                                    ? Double(localTokenCount ?? metrics.generatedTokenCount)
+                                                      / (Double(metrics.overallMs) / 1000.0)
+                                                    : nil
+                                                continuation.yield(.init(kind: .done(StopReason.stopSequence, tokenCount: localTokenCount ?? metrics.generatedTokenCount, tokPerSec: mtpTokPerSec)))
+                                                localStoppedBySeq = true
+                                                break
+                                            } else {
+                                                continuation.yield(.init(kind: .text(text)))
+                                            }
                                         }
+                                    case let .info(completionInfo):
+                                        localTokenCount = completionInfo.generationTokenCount
+                                        // Capture both throughput metrics from upstream GenerateCompletionInfo
+                                        localPromptTokPerSec = completionInfo.promptTokensPerSecond
+                                        localGenerationTokPerSec = completionInfo.tokensPerSecond
+                                        localStopReason = switch completionInfo.stopReason {
+                                        case .stop: .eos
+                                        case .length: .maxTokens
+                                        case .cancelled: .cancelled
+                                        }
+                                        // Capture MTP speculative decoding metrics from upstream
+                                        localProposedDraftTokens = completionInfo.proposedDraftTokens
+                                        localAcceptedDraftTokens = completionInfo.acceptedDraftTokens
+                                        localPassthroughReason = completionInfo.passthroughReason
+                                    case let .toolCall(mlxTC):
+                                        // Collect tool calls for dispatch after iteration
+                                        iterationToolCalls.append(mlxTC)
+                                        let tc = InferenceEvent.mlxToolCall(from: mlxTC)
+                                        continuation.yield(.init(kind: .toolCall(tc)))
+                                        toolCallDetected = true
                                     }
-                                case let .info(completionInfo):
-                                    localTokenCount = completionInfo.generationTokenCount
-                                    // Capture both throughput metrics from upstream GenerateCompletionInfo
-                                    localPromptTokPerSec = completionInfo.promptTokensPerSecond
-                                    localGenerationTokPerSec = completionInfo.tokensPerSecond
-                                    localStopReason = switch completionInfo.stopReason {
-                                    case .stop: .eos
-                                    case .length: .maxTokens
-                                    case .cancelled: .cancelled
+                                }
+
+                                // If no tool calls were detected, or we hit a stop condition, exit the loop
+                                guard toolCallDetected && !localStoppedBySeq else { break }
+
+                                // Dispatch collected tool calls and accumulate results
+                                for toolCall in iterationToolCalls {
+                                    // Use toolDispatchClosure if available (dispatches via ToolRegistry)
+                                    // Otherwise dispatch inline
+                                    let result: String
+                                    do {
+                                        if let dispatch = mtpToolDispatch {
+                                            result = try await dispatch(toolCall)
+                                        } else {
+                                            // Build JSON arguments string for inline dispatch
+                                            let argsDict = toolCall.function.arguments.mapValues { $0.anyValue }
+                                            let jsonEncoded = try JSONSerialization.data(
+                                                withJSONObject: argsDict
+                                            )
+                                            let argsString = String(decoding: jsonEncoded, as: UTF8.self)
+                                            result = try await toolRegistry?.call(toolCall.function.name, arguments: argsString)
+                                                ?? "[\(toolCall.function.name): tool registry not available]"
+                                        }
+                                    } catch {
+                                        result = "[\(toolCall.function.name): \(error.localizedDescription)]"
+                                        log.warning("MTP tool dispatch error for \(toolCall.function.name): \(error)")
                                     }
-                                    // Capture MTP speculative decoding metrics from upstream
-                                    localProposedDraftTokens = completionInfo.proposedDraftTokens
-                                    localAcceptedDraftTokens = completionInfo.acceptedDraftTokens
-                                    localPassthroughReason = completionInfo.passthroughReason
-                                case let .toolCall(mlxTC):
-                                    let tc = InferenceEvent.mlxToolCall(from: mlxTC)
-                                    continuation.yield(.init(kind: .toolCall(tc)))
+                                    // Append tool result message for next iteration
+                                    mtpMessages.append(
+                                        Chat.Message(role: .tool, content: result)
+                                    )
                                 }
                             }
 
@@ -1368,7 +1424,8 @@ extension EnginePool {
                                 promptTokPerSec: localPromptTokPerSec,
                                 proposedDraftTokens: localProposedDraftTokens,
                                 acceptedDraftTokens: localAcceptedDraftTokens,
-                                passthroughReason: localPassthroughReason
+                                passthroughReason: localPassthroughReason,
+                                collectedToolCalls: []
                             )
                         }
 
