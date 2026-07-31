@@ -150,7 +150,7 @@ jobs:
 
 
 
-      - name: Build release first (generates metallib for later test step)
+      - name: Build release first (generates metallib)
         if: ${{ matrix.run_tests == true }}
         run: |
           set -euo pipefail
@@ -159,34 +159,29 @@ jobs:
           echo "🔨 Building release for MLX metallib..."
           swift build -c release
 
-      - name: Copy metallib to bundle Resources
-        if: ${{ matrix.run_tests == true }}
-        run: |
-          set -euo pipefail
-          # MLX loads metallib from bundle Resources/, not from .build/artifacts/
-          # → Check if debug bundle already has it (should from debug SPM build)
-          BUNDLE_RESOURCES=".build/out/Products/Debug/mlx-swift_Cmlx.bundle/Contents/Resources"
-          if [ -f "$BUNDLE_RESOURCES/default.metallib" ]; then
-            echo "✅ default.metallib already in bundle Resources"
-            exit 0
-          fi
-          echo "⚠️ default.metallib missing from bundle — searching .build for fallback..."
-          # Use a subshell to avoid pipefail SIGPIPE on "find | head"
-          METALLIB_SRC=$( (find .build -name 'default.metallib' -type f 2>/dev/null | head -1) || true )
-          if [ -n "$METALLIB_SRC" ]; then
-            mkdir -p "$BUNDLE_RESOURCES"
-            cp "$METALLIB_SRC" "$BUNDLE_RESOURCES/default.metallib"
-            echo "✅ Copied: $METALLIB_SRC → $BUNDLE_RESOURCES/"
-          else
-            echo "⚠️ No metallib found anywhere — MLX will fall back to CPU"
-          fi
-
-      - name: Run tests with coverage
+      - name: Run tests with coverage (metallib symlinked)
         if: ${{ matrix.run_tests == true }}
         run: |
           set -euo pipefail
           export SWIFT_BUILD_NUM_WORKERS=2
           export SWIFTC_SCAN_FOR_DEPS=0
+          # swift test recompiles Debug and overwrites bundle artifacts.
+          # Use symlink so even if the directory is recreated, it resolves to
+          # the release metallib that won't be touched.
+          link_metallib() {
+            local dst_dir="$1"
+            local src="$2"
+            local target="$dst_dir/default.metallib"
+            mkdir -p "$dst_dir"
+            rm -f "$target"
+            ln -s "$src" "$target"
+            echo "✅ Symlinked metallib → $target"
+          }
+          RELEASE_METALLIB=".build/out/Products/Release/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib"
+          DEBUG_RESOURCES=".build/out/Products/Debug/mlx-swift_Cmlx.bundle/Contents/Resources"
+          TEST_RESOURCES=".build/out/Products/Debug/ocoreaiTests.xctest/Contents/Resources/mlx-swift_Cmlx.bundle/Contents/Resources"
+          link_metallib "$DEBUG_RESOURCES" "$RELEASE_METALLIB"
+          link_metallib "$TEST_RESOURCES" "$RELEASE_METALLIB"
           echo "🧪 Running tests with coverage..."
           swift test --enable-code-coverage
           echo "✅ All tests passed"

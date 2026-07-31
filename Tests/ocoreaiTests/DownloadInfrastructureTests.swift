@@ -156,7 +156,7 @@ struct DownloadSemaphoreTests {
     case .success(let value):
       #expect(value == false)
     case .failure:
-      #expect(false, "Task should not fail")
+      #expect(Bool(false), "Task should not fail")
     }
     // Completed relatively quickly (< 2s means cancellation was honored,
     // not that we waited for a blocker to release)

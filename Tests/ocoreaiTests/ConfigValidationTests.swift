@@ -21,7 +21,7 @@ struct ConfigValidationTests {
 	func serverPortOutOfRange() throws {
 		do {
 			try ServerConfig(port: 0).validate()
-			#expect(false, "Port 0 should be invalid")
+			#expect(Bool(false), "Port 0 should be invalid")
 		} catch {
 			let desc = (error as? LocalizedError)?.errorDescription ?? ""
 			#expect(desc.contains("port") || !desc.isEmpty)
@@ -29,7 +29,7 @@ struct ConfigValidationTests {
 
 		do {
 			try ServerConfig(port: 70000).validate()
-			#expect(false, "Port 70000 should be invalid")
+			#expect(Bool(false), "Port 70000 should be invalid")
 		} catch {
 			let desc = (error as? LocalizedError)?.errorDescription ?? ""
 			#expect(desc.contains("port") || !desc.isEmpty)
@@ -53,7 +53,7 @@ struct ConfigValidationTests {
 	func backendEmptyPreference() throws {
 		do {
 			try BackendConfig(preference: []).validate()
-			#expect(false, "Empty preference should be invalid")
+			#expect(Bool(false), "Empty preference should be invalid")
 		} catch {
 			let desc = (error as? LocalizedError)?.errorDescription ?? ""
 			#expect(desc.contains("preference") || !desc.isEmpty)
@@ -64,7 +64,7 @@ struct ConfigValidationTests {
 	func backendZeroSessions() throws {
 		do {
 			try BackendConfig(preference: ["mlx"], maxConcurrentSessions: 0).validate()
-			#expect(false, "Zero sessions should be invalid")
+			#expect(Bool(false), "Zero sessions should be invalid")
 		} catch {
 			let desc = (error as? LocalizedError)?.errorDescription ?? ""
 			#expect(desc.contains("session") || !desc.isEmpty)
@@ -82,13 +82,13 @@ struct ConfigValidationTests {
 	func kvBitsOutOfRange() throws {
 		do {
 			try KVCacheQuantizationConfig(enabled: true, bits: 2).validate()
-			#expect(false)
+			#expect(Bool(false))
 		} catch {
 			_ = error
 		}
 		do {
 			try KVCacheQuantizationConfig(enabled: true, bits: 16).validate()
-			#expect(false)
+			#expect(Bool(false))
 		} catch {
 			_ = error
 		}
@@ -105,7 +105,7 @@ struct ConfigValidationTests {
 	func kvQuantZeroGroupSize() throws {
 		do {
 			try KVCacheQuantizationConfig(groupSize: 0).validate()
-			#expect(false)
+			#expect(Bool(false))
 		} catch {
 			_ = error
 		}
@@ -115,7 +115,7 @@ struct ConfigValidationTests {
 	func kvQuantNegativeStart() throws {
 		do {
 			try KVCacheQuantizationConfig(quantizedKVStart: -1).validate()
-			#expect(false)
+			#expect(Bool(false))
 		} catch {
 			_ = error
 		}
@@ -137,7 +137,7 @@ struct ConfigValidationTests {
 			config.categoryModes[cat] = "disabled"
 			do {
 				try config.validate()
-				#expect(false, "\(cat) disabled should fail")
+				#expect(Bool(false), "\(cat) disabled should fail")
 			} catch {
 				_ = error
 			}
@@ -164,7 +164,7 @@ struct ConfigValidationTests {
 	func memoryZeroTTL() throws {
 		do {
 			try MemoryConfig(sessionTTL: 0).validate()
-			#expect(false)
+			#expect(Bool(false))
 		} catch {
 			_ = error
 		}
@@ -172,8 +172,8 @@ struct ConfigValidationTests {
 
 	@Test("memoryRecallResultsOutOfRange")
 	func memoryRecallResultsOutOfRange() throws {
-		do { try MemoryConfig(maxRecallResults: 0).validate(); #expect(false) } catch { _ = error }
-		do { try MemoryConfig(maxRecallResults: 21).validate(); #expect(false) } catch { _ = error }
+		do { try MemoryConfig(maxRecallResults: 0).validate(); #expect(Bool(false)) } catch { _ = error }
+		do { try MemoryConfig(maxRecallResults: 21).validate(); #expect(Bool(false)) } catch { _ = error }
 		try MemoryConfig(maxRecallResults: 1).validate()
 		try MemoryConfig(maxRecallResults: 20).validate()
 	}
@@ -191,7 +191,7 @@ struct ConfigValidationTests {
 		config.server.port = 0
 		do {
 			try config.validate()
-			#expect(false)
+			#expect(Bool(false))
 		} catch {
 			_ = error
 		}

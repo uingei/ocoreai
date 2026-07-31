@@ -86,7 +86,7 @@ struct MiddlewareChainTests {
 		defer { cleanupE2E(dbs) }
 		try await app.test(.router) { client in
 			let buf = try Self.jsonBody(["model": "x", "messages": [["role": "user", "content": "hi"]]])
-			var h: HTTPFields = [.contentType: "application/json"]
+			let h: HTTPFields = [.contentType: "application/json"]
 			try await client.execute(uri: "/v1/chat/completions", method: .post, headers: h, body: buf) { r in
 				#expect(r.status == .unauthorized || r.status == .forbidden, "got \(r.status)")
 			}
@@ -147,7 +147,7 @@ struct MiddlewareChainTests {
 		defer { cleanupE2E(dbs) }
 		try await app.test(.router) { client in
 			let buf = try Self.jsonBody(["model": "x", "messages": [["role": "user", "content": "hi"]]])
-			var h: HTTPFields = [.contentType: "application/json"]
+			let h: HTTPFields = [.contentType: "application/json"]
 			try await client.execute(uri: "/v1/chat/completions?api_key=qkey", method: .post, headers: h, body: buf) { r in
 				#expect(r.status != .unauthorized, "auth fail: \(r.status)")
 			}
@@ -174,7 +174,7 @@ struct MiddlewareChainTests {
 		defer { cleanupE2E(dbs) }
 		try await app.test(.router) { client in
 			let buf = try Self.jsonBody(["model": "x", "messages": []])
-			var h: HTTPFields = [.contentType: "application/json"]
+			let h: HTTPFields = [.contentType: "application/json"]
 			try await client.execute(uri: "/v1/chat/completions", method: .post, headers: h, body: buf) { r in
 				#expect(r.status == .badRequest, "auth off, got \(r.status)")
 			}

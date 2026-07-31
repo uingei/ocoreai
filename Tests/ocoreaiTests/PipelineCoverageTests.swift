@@ -16,7 +16,7 @@ struct ModelScopeParseTests {
 
   @MainActor
   private func makeClient() async -> ModelScopeSearchClient {
-    await ModelScopeSearchClient()
+    ModelScopeSearchClient()
   }
 
   // ---- Nested Data envelope (Production) ----
