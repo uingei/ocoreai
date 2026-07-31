@@ -1,17 +1,17 @@
 # ocoreai — Self-Contained AI Agent OS
 
-**macOS-native AI agent platform** — Dual-channel on-device inference (MLX Metal GPU + CoreAI), prefix caching, KV cache quantization, speculative decoding (MTP + drafter), agent loop with tool use, skill system, session memory, and multimodal I/O, all in one binary. Built with Swift 6.3, Hummingbird 2.25, SwiftUI.
+**macOS-native AI agent platform** — Dual-channel on-device inference (MLX Metal GPU + CoreAI), prefix caching, KV cache quantization, speculative decoding (MTP + drafter), agent loop with tool use, skill system, session memory, and multimodal I/O, all in one binary. Built with Swift 6.4, Hummingbird 2.25, SwiftUI.
 
-[![Swift 6.3](https://img.shields.io/badge/Swift-6.3-orange.svg)](https://www.swift.org)
+[![Swift 6.4](https://img.shields.io/badge/Swift-6.4-orange.svg)](https://www.swift.org)
 [![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue.svg)](https://www.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests: 703](https://img.shields.io/badge/Tests-703%2F703-brightgreen)](Tests/)
+[![Tests: 726](https://img.shields.io/badge/Tests-726%2F726-brightgreen)](Tests/)
 
 ---
 
 ### Quick Start
 
-**macOS 15+ · Apple Silicon · Swift 6.3 · Pure SwiftPM**
+**macOS 15+ · Apple Silicon · Swift 6.4 · Pure SwiftPM**
 
 ```bash
 git clone https://github.com/uingei/ocoreai.git && cd ocoreai
@@ -32,7 +32,7 @@ Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
 ocoreai unifies inference engine, agent orchestration, and persistence in one process:
 
-- **Dual inference backends** — MLX (Metal GPU, default) + CoreAI (1,115 LOC, dynamic KV cache, TokenHistory prefix caching, cancel-and-replace via `GenerationToken` + `Mutex` guard). Zero network calls — inference runs on your Mac.
+- **Dual inference backends** — MLX (Metal GPU, default) + CoreAI (1,377 LOC, dynamic KV cache, TokenHistory prefix caching, cancel-and-replace via `GenerationToken` + `Mutex` guard). Zero network calls — inference runs on your Mac.
 - **Adaptive hardware routing** — Real-time HardwareRouter dispatches requests to GPU / ANE / CPU based on thermal pressure, memory headroom, and GPU utilization. AdmissionGate enforces a 3-tier admission policy (allow → ANE-only → reject) with configurable abort margin.
 - **Wired Memory GPU isolation** — hardware-level GPU memory bounds prevent OOM during inference.
 - **Thinking budget** — Adaptive token budget allocation driven by ComplexityAnalyzer scoring (length, intent, history dimensions) on Bridge Path. Fast Path (desktop GUI) has ThinkingBudget calibration loop wired but with simplified complexity input (constant 0.5 — no upstream ComplexityAnalyzer).
@@ -190,11 +190,13 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 - **AdaptiveThreshold** — EMA-based health monitoring with dynamic threshold adjustment.
 - **StructuredLogger** — Structured audit trail, log file rotation, macOS Keychain integration.
 - **Global crash handler** — On uncaught exception or POSIX signal (segv/abort/bus), writes structured crash log to `~/Library/Application Support/ocoreai/logs/`, then exits.
-- **Concurrent safety** — Swift 6 strict concurrency, actor isolation on scheduler/tool registry/inference engine. All `@unchecked Sendable` justified with concurrency comments (10/10 sites).
+- **Concurrent safety** — Swift 6 strict concurrency, actor isolation on scheduler/tool registry/inference engine. All 33 `@unchecked Sendable` declarations justified with concurrency comments.
 
 ---
 
 ### Status
+
+> 📋 **Code-only status** — All entries below reflect **static code audit** results (grep/compile/availability-guard analysis). Green checkmarks mean "implemented in source code" — they do **not** guarantee runtime stability or end-to-end verified behavior.
 
 | Component | Status |
 |-----------|--------|
@@ -208,18 +210,18 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 | Engine lifecycle state machine + circuit breaker | ✅ |
 | ThinkingBudget (adaptive reasoning depth) | ⚠️ Bridge Path: full ComplexityAnalyzer. Fast Path: calibration loop wired with simplified complexity input |
 | Speculative decoding (traditional drafter mode) | ✅ |
-| Speculative decoding (MTP mode) | ⚠️ `createSpeculativeConfig()` returns nil — MTP SDC iterator not yet wired |
+| Speculative decoding (MTP mode) | ✅ Wired — `createSpeculativeConfig()` returns nil by design; MTP uses its own inference path via `generate(mtpDrafter:, blockSize:)` |
 | SSE streaming + non-stream | ✅ |
 | OpenAI + Anthropic compatible API | ✅ |
 | Agent loop with tool use | ✅ |
 | Tool Registry (actor-isolated) | ✅ |
 | SQLite session persistence + FTS5 | ✅ |
 | Skill system + prompt builder | ✅ |
-| MCP bridge | ⚠️ HTTP endpoint only — no desktop UI entry point |
+| MCP bridge | ✅ Code: stdio transport + HTTP JSON-RPC + SystemView desktop |
 | Multimodal I/O (camera/screen/OCR/STT) | ⚠️ Wired; camera/screen off by default, STT requires mic permission |
 | TTS (speech output) | ⚠️ Wired; lazy-triggered via `speakerEnabled` toggle (off by default) |
 | Self Correction Pipeline | ⚠️ Bridge Path only — requires explicit `selfCorrection: true`; no UI toggle |
-| i18n | ⚠️ framework complete; only en shipped, 5 locales defined but untranslated |
+| i18n | ⚠️ Framework complete; en + zh-Hans shipped, 5 locales defined but untranslated |
 | SwiftUI dashboard UI | ✅ |
 | Self-adaptation (EMA health) | ✅ |
 | Profiling (ErrorContext + TimingHooks) | ✅ |
@@ -228,11 +230,12 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 
 ### Build Info
 
-- Swift 6.3 · SwiftUI · Hummingbird 2.25
-- 137 Swift source files, ~39,713 LOC
+- Swift 6.4 · SwiftUI · Hummingbird 2.25
+- 133 Swift source files, ~39,320 LOC
 - macOS 15+ · Apple Silicon only
-- Tests: 52 test files across 124 suites
+- Tests: 49 test files across 128 suites, 726 @Test cases
 - Build: 0 warnings, 0 errors
+- Development: Built entirely by **qwen3.6:27b-mtp-q4_K_M** — self-contained AI agent with no external tool use. All architecture, code, and tests authored autonomously.
 
 ---
 

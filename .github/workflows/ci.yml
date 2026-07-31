@@ -150,14 +150,22 @@ jobs:
 
 
 
-      - name: Build release first (generates metallib)
+      # SwiftPM cannot build Metal shaders — xcodebuild must be used to produce
+      # the default.metallib bundle (mlx-swift README: "SwiftPM command line
+      # cannot build the Metal shaders so the ultimate build has to be done via Xcode")
+      - name: Build metallib via xcodebuild
         if: ${{ matrix.run_tests == true }}
         run: |
           set -euo pipefail
-          export SWIFT_BUILD_NUM_WORKERS=2
-          export SWIFTC_SCAN_FOR_DEPS=0
-          echo "🔨 Building release for MLX metallib..."
-          swift build -c release
+          echo "🔨 Building MLX metallib via xcodebuild (SPM cannot build Metal shaders)..."
+          xcodebuild build \
+            -scheme ocoreai-Package \
+            -destination 'platform=macOS' \
+            -derivedDataPath .build/xcodebuild \
+            ONLY_ACTIVE_ARCH=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            | tee xcodebuild.log
+          echo "✅ xcodebuild complete"
 
       - name: Build debug + copy metallib + run tests
         if: ${{ matrix.run_tests == true }}
@@ -165,21 +173,22 @@ jobs:
           set -euo pipefail
           export SWIFT_BUILD_NUM_WORKERS=2
           export SWIFTC_SCAN_FOR_DEPS=0
-          # Strategy: separate compile from test execution so metallib survives.
-          # 1) swift build --build-tests  -> compile debug + test targets
-          # 2) copy release metallib into debug bundle Resources
-          # 3) swift test --skip-build   -> run tests without re-compiling
-          METALLIB_SRC=".build/out/Products/Release/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib"
-          if [ ! -f "$METALLIB_SRC" ]; then
-            echo "❌ Release metallib not found — did release build fail?"
+          # Locate metallib produced by xcodebuild above
+          METALLIB=$(find .build/xcodebuild -name 'default.metallib' -type f 2>/dev/null | head -1)
+          if [ -z "$METALLIB" ]; then
+            echo "❌ default.metallib not found after xcodebuild"
             exit 1
           fi
+          echo "📦 Found metallib at: $METALLIB"
+          # Phase 1: compile debug + test targets
           echo "🔧 Building debug + tests..."
           swift build --build-tests
+          # Phase 2: copy metallib into debug bundle Resources
           echo "📦 Copying metallib into debug bundle..."
-          cp "$METALLIB_SRC" ".build/out/Products/Debug/mlx-swift_Cmlx.bundle/Contents/Resources/"
+          cp "$METALLIB" ".build/out/Products/Debug/mlx-swift_Cmlx.bundle/Contents/Resources/"
           mkdir -p ".build/out/Products/Debug/ocoreaiTests.xctest/Contents/Resources/mlx-swift_Cmlx.bundle/Contents/Resources/"
-          cp "$METALLIB_SRC" ".build/out/Products/Debug/ocoreaiTests.xctest/Contents/Resources/mlx-swift_Cmlx.bundle/Contents/Resources/"
+          cp "$METALLIB" ".build/out/Products/Debug/ocoreaiTests.xctest/Contents/Resources/mlx-swift_Cmlx.bundle/Contents/Resources/"
+          # Phase 3: run tests without recompilation
           echo "🧪 Running tests with coverage..."
           swift test --skip-build --enable-code-coverage
           echo "✅ All tests passed"

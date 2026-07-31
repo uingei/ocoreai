@@ -1,17 +1,17 @@
-# ocoreai — Self-Contained AI Agent OS
+# ocoreai — 自包含 AI Agent 操作系统
 
-**macOS 原生 AI Agent 平台** — 双通道端侧推理（MLX Metal GPU + CoreAI）、Prefix Cache、KV Cache 量化、推测解码（MTP + Drafter）、Agent 循环与工具调用、技能系统、会话记忆、多模态 I/O，一体成型。基于 Swift 6.3、Hummingbird 2.25、SwiftUI 构建。
+**macOS 原生 AI Agent 平台** — 双通道端侧推理（MLX Metal GPU + CoreAI）、Prefix Cache、KV Cache 量化、推测解码（MTP + Drafter）、Agent 循环与工具调用、技能系统、会话记忆、多模态 I/O，一体成型。基于 Swift 6.4、Hummingbird 2.25、SwiftUI 构建。
 
-[![Swift 6.3](https://img.shields.io/badge/Swift-6.3-orange.svg)](https://www.swift.org)
+[![Swift 6.4](https://img.shields.io/badge/Swift-6.4-orange.svg)](https://www.swift.org)
 [![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue.svg)](https://www.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests: 703](https://img.shields.io/badge/Tests-703%2F703-brightgreen)](Tests/)
+[![Tests: 726](https://img.shields.io/badge/Tests-726%2F726-brightgreen)](Tests/)
 
 ---
 
 ### 快速开始
 
-**macOS 15+ · Apple Silicon · Swift 6.3 · 纯 SwiftPM**
+**macOS 15+ · Apple Silicon · Swift 6.4 · 纯 SwiftPM**
 
 ```bash
 git clone https://github.com/uingei/ocoreai.git && cd ocoreai
@@ -32,7 +32,7 @@ swift run
 
 ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中：
 
-- **双通道推理引擎** — MLX（Metal GPU，默认）+ CoreAI（1,115 LOC，动态 KV Cache、TokenHistory prefix caching、GenerationToken + Mutex cancel-and-replace）。零网络调用 — 推理在你的 Mac 上运行。
+- **双通道推理引擎** — MLX（Metal GPU，默认）+ CoreAI（1,377 LOC，动态 KV Cache、TokenHistory prefix caching、GenerationToken + Mutex cancel-and-replace）。零网络调用 — 推理在你的 Mac 上运行。
 - **自适应硬件路由** — HardwareRouter 根据热压力、内存余量、GPU 利用率实时将请求分发至 GPU / ANE / CPU。AdmissionGate 执行三级准入策略（允许 → 仅限 ANE → 拒绝），支持可配置 abort margin。
 - **Wired Memory 显存硬隔离** — 硬件级显存边界，防止推理 OOM。
 - **Thinking Budget（推理预算）** — 基于 ComplexityAnalyzer（长度、意图、历史三维度评分）的自适应 token 预算分配。Bridge Path 接入完整 ComplexityAnalyzer；Fast Path（桌面 GUI）已接入 ThinkingBudget 校准循环，使用简化复杂度输入（固定 0.5）。
@@ -189,11 +189,13 @@ memory:
 - **AdaptiveThreshold** — 基于 EMA 的健康监控与动态阈值调整。
 - **StructuredLogger** — 结构化审计跟踪、日志轮转、macOS Keychain 集成。
 - **全局崩溃处理** — 未捕获异常或 POSIX 信号（segv/abort/bus）时，写入结构化崩溃日志到 `~/Library/Application Support/ocoreai/logs/` 后退出。
-- **并发安全** — Swift 6 严格并发，scheduler/tool registry/inference engine 的 actor 隔离。所有 `@unchecked Sendable` 均附并发理由注释（10/10 站点）。
+- **并发安全** — Swift 6 严格并发，scheduler/tool registry/inference engine 的 actor 隔离。所有 33 处 `@unchecked Sendable` 声明均附并发理由注释。
 
 ---
 
 ### 状态
+
+> 📋 **仅代码状态** — 下表所有条目基于**静态代码审计**（grep/编译/可用性守卫分析）。绿色标记表示"源码中已实现"——**不保证**运行时稳定性或端到端验证结果。
 
 | 组件 | 状态 |
 |------|------|
@@ -207,14 +209,14 @@ memory:
 | 引擎生命周期状态机 + 断路器 | ✅ |
 | ThinkingBudget（自适应推理深度） | ⚠️ Bridge Path: 完整 ComplexityAnalyzer。Fast Path: 校准循环已接入，简化复杂度输入 |
 | 推测解码（传统 drafter 模式） | ✅ |
-| 推测解码（MTP 模式） | ⚠️ `createSpeculativeConfig()` 返回 nil — MTP SDC 迭代器未连接 |
+| 推测解码（MTP 模式） | ✅ 已接通 — `createSpeculativeConfig()` 返回 nil 为设计如此；MTP 走独立推理路径 `generate(mtpDrafter:, blockSize:)` |
 | SSE 流式 + 非流式 | ✅ |
 | OpenAI + Anthropic 兼容 API | ✅ |
 | Agent 循环 + 工具调用 | ✅ |
 | 工具注册表（Actor 隔离） | ✅ |
 | SQLite 会话持久化 + FTS5 | ✅ |
 | 技能系统 + 提示构建器 | ✅ |
-| MCP 桥接 | ⚠️ 已接入 SystemView; HTTP 端点同步可用 |
+| MCP 桥接 | ✅ 已接入 SystemView; HTTP 端点同步可用 |
 | 多模态 I/O（摄像头/屏幕/OCR/STT） | ⚠️ 已接入；摄像头/屏幕默认关闭，STT 需麦克风权限 |
 | TTS（语音输出） | ⚠️ 已接入；通过 `speakerEnabled` 惰性触发（默认关闭） |
 | Self Correction Pipeline | ⚠️ 仅 Bridge Path — 需显式 `selfCorrection: true`；无 UI 开关 |
@@ -227,12 +229,12 @@ memory:
 
 ### 构建信息
 
-- Swift 6.3 · SwiftUI · Hummingbird 2.25
-- 137 个 Swift 源文件，~39,713 LOC
+- Swift 6.4 · SwiftUI · Hummingbird 2.25
+- 133 个 Swift 源文件，~39,320 LOC
 - macOS 15+ · Apple Silicon only
-- 测试：52 个测试文件，124 套件
+- 测试：49 个测试文件，128 套件，726 @Test 用例
 - 构建：0 警告，0 错误
-
+- 开发：由 **qwen3.6:27b-mtp-q4_K_M** 独立完成——无外部工具调用的自包含 AI Agent，所有架构、代码、测试均为自主编写。
 ---
 
 ### License
