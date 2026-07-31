@@ -134,50 +134,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ── MLX metallib from Python package ──
-      # swift build does not compile Metal shaders. MLX C++ layer requires
-      # mlx.metallib at runtime. Python MLX ships a pre-compiled one.
-      # ── Copy mlx.metallib into SPM build output ──
-      # Strategy: check Homebrew first (avoids PEP 668), fall back to pip in venv.
-      # MLX C++ layer (device.cpp) requires mlx.metallib at runtime.
-      - name: Copy mlx.metallib to build output
+      # ── Metallib — best-effort, never blocks CI ──
+      # swift build compiles MLX C++ without Metal shaders. At runtime MLX
+      # looks for mlx.metallib for GPU support; if missing MLX falls back to
+      # CPU. Tests do not require GPU, so metallib is optional.
+      - name: Copy mlx.metallib (best effort)
         if: ${{ matrix.os == 'macos-26' }}
         run: |
-          set -euo pipefail
           mkdir -p .build/arm64-apple-macosx/debug
-          FOUND=false
-          # Strategy 1: Homebrew-installed MLX/OpenMLX (no PEP 668 conflict)
-          for path in \
-            /opt/homebrew/lib/python3.*/site-packages/mlx/lib/mlx.metallib \
-            /opt/homebrew/lib/python3.*/site-packages/omlx/lib/mlx.metallib; do
+          # Try Homebrew paths (macOS-26 may not have MLX pre-installed)
+          for path in /opt/homebrew/lib/python3.*/site-packages/mlx/lib/mlx.metallib; do
             if [ -f "$path" ]; then
               cp "$path" .build/arm64-apple-macosx/debug/mlx.metallib
-              echo "✅ Metallib from Homebrew: $(du -h "$path" | awk '{print $1}')"
-              FOUND=true
-              break
+              echo "✅ Metallib from Homebrew"
+              exit 0
             fi
           done
-          # Strategy 2: pip in venv (avoids PEP 668 externally-managed-environment)
-          if [ "$FOUND" = false ]; then
-            VENV=$(mktemp -d)
-            python3 -m venv "$VENV"
-            source "$VENV/bin/activate"
-            pip install --quiet mlx
-            MLX_DIR=$(python3 -c "import mlx, os; print(os.path.dirname(mlx.__file__))")
-            METALLIB="$MLX_DIR/lib/mlx.metallib"
-            if [ -f "$METALLIB" ]; then
-              cp "$METALLIB" .build/arm64-apple-macosx/debug/mlx.metallib
-              echo "✅ Metallib from pip venv: $(du -h "$METALLIB" | awk '{print $1}')"
-            else
-              echo "⚠️ Metallib not found after pip install"
-            fi
-            deactivate
-            rm -rf "$VENV"
-          fi
-          # Verify
-          if [ ! -f .build/arm64-apple-macosx/debug/mlx.metallib ]; then
-            echo "⚠️ No metallib — MLX falls back to CPU"
-          fi
+          echo "⚠️ No system metallib — MLX will use CPU mode (tests OK without GPU)"
+        continue-on-error: true
 
       # SPM dependency cache — repos only, not build output (avoid stale artifacts)
       - name: Cache SPM dependencies
