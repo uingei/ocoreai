@@ -110,6 +110,10 @@ jobs:
       #     }
 
   ## ── Build + test ────────────────────────────────────────────────
+  # NOTE: swift build is the native SPM path. MLX metallib comes from
+  # Python MLX package (pip install mlx), not from Xcode.
+  # mlx-swift-lm uses xcodebuild on self-hosted runners — not replicable
+  # on GitHub official runners where xcworkspace/scheme does not persist.
   build-and-test:
     name: "Build & Test (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
@@ -130,13 +134,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ── Metal Toolchain — required for xcodebuild Metal shader compilation ──
-      # swift build does NOT compile Metal shaders (upstream confirmed).
-      # xcodebuild is the only path that produces default.metallib, which MLX's
-      # C++ layer (device.cpp:load_default_library) requires at runtime.
-      # Reference: ml-explore/mlx-swift#349, mlx-swift-lm pull_request.yml
-      - name: Verify Metal Toolchain
-        run: xcodebuild -showComponent MetalToolchain
+      # ── MLX metallib from Python package ──
+      # swift build does not compile Metal shaders. MLX C++ layer requires
+      # mlx.metallib at runtime. Python MLX ships a pre-compiled one.
+      - name: Install Python MLX for metallib
+        if: ${{ matrix.os == 'macos-26' }}
+        run: |
+          set -euo pipefail
+          pip3 install --quiet mlx
+          echo "✅ Python MLX installed"
+
+      - name: Copy mlx.metallib to debug build output
+        if: ${{ matrix.os == 'macos-26' }}
+        run: |
+          set -euo pipefail
+          METALLIB=$(python3 -c "import mlx; import os; print(os.path.dirname(mlx.__file__))" 2>/dev/null)/lib/mlx.metallib
+          if [ -f "$METALLIB" ]; then
+            mkdir -p .build/arm64-apple-macosx/debug
+            cp "$METALLIB" .build/arm64-apple-macosx/debug/mlx.metallib
+            echo "✅ Metallib copied: $(du -h "$METALLIB" | awk '{print $1}')"
+          else
+            echo "⚠️ No metallib found — MLX will fall back to CPU"
+          fi
 
       # SPM dependency cache — repos only, not build output (avoid stale artifacts)
       - name: Cache SPM dependencies
@@ -149,27 +168,23 @@ jobs:
           restore-keys: |
             spm-deps-${{ matrix.os }}-
 
-      # ── Build + test via xcodebuild (same pattern as mlx-swift-lm) ──
-      # xcodebuild compiles Metal shaders → default.metallib → MLX GPU init succeeds
-      # mlx-swift-lm: xcodebuild build-for-testing -scheme mlx-swift-lm-Package
-      - name: Build for testing (Xcode)
+      # ── Build + test via swift build ──
+      - name: Build debug (swift build)
         if: ${{ matrix.run_tests == true }}
         run: |
           set -euo pipefail
-          xcodebuild build-for-testing \
-            -scheme ocoreai-Package \
-            -destination 'platform=macOS' \
-            -skipPackagePluginValidation
+          export SWIFTC_SCAN_FOR_DEPS=0
+          swift build -c debug
         env:
           OCOREAI_BUILD: ci
 
-      - name: Run tests (xcrun xctest)
+      - name: Run tests (swift test)
         if: ${{ matrix.run_tests == true }}
         run: |
           set -euo pipefail
-          echo "🧪 Running tests via xcrun xctest..."
-          xcrun xctest \
-            ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/Debug/ocoreaiTests.xctest
+          export SWIFTC_SCAN_FOR_DEPS=0
+          echo "🧪 Running tests via swift test..."
+          swift test
           echo "✅ All tests passed"
         env:
           OCOREAI_BUILD: ci
@@ -183,15 +198,18 @@ jobs:
             ~/Library/Logs/DiagnosticReports/*
           retention-days: 7
 
-      # Build release — still via swift because release doesn't need metallib
-      # (it comes from the debug build or is bundled alongside)
+      # Build release — copy metallib from debug build to release output
       - name: Build release (MLX default)
         if: ${{ matrix.os == 'macos-26' }}
         run: |
           set -euo pipefail
-          export SWIFT_BUILD_NUM_WORKERS=2
           export SWIFTC_SCAN_FOR_DEPS=0
           swift build -c release
+          METALLIB=.build/arm64-apple-macosx/debug/mlx.metallib
+          if [ -f "$METALLIB" ]; then
+            cp "$METALLIB" .build/arm64-apple-macosx/release/mlx.metallib
+            echo "✅ Metallib copied to release"
+          fi
         env:
           OCOREAI_BUILD: ci
 
@@ -199,7 +217,6 @@ jobs:
         if: ${{ matrix.os == 'macos-26' }}
         run: |
           set -euo pipefail
-          export SWIFT_BUILD_NUM_WORKERS=2
           export SWIFTC_SCAN_FOR_DEPS=0
           swift build -c release --traits appStore
         env:
@@ -211,7 +228,6 @@ jobs:
         if: ${{ matrix.os == 'xcode-27' }}
         run: |
           set -euo pipefail
-          export SWIFT_BUILD_NUM_WORKERS=2
           export SWIFTC_SCAN_FOR_DEPS=0
           swift build -c release --traits appStore
         env:
@@ -251,7 +267,22 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Tag: $TAG → Version: $VERSION"
+          echo "Tag: $TAG -> Version: $VERSION"
+
+      - name: Install Python MLX for release metallib
+        run: pip3 install --quiet mlx
+
+      - name: Copy metallib for release bundle
+        run: |
+          set -euo pipefail
+          METALLIB=$(python3 -c "import mlx; import os; print(os.path.dirname(mlx.__file__))" 2>/dev/null)/lib/mlx.metallib
+          mkdir -p .build/out/Products/Release/
+          if [ -f "$METALLIB" ]; then
+            cp "$METALLIB" .build/out/Products/Release/mlx.metallib
+            echo "✅ Metallib bundled for release"
+          else
+            echo "⚠️ No metallib — release uses CPU fallback"
+          fi
 
       - name: Verify release prerequisites
         run: |
