@@ -159,31 +159,26 @@ jobs:
           echo "🔨 Building release for MLX metallib..."
           swift build -c release
 
-      - name: Copy metallib to debug build dir
+      - name: Copy metallib to bundle Resources
         if: ${{ matrix.run_tests == true }}
         run: |
           set -euo pipefail
-          # macOS-26 runner: SPM debug build does NOT compile Metal shaders → no metallib
-          # → MLX test teardown crashes with "Failed to load the default metallib"
-          # → Copy metallib from release build (which DID compile it) to debug build dir
+          # MLX loads metallib from bundle Resources/, not from .build/artifacts/
+          # → Check if debug bundle already has it (should from debug SPM build)
+          BUNDLE_RESOURCES=".build/out/Products/Debug/mlx-swift_Cmlx.bundle/Contents/Resources"
+          if [ -f "$BUNDLE_RESOURCES/default.metallib" ]; then
+            echo "✅ default.metallib already in bundle Resources"
+            exit 0
+          fi
+          echo "⚠️ default.metallib missing from bundle — searching .build for fallback..."
           # Use a subshell to avoid pipefail SIGPIPE on "find | head"
-          METALLIB_SRC=$( (find .build -name 'default.metallib' -path '*/Release/*' -type f 2>/dev/null | head -1) || true )
+          METALLIB_SRC=$( (find .build -name 'default.metallib' -type f 2>/dev/null | head -1) || true )
           if [ -n "$METALLIB_SRC" ]; then
-            METALLIB_DST_DIR=".build/artifacts/debug/macosx"
-            mkdir -p "$METALLIB_DST_DIR"
-            cp "$METALLIB_SRC" "$METALLIB_DST_DIR/default.metallib"
-            echo "✅ Copied metallib: $METALLIB_SRC → $METALLIB_DST_DIR/"
+            mkdir -p "$BUNDLE_RESOURCES"
+            cp "$METALLIB_SRC" "$BUNDLE_RESOURCES/default.metallib"
+            echo "✅ Copied: $METALLIB_SRC → $BUNDLE_RESOURCES/"
           else
-            echo "⚠️ No metallib in Release build — searching all .build for fallback..."
-            METALLIB_SRC=$( (find .build -name 'default.metallib' -type f 2>/dev/null | head -1) || true )
-            if [ -n "$METALLIB_SRC" ]; then
-              METALLIB_DST_DIR=".build/artifacts/debug/macosx"
-              mkdir -p "$METALLIB_DST_DIR"
-              cp "$METALLIB_SRC" "$METALLIB_DST_DIR/default.metallib"
-              echo "💡 Fallback copied: $METALLIB_SRC → $METALLIB_DST_DIR/"
-            else
-              echo "⚠️ No metallib found anywhere — MLX will fall back to CPU in tests"
-            fi
+            echo "⚠️ No metallib found anywhere — MLX will fall back to CPU"
           fi
 
       - name: Run tests with coverage

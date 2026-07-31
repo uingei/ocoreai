@@ -964,7 +964,7 @@ extension CoreAISequentialEngine {
         as type: T.Type,
         value: T
     ) {
-        let view = array.mutableView(as: type)
+        var view = array.mutableView(as: type)
         view.withUnsafeMutablePointer { ptr, _, _ in
             ptr.pointee = value
         }
@@ -1057,7 +1057,8 @@ extension CoreAISequentialEngine {
         let dstBlockStride = dstShape[seqDim...].reduce(1, *)
 
         source.view(as: LogitsScalarType.self).withUnsafePointer { srcPtr, _, _ in
-        	destination.mutableView(as: LogitsScalarType.self).withUnsafeMutablePointer { dstPtr, _, _ in
+            var dstView = destination.mutableView(as: LogitsScalarType.self)
+            dstView.withUnsafeMutablePointer { dstPtr, _, _ in
                 for block in 0..<numBlocks {
                     let srcOff = block * srcBlockStride
                     let dstOff = block * dstBlockStride
