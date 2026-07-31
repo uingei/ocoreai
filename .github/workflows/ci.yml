@@ -166,14 +166,24 @@ jobs:
           # macOS-26 runner: SPM debug build does NOT compile Metal shaders → no metallib
           # → MLX test teardown crashes with "Failed to load the default metallib"
           # → Copy metallib from release build (which DID compile it) to debug build dir
-          METALLIB_SRC="$(find .build/out/Products/Release -name 'default.metallib' 2>/dev/null | head -1)"
+          # Use a subshell to avoid pipefail SIGPIPE on "find | head"
+          METALLIB_SRC=$( (find .build -name 'default.metallib' -path '*/Release/*' -type f 2>/dev/null | head -1) || true )
           if [ -n "$METALLIB_SRC" ]; then
             METALLIB_DST_DIR=".build/artifacts/debug/macosx"
             mkdir -p "$METALLIB_DST_DIR"
             cp "$METALLIB_SRC" "$METALLIB_DST_DIR/default.metallib"
             echo "✅ Copied metallib: $METALLIB_SRC → $METALLIB_DST_DIR/"
           else
-            echo "⚠️ No metallib found — MLX will fall back to CPU in tests"
+            echo "⚠️ No metallib in Release build — searching all .build for fallback..."
+            METALLIB_SRC=$( (find .build -name 'default.metallib' -type f 2>/dev/null | head -1) || true )
+            if [ -n "$METALLIB_SRC" ]; then
+              METALLIB_DST_DIR=".build/artifacts/debug/macosx"
+              mkdir -p "$METALLIB_DST_DIR"
+              cp "$METALLIB_SRC" "$METALLIB_DST_DIR/default.metallib"
+              echo "💡 Fallback copied: $METALLIB_SRC → $METALLIB_DST_DIR/"
+            else
+              echo "⚠️ No metallib found anywhere — MLX will fall back to CPU in tests"
+            fi
           fi
 
       - name: Run tests with coverage
