@@ -150,47 +150,30 @@ jobs:
 
 
 
-      # SwiftPM cannot build Metal shaders — xcodebuild must be used to produce
-      # the default.metallib bundle (mlx-swift README: "SwiftPM command line
-      # cannot build the Metal shaders so the ultimate build has to be done via Xcode")
-      - name: Build metallib via xcodebuild
-        if: ${{ matrix.run_tests == true }}
-        run: |
-          set -euo pipefail
-          echo "🔨 Building MLX metallib via xcodebuild (SPM cannot build Metal shaders)..."
-          xcodebuild build \
-            -scheme ocoreai-Package \
-            -destination 'platform=macOS' \
-            -derivedDataPath .build/xcodebuild \
-            ONLY_ACTIVE_ARCH=YES \
-            COMPILER_INDEX_STORE_ENABLE=NO \
-            | tee xcodebuild.log
-          echo "✅ xcodebuild complete"
-
-      - name: Build debug + copy metallib + run tests
+      # SwiftPM cannot compile Metal shaders directly — metallib is produced
+      # as a build-side-effect when Metal is available. We build debug first
+      # to generate the metallib, then copy it into the release bundle.
+      # Reference: ml-explore/mlx-swift#349
+      - name: Build debug to generate metallib
         if: ${{ matrix.run_tests == true }}
         run: |
           set -euo pipefail
           export SWIFT_BUILD_NUM_WORKERS=2
           export SWIFTC_SCAN_FOR_DEPS=0
-          # Locate metallib produced by xcodebuild above
-          METALLIB=$(find .build/xcodebuild -name 'default.metallib' -type f 2>/dev/null | head -1)
-          if [ -z "$METALLIB" ]; then
-            echo "❌ default.metallib not found after xcodebuild"
-            exit 1
-          fi
-          echo "📦 Found metallib at: $METALLIB"
-          # Phase 1: compile debug + test targets
-          echo "🔧 Building debug + tests..."
-          swift build --build-tests
-          # Phase 2: copy metallib into debug bundle Resources
-          echo "📦 Copying metallib into debug bundle..."
-          cp "$METALLIB" ".build/out/Products/Debug/mlx-swift_Cmlx.bundle/Contents/Resources/"
-          mkdir -p ".build/out/Products/Debug/ocoreaiTests.xctest/Contents/Resources/mlx-swift_Cmlx.bundle/Contents/Resources/"
-          cp "$METALLIB" ".build/out/Products/Debug/ocoreaiTests.xctest/Contents/Resources/mlx-swift_Cmlx.bundle/Contents/Resources/"
-          # Phase 3: run tests without recompilation
+          echo "🔨 Building debug to generate MLX metallib..."
+          swift build
+          echo "✅ Debug build complete — metallib available for tests"
+
+      - name: Build tests + run with metallib
+        if: ${{ matrix.run_tests == true }}
+        run: |
+          set -euo pipefail
+          export SWIFT_BUILD_NUM_WORKERS=2
+          export SWIFTC_SCAN_FOR_DEPS=0
+          # metallib already in Debug bundle from previous step
+          # swift test --enable-code-coverage uses Debug config
           echo "🧪 Running tests with coverage..."
-          swift test --skip-build --enable-code-coverage
+          swift test --enable-code-coverage
           echo "✅ All tests passed"
         env:
           OCOREAI_BUILD: ci
