@@ -159,31 +159,29 @@ jobs:
           echo "🔨 Building release for MLX metallib..."
           swift build -c release
 
-      - name: Run tests with coverage (metallib symlinked)
+      - name: Build debug + copy metallib + run tests
         if: ${{ matrix.run_tests == true }}
         run: |
           set -euo pipefail
           export SWIFT_BUILD_NUM_WORKERS=2
           export SWIFTC_SCAN_FOR_DEPS=0
-          # swift test recompiles Debug and overwrites bundle artifacts.
-          # Use symlink so even if the directory is recreated, it resolves to
-          # the release metallib that won't be touched.
-          link_metallib() {
-            local dst_dir="$1"
-            local src="$2"
-            local target="$dst_dir/default.metallib"
-            mkdir -p "$dst_dir"
-            rm -f "$target"
-            ln -s "$src" "$target"
-            echo "✅ Symlinked metallib → $target"
-          }
-          RELEASE_METALLIB=".build/out/Products/Release/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib"
-          DEBUG_RESOURCES=".build/out/Products/Debug/mlx-swift_Cmlx.bundle/Contents/Resources"
-          TEST_RESOURCES=".build/out/Products/Debug/ocoreaiTests.xctest/Contents/Resources/mlx-swift_Cmlx.bundle/Contents/Resources"
-          link_metallib "$DEBUG_RESOURCES" "$RELEASE_METALLIB"
-          link_metallib "$TEST_RESOURCES" "$RELEASE_METALLIB"
+          # Strategy: separate compile from test execution so metallib survives.
+          # 1) swift build --build-tests  -> compile debug + test targets
+          # 2) copy release metallib into debug bundle Resources
+          # 3) swift test --skip-build   -> run tests without re-compiling
+          METALLIB_SRC=".build/out/Products/Release/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib"
+          if [ ! -f "$METALLIB_SRC" ]; then
+            echo "❌ Release metallib not found — did release build fail?"
+            exit 1
+          fi
+          echo "🔧 Building debug + tests..."
+          swift build --build-tests
+          echo "📦 Copying metallib into debug bundle..."
+          cp "$METALLIB_SRC" ".build/out/Products/Debug/mlx-swift_Cmlx.bundle/Contents/Resources/"
+          mkdir -p ".build/out/Products/Debug/ocoreaiTests.xctest/Contents/Resources/mlx-swift_Cmlx.bundle/Contents/Resources/"
+          cp "$METALLIB_SRC" ".build/out/Products/Debug/ocoreaiTests.xctest/Contents/Resources/mlx-swift_Cmlx.bundle/Contents/Resources/"
           echo "🧪 Running tests with coverage..."
-          swift test --enable-code-coverage
+          swift test --skip-build --enable-code-coverage
           echo "✅ All tests passed"
         env:
           OCOREAI_BUILD: ci
