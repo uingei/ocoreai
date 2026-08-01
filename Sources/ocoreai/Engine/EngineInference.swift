@@ -33,6 +33,18 @@ import MLXGuidedGeneration
 import MLXVLM
 import CoreImage
 import CoreGraphics
+
+// MARK: - FoundationModels integration (macOS 27+)
+//
+// Imports MLXFoundationModels so we can access capability gates,
+// ToolCallingMode, ConfigurationResolver, and Executor logic from
+// the MLXLanguageModel.respond() pipeline while preserving our
+// SSE streaming, SessionPool, and MTP speculative decoding.
+#if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
+    import MLXFoundationModels
+    import FoundationModels
+#endif
+
 import ImageIO
 
 // MARK: - Guided Gen Diagnostic Diagnostics
@@ -358,9 +370,32 @@ extension EnginePool {
                         InferenceError.standardPathFailed("CoreAI generation failed").errorDescription ?? "error")))
                 }
             } else {
-                // CoreAI unavailable on this macOS version
-                continuation.yield(.init(kind: .error(
-                    InferenceError.engineUnavailable("CoreAI requires macOS 27.0").errorDescription ?? "error")))
+                // macOS 26 SDK: CoreAI headers are present but runtime is < 27.0
+                // → fall back to MLX ChatSession path (detokenize → _runInferenceWithMessages)
+                // This is the same fallback as the #else branch below, duplicated because
+                // the #else cannot be reached when canImport(CoreAI) is true.
+                logger.info("CoreAI SDK present but macOS < 27.0 — falling back to MLX for model \\(modelId)")
+                let promptText: String
+                do {
+                    promptText = try await detokenize(modelId: modelId, tokens: input)
+                } catch {
+                    logger.warning("Detokenize failed for CoreAI→MLX runtime fallback: \\(error.localizedDescription)")
+                    continuation.yield(.init(kind: .error("Detokenization failed — inference cannot proceed")))
+                    continuation.finish()
+                    return
+                }
+                let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
+                await _runInferenceWithMessages(
+                    modelId: modelId,
+                    messages: mlxMessages,
+                    sampling: sampling,
+                    options: options,
+                    metrics: metrics,
+                    continuation: continuation,
+                    conversationId: nil,
+                    cancellation: cancellation,
+                    skipLock: true
+                )
             }
         #else
             // [KNOWN LIMITATION] MLXLLM ChatSession only accepts [Chat.Message], not raw tokens.
@@ -1013,7 +1048,64 @@ extension EnginePool {
                     if !specs.isEmpty {
                         registeredToolSpecs = specs
                     }
+
                 }
+
+                // MARK: - macOS 27: LanguageModelSession bridge
+                // Standard integration path: LanguageModelSession(model:) → streamResponse(to:)
+                // SDK handles reasoning/vision/tool gates internally.
+                #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
+                    if #available(macOS 27.0, *), let mlxLM = loaded.mlxLanguageModel {
+                        log.info("Using LanguageModelSession (macOS 27 SDK path)")
+                        // Build instructions from system instructions (same source as ChatSession path)
+                        let sdkInstructions: String? = (systemInstructions?.isEmpty == false)
+                            ? systemInstructions
+                            : nil
+
+                        // Create session — SDK manages conversation transcript + KV cache
+                        let langSession = LanguageModelSession(
+                            model: mlxLM,
+                            tools: [],
+                            instructions: sdkInstructions
+                        )
+
+                        // Stream prompt is the last user message content
+                        let promptText = mlxMessages.last?.content ?? ""
+
+                        do {
+                            let stream = langSession.streamResponse(to: promptText)
+                            var tokenCount = 0
+                            var stopReason: StopReason = .stopSequence
+
+                            for try await partial in stream {
+                                if Task.isCancelled || cancellation.isCancelled {
+                                    stopReason = .cancelled
+                                    break
+                                }
+                                tokenCount += 1
+                                if !partial.content.isEmpty {
+                                    continuation.yield(.init(kind: .text(partial.content)))
+                                }
+                            }
+
+                            continuation.yield(.init(
+                                kind: .done(
+                                    stopReason,
+                                    tokenCount: tokenCount,
+                                    tokPerSec: nil,
+                                    promptTokPerSec: nil
+                                )
+                            ))
+                            continuation.finish()
+                            return
+                        } catch {
+                            log.error("LanguageModelSession error: \(error.localizedDescription)")
+                            continuation.yield(.init(kind: .error(error.localizedDescription)))
+                            continuation.finish()
+                            return
+                        }
+                    }
+                #endif
 
                 // Unified processing config for VLM resize — consistent across all
                 // inference paths (ChatSession, Guided gen, MTP). Value read from config

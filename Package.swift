@@ -77,6 +77,11 @@ let package = Package(
             ],
             linkerSettings: [
                 .linkedLibrary("sqlite3"),
+                // CoreAI (macOS 27+) and FoundationModels (macOS 26+) are guarded by
+                // #if canImport / #available in source — make them weak so the binary
+                // can actually launch on macOS 15/26 without dyld errors.
+                .unsafeFlags(["-weak_framework", "CoreAI"]),
+                .unsafeFlags(["-weak_framework", "FoundationModels"]),
             ],
         ),
         // Shared test utilities — mocks, fixtures, helpers, tags

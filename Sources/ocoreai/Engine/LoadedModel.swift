@@ -17,6 +17,10 @@ import MLXGuidedGeneration
 import MLXLLM
 import MLXLMCommon
 
+#if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
+    import MLXFoundationModels
+#endif
+
 // MARK: - LoadedModel
 
 /// Per-model engine state — immutable metadata with atomic counters.
@@ -51,6 +55,24 @@ final class LoadedModel: @unchecked Sendable {
 
     /// MLXLLM model handle — loaded once at load time, reused across inference
     var mlxModelHandle: (any MLXModelHandle)?
+    
+    // MARK: - MLX FoundationModels integration (macOS 27+)
+    
+    /// MLXLanguageModel instance that routes through ModelCache (concurrency-safe,
+    /// download-tracked, error-recorded). Held so capabilities, configurationResolver,
+    /// and Executor.Configuration survive loadContainer().
+    #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
+        // Opaque bridge for MLXLanguageModel — the type is @available(macOS 27.0, *)
+        // so we cannot declare it as a stored property directly in this class.
+        // Cast to Any? here, cast back via loadMLXLanguageModel() at call time.
+        var _mlxLanguageModelRef: Any?
+        
+        @available(macOS 27.0, *)
+        var mlxLanguageModel: MLXLanguageModel? {
+            _mlxLanguageModelRef as? MLXLanguageModel
+        }
+    #endif
+    
     /// Whether this model is a VLM (multi-modal: vision + language)
     /// Set during loadModel() via MLXModelLoader.isVLMModel detection.
     var isVlm: Bool = false
@@ -325,6 +347,12 @@ final class LoadedModel: @unchecked Sendable {
         mlxModelHandle = nil
         draftModelHandle = nil
         _mtpDrafterContainer = nil
+        #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
+            // Release MLXLanguageModel so ModelCache can evict its container
+            if #available(macOS 27.0, *) {
+                _mlxLanguageModelRef = nil
+            }
+        #endif
     }
 
     // MARK: - Initialization

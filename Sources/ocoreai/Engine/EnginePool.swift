@@ -24,6 +24,9 @@ import MLXLMCommon
 
 #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
     import MLXFoundationModels
+    #if canImport(FoundationModels)
+        import FoundationModels
+    #endif
 #endif
 
 /// Convert ContentPolymorphic to String for tokenization input.
@@ -399,15 +402,30 @@ actor EnginePool {
         // Note: mlxHandleToSet declared outside the #if block so
         // the #else branch (no FoundationModels) and L477 can both see it.
         var mlxHandleToSet: any MLXModelHandle
+        // Note: mlxLM hoisted so we can persist it in LoadedModel after creation.
+        // In the macOS-27 path it holds the MLXLanguageModel whose executor
+        // configuration/capabilities/configurationResolver drive respond();
+        // in the fallback path it stays nil.
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
+            // Use Any? to bridge @available(macOS 27.0, *) MLXLanguageModel —
+            // the struct is @available-gated so it cannot be declared outside
+            // if #available() when deploying to macOS 15.
+            var mlxLM: Any? = nil
+            
             if #available(macOS 27.0, *) {
                 // Primary hub provider — MLXModelLoader defaults to "modelscope", hf: prefix means HF
                 let hubProviderStr: String = isHF ? "huggingface" : "modelscope"
-
+                
                 // Construct MLXLanguageModel that routes through ModelCache (concurrency-safe, download-tracked, error-recorded)
-                let mlxLM = MLXLanguageModel(
-                    configuration: ModelConfiguration(id: modelId),
-                    capabilities: isVlmModel ? [.guidedGeneration, .vision] : [.guidedGeneration],
+                // Capabilities include .reasoning and .toolCalling so upstream capability gates fire;
+                // actual gating is per-request (reasoningConfig must exist, tools must be present).
+                // Mirrors Executor.respond() L950-1102 capability validation.
+                let modelConfig = ModelConfiguration(id: modelId)
+                let baseCaps: [LanguageModelCapabilities.Capability] = [.guidedGeneration]
+                let vlmCaps: [LanguageModelCapabilities.Capability] = isVlmModel ? [.vision] : []
+                mlxLM = MLXLanguageModel(
+                    configuration: modelConfig,
+                    capabilities: baseCaps + vlmCaps + [.reasoning, .toolCalling],
                     configurationResolver: DefaultConfigurationResolver(),
                     weightsLocation: { _ in modelURL },
                     load: { [weak self, logger, providerName = hubProviderStr, rId = repoId, mId = modelId] cfg, progressHandler in
@@ -426,11 +444,20 @@ actor EnginePool {
                         }
                     }
                 )
-
+                
                 // loadContainer() → ModelCache.load() — concurrent-safe, deduped, tracked
-                let container = try await mlxLM.loadContainer()
-                mlxHandleToSet = MLXModelHandleImpl(modelContainer: container, modelId: modelId)
-                logger.info("MLX model \(modelId) loaded via ModelCache")
+                if let mlLM = mlxLM as? MLXLanguageModel {
+                    let container = try await mlLM.loadContainer()
+                    mlxHandleToSet = MLXModelHandleImpl(modelContainer: container, modelId: modelId)
+                    logger.info("MLX model \(modelId) loaded via ModelCache")
+                } else {
+                    // Fallback if cast fails — unlikely but defensive
+                    mlxHandleToSet = try await mlxModelLoader.load(
+                        modelURL: modelURL,
+                        modelId: modelId,
+                    )
+                    logger.warning("MLX model \(modelId) loaded via fallback loader (cast failed)")
+                }
             } else {
                 // FoundationModelsIntegration trait enabled but macOS < 27 — fall back to direct loader
                 mlxHandleToSet = try await mlxModelLoader.load(
@@ -479,6 +506,14 @@ actor EnginePool {
         model.setMLXHandle(mlxHandleToSet)
         model.isVlm = isVlmModel
         model.kvCacheQuantization = config.kvCacheQuantization
+        // Persist MLXLanguageModel so executor.respond() can route through
+        // capability gates, ToolCallingModeResolution, and ConfigurationResolver
+        // on macOS 27. The instance was constructed above and hoisted into mlxLM.
+        #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
+            if #available(macOS 27.0, *), let lm = mlxLM {
+                model._mlxLanguageModelRef = lm
+            }
+        #endif
         // Configure speculative decoding — lazy-load draft model on first model load
         model.setSpecDecodingConfig(config.specDecoding)
         if config.specDecoding.enabled {
