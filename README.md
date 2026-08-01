@@ -32,18 +32,18 @@ Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
 ocoreai unifies inference engine, agent orchestration, and persistence in one process:
 
-- **Dual inference backends** — MLX (Metal GPU, default) + CoreAI (1,377 LOC, dynamic KV cache, TokenHistory prefix caching, cancel-and-replace via `GenerationToken` + `Mutex` guard). Zero network calls — inference runs on your Mac.
+- **Dual inference backends** — MLX (Metal GPU, default, ChatSession pipeline with `cachedTokens` prefix reuse + SessionPool disk persistence) + CoreAI (1,593 LOC, dynamic KV cache, `TokenHistory` prefix caching, cancel-and-replace via `GenerationToken` + `Mutex` guard). Zero network calls — inference runs on your Mac.
 - **Adaptive hardware routing** — Real-time HardwareRouter dispatches requests to GPU / ANE / CPU based on thermal pressure, memory headroom, and GPU utilization. AdmissionGate enforces a 3-tier admission policy (allow → ANE-only → reject) with configurable abort margin.
 - **Wired Memory GPU isolation** — hardware-level GPU memory bounds prevent OOM during inference.
 - **Thinking budget** — Adaptive token budget allocation driven by ComplexityAnalyzer scoring (length, intent, history dimensions) on Bridge Path. Fast Path (desktop GUI) has ThinkingBudget calibration loop wired but with simplified complexity input (constant 0.5 — no upstream ComplexityAnalyzer).
 - **Agent loop** — multi-turn tool use: the model reasons, calls registered tools, reads results, and iterates (up to 30 rounds, 180s timeout). Built-in tools for system info, skills, and search. Extensible via `ToolRegistry`.
 - **Skill system** — Modular skill registry loaded at boot, bidirectional links to system prompt pipeline.
-- **Session memory** — SQLite + FTS5 full-text search with LLM-driven session compression (hot/warm/cold tiers). Memory events for cross-session fact recall. Semantic memory (vector/embedding search) exists but is off by default (`autoEmbed: false`).
+- **Session memory** — SQLite + FTS5 full-text search with LLM-driven session compression (hot/warm/cold tiers). Memory events for cross-session fact recall. Semantic memory (vector/embedding search) **on by default** (`autoEmbed: true`, LFM2.5-Embedding-350M-4bit, 1024-d vectors, 500/session LIFO eviction).
 - **MCP bridge** — connect external MCP servers via stdio transport; HTTP endpoint available. Desktop UI has MCP section in SystemView.
 - **Scheduler + OOM guard** — priority dispatch (`P0` system → `P4` user), GPU memory budget enforcement, downgrade chain (4-bit → 8-bit → CPU → refuse).
-- **KV cache quantization** — turbo4/INT8 INT4 auto-downgrade via `GenerateParameters.kvBits`/`kvScheme`, WiredMemory prevents GPU OOM on larger models.
+- **KV cache quantization** — Enabled by default (turbo4 scheme, 4-bit INT4, activates after 256 tokens). Backed by `GenerateParameters.kvBits` / `kvScheme` / `quantizedKVStart` in upstream MLXLMCommon.
 - **Guided generation** — Grammar-constrained output via `MLXGuidedGeneration` (xgrammar/JSON schema), with DiagnosticSink observability. Auto-enabled when tool calling or explicit grammar schema is set. Multimodal messages bypass grammar constraints.
-- **Speculative decoding** — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support, model-id isolation.
+- **Speculative decoding** — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support with model-id isolation. Upstream pin `cd1ab3d` includes Qwen3-VL-MoE support (#322) and GatedDelta precision fix via Kahan compensated summation (#488).
 - **AIModelCache** — native CoreAI compiled model artifact caching (macOS 27 SDK).
 - **Config system** — YAML config with file watcher (poll-based). Hardware auto-detection for memory budget.
 - **Multimodal I/O** — camera capture, screen capture, microphone input, Vision OCR, 16kHz Apple Speech STT, i18n TTS — all native. Camera/screen toggles are off by default; STT requires microphone permission.
@@ -230,8 +230,8 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 
 ### Build Info
 
-- Swift 6.4 · SwiftUI · Hummingbird 2.25
-- 133 Swift source files, ~39,320 LOC
+- Swift 6.4 · SwiftUI · Hummingbird 2.26.0
+- 133 Swift source files, ~39,475 LOC
 - macOS 15+ · Apple Silicon only
 - Tests: 49 test files across 128 suites, 726 @Test cases
 - Build: 0 warnings, 0 errors
