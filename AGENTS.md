@@ -98,8 +98,8 @@ swift test --filter OcoreAITests.System  # system tests only
 ## Upstream Audit Dependencies
 
 Three sources for empirical verification:
-1. **mlx-swift-lm** — locked at 18edd22, HEAD 78eaa5b (+20 commits)
-2. **coreai-models** — locked at 5ed9981, HEAD 04a3fd6 (+20 commits)
+1. **mlx-swift-lm** — pinned at cd1ab3d (2026-08-01: +20 commits from previous lock 18edd22; Qwen3-VL-MoE support #322, GatedDelta precision fix #488, Linux guided-gen fix #483)
+2. **coreai-models** — pinned at 49becc6 (2026-08-02: +30+ commits from previous lock 5ed9981; ConstrainedGenerationSession rollback/jump-forward, custom KV cache op, macOS 27 Beta 4 fixes)
 3. **Apple Developer Docs** — developer.apple.com/documentation/CoreAI (requires login)
 
 ---
@@ -131,3 +131,23 @@ Three sources for empirical verification:
 5. **Audit conclusions must cite file:line + commit hash.** "Based on code evidence" vs "inference" must be explicit.
 6. **Upstream API verification:** Before citing an API as available/missing, check all 3 upstream sources.
 7. **All findings verified via tool output** — no speculation, no estimation.
+
+## Ollama Single-Pass Constraint
+
+This environment runs on **Ollama** (provider: `ollama-launch`, model: `qwen3.6:27b-mtp`). Ollama does **not** support concurrent model invocations — `delegate_task` and nested `skill_view` calls fail or produce unreliable results.
+
+**Single-pass protocol:** Use the `single-pass-orchestration` skill as the default coding methodology. All 7 phases (grilling → plan → TDD/evals → implement → review → auto-fix → commit) run **sequentially within one response**. Do NOT invoke skills as separate tool calls mid-implementation. Apply their rules in-context.
+
+**Skills to load upfront (read once, apply manually):**
+- `single-pass-orchestration` — pipeline entry point
+- `engineering-grilling` — Phase 1 intent alignment
+- `code-review-discipline` — Phase 5a standards scan
+- `requesting-code-review` — Phase 5b-7 spec review + commit
+- `code-audit-methodology` — 3-layer verification (grep → compile → read)
+- `code-grounding` — 4-level source fact-checking
+
+**Pre-loaded domain skills (already in context):**
+- `hermes-agent` — CLI commands, toolsets, profiles
+- `hermes-agent-skill-authoring` — SKILL.md authoring
+- `ocoreai-dev` — ocoreai build/test/debug
+- `code-audit-methodology` — 3-layer empirical verification

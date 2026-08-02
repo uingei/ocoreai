@@ -32,7 +32,7 @@ swift run
 
 ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中：
 
-- **双通道推理引擎** — MLX（Metal GPU，默认，ChatSession 管线含 `cachedTokens` prefix reuse + SessionPool 磁盘持久化）+ CoreAI（1,593 LOC，动态 KV Cache、`TokenHistory` prefix caching、GenerationToken + Mutex cancel-and-replace）。零网络调用 — 推理在你的 Mac 上运行。
+- **双通道推理引擎** — MLX（Metal GPU，默认，`MLXLanguageModel` + `ChatSession` 管线双通道端侧推理）+ CoreAI（1,593 LOC，动态 KV Cache、`TokenHistory` prefix caching）。零网络调用 — 推理在你的 Mac 上运行。
 - **自适应硬件路由** — HardwareRouter 根据热压力、内存余量、GPU 利用率实时将请求分发至 GPU / ANE / CPU。AdmissionGate 执行三级准入策略（允许 → 仅限 ANE → 拒绝），支持可配置 abort margin。
 - **Wired Memory 显存硬隔离** — 硬件级显存边界，防止推理 OOM。
 - **Thinking Budget（推理预算）** — 基于 ComplexityAnalyzer（长度、意图、历史三维度评分）的自适应 token 预算分配。Bridge Path 接入完整 ComplexityAnalyzer；Fast Path（桌面 GUI）已接入 ThinkingBudget 校准循环，使用简化复杂度输入（固定 0.5）。
@@ -42,7 +42,8 @@ ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中
 - **MCP 桥接** — 通过 stdio 传输连接外部 MCP 服务器；HTTP 端点可用。桌面 UI SystemView 有 MCP 入口。
 - **调度器 + OOM 防护** — 优先级分发（`P0` 系统 → `P4` 用户），GPU 显存预算强制，降级链（4-bit → 8-bit → CPU → 拒绝）。
 - **KV Cache 量化** — 默认开启（turbo4 scheme，4-bit INT4，256 token 后激活）。后端为上游 `GenerateParameters.kvBits` / `kvScheme` / `quantizedKVStart`（MLXLMCommon/Evaluate.swift）。
-- **引导生成** — 通过 `MLXGuidedGeneration`（xgrammar/JSON schema）实现语法约束输出，带 `GuidedGenerationDiagnosticSink` 可观测性。工具调用时自动启用。多模态消息绕过文法约束。
+- **引导生成** — 通过 `MLXGuidedGeneration`（xgrammar/JSON schema）实现语法约束输出，带 `GuidedGenerationDiagnosticSink` 可观测性与动态 `CompletionReserve.estimate` 结构预留计算。工具调用时自动启用。多模态消息绕过文法约束。
+- **macOS 27 FM 路径** — 原生 `MLXLanguageModel` → `LanguageModelSession` + `MLXFoundationModels`（macOS 27），含 `FMToolProxy` 工具桥接、`ContextOptions` 推理控制与 transcript 流式传输。低版本 macOS 自动降级至 ChatSession 管线。
 - **推测解码** — Gemma drafter 模型支持（12B/26B/31B 独立路由），MTP 模式已接入。上游 pin `cd1ab3d` 包含 Qwen3-VL-MoE 支持 (#322) 及 GatedDelta 精度修复（Kahan 补偿求和 #488）。
 - **配置系统** — YAML 配置 + 文件监听器（轮询）。显存预算硬件自动检测。
 - **多模态 I/O** — 摄像头捕获、屏幕截图、麦克风输入、Vision OCR、16kHz Apple Speech STT、多语言 TTS — 全部原生。摄像头/屏幕默认关闭；STT 需要麦克风权限。
@@ -164,7 +165,7 @@ memory:
 | **路由器** | `Router/` | Hummingbird HTTP 路由，端点分发 |
 | **处理器** | `Handlers/` | 聊天补全、SSE 流式、模型下载、多模态 |
 | **调度器** | `Scheduler/` | 优先级分发、显存追踪、OOM 保护、HardwareRouter、AdmissionGate |
-| **引擎** | `Engine/` | MLX/CoreAI 推理桥接、会话池、引擎生命周期、VLM 管线 |
+| **引擎** | `Engine/` | MLX/CoreAI 推理桥接、双通道 FM/ChatSession 管线、FMToolProxy 桥接、会话池、引擎生命周期、VLM 管线 |
 | **Agent** | `Agents/` | Agent 循环 — 多轮工具调用、推理→行动循环 |
 | **工具注册表** | `Tools/` | Actor 隔离的工具注册、分发、循环检测、审计 |
 | **技能** | `Skills/` | 技能注册表、加载器、系统提示构建器 |
@@ -201,6 +202,8 @@ memory:
 |------|------|
 | MLX Metal 推理 | ✅ |
 | CoreAI 推理（动态 KV Cache、Prefix Cache） | ✅ |
+| FM 语言模型 + 工具桥接（macOS 27） | ✅ 代码：`MLXLanguageModel` → `LanguageModelSession` → `streamResponse`；FMToolProxy 桥接 `ToolRegistry` → `FoundationModels.Tool`。macOS < 27 自动降级至 ChatSession |
+| 引导生成（语法约束） | ✅ 动态 `CompletionReserve.estimate` 结构预留 |
 | KV Cache 量化（turbo4/INT8） | ✅ |
 | VLM 多模态推理 | ✅ |
 | Wired Memory 显存硬隔离 | ✅ |
@@ -230,7 +233,7 @@ memory:
 ### 构建信息
 
 - Swift 6.4 · SwiftUI · Hummingbird 2.26.0
-- 133 个 Swift 源文件，~39,475 LOC
+- 134 个 Swift 源文件，~39,761 LOC
 - macOS 15+ · Apple Silicon only
 - 测试：49 个测试文件，128 套件，726 @Test 用例
 - 构建：0 警告，0 错误

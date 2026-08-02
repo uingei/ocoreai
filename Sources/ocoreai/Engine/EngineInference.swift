@@ -908,6 +908,19 @@ extension EnginePool {
                             tokenizer: context.tokenizer
                         )
 
+                        // Dynamic completion reserve — mirrors upstream CompletionReserve.estimate
+                        // (MLXGuidedGeneration/CompletionReserve.swift:23). Hardcoded 64/0 caused
+                        // premature truncation for complex schemas. Upstream recipe:
+                        //   structuralReserve = token count of minimal valid JSON for schema
+                        //   completionReserve = max(structuralReserve * 3, maxTokens / 4)
+                        //   hardReserve = structuralReserve * 8
+                        let structuralReserve = CompletionReserve.estimate(
+                            schemaJSON: grammarSchema,
+                            tokenizer: context.tokenizer
+                        )
+                        let completionReserve = Swift.max(structuralReserve * 3, maxTokens / 4)
+                        let hardReserve = structuralReserve * 8
+
                         do {
                             diagnosticResult = try GuidedGenerationDiagnosticSink.$current.withValue(diagnosticSink) {
                                 // Run GuidedGenerationLoop with emit callback → SSE yield
@@ -923,8 +936,8 @@ extension EnginePool {
                                     kvBits: genParams.kvBits,
                                     kvGroupSize: genParams.kvGroupSize,
                                     quantizedKVStart: genParams.quantizedKVStart,
-                                    completionReserve: 64,
-                                    hardReserve: 0,
+                                    completionReserve: completionReserve,
+                                    hardReserve: hardReserve,
                                     closingBias: closingBias,
                                     whitespaceBias: whitespaceBias,
                                     whitespaceTokenIDs: whitespaceTokenIDs,
@@ -1034,7 +1047,7 @@ extension EnginePool {
             ///
             /// Bridge: when tools are registered, we pass them to ChatSession along with
             /// a toolDispatch closure that routes ToolCall → ToolRegistry.call() and back.
-            /// This activates the ChatSession's built-in tool-dispatch agent loop (L774-817)
+            /// This activates the ChatSession's built-in tool-dispatch agent loop (L748 restart)
             /// instead of relying solely on the local AgentLoop coordinator.
             func runInferenceBody() async throws {
                 let convKey: String = conversationId ?? "\(modelId):ephemeral"
@@ -1052,28 +1065,84 @@ extension EnginePool {
                 }
 
                 // MARK: - macOS 27: LanguageModelSession bridge
-                // Standard integration path: LanguageModelSession(model:) → streamResponse(to:)
-                // SDK handles reasoning/vision/tool gates internally.
+                // LanguageModelSession → Executor.respond() → ToolCallingModeResolution
+                // + Think-then-Call + AllowedToolOutputRouter + CompletionReserve
+                // All activated by passing full tools/transcript/context options.
                 #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
                     if #available(macOS 27.0, *), let mlxLM = loaded.mlxLanguageModel {
                         log.info("Using LanguageModelSession (macOS 27 SDK path)")
-                        // Build instructions from system instructions (same source as ChatSession path)
+
+                        // --- Build FM Tool array from ToolRegistry ---
+                        // tools: [] is the #1 degradation vector — it short-circuits
+                        // Executor.respond()'s entire tool-calling pipeline.
+                        var fmTools: [any FoundationModels.Tool]? = nil
+                        if let registry = toolRegistry {
+                            let specs = await registry.toToolSpecs()
+                            if !specs.isEmpty {
+                                fmTools = FMToolProxy.tools(from: registry, toolSpecs: specs, log: log)
+                                log.info("Injected \(fmTools!.count) tools into FM session")
+                            }
+                        }
+
+                        // --- Build transcript with full conversation history ---
+                        // Previously only last user message text was passed. Now we
+                        // send system instructions + full message pairs + tool definitions
+                        // so Executor.respond() has correct KV cache context.
                         let sdkInstructions: String? = (systemInstructions?.isEmpty == false)
                             ? systemInstructions
                             : nil
-
-                        // Create session — SDK manages conversation transcript + KV cache
-                        let langSession = LanguageModelSession(
-                            model: mlxLM,
-                            tools: [],
-                            instructions: sdkInstructions
+                        let transcript = FMTranscriptHelpers.build(
+                            systemInstructions: sdkInstructions,
+                            messages: mlxMessages,
+                            tools: fmTools
                         )
 
-                        // Stream prompt is the last user message content
-                        let promptText = mlxMessages.last?.content ?? ""
+                        // Create session with tools + transcript (not just instructions)
+                        let langSession = LanguageModelSession(
+                            model: mlxLM,
+                            tools: fmTools ?? [],
+                            transcript: transcript
+                        )
+
+                        // --- GenerationOptions: sampling params ---
+                        // SDK SamplingMode factory methods (static, not init):
+                        //   .greedy, .random(topK:seed:), .random(probabilityThreshold:seed:)
+                        let samplingMode: GenerationOptions.SamplingMode? =
+                            if sampling.mode == .greedy {
+                                .greedy
+                            } else if let topK = sampling.topK, sampling.mode != .default {
+                                .random(top: topK, seed: sampling.seed.map { UInt64($0) })
+                            } else if let topP = sampling.topP, sampling.mode != .default {
+                                .random(probabilityThreshold: topP, seed: sampling.seed.map { UInt64($0) })
+                            } else {
+                                nil
+                            }
+                        let genOpts: GenerationOptions = GenerationOptions(
+                            samplingMode: samplingMode,
+                            temperature: sampling.temperature,
+                            maximumResponseTokens: options.maxTokens,
+                            toolCallingMode: fmTools != nil ? .allowed : .disallowed
+                        )
+
+                        // --- ContextOptions: reasoning level ---
+                        // SDK ReasoningLevel: .light, .moderate, .deep, .custom(String)
+                        let ctxOpts: ContextOptions
+                        if options.enableReasoning {
+                            ctxOpts = ContextOptions(reasoningLevel: .deep)
+                            log.info("Reasoning enabled via ContextOptions.reasoningLevel=.deep")
+                        } else {
+                            ctxOpts = ContextOptions()
+                        }
+
+                        // --- Guided generation: FM path cannot use schema overload
+                        // (returns GeneratedContent not String; would need separate stream type
+                        // and content extraction. ChatSession guided gen below covers this path.)
+                        // For now, drop guided schema on FM path — tools + reasoning + sampling
+                        // are the high-value wins and those are wired in.
 
                         do {
-                            let stream = langSession.streamResponse(to: promptText)
+                            let stream = langSession.streamResponse(to: "", options: genOpts, contextOptions: ctxOpts)
+
                             var tokenCount = 0
                             var stopReason: StopReason = .stopSequence
 
@@ -1121,13 +1190,13 @@ extension EnginePool {
         // and still need a valid session.
                     // Hoist registry ref before closure — ToolRegistry is an actor, capture is safe
                     // Tool dispatch closure: ChatSession owns tool execution via its built-in
-                    // loop (ChatSession.swift L774-817). Both pool-hit and new-session paths
+                    // loop (ChatSession.swift L748 restart). Both pool-hit and new-session paths
                     // set tools+toolDispatch so tool calls are handled internally.
                     // AgentLoop (Agents/AgentLoop.swift) is no longer used for MLX/ChatSession
                     // paths — it serves only as a fallback for CoreAI/bridge paths where
                     // ChatSession is unavailable.
                     //
-                    // Fix: ChatSession L780 intercepts .toolCall events when toolDispatch != nil
+                    // Fix: ChatSession L1043 intercepts .toolCall events when toolDispatch != nil
                     // ("collect tool calls for dispatch; if no toolDispatch the caller handles
                     //  them via the transform") — they never reach streamDetails. Intercepted
                     // tool calls are tracked here so we can emit .toolCall events downstream
@@ -1259,7 +1328,7 @@ extension EnginePool {
                     // MARK: - MTP Speculative Decoding Path
                     // MTP tool dispatch loop: .toolCall detected → dispatch via toolDispatchClosure
                     // → collect results → append tool/response messages → re-generate.
-                    // Mirrors ChatSession.swift L774-817 restart loop.
+                    // Mirrors ChatSession.swift L748 restart loop.
                     // VLM requests fall through to ChatSession (MTP cannot carry images/videos/audios).
                     else if self.mtpDrafterContainer != nil, mlxMessages.count > 0,
                         mlxMessages.allSatisfy({ $0.images.isEmpty && $0.audios.isEmpty && $0.videos.isEmpty }) {

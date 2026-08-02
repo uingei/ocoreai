@@ -32,7 +32,7 @@ Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
 ocoreai unifies inference engine, agent orchestration, and persistence in one process:
 
-- **Dual inference backends** — MLX (Metal GPU, default, ChatSession pipeline with `cachedTokens` prefix reuse + SessionPool disk persistence) + CoreAI (1,593 LOC, dynamic KV cache, `TokenHistory` prefix caching, cancel-and-replace via `GenerationToken` + `Mutex` guard). Zero network calls — inference runs on your Mac.
+- **Dual inference backends** — MLX (Metal GPU, default, dual-channel on-device inference via `MLXLanguageModel` + `ChatSession` pipeline) + CoreAI (1,593 LOC, dynamic KV cache, `TokenHistory` prefix caching). Zero network calls — inference runs on your Mac.
 - **Adaptive hardware routing** — Real-time HardwareRouter dispatches requests to GPU / ANE / CPU based on thermal pressure, memory headroom, and GPU utilization. AdmissionGate enforces a 3-tier admission policy (allow → ANE-only → reject) with configurable abort margin.
 - **Wired Memory GPU isolation** — hardware-level GPU memory bounds prevent OOM during inference.
 - **Thinking budget** — Adaptive token budget allocation driven by ComplexityAnalyzer scoring (length, intent, history dimensions) on Bridge Path. Fast Path (desktop GUI) has ThinkingBudget calibration loop wired but with simplified complexity input (constant 0.5 — no upstream ComplexityAnalyzer).
@@ -42,7 +42,8 @@ ocoreai unifies inference engine, agent orchestration, and persistence in one pr
 - **MCP bridge** — connect external MCP servers via stdio transport; HTTP endpoint available. Desktop UI has MCP section in SystemView.
 - **Scheduler + OOM guard** — priority dispatch (`P0` system → `P4` user), GPU memory budget enforcement, downgrade chain (4-bit → 8-bit → CPU → refuse).
 - **KV cache quantization** — Enabled by default (turbo4 scheme, 4-bit INT4, activates after 256 tokens). Backed by `GenerateParameters.kvBits` / `kvScheme` / `quantizedKVStart` in upstream MLXLMCommon.
-- **Guided generation** — Grammar-constrained output via `MLXGuidedGeneration` (xgrammar/JSON schema), with DiagnosticSink observability. Auto-enabled when tool calling or explicit grammar schema is set. Multimodal messages bypass grammar constraints.
+- **Guided generation** — Grammar-constrained output via `MLXGuidedGeneration` (xgrammar/JSON schema), with DiagnosticSink observability and dynamic `CompletionReserve.estimate` structural reserve calculations. Auto-enabled when tool calling or explicit grammar schema is set. Multimodal messages bypass grammar constraints.
+- **macOS 27 FM path** — Native `MLXLanguageModel` → `LanguageModelSession` + `MLXFoundationModels` on macOS 27 with tool calling via `FMToolProxy` bridge, reasoning via `ContextOptions`, and transcript-driven streaming. Falls back to ChatSession pipeline on earlier macOS.
 - **Speculative decoding** — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support with model-id isolation. Upstream pin `cd1ab3d` includes Qwen3-VL-MoE support (#322) and GatedDelta precision fix via Kahan compensated summation (#488).
 - **AIModelCache** — native CoreAI compiled model artifact caching (macOS 27 SDK).
 - **Config system** — YAML config with file watcher (poll-based). Hardware auto-detection for memory budget.
@@ -165,7 +166,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 | **Router** | `Router/` | Hummingbird HTTP router, endpoint dispatch |
 | **Handlers** | `Handlers/` | Chat completion, SSE streaming, model download, multimodal |
 | **Scheduler** | `Scheduler/` | Priority dispatch, memory tracking, OOM guard, HardwareRouter, AdmissionGate |
-| **Engine** | `Engine/` | MLX/CoreAI inference bridge, session pool, engine lifecycle, VLM pipeline |
+| **Engine** | `Engine/` | MLX/CoreAI inference bridge, dual-channel FM/ChatSession pipeline, FMToolProxy bridge, session pool, engine lifecycle, VLM pipeline |
 | **Agents** | `Agents/` | Agent loop — multi-turn tool calling, reasoning → action cycle |
 | **Tool Registry** | `Tools/` | Actor-isolated tool registration, dispatch, loop detection, audit trail |
 | **Skills** | `Skills/` | Skill registry, loader, system prompt builder |
@@ -202,6 +203,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 |-----------|--------|
 | MLX Metal inference | ✅ |
 | CoreAI inference (dynamic KV cache, prefix caching) | ✅ |
+| FM language model + tool bridge (macOS 27) | ✅ Code: `MLXLanguageModel` → `LanguageModelSession` → `streamResponse`; FMToolProxy bridges `ToolRegistry` → `FoundationModels.Tool`. Falls back to ChatSession on macOS < 27 |
 | KV cache quantization (turbo4/INT8) | ✅ |
 | VLM multimodal inference | ✅ |
 | Wired Memory GPU isolation | ✅ |
@@ -231,7 +233,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 ### Build Info
 
 - Swift 6.4 · SwiftUI · Hummingbird 2.26.0
-- 133 Swift source files, ~39,475 LOC
+- 134 Swift source files, ~39,761 LOC
 - macOS 15+ · Apple Silicon only
 - Tests: 49 test files across 128 suites, 726 @Test cases
 - Build: 0 warnings, 0 errors
