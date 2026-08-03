@@ -1896,7 +1896,7 @@ extension EnginePool {
                         cap: config.wiredMemory.budgetCap
                     )
                 case "fixed":
-                    WiredFixedPolicy(limit: config.wiredMemory.fixedLimit)
+                    WiredFixedPolicy(limit: max(1, config.wiredMemory.fixedLimit))
                 default:
                     WiredMaxPolicy()
                 }
