@@ -445,11 +445,18 @@ actor EnginePool {
                     }
                 )
                 
-                // loadContainer() → ModelCache.load() — concurrent-safe, deduped, tracked
+                // preload() → loadContainer() single call.
+                // upstream: MLXLanguageModel.preload() L585: public func preload() async throws
+                //         internally is just `_ = try await loadContainer()` (L587).
+                // ModelCache.load has a guard dedup — second loadContainer() call
+                // (by respond(), here, or warmUp()) returns cached container.
                 if let mlLM = mlxLM as? MLXLanguageModel {
+                    try await mlLM.preload()
+                    // loadContainer() here is a cache hit — preload() already cached it.
+                    // We still call it to get the container reference for MLXModelHandleImpl.
                     let container = try await mlLM.loadContainer()
                     mlxHandleToSet = MLXModelHandleImpl(modelContainer: container, modelId: modelId)
-                    logger.info("MLX model \(modelId) loaded via ModelCache")
+                    logger.info("MLX model \(modelId) loaded via ModelCache.preload()")
                 } else {
                     // Fallback if cast fails — unlikely but defensive
                     mlxHandleToSet = try await mlxModelLoader.load(
@@ -782,6 +789,13 @@ actor EnginePool {
             }
         }
         logger.info("All tracked inference tasks cancelled")
+
+        // upstream: MLXLanguageModel.evictAll() L498 — clear global ModelCache
+        #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
+            if #available(macOS 27.0, *) {
+                await MLXLanguageModel.evictAll()
+            }
+        #endif
 
         if let pool = sessionPool {
             await pool.clear()

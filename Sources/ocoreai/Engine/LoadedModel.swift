@@ -19,6 +19,7 @@ import MLXLMCommon
 
 #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
     import MLXFoundationModels
+    import FoundationModels
 #endif
 
 // MARK: - LoadedModel
@@ -195,7 +196,26 @@ final class LoadedModel: @unchecked Sendable {
 #if canImport(CoreAI)
         if #available(macOS 27.0, *) {
             do {
-                // Use cached engine — CoreAI 34f0db3: single engine per model preserves KV cache
+                // Call upstream Executor.prewarm(model:transcript:) — compiles Metal
+                // shaders + pre-builds GrammarTokenizer.
+                // upstream: MLXLanguageModel.swift L920: Executor.prewarm(model:transcript:)
+                //         → model.warmUp() L610 (internal, fire-and-forget via detached Task)
+                if let lm = mlxLanguageModel {
+                    let executor = try MLXLanguageModel.Executor(
+                        configuration: lm.executorConfiguration
+                    )
+                    // Build a minimal warmup transcript via the same pattern as FMToolBridge
+                    let entries: [FoundationModels.Transcript.Entry] = [
+                        .prompt(
+                            FoundationModels.Transcript.Prompt(segments: [
+                                .text(FoundationModels.Transcript.TextSegment(content: "warmup"))
+                            ])
+                        )
+                    ]
+                    let transcript = FoundationModels.Transcript(entries: entries)
+                    executor.prewarm(model: lm, transcript: transcript)
+                }
+                // Also warm CoreAI engine — single engine per model preserves KV cache
                 let engine = try await getCachedEngine()
                 let seq = try await engine.generate(
                     with: Array(repeating: 0, count: 8),
@@ -348,8 +368,16 @@ final class LoadedModel: @unchecked Sendable {
         draftModelHandle = nil
         _mtpDrafterContainer = nil
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-            // Release MLXLanguageModel so ModelCache can evict its container
+            // upstream: MLXLanguageModel.evict() L509 — remove from shared ModelCache
+            // evict() is async — fire-and-forget in cleanup (same as warmUp via prewarm)
             if #available(macOS 27.0, *) {
+                if let lm = _mlxLanguageModelRef as? MLXLanguageModel {
+                    // Detach evict to background — ModelCache removes weights, then
+                    // the strong reference drops. Best-effort, non-blocking.
+                    Task.detached {
+                        await lm.evict()
+                    }
+                }
                 _mlxLanguageModelRef = nil
             }
         #endif
