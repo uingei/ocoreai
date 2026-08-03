@@ -4,10 +4,11 @@
 /// normalization, token count heuristic. Only tests that exercise real
 /// data transformation logic.
 
-import Testing
 import Foundation
-@testable import ocoreai
+import Testing
 import ocoreaiTestUtilities
+
+@testable import ocoreai
 
 // MARK: - contentToString pipeline
 
@@ -25,7 +26,9 @@ struct ContentToStringPipelineTests {
     func mixedParts() async {
         let parts = [
             ContentPart(type: "text", text: "first", imageUrl: nil),
-            ContentPart(type: "image_url", text: nil, imageUrl: ContentPart.ImageURL(url: "https://img.png")),
+            ContentPart(
+                type: "image_url", text: nil, imageUrl: ContentPart.ImageURL(url: "https://img.png")
+            ),
             ContentPart(type: "text", text: "last", imageUrl: nil),
         ]
         let content = ContentPolymorphic.parts(parts)

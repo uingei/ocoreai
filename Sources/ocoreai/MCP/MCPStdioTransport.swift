@@ -86,7 +86,8 @@ actor MCPStdioTransport {
 
                     // 按行切分，取出第一行
                     if let newlineIdx = text.firstIndex(of: "\n") {
-                        let line = String(text[..<newlineIdx]).trimmingCharacters(in: .whitespacesAndNewlines)
+                        let line = String(text[..<newlineIdx]).trimmingCharacters(
+                            in: .whitespacesAndNewlines)
                         continuation.resume(returning: line.isEmpty ? nil : line)
                     } else {
                         let line = text.trimmingCharacters(in: .whitespacesAndNewlines)

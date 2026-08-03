@@ -10,10 +10,11 @@
 ///   2. InferenceCancellation cancel() → isCancelled state transition
 ///   3. InferenceRequest default vs explicit sampling params
 
-import Testing
 import Foundation
-@testable import ocoreai
+import Testing
 import ocoreaiTestUtilities
+
+@testable import ocoreai
 
 // MARK: - DirectChunkMetadata Codable round-trip
 
@@ -136,8 +137,8 @@ struct InferenceRequestTests {
 
 // MARK: - Helper: enum case introspection for Codable verification
 
-private extension DirectChatChunk.DirectChunkMetadata {
-    func caseName() throws -> String {
+extension DirectChatChunk.DirectChunkMetadata {
+    fileprivate func caseName() throws -> String {
         let data = try JSONEncoder().encode(self)
         let dict = try JSONSerialization.jsonObject(with: data, options: []) as! [String: Any]
         // Codable enum with associated values encodes case name as a string key

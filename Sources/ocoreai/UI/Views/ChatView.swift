@@ -21,13 +21,17 @@ import AppKit
 ///
 /// `displayContent` is the rendering source: uses `parts` if available, falls back to `content`.
 struct ChatBubbleMessage: Identifiable, Hashable {
-    let id: String // stable UUID-based identity
+    let id: String  // stable UUID-based identity
     let role: String
-    let content: String /// Flat fallback text (compatibility + streaming)
-    let parts: [TranscriptPart]? /// Structured semantic blocks
+    let content: String
+    /// Flat fallback text (compatibility + streaming)
+    let parts: [TranscriptPart]?
+    /// Structured semantic blocks
     let timestamp: Date
-    let imageURLs: [String] /// Base64 data URLs for inline image preview
-    let interrupted: Bool /// true when truncated by user cancel — drives UI badge
+    let imageURLs: [String]
+    /// Base64 data URLs for inline image preview
+    let interrupted: Bool
+    /// true when truncated by user cancel — drives UI badge
 
     /// Rendering content: structured parts preferred, flat content as fallback
     var displayContent: String {
@@ -83,7 +87,7 @@ struct ChatView: View {
 
     // P1-fix: NSEvent monitor handle — disposed on .onDisappear to prevent leak
     #if os(macOS)
-        @State private var _keyboardMonitor: Any? = nil
+    @State private var _keyboardMonitor: Any? = nil
     #endif
 
     // Multimodal controls panel — collapsed by default
@@ -102,10 +106,10 @@ struct ChatView: View {
     /// Dispose NSEvent monitor handle — cancels DispatchSource to break RC cycle on tab switch
     private func disposeKeyboardMonitor() {
         #if os(macOS)
-            if let monitor = self._keyboardMonitor as? DispatchSource {
-                monitor.cancel()
-            }
-            self._keyboardMonitor = nil
+        if let monitor = self._keyboardMonitor as? DispatchSource {
+            monitor.cancel()
+        }
+        self._keyboardMonitor = nil
         #endif
     }
 
@@ -219,7 +223,8 @@ struct ChatView: View {
                     )
                 }
                 .accessibilityLabel(StringKey.modelSelectorLabel.l)
-                .accessibilityValue(currentModel.isEmpty ? StringKey.modelSelectorValueDefault.l : currentModel)
+                .accessibilityValue(
+                    currentModel.isEmpty ? StringKey.modelSelectorValueDefault.l : currentModel)
             }
 
             // HIG-02: destructive non-modal operations shouldn't be in .primaryAction —
@@ -236,9 +241,11 @@ struct ChatView: View {
             }
         }
         // P2-fix: confirmation dialog for clear conversation (HIG: destructive actions must confirm)
-        .confirmationDialog(StringKey.clearConversationTitle.l,
-                           isPresented: $showClearConfirmation,
-                           titleVisibility: .visible) {
+        .confirmationDialog(
+            StringKey.clearConversationTitle.l,
+            isPresented: $showClearConfirmation,
+            titleVisibility: .visible
+        ) {
             Button(StringKey.clearAllAction.l, role: .destructive) {
                 chatState.resetConversation()
             }
@@ -253,7 +260,8 @@ struct ChatView: View {
         // B4 fix: removed .sheet — model search/load already available via Models tab
         // P0-2: On model selector change, unload old model to free GPU memory
         .onChange(of: currentModel) { _, newModel in
-            let targetModel = newModel.isEmpty
+            let targetModel =
+                newModel.isEmpty
                 ? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? ""
                 : newModel
             guard !targetModel.isEmpty else { return }
@@ -271,12 +279,15 @@ struct ChatView: View {
             Circle()
                 .fill(isConnected ? theme.greenDot : theme.amberDot)
                 .frame(width: 6, height: 6)
-                .shadow(color: (isConnected ? theme.greenDot : theme.amberDot).opacity(0.4), radius: 2)
+                .shadow(
+                    color: (isConnected ? theme.greenDot : theme.amberDot).opacity(0.4), radius: 2
+                )
                 .accessibilityHidden(true)
             Text(isConnected ? StringKey.localLabel.l : StringKey.chatLoading.l)
                 .font(.ocoreaiText(10))
                 .foregroundStyle(theme.textSecondary)
-                .accessibilityLabel(isConnected ? StringKey.chatConnected.l : StringKey.chatLoading.l)
+                .accessibilityLabel(
+                    isConnected ? StringKey.chatConnected.l : StringKey.chatLoading.l)
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
@@ -320,12 +331,17 @@ struct ChatView: View {
                                             .lineSpacing(2)
                                             .padding(.horizontal, 12)
                                             .padding(.vertical, 8)
-                                            .background(theme.cardBg, in: RoundedRectangle(cornerRadius: 8))
+                                            .background(
+                                                theme.cardBg, in: RoundedRectangle(cornerRadius: 8))
                                     }
                                     .padding(.horizontal, 4)
-                                    .background(theme.cardBg, in: RoundedRectangle(cornerRadius: 14))
+                                    .background(
+                                        theme.cardBg, in: RoundedRectangle(cornerRadius: 14)
+                                    )
                                     .transition(.opacity.combined(with: .move(edge: .top)))
-                                    .animation(.spring(response: 0.25, dampingFraction: 0.9), value: chatState.currentReasoningText)
+                                    .animation(
+                                        .spring(response: 0.25, dampingFraction: 0.9),
+                                        value: chatState.currentReasoningText)
                                 }
                                 MarkdownMessage(content: chatState.responseTextDisplay)
                                     .opacity(0.85)
@@ -354,7 +370,7 @@ struct ChatView: View {
                         } else if isStreaming {
                             // No text yet — show typing indicator dots
                             HStack {
-                                Spacer(minLength: 26) // Align with assistant avatar
+                                Spacer(minLength: 26)  // Align with assistant avatar
                                 TypingIndicator()
                             }
                             .padding()
@@ -521,8 +537,12 @@ struct ChatView: View {
                         .font(.title2)
                         .foregroundStyle(isStreaming ? theme.redDot : theme.accent)
                 }
-                .accessibilityLabel(isStreaming ? StringKey.stopStreamingLabel.l : StringKey.sendMessageLabel.l)
-                .accessibilityHint(isStreaming ? StringKey.stopStreamingHint.l : StringKey.sendMessageHint.l)
+                .accessibilityLabel(
+                    isStreaming ? StringKey.stopStreamingLabel.l : StringKey.sendMessageLabel.l
+                )
+                .accessibilityHint(
+                    isStreaming ? StringKey.stopStreamingHint.l : StringKey.sendMessageHint.l
+                )
                 .disabled(isStreaming && inputText.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
@@ -531,10 +551,10 @@ struct ChatView: View {
 
     // MARK: - Image Picker
 
-/// Image picker — disk I/O and compression offloaded to background to avoid main-thread blocking
+    /// Image picker — disk I/O and compression offloaded to background to avoid main-thread blocking
     @MainActor
     private func pickImages() {
-    #if os(macOS)
+        #if os(macOS)
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.png, .jpeg, .heic, .webP]
         panel.allowsMultipleSelection = true
@@ -554,9 +574,11 @@ struct ChatView: View {
                 for url in selectedURLs {
                     do {
                         // Pre-check size without loading into memory
-                        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-                              let size = attrs[.size] as? Int,
-                              size <= maxFileSize else {
+                        guard
+                            let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+                            let size = attrs[.size] as? Int,
+                            size <= maxFileSize
+                        else {
                             // Report oversized files back on main thread
                             await MainActor.run {
                                 chatState.errorMessage = String(
@@ -570,9 +592,11 @@ struct ChatView: View {
                         // P1-fix: compress before base64 — keeps per-image memory under 500KB
                         // (was: raw 20MB file → 27MB base64; now: compressed ~300KB → ~400KB base64)
                         let compressed = compressImage(data)
-                        attachmentsToAppend.append(ChatState.AttachedImage(
-                            dataURL: "data:image/jpeg;base64,\(compressed.base64EncodedString())"
-                        ))
+                        attachmentsToAppend.append(
+                            ChatState.AttachedImage(
+                                dataURL:
+                                    "data:image/jpeg;base64,\(compressed.base64EncodedString())"
+                            ))
                     } catch {
                         // Skip files that fail to read
                     }
@@ -583,9 +607,9 @@ struct ChatView: View {
                 }
             }
         }
-#else
+        #else
         // iOS: UIImagePickerController via sheet — stub for now
-#endif
+        #endif
     }
 
     // MARK: - Actions
@@ -602,7 +626,8 @@ struct ChatView: View {
         inputText = ""
         let currentAttachments = attachments
         attachments.removeAll()
-        let modelID = currentModel.isEmpty
+        let modelID =
+            currentModel.isEmpty
             ? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? ""
             : currentModel
 
@@ -612,7 +637,8 @@ struct ChatView: View {
         // Pure-image send: pass empty text (no hard-coded English placeholder into
         // the user bubble / SQLite); attachment thumbnails render inline instead.
         activeTask = Task { @MainActor in
-            await chatState.chat(text.isEmpty ? "" : text, model: modelID, attachments: currentAttachments)
+            await chatState.chat(
+                text.isEmpty ? "" : text, model: modelID, attachments: currentAttachments)
             activeTask = nil
         }
     }
@@ -679,7 +705,7 @@ struct ChatBubble: View {
             )
             .accessibilityAddTraits(.isStaticText)
             .contextMenu {
-            #if os(macOS)
+                #if os(macOS)
                 Button(StringKey.copyMessage.l) {
                     NSPasteboard.general.setString(message.content, forType: .string)
                 }
@@ -690,7 +716,7 @@ struct ChatBubble: View {
                         ChatState.shared.resendFromMessage(with: uuid)
                     }
                 }
-            #else
+                #else
                 Button(StringKey.copyMessage.l) {
                     copyToPasteboard(message.content)
                 }
@@ -701,7 +727,7 @@ struct ChatBubble: View {
                         ChatState.shared.resendFromMessage(with: uuid)
                     }
                 }
-            #endif
+                #endif
             }
 
             if isUser { Spacer(minLength: 16) }
@@ -781,7 +807,7 @@ struct ChatHeader: View {
                 .font(.ocoreaiMono(10))
                 .foregroundStyle(theme.textTertiary.opacity(0.6))
         }
-        .accessibilityHidden(true) // Redundant with ChatBubble label
+        .accessibilityHidden(true)  // Redundant with ChatBubble label
     }
 }
 
@@ -832,7 +858,7 @@ struct TranscriptContentView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14))
                         .background(theme.cardBg)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
-                    
+
                 case .video(let videoUrl):
                     // Mirrors upstream MLXChatExample MediaPreviewView: VideoPlayer + AVPlayer
                     // for displaying video attachments from VLM multimodal input.

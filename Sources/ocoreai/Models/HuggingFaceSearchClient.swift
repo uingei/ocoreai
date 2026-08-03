@@ -199,7 +199,7 @@ enum HFSearchError: Error, LocalizedError, Equatable {
         case .unauthorized: "Authentication required — check HF token"
         case .rateLimited: "Rate limited by HuggingFace Hub — please wait"
         case .notFound: "Model not found on HuggingFace Hub"
-        case let .unknown(s): "HuggingFace API error: \(s)"
+        case .unknown(let s): "HuggingFace API error: \(s)"
         }
     }
 

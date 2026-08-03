@@ -12,8 +12,9 @@
 /// extraction, ID format checks, whitespace trimming (all DTO-level hygiene).
 
 import Testing
-@testable import ocoreai
 import ocoreaiTestUtilities
+
+@testable import ocoreai
 
 /// parseToolCalls tests — detection, false positive prevention, safe rejection.
 // MARK: - Helpers
@@ -49,7 +50,7 @@ struct ToolCallDetectionTests {
     func multipleToolCalls() {
         let content = jsonToolCalls([
             ["name": "get_weather", "arguments": "{\"location\":\"SF\"}"],
-            ["name": "get_weather", "arguments": "{\"location\":\"NYC\"}"]
+            ["name": "get_weather", "arguments": "{\"location\":\"NYC\"}"],
         ])
         let result = parseToolCalls(from: content)
         #expect(result != nil)
@@ -87,7 +88,7 @@ struct ToolCallDetectionTests {
 
     @Test("Large number of tool calls handled correctly (20 calls)")
     func manyToolCalls() {
-        let entries: [[String: Any]] = (0..<20).map { i in
+        let entries: [[String: Any]] = (0 ..< 20).map { i in
             ["name": "tool_\(i)", "arguments": "{}"]
         }
         let content = jsonToolCalls(entries)
@@ -100,8 +101,8 @@ struct ToolCallDetectionTests {
     func dictArguments() throws {
         // Test the code path where arguments is a dict, not a string
         let content = """
-        [{"name":"execute","arguments":{"cmd":"ls","flags":["-la","-h"]}}]
-        """
+            [{"name":"execute","arguments":{"cmd":"ls","flags":["-la","-h"]}}]
+            """
         let result = parseToolCalls(from: content)
         #expect(result != nil)
         #expect(result?.count == 1)
@@ -125,8 +126,8 @@ struct ToolCallDetectionTests {
     @Test("Tool call with null arguments defaults to {}")
     func nullArguments() throws {
         let content = """
-        [{"name":"ping","arguments":null}]
-        """
+            [{"name":"ping","arguments":null}]
+            """
         let result = parseToolCalls(from: content)
         #expect(result != nil)
         #expect(result?[0].function.arguments == "{}")
@@ -151,16 +152,16 @@ struct ToolCallSafeRejectionTests {
     @Test("Tool call with missing 'name' field silently skipped → nil")
     func missingNameSkipped() {
         let content = """
-        [{"arguments": {"location": "SF"}}]
-        """
+            [{"arguments": {"location": "SF"}}]
+            """
         #expect(parseToolCalls(from: content) == nil)
     }
 
     @Test("Tool call with missing 'arguments' field silently skipped → nil")
     func missingArgsSkipped() {
         let content = """
-        [{"name": "get_weather"}]
-        """
+            [{"name": "get_weather"}]
+            """
         #expect(parseToolCalls(from: content) == nil)
     }
 
@@ -177,10 +178,10 @@ struct ToolCallSafeRejectionTests {
     @Test("Code block with JSON-like tool content NOT misdetected")
     func codeBlockNotDetected() {
         let content = """
-        ```json
-        {"name": "get_weather", "arguments": {"location": "SF"}}
-        ```
-        """
+            ```json
+            {"name": "get_weather", "arguments": {"location": "SF"}}
+            ```
+            """
         #expect(parseToolCalls(from: content) == nil)
     }
 }

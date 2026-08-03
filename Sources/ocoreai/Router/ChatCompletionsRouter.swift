@@ -30,8 +30,8 @@ import Logging
 // MARK: - Response Helpers
 
 /// Encode any `Encodable` to JSON Response with status `.ok`.
-private extension Response {
-    static func json(
+extension Response {
+    fileprivate static func json(
         _ value: some Encodable,
         encoder: JSONEncoder = {
             let enc = JSONEncoder()
@@ -117,7 +117,9 @@ func buildRouter(
             status: .ok,
             headers: headers,
             body: .init { writer in
-                if let data = body.data(using: .utf8) { try await writer.write(ByteBuffer(data: data)) }
+                if let data = body.data(using: .utf8) {
+                    try await writer.write(ByteBuffer(data: data))
+                }
             },
         )
     }
@@ -177,28 +179,28 @@ func buildRouter(
     // MARK: - LLM Lifecycle — Train + Evaluate
 
     routes.post("/v1/models/train") { request, context in
-            let trainRequest = try await request.decode(as: TrainRequest.self, context: context)
-            guard !trainRequest.model.isEmpty else {
-                throw AppError.invalidRequest("model must not be empty")
-            }
-            return try await trainHandler(
-                request: trainRequest,
-                enginePool: enginePool,
-                logger: logger,
-            )
+        let trainRequest = try await request.decode(as: TrainRequest.self, context: context)
+        guard !trainRequest.model.isEmpty else {
+            throw AppError.invalidRequest("model must not be empty")
         }
+        return try await trainHandler(
+            request: trainRequest,
+            enginePool: enginePool,
+            logger: logger,
+        )
+    }
 
-        routes.post("/v1/models/evaluate") { request, context in
-            let evalRequest = try await request.decode(as: EvalRequest.self, context: context)
-            guard !evalRequest.model.isEmpty else {
-                throw AppError.invalidRequest("model must not be empty")
-            }
-            return try await evaluateHandler(
-                request: evalRequest,
-                enginePool: enginePool,
-                logger: logger,
-            )
+    routes.post("/v1/models/evaluate") { request, context in
+        let evalRequest = try await request.decode(as: EvalRequest.self, context: context)
+        guard !evalRequest.model.isEmpty else {
+            throw AppError.invalidRequest("model must not be empty")
         }
+        return try await evaluateHandler(
+            request: evalRequest,
+            enginePool: enginePool,
+            logger: logger,
+        )
+    }
 
     // MARK: Runtime Parameter Hot-Swap API
 
@@ -235,16 +237,16 @@ func buildRouter(
     // MARK: Model Download
 
     routes.post("/v1/models/download") { request, context in
-            let downloadRequest = try await request.decode(
-                as: DownloadModelRequest.self, context: context,
-            )
-            return try await modelDownloadHandler(
-                request: downloadRequest,
-                hfToken: hfToken,
-                msToken: msToken,
-                logger: logger,
-            )
-        }
+        let downloadRequest = try await request.decode(
+            as: DownloadModelRequest.self, context: context,
+        )
+        return try await modelDownloadHandler(
+            request: downloadRequest,
+            hfToken: hfToken,
+            msToken: msToken,
+            logger: logger,
+        )
+    }
 
     // MARK: Multimodal (camera / microphone / TTS)
 
@@ -410,7 +412,10 @@ struct EngineSummary: Codable {
     let gpuCacheGB: Double
     let specializedModels: Int
 
-    init(loadedModels: Int, activeSessions: Int, modelIds: [String] = [], gpuCacheGB: Double, specializedModels: Int = 0) {
+    init(
+        loadedModels: Int, activeSessions: Int, modelIds: [String] = [], gpuCacheGB: Double,
+        specializedModels: Int = 0
+    ) {
         self.loadedModels = loadedModels
         self.activeSessions = activeSessions
         self.modelIds = modelIds

@@ -42,7 +42,7 @@ struct ModelVersion: Codable {
         defer { try? fileHandle.close() }
 
         var hasher = SHA256()
-        let blockSize = 1024 * 64 // 64KB chunks
+        let blockSize = 1024 * 64  // 64KB chunks
         var offset: UInt64 = 0
 
         while true {
@@ -66,7 +66,8 @@ struct ModelVersion: Codable {
             let blockSize = 1024 * 64
             while true {
                 guard let data = try? fileHandle.read(upToCount: blockSize),
-                      !data.isEmpty else { break }
+                    !data.isEmpty
+                else { break }
                 hasher.update(data: data)
             }
         }

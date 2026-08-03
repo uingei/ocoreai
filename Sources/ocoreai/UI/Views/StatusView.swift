@@ -21,7 +21,8 @@ struct StatusView: View {
                 LazyVStack(spacing: 8) {
                     StatusRow(
                         title: StringKey.backend.l,
-                        value: appState.isConnected ? StringKey.systemOnline.l : StringKey.disconnected.l,
+                        value: appState.isConnected
+                            ? StringKey.systemOnline.l : StringKey.disconnected.l,
                         icon: "server.rack",
                         tint: appState.isConnected ? theme.greenDot : theme.redDot,
                         pill: appState.isConnected ? SPStatus.running : SPStatus.error,
@@ -42,7 +43,8 @@ struct StatusView: View {
                     )
                     StatusRow(
                         title: StringKey.throughput.l,
-                        value: String(format: "%.1f tok/s", appState.currentMetrics.tokensPerSecond),
+                        value: String(
+                            format: "%.1f tok/s", appState.currentMetrics.tokensPerSecond),
                         icon: "bolt.horizontal.fill",
                         tint: theme.tintBlue,
                         pill: SPStatus.running,

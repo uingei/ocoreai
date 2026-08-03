@@ -5,16 +5,18 @@
 /// Covers: open/close lifecycle, DML execution, scalarQuery, multi-row query,
 /// FTS5 full-text search, memory_events six-element CRUD, Actor boundary safety.
 
-import Testing
 import Foundation
 import Logging
+import Testing
+
 @testable import ocoreai
 
 @Suite("SQLiteStore Lifecycle")
 struct SQLiteStoreTests {
     func testPath() -> String {
-        String(FileManager.default.temporaryDirectory
-            .appendingPathComponent("ocoreai_test_\(UUID().uuidString.prefix(8)).sqlite").path)
+        String(
+            FileManager.default.temporaryDirectory
+                .appendingPathComponent("ocoreai_test_\(UUID().uuidString.prefix(8)).sqlite").path)
     }
 
     @Test("open + close 基本生命周期")
@@ -57,8 +59,9 @@ struct SQLiteStoreTests {
 @Suite("SQLiteStore DML")
 struct SQLiteStoreDMLTests {
     func testPath() -> String {
-        String(FileManager.default.temporaryDirectory
-            .appendingPathComponent("ocoreai_test_\(UUID().uuidString.prefix(8)).sqlite").path)
+        String(
+            FileManager.default.temporaryDirectory
+                .appendingPathComponent("ocoreai_test_\(UUID().uuidString.prefix(8)).sqlite").path)
     }
 
     @Test("execute 插入 + scalarQuery 查询")
@@ -66,8 +69,12 @@ struct SQLiteStoreDMLTests {
         let store = SQLiteStore(path: testPath())
         try await store.open()
         try await store.execute(
-            sql: "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
-            parameters: ["llama-3.1", Int64(Date().timeIntervalSince1970 * 1_000_000), Int64(Date().timeIntervalSince1970 * 1_000_000), 10, 500]
+            sql:
+                "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
+            parameters: [
+                "llama-3.1", Int64(Date().timeIntervalSince1970 * 1_000_000),
+                Int64(Date().timeIntervalSince1970 * 1_000_000), 10, 500,
+            ]
         )
         let count = try await store.scalarQuery(sql: "SELECT COUNT(*) FROM sessions")
         #expect(count?.asInt64 == 1)
@@ -82,16 +89,25 @@ struct SQLiteStoreDMLTests {
         let store = SQLiteStore(path: testPath())
         try await store.open()
         try await store.execute(
-            sql: "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
-            parameters: ["model-a", Int64(Date().timeIntervalSince1970 * 1_000_000), Int64(Date().timeIntervalSince1970 * 1_000_000), 0, 0]
+            sql:
+                "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
+            parameters: [
+                "model-a", Int64(Date().timeIntervalSince1970 * 1_000_000),
+                Int64(Date().timeIntervalSince1970 * 1_000_000), 0, 0,
+            ]
         )
-        for i in 0..<5 {
+        for i in 0 ..< 5 {
             try await store.execute(
-                sql: "INSERT INTO messages (session_id, role, content, created_at, token_count) VALUES (?, ?, ?, ?, ?)",
-                parameters: [1, i % 2 == 0 ? "user" : "assistant", "Message \(i)", Int64(Date().timeIntervalSince1970 * 1_000_000), 10]
+                sql:
+                    "INSERT INTO messages (session_id, role, content, created_at, token_count) VALUES (?, ?, ?, ?, ?)",
+                parameters: [
+                    1, i % 2 == 0 ? "user" : "assistant", "Message \(i)",
+                    Int64(Date().timeIntervalSince1970 * 1_000_000), 10,
+                ]
             )
         }
-        let count = try await store.scalarQuery(sql: "SELECT COUNT(*) FROM messages WHERE session_id = 1")
+        let count = try await store.scalarQuery(
+            sql: "SELECT COUNT(*) FROM messages WHERE session_id = 1")
         #expect(count?.asInt64 == 5)
         await store.close()
         try? FileManager.default.removeItem(atPath: testPath())
@@ -102,7 +118,8 @@ struct SQLiteStoreDMLTests {
         let store = SQLiteStore(path: testPath())
         try await store.open()
         try await store.execute(
-            sql: "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
+            sql:
+                "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
             parameters: ["model-x", Int64(1000), Int64(2000), 42, 100]
         )
         let rows = try await store.query(
@@ -133,10 +150,12 @@ struct SQLiteStoreDMLTests {
         let store = SQLiteStore(path: testPath())
         try await store.open()
         try await store.execute(
-            sql: "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
+            sql:
+                "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
             parameters: ["bound-test", Int64(1000), Int64(2000), 10, 250]
         )
-        let val = try await store.scalarQuery(sql: "SELECT model_id FROM sessions WHERE created_at > ?", parameters: [Int64(500)])
+        let val = try await store.scalarQuery(
+            sql: "SELECT model_id FROM sessions WHERE created_at > ?", parameters: [Int64(500)])
         #expect(val?.asString == "bound-test")
         await store.close()
         try? FileManager.default.removeItem(atPath: testPath())
@@ -159,8 +178,9 @@ struct SQLiteStoreDMLTests {
 @Suite("SQLite FTS5")
 struct SQLiteFTS5Tests {
     func testPath() -> String {
-        String(FileManager.default.temporaryDirectory
-            .appendingPathComponent("ocoreai_test_\(UUID().uuidString.prefix(8)).sqlite").path)
+        String(
+            FileManager.default.temporaryDirectory
+                .appendingPathComponent("ocoreai_test_\(UUID().uuidString.prefix(8)).sqlite").path)
     }
 
     @Test("FTS5 全文搜索 — messages")
@@ -168,15 +188,21 @@ struct SQLiteFTS5Tests {
         let store = SQLiteStore(path: testPath())
         try await store.open()
         try await store.execute(
-            sql: "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
-            parameters: ["model", Int64(Date().timeIntervalSince1970 * 1_000_000), Int64(Date().timeIntervalSince1970 * 1_000_000), 0, 0]
+            sql:
+                "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
+            parameters: [
+                "model", Int64(Date().timeIntervalSince1970 * 1_000_000),
+                Int64(Date().timeIntervalSince1970 * 1_000_000), 0, 0,
+            ]
         )
         try await store.execute(
-            sql: "INSERT INTO messages (session_id, role, content, created_at, token_count) VALUES (?, ?, ?, ?, ?)",
+            sql:
+                "INSERT INTO messages (session_id, role, content, created_at, token_count) VALUES (?, ?, ?, ?, ?)",
             parameters: [1, "user", "How to debug a segmentation fault", Int64(1), 10]
         )
         try await store.execute(
-            sql: "INSERT INTO messages (session_id, role, content, created_at, token_count) VALUES (?, ?, ?, ?, ?)",
+            sql:
+                "INSERT INTO messages (session_id, role, content, created_at, token_count) VALUES (?, ?, ?, ?, ?)",
             parameters: [1, "assistant", "Check with LLDB", Int64(2), 5]
         )
         let results = try await store.query(
@@ -194,12 +220,18 @@ struct SQLiteFTS5Tests {
         try await store.open()
         let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
         try await store.execute(
-            sql: "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
+            sql:
+                "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
             parameters: ["model", now, now, 0, 0]
         )
         try await store.execute(
-            sql: "INSERT INTO memory_events (session_id, timestamp, context, entities, cause, process, result, memory_type, dedup_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            parameters: [1, now, "ci-failure", "test", "out of memory during inference", "downgraded quantization to 4bit", "model loaded successfully", "fact", "test-mem-1"]
+            sql:
+                "INSERT INTO memory_events (session_id, timestamp, context, entities, cause, process, result, memory_type, dedup_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            parameters: [
+                1, now, "ci-failure", "test", "out of memory during inference",
+                "downgraded quantization to 4bit", "model loaded successfully", "fact",
+                "test-mem-1",
+            ]
         )
         let results = try await store.query(
             "SELECT rowid, cause, result FROM memory_events_fts WHERE memory_events_fts MATCH 'inference' ORDER BY rank"
@@ -214,15 +246,17 @@ struct SQLiteFTS5Tests {
 @Suite("Memory Events - Six Element Model")
 struct MemoryEventTests {
     func testPath() -> String {
-        String(FileManager.default.temporaryDirectory
-            .appendingPathComponent("ocoreai_test_\(UUID().uuidString.prefix(8)).sqlite").path)
+        String(
+            FileManager.default.temporaryDirectory
+                .appendingPathComponent("ocoreai_test_\(UUID().uuidString.prefix(8)).sqlite").path)
     }
 
     /// Bootstrap session for foreign key constraint on memory_events.session_id
     private func bootstrapSession(store: SQLiteStore) async throws {
         let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
         try await store.execute(
-            sql: "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
+            sql:
+                "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
             parameters: ["model", now, now, 0, 0]
         )
     }
@@ -234,8 +268,13 @@ struct MemoryEventTests {
         try await bootstrapSession(store: store)
         let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
         try await store.execute(
-            sql: "INSERT INTO memory_events (session_id, timestamp, context, entities, cause, process, result, resolution, memory_type, dedup_key, confidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            parameters: [1, now, "deployment", "test", "failed health check", "rolled back to previous image", "service restored", "resolved", "fact", "unique-key-1", 0.95]
+            sql:
+                "INSERT INTO memory_events (session_id, timestamp, context, entities, cause, process, result, resolution, memory_type, dedup_key, confidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            parameters: [
+                1, now, "deployment", "test", "failed health check",
+                "rolled back to previous image", "service restored", "resolved", "fact",
+                "unique-key-1", 0.95,
+            ]
         )
         let row = try await store.query("SELECT * FROM memory_events WHERE id = 1")
         #expect(row.count == 1)
@@ -254,12 +293,14 @@ struct MemoryEventTests {
         try await bootstrapSession(store: store)
         let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
         try await store.execute(
-            sql: "INSERT INTO memory_events (session_id, timestamp, context, cause, process, result, dedup_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            sql:
+                "INSERT INTO memory_events (session_id, timestamp, context, cause, process, result, dedup_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
             parameters: [1, now, "ctx1", "cause1", "proc1", "result1", "dup-key"]
         )
         do {
             try await store.execute(
-                sql: "INSERT INTO memory_events (session_id, timestamp, context, cause, process, result, dedup_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                sql:
+                    "INSERT INTO memory_events (session_id, timestamp, context, cause, process, result, dedup_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 parameters: [1, now, "ctx2", "cause2", "proc2", "result2", "dup-key"]
             )
             #expect(Bool(false), "Duplicate dedup_key should have thrown")
@@ -278,7 +319,8 @@ struct MemoryEventTests {
         let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
         do {
             try await store.execute(
-                sql: "INSERT INTO memory_events (session_id, timestamp, context, cause, process, result, resolution, dedup_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                sql:
+                    "INSERT INTO memory_events (session_id, timestamp, context, cause, process, result, resolution, dedup_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 parameters: [1, now, "ctx", "cause", "proc", "result", "invalid-value", "chk-1"]
             )
             #expect(Bool(false), "Invalid resolution should have thrown")
@@ -297,7 +339,8 @@ struct MemoryEventTests {
         let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
         do {
             try await store.execute(
-                sql: "INSERT INTO memory_events (session_id, timestamp, context, cause, process, result, memory_type, dedup_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                sql:
+                    "INSERT INTO memory_events (session_id, timestamp, context, cause, process, result, memory_type, dedup_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 parameters: [1, now, "ctx", "cause", "proc", "result", "unknown-type", "chk-2"]
             )
             #expect(Bool(false), "Invalid memory_type should have thrown")
@@ -314,15 +357,18 @@ struct MemoryEventTests {
         try await store.open()
         let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
         try await store.execute(
-            sql: "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
+            sql:
+                "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
             parameters: ["model", now, now, 2, 100]
         )
         try await store.execute(
-            sql: "INSERT INTO messages (session_id, role, content, created_at, token_count) VALUES (?, ?, ?, ?, ?)",
+            sql:
+                "INSERT INTO messages (session_id, role, content, created_at, token_count) VALUES (?, ?, ?, ?, ?)",
             parameters: [1, "user", "hello", now, 5]
         )
         try await store.execute(
-            sql: "INSERT INTO messages (session_id, role, content, created_at, token_count) VALUES (?, ?, ?, ?, ?)",
+            sql:
+                "INSERT INTO messages (session_id, role, content, created_at, token_count) VALUES (?, ?, ?, ?, ?)",
             parameters: [1, "assistant", "world", now, 5]
         )
         let before = try await store.scalarQuery(sql: "SELECT COUNT(*) FROM messages")
@@ -340,11 +386,13 @@ struct MemoryEventTests {
         try await store.open()
         let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
         try await store.execute(
-            sql: "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
+            sql:
+                "INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count) VALUES (?, ?, ?, ?, ?)",
             parameters: ["model", now, now, 0, 0]
         )
         try await store.execute(
-            sql: "INSERT INTO memory_events (session_id, timestamp, context, cause, process, result, dedup_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            sql:
+                "INSERT INTO memory_events (session_id, timestamp, context, cause, process, result, dedup_key) VALUES (?, ?, ?, ?, ?, ?, ?)",
             parameters: [1, now, "ctx", "cause", "proc", "result", "perm-1"]
         )
         try await store.execute(sql: "DELETE FROM sessions WHERE id = 1")
@@ -363,11 +411,15 @@ struct MemoryEventTests {
         let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
         for (i, mtype) in ["fact", "pattern", "transient", "preference"].enumerated() {
             try await store.execute(
-                sql: "INSERT INTO memory_events (session_id, timestamp, context, cause, process, result, memory_type, dedup_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                parameters: [1, now + Int64(i * 1000), "ctx", "cause", "proc", "result", mtype, "type-\(i)"]
+                sql:
+                    "INSERT INTO memory_events (session_id, timestamp, context, cause, process, result, memory_type, dedup_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                parameters: [
+                    1, now + Int64(i * 1000), "ctx", "cause", "proc", "result", mtype, "type-\(i)",
+                ]
             )
         }
-        let factCount = try await store.scalarQuery(sql: "SELECT COUNT(*) FROM memory_events WHERE memory_type = 'fact'")
+        let factCount = try await store.scalarQuery(
+            sql: "SELECT COUNT(*) FROM memory_events WHERE memory_type = 'fact'")
         #expect(factCount?.asInt64 == 1)
         let allCount = try await store.scalarQuery(sql: "SELECT COUNT(*) FROM memory_events")
         #expect(allCount?.asInt64 == 4)
@@ -375,4 +427,3 @@ struct MemoryEventTests {
         try? FileManager.default.removeItem(atPath: testPath())
     }
 }
-

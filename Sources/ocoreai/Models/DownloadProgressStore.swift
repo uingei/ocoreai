@@ -74,9 +74,11 @@ final class OcoreaiDownloadProgress {
         let fraction = total > 0 ? Double(completed) / Double(total) : 0
 
         // Track startedAt on first update
-        var state = _progress[modelId] ?? OcoreaiDownloadProgressState(
-            fraction: 0, completedFiles: 0, totalFiles: 0, active: true,
-        )
+        var state =
+            _progress[modelId]
+            ?? OcoreaiDownloadProgressState(
+                fraction: 0, completedFiles: 0, totalFiles: 0, active: true,
+            )
         if state.startedAt == nil {
             state.startedAt = Date()
             _samples[modelId]?.removeAll()
@@ -99,8 +101,9 @@ final class OcoreaiDownloadProgress {
         _samples[modelId] = _samples[modelId]?.filter { $0.time >= cutoff }
 
         if let oldest = _samples[modelId]?.first,
-           let newest = _samples[modelId]?.last,
-           (_samples[modelId]?.count ?? 0) >= 2 {
+            let newest = _samples[modelId]?.last,
+            (_samples[modelId]?.count ?? 0) >= 2
+        {
             let dt = newest.time.timeIntervalSince(oldest.time)
             if dt > 0.1 {
                 let db = newest.bytes - oldest.bytes

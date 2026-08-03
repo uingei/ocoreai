@@ -8,8 +8,9 @@
 /// Note: Tests against real Keychain API (no GPU needed, macOS native).
 /// All test accounts prefixed with "test_" to avoid collisions.
 
-import Testing
 import Foundation
+import Testing
+
 @testable import ocoreai
 
 @Suite("KeychainStore CRUD Lifecycle")
@@ -117,7 +118,8 @@ struct KeychainResolveReferenceTests {
 
     @Test("resolveReference returns nil for non-existent account")
     func returnsNilForMissing() async {
-        let result = KeychainStore.resolveReference("$KEYCHAIN:does_not_exist_\(UUID().uuidString.prefix(8))")
+        let result = KeychainStore.resolveReference(
+            "$KEYCHAIN:does_not_exist_\(UUID().uuidString.prefix(8))")
         #expect(result == nil)
     }
 

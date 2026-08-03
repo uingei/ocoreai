@@ -68,7 +68,12 @@ struct ContentRouter: View {
                 // AttributedString. Previously this path used a plain `Text(content)`
                 // String, which displayed raw markdown syntax instead of formatting —
                 // a regression vs the upstream MLXChatExample `LocalizedStringKey` approach.
-                if let attributed = try? AttributedString(markdown: content, options: .init(allowsExtendedAttributes: false, interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+                if let attributed = try? AttributedString(
+                    markdown: content,
+                    options: .init(
+                        allowsExtendedAttributes: false,
+                        interpretedSyntax: .inlineOnlyPreservingWhitespace))
+                {
                     Text(attributed)
                         .font(.ocoreaiText(15))
                         .lineSpacing(3)
@@ -134,9 +139,11 @@ struct SegmentedContent: View {
             if trimmed.isEmpty { continue }
 
             if isCode {
-                let lines = trimmed.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
+                let lines = trimmed.split(
+                    separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
                 let language = lines.first?.trimmingCharacters(in: .whitespaces).lowercased() ?? ""
-                let code = (lines.count > 1) ? String(lines[1]).trimmingCharacters(in: .newlines) : trimmed
+                let code =
+                    (lines.count > 1) ? String(lines[1]).trimmingCharacters(in: .newlines) : trimmed
                 result.append((.code(language: language), code, language))
             } else {
                 result.append((.text, trimmed, ""))
@@ -176,7 +183,7 @@ struct CodeBlock: View {
                 }
                 Spacer()
 
-            #if os(macOS)
+                #if os(macOS)
                 Button(StringKey.copyCode.l) {
                     NSPasteboard.general.setString(code, forType: .string)
                     copiedIndex = blockIndex
@@ -190,7 +197,7 @@ struct CodeBlock: View {
                 .foregroundStyle(copiedIndex == blockIndex ? theme.greenDot : textTertiaryColor)
                 .font(.ocoreaiMono(10))
                 .accessibilityLabel(StringKey.copyCode.l)
-            #endif
+                #endif
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)

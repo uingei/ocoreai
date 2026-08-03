@@ -91,24 +91,25 @@ actor MessageBuilder {
                 }.joined(separator: "\n")
                 memoryContext = """
 
-                ## Recalled Memory
-                The following structured knowledge from past sessions is relevant:
+                    ## Recalled Memory
+                    The following structured knowledge from past sessions is relevant:
 
-                \(summaries)
-                """
+                    \(summaries)
+                    """
             }
         } catch {
             // Memory recall failure is non-fatal — proceed without it
         }
 
         // Phase 3: Compose final system prompt (priority: user > built > memory)
-        let finalSystem: String = if let userSystem = context.userSystemPrompt, !userSystem.isEmpty {
-            userSystem + "\n\n" + builtSystemPrompt + memoryContext
-        } else if !builtSystemPrompt.isEmpty {
-            builtSystemPrompt + memoryContext
-        } else {
-            memoryContext.isEmpty ? "" : memoryContext
-        }
+        let finalSystem: String =
+            if let userSystem = context.userSystemPrompt, !userSystem.isEmpty {
+                userSystem + "\n\n" + builtSystemPrompt + memoryContext
+            } else if !builtSystemPrompt.isEmpty {
+                builtSystemPrompt + memoryContext
+            } else {
+                memoryContext.isEmpty ? "" : memoryContext
+            }
 
         // Phase 4: Inject system message at the front
         if !finalSystem.isEmpty {
@@ -124,7 +125,7 @@ actor MessageBuilder {
 
             if !toolDefs.isEmpty {
                 if let firstSystem = messages.firstIndex(where: { $0.role == "system" }) {
-                    if case var .text(existingContent) = messages[firstSystem].content {
+                    if case .text(var existingContent) = messages[firstSystem].content {
                         existingContent += "\n\nAvailable tools:\n\(toolDefs)"
                         messages[firstSystem].content = .text(existingContent)
                     }
@@ -146,7 +147,8 @@ actor MessageBuilder {
         }
 
         // Phase 7: Inject adaptive reasoning scaffold (三思而后行)
-        let userMessage = messages.first(where: { $0.role == "user" })?.textContent()
+        let userMessage =
+            messages.first(where: { $0.role == "user" })?.textContent()
             ?? context.rawMessages.first?.textContent() ?? ""
 
         // FIX: VLM requests with .parts (images/audio/video) produce empty textContent(),
@@ -154,20 +156,23 @@ actor MessageBuilder {
         // Detect multimodal messages and provide a fallback for complexity analysis.
         let totalMediaParts = messages.reduce(0) { sum, msg in
             if case .parts(let pts) = msg.content {
-                let media = pts.filter { $0.imageUrl != nil || $0.videoUrl != nil || $0.audioURL != nil }.count
+                let media = pts.filter {
+                    $0.imageUrl != nil || $0.videoUrl != nil || $0.audioURL != nil
+                }.count
                 return sum + media
             }
             return sum
         }
         let hasMultimodal = totalMediaParts > 0
 
-        let effectiveInput = if userMessage.isEmpty && hasMultimodal {
-            "[multimodal: \(totalMediaParts) media part(s)]"
-        } else {
-            userMessage
-        }
+        let effectiveInput =
+            if userMessage.isEmpty && hasMultimodal {
+                "[multimodal: \(totalMediaParts) media part(s)]"
+            } else {
+                userMessage
+            }
         guard !effectiveInput.isEmpty else {
-            return messages // nothing to analyze, skip scaffold
+            return messages  // nothing to analyze, skip scaffold
         }
 
         let complexity = await complexityAnalyzer.analyze(
@@ -175,7 +180,7 @@ actor MessageBuilder {
             messageCount: max(1, messages.count),
             sessionId: context.sessionId,
         )
-        lastScore = complexity // cache for taskType query
+        lastScore = complexity  // cache for taskType query
         let reasoningScaffold = await thinkingBudget.scaffolding(
             for: complexity,
             sessionId: context.sessionId,
@@ -183,7 +188,7 @@ actor MessageBuilder {
         if !reasoningScaffold.isEmpty {
             if let sysIdx = messages.firstIndex(where: { $0.role == "system" }) {
                 switch messages[sysIdx].content {
-                case var .text(existingContent):
+                case .text(var existingContent):
                     existingContent += "\n\n" + reasoningScaffold
                     messages[sysIdx].content = .text(existingContent)
                 case .none:

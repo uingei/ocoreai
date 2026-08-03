@@ -3,11 +3,12 @@
 /// Scheduler lifecycle tests — submit → dispatch → complete/fail/interrupt
 /// Verifies: memory tracking, OOM protection, priority queue, request states
 
-import Testing
 import Foundation
 import Logging
-@testable import ocoreai
+import Testing
 import ocoreaiTestUtilities
+
+@testable import ocoreai
 
 @Suite("SchedulerActor Lifecycle")
 struct SchedulerLifecycleTests {
@@ -51,8 +52,10 @@ struct SchedulerLifecycleTests {
     func testPriorityOrdering() async {
         let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.priority"))
 
-        let low = SchedulingRequest(id: "bg", priority: .background, modelId: "m", prompt: "bg", tokenBudget: 2048)
-        let high = SchedulingRequest(id: "urgent", priority: .interrupt, modelId: "m", prompt: "urgent", tokenBudget: 2048)
+        let low = SchedulingRequest(
+            id: "bg", priority: .background, modelId: "m", prompt: "bg", tokenBudget: 2048)
+        let high = SchedulingRequest(
+            id: "urgent", priority: .interrupt, modelId: "m", prompt: "urgent", tokenBudget: 2048)
 
         _ = try? await sched.submit(low)
         _ = try? await sched.submit(high)
@@ -67,9 +70,11 @@ struct SchedulerLifecycleTests {
     @Test("fail → 状态变更 + memory release")
     func testFailWithStateChange() async {
         let tracker = MemoryTracker(budgetBytes: 1_048_576)
-        let sched = SchedulerActor(maxQueueSize: 128, memoryTracker: tracker, log: Logger(label: "test.fail"))
+        let sched = SchedulerActor(
+            maxQueueSize: 128, memoryTracker: tracker, log: Logger(label: "test.fail"))
 
-        let req = SchedulingRequest(id: "fail-me", priority: .chat, modelId: "m", prompt: "test", tokenBudget: 4096)
+        let req = SchedulingRequest(
+            id: "fail-me", priority: .chat, modelId: "m", prompt: "test", tokenBudget: 4096)
         _ = try? await sched.submit(req)
         _ = await sched.dispatch()
 
@@ -87,7 +92,8 @@ struct SchedulerLifecycleTests {
     func testInterruptActiveRequest() async {
         let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.interrupt"))
 
-        let req = SchedulingRequest(id: "intr", priority: .chat, modelId: "m", prompt: "interruptible", tokenBudget: 4096)
+        let req = SchedulingRequest(
+            id: "intr", priority: .chat, modelId: "m", prompt: "interruptible", tokenBudget: 4096)
         _ = try? await sched.submit(req)
         _ = await sched.dispatch()
         #expect(await sched.activeCount == 1)
@@ -102,11 +108,17 @@ struct SchedulerLifecycleTests {
     func testQueueFull() async {
         let sched = SchedulerActor(maxQueueSize: 2, log: Logger(label: "test.full"))
 
-        _ = try? await sched.submit(SchedulingRequest(id: "a", priority: .chat, modelId: "m", prompt: "a", tokenBudget: 512))
-        _ = try? await sched.submit(SchedulingRequest(id: "b", priority: .chat, modelId: "m", prompt: "b", tokenBudget: 512))
+        _ = try? await sched.submit(
+            SchedulingRequest(id: "a", priority: .chat, modelId: "m", prompt: "a", tokenBudget: 512)
+        )
+        _ = try? await sched.submit(
+            SchedulingRequest(id: "b", priority: .chat, modelId: "m", prompt: "b", tokenBudget: 512)
+        )
 
         do {
-            _ = try await sched.submit(SchedulingRequest(id: "c", priority: .chat, modelId: "m", prompt: "c", tokenBudget: 512))
+            _ = try await sched.submit(
+                SchedulingRequest(
+                    id: "c", priority: .chat, modelId: "m", prompt: "c", tokenBudget: 512))
             #expect(Bool(false))
         } catch {
             #expect(error as? SchedulerError == .queueFull, "Expected .queueFull, got: \(error)")
@@ -117,7 +129,8 @@ struct SchedulerLifecycleTests {
     func testSnapshot() async {
         let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.snapshot"))
 
-        let req = SchedulingRequest(id: "snap", priority: .chat, modelId: "m", prompt: "snap test", tokenBudget: 4096)
+        let req = SchedulingRequest(
+            id: "snap", priority: .chat, modelId: "m", prompt: "snap test", tokenBudget: 4096)
         _ = try? await sched.submit(req)
         _ = await sched.dispatch()
 

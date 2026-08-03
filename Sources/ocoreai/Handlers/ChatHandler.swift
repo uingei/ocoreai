@@ -27,15 +27,14 @@
 /// 2. Model runtime defaults (PATCH endpoint)
 /// 3. System hard-coded defaults
 
-#if canImport(CoreAI)
-    import CoreAI
-#endif
 import Foundation
 import HTTPTypes
 import Hummingbird
 import Logging
 
-
+#if canImport(CoreAI)
+import CoreAI
+#endif
 
 // MARK: - Self-Correction Integration
 
@@ -88,11 +87,12 @@ private func buildCorrectedMessages(
     // Inject few-shot examples if provided
     if let examples, !examples.isEmpty {
         for (index, example) in examples.enumerated() {
-            let role = if index % 2 == 0 {
-                "user"
-            } else {
-                "assistant"
-            }
+            let role =
+                if index % 2 == 0 {
+                    "user"
+                } else {
+                    "assistant"
+                }
             result.append(Message(role: role, content: example))
         }
     }
@@ -151,12 +151,15 @@ func chatCompletionsHandler(
                 "categories": result.triggeredCategories.map(\.rawValue),
             ])
             let errorBody = NSDictionary(dictionary: ["error": detail])
-            guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
+            guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: [])
+            else {
                 return Response(status: .badRequest)
             }
             var headers: HTTPFields = [:]
             headers[.contentType] = "application/json"
-            return Response(status: .badRequest, headers: headers, body: .init(contentsOf: [ByteBuffer(data: data)]))
+            return Response(
+                status: .badRequest, headers: headers,
+                body: .init(contentsOf: [ByteBuffer(data: data)]))
         }
     }
 
@@ -172,12 +175,15 @@ func chatCompletionsHandler(
                 "code": 400,
             ])
             let errorBody = NSDictionary(dictionary: ["error": detail])
-            guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
+            guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: [])
+            else {
                 return Response(status: .badRequest)
             }
             var headers: HTTPFields = [:]
             headers[.contentType] = "application/json"
-            return Response(status: .badRequest, headers: headers, body: .init(contentsOf: [ByteBuffer(data: data)]))
+            return Response(
+                status: .badRequest, headers: headers,
+                body: .init(contentsOf: [ByteBuffer(data: data)]))
         }
     }
 
@@ -194,7 +200,8 @@ func chatCompletionsHandler(
         guard dispatched != nil else {
             // Higher-priority request dispatched instead — ours still in queue.
             // Clean up scheduler state to prevent orphaned .pending entry.
-            await scheduler.fail(schedulingRequest.id, with: "Higher-priority request dispatched first")
+            await scheduler.fail(
+                schedulingRequest.id, with: "Higher-priority request dispatched first")
             throw AppError.engineUnavailable
         }
     } catch let e as SchedulerError {
@@ -228,13 +235,14 @@ func chatCompletionsHandler(
     do {
         /// Phase 2: Build complete message list including system prompt + tool info injection.
         /// Delegates to shared MessageBuilder (same logic as Fast Path UI) to avoid duplication.
-        let fullMessages = try await messageBuilder.buildMessages(context: MessageBuilderContext(
-            modelId: modelId,
-            rawMessages: request.messages,
-            userSystemPrompt: request.system,
-            tools: request.tools,
-            sessionId: request.sessionID ?? UUID().uuidString,
-        ))
+        let fullMessages = try await messageBuilder.buildMessages(
+            context: MessageBuilderContext(
+                modelId: modelId,
+                rawMessages: request.messages,
+                userSystemPrompt: request.system,
+                tools: request.tools,
+                sessionId: request.sessionID ?? UUID().uuidString,
+            ))
 
         /// Phase 3: Tokenize messages for prompt token count.
         /// (Token count needed for metrics; actual inference passes messages directly on MLX path.)
@@ -279,19 +287,24 @@ func chatCompletionsHandler(
         let effectiveSeed = request.seed ?? runtimeDefaults.seed
 
         /// Resolve penalty parameters (0 = not set, non-zero = explicit value).
-        let effectivePresencePenalty = request.presencePenalty != 0
+        let effectivePresencePenalty =
+            request.presencePenalty != 0
             ? request.presencePenalty
             : runtimeDefaults.presencePenalty
-        let effectiveFrequencyPenalty = request.frequencyPenalty != 0
+        let effectiveFrequencyPenalty =
+            request.frequencyPenalty != 0
             ? request.frequencyPenalty
             : runtimeDefaults.frequencyPenalty
 
         /// Resolve prefill/KV cache parameters with nil → runtime → nil cascade.
         let effectivePrefillStepSize = request.prefillStepSize ?? runtimeDefaults.prefillStepSize
         let effectiveMaxKVSize = request.maxKVSize ?? runtimeDefaults.maxKVSize
-        let effectiveRepetitionContextSize = request.repetitionContextSize ?? runtimeDefaults.repetitionContextSize
-        let effectivePresenceContextSize = request.presenceContextSize ?? runtimeDefaults.presenceContextSize
-        let effectiveFrequencyContextSize = request.frequencyContextSize ?? runtimeDefaults.frequencyContextSize
+        let effectiveRepetitionContextSize =
+            request.repetitionContextSize ?? runtimeDefaults.repetitionContextSize
+        let effectivePresenceContextSize =
+            request.presenceContextSize ?? runtimeDefaults.presenceContextSize
+        let effectiveFrequencyContextSize =
+            request.frequencyContextSize ?? runtimeDefaults.frequencyContextSize
 
         /// Build normalized sampling configuration (drops redundant params when temperature == 0).
         let rawSampling = SamplingConfiguration(
@@ -304,7 +317,7 @@ func chatCompletionsHandler(
             presencePenalty: Double(effectivePresencePenalty),
             frequencyPenalty: Double(effectiveFrequencyPenalty),
             stopSequences: request.stop,
-            logitBias: nil, // logitBias 暂不暴露（ChatCompletionRequest 无对应字段）
+            logitBias: nil,  // logitBias 暂不暴露（ChatCompletionRequest 无对应字段）
             combined: true,
             prefillStepSize: effectivePrefillStepSize,
             maxKVSize: effectiveMaxKVSize,
@@ -317,7 +330,9 @@ func chatCompletionsHandler(
         let taskType = await messageBuilder.lastTaskType()
         let taskAwareSampling = rawSampling.withTaskAwareParams(for: taskType)
         if taskAwareSampling != rawSampling {
-            logger.info("Task-aware params adjusted for \(taskType.rawValue): temp=\(String(describing: rawSampling.temperature))→\(String(describing: taskAwareSampling.temperature))")
+            logger.info(
+                "Task-aware params adjusted for \(taskType.rawValue): temp=\(String(describing: rawSampling.temperature))→\(String(describing: taskAwareSampling.temperature))"
+            )
         }
 
         let sampling = taskAwareSampling.normalized()
@@ -327,13 +342,15 @@ func chatCompletionsHandler(
             logger.warning("Sampling config normalized (redundant params dropped)")
         }
 
-    /// Determine if guided generation should be used for this request.
+        /// Determine if guided generation should be used for this request.
         /// Guided generation enforces grammar-constrained output for:
         /// - Tool calls (structured function_call/tool_calling JSON)
         /// - JSON Schema responses (strict JSON output validation)
         let useGuidedGeneration: Bool = {
             let hasTools = request.tools != nil && !request.tools!.isEmpty
-            let hasJsonSchema = request.responseFormat?.type == "json_schema" || request.responseFormat?.type == "json_object"
+            let hasJsonSchema =
+                request.responseFormat?.type == "json_schema"
+                || request.responseFormat?.type == "json_object"
             return hasTools || hasJsonSchema
         }()
 
@@ -370,10 +387,10 @@ func chatCompletionsHandler(
         }
 
         /// Log if runtime defaults override system defaults.
-        let hasOverride = (runtimeDefaults.temperature != ModelSamplingConfig.default.temperature ||
-            runtimeDefaults.topP != nil ||
-            runtimeDefaults.topK != nil ||
-            runtimeDefaults.maxTokens != nil)
+        let hasOverride =
+            (runtimeDefaults.temperature != ModelSamplingConfig.default.temperature
+                || runtimeDefaults.topP != nil || runtimeDefaults.topK != nil
+                || runtimeDefaults.maxTokens != nil)
         if hasOverride {
             logger.info("Using runtime sampling override for: \(modelId)")
         }
@@ -462,7 +479,7 @@ private func nonStreamWithToolCalling(
 ) async throws -> Response {
     /// Resolve conversation ID for session pooling / KV cache reuse.
     let conversationId: String? = request.sessionID
-    
+
     /// Generate unique request ID for tracing.
     let requestId = "req-\(UUID().uuidString.prefix(8))"
     let created = Int64(Date().timeIntervalSince1970)
@@ -495,27 +512,28 @@ private func nonStreamWithToolCalling(
             switch event.kind {
             case .token:
                 totalOutputTokens += 1
-            case let .text(text):
+            case .text(let text):
                 accumulatedContent += text
                 totalOutputTokens += 1
-            case let .done(reason, tokenCount, _, _, _, _, _):
+            case .done(let reason, let tokenCount, _, _, _, _, _):
                 if let tokenCount {
                     totalOutputTokens = tokenCount
                 }
-                finishReason = switch reason {
-                case .maxTokens: "length"
-                case .eos: "stop"
-                case .stopSequence: "stop_sequence"
-                case .cancelled: "cancelled"
-                case .error: "error"
-                }
-            case let .error(msg):
+                finishReason =
+                    switch reason {
+                    case .maxTokens: "length"
+                    case .eos: "stop"
+                    case .stopSequence: "stop_sequence"
+                    case .cancelled: "cancelled"
+                    case .error: "error"
+                    }
+            case .error(let msg):
                 throw AppError.generationError(msg)
-            case let .toolCall(tc):
+            case .toolCall(let tc):
                 // tc is already ocoreai's ToolCall type (via InferenceEvent.mlxToolCall).
                 // Collect for post-processing.
                 detectedToolCalls = [tc]
-            case let .reasoning(r):
+            case .reasoning(let r):
                 // Reasoning text from ReasoningEventEmitter — accumulate for self-correction
                 accumulatedContent += r
             }
@@ -531,7 +549,8 @@ private func nonStreamWithToolCalling(
     var finalContent = content
     if shouldRunSelfCorrection(request) {
         let sessionId = resolveSessionId(for: request)
-        let originalPrompt = messages.first(where: { $0.role == "user" })?.textContent()
+        let originalPrompt =
+            messages.first(where: { $0.role == "user" })?.textContent()
             ?? request.messages.first?.textContent() ?? ""
         let fallbackContent = finalContent
         do {
@@ -558,17 +577,17 @@ private func nonStreamWithToolCalling(
                     var accText: String? = nil
                     for try await evt in correctedStream {
                         switch evt.kind {
-                        case let .token(id):
+                        case .token(let id):
                             accTokens.append(id)
-                        case let .text(txt):
+                        case .text(let txt):
                             accText = (accText ?? "") + txt
                         case .done(_, _, _, _, _, _, _):
-                                    break
-                        case let .error(msg):
+                            break
+                        case .error(let msg):
                             logger.warning("Self-correction re-gen error: \(msg)")
                         case .toolCall:
                             break
-                        case let .reasoning(r):
+                        case .reasoning(let r):
                             // Reasoning text accumulates into accText for self-correction
                             accText = (accText ?? "") + r
                         }
@@ -586,25 +605,29 @@ private func nonStreamWithToolCalling(
                 },
             )
             finalContent = result.finalResponse
-            logger.info("Self-correction converged at phase \(result.finalPhase) in \(result.iterations) iterations")
+            logger.info(
+                "Self-correction converged at phase \(result.finalPhase) in \(result.iterations) iterations"
+            )
         } catch {
             logger.warning("Self-correction failed: \(error); using original response")
         }
     }
 
     /// Detect tool calls if the request included tool definitions.
-    let toolCalls: [ToolCall]? = if let tools = request.tools, !tools.isEmpty {
-        parseToolCalls(from: finalContent)
-    } else {
-        nil
-    }
+    let toolCalls: [ToolCall]? =
+        if let tools = request.tools, !tools.isEmpty {
+            parseToolCalls(from: finalContent)
+        } else {
+            nil
+        }
 
     /// Override finish reason if tool calls were detected.
     let finishReasonFinal = toolCalls != nil ? "tool_calls" : finishReason
 
     /// Build response choice with assistant message + tool calls.
     let choice = CompletionChoice(
-        message: AssistantMessage(content: toolCalls != nil ? "" : finalContent, toolCalls: toolCalls),
+        message: AssistantMessage(
+            content: toolCalls != nil ? "" : finalContent, toolCalls: toolCalls),
         finishReason: finishReasonFinal,
     )
 
@@ -614,14 +637,15 @@ private func nonStreamWithToolCalling(
     await metrics.observeInferenceDuration(elapsed / 1000.0)
     await metrics.incrementTokens(kind: "generated", count: totalOutputTokens)
     await metrics.incrementTokens(kind: "prompt", count: promptTokenCount)
-    
+
     /// Post-inference quality signal → ThinkingBudget calibration loop.
     // Complexity is cached in MessageBuilder from the buildMessages call upstream.
     // OcoreaiEngine is @MainActor → cross-actor property access requires await.
     // This is a fire-and-forget calibration signal — failures are silently ignored.
     let budget = await OcoreaiEngine.shared.activeThinkingBudget
     if let budget {
-        let complexity = await OcoreaiEngine.shared.activeMessageBuilder?.lastComplexityScore()?.composite ?? 0.5
+        let complexity =
+            await OcoreaiEngine.shared.activeMessageBuilder?.lastComplexityScore()?.composite ?? 0.5
         let sessionId = String(resolveSessionId(for: request))
         _ = await ThinkingTelemetry.signal(
             sessionId: sessionId,
@@ -634,7 +658,7 @@ private func nonStreamWithToolCalling(
             budget: budget
         )
     }
-    
+
     /// Assemble full ChatCompletion response with usage statistics.
     let completion = ChatCompletion(
         id: requestId,
@@ -663,7 +687,8 @@ private func nonStreamWithToolCalling(
     var headers: HTTPFields = [:]
     headers[.contentType] = "application/json"
     let bodyData = try JSONEncoder().encode(completion)
-    return Response(status: .ok, headers: headers, body: .init(contentsOf: [ByteBuffer(data: bodyData)]))
+    return Response(
+        status: .ok, headers: headers, body: .init(contentsOf: [ByteBuffer(data: bodyData)]))
 }
 
 // MARK: - SSE Stream with Tool Calling
@@ -700,7 +725,7 @@ private func streamWithToolCalling(
 ) async throws -> Response {
     /// Resolve conversation ID for session pooling / KV cache reuse.
     let conversationId: String? = request.sessionID
-    
+
     /// Configure SSE-compliant response headers.
     let responseHeaders = SSEHeaders
 
@@ -751,7 +776,7 @@ private func streamWithToolCalling(
             for try await event in tokenStream {
                 switch event.kind {
                 /// .token — batch detokenize with prefix preservation.
-                case let .token(tokenId):
+                case .token(let tokenId):
                     try Task.checkCancellation()
                     accumulatedTokens.append(tokenId)
                     totalOutputTokens += 1
@@ -762,24 +787,30 @@ private func streamWithToolCalling(
                     }
 
                     /// Only detokenize every N tokens or on final batch.
-                    guard accumulatedTokens.count % decodeBatchSize == 0 || totalOutputTokens == options.maxTokens else { continue }
+                    guard
+                        accumulatedTokens.count % decodeBatchSize == 0
+                            || totalOutputTokens == options.maxTokens
+                    else { continue }
 
                     /// Batch detokenize of accumulated tokens for prefix safety.
                     let newText: String
                     do {
                         newText = try await handle.detokenize(tokens: accumulatedTokens)
                     } catch {
-                        logger.warning("Batch detokenization failed (size=\(accumulatedTokens.count)), falling back")
+                        logger.warning(
+                            "Batch detokenization failed (size=\(accumulatedTokens.count)), falling back"
+                        )
                         continue
                     }
 
                     /// Extract delta (new text since last chunk) — UTF-8 byte safe.
-                    let deltaText: String = if newText.hasPrefix(prevDecodedText) {
-                        String(newText.dropFirst(prevDecodedText.count))
-                    } else {
-                        // Detokenization reformatted; send full new text as fallback.
-                        newText
-                    }
+                    let deltaText: String =
+                        if newText.hasPrefix(prevDecodedText) {
+                            String(newText.dropFirst(prevDecodedText.count))
+                        } else {
+                            // Detokenization reformatted; send full new text as fallback.
+                            newText
+                        }
 
                     /// Emit SSE chunk if there's new text (with safety filter).
                     if !deltaText.isEmpty {
@@ -787,8 +818,11 @@ private func streamWithToolCalling(
                         if let contentGuard = streamGuard {
                             let checkResult = await contentGuard.checkOutput(deltaText)
                             if !checkResult.passed {
-                                logger.warning("Streaming output blocked: \(checkResult.triggeredCategories)")
-                                yieldSSERaw("[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]", to: continuation)
+                                logger.warning(
+                                    "Streaming output blocked: \(checkResult.triggeredCategories)")
+                                yieldSSERaw(
+                                    "[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]",
+                                    to: continuation)
                                 continuation.finish()
                                 return
                             }
@@ -808,7 +842,7 @@ private func streamWithToolCalling(
                     prevDecodedText = newText
 
                 /// .text — MLX path: text chunks already decoded, stream directly.
-                case let .text(text):
+                case .text(let text):
                     try Task.checkCancellation()
                     totalOutputTokens += 1
 
@@ -820,8 +854,12 @@ private func streamWithToolCalling(
                     if let contentGuard = streamGuard {
                         let checkResult = await contentGuard.checkOutput(text)
                         if !checkResult.passed {
-                            logger.warning("Streaming output blocked (.text): \(checkResult.triggeredCategories)")
-                            yieldSSERaw("[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]", to: continuation)
+                            logger.warning(
+                                "Streaming output blocked (.text): \(checkResult.triggeredCategories)"
+                            )
+                            yieldSSERaw(
+                                "[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]",
+                                to: continuation)
                             continuation.finish()
                             return
                         }
@@ -841,7 +879,7 @@ private func streamWithToolCalling(
                     _ = yieldSSE(tChunk, to: continuation)
 
                 /// .done — flush remaining tokens, detect tool calls, send stop chunk.
-                case let .done(reason, _, _, _, _, _, _):
+                case .done(let reason, _, _, _, _, _, _):
                     /// Final flush: detokenize any remaining tokens not yet emitted.
                     if !accumulatedTokens.isEmpty, accumulatedTokens.count % decodeBatchSize != 0 {
                         do {
@@ -853,8 +891,12 @@ private func streamWithToolCalling(
                                     if let contentGuard = streamGuard {
                                         let checkResult = await contentGuard.checkOutput(remainder)
                                         if !checkResult.passed {
-                                            logger.warning("Streaming output blocked (final flush): \(checkResult.triggeredCategories)")
-                                            yieldSSERaw("[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]", to: continuation)
+                                            logger.warning(
+                                                "Streaming output blocked (final flush): \(checkResult.triggeredCategories)"
+                                            )
+                                            yieldSSERaw(
+                                                "[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]",
+                                                to: continuation)
                                             continuation.finish()
                                             return
                                         }
@@ -891,13 +933,15 @@ private func streamWithToolCalling(
                                     id: requestId,
                                     created: created,
                                     model: modelId,
-                                    choices: [ChunkChoice(
-                                        delta: ChatDelta(
-                                            role: "assistant",
-                                            toolCalls: [tc],
-                                        ),
-                                        finishReason: "tool_calls",
-                                    )],
+                                    choices: [
+                                        ChunkChoice(
+                                            delta: ChatDelta(
+                                                role: "assistant",
+                                                toolCalls: [tc],
+                                            ),
+                                            finishReason: "tool_calls",
+                                        )
+                                    ],
                                 )
                                 _ = yieldSSE(tcChunk, to: continuation)
                             }
@@ -909,10 +953,12 @@ private func streamWithToolCalling(
                         id: requestId,
                         created: created,
                         model: modelId,
-                        choices: [ChunkChoice(
-                            delta: ChatDelta(content: nil),
-                            finishReason: finalFinishReason,
-                        )],
+                        choices: [
+                            ChunkChoice(
+                                delta: ChatDelta(content: nil),
+                                finishReason: finalFinishReason,
+                            )
+                        ],
                     )
                     _ = yieldSSE(stopChunk, to: continuation)
 
@@ -928,39 +974,43 @@ private func streamWithToolCalling(
                         _ = yieldSSE(usageChunk, to: continuation)
                     }
 
-                    /// .toolCall — upstream TextToolTokenLoopHandler detected a tool call.
-                    /// Emit as SSE delta chunk with tool_calls in the delta.
-                case let .toolCall(tc):
+                /// .toolCall — upstream TextToolTokenLoopHandler detected a tool call.
+                /// Emit as SSE delta chunk with tool_calls in the delta.
+                case .toolCall(let tc):
                     let tcChunk = ChatCompletionChunk(
                         id: requestId,
                         created: created,
                         model: modelId,
-                        choices: [ChunkChoice(
-                            delta: ChatDelta(
-                                role: "assistant",
-                                toolCalls: [tc],
-                            ),
-                            finishReason: "tool_calls",
-                        )],
+                        choices: [
+                            ChunkChoice(
+                                delta: ChatDelta(
+                                    role: "assistant",
+                                    toolCalls: [tc],
+                                ),
+                                finishReason: "tool_calls",
+                            )
+                        ],
                     )
                     _ = yieldSSE(tcChunk, to: continuation)
 
-                    /// .error — send error chunk and terminate.
-                case let .error(errorMsg):
+                /// .error — send error chunk and terminate.
+                case .error(let errorMsg):
                     let errChunk = ChatCompletionChunk(
                         id: requestId,
                         created: created,
                         model: modelId,
-                        choices: [ChunkChoice(
-                            delta: ChatDelta(content: "[error: \(errorMsg)]"),
-                            finishReason: "error",
-                        )],
+                        choices: [
+                            ChunkChoice(
+                                delta: ChatDelta(content: "[error: \(errorMsg)]"),
+                                finishReason: "error",
+                            )
+                        ],
                     )
                     _ = yieldSSE(errChunk, to: continuation)
 
                 /// .reasoning — ReasoningEventEmitter routed reasoning segment.
                 /// Emit as SSE delta chunk with reasoning_content.
-                case let .reasoning(reasoningText):
+                case .reasoning(let reasoningText):
                     try Task.checkCancellation()
                     totalOutputTokens += 1
                     if ttfbTime == nil {
@@ -986,10 +1036,12 @@ private func streamWithToolCalling(
                 id: requestId,
                 created: created,
                 model: modelId,
-                choices: [ChunkChoice(
-                    delta: ChatDelta(content: "[error: \(error.localizedDescription)]"),
-                    finishReason: "error",
-                )],
+                choices: [
+                    ChunkChoice(
+                        delta: ChatDelta(content: "[error: \(error.localizedDescription)]"),
+                        finishReason: "error",
+                    )
+                ],
             )
             _ = yieldSSE(errChunk, to: continuation)
             yieldSSERaw("[done]", to: continuation)
@@ -1002,11 +1054,14 @@ private func streamWithToolCalling(
 
         /// Observe inference duration + TTFB metrics at stream completion.
         let infDur = startTime.duration(to: ContinuousClock.now)
-        let inferenceDurationMs = Double(infDur.components.seconds) * 1000 + Double(infDur.components.attoseconds) / 1e15
+        let inferenceDurationMs =
+            Double(infDur.components.seconds) * 1000 + Double(infDur.components.attoseconds) / 1e15
         var ttfbMsVal: Double = 0
         if let ttfbTimeVal = ttfbTime {
             let ttfbDur = ttfbTimeVal.duration(to: ContinuousClock.now)
-            ttfbMsVal = Double(ttfbDur.components.seconds) * 1000 + Double(ttfbDur.components.attoseconds) / 1e15
+            ttfbMsVal =
+                Double(ttfbDur.components.seconds) * 1000 + Double(ttfbDur.components.attoseconds)
+                / 1e15
         }
         await metrics.observeInferenceDuration(
             ms: inferenceDurationMs,
@@ -1036,19 +1091,20 @@ private func streamWithToolCalling(
             let lastContent = prevDecodedText
             Task {
                 let sessionId = resolveSessionId(for: request)
-                let originalPrompt = messages.first(where: { $0.role == "user" })?.textContent()
+                let originalPrompt =
+                    messages.first(where: { $0.role == "user" })?.textContent()
                     ?? request.messages.first?.textContent() ?? ""
                 do {
                     let _ = try await selfCorrectionPipeline.evaluate(
                         prompt: originalPrompt,
                         response: lastContent,
                         sessionId: sessionId,
-                        generate: { _, _ in lastContent }, // no-op: stream already sent
+                        generate: { _, _ in lastContent },  // no-op: stream already sent
                         logger: logger,
                         persistMemory: { event in
                             _ = await sessionCompressor.addMemory(event)
                         },
-                        maxPhases: 1, // SSE: Phase 1 trace only — stream already sent, generate is no-op
+                        maxPhases: 1,  // SSE: Phase 1 trace only — stream already sent, generate is no-op
                     )
                 } catch {
                     logger.warning("Post-stream self-correction trace failed: \(error)")
@@ -1057,7 +1113,7 @@ private func streamWithToolCalling(
         }
 
         logger.info("Stream request completed")
-        
+
         /// Post-stream quality signal → ThinkingBudget calibration loop.
         // Stream path: no agentResult, send raw signals.
         // Resolve async properties before if-let guard:
@@ -1079,7 +1135,7 @@ private func streamWithToolCalling(
                 budget: budget
             )
         }
-    
+
         continuation.finish()
     }
 
@@ -1109,11 +1165,12 @@ private func persistConversation(
 
     do {
         // Resolve session: use request.sessionID as database id if parseable, else create new
-        let sessionId: Int64 = if let sidStr = request.sessionID, let sid = Int64(sidStr) {
-            sid
-        } else {
-            try await compressor.createSession(modelId: modelId)
-        }
+        let sessionId: Int64 =
+            if let sidStr = request.sessionID, let sid = Int64(sidStr) {
+                sid
+            } else {
+                try await compressor.createSession(modelId: modelId)
+            }
 
         // Persist user messages (skip system + assistant)
         let userMsgCount = messages.count(where: { $0.role != "system" && $0.role != "assistant" })
@@ -1158,8 +1215,8 @@ private func persistConversation(
 extension Message {
     func textContent() -> String {
         switch content {
-        case let .text(s): s
-        case let .parts(parts): parts.compactMap(\.text).joined(separator: " ")
+        case .text(let s): s
+        case .parts(let parts): parts.compactMap(\.text).joined(separator: " ")
         case .none: ""
         }
     }

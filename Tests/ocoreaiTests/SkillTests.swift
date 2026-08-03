@@ -10,15 +10,20 @@
 ///  - splitFrontmatter / parseFrontmatterYAML / parseSkillFile on in-memory data
 ///  - Kahn's algorithm: topological ordering + cycle detection
 
-import Testing
 import Foundation
+import Testing
+
 @testable import ocoreai
 
 // MARK: - Helpers
 
-private func makeSkill(name: String, body: String = "default body", category: String = "test", tags: [String] = [], deps: [String] = []) -> Skill {
+private func makeSkill(
+    name: String, body: String = "default body", category: String = "test", tags: [String] = [],
+    deps: [String] = []
+) -> Skill {
     Skill(
-        metadata: SkillMetadata(name: name, category: category, description: "", tags: tags, dependencies: deps),
+        metadata: SkillMetadata(
+            name: name, category: category, description: "", tags: tags, dependencies: deps),
         body: body,
         path: "/tmp/skills/\(name).md",
         status: .loaded,
@@ -36,7 +41,8 @@ struct SkillModelTests {
     @Test("BuiltInSkill category maps correctly")
     func builtInCategory() {
         for bi in BuiltInSkill.allCases {
-            #expect(bi.displayCategory == "system",
+            #expect(
+                bi.displayCategory == "system",
                 "\(bi.rawValue) should belong to system category")
         }
     }
@@ -214,11 +220,13 @@ struct SkillRegistryTests {
         let memoryIdx = names.firstIndex(of: "memory") ?? -1
 
         // file must come before search (search depends on file)
-        #expect(fileIdx < searchIdx,
-                "'file' (idx \(fileIdx)) must precede 'search' (idx \(searchIdx)) in resolved order")
+        #expect(
+            fileIdx < searchIdx,
+            "'file' (idx \(fileIdx)) must precede 'search' (idx \(searchIdx)) in resolved order")
         // file must come before memory (memory depends on file)
-        #expect(fileIdx < memoryIdx,
-                "'file' (idx \(fileIdx)) must precede 'memory' (idx \(memoryIdx)) in resolved order")
+        #expect(
+            fileIdx < memoryIdx,
+            "'file' (idx \(fileIdx)) must precede 'memory' (idx \(memoryIdx)) in resolved order")
     }
 
     @Test("listCategories returns registered categories")
@@ -234,7 +242,7 @@ struct SkillRegistryTests {
     @MainActor
     func hotReloadCallbackRetained() async {
         let registry = SkillRegistry()
-        await registry.setHotReloadCallback { }
+        await registry.setHotReloadCallback {}
         try? await registry.bootstrap(skillsDir: nil)
     }
 }
@@ -362,12 +370,12 @@ struct SkillLoaderTests {
     @Test("splitFrontmatter extracts YAML and body")
     func validFrontmatter() {
         let input = """
-        ---
-        name: test
-        category: dev
-        ---
-        This is the body.
-        """
+            ---
+            name: test
+            category: dev
+            ---
+            This is the body.
+            """
         guard let (yaml, body) = splitFrontmatter(input) else {
             Issue.record("splitFrontmatter returned nil for valid input")
             return
@@ -379,10 +387,10 @@ struct SkillLoaderTests {
     @Test("splitFrontmatter handles empty body")
     func emptyBody() {
         let input = """
-        ---
-        name: n
-        ---
-        """
+            ---
+            name: n
+            ---
+            """
         guard let (yaml, _) = splitFrontmatter(input) else {
             Issue.record("splitFrontmatter returned nil")
             return

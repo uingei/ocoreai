@@ -77,7 +77,10 @@ struct SkillMetadata: Codable {
         case dependencies = "depends"
     }
 
-    init(name: String, category: String, description: String, tags: [String] = [], dependencies: [String] = []) {
+    init(
+        name: String, category: String, description: String, tags: [String] = [],
+        dependencies: [String] = []
+    ) {
         self.name = name
         self.category = category
         self.description = description

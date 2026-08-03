@@ -19,9 +19,13 @@ struct SessionModel: Codable {
     let ttlDays: Int
 
     enum CodingKeys: String, CodingKey {
-        case id, createdAt = "created_at", updatedAt = "updated_at"
-        case messageCount = "message_count", tokenCount = "token_count"
-        case summary, ttlDays = "ttl_days"
+        case id
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case messageCount = "message_count"
+        case tokenCount = "token_count"
+        case summary
+        case ttlDays = "ttl_days"
         case modelId = "model_id"
     }
 
@@ -35,7 +39,7 @@ struct SessionModel: Codable {
 struct MessageModel: Codable {
     let id: Int64
     let sessionId: Int64
-    let role: String // "user", "assistant", "system", "tool"
+    let role: String  // "user", "assistant", "system", "tool"
     let content: String
     let createdAt: Date
     var tokenCount: Int
@@ -43,15 +47,20 @@ struct MessageModel: Codable {
     var embedVector: Data?
 
     enum CodingKeys: String, CodingKey {
-        case id, sessionId = "session_id", role, content
-        case createdAt = "created_at", tokenCount = "token_count"
-        case toolCalls = "tool_calls", embedVector = "embed_vector"
+        case id
+        case sessionId = "session_id"
+        case role, content
+        case createdAt = "created_at"
+        case tokenCount = "token_count"
+        case toolCalls = "tool_calls"
+        case embedVector = "embed_vector"
     }
 
     /// Serialize tool calls from SQLite JSON blob.
     static func deserializeToolCalls(_ json: String?) -> [ToolCallRecord]? {
         guard let json, !json.isEmpty,
-              let data = json.data(using: .utf8) else { return nil }
+            let data = json.data(using: .utf8)
+        else { return nil }
         return try? JSONDecoder().decode([ToolCallRecord].self, from: data)
     }
 
@@ -73,8 +82,11 @@ struct ToolCallRecord: Codable {
     let durationMs: Double?
 
     enum CodingKeys: String, CodingKey {
-        case callId = "call_id", toolName = "tool_name"
-        case arguments, resultSummary = "result_summary", durationMs = "duration_ms"
+        case callId = "call_id"
+        case toolName = "tool_name"
+        case arguments
+        case resultSummary = "result_summary"
+        case durationMs = "duration_ms"
     }
 }
 
@@ -89,7 +101,8 @@ struct SessionSummary: Codable {
     let compressedTokenEstimate: Int
 
     enum CodingKeys: String, CodingKey {
-        case sessionId = "session_id", summary
+        case sessionId = "session_id"
+        case summary
         case compressedMessageCount = "compressed_message_count"
         case compressedAt = "compressed_at"
         case originalTokenEstimate = "original_token_estimate"

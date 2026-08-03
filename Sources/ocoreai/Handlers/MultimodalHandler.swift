@@ -3,7 +3,6 @@
 /// Multimodal Server Handler — camera/audio/screen I/O and multimodal chat integration
 
 import Foundation
-
 /// Cross-platform: HTTPTypes + Hummingbird available on macOS, iOS, iPadOS
 import HTTPTypes
 import Hummingbird
@@ -60,37 +59,41 @@ func multimodalCaptureHandler(
             await MainActor.run {
                 MultimodalState.shared.cameraSnapshot = frameURL
             }
-            return try await .json(CaptureResponse(
-                success: true,
-                dataType: "image/jpeg",
-                dataURL: frameURL,
-                message: "Frame captured",
-            ))
+            return try await .json(
+                CaptureResponse(
+                    success: true,
+                    dataType: "image/jpeg",
+                    dataURL: frameURL,
+                    message: "Frame captured",
+                ))
         }
-        return try await Response.json(CaptureResponse(
-            success: false,
-            dataType: "image/jpeg",
-            dataURL: nil,
-            message: "No frame captured",
-        ))
+        return try await Response.json(
+            CaptureResponse(
+                success: false,
+                dataType: "image/jpeg",
+                dataURL: nil,
+                message: "No frame captured",
+            ))
 
     case .microphone:
         let audioIO: AudioIO = await AudioIO.shared
         logger.info("Multimodal: toggling microphone recording")
         if let audioData = await audioIO.toggleRecording() {
-            return try await Response.json(CaptureResponse(
+            return try await Response.json(
+                CaptureResponse(
+                    success: true,
+                    dataType: "audio/caf",
+                    dataURL: audioData,
+                    message: "Audio captured",
+                ))
+        }
+        return try await Response.json(
+            CaptureResponse(
                 success: true,
                 dataType: "audio/caf",
-                dataURL: audioData,
-                message: "Audio captured",
+                dataURL: nil,
+                message: "Recording started",
             ))
-        }
-        return try await Response.json(CaptureResponse(
-            success: true,
-            dataType: "audio/caf",
-            dataURL: nil,
-            message: "Recording started",
-        ))
 
     case .screen:
         let screenshotService = await ScreenshotService.shared
@@ -99,19 +102,21 @@ func multimodalCaptureHandler(
             await MainActor.run {
                 MultimodalState.shared.screenSnapshot = frameURL
             }
-            return try await Response.json(CaptureResponse(
-                success: true,
-                dataType: "image/png",
-                dataURL: frameURL,
-                message: "Screen captured",
-            ))
+            return try await Response.json(
+                CaptureResponse(
+                    success: true,
+                    dataType: "image/png",
+                    dataURL: frameURL,
+                    message: "Screen captured",
+                ))
         }
-        return try await Response.json(CaptureResponse(
-            success: false,
-            dataType: "image/png",
-            dataURL: nil,
-            message: "No screen frame captured",
-        ))
+        return try await Response.json(
+            CaptureResponse(
+                success: false,
+                dataType: "image/png",
+                dataURL: nil,
+                message: "No screen frame captured",
+            ))
     }
 }
 
@@ -121,21 +126,23 @@ func multimodalSpeakHandler(
     logger: Logger,
 ) async throws -> Response {
     guard await MultimodalState.shared.speakerEnabled else {
-        return try await Response.json(CaptureResponse(
-            success: false,
-            dataType: "tts",
-            dataURL: nil,
-            message: "Speaker is disabled",
-        ))
+        return try await Response.json(
+            CaptureResponse(
+                success: false,
+                dataType: "tts",
+                dataURL: nil,
+                message: "Speaker is disabled",
+            ))
     }
     logger.info("Multimodal: speaking text (\\(request.text.count) chars)")
     await AudioIO.shared.speak(request.text)
-    return try await Response.json(CaptureResponse(
-        success: true,
-        dataType: "tts",
-        dataURL: nil,
-        message: "Speaking",
-    ))
+    return try await Response.json(
+        CaptureResponse(
+            success: true,
+            dataType: "tts",
+            dataURL: nil,
+            message: "Speaking",
+        ))
 }
 
 /// Handle multimodal status query/update
@@ -160,8 +167,8 @@ func multimodalStatusHandler(
 }
 
 /// Encode any Encodable to JSON Response
-private extension Response {
-    static func json(
+extension Response {
+    fileprivate static func json(
         _ value: some Encodable,
     ) async throws -> Self {
         var headers: HTTPFields = [:]

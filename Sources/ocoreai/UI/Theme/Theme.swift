@@ -71,11 +71,11 @@ extension OcoreaiTheme {
     static func theme(from scheme: ColorScheme) -> OcoreaiTheme {
         let isDark = scheme == .dark
 
-#if os(macOS)
-            let windowBg = Color(nsColor: NSColor.windowBackgroundColor)
-#else
-            let windowBg = Color(.systemBackground)
-#endif
+        #if os(macOS)
+        let windowBg = Color(nsColor: NSColor.windowBackgroundColor)
+        #else
+        let windowBg = Color(.systemBackground)
+        #endif
 
         return OcoreaiTheme(
             isDark: isDark,

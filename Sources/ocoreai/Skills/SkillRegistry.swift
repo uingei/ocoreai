@@ -235,7 +235,9 @@ actor SkillRegistry {
         }
 
         for fileURL in fileMtimes.keys {
-            if !fileURL.hasDirectoryPath, fileURL.lastPathComponent.lowercased() == "\(name.lowercased()).md" {
+            if !fileURL.hasDirectoryPath,
+                fileURL.lastPathComponent.lowercased() == "\(name.lowercased()).md"
+            {
                 fileMtimes.removeValue(forKey: fileURL)
             }
         }

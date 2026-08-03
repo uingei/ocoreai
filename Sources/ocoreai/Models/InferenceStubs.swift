@@ -129,7 +129,7 @@ struct SamplingConfiguration: Codable, Equatable {
                 config.temperature = min(currentTemp, 0.5)
             }
         default:
-            break // general/analysis/factual/casual — no adjustment
+            break  // general/analysis/factual/casual — no adjustment
         }
 
         return config
@@ -154,7 +154,10 @@ struct InferenceOptions: Codable {
     /// enableReasoning only; this field exists for FM path granularity.
     var reasoningLevel: String? = nil
 
-    init(maxTokens: Int? = nil, includeLogits: Bool = false, useGuidedGeneration: Bool = false, grammarSchema: String? = nil, enableReasoning: Bool = false, reasoningLevel: String? = nil) {
+    init(
+        maxTokens: Int? = nil, includeLogits: Bool = false, useGuidedGeneration: Bool = false,
+        grammarSchema: String? = nil, enableReasoning: Bool = false, reasoningLevel: String? = nil
+    ) {
         self.maxTokens = maxTokens
         self.includeLogits = includeLogits
         self.useGuidedGeneration = useGuidedGeneration
@@ -189,114 +192,120 @@ enum StopReason: Int, Codable, Error {
 
 #if !canImport(CoreAI)
 
-    // MARK: - MLX-only tokenizer stubs (CoreAI path uses TokenizerManager.swift)
+// MARK: - MLX-only tokenizer stubs (CoreAI path uses TokenizerManager.swift)
 
-    /// Empty StreamingDetokenizer for MLX-only builds — MLXLLM containers have
-    /// built-in tokenizers.
-    /// ``@unchecked Sendable``: this is a stub class with no properties — trivially
-    /// Sendable, but the compiler cannot infer it because classes default to non-Sendable.
-    final class StreamingDetokenizer: @unchecked Sendable {}
+/// Empty StreamingDetokenizer for MLX-only builds — MLXLLM containers have
+/// built-in tokenizers.
+/// ``@unchecked Sendable``: this is a stub class with no properties — trivially
+/// Sendable, but the compiler cannot infer it because classes default to non-Sendable.
+final class StreamingDetokenizer: @unchecked Sendable {}
 
-    protocol TokenizerProvider: Sendable {
-        var name: String { get }
-        func tokenize(messages: [[String: String]]) async throws -> [Int32]
-        func detokenize(tokenIds: [Int32]) async throws -> String
-        func streamingDetokenizer() -> StreamingDetokenizer
-        func countTokens(messages: [[String: String]]) async throws -> Int
-        func prewarm() async throws
+protocol TokenizerProvider: Sendable {
+    var name: String { get }
+    func tokenize(messages: [[String: String]]) async throws -> [Int32]
+    func detokenize(tokenIds: [Int32]) async throws -> String
+    func streamingDetokenizer() -> StreamingDetokenizer
+    func countTokens(messages: [[String: String]]) async throws -> Int
+    func prewarm() async throws
+}
+
+actor TokenizerManager {
+    init() {}
+    func registerTokenizer(for _: String, tokenizerPath _: String) async throws {}
+    func registerTokenizerFromHub(for _: String, hubId _: String) async throws {}
+    func getTokenizer(for _: String) -> (any TokenizerProvider)? { nil }
+    @discardableResult
+    func removeTokenizer(for _: String) -> Bool { false }
+    func shutdown() {}
+}
+
+// MARK: - CoreAI type stubs
+
+struct EngineOptions {
+    enum KVCacheStrategy: String, Codable {
+        case auto, none, manual, perLayer
     }
 
-    actor TokenizerManager {
-        init() {}
-        func registerTokenizer(for _: String, tokenizerPath _: String) async throws {}
-        func registerTokenizerFromHub(for _: String, hubId _: String) async throws {}
-        func getTokenizer(for _: String) -> (any TokenizerProvider)? { nil }
-        @discardableResult
-        func removeTokenizer(for _: String) -> Bool { false }
-        func shutdown() {}
+    var kvCacheStrategy: KVCacheStrategy = .auto
+    init(kvCacheStrategy: KVCacheStrategy = .auto) {
+        self.kvCacheStrategy = kvCacheStrategy
+    }
+}
+
+struct CoreAIPreparedModel {
+    var isSpecialized: Bool
+    static func fallback() -> CoreAIPreparedModel {
+        CoreAIPreparedModel(isSpecialized: false)
+    }
+}
+
+struct CoreAILoadingConfig: Codable {
+    static let production: CoreAILoadingConfig = .init()
+    init() {}
+}
+
+actor CoreAIModelLoader {
+    init(config _: CoreAILoadingConfig, logger _: Logging.Logger?) {}
+    func load(modelURL _: URL, modelId _: String) async throws -> CoreAIPreparedModel {
+        CoreAIPreparedModel.fallback()
     }
 
-    // MARK: - CoreAI type stubs
+    func teardown() {}
+}
 
-    struct EngineOptions {
-        enum KVCacheStrategy: String, Codable {
-            case auto, none, manual, perLayer
-        }
+actor KVCacheManager {
 
-        var kvCacheStrategy: KVCacheStrategy = .auto
-        init(kvCacheStrategy: KVCacheStrategy = .auto) {
-            self.kvCacheStrategy = kvCacheStrategy
-        }
+    init(config _: Logging.Logger?) {}
+}
+
+enum EngineFactory {
+    static func createEngine(config _: Data, modelURL _: URL, options _: EngineOptions) async throws
+        -> StubEngine
+    {
+        StubEngine()
     }
+}
 
-    struct CoreAIPreparedModel {
-        var isSpecialized: Bool
-        static func fallback() -> CoreAIPreparedModel {
-            CoreAIPreparedModel(isSpecialized: false)
-        }
-    }
-
-    struct CoreAILoadingConfig: Codable {
-        static let production: CoreAILoadingConfig = .init()
-        init() {}
-    }
-
-    actor CoreAIModelLoader {
-        init(config _: CoreAILoadingConfig, logger _: Logging.Logger?) {}
-        func load(modelURL _: URL, modelId _: String) async throws -> CoreAIPreparedModel {
-            CoreAIPreparedModel.fallback()
-        }
-
-        func teardown() {}
-    }
-
-    actor KVCacheManager {
-
-        init(config _: Logging.Logger?) {}
-    }
-
-    enum EngineFactory {
-        static func createEngine(config _: Data, modelURL _: URL, options _: EngineOptions) async throws -> StubEngine {
-            StubEngine()
-        }
-    }
-
-    struct StubEngine {
-        func generate(with _: [Int32], samplingConfiguration _: SamplingConfiguration, inferenceOptions _: InferenceOptions) -> AsyncThrowingStream<Int32, Error> {
-            AsyncThrowingStream<Int32, Error> { continuation in
-                continuation.finish(throwing: StubError("Inference unavailable — enable coreai or mlx trait"))
-            }
-        }
-
-        func reset() async throws {}
-        struct Sequence: AsyncSequence, AsyncIteratorProtocol {
-            typealias Element = Int32
-            typealias Failure = StubError
-            func next() async throws -> Int32? {
-                throw StubError("Stale stub call")
-            }
-
-            func makeAsyncIterator() -> Sequence {
-                self
-            }
-
-            var stopReason: StopReason {
-                .error
-            }
+struct StubEngine {
+    func generate(
+        with _: [Int32], samplingConfiguration _: SamplingConfiguration,
+        inferenceOptions _: InferenceOptions
+    ) -> AsyncThrowingStream<Int32, Error> {
+        AsyncThrowingStream<Int32, Error> { continuation in
+            continuation.finish(
+                throwing: StubError("Inference unavailable — enable coreai or mlx trait"))
         }
     }
 
-    enum StubError: Error, LocalizedError {
-        case disabled(String)
-        init(_ message: String) {
-            self = .disabled(message)
+    func reset() async throws {}
+    struct Sequence: AsyncSequence, AsyncIteratorProtocol {
+        typealias Element = Int32
+        typealias Failure = StubError
+        func next() async throws -> Int32? {
+            throw StubError("Stale stub call")
         }
 
-        var errorDescription: String? {
-            switch self {
-            case let .disabled(msg): msg
-            }
+        func makeAsyncIterator() -> Sequence {
+            self
+        }
+
+        var stopReason: StopReason {
+            .error
         }
     }
+}
 
-#endif // !coreai
+enum StubError: Error, LocalizedError {
+    case disabled(String)
+    init(_ message: String) {
+        self = .disabled(message)
+    }
+
+    var errorDescription: String? {
+        switch self {
+        case .disabled(let msg): msg
+        }
+    }
+}
+
+#endif  // !coreai

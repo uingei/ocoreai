@@ -45,7 +45,8 @@ struct CorrectionTrace: Codable {
             entities: phasesAttempted.map(\.rawValue),
             cause: originalPrompt.prefix(100).description,
             process: "Phases: " + phasesAttempted.map(\.rawValue).joined(separator: "->"),
-            result: (converged ? "converged in " : "failed after ") + String(iterations) + " iterations",
+            result: (converged ? "converged in " : "failed after ") + String(iterations)
+                + " iterations",
             resolution: converged ? .resolved : (iterations > 1 ? .workaround : .unresolved),
             memoryType: .pattern,
             confidence: converged ? 0.9 : max(0.3, 1.0 - Double(iterations) * 0.15),
@@ -113,7 +114,9 @@ struct SelfCorrectionPipeline {
         logger: Logger,
         persistMemory: @Sendable (MemoryEvent) async -> Void = { _ in },
         maxPhases: Int = SelfCorrectionPipeline.maxIterations,
-    ) async throws -> (finalResponse: String, iterations: Int, finalPhase: CorrectionPhase, trace: CorrectionTrace) {
+    ) async throws -> (
+        finalResponse: String, iterations: Int, finalPhase: CorrectionPhase, trace: CorrectionTrace
+    ) {
         // Phase 1: Rule-based critique — zero token cost
         let phase1Result = phase1RuleBasedCritique(prompt: prompt, response: response)
 
@@ -132,12 +135,15 @@ struct SelfCorrectionPipeline {
             return (response, 0, .converged, trace)
         }
 
-        logger.info("Self-correction: Phase 1 failed (confidence=\(phase1Result.confidence)), entering correction loop")
+        logger.info(
+            "Self-correction: Phase 1 failed (confidence=\(phase1Result.confidence)), entering correction loop"
+        )
 
         // SSE path (maxPhases == 1): skip correction loop — stream already sent,
         // generate closure is no-op. Record Phase 1 trace and return.
         if maxPhases <= 1 {
-            logger.info("Self-correction: maxPhases == 1, recording Phase 1 trace only (no regeneration)")
+            logger.info(
+                "Self-correction: maxPhases == 1, recording Phase 1 trace only (no regeneration)")
             let trace = CorrectionTrace(
                 originalPrompt: prompt,
                 modelResponse: response,
@@ -197,7 +203,9 @@ struct SelfCorrectionPipeline {
                 let finalCheck = phase1RuleBasedCritique(prompt: prompt, response: currentResponse)
                 if finalCheck.confidence >= SelfCorrectionPipeline.bypassThreshold {
                     phasesAttempted.append(.converged)
-                    logger.info("Self-correction: converged after context rewrite at iteration \(iteration)")
+                    logger.info(
+                        "Self-correction: converged after context rewrite at iteration \(iteration)"
+                    )
                     let trace = CorrectionTrace(
                         originalPrompt: prompt,
                         modelResponse: currentResponse,
@@ -249,7 +257,8 @@ struct SelfCorrectionPipeline {
             checkCount += 1
             confidenceSum += intent.confidence
             if intent.confidence < 0.5 {
-                issueList.append("Low intent confidence (" + String(format: "%.2f", intent.confidence) + ")")
+                issueList.append(
+                    "Low intent confidence (" + String(format: "%.2f", intent.confidence) + ")")
             }
         }
 
@@ -294,21 +303,22 @@ struct SelfCorrectionPipeline {
         previousResponse: String,
         issues: [String],
     ) -> String {
-        let issueList = issues.isEmpty
+        let issueList =
+            issues.isEmpty
             ? "No specific issues detected, but confidence was below threshold."
             : issues.joined(separator: "\n")
 
-        return "SYSTEM: You are about to respond to a user request. Before answering, please self-critique.\n\n" +
-            "ORIGINAL REQUEST: \(originalPrompt)\n\n" +
-            "PREVIOUS RESPONSE (for reference): \(previousResponse)\n\n" +
-            "CRITIQUE ISSUES TO ADDRESS:\n\(issueList)\n\n" +
-            "SELF-REFLECTION INSTRUCTIONS:\n" +
-            "1. Review the original request and your previous response\n" +
-            "2. Identify any issues: incomplete, inaccurate, biased, or off-topic content\n" +
-            "3. Address the specific critique issues listed above\n" +
-            "4. If your previous response was good, improve it further\n" +
-            "5. If you were wrong, acknowledge and correct yourself\n\n" +
-            "Provide your improved response directly. Do not include the self-critique text."
+        return
+            "SYSTEM: You are about to respond to a user request. Before answering, please self-critique.\n\n"
+            + "ORIGINAL REQUEST: \(originalPrompt)\n\n"
+            + "PREVIOUS RESPONSE (for reference): \(previousResponse)\n\n"
+            + "CRITIQUE ISSUES TO ADDRESS:\n\(issueList)\n\n" + "SELF-REFLECTION INSTRUCTIONS:\n"
+            + "1. Review the original request and your previous response\n"
+            + "2. Identify any issues: incomplete, inaccurate, biased, or off-topic content\n"
+            + "3. Address the specific critique issues listed above\n"
+            + "4. If your previous response was good, improve it further\n"
+            + "5. If you were wrong, acknowledge and correct yourself\n\n"
+            + "Provide your improved response directly. Do not include the self-critique text."
     }
 
     // MARK: - Phase 3: Context Rewriter
@@ -343,7 +353,9 @@ struct SelfCorrectionPipeline {
             directiveChanges.append("Provide a more detailed and comprehensive response")
         }
 
-        let customSystem = "SYSTEM (ENHANCED):\n" + directiveChanges.joined(separator: "\n") + "\nRespond directly and helpfully."
+        let customSystem =
+            "SYSTEM (ENHANCED):\n" + directiveChanges.joined(separator: "\n")
+            + "\nRespond directly and helpfully."
 
         // Generate targeted few-shot examples based on intent
         let examples: [String]? = intent.action.examplesForCorrection(intentAction: intent.action)

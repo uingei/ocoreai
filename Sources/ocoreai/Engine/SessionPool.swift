@@ -19,14 +19,13 @@
 // - On eviction, KV cache is persisted to disk via ChatSession.saveCache(to:).
 // - On cold pool miss, loadPromptCache(url:) restores from disk if available.
 
+import CoreGraphics
 import Foundation
 import Logging
 import MLXLLM
 import MLXLMCommon
 
 // MARK: - Configuration (trait-agnostic)
-
-import CoreGraphics
 
 /// Session pool configuration — per-pool limits and TTL.
 struct SessionPoolConfig {
@@ -51,7 +50,7 @@ struct SessionPoolConfig {
     /// exceeds this budget, oldest cache files are pruned before new ones are saved.
     /// Set to 0 to disable capping (not recommended for long-running services).
     /// Default: 1 GiB (enough for ~8 concurrent 128K-context sessions at ~50MB/session).
-    var persistCacheMaxBytes: UInt64 = 1_073_741_824 // 1 GiB
+    var persistCacheMaxBytes: UInt64 = 1_073_741_824  // 1 GiB
 
     /// Directory for on-disk KV cache files (nil = auto-derive)
     var cacheDirectory: URL?
@@ -68,56 +67,57 @@ struct SessionPoolConfig {
     static let `default`: SessionPoolConfig = .init()
 }
 
+// MARK: - Pooled Session Entry
 
-    // MARK: - Pooled Session Entry
+/// Metadata wrapper around a ChatSession with LRU tracking.
+///
+/// ``@unchecked Sendable``: this struct lives exclusively inside
+/// ``MLXSessionPool`` actor — all reads and mutations are actor-isolated,
+/// so cross-thread access never occurs. The `ChatSession` itself is not
+/// formally Sendable but is only accessed via the actor.
+///
+/// KV cache state is managed entirely by ChatSession internally —
+/// we only track access time for TTL/LRU eviction.
+struct PooledChatSession: @unchecked Sendable {
+    /// The underlying MLX chat session (holds KV cache)
+    let session: ChatSession
 
-    /// Metadata wrapper around a ChatSession with LRU tracking.
-    ///
-    /// ``@unchecked Sendable``: this struct lives exclusively inside
-    /// ``MLXSessionPool`` actor — all reads and mutations are actor-isolated,
-    /// so cross-thread access never occurs. The `ChatSession` itself is not
-    /// formally Sendable but is only accessed via the actor.
-    ///
-    /// KV cache state is managed entirely by ChatSession internally —
-    /// we only track access time for TTL/LRU eviction.
-    struct PooledChatSession: @unchecked Sendable {
-        /// The underlying MLX chat session (holds KV cache)
-        let session: ChatSession
+    /// Timestamp of last access
+    var lastAccessedAt: ContinuousClock.Instant
 
-        /// Timestamp of last access
-        var lastAccessedAt: ContinuousClock.Instant
+    /// On-disk cache file URL for this session (nil if never persisted).
+    var cacheFileURL: URL?
+}
 
-        /// On-disk cache file URL for this session (nil if never persisted).
-        var cacheFileURL: URL?
-    }
+// MARK: - Session Pool Actor
 
-    // MARK: - Session Pool Actor
+/// Actor-owned pool of ChatSession instances keyed by
+/// (modelId, conversationId). Handles TTL expiry + LRU eviction + on-disk KV cache.
+actor MLXSessionPool {
+    // MARK: - State
 
-    /// Actor-owned pool of ChatSession instances keyed by
-    /// (modelId, conversationId). Handles TTL expiry + LRU eviction + on-disk KV cache.
-    actor MLXSessionPool {
-        // MARK: - State
+    private let config: SessionPoolConfig
+    private let logger: Logger
+    private var pool: [String: PooledChatSession] = [:]
 
-        private let config: SessionPoolConfig
-        private let logger: Logger
-        private var pool: [String: PooledChatSession] = [:]
+    // On-disk KV cache storage
+    private let cacheDirectory: URL
 
-        // On-disk KV cache storage
-        private let cacheDirectory: URL
+    // Hit-rate metrics
+    private var hitCount = 0
+    private var missCount = 0
+    private var totalAcquireAttempts = 0
 
-        // Hit-rate metrics
-        private var hitCount = 0
-        private var missCount = 0
-        private var totalAcquireAttempts = 0
+    // MARK: - Initialization
 
-        // MARK: - Initialization
+    init(config: SessionPoolConfig, logger: Logger, cacheDirectory argCacheDir: URL? = nil) {
+        self.config = config
+        self.logger = logger
 
-        init(config: SessionPoolConfig, logger: Logger, cacheDirectory argCacheDir: URL? = nil) {
-            self.config = config
-            self.logger = logger
-
-            // Derive cache directory from config or default — cross-platform
-            cacheDirectory = argCacheDir ?? config.cacheDirectory ?? {
+        // Derive cache directory from config or default — cross-platform
+        cacheDirectory =
+            argCacheDir ?? config.cacheDirectory
+            ?? {
                 let dir: URL
                 if let supportURL = FileManager.default.urls(
                     for: .applicationSupportDirectory, in: .userDomainMask,
@@ -130,360 +130,368 @@ struct SessionPoolConfig {
                 return dir.appendingPathComponent("kvcache")
             }()
 
-            // Ensure directory exists
-            try? FileManager.default.createDirectory(
-                at: cacheDirectory, withIntermediateDirectories: true,
-            )
+        // Ensure directory exists
+        try? FileManager.default.createDirectory(
+            at: cacheDirectory, withIntermediateDirectories: true,
+        )
 
-            logger.info(
-                """
-                MLXSessionPool initialized: maxSessions=\(config.maxSessions), \
-                ttl=\(config.sessionTTLSeconds)s, persist=\(config.persistCache)
-                """
-            )
+        logger.info(
+            """
+            MLXSessionPool initialized: maxSessions=\(config.maxSessions), \
+            ttl=\(config.sessionTTLSeconds)s, persist=\(config.persistCache)
+            """
+        )
+    }
+
+    // MARK: - Acquire / Create
+
+    /// Acquire a ChatSession for the given (model, conversation) key.
+    ///
+    /// If a pooled session exists and is within TTL, it is returned and removed
+    /// from the pool (borrow pattern). The caller must release() after inference.
+    ///
+    /// If no pooled session exists (or it expired), the pool attempts to restore
+    /// from on-disk KV cache. If that fails, a new session is created.
+    ///
+    /// - Returns: tuple with the session and a flag indicating whether the session
+    ///   already has KV cache context (true = only pass new messages, false = pass
+    ///   full conversation history for prefill).
+    ///
+    /// - Parameters:
+    ///   - instructions: System prompt via ChatSession's `instructions:` parameter
+    ///   - processing: VLM resize config. Aligned across all inference paths
+    ///     to avoid inconsistent per-image token counts.
+    func acquire(
+        from modelContainer: MLXLMCommon.ModelContainer,
+        modelId: String,
+        conversationId: String,
+        genParams: MLXLMCommon.GenerateParameters,
+        speculativeDecoding: MLXLMCommon.SpeculativeDecodingConfig? = nil,
+        instructions: String? = nil,
+        processing: MLXLMCommon.UserInput.Processing? = nil,
+    ) async -> (pooled: PooledChatSession, isHit: Bool) {
+        // 1. Expire stale sessions
+        await evictExpired()
+
+        // 2. Build pool key
+        let key = poolKey(modelId: modelId, conversationId: conversationId)
+
+        // 3. Try hit
+        if let pooled = pool[key] {
+            pool[key] = nil
+            hitCount += 1
+            totalAcquireAttempts += 1
+            logHitRateIfNeeded()
+            logger.debug("Session pool HIT: \(key)")
+            return (pooled, isHit: true)
         }
 
-        // MARK: - Acquire / Create
-
-        /// Acquire a ChatSession for the given (model, conversation) key.
-        ///
-        /// If a pooled session exists and is within TTL, it is returned and removed
-        /// from the pool (borrow pattern). The caller must release() after inference.
-        ///
-        /// If no pooled session exists (or it expired), the pool attempts to restore
-        /// from on-disk KV cache. If that fails, a new session is created.
-        ///
-        /// - Returns: tuple with the session and a flag indicating whether the session
-        ///   already has KV cache context (true = only pass new messages, false = pass
-        ///   full conversation history for prefill).
-        ///
-        /// - Parameters:
-        ///   - instructions: System prompt via ChatSession's `instructions:` parameter
-        ///   - processing: VLM resize config. Aligned across all inference paths
-        ///     to avoid inconsistent per-image token counts.
-        func acquire(
-            from modelContainer: MLXLMCommon.ModelContainer,
-            modelId: String,
-            conversationId: String,
-            genParams: MLXLMCommon.GenerateParameters,
-            speculativeDecoding: MLXLMCommon.SpeculativeDecodingConfig? = nil,
-            instructions: String? = nil,
-            processing: MLXLMCommon.UserInput.Processing? = nil,
-        ) async -> (pooled: PooledChatSession, isHit: Bool) {
-            // 1. Expire stale sessions
-            await evictExpired()
-
-            // 2. Build pool key
-            let key = poolKey(modelId: modelId, conversationId: conversationId)
-
-            // 3. Try hit
-            if let pooled = pool[key] {
-                pool[key] = nil
-                hitCount += 1
-                totalAcquireAttempts += 1
-                logHitRateIfNeeded()
-                logger.debug("Session pool HIT: \(key)")
-                return (pooled, isHit: true)
-            }
-
-            // 4. Pool miss — try restore from disk first (fallback path)
-            let cacheURL = cacheFileURL(key: key)
-            if config.persistCache,
-               let restored = restoreCachedSession(
-                   from: modelContainer,
-                   cacheURL: cacheURL,
-                   genParams: genParams,
-                   speculativeDecoding: speculativeDecoding,
-                   processing: processing
-               )
-            {
-                let diskPooled = PooledChatSession(
-                    session: restored,
-                    lastAccessedAt: ContinuousClock.now,
-                    cacheFileURL: cacheURL,
-                )
-                missCount += 1
-                totalAcquireAttempts += 1
-                logHitRateIfNeeded()
-                logger.info("Session RESTORED from disk cache: \(key)")
-                // Disk restore = KV cache already has context → caller passes new messages only
-                return (diskPooled, isHit: true)
-            }
-
-            // 5. Cold miss — create fresh session with instructions + processing
-            let freshSession = ChatSession(
-                modelContainer,
-                instructions: instructions,
+        // 4. Pool miss — try restore from disk first (fallback path)
+        let cacheURL = cacheFileURL(key: key)
+        if config.persistCache,
+            let restored = restoreCachedSession(
+                from: modelContainer,
+                cacheURL: cacheURL,
+                genParams: genParams,
                 speculativeDecoding: speculativeDecoding,
-                generateParameters: genParams,
-                processing: processing ?? .init(resize: config.vlmImageResize),
+                processing: processing
             )
-            let cacheFile = cacheFileURL(key: key)
-            let freshPooled = PooledChatSession(
-                session: freshSession,
+        {
+            let diskPooled = PooledChatSession(
+                session: restored,
                 lastAccessedAt: ContinuousClock.now,
-                cacheFileURL: cacheFile,
+                cacheFileURL: cacheURL,
             )
             missCount += 1
             totalAcquireAttempts += 1
             logHitRateIfNeeded()
-            logger.debug("Session pool MISS: \(key)")
-            return (freshPooled, isHit: false)
+            logger.info("Session RESTORED from disk cache: \(key)")
+            // Disk restore = KV cache already has context → caller passes new messages only
+            return (diskPooled, isHit: true)
         }
 
-        /// Return a session back to the pool after inference completes.
-        ///
-        /// - Parameters:
-        ///   - pooled: session to return
-        ///   - modelId: model identifier
-        ///   - conversationId: conversation identifier
-        func release(
-            pooled: PooledChatSession,
-            modelId: String,
-            conversationId: String,
-        ) async {
-            let key = poolKey(modelId: modelId, conversationId: conversationId)
-            // Clear tools + toolDispatch to prevent cross-session tool leakage.
-            // Without this, a pooled session reused by a different request could
-            // carry over tool specs and dispatch closures from the previous caller.
-            pooled.session.tools = nil
-            pooled.session.toolDispatch = nil
-            // synchronize KV cache before returning to pool — ensures any async GPU
-            // cache operations from the last stream are flushed. Without this, a
-            // reused pooled session could serve stale cache state.
-            await pooled.session.synchronize()
-            pool[key] = pooled
+        // 5. Cold miss — create fresh session with instructions + processing
+        let freshSession = ChatSession(
+            modelContainer,
+            instructions: instructions,
+            speculativeDecoding: speculativeDecoding,
+            generateParameters: genParams,
+            processing: processing ?? .init(resize: config.vlmImageResize),
+        )
+        let cacheFile = cacheFileURL(key: key)
+        let freshPooled = PooledChatSession(
+            session: freshSession,
+            lastAccessedAt: ContinuousClock.now,
+            cacheFileURL: cacheFile,
+        )
+        missCount += 1
+        totalAcquireAttempts += 1
+        logHitRateIfNeeded()
+        logger.debug("Session pool MISS: \(key)")
+        return (freshPooled, isHit: false)
+    }
 
-            // LRU eviction if pool exceeds max
-            if pool.count > config.maxSessions {
-                await evictLRU()
-            }
+    /// Return a session back to the pool after inference completes.
+    ///
+    /// - Parameters:
+    ///   - pooled: session to return
+    ///   - modelId: model identifier
+    ///   - conversationId: conversation identifier
+    func release(
+        pooled: PooledChatSession,
+        modelId: String,
+        conversationId: String,
+    ) async {
+        let key = poolKey(modelId: modelId, conversationId: conversationId)
+        // Clear tools + toolDispatch to prevent cross-session tool leakage.
+        // Without this, a pooled session reused by a different request could
+        // carry over tool specs and dispatch closures from the previous caller.
+        pooled.session.tools = nil
+        pooled.session.toolDispatch = nil
+        // synchronize KV cache before returning to pool — ensures any async GPU
+        // cache operations from the last stream are flushed. Without this, a
+        // reused pooled session could serve stale cache state.
+        await pooled.session.synchronize()
+        pool[key] = pooled
+
+        // LRU eviction if pool exceeds max
+        if pool.count > config.maxSessions {
+            await evictLRU()
+        }
+    }
+
+    // MARK: - Eviction with on-disk persistence
+
+    /// Remove expired sessions based on TTL, persisting their KV cache to disk before eviction.
+    private func evictExpired() async {
+        let now = ContinuousClock.now
+        let ttl = Duration.seconds(config.sessionTTLSeconds)
+        let before = pool.count
+        let persistFlag = config.persistCache
+        let entriesToRemove: [(key: String, entry: PooledChatSession)] = pool.compactMap {
+            key, entry in
+            let expired = entry.lastAccessedAt.duration(to: now) >= ttl
+            return expired ? (key, entry) : nil
         }
 
-        // MARK: - Eviction with on-disk persistence
-
-        /// Remove expired sessions based on TTL, persisting their KV cache to disk before eviction.
-        private func evictExpired() async {
-            let now = ContinuousClock.now
-            let ttl = Duration.seconds(config.sessionTTLSeconds)
-            let before = pool.count
-            let persistFlag = config.persistCache
-            let entriesToRemove: [(key: String, entry: PooledChatSession)] = pool.compactMap { key, entry in
-                let expired = entry.lastAccessedAt.duration(to: now) >= ttl
-                return expired ? (key, entry) : nil
-            }
-
-            for (key, entry) in entriesToRemove {
-                // Enforce disk budget before persisting to prevent unbounded growth
-                if persistFlag {
-                    enforceDiskBudget()
-                }
-                // Persist to disk in a detached Task so saveCache (which can be slow
-                // for large KV caches) does not block the actor mailbox.
-                if persistFlag, let cacheURL = entry.cacheFileURL {
-                    let cachePath = cacheURL.lastPathComponent
-                    let log = self.logger
-                    _ = Task.detached(priority: .utility) { [entry, log, cachePath] in
-                        do {
-                            try await entry.session.saveCache(to: cacheURL)
-                            log.debug("Saved KV cache: \(cachePath)")
-                        } catch {
-                            log.warning("Failed to save KV cache: \(error.localizedDescription)")
-                        }
-                    }
-                }
-                logger.debug("Evicted expired session: \(key)")
-                pool.removeValue(forKey: key)
-            }
-            let removed = before - pool.count
-            if removed > 0 {
-                logger.info("Expired \(removed) session(s) from pool (\(pool.count) remain)")
-            }
-        }
-
-        /// Remove the least-recently-used session when pool exceeds max capacity,
-        /// persisting its KV cache to disk before eviction.
-        private func evictLRU() async {
-            guard let oldestItem = pool.min(by: { $0.value.lastAccessedAt < $1.value.lastAccessedAt }) else {
-                return
-            }
-            let oldestKey = oldestItem.key
-            let entry = oldestItem.value
-            // Remove from pool first to shrink actor mailbox window
-            pool.removeValue(forKey: oldestKey)
+        for (key, entry) in entriesToRemove {
             // Enforce disk budget before persisting to prevent unbounded growth
-            if config.persistCache {
+            if persistFlag {
                 enforceDiskBudget()
             }
             // Persist to disk in a detached Task so saveCache (which can be slow
             // for large KV caches) does not block the actor mailbox.
-            if config.persistCache, let cacheURL = entry.cacheFileURL {
+            if persistFlag, let cacheURL = entry.cacheFileURL {
                 let cachePath = cacheURL.lastPathComponent
                 let log = self.logger
                 _ = Task.detached(priority: .utility) { [entry, log, cachePath] in
                     do {
                         try await entry.session.saveCache(to: cacheURL)
-                        log.debug("Saved KV cache (LRU): \(cachePath)")
+                        log.debug("Saved KV cache: \(cachePath)")
                     } catch {
-                        log.warning("Failed to save KV cache (LRU): \(error.localizedDescription)")
+                        log.warning("Failed to save KV cache: \(error.localizedDescription)")
                     }
                 }
             }
-            logger.info("LRU evicted: \(oldestKey) (pool: \(pool.count))")
+            logger.debug("Evicted expired session: \(key)")
+            pool.removeValue(forKey: key)
         }
-
-        // MARK: - On-disk KV cache I/O
-
-        /// Restore a ChatSession from on-disk KV cache.
-        /// Per upstream L319-322: restore from a pre-built cache that already encodes
-        /// a system prompt — pass `instructions: nil` to avoid duplicate tokenization.
-        ///
-        /// Returns true on success, false if disk cache not found or restore failed.
-        private func restoreCachedSession(
-            from modelContainer: MLXLMCommon.ModelContainer,
-            cacheURL: URL,
-            genParams: MLXLMCommon.GenerateParameters,
-            speculativeDecoding: MLXLMCommon.SpeculativeDecodingConfig?,
-            processing: MLXLMCommon.UserInput.Processing?,
-        ) -> ChatSession? {
-            guard FileManager.default.fileExists(atPath: cacheURL.path) else {
-                return nil
-            }
-            do {
-                let (caches, _) = try MLXLMCommon.loadPromptCache(url: cacheURL)
-                guard !caches.isEmpty else { return nil }
-                // Recover token count from cache offset — accurate record of how many
-                // tokens were prefill-ed into this cached KV state.
-                let restoredTokenCount = caches.first?.offset ?? 0
-                logger.info(
-                    "Restoring KV cache from: \(cacheURL.lastPathComponent) (tokens: \(restoredTokenCount))"
-                )
-                let restoredSession = ChatSession(
-                    modelContainer,
-                    instructions: nil, // cache already encodes system prompt — upstream L319-322
-                    cache: caches,
-                    speculativeDecoding: speculativeDecoding,
-                    generateParameters: genParams,
-                    processing: processing ?? .init(resize: config.vlmImageResize),
-                )
-                return restoredSession
-            } catch {
-                logger.warning(
-                    "Cache restore failed (\(cacheURL.lastPathComponent)): \(error.localizedDescription)"
-                )
-                return nil
-            }
-        }
-
-        /// Cache file path for a pool key
-        private func cacheFileURL(key: String) -> URL {
-            // Sanitize key to avoid URL-unfriendly chars
-            let safeKey = key.replacingOccurrences(of: "/", with: "_")
-                .replacingOccurrences(of: ":", with: "_")
-            return cacheDirectory.appendingPathComponent(safeKey + ".mlx")
-        }
-
-        // MARK: - Disk Budget
-
-        /// Total size of all on-disk KV cache files (bytes).
-        private func diskCacheTotalBytes() -> UInt64 {
-            guard let urls = try? FileManager.default.contentsOfDirectory(
-                at: cacheDirectory, includingPropertiesForKeys: [.totalFileAllocatedSizeKey]
-            ) else {
-                return 0
-            }
-            var total: UInt64 = 0
-            for url in urls {
-                if let attrs = try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey]) {
-                    total += UInt64(attrs.totalFileAllocatedSize ?? 0)
-                }
-            }
-            return total
-        }
-
-        /// Evict oldest on-disk cache files until total usage is at or below budget.
-        /// Used before persisting a new cache to prevent unbounded disk growth.
-        private func enforceDiskBudget() {
-            let budget = config.persistCacheMaxBytes
-            guard budget > 0 else { return } // 0 = no cap
-            let current: UInt64 = diskCacheTotalBytes()
-            guard current > budget else { return } // already under budget
-
-            guard let urls = try? FileManager.default.contentsOfDirectory(
-                at: cacheDirectory, includingPropertiesForKeys: [.contentAccessDateKey]
-            ) else {
-                return
-            }
-
-            // Sort by last access date (oldest first) to evict LRU
-            let sorted = urls.sorted {
-                let da = (try? $0.resourceValues(forKeys: [.contentAccessDateKey]).contentAccessDate)
-                    ?? .distantPast
-                let db = (try? $1.resourceValues(forKeys: [.contentAccessDateKey]).contentAccessDate)
-                    ?? .distantPast
-                return da < db
-            }
-
-            for url in sorted {
-                guard diskCacheTotalBytes() > budget else { break }
-                do {
-                    try FileManager.default.removeItem(at: url)
-                    logger.debug("Pruned cache file to enforce budget: \(url.lastPathComponent)")
-                } catch {
-                    logger.warning("Failed to prune cache file: \(error.localizedDescription)")
-                }
-            }
-        }
-
-        // MARK: - Inspection
-
-        /// Current pool size
-        var pooledCount: Int {
-            pool.count
-        }
-
-        /// Pool size and hit-rate snapshot for metrics
-        func stats() -> (count: Int, hitRate: Double) {
-            let total = hitCount + missCount
-            let rate = total > 0 ? Double(hitCount) / Double(total) * 100.0 : 0.0
-            return (count: pool.count, hitRate: rate)
-        }
-
-        /// Force-clear the pool (e.g. during shutdown or model unload)
-        /// Does NOT delete on-disk cache files.
-        func clear() {
-            let count = pool.count
-            pool.removeAll()
-            hitCount = 0
-            missCount = 0
-            totalAcquireAttempts = 0
-            logger.info("Session pool cleared (\(count) sessions evicted)")
-        }
-
-        /// Clear only sessions for a specific model (during model unload)
-        func clear(modelId: String) {
-            let keysToRemove: [String] = pool.compactMap { key, _ in
-                key.hasPrefix("\(modelId):") ? key : nil
-            }
-            for key in keysToRemove {
-                pool.removeValue(forKey: key)
-            }
-        }
-
-        // MARK: - Helpers
-
-        private func poolKey(modelId: String, conversationId convId: String) -> String {
-            "\(modelId):\(convId)"
-        }
-
-        private func logHitRateIfNeeded() {
-            guard totalAcquireAttempts % config.metricsLogInterval == 0,
-                  totalAcquireAttempts > 0 else { return }
-            let total = hitCount + missCount
-            let rate = total > 0 ? Double(hitCount) / Double(total) * 100.0 : 0.0
-            logger.info(
-                "Session pool stats after \(total) acquires: \(pool.count) pooled, hit rate \(String(format: "%.1f%%", rate))",
-            )
+        let removed = before - pool.count
+        if removed > 0 {
+            logger.info("Expired \(removed) session(s) from pool (\(pool.count) remain)")
         }
     }
 
+    /// Remove the least-recently-used session when pool exceeds max capacity,
+    /// persisting its KV cache to disk before eviction.
+    private func evictLRU() async {
+        guard let oldestItem = pool.min(by: { $0.value.lastAccessedAt < $1.value.lastAccessedAt })
+        else {
+            return
+        }
+        let oldestKey = oldestItem.key
+        let entry = oldestItem.value
+        // Remove from pool first to shrink actor mailbox window
+        pool.removeValue(forKey: oldestKey)
+        // Enforce disk budget before persisting to prevent unbounded growth
+        if config.persistCache {
+            enforceDiskBudget()
+        }
+        // Persist to disk in a detached Task so saveCache (which can be slow
+        // for large KV caches) does not block the actor mailbox.
+        if config.persistCache, let cacheURL = entry.cacheFileURL {
+            let cachePath = cacheURL.lastPathComponent
+            let log = self.logger
+            _ = Task.detached(priority: .utility) { [entry, log, cachePath] in
+                do {
+                    try await entry.session.saveCache(to: cacheURL)
+                    log.debug("Saved KV cache (LRU): \(cachePath)")
+                } catch {
+                    log.warning("Failed to save KV cache (LRU): \(error.localizedDescription)")
+                }
+            }
+        }
+        logger.info("LRU evicted: \(oldestKey) (pool: \(pool.count))")
+    }
+
+    // MARK: - On-disk KV cache I/O
+
+    /// Restore a ChatSession from on-disk KV cache.
+    /// Per upstream L319-322: restore from a pre-built cache that already encodes
+    /// a system prompt — pass `instructions: nil` to avoid duplicate tokenization.
+    ///
+    /// Returns true on success, false if disk cache not found or restore failed.
+    private func restoreCachedSession(
+        from modelContainer: MLXLMCommon.ModelContainer,
+        cacheURL: URL,
+        genParams: MLXLMCommon.GenerateParameters,
+        speculativeDecoding: MLXLMCommon.SpeculativeDecodingConfig?,
+        processing: MLXLMCommon.UserInput.Processing?,
+    ) -> ChatSession? {
+        guard FileManager.default.fileExists(atPath: cacheURL.path) else {
+            return nil
+        }
+        do {
+            let (caches, _) = try MLXLMCommon.loadPromptCache(url: cacheURL)
+            guard !caches.isEmpty else { return nil }
+            // Recover token count from cache offset — accurate record of how many
+            // tokens were prefill-ed into this cached KV state.
+            let restoredTokenCount = caches.first?.offset ?? 0
+            logger.info(
+                "Restoring KV cache from: \(cacheURL.lastPathComponent) (tokens: \(restoredTokenCount))"
+            )
+            let restoredSession = ChatSession(
+                modelContainer,
+                instructions: nil,  // cache already encodes system prompt — upstream L319-322
+                cache: caches,
+                speculativeDecoding: speculativeDecoding,
+                generateParameters: genParams,
+                processing: processing ?? .init(resize: config.vlmImageResize),
+            )
+            return restoredSession
+        } catch {
+            logger.warning(
+                "Cache restore failed (\(cacheURL.lastPathComponent)): \(error.localizedDescription)"
+            )
+            return nil
+        }
+    }
+
+    /// Cache file path for a pool key
+    private func cacheFileURL(key: String) -> URL {
+        // Sanitize key to avoid URL-unfriendly chars
+        let safeKey = key.replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: ":", with: "_")
+        return cacheDirectory.appendingPathComponent(safeKey + ".mlx")
+    }
+
+    // MARK: - Disk Budget
+
+    /// Total size of all on-disk KV cache files (bytes).
+    private func diskCacheTotalBytes() -> UInt64 {
+        guard
+            let urls = try? FileManager.default.contentsOfDirectory(
+                at: cacheDirectory, includingPropertiesForKeys: [.totalFileAllocatedSizeKey]
+            )
+        else {
+            return 0
+        }
+        var total: UInt64 = 0
+        for url in urls {
+            if let attrs = try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey]) {
+                total += UInt64(attrs.totalFileAllocatedSize ?? 0)
+            }
+        }
+        return total
+    }
+
+    /// Evict oldest on-disk cache files until total usage is at or below budget.
+    /// Used before persisting a new cache to prevent unbounded disk growth.
+    private func enforceDiskBudget() {
+        let budget = config.persistCacheMaxBytes
+        guard budget > 0 else { return }  // 0 = no cap
+        let current: UInt64 = diskCacheTotalBytes()
+        guard current > budget else { return }  // already under budget
+
+        guard
+            let urls = try? FileManager.default.contentsOfDirectory(
+                at: cacheDirectory, includingPropertiesForKeys: [.contentAccessDateKey]
+            )
+        else {
+            return
+        }
+
+        // Sort by last access date (oldest first) to evict LRU
+        let sorted = urls.sorted {
+            let da =
+                (try? $0.resourceValues(forKeys: [.contentAccessDateKey]).contentAccessDate)
+                ?? .distantPast
+            let db =
+                (try? $1.resourceValues(forKeys: [.contentAccessDateKey]).contentAccessDate)
+                ?? .distantPast
+            return da < db
+        }
+
+        for url in sorted {
+            guard diskCacheTotalBytes() > budget else { break }
+            do {
+                try FileManager.default.removeItem(at: url)
+                logger.debug("Pruned cache file to enforce budget: \(url.lastPathComponent)")
+            } catch {
+                logger.warning("Failed to prune cache file: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // MARK: - Inspection
+
+    /// Current pool size
+    var pooledCount: Int {
+        pool.count
+    }
+
+    /// Pool size and hit-rate snapshot for metrics
+    func stats() -> (count: Int, hitRate: Double) {
+        let total = hitCount + missCount
+        let rate = total > 0 ? Double(hitCount) / Double(total) * 100.0 : 0.0
+        return (count: pool.count, hitRate: rate)
+    }
+
+    /// Force-clear the pool (e.g. during shutdown or model unload)
+    /// Does NOT delete on-disk cache files.
+    func clear() {
+        let count = pool.count
+        pool.removeAll()
+        hitCount = 0
+        missCount = 0
+        totalAcquireAttempts = 0
+        logger.info("Session pool cleared (\(count) sessions evicted)")
+    }
+
+    /// Clear only sessions for a specific model (during model unload)
+    func clear(modelId: String) {
+        let keysToRemove: [String] = pool.compactMap { key, _ in
+            key.hasPrefix("\(modelId):") ? key : nil
+        }
+        for key in keysToRemove {
+            pool.removeValue(forKey: key)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func poolKey(modelId: String, conversationId convId: String) -> String {
+        "\(modelId):\(convId)"
+    }
+
+    private func logHitRateIfNeeded() {
+        guard totalAcquireAttempts % config.metricsLogInterval == 0,
+            totalAcquireAttempts > 0
+        else { return }
+        let total = hitCount + missCount
+        let rate = total > 0 ? Double(hitCount) / Double(total) * 100.0 : 0.0
+        logger.info(
+            "Session pool stats after \(total) acquires: \(pool.count) pooled, hit rate \(String(format: "%.1f%%", rate))",
+        )
+    }
+}

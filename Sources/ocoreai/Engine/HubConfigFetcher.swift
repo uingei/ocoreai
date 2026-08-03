@@ -55,9 +55,11 @@ enum HubConfigFetcher {
         }
 
         func get(_ key: String) -> T? {
-            lock.lock(); defer { lock.unlock() }
+            lock.lock()
+            defer { lock.unlock() }
             guard let item = entries[key],
-                  item.access.duration(to: ContinuousClock.now) < ttlDuration else {
+                item.access.duration(to: ContinuousClock.now) < ttlDuration
+            else {
                 entries.removeValue(forKey: key)
                 return nil
             }
@@ -66,12 +68,15 @@ enum HubConfigFetcher {
         }
 
         func set(_ key: String, value: T) {
-            lock.lock(); defer { lock.unlock() }
+            lock.lock()
+            defer { lock.unlock() }
             // Evict stale + oldest if at capacity
             let now = ContinuousClock.now
             if entries.count >= capacity {
                 let stale = entries.filter { $0.value.access.duration(to: now) > ttlDuration }
-                if stale.isEmpty, let oldest = entries.min(by: { $0.value.access < $1.value.access }) {
+                if stale.isEmpty,
+                    let oldest = entries.min(by: { $0.value.access < $1.value.access })
+                {
                     entries.removeValue(forKey: oldest.key)
                 } else {
                     entries = entries.filter { $0.value.access.duration(to: now) <= ttlDuration }
@@ -88,13 +93,16 @@ enum HubConfigFetcher {
     ///   - repoId: e.g. "mlx-community/Qwen3.5-4B-OptiQ-4bit"
     ///   - logger: For diagnostic output
     /// - Returns: Parsed (vocabSize, maxContextLength) or nil on failure
-    static func fetchHuggingFaceConfig(repoId: String, logger: Logger) async -> (vocabSize: Int, maxContextLength: Int)? {
+    static func fetchHuggingFaceConfig(repoId: String, logger: Logger) async -> (
+        vocabSize: Int, maxContextLength: Int
+    )? {
         let cacheKey = "hf:\(repoId)"
         if let cached = _cache.get(cacheKey) {
             logger.debug("Config cache hit for \(repoId)")
             return (cached.vocabSize, cached.maxContextLength)
         }
-        guard let url = URL(string: "https://huggingface.co/\(repoId)/resolve/main/config.json") else {
+        guard let url = URL(string: "https://huggingface.co/\(repoId)/resolve/main/config.json")
+        else {
             logger.warning("Invalid HF config URL for \(repoId)")
             return nil
         }
@@ -107,7 +115,9 @@ enum HubConfigFetcher {
     /// `_fetch_model_config()`, which returns raw JSON directly.
     /// Endpoint is configurable via MODELSCOPE_ENDPOINT env var.
     /// Checks TTL cache before fetching.
-    static func fetchModelScopeConfig(repoId: String, token: String? = nil, logger: Logger) async -> (vocabSize: Int, maxContextLength: Int)? {
+    static func fetchModelScopeConfig(repoId: String, token: String? = nil, logger: Logger) async
+        -> (vocabSize: Int, maxContextLength: Int)?
+    {
         let cacheKey = "ms:\(repoId)"
         if let cached = _cache.get(cacheKey) {
             logger.debug("Config cache hit for \(repoId)")
@@ -117,7 +127,12 @@ enum HubConfigFetcher {
         // ModelScope default revision is "master", not "main".
         // Using "main" returns Code=200 but Files=null → config pre-fetch fails silently.
         let endpoint = modelScopeEndpoint()
-        guard let url = URL(string: "\(endpoint)/api/v1/models/\(encoded)/repo?FilePath=config.json&Revision=master") else {
+        guard
+            let url = URL(
+                string:
+                    "\(endpoint)/api/v1/models/\(encoded)/repo?FilePath=config.json&Revision=master"
+            )
+        else {
             logger.warning("Invalid ModelScope config URL for \(repoId)")
             return nil
         }
@@ -135,7 +150,8 @@ enum HubConfigFetcher {
     /// Returns human-readable string (e.g. "7.2B").
     nonisolated static func estimatedParamCount(from entry: CacheEntry) -> String? {
         guard let h = entry.hiddenSize, let l = entry.numHiddenLayers,
-              let i = entry.intermediateSize else { return nil }
+            let i = entry.intermediateSize
+        else { return nil }
         let vocabSize = entry.vocabSize
         // Rough dense param count: 2 * d_model * d_ff * n_layers (attn+ffn)
         // + 2 * d_model * vocab_size (lm_head + embedding)
@@ -177,12 +193,16 @@ enum HubConfigFetcher {
             }
             let (data, response) = try await URLSession.shared.data(for: request)
 
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                logger.warning("Config fetch failed for \(repoId): HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200
+            else {
+                logger.warning(
+                    "Config fetch failed for \(repoId): HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)"
+                )
                 return nil
             }
 
-            guard let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            guard let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else {
                 logger.warning("Config parse failed for \(repoId)")
                 return nil
             }
@@ -203,7 +223,8 @@ enum HubConfigFetcher {
             }
 
             let vocabSize = resolveInt(key: "vocab_size") ?? 151_936
-            let maxContextLength = resolveInt(key: "max_context_length")
+            let maxContextLength =
+                resolveInt(key: "max_context_length")
                 ?? resolveInt(key: "max_position_embeddings")
                 ?? resolveInt(key: "n_ctx") ?? 131_072
             let hiddenSize = resolveInt(key: "hidden_size") ?? resolveInt(key: "d_model")
@@ -227,9 +248,12 @@ enum HubConfigFetcher {
 
             // Log with param estimate if available
             if let est = estimatedParamCount(from: entry) {
-                logger.info("Remote config for \(repoId): vocab=\(vocabSize), ctx=\(maxContextLength), ~\(est) params")
+                logger.info(
+                    "Remote config for \(repoId): vocab=\(vocabSize), ctx=\(maxContextLength), ~\(est) params"
+                )
             } else {
-                logger.info("Remote config for \(repoId): vocab=\(vocabSize), ctx=\(maxContextLength)")
+                logger.info(
+                    "Remote config for \(repoId): vocab=\(vocabSize), ctx=\(maxContextLength)")
             }
             return (vocabSize, maxContextLength)
 

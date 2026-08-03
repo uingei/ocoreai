@@ -5,8 +5,9 @@
 /// Coverage: polarity classification, compound scoring, emoji detection,
 /// batch analysis, high-risk flag, and edge cases.
 
-import Testing
 import Foundation
+import Testing
+
 @testable import ocoreai
 
 @Suite("SentimentAnalyzer Polarity Classification")
@@ -110,7 +111,9 @@ struct SentimentScoringTests {
         #expect(result.compound <= 1.0)
     }
 
-    @Test("unicode text (Chinese) analyzed without crash — splits on whitespace so Chinese chars not matched")
+    @Test(
+        "unicode text (Chinese) analyzed without crash — splits on whitespace so Chinese chars not matched"
+    )
     func chineseTextNoCrash() {
         // Analyzer splits on whitespace; Chinese has no spaces so keyword matching won't hit
         // but it must not crash

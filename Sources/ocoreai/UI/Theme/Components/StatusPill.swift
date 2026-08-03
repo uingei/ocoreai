@@ -23,7 +23,7 @@ enum SPStatus {
         case .stopping: .orange
         case .stopped: Color.gray
         case .error: .red
-        case let .custom(c, _, _): c
+        case .custom(let c, _, _): c
         }
     }
 
@@ -34,13 +34,13 @@ enum SPStatus {
         case .stopping: StringKey.statusStopping.l
         case .stopped: StringKey.statusStopped.l
         case .error: StringKey.statusError.l
-        case let .custom(_, l, _): l
+        case .custom(_, let l, _): l
         }
     }
 
     var fillBg: Bool {
         switch self {
-        case let .custom(_, _, f): f
+        case .custom(_, _, let f): f
         default: true
         }
     }

@@ -78,7 +78,8 @@ extension MetricsSnapshot {
             case "ocoreai_kv_cache_gpu_bytes": kvBytes = Int64(value)
             case "ocoreai_kv_cache_evictions_total": kvEvictions = Int64(value)
             // Scheduler
-            case "ocoreai_active_sessions", "ocoreai_engine_pool_active_sessions": sessions = Int(value)
+            case "ocoreai_active_sessions", "ocoreai_engine_pool_active_sessions":
+                sessions = Int(value)
             case "ocoreai_engine_pool_loaded_models": models = Int(value)
             // Inference histogram
             case "ocoreai_inference_duration_seconds_sum": infDurationMs = value * 1000.0

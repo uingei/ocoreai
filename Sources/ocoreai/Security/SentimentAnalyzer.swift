@@ -39,7 +39,10 @@ struct SentimentResult: Codable {
     }
 
     /// Create result from raw scores.
-    init(polarity: SentimentPolarity, compound: Double, positiveRatio: Double, negativeRatio: Double, emotions: [String]) {
+    init(
+        polarity: SentimentPolarity, compound: Double, positiveRatio: Double, negativeRatio: Double,
+        emotions: [String]
+    ) {
         self.polarity = polarity
         self.compound = compound
         self.positiveRatio = positiveRatio
@@ -56,15 +59,19 @@ struct SentimentAnalyzer {
 
     /// Create analyzer with built-in word lists.
     init() {
-        positiveWords = ["good", "great", "excellent", "amazing", "love", "happy",
-                         "satisfied", "helpful", "awesome", "perfect",
-                         "满意", "好", "棒", "优秀", "喜欢", "开心",
-                         "感谢", "谢谢", "完美", "厉害", "好用"]
+        positiveWords = [
+            "good", "great", "excellent", "amazing", "love", "happy",
+            "satisfied", "helpful", "awesome", "perfect",
+            "满意", "好", "棒", "优秀", "喜欢", "开心",
+            "感谢", "谢谢", "完美", "厉害", "好用",
+        ]
 
-        negativeWords = ["bad", "terrible", "awful", "worst", "hate", "angry",
-                         "disappointed", "frustrated", "useless", "waste",
-                         "糟糕", "差", "讨厌", "生气", "没用",
-                         "浪费", "不好", "失望", "烦", "生气", "垃圾"]
+        negativeWords = [
+            "bad", "terrible", "awful", "worst", "hate", "angry",
+            "disappointed", "frustrated", "useless", "waste",
+            "糟糕", "差", "讨厌", "生气", "没用",
+            "浪费", "不好", "失望", "烦", "生气", "垃圾",
+        ]
 
         emotionIndicators = [
             "😊": "happy", "😃": "happy", "😄": "happy", "❤️": "love", "👍": "approval",
@@ -106,13 +113,16 @@ struct SentimentAnalyzer {
         }
 
         let totalEmotive = positiveCount + negativeCount
-        let positiveRatio: Double = totalEmotive > 0 ? Double(positiveCount) / Double(totalEmotive) : 0.0
-        let negativeRatio: Double = totalEmotive > 0 ? Double(negativeCount) / Double(totalEmotive) : 0.0
+        let positiveRatio: Double =
+            totalEmotive > 0 ? Double(positiveCount) / Double(totalEmotive) : 0.0
+        let negativeRatio: Double =
+            totalEmotive > 0 ? Double(negativeCount) / Double(totalEmotive) : 0.0
 
         // Compound score: normalize to [-1, 1] range
         var compound = 0.0
         if totalEmotive > 0 {
-            compound = (Double(positiveCount) - Double(negativeCount)) / Double(max(totalEmotive, 1))
+            compound =
+                (Double(positiveCount) - Double(negativeCount)) / Double(max(totalEmotive, 1))
             // Scale based on word count — more words with same ratio = stronger signal
             compound *= min(Double(totalEmotive) * 0.2, 1.0)
         }

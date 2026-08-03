@@ -45,7 +45,7 @@ actor TokenBucket {
     init(rate: Double, capacity: Double) {
         precondition(rate > 0, "rate must be positive, got \(rate)")
         precondition(capacity > 0, "capacity must be positive, got \(capacity)")
-        available = capacity // Start full
+        available = capacity  // Start full
         lastRefill = .now
         self.rate = rate
         self.capacity = capacity
@@ -147,7 +147,7 @@ actor RateLimitProvider {
     /// Stale bucket eviction timeout (seconds)
     private static var staleTimeoutSeconds: Double {
         600
-    } // 10 minutes
+    }  // 10 minutes
 
     /// Logger for observability
     private let logger: Logger
@@ -229,16 +229,18 @@ actor RateLimitProvider {
     private func extractClientIP(from request: Request) -> String {
         // Reverse proxy: X-Forwarded-For: client, proxy1, proxy2
         if let xffName = HTTPField.Name("x-forwarded-for"),
-           let xff = request.headers[xffName]
+            let xff = request.headers[xffName]
         {
-            let first = xff.split(separator: ",", maxSplits: 1).first?.trimmingCharacters(in: .whitespaces) ?? xff
+            let first =
+                xff.split(separator: ",", maxSplits: 1).first?.trimmingCharacters(in: .whitespaces)
+                ?? xff
             guard !first.isEmpty else { return "unknown" }
             return String(first)
         }
 
         // nginx-style: X-Real-IP: client
         if let xriName = HTTPField.Name("x-real-ip"),
-           let xri = request.headers[xriName]
+            let xri = request.headers[xriName]
         {
             if !xri.isEmpty {
                 return String(xri)
@@ -331,7 +333,8 @@ actor RateLimitProvider {
     ) -> Int {
         let threshold = Self.staleTimeoutSeconds
         var stale: [String] = []
-        for (key, entry) in dict where Double(entry.lastUsed.duration(to: now).components.seconds) > threshold {
+        for (key, entry) in dict
+        where Double(entry.lastUsed.duration(to: now).components.seconds) > threshold {
             stale.append(key)
         }
         for key in stale {
@@ -376,7 +379,7 @@ actor RateLimitProvider {
     /// lifetime is not extended by the cleanup loop.
     func cleanupPeriodically() -> Task<Void, Never> {
         Task { [weak self] in
-            while !Task.isCancelled, let _ = self {
+            while !Task.isCancelled, self != nil {
                 try? await Task.sleep(for: .seconds(Self.staleTimeoutSeconds / 2))
                 await self?.cleanupStaleBuckets()
             }
@@ -424,7 +427,9 @@ struct RateLimitMiddleware<Context: RequestContext>: RouterMiddleware {
         }
 
         // 429 Too Many Requests
-        let bodyData = #"{"error":{"message":"Rate limit exceeded","type":"rate_limit","code":429}}"#.data(using: .utf8) ?? .init()
+        let bodyData =
+            #"{"error":{"message":"Rate limit exceeded","type":"rate_limit","code":429}}"#.data(
+                using: .utf8) ?? .init()
         var headers: HTTPFields = [:]
         headers[.contentType] = "application/json"
         if let retryAfter = result.retryAfter {
@@ -436,8 +441,10 @@ struct RateLimitMiddleware<Context: RequestContext>: RouterMiddleware {
             headers[rateLimitName] = "exceeded"
         }
 
-        return Response(status: .tooManyRequests, headers: headers, body: .init { writer in
-            try await writer.write(ByteBuffer(data: bodyData))
-        })
+        return Response(
+            status: .tooManyRequests, headers: headers,
+            body: .init { writer in
+                try await writer.write(ByteBuffer(data: bodyData))
+            })
     }
 }

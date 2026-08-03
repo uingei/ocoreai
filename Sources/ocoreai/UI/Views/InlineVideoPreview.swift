@@ -22,7 +22,7 @@ struct InlineVideoPreview: View {
 
     var body: some View {
         Group {
-            if let _ = url, let player {
+            if url != nil, let player {
                 VideoPlayer(player: player)
                     .task {
                         // Load remote content for HTTP/HTTPS URLs

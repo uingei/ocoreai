@@ -56,7 +56,7 @@ final class DashboardState {
         // Wait until engine core is fully initialized — 30s timeout guard
         let deadline = Date().addingTimeInterval(30.0)
         while !OcoreaiEngine.shared.engineReady, Date() < deadline, !Task.isCancelled {
-            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms
         }
 
         guard OcoreaiEngine.shared.engineReady else {
@@ -68,7 +68,8 @@ final class DashboardState {
         pollingTask = Task(priority: .utility) {
             while !Task.isCancelled {
                 self.consumeMetrics()
-                let interval = AppState.shared.isForeground
+                let interval =
+                    AppState.shared.isForeground
                     ? SettingsStore.shared.pollIntervalSec
                     : max(SettingsStore.shared.pollIntervalSec, 10)
                 try? await Task.sleep(nanoseconds: UInt64(interval) * 1_000_000_000)
@@ -109,7 +110,6 @@ final class DashboardState {
         if self.memoryHistory.count > 60 {
             self.memoryHistory.removeFirst()
         }
-
 
     }
 

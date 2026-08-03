@@ -6,10 +6,11 @@
 /// Matches upstream methodology: parameterized across ComplexityBand + TaskType
 /// to verify the full scaffold selection matrix.
 
-import Testing
 import Foundation
-@testable import ocoreai
+import Testing
 import ocoreaiTestUtilities
+
+@testable import ocoreai
 
 @Suite("ThinkingBudget — Adaptive complexity band adjustment")
 struct ThinkingBudgetAdaptiveTests {

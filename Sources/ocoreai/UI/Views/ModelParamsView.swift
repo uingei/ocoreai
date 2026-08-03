@@ -80,14 +80,21 @@ struct ModelParamsView: View {
         SliderAutoSaveView(
             label: StringKey.modelParamTopP.l,
             hint: StringKey.modelParamTopPHint.l,
-            display: config.topP.map { String(format: "%.2f", $0) } ?? StringKey.modelParamDefaults.l,
+            display: config.topP.map { String(format: "%.2f", $0) }
+                ?? StringKey.modelParamDefaults.l,
             value: Binding(
                 get: { config.topP ?? 0.95 },
-                set: { config.topP = $0; autoSave() },
+                set: {
+                    config.topP = $0
+                    autoSave()
+                },
             ),
             range: 0 ... 1,
             hasReset: true,
-            resetAction: { config.topP = nil; autoSave() },
+            resetAction: {
+                config.topP = nil
+                autoSave()
+            },
             autoSave: {},
         )
     }
@@ -102,7 +109,11 @@ struct ModelParamsView: View {
                 config.topK = max(Int(topKText) ?? 1, 1)
                 autoSave()
             },
-            resetAction: { config.topK = nil; topKText = ""; autoSave() },
+            resetAction: {
+                config.topK = nil
+                topKText = ""
+                autoSave()
+            },
         )
     }
 
@@ -116,7 +127,11 @@ struct ModelParamsView: View {
                 config.maxTokens = max(Int(maxTokensText) ?? 1, 1)
                 autoSave()
             },
-            resetAction: { config.maxTokens = nil; maxTokensText = ""; autoSave() },
+            resetAction: {
+                config.maxTokens = nil
+                maxTokensText = ""
+                autoSave()
+            },
         )
     }
 

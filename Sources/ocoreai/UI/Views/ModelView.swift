@@ -43,9 +43,11 @@ struct ModelView: View {
                 }
 
                 // Local models — delegated to dedicated View to break ConditionalTypeDescriptor chain
-                ModelLocalListView(modelManager: modelManager, onEdit: { modelId in
-                    editingModelId = modelId
-                })
+                ModelLocalListView(
+                    modelManager: modelManager,
+                    onEdit: { modelId in
+                        editingModelId = modelId
+                    })
             }
         }
         .formStyle(.grouped)
@@ -134,8 +136,10 @@ private struct ModelSearchResultsView: View {
 
     private var emptySearchState: some View {
         VStack(spacing: 10) {
-            Image(systemName: "magnifyingglass").font(.ocoreaiText(28, weight: .light)).foregroundStyle(theme.textTertiary)
-            Text(StringKey.modelSearchEmpty.l).font(.ocoreaiText(13)).foregroundStyle(theme.textSecondary)
+            Image(systemName: "magnifyingglass").font(.ocoreaiText(28, weight: .light))
+                .foregroundStyle(theme.textTertiary)
+            Text(StringKey.modelSearchEmpty.l).font(.ocoreaiText(13)).foregroundStyle(
+                theme.textSecondary)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 24)
     }
@@ -149,8 +153,11 @@ private struct HFResultsList: View {
 
     var body: some View {
         LazyVStack(spacing: 8) {
-            ForEach(Array(modelManager.hfResults.prefix(20).enumerated()), id: \.offset) { _, model in
-                ModelResultRow(display: model.id, sub: model.pipelineTag ?? "", modelId: model.id, modelManager: modelManager, theme: theme)
+            ForEach(Array(modelManager.hfResults.prefix(20).enumerated()), id: \.offset) {
+                _, model in
+                ModelResultRow(
+                    display: model.id, sub: model.pipelineTag ?? "", modelId: model.id,
+                    modelManager: modelManager, theme: theme)
             }
         }
     }
@@ -164,8 +171,11 @@ private struct MSResultsList: View {
 
     var body: some View {
         LazyVStack(spacing: 8) {
-            ForEach(Array(modelManager.msResults.prefix(20).enumerated()), id: \.offset) { _, model in
-                ModelResultRow(display: model.path, sub: String(model.stars), modelId: model.path, modelManager: modelManager, theme: theme)
+            ForEach(Array(modelManager.msResults.prefix(20).enumerated()), id: \.offset) {
+                _, model in
+                ModelResultRow(
+                    display: model.path, sub: String(model.stars), modelId: model.path,
+                    modelManager: modelManager, theme: theme)
             }
         }
     }
@@ -238,7 +248,8 @@ private struct ModelResultRow: View {
                     }
                 }
             } label: {
-                Image(systemName: "arrow.down.circle.fill").font(.title3).foregroundStyle(theme.accent)
+                Image(systemName: "arrow.down.circle.fill").font(.title3).foregroundStyle(
+                    theme.accent)
             }
             .disabled(modelManager.isDownloading)
         }
@@ -273,16 +284,19 @@ private struct ModelListContent: View {
                 // Model status: check lifecycle state
                 let isCurrentlyLoading = modelManager.downloadingModelId == model.id
                 let isCurrentlyServing = modelManager.servingModelIds.contains(model.id)
-                LiveModelCard(model: model, isDownloading: isCurrentlyLoading, isServing: isCurrentlyServing, onEdit: {
-                    onEdit(model.id)
-                }, onDelete: {
-                    Task {
-                        let ok = await modelManager.deleteModel(model.id)
-                        if ok {
-                            await modelManager.refreshLocalModels()
+                LiveModelCard(
+                    model: model, isDownloading: isCurrentlyLoading, isServing: isCurrentlyServing,
+                    onEdit: {
+                        onEdit(model.id)
+                    },
+                    onDelete: {
+                        Task {
+                            let ok = await modelManager.deleteModel(model.id)
+                            if ok {
+                                await modelManager.refreshLocalModels()
+                            }
                         }
-                    }
-                })
+                    })
             }
         }
     }
@@ -382,30 +396,34 @@ private struct LiveModelCard: View {
     @State private var showDeleteAlert = false
 
     var body: some View {
-        Button { onEdit() } label: { cardContent }
-            .buttonStyle(.plain)
-            .confirmationDialog(
-                StringKey.modelViewDeleteConfirmTitle.l,
-                isPresented: $showDeleteAlert,
-                titleVisibility: .visible
-            ) {
-                Button(role: .destructive) {
-                    onDelete()
-                } label: {
-                    Text(StringKey.modelViewDeleteConfirmAction.l)
-                }
-                Button(StringKey.modelViewDeleteCancelAction.l, role: .cancel) {}
-            } message: {
-                Text(String(format: StringKey.modelViewDeleteConfirmMessage.l, model.id))
+        Button {
+            onEdit()
+        } label: {
+            cardContent
+        }
+        .buttonStyle(.plain)
+        .confirmationDialog(
+            StringKey.modelViewDeleteConfirmTitle.l,
+            isPresented: $showDeleteAlert,
+            titleVisibility: .visible
+        ) {
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Text(StringKey.modelViewDeleteConfirmAction.l)
             }
-            .accessibilityLabel(StringKey.modelViewTapToEdit.l)
+            Button(StringKey.modelViewDeleteCancelAction.l, role: .cancel) {}
+        } message: {
+            Text(String(format: StringKey.modelViewDeleteConfirmMessage.l, model.id))
+        }
+        .accessibilityLabel(StringKey.modelViewTapToEdit.l)
     }
 
     /// Determine the appropriate status from the model's lifecycle state.
     private var modelStatus: SPStatus {
-        if isDownloading { return .starting }    // Blue = loading
-        if isServing { return .running }         // Green = serving
-        return .stopped                           // Gray = idle
+        if isDownloading { return .starting }  // Blue = loading
+        if isServing { return .running }  // Green = serving
+        return .stopped  // Gray = idle
     }
 
     /// Accessibility label describing the current status.
@@ -450,7 +468,9 @@ private struct LiveModelCard: View {
                             .foregroundStyle(theme.textSecondary)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
-                            .background(theme.textTertiary.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
+                            .background(
+                                theme.textTertiary.opacity(0.15),
+                                in: RoundedRectangle(cornerRadius: 4))
                     }
                 }
 

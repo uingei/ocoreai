@@ -12,39 +12,39 @@ import Observation
 final class MemoryMonitorViewModel {
     /// Current memory usage percentage (0..100)
     var usagePercent: Double = 0
-    
+
     /// Current memory level indicator
     var memoryLevel: String = "normal"
-    
+
     /// Current memory level color
     var levelColor: String = "green"
-    
+
     /// Memory used string (human readable)
     var memoryUsedString: String = ""
-    
+
     /// Memory budget string (human readable)
     var memoryBudgetString: String = ""
-    
+
     /// Raw used bytes
     var usedBytes: UInt64 = 0
-    
+
     /// Raw budget bytes
     var budgetBytes: UInt64 = 0
-    
+
     /// Poll interval in seconds
     private let pollInterval: TimeInterval = 2.0
-    
+
     /// Background polling task
     private var pollTask: Task<Void, Never>?
-    
+
     /// Reference to the engine's memory tracker
     private weak var engine: OcoreaiEngine?
-    
+
     /// Shared singleton
     static let shared = MemoryMonitorViewModel()
-    
+
     private init() {}
-    
+
     /// Start polling memory stats
     func start() {
         stop()
@@ -56,13 +56,13 @@ final class MemoryMonitorViewModel {
             }
         }
     }
-    
+
     /// Stop polling
     func stop() {
         pollTask?.cancel()
         pollTask = nil
     }
-    
+
     /// Poll memory tracker and update state (runs on MainActor, safe for @Observable)
     private func pollAndUpdate() async {
         guard let tracker = OcoreaiEngine.shared.activeMemoryTracker else { return }

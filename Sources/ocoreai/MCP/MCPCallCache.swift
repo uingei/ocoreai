@@ -69,7 +69,7 @@ actor MCPCallCache {
         }
 
         // 插入新条目
-        entries[key]  = MCPCacheEntry(value: value, timestamp: Date())
+        entries[key] = MCPCacheEntry(value: value, timestamp: Date())
         accessOrder.append(key)
     }
 

@@ -9,22 +9,22 @@ import Foundation
 
 /// Action types the user wants to perform.
 enum IntentAction: String, Codable {
-    case askQuestion // Ask about something
-    case performAction // Execute an action (run, do, create)
-    case searchData // Search for data/info
-    case modifyData // Edit/update/delete data
-    case getAnalysis // Request analysis or summary
-    case configure // Configuration change
-    case monitor // Status check / monitoring
+    case askQuestion  // Ask about something
+    case performAction  // Execute an action (run, do, create)
+    case searchData  // Search for data/info
+    case modifyData  // Edit/update/delete data
+    case getAnalysis  // Request analysis or summary
+    case configure  // Configuration change
+    case monitor  // Status check / monitoring
     case other
 }
 
 /// Urgency level of the intent.
 enum IntentUrgency: String, Codable {
-    case low // Routine, can wait
-    case medium // Normal priority
-    case high // Needs attention soon
-    case urgent // Immediate attention required
+    case low  // Routine, can wait
+    case medium  // Normal priority
+    case high  // Needs attention soon
+    case urgent  // Immediate attention required
 }
 
 /// Extracted intent from a user message.
@@ -44,29 +44,79 @@ struct IntentExtractor {
     /// Create extractor with built-in patterns.
     init() {
         actionPatterns = [
-            (.askQuestion, ["what", "how", "why", "when", "who", "where", "is", "can", "do",
-                            "请问", "如何", "什么", "为什么", "可以", "有没有"]),
-            (.performAction, ["run", "execute", "do", "create", "start", "install",
-                              "运行", "执行", "创建", "开始", "安装", "打开"]),
-            (.searchData, ["search", "find", "look", "search for", "browse",
-                           "搜索", "查找", "找", "浏览", "查"]),
-            (.modifyData, ["edit", "update", "change", "modify", "delete", "remove",
-                           "修改", "删除", "更新", "改", "移除"]),
-            (.getAnalysis, ["analyze", "summary", "summarize", "report", "compare",
-                            "分析", "总结", "报告", "对比", "汇总"]),
-            (.configure, ["config", "setting", "change setting", "enable", "disable",
-                          "配置", "设置", "启用", "禁用"]),
-            (.monitor, ["status", "check", "monitor", "watch", "health",
-                        "状态", "检查", "监控", "健康"]),
+            (
+                .askQuestion,
+                [
+                    "what", "how", "why", "when", "who", "where", "is", "can", "do",
+                    "请问", "如何", "什么", "为什么", "可以", "有没有",
+                ]
+            ),
+            (
+                .performAction,
+                [
+                    "run", "execute", "do", "create", "start", "install",
+                    "运行", "执行", "创建", "开始", "安装", "打开",
+                ]
+            ),
+            (
+                .searchData,
+                [
+                    "search", "find", "look", "search for", "browse",
+                    "搜索", "查找", "找", "浏览", "查",
+                ]
+            ),
+            (
+                .modifyData,
+                [
+                    "edit", "update", "change", "modify", "delete", "remove",
+                    "修改", "删除", "更新", "改", "移除",
+                ]
+            ),
+            (
+                .getAnalysis,
+                [
+                    "analyze", "summary", "summarize", "report", "compare",
+                    "分析", "总结", "报告", "对比", "汇总",
+                ]
+            ),
+            (
+                .configure,
+                [
+                    "config", "setting", "change setting", "enable", "disable",
+                    "配置", "设置", "启用", "禁用",
+                ]
+            ),
+            (
+                .monitor,
+                [
+                    "status", "check", "monitor", "watch", "health",
+                    "状态", "检查", "监控", "健康",
+                ]
+            ),
         ]
 
         urgencyPatterns = [
-            (.urgent, ["urgent", "emergency", "immediately", "right now", "asap",
-                       "紧急", "立刻", "马上", "立即", "马上处理"]),
-            (.high, ["asap", "quickly", "soon", "important", "critical",
-                     "尽快", "重要", "关键", "优先"]),
-            (.medium, ["when you can", "when possible", "no rush",
-                       "有空时", "方便时"]),
+            (
+                .urgent,
+                [
+                    "urgent", "emergency", "immediately", "right now", "asap",
+                    "紧急", "立刻", "马上", "立即", "马上处理",
+                ]
+            ),
+            (
+                .high,
+                [
+                    "asap", "quickly", "soon", "important", "critical",
+                    "尽快", "重要", "关键", "优先",
+                ]
+            ),
+            (
+                .medium,
+                [
+                    "when you can", "when possible", "no rush",
+                    "有空时", "方便时",
+                ]
+            ),
         ]
     }
 
@@ -93,13 +143,14 @@ struct IntentExtractor {
         }
 
         // Determine dominant action
-        let dominantAction: IntentAction = if let highest = actionScores.max(by: { $0.value < $1.value }) {
-            highest.key
-        } else {
-            // Default: treat as question if no clear action
-            lowerText.hasSuffix("?") || text.hasSuffix("?")
-                ? .askQuestion : .other
-        }
+        let dominantAction: IntentAction =
+            if let highest = actionScores.max(by: { $0.value < $1.value }) {
+                highest.key
+            } else {
+                // Default: treat as question if no clear action
+                lowerText.hasSuffix("?") || text.hasSuffix("?")
+                    ? .askQuestion : .other
+            }
 
         // Determine urgency — always keep the highest level found
         var urgency: IntentUrgency = .medium
@@ -108,9 +159,9 @@ struct IntentExtractor {
                 if lowerText.contains(pattern) {
                     matchedKeywords.append(pattern)
                     // Upgrade only: .urgent > .high > .medium > .low
-                    if urgencyType == .urgent ||
-                       (urgencyType == .high && urgency != .urgent) ||
-                       (urgencyType == .medium && urgency == .medium) {
+                    if urgencyType == .urgent || (urgencyType == .high && urgency != .urgent)
+                        || (urgencyType == .medium && urgency == .medium)
+                    {
                         urgency = urgencyType
                     }
                 }
@@ -149,11 +200,13 @@ struct IntentExtractor {
                 let trimmed = String(afterTarget).trimmingCharacters(in: .whitespaces)
 
                 if let commaRange = trimmed.range(of: ",") {
-                    return String(trimmed[..<commaRange.lowerBound]).trimmingCharacters(in: .whitespaces)
+                    return String(trimmed[..<commaRange.lowerBound]).trimmingCharacters(
+                        in: .whitespaces)
                 }
 
                 // Otherwise take first 5 words as target
-                let firstWords = trimmed.split(separator: " ", maxSplits: 5).map(String.init).joined(separator: " ")
+                let firstWords = trimmed.split(separator: " ", maxSplits: 5).map(String.init)
+                    .joined(separator: " ")
                 return firstWords.isEmpty ? nil : firstWords
             }
         }

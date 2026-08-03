@@ -17,8 +17,8 @@
 import Foundation
 import Hummingbird
 import Logging
-import ServiceLifecycle
 import MLX
+import ServiceLifecycle
 
 // MARK: - Shared Engine Lifecycle (Unified for CLI + GUI)
 
@@ -183,11 +183,14 @@ public final class OcoreaiEngine {
         circuitBreaker.recordFailure()
         if circuitBreaker.isCircuitOpen {
             lifecycleState = .error
-            logger.critical("Circuit breaker OPEN after \(circuitBreaker.failureCount) consecutive failures")
+            logger.critical(
+                "Circuit breaker OPEN after \(circuitBreaker.failureCount) consecutive failures")
         } else {
             lifecycleState = .idle
         }
-        logger.critical("Startup failed: \(message) — failures: \(circuitBreaker.failureCount)/\(circuitBreaker.maxFailures)")
+        logger.critical(
+            "Startup failed: \(message) — failures: \(circuitBreaker.failureCount)/\(circuitBreaker.maxFailures)"
+        )
     }
 
     /// Boot the engine core components (always runs) + optional HTTP server.
@@ -224,10 +227,12 @@ public final class OcoreaiEngine {
 
         let physicalMem = ModelConfigEntry.detectPhysicalMemory()
         let memBudget = ModelConfigEntry.computeMemoryBudget(physicalMemory: physicalMem)
-        logger.info("Hardware: \(physicalMem / 1_073_741_824) GB RAM, budget: \(memBudget / 1_073_741_824) GB")
+        logger.info(
+            "Hardware: \(physicalMem / 1_073_741_824) GB RAM, budget: \(memBudget / 1_073_741_824) GB"
+        )
 
-            // Set MLX memory cache limit early — prevents unbounded GPU memory growth
-            Memory.cacheLimit = Int(memBudget)
+        // Set MLX memory cache limit early — prevents unbounded GPU memory growth
+        Memory.cacheLimit = Int(memBudget)
 
         // MARK: - HF Hub Environment Configuration
 
@@ -242,7 +247,8 @@ public final class OcoreaiEngine {
         // Priority: explicit HF_ENDPOINT env var > HF_ENDPOINT_MIRROR > UserDefaults > default
         if ProcessInfo.processInfo.environment["HF_ENDPOINT"] == nil {
             if let mirror = ProcessInfo.processInfo.environment["HF_ENDPOINT_MIRROR"]
-                ?? UserDefaults.standard.string(forKey: "settings.hub.hfEndpointMirror") {
+                ?? UserDefaults.standard.string(forKey: "settings.hub.hfEndpointMirror")
+            {
                 setenv("HF_ENDPOINT", mirror, 1)
             }
         }
@@ -252,10 +258,12 @@ public final class OcoreaiEngine {
         // NOTE: ProcessInfo.setValue(forKey:) uses KVC, NOT environment vars — custom keys
         // throw NSUnknownKeyException. Tokens are passed via constructor chain instead.
         // Priority: env var > Keychain > UserDefaults (migration fallback)
-        let msToken: String? = ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
+        let msToken: String? =
+            ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
             ?? KeychainStore.shared.string(forKey: "settings.hub.modelScopeToken")
             ?? UserDefaults.standard.string(forKey: "settings.hub.modelScopeToken")
-        let hfToken: String? = ProcessInfo.processInfo.environment["HF_TOKEN"]
+        let hfToken: String? =
+            ProcessInfo.processInfo.environment["HF_TOKEN"]
             ?? KeychainStore.shared.string(forKey: "settings.hub.hfToken")
             ?? UserDefaults.standard.string(forKey: "settings.hub.hfToken")
 
@@ -266,8 +274,8 @@ public final class OcoreaiEngine {
             log: logger,
         )
         await memoryTracker.setOOMCallback { level in
-                await oomGuard.respond(to: level)
-            }
+            await oomGuard.respond(to: level)
+        }
         _memoryTracker = memoryTracker
 
         var sqliteStore: SQLiteStore?
@@ -303,7 +311,9 @@ public final class OcoreaiEngine {
             basePrompt: "You are oCoreAI, an intelligent assistant running on macOS.",
         )
         // _systemPromptBuilder is guaranteed non-nil after direct init above
-        guard let spb = _systemPromptBuilder else { return failStartup("SystemPromptBuilder init failed") }
+        guard let spb = _systemPromptBuilder else {
+            return failStartup("SystemPromptBuilder init failed")
+        }
         do {
             try await _skillRegistry?.bootstrap(
                 skillsDir: nil,
@@ -317,19 +327,26 @@ public final class OcoreaiEngine {
         // Wire SkillRegistry → SystemPromptBuilder bidirectional link
         // (bootstrap sets SkillRegistry.systemPromptBuilder; this sets the reverse)
         guard let skillRegistry = _skillRegistry,
-              let systemPromptBuilder = _systemPromptBuilder else {
+            let systemPromptBuilder = _systemPromptBuilder
+        else {
             failStartup("Core components not initialized")
             return
         }
         await systemPromptBuilder.setRegistry(skillRegistry)
 
         _auditTrail = AuditTrail()
-        guard let auditTrail = _auditTrail else { return failStartup("Failed to create audit trail") }
+        guard let auditTrail = _auditTrail else {
+            return failStartup("Failed to create audit trail")
+        }
         _toolRegistry = ToolRegistry(auditTrail: auditTrail)
 
         // Bootstrap built-in tools (info, skills_list, skills_lookup, echo)
-        guard let toolRegistry = _toolRegistry else { return failStartup("Failed to create tool registry") }
-        guard let skRegistry = _skillRegistry else { return failStartup("Skill registry unavailable") }
+        guard let toolRegistry = _toolRegistry else {
+            return failStartup("Failed to create tool registry")
+        }
+        guard let skRegistry = _skillRegistry else {
+            return failStartup("Skill registry unavailable")
+        }
         await bootstrapBuiltInTools(
             registry: toolRegistry,
             skillRegistry: skRegistry,
@@ -404,9 +421,10 @@ public final class OcoreaiEngine {
 
         // guard: all components initialized above, safe to unwrap in normal flow
         guard let mbSystemPrompt = _systemPromptBuilder,
-              let mbCompressor = _sessionCompressor,
-              let mbAnalyzer = _complexityAnalyzer,
-              let mbBudget = _thinkingBudget else {
+            let mbCompressor = _sessionCompressor,
+            let mbAnalyzer = _complexityAnalyzer,
+            let mbBudget = _thinkingBudget
+        else {
             failStartup("Core components not ready for MessageBuilder")
             return
         }
@@ -422,7 +440,8 @@ public final class OcoreaiEngine {
         // SummarizerActor bridges SessionCompressor ↔ EnginePool without circular dependency.
         // Installed lazily — compression before install uses rule-based fallback.
         guard let saPool = enginePool,
-              let saBuilder = _messageBuilder else {
+            let saBuilder = _messageBuilder
+        else {
             failStartup("Engine / builder not ready for SummarizerActor")
             return
         }
@@ -448,10 +467,10 @@ public final class OcoreaiEngine {
         // MARK: - Bridge Path: HTTP Server (opt-out via appStore trait)
 
         #if appStore
-            logger.info("App Store build — Bridge Path (HTTP) disabled")
+        logger.info("App Store build — Bridge Path (HTTP) disabled")
         #else
-            logger.info("Development build — Bridge Path (HTTP) enabled")
-            startHTTPServer()
+        logger.info("Development build — Bridge Path (HTTP) enabled")
+        startHTTPServer()
         #endif
     }
 
@@ -474,12 +493,12 @@ public final class OcoreaiEngine {
 
     private func startHTTPServer() {
         guard let enginePool, let scheduler, let metrics,
-                  let sessionCompressor = _sessionCompressor,
-                  let systemPromptBuilder = _systemPromptBuilder,
-                  let messageBuilder = _messageBuilder,
-                  let mcpBridge = _mcpBridge,
-                  let _ = _auditTrail,
-                  let _ = _toolRegistry
+            let sessionCompressor = _sessionCompressor,
+            let systemPromptBuilder = _systemPromptBuilder,
+            let messageBuilder = _messageBuilder,
+            let mcpBridge = _mcpBridge,
+            _auditTrail != nil,
+            _toolRegistry != nil
         else { return }
 
         // Port conflict detection — refuse silent bind failures
@@ -522,10 +541,12 @@ public final class OcoreaiEngine {
             }
         }
 
-        let hfToken = ProcessInfo.processInfo.environment["HF_TOKEN"]
+        let hfToken =
+            ProcessInfo.processInfo.environment["HF_TOKEN"]
             ?? KeychainStore.shared.string(forKey: "settings.hub.hfToken")
             ?? UserDefaults.standard.string(forKey: "settings.hub.hfToken")
-        let msToken = ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
+        let msToken =
+            ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
             ?? KeychainStore.shared.string(forKey: "settings.hub.modelScopeToken")
             ?? UserDefaults.standard.string(forKey: "settings.hub.modelScopeToken")
 
@@ -616,7 +637,9 @@ public final class OcoreaiEngine {
 
 // MARK: - Timeout Wrapper
 
-private func withTimeout<R: Sendable>(seconds: Double, block: @escaping @Sendable () async throws -> R) async throws -> R {
+private func withTimeout<R: Sendable>(
+    seconds: Double, block: @escaping @Sendable () async throws -> R
+) async throws -> R {
     try await withThrowingTaskGroup(of: R.self) { group in
         group.addTask { try await block() }
         group.addTask {

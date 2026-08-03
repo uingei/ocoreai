@@ -60,7 +60,7 @@ struct TypingIndicator: View {
             withAnimation(.easeInOut(duration: 0.3)) {
                 dot1Opacity = 1.0
             }
-            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+            try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2s
 
             // Dot 2 rises
             withAnimation(.easeInOut(duration: 0.3)) {
@@ -72,7 +72,7 @@ struct TypingIndicator: View {
             withAnimation(.easeInOut(duration: 0.3)) {
                 dot3Opacity = 1.0
             }
-            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
+            try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3s
 
             // All fade
             withAnimation(.easeInOut(duration: 0.3)) {
@@ -80,7 +80,7 @@ struct TypingIndicator: View {
                 dot2Opacity = 0.3
                 dot3Opacity = 0.3
             }
-            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
+            try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3s
         }
     }
 }

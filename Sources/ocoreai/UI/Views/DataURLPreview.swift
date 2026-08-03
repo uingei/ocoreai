@@ -62,4 +62,4 @@ extension String {
     }
 }
 
-#endif // os(macOS)
+#endif  // os(macOS)

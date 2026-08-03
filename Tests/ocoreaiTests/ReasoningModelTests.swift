@@ -4,10 +4,11 @@
 // Removed: ComplexityScore struct (compiler-enforced fields), ComplexityBand rawValues, TaskType enum
 // (all self-proof — Codable round-trip is a language guarantee)
 
-import Testing
 import Foundation
-@testable import ocoreai
+import Testing
 import ocoreaiTestUtilities
+
+@testable import ocoreai
 
 @Suite("ThinkingTelemetry quality scoring")
 struct ThinkingTelemetryTests {
@@ -114,7 +115,7 @@ struct ThinkingTelemetryTests {
         let budget = ThinkingBudget()
         let initial = await budget.currentMultiplier(for: "s1")
         #expect(initial == 1.0)
-        for _ in 0..<5 {
+        for _ in 0 ..< 5 {
             await budget.recordQuality(0.95, for: "s1")
         }
         let after = await budget.currentMultiplier(for: "s1")
@@ -124,7 +125,7 @@ struct ThinkingTelemetryTests {
     @Test("Low quality reduces multiplier")
     func lowQualityReducesMultiplier() async {
         let budget = ThinkingBudget()
-        for _ in 0..<5 {
+        for _ in 0 ..< 5 {
             await budget.recordQuality(0.1, for: "s2")
         }
         let after = await budget.currentMultiplier(for: "s2")
@@ -134,7 +135,7 @@ struct ThinkingTelemetryTests {
     @Test("Sessions maintain independent multipliers")
     func independentSessionMultipliers() async {
         let budget = ThinkingBudget()
-        for _ in 0..<5 {
+        for _ in 0 ..< 5 {
             await budget.recordQuality(0.95, for: "sessionA")
             await budget.recordQuality(0.1, for: "sessionB")
         }

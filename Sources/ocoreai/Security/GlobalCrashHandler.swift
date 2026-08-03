@@ -47,10 +47,13 @@ private final class CrashHandler: @unchecked Sendable {
         writeCrash(kind: "uncaught_exception", info: exceptionInfo(exception))
         if let old = NSGetUncaughtExceptionHandler() {
             // Fallback: create a dummy exception so the OS reporter has something to print
-            old(exception ?? NSException(name: NSExceptionName("CrashException"),
-                                        reason: "Unknown crash", userInfo: nil))
+            old(
+                exception
+                    ?? NSException(
+                        name: NSExceptionName("CrashException"),
+                        reason: "Unknown crash", userInfo: nil))
         }
-        exit(1) // already crashing — no need to go through
+        exit(1)  // already crashing — no need to go through
     }
 
     private static func exceptionInfo(_ e: NSException?) -> String {
@@ -83,7 +86,7 @@ private final class CrashHandler: @unchecked Sendable {
     private static let signalHandler: @convention(c) (Int32) -> Void = { sig in
         let sigName = signalName(sig)
         writeCrash(kind: "signal", info: "Signal \(sig) (\(sigName)) received")
-        abort() // re-raise so OS generates a crash report
+        abort()  // re-raise so OS generates a crash report
     }
 
     private static func signalName(_ sig: Int32) -> String {
@@ -114,16 +117,18 @@ private final class CrashHandler: @unchecked Sendable {
     /// Writes `~/Library/Application Support/ocoreai/logs/crash-<timestamp>.log`
     /// Thread-safe on macOS (FileManager, NSFileHandle, etc. are all safe).
     private static func writeCrash(kind: String, info: String) {
-        guard let basePath = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask
-        ).first else { return }
+        guard
+            let basePath = FileManager.default.urls(
+                for: .applicationSupportDirectory, in: .userDomainMask
+            ).first
+        else { return }
 
         let logsDir = basePath.appendingPathComponent("ocoreai/logs", isDirectory: true)
 
         do {
             try FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
         } catch {
-            return // best-effort only
+            return  // best-effort only
         }
 
         let formatter = ISO8601DateFormatter()

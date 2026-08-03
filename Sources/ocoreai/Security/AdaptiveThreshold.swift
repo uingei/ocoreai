@@ -51,23 +51,25 @@ struct AdaptiveThreshold {
         let successRate = Double(recent.count(where: { $0.success })) / Double(recent.count)
         let avgIterations = Double(recent.reduce(0) { $0 + $1.iterations }) / Double(recent.count)
 
-        let adjustment: Double = if successRate > 0.9, avgIterations < 1.2 { 0.02 }
-        else if successRate < 0.5 { -0.03 }
-        else { 0.0 }
+        let adjustment: Double =
+            if successRate > 0.9, avgIterations < 1.2 { 0.02 } else if successRate < 0.5 {
+                -0.03
+            } else { 0.0 }
 
         baseThreshold = min(max(baseThreshold + adjustment, 0.5), 0.95)
         for modelId in modelThresholds.keys {
-        if let current = modelThresholds[modelId] {
-            modelThresholds[modelId] = min(max(current + adjustment * 0.5, 0.5), 0.95)
+            if let current = modelThresholds[modelId] {
+                modelThresholds[modelId] = min(max(current + adjustment * 0.5, 0.5), 0.95)
+            }
         }
-    }
     }
 
     func getStats() -> (threshold: Double, observations: Int, recentSuccessRate: Double) {
         let recent = correctionHistory.suffix(50)
-        let successRate = if !recent.isEmpty {
-            Double(recent.count(where: { $0.success })) / Double(recent.count)
-        } else { 0.8 }
+        let successRate =
+            if !recent.isEmpty {
+                Double(recent.count(where: { $0.success })) / Double(recent.count)
+            } else { 0.8 }
         return (baseThreshold, correctionHistory.count, successRate)
     }
 }
@@ -94,7 +96,8 @@ struct FailurePatternLibrary {
     private(set) var rules: [PreventionRule]
 
     init() {
-        patterns = [:]; rules = []
+        patterns = [:]
+        rules = []
     }
 
     mutating func learnFailure(modelId: String, context: String, iterationCount: Int) {
@@ -139,17 +142,18 @@ struct FailurePatternLibrary {
         }
         var newRules: [PreventionRule] = []
         for (modelId, contextCounts) in modelContextCounts {
-            for (context, count) in contextCounts where count >= FailurePatternLibrary.ruleGenerationThreshold {
-                let priority: PreventionPriority = if count >= 5 { .critical }
-                else { .moderate }
-                newRules.append(PreventionRule(
-                    description: "avoid \(context) failures for \(modelId) (\(count)x)",
-                    targetModelId: modelId,
-                    context: context,
-                    priority: priority,
-                    confidence: min(Double(count) / 10.0, 1.0),
-                    createdAt: Int64(Date().timeIntervalSince1970),
-                ))
+            for (context, count) in contextCounts
+            where count >= FailurePatternLibrary.ruleGenerationThreshold {
+                let priority: PreventionPriority = if count >= 5 { .critical } else { .moderate }
+                newRules.append(
+                    PreventionRule(
+                        description: "avoid \(context) failures for \(modelId) (\(count)x)",
+                        targetModelId: modelId,
+                        context: context,
+                        priority: priority,
+                        confidence: min(Double(count) / 10.0, 1.0),
+                        createdAt: Int64(Date().timeIntervalSince1970),
+                    ))
             }
         }
         rules = newRules

@@ -7,6 +7,7 @@
 import Foundation
 import Testing
 import ocoreaiTestUtilities
+
 @testable import ocoreai
 
 @Suite("MCP — Endpoint model")

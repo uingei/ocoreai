@@ -10,8 +10,9 @@
 /// Focus on invariants that prevent OOM when AdmissionGate is the
 /// last line of defense between a request and GPU memory exhaustion.
 
-import Testing
 import Foundation
+import Testing
+
 @testable import ocoreai
 
 // MARK: - AdmissionGate: reservation lifecycle

@@ -14,9 +14,13 @@ struct ModelID: Identifiable, Hashable {
     let vocabSize: Int
     let tokenizer: String
     let isVlm: Bool
-    var paramsCustomized: Bool = false /// Whether this model has non-default sampling params
+    var paramsCustomized: Bool = false
+    /// Whether this model has non-default sampling params
 
-    init(id: String, maxContext: Int = 0, vocabSize: Int = 0, tokenizer: String = "", isVlm: Bool = false, paramsCustomized: Bool = false) {
+    init(
+        id: String, maxContext: Int = 0, vocabSize: Int = 0, tokenizer: String = "",
+        isVlm: Bool = false, paramsCustomized: Bool = false
+    ) {
         self.id = id
         self.maxContext = maxContext
         self.vocabSize = vocabSize

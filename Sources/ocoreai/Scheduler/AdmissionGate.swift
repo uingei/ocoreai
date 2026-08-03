@@ -60,7 +60,7 @@ actor AdmissionGate {
 
     /// KB per token in KV cache + activations with 4-bit quantization.
     /// Aligned with SchedulerActor.KBPerToken — 1KB/token for bits4 q4_0.
-    private static let KBPerToken = 1024 // 1KB/token (bits4 q4_0)
+    private static let KBPerToken = 1024  // 1KB/token (bits4 q4_0)
 
     /// Abort margin: percentage of remaining budget to always reserve
     /// Production: 0.15. Tuning knob — increase if OOM still occurs, decrease if
@@ -193,7 +193,9 @@ actor AdmissionGate {
 
         // Jitter protection: too many concurrent pre-fills
         if activePreFills >= maxConcurrentPreFills {
-            return .rejected("Jitter: \(activePreFills) pre-fills active (max \(maxConcurrentPreFills))", costMB: costMB)
+            return .rejected(
+                "Jitter: \(activePreFills) pre-fills active (max \(maxConcurrentPreFills))",
+                costMB: costMB)
         }
 
         // Query headroom from system + our reservations + hardware router
@@ -234,7 +236,9 @@ actor AdmissionGate {
         reservedBytes += cost
         activePreFills += 1
 
-        logger.debug("Admitted \(requestId): \(Int(cost / 1_048_576))MB reserved (total: \(Int(reservedBytes / 1_073_741_824))GB)")
+        logger.debug(
+            "Admitted \(requestId): \(Int(cost / 1_048_576))MB reserved (total: \(Int(reservedBytes / 1_073_741_824))GB)"
+        )
         return true
     }
 
@@ -262,11 +266,12 @@ actor AdmissionGate {
 
     /// Current admission state for monitoring.
     func state() async -> (reserved: UInt64, totalBudget: UInt64, active: Int, requests: Int) {
-        let totalBudget: UInt64 = if let tracker = memoryTracker {
-            await tracker.getBudget()
-        } else {
-            0
-        }
+        let totalBudget: UInt64 =
+            if let tracker = memoryTracker {
+                await tracker.getBudget()
+            } else {
+                0
+            }
         return (
             reserved: reservedBytes,
             totalBudget: totalBudget,

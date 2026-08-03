@@ -11,11 +11,12 @@
 ///  - Empty-message guard (Phase 6)
 ///  - Complexity caching (lastTaskType / lastComplexityScore)
 
-import Testing
 import Foundation
 import Logging
-@testable import ocoreai
+import Testing
 import ocoreaiTestUtilities
+
+@testable import ocoreai
 
 private func makeFixture() async throws -> MessageBuilder {
     let tmpPath = "/tmp/ocoreai_test_\(UUID().uuidString.prefix(8)).db"
@@ -78,7 +79,7 @@ struct SystemPromptInjectionTests {
         )
         let msgs = try await builder.buildMessages(context: ctx)
         #expect(msgs.first?.role == "system")
-        guard case let .text(content) = msgs.first?.content else {
+        guard case .text(let content) = msgs.first?.content else {
             Issue.record("First message should be .text")
             return
         }
@@ -96,7 +97,7 @@ struct SystemPromptInjectionTests {
             sessionId: "s1"
         )
         let msgs = try await builder.buildMessages(context: ctx)
-        guard case let .text(content) = msgs.first?.content else {
+        guard case .text(let content) = msgs.first?.content else {
             Issue.record("First message should be .text")
             return
         }
@@ -163,7 +164,8 @@ struct ToolDefinitionInjectionTests {
         )
         let msgs = try await builder.buildMessages(context: ctx)
         guard let system = msgs.first, system.role == "system",
-              case let .text(content) = system.content else {
+            case .text(let content) = system.content
+        else {
             Issue.record("No system message with .text content")
             return
         }
@@ -202,7 +204,7 @@ struct EmptyMessageGuardTests {
         let store = SQLiteStore(path: tmpPath)
         try await store.open()
         let fts = FTS5Search(store: store)
-        let spb = SystemPromptBuilder(basePrompt: "") // Empty base prompt
+        let spb = SystemPromptBuilder(basePrompt: "")  // Empty base prompt
         let compressor = SessionCompressor(store: store, fts: fts)
         let analyzer = ComplexityAnalyzer()
         let budget = ThinkingBudget()
@@ -236,7 +238,7 @@ struct ReasoningScaffoldTests {
         let builder = try await makeFixture()
         // Build a message list with enough messages to push complexity up
         // (messageCount feeds complexityAnalyzer → higher score → scaffold injection)
-        let msgs: [Message] = (0..<20).map { i in
+        let msgs: [Message] = (0 ..< 20).map { i in
             Message(role: i % 2 == 0 ? "user" : "assistant", content: "iteration \(i)")
         }
         let ctx = MessageBuilderContext(
@@ -250,7 +252,7 @@ struct ReasoningScaffoldTests {
         // Verify system message exists
         #expect(result.first?.role == "system")
         // Verify scaffold was injected (code-related keywords + large messageCount → scaffold)
-        guard case let .text(sysContent) = result.first?.content else {
+        guard case .text(let sysContent) = result.first?.content else {
             Issue.record("System message should have .text content")
             return
         }
@@ -276,7 +278,7 @@ struct ReasoningScaffoldTests {
         )
         let msgs = try await builder.buildMessages(context: ctx)
         #expect(msgs.first?.role == "system")
-        guard case let .text(sysContent) = msgs.first?.content else {
+        guard case .text(let sysContent) = msgs.first?.content else {
             Issue.record("System message should have .text content")
             return
         }
@@ -287,8 +289,8 @@ struct ReasoningScaffoldTests {
             "Base prompt should be present in system message"
         )
         #expect(
-            !sysContent.contains("## Reasoning Protocol") &&
-            !sysContent.contains("## Code Protocol"),
+            !sysContent.contains("## Reasoning Protocol")
+                && !sysContent.contains("## Code Protocol"),
             "Simple casual query should NOT inject scaffold"
         )
     }
@@ -313,7 +315,10 @@ struct ComplexityCacheTests {
         let builder = try await makeFixture()
         let ctx = MessageBuilderContext(
             modelId: "test",
-            rawMessages: [Message(role: "user", content: "Write a Python function that reverses a linked list")],
+            rawMessages: [
+                Message(
+                    role: "user", content: "Write a Python function that reverses a linked list")
+            ],
             userSystemPrompt: nil,
             tools: nil,
             sessionId: "s1"
@@ -323,11 +328,14 @@ struct ComplexityCacheTests {
         #expect(score != nil, "Complexity score should be populated after build")
         // "function", "reverses", "linked list" → .code via keyword match
         let taskType = await builder.lastTaskType()
-        #expect(taskType == .code, "Python linked-list prompt should be classified as .code (got \(taskType.rawValue))")
+        #expect(
+            taskType == .code,
+            "Python linked-list prompt should be classified as .code (got \(taskType.rawValue))")
         // Verify score composite is populated — code task should yield a positive score
         // ComplexityAnalyzer: 20 messages (messageCount=20 → complexity ≥ 0.15)
         // + code keywords → task multiplier → composite ≥ 0.2
-        #expect(score?.composite ?? 0 >= 0.2,
-                "Code task composite should be ≥ 0.2 (got \(score?.composite ?? 0))")
+        #expect(
+            score?.composite ?? 0 >= 0.2,
+            "Code task composite should be ≥ 0.2 (got \(score?.composite ?? 0))")
     }
 }

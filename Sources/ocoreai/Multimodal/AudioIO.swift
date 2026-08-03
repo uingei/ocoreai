@@ -20,8 +20,8 @@
 import AVFoundation
 import AudioToolbox
 import Foundation
-import os.log
 import Speech
+import os.log
 
 private let audioLogger = Logger(subsystem: "ocoreai", category: "audioio")
 
@@ -154,7 +154,7 @@ final class AudioIO: NSObject {
         AudioFeedback.playRecordingEnd()
 
         guard let url = recordedURL,
-              FileManager.default.fileExists(atPath: url.path)
+            FileManager.default.fileExists(atPath: url.path)
         else {
             return nil
         }
@@ -205,7 +205,8 @@ extension AudioIO {
         let utterance = AVSpeechUtterance(string: text)
         // Match TTS voice to current app locale (BCP 47 tag: "zh-Hans", "ja", "en", ...)
         // AVSpeechSynthesisVoice falls back to system default if no matching voice exists
-        utterance.voice = AVSpeechSynthesisVoice(language: Locale.current.language.languageCode?.identifier ?? "en")
+        utterance.voice = AVSpeechSynthesisVoice(
+            language: Locale.current.language.languageCode?.identifier ?? "en")
         synthesizer.speak(utterance)
         isSpeaking = true
     }
@@ -265,7 +266,8 @@ extension AudioIO {
         request.shouldReportPartialResults = true
 
         let format = audioEngine.inputNode.outputFormat(forBus: 0)
-        audioEngine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+        audioEngine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) {
+            [weak self] buffer, _ in
             request.append(buffer)
             // VAD: compute RMS from tap buffer for power-level tracking
             if let self = self, useVAD {
@@ -273,7 +275,7 @@ extension AudioIO {
                 let frameCount = Int(buffer.frameLength)
                 if let channelData = channelData, frameCount > 0 {
                     var rmsSum: Float = 0
-                    for i in 0..<frameCount {
+                    for i in 0 ..< frameCount {
                         let sample = channelData[i]
                         rmsSum += sample * sample
                     }
@@ -331,14 +333,16 @@ extension AudioIO {
 
                     // Auto-stop on extended silence (vadSilenceSamples * 100ms ≈ N seconds)
                     if vadConsecutiveSilence >= vadSilenceSamples {
-                        audioLogger.info("[AudioIO] VAD: extended silence detected (\(vadConsecutiveSilence) samples, \(power)dB), ending transcription")
+                        audioLogger.info(
+                            "[AudioIO] VAD: extended silence detected (\(vadConsecutiveSilence) samples, \(power)dB), ending transcription"
+                        )
                         break
                     }
                 }
 
                 // Yield to let recognition process — check cancellation per concurrency §28
                 try Task.checkCancellation()
-                try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+                try await Task.sleep(nanoseconds: 100_000_000)  // 100ms
             }
 
             // Check if we got final text

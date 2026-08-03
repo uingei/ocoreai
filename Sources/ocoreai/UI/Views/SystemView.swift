@@ -25,9 +25,9 @@ struct SystemView: View {
         .navigationTitle(StringKey.tabSystem.l)
         .toolbar {
             #if os(iOS)
-                ToolbarItem(placement: .topBarTrailing) { refreshButton }
+            ToolbarItem(placement: .topBarTrailing) { refreshButton }
             #elseif os(macOS)
-                ToolbarItem(placement: .automatic) { refreshButton }
+            ToolbarItem(placement: .automatic) { refreshButton }
             #endif
         }
         .overlay {
@@ -56,7 +56,12 @@ struct SystemView: View {
         } label: {
             Image(systemName: "arrow.clockwise")
                 .rotationEffect(.degrees(viewModel.refreshing ? 360 : 0))
-                .animation(reduceMotion ? nil : (viewModel.refreshing ? .easeInOut(duration: 1).repeatForever(autoreverses: false) : nil), value: viewModel.refreshing)
+                .animation(
+                    reduceMotion
+                        ? nil
+                        : (viewModel.refreshing
+                            ? .easeInOut(duration: 1).repeatForever(autoreverses: false) : nil),
+                    value: viewModel.refreshing)
         }
     }
 
@@ -85,8 +90,12 @@ struct SystemView: View {
                         HStack(spacing: 4) {
                             StatusDot(isConnected: viewModel.isConnected(for: endpoint))
                                 .accessibilityHidden(true)
-                            Text(viewModel.isConnected(for: endpoint) ? StringKey.systemMCPConnected.l : StringKey.systemMCPDisconnected.l)
-                                .font(.ocoreaiText(12))
+                            Text(
+                                viewModel.isConnected(for: endpoint)
+                                    ? StringKey.systemMCPConnected.l
+                                    : StringKey.systemMCPDisconnected.l
+                            )
+                            .font(.ocoreaiText(12))
                         }
                     }
                 } header: {
@@ -104,8 +113,8 @@ struct SystemView: View {
     private var toolsSection: some View {
         if viewModel.toolNames.isEmpty {
             Section {
-                    Text(StringKey.systemToolsEmpty.l)
-                        .foregroundStyle(theme.textSecondary)
+                Text(StringKey.systemToolsEmpty.l)
+                    .foregroundStyle(theme.textSecondary)
                     .frame(maxWidth: .infinity)
             } header: {
                 Text(StringKey.systemToolsSection.l)
@@ -140,8 +149,8 @@ struct SystemView: View {
     private var auditSection: some View {
         if viewModel.auditEntries.isEmpty {
             Section {
-                    Text(StringKey.systemAuditEmpty.l)
-                        .foregroundStyle(theme.textSecondary)
+                Text(StringKey.systemAuditEmpty.l)
+                    .foregroundStyle(theme.textSecondary)
                     .frame(maxWidth: .infinity)
             } header: {
                 Text(StringKey.systemAuditSection.l)
@@ -150,7 +159,8 @@ struct SystemView: View {
             }
         } else {
             Section {
-                ForEach(Array(viewModel.auditEntries.prefix(20).enumerated()), id: \.offset) { _, entry in
+                ForEach(Array(viewModel.auditEntries.prefix(20).enumerated()), id: \.offset) {
+                    _, entry in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text(entry.toolName)
@@ -169,7 +179,9 @@ struct SystemView: View {
                         }
                     }
                     .padding(.vertical, 4)
-                    .accessibilityLabel("\(entry.toolName) · \(Self.durationString(entry.durationMs)) · \(entry.caller)")
+                    .accessibilityLabel(
+                        "\(entry.toolName) · \(Self.durationString(entry.durationMs)) · \(entry.caller)"
+                    )
                 }
             } header: {
                 Text(StringKey.systemAuditSection.l)

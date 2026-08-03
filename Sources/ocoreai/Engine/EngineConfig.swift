@@ -91,10 +91,11 @@ public struct EnginePoolConfig: Sendable {
         // Bare "org/repo" → Loader's defaultHub decides.
         // HF override: use "hf:org/repo" in modelId directly.
         if let defaultEntry = app.models["default"] {
-            self.defaultModelId = switch defaultEntry.source {
-            case "huggingface": "hf:\(defaultEntry.modelId)"
-            default: defaultEntry.modelId
-            }
+            self.defaultModelId =
+                switch defaultEntry.source {
+                case "huggingface": "hf:\(defaultEntry.modelId)"
+                default: defaultEntry.modelId
+                }
         } else {
             self.defaultModelId = Self.default.defaultModelId
         }
@@ -104,10 +105,13 @@ public struct EnginePoolConfig: Sendable {
         self.kvCacheQuantization = app.backend.kvCacheQuantization
         self.wiredMemory = app.backend.wiredMemory
         self.specDecoding = app.backend.specDecoding
-        self.vlmImageResize = .init(width: app.backend.vlmImageResizeWidth, height: app.backend.vlmImageResizeHeight)
+        self.vlmImageResize = .init(
+            width: app.backend.vlmImageResizeWidth, height: app.backend.vlmImageResizeHeight)
 
         let backendStr = app.backend.preference.joined(separator: ", ")
-        logger.info("EnginePoolConfig from AppConfig — backend: \(backendStr), defaultModel: \(self.defaultModelId), sessions: \(self.maxConcurrentSessions)")
+        logger.info(
+            "EnginePoolConfig from AppConfig — backend: \(backendStr), defaultModel: \(self.defaultModelId), sessions: \(self.maxConcurrentSessions)"
+        )
     }
 
     init(

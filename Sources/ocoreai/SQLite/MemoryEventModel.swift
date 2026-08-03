@@ -88,8 +88,8 @@ public struct MemoryEvent: Codable, Sendable {
     /// Create from database row.
     init?(from row: [String: SendableValue]) {
         guard let sid = row["session_id"]?.asInt64,
-              let ts = row["timestamp"]?.asInt64,
-              let ctx = row["context"]?.asString
+            let ts = row["timestamp"]?.asInt64,
+            let ctx = row["context"]?.asString
         else { return nil }
         id = row["id"]?.asInt64 ?? 0
         sessionId = sid
@@ -97,7 +97,9 @@ public struct MemoryEvent: Codable, Sendable {
         context = ctx
 
         if let entitiesArr = row["entities"]?.asString {
-            entities = (try? JSONDecoder().decode([String].self, from: entitiesArr.data(using: .utf8) ?? Data())) ?? []
+            entities =
+                (try? JSONDecoder().decode(
+                    [String].self, from: entitiesArr.data(using: .utf8) ?? Data())) ?? []
         } else {
             entities = []
         }
@@ -105,20 +107,27 @@ public struct MemoryEvent: Codable, Sendable {
         cause = row["cause"]?.asString ?? ""
         process = row["process"]?.asString ?? ""
         result = row["result"]?.asString ?? ""
-        resolution = MemoryEventResolution(rawValue: row["resolution"]?.asString ?? "unresolved") ?? .unresolved
-        memoryType = MemoryEventType(rawValue: row["memory_type"]?.asString ?? "transient") ?? .transient
+        resolution =
+            MemoryEventResolution(rawValue: row["resolution"]?.asString ?? "unresolved")
+            ?? .unresolved
+        memoryType =
+            MemoryEventType(rawValue: row["memory_type"]?.asString ?? "transient") ?? .transient
         dedupKey = row["dedup_key"]?.asString ?? ""
         confidence = row["confidence"]?.asDouble ?? 0.8
 
         if let tagsStr = row["tags"]?.asString {
-            tags = (try? JSONDecoder().decode([String].self, from: tagsStr.data(using: .utf8) ?? Data())) ?? []
+            tags =
+                (try? JSONDecoder().decode(
+                    [String].self, from: tagsStr.data(using: .utf8) ?? Data())) ?? []
         } else {
             tags = []
         }
     }
 
     /// Compute dedup key from context + cause + entities.
-    private static func computeDedupKey(context: String, cause: String, entities: [String]) -> String {
+    private static func computeDedupKey(context: String, cause: String, entities: [String])
+        -> String
+    {
         let raw = "\(context)|\(cause)|\(entities.sorted().joined(separator: ","))"
         return raw.hashValue.description
     }

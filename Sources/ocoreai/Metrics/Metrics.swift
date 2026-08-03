@@ -95,8 +95,10 @@ actor MetricsRegistry {
 
     /// Create an empty metrics registry.
     init() {
-        inferenceBucketCounts = Dictionary(uniqueKeysWithValues: Self.inferenceBuckets.map { ($0, UInt64(0)) })
-        ttfbBucketCounts = Dictionary(uniqueKeysWithValues: Self.ttfbBuckets.map { ($0, UInt64(0)) })
+        inferenceBucketCounts = Dictionary(
+            uniqueKeysWithValues: Self.inferenceBuckets.map { ($0, UInt64(0)) })
+        ttfbBucketCounts = Dictionary(
+            uniqueKeysWithValues: Self.ttfbBuckets.map { ($0, UInt64(0)) })
     }
 
     // MARK: - Counter Operations
@@ -182,7 +184,8 @@ actor MetricsRegistry {
     /// - Parameter seconds: Inference duration in seconds
     func observeInferenceDuration(_ seconds: Double) {
         precondition(seconds >= 0, "duration must be non-negative")
-        observeInferenceDuration(ms: seconds * 1000, inputTokens: 0, outputTokens: 0, ttfbMs: "0", modelId: "N/A")
+        observeInferenceDuration(
+            ms: seconds * 1000, inputTokens: 0, outputTokens: 0, ttfbMs: "0", modelId: "N/A")
     }
 
     /// Observe an inference duration sample with full metadata.
@@ -196,7 +199,9 @@ actor MetricsRegistry {
     ///   - outputTokens: Number of generated (output) tokens
     ///   - ttfbMs: Time-to-first-byte in milliseconds (string for logging)
     ///   - modelId: Model identifier for labeling
-    func observeInferenceDuration(ms: Double, inputTokens: Int, outputTokens: Int, ttfbMs: String, modelId _: String) {
+    func observeInferenceDuration(
+        ms: Double, inputTokens: Int, outputTokens: Int, ttfbMs: String, modelId _: String
+    ) {
         let seconds = ms / 1000.0
         precondition(seconds >= 0, "duration must be non-negative")
         inferenceDurationSum += seconds
@@ -242,7 +247,8 @@ actor MetricsRegistry {
         lines.append("")
 
         // HTTP Requests Counter
-        lines.append("# HELP ocoreai_http_requests_total Total HTTP requests by method, path, and status.")
+        lines.append(
+            "# HELP ocoreai_http_requests_total Total HTTP requests by method, path, and status.")
         lines.append("# TYPE ocoreai_http_requests_total counter")
         for (key, value) in httpRequests.sorted(by: { $0.key < $1.key }) {
             let parts = key.split(separator: "|", maxSplits: 2)
@@ -263,7 +269,8 @@ actor MetricsRegistry {
         lines.append("")
 
         // Active Sessions Gauge
-        lines.append("# HELP ocoreai_engine_pool_active_sessions Current active inference sessions.")
+        lines.append(
+            "# HELP ocoreai_engine_pool_active_sessions Current active inference sessions.")
         lines.append("# TYPE ocoreai_engine_pool_active_sessions gauge")
         lines.append("ocoreai_engine_pool_active_sessions \(activeSessions)")
         lines.append("")
@@ -311,11 +318,15 @@ actor MetricsRegistry {
         for bucket in Self.inferenceBuckets {
             if let count = inferenceBucketCounts[bucket] {
                 cumCount += count
-                lines.append("ocoreai_inference_duration_seconds_bucket{le=\"\(bucket)\"} \(cumCount)")
+                lines.append(
+                    "ocoreai_inference_duration_seconds_bucket{le=\"\(bucket)\"} \(cumCount)")
             }
         }
-        lines.append("ocoreai_inference_duration_seconds_bucket{le=\"+Inf\"} \(inferenceDurationCount)")
-        lines.append("ocoreai_inference_duration_seconds_sum \(String(format: "%.6f", inferenceDurationSum))")
+        lines.append(
+            "ocoreai_inference_duration_seconds_bucket{le=\"+Inf\"} \(inferenceDurationCount)")
+        lines.append(
+            "ocoreai_inference_duration_seconds_sum \(String(format: "%.6f", inferenceDurationSum))"
+        )
         lines.append("ocoreai_inference_duration_seconds_count \(inferenceDurationCount)")
         lines.append("")
 
@@ -340,22 +351,24 @@ actor MetricsRegistry {
         // Production dashboards should parse the native histogram/gauge above instead.
 
         // tokens_per_second: estimated from inference duration histogram (count / sum)
-        let averageThroughput: Double = if inferenceDurationCount > 0, inferenceDurationSum > 0 {
-            Double(inferenceDurationCount) / inferenceDurationSum
-        } else {
-            0
-        }
+        let averageThroughput: Double =
+            if inferenceDurationCount > 0, inferenceDurationSum > 0 {
+                Double(inferenceDurationCount) / inferenceDurationSum
+            } else {
+                0
+            }
         lines.append("# HELP ocoreai_tokens_per_second Estimated inference throughput (tok/s).")
         lines.append("# TYPE ocoreai_tokens_per_second gauge")
         lines.append(String(format: "ocoreai_tokens_per_second %.2f", averageThroughput))
         lines.append("")
 
         // ttft_ms: average TTFB in milliseconds
-        let averageTtftMs: Double = if ttfbCount > 0 {
-            (ttfbSum / Double(ttfbCount)) * 1000
-        } else {
-            0
-        }
+        let averageTtftMs: Double =
+            if ttfbCount > 0 {
+                (ttfbSum / Double(ttfbCount)) * 1000
+            } else {
+                0
+            }
         lines.append("# HELP ocoreai_ttft_ms Average time-to-first-token in milliseconds.")
         lines.append("# TYPE ocoreai_ttft_ms gauge")
         lines.append(String(format: "ocoreai_ttft_ms %.2f", averageTtftMs))

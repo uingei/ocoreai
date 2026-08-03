@@ -11,15 +11,18 @@ import Foundation
 import Logging
 
 #if os(macOS) || os(iOS)
-    @preconcurrency import Darwin
+@preconcurrency import Darwin
 #endif
 
 /// OOM severity levels for the downgrade chain.
 public enum MemoryLevel: String, Sendable, Codable {
-    case normal /// < 20% used
-    case warning /// 20-50% used — consider downgrading
-    case critical /// 50-80% used — force downgrade
-    case oom /// > 80% used — start refusing new requests
+    case normal
+    /// < 20% used
+    case warning
+    /// 20-50% used — consider downgrading
+    case critical
+    /// 50-80% used — force downgrade
+    case oom/// > 80% used — start refusing new requests
 }
 
 /// MemoryTracker monitors memory and triggers OOMGuard.
@@ -68,47 +71,48 @@ actor MemoryTracker {
     /// combined with the known budget to estimate pressure.
     private func pollSystemMemory() -> UInt64? {
         #if os(macOS) || os(iOS)
-            // Use sysctl hw.memsize to get total physical RAM, then combine with
-            // host_page_size + vm_statistics for used memory.
-            var pageSize: UInt64 = 4096
-            var size1 = MemoryLayout<Int>.size
-            sysctlbyname("vm.pagesize", &pageSize, &size1, nil, 0)
+        // Use sysctl hw.memsize to get total physical RAM, then combine with
+        // host_page_size + vm_statistics for used memory.
+        var pageSize: UInt64 = 4096
+        var size1 = MemoryLayout<Int>.size
+        sysctlbyname("vm.pagesize", &pageSize, &size1, nil, 0)
 
-            // vm_statistics64: required by HOST_VM_INFO64 (host_statistics64 expects
-            // the 64-bit layout, which also carries compressor_page_count). Using the
-            // 32-bit vm_statistics here is a type-contract violation (UB) and silently
-            // drops compressed-page accounting. Reference: omlx SystemStatsSampler.swift.
-            var vmStat = vm_statistics64()
-            var count: mach_msg_type_number_t = mach_msg_type_number_t(
-                MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size
-            )
+        // vm_statistics64: required by HOST_VM_INFO64 (host_statistics64 expects
+        // the 64-bit layout, which also carries compressor_page_count). Using the
+        // 32-bit vm_statistics here is a type-contract violation (UB) and silently
+        // drops compressed-page accounting. Reference: omlx SystemStatsSampler.swift.
+        var vmStat = vm_statistics64()
+        var count: mach_msg_type_number_t = mach_msg_type_number_t(
+            MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size
+        )
 
-            let kr = withUnsafeMutablePointer(to: &vmStat) { ptr -> kern_return_t in
-                ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { intPtr in
-                    host_statistics64(
-                        mach_host_self(),
-                        HOST_VM_INFO64,
-                        intPtr,
-                        &count,
-                    )
-                }
+        let kr = withUnsafeMutablePointer(to: &vmStat) { ptr -> kern_return_t in
+            ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { intPtr in
+                host_statistics64(
+                    mach_host_self(),
+                    HOST_VM_INFO64,
+                    intPtr,
+                    &count,
+                )
             }
+        }
 
-            guard kr == KERN_SUCCESS else {
-                logger.warning("MemoryTracker: host_statistics64 failed: \(kr)")
-                return nil
-            }
-
-            // active + inactive + wire + compressor pages = true physical RAM in use
-            // on Apple UMA. compressor_page_count accounts for 10–20% compressed pages
-            // that the legacy vm_statistics layout cannot represent.
-            let usedPages = UInt64(vmStat.active_count)
-                + UInt64(vmStat.inactive_count)
-                + UInt64(vmStat.wire_count)
-                + UInt64(vmStat.compressor_page_count)
-            return usedPages * pageSize
-        #else
+        guard kr == KERN_SUCCESS else {
+            logger.warning("MemoryTracker: host_statistics64 failed: \(kr)")
             return nil
+        }
+
+        // active + inactive + wire + compressor pages = true physical RAM in use
+        // on Apple UMA. compressor_page_count accounts for 10–20% compressed pages
+        // that the legacy vm_statistics layout cannot represent.
+        let usedPages =
+            UInt64(vmStat.active_count)
+            + UInt64(vmStat.inactive_count)
+            + UInt64(vmStat.wire_count)
+            + UInt64(vmStat.compressor_page_count)
+        return usedPages * pageSize
+        #else
+        return nil
         #endif
     }
 
@@ -207,10 +211,11 @@ actor MemoryTracker {
         logger = log
 
         #if os(macOS) || os(iOS)
-            let budgetGB = Double(budgetBytes) / 1_073_741_824
-            log.info("MemoryTracker: Darwin polling enabled (budget: \(String(format: "%.1f", budgetGB))GB)")
+        let budgetGB = Double(budgetBytes) / 1_073_741_824
+        log.info(
+            "MemoryTracker: Darwin polling enabled (budget: \(String(format: "%.1f", budgetGB))GB)")
         #else
-            log.warning("MemoryTracker: Darwin polling unavailable — using accounting-only mode")
+        log.warning("MemoryTracker: Darwin polling unavailable — using accounting-only mode")
         #endif
     }
 
@@ -220,15 +225,16 @@ actor MemoryTracker {
     private func checkAllocationLevel() {
         guard budgetBytes > 0 else { return }
         let fraction = Double(reservedBytes) / Double(budgetBytes)
-        let newLevel: MemoryLevel = if fraction < 0.2 {
-            .normal
-        } else if fraction < 0.5 {
-            .warning
-        } else if fraction < 0.8 {
-            .critical
-        } else {
-            .oom
-        }
+        let newLevel: MemoryLevel =
+            if fraction < 0.2 {
+                .normal
+            } else if fraction < 0.5 {
+                .warning
+            } else if fraction < 0.8 {
+                .critical
+            } else {
+                .oom
+            }
 
         levelHistory.append(newLevel)
         if levelHistory.count > hysteresisWindow {
@@ -240,7 +246,8 @@ actor MemoryTracker {
             let allSame = levelHistory.allSatisfy { $0 == newLevel }
             if allSame {
                 let pct = Int(fraction * 100)
-                logger.warning("Memory level: \(currentLevel.rawValue) → \(newLevel.rawValue) (\(pct)%)")
+                logger.warning(
+                    "Memory level: \(currentLevel.rawValue) → \(newLevel.rawValue) (\(pct)%)")
                 currentLevel = newLevel
                 if let oomg = oomGuard {
                     Task { await oomg.updateUsage(reservedBytes, budget: budgetBytes) }
@@ -268,4 +275,4 @@ actor MemoryTracker {
         let usageGB = Double(systemUsage) / 1_073_741_824
         logger.info("System memory: \(String(format: "%.1f", usageGB))GB in use")
     }
-    }
+}

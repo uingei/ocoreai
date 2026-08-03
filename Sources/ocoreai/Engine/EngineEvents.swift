@@ -7,6 +7,7 @@
 /// the engine pool and the HTTP inference pipeline.
 
 import Foundation
+import MLXLMCommon
 
 // MARK: - Cancellation Token
 
@@ -117,8 +118,6 @@ struct InferenceEvent {
 }
 
 // MARK: - Upstream → ocoreai type bridge
-
-import MLXLMCommon
 
 extension InferenceEvent {
     /// Bridge: upstream `MLXLMCommon.ToolCall` (`[String: JSONValue]` arguments)

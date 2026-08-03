@@ -7,9 +7,9 @@
 
 import AVFoundation
 import Foundation
-import os.log
 import UniformTypeIdentifiers
 import Vision
+import os.log
 
 private let captureLogger = Logger(subsystem: "ocoreai", category: "capture")
 
@@ -57,7 +57,7 @@ final class CaptureService: NSObject {
     @discardableResult
     func startCapture() async -> Bool {
         guard let deviceId = selectedCameraID,
-              let device = availableCameras.first(where: { $0.uniqueID == deviceId })
+            let device = availableCameras.first(where: { $0.uniqueID == deviceId })
         else {
             return false
         }
@@ -110,7 +110,8 @@ final class CaptureService: NSObject {
             }
         }
         _sampleTask = task
-        captureLogger.info("[CaptureService] Background sampling started (interval=\(self.frameInterval)s)")
+        captureLogger.info(
+            "[CaptureService] Background sampling started (interval=\(self.frameInterval)s)")
         return task
     }
 
@@ -149,18 +150,21 @@ final class CaptureService: NSObject {
         settings.flashMode = .off
 
         return await withCheckedContinuation { cont in
-            out.capturePhoto(with: settings, delegate: FrameCaptureDelegate { data in
-                if let d = data {
-                    let compressed = self.compressCameraFrame(d)
-                    cont.resume(returning: "data:image/jpeg;base64,\(compressed.base64EncodedString())")
-                    // Run Vision OCR in background — updates latestOCRText for downstream
-                    Task { @MainActor in
-                        self.latestOCRText = await VisionOCR.extractText(from: compressed)
+            out.capturePhoto(
+                with: settings,
+                delegate: FrameCaptureDelegate { data in
+                    if let d = data {
+                        let compressed = self.compressCameraFrame(d)
+                        cont.resume(
+                            returning: "data:image/jpeg;base64,\(compressed.base64EncodedString())")
+                        // Run Vision OCR in background — updates latestOCRText for downstream
+                        Task { @MainActor in
+                            self.latestOCRText = await VisionOCR.extractText(from: compressed)
+                        }
+                    } else {
+                        cont.resume(returning: nil)
                     }
-                } else {
-                    cont.resume(returning: nil)
-                }
-            })
+                })
         }
     }
 
@@ -179,18 +183,21 @@ final class CaptureService: NSObject {
             kCGImageSourceThumbnailMaxPixelSize: maxPixel,
         ]
 
-        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, opts as CFDictionary) else {
+        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, opts as CFDictionary)
+        else {
             return data
         }
 
         // Convert CGImage back to JPEG at 0.6 quality
         guard let dest = CFDataCreateMutable(nil, 0),
-              let destination = CGImageDestinationCreateWithData(dest, UTType.jpeg.identifier as CFString, 1, nil) else {
+            let destination = CGImageDestinationCreateWithData(
+                dest, UTType.jpeg.identifier as CFString, 1, nil)
+        else {
             return data
         }
 
         let propOpts: [CFString: Any] = [
-            kCGImageDestinationLossyCompressionQuality: 0.6,
+            kCGImageDestinationLossyCompressionQuality: 0.6
         ]
         CGImageDestinationSetProperties(destination, propOpts as CFDictionary)
         CGImageDestinationAddImage(destination, thumbnail, nil)
@@ -213,8 +220,13 @@ private class FrameCaptureDelegate: NSObject, AVCapturePhotoCaptureDelegate {
         handler = completion
     }
 
-    func photoOutput(_: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        if let _ = error { handler(nil); return }
+    func photoOutput(
+        _: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?
+    ) {
+        if error != nil {
+            handler(nil)
+            return
+        }
         handler(photo.fileDataRepresentation())
     }
 }

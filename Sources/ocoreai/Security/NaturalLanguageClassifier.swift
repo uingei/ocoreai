@@ -9,12 +9,12 @@ import Foundation
 
 /// Classification categories for support tickets.
 enum TicketCategory: String, Codable {
-    case support // Technical support request
-    case complaint // Customer complaint
-    case inquiry // General inquiry
-    case refund // Refund/cancellation request
-    case feedback // Product feedback/suggestion
-    case other // Unclassified
+    case support  // Technical support request
+    case complaint  // Customer complaint
+    case inquiry  // General inquiry
+    case refund  // Refund/cancellation request
+    case feedback  // Product feedback/suggestion
+    case other  // Unclassified
 }
 
 /// Classification result with confidence score.
@@ -37,21 +37,31 @@ struct NaturalLanguageClassifier {
     /// Create classifier with built-in keyword maps.
     init() {
         categoryKeywords = [
-            .support: ["help", "fix", "bug", "error", "crash", "issue", "problem",
-                       "support", "troubleshoot", "broken", "not working", "can't",
-                       "无法", "帮助", "问题", "错误", "故障", "崩溃"],
-            .complaint: ["unacceptable", "disappointed", "frustrated", "terrible",
-                         "worst", "annoying", "angry", "rude", "awful", "horrible",
-                         "不满", "讨厌", "差劲", "最差", "愤怒", "投诉", "糟糕"],
-            .inquiry: ["how", "what", "when", "where", "why", "can", "do",
-                       "available", "pricing", "price", "cost", "feature",
-                       "询问", "价格", "功能", "什么时候", "哪里", "怎么"],
-            .refund: ["refund", "return", "cancel", "money back", "charge",
-                      "billing", "overcharge", "receipt", "invoice",
-                      "退款", "退货", "取消", "退费", "账单", "费用"],
-            .feedback: ["suggestion", "improve", "better", "could", "wish",
-                        "should", "recommend", "idea", "hope",
-                        "建议", "改进", "希望", "应该", "推荐", "想法", "反馈"],
+            .support: [
+                "help", "fix", "bug", "error", "crash", "issue", "problem",
+                "support", "troubleshoot", "broken", "not working", "can't",
+                "无法", "帮助", "问题", "错误", "故障", "崩溃",
+            ],
+            .complaint: [
+                "unacceptable", "disappointed", "frustrated", "terrible",
+                "worst", "annoying", "angry", "rude", "awful", "horrible",
+                "不满", "讨厌", "差劲", "最差", "愤怒", "投诉", "糟糕",
+            ],
+            .inquiry: [
+                "how", "what", "when", "where", "why", "can", "do",
+                "available", "pricing", "price", "cost", "feature",
+                "询问", "价格", "功能", "什么时候", "哪里", "怎么",
+            ],
+            .refund: [
+                "refund", "return", "cancel", "money back", "charge",
+                "billing", "overcharge", "receipt", "invoice",
+                "退款", "退货", "取消", "退费", "账单", "费用",
+            ],
+            .feedback: [
+                "suggestion", "improve", "better", "could", "wish",
+                "should", "recommend", "idea", "hope",
+                "建议", "改进", "希望", "应该", "推荐", "想法", "反馈",
+            ],
         ]
     }
 

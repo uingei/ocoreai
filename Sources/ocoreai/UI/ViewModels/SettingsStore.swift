@@ -62,7 +62,11 @@ final class SettingsStore {
     /// Quantization bits: 4 or 8
     var kvQuantizationBits: Int {
         get { defaults.integer(forKey: Key.kvQuantizationBits.rawValue) }
-        set { defaults.set(newValue == 4 || newValue == 8 ? newValue : 4, forKey: Key.kvQuantizationBits.rawValue) }
+        set {
+            defaults.set(
+                newValue == 4 || newValue == 8 ? newValue : 4,
+                forKey: Key.kvQuantizationBits.rawValue)
+        }
     }
 
     /// KV cache memory budget in GB
@@ -94,7 +98,9 @@ final class SettingsStore {
     // MARK: - Logs & Profiling
 
     var logLevel: LogLevelRaw {
-        get { LogLevelRaw(rawValue: defaults.string(forKey: Key.logLevel.rawValue) ?? "info") ?? .info }
+        get {
+            LogLevelRaw(rawValue: defaults.string(forKey: Key.logLevel.rawValue) ?? "info") ?? .info
+        }
         set { defaults.set(newValue.rawValue, forKey: Key.logLevel.rawValue) }
     }
 
@@ -111,20 +117,29 @@ final class SettingsStore {
     }
 
     var appThemeMode: ThemeModeRaw {
-    	get { ThemeModeRaw(rawValue: defaults.string(forKey: Key.appThemeMode.rawValue) ?? "auto") ?? .auto }
-    	set { defaults.set(newValue.rawValue, forKey: Key.appThemeMode.rawValue) }
+        get {
+            ThemeModeRaw(rawValue: defaults.string(forKey: Key.appThemeMode.rawValue) ?? "auto")
+                ?? .auto
+        }
+        set { defaults.set(newValue.rawValue, forKey: Key.appThemeMode.rawValue) }
     }
 
     /// User's custom system prompt — injected into the system prompt chain
     /// with highest priority in MessageBuilderContext.userSystemPrompt.
     var customSystemPrompt: String {
-    	get { defaults.string(forKey: Key.customSystemPrompt.rawValue) ?? "" }
-    	set { defaults.set(newValue, forKey: Key.customSystemPrompt.rawValue) }
+        get { defaults.string(forKey: Key.customSystemPrompt.rawValue) ?? "" }
+        set { defaults.set(newValue, forKey: Key.customSystemPrompt.rawValue) }
     }
 
     var lastSessionId: Int64? {
-    	get { defaults.object(forKey: Key.lastSessionId.rawValue) as? Int64 }
-    	set { if let v = newValue { defaults.set(v, forKey: Key.lastSessionId.rawValue) } else { defaults.removeObject(forKey: Key.lastSessionId.rawValue) } }
+        get { defaults.object(forKey: Key.lastSessionId.rawValue) as? Int64 }
+        set {
+            if let v = newValue {
+                defaults.set(v, forKey: Key.lastSessionId.rawValue)
+            } else {
+                defaults.removeObject(forKey: Key.lastSessionId.rawValue)
+            }
+        }
     }
 
     // MARK: - Hub Tokens

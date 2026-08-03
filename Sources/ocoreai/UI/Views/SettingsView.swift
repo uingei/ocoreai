@@ -51,7 +51,9 @@ struct SettingsView: View {
                 .accessibilityLabel(StringKey.serverAddress.l)
             TextField(StringKey.port.l, text: $settingsState.portField)
                 .accessibilityLabel(StringKey.port.l)
-            Button { Task { await settingsState.verifyConnection() } } label: {
+            Button {
+                Task { await settingsState.verifyConnection() }
+            } label: {
                 HStack {
                     Spacer()
                     if settingsState.verifying {
@@ -69,8 +71,11 @@ struct SettingsView: View {
                 Text(StringKey.connected.l).font(.ocoreaiText(12))
                     .foregroundStyle(theme.greenDot)
             }
-        } header: { Text(StringKey.serverSection.l) }
-            footer: { Text(StringKey.ensureBackend.l) }
+        } header: {
+            Text(StringKey.serverSection.l)
+        } footer: {
+            Text(StringKey.ensureBackend.l)
+        }
     }
 
     // MARK: - Model Selection
@@ -140,11 +145,15 @@ struct SettingsView: View {
 
     private var performanceSection: some View {
         Section {
-            stepperLabel(StringKey.pollInterval.l, $settingsState.pollIntervalSec, 1 ... 10,
-                         desc: StringKey.pollInterval.l)
-            stepperLabel(StringKey.chartWindow.l, $settingsState.chartWindowSec, 30 ... 600,
-                         desc: StringKey.chartWindowHint.l)
-        } header: { Text(StringKey.performanceSection.l) }
+            stepperLabel(
+                StringKey.pollInterval.l, $settingsState.pollIntervalSec, 1 ... 10,
+                desc: StringKey.pollInterval.l)
+            stepperLabel(
+                StringKey.chartWindow.l, $settingsState.chartWindowSec, 30 ... 600,
+                desc: StringKey.chartWindowHint.l)
+        } header: {
+            Text(StringKey.performanceSection.l)
+        }
     }
 
     // MARK: - KV Cache
@@ -161,16 +170,20 @@ struct SettingsView: View {
                 .accessibilityLabel(StringKey.kvQuantBits.l)
                 Text(StringKey.kvBudget.l)
                     .font(.ocoreaiText(12)).foregroundStyle(.secondary)
-                Slider(value: $settingsState.kvCacheBudgetGB, in: 0.5 ... 128,
-                       step: 0.5)
-                {
+                Slider(
+                    value: $settingsState.kvCacheBudgetGB, in: 0.5 ... 128,
+                    step: 0.5
+                ) {
                     Text(String(format: "%.1f GB", settingsState.kvCacheBudgetGB))
                         .font(.ocoreaiMono(11)).foregroundStyle(.secondary)
                 }
                 .accessibilityLabel(StringKey.kvBudget.l)
             }
-        } header: { Text(StringKey.kvCacheSection.l) }
-            footer: { Text(StringKey.kvQuantToggleHint.l) }
+        } header: {
+            Text(StringKey.kvCacheSection.l)
+        } footer: {
+            Text(StringKey.kvQuantToggleHint.l)
+        }
     }
 
     private var specDecodingSection: some View {
@@ -186,8 +199,11 @@ struct SettingsView: View {
                 Text(StringKey.specDecodingHint.l)
                     .font(.ocoreaiText(12)).foregroundStyle(.secondary)
             }
-        } header: { Text(StringKey.specDecodingSection.l) }
-            footer: { Text(StringKey.specDecodingFooter.l) }
+        } header: {
+            Text(StringKey.specDecodingSection.l)
+        } footer: {
+            Text(StringKey.specDecodingFooter.l)
+        }
     }
 
     // MARK: - Logs & Profiling
@@ -201,8 +217,11 @@ struct SettingsView: View {
             }
             .tint(settingsState.logLevel.color)
             Toggle(StringKey.profileToggle.l, isOn: $settingsState.profileEnabled)
-        } header: { Text(StringKey.logsSection.l) }
-            footer: { Text(StringKey.profileToggleHint.l) }
+        } header: {
+            Text(StringKey.logsSection.l)
+        } footer: {
+            Text(StringKey.profileToggleHint.l)
+        }
     }
 
     // MARK: - App Preferences
@@ -219,7 +238,9 @@ struct SettingsView: View {
                     Label($0.displayName, systemImage: $0.systemName).tag($0)
                 }
             }
-        } header: { Text(StringKey.appSection.l) }
+        } header: {
+            Text(StringKey.appSection.l)
+        }
     }
 
     // MARK: - Custom System Prompt
@@ -232,12 +253,14 @@ struct SettingsView: View {
                 .multilineTextAlignment(.leading)
             TextEditor(text: $settingsState.customSystemPrompt)
                 #if os(macOS)
-                .frame(minHeight: 120)
+            .frame(minHeight: 120)
                 #endif
                 .font(.ocoreaiText(13))
                 .accessibilityLabel(StringKey.customSystemPrompt.l)
                 .accessibilityHint(StringKey.customSystemPromptPlaceholder.l)
-        } header: { Text(StringKey.customSystemPrompt.l) }
+        } header: {
+            Text(StringKey.customSystemPrompt.l)
+        }
     }
 
     // MARK: - About
@@ -253,7 +276,9 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 4)
-        } header: { Text(StringKey.aboutSection.l) }
+        } header: {
+            Text(StringKey.aboutSection.l)
+        }
     }
 
     // MARK: - Danger Zone
@@ -262,7 +287,9 @@ struct SettingsView: View {
 
     private var dangerSection: some View {
         Section {
-            Button(role: .destructive) { showingResetConfirmation = true } label: {
+            Button(role: .destructive) {
+                showingResetConfirmation = true
+            } label: {
                 Text(StringKey.resetSettings.l).frame(maxWidth: .infinity)
             }
             .tint(theme.redDot)
@@ -276,9 +303,10 @@ struct SettingsView: View {
 
     // MARK: - Helpers
 
-    private func stepperLabel(_ title: String, _ value: Binding<Int>, _ range: ClosedRange<Int>,
-                              desc: String) -> some View
-    {
+    private func stepperLabel(
+        _ title: String, _ value: Binding<Int>, _ range: ClosedRange<Int>,
+        desc: String
+    ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(title).font(.ocoreaiText(15))

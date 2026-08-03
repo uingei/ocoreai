@@ -47,7 +47,12 @@ func trainHandler(
 }
 
 private struct TrainResult {
-    var success: Bool; var iterations: Int; var trainLoss: Float?; var validLoss: Float?; var adapterPath: String?; var errMsg: String?
+    var success: Bool
+    var iterations: Int
+    var trainLoss: Float?
+    var validLoss: Float?
+    var adapterPath: String?
+    var errMsg: String?
 }
 
 private func _doTrain(
@@ -56,7 +61,8 @@ private func _doTrain(
     logger: Logger,
     continuation: AsyncStream<ByteBuffer>.Continuation,
 ) async throws {
-    guard let modelContainer = await enginePool.getMLXModelAndTokenizer(modelId: request.model) else {
+    guard let modelContainer = await enginePool.getMLXModelAndTokenizer(modelId: request.model)
+    else {
         _ = yieldSSE(
             TrainProgressChunk(
                 type: "error", iteration: 0, trainingLoss: nil, validationLoss: nil,
@@ -100,11 +106,13 @@ private func _doTrain(
         return
     }
 
-    logger.info("Training started", metadata: [
-        "model": .string(request.model),
-        "trainSize": .string(String(trainData.count)),
-        "lora_rank": .string(String(request.lora.rank)),
-    ])
+    logger.info(
+        "Training started",
+        metadata: [
+            "model": .string(request.model),
+            "trainSize": .string(String(trainData.count)),
+            "lora_rank": .string(String(request.lora.rank)),
+        ])
 
     var trainResult: TrainResult?
 
@@ -121,17 +129,21 @@ private func _doTrain(
                         timestamp: Int64(Date().timeIntervalSince1970),
                     ), to: continuation,
                 )
-                return TrainResult(success: false, iterations: 0, trainLoss: nil, validLoss: nil, adapterPath: nil, errMsg: "Model does not support LoRA")
+                return TrainResult(
+                    success: false, iterations: 0, trainLoss: nil, validLoss: nil, adapterPath: nil,
+                    errMsg: "Model does not support LoRA")
             }
 
-            _ = try LoRAContainer.from(model: ctx.model, configuration: LoRAConfiguration(
-                numLayers: request.lora.numLayers,
-                fineTuneType: .lora,
-                loraParameters: LoRAConfiguration.LoRAParameters(
-                    rank: request.lora.rank,
-                    scale: request.lora.scale,
-                ),
-            ))
+            _ = try LoRAContainer.from(
+                model: ctx.model,
+                configuration: LoRAConfiguration(
+                    numLayers: request.lora.numLayers,
+                    fineTuneType: .lora,
+                    loraParameters: LoRAConfiguration.LoRAParameters(
+                        rank: request.lora.rank,
+                        scale: request.lora.scale,
+                    ),
+                ))
 
             let optimizer = Adam(learningRate: request.hyperparams.learningRate)
 
@@ -158,7 +170,7 @@ private func _doTrain(
                     ),
                 ) { progress in
                     switch progress {
-                    case let .train(iter, tl, ips, tps):
+                    case .train(let iter, let tl, let ips, let tps):
                         iterationsCompleted = iter + 1
                         finalTrainLoss = tl
                         _ = yieldSSE(
@@ -171,7 +183,7 @@ private func _doTrain(
                         )
                         return .more
 
-                    case let .validation(iter, vl, _):
+                    case .validation(let iter, let vl, _):
                         finalValidLoss = vl
                         _ = yieldSSE(
                             TrainProgressChunk(
@@ -183,7 +195,7 @@ private func _doTrain(
                         )
                         return .more
 
-                    case let .save(iter, url):
+                    case .save(let iter, let url):
                         _ = yieldSSE(
                             TrainProgressChunk(
                                 type: "save", iteration: iter, trainingLoss: nil,
@@ -196,10 +208,16 @@ private func _doTrain(
                     }
                 }
 
-                guard let supportURL = FileManager.default.urls(
-                    for: .applicationSupportDirectory, in: .userDomainMask,
-                ).first else {
-                    throw NSError(domain: NSCocoaErrorDomain, code: -1, userInfo: [NSLocalizedDescriptionKey: "applicationSupportDirectory unavailable"])
+                guard
+                    let supportURL = FileManager.default.urls(
+                        for: .applicationSupportDirectory, in: .userDomainMask,
+                    ).first
+                else {
+                    throw NSError(
+                        domain: NSCocoaErrorDomain, code: -1,
+                        userInfo: [
+                            NSLocalizedDescriptionKey: "applicationSupportDirectory unavailable"
+                        ])
                 }
                 let adapterURL = supportURL.appendingPathComponent("ocoreai", isDirectory: true)
                     .appendingPathComponent("adapters", isDirectory: true)
@@ -244,7 +262,11 @@ private func _doTrain(
         )
     }
 
-    let final = trainResult ?? TrainResult(success: false, iterations: 0, trainLoss: nil, validLoss: nil, adapterPath: nil, errMsg: "Unknown error")
+    let final =
+        trainResult
+        ?? TrainResult(
+            success: false, iterations: 0, trainLoss: nil, validLoss: nil, adapterPath: nil,
+            errMsg: "Unknown error")
     _ = yieldSSE(
         TrainProgressChunk(
             type: "done",
@@ -272,12 +294,15 @@ func evaluateHandler(
         throw AppError.invalidRequest("Evaluation dataset must not be empty")
     }
 
-    logger.info("Evaluation started", metadata: [
-        "model": .string(request.model),
-        "datasetSize": .string(String(request.dataset.count)),
-    ])
+    logger.info(
+        "Evaluation started",
+        metadata: [
+            "model": .string(request.model),
+            "datasetSize": .string(String(request.dataset.count)),
+        ])
 
-    guard let modelContainer = await enginePool.getMLXModelAndTokenizer(modelId: request.model) else {
+    guard let modelContainer = await enginePool.getMLXModelAndTokenizer(modelId: request.model)
+    else {
         throw AppError.invalidRequest("Model not found: \(request.model)")
     }
 
@@ -313,11 +338,13 @@ func evaluateHandler(
 
 // MARK: - Dataset Resolution
 
-private func _resolveDataset(input: TrainRequest.TrainingDatasetInput, label _: String) throws -> [String] {
+private func _resolveDataset(input: TrainRequest.TrainingDatasetInput, label _: String) throws
+    -> [String]
+{
     switch input {
-    case let .inline(texts):
+    case .inline(let texts):
         return texts.filter { !$0.isEmpty }
-    case let .file(path, _):
+    case .file(let path, _):
         guard FileManager.default.fileExists(atPath: path) else {
             throw AppError.invalidRequest("Dataset file not found: \(path)")
         }

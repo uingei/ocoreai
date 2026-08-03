@@ -47,11 +47,12 @@ actor SummarizerActor {
     /// Summarize raw text using the inference engine.
     func summarize(_ text: String) async throws -> String {
         // Resolve model ID
-        let resolvedId: String? = if let id = config.modelId, await enginePool.isModelLoaded(id) {
-            id
-        } else {
-            await enginePool.firstLoadedModelId()
-        }
+        let resolvedId: String? =
+            if let id = config.modelId, await enginePool.isModelLoaded(id) {
+                id
+            } else {
+                await enginePool.firstLoadedModelId()
+            }
 
         guard let modelId = resolvedId else {
             logger.warning("No model for summarization, truncating input")
@@ -61,9 +62,13 @@ actor SummarizerActor {
         // Build summary prompt
         let context = MessageBuilderContext(
             modelId: modelId,
-            rawMessages: [Message(role: "user", content:
-                "Summarize the following conversation in 3-5 concise bullet points. Focus on key topics, decisions, and outcomes:\n\n\(text)"
-            )],
+            rawMessages: [
+                Message(
+                    role: "user",
+                    content:
+                        "Summarize the following conversation in 3-5 concise bullet points. Focus on key topics, decisions, and outcomes:\n\n\(text)"
+                )
+            ],
             userSystemPrompt: nil,
             tools: nil,
             sessionId: "summarizer"
@@ -119,17 +124,18 @@ actor SummarizerActor {
                 switch event.kind {
                 case .token:
                     break
-                case let .text(t):
+                case .text(let t):
                     summary += t
                 case .done(_, _, _, _, _, _, _): break
-                case let .error(msg):
+                case .error(let msg):
                     // Release before re-throwing
                     await handle.release()
-                    throw NSError(domain: "SummarizerActor", code: 1,
-                                  userInfo: [NSLocalizedDescriptionKey: msg])
+                    throw NSError(
+                        domain: "SummarizerActor", code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: msg])
                 case .toolCall:
                     break
-                case let .reasoning(r):
+                case .reasoning(let r):
                     // Reasoning text from ReasoningEventEmitter — include in summary
                     summary += r
                 }
@@ -141,8 +147,9 @@ actor SummarizerActor {
 
         if summary.isEmpty {
             logger.warning("Summarizer returned empty")
-            throw NSError(domain: "SummarizerActor", code: 2,
-                          userInfo: [NSLocalizedDescriptionKey: "Empty summary"])
+            throw NSError(
+                domain: "SummarizerActor", code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Empty summary"])
         }
 
         logger.info("Summary generated (\(summary.count) chars)")

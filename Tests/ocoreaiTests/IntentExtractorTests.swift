@@ -5,8 +5,9 @@
 /// Coverage: action type detection, urgency classification,
 /// confidence scoring, target extraction, and edge cases.
 
-import Testing
 import Foundation
+import Testing
+
 @testable import ocoreai
 
 @Suite("IntentExtractor Action Detection")

@@ -3,9 +3,10 @@
 // Validates token bucket math, burst behavior, and global rate limit config
 // without requiring CoreAI runtime or Hummingbird Request types.
 
-import Testing
-@testable import ocoreai
 import Logging
+import Testing
+
+@testable import ocoreai
 
 // MARK: - TokenBucket Tests
 

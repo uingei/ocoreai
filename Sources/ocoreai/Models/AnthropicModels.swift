@@ -190,30 +190,35 @@ struct AnthropicStreamEvent: Encodable {
 
     /// Stream start event
     static func messageStart(message: AnthropicMessageResponse) -> AnthropicStreamEvent {
-        AnthropicStreamEvent(type: "message_start", index: nil, message: message, delta: nil, usage: nil)
+        AnthropicStreamEvent(
+            type: "message_start", index: nil, message: message, delta: nil, usage: nil)
     }
 
     /// Content block start event
     static func contentBlockStart(index: Int) -> AnthropicStreamEvent {
-        AnthropicStreamEvent(type: "content_block_start", index: index, message: nil, delta: nil, usage: nil)
+        AnthropicStreamEvent(
+            type: "content_block_start", index: index, message: nil, delta: nil, usage: nil)
     }
 
     /// Delta event (incremental text)
     static func textDelta(index: Int, text: String) -> AnthropicStreamEvent {
-        AnthropicStreamEvent(type: "content_block_delta", index: index, message: nil,
-                             delta: AnthropicStreamDelta(type: "content_block_delta", partialJson: nil, text: text),
-                             usage: nil)
+        AnthropicStreamEvent(
+            type: "content_block_delta", index: index, message: nil,
+            delta: AnthropicStreamDelta(type: "content_block_delta", partialJson: nil, text: text),
+            usage: nil)
     }
 
     /// Content block stop event
     static func contentBlockStop(index: Int) -> AnthropicStreamEvent {
-        AnthropicStreamEvent(type: "content_block_stop", index: index, message: nil, delta: nil, usage: nil)
+        AnthropicStreamEvent(
+            type: "content_block_stop", index: index, message: nil, delta: nil, usage: nil)
     }
 
     /// Message stop event (with final usage)
     static func messageStop(inputTokens: Int, outputTokens: Int) -> AnthropicStreamEvent {
-        AnthropicStreamEvent(type: "message_stop", index: nil, message: nil, delta: nil,
-                             usage: AnthropicStreamUsage(outputTokens: outputTokens, inputTokens: inputTokens))
+        AnthropicStreamEvent(
+            type: "message_stop", index: nil, message: nil, delta: nil,
+            usage: AnthropicStreamUsage(outputTokens: outputTokens, inputTokens: inputTokens))
     }
 }
 
@@ -293,7 +298,7 @@ struct AnthropicToolInputSchema: Decodable {
 
 /// Tool choice strategy
 struct AnthropicToolChoice: Decodable {
-    let type: String // "auto" | "any" | "none" | "tool"
+    let type: String  // "auto" | "any" | "none" | "tool"
 
     enum CodingKeys: String, CodingKey {
         case type
@@ -304,7 +309,7 @@ struct AnthropicToolChoice: Decodable {
 
 /// Anthropic response format for structured output
 struct AnthropicResponseFormat: Decodable {
-    let type: String // "json"
+    let type: String  // "json"
 
     enum CodingKeys: String, CodingKey {
         case type
@@ -345,13 +350,13 @@ func toChatCompletionRequest(_ req: AnthropicMessageRequest) -> ChatCompletionRe
     let messages: [Message] = req.messages.map { msg in
         let content: ContentPolymorphic?
         switch msg.content {
-        case let .some(.text(s)):
+        case .some(.text(let s)):
             content = .text(s)
-        case let .some(.blocks(blocks)):
+        case .some(.blocks(let blocks)):
             let texts = blocks.compactMap {
                 switch $0.type {
                 case .text: $0.text
-                case .toolUse: nil // Skip tool_use blocks from user
+                case .toolUse: nil  // Skip tool_use blocks from user
                 }
             }.joined(separator: "\n")
             content = texts.isEmpty ? nil : .text(texts)
@@ -365,11 +370,12 @@ func toChatCompletionRequest(_ req: AnthropicMessageRequest) -> ChatCompletionRe
     let tools: [ToolDef]? = req.tools?.map { $0.toOpenAITool() }
 
     // Use thinking budget as maxTokens constraint if provided
-    let effectiveMaxTokens: Int? = if let budget = req.thinking?.budgetTokens {
-        min(req.maxTokens ?? Int.max, budget)
-    } else {
-        req.maxTokens
-    }
+    let effectiveMaxTokens: Int? =
+        if let budget = req.thinking?.budgetTokens {
+            min(req.maxTokens ?? Int.max, budget)
+        } else {
+            req.maxTokens
+        }
 
     // Activate reasoning mode when thinking config is present
     let reasoningEnabled: Bool? = req.thinking != nil ? true : nil

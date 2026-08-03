@@ -113,7 +113,8 @@ actor ToolRegistry {
     ///   - caller: Optional caller identity for audit trail (default: "unknown")
     /// - Returns: Tool result string
     /// - Throws: ``ToolError`` on validation or execution failure
-    func call(_ name: String, arguments: String, caller: String = "unknown") async throws -> String {
+    func call(_ name: String, arguments: String, caller: String = "unknown") async throws -> String
+    {
         // 1. Lookup
         guard let entry = tools[name] else {
             throw ToolError.notFound(name)
@@ -131,14 +132,16 @@ actor ToolRegistry {
         // 4. Begin audit trail
         let token: AuditToken?
         if let at = auditTrail {
-            let argsMap: [String: String] = if let data = arguments.data(using: .utf8),
-                                               let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: String]
-            {
-                decoded
-            } else {
-                ["raw": arguments]
-            }
-            token = await at.beginCall(caller: caller, toolName: name, toolset: entry.toolset, arguments: argsMap)
+            let argsMap: [String: String] =
+                if let data = arguments.data(using: .utf8),
+                    let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: String]
+                {
+                    decoded
+                } else {
+                    ["raw": arguments]
+                }
+            token = await at.beginCall(
+                caller: caller, toolName: name, toolset: entry.toolset, arguments: argsMap)
         } else {
             token = nil
         }
@@ -155,7 +158,8 @@ actor ToolRegistry {
         } catch {
             // Complete audit on error
             if let t = token {
-                await auditTrail?.completeToken(t, status: .error, result: error.localizedDescription)
+                await auditTrail?.completeToken(
+                    t, status: .error, result: error.localizedDescription)
             }
             // If handler already threw a ToolError, re-throw without double-wrapping
             if let toolErr = error as? ToolError {
@@ -183,7 +187,8 @@ actor ToolRegistry {
         let msg = error.localizedDescription
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
-        return NSError(domain: "ocoreai.tool.sanitized", code: 0, userInfo: [NSLocalizedDescriptionKey: msg])
+        return NSError(
+            domain: "ocoreai.tool.sanitized", code: 0, userInfo: [NSLocalizedDescriptionKey: msg])
     }
 
     /// SHA256-based loop detection

@@ -5,8 +5,9 @@
 /// Coverage: all ticket categories, confidence thresholds, fallback mode,
 /// keyword matching, and edge cases.
 
-import Testing
 import Foundation
+import Testing
+
 @testable import ocoreai
 
 @Suite("NaturalLanguageClassifier Categories")
@@ -101,11 +102,11 @@ struct NLPClassifierConfidenceTests {
 
     @Test("classification result high confidence property")
     func isHighConfidenceProperty() {
-        let high = ClassificationResult(category: .support, confidence: 0.85, keywords: [], fallback: false)
-        let low = ClassificationResult(category: .support, confidence: 0.6, keywords: [], fallback: true)
+        let high = ClassificationResult(
+            category: .support, confidence: 0.85, keywords: [], fallback: false)
+        let low = ClassificationResult(
+            category: .support, confidence: 0.6, keywords: [], fallback: true)
         #expect(high.isHighConfidence)
         #expect(low.isHighConfidence == false)
     }
 }
-
-

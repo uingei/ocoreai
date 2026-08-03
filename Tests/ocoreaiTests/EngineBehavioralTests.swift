@@ -6,8 +6,9 @@
 /// round-trip tests never touch — actual bug-finding surface area.
 
 import Testing
-@testable import ocoreai
 import ocoreaiTestUtilities
+
+@testable import ocoreai
 
 // MARK: - OOMGuard state machine
 
@@ -123,5 +124,3 @@ struct OOMGuardBehavioralTests {
         #expect(await oomGuard.currentQuantization() == .bits8)
     }
 }
-
-

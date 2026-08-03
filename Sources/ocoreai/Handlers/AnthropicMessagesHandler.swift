@@ -19,13 +19,14 @@
 /// | max_tokens | — | length |
 /// | tool_use | — | tool_calls |
 
-#if canImport(CoreAI)
-    import CoreAI
-#endif
 import Foundation
 import HTTPTypes
 import Hummingbird
 import Logging
+
+#if canImport(CoreAI)
+import CoreAI
+#endif
 
 // MARK: - Main Handler
 
@@ -59,14 +60,15 @@ func anthropicMessagesHandler(
 
     // Safety check: filter harmful input before scheduling
     if let contentGuard = streamGuard {
-        let messageText: String = if let first = request.messages.first, let content = first.content {
-            switch content {
-            case let .text(s): s
-            case let .blocks(blocks): blocks.compactMap(\.text).joined(separator: "\n")
+        let messageText: String =
+            if let first = request.messages.first, let content = first.content {
+                switch content {
+                case .text(let s): s
+                case .blocks(let blocks): blocks.compactMap(\.text).joined(separator: "\n")
+                }
+            } else {
+                ""
             }
-        } else {
-            ""
-        }
         if !messageText.isEmpty {
             let result = await contentGuard.checkInput(messageText)
             if result.isBlocked {
@@ -77,12 +79,15 @@ func anthropicMessagesHandler(
                     "categories": result.triggeredCategories.map(\.rawValue),
                 ])
                 let errorBody = NSDictionary(dictionary: ["error": detail])
-                guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
+                guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: [])
+                else {
                     return Response(status: .badRequest)
                 }
                 var headers: HTTPFields = [:]
                 headers[.contentType] = "application/json"
-                return Response(status: .badRequest, headers: headers, body: .init(contentsOf: [ByteBuffer(data: data)]))
+                return Response(
+                    status: .badRequest, headers: headers,
+                    body: .init(contentsOf: [ByteBuffer(data: data)]))
             }
         }
     }
@@ -101,12 +106,15 @@ func anthropicMessagesHandler(
                 "code": 400,
             ])
             let errorBody = NSDictionary(dictionary: ["error": detail])
-            guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
+            guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: [])
+            else {
                 return Response(status: .badRequest)
             }
             var headers: HTTPFields = [:]
             headers[.contentType] = "application/json"
-            return Response(status: .badRequest, headers: headers, body: .init(contentsOf: [ByteBuffer(data: data)]))
+            return Response(
+                status: .badRequest, headers: headers,
+                body: .init(contentsOf: [ByteBuffer(data: data)]))
         }
     }
 
@@ -122,8 +130,8 @@ func anthropicMessagesHandler(
     let promptText: String
     if let first = request.messages.first, let content = first.content {
         switch content {
-        case let .text(s): promptText = s
-        case let .blocks(blocks):
+        case .text(let s): promptText = s
+        case .blocks(let blocks):
             let texts = blocks.compactMap(\.text).joined(separator: "\n")
             promptText = texts.isEmpty ? "" : texts
         }
@@ -143,7 +151,8 @@ func anthropicMessagesHandler(
         guard dispatched != nil else {
             // Higher-priority request dispatched instead — ours still in queue.
             // Clean up scheduler state to prevent orphaned .pending entry.
-            await scheduler.fail(schedulingRequest.id, with: "Higher-priority request dispatched first")
+            await scheduler.fail(
+                schedulingRequest.id, with: "Higher-priority request dispatched first")
             throw AppError.engineUnavailable
         }
     } catch let e as SchedulerError {
@@ -262,9 +271,9 @@ private func buildAnthropicMessageList(
 ) throws -> [Message] {
     var messages: [Message] = request.messages.map { msg in
         switch msg.content {
-        case let .some(.text(s)):
+        case .some(.text(let s)):
             return Message(role: msg.role, content: .text(s))
-        case let .some(.blocks(blocks)):
+        case .some(.blocks(let blocks)):
             let texts = blocks.compactMap { b -> String? in
                 switch b.type {
                 case .text: return b.text
@@ -291,15 +300,17 @@ private func buildAnthropicMessageList(
 
         if !toolDefs.isEmpty {
             if let idx = messages.firstIndex(where: { $0.role == "system" }) {
-                if case var .text(existing) = messages[idx].content {
+                if case .text(var existing) = messages[idx].content {
                     existing += "\n\nAvailable tools:\n\(toolDefs)"
                     messages[idx].content = .text(existing)
                 }
             } else {
                 messages.insert(
-                    Message(role: "system", content: .text(
-                        "You have access to the following tools:\n\n\(toolDefs)",
-                    )),
+                    Message(
+                        role: "system",
+                        content: .text(
+                            "You have access to the following tools:\n\n\(toolDefs)",
+                        )),
                     at: 0,
                 )
             }
@@ -347,26 +358,26 @@ private func nonStreamAnthropicResponse(
     do {
         for try await event in tokenStream {
             switch event.kind {
-            case let .token(tokenId):
+            case .token(let tokenId):
                 try Task.checkCancellation()
                 accumulatedTokens.append(tokenId)
                 totalOutputTokens += 1
 
-            case let .text(text):
+            case .text(let text):
                 try Task.checkCancellation()
                 totalOutputTokens += 1
                 accumulatedText = (accumulatedText ?? "") + text
 
-            case let .done(reason, _, _, _, _, _, _):
-                    let openaiReason = stopReasonToString(reason) ?? "stop"
+            case .done(let reason, _, _, _, _, _, _):
+                let openaiReason = stopReasonToString(reason) ?? "stop"
                 finishReason = openAIToAnthropicStopReason(openaiReason)
 
-            case let .error(errorMsg):
+            case .error(let errorMsg):
                 finishReason = "error"
                 logger.error("Generation error: \(errorMsg)")
             case .toolCall:
                 break
-            case let .reasoning(r):
+            case .reasoning(let r):
                 // Anthropic non-stream: reasoning text flows into accumulatedText
                 try Task.checkCancellation()
                 totalOutputTokens += 1
@@ -395,7 +406,8 @@ private func nonStreamAnthropicResponse(
     if let contentGuard, !content.isEmpty {
         let checkResult = await contentGuard.checkOutput(content)
         if !checkResult.passed {
-            logger.warning("Anthropic non-stream output blocked: \(checkResult.triggeredCategories)")
+            logger.warning(
+                "Anthropic non-stream output blocked: \(checkResult.triggeredCategories)")
             let detail = NSDictionary(dictionary: [
                 "message": checkResult.rejectionReason ?? "Content safety violation",
                 "type": "content_policy_violation",
@@ -403,12 +415,15 @@ private func nonStreamAnthropicResponse(
                 "categories": checkResult.triggeredCategories.map(\.rawValue),
             ])
             let errorBody = NSDictionary(dictionary: ["error": detail])
-            guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
+            guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: [])
+            else {
                 return Response(status: .badRequest)
             }
             var headers: HTTPFields = [:]
             headers[.contentType] = "application/json"
-            return Response(status: .badRequest, headers: headers, body: .init(contentsOf: [ByteBuffer(data: data)]))
+            return Response(
+                status: .badRequest, headers: headers,
+                body: .init(contentsOf: [ByteBuffer(data: data)]))
         }
     }
 
@@ -436,7 +451,8 @@ private func nonStreamAnthropicResponse(
     var headers: HTTPFields = [:]
     headers[.contentType] = "application/json"
     let bodyData = try JSONEncoder().encode(response)
-    return Response(status: .ok, headers: headers, body: .init(contentsOf: [ByteBuffer(data: bodyData)]))
+    return Response(
+        status: .ok, headers: headers, body: .init(contentsOf: [ByteBuffer(data: bodyData)]))
 }
 
 // MARK: - SSE Stream Response
@@ -507,7 +523,7 @@ private func streamAnthropicResponse(
             do {
                 for try await event in tokenStream {
                     switch event.kind {
-                    case let .token(tokenId):
+                    case .token(let tokenId):
                         try Task.checkCancellation()
                         accumulatedTokens.append(tokenId)
                         totalOutputTokens += 1
@@ -520,21 +536,25 @@ private func streamAnthropicResponse(
                             newText = prevDecodedText + "<token>"
                         }
 
-                        let deltaText: String = if newText.hasPrefix(prevDecodedText) {
-                            String(newText.dropFirst(prevDecodedText.count))
-                        } else {
-                            newText
-                        }
+                        let deltaText: String =
+                            if newText.hasPrefix(prevDecodedText) {
+                                String(newText.dropFirst(prevDecodedText.count))
+                            } else {
+                                newText
+                            }
                         prevDecodedText = newText
 
                         // Safety check: filter harmful output in real-time
                         if let contentGuard = streamGuard {
                             let checkResult = await contentGuard.checkOutput(deltaText)
                             if !checkResult.passed {
-                                logger.warning("Anthropic streaming output blocked: \(checkResult.triggeredCategories)")
+                                logger.warning(
+                                    "Anthropic streaming output blocked: \(checkResult.triggeredCategories)"
+                                )
                                 let errorEvent = AnthropicStreamEvent(
                                     type: "error", index: nil, message: nil, delta: nil,
-                                    usage: AnthropicStreamUsage(outputTokens: totalOutputTokens, inputTokens: tokens.count),
+                                    usage: AnthropicStreamUsage(
+                                        outputTokens: totalOutputTokens, inputTokens: tokens.count),
                                 )
                                 writeSSEEvent(continuation, event: errorEvent)
                                 continuation.finish()
@@ -546,7 +566,7 @@ private func streamAnthropicResponse(
                         let deltaEvent = AnthropicStreamEvent.textDelta(index: 0, text: deltaText)
                         writeSSEEvent(continuation, event: deltaEvent)
 
-                    case let .text(text):
+                    case .text(let text):
                         try Task.checkCancellation()
                         totalOutputTokens += 1
 
@@ -554,10 +574,13 @@ private func streamAnthropicResponse(
                         if let contentGuard = streamGuard {
                             let checkResult = await contentGuard.checkOutput(text)
                             if !checkResult.passed {
-                                logger.warning("Anthropic streaming output blocked (.text): \(checkResult.triggeredCategories)")
+                                logger.warning(
+                                    "Anthropic streaming output blocked (.text): \(checkResult.triggeredCategories)"
+                                )
                                 let errorEvent = AnthropicStreamEvent(
                                     type: "error", index: nil, message: nil, delta: nil,
-                                    usage: AnthropicStreamUsage(outputTokens: totalOutputTokens, inputTokens: tokens.count),
+                                    usage: AnthropicStreamUsage(
+                                        outputTokens: totalOutputTokens, inputTokens: tokens.count),
                                 )
                                 writeSSEEvent(continuation, event: errorEvent)
                                 continuation.finish()
@@ -570,7 +593,7 @@ private func streamAnthropicResponse(
 
                     case .done(_, _, _, _, _, _, _):
                         break
-                    case let .error(errorMsg):
+                    case .error(let errorMsg):
                         logger.error("Stream generation error: \(errorMsg)")
                     case .toolCall:
                         break
@@ -597,7 +620,8 @@ private func streamAnthropicResponse(
 
             // Record metrics
             let dur = startTime.duration(to: ContinuousClock.now)
-            let elapsed = Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
+            let elapsed =
+                Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
             await metrics.observeInferenceDuration(elapsed / 1000.0)
             await metrics.incrementTokens(kind: "generated", count: totalOutputTokens)
             await metrics.incrementTokens(kind: "prompt", count: tokens.count)

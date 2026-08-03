@@ -18,9 +18,11 @@ import Logging
 /// approximate weight memory (vocab_size × 4 bytes for the transition
 /// from fp16→nf4).
 public enum QuantizationLevel: String, Sendable, Codable {
-    case bits8 /// 8-bit quantization (higher precision, more memory)
-    case bits4 /// 4-bit quantization (lower precision, less memory)
-    case refuse /// Hard refuse — all requests rejected
+    case bits8
+    /// 8-bit quantization (higher precision, more memory)
+    case bits4
+    /// 4-bit quantization (lower precision, less memory)
+    case refuse/// Hard refuse — all requests rejected
 }
 
 /// OOMGuard event for monitoring
@@ -166,7 +168,8 @@ actor OOMGuard {
         if to == .refuse {
             logger.critical("OOMGuard: HARD REFUSE — all requests rejected")
         } else {
-            logger.info("OOMGuard: \(from.rawValue) → \(to.rawValue) (trigger: \(trigger.rawValue))")
+            logger.info(
+                "OOMGuard: \(from.rawValue) → \(to.rawValue) (trigger: \(trigger.rawValue))")
         }
     }
 }

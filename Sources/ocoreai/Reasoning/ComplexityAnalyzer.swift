@@ -32,11 +32,20 @@ class SemanticIntentDetector {
     /// Anchor texts representative of each TaskType — used to build reference
     /// embeddings against which user input is compared via cosine similarity.
     private static let anchors: [(TaskType, String)] = [
-        (.code, "Write a function that processes API responses and handles errors in the application code"),
+        (
+            .code,
+            "Write a function that processes API responses and handles errors in the application code"
+        ),
         (.math, "Calculate the probability and solve the mathematical equation with integration"),
         (.json, "Return the result as a JSON object with a structured schema and formatted array"),
-        (.comparison, "Compare these two approaches and explain the trade-offs versus the other option"),
-        (.analysis, "Analyze the architecture and explain why this design works with step by step reasoning"),
+        (
+            .comparison,
+            "Compare these two approaches and explain the trade-offs versus the other option"
+        ),
+        (
+            .analysis,
+            "Analyze the architecture and explain why this design works with step by step reasoning"
+        ),
         (.factual, "What is the definition and who was the first person to discover this fact"),
         (.casual, "Hello there, just saying hi and having a casual conversation"),
     ]
@@ -56,7 +65,7 @@ class SemanticIntentDetector {
     init?() {
         // Step 1: Discover English-language embedding models on device
         let criteria: [NLContextualEmbeddingKey: Any] = [
-            .languages: [NLLanguage.english],
+            .languages: [NLLanguage.english]
         ]
         let models = NLContextualEmbedding.contextualEmbeddings(forValues: criteria)
         guard let model = models.first else {
@@ -78,9 +87,10 @@ class SemanticIntentDetector {
         var vectors: [[Float]] = []
 
         // enumerateTokenVectors(in range: Range<String.Index>, using block: ([Double], Range<String.Index>) -> Bool)
-        result.enumerateTokenVectors(in: result.string.startIndex..<result.string.endIndex) { vector, _ in
+        result.enumerateTokenVectors(in: result.string.startIndex ..< result.string.endIndex) {
+            vector, _ in
             vectors.append(vector.map { Float($0) })
-            return false // process all tokens
+            return false  // process all tokens
         }
 
         guard !vectors.isEmpty else { return nil }
@@ -91,7 +101,7 @@ class SemanticIntentDetector {
 
         for vec in vectors {
             guard vec.count == dim else { continue }
-            for i in 0..<dim {
+            for i in 0 ..< dim {
                 pooled[i] += vec[i]
             }
         }
@@ -146,7 +156,7 @@ class SemanticIntentDetector {
         var magA: Float = 0
         var magB: Float = 0
 
-        for i in 0..<len {
+        for i in 0 ..< len {
             dot += a[i] * b[i]
             magA += a[i] * a[i]
             magB += b[i] * b[i]
@@ -214,7 +224,7 @@ extension ComplexityAnalyzer {
         let sessionKey = "session_\(sessionId)"
         var scores = sessionScores[sessionKey] ?? []
         scores.append(composite)
-        if scores.count > 50 { scores.removeFirst() } // cap per-session history
+        if scores.count > 50 { scores.removeFirst() }  // cap per-session history
         sessionScores[sessionKey] = scores
 
         scoreCount += 1
@@ -257,7 +267,7 @@ extension ComplexityAnalyzer {
     ///   30–150     → ~0.3 (moderate)
     ///  > 150       → ~0.7+ (detailed)
     private func scoreLength(_ input: String) -> Double {
-        let approxTokens = Double(input.count) / 4.0 // rough char-to-token heuristic
+        let approxTokens = Double(input.count) / 4.0  // rough char-to-token heuristic
         // Sigmoid: center at 80 tokens, steep=0.05
         let center: Double = 80
         let steepness = 0.05
@@ -331,8 +341,10 @@ extension ComplexityAnalyzer {
         }
 
         // JSON/structured output detection
-        let jsonSignals: [String] = ["json", "json格式", "array", "object", "格式化为",
-                                     "output format", "schema", "structured"]
+        let jsonSignals: [String] = [
+            "json", "json格式", "array", "object", "格式化为",
+            "output format", "schema", "structured",
+        ]
         if jsonSignals.contains(where: { lower.contains($0) }) {
             return .json
         }

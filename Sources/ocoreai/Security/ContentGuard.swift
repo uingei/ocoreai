@@ -93,28 +93,28 @@ public struct GuardResult: Sendable, Codable {
 /// Content safety categories for classification.
 public enum SafetyCategory: String, Codable, Sendable, CaseIterable {
     // NSFW
-    case sexuallyExplicit // Sexually explicit content
-    case sexualViolence // Sexual violence/non-consensual
-    case underageSexual // Underage sexual content (always block, zero tolerance)
+    case sexuallyExplicit  // Sexually explicit content
+    case sexualViolence  // Sexual violence/non-consensual
+    case underageSexual  // Underage sexual content (always block, zero tolerance)
 
     // Violence
-    case graphicViolence // Graphic violence/gore
-    case selfHarm // Self-harm/suicide
-    case hateSpeech // Hate speech/harassment
+    case graphicViolence  // Graphic violence/gore
+    case selfHarm  // Self-harm/suicide
+    case hateSpeech  // Hate speech/harassment
 
     // System abuse
-    case jailbreak // Jailbreak/prompt injection attempts
-    case systemPromptOverride // System prompt extraction/override
-    case toolAbuse // Dangerous tool call attempts
+    case jailbreak  // Jailbreak/prompt injection attempts
+    case systemPromptOverride  // System prompt extraction/override
+    case toolAbuse  // Dangerous tool call attempts
 
     // Legal/ethical
-    case illegalActivity // Facilitating illegal activity (drugs, weapons, etc.)
-    case malwareGeneration // Malware/exploit generation
-    case piiRequest // PII extraction attempts
+    case illegalActivity  // Facilitating illegal activity (drugs, weapons, etc.)
+    case malwareGeneration  // Malware/exploit generation
+    case piiRequest  // PII extraction attempts
 
     public var severity: Double {
         switch self {
-        case .underageSexual, .sexualViolence: 1.0 // Always block
+        case .underageSexual, .sexualViolence: 1.0  // Always block
         case .selfHarm, .jailbreak, .systemPromptOverride: 0.95
         case .sexuallyExplicit, .graphicViolence, .hateSpeech: 0.9
         case .toolAbuse, .illegalActivity, .malwareGeneration: 0.85
@@ -160,9 +160,9 @@ public enum DetectionMode: String, Codable, Sendable {
     public static func defaultFor(_ category: SafetyCategory) -> DetectionMode {
         switch category {
         case .underageSexual, .sexualViolence, .selfHarm:
-            .strict // Never disable these
+            .strict  // Never disable these
         case .jailbreak, .systemPromptOverride, .toolAbuse:
-            .strict // System integrity
+            .strict  // System integrity
         case .sexuallyExplicit, .graphicViolence, .hateSpeech:
             .moderate
         case .illegalActivity, .malwareGeneration:
@@ -193,7 +193,7 @@ struct RuntimeSafetyConfig {
         var modes: [SafetyCategory: DetectionMode] = [:]
         for (catString, modeString) in config.categoryModes {
             if let cat = SafetyCategory(rawValue: catString),
-               let mode = DetectionMode(rawValue: modeString)
+                let mode = DetectionMode(rawValue: modeString)
             {
                 modes[cat] = mode
             }
@@ -371,7 +371,8 @@ public actor ContentGuard {
             guard mode != .disabled else { continue }
 
             var matchCount = 0
-            let fullRange = NSRange(originalText.startIndex ..< originalText.endIndex, in: originalText)
+            let fullRange = NSRange(
+                originalText.startIndex ..< originalText.endIndex, in: originalText)
 
             for regex in patterns {
                 let matches = regex.matches(in: originalText, range: fullRange)
@@ -457,8 +458,11 @@ public actor ContentGuard {
         }
 
         // If only warnOnly categories triggered, pass through
-        let hasBlockCategory = !allCategories.isEmpty &&
-            allCategories.contains { runtimeConfig.mode(for: $0) != .warnOnly && $0.severity * maxConfidence >= 0.5 }
+        let hasBlockCategory =
+            !allCategories.isEmpty
+            && allCategories.contains {
+                runtimeConfig.mode(for: $0) != .warnOnly && $0.severity * maxConfidence >= 0.5
+            }
 
         if hasBlockCategory {
             return EvalResult(
@@ -541,7 +545,7 @@ public actor ContentGuard {
             "remove all restrictions", "no limits", "uncensored mode",
             "ignore all rules", "jailbreak", "dank mode", "dev mode",
             "developer mode", "raw mode", "unfiltered mode",
-            "ignore all rules restrictions", // Chinese jailbreak
+            "ignore all rules restrictions",  // Chinese jailbreak
             "忽略所有规则", "忽略所有规则限制", "绕过所有限制", "打破所有约束",
             "无视所有规则", "忽略安全限制", "绕过安全规则",
         ])
@@ -595,7 +599,9 @@ public actor ContentGuard {
             // classic DAN / role play bypass
             regex("pretend\\\\s+(you )?are", options),
             regex("act\\\\s+(as )?if", options),
-            regex("(ignore|disregard|bypass)\\\\s+(all|everything|every)?\\\\s*(rules?|instructions?|restrictions?|guidelines?)", options),
+            regex(
+                "(ignore|disregard|bypass)\\\\s+(all|everything|every)?\\\\s*(rules?|instructions?|restrictions?|guidelines?)",
+                options),
             // mode switching
             regex("(dev(?:eloper)?|developer|dev)\\\\s*mode", options),
             regex("(uncensored?|unfiltered?|raw|dank)\\\\s*(mode|output)", options),
@@ -605,20 +611,25 @@ public actor ContentGuard {
 
         // --- System prompt override ---
         patterns[.systemPromptOverride] = [
-            regex("(what\\\\s+is|show me|reveal|display|output|dump|print)\\\\s+(y(our|o)ur )?(system )?(message|prompt|instruction)", options),
+            regex(
+                "(what\\\\s+is|show me|reveal|display|output|dump|print)\\\\s+(y(our|o)ur )?(system )?(message|prompt|instruction)",
+                options),
             regex("(输出|显示|输出|打印|dump)\\\\s*(你的|系统)?\\\\s*(提示|指令|system prompt)", options),
         ].compactMap(\.self)
 
         // --- Self-harm patterns (more specific regex for reduced FP) ---
         patterns[.selfHarm] = [
-            regex("how\\\\s+(to|do|can I)\\\\s+(kill|die|commit suicide|end my life|harm myself)", options),
+            regex(
+                "how\\\\s+(to|do|can I)\\\\s+(kill|die|commit suicide|end my life|harm myself)",
+                options),
             regex("(方法|方式)\\\\s*(自杀|自残|结束生命)", options),
         ].compactMap(\.self)
 
         // --- Tool abuse patterns ---
         patterns[.toolAbuse] = [
             regex("run\\\\s+(sudo\\\\s+rm\\\\s+-rf|format\\\\s+[Cc]:|mkfs|dd\\\\s+if=)", options),
-            regex("(rm\\\\s+-rf\\\\s+/|format\\\\s+[Cc:]\\\\w+|delete\\\\s+all\\\\s+files)", options),
+            regex(
+                "(rm\\\\s+-rf\\\\s+/|format\\\\s+[Cc:]\\\\w+|delete\\\\s+all\\\\s+files)", options),
         ].compactMap(\.self)
 
         return patterns
@@ -626,11 +637,15 @@ public actor ContentGuard {
 
     // MARK: - Helpers
 
-    private static func regex(_ pattern: String, _ options: NSRegularExpression.Options? = nil) -> NSRegularExpression? {
-        guard let compiled = try? NSRegularExpression(
-            pattern: pattern,
-            options: options ?? [.caseInsensitive, .dotMatchesLineSeparators],
-        ) else { return nil }
+    private static func regex(_ pattern: String, _ options: NSRegularExpression.Options? = nil)
+        -> NSRegularExpression?
+    {
+        guard
+            let compiled = try? NSRegularExpression(
+                pattern: pattern,
+                options: options ?? [.caseInsensitive, .dotMatchesLineSeparators],
+            )
+        else { return nil }
         return compiled
     }
 

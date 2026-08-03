@@ -105,10 +105,11 @@ struct FMToolProxy: FoundationModels.Tool {
             logger.warning("FMToolProxy: cannot serialize params for \(name)")
             return emptySchema
         }
-        return (try? JSONDecoder().decode(
-            FoundationModels.GenerationSchema.self,
-            from: data
-        )) ?? emptySchema
+        return
+            (try? JSONDecoder().decode(
+                FoundationModels.GenerationSchema.self,
+                from: data
+            )) ?? emptySchema
     }
 
     private static var emptySchema: FoundationModels.GenerationSchema {
@@ -168,25 +169,29 @@ enum FMTranscriptHelpers {
             case .user:
                 var segments: [TMSegment] = []
                 if !msg.content.isEmpty {
-                    segments.append(.text(FoundationModels.Transcript.TextSegment(content: msg.content)))
+                    segments.append(
+                        .text(FoundationModels.Transcript.TextSegment(content: msg.content)))
                 }
                 // NOTE: Transcript image attachments require Transcript.ImageAttachment which
                 // has no public initializer (opaque SDK type). For now, skip images in transcript
                 // path — the core value (tools/reasoning/sampling) is unlocked without them.
                 // TODO: Investigate VMultimodalSession or PromptBuilder path for images.
-                _ = msg.images // avoid unused warning
+                _ = msg.images  // avoid unused warning
                 if !segments.isEmpty {
-                    entries.append(TMEntry.prompt(
-                        TTPrompt(segments: segments)
-                    ))
+                    entries.append(
+                        TMEntry.prompt(
+                            TTPrompt(segments: segments)
+                        ))
                 }
             case .assistant:
                 if !msg.content.isEmpty {
-                    entries.append(TMEntry.response(
-                        FoundationModels.Transcript.Response(segments: [
-                            TMSegment.text(FoundationModels.Transcript.TextSegment(content: msg.content))
-                        ])
-                    ))
+                    entries.append(
+                        TMEntry.response(
+                            FoundationModels.Transcript.Response(segments: [
+                                TMSegment.text(
+                                    FoundationModels.Transcript.TextSegment(content: msg.content))
+                            ])
+                        ))
                 }
             default:
                 break
@@ -214,4 +219,4 @@ enum FMTranscriptHelpers {
     }
 }
 
-#endif // FoundationModelsIntegration
+#endif  // FoundationModelsIntegration

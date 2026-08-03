@@ -176,11 +176,13 @@ enum AgentLoop {
         let maxToolRounds = 10  // Keep at most N rounds of tool call/results
         var toolRoundCount = 0
 
-        log.info("AgentLoop started (max=\(config.maxIter), budget=\(config.tokenBudget), tools=\(toolList.count))")
+        log.info(
+            "AgentLoop started (max=\(config.maxIter), budget=\(config.tokenBudget), tools=\(toolList.count))"
+        )
 
         let deadline = ContinuousClock.now + .seconds(config.timeoutSeconds)
 
-        for i in 1...config.maxIter {
+        for i in 1 ... config.maxIter {
             guard ContinuousClock.now < deadline else {
                 log.warning("AgentLoop: timeout after \(iterCount) iterations")
                 return AgentLoopResult(
@@ -223,7 +225,9 @@ enum AgentLoop {
             )
 
             let elapsed = tStart.duration(to: ContinuousClock.now)
-            let elapsedMs = Double(elapsed.components.seconds) * 1000.0 + Double(elapsed.components.attoseconds) / 1e13
+            let elapsedMs =
+                Double(elapsed.components.seconds) * 1000.0 + Double(elapsed.components.attoseconds)
+                / 1e13
             totalTok += tokCount
             budgetRemaining -= tokCount
 
@@ -239,30 +243,35 @@ enum AgentLoop {
             }
 
             if !tc.isEmpty {
-                log.info("AgentLoop iter \\(i): \\(tc.count) tool_calls in \\(tokCount) tokens (\\(elapsedMs)ms)")
+                log.info(
+                    "AgentLoop iter \\(i): \\(tc.count) tool_calls in \\(tokCount) tokens (\\(elapsedMs)ms)"
+                )
 
                 // ── Execute tools ───────────────────────────────────────
-                let toolResults = await executeTools(tc: tc, registry: config.registry, caller: config.caller, logger: log)
+                let toolResults = await executeTools(
+                    tc: tc, registry: config.registry, caller: config.caller, logger: log)
 
                 // ── Inject tool messages ────────────────────────────────
                 // Assistant message with tool calls
-                msgs.append(Message(
-                    role: "assistant",
-                    content: nil,
-                    name: nil,
-                    toolCalls: tc,
-                    toolCallID: nil
-                ))
+                msgs.append(
+                    Message(
+                        role: "assistant",
+                        content: nil,
+                        name: nil,
+                        toolCalls: tc,
+                        toolCallID: nil
+                    ))
 
                 // Tool result messages
                 for (idx, result) in toolResults.enumerated() {
-                    msgs.append(Message(
-                        role: "tool",
-                        content: .text(result),
-                        name: tc[idx].function.name,
-                        toolCalls: nil,
-                        toolCallID: tc[idx].id
-                    ))
+                    msgs.append(
+                        Message(
+                            role: "tool",
+                            content: .text(result),
+                            name: tc[idx].function.name,
+                            toolCalls: nil,
+                            toolCallID: tc[idx].id
+                        ))
                 }
 
                 // Context trimming: keep initial messages + at most
@@ -276,28 +285,33 @@ enum AgentLoop {
                     if toolMsgCount > keepToolMsgs {
                         let pruneCount = toolMsgCount - keepToolMsgs
                         // Remove messages after initial set, skip first `pruneCount`
-                        msgs.removeSubrange(initialMsgCount..<(initialMsgCount + pruneCount))
-                        log.info("AgentLoop: pruned \\\\(pruneCount) old tool messages (keeping \\\\(keepToolMsgs))")
+                        msgs.removeSubrange(initialMsgCount ..< (initialMsgCount + pruneCount))
+                        log.info(
+                            "AgentLoop: pruned \\\\(pruneCount) old tool messages (keeping \\\\(keepToolMsgs))"
+                        )
                     }
                 }
 
-                logs.append(AgentLoopIterationLog(
-                    iteration: i,
-                    tok: tokCount,
-                    toolN: tc.count,
-                    ms: elapsedMs,
-                    tag: "[\(tc.map { $0.function.name }.joined(separator: ","))]"
-                ))
+                logs.append(
+                    AgentLoopIterationLog(
+                        iteration: i,
+                        tok: tokCount,
+                        toolN: tc.count,
+                        ms: elapsedMs,
+                        tag: "[\(tc.map { $0.function.name }.joined(separator: ","))]"
+                    ))
             } else {
                 // Converged — plain text response
                 log.info("AgentLoop: converged after \\(i) iterations")
-                logs.append(AgentLoopIterationLog(
-                    iteration: i, tok: tokCount, toolN: 0, ms: elapsedMs, tag: "converged"
-                ))
+                logs.append(
+                    AgentLoopIterationLog(
+                        iteration: i, tok: tokCount, toolN: 0, ms: elapsedMs, tag: "converged"
+                    ))
                 // Safety filter final user-facing response through ContentGuard
                 let guardedText: String
                 if let contentGuard = await OcoreaiEngine.shared.activeContentGuard,
-                   await contentGuard.checkOutput(text).isBlocked {
+                    await contentGuard.checkOutput(text).isBlocked
+                {
                     log.warning("AgentLoop: final response blocked by ContentGuard")
                     guardedText = "[response filtered by safety guard]"
                 } else {
@@ -342,7 +356,8 @@ enum AgentLoop {
             logger: logger
         )
         // Prefer streaming-detected tool calls; fall back to post-hoc parse.
-        let tc: [ToolCall]? = if !inferredTC.isEmpty { inferredTC } else { parseToolCalls(from: text) }
+        let tc: [ToolCall]? =
+            if !inferredTC.isEmpty { inferredTC } else { parseToolCalls(from: text) }
         let hasNonEmptyToolCalls = (tc?.count ?? 0) > 0
         // Safety filter user-facing response through ContentGuard
         // (tool_calls responses skip filtering — they're structured payloads, not free text)
@@ -351,7 +366,8 @@ enum AgentLoop {
             guardedText = text
         } else {
             if let contentGuard = await OcoreaiEngine.shared.activeContentGuard,
-               await contentGuard.checkOutput(text).isBlocked {
+                await contentGuard.checkOutput(text).isBlocked
+            {
                 logger.warning("AgentLoop: response blocked by ContentGuard")
                 guardedText = "[response filtered by safety guard]"
             } else {
@@ -359,11 +375,11 @@ enum AgentLoop {
             }
         }
         return AgentLoopResult(
-        	text: guardedText,
-        	toolCalls: tc,
-        	iterationCount: 1,
-        	finishReason: hasNonEmptyToolCalls ? "tool_calls" : "stop",
-        	totalTokens: tok
+            text: guardedText,
+            toolCalls: tc,
+            iterationCount: 1,
+            finishReason: hasNonEmptyToolCalls ? "tool_calls" : "stop",
+            totalTokens: tok
         )
     }
 
@@ -391,13 +407,16 @@ enum AgentLoop {
                         // Filter tool output through ContentGuard to sanitize
                         // results before injecting back into context
                         if let contentGuard = await OcoreaiEngine.shared.activeContentGuard,
-                           await contentGuard.checkOutput(r).isBlocked {
+                            await contentGuard.checkOutput(r).isBlocked
+                        {
                             logger.warning("AgentLoop: tool output blocked by ContentGuard")
                             return (idx, "[tool-output-filtered: safety check failed]")
                         }
                         return (idx, r)
                     } catch {
-                        return (idx, "[tool-error:\(tool.function.name)] \(error.localizedDescription)")
+                        return (
+                            idx, "[tool-error:\(tool.function.name)] \(error.localizedDescription)"
+                        )
                     }
                 }
             }
@@ -407,7 +426,6 @@ enum AgentLoop {
             return results
         }
     }
-
 
     // MARK: - Inference
 
@@ -439,24 +457,24 @@ enum AgentLoop {
                 case .token:
                     // Each .token event is one generated token (CoreAI path)
                     tokCount += 1
-                case let .done(_, actualCount, _, _, _, _, _):
+                case .done(_, let actualCount, _, _, _, _, _):
                     // Use upstream-reported token count when available, fallback to our running count
                     if let actualCount {
                         tokCount = actualCount
                     }
-                case let .text(t):
+                case .text(let t):
                     accumulatedText += t
                     // Each .text event is at least one token decoded (MLX path).
                     // Counting +1 per event provides a lower bound until .done carries
                     // the definitive count from upstream GenerateCompletionInfo.
                     tokCount += 1
-                case let .toolCall(tc):
+                case .toolCall(let tc):
                     // Upstream TextToolTokenLoopHandler detected structured tool calls.
                     // Collect them — this replaces the old parseToolCalls post-hoc approach.
                     collectedToolCalls.append(tc)
-                case let .error(e):
+                case .error(let e):
                     logger.warning("AgentLoop inference error: \(e)")
-                case let .reasoning(r):
+                case .reasoning(let r):
                     // Reasoning chunk from ReasoningEventEmitter — accumulate alongside text
                     accumulatedText += r
                     tokCount += 1

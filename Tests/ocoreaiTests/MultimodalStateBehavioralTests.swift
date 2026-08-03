@@ -13,8 +13,9 @@
 /// TTSFilterConfigTests.
 
 import Testing
-@testable import ocoreai
 import ocoreaiTestUtilities
+
+@testable import ocoreai
 
 @Suite("MMContextEntry — shouldSendAsText routing logic")
 struct MMContextEntryRouteTests {

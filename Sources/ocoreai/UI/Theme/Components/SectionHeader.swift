@@ -10,7 +10,10 @@ struct SectionHeader<Content: View>: View {
     let subtitle: String?
     let trailingContent: Content
 
-    init(_ title: String, subtitle: String? = nil, @ViewBuilder content: () -> Content = { EmptyView() }) {
+    init(
+        _ title: String, subtitle: String? = nil,
+        @ViewBuilder content: () -> Content = { EmptyView() }
+    ) {
         self.title = title
         self.subtitle = subtitle
         trailingContent = content()

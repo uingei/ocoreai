@@ -6,17 +6,20 @@
 /// spec decoding config builder, metadata immutability, cleanup, and
 /// Sendable conformance via cross-actor access.
 
-import Testing
+import Atomics
 import Foundation
 import Logging
-import Atomics
-@testable import ocoreai
+import Testing
 import ocoreaiTestUtilities
+
+@testable import ocoreai
 
 // MARK: - Helpers
 
-func makeModelConfig(name: String = "test-model", vocabSize: Int = 32_000,
-                      maxContextLength: Int = 131_072) -> ModelConfig {
+func makeModelConfig(
+    name: String = "test-model", vocabSize: Int = 32_000,
+    maxContextLength: Int = 131_072
+) -> ModelConfig {
     ModelConfig(
         name: name,
         function: "default",
@@ -56,7 +59,8 @@ struct MetadataTests {
         let firstVocab = model.modelConfig.vocabSize
         let firstCtx = model.modelConfig.maxContextLength
         // Trigger session ops to prove immutability under mutation
-        model.acquireSession(); model.releaseSession()
+        model.acquireSession()
+        model.releaseSession()
         #expect(model.modelConfig.vocabSize == firstVocab)
         #expect(model.modelConfig.maxContextLength == firstCtx)
     }
@@ -109,11 +113,11 @@ struct SessionCountTests {
     @Test("rapid acquire/release maintains counter accuracy")
     func rapidCycle() {
         let model = makeLoadedModel()
-        for _ in 0..<100 {
+        for _ in 0 ..< 100 {
             model.acquireSession()
         }
         #expect(model.activeSessions == 100)
-        for _ in 0..<100 {
+        for _ in 0 ..< 100 {
             model.releaseSession()
         }
         #expect(model.activeSessions == 0)
@@ -122,13 +126,13 @@ struct SessionCountTests {
     @Test("mixed acquire/release order preserves count")
     func mixedOrder() {
         let model = makeLoadedModel()
-        model.acquireSession() // 1
-        model.acquireSession() // 2
-        model.releaseSession() // 1
-        model.acquireSession() // 2
-        model.releaseSession() // 1
-        model.releaseSession() // 0
-        model.acquireSession() // 1
+        model.acquireSession()  // 1
+        model.acquireSession()  // 2
+        model.releaseSession()  // 1
+        model.acquireSession()  // 2
+        model.releaseSession()  // 1
+        model.releaseSession()  // 0
+        model.acquireSession()  // 1
         #expect(model.activeSessions == 1)
     }
 }
@@ -161,7 +165,7 @@ struct InferenceGuardTests {
     @Test("acquire/release cycle — 10 iterations")
     func cycles() {
         let model = makeLoadedModel()
-        for _ in 0..<10 {
+        for _ in 0 ..< 10 {
             #expect(model.tryAcquireInference() == true)
             model.releaseInference()
         }
@@ -242,10 +246,10 @@ struct WarmupTests {
 struct SpecDecodingTests {
     @Test("default spec decoding config disabled")
     func defaultConfigEnabled() {
-    	let cfg = SpecDecodingConfig()
-    	#expect(cfg.enabled == false)
-    	#expect(cfg.mode == "traditional")
-    	#expect(cfg.numDraftTokens == 5)
+        let cfg = SpecDecodingConfig()
+        #expect(cfg.enabled == false)
+        #expect(cfg.mode == "traditional")
+        #expect(cfg.numDraftTokens == 5)
     }
 
     @Test("spec decoding disabled returns nil from createSpeculativeConfig")
@@ -301,12 +305,12 @@ struct SendableSafetyTests {
     func concurrentAccess() async {
         let model = makeLoadedModel()
         await withTaskGroup(of: Void.self) { group in
-            for _ in 0..<20 {
+            for _ in 0 ..< 20 {
                 group.addTask {
                     model.acquireSession()
                 }
             }
-            for _ in 0..<20 {
+            for _ in 0 ..< 20 {
                 group.addTask {
                     model.releaseSession()
                 }

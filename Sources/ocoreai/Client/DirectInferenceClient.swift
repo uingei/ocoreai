@@ -130,7 +130,8 @@ final class DirectInferenceClient {
             let messageText = request.messages.map { $0.textContent() }.joined(separator: " ")
             let result = await contentGuard.checkInput(messageText)
             if result.isBlocked {
-                throw DirectInferenceError.contentBlocked(result.rejectionReason ?? "Content safety violation")
+                throw DirectInferenceError.contentBlocked(
+                    result.rejectionReason ?? "Content safety violation")
             }
         }
 
@@ -150,13 +151,14 @@ final class DirectInferenceClient {
                     // is never persisted (isComplete was never true).
                     // D1 fix: sanitize error message — strip MLX/Metal internals before UI
                     let msg = DirectInferenceClient.sanitizeEngineError(error.localizedDescription)
-                    continuation.yield(.init(
-                        text: "",
-                        isComplete: true,
-                        stopReason: "error",
-                        outputTokens: 0,
-                        error: msg,
-                    ))
+                    continuation.yield(
+                        .init(
+                            text: "",
+                            isComplete: true,
+                            stopReason: "error",
+                            outputTokens: 0,
+                            error: msg,
+                        ))
                     continuation.finish()
                 }
             }
@@ -215,7 +217,8 @@ extension DirectInferenceClient {
         do {
             let dispatched = try await scheduler.submitAndDispatch(schedulingRequest)
             guard dispatched != nil else {
-                await scheduler.fail(schedulingRequest.id, with: "Higher-priority request dispatched first")
+                await scheduler.fail(
+                    schedulingRequest.id, with: "Higher-priority request dispatched first")
                 throw AppError.engineUnavailable
             }
         } catch let e as SchedulerError {
@@ -325,7 +328,8 @@ extension DirectInferenceClient {
             guard let ttft = firstChunkTime else { return (nil, nil, nil) }
             // TTFT: duration from stream start to first chunk (genuine prefill/init time)
             let ttftDuration = streamStartTime.duration(to: ttft)
-            let ttftMs = Double(ttftDuration.components.seconds) * 1000
+            let ttftMs =
+                Double(ttftDuration.components.seconds) * 1000
                 + Double(ttftDuration.components.attoseconds) / 1e15
             // tok/s is intentionally nil during streaming — see note above. The UI
             // shows only TTFT until the accurate final tok/s is yielded at completion.
@@ -338,12 +342,16 @@ extension DirectInferenceClient {
                 case .token:
                     // Individual token events — text will arrive in .text events
                     break
-                case let .text(text):
+                case .text(let text):
                     // Safety check: filter harmful output
                     if let contentGuard = streamGuard {
                         let checkResult = await contentGuard.checkOutput(text)
                         if !checkResult.passed {
-                            continuation.yield(.init(text: "[Safety Filter: \(checkResult.rejectionReason ?? "Content safety violation")]", isComplete: true))
+                            continuation.yield(
+                                .init(
+                                    text:
+                                        "[Safety Filter: \(checkResult.rejectionReason ?? "Content safety violation")]",
+                                    isComplete: true))
                             continuation.finish()
                             return
                         }
@@ -356,15 +364,16 @@ extension DirectInferenceClient {
                     // Streaming metrics: report the REAL TTFT only (tokPerSec stays nil
                     // until completion — see note on currentMetrics()).
                     let (ttftMs, _, _) = currentMetrics()
-                    continuation.yield(.init(text: text, isComplete: false, ttftMs: ttftMs, tokPerSec: nil))
-                case let .reasoning(reasoningText):
+                    continuation.yield(
+                        .init(text: text, isComplete: false, ttftMs: ttftMs, tokPerSec: nil))
+                case .reasoning(let reasoningText):
                     // Reasoning chunk from ReasoningEventEmitter — emit as reasoning content delta
                     if firstChunkTime == nil {
                         firstChunkTime = ContinuousClock.now
                     }
                     accumulatedText += reasoningText
                     continuation.yield(.init(isComplete: false, reasoningContent: reasoningText))
-                case let .done(reason, tokenCount, tokPS, ptokPs, _, _, _):
+                case .done(let reason, let tokenCount, let tokPS, let ptokPs, _, _, _):
                     finishReason = stopReasonToString(reason) ?? "stop"
                     // Use actual token count from upstream .info/.done — per-event
                     // counting would severely underestimate when .text spans multiple tokens
@@ -372,22 +381,25 @@ extension DirectInferenceClient {
                     // Capture BOTH throughput metrics from engine layer (upstream GenerateCompletionInfo)
                     engineTokPerSec = tokPS
                     enginePromptTokPerSec = ptokPs
-                case let .error(errorMsg):
+                case .error(let errorMsg):
                     continuation.finish()
                     throw AppError.generationError(errorMsg)
-                case let .toolCall(tc):
+                case .toolCall(let tc):
                     // Forward tool call events to UI so tool-use progress is visible
                     // tc is ocoreai ToolCall (from InferenceEvent.mlxToolCall bridge)
-                    continuation.yield(.init(
-                        text: nil,
-                        isComplete: false,
-                        metadata: .toolCall(.init(
-                            name: tc.function.name,
-                            arguments: tc.function.arguments.isEmpty ? nil : tc.function.arguments,
-                            resultSummary: nil,
-                            durationMs: nil
+                    continuation.yield(
+                        .init(
+                            text: nil,
+                            isComplete: false,
+                            metadata: .toolCall(
+                                .init(
+                                    name: tc.function.name,
+                                    arguments: tc.function.arguments.isEmpty
+                                        ? nil : tc.function.arguments,
+                                    resultSummary: nil,
+                                    durationMs: nil
+                                ))
                         ))
-                    ))
                 }
             }
         }
@@ -400,34 +412,36 @@ extension DirectInferenceClient {
             let d = streamStartTime.duration(to: ft)
             return Double(d.components.seconds) * 1000 + Double(d.components.attoseconds) / 1e15
         }
-        continuation.yield(.init(
-            text: "",
-            isComplete: true,
-            stopReason: finishReason ?? "stop",
-            outputTokens: outputTokens,
-            ttftMs: finalTtftMs,
-            tokPerSec: engineTokPerSec,
-            promptTokPerSec: enginePromptTokPerSec
-        ))
-    // Post-stream quality signal → ThinkingBudget calibration loop.
-    // Fire-and-forget: failures silently ignored to avoid blocking stream end.
-    if let budget = OcoreaiEngine.shared.activeThinkingBudget {
-        let outputLen = (outputTokens ?? 0) > 0
-            ? min(1.0, Double(outputTokens!) / Double(effectiveMaxTokens ?? 4096))
-            : 0.0
-        let qualityInput = ThinkingQualityInput(
-            complexity: 0.5, // Desktop UI has no upstream ComplexityAnalyzer
-            outputLength: outputLen,
-            iterationCount: 1,
-            toolCallCount: 0,
-            finishReason: finishReason ?? "stop"
-        )
-        _ = await ThinkingTelemetry.signal(
-            input: qualityInput,
-            sessionId: request.sessionId ?? "0",
-            budget: budget
-        )
-    }
+        continuation.yield(
+            .init(
+                text: "",
+                isComplete: true,
+                stopReason: finishReason ?? "stop",
+                outputTokens: outputTokens,
+                ttftMs: finalTtftMs,
+                tokPerSec: engineTokPerSec,
+                promptTokPerSec: enginePromptTokPerSec
+            ))
+        // Post-stream quality signal → ThinkingBudget calibration loop.
+        // Fire-and-forget: failures silently ignored to avoid blocking stream end.
+        if let budget = OcoreaiEngine.shared.activeThinkingBudget {
+            let outputLen =
+                (outputTokens ?? 0) > 0
+                ? min(1.0, Double(outputTokens!) / Double(effectiveMaxTokens ?? 4096))
+                : 0.0
+            let qualityInput = ThinkingQualityInput(
+                complexity: 0.5,  // Desktop UI has no upstream ComplexityAnalyzer
+                outputLength: outputLen,
+                iterationCount: 1,
+                toolCallCount: 0,
+                finishReason: finishReason ?? "stop"
+            )
+            _ = await ThinkingTelemetry.signal(
+                input: qualityInput,
+                sessionId: request.sessionId ?? "0",
+                budget: budget
+            )
+        }
         continuation.finish()
     }
 }
@@ -462,7 +476,8 @@ extension DirectInferenceClient {
         do {
             let dispatched = try await scheduler.submitAndDispatch(schedulingRequest)
             guard dispatched != nil else {
-                await scheduler.fail(schedulingRequest.id, with: "Higher-priority request dispatched first")
+                await scheduler.fail(
+                    schedulingRequest.id, with: "Higher-priority request dispatched first")
                 throw AppError.engineUnavailable
             }
         } catch let e as SchedulerError {
@@ -551,28 +566,31 @@ extension DirectInferenceClient {
             switch event.kind {
             case .token:
                 outputTok += 1
-            case let .text(text):
+            case .text(let text):
                 outputTok += 1
                 accumulatedText += text
-            case let .done(_, tokenCount, _, _, _, _, _):
+            case .done(_, let tokenCount, _, _, _, _, _):
                 if let tokenCount {
                     outputTok = tokenCount
                 }
-            case let .error(msg):
+            case .error(let msg):
                 throw AppError.generationError(msg)
-            case let .toolCall(tc):
+            case .toolCall(let tc):
                 // Collect tool call info for UI display with meaningful summary
                 collectedToolCallParts = collectedToolCallParts ?? []
-                let summary = tc.function.arguments.isEmpty
+                let summary =
+                    tc.function.arguments.isEmpty
                     ? "\(tc.function.name)(no args)"
-                    : String(tc.function.arguments.prefix(60)) + (tc.function.arguments.count > 60 ? "…" : "")
-                collectedToolCallParts?.append(ToolCallPart(
-                    callId: tc.id,
-                    name: tc.function.name,
-                    resultSummary: summary,
-                    durationMs: 0
-                ))
-            case let .reasoning(r):
+                    : String(tc.function.arguments.prefix(60))
+                        + (tc.function.arguments.count > 60 ? "…" : "")
+                collectedToolCallParts?.append(
+                    ToolCallPart(
+                        callId: tc.id,
+                        name: tc.function.name,
+                        resultSummary: summary,
+                        durationMs: 0
+                    ))
+            case .reasoning(let r):
                 outputTok += 1
                 reasoningContent += r
             }
@@ -663,7 +681,7 @@ struct DirectInferenceResult {
     /// Aggregated tool call parts from agent loop iterations.
     /// Populated when AgentLoop ran multiple iterations with tool execution.
     let toolCallParts: [ToolCallPart]?
-    
+
     init(
         content: String,
         stopReason: String,
@@ -690,7 +708,7 @@ enum DirectInferenceError: Error, LocalizedError {
         case .engineNotReady: "Inference engine not yet ready"
         case .schedulerNotReady: "Scheduler not yet ready"
         case .messageBuilderNotReady: "Message builder not ready"
-        case let .contentBlocked(reason): "Content blocked: \(reason)"
+        case .contentBlocked(let reason): "Content blocked: \(reason)"
         }
     }
 }

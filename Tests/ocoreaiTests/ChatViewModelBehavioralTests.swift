@@ -7,23 +7,24 @@
 ///
 /// Matches upstream mlx-swift-lm pattern: test real object graphs, not simulations.
 
-import Testing
 import Foundation
-@testable import ocoreai
+import Testing
 import ocoreaiTestUtilities
+
+@testable import ocoreai
 
 // MARK: - ChatMessage textContent invariants
 
 @Suite("ChatMessage: textContent computed property behavior")
 struct ChatMessageTextContentTests {
-    
+
     @Test("Legacy message textContent equals content")
     func legacyMessage() {
         let msg = ChatMessage(role: "user", content: "Hello world")
         #expect(msg.textContent == "Hello world")
         #expect(msg.hasParts == false)
     }
-    
+
     @Test("Structured message textContent joins text parts with spaces")
     func structuredTextJoin() {
         let parts: [TranscriptPart] = [
@@ -34,7 +35,7 @@ struct ChatMessageTextContentTests {
         #expect(msg.textContent == "First Second")
         #expect(msg.hasParts == true)
     }
-    
+
     @Test("Reasoning parts flattened into textContent")
     func reasoningFlattened() {
         let parts: [TranscriptPart] = [
@@ -46,7 +47,7 @@ struct ChatMessageTextContentTests {
         #expect(msg.textContent.contains("Answer"))
         #expect(msg.textContent.contains("Let me think"))
     }
-    
+
     @Test("Image parts excluded from textContent flatText")
     func imagesExcluded() {
         let parts: [TranscriptPart] = [
@@ -59,7 +60,7 @@ struct ChatMessageTextContentTests {
         #expect(msg.textContent == "Look: done")
         #expect(!msg.textContent.contains("[Image]"))
     }
-    
+
     @Test("ToolCall parts included in textContent with format")
     func toolCallInFlatText() {
         let tc = ToolCallPart(
@@ -73,7 +74,7 @@ struct ChatMessageTextContentTests {
         #expect(msg.textContent.contains("[Tool: search"))
         #expect(msg.textContent.contains("results found"))
     }
-    
+
     @Test("Mixed parts preserve order in textContent")
     func mixedPartsOrder() {
         let parts: [TranscriptPart] = [
@@ -102,7 +103,7 @@ struct ChatMessageTextContentTests {
 
 @Suite("ChatMessage: cleanMessages filter — only drops interrupted assistant messages")
 struct CleanMessagesFilterTests {
-    
+
     @MainActor @Test("Interrupted assistant messages are filtered out")
     func dropsInterruptedAssistant() async {
         let msgs: [ChatMessage] = [
@@ -114,7 +115,7 @@ struct CleanMessagesFilterTests {
         #expect(clean.count == 2)
         #expect(!clean.contains { $0.interrupted })
     }
-    
+
     @MainActor @Test("User messages with any content survive the filter")
     func preservesUserMessages() async {
         let msgs: [ChatMessage] = [
@@ -125,7 +126,7 @@ struct CleanMessagesFilterTests {
         #expect(clean.count == 2)
         #expect(clean[0].role == "user")
     }
-    
+
     @MainActor @Test("System messages are always filtered out")
     func dropsSystemMessages() async {
         let msgs: [ChatMessage] = [
@@ -136,16 +137,16 @@ struct CleanMessagesFilterTests {
         #expect(clean.count == 1)
         #expect(clean[0].role == "user")
     }
-    
+
     @MainActor @Test("Normal assistant messages survive")
     func preservesNormalAssistant() async {
         let msgs: [ChatMessage] = [
-            .init(role: "assistant", content: "Here's the answer."),
+            .init(role: "assistant", content: "Here's the answer.")
         ]
         let clean = ChatState.shared.cleanMessages(msgs)
         #expect(clean.count == 1)
     }
-    
+
     @MainActor @Test("Multiple interrupted assistant messages all dropped")
     func dropsMultipleInterrupted() async {
         let msgs: [ChatMessage] = [
@@ -160,7 +161,7 @@ struct CleanMessagesFilterTests {
         #expect(clean.count == 3)
         #expect(!clean.contains { $0.interrupted })
     }
-    
+
     @MainActor @Test("Legitimate text ending with ' [Interrupted]' is not filtered")
     func doesntFalsePositiveOnText() async {
         let msgs: [ChatMessage] = [
@@ -177,21 +178,21 @@ struct CleanMessagesFilterTests {
 
 @Suite("TranscriptPart: displayText computed property")
 struct TranscriptPartDisplayTextTests {
-    
+
     @Test("Text part displayText equals content")
     func textPart() {
         let part: TranscriptPart = .text("Hello")
         #expect(part.displayText == "Hello")
         #expect(part.visibleByDefault == true)
     }
-    
+
     @Test("Reasoning part wrapped in brackets")
     func reasoningPart() {
         let part: TranscriptPart = .reasoning("thinking process")
         #expect(part.displayText == "[Reasoning: thinking process]")
         #expect(part.visibleByDefault == false)
     }
-    
+
     @Test("ToolCall part shows name and result")
     func toolCallPart() {
         let tc = ToolCallPart(callId: "c1", name: "weather", resultSummary: "Sunny, 14°C")
@@ -200,14 +201,14 @@ struct TranscriptPartDisplayTextTests {
         #expect(part.displayText.contains("Sunny"))
         #expect(part.visibleByDefault == false)
     }
-    
+
     @Test("ToolCall with nil resultSummary shows ellipsis")
     func toolCallNilSummary() {
         let tc = ToolCallPart(callId: "c1", name: "search", resultSummary: nil)
         let part: TranscriptPart = .toolCall(tc)
         #expect(part.displayText.contains("…"))
     }
-    
+
     @Test("Image part shows placeholder")
     func imagePart() {
         let part: TranscriptPart = .image("data:image/png;base64,xyz")
@@ -220,7 +221,7 @@ struct TranscriptPartDisplayTextTests {
 
 @Suite("ChatMessage: initializer behavior")
 struct ChatMessageInitTests {
-    
+
     @Test("Legacy init sets parts to nil")
     func legacyInit() {
         let msg = ChatMessage(role: "user", content: "test", timestamp: .now)
@@ -228,7 +229,7 @@ struct ChatMessageInitTests {
         #expect(msg.content == "test")
         #expect(msg.role == "user")
     }
-    
+
     @Test("Structured init populates content from flatText")
     func structuredInit() {
         let parts: [TranscriptPart] = [.text("Hello"), .text("World")]
@@ -237,7 +238,7 @@ struct ChatMessageInitTests {
         #expect(msg.content == "Hello World")
         #expect(msg.textContent == "Hello World")
     }
-    
+
     @Test("Legacy init with image URLs preserves them")
     func imageUrlsPreserved() {
         let urls = ["data:image/png;base64,abc", "data:image/png;base64,def"]

@@ -9,10 +9,11 @@
 /// testing default values requires no unit tests (Swift guarantees them).
 /// Full AgentLoop integration is tested via MessageBuilderTests.
 
-import Testing
 import Foundation
-@testable import ocoreai
+import Testing
 import ocoreaiTestUtilities
+
+@testable import ocoreai
 
 // MARK: - AgentLoopIterationLog
 

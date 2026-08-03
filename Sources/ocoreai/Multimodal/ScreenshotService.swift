@@ -37,7 +37,7 @@ final class ScreenshotService {
     var isCapturing: Bool = false
     private(set) var screenCount: Int = 0
     private(set) var latestFrameDataURL: String?
-    
+
     /// OCR-recognized text from the latest screen frame (via Vision).
     /// If this is non-nil, the frame contains significant on-screen text
     /// and can be sent as structured text (~20 tokens) instead of an image (~800 tokens).
@@ -80,10 +80,12 @@ final class ScreenshotService {
     // MARK: - Internal capture implementation
 
     nonisolated static func captureOnce() async -> String? {
-        guard let content = try? await SCShareableContent.excludingDesktopWindows(
-            false,
-            onScreenWindowsOnly: true
-        ) else {
+        guard
+            let content = try? await SCShareableContent.excludingDesktopWindows(
+                false,
+                onScreenWindowsOnly: true
+            )
+        else {
             screenshotLogger.error("[ScreenshotService] Failed to get shareable content")
             return nil
         }
@@ -104,13 +106,16 @@ final class ScreenshotService {
                 configuration: config
             ) { cgImageRef, error in
                 if let err = error {
-                    screenshotLogger.error("[ScreenshotService] SCScreenshotManager error: \(err.localizedDescription)")
+                    screenshotLogger.error(
+                        "[ScreenshotService] SCScreenshotManager error: \(err.localizedDescription)"
+                    )
                     cont.resume(returning: nil)
                     return
                 }
 
                 guard let cgImage = cgImageRef else {
-                    screenshotLogger.error("[ScreenshotService] SCScreenshotManager returned nil image")
+                    screenshotLogger.error(
+                        "[ScreenshotService] SCScreenshotManager returned nil image")
                     cont.resume(returning: nil)
                     return
                 }
@@ -135,27 +140,33 @@ final class ScreenshotService {
         let scaledWidth = CGFloat(image.width) * scale
         let scaledHeight = CGFloat(image.height) * scale
 
-        guard let ctx = CGContext(
-            data: nil,
-            width: Int(scaledWidth),
-            height: Int(scaledHeight),
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
-        ) else { return nil }
+        guard
+            let ctx = CGContext(
+                data: nil,
+                width: Int(scaledWidth),
+                height: Int(scaledHeight),
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+            )
+        else { return nil }
 
         ctx.interpolationQuality = CGInterpolationQuality.medium
         ctx.scaleBy(x: scale, y: scale)
-        ctx.draw(image, in: CGRect(origin: .zero, size: CGSize(width: scaledWidth, height: scaledHeight)))
+        ctx.draw(
+            image, in: CGRect(origin: .zero, size: CGSize(width: scaledWidth, height: scaledHeight))
+        )
 
         guard let scaled = ctx.makeImage() else { return nil }
 
         let rep = NSBitmapImageRep(cgImage: scaled)
-        guard let jpegData = rep.representation(
-            using: NSBitmapImageRep.FileType.jpeg,
-            properties: [NSBitmapImageRep.PropertyKey.compressionFactor: 0.6]
-        ) else { return nil }
+        guard
+            let jpegData = rep.representation(
+                using: NSBitmapImageRep.FileType.jpeg,
+                properties: [NSBitmapImageRep.PropertyKey.compressionFactor: 0.6]
+            )
+        else { return nil }
 
         return "data:image/jpeg;base64,\(jpegData.base64EncodedString())"
     }
@@ -170,11 +181,14 @@ final class ScreenshotService {
         // SCStream setup runs off MainActor on a background task.
         Task {
             // 1. Get shareable content
-            guard let content = try? await SCShareableContent.excludingDesktopWindows(
-                false,
-                onScreenWindowsOnly: true
-            ) else {
-                screenshotLogger.error("[ScreenshotService] SCStream: failed to get shareable content")
+            guard
+                let content = try? await SCShareableContent.excludingDesktopWindows(
+                    false,
+                    onScreenWindowsOnly: true
+                )
+            else {
+                screenshotLogger.error(
+                    "[ScreenshotService] SCStream: failed to get shareable content")
                 await MainActor.run { Self.shared.isCapturing = false }
                 return
             }
@@ -217,11 +231,14 @@ final class ScreenshotService {
                     try await newStream.startCapture()
                     screenshotLogger.info("[ScreenshotService] SCStream capture started")
                 } catch {
-                    screenshotLogger.error("[ScreenshotService] SCStream startCapture error: \(error.localizedDescription)")
+                    screenshotLogger.error(
+                        "[ScreenshotService] SCStream startCapture error: \(error.localizedDescription)"
+                    )
                     await MainActor.run { Self.shared.isCapturing = false }
                 }
             } catch {
-                screenshotLogger.error("[ScreenshotService] SCStream setup failed: \(error.localizedDescription)")
+                screenshotLogger.error(
+                    "[ScreenshotService] SCStream setup failed: \(error.localizedDescription)")
                 await MainActor.run { Self.shared.isCapturing = false }
             }
         }
@@ -233,7 +250,8 @@ final class ScreenshotService {
         Task {
             let s = self.stream
             do { try await s?.stopCapture() } catch {
-                screenshotLogger.error("[ScreenshotService] SCStream stopCapture error: \(error.localizedDescription)")
+                screenshotLogger.error(
+                    "[ScreenshotService] SCStream stopCapture error: \(error.localizedDescription)")
             }
             self.stream = nil
             self.streamOutput = nil
@@ -287,7 +305,8 @@ final class ScreenshotService {
         }
 
         func stream(_ stream: SCStream, didStopWithError error: Error) {
-            screenshotLogger.error("[ScreenshotService] SCStream stopped with error: \(error.localizedDescription)")
+            screenshotLogger.error(
+                "[ScreenshotService] SCStream stopped with error: \(error.localizedDescription)")
             let service = self.service
             Task { @MainActor in
                 service?.isCapturing = false
@@ -297,7 +316,9 @@ final class ScreenshotService {
 
         // — SCStreamOutput —
 
-        func stream(_ stream: SCStream, didOutput sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
+        func stream(
+            _ stream: SCStream, didOutput sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType
+        ) {
             guard type == .screen else { return }
 
             // Rate limit: skip frames arriving within frameRateLimitSeconds
@@ -329,7 +350,7 @@ final class ScreenshotService {
             Task { @MainActor in
                 service?.updateFrameURL(url)
             }
-            
+
             // Run Vision OCR in background — updates latestOCRText for downstream
             // Screen frames often contain more text than camera frames (terminal, IDE, docs),
             // so OCR bridge saves even more tokens here (~97% reduction).

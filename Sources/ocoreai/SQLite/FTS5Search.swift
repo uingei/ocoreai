@@ -22,7 +22,9 @@ actor FTS5Search {
     ///   - sessionId: Optional session ID filter
     ///   - limit: Maximum results (default 50)
     /// - Returns: Array of search results with relevance scores
-    func search(_ query: String, sessionId: Int64? = nil, limit: Int = 50) async throws -> [FTSSearchResult] {
+    func search(_ query: String, sessionId: Int64? = nil, limit: Int = 50) async throws
+        -> [FTSSearchResult]
+    {
         let whereClause: String
         let params: [AnyHashable]
 
@@ -35,14 +37,14 @@ actor FTS5Search {
         }
 
         let sql = """
-        SELECT m.id, m.session_id, m.content, m.role, m.created_at,
-               fts.rank AS score
-        FROM messages_fts fts
-        JOIN messages m ON fts.rowid = m.id
-        \(whereClause)
-        ORDER BY fts.rank ASC
-        LIMIT ?
-        """
+            SELECT m.id, m.session_id, m.content, m.role, m.created_at,
+                   fts.rank AS score
+            FROM messages_fts fts
+            JOIN messages m ON fts.rowid = m.id
+            \(whereClause)
+            ORDER BY fts.rank ASC
+            LIMIT ?
+            """
 
         do {
             let rows = try await store.query(sql, parameters: params + [limit])
@@ -79,14 +81,14 @@ actor FTS5Search {
         limit: Int = 100,
     ) async throws -> [MessageModel] {
         let sql = """
-        SELECT id, session_id, role, content, created_at, token_count, tool_calls
-        FROM messages
-        WHERE session_id = ?
-          AND created_at >= ?
-          AND created_at <= ?
-        ORDER BY created_at ASC
-        LIMIT ?
-        """
+            SELECT id, session_id, role, content, created_at, token_count, tool_calls
+            FROM messages
+            WHERE session_id = ?
+              AND created_at >= ?
+              AND created_at <= ?
+            ORDER BY created_at ASC
+            LIMIT ?
+            """
 
         let params: [AnyHashable] = [
             sessionId,
@@ -112,14 +114,14 @@ actor FTS5Search {
         limit: Int = 50,
     ) async throws -> [MessageModel] {
         let sql = """
-        SELECT m.id, m.session_id, m.role, m.content, m.created_at,
-               m.token_count, m.tool_calls, fts.rank
-        FROM messages_fts fts
-        JOIN messages m ON fts.rowid = m.id
-        WHERE m.session_id = ? AND fts.content MATCH ?
-        ORDER BY fts.rank ASC
-        LIMIT ?
-        """
+            SELECT m.id, m.session_id, m.role, m.content, m.created_at,
+                   m.token_count, m.tool_calls, fts.rank
+            FROM messages_fts fts
+            JOIN messages m ON fts.rowid = m.id
+            WHERE m.session_id = ? AND fts.content MATCH ?
+            ORDER BY fts.rank ASC
+            LIMIT ?
+            """
 
         do {
             let rows = try await store.query(sql, parameters: [sessionId, query, limit])
@@ -147,7 +149,8 @@ actor FTS5Search {
         let sql = "SELECT COUNT(*) FROM messages_fts fts \(whereClause)"
 
         do {
-            guard let count = try await store.scalarQuery(sql: sql, parameters: params)?.asInt64 else {
+            guard let count = try await store.scalarQuery(sql: sql, parameters: params)?.asInt64
+            else {
                 return 0
             }
             return Int(count)
@@ -175,10 +178,11 @@ actor FTS5Search {
         let cutoff = Date().addingTimeInterval(-Double(days) * 86400)
         let timestamp = Int64(cutoff.timeIntervalSince1970 * 1_000_000)
 
-        _ = try await store.execute(sql: """
-            DELETE FROM messages
-            WHERE created_at < ?
-        """, parameters: [timestamp])
+        _ = try await store.execute(
+            sql: """
+                    DELETE FROM messages
+                    WHERE created_at < ?
+                """, parameters: [timestamp])
     }
 }
 
@@ -208,9 +212,9 @@ extension MessageModel {
     private static func getInt(_ row: [String: SendableValue], _ key: String) -> Int? {
         guard let sv = row[key] else { return nil }
         switch sv {
-        case let .integer(v): return Int(exactly: v)
-        case let .float(v): return Int(exactly: v.rounded())
-        case let .text(t): return Int(t)
+        case .integer(let v): return Int(exactly: v)
+        case .float(let v): return Int(exactly: v.rounded())
+        case .text(let t): return Int(t)
         case .blob, .null: return nil
         }
     }

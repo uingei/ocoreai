@@ -11,6 +11,7 @@
 
 import Foundation
 import Testing
+
 @testable import ocoreai
 
 // MARK: - Memory pressure tier (highest priority)
@@ -21,7 +22,7 @@ struct MemoryTierTests {
     func memoryOverridesAll() {
         let channel = HardwareRouter.route(
             thermal: .nominal,
-            memoryPressure: 2,       // balanced threshold
+            memoryPressure: 2,  // balanced threshold
             gpuFraction: 0.0,
             policy: .balanced,
             urgentBypass: false)
@@ -47,8 +48,8 @@ struct ThermalTierTests {
     @Test("At threshold → ANE (balanced, serious)")
     func thermalAtThreshold() {
         let channel = HardwareRouter.route(
-            thermal: .serious,       // level 2 = balanced threshold
-            memoryPressure: 1,       // below threshold 2
+            thermal: .serious,  // level 2 = balanced threshold
+            memoryPressure: 1,  // below threshold 2
             gpuFraction: 0.0,
             policy: .balanced,
             urgentBypass: false)
@@ -87,7 +88,7 @@ struct GPUSaturationTests {
         let channel = HardwareRouter.route(
             thermal: .nominal,
             memoryPressure: 0,
-            gpuFraction: 0.75,       // > 0.7 balanced watermark
+            gpuFraction: 0.75,  // > 0.7 balanced watermark
             policy: .balanced,
             urgentBypass: false)
         #expect(channel == .ane)
@@ -112,9 +113,9 @@ struct PolicySensitivityTests {
     @Test("Performance policy tolerates more pressure")
     func performanceToleratesMore() {
         let channel = HardwareRouter.route(
-            thermal: .serious,       // performance threshold = 3, so 2 is fine
-            memoryPressure: 1,       // performance threshold = 3
-            gpuFraction: 0.8,        // performance watermark = 0.9
+            thermal: .serious,  // performance threshold = 3, so 2 is fine
+            memoryPressure: 1,  // performance threshold = 3
+            gpuFraction: 0.8,  // performance watermark = 0.9
             policy: .performance,
             urgentBypass: false)
         #expect(channel == .gpu)
@@ -123,7 +124,7 @@ struct PolicySensitivityTests {
     @Test("Efficiency policy shifts early")
     func efficiencyShiftsEarly() {
         let channel = HardwareRouter.route(
-            thermal: .fair,          // efficiency threshold = 1
+            thermal: .fair,  // efficiency threshold = 1
             memoryPressure: 0,
             gpuFraction: 0.3,
             policy: .efficiency,

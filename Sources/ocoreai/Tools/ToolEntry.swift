@@ -85,7 +85,8 @@ struct ToolEntry {
                 do {
                     args = try jsonDecoder.decode(Args.self, from: data)
                 } catch {
-                    throw ToolError.invalidParameter("Invalid arguments for '\(name)': \(error.localizedDescription)")
+                    throw ToolError.invalidParameter(
+                        "Invalid arguments for '\(name)': \(error.localizedDescription)")
                 }
                 return try await handler(args)
             },
@@ -170,8 +171,8 @@ extension ToolEntry {
     }
 }
 
-private extension ParameterType {
-    var jsonSchemaType: String {
+extension ParameterType {
+    fileprivate var jsonSchemaType: String {
         switch self {
         case .string: return "string"
         case .integer: return "integer"
@@ -191,11 +192,11 @@ enum ToolError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case let .notFound(name): "Tool not found: \(name)"
-        case let .invalidParameter(detail): "Invalid parameter: \(detail)"
-        case let .checkFailed(name): "Tool check failed: \(name)"
-        case let .loopDetected(name): "Execution loop detected: \(name)"
-        case let .executionFailed(error): "Tool execution failed: \(error.localizedDescription)"
+        case .notFound(let name): "Tool not found: \(name)"
+        case .invalidParameter(let detail): "Invalid parameter: \(detail)"
+        case .checkFailed(let name): "Tool check failed: \(name)"
+        case .loopDetected(let name): "Execution loop detected: \(name)"
+        case .executionFailed(let error): "Tool execution failed: \(error.localizedDescription)"
         }
     }
 }

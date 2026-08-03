@@ -3,10 +3,11 @@
 /// ChatState session ID clearing and lifecycle — opaque identifier cleanup,
 /// cancel/inference interrupt, undo semantics, and model-switch safety.
 
-import Testing
 import Foundation
-@testable import ocoreai
+import Testing
 import ocoreaiTestUtilities
+
+@testable import ocoreai
 
 @Suite("ChatState: sessionId and activeModelId lifecycle")
 struct ChatStateSessionTests {

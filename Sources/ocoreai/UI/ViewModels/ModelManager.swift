@@ -223,7 +223,8 @@ final class ModelManager {
         // EnginePool.acquire handles cache check internally (loadModel checks
         // isModelCached before downloading), so we route everything through
         // _downloadAndLoad for consistent progress tracking and semaphore gating.
-        return await _downloadAndLoad(normalizedId: normalizedId, progressKey: progressKey, pool: pool)
+        return await _downloadAndLoad(
+            normalizedId: normalizedId, progressKey: progressKey, pool: pool)
     }
 
     private func _downloadAndLoad(
@@ -289,7 +290,8 @@ final class ModelManager {
             models.append(info)
             // Track active inference sessions
             if let activeStr = entry["active_sessions"],
-               let active = Int(activeStr), active > 0 {
+                let active = Int(activeStr), active > 0
+            {
                 serving.insert(model.id)
             }
         }
@@ -364,20 +366,23 @@ final class ModelManager {
 
     private func deleteCachedFiles(for identity: ModelIdentity) async throws {
         let fileManager = FileManager.default
-        guard let cachesDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+        guard let cachesDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
+        else {
             throw RepositoryError.deleteFailed("Cannot locate cache directory")
         }
 
         switch identity.source {
         case .modelScope(let repoId):
-                let dir = cachesDir
-                    .appendingPathComponent("ocoreai/modelscope")
-                    .appendingPathComponent(repoId)
-                if fileManager.fileExists(atPath: dir.path) {
-                    try fileManager.removeItem(at: dir)
-                }
+            let dir =
+                cachesDir
+                .appendingPathComponent("ocoreai/modelscope")
+                .appendingPathComponent(repoId)
+            if fileManager.fileExists(atPath: dir.path) {
+                try fileManager.removeItem(at: dir)
+            }
         case .huggingFace(let repoId):
-            let dir = cachesDir
+            let dir =
+                cachesDir
                 .appendingPathComponent("org.ml-explore.mlx-swift-lm")
                 .appendingPathComponent(repoId)
             if fileManager.fileExists(atPath: dir.path) {

@@ -261,13 +261,21 @@ struct AnyCodable: Codable, Equatable, @unchecked Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        if let b = try? container.decode(Bool.self) { value = b }
-        else if let i = try? container.decode(Int.self) { value = i }
-        else if let d = try? container.decode(Double.self) { value = d }
-        else if let s = try? container.decode(String.self) { value = s }
-        else if let a = try? container.decode([AnyCodable].self) { value = a }
-        else if let o = try? container.decode([String: AnyCodable].self) { value = o }
-        else { value = NSNull() }
+        if let b = try? container.decode(Bool.self) {
+            value = b
+        } else if let i = try? container.decode(Int.self) {
+            value = i
+        } else if let d = try? container.decode(Double.self) {
+            value = d
+        } else if let s = try? container.decode(String.self) {
+            value = s
+        } else if let a = try? container.decode([AnyCodable].self) {
+            value = a
+        } else if let o = try? container.decode([String: AnyCodable].self) {
+            value = o
+        } else {
+            value = NSNull()
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -284,9 +292,8 @@ struct AnyCodable: Codable, Equatable, @unchecked Sendable {
     }
 
     static func == (lhs: AnyCodable, rhs: AnyCodable) -> Bool {
-        lhs.value as? Data == rhs.value as? Data ||
-            lhs.value as? String == rhs.value as? String ||
-            lhs.value is NSNull && rhs.value is NSNull
+        lhs.value as? Data == rhs.value as? Data || lhs.value as? String == rhs.value as? String
+            || lhs.value is NSNull && rhs.value is NSNull
     }
 }
 
@@ -403,14 +410,17 @@ extension ToolCallAccumulator {
 
         do {
             let jsonData = content.data(using: .utf8) ?? Data()
-            guard let toolArray = try JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] else {
+            guard
+                let toolArray = try JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]]
+            else {
                 return nil
             }
 
             var toolCalls: [ToolCall] = []
             for toolObj in toolArray {
                 guard let name = toolObj["name"] as? String,
-                      let args = toolObj["arguments"] else { continue }
+                    let args = toolObj["arguments"]
+                else { continue }
 
                 let argsJson: String
                 if let argsStr = args as? String {
@@ -418,8 +428,10 @@ extension ToolCallAccumulator {
                 } else if args is NSNull {
                     argsJson = "{}"
                 } else {
-                    argsJson = (try? String(data: JSONSerialization.data(
-                        withJSONObject: args, options: []), encoding: .utf8)) ?? "{}"
+                    argsJson =
+                        (try? String(
+                            data: JSONSerialization.data(
+                                withJSONObject: args, options: []), encoding: .utf8)) ?? "{}"
                 }
 
                 let tc = ToolCall(
@@ -465,7 +477,10 @@ struct Message: Codable {
     }
 
     /// Full initializer with all fields.
-    init(role: String, content: ContentPolymorphic? = nil, name: String? = nil, toolCalls: [ToolCall]? = nil, toolCallID: String? = nil) {
+    init(
+        role: String, content: ContentPolymorphic? = nil, name: String? = nil,
+        toolCalls: [ToolCall]? = nil, toolCallID: String? = nil
+    ) {
         self.role = role
         self.content = content
         self.name = name
@@ -491,8 +506,8 @@ enum ContentPolymorphic: Codable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
-        case let .text(s): try container.encode(s)
-        case let .parts(p): try container.encode(p)
+        case .text(let s): try container.encode(s)
+        case .parts(let p): try container.encode(p)
         }
     }
 
@@ -644,40 +659,40 @@ typealias Choice = CompletionChoice
 // MARK: - SSE Streaming
 
 #if canImport(CoreAI)
-    /// Convert ``CoreAILanguageModels/StopReason`` to OpenAI-compatible finish_reason string.
-    ///
-    /// - Parameter reason: Stop reason from inference engine
-    /// - Returns: "stop", "length", "stop_sequence", "cancelled", "error", or nil
-    func stopReasonToString(_ reason: StopReason?) -> String? {
-        guard let reason else { return nil }
-        switch reason {
-        case .maxTokens: return "length"
-        case .eos: return "stop"
-        case .stopSequence: return "stop_sequence"
-        case .cancelled: return "cancelled"
-        case .error: return "error"
-        }
+/// Convert ``CoreAILanguageModels/StopReason`` to OpenAI-compatible finish_reason string.
+///
+/// - Parameter reason: Stop reason from inference engine
+/// - Returns: "stop", "length", "stop_sequence", "cancelled", "error", or nil
+func stopReasonToString(_ reason: StopReason?) -> String? {
+    guard let reason else { return nil }
+    switch reason {
+    case .maxTokens: return "length"
+    case .eos: return "stop"
+    case .stopSequence: return "stop_sequence"
+    case .cancelled: return "cancelled"
+    case .error: return "error"
     }
+}
 #else
-    /// Convert ``StopReason`` to OpenAI-compatible finish_reason string.
-    ///\n
-    /// - Parameter reason: Stop reason from inference engine
-    /// - Returns: "stop", "length", "stop_sequence", "cancelled", "error", or nil
-    ///\n
-    /// P1-1 fix: The previous stub always returned "stop", which lost semantic
-    /// distinction between eos, max_tokens, cancellation, and error terminations.
-    /// This caused downstream consumers (ChatHandler, ChatView) to treat OOM/errors
-    /// as normal completion, preventing retry logic and KV-cache cleanup.
-    func stopReasonToString(_ reason: StopReason?) -> String? {
-        guard let reason else { return nil }
-        switch reason {
-        case .maxTokens: return "length"
-        case .eos: return "stop"
-        case .stopSequence: return "stop_sequence"
-        case .cancelled: return "cancelled"
-        case .error: return "error"
-        }
+/// Convert ``StopReason`` to OpenAI-compatible finish_reason string.
+///\n
+/// - Parameter reason: Stop reason from inference engine
+/// - Returns: "stop", "length", "stop_sequence", "cancelled", "error", or nil
+///\n
+/// P1-1 fix: The previous stub always returned "stop", which lost semantic
+/// distinction between eos, max_tokens, cancellation, and error terminations.
+/// This caused downstream consumers (ChatHandler, ChatView) to treat OOM/errors
+/// as normal completion, preventing retry logic and KV-cache cleanup.
+func stopReasonToString(_ reason: StopReason?) -> String? {
+    guard let reason else { return nil }
+    switch reason {
+    case .maxTokens: return "length"
+    case .eos: return "stop"
+    case .stopSequence: return "stop_sequence"
+    case .cancelled: return "cancelled"
+    case .error: return "error"
     }
+}
 #endif
 
 /// SSE streaming chunk (incremental delta inside ``POST /v1/chat/completions`` stream).
@@ -799,7 +814,8 @@ struct ModelSamplingConfig: Codable {
     /// Test whether this config is all-defaults (useful to mark "customized" state)
     var isDefault: Bool {
         temperature == 0.7 && topP == nil && topK == nil && maxTokens == nil
-            && frequencyPenalty == 0 && presencePenalty == 0 && minP == nil && seed == nil && responseFormat == nil
+            && frequencyPenalty == 0 && presencePenalty == 0 && minP == nil && seed == nil
+            && responseFormat == nil
             && prefillStepSize == nil && maxKVSize == nil
     }
 
@@ -941,18 +957,18 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// ``CustomStringConvertible`` description (used in logs)
     var description: String {
         switch self {
-        case let .invalidRequest(msg): "Invalid request: \(msg)"
-        case let .modelNotFound(name): "Model \(name) not found"
-        case let .poolExhausted(max): "Engine pool exhausted (max: \(max))"
+        case .invalidRequest(let msg): "Invalid request: \(msg)"
+        case .modelNotFound(let name): "Model \(name) not found"
+        case .poolExhausted(let max): "Engine pool exhausted (max: \(max))"
         case .queueClosed: "Request queue closed"
-        case let .coldStoreNotFound(id): "Cold store entry \(id) not found"
-        case let .generationError(msg): "Generation failed: \(msg)"
-        case let .kvCacheCorruption(msg): "KV cache corruption: \(msg)"
+        case .coldStoreNotFound(let id): "Cold store entry \(id) not found"
+        case .generationError(let msg): "Generation failed: \(msg)"
+        case .kvCacheCorruption(let msg): "KV cache corruption: \(msg)"
         case .engineUnavailable: "Engine unavailable"
-        case let .inferenceFailed(msg): "Inference failed: \(msg)"
-        case let .tokenizationFailed(msg): "Tokenization failed: \(msg)"
-        case let .toolCallFailed(msg): "Tool call failed: \(msg)"
-        case let .sessionExpired(id): "Session - \(id) expired"
+        case .inferenceFailed(let msg): "Inference failed: \(msg)"
+        case .tokenizationFailed(let msg): "Tokenization failed: \(msg)"
+        case .toolCallFailed(let msg): "Tool call failed: \(msg)"
+        case .sessionExpired(let id): "Session - \(id) expired"
         case .sessionLimitExceeded: "Session limit exceeded"
         }
     }
@@ -973,7 +989,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         case .modelNotFound, .coldStoreNotFound:
             .notFound
         case .poolExhausted, .queueClosed, .engineUnavailable,
-             .sessionLimitExceeded:
+            .sessionLimitExceeded:
             .serviceUnavailable
         case .sessionExpired:
             .gone
@@ -1059,13 +1075,15 @@ func buildGrammarSchema(
             envelope["$defs"] = hoistedDefs
         }
 
-        guard let data = try? JSONSerialization.data(
-            withJSONObject: [
-                "type": "array",
-                "items": envelope,
-            ],
-            options: []
-          ), let s = String(data: data, encoding: .utf8) else {
+        guard
+            let data = try? JSONSerialization.data(
+                withJSONObject: [
+                    "type": "array",
+                    "items": envelope,
+                ],
+                options: []
+            ), let s = String(data: data, encoding: .utf8)
+        else {
             return nil
         }
         return s
@@ -1073,12 +1091,14 @@ func buildGrammarSchema(
 
     // JSON schema path: passthrough or fallback
     if let responseFmt = responseFormat,
-       (responseFmt.type == "json_schema" || responseFmt.type == "json_object") {
+        responseFmt.type == "json_schema" || responseFmt.type == "json_object"
+    {
         if let schemaReq = responseFmt.jsonSchema,
-           let data = try? JSONSerialization.data(
-            withJSONObject: toAny(schemaReq.schema),
-            options: []
-           ), let s = String(data: data, encoding: .utf8) {
+            let data = try? JSONSerialization.data(
+                withJSONObject: toAny(schemaReq.schema),
+                options: []
+            ), let s = String(data: data, encoding: .utf8)
+        {
             return s
         }
         // Generic JSON object fallback
@@ -1098,10 +1118,11 @@ private func buildGrammarSchemaHoistDefs(
 ) -> [String: Any] {
     // Rewrite $refs in the entire tree first (before hoisting, since refs
     // can appear inside other $defs bodies)
-    let rewritten = buildGrammarSchemaRewriteRefs(
-        in: params as Any,
-        toolName: toolName
-    ) as? [String: Any] ?? params
+    let rewritten =
+        buildGrammarSchemaRewriteRefs(
+            in: params as Any,
+            toolName: toolName
+        ) as? [String: Any] ?? params
 
     // Extract and remove $defs from the rewritten tree
     var result = rewritten

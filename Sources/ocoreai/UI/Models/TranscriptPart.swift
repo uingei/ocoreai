@@ -22,29 +22,29 @@ import Foundation
 /// Mirrors upstream MLXChatExample transcript parts: .text, .reasoning,
 /// .toolCall, .image, .video — see MediaPreviewView.swift for reference.
 enum TranscriptPart: Codable, Hashable, Sendable {
-    
+
     /// Plain text content (user input, assistant response body).
     /// Equivalent to Transcript.TextSegment.
     case text(String)
-    
+
     /// Reasoning/thinking process — displayed in a collapsible section.
     /// Equivalent to Transcript.Reasoning.
     case reasoning(String)
-    
+
     /// Tool/function call invocation — shown as a badge/chip.
     /// Equivalent to Transcript.ToolCall.
     case toolCall(ToolCallPart)
-    
+
     /// Image attachment (input or output).
     /// Equivalent to Transcript.ImageAttachment.
-    case image(String) // base64 data URL
-    
+    case image(String)  // base64 data URL
+
     /// Video attachment (VLM input — Gemma4, Qwen2.5VL).
     /// Mirrors upstream UserInput.Video in MLXChatExample.
-    case video(String) // URL or data URL
-    
+    case video(String)  // URL or data URL
+
     // MARK: - Properties
-    
+
     /// Plain-text representation for legacy/fallback rendering.
     var displayText: String {
         switch self {
@@ -55,7 +55,7 @@ enum TranscriptPart: Codable, Hashable, Sendable {
         case .video: return "[Video]"
         }
     }
-    
+
     /// Whether this part is user-visible by default, or hidden/collapsible.
     var visibleByDefault: Bool {
         switch self {
@@ -69,19 +69,19 @@ enum TranscriptPart: Codable, Hashable, Sendable {
 struct ToolCallPart: Codable, Hashable, Sendable {
     /// Unique call identifier
     let callId: String
-    
+
     /// Tool/function name
     let name: String
-    
+
     /// Arguments passed to the tool (JSON-serializable)
     let arguments: [String: String]
-    
+
     /// Brief summary of the result (for inline display)
     let resultSummary: String?
-    
+
     /// Duration in milliseconds (if available)
     let durationMs: Double?
-    
+
     init(
         callId: String,
         name: String,

@@ -16,66 +16,66 @@ import SwiftUI
 @main
 struct OcoreaiApp: App {
     #if os(macOS)
-        @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #endif
 
     var body: some Scene {
         #if os(macOS)
-            // macOS: single-instance window — HIG compliant
-            Window("ocoreai", id: "main") {
-                OcoreaiShellView()
+        // macOS: single-instance window — HIG compliant
+        Window("ocoreai", id: "main") {
+            OcoreaiShellView()
+        }
+        // .windowResizability(.default) is the macOS standard — .contentSize
+        // can cause window activation issues with TextField focus (radar 91608726)
+        .windowStyle(.titleBar)
+        // Settings via Cmd+, — macOS standard
+        .commands {
+            CommandGroup(replacing: .newItem) {}
+            CommandGroup(replacing: .undoRedo) {
+                Button(StringKey.undoAction.l, action: { AppState.shared.performUndo() })
+                    .disabled(!AppState.shared.hasUndo)
+                    .keyboardShortcut("z", modifiers: .command)
             }
-            // .windowResizability(.default) is the macOS standard — .contentSize
-            // can cause window activation issues with TextField focus (radar 91608726)
-            .windowStyle(.titleBar)
-            // Settings via Cmd+, — macOS standard
-            .commands {
-                CommandGroup(replacing: .newItem) {}
-                CommandGroup(replacing: .undoRedo) {
-                    Button(StringKey.undoAction.l, action: { AppState.shared.performUndo() })
-                        .disabled(!AppState.shared.hasUndo)
-                        .keyboardShortcut("z", modifiers: .command)
-                }
-                CommandGroup(replacing: .appSettings) {
-                    Button(StringKey.tabSettings.l) {
-                        AppState.shared.selectedTab = .settings
-                    }
-                }
-                CommandMenu(StringKey.navigationTitle.l) {
-                    Button(StringKey.tabDashboard.l) {
-                        AppState.shared.selectedTab = .dashboard
-                    }
-                    .keyboardShortcut("1")
-                    Button(StringKey.tabChat.l) {
-                        AppState.shared.selectedTab = .chat
-                    }
-                    .keyboardShortcut("2")
-                    Button(StringKey.tabModels.l) {
-                        AppState.shared.selectedTab = .models
-                    }
-                    .keyboardShortcut("3")
-                    Button(StringKey.tabStatus.l) {
-                        AppState.shared.selectedTab = .status
-                    }
-                    .keyboardShortcut("4")
-                    Button(StringKey.tabSessions.l) {
-                        AppState.shared.selectedTab = .sessions
-                    }
-                    .keyboardShortcut("5")
-                    Button(StringKey.tabSkills.l) {
-                        AppState.shared.selectedTab = .skills
-                    }
-                    .keyboardShortcut("6")
-                    Button(StringKey.tabSystem.l) {
-                        AppState.shared.selectedTab = .system
-                    }
-                    .keyboardShortcut("7")
+            CommandGroup(replacing: .appSettings) {
+                Button(StringKey.tabSettings.l) {
+                    AppState.shared.selectedTab = .settings
                 }
             }
+            CommandMenu(StringKey.navigationTitle.l) {
+                Button(StringKey.tabDashboard.l) {
+                    AppState.shared.selectedTab = .dashboard
+                }
+                .keyboardShortcut("1")
+                Button(StringKey.tabChat.l) {
+                    AppState.shared.selectedTab = .chat
+                }
+                .keyboardShortcut("2")
+                Button(StringKey.tabModels.l) {
+                    AppState.shared.selectedTab = .models
+                }
+                .keyboardShortcut("3")
+                Button(StringKey.tabStatus.l) {
+                    AppState.shared.selectedTab = .status
+                }
+                .keyboardShortcut("4")
+                Button(StringKey.tabSessions.l) {
+                    AppState.shared.selectedTab = .sessions
+                }
+                .keyboardShortcut("5")
+                Button(StringKey.tabSkills.l) {
+                    AppState.shared.selectedTab = .skills
+                }
+                .keyboardShortcut("6")
+                Button(StringKey.tabSystem.l) {
+                    AppState.shared.selectedTab = .system
+                }
+                .keyboardShortcut("7")
+            }
+        }
         #else
-            WindowGroup {
-                OcoreaiShellView()
-            }
+        WindowGroup {
+            OcoreaiShellView()
+        }
         #endif
     }
 }
@@ -152,9 +152,13 @@ private struct SidebarView: View {
 
     var body: some View {
         List(selection: $appState.selectedTab) {
-            sidebarSection(icon: "server.rack", title: StringKey.sectionServer.l, tabs: AppTab.serverGroup)
-            sidebarSection(icon: "brain.head.profile", title: StringKey.sectionWorkflow.l, tabs: AppTab.workflowGroup)
-            sidebarSection(icon: "gearshape.2", title: StringKey.sectionSystem.l, tabs: AppTab.systemGroup)
+            sidebarSection(
+                icon: "server.rack", title: StringKey.sectionServer.l, tabs: AppTab.serverGroup)
+            sidebarSection(
+                icon: "brain.head.profile", title: StringKey.sectionWorkflow.l,
+                tabs: AppTab.workflowGroup)
+            sidebarSection(
+                icon: "gearshape.2", title: StringKey.sectionSystem.l, tabs: AppTab.systemGroup)
         }
         .listStyle(.sidebar)
         .accessibilityLabel(StringKey.sidebarNavigation.l)
@@ -209,35 +213,35 @@ private struct SectionHeaderLabel: View {
 // MARK: - macOS App Delegate
 
 #if os(macOS)
-    @MainActor
-    class AppDelegate: NSObject, NSApplicationDelegate {
-        func applicationDidFinishLaunching(_: Notification) {
-            // Register global crash handlers early — captures inference OOM, segfault, etc.
-            registerGlobalCrashHandlers()
+@MainActor
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_: Notification) {
+        // Register global crash handlers early — captures inference OOM, segfault, etc.
+        registerGlobalCrashHandlers()
 
-            // MARK: - HF Hub Environment Configuration
+        // MARK: - HF Hub Environment Configuration
 
-            // Disable xet (Rust-based) downloader to prevent cooperative cancellation failure.
-            // xet swallows Python exceptions in its Rust frame, causing Task cancellation to hang.
-            // Disable xet backend to avoid HuggingFace cache corruption on macOS (MLX upstream pattern).
-            setenv("HF_HUB_DISABLE_XET", "1", 1)
+        // Disable xet (Rust-based) downloader to prevent cooperative cancellation failure.
+        // xet swallows Python exceptions in its Rust frame, causing Task cancellation to hang.
+        // Disable xet backend to avoid HuggingFace cache corruption on macOS (MLX upstream pattern).
+        setenv("HF_HUB_DISABLE_XET", "1", 1)
 
-            // HF_ENDPOINT: allow mirror/proxy override for restricted regions.
-            // If set, #hubDownloader() picks it up automatically.
-            // If HF_ENDPOINT_MIRROR is set, override HF_ENDPOINT.
-            if let mirror = ProcessInfo.processInfo.environment["HF_ENDPOINT_MIRROR"] {
-                setenv("HF_ENDPOINT", mirror, 1)
-            }
+        // HF_ENDPOINT: allow mirror/proxy override for restricted regions.
+        // If set, #hubDownloader() picks it up automatically.
+        // If HF_ENDPOINT_MIRROR is set, override HF_ENDPOINT.
+        if let mirror = ProcessInfo.processInfo.environment["HF_ENDPOINT_MIRROR"] {
+            setenv("HF_ENDPOINT", mirror, 1)
+        }
 
-            // macOS HIG: activate application so it becomes key window immediately
-            // This prevents the terminal/console from stealing keyboard focus
-            NSApplication.shared.setActivationPolicy(.regular)
-            NSApplication.shared.activate(ignoringOtherApps: true)
+        // macOS HIG: activate application so it becomes key window immediately
+        // This prevents the terminal/console from stealing keyboard focus
+        NSApplication.shared.setActivationPolicy(.regular)
+        NSApplication.shared.activate(ignoringOtherApps: true)
 
-            // Ensure the main window becomes key & ordered front
-            if let mainWindow = NSApp.mainWindow {
-                mainWindow.makeKeyAndOrderFront(nil)
-            }
+        // Ensure the main window becomes key & ordered front
+        if let mainWindow = NSApp.mainWindow {
+            mainWindow.makeKeyAndOrderFront(nil)
         }
     }
+}
 #endif

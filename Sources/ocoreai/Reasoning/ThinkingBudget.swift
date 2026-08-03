@@ -74,13 +74,15 @@ extension ThinkingBudget {
             // Precision tasks still get a minimal check even in simple band
             switch score.taskType {
             case .code:
-                return "Before writing code: identify edge cases, then verify the code compiles mentally."
+                return
+                    "Before writing code: identify edge cases, then verify the code compiles mentally."
             case .math:
                 return "For calculations: show each step, then verify by substitution."
             case .json:
-                return "For structured output: ensure all required fields are present and types are correct."
+                return
+                    "For structured output: ensure all required fields are present and types are correct."
             default:
-                return "" // zero overhead — direct answer only
+                return ""  // zero overhead — direct answer only
             }
         case .medium:
             return mediumScaffold(for: score.taskType)
@@ -104,9 +106,9 @@ extension ThinkingBudget {
 
         var current = multiplier[sessionId] ?? defaultMultiplier
         if avg > 0.8, current < 2.0 {
-            current = min(2.0, current + 0.2) // bump for consistency
+            current = min(2.0, current + 0.2)  // bump for consistency
         } else if avg < 0.4, current > 0.5 {
-            current = max(0.5, current - 0.15) // reduce for poor quality
+            current = max(0.5, current - 0.15)  // reduce for poor quality
         }
         multiplier[sessionId] = current
     }
@@ -152,7 +154,7 @@ extension ThinkingBudget {
         case .analysis, .general:
             return complexGeneralScaffold
         case .factual, .casual:
-            return mediumGeneralScaffold // lightweight reasoning for unexpected complexity
+            return mediumGeneralScaffold  // lightweight reasoning for unexpected complexity
         }
     }
 

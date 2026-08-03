@@ -8,6 +8,7 @@
 
 import Testing
 import ocoreaiTestUtilities
+
 @testable import ocoreai
 
 @Suite("MCP — CallCache LRU + TTL")
@@ -52,8 +53,8 @@ struct MCPCallCacheTests {
         await cache.set("b", value: "2")
         _ = await cache.get("a")  // make "a" most recently used
         await cache.set("c", value: "3")  // should evict "b" (LRU)
-        #expect(await cache.get("a") == "1")   // still present (was accessed)
-        #expect(await cache.get("b") == nil)   // evicted (LRU)
+        #expect(await cache.get("a") == "1")  // still present (was accessed)
+        #expect(await cache.get("b") == nil)  // evicted (LRU)
     }
 
     @Test("TTL expiration clears stale entries")

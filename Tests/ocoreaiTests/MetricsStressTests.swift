@@ -3,9 +3,10 @@
 // Exposes: race conditions in actor mailbox, histogram bucket overflow,
 // Prometheus export format compliance, memory leak in counter growth.
 
-import Testing
-@testable import ocoreai
 import Foundation
+import Testing
+
+@testable import ocoreai
 
 @Suite("MetricsRegistry Stress")
 struct MetricsStressTests {
@@ -17,19 +18,21 @@ struct MetricsStressTests {
 
         // Fire 100 concurrent increments across 3 methods
         await withTaskGroup(of: Void.self) { group in
-            for _ in 0..<count {
+            for _ in 0 ..< count {
                 group.addTask {
                     await registry.incrementHTTPRequest(method: "GET", path: "/health", status: 200)
                 }
             }
-            for _ in 0..<count {
+            for _ in 0 ..< count {
                 group.addTask {
-                    await registry.incrementHTTPRequest(method: "POST", path: "/v1/chat/completions", status: 200)
+                    await registry.incrementHTTPRequest(
+                        method: "POST", path: "/v1/chat/completions", status: 200)
                 }
             }
-            for _ in 0..<count {
+            for _ in 0 ..< count {
                 group.addTask {
-                    await registry.incrementHTTPRequest(method: "POST", path: "/v1/chat/completions", status: 500)
+                    await registry.incrementHTTPRequest(
+                        method: "POST", path: "/v1/chat/completions", status: 500)
                 }
             }
         }
@@ -60,12 +63,12 @@ struct MetricsStressTests {
         let registry = MetricsRegistry()
 
         await withTaskGroup(of: Void.self) { group in
-            for _ in 0..<50 {
+            for _ in 0 ..< 50 {
                 group.addTask {
                     await registry.incrementTokens(kind: "prompt", count: 10)
                 }
             }
-            for _ in 0..<50 {
+            for _ in 0 ..< 50 {
                 group.addTask {
                     await registry.incrementTokens(kind: "generated", count: 5)
                 }
@@ -123,7 +126,8 @@ struct MetricsStressTests {
     @Test("inferenceDuration with metadata propagates token counts")
     func testInferenceMetadataTracking() async {
         let registry = MetricsRegistry()
-        await registry.observeInferenceDuration(ms: 500, inputTokens: 100, outputTokens: 50, ttfbMs: "50", modelId: "test-model")
+        await registry.observeInferenceDuration(
+            ms: 500, inputTokens: 100, outputTokens: 50, ttfbMs: "50", modelId: "test-model")
 
         let output = await registry.export()
         #expect(output.contains("kind=\"prompt\"} 100"))
@@ -131,4 +135,3 @@ struct MetricsStressTests {
         #expect(output.contains("ocoreai_ttfb_seconds_count 1"))
     }
 }
-

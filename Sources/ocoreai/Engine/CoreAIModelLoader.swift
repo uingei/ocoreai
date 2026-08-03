@@ -185,7 +185,8 @@ actor CoreAIModelLoader {
             )
 
             let elapsed = ContinuousClock.now - start
-            let ms = Double(elapsed.components.seconds) * 1000.0
+            let ms =
+                Double(elapsed.components.seconds) * 1000.0
                 + Double(elapsed.components.attoseconds) / 1e15
             logger.info(
                 "Core AI load complete: \(modelId) \(prepared.isSpecialized ? "specialized" : "loaded") in \(String(format: "%.0fms", ms))",

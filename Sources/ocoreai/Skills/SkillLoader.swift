@@ -42,7 +42,8 @@ func parseSkillFile(at url: URL) throws -> Skill {
 func splitFrontmatter(_ content: String) -> (String, String)? {
     let lines = content.components(separatedBy: .newlines)
     guard let first = lines.first?.trimmingCharacters(in: .whitespaces),
-          first == "---" else { return nil }
+        first == "---"
+    else { return nil }
 
     var endLineIndex = 0
     var lineIndex = 1
@@ -78,7 +79,8 @@ func parseFrontmatterYAML(_ yaml: String) throws -> SkillMetadata {
     let description = (dict["description"] as? String) ?? ""
     let tags = (dict["tags"] as? [String]) ?? []
     let deps = (dict["depends"] as? [String]) ?? []
-    return SkillMetadata(name: name, category: category, description: description, tags: tags, dependencies: deps)
+    return SkillMetadata(
+        name: name, category: category, description: description, tags: tags, dependencies: deps)
 }
 
 // MARK: - Discovery (增量扫描)
@@ -89,11 +91,13 @@ func discoverSkillsIncremental(
     mtimes knownMtimes: [URL: Date],
     maxDepth: Int = 3,
 ) -> [Skill] {
-    guard let enumerator = FileManager.default.enumerator(
-        at: searchDir,
-        includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
-        options: [.skipsHiddenFiles],
-    ) else { return [] }
+    guard
+        let enumerator = FileManager.default.enumerator(
+            at: searchDir,
+            includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles],
+        )
+    else { return [] }
 
     var skills: [Skill] = []
     for case let fileURL as URL in enumerator {
@@ -106,9 +110,11 @@ func discoverSkillsIncremental(
             continue
         }
 
-        guard let currentMtime = try? fileURL.resourceValues(
-            forKeys: [.contentModificationDateKey],
-        ).contentModificationDate else { continue }
+        guard
+            let currentMtime = try? fileURL.resourceValues(
+                forKeys: [.contentModificationDateKey],
+            ).contentModificationDate
+        else { continue }
 
         // Skip if mtime unchanged (增量优化)
         if knownMtimes[fileURL] == currentMtime {
@@ -119,7 +125,8 @@ func discoverSkillsIncremental(
             let skill = try parseSkillFile(at: fileURL)
             skills.append(skill)
         } catch {
-            skillLogger.warning("Failed to load skill at \(fileURL.path): \(error.localizedDescription)")
+            skillLogger.warning(
+                "Failed to load skill at \(fileURL.path): \(error.localizedDescription)")
         }
     }
 
@@ -138,7 +145,10 @@ actor DirectoryMonitor {
     private let pollInterval: Double
     private let onChange: @Sendable () async -> Void
 
-    init(directories: [URL], pollInterval: Double = 2.0, onChange: @Sendable @escaping () async -> Void) {
+    init(
+        directories: [URL], pollInterval: Double = 2.0,
+        onChange: @Sendable @escaping () async -> Void
+    ) {
         self.pollInterval = pollInterval
         self.onChange = onChange
         for dir in directories {
@@ -173,11 +183,13 @@ actor DirectoryMonitor {
     }
 
     static func recordSnapshot(_ dir: URL) -> Date? {
-        guard let enumerator = FileManager.default.enumerator(
-            at: dir,
-            includingPropertiesForKeys: [.contentModificationDateKey],
-            options: [.skipsHiddenFiles],
-        ) else { return nil }
+        guard
+            let enumerator = FileManager.default.enumerator(
+                at: dir,
+                includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles],
+            )
+        else { return nil }
 
         var newest: Date?
         for case let fileURL as URL in enumerator {

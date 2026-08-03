@@ -59,8 +59,7 @@ public enum OCALocale: String, CaseIterable {
         // Match from most-specific to least-specific so "zh-Hans-CN" hits zhHans before en
         for tag in preferredTags {
             for locale in OCALocale.allCases.sorted(by: { $0.bcp47Tag.count > $1.bcp47Tag.count })
-                where tag.starts(with: locale.bcp47Tag)
-            {
+            where tag.starts(with: locale.bcp47Tag) {
                 return locale
             }
         }
@@ -482,14 +481,14 @@ public enum StringKey: String, CaseIterable {
 
 // MARK: - Translation Table (per locale)
 
-public extension StringKey {
+extension StringKey {
     /// Quick inline access to resolved string
-    var l: String {
+    public var l: String {
         localized(for: .systemLocale())
     }
 
     /// Resolve via fallback chain: requested locale → base (en).
-    func localized(for locale: OCALocale = .systemLocale()) -> String {
+    public func localized(for locale: OCALocale = .systemLocale()) -> String {
         resolve(key: self, locale: locale)
     }
 }
@@ -573,10 +572,13 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .resetConfirm: "Are you sure? This wipes all saved settings.",
         .allSections: "All Settings",
         .customSystemPrompt: "Custom System Prompt",
-        .customSystemPromptHint: "Your custom instructions are prepended to the system prompt with highest priority.",
-        .customSystemPromptPlaceholder: "e.g. Be concise and answer in the user's preferred language.",
+        .customSystemPromptHint:
+            "Your custom instructions are prepended to the system prompt with highest priority.",
+        .customSystemPromptPlaceholder:
+            "e.g. Be concise and answer in the user's preferred language.",
         .hubTokensTitle: "Hub Tokens",
-        .hubTokensHint: "Tokens for accessing model hubs (HuggingFace, ModelScope). Stored securely in macOS Keychain.",
+        .hubTokensHint:
+            "Tokens for accessing model hubs (HuggingFace, ModelScope). Stored securely in macOS Keychain.",
         .notConfigured: "Not configured",
         .enterTokenPlaceholder: "Enter token...",
         .hubHuggingFace: "HuggingFace",
@@ -628,7 +630,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .modelUnload: "Unload",
         .modelDeleteButton: "Delete",
         .modelViewDeleteConfirmTitle: "Delete Model",
-        .modelViewDeleteConfirmMessage: "This will remove \\(model) from memory and delete all cached files. This cannot be undone.",
+        .modelViewDeleteConfirmMessage:
+            "This will remove \\(model) from memory and delete all cached files. This cannot be undone.",
         .modelViewDeleteConfirmAction: "Delete",
         .modelViewDeleteCancelAction: "Cancel",
 
@@ -785,7 +788,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         // Chat i18n gaps (UX-03)
         .clearConversationTitle: "Clear Conversation?",
         .clearAllAction: "Clear All",
-        .clearConversationMessage: "This will delete all messages in this chat. You can undo with ⌘Z.",
+        .clearConversationMessage:
+            "This will delete all messages in this chat. You can undo with ⌘Z.",
         .fileTooLarge: "File too large (%@) (max 10 MB)",
         .generationFailed: "Generation failed",
         .skillRegistryUnavailable: "Skill registry not available",
@@ -999,7 +1003,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .modelViewDeleteConfirmAction: "删除",
         .modelViewDeleteCancelAction: "取消",
 
-    // Multimodal
+        // Multimodal
         .multimodalTitle: "多模态输入/输出",
         .multimodalCamera: "摄像头（视觉）",
         .multimodalLiveFeed: "实时画面",
@@ -1031,7 +1035,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .memorySearchFailed: "记忆搜索失败",
         .memoryLoadFailed: "加载记忆失败",
         .settingsResetToDefaults: "设置已恢复默认",
-        
+
         // Missing zhHans keys (P1 fix: 18 keys)
         .enterTokenPlaceholder: "输入 Token…",
         .hubHuggingFace: "HuggingFace",
@@ -1282,9 +1286,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
     // Add more locale tables here as needed (ja, ko, fr, es...)
 
     let tables: [OCALocale: [StringKey: String]] = [
-        .zhHans: zh,
-        // .ja: jaTrans,
-        // .ko: koTrans,
+        .zhHans: zh
+            // .ja: jaTrans,
+            // .ko: koTrans,
     ]
 
     if let override = tables[locale]?[key] {

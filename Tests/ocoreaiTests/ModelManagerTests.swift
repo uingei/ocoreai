@@ -5,8 +5,9 @@
 /// Extracted from RealStateTests which was merged into ChatStateSessionTests.
 /// Tests clearSearch, switchSource, isDownloading, and modelIdStrings.
 
-import Testing
 import Foundation
+import Testing
+
 @testable import ocoreai
 
 @Suite("ModelManager — real search state and convenience methods")

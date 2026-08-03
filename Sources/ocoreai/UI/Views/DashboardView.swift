@@ -81,13 +81,17 @@ struct DashboardView: View {
                     radius: 2,
                 )
                 .accessibilityHidden(true)
-            Text(dashboardState.isLive
-                ? StringKey.systemOnline.l
-                : StringKey.systemLoading.l)
-                .font(.ocoreaiText(14, weight: .medium))
-                .foregroundStyle(theme.textSecondary)
-                .accessibilityLabel("System status: \(dashboardState.isLive ? StringKey.systemOnline.l : StringKey.systemLoading.l)")
-                .accessibilityAddTraits(.isStaticText)
+            Text(
+                dashboardState.isLive
+                    ? StringKey.systemOnline.l
+                    : StringKey.systemLoading.l
+            )
+            .font(.ocoreaiText(14, weight: .medium))
+            .foregroundStyle(theme.textSecondary)
+            .accessibilityLabel(
+                "System status: \(dashboardState.isLive ? StringKey.systemOnline.l : StringKey.systemLoading.l)"
+            )
+            .accessibilityAddTraits(.isStaticText)
             Spacer()
             if dashboardState.isLive {
                 Text(uptimeLabel)
@@ -117,61 +121,70 @@ struct DashboardView: View {
                 spacing: 12,
             ) {
                 // Row 1: Throughput & Latency
-                MetricTile(title: StringKey.throughput.l,
-                           bigVal: String(format: "%.1f", snap.tokensPerSecond),
-                           subVal: "tok/s",
-                           icon: "bolt.horizontal.fill",
-                           tint: theme.tintBlue)
+                MetricTile(
+                    title: StringKey.throughput.l,
+                    bigVal: String(format: "%.1f", snap.tokensPerSecond),
+                    subVal: "tok/s",
+                    icon: "bolt.horizontal.fill",
+                    tint: theme.tintBlue)
 
-                MetricTile(title: StringKey.ttft.l,
-                           bigVal: String(format: "%.0f", snap.ttftMs),
-                           subVal: "ms",
-                           icon: "timer",
-                           tint: theme.tintOrange)
+                MetricTile(
+                    title: StringKey.ttft.l,
+                    bigVal: String(format: "%.0f", snap.ttftMs),
+                    subVal: "ms",
+                    icon: "timer",
+                    tint: theme.tintOrange)
 
-                MetricTile(title: StringKey.ttfb.l,
-                           bigVal: String(format: "%.0f", snap.ttfbMs),
-                           subVal: "ms",
-                           icon: "shippingbox.fill",
-                           tint: theme.tintGreen)
+                MetricTile(
+                    title: StringKey.ttfb.l,
+                    bigVal: String(format: "%.0f", snap.ttfbMs),
+                    subVal: "ms",
+                    icon: "shippingbox.fill",
+                    tint: theme.tintGreen)
 
                 // Row 2: Memory
-                MetricTile(title: StringKey.gpuMemory.l,
-                           bigVal: String(format: "%.2f", snap.gpuMemoryUsage),
-                           subVal: "GB",
-                           icon: "memorychip",
-                           tint: theme.tintPurple)
+                MetricTile(
+                    title: StringKey.gpuMemory.l,
+                    bigVal: String(format: "%.2f", snap.gpuMemoryUsage),
+                    subVal: "GB",
+                    icon: "memorychip",
+                    tint: theme.tintPurple)
 
-                MetricTile(title: StringKey.kvCache.l,
-                           bigVal: snap.formattedBytes(snap.kvCacheBytes),
-                           subVal: "",
-                           icon: "internaldrive.fill",
-                           tint: theme.tintCyan)
+                MetricTile(
+                    title: StringKey.kvCache.l,
+                    bigVal: snap.formattedBytes(snap.kvCacheBytes),
+                    subVal: "",
+                    icon: "internaldrive.fill",
+                    tint: theme.tintCyan)
 
-                MetricTile(title: StringKey.kvEvictions.l,
-                           bigVal: String(snap.kvCacheEvictions),
-                           subVal: "",
-                           icon: "arrow.triangle.2.circlepath",
-                           tint: theme.tintRed)
+                MetricTile(
+                    title: StringKey.kvEvictions.l,
+                    bigVal: String(snap.kvCacheEvictions),
+                    subVal: "",
+                    icon: "arrow.triangle.2.circlepath",
+                    tint: theme.tintRed)
 
                 // Row 3: Scheduler
-                MetricTile(title: StringKey.sessions.l,
-                           bigVal: String(snap.activeSessions),
-                           subVal: "",
-                           icon: "person.3.fill",
-                           tint: theme.tintYellow)
+                MetricTile(
+                    title: StringKey.sessions.l,
+                    bigVal: String(snap.activeSessions),
+                    subVal: "",
+                    icon: "person.3.fill",
+                    tint: theme.tintYellow)
 
-                MetricTile(title: StringKey.modelsLoaded.l,
-                           bigVal: String(snap.loadedModels),
-                           subVal: "",
-                           icon: "brain.head.profile",
-                           tint: theme.tintPink)
+                MetricTile(
+                    title: StringKey.modelsLoaded.l,
+                    bigVal: String(snap.loadedModels),
+                    subVal: "",
+                    icon: "brain.head.profile",
+                    tint: theme.tintPink)
 
-                MetricTile(title: StringKey.inferences.l,
-                           bigVal: String(snap.inferenceCount),
-                           subVal: avgInferPerMs,
-                           icon: "cpu",
-                           tint: theme.tintTeal)
+                MetricTile(
+                    title: StringKey.inferences.l,
+                    bigVal: String(snap.inferenceCount),
+                    subVal: avgInferPerMs,
+                    icon: "cpu",
+                    tint: theme.tintTeal)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 8)
@@ -198,15 +211,18 @@ struct DashboardView: View {
 
     private var systemInfoSection: some View {
         HStack(spacing: 16) {
-            InfoBadge(icon: "shield.checkered",
-                      label: StringKey.rateLimit.l,
-                      value: String(dashboardState.metricsSnapshot.rateLimitRejections))
-            InfoBadge(icon: "clock.arrow.circlepath",
-                      label: StringKey.uptime.l,
-                      value: uptimeLabel)
-            InfoBadge(icon: "bolt.fill",
-                      label: StringKey.avgInfer.l,
-                      value: String(format: "%.1f it/s", inferItPerS))
+            InfoBadge(
+                icon: "shield.checkered",
+                label: StringKey.rateLimit.l,
+                value: String(dashboardState.metricsSnapshot.rateLimitRejections))
+            InfoBadge(
+                icon: "clock.arrow.circlepath",
+                label: StringKey.uptime.l,
+                value: uptimeLabel)
+            InfoBadge(
+                icon: "bolt.fill",
+                label: StringKey.avgInfer.l,
+                value: String(format: "%.1f it/s", inferItPerS))
         }
         .padding(12)
         .background(theme.cardBg)
@@ -238,7 +254,7 @@ struct DashboardView: View {
                 )
                 .foregroundStyle(theme.accent)
                 .interpolationMethod(.catmullRom)
-                .accessibilityHidden(true) // Covered by area mark label
+                .accessibilityHidden(true)  // Covered by area mark label
             }
             .frame(height: 180)
             .chartXAxis(.hidden)
@@ -274,7 +290,7 @@ struct DashboardView: View {
                 .foregroundStyle(theme.tintPurple)
                 .interpolationMethod(.catmullRom)
                 .lineStyle(StrokeStyle(lineWidth: 2))
-                .accessibilityHidden(true) // covered by area mark
+                .accessibilityHidden(true)  // covered by area mark
 
                 // KV Cache dashed line
                 LineMark(

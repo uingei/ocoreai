@@ -25,39 +25,42 @@
 /// to ANE/CPU at `.critical` thermal state (not `.serious`).
 import Foundation
 import Logging
+
 #if os(macOS) || os(iOS)
-    @preconcurrency import Darwin
+@preconcurrency import Darwin
 #endif
 
 // MARK: - Compute Channel
 
 /// Recommended compute accelerator for an inference request.
 public enum ComputeChannel: String, Sendable, Codable, CaseIterable {
-    case gpu   /// GPU via MLX (Metal) — dynamic graph, best dev experience
-    case ane   /// ANE via CoreAI — static graph, 10x energy efficiency
-    case cpu   /// CPU fallback — lowest performance, most resilient
+    case gpu
+    /// GPU via MLX (Metal) — dynamic graph, best dev experience
+    case ane
+    /// ANE via CoreAI — static graph, 10x energy efficiency
+    case cpu/// CPU fallback — lowest performance, most resilient
 }
 
 // MARK: - Routing Policy
 
 /// How aggressively the router responds to adverse conditions.
 public enum RoutingPolicy: String, Codable, Sendable, CaseIterable {
-    case balanced    // Default: shift at thermal.serious or GPU >70%
-    case performance // Stay GPU longer: shift only at thermal.critical or GPU >90%
+    case balanced  // Default: shift at thermal.serious or GPU >70%
+    case performance  // Stay GPU longer: shift only at thermal.critical or GPU >90%
     case efficiency  // Aggressive: shift at thermal.fair or GPU >60%
 }
 
 extension ComputeChannel {
     /// Maps to CoreAI `ComputeTarget.Kind` for specialization.
     #if canImport(CoreAI)
-        @available(macOS 27.0, *)
-        public var computeTargetKind: ComputeTarget.Kind {
-            switch self {
-            case .gpu: .gpu
-            case .ane: .neuralEngine
-            case .cpu: .cpu
-            }
+    @available(macOS 27.0, *)
+    public var computeTargetKind: ComputeTarget.Kind {
+        switch self {
+        case .gpu: .gpu
+        case .ane: .neuralEngine
+        case .cpu: .cpu
         }
+    }
     #endif
 }
 
@@ -99,7 +102,9 @@ actor RouterPoller {
     }
 
     /// Set a new event callback (convenience)
-    public func setThermalCallback(_ callback: @escaping @Sendable (ThermalPressureEvent) async -> Void) {
+    public func setThermalCallback(
+        _ callback: @escaping @Sendable (ThermalPressureEvent) async -> Void
+    ) {
         self.callback = callback
     }
 
@@ -208,7 +213,9 @@ public final class HardwareRouter: Sendable {
     // MARK: - Callbacks
 
     /// Register callback for routing change events.
-    public func setThermalCallback(_ callback: @escaping @Sendable (ThermalPressureEvent) async -> Void) {
+    public func setThermalCallback(
+        _ callback: @escaping @Sendable (ThermalPressureEvent) async -> Void
+    ) {
         Task { await self.poller.setThermalCallback(callback) }
     }
 
@@ -228,7 +235,8 @@ public final class HardwareRouter: Sendable {
     ) -> ComputeChannel {
         let thermal = ProcessInfo.processInfo.thermalState
         let memoryPressure = Self.globalMemoryPressure()
-        let gpuFraction: Double = gpuBudgetBytes > 0
+        let gpuFraction: Double =
+            gpuBudgetBytes > 0
             ? Double(gpuActiveBytes) / Double(gpuBudgetBytes)
             : 0.0
 
@@ -317,9 +325,9 @@ public final class HardwareRouter: Sendable {
     /// Map thermal state to numeric level (0=nominal, 3=critical)
     static func thermalLevel(_ state: ProcessInfo.ThermalState) -> Int {
         switch state {
-        case .nominal:  0
-        case .fair:     1
-        case .serious:  2
+        case .nominal: 0
+        case .fair: 1
+        case .serious: 2
         case .critical: 3
         @unknown default: 0
         }
@@ -336,42 +344,43 @@ public final class HardwareRouter: Sendable {
     @inline(__always)
     static func memoryUsageFraction() -> Double {
         #if os(macOS) || os(iOS)
-            var pageSize: UInt64 = 4096
-            var size1 = MemoryLayout<Int>.size
-            sysctlbyname("vm.pagesize", &pageSize, &size1, nil, 0)
+        var pageSize: UInt64 = 4096
+        var size1 = MemoryLayout<Int>.size
+        sysctlbyname("vm.pagesize", &pageSize, &size1, nil, 0)
 
-            // vm_statistics64: required by HOST_VM_INFO64 (host_statistics64 expects
-            // the 64-bit layout, which also carries compressor_page_count). Using the
-            // 32-bit vm_statistics here is a type-contract violation (UB) and silently
-            // drops compressed-page accounting. Reference: omlx SystemStatsSampler.swift.
-            var vmStat = vm_statistics64()
-            var count: mach_msg_type_number_t = mach_msg_type_number_t(
-                MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size
-            )
+        // vm_statistics64: required by HOST_VM_INFO64 (host_statistics64 expects
+        // the 64-bit layout, which also carries compressor_page_count). Using the
+        // 32-bit vm_statistics here is a type-contract violation (UB) and silently
+        // drops compressed-page accounting. Reference: omlx SystemStatsSampler.swift.
+        var vmStat = vm_statistics64()
+        var count: mach_msg_type_number_t = mach_msg_type_number_t(
+            MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size
+        )
 
-            let kr = withUnsafeMutablePointer(to: &vmStat) { ptr in
-                ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { intPtr in
-                    host_statistics64(mach_host_self(), HOST_VM_INFO64, intPtr, &count)
-                }
+        let kr = withUnsafeMutablePointer(to: &vmStat) { ptr in
+            ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { intPtr in
+                host_statistics64(mach_host_self(), HOST_VM_INFO64, intPtr, &count)
             }
+        }
 
-            guard kr == KERN_SUCCESS else { return 0.5 }
+        guard kr == KERN_SUCCESS else { return 0.5 }
 
-            var memSize: UInt64 = 0
-            var len = MemoryLayout<UInt64>.size
-            sysctlbyname("hw.memsize", &memSize, &len, nil, 0)
+        var memSize: UInt64 = 0
+        var len = MemoryLayout<UInt64>.size
+        sysctlbyname("hw.memsize", &memSize, &len, nil, 0)
 
-            // active + inactive + wire + compressor pages = true physical RAM in use
-            // on Apple UMA. compressor_page_count accounts for 10–20% compressed pages
-            // that the legacy vm_statistics layout cannot represent.
-            let used = UInt64(vmStat.active_count)
-                + UInt64(vmStat.inactive_count)
-                + UInt64(vmStat.wire_count)
-                + UInt64(vmStat.compressor_page_count)
-            guard memSize > 0 else { return 0.5 }
-            return Double(used * pageSize) / Double(memSize)
+        // active + inactive + wire + compressor pages = true physical RAM in use
+        // on Apple UMA. compressor_page_count accounts for 10–20% compressed pages
+        // that the legacy vm_statistics layout cannot represent.
+        let used =
+            UInt64(vmStat.active_count)
+            + UInt64(vmStat.inactive_count)
+            + UInt64(vmStat.wire_count)
+            + UInt64(vmStat.compressor_page_count)
+        guard memSize > 0 else { return 0.5 }
+        return Double(used * pageSize) / Double(memSize)
         #else
-            return 0.5
+        return 0.5
         #endif
     }
 
@@ -390,25 +399,25 @@ public final class HardwareRouter: Sendable {
 extension RoutingPolicy {
     var thermalShiftLevel: Int {
         switch self {
-        case .efficiency:   1  // shift at .fair
-        case .balanced:     2  // shift at .serious
-        case .performance:  3  // shift at .critical
+        case .efficiency: 1  // shift at .fair
+        case .balanced: 2  // shift at .serious
+        case .performance: 3  // shift at .critical
         }
     }
 
     var memoryShiftLevel: Int {
         switch self {
-        case .efficiency:   1  // shift at pressure level 1
-        case .balanced:     2  // shift at pressure level 2
-        case .performance:  3  // shift at pressure level 3
+        case .efficiency: 1  // shift at pressure level 1
+        case .balanced: 2  // shift at pressure level 2
+        case .performance: 3  // shift at pressure level 3
         }
     }
 
     var gpuWatermark: Double {
         switch self {
-        case .efficiency:   0.6
-        case .balanced:     0.7
-        case .performance:  0.9
+        case .efficiency: 0.6
+        case .balanced: 0.7
+        case .performance: 0.9
         }
     }
 }
@@ -418,7 +427,7 @@ extension RoutingPolicy {
 /// Frozen snapshot of hardware state for observability.
 /// Thermal states stored as Int (0-3) since ProcessInfo.ThermalState is not Codable.
 public struct HardwareStateSnapshot: Sendable, Codable, CustomStringConvertible {
-    public let thermalState: Int    // 0=nominal, 1=fair, 2=serious, 3=critical
+    public let thermalState: Int  // 0=nominal, 1=fair, 2=serious, 3=critical
     public let memoryPressure: Int  // 0-3 pressure level derived from memory usage fraction
     public let gpuUsageFraction: Double
     public let memoryUsageFraction: Double
@@ -426,8 +435,8 @@ public struct HardwareStateSnapshot: Sendable, Codable, CustomStringConvertible 
     public let totalCores: Int
 
     public var description: String {
-        "Thermal: \(thermalState), Mem: \(String(format: "%.1f%%", memoryUsageFraction * 100)), " +
-        "GPU: \(String(format: "%.1f%%", gpuUsageFraction * 100)), " +
-        "Cores: \(computeCores)/\(totalCores)"
+        "Thermal: \(thermalState), Mem: \(String(format: "%.1f%%", memoryUsageFraction * 100)), "
+            + "GPU: \(String(format: "%.1f%%", gpuUsageFraction * 100)), "
+            + "Cores: \(computeCores)/\(totalCores)"
     }
 }

@@ -8,18 +8,17 @@
 import Atomics
 import Foundation
 import Logging
-
-#if canImport(CoreAI)
-    import CoreAI
-#endif
-
 import MLXGuidedGeneration
 import MLXLLM
 import MLXLMCommon
 
+#if canImport(CoreAI)
+import CoreAI
+#endif
+
 #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-    import MLXFoundationModels
-    import FoundationModels
+import MLXFoundationModels
+import FoundationModels
 #endif
 
 // MARK: - LoadedModel
@@ -42,13 +41,13 @@ final class LoadedModel: @unchecked Sendable {
     let modelConfig: ModelConfig
 
     #if canImport(CoreAI)
-        /// v15: Specialized Core AI model — compiled once at load time, reused across requests.
-        /// Stored as Any? to break @available(27.0) transitive leakage into LoadedModel.
-        var _preparedModel: Any?
+    /// v15: Specialized Core AI model — compiled once at load time, reused across requests.
+    /// Stored as Any? to break @available(27.0) transitive leakage into LoadedModel.
+    var _preparedModel: Any?
 
-        /// Cached inference engine — created once per LoadedModel, reused across requests.
-        /// CoreAI 34f0db3: engine preserves KV cache across turns; no per-turn reset needed.
-        private var cachedEngine: (any InferenceEngine)?
+    /// Cached inference engine — created once per LoadedModel, reused across requests.
+    /// CoreAI 34f0db3: engine preserves KV cache across turns; no per-turn reset needed.
+    private var cachedEngine: (any InferenceEngine)?
     #endif
 
     /// Engine options (KV cache strategy, etc.)
@@ -56,24 +55,24 @@ final class LoadedModel: @unchecked Sendable {
 
     /// MLXLLM model handle — loaded once at load time, reused across inference
     var mlxModelHandle: (any MLXModelHandle)?
-    
+
     // MARK: - MLX FoundationModels integration (macOS 27+)
-    
+
     /// MLXLanguageModel instance that routes through ModelCache (concurrency-safe,
     /// download-tracked, error-recorded). Held so capabilities, configurationResolver,
     /// and Executor.Configuration survive loadContainer().
     #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-        // Opaque bridge for MLXLanguageModel — the type is @available(macOS 27.0, *)
-        // so we cannot declare it as a stored property directly in this class.
-        // Cast to Any? here, cast back via loadMLXLanguageModel() at call time.
-        var _mlxLanguageModelRef: Any?
-        
-        @available(macOS 27.0, *)
-        var mlxLanguageModel: MLXLanguageModel? {
-            _mlxLanguageModelRef as? MLXLanguageModel
-        }
+    // Opaque bridge for MLXLanguageModel — the type is @available(macOS 27.0, *)
+    // so we cannot declare it as a stored property directly in this class.
+    // Cast to Any? here, cast back via loadMLXLanguageModel() at call time.
+    var _mlxLanguageModelRef: Any?
+
+    @available(macOS 27.0, *)
+    var mlxLanguageModel: MLXLanguageModel? {
+        _mlxLanguageModelRef as? MLXLanguageModel
+    }
     #endif
-    
+
     /// Whether this model is a VLM (multi-modal: vision + language)
     /// Set during loadModel() via MLXModelLoader.isVLMModel detection.
     var isVlm: Bool = false
@@ -99,7 +98,9 @@ final class LoadedModel: @unchecked Sendable {
     /// First call extracts vocab from the model's tokenizer and caches;
     /// subsequent calls return the cached instance — mirrors upstream
     /// MLXLanguageModel.swift L163 `ModelCache.makeXGTokenizer`.
-    func getOrCreateGrammarTokenizer(from tokenizer: any MLXLMCommon.Tokenizer) throws -> GrammarTokenizer {
+    func getOrCreateGrammarTokenizer(from tokenizer: any MLXLMCommon.Tokenizer) throws
+        -> GrammarTokenizer
+    {
         if let cached = _cachedGrammarTokenizer {
             return cached
         }
@@ -110,7 +111,9 @@ final class LoadedModel: @unchecked Sendable {
             eosTokenId: Int32(tokenizer.eosTokenId ?? 0)
         )
         _cachedGrammarTokenizer = xgTok
-        self.logger.info("GrammarTokenizer cached for model: \(modelConfig.name ?? "\(modelURL.lastPathComponent)")")
+        self.logger.info(
+            "GrammarTokenizer cached for model: \(modelConfig.name ?? "\(modelURL.lastPathComponent)")"
+        )
         return xgTok
     }
 
@@ -119,64 +122,66 @@ final class LoadedModel: @unchecked Sendable {
     /// Configure speculative decoding for this loaded model.
     /// Called once after model loading, before any inference session is created.
     func setSpecDecodingConfig(_ config: SpecDecodingConfig) {
-            specDecodingConfig = config
+        specDecodingConfig = config
+    }
+
+    /// Set the loaded draft model for speculative decoding.
+    /// EnginePool loads the draft model via MLXModelLoader and stores it here.
+    func setDraftModel(_ handle: any MLXModelHandle) {
+        draftModelHandle = handle
+        logger.info("Speculative decoding enabled — draft model loaded")
+    }
+
+    /// Check if MTP drafter is loaded.
+    var hasMTPDrafter: Bool {
+        _mtpDrafterContainer != nil
+    }
+    /// EnginePool loads the drafter via MLXModelLoader.loadMTPDrafter and stores it here.
+    func setMTPDrafter(_ drafter: MLXLMCommon.MTPDrafterContext) {
+        _mtpDrafterContainer = MLXLMCommon.MTPDrafterContainer(context: drafter)
+        logger.info("MTP drafer container set on loaded model")
+    }
+
+    /// Build ``SpeculativeDecodingConfig`` for ChatSession initialization.
+    ///
+    /// Returns `nil` when:
+    /// - Speculative decoding is disabled in config (`enabled: false`)
+    /// - Mode is "mtp" — MTP uses its own inference path via `generate(...,
+    ///   mtpDrafer:, blockSize:)`, not ChatSession-based speculative decoding.
+    /// - No draft model has been loaded for "traditional" mode
+    func createSpeculativeConfig() -> MLXLMCommon.SpeculativeDecodingConfig? {
+        guard specDecodingConfig.enabled else { return nil }
+
+        // MTP mode does NOT use ChatSession's speculativeDecoding parameter —
+        // it has its own inference path via MLXLMCommon.generate(mtpDrafter:,blockSize:)
+        // wired in EnginePool._runInferenceWithMessages. Returning nil here
+        // is correct: MTP does not go through ChatSession's SDC.
+        if specDecodingConfig.mode == "mtp" {
+            return nil
         }
 
-        /// Set the loaded draft model for speculative decoding.
-        /// EnginePool loads the draft model via MLXModelLoader and stores it here.
-        func setDraftModel(_ handle: any MLXModelHandle) {
-            draftModelHandle = handle
-            logger.info("Speculative decoding enabled — draft model loaded")
-        }
+        // Traditional mode: draft model proposes tokens, main model verifies
+        guard let handle = mlxModelHandle else { return nil }
 
-        /// Check if MTP drafter is loaded.
-        var hasMTPDrafter: Bool {
-            _mtpDrafterContainer != nil
-        }
-        /// EnginePool loads the drafter via MLXModelLoader.loadMTPDrafter and stores it here.
-        func setMTPDrafter(_ drafter: MLXLMCommon.MTPDrafterContext) {
-            _mtpDrafterContainer = MLXLMCommon.MTPDrafterContainer(context: drafter)
-            logger.info("MTP drafer container set on loaded model")
-        }
-
-        /// Build ``SpeculativeDecodingConfig`` for ChatSession initialization.
-        ///
-        /// Returns `nil` when:
-        /// - Speculative decoding is disabled in config (`enabled: false`)
-        /// - Mode is "mtp" — MTP uses its own inference path via `generate(...,
-        ///   mtpDrafer:, blockSize:)`, not ChatSession-based speculative decoding.
-        /// - No draft model has been loaded for "traditional" mode
-        func createSpeculativeConfig() -> MLXLMCommon.SpeculativeDecodingConfig? {
-            guard specDecodingConfig.enabled else { return nil }
-
-            // MTP mode does NOT use ChatSession's speculativeDecoding parameter —
-            // it has its own inference path via MLXLMCommon.generate(mtpDrafter:,blockSize:)
-            // wired in EnginePool._runInferenceWithMessages. Returning nil here
-            // is correct: MTP does not go through ChatSession's SDC.
-            if specDecodingConfig.mode == "mtp" {
-                return nil
-            }
-
-            // Traditional mode: draft model proposes tokens, main model verifies
-            guard let handle = mlxModelHandle else { return nil }
-
-            // The actual draft model that proposes tokens
-            let draftHandle = draftModelHandle ?? handle
-            if draftModelHandle == nil {
-                logger.warning("Speculative decoding enabled but no draft model — may cause issues if main model is used")
-            }
-
-            let memPolicy: MLXLMCommon.SpeculativeDecodingMemoryPolicy? =
-                specDecodingConfig.memoryPolicy == "recommendedWorkingSet"
-                ? .recommendedWorkingSet
-                : nil
-
-            return MLXLMCommon.SpeculativeDecodingConfig(
-                draftModel: draftHandle.modelContainer,
-                numDraftTokens: specDecodingConfig.numDraftTokens,
-                memoryPolicy: memPolicy
+        // The actual draft model that proposes tokens
+        let draftHandle = draftModelHandle ?? handle
+        if draftModelHandle == nil {
+            logger.warning(
+                "Speculative decoding enabled but no draft model — may cause issues if main model is used"
             )
         }
+
+        let memPolicy: MLXLMCommon.SpeculativeDecodingMemoryPolicy? =
+            specDecodingConfig.memoryPolicy == "recommendedWorkingSet"
+            ? .recommendedWorkingSet
+            : nil
+
+        return MLXLMCommon.SpeculativeDecodingConfig(
+            draftModel: draftHandle.modelContainer,
+            numDraftTokens: specDecodingConfig.numDraftTokens,
+            memoryPolicy: memPolicy
+        )
+    }
 
     // MARK: - Warmup (CAS-guarded, runs once)
 
@@ -188,12 +193,15 @@ final class LoadedModel: @unchecked Sendable {
     /// - Parameter warmupTokens: Number of tokens to generate during warmup
     func prewarmIfNeeded(_ warmupTokens: Int) async throws {
         // CAS exchange: only the first caller enters; others return immediately
-        guard wasPrewarmed.compareExchange(expected: false, desired: true, ordering: .relaxed).exchanged else { return }
+        guard
+            wasPrewarmed.compareExchange(expected: false, desired: true, ordering: .relaxed)
+                .exchanged
+        else { return }
 
         logger.info("Prewarming \(modelConfig.name ?? "model")...")
         let startTime = ContinuousClock.now
 
-#if canImport(CoreAI)
+        #if canImport(CoreAI)
         if #available(macOS 27.0, *) {
             do {
                 // Call upstream Executor.prewarm(model:transcript:) — compiles Metal
@@ -228,7 +236,7 @@ final class LoadedModel: @unchecked Sendable {
                 logger.warning("Warmup skipped (non-fatal): \(error)")
             }
         }
-    #else
+        #else
         do {
             guard let handle = mlxModelHandle else {
                 logger.warning("MLX warmup skipped: no model handle")
@@ -254,10 +262,11 @@ final class LoadedModel: @unchecked Sendable {
         } catch {
             logger.warning("MLX warmup skipped (non-fatal): \(error)")
         }
-    #endif
+        #endif
 
         let dur = startTime.duration(to: ContinuousClock.now)
-        let elapsed = Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
+        let elapsed =
+            Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
         logger.info("Prewarmed in \(String(format: "%.1f", elapsed))ms")
     }
 
@@ -275,7 +284,8 @@ final class LoadedModel: @unchecked Sendable {
     ///
     /// - Returns: `true` if lock acquired, `false` if another inference is active
     func tryAcquireInference() -> Bool {
-        inferenceGuard.compareExchange(expected: false, desired: true, ordering: .acquiring).exchanged
+        inferenceGuard.compareExchange(expected: false, desired: true, ordering: .acquiring)
+            .exchanged
     }
 
     /// Release the inference lock (called via ``defer``)
@@ -306,43 +316,46 @@ final class LoadedModel: @unchecked Sendable {
     // MARK: - Engine Resolution (CoreAI)
 
     #if canImport(CoreAI)
-        /// Get cached inference engine — create on first call, reuse thereafter.
-        /// CoreAI 34f0db3: engines should be singletons per LoadedModel to preserve KV cache.
-        ///
-        /// Uses dedicated ``engineCacheGuard`` CAS to protect cache initialization.
-        /// Decoupled from ``inferenceGuard`` so that concurrent inference requests
-        /// are NOT rejected while the engine is still being created.
-        @available(macOS 27.0, *)
-        func getCachedEngine() async throws -> any InferenceEngine {
-            // Fast path: check cache without lock
-            if let cached = cachedEngine {
-                return cached
-            }
-            // Slow path: serialise creation via dedicated engine-cache CAS lock
-            guard engineCacheGuard.compareExchange(expected: false, desired: true, ordering: .acquiring).exchanged else {
-                // Another caller is creating the engine — wait briefly and retry
-                try await Task.sleep(for: .milliseconds(10))
-                return try await getCachedEngine()
-            }
-            defer { engineCacheGuard.store(false, ordering: .releasing) }
-            // Double-check after acquiring lock
-            if let cached = cachedEngine {
-                return cached
-            }
-            let engine: any InferenceEngine = try await EngineFactory.createEngine(
-                config: configData,
-                modelURL: modelURL,
-                options: engineOptions,
-            )
-            cachedEngine = engine
-            return engine
+    /// Get cached inference engine — create on first call, reuse thereafter.
+    /// CoreAI 34f0db3: engines should be singletons per LoadedModel to preserve KV cache.
+    ///
+    /// Uses dedicated ``engineCacheGuard`` CAS to protect cache initialization.
+    /// Decoupled from ``inferenceGuard`` so that concurrent inference requests
+    /// are NOT rejected while the engine is still being created.
+    @available(macOS 27.0, *)
+    func getCachedEngine() async throws -> any InferenceEngine {
+        // Fast path: check cache without lock
+        if let cached = cachedEngine {
+            return cached
         }
+        // Slow path: serialise creation via dedicated engine-cache CAS lock
+        guard
+            engineCacheGuard.compareExchange(expected: false, desired: true, ordering: .acquiring)
+                .exchanged
+        else {
+            // Another caller is creating the engine — wait briefly and retry
+            try await Task.sleep(for: .milliseconds(10))
+            return try await getCachedEngine()
+        }
+        defer { engineCacheGuard.store(false, ordering: .releasing) }
+        // Double-check after acquiring lock
+        if let cached = cachedEngine {
+            return cached
+        }
+        let engine: any InferenceEngine = try await EngineFactory.createEngine(
+            config: configData,
+            modelURL: modelURL,
+            options: engineOptions,
+        )
+        cachedEngine = engine
+        return engine
+    }
 
-        /// Reset engine cache — used on model switch or hard error recovery.
-        /// CoreAI 34f0db3: per-turn reset removed; TokenHistory.resolve handles prefix reuse.
-        func resetCacheIfNeeded() {
-            cachedEngine = nil
-        }
+    /// Reset engine cache — used on model switch or hard error recovery.
+    /// CoreAI 34f0db3: per-turn reset removed; TokenHistory.resolve handles prefix reuse.
+    func resetCacheIfNeeded() {
+        cachedEngine = nil
+    }
     #endif
 
     // MARK: - Cleanup
@@ -353,7 +366,7 @@ final class LoadedModel: @unchecked Sendable {
     func cleanup() {
         sessionCount.store(0, ordering: .relaxed)
 
-#if canImport(CoreAI)
+        #if canImport(CoreAI)
         // P1-fix: Clear CoreAI engine cache + prepared model to release GPU memory.
         // Without this, the cached InferenceFunction + NDArrays + AIModel asset
         // stay resident even after unloadModel() completes, causing Unified Memory
@@ -361,25 +374,25 @@ final class LoadedModel: @unchecked Sendable {
         cachedEngine = nil
         _preparedModel = nil
         logger.info("CoreAI engine + prepared model released")
-#endif
+        #endif
 
         // P1-fix: Clear MLX model handles + drafter to release GPU weights
         mlxModelHandle = nil
         draftModelHandle = nil
         _mtpDrafterContainer = nil
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-            // upstream: MLXLanguageModel.evict() L509 — remove from shared ModelCache
-            // evict() is async — fire-and-forget in cleanup (same as warmUp via prewarm)
-            if #available(macOS 27.0, *) {
-                if let lm = _mlxLanguageModelRef as? MLXLanguageModel {
-                    // Detach evict to background — ModelCache removes weights, then
-                    // the strong reference drops. Best-effort, non-blocking.
-                    Task.detached {
-                        await lm.evict()
-                    }
+        // upstream: MLXLanguageModel.evict() L509 — remove from shared ModelCache
+        // evict() is async — fire-and-forget in cleanup (same as warmUp via prewarm)
+        if #available(macOS 27.0, *) {
+            if let lm = _mlxLanguageModelRef as? MLXLanguageModel {
+                // Detach evict to background — ModelCache removes weights, then
+                // the strong reference drops. Best-effort, non-blocking.
+                Task.detached {
+                    await lm.evict()
                 }
-                _mlxLanguageModelRef = nil
             }
+            _mlxLanguageModelRef = nil
+        }
         #endif
     }
 
@@ -390,27 +403,30 @@ final class LoadedModel: @unchecked Sendable {
     func setMLXHandle(_ handle: any MLXModelHandle) {
         mlxModelHandle = handle
     }
-    
-#if canImport(CoreAI)
-        /// CoreAI-specific initializer.
-        init(configData: Data, modelURL: URL, modelConfig: ModelConfig, preparedModel: Any? = nil, logger: Logger) {
-            self.configData = configData
-            self.modelURL = modelURL
-            self.modelConfig = modelConfig
-            self._preparedModel = preparedModel
-            engineOptions = EngineOptions(kvCacheStrategy: .auto)
-            mlxModelHandle = nil
-            self.logger = logger
-        }
-#else
-        /// MLX/fallback initializer (CoreAI disabled or absent).
-        init(configData: Data, modelURL: URL, modelConfig: ModelConfig, logger: Logger) {
-            self.configData = configData
-            self.modelURL = modelURL
-            self.modelConfig = modelConfig
-            engineOptions = EngineOptions(kvCacheStrategy: .auto)
-            mlxModelHandle = nil
-            self.logger = logger
-        }
-#endif
+
+    #if canImport(CoreAI)
+    /// CoreAI-specific initializer.
+    init(
+        configData: Data, modelURL: URL, modelConfig: ModelConfig, preparedModel: Any? = nil,
+        logger: Logger
+    ) {
+        self.configData = configData
+        self.modelURL = modelURL
+        self.modelConfig = modelConfig
+        self._preparedModel = preparedModel
+        engineOptions = EngineOptions(kvCacheStrategy: .auto)
+        mlxModelHandle = nil
+        self.logger = logger
+    }
+    #else
+    /// MLX/fallback initializer (CoreAI disabled or absent).
+    init(configData: Data, modelURL: URL, modelConfig: ModelConfig, logger: Logger) {
+        self.configData = configData
+        self.modelURL = modelURL
+        self.modelConfig = modelConfig
+        engineOptions = EngineOptions(kvCacheStrategy: .auto)
+        mlxModelHandle = nil
+        self.logger = logger
+    }
+    #endif
 }

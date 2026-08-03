@@ -9,9 +9,10 @@
 /// - Safety: HTML sanitization on error, loop detection, readOnly/destructive checks
 /// - History: record after success, trim at 100, expire after 60s
 
-import Testing
 import Foundation
 import Logging
+import Testing
+
 @testable import ocoreai
 
 // MARK: - Registration Suite
@@ -21,7 +22,7 @@ struct ToolRegistryRegistrationTests {
     func makeRegistry() -> ToolRegistry {
         ToolRegistry(log: Logger(label: "test.registry"))
     }
-    
+
     @Test("register tool → lookup returns entry")
     func registerAndLookup_() async {
         let registry = makeRegistry()
@@ -34,7 +35,7 @@ struct ToolRegistryRegistrationTests {
         try? await registry.register(entry)
         #expect(await registry.lookup("test_tool") != nil)
     }
-    
+
     @Test("duplicate registration is skipped silently")
     func duplicateSkipped() async {
         let registry = makeRegistry()
@@ -46,7 +47,7 @@ struct ToolRegistryRegistrationTests {
         #expect(first != nil)
         #expect(await registry.listTools().count == 1)
     }
-    
+
     @Test("checkFn returns false → registration rejected")
     func checkFnRejects() async {
         let registry = makeRegistry()
@@ -65,7 +66,7 @@ struct ToolRegistryRegistrationTests {
         }
         #expect(await registry.lookup("bad") == nil)
     }
-    
+
     @Test("listTools returns sorted names")
     func listToolsSorted() async {
         let registry = makeRegistry()
@@ -77,7 +78,7 @@ struct ToolRegistryRegistrationTests {
         let listed = await registry.listTools()
         #expect(listed == ["alpha", "mid", "zebra"])
     }
-    
+
     @Test("listByToolset groups correctly")
     func listByToolsetGroups() async {
         let registry = makeRegistry()
@@ -87,7 +88,7 @@ struct ToolRegistryRegistrationTests {
             ToolEntry(name: "b1", toolset: "groupB", schema: ToolSchema(), handler: { _ in "" }))
         try? await registry.register(
             ToolEntry(name: "a2", toolset: "groupA", schema: ToolSchema(), handler: { _ in "" }))
-        
+
         let ga = await registry.listByToolset("groupA")
         let gb = await registry.listByToolset("groupB")
         let gx = await registry.listByToolset("groupX")
@@ -95,7 +96,7 @@ struct ToolRegistryRegistrationTests {
         #expect(gb.count == 1)
         #expect(gx.isEmpty)
     }
-    
+
     @Test("schema returns correct schema")
     func schemaReturns() async {
         let registry = makeRegistry()
@@ -121,13 +122,14 @@ struct ToolRegistryExecutionTests {
     func makeRegistry() -> ToolRegistry {
         ToolRegistry(log: Logger(label: "test.registry.exec"))
     }
-    
+
     @Test("successful execution returns handler result")
     func happyPath() async {
         let registry = makeRegistry()
         try? await registry.register(
-            ToolEntry(name: "echo", toolset: "debug", schema: ToolSchema(),
-                      handler: { _ in "echo: hello" }))
+            ToolEntry(
+                name: "echo", toolset: "debug", schema: ToolSchema(),
+                handler: { _ in "echo: hello" }))
         do {
             let result = try await registry.call("echo", arguments: "{}")
             #expect(result.contains("hello"))
@@ -135,7 +137,7 @@ struct ToolRegistryExecutionTests {
             #expect(Bool(false), "Unexpected error: \(error)")
         }
     }
-    
+
     @Test("notFound tool throws")
     func notFound() async {
         let registry = makeRegistry()
@@ -146,13 +148,14 @@ struct ToolRegistryExecutionTests {
             #expect(error is ToolError)
         }
     }
-    
+
     @Test("handler exception wrapped as executionFailed")
     func handlerThrows() async {
         let registry = makeRegistry()
         try? await registry.register(
-            ToolEntry(name: "boom", toolset: "debug", schema: ToolSchema(),
-                      handler: { _ in throw NSError(domain: "h", code: 1) }))
+            ToolEntry(
+                name: "boom", toolset: "debug", schema: ToolSchema(),
+                handler: { _ in throw NSError(domain: "h", code: 1) }))
         do {
             _ = try await registry.call("boom", arguments: "{}")
             #expect(Bool(false), "Expected throw")
@@ -162,16 +165,18 @@ struct ToolRegistryExecutionTests {
             #expect(Bool(false), "Unexpected non-ToolError: \(error)")
         }
     }
-    
+
     @Test("error output HTML sanitized")
     func htmlSanitized() async {
         let registry = makeRegistry()
         try? await registry.register(
-            ToolEntry(name: "unsafe", toolset: "debug", schema: ToolSchema(),
-                      handler: { _ in
-                throw NSError(domain: "t", code: 0,
-                             userInfo: [NSLocalizedDescriptionKey: "<script>alert(1)</script>"])
-            }))
+            ToolEntry(
+                name: "unsafe", toolset: "debug", schema: ToolSchema(),
+                handler: { _ in
+                    throw NSError(
+                        domain: "t", code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "<script>alert(1)</script>"])
+                }))
         do {
             _ = try await registry.call("unsafe", arguments: "{}")
             #expect(Bool(false), "Expected throw")
@@ -182,23 +187,24 @@ struct ToolRegistryExecutionTests {
             #expect(msg.contains("&lt;"))
         }
     }
-    
+
     @Test("loop detection blocks maxDepth+1 identical calls")
     func loopDetection() async {
         let registry = makeRegistry()
         try? await registry.register(
-            ToolEntry(name: "repeater", toolset: "debug", schema: ToolSchema(),
-                      handler: { _ in "ok" }, maxDepth: 3))
-        
+            ToolEntry(
+                name: "repeater", toolset: "debug", schema: ToolSchema(),
+                handler: { _ in "ok" }, maxDepth: 3))
+
         // First 3 calls should succeed
-        for _ in 0..<3 {
+        for _ in 0 ..< 3 {
             do {
                 _ = try await registry.call("repeater", arguments: "{}")
             } catch {
                 #expect(Bool(false), "Call should not throw before maxDepth")
             }
         }
-        
+
         // Next call blocked by loop detection
         do {
             _ = try await registry.call("repeater", arguments: "{}")
@@ -209,15 +215,16 @@ struct ToolRegistryExecutionTests {
             #expect(Bool(false), "Unexpected error: \(error)")
         }
     }
-    
+
     @Test("different input bypasses loop detection")
     func differentInputBypasses() async {
         let registry = makeRegistry()
         try? await registry.register(
-            ToolEntry(name: "diff_in", toolset: "debug", schema: ToolSchema(),
-                      handler: { _ in "ok" }))
-        
-        for i in 0..<10 {
+            ToolEntry(
+                name: "diff_in", toolset: "debug", schema: ToolSchema(),
+                handler: { _ in "ok" }))
+
+        for i in 0 ..< 10 {
             let val = String(i)
             let args = "{\"v\": \"" + val + "\"}"
             do {
@@ -236,7 +243,7 @@ struct ToolRegistrySafetyTests {
     func makeRegistry() -> ToolRegistry {
         ToolRegistry(log: Logger(label: "test.safety"))
     }
-    
+
     @Test("readOnly tool returns true")
     func readOnlyCheck() async {
         let registry = ToolRegistry(
@@ -247,7 +254,7 @@ struct ToolRegistrySafetyTests {
         #expect(await registry.isReadOnly("read_b") == true)
         #expect(await registry.isReadOnly("not_ro") == false)
     }
-    
+
     @Test("destructive tool returns true by blacklist")
     func destructiveByBlacklist() async {
         let registry = ToolRegistry(
@@ -257,7 +264,7 @@ struct ToolRegistrySafetyTests {
         #expect(await registry.isDestructive("del_file") == true)
         #expect(await registry.isDestructive("safe_tool") == false)
     }
-    
+
     @Test("destructive tool returns true by entry flag")
     func destructiveByEntryFlag() async {
         let registry = makeRegistry()

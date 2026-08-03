@@ -9,16 +9,19 @@ let package = Package(
         .iOS(.v17),
     ],
     products: [
-        .executable(name: "ocoreai", targets: ["ocoreai"]),
+        .executable(name: "ocoreai", targets: ["ocoreai"])
     ],
     traits: [
-        .trait(name: "appStore", description: "App Store build: disable HTTP server, use direct inference only"),
+        .trait(
+            name: "appStore",
+            description: "App Store build: disable HTTP server, use direct inference only"),
         // MLXFoundationModels adapter for Apple's FoundationModels framework.
         // Default-on. macOS 27 SDK: brings MLXLanguageModel/Executor etc;
         // macOS 15/26 SDK: compiles to empty — zero impact.
         .trait(
             name: "FoundationModelsIntegration",
-            description: "Enables the MLXLanguageModel adapter for Apple's FoundationModels framework."
+            description:
+                "Enables the MLXLanguageModel adapter for Apple's FoundationModels framework."
         ),
         .default(enabledTraits: ["FoundationModelsIntegration"]),
     ],
@@ -67,7 +70,7 @@ let package = Package(
                 .product(name: "Tokenizers", package: "swift-transformers"),
             ],
             resources: [
-                .process("PrivacyInfo.xcprivacy"),
+                .process("PrivacyInfo.xcprivacy")
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
@@ -77,7 +80,7 @@ let package = Package(
                 .define("mlx"),
             ],
             linkerSettings: [
-                .linkedLibrary("sqlite3"),
+                .linkedLibrary("sqlite3")
                 // CoreAI and FoundationModels are #if canImport-guarded in source,
                 // so the compiler drops them when the SDK lacks the framework —
                 // no -weak_framework linker flag needed (aligned with mlx-swift-lm).
@@ -87,7 +90,7 @@ let package = Package(
         .target(
             name: "ocoreaiTestUtilities",
             dependencies: [
-                "ocoreai",
+                "ocoreai"
             ],
             path: "Tests/ocoreaiTestUtilities",
             swiftSettings: [
@@ -104,12 +107,20 @@ let package = Package(
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
-                .unsafeFlags(["-F/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]),
+                .unsafeFlags(["-F/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]
+                ),
             ],
             linkerSettings: [
-                .unsafeFlags(["-F/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]),
-                .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]),
-                .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "/Library/Developer/CommandLineTools/Library/Developer/usr/lib"]),
+                .unsafeFlags(["-F/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]
+                ),
+                .unsafeFlags([
+                    "-Xlinker", "-rpath", "-Xlinker",
+                    "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
+                ]),
+                .unsafeFlags([
+                    "-Xlinker", "-rpath", "-Xlinker",
+                    "/Library/Developer/CommandLineTools/Library/Developer/usr/lib",
+                ]),
                 .linkedFramework("Testing"),
             ],
         ),

@@ -18,7 +18,7 @@ actor SystemPromptBuilder {
     private var basePrompt: String
     private var registry: SkillRegistry?
     private var currentPrompt: String?
-    private var lastHash: String? // Hash of (basePrompt + resolvedSkillHashes)
+    private var lastHash: String?  // Hash of (basePrompt + resolvedSkillHashes)
     private var version: Int = 0
     private var changeListenerIDs: [String: @Sendable () async -> Void] = [:]
 
@@ -43,11 +43,12 @@ actor SystemPromptBuilder {
         // Cache miss — rebuild
         let skillSection = await buildSkillSection(categories: includeCategories)
 
-        let parts: [String] = if !skillSection.isEmpty {
-            [basePrompt, "", "# Available Skills\n", skillSection]
-        } else {
-            [basePrompt]
-        }
+        let parts: [String] =
+            if !skillSection.isEmpty {
+                [basePrompt, "", "# Available Skills\n", skillSection]
+            } else {
+                [basePrompt]
+            }
 
         let prompt = parts.joined(separator: "\n")
         currentPrompt = prompt

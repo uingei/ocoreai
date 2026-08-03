@@ -18,27 +18,26 @@
 // All API paths, parameters, and response structures are derived from the
 // ModelScope Python SDK (modelscope v1.x) — this is an SDK-alignment port.
 
+import Foundation
+import Logging
+import MLXLMCommon
 
-    import Foundation
-    import Logging
-    import MLXLMCommon
-
-    /// Retryable HTTP error codes — these are transient and worth retrying.
-    /// 408/429/5xx are retryable; 400/401/403/404 are NOT.
-    nonisolated func isRetryable(statusCode: Int) -> Bool {
-        switch statusCode {
-        case 408, 429, 502, 503, 504: return true
-        default: return (500 ..< 600).contains(statusCode)
-        }
+/// Retryable HTTP error codes — these are transient and worth retrying.
+/// 408/429/5xx are retryable; 400/401/403/404 are NOT.
+nonisolated func isRetryable(statusCode: Int) -> Bool {
+    switch statusCode {
+    case 408, 429, 502, 503, 504: return true
+    default: return (500 ..< 600).contains(statusCode)
     }
+}
 
-    /// Standard exponential backoff with full jitter.
-    /// Max 3 retries → delays: ~1s (attempt 0), ~2s (attempt 1), ~4s (attempt 2).
-    nonisolated func retryDelay(attempt: Int, maxDelay: TimeInterval = 10.0) -> TimeInterval {
-        let base: TimeInterval = min(Double(1 << (attempt + 1)), maxDelay)
-        let jitter = Double.random(in: 0 ... 1)
-        return base * (0.5 + jitter * 0.5)  // 50%-100% of base
-    }
+/// Standard exponential backoff with full jitter.
+/// Max 3 retries → delays: ~1s (attempt 0), ~2s (attempt 1), ~4s (attempt 2).
+nonisolated func retryDelay(attempt: Int, maxDelay: TimeInterval = 10.0) -> TimeInterval {
+    let base: TimeInterval = min(Double(1 << (attempt + 1)), maxDelay)
+    let jitter = Double.random(in: 0 ... 1)
+    return base * (0.5 + jitter * 0.5)  // 50%-100% of base
+}
 
 /// ModelScope Hub API client conforming to mlx-swift-lm ``Downloader`` protocol.
 actor ModelScopeDownloader: Downloader {
@@ -56,9 +55,11 @@ actor ModelScopeDownloader: Downloader {
     ///   - cacheRoot: Cache directory root
     ///   - endpoint: Base URL for ModelScope API (without /api/v1 suffix).
     ///              Defaults to env MODELSCOPE_ENDPOINT or `https://www.modelscope.cn`.
-    init(token: String? = nil,
-         cacheRoot: URL? = nil,
-         endpoint: String? = nil) {
+    init(
+        token: String? = nil,
+        cacheRoot: URL? = nil,
+        endpoint: String? = nil
+    ) {
         self.token = token
 
         // Determine endpoint: explicit param > env var > default
@@ -66,19 +67,24 @@ actor ModelScopeDownloader: Downloader {
         if let e = endpoint, !e.isEmpty {
             resolvedEndpoint = e
         } else {
-            resolvedEndpoint = ProcessInfo.processInfo.environment["MODELSCOPE_ENDPOINT"]
+            resolvedEndpoint =
+                ProcessInfo.processInfo.environment["MODELSCOPE_ENDPOINT"]
                 ?? "https://www.modelscope.cn"
         }
         // Strip trailing slash for consistent path appending
-    self.baseAPI = URL(string: resolvedEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        + "/api/v1")
+        self.baseAPI =
+            URL(
+                string: resolvedEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                    + "/api/v1")
             ?? URL(fileURLWithPath: "/dev/null")
 
-        self.cacheRoot = cacheRoot ?? {
-            let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-            return urls.first?.appendingPathComponent("ocoreai/modelscope")
-                ?? URL(fileURLWithPath: "/tmp/ocoreai-modelscope-cache")
-        }()
+        self.cacheRoot =
+            cacheRoot
+            ?? {
+                let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+                return urls.first?.appendingPathComponent("ocoreai/modelscope")
+                    ?? URL(fileURLWithPath: "/tmp/ocoreai-modelscope-cache")
+            }()
         try? FileManager.default.createDirectory(
             at: self.cacheRoot, withIntermediateDirectories: true,
         )
@@ -99,17 +105,18 @@ actor ModelScopeDownloader: Downloader {
         useLatest: Bool = false,
         progressHandler: @Sendable @escaping (Progress) -> Void = { _ in },
     ) async throws -> URL {
-    /* ModelScope 默认 revision 是 master，不是 main。
-       实测：Revision=main 返回 Code=200 但 Files=null，
-       导致代码误判为 gated → 退到 HuggingFace。
-       模型详情 API 返回 Revision 字段确认为 "master"。 */
+        /* ModelScope 默认 revision 是 master，不是 main。
+           实测：Revision=main 返回 Code=200 但 Files=null，
+           导致代码误判为 gated → 退到 HuggingFace。
+           模型详情 API 返回 Revision 字段确认为 "master"。 */
         let rev = revision ?? "master"
-        let cacheDir = cacheRoot
+        let cacheDir =
+            cacheRoot
             .appendingPathComponent(id)
             .appendingPathComponent(rev)
 
         if !useLatest, let existingFiles = try? listLocalFiles(in: cacheDir),
-           firstMissingPattern(patterns, in: existingFiles) == nil
+            firstMissingPattern(patterns, in: existingFiles) == nil
         {
             return cacheDir
         }
@@ -163,9 +170,9 @@ actor ModelScopeDownloader: Downloader {
                 let retryable: Bool = {
                     if let dErr = error as? DownloaderError {
                         switch dErr {
-                        case let .apiError(code, _):
+                        case .apiError(let code, _):
                             return isRetryable(statusCode: code)
-                        case let .downloadFailed(_, code):
+                        case .downloadFailed(_, let code):
                             return isRetryable(statusCode: code)
                         default:
                             return false
@@ -194,7 +201,7 @@ actor ModelScopeDownloader: Downloader {
     struct FileInfo: Decodable {
         let path: String
         let size: Int64?
-        let type: String // "file" or "dir"
+        let type: String  // "file" or "dir"
     }
 
     /// Adapter detection helper — checks file tree for LoRA/adapter indicators.
@@ -229,11 +236,14 @@ actor ModelScopeDownloader: Downloader {
     ///
     /// Response: Data.Files[].Path / .Size / .Type
     private func listRepoFiles(repoId: String, revision: String) async throws -> [FileInfo] {
-        guard let components = URLComponents(url: self.baseAPI, resolvingAgainstBaseURL: false) else {
+        guard let components = URLComponents(url: self.baseAPI, resolvingAgainstBaseURL: false)
+        else {
             throw DownloaderError.invalidURL("Cannot construct file list URL")
         }
         var urlComponents = components
-        urlComponents.path = (urlComponents.path as NSString).appendingPathComponent("models") + "/" + repoId + "/repo/files"
+        urlComponents.path =
+            (urlComponents.path as NSString).appendingPathComponent("models") + "/" + repoId
+            + "/repo/files"
         urlComponents.queryItems = [
             URLQueryItem(name: "Revision", value: revision),
             URLQueryItem(name: "Recursive", value: "true"),
@@ -248,7 +258,7 @@ actor ModelScopeDownloader: Downloader {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
-              (200 ... 299).contains(httpResponse.statusCode)
+            (200 ... 299).contains(httpResponse.statusCode)
         else {
             throw DownloaderError.apiError(
                 statusCode: (response as? HTTPURLResponse)?.statusCode ?? 400,
@@ -258,13 +268,17 @@ actor ModelScopeDownloader: Downloader {
 
         var files: [FileInfo] = []
         if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let dataObj = json["Data"] as? [String: Any],
-           let filesArray = dataObj["Files"] as? [[String: Any]] {
+            let dataObj = json["Data"] as? [String: Any],
+            let filesArray = dataObj["Files"] as? [[String: Any]]
+        {
             files = filesArray.compactMap { dict in
                 guard let path = dict["Path"] as? String else { return nil }
                 var size: Int64?
-                if let s = dict["Size"] as? Int64 { size = s }
-                else if let s = dict["Size"] as? Int { size = Int64(s) }
+                if let s = dict["Size"] as? Int64 {
+                    size = s
+                } else if let s = dict["Size"] as? Int {
+                    size = Int64(s)
+                }
                 let type = dict["Type"] as? String ?? "file"
                 return FileInfo(path: path, size: size, type: type)
             }
@@ -274,7 +288,8 @@ actor ModelScopeDownloader: Downloader {
             let raw = String(data: data, encoding: .utf8) ?? "<binary>"
             throw DownloaderError.gatedRepository(
                 repoId: repoId,
-                hint: "Data.Files is null in API response — repo may require MODELSCOPE_TOKEN. Response: \(raw.prefix(300))",
+                hint:
+                    "Data.Files is null in API response — repo may require MODELSCOPE_TOKEN. Response: \(raw.prefix(300))",
             )
         }
 
@@ -299,11 +314,14 @@ actor ModelScopeDownloader: Downloader {
 
         /// Download a single attempt (no retry). Cleans up on failure.
         func attemptDownload() async throws {
-            guard let components = URLComponents(url: self.baseAPI, resolvingAgainstBaseURL: false) else {
+            guard let components = URLComponents(url: self.baseAPI, resolvingAgainstBaseURL: false)
+            else {
                 throw DownloaderError.invalidURL("Cannot construct download URL")
             }
             var urlComponents = components
-            urlComponents.path = (urlComponents.path as NSString).appendingPathComponent("models") + "/" + repoId + "/resolve/" + revision + "/" + path
+            urlComponents.path =
+                (urlComponents.path as NSString).appendingPathComponent("models") + "/" + repoId
+                + "/resolve/" + revision + "/" + path
             guard let url = urlComponents.url else {
                 throw DownloaderError.invalidURL("Cannot construct download URL for \(path)")
             }
@@ -322,7 +340,7 @@ actor ModelScopeDownloader: Downloader {
                 let (bytes, response) = try await URLSession.shared.bytes(for: request)
 
                 guard let httpResponse = response as? HTTPURLResponse,
-                      (200 ... 299).contains(httpResponse.statusCode)
+                    (200 ... 299).contains(httpResponse.statusCode)
                 else {
                     let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                     throw DownloaderError.downloadFailed(path: path, statusCode: status)
@@ -330,7 +348,8 @@ actor ModelScopeDownloader: Downloader {
 
                 // FileHandle(forWritingTo:) requires the file to already exist
                 // (Swift 6 API change — does not create the file implicitly).
-                _ = FileManager.default.createFile(atPath: tempURL.path(percentEncoded: false), contents: nil)
+                _ = FileManager.default.createFile(
+                    atPath: tempURL.path(percentEncoded: false), contents: nil)
 
                 // Stream into file — O(1) memory regardless of file size.
                 // Buffered writes: accumulate bytes into a Data buffer, flush at
@@ -444,20 +463,23 @@ actor ModelScopeDownloader: Downloader {
 
             let tasks = chunk.map { fileInfo -> (String, Task<(FileInfo, Bool), Error>) in
                 let filePath = String(fileInfo.path)
-                return (filePath, Task {
-                    // Second Bool = isNewlyDownloaded (false for pre-existing skips)
-                    if existingFilenames.contains(filePath) {
-                        return (fileInfo, false)
+                return (
+                    filePath,
+                    Task {
+                        // Second Bool = isNewlyDownloaded (false for pre-existing skips)
+                        if existingFilenames.contains(filePath) {
+                            return (fileInfo, false)
+                        }
+                        let dest = cacheDir.appendingPathComponent(filePath)
+                        try await downloadSingleFile(
+                            path: filePath,
+                            to: dest,
+                            repoId: repoId,
+                            revision: revision,
+                        )
+                        return (fileInfo, true)
                     }
-                    let dest = cacheDir.appendingPathComponent(filePath)
-                    try await downloadSingleFile(
-                        path: filePath,
-                        to: dest,
-                        repoId: repoId,
-                        revision: revision,
-                    )
-                    return (fileInfo, true)
-                })
+                )
             }
 
             for (filePath, task) in tasks {
@@ -528,7 +550,8 @@ actor ModelScopeDownloader: Downloader {
             guard let expectedSize = fileInfo.size, expectedSize > 0 else { continue }
 
             do {
-                let attrs = try FileManager.default.attributesOfItem(atPath: localPath.path(percentEncoded: false))
+                let attrs = try FileManager.default.attributesOfItem(
+                    atPath: localPath.path(percentEncoded: false))
                 let localSize = attrs[.size] as? Int64 ?? 0
 
                 // Tolerance: allow up to 1 byte difference (edge case for streaming)
@@ -549,11 +572,13 @@ actor ModelScopeDownloader: Downloader {
     /// Remove any `.download-*` or `.____temp` files left by cancelled downloads
     /// and prune the resulting empty downward directories.
     private func cleanupTempFiles(in directory: URL) {
-        guard let enumerator = FileManager.default.enumerator(
-            at: directory,
-            includingPropertiesForKeys: nil,
-            options: []
-        ) else { return }
+        guard
+            let enumerator = FileManager.default.enumerator(
+                at: directory,
+                includingPropertiesForKeys: nil,
+                options: []
+            )
+        else { return }
 
         var tempURLsToRemove: [URL] = []
         for case let url as URL in enumerator {
@@ -604,11 +629,13 @@ actor ModelScopeDownloader: Downloader {
     /// Returns RELATIVE paths (relative to `directory`) so they match the
     /// FileInfo.path strings from the ModelScope API.
     private func listLocalFiles(in directory: URL) throws -> [String] {
-        guard let enumerator = FileManager.default.enumerator(
-            at: directory,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else { return [] }
+        guard
+            let enumerator = FileManager.default.enumerator(
+                at: directory,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+        else { return [] }
         var results: [String] = []
         let base = directory.path(percentEncoded: false)
         for case let url as URL in enumerator {
@@ -656,27 +683,27 @@ enum DownloaderError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case let .noFilesMatching(repo, patterns):
+        case .noFilesMatching(let repo, let patterns):
             "No files in model '\(repo)' matching patterns \(patterns)"
-        case let .gatedRepository(repo, hint):
+        case .gatedRepository(let repo, let hint):
             "ModelScope repository '\(repo)' is gated/private — \(hint)"
-        case let .adapterDetected(repo):
+        case .adapterDetected(let repo):
             "Model '\(repo)' appears to be a LoRA/Adapter (not a full model) — adapter download is not supported"
-        case let .apiError(code, body):
+        case .apiError(let code, let body):
             "ModelScope API error (\(code)): \(body)"
-        case let .downloadFailed(path, code):
+        case .downloadFailed(let path, let code):
             "Download failed for '\(path)' (HTTP \(code))"
-        case let .downloadStalled(path, timeout):
+        case .downloadStalled(let path, let timeout):
             "Download stalled for '\(path)' — no data received for \(timeout)s"
-        case let .downloadBatchStalled(timeout, downloaded, total):
+        case .downloadBatchStalled(let timeout, let downloaded, let total):
             "Download batch stalled — no progress for \(timeout)s (\(downloaded)/\(total) files)"
-        case let .partialDownload(failed, total, succeeded):
+        case .partialDownload(let failed, let total, let succeeded):
             "Partial download: \(total) files total, \(succeeded) succeeded, \(failed.count) failed: \(failed.prefix(3).joined(separator: ", "))"
-        case let .corruptedDownload(files, reason):
+        case .corruptedDownload(let files, let reason):
             "Corrupted download (\(files.count) file(s)): \(reason). \(files.prefix(5).joined(separator: ", "))"
         case .parseError:
             "Failed to parse ModelScope API response"
-        case let .invalidURL(msg):
+        case .invalidURL(let msg):
             "Invalid URL: \(msg)"
         }
     }
@@ -689,4 +716,3 @@ extension Array {
         }
     }
 }
-

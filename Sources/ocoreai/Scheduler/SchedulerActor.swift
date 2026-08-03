@@ -195,7 +195,8 @@ actor SchedulerActor {
         let id = request.id
         queue.insert(ComparableRequest(request: request))
         requestStates[id] = .pending
-        logger.info("Request \(id) enqueued (priority: \(request.priority.name), queue: \(queue.count))")
+        logger.info(
+            "Request \(id) enqueued (priority: \(request.priority.name), queue: \(queue.count))")
         return id
     }
 
@@ -263,7 +264,9 @@ actor SchedulerActor {
             // queue, all were rejected — stop and return nil so the caller
             // can wait for memory to free up.
             if rejected.count >= initialCount {
-                logger.info("All queued requests rejected — re-enqueueing \(rejected.count) to wait for memory")
+                logger.info(
+                    "All queued requests rejected — re-enqueueing \(rejected.count) to wait for memory"
+                )
                 // Re-enqueue rejected requests in their original order
                 for item in rejected {
                     queue.insert(item)
@@ -282,7 +285,9 @@ actor SchedulerActor {
                 if !result.admitted {
                     rejected.append(comparable)
                     totalRejected += 1
-                    logger.info("Admission failed for \(requestId): \(result.reason ?? "budget") — (\(rejected.count)/\(initialCount) rejected this pass)")
+                    logger.info(
+                        "Admission failed for \(requestId): \(result.reason ?? "budget") — (\(rejected.count)/\(initialCount) rejected this pass)"
+                    )
                     continue
                 }
             }
@@ -317,7 +322,9 @@ actor SchedulerActor {
                 await tracker.allocation(estBytes)
             }
 
-            logger.info("Dispatched request \(requestId) (model: \(request.modelId), est: \(estBytes / 1_048_576)MB)")
+            logger.info(
+                "Dispatched request \(requestId) (model: \(request.modelId), est: \(estBytes / 1_048_576)MB)"
+            )
             totalProcessed += 1
             return request
         }
@@ -438,7 +445,7 @@ actor SchedulerActor {
         var modelId = activeRequests[requestId]?.modelId ?? ""
         var createdAt: Date? = activeRequests[requestId]?.createdAt
         if modelId.isEmpty,
-           let found = queue.find(where: { $0.request.id == requestId })
+            let found = queue.find(where: { $0.request.id == requestId })
         {
             modelId = found.request.modelId
             createdAt = found.request.createdAt
@@ -456,17 +463,19 @@ actor SchedulerActor {
     /// Get a snapshot of scheduler health.
     func snapshot() async -> SchedulerSnapshot {
         // Memory fraction from tracker (0.0 - 1.0)
-        let memFraction: Double = if let tracker = memoryTracker {
-            await tracker.usageFraction()
-        } else {
-            0
-        }
+        let memFraction: Double =
+            if let tracker = memoryTracker {
+                await tracker.usageFraction()
+            } else {
+                0
+            }
         // OOMGuard quantization level
-        let level: String = if let oomg = oomGuard {
-            await oomg.currentQuantization().rawValue
-        } else {
-            "unknown"
-        }
+        let level: String =
+            if let oomg = oomGuard {
+                await oomg.currentQuantization().rawValue
+            } else {
+                "unknown"
+            }
         // Admission gate state
         var admissionReservedMB: Double = 0
         var admissionBudgetMB: Double = 0
@@ -527,8 +536,8 @@ public enum SchedulerError: Error, LocalizedError, Sendable, Equatable {
         case .queueFull: "Scheduler queue is full"
         case .oomRefused: "Request refused due to OOM protection"
         case .admissionRefused: "Request refused — insufficient admission headroom"
-        case let .notFound(id): "Request not found: \(id)"
-        case let .timeout(id): "Request timed out: \(id)"
+        case .notFound(let id): "Request not found: \(id)"
+        case .timeout(let id): "Request timed out: \(id)"
         }
     }
 }

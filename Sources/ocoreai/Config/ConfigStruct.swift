@@ -214,7 +214,8 @@ public struct SpecDecodingConfig: Sendable, Codable, Equatable {
 
     func validate() throws {
         guard mode == "mtp" || mode == "traditional" else {
-            throw ConfigValidationError("backend.specDecoding.mode: must be 'mtp' or 'traditional' (got '\(mode)')")
+            throw ConfigValidationError(
+                "backend.specDecoding.mode: must be 'mtp' or 'traditional' (got '\(mode)')")
         }
         // NOTE: draftModelId is optional — when nil, runtime uses the main model
         // as the drafter (self-speculation). createSpeculativeConfig() logs a warning
@@ -317,13 +318,16 @@ public struct KVCacheQuantizationConfig: Sendable, Codable, Equatable {
 
     func validate() throws {
         guard !enabled || bits == nil || (4 ... 8).contains(bits ?? 4) else {
-            throw ConfigValidationError("backend.kvCacheQuantization.bits: must be 4 or 8 (got \(String(describing: bits)))")
+            throw ConfigValidationError(
+                "backend.kvCacheQuantization.bits: must be 4 or 8 (got \(String(describing: bits)))"
+            )
         }
         guard groupSize > 0 else {
             throw ConfigValidationError("backend.kvCacheQuantization.groupSize: must be > 0")
         }
         guard quantizedKVStart >= 0 else {
-            throw ConfigValidationError("backend.kvCacheQuantization.quantizedKVStart: must be >= 0")
+            throw ConfigValidationError(
+                "backend.kvCacheQuantization.quantizedKVStart: must be >= 0")
         }
     }
 }
@@ -413,15 +417,15 @@ public struct ModelConfigEntry: Sendable, Codable, Equatable {
     /// Returns bytes. Falls back to 16 GB if detection fails.
     public static func detectPhysicalMemory() -> UInt64 {
         #if os(iOS) || os(visionOS)
-            return UInt64(ProcessInfo.processInfo.physicalMemory)
+        return UInt64(ProcessInfo.processInfo.physicalMemory)
         #else
-            var memSize: UInt64 = 0
-            var size = MemoryLayout<UInt64>.size
-            let ret = sysctlbyname("hw.memsize", &memSize, &size, nil, 0)
-            if ret == 0, memSize > 0 {
-                return memSize
-            }
-            return 16 * 1024 * 1024 * 1024 // safe fallback
+        var memSize: UInt64 = 0
+        var size = MemoryLayout<UInt64>.size
+        let ret = sysctlbyname("hw.memsize", &memSize, &size, nil, 0)
+        if ret == 0, memSize > 0 {
+            return memSize
+        }
+        return 16 * 1024 * 1024 * 1024  // safe fallback
         #endif
     }
 
@@ -432,7 +436,9 @@ public struct ModelConfigEntry: Sendable, Codable, Equatable {
     /// - safe: 40%, balanced: 55%, aggressive: 75%, custom: user-defined
     /// Dynamic ceiling: if system free memory is low, budget scales down
     /// proportionally. Hard floor: 4 GB minimum regardless.
-    public static func computeMemoryBudget(physicalMemory: UInt64, tier: MemoryGuardTier = .systemDefault) -> UInt64 {
+    public static func computeMemoryBudget(
+        physicalMemory: UInt64, tier: MemoryGuardTier = .systemDefault
+    ) -> UInt64 {
         let baseBudget = physicalMemory * UInt64(tier.percentage) / 100
         return max(baseBudget, 4 * 1024 * 1024 * 1024)
     }
@@ -607,9 +613,9 @@ public enum ConfigValidationError: Error, LocalizedError, Sendable {
 
     public var errorDescription: String? {
         switch self {
-        case let .invalid(msg): "Config invalid: \(msg)"
-        case let .missing(field): "Missing required config: \(field)"
-        case let .typeMismatch(field, expected):
+        case .invalid(let msg): "Config invalid: \(msg)"
+        case .missing(let field): "Missing required config: \(field)"
+        case .typeMismatch(let field, let expected):
             "Type mismatch for \(field): expected \(expected)"
         }
     }

@@ -170,7 +170,12 @@ actor SQLiteStore {
         guard connection == nil else { return }
 
         var dbPtr: OpaquePointer?
-        let result = (dbPath as NSString).utf8String.map { _open_v2($0, &dbPtr, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nil) } ?? SQLITE_OK
+        let result =
+            (dbPath as NSString).utf8String.map {
+                _open_v2(
+                    $0, &dbPtr, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
+                    nil)
+            } ?? SQLITE_OK
 
         guard result == SQLITE_OK, let ptr = dbPtr else {
             throw SQLiteError.connectionFailed(detail: "sqlite3_open error: \(result)")
@@ -206,7 +211,9 @@ actor SQLiteStore {
     }
 
     /// Execute a parameterized query returning multiple rows (Sendable across actors).
-    func query(_ sql: String, parameters: [AnyHashable]? = nil) async throws -> [[String: SendableValue]] {
+    func query(_ sql: String, parameters: [AnyHashable]? = nil) async throws -> [[String:
+        SendableValue]]
+    {
         guard let conn = connection else { throw SQLiteError.notConnected }
         let raw = try Self.query(sql: sql, parameters: parameters, db: conn.pointer)
         return Self.wrapRows(raw)
@@ -250,9 +257,12 @@ actor SQLiteStore {
     }
 
     /// Prepare a statement with optional parameter binding
-    private static func prepare(sql: String, params: [AnyHashable]? = nil, db: OpaquePointer) throws -> OpaquePointer? {
+    private static func prepare(sql: String, params: [AnyHashable]? = nil, db: OpaquePointer) throws
+        -> OpaquePointer?
+    {
         var stmt: OpaquePointer?
-        let code = (sql as NSString).utf8String.map { _prepare_v2(db, $0, -1, &stmt, nil) } ?? SQLITE_OK
+        let code =
+            (sql as NSString).utf8String.map { _prepare_v2(db, $0, -1, &stmt, nil) } ?? SQLITE_OK
 
         guard !isErr(code) else {
             throw SQLiteError.queryFailed(detail: errMsg(db))
@@ -314,7 +324,9 @@ actor SQLiteStore {
     }
 
     /// Execute DML/DDL
-    private static func exec(sql: String, parameters: [AnyHashable]? = nil, db: OpaquePointer) throws {
+    private static func exec(sql: String, parameters: [AnyHashable]? = nil, db: OpaquePointer)
+        throws
+    {
         guard let stmt = try prepare(sql: sql, params: parameters, db: db) else { return }
         defer { _ = _finalize(stmt) }
         let result = _step(stmt)
@@ -324,7 +336,9 @@ actor SQLiteStore {
     }
 
     /// Fetch single scalar value
-    private static func scalarQ(sql: String, parameters: [AnyHashable]? = nil, db: OpaquePointer) throws -> Any? {
+    private static func scalarQ(sql: String, parameters: [AnyHashable]? = nil, db: OpaquePointer)
+        throws -> Any?
+    {
         guard let stmt = try prepare(sql: sql, params: parameters, db: db) else { return nil }
         defer { _ = _finalize(stmt) }
         guard _step(stmt) == SQLITE_ROW else { return nil }
@@ -333,7 +347,9 @@ actor SQLiteStore {
     }
 
     /// Fetch multiple rows
-    private static func query(sql: String, parameters: [AnyHashable]? = nil, db: OpaquePointer) throws -> [[String: Any]] {
+    private static func query(sql: String, parameters: [AnyHashable]? = nil, db: OpaquePointer)
+        throws -> [[String: Any]]
+    {
         guard let stmt = try prepare(sql: sql, params: parameters, db: db) else { return [] }
         defer { _ = _finalize(stmt) }
 
@@ -360,131 +376,165 @@ actor SQLiteStore {
     // MARK: - Schema
 
     private func ensureSchema(db: OpaquePointer) throws {
-        try Self.exec(sql: """
-        CREATE TABLE IF NOT EXISTS sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            model_id TEXT NOT NULL,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
-            message_count INTEGER DEFAULT 0,
-            token_count INTEGER DEFAULT 0,
-            summary TEXT,
-            ttl_days INTEGER DEFAULT 180
-        );
-        """, db: db)
+        try Self.exec(
+            sql: """
+                CREATE TABLE IF NOT EXISTS sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    model_id TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    message_count INTEGER DEFAULT 0,
+                    token_count INTEGER DEFAULT 0,
+                    summary TEXT,
+                    ttl_days INTEGER DEFAULT 180
+                );
+                """, db: db)
 
-        try Self.exec(sql: """
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-            role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system', 'tool')),
-            content TEXT NOT NULL,
-            created_at INTEGER NOT NULL,
-            token_count INTEGER DEFAULT 0,
-            tool_calls TEXT,
-            embed_vector BLOB
-        );
-        """, db: db)
+        try Self.exec(
+            sql: """
+                CREATE TABLE IF NOT EXISTS messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+                    role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system', 'tool')),
+                    content TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    token_count INTEGER DEFAULT 0,
+                    tool_calls TEXT,
+                    embed_vector BLOB
+                );
+                """, db: db)
 
-        try Self.exec(sql: """
-        CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
-            session_id UNINDEXED,
-            content,
-            content='messages',
-            content_rowid='id'
-        );
-        """, db: db)
+        try Self.exec(
+            sql: """
+                CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+                    session_id UNINDEXED,
+                    content,
+                    content='messages',
+                    content_rowid='id'
+                );
+                """, db: db)
 
-        try Self.exec(sql: """
-        CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
-            INSERT INTO messages_fts(rowid, session_id, content)
-            VALUES (new.id, new.session_id, new.content);
-        END;
-        """, db: db)
+        try Self.exec(
+            sql: """
+                CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
+                    INSERT INTO messages_fts(rowid, session_id, content)
+                    VALUES (new.id, new.session_id, new.content);
+                END;
+                """, db: db)
 
-        try Self.exec(sql: """
-        CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
-            INSERT INTO messages_fts(messages_fts, rowid, session_id, content)
-            VALUES ('delete', old.id, old.session_id, old.content);
-        END;
-        """, db: db)
+        try Self.exec(
+            sql: """
+                CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+                    INSERT INTO messages_fts(messages_fts, rowid, session_id, content)
+                    VALUES ('delete', old.id, old.session_id, old.content);
+                END;
+                """, db: db)
 
-        try Self.exec(sql: """
-        CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
-            INSERT INTO messages_fts(messages_fts, rowid, session_id, content)
-            VALUES ('delete', old.id, old.session_id, old.content);
-            INSERT INTO messages_fts(rowid, session_id, content)
-            VALUES (new.id, new.session_id, new.content);
-        END;
-        """, db: db)
+        try Self.exec(
+            sql: """
+                CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+                    INSERT INTO messages_fts(messages_fts, rowid, session_id, content)
+                    VALUES ('delete', old.id, old.session_id, old.content);
+                    INSERT INTO messages_fts(rowid, session_id, content)
+                    VALUES (new.id, new.session_id, new.content);
+                END;
+                """, db: db)
 
-        try Self.exec(sql: "CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);", db: db)
-        try Self.exec(sql: "CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);", db: db)
-        try Self.exec(sql: "CREATE INDEX IF NOT EXISTS idx_sessions_model_id ON sessions(model_id);", db: db)
-        try Self.exec(sql: "CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at);", db: db)
+        try Self.exec(
+            sql: "CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);",
+            db: db)
+        try Self.exec(
+            sql: "CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);",
+            db: db)
+        try Self.exec(
+            sql: "CREATE INDEX IF NOT EXISTS idx_sessions_model_id ON sessions(model_id);", db: db)
+        try Self.exec(
+            sql: "CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at);",
+            db: db)
 
         // Structured memory events — six-element knowledge model (方案 B 单层)
         // 时间(timestamp), 地点(context), 人物(entities), 起因(cause), 经过(process), 结果(result)
         // SET NULL on session delete — events survive session TTL as permanent memory
         // memory_type drives retention: transient=purge, pattern/fact/preference=long-lived
-        try Self.exec(sql: """
-        CREATE TABLE IF NOT EXISTS memory_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
-            timestamp INTEGER NOT NULL,
-            context TEXT NOT NULL,
-            entities TEXT,
-            cause TEXT,
-            process TEXT,
-            result TEXT,
-            resolution TEXT DEFAULT 'unresolved' CHECK(resolution IN ('resolved', 'workaround', 'unresolved')),
-            memory_type TEXT DEFAULT 'transient' CHECK(memory_type IN ('transient', 'pattern', 'fact', 'preference')),
-            dedup_key TEXT NOT NULL DEFAULT '',
-            confidence REAL DEFAULT 0.8 CHECK(confidence >= 0.0 AND confidence <= 1.0),
-            tags TEXT
-        );
-        """, db: db)
+        try Self.exec(
+            sql: """
+                CREATE TABLE IF NOT EXISTS memory_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+                    timestamp INTEGER NOT NULL,
+                    context TEXT NOT NULL,
+                    entities TEXT,
+                    cause TEXT,
+                    process TEXT,
+                    result TEXT,
+                    resolution TEXT DEFAULT 'unresolved' CHECK(resolution IN ('resolved', 'workaround', 'unresolved')),
+                    memory_type TEXT DEFAULT 'transient' CHECK(memory_type IN ('transient', 'pattern', 'fact', 'preference')),
+                    dedup_key TEXT NOT NULL DEFAULT '',
+                    confidence REAL DEFAULT 0.8 CHECK(confidence >= 0.0 AND confidence <= 1.0),
+                    tags TEXT
+                );
+                """, db: db)
 
-        try Self.exec(sql: """
-        CREATE VIRTUAL TABLE IF NOT EXISTS memory_events_fts USING fts5(
-            session_id UNINDEXED,
-            cause,
-            process,
-            result,
-            content='memory_events',
-            content_rowid='id'
-        );
-        """, db: db)
+        try Self.exec(
+            sql: """
+                CREATE VIRTUAL TABLE IF NOT EXISTS memory_events_fts USING fts5(
+                    session_id UNINDEXED,
+                    cause,
+                    process,
+                    result,
+                    content='memory_events',
+                    content_rowid='id'
+                );
+                """, db: db)
 
-        try Self.exec(sql: """
-        CREATE TRIGGER IF NOT EXISTS memory_events_ai AFTER INSERT ON memory_events BEGIN
-            INSERT INTO memory_events_fts(rowid, session_id, cause, process, result)
-            VALUES (new.id, new.session_id, new.cause, new.process, new.result);
-        END;
-        """, db: db)
+        try Self.exec(
+            sql: """
+                CREATE TRIGGER IF NOT EXISTS memory_events_ai AFTER INSERT ON memory_events BEGIN
+                    INSERT INTO memory_events_fts(rowid, session_id, cause, process, result)
+                    VALUES (new.id, new.session_id, new.cause, new.process, new.result);
+                END;
+                """, db: db)
 
-        try Self.exec(sql: """
-        CREATE TRIGGER IF NOT EXISTS memory_events_ad AFTER DELETE ON memory_events BEGIN
-            INSERT INTO memory_events_fts(memory_events_fts, rowid, session_id, cause, process, result)
-            VALUES ('delete', old.id, old.session_id, old.cause, old.process, old.result);
-        END;
-        """, db: db)
+        try Self.exec(
+            sql: """
+                CREATE TRIGGER IF NOT EXISTS memory_events_ad AFTER DELETE ON memory_events BEGIN
+                    INSERT INTO memory_events_fts(memory_events_fts, rowid, session_id, cause, process, result)
+                    VALUES ('delete', old.id, old.session_id, old.cause, old.process, old.result);
+                END;
+                """, db: db)
 
-        try Self.exec(sql: """
-        CREATE TRIGGER IF NOT EXISTS memory_events_au AFTER UPDATE ON memory_events BEGIN
-            INSERT INTO memory_events_fts(memory_events_fts, rowid, session_id, cause, process, result)
-            VALUES ('delete', old.id, old.session_id, old.cause, old.process, old.result);
-            INSERT INTO memory_events_fts(rowid, session_id, cause, process, result)
-            VALUES (new.id, new.session_id, new.cause, new.process, new.result);
-        END;
-        """, db: db)
+        try Self.exec(
+            sql: """
+                CREATE TRIGGER IF NOT EXISTS memory_events_au AFTER UPDATE ON memory_events BEGIN
+                    INSERT INTO memory_events_fts(memory_events_fts, rowid, session_id, cause, process, result)
+                    VALUES ('delete', old.id, old.session_id, old.cause, old.process, old.result);
+                    INSERT INTO memory_events_fts(rowid, session_id, cause, process, result)
+                    VALUES (new.id, new.session_id, new.cause, new.process, new.result);
+                END;
+                """, db: db)
 
-        try Self.exec(sql: "CREATE INDEX IF NOT EXISTS idx_memory_events_session ON memory_events(session_id);", db: db)
-        try Self.exec(sql: "CREATE INDEX IF NOT EXISTS idx_memory_events_timestamp ON memory_events(timestamp);", db: db)
-        try Self.exec(sql: "CREATE INDEX IF NOT EXISTS idx_memory_events_context ON memory_events(context);", db: db)
-        try Self.exec(sql: "CREATE INDEX IF NOT EXISTS idx_memory_events_type ON memory_events(memory_type);", db: db)
-        try Self.exec(sql: "CREATE INDEX IF NOT EXISTS idx_memory_events_confidence ON memory_events(confidence);", db: db)
-        try Self.exec(sql: "CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_events_dedup ON memory_events(dedup_key);", db: db)
+        try Self.exec(
+            sql:
+                "CREATE INDEX IF NOT EXISTS idx_memory_events_session ON memory_events(session_id);",
+            db: db)
+        try Self.exec(
+            sql:
+                "CREATE INDEX IF NOT EXISTS idx_memory_events_timestamp ON memory_events(timestamp);",
+            db: db)
+        try Self.exec(
+            sql: "CREATE INDEX IF NOT EXISTS idx_memory_events_context ON memory_events(context);",
+            db: db)
+        try Self.exec(
+            sql: "CREATE INDEX IF NOT EXISTS idx_memory_events_type ON memory_events(memory_type);",
+            db: db)
+        try Self.exec(
+            sql:
+                "CREATE INDEX IF NOT EXISTS idx_memory_events_confidence ON memory_events(confidence);",
+            db: db)
+        try Self.exec(
+            sql:
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_events_dedup ON memory_events(dedup_key);",
+            db: db)
     }
 }
 
@@ -545,25 +595,25 @@ public enum SendableValue: Sendable {
 
     /// Extract as ``Int64`` if this is the ``integer`` case.
     var asInt64: Int64? {
-        if case let .integer(v) = self { return v }
+        if case .integer(let v) = self { return v }
         return nil
     }
 
     /// Extract as ``Double`` if this is the ``float`` case.
     var asDouble: Double? {
-        if case let .float(v) = self { return v }
+        if case .float(let v) = self { return v }
         return nil
     }
 
     /// Extract as ``String`` if this is the ``text`` case.
     var asString: String? {
-        if case let .text(v) = self { return v }
+        if case .text(let v) = self { return v }
         return nil
     }
 
     /// Extract as ``Data`` if this is the ``blob`` case.
     var asData: Data? {
-        if case let .blob(v) = self { return v }
+        if case .blob(let v) = self { return v }
         return nil
     }
 
@@ -574,10 +624,10 @@ public enum SendableValue: Sendable {
     ///   convenience ``asInt64``, ``asDouble``, ``asString``, ``asData`` properties.
     var rawValue: Any {
         switch self {
-        case let .integer(v): v
-        case let .float(v): v
-        case let .text(v): v
-        case let .blob(v): v
+        case .integer(let v): v
+        case .float(let v): v
+        case .text(let v): v
+        case .blob(let v): v
         case .null: NSNull()
         }
     }
@@ -597,10 +647,10 @@ extension SQLiteError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notConnected: "SQLite database not connected"
-        case let .connectionFailed(detail): "Connection failed: \(detail)"
-        case let .queryFailed(detail): "Query failed: \(detail)"
-        case let .executionFailed(detail): "Execution failed: \(detail)"
-        case let .schemaMigrationFailed(detail): "Schema migration failed: \(detail)"
+        case .connectionFailed(let detail): "Connection failed: \(detail)"
+        case .queryFailed(let detail): "Query failed: \(detail)"
+        case .executionFailed(let detail): "Execution failed: \(detail)"
+        case .schemaMigrationFailed(let detail): "Schema migration failed: \(detail)"
         }
     }
 }

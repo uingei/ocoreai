@@ -14,17 +14,17 @@ import Logging
 struct ThinkingQualityInput {
     /// Complexity analyzer score (0.0 = simple, 1.0 = complex)
     let complexity: Double
-    
+
     /// Normalized output length signal (0.0 = very short, 1.0 = substantial)
     /// Caller should pass outputTokens / maxTokens as a rough proxy.
     let outputLength: Double
-    
+
     /// Number of agent loop iterations (1 = single inference, >1 = multi-turn)
     let iterationCount: Int
-    
+
     /// Number of tool calls executed across all iterations (0 = text-only)
     let toolCallCount: Int
-    
+
     /// How inference terminated
     let finishReason: String
 }
@@ -40,7 +40,7 @@ struct ThinkingQualityInput {
 /// - DirectInferenceClient.stream (L280): after streaming loop
 /// - DirectInferenceClient.complete (L420): after agentResult or tokenStream
 enum ThinkingTelemetry {
-    
+
     /// Log a quality signal for a session.
     ///
     /// Call this at the end of an inference pipeline (stream or non-stream)
@@ -60,7 +60,7 @@ enum ThinkingTelemetry {
         await budget.recordQuality(quality, for: sessionId)
         return quality
     }
-    
+
     /// Compute a heuristic quality score (0.0–1.0) from inference signals.
     ///
     /// Scoring dimensions (weighted):
@@ -78,24 +78,25 @@ enum ThinkingTelemetry {
         if reason.contains("error") || reason.contains("timeout") || reason.contains("cancelled") {
             return 0.0
         }
-        
+
         // Dimension 1: Finish reason score (50% weight)
-        let finishScore: Double = switch input.finishReason.lowercased() {
-        case "stop", "complete":
-            1.0
-        case let s where s.contains("max"):
-            0.6  // hit max_tokens — partial output
-        default:
-            0.2  // unknown reason — conservative
-        }
-        
+        let finishScore: Double =
+            switch input.finishReason.lowercased() {
+            case "stop", "complete":
+                1.0
+            case let s where s.contains("max"):
+                0.6  // hit max_tokens — partial output
+            default:
+                0.2  // unknown reason — conservative
+            }
+
         // Dimension 2: Complexity engagement score (30% weight)
         // Complex queries with substantial output = high quality
         // Simple queries with any output = acceptable (don't penalize brevity for simple tasks)
         let complexity: Double = input.complexity
         let outputLength: Double = input.outputLength
         let engagementScore: Double
-        
+
         if complexity > 0.67 {
             // Complex task — output should be substantial
             engagementScore = max(0.3, outputLength)
@@ -106,7 +107,7 @@ enum ThinkingTelemetry {
             // Simple task — even brief output is acceptable
             engagementScore = min(1.0, max(0.5, outputLength + 0.2))
         }
-        
+
         // Dimension 3: Tool engagement score (20% weight)
         // Tool calls on complex tasks indicate productive multi-turn behavior
         let toolScore: Double
@@ -120,10 +121,10 @@ enum ThinkingTelemetry {
             // Normal single-shot or low iteration
             toolScore = 0.7  // neutral — neither good nor bad
         }
-        
+
         // Weighted composite
         let weighted = finishScore * 0.5 + engagementScore * 0.3 + toolScore * 0.2
-        
+
         // Clamp to [0.0, 1.0], round to 3 decimal places
         return min(1.0, max(0.0, (weighted * 1000).rounded() / 1000))
     }
@@ -170,7 +171,7 @@ extension ThinkingTelemetry {
         )
         return await signal(input: input, sessionId: sessionId, budget: budget)
     }
-    
+
     /// Extract quality signals from an ``AgentLoopResult`` and inject into ThinkingBudget.
     @discardableResult
     static func signal(

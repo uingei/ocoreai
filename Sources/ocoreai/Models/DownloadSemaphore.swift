@@ -35,9 +35,11 @@ final class DownloadSemaphore: @unchecked Sendable {
 
     /// Result of a try-acquire attempt.
     enum Result: Sendable {
-        case ok /// Slot acquired — caller must call `release(for:)` when done
-        case duplicate /// Same model already downloading
-        case busy /// All slots full
+        case ok
+        /// Slot acquired — caller must call `release(for:)` when done
+        case duplicate
+        /// Same model already downloading
+        case busy/// All slots full
     }
 
     /// Try to acquire a download slot. Thread-safe, non-blocking, synchronous.

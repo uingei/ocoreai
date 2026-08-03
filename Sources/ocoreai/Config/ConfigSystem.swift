@@ -158,7 +158,8 @@ actor ConfigSystem {
     }
 
     private func configFileModificationDate() -> TimeInterval? {
-        (try? FileManager.default.attributesOfItem(atPath: configPath)[.modificationDate]) as? TimeInterval
+        (try? FileManager.default.attributesOfItem(atPath: configPath)[.modificationDate])
+            as? TimeInterval
     }
 }
 
@@ -171,7 +172,7 @@ extension AppConfig {
             server.host = h
         }
         if let p = ProcessInfo.processInfo.environment["\(envPrefix)PORT"],
-           let port = Int(p), (1 ... 65535).contains(port)
+            let port = Int(p), (1 ... 65535).contains(port)
         {
             server.port = port
         }
@@ -179,12 +180,12 @@ extension AppConfig {
             backend.preference = [b.lowercased()]
         }
         if let m = ProcessInfo.processInfo.environment["\(envPrefix)MAX_SESSIONS"],
-           let v = Int(m), v > 0
+            let v = Int(m), v > 0
         {
             backend.maxConcurrentSessions = v
         }
         if let dm = ProcessInfo.processInfo.environment["\(envPrefix)DEFAULT_MODEL"],
-           var entry = models["default"]
+            var entry = models["default"]
         {
             entry.modelId = dm
             models["default"] = entry

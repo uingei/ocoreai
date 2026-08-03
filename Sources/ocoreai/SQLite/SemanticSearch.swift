@@ -14,7 +14,7 @@ struct SemanticSearchResult: Identifiable, Sendable {
     let id: Int64
     let sessionId: Int64
     let snippet: String
-    let score: Double // cosine similarity, 0.0..1.0
+    let score: Double  // cosine similarity, 0.0..1.0
     let createdAt: Date
 }
 
@@ -76,7 +76,8 @@ actor SemanticSearch {
         let params: [AnyHashable]
 
         if let sid = sessionId {
-            whereClause = "WHERE embed_vector IS NOT NULL AND session_id = ? AND LENGTH(embed_vector) > 0"
+            whereClause =
+                "WHERE embed_vector IS NOT NULL AND session_id = ? AND LENGTH(embed_vector) > 0"
             params = [sid]
         } else {
             whereClause = "WHERE embed_vector IS NOT NULL AND LENGTH(embed_vector) > 0"
@@ -84,17 +85,18 @@ actor SemanticSearch {
         }
 
         let sql = """
-            SELECT id, session_id, content, created_at
-            FROM messages
-            \(whereClause)
-            ORDER BY created_at DESC
-            LIMIT 500
-        """
+                SELECT id, session_id, content, created_at
+                FROM messages
+                \(whereClause)
+                ORDER BY created_at DESC
+                LIMIT 500
+            """
 
         do {
             let rows = try await store.query(sql, parameters: params)
             let results = cosineSimilarityBatch(queryVector, rows: rows)
-            return results
+            return
+                results
                 .filter { $0.score >= Self.minScore }
                 .sorted { $0.score > $1.score }
                 .prefix(actualLimit)
@@ -116,7 +118,8 @@ actor SemanticSearch {
 
         for row in rows {
             guard let embedData = row["embed_vector"]?.asData,
-                    let rowFloats = embedData.floatArray(from: Self.vectorDim) else { continue }
+                let rowFloats = embedData.floatArray(from: Self.vectorDim)
+            else { continue }
 
             let sim = cosineSimilarity(qFloats, rowFloats)
             guard sim > 0 else { continue }
@@ -126,13 +129,14 @@ actor SemanticSearch {
             let sessionId = row["session_id"]?.asInt64 ?? 0
             let id = row["id"]?.asInt64 ?? 0
 
-            results.append(SemanticSearchResult(
-                id: id,
-                sessionId: sessionId,
-                snippet: String(content.prefix(300)),
-                score: Double(sim),
-                createdAt: Date(timeIntervalSince1970: Double(createdAtTs) / 1_000_000)
-            ))
+            results.append(
+                SemanticSearchResult(
+                    id: id,
+                    sessionId: sessionId,
+                    snippet: String(content.prefix(300)),
+                    score: Double(sim),
+                    createdAt: Date(timeIntervalSince1970: Double(createdAtTs) / 1_000_000)
+                ))
         }
 
         return results
@@ -143,8 +147,10 @@ actor SemanticSearch {
 
 private func cosineSimilarity(_ a: [Float], _ b: [Float]) -> Float {
     guard a.count == b.count, !a.isEmpty else { return 0 }
-    var dot: Float = 0, normA: Float = 0, normB: Float = 0
-    for i in 0..<a.count {
+    var dot: Float = 0
+    var normA: Float = 0
+    var normB: Float = 0
+    for i in 0 ..< a.count {
         dot += a[i] * b[i]
         normA += a[i] * a[i]
         normB += b[i] * b[i]

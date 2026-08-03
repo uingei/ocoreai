@@ -115,13 +115,12 @@ final class AppState {
                     self.currentMetrics = snap
                 }
                 // ScenePhase gating: slow down in background
-                let sleepNs: UInt64 = await MainActor.run { self.isForeground } ? 1_000_000_000 : 10_000_000_000
+                let sleepNs: UInt64 =
+                    await MainActor.run { self.isForeground } ? 1_000_000_000 : 10_000_000_000
                 try? await Task.sleep(nanoseconds: sleepNs)
             }
         }
     }
-
-
 
     /// Graceful shutdown on app termination
     func shutdown() {

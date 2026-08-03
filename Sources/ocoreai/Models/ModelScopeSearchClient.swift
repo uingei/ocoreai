@@ -62,36 +62,37 @@ struct MSHubModel: Identifiable, Hashable {
 
 // MARK: - Search Client
 
-    /// Lightweight HTTP client for ModelScope model search.
-    ///
-    /// Uses only Foundation HTTP - no external dependency needed.
-    /// Endpoint is configurable via MODELSCOPE_ENDPOINT env var (mirror/proxy support).
-    final actor ModelScopeSearchClient {
-        // MARK: - Configuration
+/// Lightweight HTTP client for ModelScope model search.
+///
+/// Uses only Foundation HTTP - no external dependency needed.
+/// Endpoint is configurable via MODELSCOPE_ENDPOINT env var (mirror/proxy support).
+final actor ModelScopeSearchClient {
+    // MARK: - Configuration
 
-        /// Base URL - follows the same pattern as the Python SDK.
-        private let baseURL: URL
-        private let token: String?
+    /// Base URL - follows the same pattern as the Python SDK.
+    private let baseURL: URL
+    private let token: String?
 
-        /// Default base URL — reads MODELSCOPE_ENDPOINT env var when set,
-        /// otherwise falls back to modelscope.cn.
-        nonisolated private static func defaultBaseURL() -> URL {
-            let endpoint = ProcessInfo.processInfo.environment["MODELSCOPE_ENDPOINT"]
-                ?? "https://modelscope.cn"
-            // Strip trailing slash for consistent path appending
-            return URL(string: endpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
-                ?? URL(string: "https://modelscope.cn")
-                ?? Bundle.main.bundleURL.appendingPathComponent("fallback")
-        }
+    /// Default base URL — reads MODELSCOPE_ENDPOINT env var when set,
+    /// otherwise falls back to modelscope.cn.
+    nonisolated private static func defaultBaseURL() -> URL {
+        let endpoint =
+            ProcessInfo.processInfo.environment["MODELSCOPE_ENDPOINT"]
+            ?? "https://modelscope.cn"
+        // Strip trailing slash for consistent path appending
+        return URL(string: endpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+            ?? URL(string: "https://modelscope.cn")
+            ?? Bundle.main.bundleURL.appendingPathComponent("fallback")
+    }
 
-        /// Create the client.
-        /// - Parameters:
-        ///   - baseURL: API base URL (defaults to ModelScope main site or MODELSCOPE_ENDPOINT)
-        ///   - token: Optional access token for authed operations
-        init(
-            baseURL: URL = ModelScopeSearchClient.defaultBaseURL(),
-            token: String? = nil,
-        ) {
+    /// Create the client.
+    /// - Parameters:
+    ///   - baseURL: API base URL (defaults to ModelScope main site or MODELSCOPE_ENDPOINT)
+    ///   - token: Optional access token for authed operations
+    init(
+        baseURL: URL = ModelScopeSearchClient.defaultBaseURL(),
+        token: String? = nil,
+    ) {
         self.baseURL = baseURL
         self.token = token
     }
@@ -116,11 +117,12 @@ struct MSHubModel: Identifiable, Hashable {
         //
         // When the user types a full path like "org/model", the API can only filter
         // by the model name — "Path" is an org-level field, not searchable by name.
-        let searchName: String = if keyword.contains("/") {
-            keyword.components(separatedBy: "/").last ?? keyword
-        } else {
-            keyword
-        }
+        let searchName: String =
+            if keyword.contains("/") {
+                keyword.components(separatedBy: "/").last ?? keyword
+            } else {
+                keyword
+            }
 
         let url = baseURL.appending(path: "api/v1/models")
         var request = URLRequest(url: url)
@@ -139,7 +141,7 @@ struct MSHubModel: Identifiable, Hashable {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200
+            httpResponse.statusCode == 200
         else {
             throw MSError.httpError(response)
         }
@@ -160,7 +162,7 @@ struct MSHubModel: Identifiable, Hashable {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200
+            httpResponse.statusCode == 200
         else {
             throw MSError.httpError(response)
         }
@@ -190,11 +192,12 @@ struct MSHubModel: Identifiable, Hashable {
 
         // Response shape: { "Code": 200, "Data": { "Models": [...], "TotalCount": N } }
         // or flat: { "Models": [...], "TotalCount": N }
-        let dataObj: [String: Any] = if let nested = json["Data"] as? [String: Any] {
-            nested
-        } else {
-            json
-        }
+        let dataObj: [String: Any] =
+            if let nested = json["Data"] as? [String: Any] {
+                nested
+            } else {
+                json
+            }
 
         guard let modelsRaw = dataObj["Models"] as? [[String: Any]] else {
             throw MSError.missingField("Models")
@@ -208,11 +211,11 @@ struct MSHubModel: Identifiable, Hashable {
             let modelName = raw["Name"] as? String
             let path: String
             switch (orgPath, modelName) {
-            case let (.some(o), .some(n)) where !o.isEmpty && !n.isEmpty:
+            case (.some(let o), .some(let n)) where !o.isEmpty && !n.isEmpty:
                 path = "\(o)/\(n)"
-            case let (.some(o), _):
+            case (.some(let o), _):
                 path = o
-            case let (_, .some(n)):
+            case (_, .some(let n)):
                 path = n
             default:
                 return nil
@@ -253,11 +256,11 @@ enum MSError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case let .httpError(resp):
+        case .httpError(let resp):
             "ModelScope API request failed: \(String(describing: resp))"
         case .invalidJSON:
             "Invalid JSON response from ModelScope"
-        case let .missingField(field):
+        case .missingField(let field):
             "Expected field '\(field)' not found in ModelScope response"
         }
     }

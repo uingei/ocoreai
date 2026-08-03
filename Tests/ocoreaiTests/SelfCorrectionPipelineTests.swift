@@ -5,11 +5,12 @@
 /// Coverage: Phase 1 bypass, CorrectionTrace serialization, memory event conversion,
 /// rule critique result, and config defaults.
 
-import Testing
 import Foundation
 import Logging
-@testable import ocoreai
+import Testing
 import ocoreaiTestUtilities
+
+@testable import ocoreai
 
 @Suite("SelfCorrectionPipeline Configuration")
 struct PipelineConfigTests {
@@ -44,7 +45,7 @@ struct CorrectionTraceTests {
             finalPhase: .converged,
             iterations: 2,
             converged: true,
-            timestamp: 1234567890
+            timestamp: 1_234_567_890
         )
         let event = trace.toMemoryEvent(sessionId: 99)
         #expect(event.sessionId == 99)

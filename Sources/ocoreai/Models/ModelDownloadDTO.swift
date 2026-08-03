@@ -40,7 +40,7 @@ struct DownloadModelRequest: Codable {
 
 struct DownloadSSEEvent: Codable {
     let downloadId: String
-    let eventType: String // "progress" | "completed" | "error"
+    let eventType: String  // "progress" | "completed" | "error"
     let percentage: Int?
     let totalBytes: Int64?
     let transferredBytes: Int64?
@@ -48,22 +48,28 @@ struct DownloadSSEEvent: Codable {
     let errorMessage: String?
     let etaSeconds: Int64?
 
-    static func progress(_ downloadId: String, percentage: Int, totalBytes: Int64, transferredBytes: Int64, eta: Int64?) -> DownloadSSEEvent {
-        DownloadSSEEvent(downloadId: downloadId, eventType: "progress", percentage: percentage,
-                         totalBytes: totalBytes, transferredBytes: transferredBytes,
-                         cacheDir: nil, errorMessage: nil, etaSeconds: eta)
+    static func progress(
+        _ downloadId: String, percentage: Int, totalBytes: Int64, transferredBytes: Int64,
+        eta: Int64?
+    ) -> DownloadSSEEvent {
+        DownloadSSEEvent(
+            downloadId: downloadId, eventType: "progress", percentage: percentage,
+            totalBytes: totalBytes, transferredBytes: transferredBytes,
+            cacheDir: nil, errorMessage: nil, etaSeconds: eta)
     }
 
     static func completed(_ downloadId: String, cacheDir: String) -> DownloadSSEEvent {
-        DownloadSSEEvent(downloadId: downloadId, eventType: "completed", percentage: 100,
-                         totalBytes: nil, transferredBytes: nil, cacheDir: cacheDir,
-                         errorMessage: nil, etaSeconds: nil)
+        DownloadSSEEvent(
+            downloadId: downloadId, eventType: "completed", percentage: 100,
+            totalBytes: nil, transferredBytes: nil, cacheDir: cacheDir,
+            errorMessage: nil, etaSeconds: nil)
     }
 
     static func error(_ downloadId: String, message: String) -> DownloadSSEEvent {
-        DownloadSSEEvent(downloadId: downloadId, eventType: "error", percentage: nil,
-                         totalBytes: nil, transferredBytes: nil, cacheDir: nil,
-                         errorMessage: message, etaSeconds: nil)
+        DownloadSSEEvent(
+            downloadId: downloadId, eventType: "error", percentage: nil,
+            totalBytes: nil, transferredBytes: nil, cacheDir: nil,
+            errorMessage: message, etaSeconds: nil)
     }
 }
 
@@ -71,7 +77,7 @@ struct DownloadSSEEvent: Codable {
 
 struct DownloadStatusResponse: Codable {
     let downloadId: String
-    let status: String // "downloading" | "completed" | "error" | "not_found"
+    let status: String  // "downloading" | "completed" | "error" | "not_found"
     let percentage: Int?
     let cacheDir: String?
     let errorMessage: String?

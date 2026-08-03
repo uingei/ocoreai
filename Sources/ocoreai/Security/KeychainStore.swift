@@ -16,7 +16,8 @@ final class KeychainStore: Sendable {
     /// Service name used for all ocoreai Keychain entries.
     static let service = "com.ocoreai.runtime"
 
-    private static let osLogger = os.Logger(subsystem: "com.ocoreai.runtime", category: "KeychainStore")
+    private static let osLogger = os.Logger(
+        subsystem: "com.ocoreai.runtime", category: "KeychainStore")
 
     /// Save a credential to the Keychain.
     /// - Parameters:
@@ -61,7 +62,7 @@ final class KeychainStore: Sendable {
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         guard status == errSecSuccess,
-              let data = result as? Data
+            let data = result as? Data
         else {
             throw KeychainError.notFound(account: account)
         }
@@ -103,7 +104,9 @@ final class KeychainStore: Sendable {
         // Parse ${KEYCHAIN:accountName} — substring-based to avoid regex issues
         let prefix = "${KEYCHAIN:"
         let suffix = "}"
-        guard value.hasPrefix(prefix), value.hasSuffix(suffix), value.count > prefix.count + suffix.count else {
+        guard value.hasPrefix(prefix), value.hasSuffix(suffix),
+            value.count > prefix.count + suffix.count
+        else {
             return nil
         }
         let accountName = String(value.dropFirst(prefix.count).dropLast())
@@ -166,7 +169,7 @@ final class KeychainStore: Sendable {
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         guard status == errSecSuccess,
-              let items = result as? [[String: Any]]
+            let items = result as? [[String: Any]]
         else {
             return []
         }
@@ -187,11 +190,11 @@ enum KeychainError: Error {
 extension KeychainError: LocalizedError {
     var errorDescription: String? {
         switch self {
-        case let .notFound(account): "Keychain entry not found: \(account)"
-        case let .decodeFailed(account): "Failed to decode Keychain entry: \(account)"
-        case let .writeFailed(status): "Keychain write failed (OSStatus: \(status))"
-        case let .deleteFailed(status): "Keychain delete failed (OSStatus: \(status))"
-        case let .encodingFailed(message): "Keychain encoding failed: \(message)"
+        case .notFound(let account): "Keychain entry not found: \(account)"
+        case .decodeFailed(let account): "Failed to decode Keychain entry: \(account)"
+        case .writeFailed(let status): "Keychain write failed (OSStatus: \(status))"
+        case .deleteFailed(let status): "Keychain delete failed (OSStatus: \(status))"
+        case .encodingFailed(let message): "Keychain encoding failed: \(message)"
         }
     }
 }

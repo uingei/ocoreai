@@ -41,7 +41,8 @@ enum InferenceError: Error, Sendable {
         case .tokenizerBuildFailed(let msg): return "Grammar tokenizer failed: \(msg)"
         case .grammarBuildFailed(let msg): return "Grammar constraint failed: \(msg)"
         case .standardPathFailed(let msg): return "Inference failed: \(msg)"
-        case .contextExceeded(let tokens, let max): return "Input \(tokens) exceeds max context \(max)"
+        case .contextExceeded(let tokens, let max):
+            return "Input \(tokens) exceeds max context \(max)"
         case .engineUnavailable(let msg): return "Engine unavailable: \(msg)"
         case .genericError(let m): return m
         }
@@ -130,8 +131,10 @@ struct InternalModelConfig: Codable, Sendable, InferenceConfiguration {
     let chunkThreshold: Int
     let function: String
 
-    init(name: String, vocabSize: Int, maxContextLength: Int, function: String,
-         prefillChunkSize: Int = 512, chunkThreshold: Int = 1024) {
+    init(
+        name: String, vocabSize: Int, maxContextLength: Int, function: String,
+        prefillChunkSize: Int = 512, chunkThreshold: Int = 1024
+    ) {
         self.name = name
         self.vocabSize = vocabSize
         self.maxContextLength = maxContextLength
@@ -264,7 +267,7 @@ struct TokenHistory: Sendable {
                     let bytes = limit * MemoryLayout<Int32>.stride
                     if memcmp(inputBuf.baseAddress!, cachedBuf.baseAddress!, bytes) != 0 {
                         commonPrefix = 0
-                        for i in 0..<limit {
+                        for i in 0 ..< limit {
                             if inputBuf[i] != cachedBuf[i] { break }
                             commonPrefix = i + 1
                         }
@@ -330,7 +333,8 @@ struct PreparedModel: Sendable {
     }
 
     /// Detect model structure from descriptor.
-    private static func detectStructure(from model: AIModel, functionName: String) -> ModelStructure {
+    private static func detectStructure(from model: AIModel, functionName: String) -> ModelStructure
+    {
         guard let descriptor = model.functionDescriptor(for: functionName) else {
             return .unknown
         }
@@ -345,7 +349,9 @@ struct PreparedModel: Sendable {
     }
 
     /// Prepare model asset via CoreAI — loads, detects structure.
-    static func prepare(at modelURL: URL, functionName: String = "default") async throws -> PreparedModel {
+    static func prepare(at modelURL: URL, functionName: String = "default") async throws
+        -> PreparedModel
+    {
         let model = try await AIModel(contentsOf: modelURL)
         let structure = detectStructure(from: model, functionName: functionName)
         return PreparedModel(model: model, structure: structure)
@@ -372,12 +378,16 @@ struct EngineFactory: Sendable {
         let coreAIModelURL = PreparedModel.resolveCoreAIModelURL(from: modelURL)
 
         // Prepare model
-        let preparedModel = try await PreparedModel.prepare(at: coreAIModelURL, functionName: parsedConfig.function)
+        let preparedModel = try await PreparedModel.prepare(
+            at: coreAIModelURL, functionName: parsedConfig.function)
 
         // Resolve variant
-        let variant = try resolveVariant(override: options.variant, detectedStructure: preparedModel.structure)
+        let variant = try resolveVariant(
+            override: options.variant, detectedStructure: preparedModel.structure)
 
-        log.info("CoreAI engine variant: \(variant.rawValue), structure: \(preparedModel.structure.description)")
+        log.info(
+            "CoreAI engine variant: \(variant.rawValue), structure: \(preparedModel.structure.description)"
+        )
 
         // Create engine
         switch variant {
@@ -410,9 +420,9 @@ struct EngineFactory: Sendable {
     /// dynamic → pipelined (GPU), chunkedStatic → staticShape (ANE).
     private static func autoDetectVariant(structure: ModelStructure) -> Variant {
         switch structure {
-        case .dynamic:       return .pipelined
+        case .dynamic: return .pipelined
         case .chunkedStatic: return .staticShape
-        case .unknown:       return .sequential
+        case .unknown: return .sequential
         }
     }
 
@@ -424,7 +434,9 @@ struct EngineFactory: Sendable {
     ) -> (compatible: Bool, warning: String?) {
         switch (variant, structure) {
         case (.staticShape, .dynamic):
-            return (false, "Static-shape variant requires chunked static model (extend_* functions)")
+            return (
+                false, "Static-shape variant requires chunked static model (extend_* functions)"
+            )
         case (.pipelined, .chunkedStatic):
             return (false, "Core AI pipelined variant requires dynamic model")
         case (.sequential, .chunkedStatic):
@@ -442,7 +454,8 @@ struct EngineFactory: Sendable {
     ) throws -> Variant {
         if let vo = variantOverride, vo != "auto", vo != "default" {
             if let variant = Variant(rawValue: vo) {
-                let (compatible, warning) = checkVariantCompatibility(variant: variant, structure: structure)
+                let (compatible, warning) = checkVariantCompatibility(
+                    variant: variant, structure: structure)
                 if let warning {
                     log.warning("CoreAI variant override: \(warning)")
                 }
@@ -468,7 +481,7 @@ struct EngineFactory: Sendable {
             let vocabSize: Int?
             let maxContextLength: Int?
             let function: String?
-            
+
             enum CodingKeys: String, CodingKey {
                 case name
                 case vocabSize = "vocab_size"
@@ -476,7 +489,7 @@ struct EngineFactory: Sendable {
                 case function
             }
         }
-        
+
         let decoder = JSONDecoder()
         do {
             let raw = try decoder.decode(RawConfig.self, from: data)
@@ -487,7 +500,8 @@ struct EngineFactory: Sendable {
                 function: raw.function ?? "main"
             )
         } catch {
-            log.warning("CoreAI config parsing failed: \(error.localizedDescription) — using defaults")
+            log.warning(
+                "CoreAI config parsing failed: \(error.localizedDescription) — using defaults")
             return InternalModelConfig(
                 name: "unknown",
                 vocabSize: 151_936,
@@ -591,9 +605,11 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
 
         // Validate: 2 inputs, ≥1 output, 2 states
         guard descriptor.inputNames.count == 2,
-              descriptor.stateNames.count == 2 else {
+            descriptor.stateNames.count == 2
+        else {
             throw InferenceError.invalidState(
-                "Expected 2 inputs + 2 states, got \(descriptor.inputNames.count)i + \(descriptor.stateNames.count)s")
+                "Expected 2 inputs + 2 states, got \(descriptor.inputNames.count)i + \(descriptor.stateNames.count)s"
+            )
         }
 
         self.inputIdsName = descriptor.inputNames[0]
@@ -610,7 +626,8 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
 
         // Resolve KV cache descriptors
         guard case .ndArray(let keyDesc) = descriptor.stateDescriptor(of: keyCacheName),
-              case .ndArray(let valDesc) = descriptor.stateDescriptor(of: valueCacheName) else {
+            case .ndArray(let valDesc) = descriptor.stateDescriptor(of: valueCacheName)
+        else {
             throw InferenceError.invalidState("Cannot resolve KV cache descriptors")
         }
 
@@ -667,7 +684,9 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
         // Enable prefix caching by default
         history.withLock { $0 = TokenHistory() }
 
-        logger.info("CoreAISequentialEngine created: dynamic=\(isDynamic), kvCapacity=\(initialCapacity), vocab=\(config.vocabSize)")
+        logger.info(
+            "CoreAISequentialEngine created: dynamic=\(isDynamic), kvCapacity=\(initialCapacity), vocab=\(config.vocabSize)"
+        )
     }
 
     // MARK: - InferenceEngine protocol
@@ -679,7 +698,7 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
     ) async throws -> CoreAISequence {
         // Cancel any in-flight generation
         if _generationToken.withLock({ $0 != nil }) {
-        	try await cancel()
+            try await cancel()
         }
 
         let token = GenerationToken()
@@ -689,7 +708,8 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
         }
 
         // Resolve prefix via TokenHistory
-        let (prefixLen, newTokens) = history.withLock { h -> (commonPrefix: Int, newTokens: ArraySlice<Int32>) in
+        let (prefixLen, newTokens) = history.withLock {
+            h -> (commonPrefix: Int, newTokens: ArraySlice<Int32>) in
             var mutable = h
             return mutable.resolve(input: input)
         }
@@ -697,7 +717,9 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
         _lastPrefixHitCount.store(prefixLen, ordering: .relaxed)
 
         if prefixLen > 0 {
-            logger.info("Prefix cache hit: \(prefixLen) tokens skipped (\(Int(Double(prefixLen)/Double(input.count)*100))%)")
+            logger.info(
+                "Prefix cache hit: \(prefixLen) tokens skipped (\(Int(Double(prefixLen)/Double(input.count)*100))%)"
+            )
         }
 
         guard newTokens.count > 0 else {
@@ -897,7 +919,10 @@ final class CoreAIIterator: AsyncIteratorProtocol, @unchecked Sendable {
 
     nonisolated func next() async throws -> InferenceOutput? {
         guard !done else { return nil }
-        guard let engine else { done = true; return nil }
+        guard let engine else {
+            done = true
+            return nil
+        }
 
         let state = _state.withLock { $0 }
 
@@ -917,7 +942,7 @@ final class CoreAIIterator: AsyncIteratorProtocol, @unchecked Sendable {
                 return nil
             }
 
-            return try await next() // Return to check for cancellation, continue prefill
+            return try await next()  // Return to check for cancellation, continue prefill
         }
 
         // Phase 2: Decode — generate new tokens one at a time
@@ -974,7 +999,9 @@ final class CoreAIIterator: AsyncIteratorProtocol, @unchecked Sendable {
 extension CoreAISequentialEngine {
     /// Run a single forward pass with one input token.
     /// Used for both prefill token-by-token and decode.
-    func forwardPass(inputToken token: Int32, position pos: Int, cancelToken cancellation: GenerationToken?) async throws {
+    func forwardPass(
+        inputToken token: Int32, position pos: Int, cancelToken cancellation: GenerationToken?
+    ) async throws {
         // Ensure KV cache capacity
         try ensureKVCapacity(for: pos + 1)
 
@@ -1059,7 +1086,8 @@ extension CoreAISequentialEngine {
 
         let newCapacity = computeGrowCapacity(from: currentKVCapacity, needed: position)
         guard newCapacity >= position else {
-            throw InferenceError.invalidState("Context length exceeded: \(position) >= \(config.maxContextLength)")
+            throw InferenceError.invalidState(
+                "Context length exceeded: \(position) >= \(config.maxContextLength)")
         }
 
         logger.info("Growing KV cache: \(currentKVCapacity) → \(newCapacity)")
@@ -1112,7 +1140,7 @@ extension CoreAISequentialEngine {
         source.view(as: LogitsScalarType.self).withUnsafePointer { srcPtr, _, _ in
             var dstView = destination.mutableView(as: LogitsScalarType.self)
             dstView.withUnsafeMutablePointer { dstPtr, _, _ in
-                for block in 0..<numBlocks {
+                for block in 0 ..< numBlocks {
                     let srcOff = block * srcBlockStride
                     let dstOff = block * dstBlockStride
                     dstPtr.advanced(by: dstOff).update(
@@ -1151,7 +1179,7 @@ extension CoreAISequentialEngine {
             let count = Int(shape.count)
             var bestIdx: Int = 0
             var bestVal: Float = Float(ptr[0])
-            for i in 1..<count {
+            for i in 1 ..< count {
                 let v = Float(ptr[i])
                 if v > bestVal {
                     bestVal = v
@@ -1168,7 +1196,7 @@ extension CoreAISequentialEngine {
             let count = Int(shape.count)
             var bestIdx: Int = 0
             var bestVal = ptr[0]
-            for i in 1..<count {
+            for i in 1 ..< count {
                 let v = ptr[i]
                 if v > bestVal {
                     bestVal = v
@@ -1180,4 +1208,4 @@ extension CoreAISequentialEngine {
     }
 }
 
-#endif // canImport(CoreAI)
+#endif  // canImport(CoreAI)

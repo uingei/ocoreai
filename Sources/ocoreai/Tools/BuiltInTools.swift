@@ -50,11 +50,12 @@ func bootstrapBuiltInTools(
                 toolset: "skills",
                 argsType: SkillsListArgs.self
             ) { [sr] args in
-                let names: [String] = if let cat = args.category, !cat.isEmpty {
-                    await sr.lookupCategory(cat).map(\.name)
-                } else {
-                    await sr.list()
-                }
+                let names: [String] =
+                    if let cat = args.category, !cat.isEmpty {
+                        await sr.lookupCategory(cat).map(\.name)
+                    } else {
+                        await sr.list()
+                    }
                 if names.isEmpty {
                     return "no skills found"
                 }

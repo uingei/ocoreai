@@ -27,7 +27,8 @@ struct VisionOCR {
     /// - Returns: Recognized text string or nil (no text / too little text)
     static func extractText(from data: Data) async -> String? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, nil) else {
+            let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, nil)
+        else {
             return nil
         }
 
@@ -46,7 +47,8 @@ struct VisionOCR {
         var lines: [String] = []
         for observation in observations {
             if let text = observation.topCandidates(1).first?.string,
-               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            {
                 lines.append(text)
             }
         }

@@ -80,7 +80,9 @@ final class PerRequestMetrics: @unchecked Sendable {
 
     /// Start the metrics timer (captures ``ContinuousClock`` snapshot)
     func start() {
-        precondition(overallTimer == nil, "PerRequestMetrics.start() called twice — create a new instance per request")
+        precondition(
+            overallTimer == nil,
+            "PerRequestMetrics.start() called twice — create a new instance per request")
         overallTimer = ContinuousClock.now
     }
 
@@ -98,10 +100,10 @@ final class PerRequestMetrics: @unchecked Sendable {
     func summary(modelId: String) -> String {
         let total = overallMs
         return """
-        [metrics] model=\(modelId) prompt=\(promptTokenCount) gen=\(generatedTokenCount) \
-        total=\(String(format: "%.1f", total))ms \
-        ttfb=\(String(format: "%.1f", firstTokenMs))ms \
-        throughput=\(String(format: "%.1f", generationThroughput))tok/s
-        """
+            [metrics] model=\(modelId) prompt=\(promptTokenCount) gen=\(generatedTokenCount) \
+            total=\(String(format: "%.1f", total))ms \
+            ttfb=\(String(format: "%.1f", firstTokenMs))ms \
+            throughput=\(String(format: "%.1f", generationThroughput))tok/s
+            """
     }
 }

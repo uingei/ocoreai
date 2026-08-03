@@ -95,9 +95,10 @@ struct AuthConfig: Equatable {
         #"\byou\s*are\s*(?:the\s*?(?:model|AI|assistant|GPT|ChatGPT|Claude))\b"#,
     ]
 
-    private static let _defaultPromptInjectionRegexesCache: [NSRegularExpression] = _defaultPromptInjectionRegexes.compactMap { pattern in
-        try? NSRegularExpression(pattern: pattern, options: .caseInsensitive)
-    }
+    private static let _defaultPromptInjectionRegexesCache: [NSRegularExpression] =
+        _defaultPromptInjectionRegexes.compactMap { pattern in
+            try? NSRegularExpression(pattern: pattern, options: .caseInsensitive)
+        }
 
     static var defaultPromptInjectionRegexes: [NSRegularExpression] {
         _defaultPromptInjectionRegexesCache
@@ -107,13 +108,16 @@ struct AuthConfig: Equatable {
     ///
     /// Uses precompiled ``NSRegularExpression`` instances for word-boundary matching
     /// to avoid false positives on legitimate user messages.
-    static func detectPromptInjection(in messages: [Message], patterns: [NSRegularExpression]) -> Bool {
+    static func detectPromptInjection(in messages: [Message], patterns: [NSRegularExpression])
+        -> Bool
+    {
         for msg in messages {
-            let content = switch msg.content {
-            case let .some(.text(s)): s
-            case let .some(.parts(parts)): parts.compactMap(\.text).joined(separator: " ")
-            case .none: ""
-            }
+            let content =
+                switch msg.content {
+                case .some(.text(let s)): s
+                case .some(.parts(let parts)): parts.compactMap(\.text).joined(separator: " ")
+                case .none: ""
+                }
             let lower = content.lowercased()
             let fullRange = NSRange(location: 0, length: lower.utf16.count)
             for regex in patterns {
@@ -161,7 +165,10 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
     /// - Parameters:
     ///   - configProvider: Closure returning Authentication configuration (defaults to env-loaded)
     ///   - logger: Observability logger
-    init(configProvider: @escaping @Sendable () -> AuthConfig = { AuthConfig.default }, logger: Logger) {
+    init(
+        configProvider: @escaping @Sendable () -> AuthConfig = { AuthConfig.default },
+        logger: Logger
+    ) {
         _makeConfig = configProvider
         self.logger = logger
     }
@@ -224,17 +231,18 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
     private func extractAPIKey(from request: Request) throws -> String {
         // Primary: Authorization: Bearer ***
         if let authorization = HTTPField.Name("authorization"),
-           let bearer = request.headers[authorization],
-           bearer.hasPrefix("Bearer ")
+            let bearer = request.headers[authorization],
+            bearer.hasPrefix("Bearer ")
         {
-            let trimmed = String(bearer.dropFirst(7)).trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+            let trimmed = String(bearer.dropFirst(7)).trimmingCharacters(
+                in: CharacterSet.whitespacesAndNewlines)
             guard !trimmed.isEmpty else { throw AuthError.missingAPIKey }
             return trimmed
         }
 
         // Secondary: api-key header (OpenAI-compatible)
         if let apiKeyName = HTTPField.Name("api-key"),
-           let apiKeyValue = request.headers[apiKeyName]
+            let apiKeyValue = request.headers[apiKeyName]
         {
             let trimmed = apiKeyValue.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
             if !trimmed.isEmpty {

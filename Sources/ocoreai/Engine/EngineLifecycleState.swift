@@ -48,13 +48,13 @@ import Foundation
 public enum EngineLifecycleState: String, Codable, Sendable {
     /// Engine is not running, no pending initialization in flight.
     case idle = "idle"
-    
+
     /// Initialization in progress — components are being bootstrapped.
     case starting = "starting"
-    
+
     /// All core components running and accepting inference requests.
     case ready = "ready"
-    
+
     /// Core running but at least one subsystem degraded (e.g. HTTP server failed).
     case degraded = "degraded"
 
@@ -84,24 +84,24 @@ public enum EngineLifecycleState: String, Codable, Sendable {
     /// Human-readable status label for UI display.
     public var displayLabel: String {
         switch self {
-        case .idle:       "Idle"
-        case .starting:   "Starting..."
-        case .ready:      "Ready"
-        case .degraded:   "Degraded"
-        case .stopping:   "Stopping..."
-        case .error:      "Circuit Open"
+        case .idle: "Idle"
+        case .starting: "Starting..."
+        case .ready: "Ready"
+        case .degraded: "Degraded"
+        case .stopping: "Stopping..."
+        case .error: "Circuit Open"
         }
     }
 
     /// System icon for UI status indicators.
     public var statusIcon: String {
         switch self {
-        case .idle:       "circle.dashed"
-        case .starting:   "arrow.triangle.2.circlepath"
-        case .ready:      "checkmark.circle.fill"
-        case .degraded:   "exclamationmark.triangle.fill"
-        case .stopping:   "pause.circle.fill"
-        case .error:      "xmark.octagon.fill"
+        case .idle: "circle.dashed"
+        case .starting: "arrow.triangle.2.circlepath"
+        case .ready: "checkmark.circle.fill"
+        case .degraded: "exclamationmark.triangle.fill"
+        case .stopping: "pause.circle.fill"
+        case .error: "xmark.octagon.fill"
         }
     }
 }
@@ -180,7 +180,8 @@ final class EngineCircuitBreaker {
     public func allowStart() -> Bool {
         guard _isOpen else { return true }
 
-        let elapsed = UInt64(DispatchTime.now().uptimeNanoseconds - _lastFailureNano) / 1_000_000_000
+        let elapsed =
+            UInt64(DispatchTime.now().uptimeNanoseconds - _lastFailureNano) / 1_000_000_000
         if elapsed >= cooldownSeconds {
             // Cool down expired — allow one more attempt
             return true
@@ -201,7 +202,8 @@ final class EngineCircuitBreaker {
     /// Seconds remaining before the cooldown expires (0 if not open).
     public func cooldownRemaining() -> Int {
         guard _isOpen else { return 0 }
-        let elapsed = UInt64(DispatchTime.now().uptimeNanoseconds - _lastFailureNano) / 1_000_000_000
+        let elapsed =
+            UInt64(DispatchTime.now().uptimeNanoseconds - _lastFailureNano) / 1_000_000_000
         return max(0, cooldownSeconds - Int(elapsed))
     }
 }

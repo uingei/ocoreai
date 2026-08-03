@@ -9,9 +9,10 @@
 /// - LogEntry: Codable round-trip
 /// - StructuredLogger: child logger field merging
 
-import Testing
 import Foundation
+import Testing
 import ocoreaiTestUtilities
+
 @testable import ocoreai
 
 // MARK: - RuntimeSafetyConfig
@@ -181,5 +182,3 @@ struct SafetyConfigTests {
         try config.validate()
     }
 }
-
-

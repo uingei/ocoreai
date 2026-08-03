@@ -11,10 +11,14 @@ import Foundation
 /// Request priority levels.
 /// P0 > P1 > P2 > P3. Lower value = higher priority.
 public enum RequestPriority: Int, Codable, Sendable, CaseIterable {
-    case interrupt = 0 /// P0: urgent mid-stream interrupt
-    case chat /// P1: interactive chat
-    case rag /// P2: retrieval + generation
-    case background /// P3: memory compression, archival
+    case interrupt = 0
+    /// P0: urgent mid-stream interrupt
+    case chat
+    /// P1: interactive chat
+    case rag
+    /// P2: retrieval + generation
+    case background
+    /// P3: memory compression, archival
 
     public var name: String {
         switch self {
@@ -64,13 +68,19 @@ public struct SchedulingRequest: Identifiable, Sendable, Codable {
 
 /// Request lifecycle states
 public enum RequestState: String, Codable, Sendable {
-    case pending /// Waiting in priority queue
-    case queued /// Accepted, waiting for model
-    case inferring /// Currently being generated
-    case completed /// Successfully generated
-    case interrupted /// Stop requested by user
-    case timedOut /// Exceeded timeout
-    case failed /// Error during processing
+    case pending
+    /// Waiting in priority queue
+    case queued
+    /// Accepted, waiting for model
+    case inferring
+    /// Currently being generated
+    case completed
+    /// Successfully generated
+    case interrupted
+    /// Stop requested by user
+    case timedOut
+    /// Exceeded timeout
+    case failed/// Error during processing
 }
 
 /// Request status report

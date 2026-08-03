@@ -47,11 +47,17 @@ final class SettingsState {
     // MARK: - Server Connection (persisted via SettingsStore)
 
     var serverHost: String = SettingsStore.shared.serverHost {
-        didSet { guard oldValue != serverHost else { return }; SettingsStore.shared.serverHost = serverHost }
+        didSet {
+            guard oldValue != serverHost else { return }
+            SettingsStore.shared.serverHost = serverHost
+        }
     }
 
     var serverPort: Int = SettingsStore.shared.serverPort {
-        didSet { guard oldValue != serverPort else { return }; SettingsStore.shared.serverPort = serverPort }
+        didSet {
+            guard oldValue != serverPort else { return }
+            SettingsStore.shared.serverPort = serverPort
+        }
     }
 
     var portField: String {
@@ -66,70 +72,112 @@ final class SettingsState {
     // MARK: - Performance Settings
 
     var pollIntervalSec: Int = SettingsStore.shared.pollIntervalSec {
-        didSet { guard oldValue != pollIntervalSec else { return }; SettingsStore.shared.pollIntervalSec = pollIntervalSec }
+        didSet {
+            guard oldValue != pollIntervalSec else { return }
+            SettingsStore.shared.pollIntervalSec = pollIntervalSec
+        }
     }
 
     var chartWindowSec: Int = SettingsStore.shared.chartWindowSec {
-        didSet { guard oldValue != chartWindowSec else { return }; SettingsStore.shared.chartWindowSec = chartWindowSec }
+        didSet {
+            guard oldValue != chartWindowSec else { return }
+            SettingsStore.shared.chartWindowSec = chartWindowSec
+        }
     }
 
     // MARK: - KV Cache Settings
 
     var kvQuantizationEnabled: Bool = SettingsStore.shared.kvQuantizationEnabled {
-        didSet { guard oldValue != kvQuantizationEnabled else { return }; SettingsStore.shared.kvQuantizationEnabled = kvQuantizationEnabled }
+        didSet {
+            guard oldValue != kvQuantizationEnabled else { return }
+            SettingsStore.shared.kvQuantizationEnabled = kvQuantizationEnabled
+        }
     }
 
     var kvQuantizationBits: Int = SettingsStore.shared.kvQuantizationBits {
-        didSet { guard oldValue != kvQuantizationBits else { return }; SettingsStore.shared.kvQuantizationBits = kvQuantizationBits }
+        didSet {
+            guard oldValue != kvQuantizationBits else { return }
+            SettingsStore.shared.kvQuantizationBits = kvQuantizationBits
+        }
     }
 
     var kvCacheBudgetGB: Double = SettingsStore.shared.kvCacheBudgetGB {
-        didSet { guard oldValue != kvCacheBudgetGB else { return }; SettingsStore.shared.kvCacheBudgetGB = kvCacheBudgetGB }
+        didSet {
+            guard oldValue != kvCacheBudgetGB else { return }
+            SettingsStore.shared.kvCacheBudgetGB = kvCacheBudgetGB
+        }
     }
 
     // MARK: - Speculative Decoding
 
     var specDecodingEnabled: Bool = SettingsStore.shared.specDecodingEnabled {
-        didSet { guard oldValue != specDecodingEnabled else { return }; SettingsStore.shared.specDecodingEnabled = specDecodingEnabled }
+        didSet {
+            guard oldValue != specDecodingEnabled else { return }
+            SettingsStore.shared.specDecodingEnabled = specDecodingEnabled
+        }
     }
 
     var specDecodingMode: String = SettingsStore.shared.specDecodingMode {
-        didSet { guard oldValue != specDecodingMode else { return }; SettingsStore.shared.specDecodingMode = specDecodingMode }
+        didSet {
+            guard oldValue != specDecodingMode else { return }
+            SettingsStore.shared.specDecodingMode = specDecodingMode
+        }
     }
 
     // MARK: - Logs & Profiling
 
     var logLevel: LogLevelRaw = SettingsStore.shared.logLevel {
-        didSet { guard oldValue != logLevel else { return }; SettingsStore.shared.logLevel = logLevel }
+        didSet {
+            guard oldValue != logLevel else { return }
+            SettingsStore.shared.logLevel = logLevel
+        }
     }
 
     var profileEnabled: Bool = SettingsStore.shared.profileEnabled {
-        didSet { guard oldValue != profileEnabled else { return }; SettingsStore.shared.profileEnabled = profileEnabled }
+        didSet {
+            guard oldValue != profileEnabled else { return }
+            SettingsStore.shared.profileEnabled = profileEnabled
+        }
     }
 
     // MARK: - App Preferences
 
     var appLocale: OCALocale = SettingsStore.shared.appLocale {
-        didSet { guard oldValue != appLocale else { return }; SettingsStore.shared.appLocale = appLocale }
+        didSet {
+            guard oldValue != appLocale else { return }
+            SettingsStore.shared.appLocale = appLocale
+        }
     }
 
     var appThemeMode: ThemeModeRaw = SettingsStore.shared.appThemeMode {
-    	didSet { guard oldValue != appThemeMode else { return }; SettingsStore.shared.appThemeMode = appThemeMode }
+        didSet {
+            guard oldValue != appThemeMode else { return }
+            SettingsStore.shared.appThemeMode = appThemeMode
+        }
     }
 
     /// User's custom system prompt — every new inference uses this value.
     var customSystemPrompt: String = SettingsStore.shared.customSystemPrompt {
-    	didSet { guard oldValue != customSystemPrompt else { return }; SettingsStore.shared.customSystemPrompt = customSystemPrompt }
+        didSet {
+            guard oldValue != customSystemPrompt else { return }
+            SettingsStore.shared.customSystemPrompt = customSystemPrompt
+        }
     }
 
     // MARK: - Hub Tokens (persisted via SettingsStore)
 
     var hfToken: String? = SettingsStore.shared.hfToken {
-        didSet { guard oldValue != hfToken else { return }; SettingsStore.shared.hfToken = hfToken }
+        didSet {
+            guard oldValue != hfToken else { return }
+            SettingsStore.shared.hfToken = hfToken
+        }
     }
 
     var modelScopeToken: String? = SettingsStore.shared.modelScopeToken {
-        didSet { guard oldValue != modelScopeToken else { return }; SettingsStore.shared.modelScopeToken = modelScopeToken }
+        didSet {
+            guard oldValue != modelScopeToken else { return }
+            SettingsStore.shared.modelScopeToken = modelScopeToken
+        }
     }
 
     /// Masked tokens for UI display
@@ -233,38 +281,38 @@ final class SettingsState {
 extension SettingsState {
     @MainActor
     struct SettingsSnapshot {
-    	let serverHost: String
-    	let serverPort: Int
-    	let pollIntervalSec: Int
-    	let chartWindowSec: Int
-    	let kvQuantizationEnabled: Bool
-    	let kvQuantizationBits: Int
-    	let kvCacheBudgetGB: Double
-    	let specDecodingEnabled: Bool
-    	let specDecodingMode: String
-    	let logLevel: LogLevelRaw
-    	let profileEnabled: Bool
-    	let appLocale: OCALocale
-    	let appThemeMode: ThemeModeRaw
-    	let customSystemPrompt: String
+        let serverHost: String
+        let serverPort: Int
+        let pollIntervalSec: Int
+        let chartWindowSec: Int
+        let kvQuantizationEnabled: Bool
+        let kvQuantizationBits: Int
+        let kvCacheBudgetGB: Double
+        let specDecodingEnabled: Bool
+        let specDecodingMode: String
+        let logLevel: LogLevelRaw
+        let profileEnabled: Bool
+        let appLocale: OCALocale
+        let appThemeMode: ThemeModeRaw
+        let customSystemPrompt: String
 
         /// Create snapshot. Tokens are intentionally excluded for security —
         /// they should never be restored via Cmd+Z.
         init(from state: SettingsState, includeTokens: Bool = false) {
-        	serverHost = state.serverHost
-        	serverPort = state.serverPort
-        	pollIntervalSec = state.pollIntervalSec
-        	chartWindowSec = state.chartWindowSec
-        	kvQuantizationEnabled = state.kvQuantizationEnabled
-        	kvQuantizationBits = state.kvQuantizationBits
-        	kvCacheBudgetGB = state.kvCacheBudgetGB
-        	specDecodingEnabled = state.specDecodingEnabled
-        	specDecodingMode = state.specDecodingMode
-        	logLevel = state.logLevel
-        	profileEnabled = state.profileEnabled
-        	appLocale = state.appLocale
-        	appThemeMode = state.appThemeMode
-        	customSystemPrompt = state.customSystemPrompt
+            serverHost = state.serverHost
+            serverPort = state.serverPort
+            pollIntervalSec = state.pollIntervalSec
+            chartWindowSec = state.chartWindowSec
+            kvQuantizationEnabled = state.kvQuantizationEnabled
+            kvQuantizationBits = state.kvQuantizationBits
+            kvCacheBudgetGB = state.kvCacheBudgetGB
+            specDecodingEnabled = state.specDecodingEnabled
+            specDecodingMode = state.specDecodingMode
+            logLevel = state.logLevel
+            profileEnabled = state.profileEnabled
+            appLocale = state.appLocale
+            appThemeMode = state.appThemeMode
+            customSystemPrompt = state.customSystemPrompt
         }
 
         func apply(to state: SettingsState) {
@@ -297,6 +345,6 @@ extension SettingsState {
             SettingsStore.shared.appLocale = appLocale
             SettingsStore.shared.appThemeMode = appThemeMode
             SettingsStore.shared.customSystemPrompt = customSystemPrompt
-            }
+        }
     }
 }

@@ -78,7 +78,8 @@ final class StructuredLogger: Sendable {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         guard let json = try? encoder.encode(entry),
-              let line = String(data: json, encoding: .utf8) else { return }
+            let line = String(data: json, encoding: .utf8)
+        else { return }
         writeLine(line)
     }
 
@@ -183,7 +184,8 @@ extension LogEntry {
         severityText = try container.decode(String.self, forKey: .severityText)
         severityNumber = try container.decode(Int32.self, forKey: .severityNumber)
         body = try container.decode(String.self, forKey: .body)
-        attributes = try container.decodeIfPresent([String: String].self, forKey: .attributes) ?? [:]
+        attributes =
+            try container.decodeIfPresent([String: String].self, forKey: .attributes) ?? [:]
         serviceName = try container.decode(String.self, forKey: .serviceName)
     }
 }

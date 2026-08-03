@@ -124,7 +124,9 @@ actor MCPStdioClient {
     }
 
     /// 超时包装器：并发执行操作与定时器，取先完成者。
-    private func withTimeout(seconds: Double, operation: @Sendable @escaping () async throws -> String) async throws -> String {
+    private func withTimeout(
+        seconds: Double, operation: @Sendable @escaping () async throws -> String
+    ) async throws -> String {
         try await withThrowingTaskGroup(of: Result<String, Error>.self) { group in
             group.addTask {
                 do {
@@ -141,8 +143,8 @@ actor MCPStdioClient {
             for try await result in group {
                 group.cancelAll()
                 switch result {
-                case let .success(value): return value
-                case let .failure(error): throw error
+                case .success(let value): return value
+                case .failure(let error): throw error
                 }
             }
             throw MCPClientError.timeout(self.endpoint.name)
@@ -202,14 +204,16 @@ actor MCPStdioClient {
 
     /// 发送 MCP initialize 请求。
     private func sendInitialize() async throws {
-        _ = try await request("initialize", params: [
-            "protocolVersion": "2024-11-05",
-            "capabilities": ["roots": ["listChanged": true]],
-            "clientInfo": [
-                "name": "ocoreai-mcp-bridge",
-                "version": "0.7.0",
-            ],
-        ])
+        _ = try await request(
+            "initialize",
+            params: [
+                "protocolVersion": "2024-11-05",
+                "capabilities": ["roots": ["listChanged": true]],
+                "clientInfo": [
+                    "name": "ocoreai-mcp-bridge",
+                    "version": "0.7.0",
+                ],
+            ])
         // 发送 initialized notification（忽略响应）
         let notifJSON = try serializeJSON(["jsonrpc": "2.0", "method": "notifications/initialized"])
         _ = await transport.writeDirect(notifJSON)
@@ -225,8 +229,8 @@ actor MCPStdioClient {
             }
             // 检查是否是 JSON-RPC 错误响应
             if let data = line.data(using: .utf8),
-               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let error = obj["error"] as? [String: Any]
+                let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let error = obj["error"] as? [String: Any]
             {
                 let msg = error["message"] as? String ?? "Unknown error"
                 throw MCPClientError.protocolError(msg)
@@ -239,7 +243,7 @@ actor MCPStdioClient {
     /// 清理子进程与传输层。
     private func cleanup() async {
         cleanupProcess()
-        await transport.close() // Actor close() handles pipe cleanup internally
+        await transport.close()  // Actor close() handles pipe cleanup internally
         status = .disconnected
         process = nil
     }
@@ -263,9 +267,9 @@ actor MCPStdioClient {
     /// 解析 tools/list 响应体。
     private func parseToolsListResponse(_ json: String) -> [[String: Any]] {
         guard let data = json.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let result = obj["result"] as? [String: Any],
-              let list = result["tools"] as? [[String: Any]]
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let result = obj["result"] as? [String: Any],
+            let list = result["tools"] as? [[String: Any]]
         else {
             return []
         }
@@ -275,9 +279,9 @@ actor MCPStdioClient {
     /// 解析 tools/call 响应体（Sendable 兼容）。
     private func parseToolCallResponse(_ json: String) -> [[String: String]] {
         guard let data = json.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let result = obj["result"] as? [String: Any],
-              let content = result["content"] as? [[String: Any]]
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let result = obj["result"] as? [String: Any],
+            let content = result["content"] as? [[String: Any]]
         else {
             return [["type": "text", "text": "Failed to parse response"]]
         }
@@ -300,11 +304,11 @@ enum MCPClientError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case let .notConnected(name):
+        case .notConnected(let name):
             "MCP client for '\(name)' is not connected"
-        case let .timeout(name):
+        case .timeout(let name):
             "Request timed out for MCP client '\(name)'"
-        case let .protocolError(detail):
+        case .protocolError(let detail):
             "MCP protocol error: \(detail)"
         }
     }

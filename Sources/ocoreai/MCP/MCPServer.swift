@@ -14,13 +14,21 @@ private struct JVal: Codable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.singleValueContainer()
-        if let b = try? c.decode(Bool.self) { value = b }
-        else if let i = try? c.decode(Int.self) { value = i }
-        else if let d = try? c.decode(Double.self) { value = d }
-        else if let s = try? c.decode(String.self) { value = s }
-        else if let a = try? c.decode([JVal].self) { value = a.map(\.value) }
-        else if let o = try? c.decode([String: JVal].self) { value = o.mapValues { $0.value } }
-        else { value = NSNull() }
+        if let b = try? c.decode(Bool.self) {
+            value = b
+        } else if let i = try? c.decode(Int.self) {
+            value = i
+        } else if let d = try? c.decode(Double.self) {
+            value = d
+        } else if let s = try? c.decode(String.self) {
+            value = s
+        } else if let a = try? c.decode([JVal].self) {
+            value = a.map(\.value)
+        } else if let o = try? c.decode([String: JVal].self) {
+            value = o.mapValues { $0.value }
+        } else {
+            value = NSNull()
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -78,7 +86,10 @@ actor MCPServer {
     private let log: Logger
     private var ready = false
 
-    init(registry: ToolRegistry, transport: MCPStdioTransport, log: Logger = Logger(label: "ocoreai.mcp")) {
+    init(
+        registry: ToolRegistry, transport: MCPStdioTransport,
+        log: Logger = Logger(label: "ocoreai.mcp")
+    ) {
         self.registry = registry
         self.transport = transport
         self.log = log
@@ -123,7 +134,9 @@ actor MCPServer {
         var list: [[String: Any]] = []
         for n in await registry.listTools() {
             if await registry.schema(for: n) != nil {
-                list.append(["name": n, "inputSchema": ["type": "object", "properties": [String: Any]()]])
+                list.append([
+                    "name": n, "inputSchema": ["type": "object", "properties": [String: Any]()],
+                ])
             }
         }
         return JVal(["tools": list])
@@ -133,12 +146,17 @@ actor MCPServer {
         guard ready else { return JVal([String: String]()) }
         guard let name = p?["name"] as? String else { return JVal([String: String]()) }
         let args = p?["arguments"] as? [String: Any] ?? [:]
-        let j = (try? JSONSerialization.data(withJSONObject: args)).flatMap { String(decoding: $0, as: UTF8.self) } ?? "{}"
+        let j =
+            (try? JSONSerialization.data(withJSONObject: args)).flatMap {
+                String(decoding: $0, as: UTF8.self)
+            } ?? "{}"
         do {
             let r = try await registry.call(name, arguments: j)
             return JVal(["content": [["type": "text", "text": r]], "isError": false])
         } catch {
-            return JVal(["content": [["type": "text", "text": error.localizedDescription]], "isError": true])
+            return JVal([
+                "content": [["type": "text", "text": error.localizedDescription]], "isError": true,
+            ])
         }
     }
 

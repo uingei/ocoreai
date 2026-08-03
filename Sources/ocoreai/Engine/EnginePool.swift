@@ -13,20 +13,19 @@
 import Atomics
 import Foundation
 import Logging
+import MLXLLM
+import MLXLMCommon
 import MLXVLM
 
 #if canImport(CoreAI)
-    import CoreAI
+import CoreAI
 #endif
 
-import MLXLLM
-import MLXLMCommon
-
 #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-    import MLXFoundationModels
-    #if canImport(FoundationModels)
-        import FoundationModels
-    #endif
+import MLXFoundationModels
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 #endif
 
 /// Convert ContentPolymorphic to String for tokenization input.
@@ -34,8 +33,8 @@ import MLXLMCommon
 func contentToString(_ content: ContentPolymorphic?) -> (String, Int) {
     guard let content else { return ("", 0) }
     switch content {
-    case let .text(s): return (s, 0)
-    case let .parts(parts):
+    case .text(let s): return (s, 0)
+    case .parts(let parts):
         let texts = parts.compactMap(\.text)
         let dropped = parts.count - texts.count
         return (texts.joined(separator: " "), dropped)
@@ -83,9 +82,9 @@ actor EnginePool {
     // MARK: - Model Loading
 
     #if canImport(CoreAI)
-        // Type-erased storage — CoreAIModelLoader is @available(macOS 27.0, *)
-        // so it leaks transitively into EnginePool (dep target 26).
-        private var _coreAIPreparedModelLoader: Any?
+    // Type-erased storage — CoreAIModelLoader is @available(macOS 27.0, *)
+    // so it leaks transitively into EnginePool (dep target 26).
+    private var _coreAIPreparedModelLoader: Any?
     #endif
 
     let mlxModelLoader: MLXModelLoader
@@ -109,7 +108,7 @@ actor EnginePool {
     /// When set, every inference request queries the router for recommendedChannel
     /// before dispatching to a backend.
     internal let hardwareRouter: HardwareRouter?
-    
+
     /// Tool registry for bridging to ChatSession tool dispatch.
     internal let toolRegistry: ToolRegistry?
 
@@ -136,15 +135,15 @@ actor EnginePool {
         self.memoryTracker = memoryTracker
         self.maxLoadedModels = 4
         #if canImport(CoreAI)
-            if #available(macOS 27.0, *) {
-                _coreAIPreparedModelLoader = CoreAIModelLoader(
-                    config: coreAILoadingConfig as? CoreAILoadingConfig ?? CoreAILoadingConfig(),
-                    logger: logger,
-                )
-                logger.info("CoreAIModelLoader initialized (v15 two-phase specialization)")
-            } else {
-                logger.info("CoreAI SDK present but macOS < 27.0 — skipping CoreAI backend")
-            }
+        if #available(macOS 27.0, *) {
+            _coreAIPreparedModelLoader = CoreAIModelLoader(
+                config: coreAILoadingConfig as? CoreAILoadingConfig ?? CoreAILoadingConfig(),
+                logger: logger,
+            )
+            logger.info("CoreAIModelLoader initialized (v15 two-phase specialization)")
+        } else {
+            logger.info("CoreAI SDK present but macOS < 27.0 — skipping CoreAI backend")
+        }
         #endif
         mlxModelLoader = MLXModelLoader(
             logger: logger,
@@ -157,22 +156,25 @@ actor EnginePool {
             var wiredPoolConfig = poolConfig
             wiredPoolConfig.vlmImageResize = config.vlmImageResize
             sessionPool = MLXSessionPool(config: wiredPoolConfig, logger: logger)
-            logger.info("MLXSessionPool enabled (max=\(poolConfig.maxSessions), ttl=\(poolConfig.sessionTTLSeconds)s)")
+            logger.info(
+                "MLXSessionPool enabled (max=\(poolConfig.maxSessions), ttl=\(poolConfig.sessionTTLSeconds)s)"
+            )
         } else {
             sessionPool = nil
             logger.info("MLXSessionPool disabled (create-and-destroy per request)")
         }
 
         // Log speculative decoding status
-            if config.specDecoding.enabled {
-                if let draftId = config.specDecoding.draftModelId {
-                    logger.info("Speculative decoding enabled (draft: \(draftId), lazy load on first model)")
-                } else {
-                    logger.info("Speculative decoding enabled (draft model ID not set)")
-                }
+        if config.specDecoding.enabled {
+            if let draftId = config.specDecoding.draftModelId {
+                logger.info(
+                    "Speculative decoding enabled (draft: \(draftId), lazy load on first model)")
             } else {
-                logger.info("Speculative decoding disabled")
+                logger.info("Speculative decoding enabled (draft model ID not set)")
             }
+        } else {
+            logger.info("Speculative decoding disabled")
+        }
         // Register MTP drafter types (idempotent, async)
         Task {
             await Gemma4AssistantRegistration.register()
@@ -189,7 +191,8 @@ actor EnginePool {
         let dicts: [[String: String]] = messages.map { msg -> [String: String] in
             let (text, dropped) = contentToString(msg.content)
             if dropped > 0 {
-                self.logger.warning("Dropped \(dropped) non-text content part(s) for \(msg.role) message")
+                self.logger.warning(
+                    "Dropped \(dropped) non-text content part(s) for \(msg.role) message")
             }
             return ["role": msg.role, "content": text]
         }
@@ -319,7 +322,8 @@ actor EnginePool {
 
         // Evict the oldest idle model
         if let target = idleModels.first {
-            logger.info("LRU eviction: model \(target.id) (pool: \(loadedModels.count)/\(maxLoadedModels))")
+            logger.info(
+                "LRU eviction: model \(target.id) (pool: \(loadedModels.count)/\(maxLoadedModels))")
             await unloadModel(target.id)
         }
     }
@@ -337,11 +341,12 @@ actor EnginePool {
         logger.info("Loading model: \(modelId)")
 
         // Resolve repo id — strip hf: prefix if present
-        let repoId: String = if modelId.hasPrefix("hf:") {
-            String(modelId.dropFirst(3))
-        } else {
-            modelId
-        }
+        let repoId: String =
+            if modelId.hasPrefix("hf:") {
+                String(modelId.dropFirst(3))
+            } else {
+                modelId
+            }
 
         // Fetch remote config — hf: prefix → HF, otherwise defaultHub (modelscope)
         let isHF = modelId.hasPrefix("hf:")
@@ -349,7 +354,8 @@ actor EnginePool {
         if isHF {
             resolved = await HubConfigFetcher.fetchHuggingFaceConfig(repoId: repoId, logger: logger)
         } else {
-            resolved = await HubConfigFetcher.fetchModelScopeConfig(repoId: repoId, token: modelScopeToken, logger: logger)
+            resolved = await HubConfigFetcher.fetchModelScopeConfig(
+                repoId: repoId, token: modelScopeToken, logger: logger)
         }
 
         let modelConfig = ModelConfig(
@@ -363,35 +369,37 @@ actor EnginePool {
         let modelURL = URL(fileURLWithPath: modelId)
         // Stub configData for coreai path; actual weights come from hub download
         let configData = "{}".data(using: .utf8) ?? Data()
-        logger.info("Model \(modelId) is a hub model — MLXModelLoader will resolve \(resolved != nil ? "(remote config resolved)" : "(using defaults)")")
+        logger.info(
+            "Model \(modelId) is a hub model — MLXModelLoader will resolve \(resolved != nil ? "(remote config resolved)" : "(using defaults)")"
+        )
 
         #if canImport(CoreAI)
-            if #available(macOS 27.0, *),
-               let loader = _coreAIPreparedModelLoader as? CoreAIModelLoader
-            {
-                let preparedModel = try await loader.load(
-                    modelURL: modelURL,
-                    modelId: modelId,
-                )
+        if #available(macOS 27.0, *),
+            let loader = _coreAIPreparedModelLoader as? CoreAIModelLoader
+        {
+            let preparedModel = try await loader.load(
+                modelURL: modelURL,
+                modelId: modelId,
+            )
 
-                let loadTag = preparedModel.isSpecialized ? "specialized" : "fallback (EngineFactory)"
-                logger.info(
-                    "Model \(modelId) prepared: \(loadTag)",
-                    metadata: [
-                        "specialized": .string(String(preparedModel.isSpecialized)),
-                    ],
-                )
+            let loadTag = preparedModel.isSpecialized ? "specialized" : "fallback (EngineFactory)"
+            logger.info(
+                "Model \(modelId) prepared: \(loadTag)",
+                metadata: [
+                    "specialized": .string(String(preparedModel.isSpecialized))
+                ],
+            )
 
-                return LoadedModel(
-                    configData: configData,
-                    modelURL: modelURL,
-                    modelConfig: modelConfig,
-                    preparedModel: preparedModel,
-                    logger: logger,
-                )
-            } else {
-                logger.info("CoreAI unavailable on this macOS version — falling back to MLX")
-            }
+            return LoadedModel(
+                configData: configData,
+                modelURL: modelURL,
+                modelConfig: modelConfig,
+                preparedModel: preparedModel,
+                logger: logger,
+            )
+        } else {
+            logger.info("CoreAI unavailable on this macOS version — falling back to MLX")
+        }
         #endif
         // VLM detection: check processor_config.json before loading
         let isVlmModel = MLXModelLoader.isVLMModel(at: modelURL)
@@ -407,108 +415,117 @@ actor EnginePool {
         // configuration/capabilities/configurationResolver drive respond();
         // in the fallback path it stays nil.
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-            // Use Any? to bridge @available(macOS 27.0, *) MLXLanguageModel —
-            // the struct is @available-gated so it cannot be declared outside
-            // if #available() when deploying to macOS 15.
-            var mlxLM: Any? = nil
-            
-            if #available(macOS 27.0, *) {
-                // Primary hub provider — MLXModelLoader defaults to "modelscope", hf: prefix means HF
-                let hubProviderStr: String = isHF ? "huggingface" : "modelscope"
-                
-                // Construct MLXLanguageModel that routes through ModelCache (concurrency-safe, download-tracked, error-recorded)
-                // Capabilities include .reasoning and .toolCalling so upstream capability gates fire;
-                // actual gating is per-request (reasoningConfig must exist, tools must be present).
-                // Mirrors Executor.respond() L950-1102 capability validation.
-                let modelConfig = ModelConfiguration(id: modelId)
-                let baseCaps: [LanguageModelCapabilities.Capability] = [.guidedGeneration]
-                let vlmCaps: [LanguageModelCapabilities.Capability] = isVlmModel ? [.vision] : []
-                mlxLM = MLXLanguageModel(
-                    configuration: modelConfig,
-                    capabilities: baseCaps + vlmCaps + [.reasoning, .toolCalling],
-                    configurationResolver: DefaultConfigurationResolver(),
-                    weightsLocation: { _ in modelURL },
-                    load: { [weak self, logger, providerName = hubProviderStr, rId = repoId, mId = modelId] cfg, progressHandler in
-                        guard let self else {
-                            throw AppError.engineUnavailable
-                        }
-                        let actualProvider: MLXModelLoader.HubProvider = providerName == "huggingface" ? .huggingFace : .modelScope
-                        do {
-                            let container = try await self.mlxModelLoader.loadFromHub(actualProvider, repoId: rId, modelId: mId, progressHandler: progressHandler)
-                            return container
-                        } catch {
-                            logger.warning("\(actualProvider == .modelScope ? "ModelScope" : "HuggingFace") failed for \(mId) — falling back: \(error.localizedDescription)")
-                            let fb: MLXModelLoader.HubProvider = actualProvider == .modelScope ? .huggingFace : .modelScope
-                            let container = try await self.mlxModelLoader.loadFromHub(fb, repoId: rId, modelId: mId, progressHandler: progressHandler)
-                            return container
-                        }
+        // Use Any? to bridge @available(macOS 27.0, *) MLXLanguageModel —
+        // the struct is @available-gated so it cannot be declared outside
+        // if #available() when deploying to macOS 15.
+        var mlxLM: Any? = nil
+
+        if #available(macOS 27.0, *) {
+            // Primary hub provider — MLXModelLoader defaults to "modelscope", hf: prefix means HF
+            let hubProviderStr: String = isHF ? "huggingface" : "modelscope"
+
+            // Construct MLXLanguageModel that routes through ModelCache (concurrency-safe, download-tracked, error-recorded)
+            // Capabilities include .reasoning and .toolCalling so upstream capability gates fire;
+            // actual gating is per-request (reasoningConfig must exist, tools must be present).
+            // Mirrors Executor.respond() L950-1102 capability validation.
+            let modelConfig = ModelConfiguration(id: modelId)
+            let baseCaps: [LanguageModelCapabilities.Capability] = [.guidedGeneration]
+            let vlmCaps: [LanguageModelCapabilities.Capability] = isVlmModel ? [.vision] : []
+            mlxLM = MLXLanguageModel(
+                configuration: modelConfig,
+                capabilities: baseCaps + vlmCaps + [.reasoning, .toolCalling],
+                configurationResolver: DefaultConfigurationResolver(),
+                weightsLocation: { _ in modelURL },
+                load: {
+                    [weak self, logger, providerName = hubProviderStr, rId = repoId, mId = modelId]
+                    cfg, progressHandler in
+                    guard let self else {
+                        throw AppError.engineUnavailable
                     }
-                )
-                
-                // preload() → loadContainer() single call.
-                // upstream: MLXLanguageModel.preload() L585: public func preload() async throws
-                //         internally is just `_ = try await loadContainer()` (L587).
-                // ModelCache.load has a guard dedup — second loadContainer() call
-                // (by respond(), here, or warmUp()) returns cached container.
-                if let mlLM = mlxLM as? MLXLanguageModel {
-                    try await mlLM.preload()
-                    // loadContainer() here is a cache hit — preload() already cached it.
-                    // We still call it to get the container reference for MLXModelHandleImpl.
-                    let container = try await mlLM.loadContainer()
-                    mlxHandleToSet = MLXModelHandleImpl(modelContainer: container, modelId: modelId)
-                    logger.info("MLX model \(modelId) loaded via ModelCache.preload()")
-                } else {
-                    // Fallback if cast fails — unlikely but defensive
-                    mlxHandleToSet = try await mlxModelLoader.load(
-                        modelURL: modelURL,
-                        modelId: modelId,
-                    )
-                    logger.warning("MLX model \(modelId) loaded via fallback loader (cast failed)")
+                    let actualProvider: MLXModelLoader.HubProvider =
+                        providerName == "huggingface" ? .huggingFace : .modelScope
+                    do {
+                        let container = try await self.mlxModelLoader.loadFromHub(
+                            actualProvider, repoId: rId, modelId: mId,
+                            progressHandler: progressHandler)
+                        return container
+                    } catch {
+                        logger.warning(
+                            "\(actualProvider == .modelScope ? "ModelScope" : "HuggingFace") failed for \(mId) — falling back: \(error.localizedDescription)"
+                        )
+                        let fb: MLXModelLoader.HubProvider =
+                            actualProvider == .modelScope ? .huggingFace : .modelScope
+                        let container = try await self.mlxModelLoader.loadFromHub(
+                            fb, repoId: rId, modelId: mId, progressHandler: progressHandler)
+                        return container
+                    }
                 }
+            )
+
+            // preload() → loadContainer() single call.
+            // upstream: MLXLanguageModel.preload() L585: public func preload() async throws
+            //         internally is just `_ = try await loadContainer()` (L587).
+            // ModelCache.load has a guard dedup — second loadContainer() call
+            // (by respond(), here, or warmUp()) returns cached container.
+            if let mlLM = mlxLM as? MLXLanguageModel {
+                try await mlLM.preload()
+                // loadContainer() here is a cache hit — preload() already cached it.
+                // We still call it to get the container reference for MLXModelHandleImpl.
+                let container = try await mlLM.loadContainer()
+                mlxHandleToSet = MLXModelHandleImpl(modelContainer: container, modelId: modelId)
+                logger.info("MLX model \(modelId) loaded via ModelCache.preload()")
             } else {
-                // FoundationModelsIntegration trait enabled but macOS < 27 — fall back to direct loader
+                // Fallback if cast fails — unlikely but defensive
                 mlxHandleToSet = try await mlxModelLoader.load(
                     modelURL: modelURL,
                     modelId: modelId,
                 )
-                logger.info("MLX model \(modelId) loaded via MLXModelLoader (macOS < 27 fallback)")
+                logger.warning("MLX model \(modelId) loaded via fallback loader (cast failed)")
             }
-        #else
-            // Fallback: direct MLXModelLoader path when FoundationModelsIntegration is not available
+        } else {
+            // FoundationModelsIntegration trait enabled but macOS < 27 — fall back to direct loader
             mlxHandleToSet = try await mlxModelLoader.load(
                 modelURL: modelURL,
                 modelId: modelId,
             )
-            logger.info("MLX model \(modelId) loaded via MLXModelLoader")
+            logger.info("MLX model \(modelId) loaded via MLXModelLoader (macOS < 27 fallback)")
+        }
+        #else
+        // Fallback: direct MLXModelLoader path when FoundationModelsIntegration is not available
+        mlxHandleToSet = try await mlxModelLoader.load(
+            modelURL: modelURL,
+            modelId: modelId,
+        )
+        logger.info("MLX model \(modelId) loaded via MLXModelLoader")
         #endif
 
         #if canImport(CoreAI)
-            var model: LoadedModel
-            if #available(macOS 27.0, *) {
-                let prepared = CoreAIPreparedModel.fallback()
-                model = LoadedModel(
-                    configData: configData,
-                    modelURL: modelURL,
-                    modelConfig: modelConfig,
-                    preparedModel: prepared,
-                    logger: logger,
-                )
-            } else {
-                model = LoadedModel(
-                    configData: configData,
-                    modelURL: modelURL,
-                    modelConfig: modelConfig,
-                    preparedModel: nil,
-                    logger: logger,
-                )
-            }
-        #else
-            var model = LoadedModel(
+        var model: LoadedModel
+        if #available(macOS 27.0, *) {
+            let prepared = CoreAIPreparedModel.fallback()
+            model = LoadedModel(
                 configData: configData,
                 modelURL: modelURL,
                 modelConfig: modelConfig,
+                preparedModel: prepared,
                 logger: logger,
             )
+        } else {
+            model = LoadedModel(
+                configData: configData,
+                modelURL: modelURL,
+                modelConfig: modelConfig,
+                preparedModel: nil,
+                logger: logger,
+            )
+        }
+        #else
+        var model = LoadedModel(
+            configData: configData,
+            modelURL: modelURL,
+            modelConfig: modelConfig,
+            logger: logger,
+        )
         #endif
         model.setMLXHandle(mlxHandleToSet)
         model.isVlm = isVlmModel
@@ -517,48 +534,50 @@ actor EnginePool {
         // capability gates, ToolCallingModeResolution, and ConfigurationResolver
         // on macOS 27. The instance was constructed above and hoisted into mlxLM.
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-            if #available(macOS 27.0, *), let lm = mlxLM {
-                model._mlxLanguageModelRef = lm
-            }
+        if #available(macOS 27.0, *), let lm = mlxLM {
+            model._mlxLanguageModelRef = lm
+        }
         #endif
         // Configure speculative decoding — lazy-load draft model on first model load
         model.setSpecDecodingConfig(config.specDecoding)
         if config.specDecoding.enabled {
             // MTP mode: load assistant drafter via MLXModelLoader
-                // Guard: only Gemma-4 models have known-compatible assistant drafter
-                // Unknown families skip loading to prevent token table mismatch
-                if config.specDecoding.mode == "mtp" && !model.hasMTPDrafter {
-                    let isGemma = modelId.lowercased().contains("gemma")
-                    if !isGemma {
-                        logger.warning(
-                            "Speculative decoding in 'mtp' mode requires a Gemma-4 model — model \(modelId) is not Gemma, MTP drafter skipped. Set specDecoding.mode to 'traditional' or disable specDecoding."
-                        )
+            // Guard: only Gemma-4 models have known-compatible assistant drafter
+            // Unknown families skip loading to prevent token table mismatch
+            if config.specDecoding.mode == "mtp" && !model.hasMTPDrafter {
+                let isGemma = modelId.lowercased().contains("gemma")
+                if !isGemma {
+                    logger.warning(
+                        "Speculative decoding in 'mtp' mode requires a Gemma-4 model — model \(modelId) is not Gemma, MTP drafter skipped. Set specDecoding.mode to 'traditional' or disable specDecoding."
+                    )
+                } else {
+                    // P0-fix (mlx-swift-lm#415 78eaa5b): Gemma 4 12B (gemma4_unified)
+                    // uses a distinct drafter — gemma4_unified_assistant. The 12B model
+                    // id contains neither "31" nor "26", so defaulting to 26B drafter
+                    // causes token-table mismatch and MTP failure.
+                    let drafterModelId: String
+                    if modelId.lowercased().contains("12") {
+                        drafterModelId = "mlx-community/gemma-4-12B-it-assistant-bf16"
+                    } else if modelId.lowercased().contains("31") {
+                        drafterModelId = "mlx-community/gemma-4-31B-it-assistant-bf16"
                     } else {
-                        // P0-fix (mlx-swift-lm#415 78eaa5b): Gemma 4 12B (gemma4_unified)
-                        // uses a distinct drafter — gemma4_unified_assistant. The 12B model
-                        // id contains neither "31" nor "26", so defaulting to 26B drafter
-                        // causes token-table mismatch and MTP failure.
-                        let drafterModelId: String
-                        if modelId.lowercased().contains("12") {
-                            drafterModelId = "mlx-community/gemma-4-12B-it-assistant-bf16"
-                        } else if modelId.lowercased().contains("31") {
-                            drafterModelId = "mlx-community/gemma-4-31B-it-assistant-bf16"
-                        } else {
-                            drafterModelId = "mlx-community/gemma-4-26B-A4B-it-assistant-bf16"
-                        }
-                        do {
-                            self.mtpDrafterContainer = try await mlxModelLoader.loadMTPDrafter(modelId: drafterModelId)
-                            logger.info("MTP Drafter loaded for \(modelId): \(drafterModelId)")
-                        } catch {
-                            logger.warning("MTP Drafter load failed: \(error)")
-                        }
+                        drafterModelId = "mlx-community/gemma-4-26B-A4B-it-assistant-bf16"
+                    }
+                    do {
+                        self.mtpDrafterContainer = try await mlxModelLoader.loadMTPDrafter(
+                            modelId: drafterModelId)
+                        logger.info("MTP Drafter loaded for \(modelId): \(drafterModelId)")
+                    } catch {
+                        logger.warning("MTP Drafter load failed: \(error)")
                     }
                 }
+            }
             // Traditional mode: lazy-load draft model
             if let draft = self.draftModelHandle {
                 model.setDraftModel(draft)
             } else if self.draftModelHandle == nil,
-                    let draftId = config.specDecoding.draftModelId {
+                let draftId = config.specDecoding.draftModelId
+            {
                 // Lazy-load draft model once
                 // Draft models default to HF — no source param needed
                 let draftURL = URL(fileURLWithPath: draftId)
@@ -574,7 +593,9 @@ actor EnginePool {
                     logger.warning("Speculative decoding draft model load failed: \(error)")
                 }
             } else {
-                logger.warning("Speculative decoding enabled but no draft model — falling back to standard generation")
+                logger.warning(
+                    "Speculative decoding enabled but no draft model — falling back to standard generation"
+                )
             }
         }
         return model
@@ -600,11 +621,11 @@ actor EnginePool {
                     "active_sessions": String(active),
                 ]
                 #if canImport(CoreAI)
-                    if #available(macOS 27.0, *) {
-                        entry["specialized"] = String(
-                            (model._preparedModel as? CoreAIPreparedModel)?.isSpecialized ?? false
-                        )
-                    }
+                if #available(macOS 27.0, *) {
+                    entry["specialized"] = String(
+                        (model._preparedModel as? CoreAIPreparedModel)?.isSpecialized ?? false
+                    )
+                }
                 #endif
                 entry["vlm"] = String(model.isVlm)
                 result.append(entry)
@@ -616,16 +637,16 @@ actor EnginePool {
     func engineSummary() async -> EngineSummary {
         let gpuCacheGB: Double = 0.0
         #if canImport(CoreAI)
-            var specializedCount: Int
-            if #available(macOS 27.0, *) {
-                specializedCount = loadedModels.values.count(
-                    where: { ($0._preparedModel as? CoreAIPreparedModel)?.isSpecialized == true }
-                )
-            } else {
-                specializedCount = loadedModels.values.count(where: { $0.isVlm })
-            }
+        var specializedCount: Int
+        if #available(macOS 27.0, *) {
+            specializedCount = loadedModels.values.count(
+                where: { ($0._preparedModel as? CoreAIPreparedModel)?.isSpecialized == true }
+            )
+        } else {
+            specializedCount = loadedModels.values.count(where: { $0.isVlm })
+        }
         #else
-            let specializedCount = loadedModels.values.count(where: { $0.isVlm })
+        let specializedCount = loadedModels.values.count(where: { $0.isVlm })
         #endif
         let modelIds = loadedModels.keys.sorted()
         return EngineSummary(
@@ -641,17 +662,17 @@ actor EnginePool {
     func isModelLoaded(_ modelId: String) -> Bool {
         loadedModels[modelId] != nil
     }
-    
+
     /// Check if a model is currently being loaded (download + warmup in progress).
     func isModelLoading(_ modelId: String) -> Bool {
         loadingModels.contains(modelId)
     }
-    
+
     /// Return the set of model IDs currently being loaded.
     func getLoadingModelIds() -> Set<String> {
         loadingModels
     }
-    
+
     /// Return the first loaded model ID (useful for fallback/summarization).
     func firstLoadedModelId() -> String? {
         loadedModels.keys.first
@@ -665,12 +686,12 @@ actor EnginePool {
         0.0
     }
 
-        func getMLXModelAndTokenizer(modelId: String) -> MLXLMCommon.ModelContainer? {
-            guard let loaded = loadedModels[modelId], let handle = loaded.mlxModelHandle else {
-                return nil
-            }
-            return handle.modelContainer
+    func getMLXModelAndTokenizer(modelId: String) -> MLXLMCommon.ModelContainer? {
+        guard let loaded = loadedModels[modelId], let handle = loaded.mlxModelHandle else {
+            return nil
         }
+        return handle.modelContainer
+    }
 
     // MARK: - Runtime Parameter API (hot-swap)
 
@@ -754,7 +775,9 @@ actor EnginePool {
         }
 
         if model.activeSessions > 0 {
-            logger.warning("Model \(modelId) still has \(model.activeSessions) active sessions — force releasing")
+            logger.warning(
+                "Model \(modelId) still has \(model.activeSessions) active sessions — force releasing"
+            )
         }
 
         model.cleanup()
@@ -792,9 +815,9 @@ actor EnginePool {
 
         // upstream: MLXLanguageModel.evictAll() L498 — clear global ModelCache
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-            if #available(macOS 27.0, *) {
-                await MLXLanguageModel.evictAll()
-            }
+        if #available(macOS 27.0, *) {
+            await MLXLanguageModel.evictAll()
+        }
         #endif
 
         if let pool = sessionPool {

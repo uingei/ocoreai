@@ -19,9 +19,9 @@ actor SessionCompressor {
     private let fts: FTS5Search
     /// Number of recent messages cached as the hot working set (exposed for UI layer boundary).
     let hotWindow: Int
-    private let tokenThreshold: Int // Token count that triggers compression
-    private let ttlDays: Int // Default session retention
-    private var llmSummarizer: (@Sendable (String) async throws -> String)? // LLM summarization callback (nil = rule-based only)
+    private let tokenThreshold: Int  // Token count that triggers compression
+    private let ttlDays: Int  // Default session retention
+    private var llmSummarizer: (@Sendable (String) async throws -> String)?  // LLM summarization callback (nil = rule-based only)
 
     // Per-session tracking
     private var sessionTokenCounts: [Int64: Int] = [:]
@@ -103,9 +103,9 @@ actor SessionCompressor {
         let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
 
         let sql = """
-        INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count, ttl_days)
-        VALUES (?, ?, ?, 0, 0, ?)
-        """
+            INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count, ttl_days)
+            VALUES (?, ?, ?, 0, 0, ?)
+            """
 
         do {
             _ = try await store.scalarQuery(sql: sql, parameters: [modelId, now, now, ttl])
@@ -120,8 +120,10 @@ actor SessionCompressor {
     /// Delete a session and all its messages.
     func deleteSession(_ sessionId: Int64) async throws {
         do {
-            try await store.execute(sql: "DELETE FROM messages WHERE session_id = ?", parameters: [sessionId])
-            try await store.execute(sql: "DELETE FROM sessions WHERE id = ?", parameters: [sessionId])
+            try await store.execute(
+                sql: "DELETE FROM messages WHERE session_id = ?", parameters: [sessionId])
+            try await store.execute(
+                sql: "DELETE FROM sessions WHERE id = ?", parameters: [sessionId])
             sessionTokenCounts.removeValue(forKey: sessionId)
             compressedSessions.remove(sessionId)
         } catch let sqliteErr as SQLiteError {
@@ -142,17 +144,17 @@ actor SessionCompressor {
 
         if let mid = modelId {
             sql = """
-            SELECT id, model_id, created_at, updated_at, message_count, token_count, summary, ttl_days
-            FROM sessions WHERE model_id = ?
-            ORDER BY updated_at DESC LIMIT ?
-            """
+                SELECT id, model_id, created_at, updated_at, message_count, token_count, summary, ttl_days
+                FROM sessions WHERE model_id = ?
+                ORDER BY updated_at DESC LIMIT ?
+                """
             params = [mid, limit]
         } else {
             sql = """
-            SELECT id, model_id, created_at, updated_at, message_count, token_count, summary, ttl_days
-            FROM sessions
-            ORDER BY updated_at DESC LIMIT ?
-            """
+                SELECT id, model_id, created_at, updated_at, message_count, token_count, summary, ttl_days
+                FROM sessions
+                ORDER BY updated_at DESC LIMIT ?
+                """
             params = [limit]
         }
 
@@ -176,9 +178,12 @@ actor SessionCompressor {
         tokenCount: Int,
         toolCalls: [ToolCallRecord]? = nil,
     ) async throws -> Int64 {
-        guard ["user", "assistant", "system", "tool"].contains(role) else { throw SQLiteError.executionFailed(detail: "Invalid role: \(role)") }
-        return try await addUnsafe(sessionId: sessionId, role: role, content: content,
-                            tokenCount: tokenCount, toolCalls: toolCalls)
+        guard ["user", "assistant", "system", "tool"].contains(role) else {
+            throw SQLiteError.executionFailed(detail: "Invalid role: \(role)")
+        }
+        return try await addUnsafe(
+            sessionId: sessionId, role: role, content: content,
+            tokenCount: tokenCount, toolCalls: toolCalls)
     }
 
     private func addUnsafe(
@@ -199,20 +204,22 @@ actor SessionCompressor {
         }
 
         let sql = """
-        INSERT INTO messages (session_id, role, content, created_at, token_count, tool_calls)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """
+            INSERT INTO messages (session_id, role, content, created_at, token_count, tool_calls)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """
 
         do {
-            let params: [AnyHashable] = if let json = toolCallsJson {
-                [sessionId, role, content, now, tokenCount, json]
-            } else {
-                [sessionId, role, content, now, tokenCount, ""]
-            }
+            let params: [AnyHashable] =
+                if let json = toolCallsJson {
+                    [sessionId, role, content, now, tokenCount, json]
+                } else {
+                    [sessionId, role, content, now, tokenCount, ""]
+                }
             try await store.execute(sql: sql, parameters: params)
 
             // Capture row id for embedding
-            let messageRowId = try await store.scalarQuery(sql: "SELECT last_insert_rowid()")?.asInt64 ?? 0
+            let messageRowId =
+                try await store.scalarQuery(sql: "SELECT last_insert_rowid()")?.asInt64 ?? 0
 
             // Update session metadata
             try await updateSession(sessionId, messageDelta: 1, tokenDelta: tokenCount)
@@ -222,7 +229,9 @@ actor SessionCompressor {
 
             // Check compression threshold
             if sessionTokenCounts[sessionId, default: 0] >= tokenThreshold {
-                logger.warning("Session \(sessionId) token count \(sessionTokenCounts[sessionId, default: 0]) exceeds threshold \(tokenThreshold)")
+                logger.warning(
+                    "Session \(sessionId) token count \(sessionTokenCounts[sessionId, default: 0]) exceeds threshold \(tokenThreshold)"
+                )
                 // Trigger compression event
                 triggerCompression(sessionId)
             }
@@ -248,12 +257,12 @@ actor SessionCompressor {
     ) async throws -> [MessageModel] {
         let lim = limit ?? hotWindow
         let sql = """
-        SELECT id, session_id, role, content, created_at, token_count, tool_calls
-        FROM messages
-        WHERE session_id = ?
-        ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
-        """
+            SELECT id, session_id, role, content, created_at, token_count, tool_calls
+            FROM messages
+            WHERE session_id = ?
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+            """
 
         do {
             let rows = try await store.query(sql, parameters: [sessionId, lim, offset])
@@ -276,13 +285,13 @@ actor SessionCompressor {
     func bookends(_ sessionId: Int64, count: Int = 3) async throws -> [MessageModel] {
         // First N
         let firstSql = """
-        SELECT id, session_id, role, content, created_at, token_count, tool_calls
-        FROM messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?
-        """
+            SELECT id, session_id, role, content, created_at, token_count, tool_calls
+            FROM messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?
+            """
         let lastSql = """
-        SELECT id, session_id, role, content, created_at, token_count, tool_calls
-        FROM messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?
-        """
+            SELECT id, session_id, role, content, created_at, token_count, tool_calls
+            FROM messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?
+            """
 
         do {
             let firstRows = try await store.query(firstSql, parameters: [sessionId, count])
@@ -312,7 +321,8 @@ actor SessionCompressor {
     private func triggerCompression(_ sessionId: Int64) {
         Task.detached(priority: .utility) { [weak self] in
             guard let self else { return }
-            await self.pruneColdMessages(sessionId, tokenCount: self.sessionTokenCounts[sessionId, default: 0])
+            await self.pruneColdMessages(
+                sessionId, tokenCount: self.sessionTokenCounts[sessionId, default: 0])
         }
     }
 
@@ -325,24 +335,28 @@ actor SessionCompressor {
         // Without this, function call + result pairs are lost during compression,
         // breaking the conversation context for subsequent tool-assisted turns.
         let coldSql = """
-        SELECT role, content, tool_calls FROM messages
-        WHERE session_id = ?
-        AND id NOT IN (
-            SELECT id FROM messages WHERE session_id = ?
-            ORDER BY created_at DESC LIMIT ?
-        )
-        ORDER BY created_at ASC
-        """
+            SELECT role, content, tool_calls FROM messages
+            WHERE session_id = ?
+            AND id NOT IN (
+                SELECT id FROM messages WHERE session_id = ?
+                ORDER BY created_at DESC LIMIT ?
+            )
+            ORDER BY created_at ASC
+            """
         let coldMessages: [(role: String, content: String, toolCalls: String?)]
         do {
-            let rows = try await store.query(coldSql, parameters: [sessionId, sessionId, hotWindow])
+            let rows = try await store.query(
+                coldSql, parameters: [sessionId, sessionId, hotWindow])
             coldMessages = rows.compactMap { row -> (String, String, String?)? in
                 guard let role = row["role"]?.asString,
-                      let content = row["content"]?.asString else { return nil }
+                    let content = row["content"]?.asString
+                else { return nil }
                 return (role, content, row["tool_calls"]?.asString)
             }
         } catch {
-            logger.warning("Failed to fetch cold messages for session \(sessionId): \(error.localizedDescription)")
+            logger.warning(
+                "Failed to fetch cold messages for session \(sessionId): \(error.localizedDescription)"
+            )
             return
         }
 
@@ -362,12 +376,16 @@ actor SessionCompressor {
                 let combined = existing + "\n" + summary
                 try await store.execute(
                     sql: "UPDATE sessions SET summary = ?, updated_at = ? WHERE id = ?",
-                    parameters: [combined, Int64(Date().timeIntervalSince1970 * 1_000_000), sessionId],
+                    parameters: [
+                        combined, Int64(Date().timeIntervalSince1970 * 1_000_000), sessionId,
+                    ],
                 )
             } else {
                 try await store.execute(
                     sql: "UPDATE sessions SET summary = ?, updated_at = ? WHERE id = ?",
-                    parameters: [summary, Int64(Date().timeIntervalSince1970 * 1_000_000), sessionId],
+                    parameters: [
+                        summary, Int64(Date().timeIntervalSince1970 * 1_000_000), sessionId,
+                    ],
                 )
             }
         } catch {
@@ -376,15 +394,16 @@ actor SessionCompressor {
 
         // 4. Delete cold messages
         let pruneSql = """
-        DELETE FROM messages WHERE session_id = ?
-        AND id NOT IN (
-            SELECT id FROM messages WHERE session_id = ?
-            ORDER BY created_at DESC LIMIT ?
-        )
-        """
+            DELETE FROM messages WHERE session_id = ?
+            AND id NOT IN (
+                SELECT id FROM messages WHERE session_id = ?
+                ORDER BY created_at DESC LIMIT ?
+            )
+            """
         do {
             try await store.execute(sql: pruneSql, parameters: [sessionId, sessionId, hotWindow])
-            logger.info("Session \(sessionId) compressed — kept last \(hotWindow) of ~\(tokenCount) tokens")
+            logger.info(
+                "Session \(sessionId) compressed — kept last \(hotWindow) of ~\(tokenCount) tokens")
             compressedSessions.insert(sessionId)
         } catch {
             logger.warning("Failed to compress session \(sessionId): \(error.localizedDescription)")
@@ -394,7 +413,9 @@ actor SessionCompressor {
     /// LLM-driven summary generation from cold messages.
     /// Attempts LLM summarization first; falls back to rule-based extraction on failure.
     /// P1-fix: toolCalls are included so that tool-use context survives compression.
-    private func generateCompressionSummary(_ messages: [(role: String, content: String, toolCalls: String?)]) async -> String {
+    private func generateCompressionSummary(
+        _ messages: [(role: String, content: String, toolCalls: String?)]
+    ) async -> String {
         // Build conversation context for the summarizer — include tool call info
         let conversationText = messages.map { msg -> String in
             let base = "\(msg.role): \(msg.content)"
@@ -408,10 +429,10 @@ actor SessionCompressor {
         if let llmCallback = llmSummarizer {
             do {
                 let prompt = """
-                Summarize the following conversation in 3-5 concise bullet points. Focus on key topics, decisions, and outcomes.
+                    Summarize the following conversation in 3-5 concise bullet points. Focus on key topics, decisions, and outcomes.
 
-                \(conversationText)
-                """
+                    \(conversationText)
+                    """
                 let summary = try await llmCallback(prompt)
                 logger.info("LLM summary generated (\\(summary.count) chars)")
                 return summary
@@ -428,7 +449,9 @@ actor SessionCompressor {
     /// Extracts conversation topics, questions, tool calls, and key assistant responses.
     /// Used as fallback when LLM summarization is unavailable or fails.
     /// P1-fix: now accepts toolCalls parameter for tool-use tracking.
-    private static func generateRuleBasedSummary(coldMessages messages: [(role: String, content: String, toolCalls: String?)]) -> String {
+    private static func generateRuleBasedSummary(
+        coldMessages messages: [(role: String, content: String, toolCalls: String?)]
+    ) -> String {
         var topics: Set<String> = []
         var questions: [String] = []
         var resolutions: [String] = []
@@ -446,10 +469,10 @@ actor SessionCompressor {
                 }
                 topics.formUnion(extractKeywords(text: msg.content))
             case "assistant":
-                if msg.content.lowercased().contains("solution") ||
-                    msg.content.lowercased().contains("fixed") ||
-                    msg.content.lowercased().contains("here's") ||
-                    msg.content.lowercased().contains("the answer")
+                if msg.content.lowercased().contains("solution")
+                    || msg.content.lowercased().contains("fixed")
+                    || msg.content.lowercased().contains("here's")
+                    || msg.content.lowercased().contains("the answer")
                 {
                     resolutions.append(String(msg.content.prefix(min(msg.content.count, 100))))
                 }
@@ -487,10 +510,12 @@ actor SessionCompressor {
 
     /// Get the compressed summary for a session.
     func getSessionSummary(_ sessionId: Int64) async throws -> String? {
-        guard let result = try await store.scalarQuery(
-            sql: "SELECT summary FROM sessions WHERE id = ?",
-            parameters: [sessionId],
-        )?.asString else { return nil }
+        guard
+            let result = try await store.scalarQuery(
+                sql: "SELECT summary FROM sessions WHERE id = ?",
+                parameters: [sessionId],
+            )?.asString
+        else { return nil }
         return result.isEmpty ? nil : result
     }
 
@@ -500,9 +525,9 @@ actor SessionCompressor {
     func purgeExpired() async throws -> ExpiryTask {
         let now = Date().timeIntervalSince1970
         let sql = """
-        SELECT id FROM sessions
-        WHERE (created_at / 1000000.0 + ttl_days * 86400) < ?
-        """
+            SELECT id FROM sessions
+            WHERE (created_at / 1000000.0 + ttl_days * 86400) < ?
+            """
         let params: [AnyHashable] = [now]
 
         do {
@@ -510,7 +535,8 @@ actor SessionCompressor {
             let sessionIds = rows.compactMap { $0["id"]?.asInt64 }
 
             for sid in sessionIds {
-                try await store.execute(sql: "DELETE FROM messages WHERE session_id = ?", parameters: [sid])
+                try await store.execute(
+                    sql: "DELETE FROM messages WHERE session_id = ?", parameters: [sid])
                 try await store.execute(sql: "DELETE FROM sessions WHERE id = ?", parameters: [sid])
                 sessionTokenCounts.removeValue(forKey: sid)
                 compressedSessions.remove(sid)
@@ -533,13 +559,14 @@ actor SessionCompressor {
     private func updateSession(_ id: Int64, messageDelta: Int, tokenDelta: Int) async throws {
         let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
         do {
-            try await store.execute(sql: """
-            UPDATE sessions
-            SET message_count = message_count + ?,
-                token_count = token_count + ?,
-                updated_at = ?
-            WHERE id = ?
-            """, parameters: [messageDelta, tokenDelta, now, id])
+            try await store.execute(
+                sql: """
+                    UPDATE sessions
+                    SET message_count = message_count + ?,
+                        token_count = token_count + ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """, parameters: [messageDelta, tokenDelta, now, id])
         } catch let sqliteErr as SQLiteError {
             throw sqliteErr
         } catch {
@@ -548,14 +575,16 @@ actor SessionCompressor {
     }
 
     private func getLastInsertedId() async throws -> Int64 {
-        guard let result = try await store.scalarQuery(sql: "SELECT last_insert_rowid()")?.asInt64 else {
+        guard let result = try await store.scalarQuery(sql: "SELECT last_insert_rowid()")?.asInt64
+        else {
             throw SQLiteError.executionFailed(detail: "Could not read last_insert_rowid")
         }
         return result
     }
 
     /// Expose FTS5 full-text search to the router layer.
-    func searchFTS5(query: String, sessionId: Int64?, limit: Int) async throws -> [FTSSearchResult] {
+    func searchFTS5(query: String, sessionId: Int64?, limit: Int) async throws -> [FTSSearchResult]
+    {
         try await fts.search(query, sessionId: sessionId, limit: limit)
     }
 
@@ -576,17 +605,19 @@ actor SessionCompressor {
         // Facts/preferences use upsert to dedup; transients use plain insert
         if event.memoryType == .transient {
             sql = """
-            INSERT INTO memory_events (session_id, timestamp, context, entities, cause, process, result,
-                resolution, memory_type, dedup_key, confidence, tags)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """
+                INSERT INTO memory_events (session_id, timestamp, context, entities, cause, process, result,
+                    resolution, memory_type, dedup_key, confidence, tags)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """
             do {
-                try await store.execute(sql: sql, parameters: [
-                    event.sessionId, event.timestamp, event.context,
-                    entitiesJson, event.cause, event.process, event.result,
-                    event.resolution.rawValue, memoryType, event.dedupKey,
-                    event.confidence, tagsJson,
-                ])
+                try await store.execute(
+                    sql: sql,
+                    parameters: [
+                        event.sessionId, event.timestamp, event.context,
+                        entitiesJson, event.cause, event.process, event.result,
+                        event.resolution.rawValue, memoryType, event.dedupKey,
+                        event.confidence, tagsJson,
+                    ])
             } catch let sqliteErr as SQLiteError {
                 throw sqliteErr
             } catch {
@@ -595,23 +626,25 @@ actor SessionCompressor {
         } else {
             // Upsert: bump confidence if newer, keep older timestamp
             sql = """
-            INSERT INTO memory_events (session_id, timestamp, context, entities, cause, process, result,
-                resolution, memory_type, dedup_key, confidence, tags)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(dedup_key) DO UPDATE SET
-                confidence = max(excluded.confidence, confidence),
-                result = excluded.result,
-                resolution = excluded.resolution,
-                tags = excluded.tags,
-                process = excluded.process
-            """
+                INSERT INTO memory_events (session_id, timestamp, context, entities, cause, process, result,
+                    resolution, memory_type, dedup_key, confidence, tags)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(dedup_key) DO UPDATE SET
+                    confidence = max(excluded.confidence, confidence),
+                    result = excluded.result,
+                    resolution = excluded.resolution,
+                    tags = excluded.tags,
+                    process = excluded.process
+                """
             do {
-                try await store.execute(sql: sql, parameters: [
-                    event.sessionId, event.timestamp, event.context,
-                    entitiesJson, event.cause, event.process, event.result,
-                    event.resolution.rawValue, memoryType, event.dedupKey,
-                    event.confidence, tagsJson,
-                ])
+                try await store.execute(
+                    sql: sql,
+                    parameters: [
+                        event.sessionId, event.timestamp, event.context,
+                        entitiesJson, event.cause, event.process, event.result,
+                        event.resolution.rawValue, memoryType, event.dedupKey,
+                        event.confidence, tagsJson,
+                    ])
             } catch let sqliteErr as SQLiteError {
                 throw sqliteErr
             } catch {
@@ -621,7 +654,9 @@ actor SessionCompressor {
     }
 
     /// Extract structured memory events from a conversation turn.
-    func extractMemoryEvents(userMessage: String, assistantMessage: String, sessionId: Int64) async -> [MemoryEvent] {
+    func extractMemoryEvents(userMessage: String, assistantMessage: String, sessionId: Int64) async
+        -> [MemoryEvent]
+    {
         let events = Self.extractEventRules(
             userMessage: userMessage,
             assistantMessage: assistantMessage,
@@ -648,65 +683,68 @@ actor SessionCompressor {
         var events: [MemoryEvent] = []
 
         // Detect problem-solving pattern → pattern type (long-lived)
-        let problemPatterns = ["error", "fail", "bug", "crash", "wrong", "cannot", "shouldn't", "broken"]
+        let problemPatterns = [
+            "error", "fail", "bug", "crash", "wrong", "cannot", "shouldn't", "broken",
+        ]
         let userHasProblem = problemPatterns.contains { userMessage.lowercased().contains($0) }
         let assistantHasSolution =
-            assistantMessage.contains("the issue") ||
-            assistantMessage.contains("the problem") ||
-            assistantMessage.contains("the error") ||
-            assistantMessage.contains("fixed") ||
-            assistantMessage.contains("the solution")
+            assistantMessage.contains("the issue") || assistantMessage.contains("the problem")
+            || assistantMessage.contains("the error") || assistantMessage.contains("fixed")
+            || assistantMessage.contains("the solution")
 
         if userHasProblem && assistantHasSolution {
-            events.append(MemoryEvent(
-                sessionId: sessionId,
-                context: "debugging",
-                entities: ["session"],
-                cause: Self.summarizeCause(text: userMessage),
-                process: Self.summarizeProcess(text: assistantMessage),
-                result: Self.summarizeResult(text: assistantMessage),
-                resolution: .resolved,
-                memoryType: .pattern,
-                confidence: 0.7,
-                tags: ["debug", "problem-solving"],
-            ))
+            events.append(
+                MemoryEvent(
+                    sessionId: sessionId,
+                    context: "debugging",
+                    entities: ["session"],
+                    cause: Self.summarizeCause(text: userMessage),
+                    process: Self.summarizeProcess(text: assistantMessage),
+                    result: Self.summarizeResult(text: assistantMessage),
+                    resolution: .resolved,
+                    memoryType: .pattern,
+                    confidence: 0.7,
+                    tags: ["debug", "problem-solving"],
+                ))
         }
 
         // Detect learning/knowledge pattern → fact type (permanent)
-        let isQuestion = userMessage.last == "?" ||
-            userMessage.lowercased().contains("how to") ||
-            userMessage.lowercased().contains("what is")
+        let isQuestion =
+            userMessage.last == "?" || userMessage.lowercased().contains("how to")
+            || userMessage.lowercased().contains("what is")
         if isQuestion {
-            events.append(MemoryEvent(
-                sessionId: sessionId,
-                context: "knowledge",
-                entities: ["session"],
-                cause: Self.summarizeCause(text: userMessage),
-                process: "answered",
-                result: Self.summarizeResult(text: assistantMessage),
-                resolution: .resolved,
-                memoryType: .fact,
-                confidence: 0.6,
-                tags: ["learning", "knowledge"],
-            ))
+            events.append(
+                MemoryEvent(
+                    sessionId: sessionId,
+                    context: "knowledge",
+                    entities: ["session"],
+                    cause: Self.summarizeCause(text: userMessage),
+                    process: "answered",
+                    result: Self.summarizeResult(text: assistantMessage),
+                    resolution: .resolved,
+                    memoryType: .fact,
+                    confidence: 0.6,
+                    tags: ["learning", "knowledge"],
+                ))
         }
 
         // Detect decision pattern → preference type (permanent)
         let decisionPatterns = ["decide", "choose", "go with", "use ", "switch to", "change to"]
         let userDecided = decisionPatterns.contains { userMessage.lowercased().contains($0) }
         if userDecided {
-            events.append(MemoryEvent(
-                sessionId: sessionId,
-                context: "decision",
-                entities: ["user"],
-                cause: "preference or requirement",
-                process: Self.summarizeProcess(text: userMessage),
-                result: String(assistantMessage.prefix(100)),
-                resolution: .resolved,
-                memoryType: .preference,
-                confidence: 0.75,
-                tags: ["decision", "preference"],
-            ))
+            events.append(
+                MemoryEvent(
+                    sessionId: sessionId,
+                    context: "decision",
+                    entities: ["user"],
+                    cause: "preference or requirement",
+                    process: Self.summarizeProcess(text: userMessage),
+                    result: String(assistantMessage.prefix(100)),
+                    resolution: .resolved,
+                    memoryType: .preference,
+                    confidence: 0.75,
+                    tags: ["decision", "preference"],
+                ))
         }
 
         return events
@@ -735,10 +773,10 @@ actor SessionCompressor {
     func purgeTransientEvents(days: Int = 30) async throws -> Int {
         let cutoff = Double(Int64(Date().timeIntervalSince1970) - Int64(days) * 86400) * 1_000_000
         let sql = """
-        DELETE FROM memory_events
-        WHERE memory_type = 'transient'
-          AND timestamp < ?
-        """
+            DELETE FROM memory_events
+            WHERE memory_type = 'transient'
+              AND timestamp < ?
+            """
         do {
             _ = try await store.scalarQuery(sql: sql, parameters: [cutoff])
             return 0
@@ -780,8 +818,10 @@ actor SessionCompressor {
         conditions.append("confidence >= ?")
         params.append(minConfidence)
 
-        let whereClause = conditions.isEmpty ? "" : " WHERE " + conditions.joined(separator: " AND ")
-        let sql = "SELECT * FROM memory_events\(whereClause) ORDER BY confidence DESC, timestamp DESC LIMIT ?"
+        let whereClause =
+            conditions.isEmpty ? "" : " WHERE " + conditions.joined(separator: " AND ")
+        let sql =
+            "SELECT * FROM memory_events\(whereClause) ORDER BY confidence DESC, timestamp DESC LIMIT ?"
         params.append(limit)
 
         do {
@@ -801,30 +841,36 @@ actor SessionCompressor {
     /// If confidence crosses 0.9 and event is transient, auto-promote to pattern.
     private func boostRecalled(ids: [Int64]) async throws {
         guard !ids.isEmpty else { return }
-        let placeholders = String(repeating: "?", count: ids.count).split(separator: ",").map { String($0) }.joined(separator: ", ")
+        let placeholders = String(repeating: "?", count: ids.count).split(separator: ",").map {
+            String($0)
+        }.joined(separator: ", ")
         // +0.05 capped at 1.0
         try await store.execute(
-            sql: "UPDATE memory_events SET confidence = MIN(confidence + 0.05, 1.0) WHERE id IN (\(placeholders))",
+            sql:
+                "UPDATE memory_events SET confidence = MIN(confidence + 0.05, 1.0) WHERE id IN (\(placeholders))",
             parameters: ids.map { $0 as Int64 },
         )
         // Auto-promote: transient + confidence >= 0.9 → pattern
         try await store.execute(
             sql: """
-            UPDATE memory_events
-            SET memory_type = 'pattern'
-            WHERE id IN (\(placeholders))
-              AND memory_type = 'transient'
-              AND confidence >= 0.9
-            """,
+                UPDATE memory_events
+                SET memory_type = 'pattern'
+                WHERE id IN (\(placeholders))
+                  AND memory_type = 'transient'
+                  AND confidence >= 0.9
+                """,
             parameters: ids.map { $0 as Int64 },
         )
     }
 
     /// Cue spreading: after primary FTS5 hit, expand by shared context/tags.
     /// Returns de-duplicated events sorted by confidence DESC.
-    private func expandByCues(primaryIDs: [Int64], contexts: [String], tags: [String], limit: Int) async throws -> [MemoryEvent] {
+    private func expandByCues(primaryIDs: [Int64], contexts: [String], tags: [String], limit: Int)
+        async throws -> [MemoryEvent]
+    {
         guard !primaryIDs.isEmpty else { return [] }
-        let idPlaceholders = String(repeating: "?", count: primaryIDs.count).split(separator: ",").map { String($0) }.joined(separator: ", ")
+        let idPlaceholders = String(repeating: "?", count: primaryIDs.count).split(separator: ",")
+            .map { String($0) }.joined(separator: ", ")
 
         // Gather related events: same context OR shared tags (not already in primary)
         var expandedIDs = primaryIDs
@@ -832,20 +878,24 @@ actor SessionCompressor {
 
         // Phase 1: Primary results (already fetched by caller)
         let primarySQL = "SELECT * FROM memory_events WHERE id IN (\(idPlaceholders))"
-        let primaryRows = try await store.query(primarySQL, parameters: primaryIDs.map { $0 as Int64 })
+        let primaryRows = try await store.query(
+            primarySQL, parameters: primaryIDs.map { $0 as Int64 })
         allEvents.append(contentsOf: primaryRows.compactMap { MemoryEvent(from: $0) })
 
         // Phase 2: Spread via context
         if !contexts.isEmpty {
-            let ctxPlaceholders = String(repeating: "?", count: contexts.count).split(separator: ",").map { String($0) }.joined(separator: ", ")
+            let ctxPlaceholders = String(repeating: "?", count: contexts.count).split(
+                separator: ","
+            ).map { String($0) }.joined(separator: ", ")
             let spreadSQL = """
-            SELECT * FROM memory_events
-            WHERE context IN (\(ctxPlaceholders))
-              AND id NOT IN (\(idPlaceholders))
-              ORDER BY confidence DESC
-              LIMIT ?
-            """
-            let spreadParams: [AnyHashable] = contexts.map(\.self) + primaryIDs.map { Int64($0) } + [limit / 2]
+                SELECT * FROM memory_events
+                WHERE context IN (\(ctxPlaceholders))
+                  AND id NOT IN (\(idPlaceholders))
+                  ORDER BY confidence DESC
+                  LIMIT ?
+                """
+            let spreadParams: [AnyHashable] =
+                contexts.map(\.self) + primaryIDs.map { Int64($0) } + [limit / 2]
             let spreadRows = try await store.query(spreadSQL, parameters: spreadParams)
             allEvents.append(contentsOf: spreadRows.compactMap { MemoryEvent(from: $0) })
             expandedIDs.append(contentsOf: spreadRows.compactMap { $0["id"]?.asInt64 })
@@ -856,12 +906,12 @@ actor SessionCompressor {
             var tagConditions = contexts.isEmpty ? "" : " AND "
             tagConditions += tags.map { "instr(tags, '\($0)') > 0" }.joined(separator: " OR ")
             let tagSQL = """
-            SELECT * FROM memory_events
-            WHERE (\(tagConditions))
-              AND id NOT IN (\(idPlaceholders))
-              ORDER BY confidence DESC
-              LIMIT ?
-            """
+                SELECT * FROM memory_events
+                WHERE (\(tagConditions))
+                  AND id NOT IN (\(idPlaceholders))
+                  ORDER BY confidence DESC
+                  LIMIT ?
+                """
             let tagParams: [AnyHashable] = primaryIDs.map { $0 as Int64 } + [limit / 3]
             let tagRows = try await store.query(tagSQL, parameters: tagParams)
             allEvents.append(contentsOf: tagRows.compactMap { MemoryEvent(from: $0) })
@@ -895,12 +945,12 @@ actor SessionCompressor {
     ) async throws -> [MemoryEvent] {
         let typeList = memoryTypes.map(\.rawValue).joined(separator: "', '")
         var sql = """
-        SELECT * FROM memory_events
-        WHERE memory_type IN ('\(typeList)')
-          AND confidence >= 0.5
-        ORDER BY confidence DESC, timestamp DESC
-        LIMIT ?
-        """
+            SELECT * FROM memory_events
+            WHERE memory_type IN ('\(typeList)')
+              AND confidence >= 0.5
+            ORDER BY confidence DESC, timestamp DESC
+            LIMIT ?
+            """
 
         // FTS filter if query provided
         let primaryIDs: [Int64]
@@ -909,19 +959,20 @@ actor SessionCompressor {
 
         if let q = query, !q.isEmpty {
             sql = """
-            SELECT me.* FROM memory_events me
-            INNER JOIN memory_events_fts fts ON me.id = fts.rowid
-            WHERE me.memory_type IN ('\(typeList)')
-              AND me.confidence >= 0.5
-              AND fts MATCH ?
-            ORDER BY fts.rank ASC
-            LIMIT ?
-            """
+                SELECT me.* FROM memory_events me
+                INNER JOIN memory_events_fts fts ON me.id = fts.rowid
+                WHERE me.memory_type IN ('\(typeList)')
+                  AND me.confidence >= 0.5
+                  AND fts MATCH ?
+                ORDER BY fts.rank ASC
+                LIMIT ?
+                """
 
             do {
                 let rows = try await store.query(sql, parameters: [q, limit])
                 primaryIDs = rows.compactMap { $0["id"]?.asInt64 }
-                primaryContexts = Array(Set(rows.compactMap { $0["context"]?.asString }.filter { !$0.isEmpty }))
+                primaryContexts = Array(
+                    Set(rows.compactMap { $0["context"]?.asString }.filter { !$0.isEmpty }))
                 primaryTags = Array(extractAllTags(rows: rows).prefix(10))
             } catch let sqliteErr as SQLiteError {
                 throw sqliteErr
@@ -931,7 +982,9 @@ actor SessionCompressor {
 
             // Cue spread if we have primary hits
             if !primaryIDs.isEmpty {
-                return try await expandByCues(primaryIDs: primaryIDs, contexts: primaryContexts, tags: primaryTags, limit: limit)
+                return try await expandByCues(
+                    primaryIDs: primaryIDs, contexts: primaryContexts, tags: primaryTags,
+                    limit: limit)
             }
             return []
         }
@@ -955,38 +1008,43 @@ actor SessionCompressor {
     /// Full-text search on memory events (causes, processes, results).
     ///
     /// Uses cue spreading: after primary FTS5 hit, expands by shared context/tags.
-    func searchMemoryEvents(query: String, sessionId: Int64? = nil, limit: Int = 50) async throws -> [MemoryEvent] {
+    func searchMemoryEvents(query: String, sessionId: Int64? = nil, limit: Int = 50) async throws
+        -> [MemoryEvent]
+    {
         let sql: String
         let params: [AnyHashable]
 
         if let sid = sessionId {
             sql = """
-            SELECT me.* FROM memory_events me
-            INNER JOIN memory_events_fts fts ON me.id = fts.rowid
-            WHERE fts MATCH ? AND me.session_id = ?
-            ORDER BY fts.rank ASC
-            LIMIT ?
-            """
+                SELECT me.* FROM memory_events me
+                INNER JOIN memory_events_fts fts ON me.id = fts.rowid
+                WHERE fts MATCH ? AND me.session_id = ?
+                ORDER BY fts.rank ASC
+                LIMIT ?
+                """
             params = [query, sid, limit]
         } else {
             sql = """
-            SELECT me.* FROM memory_events me
-            INNER JOIN memory_events_fts fts ON me.id = fts.rowid
-            WHERE fts MATCH ?
-            ORDER BY fts.rank ASC
-            LIMIT ?
-            """
+                SELECT me.* FROM memory_events me
+                INNER JOIN memory_events_fts fts ON me.id = fts.rowid
+                WHERE fts MATCH ?
+                ORDER BY fts.rank ASC
+                LIMIT ?
+                """
             params = [query, limit]
         }
 
         do {
             let rows = try await store.query(sql, parameters: params)
             let primaryIDs = rows.compactMap { $0["id"]?.asInt64 }
-            let primaryContexts = Array(Set(rows.compactMap { $0["context"]?.asString }.filter { !$0.isEmpty }))
+            let primaryContexts = Array(
+                Set(rows.compactMap { $0["context"]?.asString }.filter { !$0.isEmpty }))
             let primaryTags = Array(extractAllTags(rows: rows).prefix(10))
 
             if !primaryIDs.isEmpty {
-                return try await expandByCues(primaryIDs: primaryIDs, contexts: primaryContexts, tags: primaryTags, limit: limit)
+                return try await expandByCues(
+                    primaryIDs: primaryIDs, contexts: primaryContexts, tags: primaryTags,
+                    limit: limit)
             }
             return []
         } catch let sqliteErr as SQLiteError {
@@ -1004,7 +1062,7 @@ actor SessionCompressor {
         for row in rows {
             if let tagsStr = row["tags"]?.asString, !tagsStr.isEmpty {
                 if let data = tagsStr.data(using: .utf8),
-                   let tags = try? JSONDecoder().decode([String].self, from: data)
+                    let tags = try? JSONDecoder().decode([String].self, from: data)
                 {
                     allTags.formUnion(tags)
                 }
@@ -1037,9 +1095,9 @@ extension SessionModel {
     private static func getInt(_ row: [String: SendableValue], _ key: String) -> Int? {
         guard let sv = row[key] else { return nil }
         switch sv {
-        case let .integer(v): return Int(exactly: v)
-        case let .float(v): return Int(exactly: v.rounded())
-        case let .text(t): return Int(t)
+        case .integer(let v): return Int(exactly: v)
+        case .float(let v): return Int(exactly: v.rounded())
+        case .text(let t): return Int(t)
         case .blob, .null: return nil
         }
     }

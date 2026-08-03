@@ -42,11 +42,15 @@ enum HubSource: String, CaseIterable {
 struct ChatMessage: Identifiable, Hashable {
     let id = UUID()
     let role: String
-    let content: String /// Flat text — legacy + SQLite-compatible + streaming fallback
-    let parts: [TranscriptPart]? /// Structured content — source of truth when present
+    let content: String
+    /// Flat text — legacy + SQLite-compatible + streaming fallback
+    let parts: [TranscriptPart]?
+    /// Structured content — source of truth when present
     let timestamp: Date
-    let imageURLs: [String] /// Base64 data URLs for inline preview
-    let interrupted: Bool /// true when truncated by user cancel — used for context filtering, not string suffix check
+    let imageURLs: [String]
+    /// Base64 data URLs for inline preview
+    let interrupted: Bool
+    /// true when truncated by user cancel — used for context filtering, not string suffix check
 
     /// Plain-text representation joining all parts for persistence and fallback.
     /// Uses the same logic as TranscriptPartMessage.flatText so textContent == content
@@ -76,7 +80,7 @@ struct ChatMessage: Identifiable, Hashable {
     /// Structured initializer — builds parts from semantic blocks
     init(role: String, parts: [TranscriptPart], timestamp: Date = .now, interrupted: Bool = false) {
         self.role = role
-        self.content = TranscriptPartMessage(texts: parts).flatText // fallback for persistence
+        self.content = TranscriptPartMessage(texts: parts).flatText  // fallback for persistence
         self.parts = parts
         self.timestamp = timestamp
         self.imageURLs = []
@@ -150,8 +154,6 @@ final class ChatState {
         OcoreaiEngine.shared.engineReady
     }
 
-
-
     /// Strip `<thinking>...</thinking>` blocks so they don't appear in the live preview.
     /// During streaming, incomplete tags (has `<thinking>` but missing `</thinking>`) are
     /// also stripped — prevents raw reasoning markup from flashing on screen mid-stream.
@@ -181,7 +183,9 @@ final class ChatState {
 
     /// Extract reasoning text from `<thinking>` tags and remaining text.
     /// Returns (reasoning, remainingText). If no tags found, returns (nil, text).
-    private nonisolated static func splitThinkingTags(from text: String) -> (reasoning: String?, remaining: String) {
+    private nonisolated static func splitThinkingTags(from text: String) -> (
+        reasoning: String?, remaining: String
+    ) {
         guard text.contains("<thinking>") else { return (nil, text) }
         var reasoningPieces: [String] = []
         let pattern = "<thinking>(.*?)</thinking>"
@@ -236,7 +240,7 @@ final class ChatState {
     /// and clears it; the stream tail check must NOT append again.
     /// internal (not private) so @testable import can reset it for test isolation.
     internal var _cancelledByUI = false
-    
+
     // MARK: - Message filtering (exposed for test coverage)
 
     /// Filter out system messages and interrupted assistant messages.
@@ -245,7 +249,7 @@ final class ChatState {
     internal func cleanMessages(_ msgs: [ChatMessage]) -> [ChatMessage] {
         msgs.filter {
             $0.role != "system"
-            && !($0.role == "assistant" && $0.interrupted)
+                && !($0.role == "assistant" && $0.interrupted)
         }
     }
 
@@ -262,7 +266,8 @@ final class ChatState {
         // The user can still see what was generated before interruption.
         if !responseText.isEmpty {
             let interruptedContent = responseText + "\n\n...[interrupted]"
-            messages.append(ChatMessage(role: "assistant", content: interruptedContent, interrupted: true))
+            messages.append(
+                ChatMessage(role: "assistant", content: interruptedContent, interrupted: true))
             responseText = ""
         }
     }
@@ -275,15 +280,21 @@ final class ChatState {
         // Cancel any in-flight stream
         cancelInference()
 
-        guard let idx = messages.firstIndex(where: { $0.id == uuid && $0.role == "user" }) else { return }
+        guard let idx = messages.firstIndex(where: { $0.id == uuid && $0.role == "user" }) else {
+            return
+        }
         let userMsg = messages[idx]
         // Truncate: keep the user message as the last one, discard everything after
-        messages.removeSubrange(idx + 1..<messages.endIndex)
+        messages.removeSubrange(idx + 1 ..< messages.endIndex)
         // Kick off inference with the same text and current model
         let modelID = activeModelId ?? ""
         Task { @MainActor [weak self] in
             guard let self else { return }
-            await self.chat(userMsg.content, model: modelID.isEmpty ? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? "" : modelID, attachments: [])
+            await self.chat(
+                userMsg.content,
+                model: modelID.isEmpty
+                    ? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? "" : modelID,
+                attachments: [])
         }
     }
 
@@ -295,15 +306,15 @@ final class ChatState {
     /// P1-fix: Serialize unload tasks — rapid model switching spawned orphan Tasks
     /// that could concurrently modify EnginePool.loadedModels.
     private var pendingUnloadTask: Task<Void, Error>?
-    
+
     func onModelChanged(newModelId: String) {
         // Cancel any in-flight inference before switching
         cancelInference()
-        
+
         // Cancel previous unload that hasn't finished yet
         pendingUnloadTask?.cancel()
         pendingUnloadTask = nil
-        
+
         // Unload the old model if it differs from the new one
         if let oldModel = activeModelId, oldModel != newModelId {
             // P1-fix: Asynchronous model cleanup — unload old model, reset session
@@ -320,7 +331,8 @@ final class ChatState {
                     do {
                         self.sessionId = try await sc.createSession(modelId: newModelId)
                     } catch {
-                        Self.logger.warning("Model switch: failed to create session: \(error.localizedDescription)")
+                        Self.logger.warning(
+                            "Model switch: failed to create session: \(error.localizedDescription)")
                     }
                 }
                 self.activeModelId = newModelId
@@ -377,12 +389,14 @@ final class ChatState {
                 sessionId = session.id
                 activeModelId = session.modelId
                 let hotWindowLimit = compressor.hotWindow
-                let dbMessages = try await compressor.getMessages(session.id, limit: hotWindowLimit, offset: 0)
+                let dbMessages = try await compressor.getMessages(
+                    session.id, limit: hotWindowLimit, offset: 0)
                 let chronMessages = dbMessages.reversed().map { fromMessageModel($0) }
                 messages = chronMessages
                 inferenceSessionId = "chat-\(UUID().uuidString.prefix(8))"
             } catch {
-                Self.logger.warning("Failed to load session \(session.id): \(error.localizedDescription)")
+                Self.logger.warning(
+                    "Failed to load session \(session.id): \(error.localizedDescription)")
             }
         }
         loading = false
@@ -414,7 +428,7 @@ final class ChatState {
     private func ensureSession(for modelId: String) async {
         guard let compressor else { return }
         if sessionId != nil, activeModelId == modelId {
-            return // Session already exists for this model
+            return  // Session already exists for this model
         }
         do {
             // Clean up old session model association before creating new one
@@ -475,7 +489,7 @@ final class ChatState {
     /// User-provided image attachment for multimodal input.
     struct AttachedImage: Identifiable {
         let id = UUID()
-        let dataURL: String /// Base64 data URL (data:image/png;base64,...)
+        let dataURL: String/// Base64 data URL (data:image/png;base64,...)
     }
 
     /// Send chat message via Fast Path — bypasses HTTP entirely.
@@ -515,9 +529,10 @@ final class ChatState {
         // Merge user attachment images into multimodal context
         var allContext = mmContext
         for att in attachments {
-            allContext.append(MultimodalState.MMContextEntry(
-                name: "attachment", dataURL: att.dataURL, ocrText: nil, audioURL: nil
-            ))
+            allContext.append(
+                MultimodalState.MMContextEntry(
+                    name: "attachment", dataURL: att.dataURL, ocrText: nil, audioURL: nil
+                ))
         }
 
         // Push and persist user message (text only for persistence)
@@ -539,68 +554,74 @@ final class ChatState {
         currentCancellation = cancellation
 
         do {
-        // Build InferenceRequest — exclude interrupted assistant messages and system messages.
-        // cleanMessages delegates to the same predicate exposed for test coverage.
-        let cleanMsgs = cleanMessages(messages)
+            // Build InferenceRequest — exclude interrupted assistant messages and system messages.
+            // cleanMessages delegates to the same predicate exposed for test coverage.
+            let cleanMsgs = cleanMessages(messages)
 
-        // P1-fix: Extract system messages from cleanMessages so they reach the engine
-        // via the systemPrompt path (MessageBuilderContext.userSystemPrompt).
-        // cleanMessages strips them, but they still carry the conversation's system instructions.
-        let systemMessages = messages.filter { $0.role == "system" }
-        var systemPrompt = systemMessages.map { $0.content }.joined(separator: "\n")
+            // P1-fix: Extract system messages from cleanMessages so they reach the engine
+            // via the systemPrompt path (MessageBuilderContext.userSystemPrompt).
+            // cleanMessages strips them, but they still carry the conversation's system instructions.
+            let systemMessages = messages.filter { $0.role == "system" }
+            var systemPrompt = systemMessages.map { $0.content }.joined(separator: "\n")
 
-        // Merge user's custom system prompt from SettingsStore — highest priority.
-        // If both are present, custom prompt takes precedence, history prompt is appended as context.
-        let custom = SettingsStore.shared.customSystemPrompt
-        if !custom.isEmpty {
-        	systemPrompt = custom + (systemPrompt.isEmpty ? "" : "\n\n" + systemPrompt)
-        }
-
-        // Convert to typed Messages — last user message gets multimodal parts if available
-        // OCR bridge: mmContext entries with OCR text are injected as text parts,
-        // image entries as image_url parts, saving ~97% tokens for text-rich frames.
-        let typedMessages: [Message] = {
-            var result: [Message] = []
-            let count = cleanMsgs.count
-            for (idx, msg) in cleanMsgs.enumerated() {
-                // If this is the last user message AND we have multimodal context,
-                // inject context as ContentPart text/image parts
-                let isLastUserMsg = (msg.role == "user") && (idx == count - 1) && !allContext.isEmpty
-                if isLastUserMsg {
-                    var parts: [ContentPart] = [ContentPart(type: "text", text: msg.content, imageUrl: nil)]
-                    for ctx in allContext {
-                        // OCR bridge: if OCR text exists, send as text part
-                        if let ocrText = ctx.ocrText, !ocrText.isEmpty {
-                            parts.append(ContentPart(
-                                type: "text",
-                                text: "[Camera OCR: \(ocrText)]",
-                                imageUrl: nil
-                            ))
-                        } else if let url = ctx.dataURL {
-                            parts.append(ContentPart(
-                                type: "image_url",
-                                text: nil,
-                                imageUrl: ContentPart.ImageURL(url: url)
-                            ))
-                        }
-                        // Audio: inject raw recording so VLM can "hear" directly
-                        if let audioUrl = ctx.audioURL {
-                            parts.append(ContentPart(
-                                type: "audio",
-                                text: nil,
-                                imageUrl: nil,
-                                videoUrl: nil,
-                                audioURL: ContentPart.AudioURL(url: audioUrl)
-                            ))
-                        }
-                    }
-                    result.append(Message(role: "user", content: .parts(parts)))
-                } else {
-                    result.append(Message(role: msg.role, content: .text(msg.content)))
-                }
+            // Merge user's custom system prompt from SettingsStore — highest priority.
+            // If both are present, custom prompt takes precedence, history prompt is appended as context.
+            let custom = SettingsStore.shared.customSystemPrompt
+            if !custom.isEmpty {
+                systemPrompt = custom + (systemPrompt.isEmpty ? "" : "\n\n" + systemPrompt)
             }
-            return result
-        }()
+
+            // Convert to typed Messages — last user message gets multimodal parts if available
+            // OCR bridge: mmContext entries with OCR text are injected as text parts,
+            // image entries as image_url parts, saving ~97% tokens for text-rich frames.
+            let typedMessages: [Message] = {
+                var result: [Message] = []
+                let count = cleanMsgs.count
+                for (idx, msg) in cleanMsgs.enumerated() {
+                    // If this is the last user message AND we have multimodal context,
+                    // inject context as ContentPart text/image parts
+                    let isLastUserMsg =
+                        (msg.role == "user") && (idx == count - 1) && !allContext.isEmpty
+                    if isLastUserMsg {
+                        var parts: [ContentPart] = [
+                            ContentPart(type: "text", text: msg.content, imageUrl: nil)
+                        ]
+                        for ctx in allContext {
+                            // OCR bridge: if OCR text exists, send as text part
+                            if let ocrText = ctx.ocrText, !ocrText.isEmpty {
+                                parts.append(
+                                    ContentPart(
+                                        type: "text",
+                                        text: "[Camera OCR: \(ocrText)]",
+                                        imageUrl: nil
+                                    ))
+                            } else if let url = ctx.dataURL {
+                                parts.append(
+                                    ContentPart(
+                                        type: "image_url",
+                                        text: nil,
+                                        imageUrl: ContentPart.ImageURL(url: url)
+                                    ))
+                            }
+                            // Audio: inject raw recording so VLM can "hear" directly
+                            if let audioUrl = ctx.audioURL {
+                                parts.append(
+                                    ContentPart(
+                                        type: "audio",
+                                        text: nil,
+                                        imageUrl: nil,
+                                        videoUrl: nil,
+                                        audioURL: ContentPart.AudioURL(url: audioUrl)
+                                    ))
+                            }
+                        }
+                        result.append(Message(role: "user", content: .parts(parts)))
+                    } else {
+                        result.append(Message(role: msg.role, content: .text(msg.content)))
+                    }
+                }
+                return result
+            }()
 
             // Load persisted sampling config for this model
             let samplingCfg = SettingsStore.shared.loadSamplingConfig(for: model)
@@ -644,7 +665,7 @@ final class ChatState {
                 // Consume tool call metadata during streaming — makes tool-use progress visible
                 if let meta = chunk.metadata {
                     switch meta {
-                    case let .toolCall(tcMeta):
+                    case .toolCall(let tcMeta):
                         let toolPart = ToolCallPart(
                             callId: String(UUID().uuidString.prefix(8)),
                             name: tcMeta.name,
@@ -665,7 +686,9 @@ final class ChatState {
                     // interrupted flag so UI can show the interrupted badge.
                     let isCancelled = chunk.stopReason == "cancelled"
                     if chunk.stopReason == "error" {
-                        Self.logger.warning("Inference ended with error after accumulating \(responseText.utf8.count) bytes")
+                        Self.logger.warning(
+                            "Inference ended with error after accumulating \(responseText.utf8.count) bytes"
+                        )
                         // D1 fix: surface actual error from inference layer instead of generic placeholder
                         errorMessage = chunk.error ?? StringKey.generationFailed.l
                         responseText = ""
@@ -691,12 +714,13 @@ final class ChatState {
 
                         // Clean text: if reasoning was streamed separately, responseText is already clean.
                         // If it came via splitThinkingTags fallback, use the cleaned version.
-                        let cleanedText = if reasoningTextFinal != nil && currentReasoningText.isEmpty {
-                            // Fallback path — use cleaned text from splitThinkingTags
-                            Self.splitThinkingTags(from: responseText).remaining
-                        } else {
-                            responseText
-                        }
+                        let cleanedText =
+                            if reasoningTextFinal != nil && currentReasoningText.isEmpty {
+                                // Fallback path — use cleaned text from splitThinkingTags
+                                Self.splitThinkingTags(from: responseText).remaining
+                            } else {
+                                responseText
+                            }
 
                         var parts: [TranscriptPart] = []
 
@@ -721,12 +745,16 @@ final class ChatState {
                         let detectedToolCalls = parseToolCalls(from: responseText)
                         if let tcs = detectedToolCalls {
                             for tc in tcs {
-                                parts.append(.toolCall(ToolCallPart(
-                                    callId: tc.id,
-                                    name: tc.function.name,
-                                    resultSummary: tc.function.arguments.isEmpty ? "executed" : "\(tc.function.arguments.utf8.count) bytes args",
-                                    durationMs: nil
-                                )))
+                                parts.append(
+                                    .toolCall(
+                                        ToolCallPart(
+                                            callId: tc.id,
+                                            name: tc.function.name,
+                                            resultSummary: tc.function.arguments.isEmpty
+                                                ? "executed"
+                                                : "\(tc.function.arguments.utf8.count) bytes args",
+                                            durationMs: nil
+                                        )))
                             }
                         }
 
@@ -734,12 +762,14 @@ final class ChatState {
                         // fallback to flat content (including empty messages for tool-use models)
                         // Wire interrupted flag when cancelled so UI shows the interrupted badge.
                         if !parts.isEmpty {
-                            let assistantMsg = ChatMessage(role: "assistant", parts: parts, interrupted: isCancelled)
+                            let assistantMsg = ChatMessage(
+                                role: "assistant", parts: parts, interrupted: isCancelled)
                             messages.append(assistantMsg)
                         } else {
                             // Tool-use model returned empty — still create the message
                             // so the conversation state is correct
-                            let assistantMsg = ChatMessage(role: "assistant", content: "", interrupted: isCancelled)
+                            let assistantMsg = ChatMessage(
+                                role: "assistant", content: "", interrupted: isCancelled)
                             messages.append(assistantMsg)
                         }
 
@@ -747,16 +777,21 @@ final class ChatState {
                         // Include structured tool call records when available.
                         if !cleanedText.trimmingCharacters(in: .whitespaces).isEmpty {
                             // Convert detected ToolCall → ToolCallRecord for persistence
-                            let persistToolCalls: [ToolCallRecord]? = detectedToolCalls?.compactMap { tc in
+                            let persistToolCalls: [ToolCallRecord]? = detectedToolCalls?.compactMap
+                            { tc in
                                 ToolCallRecord(
                                     callId: tc.id,
                                     toolName: tc.function.name,
                                     arguments: [String: String](),
-                                    resultSummary: tc.function.arguments.isEmpty ? "executed" : "\(tc.function.arguments.utf8.count) bytes args",
+                                    resultSummary: tc.function.arguments.isEmpty
+                                        ? "executed"
+                                        : "\(tc.function.arguments.utf8.count) bytes args",
                                     durationMs: nil
                                 )
                             }
-                            await persistMessage(role: "assistant", content: cleanedText, toolCalls: persistToolCalls)
+                            await persistMessage(
+                                role: "assistant", content: cleanedText, toolCalls: persistToolCalls
+                            )
                         }
 
                         // MARK: - Post-inference TTS
@@ -773,7 +808,8 @@ final class ChatState {
             if !self._cancelledByUI && (Task.isCancelled || cancellation.isCancelled) {
                 if !responseText.isEmpty {
                     let interruptedContent = responseText + "\n\n...[interrupted]"
-                    let assistantMsg = ChatMessage(role: "assistant", content: interruptedContent, interrupted: true)
+                    let assistantMsg = ChatMessage(
+                        role: "assistant", content: interruptedContent, interrupted: true)
                     messages.append(assistantMsg)
                     await persistMessage(role: "assistant", content: assistantMsg.content)
                 }
@@ -802,7 +838,8 @@ final class ChatState {
     /// Clears the error state before re-attempting inference.
     func retryLastMessage() {
         guard let lastInput = _lastUserInput,
-              let model = activeModelId ?? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId
+            let model = activeModelId
+                ?? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId
         else { return }
         errorMessage = nil
         Task { await chat(lastInput, model: model) }
@@ -853,7 +890,7 @@ final class ChatState {
         undoSessionId = nil
         undoActiveModelId = nil
     }
-    
+
     /// Reset all internal state to initial values — exhaustive cleanup for test isolation.
     /// Internal (not private) so @testable import in tests can use it.
     internal func resetForTesting() {

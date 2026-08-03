@@ -45,9 +45,9 @@ public struct MCPEndpoint: Codable, Sendable {
 
 // MARK: - Endpoint Status enum
 
-public extension MCPEndpoint {
+extension MCPEndpoint {
     /// Server 连接状态
-    enum Status: String, Codable, Sendable {
+    public enum Status: String, Codable, Sendable {
         case disconnected
         case connecting
         case connected
@@ -120,9 +120,9 @@ public struct MCPBridgeConfig: Sendable {
     }
 }
 
-public extension MCPEndpoint {
+extension MCPEndpoint {
     /// Fan-out 策略
-    enum FanOutStrategy: String, Sendable {
+    public enum FanOutStrategy: String, Sendable {
         /// 并行请求所有外部 server（P95 更快，但并发开销大）
         case parallel
         /// 串行请求外部 server（节省资源，P95 较慢）
@@ -183,7 +183,9 @@ actor MCPBridge {
             endpointHandles[ep.name] = EndpointHandle(endpoint: ep)
         }
 
-        log.info("MCPBridge initialized: local registry + \(endpoints.count) external endpoints, cache=\(bridgeConfig.callCacheEnabled)")
+        log.info(
+            "MCPBridge initialized: local registry + \(endpoints.count) external endpoints, cache=\(bridgeConfig.callCacheEnabled)"
+        )
     }
 
     // MARK: - 消息处理
@@ -206,8 +208,8 @@ actor MCPBridge {
     /// 处理 Bridge 管理命令（内部路由）
     private func handleBridgeCommand(_ line: String) async -> String? {
         guard let data = line.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let method = obj["method"] as? String
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let method = obj["method"] as? String
         else {
             return nil
         }
@@ -222,22 +224,24 @@ actor MCPBridge {
             return jsonResult(listEndpoints(), id: reqID)
         case "$bridge/endpoint/connect":
             guard let params = obj["params"] as? [String: Any],
-                  let name = params["name"] as? String,
-                  let command = params["command"] as? String
+                let name = params["name"] as? String,
+                let command = params["command"] as? String
             else {
                 return jsonError("Missing required params: name, command", code: -32602, id: reqID)
             }
             let args = params["args"] as? [String] ?? []
             let caps = params["capabilities"] as? [String] ?? []
             do {
-                try await connectEndpoint(name: name, command: command, args: args, capabilities: caps)
+                try await connectEndpoint(
+                    name: name, command: command, args: args, capabilities: caps)
                 return jsonResult(["endpoint": name, "status": "connected"], id: reqID)
             } catch {
-                return jsonError("Connect failed: \(error.localizedDescription)", code: -32603, id: reqID)
+                return jsonError(
+                    "Connect failed: \(error.localizedDescription)", code: -32603, id: reqID)
             }
         case "$bridge/endpoint/disconnect":
             guard let params = obj["params"] as? [String: Any],
-                  let name = params["name"] as? String
+                let name = params["name"] as? String
             else {
                 return jsonError("Missing required param: name", code: -32602, id: reqID)
             }
@@ -301,13 +305,14 @@ actor MCPBridge {
         }
 
         // 构造 JSON-RPC 请求
-        let params: [String: Any] = if let data = arguments.data(using: .utf8),
-                                       let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        {
-            ["name": toolName, "arguments": parsed]
-        } else {
-            ["name": toolName, "arguments": [:]]
-        }
+        let params: [String: Any] =
+            if let data = arguments.data(using: .utf8),
+                let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            {
+                ["name": toolName, "arguments": parsed]
+            } else {
+                ["name": toolName, "arguments": [:]]
+            }
 
         let jsonRpcReq: [String: Any] = [
             "jsonrpc": "2.0",
@@ -316,19 +321,23 @@ actor MCPBridge {
             "params": params,
         ]
 
-        guard let reqJSON = try? JSONSerialization.data(withJSONObject: jsonRpcReq, options: .sortedKeys),
-              let reqStr = String(data: reqJSON, encoding: .utf8)
+        guard
+            let reqJSON = try? JSONSerialization.data(
+                withJSONObject: jsonRpcReq, options: .sortedKeys),
+            let reqStr = String(data: reqJSON, encoding: .utf8)
         else {
-            throw MCPBridgeError.routingFailed(toolName, reason: "Failed to serialize tool call request")
+            throw MCPBridgeError.routingFailed(
+                toolName, reason: "Failed to serialize tool call request")
         }
 
         guard let response = await server.dispatch(reqStr),
-              let respData = response.data(using: .utf8),
-              let respObj = try? JSONSerialization.jsonObject(with: respData) as? [String: Any],
-              let result = respObj["result"] as? [String: Any],
-              let contents = result["content"] as? [[String: Any]]
+            let respData = response.data(using: .utf8),
+            let respObj = try? JSONSerialization.jsonObject(with: respData) as? [String: Any],
+            let result = respObj["result"] as? [String: Any],
+            let contents = result["content"] as? [[String: Any]]
         else {
-            throw MCPBridgeError.routingFailed(toolName, reason: "Local tool not found or execution failed")
+            throw MCPBridgeError.routingFailed(
+                toolName, reason: "Local tool not found or execution failed")
         }
 
         // 提取文本内容
@@ -366,13 +375,14 @@ actor MCPBridge {
         }
 
         // 解析 arguments JSON
-        let argsDict: [String: Any] = if let data = arguments.data(using: .utf8),
-                                         let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        {
-            parsed
-        } else {
-            [:]
-        }
+        let argsDict: [String: Any] =
+            if let data = arguments.data(using: .utf8),
+                let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            {
+                parsed
+            } else {
+                [:]
+            }
 
         switch config.fanOutStrategy {
         case .parallel:
@@ -390,10 +400,11 @@ actor MCPBridge {
         arguments: [String: Any],
         names: [String],
     ) async throws -> String {
-        let resolvedClients = [(String, MCPStdioClient)](names.compactMap { name in
-            let client = self.externalClients[name]
-            return client.map { (name, $0) }
-        })
+        let resolvedClients = [(String, MCPStdioClient)](
+            names.compactMap { name in
+                let client = self.externalClients[name]
+                return client.map { (name, $0) }
+            })
 
         let argsJsonStr: String
         do {
@@ -408,7 +419,8 @@ actor MCPBridge {
             for (_, client) in resolvedClients {
                 group.addTask { @Sendable [weak self] in
                     guard let s = self else { throw MCPBridgeError.externalProcessNotManaged }
-                    return try await s.forwardToolCall(to: client, tool: toolName, args: argsJsonStr)
+                    return try await s.forwardToolCall(
+                        to: client, tool: toolName, args: argsJsonStr)
                 }
             }
 
@@ -441,7 +453,8 @@ actor MCPBridge {
         for clientName in names {
             guard let client = externalClients[clientName] else { continue }
             do {
-                let result = try await forwardToolCall(to: client, tool: toolName, args: argsJsonStr)
+                let result = try await forwardToolCall(
+                    to: client, tool: toolName, args: argsJsonStr)
                 log.info("External tool call success: \(toolName) → \(clientName)")
                 return result
             } catch {
@@ -470,7 +483,7 @@ actor MCPBridge {
     ) async throws -> String {
         var argsDict: [String: Any] = [:]
         if let data = jsonStr.data(using: .utf8),
-           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         {
             argsDict = parsed
         } else if !jsonStr.isEmpty {
@@ -502,9 +515,9 @@ actor MCPBridge {
 
         // Parse on MCPBridge side (same actor context)
         guard let data = rawJSON.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let result = obj["result"] as? [String: Any],
-              let tools = result["tools"] as? [[String: Any]]
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let result = obj["result"] as? [String: Any],
+            let tools = result["tools"] as? [[String: Any]]
         else {
             log.info("Endpoint \(source) has no tools to discover")
             return
@@ -542,7 +555,8 @@ actor MCPBridge {
 
             // Handler forwards calls to the MCP client via the bridge
             let handler: @Sendable (String) async throws -> String = { arguments in
-                let results = try await self.forwardToolCall(name: toolName, arguments: arguments, source: source)
+                let results = try await self.forwardToolCall(
+                    name: toolName, arguments: arguments, source: source)
                 let texts = results.compactMap { $0["text"] }
                 guard !texts.isEmpty else { return "(no content)" }
                 return texts.joined(separator: "\n")
@@ -565,7 +579,9 @@ actor MCPBridge {
 
     /// Forward a tool call to the MCP client for the given source endpoint.
     /// Called from outside the MCPBridge actor (e.g., ToolRegistry handler dispatch).
-    private func forwardToolCall(name: String, arguments: String, source: String) async throws -> [[String: String]] {
+    private func forwardToolCall(name: String, arguments: String, source: String) async throws
+        -> [[String: String]]
+    {
         guard let client = externalClients[source] else {
             throw MCPBridgeError.noServerAvailable(source)
         }
@@ -574,10 +590,12 @@ actor MCPBridge {
         let argsData = arguments.data(using: .utf8)
         let argsMap: [String: Any]
         if let data = argsData,
-           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
             argsMap = parsed
         } else if !arguments.isEmpty {
-            log.warning("Failed to parse tool arguments JSON for \\(name): \\(arguments.prefix(80))")
+            log.warning(
+                "Failed to parse tool arguments JSON for \\(name): \\(arguments.prefix(80))")
             argsMap = [:]
         } else {
             argsMap = [:]
@@ -786,11 +804,11 @@ public enum MCPBridgeError: Error, Sendable {
 
     var localizedDescription: String {
         switch self {
-        case let .routingFailed(tool, reason):
+        case .routingFailed(let tool, let reason):
             "Tool '\(tool)' routing failed: \(reason)"
-        case let .noServerAvailable(tool):
+        case .noServerAvailable(let tool):
             "No MCP server available for tool '\(tool)'"
-        case let .allExternalServersFailed(tool):
+        case .allExternalServersFailed(let tool):
             "All external servers failed for tool '\(tool)'"
         case .externalProcessNotManaged:
             "External process management not yet integrated"
@@ -800,8 +818,8 @@ public enum MCPBridgeError: Error, Sendable {
 
 // MARK: - Date extension
 
-private extension Date {
-    var iso8601String: String {
+extension Date {
+    fileprivate var iso8601String: String {
         let formatter = ISO8601DateFormatter()
         return formatter.string(from: self)
     }
