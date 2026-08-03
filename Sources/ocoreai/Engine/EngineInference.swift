@@ -1374,13 +1374,17 @@ extension EnginePool {
                 }
             }
 
-            // Compute reasoning additionalContext from upstream reasoning config.
-            // This aligns with ReasoningConfig.swift:106-124 — promptStrategy
-            // translates the user's reasoning preference into chat-template kwargs
-            // (e.g. Qwen3's enable_thinking: true/false). Without this, the
-            // reasoning toggle is dead code and thinking is always-on.
+            // Upstream Executor.respond() gates reasoning behind mayRunReasoningPath:
+            //   mayRunReasoningPath = enabledToolDefinitions.isEmpty && request.schema == nil
+            // When tools or grammar schema are present, the constrained/tool path handles
+            // thinking internally — injecting reasoningContext there would double-inject
+            // thinking kwargs into an already tool-aware template.
+            let mayRunReasoning = (registeredToolSpecs ?? []).isEmpty && options.grammarSchema == nil
+
             let reasoningContext: [String: any Sendable]?
-            if let rc = await handleRef.modelContainer.configuration.reasoningConfig {
+            if mayRunReasoning,
+                let rc = await handleRef.modelContainer.configuration.reasoningConfig
+            {
                 let thinkingEnabled = options.enableReasoning ? true : nil
                 do {
                     reasoningContext = try rc.promptStrategy.additionalContext(
@@ -1396,6 +1400,11 @@ extension EnginePool {
                     }
                     reasoningContext = nil
                 }
+            } else if !mayRunReasoning,
+                await handleRef.modelContainer.configuration.reasoningConfig != nil
+            {
+                log.info("Reasoning suppressed — tools or grammar schema present (mayRunReasoningPath)")
+                reasoningContext = nil
             } else {
                 reasoningContext = nil
             }

@@ -631,13 +631,19 @@ nonisolated func makeGenerateParameters(
     }
     #else
     // macOS <27: inline resolveSamplingParameters since MLXFoundationModels is unavailable.
-    // Explicit-zero-wins rule: temperature==0 → forced argmax, filters dropped.
+    // Mirrors SamplingModeMapper.resolveSamplingParameters():
+    //   - explicit-zero-wins: temperature==0 → forced argmax, filters dropped.
+    //   - .greedy → forcesGreedy → temperature forced to 0.
+    //   - .nucleus(p<=0) → smallest pool ≈ deterministic → forces greedy.
+    var forcesGreedy = false
     if sampling.temperature == 0 {
-        // argmax: explicit zero means deterministic output
+        forcesGreedy = true
     } else {
         switch sampling.mode {
         case .greedy:
-            break  // argmax without temperature
+            forcesGreedy = true  // align with upstream explicit-zero-wins
+        case .nucleus(let p) where p <= 0:
+            forcesGreedy = true  // align with upstream — smallest pool ≈ deterministic
         case .nucleus(let p):
             params.topP = Float(p)
         case .topK(let k):
@@ -650,6 +656,10 @@ nonisolated func makeGenerateParameters(
                 params.topK = topK
             }
         }
+    }
+    // forcesGreedy → force temperature to 0 (explicit-zero-wins, mirrors upstream)
+    if forcesGreedy {
+        params.temperature = 0
     }
     if params.temperature != 0, let minP = sampling.minP, minP > 0 {
         params.minP = Float(minP)
