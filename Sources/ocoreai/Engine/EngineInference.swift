@@ -238,25 +238,27 @@ extension EnginePool {
                         return
                     }
 
-                    // Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
+                    // Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip.
+                    // Qwen3: 151645=<thinking_open>, 151646=<thinking_close>
                     let reasoningControlTokens = Set([151645, 151646])
                     if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
-                        logger.warning("MLX token→text→token path may drop control tokens for model \(modelId)")
+                        logger.warning("CoreAI input contains reasoning control tokens that would be lost in MLX fallback — staying on CoreAI path, grammar constraints dropped for model \(modelId)")
+                        // Continue to CoreAI path below, grammar/stopSeq silently ignored.
+                    } else {
+                        let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
+                        await _runInferenceWithMessages(
+                            modelId: modelId,
+                            messages: mlxMessages,
+                            sampling: sampling,
+                            options: options,
+                            metrics: metrics,
+                            continuation: continuation,
+                            conversationId: nil,
+                            cancellation: cancellation,
+                            skipLock: true
+                        )
+                        return
                     }
-
-                    let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
-                    await _runInferenceWithMessages(
-                        modelId: modelId,
-                        messages: mlxMessages,
-                        sampling: sampling,
-                        options: options,
-                        metrics: metrics,
-                        continuation: continuation,
-                        conversationId: nil,
-                        cancellation: cancellation,
-                        skipLock: true
-                    )
-                    return
                 }
                 // Warn about sampling fields CoreAI SDK cannot honor
                 // (CoreAI.SamplingConfiguration only supports temperature/topK/topP/minP/combined)
@@ -1174,8 +1176,10 @@ extension EnginePool {
                             }
 
                         do {
-                            var fmTokenCount = 0
                             var fmStopReason: StopReason = .stopSequence
+                            // Note: streamResponse returns text chunks, not token events —
+                            // FM SDK provides no per-token callback, so tokenCount is nil
+                            // (same as tokPerSec/promptTokPerSec for FM path).
 
                             if let guidedSchema = fmGuidedSchema {
                                 log.info("FM path: guided generation with schema constraints")
@@ -1189,7 +1193,6 @@ extension EnginePool {
                                         fmStopReason = .cancelled
                                         break
                                     }
-                                    fmTokenCount += 1
                                     // Snapshot.rawContent is GeneratedContent. Extract text via
                                     // ConvertibleFromGeneratedContent — disambiguate by typing
                                     // the parameter so the compiler doesn't pick
@@ -1210,7 +1213,6 @@ extension EnginePool {
                                         fmStopReason = .cancelled
                                         break
                                     }
-                                    fmTokenCount += 1
                                     if !partial.content.isEmpty {
                                         continuation.yield(.init(kind: .text(partial.content)))
                                     }
@@ -1220,7 +1222,7 @@ extension EnginePool {
                             continuation.yield(.init(
                                 kind: .done(
                                     fmStopReason,
-                                    tokenCount: fmTokenCount,
+                                    tokenCount: nil,
                                     tokPerSec: nil,
                                     promptTokPerSec: nil
                                 )

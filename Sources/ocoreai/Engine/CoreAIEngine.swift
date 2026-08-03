@@ -358,6 +358,7 @@ struct PreparedModel: Sendable {
 /// Auto-detects model structure → selects appropriate engine.
 @available(macOS 27.0, *)
 struct EngineFactory: Sendable {
+    private static let log = Logger(label: "ocoreai.coreai.enginefactory")
     /// Create an engine for a model, selecting variant from model structure.
     static func createEngine(
         config: Data,
@@ -374,7 +375,9 @@ struct EngineFactory: Sendable {
         let preparedModel = try await PreparedModel.prepare(at: coreAIModelURL, functionName: parsedConfig.function)
 
         // Resolve variant
-        let variant = resolveVariant(override: options.variant, detectedStructure: preparedModel.structure)
+        let variant = try resolveVariant(override: options.variant, detectedStructure: preparedModel.structure)
+
+        log.info("CoreAI engine variant: \(variant.rawValue), structure: \(preparedModel.structure.description)")
 
         // Create engine
         switch variant {
@@ -384,64 +387,114 @@ struct EngineFactory: Sendable {
                 preparedModel: preparedModel,
                 options: options
             )
+        case .pipelined:
+            throw InferenceError.engineUnavailable(
+                "pipelined engine not yet available (requires GPU-direct sampling + buffer rotation)"
+            )
+        case .staticShape:
+            throw InferenceError.engineUnavailable(
+                "staticShape engine not yet available (requires chunkedStatic model support)"
+            )
         }
     }
 
-    private enum Variant: String {
+    // Engine variant registry — aligned with upstream coreai-models EngineFactory
+    private enum Variant: String, Sendable, CaseIterable {
         case sequential = "coreai-sequential"
+        case pipelined = "coreai-pipelined"
+        case staticShape = "static-shape"
     }
 
-    private static func resolveVariant(override variantOverride: String?, detectedStructure structure: ModelStructure) -> Variant {
-        if let vo = variantOverride, vo != "auto", vo != "default" {
-            if vo == "coreai-sequential" { return .sequential }
-            // Fall back to sequential for any unknown variant
+    /// Auto-detect optimal variant from model structure.
+    /// Mirrors upstream EngineFactory.autoDetectVariant —
+    /// dynamic → pipelined (GPU), chunkedStatic → staticShape (ANE).
+    private static func autoDetectVariant(structure: ModelStructure) -> Variant {
+        switch structure {
+        case .dynamic:       return .pipelined
+        case .chunkedStatic: return .staticShape
+        case .unknown:       return .sequential
         }
-        // Auto-detect: both dynamic and chunkedStatic → sequential for now
-        return .sequential
+    }
+
+    /// Check if a variant override is compatible with the model structure.
+    /// Mirrors upstream EngineFactory.checkVariantCompatibility.
+    private static func checkVariantCompatibility(
+        variant: Variant,
+        structure: ModelStructure
+    ) -> (compatible: Bool, warning: String?) {
+        switch (variant, structure) {
+        case (.staticShape, .dynamic):
+            return (false, "Static-shape variant requires chunked static model (extend_* functions)")
+        case (.pipelined, .chunkedStatic):
+            return (false, "Core AI pipelined variant requires dynamic model")
+        case (.sequential, .chunkedStatic):
+            return (false, "Sequential variant requires dynamic model")
+        case (_, .dynamic), (_, .chunkedStatic):
+            return (true, nil)
+        default:
+            return (false, "LLM engine variants are incompatible with this model structure")
+        }
+    }
+
+    private static func resolveVariant(
+        override variantOverride: String?,
+        detectedStructure structure: ModelStructure
+    ) throws -> Variant {
+        if let vo = variantOverride, vo != "auto", vo != "default" {
+            if let variant = Variant(rawValue: vo) {
+                let (compatible, warning) = checkVariantCompatibility(variant: variant, structure: structure)
+                if let warning {
+                    log.warning("CoreAI variant override: \(warning)")
+                }
+                if !compatible {
+                    throw InferenceError.unsupportedEngineVariant(
+                        "Variant '\(vo)' incompatible with model structure '\(structure.description)'"
+                    )
+                }
+                return variant
+            }
+            throw InferenceError.unsupportedEngineVariant(
+                "Unknown variant '\(vo)'. Valid: auto, coreai-sequential, coreai-pipelined, static-shape"
+            )
+        }
+        return autoDetectVariant(structure: structure)
     }
 
     private static func parseModelConfig(from data: Data) throws -> InternalModelConfig {
-        // Try parsing as JSON object
+        // Decode using snake_case keys to match upstream ModelConfig (parsing:) exactly.
+        // Upstream keys: vocab_size, max_context_length, serialized_model, tokenizer, function
+        struct RawConfig: Decodable {
+            let name: String
+            let vocabSize: Int?
+            let maxContextLength: Int?
+            let function: String?
+            
+            enum CodingKeys: String, CodingKey {
+                case name
+                case vocabSize = "vocab_size"
+                case maxContextLength = "max_context_length"
+                case function
+            }
+        }
+        
         let decoder = JSONDecoder()
         do {
-            let object = try decoder.decode([String: CoreAIAnyCodable].self, from: data)
+            let raw = try decoder.decode(RawConfig.self, from: data)
             return InternalModelConfig(
-                name: object["name"]?.value as? String ?? "unknown",
-                vocabSize: object["vocabSize"]?.value as? Int ?? 151_936,
-                maxContextLength: object["maxContextLength"]?.value as? Int ?? 131_072,
-                function: object["function"]?.value as? String ?? "default"
+                name: raw.name,
+                vocabSize: raw.vocabSize ?? 151_936,
+                maxContextLength: raw.maxContextLength ?? 131_072,
+                function: raw.function ?? "main"
             )
         } catch {
-            // Fallback to defaults
+            log.warning("CoreAI config parsing failed: \(error.localizedDescription) — using defaults")
             return InternalModelConfig(
                 name: "unknown",
                 vocabSize: 151_936,
                 maxContextLength: 131_072,
-                function: "default"
+                function: "main"
             )
         }
-    }
-}
-
-// MARK: - AnyCodable (JSON helper)
-
-private struct CoreAIAnyCodable: Codable {
-    let value: Any
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if let v = try? container.decode(Bool.self) { value = v }
-        else if let v = try? container.decode(Int.self) { value = v }
-        else if let v = try? container.decode(Double.self) { value = v }
-        else if let v = try? container.decode(String.self) { value = v }
-        else { value = "" }
-    }
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        if let v = value as? Bool { try container.encode(v) }
-        else if let v = value as? Int { try container.encode(v) }
-        else if let v = value as? Double { try container.encode(v) }
-        else if let v = value as? String { try container.encode(v) }
-        else { try container.encode("") }
     }
 }
 
