@@ -1884,9 +1884,20 @@ extension EnginePool {
 
                 // FIXED: Hashable policies derive stable identity from their value (cap), not UUID.
                 // Custom ID broke WiredMemoryManager's grouping/hysteresis logic.
-                let wmPolicy: any WiredMemoryPolicy = if config.wiredMemory.policy == "sum" {
+                // Aligns with upstream WiredMemoryPolicies.swift — 4 policies supported:
+                //   sum → WiredSumPolicy, max → WiredMaxPolicy,
+                //   budget → WiredBudgetPolicy, fixed → WiredFixedPolicy.
+                let wmPolicy: any WiredMemoryPolicy = switch config.wiredMemory.policy {
+                case "sum":
                     WiredSumPolicy(cap: nil)
-                } else {
+                case "budget":
+                    WiredBudgetPolicy(
+                        baseBytes: config.wiredMemory.budgetBaseBytes,
+                        cap: config.wiredMemory.budgetCap
+                    )
+                case "fixed":
+                    WiredFixedPolicy(limit: config.wiredMemory.fixedLimit)
+                default:
                     WiredMaxPolicy()
                 }
 

@@ -140,11 +140,19 @@ public struct ServerConfig: Sendable, Codable, Equatable {
 public struct WiredMemoryConfig: Sendable, Codable, Equatable {
     /// Master toggle — disabled means wired memory is not applied per-request.
     public var enabled: Bool
-    /// Policy type — "max" (peak ticket) or "sum" (aggregate tickets).
-    /// "max" is default for inference — one big ticket dominates.
+    /// Policy type — "max" (peak ticket), "sum" (aggregate tickets),
+    /// "budget" (baseline + base + sum), or "fixed" (constant cap).
+    /// Aligns with upstream WiredMemoryPolicies.swift (4 policies).
     public var policy: String
     /// Override the per-request budget in bytes. Auto-detected when 0.
     public var bytesOverride: Int
+    /// Base budget for WiredBudgetPolicy (weights + workspace bytes).
+    /// Only used when policy == "budget". Ignored otherwise.
+    public var budgetBaseBytes: Int
+    /// Hard cap for WiredBudgetPolicy. nil = auto from recommendedWorkingSetBytes().
+    public var budgetCap: Int?
+    /// Fixed limit for WiredFixedPolicy. Ignored when policy != "fixed".
+    public var fixedLimit: Int
 
     public static let `default` = WiredMemoryConfig()
 
@@ -152,10 +160,16 @@ public struct WiredMemoryConfig: Sendable, Codable, Equatable {
         enabled: Bool = true,
         policy: String = "max",
         bytesOverride: Int = 0,
+        budgetBaseBytes: Int = 0,
+        budgetCap: Int? = nil,
+        fixedLimit: Int = 0,
     ) {
         self.enabled = enabled
         self.policy = policy
         self.bytesOverride = bytesOverride
+        self.budgetBaseBytes = budgetBaseBytes
+        self.budgetCap = budgetCap
+        self.fixedLimit = fixedLimit
     }
 }
 
