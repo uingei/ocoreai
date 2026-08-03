@@ -149,13 +149,18 @@ struct InferenceOptions: Codable {
     /// When true, enable reasoning/chain-of-thought mode.
     /// Passed as additionalContext["enable_thinking"] to ChatSession.
     var enableReasoning: Bool = false
+    /// Reasoning level for FM backend — aligns with SDK ContextOptions.ReasoningLevel
+    /// ("light", "moderate", "deep", or nil for default). ChatSession path uses
+    /// enableReasoning only; this field exists for FM path granularity.
+    var reasoningLevel: String? = nil
 
-    init(maxTokens: Int? = nil, includeLogits: Bool = false, useGuidedGeneration: Bool = false, grammarSchema: String? = nil, enableReasoning: Bool = false) {
+    init(maxTokens: Int? = nil, includeLogits: Bool = false, useGuidedGeneration: Bool = false, grammarSchema: String? = nil, enableReasoning: Bool = false, reasoningLevel: String? = nil) {
         self.maxTokens = maxTokens
         self.includeLogits = includeLogits
         self.useGuidedGeneration = useGuidedGeneration
         self.grammarSchema = grammarSchema
         self.enableReasoning = enableReasoning
+        self.reasoningLevel = reasoningLevel
     }
 
     init() {}

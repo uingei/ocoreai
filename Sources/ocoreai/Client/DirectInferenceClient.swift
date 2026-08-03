@@ -41,6 +41,9 @@ struct InferenceRequest {
     /// When true, passed as additionalContext["enable_thinking"] to ChatSession.
     let reasoning: Bool?
 
+    /// Reasoning level for FM backend (light/moderate/deep) — nil defaults to reasoning bool.
+    let reasoningLevel: String?
+
     init(
         modelId: String,
         messages: [Message],
@@ -55,6 +58,7 @@ struct InferenceRequest {
         sessionId: String? = nil,
         cancellation: InferenceCancellation? = nil,
         reasoning: Bool? = nil,
+        reasoningLevel: String? = nil,
     ) {
         self.modelId = modelId
         self.messages = messages
@@ -69,6 +73,7 @@ struct InferenceRequest {
         self.sessionId = sessionId
         self.cancellation = cancellation
         self.reasoning = reasoning
+        self.reasoningLevel = reasoningLevel
     }
 }
 
@@ -274,6 +279,7 @@ extension DirectInferenceClient {
             useGuidedGeneration: request.tools.map { !$0.isEmpty } ?? false,
             grammarSchema: request.tools.map { buildGrammarSchema(from: $0) }.flatMap { $0 },
             enableReasoning: request.reasoning == true,
+            reasoningLevel: request.reasoningLevel,
         )
 
         // Phase 5: Dispatch inference
@@ -509,6 +515,7 @@ extension DirectInferenceClient {
             useGuidedGeneration: request.tools.map { !$0.isEmpty } ?? false,
             grammarSchema: request.tools.map { buildGrammarSchema(from: $0) }.flatMap { $0 },
             enableReasoning: request.reasoning == true,
+            reasoningLevel: request.reasoningLevel,
         )
 
         // Phase 5: Dispatch inference — direct stream via generateFromMessages

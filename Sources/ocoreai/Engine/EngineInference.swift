@@ -1126,41 +1126,101 @@ extension EnginePool {
 
                         // --- ContextOptions: reasoning level ---
                         // SDK ReasoningLevel: .light, .moderate, .deep, .custom(String)
+                        // Upstream Executor.respond() routing: thinkingEnabled() maps
+                        // .light/.moderate/.deep → true; .custom("no_think") → false.
+                        // When user provides explicit reasoningLevel, honor it.
+                        // When only boolean reasoning toggle, default to .deep.
                         let ctxOpts: ContextOptions
-                        if options.enableReasoning {
+                        if let levelStr = options.reasoningLevel {
+                            switch levelStr.lowercased() {
+                            case "light":
+                                ctxOpts = ContextOptions(reasoningLevel: .light)
+                                log.info("Reasoning level: .light")
+                            case "moderate":
+                                ctxOpts = ContextOptions(reasoningLevel: .moderate)
+                                log.info("Reasoning level: .moderate")
+                            case "deep":
+                                ctxOpts = ContextOptions(reasoningLevel: .deep)
+                                log.info("Reasoning level: .deep")
+                            default:
+                                if options.enableReasoning {
+                                    ctxOpts = ContextOptions(reasoningLevel: .deep)
+                                } else {
+                                    ctxOpts = ContextOptions()
+                                }
+                            }
+                        } else if options.enableReasoning {
+                            // Legacy boolean path — defaults to .deep for alignment
                             ctxOpts = ContextOptions(reasoningLevel: .deep)
                             log.info("Reasoning enabled via ContextOptions.reasoningLevel=.deep")
                         } else {
                             ctxOpts = ContextOptions()
                         }
 
-                        // --- Guided generation: FM path cannot use schema overload
-                        // (returns GeneratedContent not String; would need separate stream type
-                        // and content extraction. ChatSession guided gen below covers this path.)
-                        // For now, drop guided schema on FM path — tools + reasoning + sampling
-                        // are the high-value wins and those are wired in.
+                        // --- Guided generation: when grammarSchema is present,
+                        // use FM's schema-constrained streamResponse overload.
+                        // ResponseStream<GeneratedContent> yields GeneratedContent which
+                        // conforms to ConvertibleFromGeneratedContent — use String.init
+                        // to extract text from the schema-validated output.
+                        let fmGuidedSchema: FoundationModels.GenerationSchema? =
+                            if let schemaJSON = options.grammarSchema,
+                               let data = schemaJSON.data(using: .utf8),
+                               let gs = try? JSONDecoder().decode(
+                                   FoundationModels.GenerationSchema.self, from: data
+                               ) {
+                                gs
+                            } else {
+                                nil
+                            }
 
                         do {
-                            let stream = langSession.streamResponse(to: "", options: genOpts, contextOptions: ctxOpts)
+                            var fmTokenCount = 0
+                            var fmStopReason: StopReason = .stopSequence
 
-                            var tokenCount = 0
-                            var stopReason: StopReason = .stopSequence
-
-                            for try await partial in stream {
-                                if Task.isCancelled || cancellation.isCancelled {
-                                    stopReason = .cancelled
-                                    break
+                            if let guidedSchema = fmGuidedSchema {
+                                log.info("FM path: guided generation with schema constraints")
+                                for try await gc in langSession.streamResponse(
+                                    to: "",
+                                    schema: guidedSchema,
+                                    options: genOpts,
+                                    contextOptions: ctxOpts
+                                ) {
+                                    if Task.isCancelled || cancellation.isCancelled {
+                                        fmStopReason = .cancelled
+                                        break
+                                    }
+                                    fmTokenCount += 1
+                                    // Snapshot.rawContent is GeneratedContent. Extract text via
+                                    // ConvertibleFromGeneratedContent — disambiguate by typing
+                                    // the parameter so the compiler doesn't pick
+                                    // RangeReplaceableCollection.init.
+                                    let text = (try? String(gc.rawContent)) ?? ""
+                                    if !text.isEmpty {
+                                        continuation.yield(.init(kind: .text(text)))
+                                    }
                                 }
-                                tokenCount += 1
-                                if !partial.content.isEmpty {
-                                    continuation.yield(.init(kind: .text(partial.content)))
+                                fmStopReason = fmStopReason == .stopSequence ? .eos : fmStopReason
+                            } else {
+                                for try await partial in langSession.streamResponse(
+                                    to: "",
+                                    options: genOpts,
+                                    contextOptions: ctxOpts
+                                ) {
+                                    if Task.isCancelled || cancellation.isCancelled {
+                                        fmStopReason = .cancelled
+                                        break
+                                    }
+                                    fmTokenCount += 1
+                                    if !partial.content.isEmpty {
+                                        continuation.yield(.init(kind: .text(partial.content)))
+                                    }
                                 }
                             }
 
                             continuation.yield(.init(
                                 kind: .done(
-                                    stopReason,
-                                    tokenCount: tokenCount,
+                                    fmStopReason,
+                                    tokenCount: fmTokenCount,
                                     tokPerSec: nil,
                                     promptTokPerSec: nil
                                 )
@@ -1403,10 +1463,12 @@ extension EnginePool {
                             // non-reasoning models bypass emitter and pass text through.
                             let reasoningConfig = context.configuration.reasoningConfig
 
-                            // Tool dispatch loop: max 8 iterations prevents infinite loops
-                            // from models that keep requesting tools.
+                            // Tool dispatch loop: iterates until model produces no more
+                            // tool calls. Mirrors ChatSession.swift L748 restart-loop
+                            // which has no explicit iteration cap — the loop terminates
+                            // naturally when the model generates text instead of tool calls.
                             var toolCallDetected = false
-                            for _ in 0..<8 {
+                            while true {
                                 if Task.isCancelled || cancellation.isCancelled {
                                     localStoppedBySeq = true
                                     break

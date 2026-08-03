@@ -117,8 +117,10 @@ struct ChatCompletionRequest: Decodable {
     /// Enable post-inference self-correction pipeline
     var selfCorrection: Bool? = false
 
-    /// Enable deep reasoning mode (三思而后行) — multi-step reasoning scaffold
+    /// Enable reasoning mode — true/.deep is equivalent, false/.light for reduced reasoning budget
     var reasoning: Bool? = false
+    /// Reasoning level for FM backend (light/moderate/deep) — aligns with SDK ReasoningLevel
+    var reasoningLevel: String? = nil
 
     /// Stream options for controlling streaming behavior.
     var streamOptions: StreamOptions? = nil
