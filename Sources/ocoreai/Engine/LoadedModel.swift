@@ -278,6 +278,12 @@ final class LoadedModel: @unchecked Sendable {
                 logger.warning("MLX warmup skipped: no model handle")
                 return
             }
+            // Pre-create GrammarTokenizer so first guided request skips
+            // the expensive vocab-extraction step. Mirrors upstream
+            // MLXLanguageModel.swift L638-640 warmUp() behavior.
+            let tokenizer = try await handle.modelContainer.tokenizer
+            try self.getOrCreateGrammarTokenizer(from: tokenizer)
+
             let mlxMessages: [Chat.Message] = [.init(role: .user, content: "warmup")]
             let mlxParams = makeGenerateParameters(
                 from: SamplingConfiguration(),
@@ -350,6 +356,27 @@ final class LoadedModel: @unchecked Sendable {
     }
 
     // MARK: - Engine Resolution (CoreAI)
+
+    /// Model availability status — mirrors upstream MLXLanguageModel.availability.
+    /// On macOS 27+ with FoundationModels, queries MLXLanguageModel.availability
+    /// directly. On older SDKs, falls back to checking whether config.json exists
+    /// on disk (same heuristic as upstream `modelExistsOnDisk()`).
+    @available(macOS 27.0, *)
+    var availability: MLXLanguageModel.Availability {
+        get async {
+            #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
+            if let lm = mlxLanguageModel {
+                return await lm.availability
+            }
+            #endif
+            // Fallback: check disk presence
+            let configPath = modelURL.appendingPathComponent("config.json")
+            if FileManager.default.fileExists(atPath: configPath.path) {
+                return .available
+            }
+            return .unavailable(.modelNotDownloaded)
+        }
+    }
 
     #if canImport(CoreAI)
     /// Get cached inference engine — create on first call, reuse thereafter.
