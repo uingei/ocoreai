@@ -499,6 +499,9 @@ final class ChatState {
     /// FIX: Use structured .interrupted flag instead of string suffix matching
     /// — avoids collision when the model legitimately outputs " [Interrupted]".
     func chat(_ text: String, model: String, attachments: [AttachedImage] = []) async {
+        // Store last user input for retry after inference failure
+        _lastUserInput = text
+
         // Ensure persistent session exists
         await ensureSession(for: model)
 
@@ -599,15 +602,23 @@ final class ChatState {
             return result
         }()
 
+            // Load persisted sampling config for this model
+            let samplingCfg = SettingsStore.shared.loadSamplingConfig(for: model)
+
             let request = InferenceRequest(
                 modelId: model,
                 messages: typedMessages,
                 systemPrompt: systemPrompt.isEmpty ? nil : systemPrompt,
+                temperature: samplingCfg.temperature != 0 ? Double(samplingCfg.temperature) : nil,
+                topP: samplingCfg.topP.map(Double.init),
+                topK: samplingCfg.topK,
+                maxTokens: samplingCfg.maxTokens,
                 sessionId: inferenceSessionId ?? "chat-\(UUID().uuidString.prefix(8))",
                 cancellation: cancellation,
             )
 
             // Stream via Fast Path
+            var streamingToolCalls: [ToolCallPart] = []
             for await chunk in try await DirectInferenceClient.shared.stream(request: request) {
                 // P0-3: respect cancellation from both the token and outer Task
                 guard !cancellation.isCancelled, !Task.isCancelled else { break }
@@ -629,6 +640,23 @@ final class ChatState {
                 // Wire prompt throughput from final chunk
                 if let ptps = chunk.promptTokPerSec {
                     currentPromptTokPerSec = ptps
+                }
+                // Consume tool call metadata during streaming — makes tool-use progress visible
+                if let meta = chunk.metadata {
+                    switch meta {
+                    case let .toolCall(tcMeta):
+                        let toolPart = ToolCallPart(
+                            callId: String(UUID().uuidString.prefix(8)),
+                            name: tcMeta.name,
+                            arguments: [:],
+                            resultSummary: tcMeta.resultSummary,
+                            durationMs: tcMeta.durationMs
+                        )
+                        streamingToolCalls.append(toolPart)
+                    case .reasoningStart, .reasoningEnd:
+                        // Signaled by ReasoningEventEmitter — reasoningContent already handled above
+                        break
+                    }
                 }
                 if chunk.isComplete {
                     // FIX: distinguish error terminal chunks from successful completion.
@@ -682,7 +710,14 @@ final class ChatState {
                             parts.append(.text(cleanedText))
                         }
 
-                        // Detect tool calls in raw response
+                        // Inject tool calls observed during streaming (from chunk.metadata)
+                        // These are the actual tool calls the engine dispatched — more
+                        // reliable than regex-based detection on raw response.
+                        for tcPart in streamingToolCalls {
+                            parts.append(.toolCall(tcPart))
+                        }
+
+                        // Detect tool calls in raw response (fallback for non-streaming-metadata paths)
                         let detectedToolCalls = parseToolCalls(from: responseText)
                         if let tcs = detectedToolCalls {
                             for tc in tcs {
@@ -758,6 +793,19 @@ final class ChatState {
         loading = false
         currentTokPerSec = nil
         currentTTFTMs = nil
+    }
+
+    /// Store the last user input for retry after inference failure.
+    private var _lastUserInput: String?
+
+    /// Retry the last message after an error. UI calls this when user taps retry button.
+    /// Clears the error state before re-attempting inference.
+    func retryLastMessage() {
+        guard let lastInput = _lastUserInput,
+              let model = activeModelId ?? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId
+        else { return }
+        errorMessage = nil
+        Task { await chat(lastInput, model: model) }
     }
 
     func loadModels() async -> [String] {

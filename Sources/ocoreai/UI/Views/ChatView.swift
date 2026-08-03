@@ -248,29 +248,7 @@ struct ChatView: View {
         }
         // P0: Show error banner when chat inference fails
         .overlay(alignment: .bottom) {
-            if let errorMsg = chatState.errorMessage {
-                HStack(spacing: 8) {
-                    Text(errorMsg)
-                        .font(.ocoreaiText(12))
-                        .foregroundStyle(theme.redDot)
-                        .lineLimit(3)
-                    Spacer()
-                    Button {
-                        chatState.errorMessage = nil
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(theme.textSecondary)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(StringKey.dismissError.l)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(theme.cardBg.opacity(0.95))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .padding(.bottom, 8)
-                .accessibilityLabel(StringKey.statusError.l)
-            }
+            InferenceErrorOverlay(chatState: chatState)
         }
         // B4 fix: removed .sheet — model search/load already available via Models tab
         // P0-2: On model selector change, unload old model to free GPU memory
@@ -950,3 +928,45 @@ struct TranscriptContentView: View {
 
 /// #Preview requires Xcode PreviewsMacros plugin — disabled for swift build.
 /// For live previews open the project in Xcode instead.
+
+// MARK: - Error Overlay Component
+// Extracted from ChatView body to keep the main view body small for type-checking.
+struct InferenceErrorOverlay: View {
+    var chatState: ChatState
+    @Environment(\.ocoreaiTheme) var theme
+
+    var body: some View {
+        if let errorMsg = chatState.errorMessage {
+            HStack(spacing: 8) {
+                Text(errorMsg)
+                    .font(.ocoreaiText(12))
+                    .foregroundStyle(theme.redDot)
+                    .lineLimit(3)
+                Spacer()
+                // Retry button — re-attempt inference with the last user input
+                Button {
+                    chatState.retryLastMessage()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .foregroundStyle(theme.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(StringKey.retryAction.l)
+                Button {
+                    chatState.errorMessage = nil
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(theme.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(StringKey.dismissError.l)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(theme.cardBg.opacity(0.95))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.bottom, 8)
+            .accessibilityLabel(StringKey.statusError.l)
+        }
+    }
+}

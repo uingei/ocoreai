@@ -375,8 +375,19 @@ extension DirectInferenceClient {
                 case let .error(errorMsg):
                     continuation.finish()
                     throw AppError.generationError(errorMsg)
-                case .toolCall:
-                    break
+                case let .toolCall(tc):
+                    // Forward tool call events to UI so tool-use progress is visible
+                    // tc is ocoreai ToolCall (from InferenceEvent.mlxToolCall bridge)
+                    continuation.yield(.init(
+                        text: nil,
+                        isComplete: false,
+                        metadata: .toolCall(.init(
+                            name: tc.function.name,
+                            arguments: tc.function.arguments.isEmpty ? nil : tc.function.arguments,
+                            resultSummary: nil,
+                            durationMs: nil
+                        ))
+                    ))
                 }
             }
         }
