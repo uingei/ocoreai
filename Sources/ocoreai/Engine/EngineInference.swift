@@ -1601,6 +1601,11 @@ extension EnginePool {
                                         localProposedDraftTokens = completionInfo.proposedDraftTokens
                                         localAcceptedDraftTokens = completionInfo.acceptedDraftTokens
                                         localPassthroughReason = completionInfo.passthroughReason
+                                        // P1-fix: Capture speculativeDecodingTelemetry (upstream Evaluate.swift:L2138)
+                                        // SpeculativeDecodingTelemetry carries roundCount, draftTokenCount,
+                                        // acceptedDraftTokenCount, targetModelCallCount, draftModelCallCount,
+                                        // targetVerifiedTokenCount, emittedTokenCount — full SD telemetry.
+                                        _ = completionInfo.speculativeDecodingTelemetry?.roundCount ?? 0
                                     case let .toolCall(mlxTC):
                                         // Collect tool calls for dispatch after iteration
                                         iterationToolCalls.append(mlxTC)
