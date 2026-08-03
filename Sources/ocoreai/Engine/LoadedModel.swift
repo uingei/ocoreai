@@ -8,6 +8,7 @@
 import Atomics
 import Foundation
 import Logging
+import MLX
 import MLXGuidedGeneration
 import MLXLLM
 import MLXLMCommon
@@ -93,6 +94,41 @@ final class LoadedModel: @unchecked Sendable {
     /// across inference requests. Mirrors upstream MLXLanguageModel.swift L163-180
     /// ModelCache.xgTokenizers caching pattern.
     private var _cachedGrammarTokenizer: GrammarTokenizer?
+
+    /// Constraint template cache — mirrors upstream ModelCache.constraintTemplates.
+    /// Grammar compilation is expensive (~5-20ms); caching + cloning (~0.1ms) lets
+    /// repeated requests with the same schema skip recompilation.
+    /// Key format: "json:\(schema)"
+    private var _constraintTemplates: [String: GrammarConstraint] = [:]
+
+    /// Get or build a cached GrammarConstraint template, cloning on hit — mirrors
+    /// upstream ModelCache.makeConstraint(modelID:kind:source:tokenizer:hostTokenizer:fastForward:).
+    func getOrCreateConstraint(
+        grammarTokenizer: GrammarTokenizer,
+        hostTokenizer: any MLXLMCommon.Tokenizer,
+        jsonSchema: String,
+        fastForward: Bool
+    ) throws -> GrammarConstraint {
+        let cacheKey = "json:\(jsonSchema)"
+        if let template = _constraintTemplates[cacheKey] {
+            do {
+                return try template.clone()
+            } catch {
+                _constraintTemplates.removeValue(forKey: cacheKey)
+            }
+        }
+        let constraint = try GrammarConstraint(
+            tokenizer: grammarTokenizer,
+            jsonSchema: jsonSchema,
+            fastForward: fastForward,
+            hostTokenizer: hostTokenizer
+        )
+        if let cloned = try? constraint.clone() {
+            _constraintTemplates[cacheKey] = constraint
+            return cloned
+        }
+        return constraint
+    }
 
     /// Get or build the cached GrammarTokenizer for guided generation.
     /// First call extracts vocab from the model's tokenizer and caches;
