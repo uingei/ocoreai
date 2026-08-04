@@ -2087,7 +2087,7 @@ extension EnginePool {
                             let stdUserInput = UserInput(
                                 prompt: .chat(rebuiltMessages),
                                 processing: stdProcessing,
-                                additionalContext: nil
+                                additionalContext: reasoningContext
                             )
                             let stdInput = try await context.processor.prepare(input: stdUserInput)
 
