@@ -1143,6 +1143,43 @@ extension EnginePool {
             }
         }
 
+        // P1-fix: extract stop-sequence matching into shared helper.
+        // Previously duplicated 5× inside runInferenceBody (MTP reasoning/response,
+        // MTP no-reasoning, standard reasoning/response, standard no-reasoning).
+        // Returns (shouldBreak: Bool, updatedAccumulated: String).
+        // `segment` = current chunk to yield on normal path.
+        // `accumulated` = running text checked for stop-sequence suffix.
+        @Sendable func checkStopSequence(
+            segment: String,
+            accumulated: String,
+            eventKind: @escaping @Sendable (String) -> InferenceEvent.Kind,
+            tokenCount: Int?,
+            tokenFallback: Int
+        ) -> (Bool, String) {
+            if requestStopSequences.isEmpty {
+                continuation.yield(.init(kind: eventKind(segment)))
+                return (false, accumulated)
+            }
+            if let match = requestStopSequences.first(where: { accumulated.hasSuffix($0) }) {
+                let trimmed = String(accumulated.prefix(accumulated.count - match.count))
+                if !trimmed.isEmpty {
+                    continuation.yield(.init(kind: eventKind(segment)))
+                }
+                let tc = tokenCount ?? tokenFallback
+                let tokPerSec: Double? =
+                    tc > 0 ? Double(tc) / (Double(metrics.overallMs) / 1000.0) : nil
+                continuation.yield(
+                    .init(
+                        kind: .done(
+                            StopReason.stopSequence,
+                            tokenCount: tc,
+                            tokPerSec: tokPerSec)))
+                return (true, accumulated)
+            }
+            continuation.yield(.init(kind: eventKind(segment)))
+            return (false, accumulated)
+        }
+
         // runInferenceBody: session acquisition → generation → pool release
         /// When useGuidedGeneration is true, routes through GuidedGenerationLoop
         /// for grammar-constrained output (tool calls, JSON schema).
@@ -1296,6 +1333,23 @@ extension EnginePool {
 
                 do {
                     var fmStopReason: StopReason = .stopSequence
+                    // P1-fix: Reasoning routing + stop sequence for FM path.
+                    // Both guided and regular branches previously emitted .text only,
+                    // bypassing ReasoningEventEmitter (no reasoning segmentation) and
+                    // not checking requestStopSequences. Wire same patterns as MTP/standard.
+                    let fmReasoningConfig = await handleRef.modelContainer.configuration
+                        .reasoningConfig
+                    var fmEmitter: ReasoningEventEmitter?
+                    if let rc = fmReasoningConfig {
+                        let primed =
+                            switch rc.promptStrategy {
+                            case .alwaysOn: true
+                            case .templateFlag(_, let defaultOn): defaultOn
+                            case .none: false
+                            }
+                        fmEmitter = ReasoningEventEmitter(config: rc, primedInside: primed)
+                    }
+                    var fmAccumulated = ""
                     // Note: streamResponse returns text chunks, not token events —
                     // FM SDK provides no per-token callback, so tokenCount is nil
                     // (same as tokPerSec/promptTokPerSec for FM path).
@@ -1318,7 +1372,51 @@ extension EnginePool {
                             // RangeReplaceableCollection.init.
                             let text = (try? String(gc.rawContent)) ?? ""
                             if !text.isEmpty {
-                                continuation.yield(.init(kind: .text(text)))
+                                // Route through reasoning emitter when available,
+                                // then check stop sequences (same as MTP/standard path).
+                                if fmEmitter != nil {
+                                    for segment in fmEmitter!.process(text) {
+                                        switch segment {
+                                        case .reasoning(let segText):
+                                            fmAccumulated += segText
+                                            if checkStopSequence(
+                                                segment: segText,
+                                                accumulated: fmAccumulated,
+                                                eventKind: { .reasoning($0) },
+                                                tokenCount: nil,
+                                                tokenFallback: 0
+                                            ).0 {
+                                                fmStopReason = .stopSequence
+                                                break
+                                            }
+                                        case .response(let segText):
+                                            fmAccumulated += segText
+                                            if checkStopSequence(
+                                                segment: segText,
+                                                accumulated: fmAccumulated,
+                                                eventKind: { .text($0) },
+                                                tokenCount: nil,
+                                                tokenFallback: 0
+                                            ).0 {
+                                                fmStopReason = .stopSequence
+                                                break
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // No reasoning config — stop sequence check on plain text
+                                    fmAccumulated += text
+                                    if checkStopSequence(
+                                        segment: text,
+                                        accumulated: fmAccumulated,
+                                        eventKind: { .text($0) },
+                                        tokenCount: nil,
+                                        tokenFallback: 0
+                                    ).0 {
+                                        fmStopReason = .stopSequence
+                                        break
+                                    }
+                                }
                             }
                         }
                         fmStopReason = fmStopReason == .stopSequence ? .eos : fmStopReason
@@ -1333,7 +1431,51 @@ extension EnginePool {
                                 break
                             }
                             if !partial.content.isEmpty {
-                                continuation.yield(.init(kind: .text(partial.content)))
+                                // Route through reasoning emitter when available,
+                                // then check stop sequences (same as MTP/standard path).
+                                if fmEmitter != nil {
+                                    for segment in fmEmitter!.process(partial.content) {
+                                        switch segment {
+                                        case .reasoning(let segText):
+                                            fmAccumulated += segText
+                                            if checkStopSequence(
+                                                segment: segText,
+                                                accumulated: fmAccumulated,
+                                                eventKind: { .reasoning($0) },
+                                                tokenCount: nil,
+                                                tokenFallback: 0
+                                            ).0 {
+                                                fmStopReason = .stopSequence
+                                                break
+                                            }
+                                        case .response(let segText):
+                                            fmAccumulated += segText
+                                            if checkStopSequence(
+                                                segment: segText,
+                                                accumulated: fmAccumulated,
+                                                eventKind: { .text($0) },
+                                                tokenCount: nil,
+                                                tokenFallback: 0
+                                            ).0 {
+                                                fmStopReason = .stopSequence
+                                                break
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // No reasoning config — stop sequence check on plain text
+                                    fmAccumulated += partial.content
+                                    if checkStopSequence(
+                                        segment: partial.content,
+                                        accumulated: fmAccumulated,
+                                        eventKind: { .text($0) },
+                                        tokenCount: nil,
+                                        tokenFallback: 0
+                                    ).0 {
+                                        fmStopReason = .stopSequence
+                                        break
+                                    }
+                                }
                             }
                         }
                     }
@@ -1453,6 +1595,22 @@ extension EnginePool {
                 )
                 chatSession = acquired.pooled.session
                 isPoolHit = acquired.isHit
+                // P0-fix: release on any exit path (throw, early return, normal completion).
+                // Previously pool.release was ordered code at L2114 — skipped by
+                // handleGuidedGeneration throw (L938/L954/L1141), MTP early return (L1563),
+                // and any modelContainer.perform error. Caused persistent pool slot leak.
+                defer {
+                    if let pooledSession = chatSession {
+                        await pool.release(
+                            pooled: PooledChatSession(
+                                session: pooledSession,
+                                lastAccessedAt: ContinuousClock.now,
+                            ),
+                            modelId: modelId,
+                            conversationId: convKey,
+                        )
+                    }
+                }
                 if isPoolHit {
                     log.debug("Pool HIT for \(convKey) — KV cache reused")
                     // Pool hit: ChatSession's KV cache already has history baked in.
@@ -1613,11 +1771,14 @@ extension EnginePool {
                         let reasoningConfig = context.configuration.reasoningConfig
 
                         // Tool dispatch loop: iterates until model produces no more
-                        // tool calls. Mirrors ChatSession.swift L748 restart-loop
-                        // which has no explicit iteration cap — the loop terminates
-                        // naturally when the model generates text instead of tool calls.
+                        // tool calls. Mirrors ChatSession.swift L748 restart-loop.
+                        // P2-fix: hard iteration cap (10) prevents runaway tool loops
+                        // from models stuck in tool-call cycles.
                         var toolCallDetected = false
-                        while true {
+                        var mtpToolLoopCount = 0
+                        let maxMtpToolLoop = 10
+                        while mtpToolLoopCount < maxMtpToolLoop {
+                            mtpToolLoopCount += 1
                             if Task.isCancelled || cancellation.isCancelled {
                                 localStoppedBySeq = true
                                 break
@@ -1678,111 +1839,48 @@ extension EnginePool {
                                             switch segment {
                                             case .reasoning(let segmentText):
                                                 localAccumulatedText += segmentText
-                                                if requestStopSequences.isEmpty {
-                                                    continuation.yield(
-                                                        .init(kind: .reasoning(segmentText)))
-                                                } else if let match = requestStopSequences.first(
-                                                    where: { localAccumulatedText.hasSuffix($0) })
-                                                {
-                                                    let trimmed = String(
-                                                        localAccumulatedText.prefix(
-                                                            localAccumulatedText.count - match.count
-                                                        ))
-                                                    if !trimmed.isEmpty {
-                                                        continuation.yield(
-                                                            .init(kind: .reasoning(segmentText)))
-                                                    }
-                                                    let mtpTokPerSec =
-                                                        (localTokenCount
-                                                            ?? metrics.generatedTokenCount) > 0
-                                                        ? Double(
-                                                            localTokenCount
-                                                                ?? metrics.generatedTokenCount)
-                                                            / (Double(metrics.overallMs) / 1000.0)
-                                                        : nil
-                                                    continuation.yield(
-                                                        .init(
-                                                            kind: .done(
-                                                                StopReason.stopSequence,
-                                                                tokenCount: localTokenCount
-                                                                    ?? metrics.generatedTokenCount,
-                                                                tokPerSec: mtpTokPerSec)))
+                                                let (shouldBreak, newText) = checkStopSequence(
+                                                    segment: segmentText,
+                                                    accumulated: localAccumulatedText,
+                                                    eventKind: { .reasoning($0) },
+                                                    tokenCount: localTokenCount,
+                                                    tokenFallback: metrics.generatedTokenCount
+                                                )
+                                                if shouldBreak {
+                                                    localAccumulatedText = newText
                                                     localStoppedBySeq = true
                                                     break
-                                                } else {
-                                                    continuation.yield(
-                                                        .init(kind: .reasoning(segmentText)))
                                                 }
                                             case .response(let segmentText):
                                                 localAccumulatedText += segmentText
-                                                if requestStopSequences.isEmpty {
-                                                    continuation.yield(
-                                                        .init(kind: .text(segmentText)))
-                                                } else if let match = requestStopSequences.first(
-                                                    where: { localAccumulatedText.hasSuffix($0) })
-                                                {
-                                                    let trimmed = String(
-                                                        localAccumulatedText.prefix(
-                                                            localAccumulatedText.count - match.count
-                                                        ))
-                                                    if !trimmed.isEmpty {
-                                                        continuation.yield(
-                                                            .init(kind: .text(trimmed)))
-                                                    }
-                                                    let mtpTokPerSec =
-                                                        (localTokenCount
-                                                            ?? metrics.generatedTokenCount) > 0
-                                                        ? Double(
-                                                            localTokenCount
-                                                                ?? metrics.generatedTokenCount)
-                                                            / (Double(metrics.overallMs) / 1000.0)
-                                                        : nil
-                                                    continuation.yield(
-                                                        .init(
-                                                            kind: .done(
-                                                                StopReason.stopSequence,
-                                                                tokenCount: localTokenCount
-                                                                    ?? metrics.generatedTokenCount,
-                                                                tokPerSec: mtpTokPerSec)))
+                                                let (shouldBreak, newText2) = checkStopSequence(
+                                                    segment: segmentText,
+                                                    accumulated: localAccumulatedText,
+                                                    eventKind: { .text($0) },
+                                                    tokenCount: localTokenCount,
+                                                    tokenFallback: metrics.generatedTokenCount
+                                                )
+                                                if shouldBreak {
+                                                    localAccumulatedText = newText2
                                                     localStoppedBySeq = true
                                                     break
-                                                } else {
-                                                    continuation.yield(
-                                                        .init(kind: .text(segmentText)))
                                                 }
                                             }
                                         }
                                     } else {
                                         // No reasoning config — pass through as plain text
                                         localAccumulatedText += text
-                                        if requestStopSequences.isEmpty {
-                                            continuation.yield(.init(kind: .text(text)))
-                                        } else if let match = requestStopSequences.first(where: {
-                                            localAccumulatedText.hasSuffix($0)
-                                        }) {
-                                            let trimmed = String(
-                                                localAccumulatedText.prefix(
-                                                    localAccumulatedText.count - match.count))
-                                            if !trimmed.isEmpty {
-                                                continuation.yield(.init(kind: .text(trimmed)))
-                                            }
-                                            let mtpTokPerSec =
-                                                (localTokenCount ?? metrics.generatedTokenCount) > 0
-                                                ? Double(
-                                                    localTokenCount ?? metrics.generatedTokenCount)
-                                                    / (Double(metrics.overallMs) / 1000.0)
-                                                : nil
-                                            continuation.yield(
-                                                .init(
-                                                    kind: .done(
-                                                        StopReason.stopSequence,
-                                                        tokenCount: localTokenCount
-                                                            ?? metrics.generatedTokenCount,
-                                                        tokPerSec: mtpTokPerSec)))
+                                        let (shouldBreak3, newText3) = checkStopSequence(
+                                            segment: text,
+                                            accumulated: localAccumulatedText,
+                                            eventKind: { .text($0) },
+                                            tokenCount: localTokenCount,
+                                            tokenFallback: metrics.generatedTokenCount
+                                        )
+                                        if shouldBreak3 {
+                                            localAccumulatedText = newText3
                                             localStoppedBySeq = true
                                             break
-                                        } else {
-                                            continuation.yield(.init(kind: .text(text)))
                                         }
                                     }
                                 case .info(let completionInfo):
@@ -1969,101 +2067,48 @@ extension EnginePool {
                                     switch segment {
                                     case .reasoning(let segmentText):
                                         localStandardAccumulated += segmentText
-                                        if requestStopSequences.isEmpty {
-                                            continuation.yield(.init(kind: .reasoning(segmentText)))
-                                        } else if let match = requestStopSequences.first(where: {
-                                            localStandardAccumulated.hasSuffix($0)
-                                        }) {
-                                            let trimmed = String(
-                                                localStandardAccumulated.prefix(
-                                                    localStandardAccumulated.count - match.count))
-                                            if !trimmed.isEmpty {
-                                                continuation.yield(
-                                                    .init(kind: .reasoning(segmentText)))
-                                            }
-                                            let stdTokPerSec =
-                                                (actualTokenCount ?? metrics.generatedTokenCount)
-                                                    > 0
-                                                ? Double(
-                                                    actualTokenCount ?? metrics.generatedTokenCount)
-                                                    / (Double(metrics.overallMs) / 1000.0)
-                                                : nil
-                                            continuation.yield(
-                                                .init(
-                                                    kind: .done(
-                                                        StopReason.stopSequence,
-                                                        tokenCount: actualTokenCount
-                                                            ?? metrics.generatedTokenCount,
-                                                        tokPerSec: stdTokPerSec)))
+                                        let (shouldBreakS1, newTextS1) = checkStopSequence(
+                                            segment: segmentText,
+                                            accumulated: localStandardAccumulated,
+                                            eventKind: { .reasoning($0) },
+                                            tokenCount: actualTokenCount,
+                                            tokenFallback: metrics.generatedTokenCount
+                                        )
+                                        if shouldBreakS1 {
+                                            localStandardAccumulated = newTextS1
                                             lastStopReason = .stopSequence
                                             break
-                                        } else {
-                                            continuation.yield(.init(kind: .reasoning(segmentText)))
                                         }
                                     case .response(let segmentText):
                                         localStandardAccumulated += segmentText
-                                        if requestStopSequences.isEmpty {
-                                            continuation.yield(.init(kind: .text(segmentText)))
-                                        } else if let match = requestStopSequences.first(where: {
-                                            localStandardAccumulated.hasSuffix($0)
-                                        }) {
-                                            let trimmed = String(
-                                                localStandardAccumulated.prefix(
-                                                    localStandardAccumulated.count - match.count))
-                                            if !trimmed.isEmpty {
-                                                continuation.yield(.init(kind: .text(trimmed)))
-                                            }
-                                            let stdTokPerSec =
-                                                (actualTokenCount ?? metrics.generatedTokenCount)
-                                                    > 0
-                                                ? Double(
-                                                    actualTokenCount ?? metrics.generatedTokenCount)
-                                                    / (Double(metrics.overallMs) / 1000.0)
-                                                : nil
-                                            continuation.yield(
-                                                .init(
-                                                    kind: .done(
-                                                        StopReason.stopSequence,
-                                                        tokenCount: actualTokenCount
-                                                            ?? metrics.generatedTokenCount,
-                                                        tokPerSec: stdTokPerSec)))
+                                        let (shouldBreakS2, newTextS2) = checkStopSequence(
+                                            segment: segmentText,
+                                            accumulated: localStandardAccumulated,
+                                            eventKind: { .text($0) },
+                                            tokenCount: actualTokenCount,
+                                            tokenFallback: metrics.generatedTokenCount
+                                        )
+                                        if shouldBreakS2 {
+                                            localStandardAccumulated = newTextS2
                                             lastStopReason = .stopSequence
                                             break
-                                        } else {
-                                            continuation.yield(.init(kind: .text(segmentText)))
                                         }
                                     }
                                 }
                             } else {
                                 // No reasoning config — pass through as plain text
                                 localStandardAccumulated += text
-                                if requestStopSequences.isEmpty {
-                                    continuation.yield(.init(kind: .text(text)))
-                                } else if let match = requestStopSequences.first(where: {
-                                    localStandardAccumulated.hasSuffix($0)
-                                }) {
-                                    let trimmed = String(
-                                        localStandardAccumulated.prefix(
-                                            localStandardAccumulated.count - match.count))
-                                    if !trimmed.isEmpty {
-                                        continuation.yield(.init(kind: .text(trimmed)))
-                                    }
-                                    let stdTokPerSec =
-                                        (actualTokenCount ?? metrics.generatedTokenCount) > 0
-                                        ? Double(actualTokenCount ?? metrics.generatedTokenCount)
-                                            / (Double(metrics.overallMs) / 1000.0)
-                                        : nil
-                                    continuation.yield(
-                                        .init(
-                                            kind: .done(
-                                                StopReason.stopSequence,
-                                                tokenCount: actualTokenCount
-                                                    ?? metrics.generatedTokenCount,
-                                                tokPerSec: stdTokPerSec)))
+                                let (shouldBreakS3, newTextS3) = checkStopSequence(
+                                    segment: text,
+                                    accumulated: localStandardAccumulated,
+                                    eventKind: { .text($0) },
+                                    tokenCount: actualTokenCount,
+                                    tokenFallback: metrics.generatedTokenCount
+                                )
+                                if shouldBreakS3 {
+                                    localStandardAccumulated = newTextS3
                                     lastStopReason = .stopSequence
                                     break
-                                } else {
-                                    continuation.yield(.init(kind: .text(text)))
                                 }
                             }
                         case .info(let completionInfo):
@@ -2111,18 +2156,7 @@ extension EnginePool {
 
             }
 
-            if let pool = poolRef, let session = chatSession {
-                // Only release pooled session when ChatSession path was used
-                // (Guided path creates its own context, no pool management needed)
-                await pool.release(
-                    pooled: PooledChatSession(
-                        session: session,
-                        lastAccessedAt: ContinuousClock.now,
-                    ),
-                    modelId: modelId,
-                    conversationId: convKey,
-                )
-            }
+            // pool.release is handled by defer in `if let pool = poolRef { ... }` block above.
         }
 
         // Layer 0: Wired memory GPU hard-isolation + GPU telemetry
