@@ -211,11 +211,13 @@ actor MLXSessionPool {
         }
 
         // 5. Cold miss — create fresh session with instructions + processing
+        // components: enables upstream logit processor chain (penalty enforcement).
         let freshSession = ChatSession(
             modelContainer,
             instructions: instructions,
             speculativeDecoding: speculativeDecoding,
             generateParameters: genParams,
+            components: .init(),
             processing: processing ?? .init(resize: config.vlmImageResize),
         )
         let cacheFile = cacheFileURL(key: key)
@@ -360,12 +362,14 @@ actor MLXSessionPool {
             logger.info(
                 "Restoring KV cache from: \(cacheURL.lastPathComponent) (tokens: \(restoredTokenCount))"
             )
+            // components: enables upstream logit processor chain (penalty enforcement).
             let restoredSession = ChatSession(
                 modelContainer,
                 instructions: nil,  // cache already encodes system prompt — upstream L319-322
                 cache: caches,
                 speculativeDecoding: speculativeDecoding,
                 generateParameters: genParams,
+                components: .init(),
                 processing: processing ?? .init(resize: config.vlmImageResize),
             )
             return restoredSession

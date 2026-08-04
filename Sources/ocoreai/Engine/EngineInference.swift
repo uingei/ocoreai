@@ -1631,14 +1631,23 @@ extension EnginePool {
                 let gp: MLXLMCommon.GenerateParameters = genParams
                 /// ChatSession creation — reasoning context injected via
                 /// reasoningConfig.promptStrategy.additionalContext().
-                /// Upstream reasonnigConfig already has the prompt strategy baked in via
+                /// Upstream reasoningConfig already has the prompt strategy baked in via
                 /// LLMModelFactory._load. The ReasoningEventEmitter below parses
                 /// model-rendered thinking tags (ReasoningConfig.swift:106-124).
+                ///
+                /// components: GenerationComponents enables the upstream
+                /// logit processor chain (penalty enforcement + custom masking).
+                /// Without this, ChatSession runs with only generateParameters
+                /// defaults — no frequency/Presence penalty, no grammar
+                /// constraint support via logitProcessorFactory.
+                /// Mirrors upstream ChatSession init at Libraries/MLXLMCommon/
+                /// ChatSession.swift L295 where components is required.
                 chatSession = ChatSession(
                     handleRef.modelContainer,
                     instructions: systemInstructions,
                     speculativeDecoding: spec,
                     generateParameters: gp,
+                    components: .init(),
                     processing: sessionProcessing,
                     additionalContext: reasoningContext,
                     tools: registeredToolSpecs,
@@ -1817,7 +1826,8 @@ extension EnginePool {
                                 parameters: genParams,
                                 context: context,
                                 mtpDrafter: drafterModel,
-                                blockSize: 4
+                                blockSize: 4,
+                                components: .init()
                             )
 
                             for try await generation in mtpGenStream {
