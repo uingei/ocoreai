@@ -99,6 +99,7 @@ struct InferenceEvent {
             tokenCount: Int?,
             tokPerSec: Double? = nil,
             promptTokPerSec: Double? = nil,
+            reasoningTokenCount: Int? = nil,
             proposedDraftTokens: Int? = nil,
             acceptedDraftTokens: Int? = nil,
             passthroughReason: String? = nil

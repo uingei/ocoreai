@@ -1806,9 +1806,14 @@ extension EnginePool {
                             toolCallDetected = false
                             var iterationToolCalls: [MLXLMCommon.ToolCall] = []
 
-                            // Reset reason emitter per iteration — compute primedInside
+                            // Reset reasoning emitter per iteration — compute primedInside
                             // from rendered prompt tail so it doesn't misroute reasoning blocks.
-                            var reasonEmitter: ReasoningEventEmitter?
+                            // NOTE: MTP path uses generate() which emits text-level .chunk,
+                            // not raw .token. ReasoningTokenCollector requires generateTokens()
+                            // (raw token IDs), so we must use ReasoningEventEmitter here.
+                            // Upstream MLXLanguageModel.runReasoning uses generateTokens() +
+                            // ReasoningTokenCollector for the standard path.
+                            var reasoningEmitter: ReasoningEventEmitter?
                             if let rc = reasoningConfig {
                                 let tokens = mtpInput.text.tokens.asArray(Int32.self)
                                 let renderedTail = context.tokenizer.decode(
@@ -1817,7 +1822,7 @@ extension EnginePool {
                                 let primed = ReasoningEventEmitter.promptEndsInsideReasoning(
                                     renderedPromptTail: renderedTail, config: rc
                                 )
-                                reasonEmitter = ReasoningEventEmitter(
+                                reasoningEmitter = ReasoningEventEmitter(
                                     config: rc, primedInside: primed)
                             }
 
@@ -1844,8 +1849,8 @@ extension EnginePool {
                                     metrics.incrementGenerated()
                                     // If reasoning config is available, route through emitter.
                                     // Otherwise pass text through directly as .text.
-                                    if reasonEmitter != nil {
-                                        for segment in reasonEmitter!.process(text) {
+                                    if reasoningEmitter != nil {
+                                        for segment in reasoningEmitter!.process(text) {
                                             switch segment {
                                             case .reasoning(let segmentText):
                                                 localAccumulatedText += segmentText
@@ -2011,39 +2016,233 @@ extension EnginePool {
                                     passthroughReason: mtpPassthroughReason)))
                     }
                 }
-                // MARK: - Standard ChatSession Path (default fallback)
-                /// Uses ChatSession.streamDetails for text + multimodal generation.
-                else {
-                    log.info("Routing through ChatSession for standard generation")
+                // MARK: - Standard Path — reasoning branch via generateTokens()
+                /// Upstream: MLXLanguageModel.runReasoning uses generateTokens() → raw .token IDs
+                /// → NaiveStreamingDetokenizer → ReasoningTokenCollector → segments.
+                /// This gives true token-level reasoning count (1 .token == 1 real token).
+                /// Non-reasoning path continues through ChatSession.streamDetails() below.
+                struct StandardReasoningResult: Sendable {
+                    let stoppedBySequence: Bool
+                    let stopReason: StopReason?
+                    let tokenCount: Int?
+                    let reasoningTokenCount: Int
+                    let genTokPerSec: Double?
+                    let promptTokPerSec: Double?
+                    let tokenIds: [Int]
+                }
 
-                    // ReasoningEventEmitter: upstream segment router. Only activate when
-                    // reasoning config is present — non-reasoning models bypass emitter.
-                    // Primed state: when ChatSession pre-fills the opening delimiter (Qwen3, R1),
-                    // the emitter must start inside reasoning or it misroutes the entire block.
-                    // Since streamDetails renders internally and we can't read LMInput tokens,
-                    // infer primedInside from reasoningPromptStrategy — mirrors upstream behavior.
-                    let standardReasoningConfig = await handleRef.modelContainer.configuration
-                        .reasoningConfig
-                    var standardEmitter: ReasoningEventEmitter?
-                    if let rc = standardReasoningConfig {
-                        // PromptStrategy inference: alwaysOn = model always reasons (primed),
-                        // templateFlag with defaultOn = thinking enabled by template (primed),
-                        // .none = no reasoning (shouldn't have config, but default false).
-                        let primed =
-                            switch rc.promptStrategy {
-                            case .alwaysOn:
-                                true
-                            case .templateFlag(_, let defaultOn):
-                                defaultOn
-                            case .none:
-                                false
+                // SAFETY: [Chat.Message] is non-Sendable — snapshot as Sendable
+                // message pairs before entering @Sendable closure, exactly like
+                // MTP path (L1763) and guided gen (L905).
+                var stdMsgPairs: [(role: String, content: String)] = newMessages.map {
+                    (role: $0.role.rawValue, content: $0.content)
+                }
+                if !stdMsgPairs.isEmpty, stdMsgPairs.last?.content.isEmpty == true,
+                    stdMsgPairs.last?.role == "assistant"
+                {
+                    stdMsgPairs.removeLast()
+                }
+
+                // Fetch reasoning config outside closure (Sendable value)
+                let reasoningConfigSnapshot = await handleRef.modelContainer.configuration
+                    .reasoningConfig
+                let hasReasoning = reasoningConfigSnapshot != nil
+
+                if hasReasoning {
+                    let rc = reasoningConfigSnapshot!
+                    log.info("Routing through reasoning path — upstream generateTokens() alignment")
+
+                    let primed =
+                        switch rc.promptStrategy {
+                        case .alwaysOn:
+                            true
+                        case .templateFlag(_, let defaultOn):
+                            defaultOn
+                        case .none:
+                            false
+                        }
+
+                    let stdResult: StandardReasoningResult
+
+                    do {
+                        // Snapshot: stdMsgPairs is a var (mutated by continueGeneration downstream),
+                        // so copy to a let before crossing the @Sendable closure boundary.
+                        let msgPairsSnapshot = stdMsgPairs
+                        stdResult = try await handleRef.modelContainer.perform { context in
+                            // Rebuild Chat.Message inside @Sendable closure to avoid
+                            // cross-actor capture of non-Sendable [Chat.Message].
+                            let rebuiltMessages = msgPairsSnapshot.map { pair in
+                                Chat.Message(
+                                    role: Chat.Message.Role(rawValue: pair.role) ?? .system,
+                                    content: pair.content
+                                )
                             }
-                        standardEmitter = ReasoningEventEmitter(config: rc, primedInside: primed)
+
+                            // Prepare LMInput inside closure for thread-safe ModelContext.
+                            let stdProcessing = UserInput.Processing(resize: config.vlmImageResize)
+                            let stdUserInput = UserInput(
+                                prompt: .chat(rebuiltMessages),
+                                processing: stdProcessing,
+                                additionalContext: nil
+                            )
+                            let stdInput = try await context.processor.prepare(input: stdUserInput)
+
+                            // ReasoningTokenCollector: token-level reasoning segment routing.
+                            // Mirrors upstream MLXLanguageModel.runReasoning pattern.
+                            var collector = ReasoningTokenCollector(
+                                config: rc, primedInside: primed,
+                                tokenizer: context.tokenizer)
+
+                            var localStdAccumulated = ""
+                            var localStdFirstToken = false
+                            var localStdTokenCount: Int?
+                            var localStdPromptTokPerSec: Double?
+                            var localStdGenTokPerSec: Double?
+                            var localStdStopReason: StopReason?
+                            var localStdStoppedBySeq = false
+                            var localStdReasoningTokenCount = 0
+                            var localStdTokenIds: [Int] = []
+
+                            for await generation in try MLXLMCommon.generateTokens(
+                                input: stdInput, parameters: genParams, context: context
+                            ) {
+                                if Task.isCancelled || cancellation.isCancelled {
+                                    localStdStoppedBySeq = true
+                                    localStdStopReason = .cancelled
+                                    break
+                                }
+                                switch generation {
+                                case .token(let token):
+                                    // True token-level processing — one .token == one real token.
+                                    if !localStdFirstToken {
+                                        metrics.firstTokenMs = metrics.overallMs
+                                        localStdFirstToken = true
+                                    }
+                                    // Track reasoning token count while inside reasoning span
+                                    if collector.isInsideReasoning {
+                                        localStdReasoningTokenCount += 1
+                                    }
+
+                                    // Ingest token → get routed segments
+                                    let segments = collector.ingest(token)
+                                    localStdTokenIds.append(token)
+                                    for segment in segments {
+                                        switch segment {
+                                        case .reasoning(let segmentText):
+                                            localStdAccumulated += segmentText
+                                            let (shouldBreak, newText) = checkStopSequence(
+                                                segment: segmentText,
+                                                accumulated: localStdAccumulated,
+                                                eventKind: { .reasoning($0) },
+                                                tokenCount: localStdTokenCount,
+                                                tokenFallback: localStdTokenIds.count
+                                            )
+                                            if shouldBreak {
+                                                localStdAccumulated = newText
+                                                localStdStoppedBySeq = true
+                                                localStdStopReason = .stopSequence
+                                            }
+                                        case .response(let segmentText):
+                                            localStdAccumulated += segmentText
+                                            let (shouldBreak2, newText2) = checkStopSequence(
+                                                segment: segmentText,
+                                                accumulated: localStdAccumulated,
+                                                eventKind: { .text($0) },
+                                                tokenCount: localStdTokenCount,
+                                                tokenFallback: localStdTokenIds.count
+                                            )
+                                            if shouldBreak2 {
+                                                localStdAccumulated = newText2
+                                                localStdStoppedBySeq = true
+                                                localStdStopReason = .stopSequence
+                                            }
+                                        }
+                                    }
+                                case .info(let info):
+                                    localStdTokenCount = info.generationTokenCount
+                                    localStdPromptTokPerSec = info.promptTokensPerSecond
+                                    localStdGenTokPerSec = info.tokensPerSecond
+                                    localStdStopReason =
+                                        switch info.stopReason {
+                                        case .stop: .eos
+                                        case .length: .maxTokens
+                                        case .cancelled: .cancelled
+                                        }
+                                }
+                            }
+
+                            // Flush any remaining buffered text from collector
+                            let finalSegments = collector.finalize()
+                            for segment in finalSegments {
+                                switch segment {
+                                case .reasoning(let segmentText):
+                                    continuation.yield(.init(kind: .reasoning(segmentText)))
+                                case .response(let segmentText):
+                                    continuation.yield(.init(kind: .text(segmentText)))
+                                }
+                            }
+
+                            return StandardReasoningResult(
+                                stoppedBySequence: localStdStoppedBySeq,
+                                stopReason: localStdStopReason,
+                                tokenCount: localStdTokenCount,
+                                reasoningTokenCount: localStdReasoningTokenCount,
+                                genTokPerSec: localStdGenTokPerSec,
+                                promptTokPerSec: localStdPromptTokPerSec,
+                                tokenIds: localStdTokenIds
+                            )
+                        }
+                    } catch {
+                        continuation.yield(
+                            .init(
+                                kind: .error(
+                                    InferenceError.standardPathFailed(
+                                        "reasoning generation failed: \(error.localizedDescription)"
+                                    ).errorDescription ?? "error"
+                                )
+                            )
+                        )
+                        return
                     }
 
-                    // Accumulate text across chunks for stop sequence matching
-                    // (mirrors MTP path localAccumulatedText at L808)
-                    var localStandardAccumulated = ""
+                    // Sync reasoning result back to outer scope
+                    if let tc = stdResult.tokenCount {
+                        actualTokenCount = tc
+                    }
+                    if let sr = stdResult.stopReason {
+                        lastStopReason = sr
+                    }
+                    generationTokPerSec = stdResult.genTokPerSec
+                    promptTokPerSec = stdResult.promptTokPerSec
+                    metrics.generatedTokenCount += stdResult.tokenIds.count
+
+                    // Emit .done unless stop sequence already emitted it
+                    if !stdResult.stoppedBySequence, !Task.isCancelled {
+                        continuation.yield(
+                            .init(
+                                kind: .done(
+                                    lastStopReason ?? .eos,
+                                    tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
+                                    tokPerSec: generationTokPerSec,
+                                    promptTokPerSec: promptTokPerSec,
+                                    reasoningTokenCount: stdResult.reasoningTokenCount
+                                )
+                            )
+                        )
+                    }
+
+                    // Emit tracked tool calls if any
+                    let trackedCalls = await tracker.fetch()
+                    for mlxTC in trackedCalls {
+                        let tc = InferenceEvent.mlxToolCall(from: mlxTC)
+                        continuation.yield(.init(kind: .toolCall(tc)))
+                    }
+
+                    // MARK: - Standard ChatSession Path (non-reasoning fallback)
+                    /// Non-reasoning models continue through ChatSession.streamDetails()
+                    /// for text + multimodal generation with tool dispatch support.
+                } else {
+                    var localStdAccumulated = ""
 
                     // ChatSession's KV cache already holds context from previous rounds.
                     // newMessages (set above) contains only what's not yet cached:
@@ -2071,55 +2270,18 @@ extension EnginePool {
                                 metrics.firstTokenMs = metrics.overallMs
                             }
                             metrics.incrementGenerated()
-                            // Conditionally route through emitter if reasoning config present
-                            if standardEmitter != nil {
-                                for segment in standardEmitter!.process(text) {
-                                    switch segment {
-                                    case .reasoning(let segmentText):
-                                        localStandardAccumulated += segmentText
-                                        let (shouldBreakS1, newTextS1) = checkStopSequence(
-                                            segment: segmentText,
-                                            accumulated: localStandardAccumulated,
-                                            eventKind: { .reasoning($0) },
-                                            tokenCount: actualTokenCount,
-                                            tokenFallback: metrics.generatedTokenCount
-                                        )
-                                        if shouldBreakS1 {
-                                            localStandardAccumulated = newTextS1
-                                            lastStopReason = .stopSequence
-                                            break
-                                        }
-                                    case .response(let segmentText):
-                                        localStandardAccumulated += segmentText
-                                        let (shouldBreakS2, newTextS2) = checkStopSequence(
-                                            segment: segmentText,
-                                            accumulated: localStandardAccumulated,
-                                            eventKind: { .text($0) },
-                                            tokenCount: actualTokenCount,
-                                            tokenFallback: metrics.generatedTokenCount
-                                        )
-                                        if shouldBreakS2 {
-                                            localStandardAccumulated = newTextS2
-                                            lastStopReason = .stopSequence
-                                            break
-                                        }
-                                    }
-                                }
-                            } else {
-                                // No reasoning config — pass through as plain text
-                                localStandardAccumulated += text
-                                let (shouldBreakS3, newTextS3) = checkStopSequence(
-                                    segment: text,
-                                    accumulated: localStandardAccumulated,
-                                    eventKind: { .text($0) },
-                                    tokenCount: actualTokenCount,
-                                    tokenFallback: metrics.generatedTokenCount
-                                )
-                                if shouldBreakS3 {
-                                    localStandardAccumulated = newTextS3
-                                    lastStopReason = .stopSequence
-                                    break
-                                }
+                            localStdAccumulated += text
+                            let (shouldBreakS3, newText3) = checkStopSequence(
+                                segment: text,
+                                accumulated: localStdAccumulated,
+                                eventKind: { .text($0) },
+                                tokenCount: actualTokenCount,
+                                tokenFallback: metrics.generatedTokenCount
+                            )
+                            if shouldBreakS3 {
+                                localStdAccumulated = newText3
+                                lastStopReason = .stopSequence
+                                break
                             }
                         case .info(let completionInfo):
                             if actualTokenCount == nil {
