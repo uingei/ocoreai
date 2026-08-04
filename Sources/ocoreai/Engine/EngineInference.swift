@@ -2029,6 +2029,10 @@ extension EnginePool {
                     let genTokPerSec: Double?
                     let promptTokPerSec: Double?
                     let tokenIds: [Int]
+                    // MTP speculative decoding metrics (always nil on non-MTP models)
+                    let proposedDraftTokens: Int?
+                    let acceptedDraftTokens: Int?
+                    let passthroughReason: String?
                 }
 
                 // SAFETY: [Chat.Message] is non-Sendable — snapshot as Sendable
@@ -2102,6 +2106,10 @@ extension EnginePool {
                             var localStdStoppedBySeq = false
                             var localStdReasoningTokenCount = 0
                             var localStdTokenIds: [Int] = []
+                            // MTP speculative decoding metrics (nil on non-MTP models)
+                            var localStdProposedDraftTokens: Int?
+                            var localStdAcceptedDraftTokens: Int?
+                            var localStdPassthroughReason: String?
 
                             for await generation in try MLXLMCommon.generateTokens(
                                 input: stdInput, parameters: genParams, context: context
@@ -2168,6 +2176,10 @@ extension EnginePool {
                                         case .length: .maxTokens
                                         case .cancelled: .cancelled
                                         }
+                                    // MTP speculative decoding metrics (upstream Evaluate.swift)
+                                    localStdProposedDraftTokens = info.proposedDraftTokens
+                                    localStdAcceptedDraftTokens = info.acceptedDraftTokens
+                                    localStdPassthroughReason = info.passthroughReason
                                 }
                             }
 
@@ -2189,7 +2201,10 @@ extension EnginePool {
                                 reasoningTokenCount: localStdReasoningTokenCount,
                                 genTokPerSec: localStdGenTokPerSec,
                                 promptTokPerSec: localStdPromptTokPerSec,
-                                tokenIds: localStdTokenIds
+                                tokenIds: localStdTokenIds,
+                                proposedDraftTokens: localStdProposedDraftTokens,
+                                acceptedDraftTokens: localStdAcceptedDraftTokens,
+                                passthroughReason: localStdPassthroughReason
                             )
                         }
                     } catch {
