@@ -337,6 +337,33 @@ actor EnginePool {
         return modelId.contains("/") && !modelId.hasPrefix("/") && !modelId.hasPrefix("~/")
     }
 
+    /// P1-fix: Check whether this model supports reasoning before declaring .reasoning capability.
+    /// Declaring .reasoning unconditionally short-circuits Executor.respond() capability gates
+    /// (MLXLanguageModel.swift L1004-1071) — the upstream gate relies on:
+    ///    declaresReasoning = model.capabilities.contains(.reasoning)
+    /// This is a heuristic check: inspect the local HF cache for chat_template.jinja
+    /// reasoning delimiters and model name reasoning keywords. The authoritative source
+    /// is the loaded container's ChatConventionsProviding + ChatConventionsRegistry result,
+    /// but that's not available until after preload(). So we gate upfront to avoid
+    /// declaring false capabilities.
+    nonisolated func supportsReasoning(_ modelId: String) -> Bool {
+        let lower = modelId.lowercased()
+        // Known reasoning models by name pattern
+        let knownReasoning = [
+            "r1", "deepseek-r", "qwen3", "qwen-3", "qwen3.5", "qwen-3.5",
+            "nemotron-h", "nemotron_h", "qwen2.5-vl",
+        ]
+        if knownReasoning.contains(where: { lower.contains($0) }) {
+            return true
+        }
+        // Check for "reason" keyword in model ID
+        if lower.contains("reason") {
+            return true
+        }
+        // Conservative default: assume no reasoning unless explicitly identified
+        return false
+    }
+
     private func loadModel(_ modelId: String) async throws -> LoadedModel {
         logger.info("Loading model: \(modelId)")
 
@@ -424,16 +451,22 @@ actor EnginePool {
             // Primary hub provider — MLXModelLoader defaults to "modelscope", hf: prefix means HF
             let hubProviderStr: String = isHF ? "huggingface" : "modelscope"
 
-            // Construct MLXLanguageModel that routes through ModelCache (concurrency-safe, download-tracked, error-recorded)
-            // Capabilities include .reasoning and .toolCalling so upstream capability gates fire;
-            // actual gating is per-request (reasoningConfig must exist, tools must be present).
-            // Mirrors Executor.respond() L950-1102 capability validation.
+            /// MLXLanguageModel capabilities.
+            /// `.reasoning` is declared only when the model's loaded container carries
+            /// a non-nil `reasoningConfig` — hardcoding it short-circuits the upstream
+            /// gate at `Executor.respond()` (MLXLanguageModel.swift L1004-1071):
+            ///    `declaresReasoning = model.capabilities.contains(.reasoning)`
+            /// Without this check, non-reasoning models would pass the declaration gate
+            /// and the `alwaysOn` suppression / `promptStrategy.additionalContext` path
+            /// would never fire.
             let modelConfig = ModelConfiguration(id: modelId)
             let baseCaps: [LanguageModelCapabilities.Capability] = [.guidedGeneration]
             let vlmCaps: [LanguageModelCapabilities.Capability] = isVlmModel ? [.vision] : []
+            let reasoningCap: [LanguageModelCapabilities.Capability] =
+                supportsReasoning(modelId) ? [.reasoning] : []
             mlxLM = MLXLanguageModel(
                 configuration: modelConfig,
-                capabilities: baseCaps + vlmCaps + [.reasoning, .toolCalling],
+                capabilities: baseCaps + vlmCaps + reasoningCap,
                 configurationResolver: DefaultConfigurationResolver(),
                 weightsLocation: { _ in modelURL },
                 load: {

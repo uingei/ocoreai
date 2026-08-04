@@ -1221,11 +1221,17 @@ extension EnginePool {
                     } else {
                         nil
                     }
+                // P1-fix: toolCalling mode must match actual tool state.
+                // Using .allowed when no tools exist causes FM SDK to inject tool-calling
+                // template markers into the prompt — triggering spurious tool responses
+                // from models that don't actually know tools. Use .disallowed when empty.
+                let tcMode: FoundationModels.GenerationOptions.ToolCallingMode =
+                    (fmTools?.isEmpty == false) ? .allowed : .disallowed
                 let genOpts: GenerationOptions = GenerationOptions(
                     samplingMode: samplingMode,
                     temperature: sampling.temperature,
                     maximumResponseTokens: options.maxTokens,
-                    toolCallingMode: fmTools != nil ? .allowed : .disallowed
+                    toolCallingMode: tcMode
                 )
 
                 // --- ContextOptions: reasoning level ---
@@ -1278,6 +1284,16 @@ extension EnginePool {
                         nil
                     }
 
+                /* P1-fix: use actual user prompt text instead of empty string.
+                   streamResponse(to:) forwards to Executor.respond() which calls
+                   TranscriptConverter.mlxMessages(). When the transcript contains
+                   only instructions + empty response pairs (no prompt entry),
+                   mlxMessages returns [] and upstream crashes at L943 with
+                   "Cannot respond with empty messages". Extract the last user
+                   message from mlxMessages to provide the actual input. */
+                let fmPromptText = FMTranscriptHelpers.lastUserPromptText(
+                    from: mlxMessages as [MLXLMCommon.Chat.Message])
+
                 do {
                     var fmStopReason: StopReason = .stopSequence
                     // Note: streamResponse returns text chunks, not token events —
@@ -1287,7 +1303,7 @@ extension EnginePool {
                     if let guidedSchema = fmGuidedSchema {
                         log.info("FM path: guided generation with schema constraints")
                         for try await gc in langSession.streamResponse(
-                            to: "",
+                            to: fmPromptText,
                             schema: guidedSchema,
                             options: genOpts,
                             contextOptions: ctxOpts
@@ -1308,7 +1324,7 @@ extension EnginePool {
                         fmStopReason = fmStopReason == .stopSequence ? .eos : fmStopReason
                     } else {
                         for try await partial in langSession.streamResponse(
-                            to: "",
+                            to: fmPromptText,
                             options: genOpts,
                             contextOptions: ctxOpts
                         ) {

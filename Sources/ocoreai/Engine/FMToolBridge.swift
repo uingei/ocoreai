@@ -1,23 +1,17 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-//
-// Bridges ocoreai ToolRegistry entries → FoundationModels.Tool protocol.
-// This is the ONLY bridge between ocoreai's internal tool system and the
-// FM SDK — dispatch delegates back to ToolRegistry.call.
-//
-// Key: LanguageModelSession(tools:) → Executor.respond() → ToolCallingModeResolution
-// + Think-then-Call + AllowedToolOutputRouter — all activated when tools ≠ [].
-//
-// GenerationSchema construction: opaque struct, Codable via JSON round-trip.
-// We encode the same OpenAI function-calling JSON that toToolSpecs() already produces.
+/// FMToolBridge.swift — Bridge between ocoreai ToolRegistry and FoundationModels.Tool
+///
+/// Adapts ocoreai's tool infrastructure to the FM SDK's Tool protocol conformance,
+/// enabling proper tool routing through the FM path (macOS 27+).
+
 import Foundation
+import Logging
+import MLXLLM
+import MLXLMCommon
 
 #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
 import FoundationModels
-import Logging
-import MLXLMCommon
-
-// MARK: - FM Tool Proxy
 
 // MARK: - FM Tool Proxy
 
@@ -60,6 +54,8 @@ struct FMToolProxy: FoundationModels.Tool {
 
     // MARK: - Tool protocol
 
+    /// P1-fix: Forward to ToolRegistry.call with proper error handling.
+    /// ToolRegistry.call() expects (name, JSON string) signature.
     @concurrent func call(arguments: String) async throws -> String {
         try await _dispatch(name, arguments)
     }
@@ -199,6 +195,17 @@ enum FMTranscriptHelpers {
         }
 
         return entries
+    }
+
+    /// Extract the primary user prompt text from the last user message in the array.
+    /// Used by the FM path to pass actual user input instead of an empty string.
+    static func lastUserPromptText(from messages: [MLXLMCommon.Chat.Message]) -> String {
+        for msg in messages.reversed() {
+            if msg.role == .user && !msg.content.isEmpty {
+                return msg.content
+            }
+        }
+        return " "  // fallback: non-empty placeholder for FM SDK safety
     }
 
     /// Build the full transcript from instructions + message history.
