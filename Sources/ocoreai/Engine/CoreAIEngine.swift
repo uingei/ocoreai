@@ -381,8 +381,10 @@ struct EngineFactory: Sendable {
         let preparedModel = try await PreparedModel.prepare(
             at: coreAIModelURL, functionName: parsedConfig.function)
 
-        // Resolve variant
-        let variant = try resolveVariant(
+        // Resolve variant with fallback chain: when auto-detect picks an
+        // unimplemented variant, gracefully fall back to sequential (the only
+        // engine we have). User overrides still throw — explicit intent wins.
+        let variant = try resolveVariantWithFallback(
             override: options.variant, detectedStructure: preparedModel.structure)
 
         log.info(
@@ -413,6 +415,35 @@ struct EngineFactory: Sendable {
         case sequential = "coreai-sequential"
         case pipelined = "coreai-pipelined"
         case staticShape = "static-shape"
+    }
+
+    /// Auto-detect variant, then fall back to sequential when the detected
+    /// variant is not yet implemented in ocoreai. User overrides still throw.
+    ///
+    /// Upstream (coreai-models EngineFactory) has CoreAIPipelinedEngine and
+    /// StaticShapeEngine so it can honor the auto-detected variant directly.
+    /// ocoreai only has CoreAISequentialEngine, so dynamic → pipelined would
+    /// always fail. The fallback chain closes this gap:
+    ///   auto → detected → available? → yes: use it
+    ///                    → no:  warn + fall back to sequential
+    private static func resolveVariantWithFallback(
+        override variantOverride: String?,
+        detectedStructure structure: ModelStructure
+    ) throws -> Variant {
+        // User-specified override: honor explicit intent (may throw if unavailable)
+        if let vo = variantOverride, vo != "auto", vo != "default" {
+            return try resolveVariant(override: vo, detectedStructure: structure)
+        }
+
+        // Auto-detect, then fall back to sequential for unimplemented variants
+        let detected = autoDetectVariant(structure: structure)
+        if detected == .sequential {
+            return .sequential
+        }
+        Self.log.info(
+            "CoreAI auto-detected variant '\(detected.rawValue)' not yet implemented — falling back to sequential for structure \(structure.description)"
+        )
+        return .sequential
     }
 
     /// Auto-detect optimal variant from model structure.

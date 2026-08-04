@@ -284,7 +284,7 @@ private struct TextFieldParamView: View {
             VStack(alignment: .trailing, spacing: 8) {
                 Button(StringKey.modelParamDefaults.l) { resetAction() }
                     .ocoreaiButton(.normal, size: .small)
-                TextField("0", text: $textBinding)
+                TextField(StringKey.paramPlaceholder.l, text: $textBinding)
                     .frame(width: 60)
                     .multilineTextAlignment(.trailing)
                     .textContentType(.oneTimeCode)

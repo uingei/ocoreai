@@ -305,7 +305,7 @@ struct DashboardView: View {
             .frame(height: 180)
             .chartXAxis(.hidden)
             .chartLegend(.visible)
-            .chartYAxisLabel("GB", alignment: .leading)
+            .chartYAxisLabel(StringKey.chartGB.l, alignment: .leading)
             .chartXScale(domain: memoryChartDomain)
             // Text alternative for screen readers
             .accessibilityLabel(StringKey.dashboardMemChartDesc.l)

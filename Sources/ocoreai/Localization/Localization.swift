@@ -95,12 +95,15 @@ public enum StringKey: String, CaseIterable {
 
     // — Chat —
     case chatPlaceholder = "Chat.Placeholder"
+    case interruptedLabel = "Chat.InterruptedLabel"
     // — Attachment —
     case attachFiles = "Attach.Files"
     case attachFilesHint = "Attach.FilesHint"
     case imageAttachment = "Attach.ImageAttachment"
     case send = "Chat.Send"
     case stop = "Chat.Stop"
+    case tokPerSec = "Chat.TokPerSec"
+    case chatTTFT = "Chat.TTFT"
     case newConversation = "Chat.NewConversation"
 
     // — Hub Tokens —
@@ -197,6 +200,8 @@ public enum StringKey: String, CaseIterable {
     // — Models —
     case noModelsLoaded = "Models.NoModelsLoaded"
     case loadingModels = "Models.Loading"
+    case loadingSessions = "Sessions.Loading"
+    case loadingConfig = "Config.Loading"
     case modelLoadError = "Models.LoadError"
     case modelLoadErrorDesc = "Models.LoadErrorDesc"
     case modelDeleteError = "Models.DeleteError"
@@ -326,6 +331,9 @@ public enum StringKey: String, CaseIterable {
     case a11yStatus = "A11y.Status"
     case a11yModel = "A11y.Model"
 
+    // — Model param label —
+    case paramFieldPlaceholder = "ModelParam.FieldPlaceholder"
+
     // — Settings / About —
     case aboutTitle = "About.Title"
     case aboutVersion = "About.Version"
@@ -362,6 +370,8 @@ public enum StringKey: String, CaseIterable {
     case codeCopied = "Action.CodeCopied"
     // — Code language fallback —
     case codeLanguageFallback = "Markdown.CodeLanguageFallback"
+    // — Model param placeholder —
+    case paramPlaceholder = "ModelParam.Placeholder"
     // — Model error —
     case modelErrorOccurred = "Models.ErrorOccurred"
 
@@ -525,6 +535,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .send: "Send",
         .stop: "Stop",
         .newConversation: "New Conversation",
+        .interruptedLabel: "Interrupted",
+        .tokPerSec: "Tok/S",
 
         // Settings
         .settingsTitle: "Settings",
@@ -620,7 +632,10 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 
         // Models
         .noModelsLoaded: "No models loaded",
-        .loadingModels: "Loading models...",
+        .loadingModels: "Loading Models",
+        .loadingSessions: "Loading Sessions",
+        .loadingConfig: "Loading Settings",
+        .paramPlaceholder: "Value",
         .modelLoadError: "Load Failed",
         .modelLoadErrorDesc: "The backend server may be unavailable",
         .modelDeleteError: "Delete Failed",
@@ -916,13 +931,19 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .tokenThroughput: "Token 吞吐量",
         .gpuMemoryKVCache: "GPU 显存与 KV 缓存",
         .loadingMetrics: "加载指标中...",
-        .chatPlaceholder: "输入消息...",
-        .attachFiles: "添加附件",
-        .attachFilesHint: "选择图片附件",
+        .chatPlaceholder: "输入消息…",
+        .attachFiles: "附加文件",
+        .attachFilesHint: "选择要附加的图片",
         .imageAttachment: "图片附件",
         .send: "发送",
         .stop: "停止",
         .newConversation: "新对话",
+        .interruptedLabel: "已中断",
+        .tokPerSec: "Token/s",
+        .chatTTFT: "首 Token",
+        .loadingSessions: "加载会话中…",
+        .loadingConfig: "加载配置中…",
+        .paramPlaceholder: "数值",
         .settingsTitle: "设置",
         .serverAddress: "服务器地址",
         .port: "端口",

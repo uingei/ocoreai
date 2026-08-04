@@ -26,7 +26,7 @@ struct SessionView: View {
         .overlay {
             Group {
                 if viewModel.isLoading {
-                    ProgressView(StringKey.loadingModels.l)
+                    ProgressView(StringKey.loadingSessions.l)
                 }
             }
         }

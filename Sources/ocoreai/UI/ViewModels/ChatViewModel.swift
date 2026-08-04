@@ -154,16 +154,33 @@ final class ChatState {
         OcoreaiEngine.shared.engineReady
     }
 
-    /// Strip `<thinking>...</thinking>` blocks so they don't appear in the live preview.
-    /// During streaming, incomplete tags (has `<thinking>` but missing `</thinking>`) are
-    /// also stripped — prevents raw reasoning markup from flashing on screen mid-stream.
-    /// Raw text retained for completion-time structured parsing.
+    /// Strip reasoning blocks from the given text.
+    /// Handles multiple delimiter formats:
+    ///   - OpenAI/ChatML-style ``
+    ///   - Qwen3-style `` / `` and ``
+    /// Two-pass per family: complete blocks first, then trailing/incomplete tags.
     private nonisolated static func stripThinkingTags(from text: String) -> String {
-        guard text.contains("<thinking>") else { return text }
-        // First strip complete <thinking>...</thinking> blocks
         var result = text
+        // 1. OpenAI/ChatML-style <thinking>...</thinking>
+        result = stripTagFamily(from: result, open: "<thinking>", close: "</thinking>")
+        // 2. Qwen3 <|begin_of_thought|>...<|end_of_thought|>
+        result = stripTagFamily(
+            from: result, open: "<|begin_of_thought|>", close: "<|end_of_thought|>")
+        // 3. Qwen3 <|begin_of_thought|>...<|eot_id|>
+        result = stripTagFamily(from: result, open: "<|begin_of_thought|>", close: "<|eot_id|>")
+        return result
+    }
+
+    /// Strip all complete and incomplete occurrences of a tag family.
+    private nonisolated static func stripTagFamily(
+        from text: String, open: String, close: String
+    ) -> String {
+        guard text.contains(open) else { return text }
+        var result = text
+        // Complete blocks — escape regex specials in the literal tag strings
+        let escaped = regexEscape(open) + ".*?" + regexEscape(close)
         if let regex = try? NSRegularExpression(
-            pattern: "<thinking>.*?</thinking>",
+            pattern: escaped,
             options: .dotMatchesLineSeparators
         ) {
             result = regex.stringByReplacingMatches(
@@ -172,13 +189,33 @@ final class ChatState {
                 withTemplate: ""
             )
         }
-        // Strip incomplete tags — everything from <thinking> to end of string
-        if result.contains("<thinking>") {
-            if let range = result.range(of: "<thinking>") {
+        // Incomplete/trailing open tags
+        if result.contains(open) {
+            if let range = result.range(of: open) {
                 result = String(result[..<range.lowerBound])
             }
         }
         return result
+    }
+
+    /// Escape special regex characters for use in pattern construction.
+    private nonisolated static func regexEscape(_ text: String) -> String {
+        text.replacingOccurrences(of: "[", with: "\\[")
+            .replacingOccurrences(of: "]", with: "\\]")
+            .replacingOccurrences(of: "(", with: "\\(")
+            .replacingOccurrences(of: ")", with: "\\)")
+            .replacingOccurrences(of: "<", with: "\\<")
+            .replacingOccurrences(of: ">", with: "\\>")
+            .replacingOccurrences(of: "{", with: "\\{")
+            .replacingOccurrences(of: "}", with: "\\}")
+            .replacingOccurrences(of: "|", with: "\\|")
+            .replacingOccurrences(of: "^", with: "\\^")
+            .replacingOccurrences(of: "$", with: "\\$")
+            .replacingOccurrences(of: ".", with: "\\.")
+            .replacingOccurrences(of: "*", with: "\\*")
+            .replacingOccurrences(of: "+", with: "\\+")
+            .replacingOccurrences(of: "?", with: "\\?")
+            .replacingOccurrences(of: "\\", with: "\\\\")
     }
 
     /// Extract reasoning text from `<thinking>` tags and remaining text.
@@ -701,23 +738,23 @@ final class ChatState {
                         // NOTE: After primedInside fix, responseText contains no reasoning markup,
                         // so splitThinkingTags is now purely a fallback for older model configs.
                         var reasoningTextFinal: String?
+                        var splitResult: (reasoning: String?, remaining: String)?
                         if !currentReasoningText.isEmpty {
                             // Primary: use streaming-accumulated reasoning (ReasoningEventEmitter path)
                             reasoningTextFinal = currentReasoningText
                         } else {
                             // Fallback: extract <thinking> tags from responseText (pre-emitter path)
-                            let split = Self.splitThinkingTags(from: responseText)
-                            if let reasoning = split.reasoning, !reasoning.isEmpty {
+                            splitResult = Self.splitThinkingTags(from: responseText)
+                            if let reasoning = splitResult?.reasoning, !reasoning.isEmpty {
                                 reasoningTextFinal = reasoning
                             }
                         }
 
-                        // Clean text: if reasoning was streamed separately, responseText is already clean.
-                        // If it came via splitThinkingTags fallback, use the cleaned version.
+                        // Clean text: reuse the split from above (avoid redundant regex pass).
                         let cleanedText =
-                            if reasoningTextFinal != nil && currentReasoningText.isEmpty {
+                            if splitResult != nil {
                                 // Fallback path — use cleaned text from splitThinkingTags
-                                Self.splitThinkingTags(from: responseText).remaining
+                                splitResult!.remaining
                             } else {
                                 responseText
                             }

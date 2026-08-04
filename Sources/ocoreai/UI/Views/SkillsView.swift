@@ -23,7 +23,7 @@ struct SkillsView: View {
         .navigationTitle(StringKey.tabSkills.l)
         .overlay {
             if viewModel.isLoading {
-                ProgressView(StringKey.loadingModels.l)
+                ProgressView(StringKey.loadingConfig.l)
             }
         }
         .task {

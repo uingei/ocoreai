@@ -350,15 +350,19 @@ struct ChatView: View {
                                 if isStreaming {
                                     HStack(spacing: 8) {
                                         if let tok = chatState.currentTokPerSec {
-                                            Text("\(String(format: "%.1f", tok)) tok/s")
-                                                .font(.system(.caption, design: .monospaced))
-                                                .foregroundStyle(theme.textTertiary)
+                                            Text(
+                                                "\(String(format: "%.1f", tok)) \(StringKey.tokPerSec.l)"
+                                            )
+                                            .font(.system(.caption, design: .monospaced))
+                                            .foregroundStyle(theme.textTertiary)
                                         }
                                         Divider().frame(height: 12)
                                         if let ttft = chatState.currentTTFTMs {
-                                            Text("TTFT \(String(format: "%.0f", ttft))ms")
-                                                .font(.system(.caption, design: .monospaced))
-                                                .foregroundStyle(theme.textTertiary)
+                                            Text(
+                                                "\(StringKey.chatTTFT.l) \(String(format: "%.0f", ttft))ms"
+                                            )
+                                            .font(.system(.caption, design: .monospaced))
+                                            .foregroundStyle(theme.textTertiary)
                                         }
                                     }
                                     .transition(.opacity)
@@ -693,7 +697,7 @@ struct ChatBubble: View {
                     HStack(spacing: 4) {
                         Image(systemName: "stop.circle")
                             .font(.ocoreaiText(10))
-                        Text("Interrupted")
+                        Text(StringKey.interruptedLabel.l)
                             .font(.ocoreaiText(10))
                     }
                     .foregroundStyle(.tertiary)
@@ -734,6 +738,8 @@ struct ChatBubble: View {
         }
     }
 
+    // P2-fix: Create on first access so the initializer runs on @MainActor.
+    // Non-Sendable static let would fail Swift 6 cross-actor checks.
     private static let sharedTimeFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateStyle = .none
