@@ -2112,7 +2112,8 @@ extension EnginePool {
                             var localStdPassthroughReason: String?
 
                             for await generation in try MLXLMCommon.generateTokens(
-                                input: stdInput, parameters: genParams, context: context
+                                input: stdInput, parameters: genParams, context: context,
+                                components: .init()
                             ) {
                                 if Task.isCancelled || cancellation.isCancelled {
                                     localStdStoppedBySeq = true
