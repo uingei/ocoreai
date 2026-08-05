@@ -512,11 +512,13 @@ public final class OcoreaiEngine {
 
         // Port conflict detection — refuse silent bind failures
         let serverPort = Int(ProcessInfo.processInfo.environment["OCOREAI_PORT"] ?? "8080") ?? 8080
+        #if os(macOS)
         if Self.isPortInUse(serverPort) {
             logger.warning("Port \(serverPort) already in use — Bridge Path (HTTP) skipped")
             lifecycleState = .degraded
             return
         }
+        #endif
 
         let rateLimitProvider = RateLimitProvider(
             config: .init(

@@ -5,6 +5,8 @@
 /// 生命周期的每一步都经过 actor mailbox，确保并发安全。
 /// 子进程通过 Foundation.Process + Pipe 管理，
 /// 读写侧与 ``MCPStdioTransport`` 管道模式对接。
+///
+/// Note: MCP stdio subprocess is macOS-only (Process unavailable on iOS).
 import Foundation
 import Logging
 
@@ -22,8 +24,13 @@ actor MCPStdioClient {
     let endpoint: MCPEndpoint
     /// 当前连接状态
     private(set) var status: MCPClientConnectionStatus = .disconnected
+    #if os(macOS)
     /// 子进程句柄
     private var process: Process?
+    #else
+    /// iOS: no Process support — connection always fails
+    private var processHandle: Int?
+    #endif
     /// 传输层（管道模式）
     private let transport: MCPStdioTransport
     /// 日志
@@ -47,9 +54,13 @@ actor MCPStdioClient {
 
     // MARK: - 连接管理
 
-    /// 连接到外部 MCP server（启动子进程）。
-    /// - Throws: 启动失败或初始化超时。
+    /// 连接到外部 MCP server（启动子进程）。\
+    /// - Throws: 启动失败或初始化超时。\
     func connect() async throws {
+        #if os(iOS)
+        throw MCPClientError.platformNotSupported
+        #endif
+
         guard process == nil else {
             log.warning("Already connected to '\(endpoint.name)'")
             return
@@ -83,7 +94,7 @@ actor MCPStdioClient {
         }
     }
 
-    /// 断开连接（终止子进程）。
+    /// 断开连接（终止子进程）。\
     func disconnect() async {
         log.info("Disconnecting from '\(endpoint.name)'")
         await cleanup()
@@ -91,12 +102,12 @@ actor MCPStdioClient {
 
     // MARK: - JSON-RPC 交互
 
-    /// 发送 JSON-RPC 请求并等待响应。
+    /// 发送 JSON-RPC 请求并等待响应。\
     /// - Parameters:
-    ///   - method: JSON-RPC 方法名
-    ///   - params: 请求参数字典
-    /// - Returns: 响应 JSON 字符串。
-    /// - Throws: 协议错误或超时。
+    ///   - method: JSON-RPC 方法名\
+    ///   - params: 请求参数字典\
+    /// - Returns: 响应 JSON 字符串。\
+    /// - Throws: 协议错误或超时。\
     func request(_ method: String, params: [String: Any]?) async throws -> String {
         guard status == .connected else {
             throw MCPClientError.notConnected(endpoint.name)
@@ -117,7 +128,7 @@ actor MCPStdioClient {
         let reqJSON = try serializeJSON(req)
         _ = await transport.writeDirect(reqJSON)
 
-        // 等待响应（15 秒超时）
+        // 等待响应（15 秒超时）\
         return try await withTimeout(seconds: 15) {
             try await self.waitForResponse()
         }
@@ -162,7 +173,7 @@ actor MCPStdioClient {
         try await request("tools/list", params: [:])
     }
 
-    /// 调用外部 server 上的工具。
+    /// 调用外部 server 上的工具。\
     /// - Returns: 工具执行结果内容数组。
     func callTool(_ name: String, arguments: [String: Any]) async throws -> [[String: String]] {
         let params: [String: Any] = ["name": name, "arguments": arguments]
@@ -185,6 +196,7 @@ actor MCPStdioClient {
     // MARK: - 内部方法
 
     /// 启动子进程。
+    #if os(macOS)
     private func launchProcess(
         stdin: Pipe,
         stdout: Pipe,
@@ -201,6 +213,7 @@ actor MCPStdioClient {
         try proc.run()
         return proc
     }
+    #endif
 
     /// 发送 MCP initialize 请求。
     private func sendInitialize() async throws {
@@ -245,16 +258,21 @@ actor MCPStdioClient {
         cleanupProcess()
         await transport.close()  // Actor close() handles pipe cleanup internally
         status = .disconnected
+        #if os(macOS)
         process = nil
+        #else
+        processHandle = nil
+        #endif
     }
 
     /// 安全终止子进程。
     private func cleanupProcess() {
+        #if os(macOS)
         guard let proc = process else { return }
         if proc.isRunning {
             proc.terminate()
         }
-        process = nil
+        #endif
     }
 
     // MARK: - JSON 工具方法
@@ -301,6 +319,7 @@ enum MCPClientError: Error, LocalizedError {
     case notConnected(String)
     case timeout(String)
     case protocolError(String)
+    case platformNotSupported
 
     var errorDescription: String? {
         switch self {
@@ -310,6 +329,8 @@ enum MCPClientError: Error, LocalizedError {
             "Request timed out for MCP client '\(name)'"
         case .protocolError(let detail):
             "MCP protocol error: \(detail)"
+        case .platformNotSupported:
+            "MCP stdio subprocess is not supported on this platform"
         }
     }
 }
