@@ -1862,6 +1862,9 @@ extension EnginePool {
                                 let primed = ReasoningEventEmitter.promptEndsInsideReasoning(
                                     renderedPromptTail: renderedTail, config: rc
                                 )
+                                // ReasoningEmitter: upstream segment router for reasoning
+                                // vs response. Only activate when reasoning config is present —
+                                // non-reasoning models bypass emitter and pass text through.
                                 reasoningEmitter = ReasoningEventEmitter(
                                     config: rc, primedInside: primed)
                             }
@@ -1894,21 +1897,21 @@ extension EnginePool {
                                             switch segment {
                                             case .reasoning(let segmentText):
                                                 localAccumulatedText += segmentText
-                                                let (shouldBreak, newText) = checkStopSequence(
+                                                let (shouldBreak2, newText2) = checkStopSequence(
                                                     segment: segmentText,
                                                     accumulated: localAccumulatedText,
                                                     eventKind: { .reasoning($0) },
                                                     tokenCount: localTokenCount,
                                                     tokenFallback: metrics.generatedTokenCount
                                                 )
-                                                if shouldBreak {
-                                                    localAccumulatedText = newText
+                                                if shouldBreak2 {
+                                                    localAccumulatedText = newText2
                                                     localStoppedBySeq = true
                                                     break
                                                 }
                                             case .response(let segmentText):
                                                 localAccumulatedText += segmentText
-                                                let (shouldBreak, newText2) = checkStopSequence(
+                                                let (shouldBreak, newText) = checkStopSequence(
                                                     segment: segmentText,
                                                     accumulated: localAccumulatedText,
                                                     eventKind: { .text($0) },
@@ -1916,7 +1919,7 @@ extension EnginePool {
                                                     tokenFallback: metrics.generatedTokenCount
                                                 )
                                                 if shouldBreak {
-                                                    localAccumulatedText = newText2
+                                                    localAccumulatedText = newText
                                                     localStoppedBySeq = true
                                                     break
                                                 }
@@ -2113,22 +2116,25 @@ extension EnginePool {
                     let rc = reasoningConfigSnapshot!
                     log.info("Routing through reasoning path — upstream generateTokens() alignment")
 
-                    let primed =
-                        switch rc.promptStrategy {
-                        case .alwaysOn:
-                            true
-                        case .templateFlag(_, let defaultOn):
-                            defaultOn
-                        case .none:
-                            false
-                        }
-
                     let stdResult: StandardReasoningResult
 
                     do {
                         // Snapshot: stdMsgPairs is a var (mutated by continueGeneration downstream),
                         // so copy to a let before crossing the @Sendable closure boundary.
                         let msgPairsSnapshot = stdMsgPairs
+                        let primed: Bool
+                        do {
+                            // Upstream: reasoningPrimedInside(input:, config:, tokenizer:)
+                            // computes primed from rendered prompt tail tokens, not from promptStrategy switch.
+                            // This prevents misrouting when model pre-fill differs from strategy defaults.
+                            primed = try await Self.computeReasoningPrimedInside(
+                                messages: msgPairsSnapshot,
+                                config: rc,
+                                resize: config.vlmImageResize,
+                                additionalContext: reasoningContext,
+                                container: handleRef.modelContainer
+                            )
+                        }
                         stdResult = try await handleRef.modelContainer.perform { context in
                             // Rebuild Chat.Message inside @Sendable closure to avoid
                             // cross-actor capture of non-Sendable [Chat.Message].
@@ -2169,8 +2175,7 @@ extension EnginePool {
                             var localStdPassthroughReason: String?
 
                             // Skill pattern: generateTokensTask() returns task handle for
-                            // deterministic cleanup — prevents resource leak on early break
-                            // (Skill concurrency.md: "await task.value is required")
+                            // deterministic cleanup (Skill concurrency.md).
                             let (stdTokenStream, stdTokenTask) = try MLXLMCommon.generateTokensTask(
                                 input: stdInput,
                                 parameters: genParams,
@@ -2326,6 +2331,12 @@ extension EnginePool {
                     /// for text + multimodal generation with tool dispatch support.
                 } else {
                     var localStdAccumulated = ""
+                    // MTP speculative decoding telemetry — populated when ChatSession
+                    // internal iterator is SpeculativeTokenIterator (non-reasoning MTP path).
+                    // Same fields as MTP bypass path — .done carries them regardless of path.
+                    var localStdProposedDraftTokens: Int?
+                    var localStdAcceptedDraftTokens: Int?
+                    var localStdPassthroughReason: String?
 
                     // ChatSession's KV cache already holds context from previous rounds.
                     // newMessages (set above) contains only what's not yet cached:
@@ -2379,6 +2390,11 @@ extension EnginePool {
                                 case .length: .maxTokens
                                 case .cancelled: .cancelled
                                 }
+                            // MTP speculative decoding metrics — present when ChatSession
+                            // uses SpeculativeTokenIterator internally. Nil on standard path.
+                            localStdProposedDraftTokens = completionInfo.proposedDraftTokens
+                            localStdAcceptedDraftTokens = completionInfo.acceptedDraftTokens
+                            localStdPassthroughReason = completionInfo.passthroughReason
                         case .toolCall(let mlxTC):
                             let tc = InferenceEvent.mlxToolCall(from: mlxTC)
                             continuation.yield(.init(kind: .toolCall(tc)))
@@ -2397,7 +2413,7 @@ extension EnginePool {
                         continuation.yield(.init(kind: .toolCall(tc)))
                     }
 
-                    // Emit final .done event with prompt throughput
+                    // Emit final .done event with prompt throughput + MTP telemetry
                     if !Task.isCancelled {
                         continuation.yield(
                             .init(
@@ -2405,7 +2421,10 @@ extension EnginePool {
                                     lastStopReason ?? .eos,
                                     tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
                                     tokPerSec: generationTokPerSec,
-                                    promptTokPerSec: promptTokPerSec)))
+                                    promptTokPerSec: promptTokPerSec,
+                                    proposedDraftTokens: localStdProposedDraftTokens,
+                                    acceptedDraftTokens: localStdAcceptedDraftTokens,
+                                    passthroughReason: localStdPassthroughReason)))
                     }
                 }
 
@@ -2515,6 +2534,53 @@ extension EnginePool {
 
         metrics.inferenceMs = metrics.overallMs
         continuation.finish()
+    }
+}
+
+// MARK: - Reasoning Primed Detection (EnginePool helper)
+
+extension EnginePool {
+    /// Compute reasoning primed inside from rendered prompt tail, mirroring
+    /// upstream `MLXLanguageModel.reasoningPrimedInside(input:config:tokenizer:)`.
+    ///
+    /// Upstream approach: prepare input → grab last 64 tokens → decode to text →
+    /// `ReasoningEventEmitter.promptEndsInsideReasoning(tail:config:)`.
+    /// This is more accurate than `switch promptStrategy` because it checks the
+    /// actual rendered prompt tail rather than the strategy default.
+    private static func computeReasoningPrimedInside(
+        messages: [(role: String, content: String)],
+        config: ReasoningConfig,
+        resize: CGSize,
+        additionalContext: [String: any Sendable]?,
+        container: ModelContainer
+    ) async throws -> Bool {
+        // Rebuild Chat.Message for processor
+        let rebuiltMessages = messages.map { pair in
+            Chat.Message(
+                role: Chat.Message.Role(rawValue: pair.role) ?? .system,
+                content: pair.content
+            )
+        }
+
+        // Prepare input to get tokenized prompt
+        let processing = UserInput.Processing(resize: resize)
+        let userInput = UserInput(
+            prompt: .chat(rebuiltMessages),
+            processing: processing,
+            additionalContext: additionalContext
+        )
+        let input = try await container.processor.prepare(input: userInput)
+
+        // Decode last 64 tokens as rendered tail (same as upstream)
+        let tokens = input.text.tokens.asArray(Int.self)
+        let tailTokenCount = Swift.min(64, tokens.count)
+        let tailTokens = Array(tokens.suffix(tailTokenCount))
+        let renderedTail = await container.tokenizer.decode(tokenIds: tailTokens)
+
+        return ReasoningEventEmitter.promptEndsInsideReasoning(
+            renderedPromptTail: renderedTail,
+            config: config
+        )
     }
 }
 
