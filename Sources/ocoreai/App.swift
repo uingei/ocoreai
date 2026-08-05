@@ -474,9 +474,10 @@ public final class OcoreaiEngine {
         #endif
     }
 
-    // MARK: - HTTP Server (Bridge Path, optional)
+    // MARK: - HTTP Server (Bridge Path, optional) — macOS only
 
-    /// Detect if a process is binding the given port. Uses /dev/tcp as a lightweight
+    #if os(macOS)
+    /// Detect if a process is binding the given port. Uses lsof as a lightweight
     /// check (no shell dependency) — if the socket connects, something is listening.
     private static func isPortInUse(_ port: Int) -> Bool {
         let pipe = Pipe()
@@ -490,8 +491,16 @@ public final class OcoreaiEngine {
         let output = String(data: data ?? Data(), encoding: .utf8) ?? ""
         return !output.isEmpty
     }
+    #endif
 
     private func startHTTPServer() {
+        #if os(macOS)
+        //
+        #else
+        logger.info("iOS build — Bridge Path (HTTP) unavailable, Fast Path only")
+        return
+        #endif
+
         guard let enginePool, let scheduler, let metrics,
             let sessionCompressor = _sessionCompressor,
             let systemPromptBuilder = _systemPromptBuilder,

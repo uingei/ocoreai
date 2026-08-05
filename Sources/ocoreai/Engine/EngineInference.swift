@@ -1600,22 +1600,9 @@ extension EnginePool {
                 )
                 chatSession = acquired.pooled.session
                 isPoolHit = acquired.isHit
-                // P0-fix: release on any exit path (throw, early return, normal completion).
-                // Previously pool.release was ordered code at L2114 — skipped by
-                // handleGuidedGeneration throw (L938/L954/L1141), MTP early return (L1563),
-                // and any modelContainer.perform error. Caused persistent pool slot leak.
-                defer {
-                    if let pooledSession = chatSession {
-                        await pool.release(
-                            pooled: PooledChatSession(
-                                session: pooledSession,
-                                lastAccessedAt: ContinuousClock.now,
-                            ),
-                            modelId: modelId,
-                            conversationId: convKey,
-                        )
-                    }
-                }
+                // Pool slot is released at end of inference body (below).
+                // Early-release paths (guided gen / MTP / std on pool hit) release
+                // via poolRefForRelease and nil out chatSession to prevent double release.
                 if isPoolHit {
                     log.debug("Pool HIT for \(convKey) — KV cache reused")
                     // Pool hit: ChatSession's KV cache already has history baked in.
@@ -2435,7 +2422,20 @@ extension EnginePool {
 
             }
 
-            // pool.release is handled by defer in `if let pool = poolRef { ... }` block above.
+            // pool.release: early-release paths (guided gen / MTP / std on pool hit)
+            // already returned the slot via poolRefForRelease and niled chatSession.
+            // If chatSession is still non-nil here, this is the normal completion path
+            // — release the slot now before leaving modelContainer.perform.
+            if let pool = poolRefForRelease, let pooledSession = chatSession {
+                await pool.release(
+                    pooled: PooledChatSession(
+                        session: pooledSession,
+                        lastAccessedAt: ContinuousClock.now,
+                    ),
+                    modelId: modelId,
+                    conversationId: convKey,
+                )
+            }
         }
 
         // Layer 0: Wired memory GPU hard-isolation + GPU telemetry
