@@ -1582,6 +1582,11 @@ extension EnginePool {
             // KV cache internally — on pool hits we only feed the new message(s),
             // on pool miss / no pool we feed the full history.
             var newMessages: [Chat.Message]
+            // Keep pool reference in scope beyond the if-let block so guided gen / MTP /
+            // std reasoning paths (below) can return the slot early when they can't
+            // reuse ChatSession's private cache.
+            let poolRefForRelease = poolRef
+            _ = poolRefForRelease  // used below in guided gen / MTP / std reasoning early-release
 
             if let pool = poolRef {
                 let acquired = await pool.acquire(
@@ -1679,6 +1684,27 @@ extension EnginePool {
                         $0.images.isEmpty && $0.videos.isEmpty && $0.audios.isEmpty
                     })
                 {
+                    // Guided gen creates its own KV cache scope inside GuidedGenerationLoop,
+                    // so it can't reuse ChatSession's cache (private, only visible to ChatSession).
+                    // On pool hit, return the slot before inference to avoid leaking; guided gen
+                    // will cold-start with full message history.
+                    if isPoolHit, let sessionToRelease = chatSession {
+                        log.debug(
+                            "Pool hit but guided gen can't reuse ChatSession cache — returning slot"
+                        )
+                        await poolRefForRelease?.release(
+                            pooled: PooledChatSession(
+                                session: sessionToRelease,
+                                lastAccessedAt: ContinuousClock.now,
+                            ),
+                            modelId: modelId,
+                            conversationId: convKey,
+                        )
+                        chatSession = nil  // prevent defer from re-releasing
+                    }
+                    // If pool miss (isPoolHit == false), newMessages already contains full history
+                    // and chatSession has fresh cache — no-op.
+                    // If no pool, chatSession is nil — also no-op.
                     log.info("Routing through GuidedGenerationLoop with grammar constraint")
                     try await handleGuidedGeneration(
                         messagePairs: mlxMessages.map {
@@ -1703,6 +1729,20 @@ extension EnginePool {
                         $0.images.isEmpty && $0.audios.isEmpty && $0.videos.isEmpty
                     })
                 {
+                    // MTP creates its own TokenIterator scope — can't reuse ChatSession's cache.
+                    // Same pattern as guided gen: return the slot on pool hit.
+                    if isPoolHit, let sessionToRelease = chatSession {
+                        log.debug("Pool hit but MTP can't reuse ChatSession cache — returning slot")
+                        await poolRefForRelease?.release(
+                            pooled: PooledChatSession(
+                                session: sessionToRelease,
+                                lastAccessedAt: ContinuousClock.now,
+                            ),
+                            modelId: modelId,
+                            conversationId: convKey,
+                        )
+                        chatSession = nil  // prevent defer from re-releasing
+                    }
                     log.info("Routing through MTP speculative decoding")
                     let messagePairs: [(role: String, content: String)] = mlxMessages.map {
                         (role: $0.role.rawValue, content: $0.content)
@@ -2053,6 +2093,23 @@ extension EnginePool {
                 let hasReasoning = reasoningConfigSnapshot != nil
 
                 if hasReasoning {
+                    // Std reasoning uses generateTokens() which creates its own KV cache scope —
+                    // can't reuse ChatSession's private cache. Return the slot on pool hit so
+                    // the pool doesn't hold a stale reference; std reasoning cold-starts anyway.
+                    if isPoolHit, let sessionToRelease = chatSession {
+                        log.debug(
+                            "Pool hit but std reasoning can't reuse ChatSession cache — returning slot"
+                        )
+                        await poolRefForRelease?.release(
+                            pooled: PooledChatSession(
+                                session: sessionToRelease,
+                                lastAccessedAt: ContinuousClock.now,
+                            ),
+                            modelId: modelId,
+                            conversationId: convKey,
+                        )
+                        chatSession = nil  // prevent defer from re-releasing
+                    }
                     let rc = reasoningConfigSnapshot!
                     log.info("Routing through reasoning path — upstream generateTokens() alignment")
 
