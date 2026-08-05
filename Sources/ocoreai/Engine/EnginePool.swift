@@ -23,9 +23,7 @@ import CoreAI
 
 #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
 import MLXFoundationModels
-#if canImport(FoundationModels)
 import FoundationModels
-#endif
 #endif
 
 /// Convert ContentPolymorphic to String for tokenization input.

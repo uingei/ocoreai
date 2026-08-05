@@ -42,9 +42,13 @@ import Tokenizers
 
 // MARK: - HuggingFace Integration
 
-// MARK: - MLXFoundationModels (gated: trait + _version:2)
+// MARK: - MLXFoundationModels (gated: trait)
+// SamplingModeMapper (MLXSamplingMode, resolveSamplingParameters) has only
+// #if FoundationModelsIntegration — no _version guard — so it compiles on
+// macOS 26 SDK too. MLXLanguageModel and other types use _version: 2 +
+// @available(macOS 27.0, *) which gate them to macOS 27+.
 
-#if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
+#if FoundationModelsIntegration
 import MLXFoundationModels
 #endif
 
@@ -601,9 +605,7 @@ nonisolated func makeGenerateParameters(
         params.quantizedKVStart = config.quantizedKVStart
         params.kvScheme = config.kvScheme
     }
-    // Mode-driven sampling — macOS 27: delegate to upstream resolveSamplingParameters();
-    // macOS <27: inline equivalent since MLXFoundationModels symbols are absent.
-    #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
+    #if FoundationModelsIntegration
     let mlxMode: MLXSamplingMode?
     switch sampling.mode {
     case .none: mlxMode = nil
@@ -630,11 +632,8 @@ nonisolated func makeGenerateParameters(
         }
     }
     #else
-    // macOS <27: inline resolveSamplingParameters since MLXFoundationModels is unavailable.
-    // Mirrors SamplingModeMapper.resolveSamplingParameters():
-    //   - explicit-zero-wins: temperature==0 → forced argmax, filters dropped.
-    //   - .greedy → forcesGreedy → temperature forced to 0.
-    //   - .nucleus(p<=0) → smallest pool ≈ deterministic → forces greedy.
+    // trait disabled: inline resolveSamplingParameters
+    // (same logic as upstream SamplingModeMapper, kept for when trait is off)
     var forcesGreedy = false
     if sampling.temperature == 0 {
         forcesGreedy = true
@@ -647,17 +646,16 @@ nonisolated func makeGenerateParameters(
         case .nucleus(let p):
             params.topP = Float(p)
         case .topK(let k):
-            params.topK = k
+            params.topK = k >= 1 ? k : nil  // upstream guard: k<=0 → no filter
         case .none:
             if let topP = sampling.topP, topP > 0 {
                 params.topP = Float(topP)
             }
             if let topK = sampling.topK {
-                params.topK = topK
+                params.topK = topK >= 1 ? topK : nil
             }
         }
     }
-    // forcesGreedy → force temperature to 0 (explicit-zero-wins, mirrors upstream)
     if forcesGreedy {
         params.temperature = 0
     }
