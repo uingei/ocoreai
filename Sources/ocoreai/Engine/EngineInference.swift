@@ -2168,10 +2168,17 @@ extension EnginePool {
                             var localStdAcceptedDraftTokens: Int?
                             var localStdPassthroughReason: String?
 
-                            for await generation in try MLXLMCommon.generateTokens(
-                                input: stdInput, parameters: genParams, context: context,
+                            // Skill pattern: generateTokensTask() returns task handle for
+                            // deterministic cleanup — prevents resource leak on early break
+                            // (Skill concurrency.md: "await task.value is required")
+                            let (stdTokenStream, stdTokenTask) = try MLXLMCommon.generateTokensTask(
+                                input: stdInput,
+                                parameters: genParams,
+                                context: context,
                                 components: .init()
-                            ) {
+                            )
+
+                            for await generation in stdTokenStream {
                                 if Task.isCancelled || cancellation.isCancelled {
                                     localStdStoppedBySeq = true
                                     localStdStopReason = .cancelled
@@ -2251,6 +2258,9 @@ extension EnginePool {
                                     continuation.yield(.init(kind: .text(segmentText)))
                                 }
                             }
+
+                            // Skill pattern: deterministic cleanup after stream exhaustion
+                            await stdTokenTask.value
 
                             return StandardReasoningResult(
                                 stoppedBySequence: localStdStoppedBySeq,
