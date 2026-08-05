@@ -12,26 +12,6 @@
 /// to avoid importing reference repo (macOS 27 requirement). Types match reference API
 /// for compatibility.
 
-// MARK: - Compatibility: Mutex for macOS 14
-
-/// macOS 14+ Mutex<T> shim (Foundation.Mutex requires macOS 15+).
-import Foundation
-
-private final class Mutex<Wrapped>: @unchecked Sendable {
-    private let _lock = NSRecursiveLock()
-    private var _value: Wrapped
-
-    init(_ initialValue: Wrapped) {
-        self._value = initialValue
-    }
-
-    func withLock<R>(_ body: (inout Wrapped) throws -> R) rethrows -> R {
-        _lock.lock()
-        defer { _lock.unlock() }
-        return try body(&_value)
-    }
-}
-
 // MARK: - Engine Errors (always available — used by EngineInference outside CoreAI path too)
 
 enum InferenceError: Error, Sendable {
@@ -72,6 +52,7 @@ enum InferenceError: Error, Sendable {
 #if canImport(CoreAI)
 
 import Atomics
+import Foundation  // Foundation.Mutex (macOS 15+) — available alongside CoreAI (macOS 27 SDK)
 import CoreAI
 import Foundation
 import Logging
@@ -199,6 +180,7 @@ protocol InferenceOutputSequence: AsyncSequence, AnyObject {
 // MARK: - StopReason Store
 
 /// Thread-safe stop reason box shared between iterator and caller.
+@available(macOS 27.0, *)
 final class StopReasonStore: @unchecked Sendable {
     private let mutex = Mutex<InferenceStopReason?>(nil)
 
@@ -566,6 +548,7 @@ struct EngineFactory: Sendable {
 // MARK: - GenerationToken
 
 /// Cancellation token for in-flight generation.
+@available(macOS 27.0, *)
 final class GenerationToken: @unchecked Sendable {
     private let mutex = Mutex<Bool>(false)
     var isCancelled: Bool {
