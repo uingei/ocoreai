@@ -211,7 +211,8 @@ actor MLXSessionPool {
         }
 
         // 5. Cold miss — create fresh session with instructions + processing
-        // components: enables upstream logit processor chain (penalty enforcement).
+        // components: custom logitProcessorFactory for grammar-constrained decoding.
+        // Penalty enforcement is automatic via GenerateParameters.processor().
         let freshSession = ChatSession(
             modelContainer,
             instructions: instructions,
@@ -362,7 +363,8 @@ actor MLXSessionPool {
             logger.info(
                 "Restoring KV cache from: \(cacheURL.lastPathComponent) (tokens: \(restoredTokenCount))"
             )
-            // components: enables upstream logit processor chain (penalty enforcement).
+            // components: custom logitProcessorFactory for grammar-constrained decoding.
+            // Penalty enforcement is automatic via GenerateParameters.processor().
             let restoredSession = ChatSession(
                 modelContainer,
                 instructions: nil,  // cache already encodes system prompt — upstream L319-322

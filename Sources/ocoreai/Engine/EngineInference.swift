@@ -1640,13 +1640,10 @@ extension EnginePool {
                 /// LLMModelFactory._load. The ReasoningEventEmitter below parses
                 /// model-rendered thinking tags (ReasoningConfig.swift:106-124).
                 ///
-                /// components: GenerationComponents enables the upstream
-                /// logit processor chain (penalty enforcement + custom masking).
-                /// Without this, ChatSession runs with only generateParameters
-                /// defaults — no frequency/Presence penalty, no grammar
-                /// constraint support via logitProcessorFactory.
-                /// Mirrors upstream ChatSession init at Libraries/MLXLMCommon/
-                /// ChatSession.swift L295 where components is required.
+                /// components: custom logitProcessorFactory for grammar-constrained
+                /// decoding (unused here — guided path uses GuidedGenerationLoop).
+                /// Penalty enforcement is automatic via
+                /// GenerateParameters.processor(), independent of components.
                 chatSession = ChatSession(
                     handleRef.modelContainer,
                     instructions: systemInstructions,
