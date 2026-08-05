@@ -2184,6 +2184,14 @@ extension EnginePool {
                                 if Task.isCancelled || cancellation.isCancelled {
                                     localStdStoppedBySeq = true
                                     localStdStopReason = .cancelled
+                                    continuation.yield(
+                                        .init(
+                                            kind: .done(
+                                                .cancelled,
+                                                tokenCount: localStdTokenCount
+                                                    ?? metrics.generatedTokenCount,
+                                                tokPerSec: localStdGenTokPerSec,
+                                                promptTokPerSec: localStdPromptTokPerSec)))
                                     break
                                 }
                                 switch generation {
