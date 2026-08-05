@@ -337,32 +337,15 @@ actor EnginePool {
         return modelId.contains("/") && !modelId.hasPrefix("/") && !modelId.hasPrefix("~/")
     }
 
-    /// P1-fix: Check whether this model supports reasoning before declaring .reasoning capability.
-    /// Declaring .reasoning unconditionally short-circuits Executor.respond() capability gates
-    /// (MLXLanguageModel.swift L1004-1071) — the upstream gate relies on:
-    ///    declaresReasoning = model.capabilities.contains(.reasoning)
-    /// This is a heuristic check: inspect the local HF cache for chat_template.jinja
-    /// reasoning delimiters and model name reasoning keywords. The authoritative source
-    /// is the loaded container's ChatConventionsProviding + ChatConventionsRegistry result,
-    /// but that's not available until after preload(). So we gate upfront to avoid
-    /// declaring false capabilities.
-    nonisolated func supportsReasoning(_ modelId: String) -> Bool {
-        let lower = modelId.lowercased()
-        // Known reasoning models by name pattern
-        let knownReasoning = [
-            "r1", "deepseek-r", "qwen3", "qwen-3", "qwen3.5", "qwen-3.5",
-            "nemotron-h", "nemotron_h", "qwen2.5-vl",
-        ]
-        if knownReasoning.contains(where: { lower.contains($0) }) {
-            return true
-        }
-        // Check for "reason" keyword in model ID
-        if lower.contains("reason") {
-            return true
-        }
-        // Conservative default: assume no reasoning unless explicitly identified
-        return false
-    }
+    /// Upstream-first: always declare `.reasoning` capability.
+    ///
+    /// Executor.respond() has a secondary gate (MLXLanguageModel.swift L1004-1071):
+    /// it checks `resolved.reasoningConfig` AFTER the container is loaded, consulting
+    /// ChatConventionsRegistry.shared + ChatConventionsProviding. Declaring `.reasoning`
+    /// at init is permissive — if reasoningConfig is nil, respond() falls through to
+    /// plain text generation with no side effects. The old heuristic (known model names
+    /// + "reason" keyword) missed models recognized by the registry; this is safer and
+    /// more upstream-aligned.
 
     private func loadModel(_ modelId: String) async throws -> LoadedModel {
         logger.info("Loading model: \(modelId)")
@@ -462,8 +445,7 @@ actor EnginePool {
             let modelConfig = ModelConfiguration(id: modelId)
             let baseCaps: [LanguageModelCapabilities.Capability] = [.guidedGeneration]
             let vlmCaps: [LanguageModelCapabilities.Capability] = isVlmModel ? [.vision] : []
-            let reasoningCap: [LanguageModelCapabilities.Capability] =
-                supportsReasoning(modelId) ? [.reasoning] : []
+            let reasoningCap: [LanguageModelCapabilities.Capability] = [.reasoning]
             mlxLM = MLXLanguageModel(
                 configuration: modelConfig,
                 capabilities: baseCaps + vlmCaps + reasoningCap,
