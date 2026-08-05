@@ -1189,7 +1189,7 @@ extension EnginePool {
         /// a toolDispatch closure that routes ToolCall → ToolRegistry.call() and back.
         /// This activates the ChatSession's built-in tool-dispatch agent loop (L748 restart)
         /// instead of relying solely on the local AgentLoop coordinator.
-        func runInferenceBody() async throws {
+        func runInferenceBody(wiredMemoryTicket: MLX.WiredMemoryTicket?) async throws {
             let convKey: String = conversationId ?? "\(modelId):ephemeral"
             var isPoolHit = false
             var chatSession: ChatSession?
@@ -1762,275 +1762,277 @@ extension EnginePool {
                     // Swift 6 concurrency warning (var captured in concurrently-executing code).
                     let mtpToolDispatch = toolDispatchClosure
 
-                    let mtpResult = try await handleRef.modelContainer.perform(
-                        nonSendable: drafterWrapper
-                    ) { context, wrapped in
-                        let drafterModel = wrapped.model
+                    // Upstream ChatSession.respond() lock reduction:
+                    // modelContainer.perform { } only wraps prepare() + generate() per iteration;
+                    // the for-await stream consumption runs outside the lock (L1055).
+                    // TokenIterator inside generate() accesses context.model,
+                    // context.tokenizer, context.configuration — all immutable.
+                    // P1-fix: thread wiredMemoryTicket through generate().
 
-                        // All state scoped inside closure — @Sendable compliant
-                        var localAccumulatedText = ""
-                        var localFirstToken = false
-                        var localTokenCount: Int?
-                        var localStopReason: StopReason?
-                        var localGenerationTokPerSec: Double?
-                        var localPromptTokPerSec: Double?
-                        // MTP speculative decoding metrics — only populated on MTP path
-                        var localProposedDraftTokens: Int?
-                        var localAcceptedDraftTokens: Int?
-                        var localPassthroughReason: String?
-                        var localStoppedBySeq = false
+                    // Build initial messages outside lock
+                    var mtpMessages: [Chat.Message] = messagePairs.map { pair in
+                        Chat.Message(
+                            role: Chat.Message.Role(rawValue: pair.role) ?? .system,
+                            content: pair.content
+                        )
+                    }
+                    // Strip trailing empty assistant message — mirrors upstream MLXChatExample
+                    if let last = mtpMessages.last, last.role == .assistant, last.content.isEmpty {
+                        mtpMessages.removeLast()
+                    }
 
-                        // MARK: - MTP Tool Dispatch Loop
-                        // Accumulate tool call / result messages across iterations.
-                        // Mirrors ChatSession restart-loop: collect tool calls → dispatch →
-                        // append tool results → re-prepare input → regenerate.
-                        var mtpMessages: [Chat.Message] = messagePairs.map { pair in
-                            Chat.Message(
-                                role: Chat.Message.Role(rawValue: pair.role) ?? .system,
-                                content: pair.content
-                            )
+                    // MTP local state — scoped outside lock
+                    var localAccumulatedText = ""
+                    var localFirstToken = false
+                    var localTokenCount: Int?
+                    var localStopReason: StopReason?
+                    var localGenerationTokPerSec: Double?
+                    var localPromptTokPerSec: Double?
+                    var localProposedDraftTokens: Int?
+                    var localAcceptedDraftTokens: Int?
+                    var localPassthroughReason: String?
+                    var localStoppedBySeq = false
+
+                    // Tool dispatch loop: iterates until model produces no more
+                    // tool calls. Mirrors ChatSession.swift L748 restart-loop.
+                    // P2-fix: hard iteration cap (10) prevents runaway tool loops
+                    var mtpToolLoopCount = 0
+                    let maxMtpToolLoop = 10
+                    while mtpToolLoopCount < maxMtpToolLoop {
+                        mtpToolLoopCount += 1
+                        if Task.isCancelled || cancellation.isCancelled {
+                            localStoppedBySeq = true
+                            break
                         }
-                        // Strip trailing empty assistant message — mirrors upstream MLXChatExample
-                        if let last = mtpMessages.last, last.role == .assistant,
-                            last.content.isEmpty
-                        {
-                            mtpMessages.removeLast()
-                        }
 
-                        // MARK: - Reasoning setup (shared across loop iterations)
-                        // ReasoningEventEmitter: upstream segment router for reasoning
-                        // vs response. Only activate when reasoning config is present —
-                        // non-reasoning models bypass emitter and pass text through.
-                        let reasoningConfig = context.configuration.reasoningConfig
-
-                        // Tool dispatch loop: iterates until model produces no more
-                        // tool calls. Mirrors ChatSession.swift L748 restart-loop.
-                        // P2-fix: hard iteration cap (10) prevents runaway tool loops
-                        // from models stuck in tool-call cycles.
+                        // Reset per-iteration state
+                        var iterationToolCalls: [MLXLMCommon.ToolCall] = []
                         var toolCallDetected = false
-                        var mtpToolLoopCount = 0
-                        let maxMtpToolLoop = 10
-                        while mtpToolLoopCount < maxMtpToolLoop {
-                            mtpToolLoopCount += 1
+
+                        // Per-iteration streaming inside a fresh perform { } — this is the
+                        // short-lived lock equivalent to upstream ChatSession.respond() pattern.
+                        struct MTPIterationResult {
+                            let stream: AsyncStream<MLXLMCommon.Generation>
+                            let renderedTail: String
+                        }
+                        let iterResult: MTPIterationResult
+                        // Snapshot messages as raw pairs — [Chat.Message] is non-Sendable.
+                        // Convert to (role, content) pairs and reconstruct inside perform.
+                        let iterationPairs = mtpMessages.map { m -> (String, String) in
+                            (m.role.rawValue, m.content)
+                        }
+                        do {
+                            iterResult = try await handleRef.modelContainer.perform(
+                                nonSendable: drafterWrapper
+                            ) { context, wrapped in
+                                let drafterModel = wrapped.model
+                                // Reconstruct Chat.Message from Sendable pairs
+                                let messages = iterationPairs.map { (role, content) in
+                                    Chat.Message(
+                                        role: Chat.Message.Role(rawValue: role) ?? .system,
+                                        content: content)
+                                }
+                                let mtpProcessing = UserInput.Processing(
+                                    resize: config.vlmImageResize)
+                                let mtpUserInput = UserInput(
+                                    prompt: .chat(messages),
+                                    processing: mtpProcessing,
+                                    additionalContext: reasoningContext
+                                )
+                                let mtpInput = try await context.processor.prepare(
+                                    input: mtpUserInput)
+                                // P1-fix: thread wiredMemoryTicket through MTP generate().
+                                // Upstream: generate(input:cache:parameters:context:mtpDrafter:blockSize:components:wiredMemoryTicket:)
+                                // Evaluate.swift L1803
+                                let mtpGenStream = try MLXLMCommon.generate(
+                                    input: mtpInput,
+                                    parameters: genParams,
+                                    context: context,
+                                    mtpDrafter: drafterModel,
+                                    blockSize: 4,
+                                    components: .init(),
+                                    wiredMemoryTicket: wiredMemoryTicket
+                                )
+                                // Capture primedInside for reasoning emitter — compute outside perform.
+                                // LMInput not Sendable, so export token count + tokenizer ref.
+                                let tokens = mtpInput.text.tokens.asArray(Int32.self)
+                                let tail = context.tokenizer.decode(
+                                    tokenIds: tokens.suffix(64).map(Int.init)
+                                )
+                                return MTPIterationResult(stream: mtpGenStream, renderedTail: tail)
+                            }
+                        } catch {
+                            continuation.yield(
+                                .init(
+                                    kind: .error(
+                                        InferenceError.standardPathFailed(
+                                            "MTP generation failed: \(error.localizedDescription)"
+                                        ).errorDescription ?? "error"
+                                    )))
+                            return
+                        }
+
+                        // Stream consumed OUTSIDE modelContainer.perform lock
+                        var reasoningEmitter: ReasoningEventEmitter?
+                        if let rc = await handleRef.modelContainer.configuration.reasoningConfig {
+                            let primed = ReasoningEventEmitter.promptEndsInsideReasoning(
+                                renderedPromptTail: iterResult.renderedTail, config: rc
+                            )
+                            reasoningEmitter = ReasoningEventEmitter(
+                                config: rc, primedInside: primed)
+                        }
+
+                        for try await generation in iterResult.stream {
                             if Task.isCancelled || cancellation.isCancelled {
                                 localStoppedBySeq = true
                                 break
                             }
-
-                            // Re-prepare input for each iteration (includes tool results)
-                            let mtpProcessing = UserInput.Processing(resize: config.vlmImageResize)
-                            let mtpUserInput = UserInput(
-                                prompt: .chat(mtpMessages),
-                                processing: mtpProcessing,
-                                additionalContext: reasoningContext
-                            )
-                            let mtpInput = try await context.processor.prepare(input: mtpUserInput)
-
-                            // Reset per-iteration state
-                            toolCallDetected = false
-                            var iterationToolCalls: [MLXLMCommon.ToolCall] = []
-
-                            // Reset reasoning emitter per iteration — compute primedInside
-                            // from rendered prompt tail so it doesn't misroute reasoning blocks.
-                            // NOTE: MTP path uses generate() which emits text-level .chunk,
-                            // not raw .token. ReasoningTokenCollector requires generateTokens()
-                            // (raw token IDs), so we must use ReasoningEventEmitter here.
-                            // Upstream MLXLanguageModel.runReasoning uses generateTokens() +
-                            // ReasoningTokenCollector for the standard path.
-                            var reasoningEmitter: ReasoningEventEmitter?
-                            if let rc = reasoningConfig {
-                                let tokens = mtpInput.text.tokens.asArray(Int32.self)
-                                let renderedTail = context.tokenizer.decode(
-                                    tokenIds: tokens.suffix(64).map(Int.init)
-                                )
-                                let primed = ReasoningEventEmitter.promptEndsInsideReasoning(
-                                    renderedPromptTail: renderedTail, config: rc
-                                )
-                                // ReasoningEmitter: upstream segment router for reasoning
-                                // vs response. Only activate when reasoning config is present —
-                                // non-reasoning models bypass emitter and pass text through.
-                                reasoningEmitter = ReasoningEventEmitter(
-                                    config: rc, primedInside: primed)
-                            }
-
-                            let mtpGenStream = try MLXLMCommon.generate(
-                                input: mtpInput,
-                                parameters: genParams,
-                                context: context,
-                                mtpDrafter: drafterModel,
-                                blockSize: 4,
-                                components: .init()
-                            )
-
-                            for try await generation in mtpGenStream {
-                                if Task.isCancelled || cancellation.isCancelled {
-                                    localStoppedBySeq = true
-                                    break
+                            switch generation {
+                            case .chunk(let text):
+                                if !localFirstToken {
+                                    metrics.firstTokenMs = metrics.overallMs
+                                    localFirstToken = true
                                 }
-                                switch generation {
-                                case .chunk(let text):
-                                    if !localFirstToken {
-                                        metrics.firstTokenMs = metrics.overallMs
-                                        localFirstToken = true
-                                    }
-                                    metrics.incrementGenerated()
-                                    // If reasoning config is available, route through emitter.
-                                    // Otherwise pass text through directly as .text.
-                                    if reasoningEmitter != nil {
-                                        for segment in reasoningEmitter!.process(text) {
-                                            switch segment {
-                                            case .reasoning(let segmentText):
-                                                localAccumulatedText += segmentText
-                                                let (shouldBreak2, newText2) = checkStopSequence(
-                                                    segment: segmentText,
-                                                    accumulated: localAccumulatedText,
-                                                    eventKind: { .reasoning($0) },
-                                                    tokenCount: localTokenCount,
-                                                    tokenFallback: metrics.generatedTokenCount
-                                                )
-                                                if shouldBreak2 {
-                                                    localAccumulatedText = newText2
-                                                    localStoppedBySeq = true
-                                                    break
-                                                }
-                                            case .response(let segmentText):
-                                                localAccumulatedText += segmentText
-                                                let (shouldBreak, newText) = checkStopSequence(
-                                                    segment: segmentText,
-                                                    accumulated: localAccumulatedText,
-                                                    eventKind: { .text($0) },
-                                                    tokenCount: localTokenCount,
-                                                    tokenFallback: metrics.generatedTokenCount
-                                                )
-                                                if shouldBreak {
-                                                    localAccumulatedText = newText
-                                                    localStoppedBySeq = true
-                                                    break
-                                                }
+                                metrics.incrementGenerated()
+                                // If reasoning config is available, route through emitter.
+                                // Otherwise pass text through directly as .text.
+                                if reasoningEmitter != nil {
+                                    for segment in reasoningEmitter!.process(text) {
+                                        switch segment {
+                                        case .reasoning(let segmentText):
+                                            localAccumulatedText += segmentText
+                                            let (shouldBreak2, newText2) = checkStopSequence(
+                                                segment: segmentText,
+                                                accumulated: localAccumulatedText,
+                                                eventKind: { .reasoning($0) },
+                                                tokenCount: localTokenCount,
+                                                tokenFallback: metrics.generatedTokenCount
+                                            )
+                                            if shouldBreak2 {
+                                                localAccumulatedText = newText2
+                                                localStoppedBySeq = true
+                                                break
+                                            }
+                                        case .response(let segmentText):
+                                            localAccumulatedText += segmentText
+                                            let (shouldBreak, newText) = checkStopSequence(
+                                                segment: segmentText,
+                                                accumulated: localAccumulatedText,
+                                                eventKind: { .text($0) },
+                                                tokenCount: localTokenCount,
+                                                tokenFallback: metrics.generatedTokenCount
+                                            )
+                                            if shouldBreak {
+                                                localAccumulatedText = newText
+                                                localStoppedBySeq = true
+                                                break
                                             }
                                         }
-                                    } else {
-                                        // No reasoning config — pass through as plain text
-                                        localAccumulatedText += text
-                                        let (shouldBreak3, newText3) = checkStopSequence(
-                                            segment: text,
-                                            accumulated: localAccumulatedText,
-                                            eventKind: { .text($0) },
-                                            tokenCount: localTokenCount,
-                                            tokenFallback: metrics.generatedTokenCount
-                                        )
-                                        if shouldBreak3 {
-                                            localAccumulatedText = newText3
-                                            localStoppedBySeq = true
-                                            break
-                                        }
                                     }
-                                case .info(let completionInfo):
-                                    localTokenCount = completionInfo.generationTokenCount
-                                    // Capture both throughput metrics from upstream GenerateCompletionInfo
-                                    localPromptTokPerSec = completionInfo.promptTokensPerSecond
-                                    localGenerationTokPerSec = completionInfo.tokensPerSecond
-                                    localStopReason =
-                                        switch completionInfo.stopReason {
-                                        case .stop: .eos
-                                        case .length: .maxTokens
-                                        case .cancelled: .cancelled
-                                        }
-                                    // Capture MTP speculative decoding metrics from upstream
-                                    localProposedDraftTokens = completionInfo.proposedDraftTokens
-                                    localAcceptedDraftTokens = completionInfo.acceptedDraftTokens
-                                    localPassthroughReason = completionInfo.passthroughReason
-                                    // P1-fix: Capture speculativeDecodingTelemetry (upstream Evaluate.swift:L2138)
-                                    // SpeculativeDecodingTelemetry carries roundCount, draftTokenCount,
-                                    // acceptedDraftTokenCount, targetModelCallCount, draftModelCallCount,
-                                    // targetVerifiedTokenCount, emittedTokenCount — full SD telemetry.
-                                    _ = completionInfo.speculativeDecodingTelemetry?.roundCount ?? 0
-                                case .toolCall(let mlxTC):
-                                    // Collect tool calls for dispatch after iteration
-                                    iterationToolCalls.append(mlxTC)
-                                    let tc = InferenceEvent.mlxToolCall(from: mlxTC)
-                                    continuation.yield(.init(kind: .toolCall(tc)))
-                                    toolCallDetected = true
-                                }
-                            }
-
-                            // If no tool calls were detected, or we hit a stop condition, exit the loop
-                            guard toolCallDetected && !localStoppedBySeq else { break }
-
-                            // Dispatch collected tool calls and accumulate results
-                            for toolCall in iterationToolCalls {
-                                // Use toolDispatchClosure if available (dispatches via ToolRegistry)
-                                // Otherwise dispatch inline
-                                let result: String
-                                do {
-                                    if let dispatch = mtpToolDispatch {
-                                        result = try await dispatch(toolCall)
-                                    } else {
-                                        // Build JSON arguments string for inline dispatch
-                                        let argsDict = toolCall.function.arguments.mapValues {
-                                            $0.anyValue
-                                        }
-                                        let jsonEncoded = try JSONSerialization.data(
-                                            withJSONObject: argsDict
-                                        )
-                                        let argsString = String(
-                                            decoding: jsonEncoded, as: UTF8.self)
-                                        result =
-                                            try await toolRegistry?.call(
-                                                toolCall.function.name, arguments: argsString)
-                                            ?? "[\(toolCall.function.name): tool registry not available]"
-                                    }
-                                } catch {
-                                    result =
-                                        "[\(toolCall.function.name): \(error.localizedDescription)]"
-                                    log.warning(
-                                        "MTP tool dispatch error for \(toolCall.function.name): \(error)"
+                                } else {
+                                    // No reasoning config — pass through as plain text
+                                    localAccumulatedText += text
+                                    let (shouldBreak3, newText3) = checkStopSequence(
+                                        segment: text,
+                                        accumulated: localAccumulatedText,
+                                        eventKind: { .text($0) },
+                                        tokenCount: localTokenCount,
+                                        tokenFallback: metrics.generatedTokenCount
                                     )
+                                    if shouldBreak3 {
+                                        localAccumulatedText = newText3
+                                        localStoppedBySeq = true
+                                        break
+                                    }
                                 }
-                                // Append tool result message for next iteration
-                                mtpMessages.append(
-                                    Chat.Message.tool(result, id: toolCall.id)
-                                )
+                            case .info(let completionInfo):
+                                localTokenCount = completionInfo.generationTokenCount
+                                // Capture both throughput metrics from upstream GenerateCompletionInfo
+                                localPromptTokPerSec = completionInfo.promptTokensPerSecond
+                                localGenerationTokPerSec = completionInfo.tokensPerSecond
+                                localStopReason =
+                                    switch completionInfo.stopReason {
+                                    case .stop: .eos
+                                    case .length: .maxTokens
+                                    case .cancelled: .cancelled
+                                    }
+                                // Capture MTP speculative decoding metrics from upstream
+                                localProposedDraftTokens = completionInfo.proposedDraftTokens
+                                localAcceptedDraftTokens = completionInfo.acceptedDraftTokens
+                                localPassthroughReason = completionInfo.passthroughReason
+                                // P1-fix: Capture speculativeDecodingTelemetry (upstream Evaluate.swift:L2138)
+                                _ = completionInfo.speculativeDecodingTelemetry?.roundCount ?? 0
+                            case .toolCall(let mlxTC):
+                                // Collect tool calls for dispatch after iteration
+                                iterationToolCalls.append(mlxTC)
+                                let tc = InferenceEvent.mlxToolCall(from: mlxTC)
+                                continuation.yield(.init(kind: .toolCall(tc)))
+                                toolCallDetected = true
                             }
                         }
 
-                        return MTPResult(
-                            accumulatedText: localAccumulatedText,
-                            tokenCount: localTokenCount,
-                            stopReason: localStopReason,
-                            stoppedBySequence: localStoppedBySeq,
-                            generationTokPerSec: localGenerationTokPerSec,
-                            promptTokPerSec: localPromptTokPerSec,
-                            proposedDraftTokens: localProposedDraftTokens,
-                            acceptedDraftTokens: localAcceptedDraftTokens,
-                            passthroughReason: localPassthroughReason,
-                            collectedToolCalls: []
-                        )
-                    }
+                        // If no tool calls were detected, or we hit a stop condition, exit the loop
+                        guard toolCallDetected && !localStoppedBySeq else { break }
 
+                        // Dispatch collected tool calls and accumulate results
+                        for toolCall in iterationToolCalls {
+                            // Use toolDispatchClosure if available (dispatches via ToolRegistry)
+                            // Otherwise dispatch inline
+                            let result: String
+                            do {
+                                if let dispatch = mtpToolDispatch {
+                                    result = try await dispatch(toolCall)
+                                } else {
+                                    // Build JSON arguments string for inline dispatch
+                                    let argsDict = toolCall.function.arguments.mapValues {
+                                        $0.anyValue
+                                    }
+                                    let jsonEncoded = try JSONSerialization.data(
+                                        withJSONObject: argsDict
+                                    )
+                                    let argsString = String(
+                                        decoding: jsonEncoded, as: UTF8.self)
+                                    result =
+                                        try await toolRegistry?.call(
+                                            toolCall.function.name, arguments: argsString)
+                                        ?? "[\(toolCall.function.name): tool registry not available]"
+                                }
+                            } catch {
+                                result =
+                                    "[\(toolCall.function.name): \(error.localizedDescription)]"
+                                log.warning(
+                                    "MTP tool dispatch error for \(toolCall.function.name): \(error)"
+                                )
+                            }
+                            // Append tool result message for next iteration
+                            mtpMessages.append(
+                                Chat.Message.tool(result, id: toolCall.id)
+                            )
+                        }
+                    }
                     // Sync MTP result back to outer scope
-                    if let tc = mtpResult.tokenCount {
+                    if let tc = localTokenCount {
                         actualTokenCount = tc
                     }
-                    if let sr = mtpResult.stopReason {
+                    if let sr = localStopReason {
                         lastStopReason = sr
                     }
-                    if let generationPS = mtpResult.generationTokPerSec {
+                    if let generationPS = localGenerationTokPerSec {
                         generationTokPerSec = generationPS
                     }
-                    if let ptokPs = mtpResult.promptTokPerSec {
+                    if let ptokPs = localPromptTokPerSec {
                         promptTokPerSec = ptokPs
                     }
-                    if let proposedDraft = mtpResult.proposedDraftTokens {
+                    if let proposedDraft = localProposedDraftTokens {
                         mtpProposedDraftTokens = proposedDraft
                     }
-                    if let acceptedDraft = mtpResult.acceptedDraftTokens {
+                    if let acceptedDraft = localAcceptedDraftTokens {
                         mtpAcceptedDraftTokens = acceptedDraft
                     }
-                    if let passthrough = mtpResult.passthroughReason {
+                    if let passthrough = localPassthroughReason {
                         mtpPassthroughReason = passthrough
                     }
-                    if !mtpResult.stoppedBySequence, actualTokenCount != nil {
+                    if !localStoppedBySeq, actualTokenCount != nil {
                         continuation.yield(
                             .init(
                                 kind: .done(
@@ -2158,13 +2160,14 @@ extension EnginePool {
                             var localStdAcceptedDraftTokens: Int?
                             var localStdPassthroughReason: String?
 
-                            // Skill pattern: generateTokensTask() returns task handle for
-                            // deterministic cleanup (Skill concurrency.md).
+                            // Std reasoning: generateTokensTask() returns (AsyncStream, Task)
+                            // P1-fix: thread wiredMemoryTicket to upstream
                             let (stdTokenStream, stdTokenTask) = try MLXLMCommon.generateTokensTask(
                                 input: stdInput,
                                 parameters: genParams,
                                 context: context,
-                                components: .init()
+                                components: .init(),
+                                wiredMemoryTicket: wiredMemoryTicket
                             )
 
                             for await generation in stdTokenStream {
@@ -2498,7 +2501,7 @@ extension EnginePool {
             _ = await ticket.start()
             let caughtError: (any Error)?
             do {
-                try await runInferenceBody()
+                try await runInferenceBody(wiredMemoryTicket: ticket)
                 caughtError = nil
             } catch {
                 caughtError = error
@@ -2528,7 +2531,7 @@ extension EnginePool {
 
         // Execute inference body without wired memory scoping
         do {
-            try await runInferenceBody()
+            try await runInferenceBody(wiredMemoryTicket: nil)
         } catch {
             continuation.yield(
                 .init(
