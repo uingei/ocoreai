@@ -335,15 +335,10 @@ actor EnginePool {
         return modelId.contains("/") && !modelId.hasPrefix("/") && !modelId.hasPrefix("~/")
     }
 
-    /// Upstream-first: always declare `.reasoning` capability.
-    ///
-    /// Executor.respond() has a secondary gate (MLXLanguageModel.swift L1004-1071):
-    /// it checks `resolved.reasoningConfig` AFTER the container is loaded, consulting
-    /// ChatConventionsRegistry.shared + ChatConventionsProviding. Declaring `.reasoning`
-    /// at init is permissive — if reasoningConfig is nil, respond() falls through to
-    /// plain text generation with no side effects. The old heuristic (known model names
-    /// + "reason" keyword) missed models recognized by the registry; this is safer and
-    /// more upstream-aligned.
+    /// MLXLanguageModel capabilities are set downstream at loadModel() time:
+    /// `.reasoning` is gated via `ReasoningHeuristics.isLikelyReasoningModel(modelId)`
+    /// (see L436). The authoritative reasoning gate during inference is
+    /// `configuration.reasoningConfig` in `_runInferenceWithMessages()`.
 
     private func loadModel(_ modelId: String) async throws -> LoadedModel {
         logger.info("Loading model: \(modelId)")
@@ -433,17 +428,18 @@ actor EnginePool {
             let hubProviderStr: String = isHF ? "huggingface" : "modelscope"
 
             /// MLXLanguageModel capabilities.
-            /// `.reasoning` is declared only when the model's loaded container carries
-            /// a non-nil `reasoningConfig` — hardcoding it short-circuits the upstream
-            /// gate at `Executor.respond()` (MLXLanguageModel.swift L1004-1071):
-            ///    `declaresReasoning = model.capabilities.contains(.reasoning)`
-            /// Without this check, non-reasoning models would pass the declaration gate
-            /// and the `alwaysOn` suppression / `promptStrategy.additionalContext` path
-            /// would never fire.
+            /// `.reasoning` is gated via `ReasoningHeuristics.isLikelyReasoningModel`
+            /// at init — this heuristic (qwen3 / deepseek-r1 / r1-distill markers)
+            /// determines whether to declare `.reasoning`. After `loadContainer()`,
+            /// the actual `configuration.reasoningConfig` serves as the authoritative
+            /// gate in `_runInferenceWithMessages()` (EngineInference.swift L1591).
+            /// The capability flag matters for FM path routing via `Executor.respond()`
+            /// (MLXLanguageModel.swift L1018); local MLX path ignores it.
             let modelConfig = ModelConfiguration(id: modelId)
             let baseCaps: [LanguageModelCapabilities.Capability] = [.guidedGeneration]
             let vlmCaps: [LanguageModelCapabilities.Capability] = isVlmModel ? [.vision] : []
-            let reasoningCap: [LanguageModelCapabilities.Capability] = [.reasoning]
+            let reasoningCap: [LanguageModelCapabilities.Capability] =
+                ReasoningHeuristics.isLikelyReasoningModel(modelId) ? [.reasoning] : []
             mlxLM = MLXLanguageModel(
                 configuration: modelConfig,
                 capabilities: baseCaps + vlmCaps + reasoningCap,

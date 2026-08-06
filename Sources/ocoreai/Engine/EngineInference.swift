@@ -2195,7 +2195,35 @@ extension EnginePool {
                         }
 
                         // If no tool calls were detected, or we hit a stop condition, exit the loop
-                        guard toolCallDetected && !localStoppedBySeq else { break }
+                        // .required mode: tools are mandatory — if model produces no tool call,
+                        // this is a contract violation (upstream L1270-1272: ".required enables
+                        // think-then-call reasoning phase before tool dispatch").
+                        guard toolCallDetected && !localStoppedBySeq else {
+                            let isRequiredMode = options.toolCallingMode?.lowercased() == "required"
+                            if isRequiredMode, !toolCallDetected {
+                                log.warning(
+                                    "MTP .required mode: model produced no tool call — tools were mandatory"
+                                )
+                                let errTokPerSec =
+                                    (actualTokenCount ?? 0) > 0
+                                    ? Double(actualTokenCount ?? 0)
+                                        / (Double(metrics.overallMs) / 1000.0)
+                                    : nil
+                                continuation.yield(
+                                    .init(
+                                        kind: .done(
+                                            StopReason.maxTokens,
+                                            tokenCount: actualTokenCount
+                                                ?? metrics.generatedTokenCount,
+                                            tokPerSec: errTokPerSec,
+                                            reasoningTokenCount: phase1ReasoningTokenCount > 0
+                                                ? phase1ReasoningTokenCount : nil,
+                                            proposedDraftTokens: mtpProposedDraftTokens,
+                                            acceptedDraftTokens: mtpAcceptedDraftTokens,
+                                            passthroughReason: mtpPassthroughReason)))
+                            }
+                            break
+                        }
 
                         // Dispatch collected tool calls and accumulate results
                         for toolCall in iterationToolCalls {
