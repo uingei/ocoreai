@@ -1840,6 +1840,16 @@ extension EnginePool {
                     // R1-style `.alwaysOn` models are tool-blind — they skip Phase 1.
                     let mtpReasoningConfig = await handleRef.modelContainer.configuration
                         .reasoningConfig
+                    // Upstream: toolAwareContext ensures thinking key matches how
+                    // generation is driven. For .templateFlag models with tools,
+                    // this injects enable_thinking key: true into the prompt
+                    // (mirrors upstream MLXLanguageModel.respond() L1178-1199).
+                    // Without this, .templateFlag models in tool path would generate
+                    // without thinking context — degenerate decode on first tokens.
+                    var mtpToolAwareContext: [String: any Sendable]? = nil
+                    if case .templateFlag(let key, _)? = mtpReasoningConfig?.promptStrategy {
+                        mtpToolAwareContext = [key: true]
+                    }
                     var phase1ThinkingText: String?
                     var phase1ReasoningTokenCount: Int = 0  // Fix 1: track reasoning tokens for .done
                     if let rc = mtpReasoningConfig,
@@ -1991,6 +2001,7 @@ extension EnginePool {
                         let iterationPairs = mtpMessages.map { m -> (String, String) in
                             (m.role.rawValue, m.content)
                         }
+                        let snapMtpToolAwareContext = mtpToolAwareContext
                         do {
                             iterResult = try await handleRef.modelContainer.perform(
                                 nonSendable: drafterWrapper
@@ -2007,7 +2018,7 @@ extension EnginePool {
                                 let mtpUserInput = UserInput(
                                     prompt: .chat(messages),
                                     processing: mtpProcessing,
-                                    additionalContext: reasoningContext
+                                    additionalContext: snapMtpToolAwareContext ?? reasoningContext
                                 )
                                 let mtpInput = try await context.processor.prepare(
                                     input: mtpUserInput)
