@@ -1231,7 +1231,7 @@ extension EnginePool {
             // + Think-then-Call + AllowedToolOutputRouter + CompletionReserve
             // All activated by passing full tools/transcript/context options.
             #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-            if #available(macOS 27.0, *), let mlxLM = loaded.mlxLanguageModel {
+            if #available(macOS 27.0, iOS 27.0, *), let mlxLM = loaded.mlxLanguageModel {
                 log.info("Using LanguageModelSession (macOS 27 SDK path)")
 
                 // --- Build FM Tool array from ToolRegistry ---
