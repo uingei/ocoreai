@@ -1846,15 +1846,19 @@ extension EnginePool {
                     // (mirrors upstream MLXLanguageModel.respond() L1178-1199).
                     // Without this, .templateFlag models in tool path would generate
                     // without thinking context — degenerate decode on first tokens.
+                    // Upstream L1153-1154: think-then-call gated on thinkingEnabled != false.
+                    // Upstream L1184-1188: enabled = declaresReasoning ? thinkingEnabled(...) : false
+                    let mtpThinkingEnabled = options.enableReasoning != false
                     var mtpToolAwareContext: [String: any Sendable]? = nil
                     if case .templateFlag(let key, _)? = mtpReasoningConfig?.promptStrategy {
-                        mtpToolAwareContext = [key: true]
+                        mtpToolAwareContext = [key: mtpThinkingEnabled]
                     }
                     var phase1ThinkingText: String?
                     var phase1ReasoningTokenCount: Int = 0  // Fix 1: track reasoning tokens for .done
                     if let rc = mtpReasoningConfig,
                         mtpToolDispatch != nil,
-                        case .templateFlag = rc.promptStrategy
+                        case .templateFlag = rc.promptStrategy,
+                        mtpThinkingEnabled
                     {
                         // Phase 1: all work inside perform{} to avoid Sendable boundary issues
                         do {
