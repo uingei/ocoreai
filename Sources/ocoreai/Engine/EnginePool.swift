@@ -428,21 +428,23 @@ actor EnginePool {
             let hubProviderStr: String = isHF ? "huggingface" : "modelscope"
 
             /// MLXLanguageModel capabilities.
-            /// `.reasoning` is gated via `ReasoningHeuristics.isLikelyReasoningModel`
-            /// at init — this heuristic (qwen3 / deepseek-r1 / r1-distill markers)
-            /// determines whether to declare `.reasoning`. After `loadContainer()`,
-            /// the actual `configuration.reasoningConfig` serves as the authoritative
-            /// gate in `_runInferenceWithMessages()` (EngineInference.swift L1591).
-            /// The capability flag matters for FM path routing via `Executor.respond()`
-            /// (MLXLanguageModel.swift L1018); local MLX path ignores it.
+            /// Declare `.reasoning` unconditionally. ocoreai is a generic runtime —
+            /// it cannot know a priori whether each loaded model reasons. The FM path
+            /// gate (Executor.respond() L1060) requires both `declaresReasoning` AND
+            /// `resolved.reasoningConfig`; a model without reasoning capability has
+            /// `reasoningConfig == nil` so the L1106 let-bind is nil and the pipeline
+            /// naturally falls through. Declaring `.reasoning` here ensures that models
+            /// whose factory DID inject a `reasoningConfig` (via ChatConventionsRegistry
+            /// or the model's own `reasoningConfig` declaration) are not blocked by
+            /// `isLikelyReasoningModel` name-heuristic misses (community re-uploads,
+            /// ModelScope mirrors, etc.) on macOS 27/iOS 27 where FM path is the
+            /// exclusive active route.
             let modelConfig = ModelConfiguration(id: modelId)
-            let baseCaps: [LanguageModelCapabilities.Capability] = [.guidedGeneration]
+            let baseCaps: [LanguageModelCapabilities.Capability] = [.guidedGeneration, .reasoning]
             let vlmCaps: [LanguageModelCapabilities.Capability] = isVlmModel ? [.vision] : []
-            let reasoningCap: [LanguageModelCapabilities.Capability] =
-                ReasoningHeuristics.isLikelyReasoningModel(modelId) ? [.reasoning] : []
             mlxLM = MLXLanguageModel(
                 configuration: modelConfig,
-                capabilities: baseCaps + vlmCaps + reasoningCap,
+                capabilities: baseCaps + vlmCaps,
                 configurationResolver: DefaultConfigurationResolver(),
                 weightsLocation: { _ in modelURL },
                 load: {

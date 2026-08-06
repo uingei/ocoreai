@@ -1234,6 +1234,17 @@ extension EnginePool {
             if #available(macOS 27.0, iOS 27.0, *), let mlxLM = loaded.mlxLanguageModel {
                 log.info("Using LanguageModelSession (macOS 27 SDK path)")
 
+                // Observe: FM path declares .reasoning for all models (generic runtime).
+                // Executor.respond() requires BOTH declaresReasoning AND
+                // resolved.reasoningConfig; when reasoningConfig is nil the pipeline
+                // naturally falls through to standard generation. Log the state so
+                // debugging matches between declares and actual factory-injected config.
+                let hasReasoningConfig =
+                    (await handleRef.modelContainer.configuration.reasoningConfig) != nil
+                log.debug(
+                    "FM path reasoning capability: declared=true, factory_injected=\(hasReasoningConfig)"
+                )
+
                 // --- Build FM Tool array from ToolRegistry ---
                 // tools: [] is the #1 degradation vector — it short-circuits
                 // Executor.respond()'s entire tool-calling pipeline.
@@ -1853,9 +1864,15 @@ extension EnginePool {
                     if case .templateFlag(let key, _)? = mtpReasoningConfig?.promptStrategy {
                         mtpToolAwareContext = [key: mtpThinkingEnabled]
                     }
+                    // Upstream L1271-1272: ".required enables think-then-call reasoning phase
+                    // before tool dispatch" — Phase 1 is only for .required mode.
+                    // In .allowed mode, the model freely decides whether to reason.
+                    let isRequiredToolMode = options.toolCallingMode?.lowercased() == "required"
                     var phase1ThinkingText: String?
-                    var phase1ReasoningTokenCount: Int = 0  // Fix 1: track reasoning tokens for .done
-                    if let rc = mtpReasoningConfig,
+                    var phase1ReasoningTokenCount: Int = 0  // Track reasoning tokens for .done
+                    var phase2ReasoningTokenCount: Int = 0  // FIX B: Phase 2 reasoning tokens in tool loop
+                    if isRequiredToolMode,
+                        let rc = mtpReasoningConfig,
                         mtpToolDispatch != nil,
                         case .templateFlag = rc.promptStrategy,
                         mtpThinkingEnabled
