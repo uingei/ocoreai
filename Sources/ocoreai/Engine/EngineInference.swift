@@ -1841,6 +1841,7 @@ extension EnginePool {
                     let mtpReasoningConfig = await handleRef.modelContainer.configuration
                         .reasoningConfig
                     var phase1ThinkingText: String?
+                    var phase1ReasoningTokenCount: Int = 0  // Fix 1: track reasoning tokens for .done
                     if let rc = mtpReasoningConfig,
                         mtpToolDispatch != nil,
                         case .templateFlag = rc.promptStrategy
@@ -1943,6 +1944,7 @@ extension EnginePool {
                                 continuation.yield(
                                     .init(kind: .reasoning(phase1Result.thinkingText)))
                                 phase1ThinkingText = phase1Result.thinkingText
+                                phase1ReasoningTokenCount = phase1Result.tokenCount
                                 log.info(
                                     "Phase 1 think-then-call completed (\\(phase1Result.tokenCount) tokens)"
                                 )
@@ -2042,7 +2044,8 @@ extension EnginePool {
 
                         // Stream consumed OUTSIDE modelContainer.perform lock
                         var reasoningEmitter: ReasoningEventEmitter?
-                        if let rc = await handleRef.modelContainer.configuration.reasoningConfig {
+                        // Fix 2: reuse mtpReasoningConfig from L1842 instead of re-fetching
+                        if let rc = mtpReasoningConfig {
                             let primed = ReasoningEventEmitter.promptEndsInsideReasoning(
                                 renderedPromptTail: iterResult.renderedTail, config: rc
                             )
@@ -2208,6 +2211,8 @@ extension EnginePool {
                                     tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
                                     tokPerSec: generationTokPerSec,
                                     promptTokPerSec: promptTokPerSec,
+                                    reasoningTokenCount: phase1ReasoningTokenCount > 0
+                                        ? phase1ReasoningTokenCount : nil,
                                     proposedDraftTokens: mtpProposedDraftTokens,
                                     acceptedDraftTokens: mtpAcceptedDraftTokens,
                                     passthroughReason: mtpPassthroughReason)))
