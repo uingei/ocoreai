@@ -1834,112 +1834,124 @@ extension EnginePool {
                     var localPassthroughReason: String?
                     var localStoppedBySeq = false
 
-                    // P1-3: Think-then-call Phase 1 — upstream MLXLanguageModel.respond() L1331-L1420.
-                    // When the model has a reasoning config AND tools are available, run an
-                    // unconstrained reasoning phase BEFORE tool dispatch. The model thinks about
-                    // what to do, thinking tokens are collected, then Phase 2 (tool dispatch loop)
-                    // proceeds with that context.
-                    // Currently suppressed by mayRunReasoning=false when tools exist,
-                    // so the model never produces thinking tokens in tool scenarios via MLX path.
+                    // P1-3: Think-then-call Phase 1 — upstream MLXLanguageModel.respond().
+                    // Think-then-call is gated to the enable_thinking family (Qwen3/QwQ):
+                    // their template renders the tool block AND honors `enable_thinking`.
+                    // R1-style `.alwaysOn` models are tool-blind — they skip Phase 1.
                     let mtpReasoningConfig = await handleRef.modelContainer.configuration
                         .reasoningConfig
                     var phase1ThinkingText: String?
-                    if let rc = mtpReasoningConfig, mtpToolDispatch != nil {
+                    if let rc = mtpReasoningConfig,
+                        mtpToolDispatch != nil,
+                        case .templateFlag = rc.promptStrategy
+                    {
                         // Phase 1: all work inside perform{} to avoid Sendable boundary issues
-                        let phase1Pairs = mtpMessages.map { m -> (String, String) in
-                            (m.role.rawValue, m.content)
-                        }
-                        let phase1Result: (thinkingText: String, closed: Bool, tokenCount: Int) =
-                            try await handleRef.modelContainer.perform { context in
-                                let thinkingEnabled = options.enableReasoning ? true : nil
-                                let reasoningCtx = try? rc.promptStrategy.additionalContext(
-                                    forThinkingEnabled: thinkingEnabled
-                                )
-                                let rebuiltPhase1Messages = phase1Pairs.map { pair in
-                                    Chat.Message(
-                                        role: Chat.Message.Role(rawValue: pair.0) ?? .system,
-                                        content: pair.1
-                                    )
-                                }
-                                let phase1Processing = UserInput.Processing(
-                                    resize: config.vlmImageResize
-                                )
-                                let phase1UserInput = UserInput(
-                                    prompt: .chat(rebuiltPhase1Messages),
-                                    processing: phase1Processing,
-                                    additionalContext: reasoningCtx
-                                )
-                                let phase1Input = try await context.processor.prepare(
-                                    input: phase1UserInput
-                                )
-                                let tokens = phase1Input.text.tokens.asArray(Int32.self)
-                                let tailText = context.tokenizer.decode(
-                                    tokenIds: tokens.suffix(64).map(Int.init)
-                                )
-                                let primedInside = ReasoningEventEmitter.promptEndsInsideReasoning(
-                                    renderedPromptTail: tailText,
-                                    config: rc
-                                )
-                                var collector = ReasoningTokenCollector(
-                                    config: rc, primedInside: primedInside,
-                                    tokenizer: context.tokenizer
-                                )
-                                var phase1ThinkingAccumulated = ""
-                                let (phase1Stream, phase1Task) = try MLXLMCommon.generateTokensTask(
-                                    input: phase1Input,
-                                    parameters: genParams,
-                                    context: context,
-                                    components: .init(),
-                                    wiredMemoryTicket: wiredMemoryTicket
-                                )
-                                for await generation in phase1Stream {
-                                    if Task.isCancelled || cancellation.isCancelled {
+                        do {
+                            let phase1Pairs = mtpMessages.map { m -> (String, String) in
+                                (m.role.rawValue, m.content)
+                            }
+                            let phase1Result:
+                                (thinkingText: String, closed: Bool, tokenCount: Int) =
+                                    try await handleRef.modelContainer.perform { context in
+                                        let thinkingEnabled = options.enableReasoning ? true : nil
+                                        let reasoningCtx = try? rc.promptStrategy.additionalContext(
+                                            forThinkingEnabled: thinkingEnabled
+                                        )
+                                        let rebuiltPhase1Messages = phase1Pairs.map { pair in
+                                            Chat.Message(
+                                                role: Chat.Message.Role(rawValue: pair.0)
+                                                    ?? .system,
+                                                content: pair.1
+                                            )
+                                        }
+                                        let phase1Processing = UserInput.Processing(
+                                            resize: config.vlmImageResize
+                                        )
+                                        let phase1UserInput = UserInput(
+                                            prompt: .chat(rebuiltPhase1Messages),
+                                            processing: phase1Processing,
+                                            additionalContext: reasoningCtx
+                                        )
+                                        let phase1Input = try await context.processor.prepare(
+                                            input: phase1UserInput
+                                        )
+                                        let tokens = phase1Input.text.tokens.asArray(Int32.self)
+                                        let tailText = context.tokenizer.decode(
+                                            tokenIds: tokens.suffix(64).map(Int.init)
+                                        )
+                                        let primedInside =
+                                            ReasoningEventEmitter.promptEndsInsideReasoning(
+                                                renderedPromptTail: tailText,
+                                                config: rc
+                                            )
+                                        var collector = ReasoningTokenCollector(
+                                            config: rc, primedInside: primedInside,
+                                            tokenizer: context.tokenizer
+                                        )
+                                        var phase1ThinkingAccumulated = ""
+                                        let (phase1Stream, phase1Task) =
+                                            try MLXLMCommon.generateTokensTask(
+                                                input: phase1Input,
+                                                parameters: genParams,
+                                                context: context,
+                                                components: .init(),
+                                                wiredMemoryTicket: wiredMemoryTicket
+                                            )
+                                        for await generation in phase1Stream {
+                                            if Task.isCancelled || cancellation.isCancelled {
+                                                phase1Task.cancel()
+                                                _ = await phase1Task.value
+                                                break
+                                            }
+                                            guard case .token(let token) = generation else {
+                                                continue
+                                            }
+                                            for segment in collector.ingest(token) {
+                                                switch segment {
+                                                case .reasoning(let text):
+                                                    phase1ThinkingAccumulated += text
+                                                case .response:
+                                                    // Response tokens in Phase 1 — ignore, they're noise
+                                                    break
+                                                }
+                                            }
+                                            if collector.shouldStopAfterReasoning {
+                                                break
+                                            }
+                                        }
+                                        // Drain task — Phase 1 done, Phase 2 will use fresh generation
                                         phase1Task.cancel()
                                         _ = await phase1Task.value
-                                        break
-                                    }
-                                    guard case .token(let token) = generation else { continue }
-                                    for segment in collector.ingest(token) {
-                                        switch segment {
-                                        case .reasoning(let text):
-                                            phase1ThinkingAccumulated += text
-                                        case .response:
-                                            // Response tokens in Phase 1 — ignore, they're noise
-                                            break
+                                        Stream.gpu.synchronize()
+                                        for segment in collector.finalize() {
+                                            switch segment {
+                                            case .reasoning(let text):
+                                                phase1ThinkingAccumulated += text
+                                            case .response:
+                                                break
+                                            }
                                         }
+                                        return (
+                                            phase1ThinkingAccumulated,
+                                            collector.shouldStopAfterReasoning,
+                                            collector.reasoningTokenIDs.count
+                                        )
                                     }
-                                    if collector.shouldStopAfterReasoning {
-                                        break
-                                    }
-                                }
-                                // Drain task — Phase 1 done, Phase 2 will use fresh generation
-                                phase1Task.cancel()
-                                _ = await phase1Task.value
-                                Stream.gpu.synchronize()
-                                for segment in collector.finalize() {
-                                    switch segment {
-                                    case .reasoning(let text):
-                                        phase1ThinkingAccumulated += text
-                                    case .response:
-                                        break
-                                    }
-                                }
-                                return (
-                                    phase1ThinkingAccumulated,
-                                    collector.shouldStopAfterReasoning,
-                                    collector.reasoningTokenIDs.count
+                            // Emit Phase 1 thinking events
+                            if phase1Result.closed, !phase1Result.thinkingText.isEmpty {
+                                // Re-emit phase 1 thinking as reasoning events
+                                continuation.yield(
+                                    .init(kind: .reasoning(phase1Result.thinkingText)))
+                                phase1ThinkingText = phase1Result.thinkingText
+                                log.info(
+                                    "Phase 1 think-then-call completed (\\(phase1Result.tokenCount) tokens)"
                                 )
                             }
-                        // Emit Phase 1 thinking events
-                        if phase1Result.closed, !phase1Result.thinkingText.isEmpty {
-                            // Re-emit phase 1 thinking as reasoning events
-                            continuation.yield(.init(kind: .reasoning(phase1Result.thinkingText)))
-                            phase1ThinkingText = phase1Result.thinkingText
-                            log.info(
-                                "Phase 1 think-then-call completed (\\(phase1Result.tokenCount) tokens)"
-                            )
+                        } catch {
+                            log.warning(
+                                "Phase 1 think-then-call failed: \\(error.localizedDescription)")
                         }
-                    }
+                    }  // end if let rc = mtpReasoningConfig
                     // Append Phase 1 thinking as assistant message before tool dispatch
                     if let thinkingText = phase1ThinkingText {
                         mtpMessages.append(
