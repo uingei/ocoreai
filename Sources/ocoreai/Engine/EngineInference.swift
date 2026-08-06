@@ -1981,7 +1981,24 @@ extension EnginePool {
                     while mtpToolLoopCount < maxMtpToolLoop {
                         mtpToolLoopCount += 1
                         if Task.isCancelled || cancellation.isCancelled {
-                            localStoppedBySeq = true
+                            // Emit cancelled .done event — same as ChatSession path (L2528-2538).
+                            // Without this, the caller never receives a terminal event.
+                            let cancelTokPerSec =
+                                (actualTokenCount ?? 0) > 0
+                                ? Double(actualTokenCount ?? 0)
+                                    / (Double(metrics.overallMs) / 1000.0)
+                                : nil
+                            continuation.yield(
+                                .init(
+                                    kind: .done(
+                                        StopReason.cancelled,
+                                        tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
+                                        tokPerSec: cancelTokPerSec,
+                                        reasoningTokenCount: phase1ReasoningTokenCount > 0
+                                            ? phase1ReasoningTokenCount : nil,
+                                        proposedDraftTokens: mtpProposedDraftTokens,
+                                        acceptedDraftTokens: mtpAcceptedDraftTokens,
+                                        passthroughReason: mtpPassthroughReason)))
                             break
                         }
 
