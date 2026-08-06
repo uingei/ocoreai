@@ -1698,9 +1698,13 @@ extension EnginePool {
                 // Reasoning models fall through to ChatSession (Guided lacks ReasoningEventEmitter).
                 // This mirrors upstream MTP path at L925 and aligns with MLXChatExample pattern
                 // where Chat.Message carries images/videos directly without loss.
+                // Compute effective maxTokens for guided gen: if user didn't specify one,
+                // provide a reasonable default so guided gen isn't skipped unnecessarily.
+                let effectiveMaxTokens = options.maxTokens ?? 2048
+
                 if let schema = options.grammarSchema,
-                    let maxTokens = options.maxTokens,
-                    await handleRef.modelContainer.configuration.reasoningConfig == nil,
+                    Self.reasoningSafeForConstrainedPaths(
+                        await handleRef.modelContainer.configuration),
                     mlxMessages.allSatisfy({
                         $0.images.isEmpty && $0.videos.isEmpty && $0.audios.isEmpty
                     })
@@ -1732,7 +1736,7 @@ extension EnginePool {
                             (role: $0.role.rawValue, content: $0.content)
                         },
                         grammarSchema: schema,
-                        maxTokens: maxTokens,
+                        maxTokens: effectiveMaxTokens,
                     )
                 } else if options.grammarSchema != nil {
                     // Grammar requested but multimodal content present — guided path cannot handle it.
@@ -2116,12 +2120,14 @@ extension EnginePool {
                 // Fetch reasoning config outside closure (Sendable value)
                 let reasoningConfigSnapshot = await handleRef.modelContainer.configuration
                     .reasoningConfig
-                let hasReasoning = reasoningConfigSnapshot != nil
 
-                if hasReasoning {
-                    // Std reasoning uses generateTokens() which creates its own KV cache scope —
-                    // can't reuse ChatSession's private cache. Return the slot on pool hit so
-                    // the pool doesn't hold a stale reference; std reasoning cold-starts anyway.
+                if mayRunReasoning, let rc = reasoningConfigSnapshot {
+                    // Std reasoning only on unconstrained path (no tools, no schema).
+                    // Upstream Executor.respond() gates reasoning behind mayRunReasoningPath:
+                    //   mayRunReasoningPath = enabledToolDefinitions.isEmpty && request.schema == nil
+                    // When tools or grammar schema are present, the constrained/tool path handles
+                    // thinking internally — entering std reasoning here would double-inject
+                    // thinking kwargs and bypass the tool-aware prompt rendering.
                     if isPoolHit, let sessionToRelease = chatSession {
                         log.debug(
                             "Pool hit but std reasoning can't reuse ChatSession cache — returning slot"
@@ -2136,7 +2142,6 @@ extension EnginePool {
                         )
                         chatSession = nil  // prevent defer from re-releasing
                     }
-                    let rc = reasoningConfigSnapshot!
                     log.info("Routing through reasoning path — upstream generateTokens() alignment")
 
                     let stdResult: StandardReasoningResult
@@ -2626,6 +2631,29 @@ extension EnginePool {
             renderedPromptTail: renderedTail,
             config: config
         )
+    }
+
+    /// P1-1 fix: .alwaysOn reasoning model protection for guided gen / MTP paths.
+    ///
+    /// Upstream MLXLanguageModel.respond() (L1060-L1072) prevents models whose
+    /// promptStrategy is .alwaysOn from being routed through grammar-constrained
+    /// paths — the grammar would truncate thinking tokens, producing broken output.
+    ///
+    /// Returns true when safe to use guided gen / MTP (reasoning absent or suppressible).
+    /// Returns false when the model has an .alwaysOn reasoning config that cannot
+    /// be disabled — in which case the request must fall through to ChatSession
+    /// where ReasoningEventEmitter handles thinking segmentation correctly.
+    private static func reasoningSafeForConstrainedPaths(
+        _ configuration: ModelConfiguration
+    ) -> Bool {
+        guard let rc = configuration.reasoningConfig else { return true }
+        // .alwaysOn models cannot disable thinking — grammar would truncate reasoning
+        do {
+            _ = try rc.promptStrategy.additionalContext(forThinkingEnabled: false)
+            return true
+        } catch {
+            return false
+        }
     }
 }
 
