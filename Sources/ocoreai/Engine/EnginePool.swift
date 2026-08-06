@@ -133,14 +133,15 @@ actor EnginePool {
         self.memoryTracker = memoryTracker
         self.maxLoadedModels = 4
         #if canImport(CoreAI)
-        if #available(macOS 27.0, *) {
+        if #available(macOS 27.0, iOS 27.0, *) {
             _coreAIPreparedModelLoader = CoreAIModelLoader(
                 config: coreAILoadingConfig as? CoreAILoadingConfig ?? CoreAILoadingConfig(),
                 logger: logger,
             )
             logger.info("CoreAIModelLoader initialized (v15 two-phase specialization)")
         } else {
-            logger.info("CoreAI SDK present but macOS < 27.0 — skipping CoreAI backend")
+            logger.info(
+                "CoreAI SDK present but platform < macOS 27 / iOS 27 — skipping CoreAI backend")
         }
         #endif
         mlxModelLoader = MLXModelLoader(
@@ -377,7 +378,7 @@ actor EnginePool {
         )
 
         #if canImport(CoreAI)
-        if #available(macOS 27.0, *),
+        if #available(macOS 27.0, iOS 27.0, *),
             let loader = _coreAIPreparedModelLoader as? CoreAIModelLoader
         {
             let preparedModel = try await loader.load(
@@ -401,7 +402,7 @@ actor EnginePool {
                 logger: logger,
             )
         } else {
-            logger.info("CoreAI unavailable on this macOS version — falling back to MLX")
+            logger.info("CoreAI unavailable on this platform version — falling back to MLX")
         }
         #endif
         // VLM detection: check processor_config.json before loading
@@ -512,7 +513,7 @@ actor EnginePool {
 
         #if canImport(CoreAI)
         var model: LoadedModel
-        if #available(macOS 27.0, *) {
+        if #available(macOS 27.0, iOS 27.0, *) {
             let prepared = CoreAIPreparedModel.fallback()
             model = LoadedModel(
                 configData: configData,
@@ -545,7 +546,7 @@ actor EnginePool {
         // capability gates, ToolCallingModeResolution, and ConfigurationResolver
         // on macOS 27. The instance was constructed above and hoisted into mlxLM.
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-        if #available(macOS 27.0, *), let lm = mlxLM {
+        if #available(macOS 27.0, iOS 27.0, *), let lm = mlxLM {
             model._mlxLanguageModelRef = lm
         }
         #endif
@@ -632,7 +633,7 @@ actor EnginePool {
                     "active_sessions": String(active),
                 ]
                 #if canImport(CoreAI)
-                if #available(macOS 27.0, *) {
+                if #available(macOS 27.0, iOS 27.0, *) {
                     entry["specialized"] = String(
                         (model._preparedModel as? CoreAIPreparedModel)?.isSpecialized ?? false
                     )
@@ -649,7 +650,7 @@ actor EnginePool {
         let gpuCacheGB: Double = 0.0
         #if canImport(CoreAI)
         var specializedCount: Int
-        if #available(macOS 27.0, *) {
+        if #available(macOS 27.0, iOS 27.0, *) {
             specializedCount = loadedModels.values.count(
                 where: { ($0._preparedModel as? CoreAIPreparedModel)?.isSpecialized == true }
             )

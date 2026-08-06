@@ -242,7 +242,7 @@ extension EnginePool {
         defer { loaded.releaseInference() }
 
         #if canImport(CoreAI)
-        if #available(macOS 27.0, *) {
+        if #available(macOS 27.0, iOS 27.0, *) {
             // CoreAI lacks grammar constraints and tool dispatch — fall back to MLX
             if options.grammarSchema != nil || options.useGuidedGeneration {
                 logger.info(

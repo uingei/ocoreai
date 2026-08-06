@@ -88,6 +88,13 @@ struct SamplingConfiguration: Codable, Equatable {
     }
 
     /// Apply normalization — drops topK/topP when temperature == 0 (greedy).
+    /// Normalized temperature for sampling — defaults to 1.0 when not set.
+    private var effectiveTemperature: Double {
+        let t = temperature ?? 1.0
+        return t.isNaN ? 1.0 : t
+    }
+
+    /// Apply normalization — drops topK/topP when temperature == 0 (greedy).
     func normalized() -> SamplingConfiguration {
         var config = self
         if config.temperature == nil || config.temperature == 0 {
@@ -95,6 +102,132 @@ struct SamplingConfiguration: Codable, Equatable {
             config.topP = nil
         }
         return config
+    }
+
+    /// Sample next token ID from logits, consuming temperature/topK/topP/minP.
+    ///
+    /// Aligned with upstream CompositeSampler algorithm:
+    ///   logits -> [temperature scaling] -> [softmax] -> [minP filter] -> [topP filter] -> [topK filter] -> [multinomial]
+    ///
+    /// Temperature=0 or nil -> argmax (greedy).
+    func sample(from logits: [Float]) -> Int32 {
+        guard !logits.isEmpty, effectiveTemperature != 0 else {
+            return argmax(logits)
+        }
+
+        var scaled = logits.map { $0 / Float(effectiveTemperature) }
+        let probs = SamplingConfiguration.softmax(&scaled)
+
+        guard let filtered = applyFilters(probs) else {
+            return argmax(logits)
+        }
+
+        return multinomialSample(filtered)
+    }
+
+    // MARK: - Sampling helpers
+
+    private func argmax(_ logits: [Float]) -> Int32 {
+        var bestIdx = 0
+        var bestVal = logits[0]
+        for i in 1 ..< logits.count {
+            if logits[i] > bestVal {
+                bestVal = logits[i]
+                bestIdx = i
+            }
+        }
+        return Int32(bestIdx)
+    }
+
+    private static func softmaxF16(_ logits: [Float16]) -> [Float] {
+        var f32 = logits.map { Float($0) }
+        return softmax(&f32)
+    }
+
+    /// Numerically stable softmax: subtract max, exp, normalize.
+    private static func softmax(_ logits: inout [Float]) -> [Float] {
+        let max = logits.max() ?? 0
+        let exps = logits.map { exp($0 - max) }
+        let sum = exps.reduce(0, +)
+        guard sum > 0 && sum.isFinite else {
+            return Array(repeating: 0, count: exps.count)
+        }
+        return exps.map { $0 / sum }
+    }
+
+    /// Apply minP, then topP, then topK — returns filtered probability distribution
+    /// or nil if filtering yields empty set (fallback to argmax).
+    private func applyFilters(_ probs: [Float]) -> [Float]? {
+        var filtered = probs
+
+        // minP filter
+        if let minP = minP, minP > 0 {
+            let maxProb = filtered.max() ?? 0
+            let threshold = Float(minP) * maxProb
+            for i in filtered.indices {
+                filtered[i] = max(filtered[i], 0)
+                if filtered[i] < threshold {
+                    filtered[i] = 0
+                }
+            }
+            let sum = filtered.reduce(0, +)
+            if sum <= 0 { return nil }
+            filtered = filtered.map { $0 / sum }
+        }
+
+        // topP (nucleus) filter
+        if let topP = topP, topP < 1.0 {
+            let cumulative = topPSubset(filtered, cumulativeProb: Float(topP))
+            filtered = cumulative.map { $0 }
+            let sum = filtered.reduce(0, +)
+            if sum <= 0 { return nil }
+            filtered = filtered.map { $0 / sum }
+        }
+
+        // topK filter
+        if let topK = topK, topK > 0 && topK < filtered.count {
+            let kSubset = topKSubset(filtered, k: topK)
+            filtered = kSubset.map { $0 }
+            let sum = filtered.reduce(0, +)
+            if sum <= 0 { return nil }
+            filtered = filtered.map { $0 / sum }
+        }
+
+        return filtered
+    }
+
+    /// Keep tokens until cumulative probability reaches threshold (topP).
+    private func topPSubset(_ probs: [Float], cumulativeProb: Float) -> [Float] {
+        let indexed = probs.enumerated().sorted { $0.element > $1.element }
+        var cum: Float = 0
+        var kept = [Float](repeating: 0, count: probs.count)
+        for (i, p) in indexed {
+            kept[i] = p
+            cum += p
+            if cum >= cumulativeProb { break }
+        }
+        return kept
+    }
+
+    /// Keep only top-K tokens (topK).
+    private func topKSubset(_ probs: [Float], k: Int) -> [Float] {
+        let indexed = probs.enumerated().sorted { $0.element > $1.element }.prefix(k)
+        var kept = [Float](repeating: 0, count: probs.count)
+        for (i, p) in indexed {
+            kept[i] = p
+        }
+        return kept
+    }
+
+    /// Multinomial sample via inverse CDF scan.
+    private func multinomialSample(_ probs: [Float]) -> Int32 {
+        let r = Float.random(in: 0 ..< 1)
+        var cum: Float = 0
+        for (i, p) in probs.enumerated() {
+            cum += p
+            if r < cum { return Int32(i) }
+        }
+        return Int32(probs.count - 1)
     }
 
     /// Task-aware temperature adjustment — precision tasks (code/math/json) get

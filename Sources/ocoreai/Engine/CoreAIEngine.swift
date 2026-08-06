@@ -1001,12 +1001,20 @@ final class CoreAIIterator: AsyncIteratorProtocol, @unchecked Sendable {
                 cancelToken: cancelToken,
                 includeLogits: options.includeLogits
             )
-            let nextToken = engine.sampleToken()
+
+            // Sample using temperature/topK/topP/minP from sampling configuration
+            // (aligned with upstream CompositeSampler — upstream: L1004 was pure argmax)
+            let logits = engine.extractLogits()
+            let nextToken = sampling.sample(from: logits)
 
             // Record in history
             engine.recordToken(nextToken)
 
-            let newToken = InferenceOutput(tokenId: nextToken, logits: nil)
+            let newToken = InferenceOutput(
+                tokenId: nextToken,
+                logits: options.includeLogits
+                    ? [LogitsScalarType](logits.map { LogitsScalarType($0) }) : nil
+            )
             _state.withLock { $0.generated += 1 }
 
             if cancelToken.isCancelled {
@@ -1195,6 +1203,35 @@ extension CoreAISequentialEngine {
     func sampleToken() -> Int32 {
         guard let token = sampleFromLogits() else { return -1 }
         return token
+    }
+
+    /// Extract logits buffer as Float array for sampling.
+    func extractLogits() -> [Float] {
+        Self._extractLogits(logitsArray)
+    }
+
+    private static func _extractLogits(_ array: NDArray) -> [Float] {
+        #if !arch(x86_64)
+        var result = [Float]()
+        result.reserveCapacity(Int(array.shape.count))
+        array.view(as: Float16.self).withUnsafePointer { ptr, shape, _ in
+            let count = Int(shape.count)
+            for i in 0 ..< count {
+                result.append(Float(ptr[i]))
+            }
+        }
+        return result
+        #else
+        var result = [Float]()
+        result.reserveCapacity(Int(array.shape.count))
+        array.view(as: Float.self).withUnsafePointer { ptr, shape, _ in
+            let count = Int(shape.count)
+            for i in 0 ..< count {
+                result.append(ptr[i])
+            }
+        }
+        return result
+        #endif
     }
 
     /// Argmax over logitsArray → token ID.
