@@ -2083,6 +2083,26 @@ extension EnginePool {
 
                         for try await generation in iterResult.stream {
                             if Task.isCancelled || cancellation.isCancelled {
+                                // Inline emit .done(.cancelled) — same as std cancel path (L2379).
+                                // Outer .done (L2234) is blocked by localStoppedBySeq=true,
+                                // so we must emit here or the caller never gets a terminal event.
+                                let mtpCancelTokPerSec =
+                                    (actualTokenCount ?? 0) > 0
+                                    ? Double(actualTokenCount ?? 0)
+                                        / (Double(metrics.overallMs) / 1000.0)
+                                    : nil
+                                continuation.yield(
+                                    .init(
+                                        kind: .done(
+                                            StopReason.cancelled,
+                                            tokenCount: actualTokenCount
+                                                ?? metrics.generatedTokenCount,
+                                            tokPerSec: mtpCancelTokPerSec,
+                                            reasoningTokenCount: phase1ReasoningTokenCount > 0
+                                                ? phase1ReasoningTokenCount : nil,
+                                            proposedDraftTokens: mtpProposedDraftTokens,
+                                            acceptedDraftTokens: mtpAcceptedDraftTokens,
+                                            passthroughReason: mtpPassthroughReason)))
                                 localStoppedBySeq = true
                                 break
                             }
