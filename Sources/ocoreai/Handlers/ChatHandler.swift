@@ -536,6 +536,9 @@ private func nonStreamWithToolCalling(
             case .reasoning(let r):
                 // Reasoning text from ReasoningEventEmitter — accumulate for self-correction
                 accumulatedContent += r
+            case .guidedGenDiagnostic, .incompleteOutput, .channel:
+                // Diagnostic/channel events — informational, no content
+                break
             }
         }
     } catch {
@@ -590,6 +593,9 @@ private func nonStreamWithToolCalling(
                         case .reasoning(let r):
                             // Reasoning text accumulates into accText for self-correction
                             accText = (accText ?? "") + r
+                        case .guidedGenDiagnostic, .incompleteOutput, .channel:
+                            // Diagnostic/channel events — informational, no content
+                            break
                         }
                     }
                     if let pre = accText { return pre }
@@ -1027,6 +1033,11 @@ private func streamWithToolCalling(
                         choices: [rChoice],
                     )
                     _ = yieldSSE(rChunk, to: continuation)
+
+                /// .guidedGenDiagnostic / .incompleteOutput / .channel — diagnostic events.
+                /// Silently consumed; no SSE equivalent, no content to render.
+                case .guidedGenDiagnostic, .incompleteOutput, .channel:
+                    break
                 }
             }
         } catch {

@@ -382,6 +382,9 @@ private func nonStreamAnthropicResponse(
                 try Task.checkCancellation()
                 totalOutputTokens += 1
                 accumulatedText = (accumulatedText ?? "") + r
+            case .guidedGenDiagnostic, .incompleteOutput, .channel:
+                // Diagnostic/channel events — informational, no content in Anthropic API
+                break
             }
         }
     } catch {
@@ -599,6 +602,9 @@ private func streamAnthropicResponse(
                         break
                     case .reasoning:
                         // Reasoning text flows into Anthropic text delta as normal content
+                        break
+                    case .guidedGenDiagnostic, .incompleteOutput, .channel:
+                        // Diagnostic/channel events — informational, no content in Anthropic API
                         break
                     }
                 }

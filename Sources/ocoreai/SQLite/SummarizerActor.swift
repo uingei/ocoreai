@@ -138,6 +138,9 @@ actor SummarizerActor {
                 case .reasoning(let r):
                     // Reasoning text from ReasoningEventEmitter — include in summary
                     summary += r
+                case .guidedGenDiagnostic, .incompleteOutput, .channel:
+                    // Diagnostic/channel events — no content to summarize
+                    break
                 }
             }
         }

@@ -400,6 +400,9 @@ extension DirectInferenceClient {
                                     durationMs: nil
                                 ))
                         ))
+                case .guidedGenDiagnostic, .incompleteOutput, .channel:
+                    // Diagnostic/channel events — informational, not surfaced in this client
+                    break
                 }
             }
         }
@@ -593,6 +596,9 @@ extension DirectInferenceClient {
             case .reasoning(let r):
                 outputTok += 1
                 reasoningContent += r
+            case .guidedGenDiagnostic, .incompleteOutput, .channel:
+                // Diagnostic/channel events — informational, no content to accumulate
+                break
             }
         }
 

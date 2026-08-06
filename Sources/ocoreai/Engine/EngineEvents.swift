@@ -112,6 +112,25 @@ struct InferenceEvent {
         /// Carries the ocoreai ``ToolCall`` (from OpenAIModels) which is decoded from
         /// the upstream ``MLXLMCommon/ToolCall`` via `InferenceEvent.mlxToolCall(from:)`.
         case toolCall(ToolCall)
+
+        /// Structured diagnostic: guided generation metadata.
+        /// - grammarTerminated: true if the grammar constraint accepted the output
+        ///   (JSON was completed and validated by the grammar).
+        /// - incompleteOutput: true if maxTokens budget was exhausted before the model
+        ///   could complete its response upstream (GuidedGenerationError.incompleteOutput).
+        case guidedGenDiagnostic(grammarTerminated: Bool, incompleteOutput: Bool)
+
+        /// Structured diagnostic: incomplete output signal from FM / MLX path.
+        /// Upstream emitMetadata with "incompleteOutput": true — the model
+        /// was cut off mid-response (budget exceeded, reasoning interrupted, etc.).
+        case incompleteOutput(Bool)
+
+        /// Compute channel identification for UI display.
+        /// Identifies which inference pipeline produced this event:
+        /// - .gpu: MLX Metal path or FM Executor path (macOS/iOS 27+)
+        /// - .cpu: CPU fallback path
+        /// - .ane: CoreAI engine path (ANE offload)
+        case channel(ComputeChannel)
     }
 
     /// Event payload

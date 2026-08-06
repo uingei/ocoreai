@@ -681,6 +681,10 @@ extension EnginePool {
             return
         }
 
+        // Emit channel identification event — tells downstream (UI, diagnostics)
+        // which inference pipeline produced the response: FM/Metal GPU, CPU, or CoreAI ANE.
+        continuation.yield(.init(kind: .channel(computeChannel)))
+
         // P0 fix: CoreAI `_runInference` cannot tokenize multimodal content —
         // `contentToString()` in EnginePool.tokenize() silently drops images/videos/audio,
         // producing text-only output for VLM requests. When ANE is selected but multimodal
@@ -1095,6 +1099,14 @@ extension EnginePool {
                             // When grammar didn't terminate (maxTokens exhausted), reporting .eos
                             // misleads downstream (structured parsing, UI, metrics).
                             if !doneAlreadyYielded {
+                                // Emit structured guided gen diagnostic before .done —
+                                // carries grammarTerminated + incompleteOutput so downstream
+                                // (UI, structured parsers) can react to grammar lifecycle state.
+                                continuation.yield(
+                                    .init(
+                                        kind: .guidedGenDiagnostic(
+                                            grammarTerminated: diagnosticSink.grammarTerminated,
+                                            incompleteOutput: diagnosticSink.incompleteOutput)))
                                 let stopReason: StopReason =
                                     diagnosticSink.grammarTerminated
                                     ? .eos : .maxTokens

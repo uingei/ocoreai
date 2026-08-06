@@ -478,6 +478,9 @@ enum AgentLoop {
                     // Reasoning chunk from ReasoningEventEmitter — accumulate alongside text
                     accumulatedText += r
                     tokCount += 1
+                case .guidedGenDiagnostic, .incompleteOutput, .channel:
+                    // Diagnostic/channel events — informational, no content to accumulate
+                    break
                 }
             }
         } catch {
