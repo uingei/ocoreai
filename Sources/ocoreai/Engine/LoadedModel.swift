@@ -90,6 +90,12 @@ final class LoadedModel: @unchecked Sendable {
 
     // MARK: - Guided Generation Cache
 
+    /// Cached tokenizer biases for guided generation — mirrors upstream
+    /// ModelCache.tokenizerBiases. These are pure tokenizer functions:
+    /// ClosingTokenBias (~1ms to compute) and WhitespaceTokenBias.
+    /// Cached once per model, reused across guided gen requests.
+    private var _cachedTokenBias: TokenBiasCache?
+
     /// Cached GrammarTokenizer for guided generation — built once per model, reused
     /// across inference requests. Mirrors upstream MLXLanguageModel.swift L163-180
     /// ModelCache.xgTokenizers caching pattern.
@@ -151,6 +157,30 @@ final class LoadedModel: @unchecked Sendable {
             "GrammarTokenizer cached for model: \(modelConfig.name ?? "\(modelURL.lastPathComponent)")"
         )
         return xgTok
+    }
+
+    /// Get or build the cached tokenizer biases for guided generation.
+    /// Mirrors upstream ModelCache.makeTokenizerBias.
+    func getOrCreateTokenBias(tokenizer: any MLXLMCommon.Tokenizer) -> TokenBiasCache {
+        if let cached = _cachedTokenBias {
+            return cached
+        }
+        let closing = ClosingTokenBias.compute(
+            tokenizer: tokenizer,
+            eosTokenId: tokenizer.eosTokenId
+        )
+        let (whitespace, whitespaceTokenIDs) = WhitespaceTokenBias.compute(
+            tokenizer: tokenizer
+        )
+        let bias = TokenBiasCache(
+            closing: closing,
+            whitespace: whitespace,
+            whitespaceTokenIDs: whitespaceTokenIDs
+        )
+        _cachedTokenBias = bias
+        self.logger.info(
+            "Tokenizer biases cached for model: \(modelConfig.name ?? modelURL.lastPathComponent)")
+        return bias
     }
 
     // MARK: - Speculative Decoding (MLX only)

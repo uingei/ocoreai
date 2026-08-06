@@ -153,10 +153,21 @@ struct InferenceOptions: Codable {
     /// ("light", "moderate", "deep", or nil for default). ChatSession path uses
     /// enableReasoning only; this field exists for FM path granularity.
     var reasoningLevel: String? = nil
+    /// Tool calling mode — controls whether the model is allowed, required,
+    /// or disallowed from calling tools. Aligns with upstream
+    /// ToolCallingModeResolution (.allowed / .required / .disallowed).
+    /// - `.allowed`: Model may or may not call tools based on context.
+    /// - `.required`: Model must call at least one tool before responding.
+    ///   Enables think-then-call (reasoning phase followed by guided tool gen).
+    /// - `.disallowed`: Tool calling is disabled even if tools are available.
+    /// Default is `.auto` — ocoreai uses presence of tools to infer mode
+    /// (same as current behavior).
+    var toolCallingMode: String? = nil
 
     init(
         maxTokens: Int? = nil, includeLogits: Bool = false, useGuidedGeneration: Bool = false,
-        grammarSchema: String? = nil, enableReasoning: Bool = false, reasoningLevel: String? = nil
+        grammarSchema: String? = nil, enableReasoning: Bool = false, reasoningLevel: String? = nil,
+        toolCallingMode: String? = nil
     ) {
         self.maxTokens = maxTokens
         self.includeLogits = includeLogits
@@ -164,6 +175,7 @@ struct InferenceOptions: Codable {
         self.grammarSchema = grammarSchema
         self.enableReasoning = enableReasoning
         self.reasoningLevel = reasoningLevel
+        self.toolCallingMode = toolCallingMode
     }
 
     init() {}

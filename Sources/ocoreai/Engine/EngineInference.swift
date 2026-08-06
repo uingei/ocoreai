@@ -34,6 +34,17 @@ struct MTPDrafterModelWrapper: @unchecked Sendable {
     let model: any MLXLMCommon.MTPDrafterModel
 }
 
+// MARK: - Guided Generation Helper Types
+
+/// Cached tokenizer biases for guided generation — mirrors upstream
+/// `ModelCache.TokenizerBias`. Immutable once computed, safe to cache
+/// per-model in `LoadedModel._cachedTokenBias`.
+struct TokenBiasCache: @unchecked Sendable {
+    let closing: MLXArray
+    let whitespace: MLXArray
+    let whitespaceTokenIDs: Set<Int>
+}
+
 // MARK: - FoundationModels integration (macOS 27+)
 //
 // Imports MLXFoundationModels so we can access capability gates,
@@ -980,15 +991,14 @@ extension EnginePool {
                 let diagnosticSink = GuidedGenerationDiagnosticSink()
                 let diagnosticResult: GuidedGenerationDiagnosticResult
 
-                // Closing token bias + whitespace bias — computed per-inference.
-                // (Upstream caches these; we defer bias caching pending async-safe lock
-                // in non-actor MLX context. Bias compute is ~1ms so impact is minimal.)
-                let closingBias = ClosingTokenBias.compute(
-                    tokenizer: context.tokenizer,
-                    eosTokenId: context.tokenizer.eosTokenId
-                )
-                let (whitespaceBias, whitespaceTokenIDs) = WhitespaceTokenBias.compute(
+                // Closing token bias + whitespace bias — cached per-model (mirrors upstream
+                // ModelCache.tokenizerBiases). First call computes (~1ms), subsequent
+                // calls hit the LoadedModel cache.
+                let tokenBias = loaded.getOrCreateTokenBias(
                     tokenizer: context.tokenizer)
+                let closingBias = tokenBias.closing
+                let whitespaceBias = tokenBias.whitespace
+                let whitespaceTokenIDs = tokenBias.whitespaceTokenIDs
 
                 // Dynamic completion reserve — mirrors upstream CompletionReserve.estimate
                 // (MLXGuidedGeneration/CompletionReserve.swift:23). Hardcoded 64/0 caused
@@ -1274,8 +1284,23 @@ extension EnginePool {
                 // Using .allowed when no tools exist causes FM SDK to inject tool-calling
                 // template markers into the prompt — triggering spurious tool responses
                 // from models that don't actually know tools. Use .disallowed when empty.
-                let tcMode: FoundationModels.GenerationOptions.ToolCallingMode =
-                    (fmTools?.isEmpty == false) ? .allowed : .disallowed
+                // Upstream ToolCallingModeResolution supports .allowed / .required / .disallowed.
+                // .required enables think-then-call reasoning phase before tool dispatch.
+                let tcMode: FoundationModels.GenerationOptions.ToolCallingMode
+                if fmTools?.isEmpty == false {
+                    // Tools available — resolve mode from explicit option or default to .allowed
+                    switch options.toolCallingMode?.lowercased() {
+                    case "required":
+                        tcMode = .required
+                    case "disallowed":
+                        tcMode = .disallowed
+                    default:
+                        tcMode = .allowed
+                    }
+                } else {
+                    // No tools — force .disallowed regardless of user preference
+                    tcMode = .disallowed
+                }
                 let genOpts: GenerationOptions = GenerationOptions(
                     samplingMode: samplingMode,
                     temperature: sampling.temperature,
