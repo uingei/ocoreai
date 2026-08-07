@@ -109,9 +109,10 @@ jobs:
       #       exit 1
       #     }
 
-  ## ── Build via xcodebuild (field-compiles Metal) + test via swift test ──
-  # xcodebuild handles Metal shader compilation correctly on CI runners.
-  # swift test handles SPM test targets (xcodebuild scheme has no test action).
+  ## ── Build + test via xcodebuild (mlx-swift-lm pattern) ──
+  # xcodebuild handles Metal shader compilation natively (resolves metallib).
+  # mlx-swift-lm CI uses: xcodebuild build-for-testing → xcrun xctest.
+  # This avoids the swift test metallib path issue entirely.
   build-and-test:
     name: "Build & Test (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
@@ -142,45 +143,45 @@ jobs:
           restore-keys: |
             spm-deps-${{ matrix.os }}-
 
-      # ── Build via xcodebuild (field-compiles Metal kernels) ──
-      - name: Build (xcodebuild, Debug)
+      # ── Build main target + tests via xcodebuild ──
+      # build-for-testing compiles main target and test bundle together,
+      # handling Metal kernel compilation natively (includes metallib).
+      - name: Build for testing (xcodebuild)
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
-          xcodebuild build \
+          xcodebuild build-for-testing \
             -workspace ocoreai.xcworkspace \
             -scheme ocoreai \
             -configuration Debug \
             -destination 'platform=macOS,arch=arm64' \
             -skipPackagePluginValidation \
+            -skipMacroValidation \
             ONLY_ACTIVE_ARCH=YES
         env:
           OCOREAI_BUILD: ci
 
-      # ── Copy mlx.metallib to SPM build directory so swift test can find it ──
-      - name: Copy metallib for swift test
+      # ── Run tests via xcrun xctest (mlx-swift-lm pattern) ──
+      # xctest runs the test bundle directly from DerivedData — no metallib path issue.
+      - name: Run tests (xcrun xctest)
         if: ${{ matrix.run_tests == true }}
         run: |
           set -euo pipefail
-          # xcodebuild outputs metallib in DerivedData/Build/Products/Debug/
-          # swift test needs it at .build/arm64-apple-macosx/debug/
-          DD_METALLIB=$(find ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/Debug \
-            -name 'default.metallib' 2>/dev/null | head -1)
-          if [ -n "$DD_METALLIB" ]; then
-            SPM_METAL_DIR=".build/arm64-apple-macosx/debug"
-            mkdir -p "$SPM_METAL_DIR"
-            cp "$DD_METALLIB" "$SPM_METAL_DIR/default.metallib"
-            echo "✅ Copied metallib from $DD_METALLIB to $SPM_METAL_DIR"
-          else
-            echo "⚠️ metallib not found in DerivedData — test will run with Metal shaders built at test time"
+          # Find the test bundle in DerivedData
+          TEST_BUNDLE=$(find ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/Debug \
+            -name '*Tests.xctest' -type d 2>/dev/null | head -1)
+          if [ -z "$TEST_BUNDLE" ]; then
+            # Test target may be 'ocoreaiPackageTests' — check for that too
+            TEST_BUNDLE=$(find ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/Debug \
+              -name '*.xctest' -type d 2>/dev/null | head -1)
           fi
-
-      - name: Run tests (swift test)
-        if: ${{ matrix.run_tests == true }}
-        run: |
-          set -euo pipefail
-          export SWIFTC_SCAN_FOR_DEPS=0
-          swift test
+          if [ -n "$TEST_BUNDLE" ]; then
+            echo "Running tests from: $TEST_BUNDLE"
+            xcrun xctest "$TEST_BUNDLE"
+          else
+            echo "⚠️ No test bundle found in DerivedData — skipping xctest"
+            exit 1
+          fi
         env:
           OCOREAI_BUILD: ci
 
@@ -196,6 +197,7 @@ jobs:
             -configuration Release \
             -destination 'platform=macOS,arch=arm64' \
             -skipPackagePluginValidation \
+            -skipMacroValidation \
             ONLY_ACTIVE_ARCH=YES
         env:
           OCOREAI_BUILD: ci
