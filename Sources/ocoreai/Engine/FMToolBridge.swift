@@ -26,7 +26,7 @@ import FoundationModels
 ///
 /// NOTE: We use `FoundationModels.Tool` fully qualified everywhere to avoid
 /// collision with `MLXLMCommon.Tool` (struct, not protocol).
-@available(macOS 27.0, *)
+@available(macOS 27.0, iOS 27.0, *)
 struct FMToolProxy: FoundationModels.Tool {
     typealias Arguments = String
     typealias Output = String
@@ -124,7 +124,7 @@ struct FMToolProxy: FoundationModels.Tool {
 
 // MARK: - Transcript helpers
 
-@available(macOS 27.0, *)
+@available(macOS 27.0, iOS 27.0, *)
 enum FMTranscriptHelpers {
     // Transcript.Prompt takes [Transcript.Segment] — distinct from FoundationModels.Prompt (PromptRepresentable)
     typealias TMEntry = FoundationModels.Transcript.Entry

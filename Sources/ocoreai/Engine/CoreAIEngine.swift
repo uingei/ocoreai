@@ -180,7 +180,7 @@ protocol InferenceOutputSequence: AsyncSequence, AnyObject {
 // MARK: - StopReason Store
 
 /// Thread-safe stop reason box shared between iterator and caller.
-@available(macOS 27.0, *)
+@available(macOS 27.0, iOS 27.0, *)
 final class StopReasonStore: @unchecked Sendable {
     private let mutex = Mutex<InferenceStopReason?>(nil)
 
@@ -324,7 +324,7 @@ enum ModelStructure: Sendable {
 // MARK: - PreparedModel
 
 /// Wrapper around AIModel with resolved structure.
-@available(macOS 27.0, *)
+@available(macOS 27.0, iOS 27.0, *)
 struct PreparedModel: Sendable {
     let model: AIModel
     let structure: ModelStructure
@@ -364,7 +364,7 @@ struct PreparedModel: Sendable {
 
 /// Creates inference engines from model configurations.
 /// Auto-detects model structure → selects appropriate engine.
-@available(macOS 27.0, *)
+@available(macOS 27.0, iOS 27.0, *)
 struct EngineFactory: Sendable {
     private static let log = Logger(label: "ocoreai.coreai.enginefactory")
     /// Create an engine for a model, selecting variant from model structure.
@@ -548,7 +548,7 @@ struct EngineFactory: Sendable {
 // MARK: - GenerationToken
 
 /// Cancellation token for in-flight generation.
-@available(macOS 27.0, *)
+@available(macOS 27.0, iOS 27.0, *)
 final class GenerationToken: @unchecked Sendable {
     private let mutex = Mutex<Bool>(false)
     var isCancelled: Bool {
@@ -568,7 +568,7 @@ final class GenerationToken: @unchecked Sendable {
 /// - 2 inputs: input_ids (Int32), position_ids (Int32)
 /// - 1 output: logits (Float16 or Float)
 /// - 2 states: keyCache, valueCache
-@available(macOS 27.0, *)
+@available(macOS 27.0, iOS 27.0, *)
 final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
     typealias OutputSequence = CoreAISequence
     typealias ConfigType = InternalModelConfig
@@ -829,7 +829,7 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
 // MARK: - CoreAI Sequence (AsyncSequence)
 
 /// Async token stream returned by CoreAISequentialEngine.generate().
-@available(macOS 27.0, *)
+@available(macOS 27.0, iOS 27.0, *)
 final class CoreAISequence: InferenceOutputSequence, @unchecked Sendable {
     typealias Element = InferenceOutput
     typealias Failure = Error
@@ -906,7 +906,7 @@ final class CoreAISequence: InferenceOutputSequence, @unchecked Sendable {
 
 // MARK: - CoreAI Iterator
 
-@available(macOS 27.0, *)
+@available(macOS 27.0, iOS 27.0, *)
 final class CoreAIIterator: AsyncIteratorProtocol, @unchecked Sendable {
     typealias Element = InferenceOutput
     private struct State: @unchecked Sendable {
@@ -1037,7 +1037,7 @@ final class CoreAIIterator: AsyncIteratorProtocol, @unchecked Sendable {
 
 // MARK: - CoreAISequentialEngine: Forward pass helpers
 
-@available(macOS 27.0, *)
+@available(macOS 27.0, iOS 27.0, *)
 extension CoreAISequentialEngine {
     /// Run a single forward pass with one input token.
     /// Used for both prefill token-by-token and decode.

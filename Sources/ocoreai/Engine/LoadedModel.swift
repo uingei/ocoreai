@@ -63,12 +63,12 @@ final class LoadedModel: @unchecked Sendable {
     /// download-tracked, error-recorded). Held so capabilities, configurationResolver,
     /// and Executor.Configuration survive loadContainer().
     #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-    // Opaque bridge for MLXLanguageModel — the type is @available(macOS 27.0, *)
+    // Opaque bridge for MLXLanguageModel — the type is @available(macOS 27.0, iOS 27.0, *)
     // so we cannot declare it as a stored property directly in this class.
     // Cast to Any? here, cast back via loadMLXLanguageModel() at call time.
     var _mlxLanguageModelRef: Any?
 
-    @available(macOS 27.0, *)
+    @available(macOS 27.0, iOS 27.0, *)
     var mlxLanguageModel: MLXLanguageModel? {
         _mlxLanguageModelRef as? MLXLanguageModel
     }
@@ -391,7 +391,7 @@ final class LoadedModel: @unchecked Sendable {
     /// On macOS 27+ with FoundationModels, queries MLXLanguageModel.availability
     /// directly. On older SDKs, falls back to checking whether config.json exists
     /// on disk (same heuristic as upstream `modelExistsOnDisk()`).
-    @available(macOS 27.0, *)
+    @available(macOS 27.0, iOS 27.0, *)
     var availability: MLXLanguageModel.Availability {
         get async {
             #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
@@ -415,7 +415,7 @@ final class LoadedModel: @unchecked Sendable {
     /// Uses dedicated ``engineCacheGuard`` CAS to protect cache initialization.
     /// Decoupled from ``inferenceGuard`` so that concurrent inference requests
     /// are NOT rejected while the engine is still being created.
-    @available(macOS 27.0, *)
+    @available(macOS 27.0, iOS 27.0, *)
     func getCachedEngine() async throws -> any InferenceEngine {
         // Fast path: check cache without lock
         if let cached = cachedEngine {

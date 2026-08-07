@@ -80,7 +80,7 @@ actor EnginePool {
     // MARK: - Model Loading
 
     #if canImport(CoreAI)
-    // Type-erased storage — CoreAIModelLoader is @available(macOS 27.0, *)
+    // Type-erased storage — CoreAIModelLoader is @available(macOS 27.0, iOS 27.0, *)
     // so it leaks transitively into EnginePool (dep target 26).
     private var _coreAIPreparedModelLoader: Any?
     #endif
@@ -419,7 +419,7 @@ actor EnginePool {
         // configuration/capabilities/configurationResolver drive respond();
         // in the fallback path it stays nil.
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-        // Use Any? to bridge @available(macOS 27.0, *) MLXLanguageModel —
+        // Use Any? to bridge @available(macOS 27.0, iOS 27.0, *) MLXLanguageModel —
         // the struct is @available-gated so it cannot be declared outside
         // if #available() when deploying to macOS 15.
         var mlxLM: Any? = nil
