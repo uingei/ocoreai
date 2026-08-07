@@ -7,6 +7,7 @@ DerivedData/
 .idea/
 *.xcodeproj
 *.xcworkspace
+!ocoreai.xcworkspace/
 
 ## macOS
 .DS_Store

@@ -142,19 +142,13 @@ jobs:
           restore-keys: |
             spm-deps-${{ matrix.os }}-
 
-      # Generate .swiftpm/xcode/package.xcworkspace (not in git, needed by xcodebuild)
-      - name: Generate SPM workspace for xcodebuild
-        run: |
-          set -euo pipefail
-          swift package resolve
-
       # ── Build via xcodebuild (field-compiles Metal kernels) ──
       - name: Build (xcodebuild, Debug)
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
           xcodebuild build \
-            -workspace .swiftpm/xcode/package.xcworkspace \
+            -workspace ocoreai.xcworkspace \
             -scheme ocoreai \
             -configuration Debug \
             -destination 'platform=macOS,arch=arm64' \
@@ -197,7 +191,7 @@ jobs:
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
           xcodebuild build \
-            -workspace .swiftpm/xcode/package.xcworkspace \
+            -workspace ocoreai.xcworkspace \
             -scheme ocoreai \
             -configuration Release \
             -destination 'platform=macOS,arch=arm64' \
