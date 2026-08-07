@@ -146,7 +146,6 @@ jobs:
       - name: Generate SPM workspace for xcodebuild
         run: |
           set -euo pipefail
-          export SWIFTC_SCAN_FOR_DEPS=0
           swift package resolve
 
       # ── Build via xcodebuild (field-compiles Metal kernels) ──
