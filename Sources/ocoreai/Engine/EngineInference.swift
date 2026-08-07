@@ -630,7 +630,7 @@ extension EnginePool {
         // Note: per-request device switching (GPU→CPU) is not possible — device
         // is bound at ModelContainer load time. True CPU inference requires
         // architectural change (separate ModelContainer with CPU device).
-        let computeChannel: ComputeChannel
+        var computeChannel: ComputeChannel
         if let router = hardwareRouter, let tracker = memoryTracker {
             computeChannel = router.query(
                 gpuActiveBytes: await tracker.gpuActiveMemoryBytes(),
@@ -1219,12 +1219,17 @@ extension EnginePool {
             var registeredToolSpecs: [ToolSpec]?
 
             // Bridge ToolRegistry → ChatSession tools + toolDispatch
+            // Upstream ToolCallingModeResolution.resolve("disallowed") →
+            // enabledToolDefinitions = [] → !isEmpty check fails → skip tool path.
+            // We must honor the same contract: when user explicitly sets "disallowed",
+            // treat the tool table as empty regardless of what ToolRegistry provides.
             if let registry = toolRegistry {
                 let specs = await registry.toToolSpecs()
-                if !specs.isEmpty {
+                if !specs.isEmpty,
+                    options.toolCallingMode?.lowercased() != "disallowed"
+                {
                     registeredToolSpecs = specs
                 }
-
             }
 
             // MARK: - macOS 27: LanguageModelSession bridge
@@ -1905,15 +1910,19 @@ extension EnginePool {
                         mtpThinkingEnabled = options.enableReasoning
                         mtpToolAwareContext = nil
                     }
-                    // Upstream L1271-1272: ".required enables think-then-call reasoning phase
-                    // before tool dispatch" — Phase 1 is only for .required mode.
-                    // In .allowed mode, the model freely decides whether to reason.
-                    let isRequiredToolMode = options.toolCallingMode?.lowercased() == "required"
+                    /// Upstream L1149-1157: thinkThenCallConfig is computed for ALL tool paths
+                    /// (.allowed AND .required) — no .required mode gate. Phase 1 thinking happens
+                    /// whenever the model declares reasoning, has a templateFlag prompt strategy,
+                    /// and thinking is not explicitly disabled. In .allowed mode the model freely
+                    /// decides whether to reason during Phase 2 tool iterations.
+                    // FIX B: Phase 1 thinking enabled for .allowed mode too (upstream alignment)
+                    // Phase 1: think-then-call reasoning phase. Upstream does not require
+                    // .required mode for this — it's gated on thinkThenCallConfig availability,
+                    // which depends on mtpReasoningConfig + templateFlag + mtpThinkingEnabled.
                     var phase1ThinkingText: String?
-                    var phase1ReasoningTokenCount: Int = 0  // Track reasoning tokens for .done
-                    var phase2ReasoningTokenCount: Int = 0  // FIX B: Phase 2 reasoning tokens in tool loop
-                    if isRequiredToolMode,
-                        let rc = mtpReasoningConfig,
+                    var phase1ReasoningTokenCount: Int = 0  // Phase 1 reasoning token count
+                    var phase2ReasoningTokenCount: Int = 0  // Phase 2 (tool loop) reasoning tokens
+                    if let rc = mtpReasoningConfig,
                         mtpToolDispatch != nil,
                         case .templateFlag = rc.promptStrategy,
                         mtpThinkingEnabled
@@ -2055,8 +2064,14 @@ extension EnginePool {
                                         StopReason.cancelled,
                                         tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
                                         tokPerSec: cancelTokPerSec,
-                                        reasoningTokenCount: phase1ReasoningTokenCount > 0
-                                            ? phase1ReasoningTokenCount : nil,
+                                        reasoningTokenCount: min(
+                                            phase1ReasoningTokenCount + phase2ReasoningTokenCount,
+                                            actualTokenCount ?? metrics.generatedTokenCount) > 0
+                                            ? min(
+                                                phase1ReasoningTokenCount
+                                                    + phase2ReasoningTokenCount,
+                                                actualTokenCount ?? metrics.generatedTokenCount)
+                                            : nil,
                                         proposedDraftTokens: mtpProposedDraftTokens,
                                         acceptedDraftTokens: mtpAcceptedDraftTokens,
                                         passthroughReason: mtpPassthroughReason)))
@@ -2159,8 +2174,17 @@ extension EnginePool {
                                             tokenCount: actualTokenCount
                                                 ?? metrics.generatedTokenCount,
                                             tokPerSec: mtpCancelTokPerSec,
-                                            reasoningTokenCount: phase1ReasoningTokenCount > 0
-                                                ? phase1ReasoningTokenCount : nil,
+                                            reasoningTokenCount: min(
+                                                phase1ReasoningTokenCount
+                                                    + phase2ReasoningTokenCount,
+                                                actualTokenCount
+                                                    ?? metrics.generatedTokenCount) > 0
+                                                ? min(
+                                                    phase1ReasoningTokenCount
+                                                        + phase2ReasoningTokenCount,
+                                                    actualTokenCount
+                                                        ?? metrics.generatedTokenCount)
+                                                : nil,
                                             proposedDraftTokens: mtpProposedDraftTokens,
                                             acceptedDraftTokens: mtpAcceptedDraftTokens,
                                             passthroughReason: mtpPassthroughReason)))
@@ -2242,6 +2266,13 @@ extension EnginePool {
                                 localPassthroughReason = completionInfo.passthroughReason
                                 // P1-fix: Capture speculativeDecodingTelemetry (upstream Evaluate.swift:L2138)
                                 _ = completionInfo.speculativeDecodingTelemetry?.roundCount ?? 0
+                                // D2-fix: Phase 2 reasoning token tracking.
+                                // When inside a reasoning span at end of iteration, attribute
+                                // the iteration's tokens to the reasoning count (upstream pattern:
+                                // AllowedToolOutputRouter counts per-token while isInsideReasoning).
+                                if reasoningEmitter?.isInsideReasoning == true {
+                                    phase2ReasoningTokenCount += completionInfo.generationTokenCount
+                                }
                             case .toolCall(let mlxTC):
                                 // Collect tool calls for dispatch after iteration
                                 iterationToolCalls.append(mlxTC)
@@ -2273,8 +2304,17 @@ extension EnginePool {
                                             tokenCount: actualTokenCount
                                                 ?? metrics.generatedTokenCount,
                                             tokPerSec: errTokPerSec,
-                                            reasoningTokenCount: phase1ReasoningTokenCount > 0
-                                                ? phase1ReasoningTokenCount : nil,
+                                            reasoningTokenCount: min(
+                                                phase1ReasoningTokenCount
+                                                    + phase2ReasoningTokenCount,
+                                                actualTokenCount
+                                                    ?? metrics.generatedTokenCount) > 0
+                                                ? min(
+                                                    phase1ReasoningTokenCount
+                                                        + phase2ReasoningTokenCount,
+                                                    actualTokenCount
+                                                        ?? metrics.generatedTokenCount)
+                                                : nil,
                                             proposedDraftTokens: mtpProposedDraftTokens,
                                             acceptedDraftTokens: mtpAcceptedDraftTokens,
                                             passthroughReason: mtpPassthroughReason)))
@@ -2348,8 +2388,15 @@ extension EnginePool {
                                     tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
                                     tokPerSec: generationTokPerSec,
                                     promptTokPerSec: promptTokPerSec,
-                                    reasoningTokenCount: phase1ReasoningTokenCount > 0
-                                        ? phase1ReasoningTokenCount : nil,
+                                    reasoningTokenCount: min(
+                                        phase1ReasoningTokenCount
+                                            + phase2ReasoningTokenCount,
+                                        actualTokenCount ?? metrics.generatedTokenCount) > 0
+                                        ? min(
+                                            phase1ReasoningTokenCount
+                                                + phase2ReasoningTokenCount,
+                                            actualTokenCount ?? metrics.generatedTokenCount)
+                                        : nil,
                                     proposedDraftTokens: mtpProposedDraftTokens,
                                     acceptedDraftTokens: mtpAcceptedDraftTokens,
                                     passthroughReason: mtpPassthroughReason)))
@@ -2368,6 +2415,9 @@ extension EnginePool {
                     let genTokPerSec: Double?
                     let promptTokPerSec: Double?
                     let tokenIds: [Int]
+                    // Whether generation terminated mid-thought (budget exhausted, cut-off, etc.)
+                    // Upstream: runAllowedToolGeneration.result.endedInsideReasoning
+                    let endedInsideReasoning: Bool
                     // MTP speculative decoding metrics (always nil on non-MTP models)
                     let proposedDraftTokens: Int?
                     let acceptedDraftTokens: Int?
@@ -2492,7 +2542,11 @@ extension EnginePool {
                                                 tokenCount: localStdTokenCount
                                                     ?? metrics.generatedTokenCount,
                                                 tokPerSec: localStdGenTokPerSec,
-                                                promptTokPerSec: localStdPromptTokPerSec)))
+                                                promptTokPerSec: localStdPromptTokPerSec,
+                                                reasoningTokenCount: min(
+                                                    localStdReasoningTokenCount,
+                                                    localStdTokenCount
+                                                        ?? metrics.generatedTokenCount))))
                                     break
                                 }
                                 switch generation {
@@ -2560,6 +2614,10 @@ extension EnginePool {
                             }
 
                             // Flush any remaining buffered text from collector
+                            // Upstream: record whether generation ended mid-thought so we can
+                            // emit incompleteOutput metadata. Capture isInsideReasoning before
+                            // finalize() mutates the collector state.
+                            let endedInsideReasoning = collector.isInsideReasoning
                             let finalSegments = collector.finalize()
                             for segment in finalSegments {
                                 switch segment {
@@ -2577,10 +2635,13 @@ extension EnginePool {
                                 stoppedBySequence: localStdStoppedBySeq,
                                 stopReason: localStdStopReason,
                                 tokenCount: localStdTokenCount,
-                                reasoningTokenCount: localStdReasoningTokenCount,
+                                reasoningTokenCount: min(
+                                    localStdReasoningTokenCount,
+                                    localStdTokenCount ?? metrics.generatedTokenCount),
                                 genTokPerSec: localStdGenTokPerSec,
                                 promptTokPerSec: localStdPromptTokPerSec,
                                 tokenIds: localStdTokenIds,
+                                endedInsideReasoning: endedInsideReasoning,
                                 proposedDraftTokens: localStdProposedDraftTokens,
                                 acceptedDraftTokens: localStdAcceptedDraftTokens,
                                 passthroughReason: localStdPassthroughReason
@@ -2610,8 +2671,20 @@ extension EnginePool {
                     promptTokPerSec = stdResult.promptTokPerSec
                     metrics.generatedTokenCount += stdResult.tokenIds.count
 
-                    // Emit .done unless stop sequence already emitted it
+                    /// Upstream: emit diagnostic metadata about generation state before
+                    /// any tool calls, then emit tracked tool calls, then finalize.
                     if !stdResult.stoppedBySequence, !Task.isCancelled {
+                        // Upstream: if generation ended inside a reasoning block
+                        // (budget exhausted before closing </think>), emit incompleteOutput
+                        // metadata so downstream knows the thought was truncated.
+                        // Mirrors runReasoning's result.endedInsideReasoning check.
+                        if stdResult.endedInsideReasoning {
+                            continuation.yield(
+                                .init(
+                                    kind: .guidedGenDiagnostic(
+                                        grammarTerminated: false,
+                                        incompleteOutput: true)))
+                        }
                         continuation.yield(
                             .init(
                                 kind: .done(
@@ -2619,7 +2692,9 @@ extension EnginePool {
                                     tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
                                     tokPerSec: generationTokPerSec,
                                     promptTokPerSec: promptTokPerSec,
-                                    reasoningTokenCount: stdResult.reasoningTokenCount
+                                    reasoningTokenCount: min(
+                                        stdResult.reasoningTokenCount,
+                                        actualTokenCount ?? metrics.generatedTokenCount)
                                 )
                             )
                         )
@@ -2661,7 +2736,8 @@ extension EnginePool {
                                 .init(
                                     kind: .done(
                                         StopReason.cancelled, tokenCount: actualTokenCount ?? 0,
-                                        tokPerSec: cancelTokPerSec)))
+                                        tokPerSec: cancelTokPerSec,
+                                        reasoningTokenCount: 0)))
                             break
                         }
                         switch generation {
@@ -2728,6 +2804,7 @@ extension EnginePool {
                                     tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
                                     tokPerSec: generationTokPerSec,
                                     promptTokPerSec: promptTokPerSec,
+                                    reasoningTokenCount: 0,
                                     proposedDraftTokens: localStdProposedDraftTokens,
                                     acceptedDraftTokens: localStdAcceptedDraftTokens,
                                     passthroughReason: localStdPassthroughReason)))
