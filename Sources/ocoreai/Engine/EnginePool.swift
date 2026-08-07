@@ -424,7 +424,7 @@ actor EnginePool {
         // if #available() when deploying to macOS 15.
         var mlxLM: Any? = nil
 
-        if #available(macOS 27.0, *) {
+        if #available(macOS 27.0, iOS 27.0, *) {
             // Primary hub provider — MLXModelLoader defaults to "modelscope", hf: prefix means HF
             let hubProviderStr: String = isHF ? "huggingface" : "modelscope"
 
@@ -827,7 +827,7 @@ actor EnginePool {
 
         // upstream: MLXLanguageModel.evictAll() L498 — clear global ModelCache
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-        if #available(macOS 27.0, *) {
+        if #available(macOS 27.0, iOS 27.0, *) {
             await MLXLanguageModel.evictAll()
         }
         #endif

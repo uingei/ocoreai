@@ -268,7 +268,7 @@ final class LoadedModel: @unchecked Sendable {
         let startTime = ContinuousClock.now
 
         #if canImport(CoreAI)
-        if #available(macOS 27.0, *) {
+        if #available(macOS 27.0, iOS 27.0, *) {
             do {
                 // Call upstream Executor.prewarm(model:transcript:) — compiles Metal
                 // shaders + pre-builds GrammarTokenizer.
@@ -476,7 +476,7 @@ final class LoadedModel: @unchecked Sendable {
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
         // upstream: MLXLanguageModel.evict() L509 — remove from shared ModelCache
         // evict() is async — fire-and-forget in cleanup (same as warmUp via prewarm)
-        if #available(macOS 27.0, *) {
+        if #available(macOS 27.0, iOS 27.0, *) {
             if let lm = _mlxLanguageModelRef as? MLXLanguageModel {
                 // Detach evict to background — ModelCache removes weights, then
                 // the strong reference drops. Best-effort, non-blocking.
