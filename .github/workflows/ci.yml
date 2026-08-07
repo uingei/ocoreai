@@ -109,11 +109,9 @@ jobs:
       #       exit 1
       #     }
 
-  ## ── Build + test via swift build (native SPM path) ──
-  # NOTE: xcodebuild does NOT work for SPM main package builds — MLX's
-  # MLXHuggingFaceMacros macro triggers "ComputeTargetDependencyGraph" crash
-  # due to macro security gating. swift build is the only path that works
-  # on GitHub-hosted runners for SPM packages with macros.
+  ## ── Build via xcodebuild (field-compiles Metal) + test via swift test ──
+  # xcodebuild handles Metal shader compilation correctly on CI runners.
+  # swift test handles SPM test targets (xcodebuild scheme has no test action).
   build-and-test:
     name: "Build & Test (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
@@ -144,15 +142,38 @@ jobs:
           restore-keys: |
             spm-deps-${{ matrix.os }}-
 
-      # ── Debug build + test via swift build ──
-      - name: Build debug (swift build)
-        if: ${{ matrix.run_tests == true }}
+      # ── Build via xcodebuild (field-compiles Metal kernels) ──
+      - name: Build (xcodebuild, Debug)
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
-          swift build -c debug
+          xcodebuild build \
+            -workspace ocoreai.xcworkspace \
+            -scheme ocoreai \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            -skipPackagePluginValidation \
+            ONLY_ACTIVE_ARCH=YES
         env:
           OCOREAI_BUILD: ci
+
+      # ── Copy mlx.metallib to SPM build directory so swift test can find it ──
+      - name: Copy metallib for swift test
+        if: ${{ matrix.run_tests == true }}
+        run: |
+          set -euo pipefail
+          # xcodebuild outputs metallib in DerivedData/Build/Products/Debug/
+          # swift test needs it at .build/arm64-apple-macosx/debug/
+          DD_METALLIB=$(find ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/Debug \
+            -name 'default.metallib' 2>/dev/null | head -1)
+          if [ -n "$DD_METALLIB" ]; then
+            SPM_METAL_DIR=".build/arm64-apple-macosx/debug"
+            mkdir -p "$SPM_METAL_DIR"
+            cp "$DD_METALLIB" "$SPM_METAL_DIR/default.metallib"
+            echo "✅ Copied metallib from $DD_METALLIB to $SPM_METAL_DIR"
+          else
+            echo "⚠️ metallib not found in DerivedData — test will run with Metal shaders built at test time"
+          fi
 
       - name: Run tests (swift test)
         if: ${{ matrix.run_tests == true }}
@@ -163,13 +184,19 @@ jobs:
         env:
           OCOREAI_BUILD: ci
 
-      # ── Release build via swift build ──
-      - name: Build release (swift build)
+      # ── Release build via xcodebuild ──
+      - name: Build (xcodebuild, Release)
         if: ${{ matrix.build_release == true }}
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
-          swift build -c release
+          xcodebuild build \
+            -workspace ocoreai.xcworkspace \
+            -scheme ocoreai \
+            -configuration Release \
+            -destination 'platform=macOS,arch=arm64' \
+            -skipPackagePluginValidation \
+            ONLY_ACTIVE_ARCH=YES
         env:
           OCOREAI_BUILD: ci
 
@@ -177,14 +204,16 @@ jobs:
         if: ${{ matrix.build_release == true && always() }}
         run: |
           set -euo pipefail
-          mkdir -p .artifacts/release
-          # swift build outputs to .build/debug or .build/release depending on config
-          # but the final binary lands in .build/arm64-apple-macosx/release/ or similar
-          PRODUCT_DIR=$(find .build -name 'ocoreai' -type f -path '*/release/*' | head -1 | xargs dirname)
-          if [ -n "$PRODUCT_DIR" ]; then
-            cp "$PRODUCT_DIR/ocoreai" .artifacts/release/ 2>/dev/null || true
-            [ -d "$PRODUCT_DIR/mlx-swift_Cmlx.bundle" ] && cp -R "$PRODUCT_DIR/mlx-swift_Cmlx.bundle" .artifacts/release/ 2>/dev/null || true
+          DD=~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products
+          PRODUCT_DIR=$(find "$DD" -path '*/Release*' -type d 2>/dev/null | head -1)
+          if [ -z "$PRODUCT_DIR" ]; then
+            echo "🔍 Scanning DerivedData for release products..."
+            PRODUCT_DIR=$(find "$DD" -name 'ocoreai' -type f 2>/dev/null | head -1 | xargs dirname)
           fi
+          echo "PRODUCT_DIR=$PRODUCT_DIR"
+          mkdir -p .artifacts/release
+          [ -f "$PRODUCT_DIR/ocoreai" ] && cp "$PRODUCT_DIR/ocoreai" .artifacts/release/
+          [ -d "$PRODUCT_DIR/mlx-swift_Cmlx.bundle" ] && cp -R "$PRODUCT_DIR/mlx-swift_Cmlx.bundle" .artifacts/release/
           ls -la .artifacts/release/
         continue-on-error: true
 
