@@ -109,11 +109,9 @@ jobs:
       #       exit 1
       #     }
 
-  ## ── Build + test ────────────────────────────────────────────────
-  # NOTE: swift build is the native SPM path. MLX metallib comes from
-  # Python MLX package (pip install mlx), not from Xcode.
-  # mlx-swift-lm uses xcodebuild on self-hosted runners — not replicable
-  # on GitHub official runners where xcworkspace/scheme does not persist.
+  ## ── Build + test via xcodebuild (field-compiles Metal kernels) ──
+  # Aligns with mlx-swift-lm upstream: xcodebuild on macOS runners resolves
+  # the Metal shader compilation chain natively (no metallib workaround).
   build-and-test:
     name: "Build & Test (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
@@ -124,34 +122,15 @@ jobs:
       matrix:
         include:
           - os: macos-26
+            config: Debug
             run_tests: true
+            build_release: true
           - os: xcode-27
-            run_tests: false
-            # MLX metal shader steel_attention.metal fails on Metal Toolchain 27
-            # (upstream mlx-swift issue — all build configs compile MLX)
-            continue_on_error: true
-    continue-on-error: ${{ matrix.continue_on_error == true }}
+            config: Debug
+            run_tests: true
+            build_release: true
     steps:
       - uses: actions/checkout@v4
-
-      # ── Metallib — best-effort, never blocks CI ──
-      # swift build compiles MLX C++ without Metal shaders. At runtime MLX
-      # looks for mlx.metallib for GPU support; if missing MLX falls back to
-      # CPU. Tests do not require GPU, so metallib is optional.
-      - name: Copy mlx.metallib (best effort)
-        if: ${{ matrix.os == 'macos-26' }}
-        run: |
-          mkdir -p .build/arm64-apple-macosx/debug
-          # Try Homebrew paths (macOS-26 may not have MLX pre-installed)
-          for path in /opt/homebrew/lib/python3.*/site-packages/mlx/lib/mlx.metallib; do
-            if [ -f "$path" ]; then
-              cp "$path" .build/arm64-apple-macosx/debug/mlx.metallib
-              echo "✅ Metallib from Homebrew"
-              exit 0
-            fi
-          done
-          echo "⚠️ No system metallib — MLX will use CPU mode (tests OK without GPU)"
-        continue-on-error: true
 
       # SPM dependency cache — repos only, not build output (avoid stale artifacts)
       - name: Cache SPM dependencies
@@ -164,82 +143,74 @@ jobs:
           restore-keys: |
             spm-deps-${{ matrix.os }}-
 
-      # ── Build + test via swift build ──
-      - name: Build debug (swift build)
-        if: ${{ matrix.run_tests == true }}
+      # ── Debug build + test via xcodebuild ──
+      - name: Build & test (xcodebuild, Debug)
         run: |
           set -euo pipefail
-          export SWIFTC_SCAN_FOR_DEPS=0
-          swift build -c debug
+          xcodebuild build test \
+            -workspace ocoreai.xcworkspace \
+            -scheme ocoreai \
+            -configuration ${{ matrix.config }} \
+            -destination 'platform=macOS' \
+            -skipPackagePluginValidation \
+            ONLY_ACTIVE_ARCH=NO
         env:
           OCOREAI_BUILD: ci
 
-      - name: Run tests (swift test)
-        if: ${{ matrix.run_tests == true }}
+      # ── Release build via xcodebuild ──
+      - name: Build (xcodebuild, Release)
+        if: ${{ matrix.build_release == true }}
         run: |
           set -euo pipefail
-          export SWIFTC_SCAN_FOR_DEPS=0
-          echo "🧪 Running tests via swift test..."
-          swift test
-          echo "✅ All tests passed"
+          xcodebuild build \
+            -workspace ocoreai.xcworkspace \
+            -scheme ocoreai \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -skipPackagePluginValidation \
+            ONLY_ACTIVE_ARCH=NO
         env:
           OCOREAI_BUILD: ci
 
-      - name: Upload test results
-        if: ${{ matrix.run_tests == true && always() }}
+      - name: Collect artifacts (Release)
+        if: ${{ matrix.build_release == true && always() }}
+        run: |
+          set -euo pipefail
+          DD=DerivedData
+          # Find the built product in xcodebuild DerivedData
+          for d in "$DD/Build/Products/Release" "$DD/Build/Products/Release-*"; do
+            [ -d "$d" ] && PRODUCT_DIR="$d" && break
+          done
+          if [ -z "${PRODUCT_DIR:-}" ]; then
+            echo "🔍 Scanning DerivedData for release products..."
+            find "$DD/Build/Products" -name 'ocoreai' -type f | head -5
+            PRODUCT_DIR=$(find "$DD/Build/Products" -path '*/Release*' -type d | head -1)
+          fi
+          echo "PRODUCT_DIR=$PRODUCT_DIR"
+          mkdir -p .artifacts/release
+          [ -f "$PRODUCT_DIR/ocoreai" ] && cp "$PRODUCT_DIR/ocoreai" .artifacts/release/
+          [ -d "$PRODUCT_DIR/mlx-swift_Cmlx.bundle" ] && cp -R "$PRODUCT_DIR/mlx-swift_Cmlx.bundle" .artifacts/release/
+          ls -la .artifacts/release/
+
+      - name: Upload build artifacts
+        if: ${{ matrix.build_release == true && always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ matrix.os }}
+          name: ocoreai-binary-${{ matrix.os }}
+          path: .artifacts/release/
+          retention-days: 7
+
+      - name: Upload test diagnostics
+        if: ${{ matrix.run_tests == true && failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-diagnostics-${{ matrix.os }}
           path: |
             ~/Library/Logs/DiagnosticReports/*
           retention-days: 7
 
-      # Build release — copy metallib from debug build to release output
-      - name: Build release (MLX default)
-        if: ${{ matrix.os == 'macos-26' }}
-        run: |
-          set -euo pipefail
-          export SWIFTC_SCAN_FOR_DEPS=0
-          swift build -c release
-          METALLIB=.build/arm64-apple-macosx/debug/mlx.metallib
-          if [ -f "$METALLIB" ]; then
-            cp "$METALLIB" .build/arm64-apple-macosx/release/mlx.metallib
-            echo "✅ Metallib copied to release"
-          fi
-        env:
-          OCOREAI_BUILD: ci
-
-      - name: Build release (appStore trait)
-        if: ${{ matrix.os == 'macos-26' }}
-        run: |
-          set -euo pipefail
-          export SWIFTC_SCAN_FOR_DEPS=0
-          swift build -c release --traits appStore
-        env:
-          OCOREAI_BUILD: ci
-
-      # xcode-27: MLX is broken (steel_attention.metal compile failure), so build
-      # appStore trait which doesn't compile MLX metal shaders as a sanity check.
-      - name: Build release (appStore trait)
-        if: ${{ matrix.os == 'xcode-27' }}
-        run: |
-          set -euo pipefail
-          export SWIFTC_SCAN_FOR_DEPS=0
-          swift build -c release --traits appStore
-        env:
-          OCOREAI_BUILD: ci
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        if: ${{ matrix.os == 'macos-26' && always() }}
-        with:
-          name: ocoreai-binary
-          path: |
-            .build/out/Products/Release/ocoreai
-            .build/out/Products/Release/mlx-swift_Cmlx.bundle
-          retention-days: 7
-
   ## ── Release (tagged pushes only) ────────────────────────────────
+  # Uses artifacts from both macos-26 and xcode-27 runners.
   release:
     name: Release
     runs-on: macos-26
@@ -251,10 +222,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download build artifacts
+      - name: Download build artifacts (macOS 26)
         uses: actions/download-artifact@v4
         with:
-          name: ocoreai-binary
+          name: ocoreai-binary-macos-26
           path: .build/out/Products/Release/
 
       - name: Extract version from tag
@@ -264,21 +235,6 @@ jobs:
           VERSION="${TAG#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Tag: $TAG -> Version: $VERSION"
-
-      - name: Install Python MLX for release metallib
-        run: pip3 install --break-system-packages --quiet mlx 2>/dev/null || (python3 -m venv /tmp/venv && source /tmp/venv/bin/activate && pip install --quiet mlx && deactivate)
-
-      - name: Copy metallib for release bundle
-        run: |
-          set -euo pipefail
-          METALLIB=$(python3 -c "import mlx; import os; print(os.path.dirname(mlx.__file__))" 2>/dev/null)/lib/mlx.metallib
-          mkdir -p .build/out/Products/Release/
-          if [ -f "$METALLIB" ]; then
-            cp "$METALLIB" .build/out/Products/Release/mlx.metallib
-            echo "✅ Metallib bundled for release"
-          else
-            echo "⚠️ No metallib — release uses CPU fallback"
-          fi
 
       - name: Verify release prerequisites
         run: |
@@ -303,9 +259,9 @@ jobs:
           mkdir -p "$APP_DIR/Resources"
 
           cp .build/out/Products/Release/ocoreai "$APP_DIR/MacOS/"
-          cp .build/out/Products/Release/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib \
-              "$APP_DIR/MacOS/mlx.metallib" \
-              2>/dev/null || echo "⚠️ No metallib"
+          cp -R .build/out/Products/Release/mlx-swift_Cmlx.bundle \
+              "$APP_DIR/MacOS/" \
+              2>/dev/null || echo "⚠️ No MLX bundle"
           cp PrivacyInfo.xcprivacy "$APP_DIR/Resources/"
 
           python3 -c "
@@ -333,9 +289,9 @@ jobs:
           tree = ET.ElementTree(root)
           plist = '$APP_DIR/Info.plist'
           with open(plist, 'wb') as f:
-              f.write(b'<?xml version=\\\"1.0\\\" encoding=\\\"UTF-8\\\"?>\\n')
-              f.write(b'<!DOCTYPE plist PUBLIC \\\"-//Apple//DTD PLIST 1.0//EN\\\" '
-                      b'\\\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\\\">\\n')
+              f.write(b'<?xml version="1.0" encoding="UTF-8"?>\\n')
+              f.write(b'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" '
+                      b'"http://www.apple.com/DTDs/PropertyList-1.0.dtd">\\n')
               tree.write(f, encoding='UTF-8', xml_declaration=False)
           "
 
