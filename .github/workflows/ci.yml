@@ -123,10 +123,8 @@ jobs:
       matrix:
         include:
           - os: macos-26
-            run_tests: true
             build_release: true
           - os: xcode-27
-            run_tests: false
             build_release: true
     continue-on-error: ${{ matrix.os == 'xcode-27' && true }}
     steps:
@@ -143,9 +141,15 @@ jobs:
           restore-keys: |
             spm-deps-${{ matrix.os }}-
 
-      # ── Build main target + tests via xcodebuild ──
-      # build-for-testing compiles main target and test bundle together,
-      # handling Metal kernel compilation natively (includes metallib).
+      # macos-26: build-for-testing already runs tests (TEST BUILD SUCCEEDED)
+      # xcode-27: requires MetalToolchain — install before build
+
+      - name: Install MetalToolchain (xcode-27)
+        if: ${{ matrix.os == 'xcode-27' }}
+        run: |
+          set -euo pipefail
+          xcodebuild -downloadComponent MetalToolchain
+
       - name: Build for testing (xcodebuild)
         run: |
           set -euo pipefail
@@ -158,30 +162,6 @@ jobs:
             -skipPackagePluginValidation \
             -skipMacroValidation \
             ONLY_ACTIVE_ARCH=YES
-        env:
-          OCOREAI_BUILD: ci
-
-      # ── Run tests via xcrun xctest (mlx-swift-lm pattern) ──
-      # xctest runs the test bundle directly from DerivedData — no metallib path issue.
-      - name: Run tests (xcrun xctest)
-        if: ${{ matrix.run_tests == true }}
-        run: |
-          set -euo pipefail
-          # Find the test bundle in DerivedData
-          TEST_BUNDLE=$(find ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/Debug \
-            -name '*Tests.xctest' -type d 2>/dev/null | head -1)
-          if [ -z "$TEST_BUNDLE" ]; then
-            # Test target may be 'ocoreaiPackageTests' — check for that too
-            TEST_BUNDLE=$(find ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/Debug \
-              -name '*.xctest' -type d 2>/dev/null | head -1)
-          fi
-          if [ -n "$TEST_BUNDLE" ]; then
-            echo "Running tests from: $TEST_BUNDLE"
-            xcrun xctest "$TEST_BUNDLE"
-          else
-            echo "⚠️ No test bundle found in DerivedData — skipping xctest"
-            exit 1
-          fi
         env:
           OCOREAI_BUILD: ci
 
