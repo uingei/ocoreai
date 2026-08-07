@@ -389,16 +389,15 @@ final class LoadedModel: @unchecked Sendable {
 
     /// Model availability status — mirrors upstream MLXLanguageModel.availability.
     /// On macOS 27+ with FoundationModels, queries MLXLanguageModel.availability
-    /// directly. On older SDKs, falls back to checking whether config.json exists
-    /// on disk (same heuristic as upstream `modelExistsOnDisk()`).
+    /// directly. On older SDKs, `mlxLanguageModel` is nil and callers should
+    /// fall back to disk checks (e.g. modelExistsOnDisk()).
+    #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
     @available(macOS 27.0, iOS 27.0, *)
     var availability: MLXLanguageModel.Availability {
         get async {
-            #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
             if let lm = mlxLanguageModel {
                 return await lm.availability
             }
-            #endif
             // Fallback: check disk presence
             let configPath = modelURL.appendingPathComponent("config.json")
             if FileManager.default.fileExists(atPath: configPath.path) {
@@ -407,6 +406,7 @@ final class LoadedModel: @unchecked Sendable {
             return .unavailable(.modelNotDownloaded)
         }
     }
+    #endif
 
     #if canImport(CoreAI)
     /// Get cached inference engine — create on first call, reuse thereafter.
