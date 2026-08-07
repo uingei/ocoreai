@@ -40,7 +40,7 @@ let package = Package(
         // MTP speculation sliding cache wrap fix (#506),
         // Qwen3-VL-MoE (#322), GatedDelta precision fix (#488), Linux guided gen fix (#483),
         // ChatConventionsProviding (#482), LFM2 tool-call fix + Gemma3n mask + GuidedGen structured continuation.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "38927f5"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "c97539d"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
