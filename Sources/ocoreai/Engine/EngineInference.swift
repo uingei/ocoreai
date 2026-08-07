@@ -1602,7 +1602,23 @@ extension EnginePool {
             if mayRunReasoning,
                 let rc = await handleRef.modelContainer.configuration.reasoningConfig
             {
-                let thinkingEnabled = options.enableReasoning ? true : nil
+                // Mirror upstream thinkingEnabled(for:) reasoning level resolution:
+                //   reasoningLevel set → parse to Bool?
+                //   reasoningLevel nil → pass nil (promptStrategy fallback to defaultOn)
+                // Upstream L1329-1349 (FM path) does the same for chat session.
+                let thinkingEnabled: Bool? = {
+                    if let level = options.reasoningLevel?.lowercased() {
+                        switch level {
+                        case "light", "moderate", "deep":
+                            return true
+                        default:
+                            // .custom("no_think") or unknown → interpret via enableReasoning flag
+                            return options.enableReasoning ? true : false
+                        }
+                    }
+                    // User didn't specify reasoning level — let promptStrategy use defaultOn
+                    return nil
+                }()
                 do {
                     reasoningContext = try rc.promptStrategy.additionalContext(
                         forThinkingEnabled: thinkingEnabled
@@ -1910,9 +1926,8 @@ extension EnginePool {
                             let phase1Result:
                                 (thinkingText: String, closed: Bool, tokenCount: Int) =
                                     try await handleRef.modelContainer.perform { context in
-                                        let thinkingEnabled = options.enableReasoning ? true : nil
                                         let reasoningCtx = try? rc.promptStrategy.additionalContext(
-                                            forThinkingEnabled: thinkingEnabled
+                                            forThinkingEnabled: mtpThinkingEnabled ? true : nil
                                         )
                                         let rebuiltPhase1Messages = phase1Pairs.map { pair in
                                             Chat.Message(
