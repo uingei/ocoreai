@@ -122,11 +122,9 @@ jobs:
       matrix:
         include:
           - os: macos-26
-            config: Debug
             run_tests: true
             build_release: true
           - os: xcode-27
-            config: Debug
             run_tests: true
             build_release: true
     steps:
@@ -143,17 +141,26 @@ jobs:
           restore-keys: |
             spm-deps-${{ matrix.os }}-
 
-      # ── Debug build + test via xcodebuild ──
-      - name: Build & test (xcodebuild, Debug)
+      # ── Debug build via xcodebuild (field-compiles Metal kernels) ──
+      - name: Build (xcodebuild, Debug)
         run: |
           set -euo pipefail
-          xcodebuild build test \
+          export SWIFTC_SCAN_FOR_DEPS=0
+          xcodebuild build \
             -workspace ocoreai.xcworkspace \
             -scheme ocoreai \
-            -configuration ${{ matrix.config }} \
-            -destination 'platform=macOS' \
-            -skipPackagePluginValidation \
-            ONLY_ACTIVE_ARCH=NO
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            -skipPackagePluginValidation
+        env:
+          OCOREAI_BUILD: ci
+
+      # ── Run tests via swift test (SPM-native test runner) ──
+      - name: Run tests (swift test)
+        run: |
+          set -euo pipefail
+          export SWIFTC_SCAN_FOR_DEPS=0
+          swift test
         env:
           OCOREAI_BUILD: ci
 
@@ -162,13 +169,13 @@ jobs:
         if: ${{ matrix.build_release == true }}
         run: |
           set -euo pipefail
+          export SWIFTC_SCAN_FOR_DEPS=0
           xcodebuild build \
             -workspace ocoreai.xcworkspace \
             -scheme ocoreai \
             -configuration Release \
-            -destination 'platform=macOS' \
-            -skipPackagePluginValidation \
-            ONLY_ACTIVE_ARCH=NO
+            -destination 'platform=macOS,arch=arm64' \
+            -skipPackagePluginValidation
         env:
           OCOREAI_BUILD: ci
 
