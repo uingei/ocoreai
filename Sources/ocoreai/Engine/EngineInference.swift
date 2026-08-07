@@ -656,6 +656,7 @@ extension EnginePool {
                 logger.warning(
                     "HardwareRouter → ANE for \(modelId) but CoreAI unavailable, falling back to GPU (gpu: \(gpuGB)/\(budgetGB) GB)"
                 )
+                computeChannel = .gpu
                 #endif
             }
         } else {
@@ -1858,11 +1859,35 @@ extension EnginePool {
                     // Without this, .templateFlag models in tool path would generate
                     // without thinking context — degenerate decode on first tokens.
                     // Upstream L1153-1154: think-then-call gated on thinkingEnabled != false.
-                    // Upstream L1184-1188: enabled = declaresReasoning ? thinkingEnabled(...) : false
-                    let mtpThinkingEnabled = options.enableReasoning != false
-                    var mtpToolAwareContext: [String: any Sendable]? = nil
-                    if case .templateFlag(let key, _)? = mtpReasoningConfig?.promptStrategy {
-                        mtpToolAwareContext = [key: mtpThinkingEnabled]
+                    // Upstream L1184-1188: enabled = declaresReasoning ? thinkingEnabled(for:level) ?? defaultOn : false
+                    // MTP path: all models declare .reasoning (L444), so declaresReasoning ≡ true.
+                    // Compute thinkingEnabled by honoring reasoningLevel (like FM path L1329-1349)
+                    // and falling back to defaultOn when user provides no explicit signal.
+                    let mtpThinkingEnabled: Bool
+                    let mtpToolAwareContext: [String: any Sendable]?
+                    if let rc = mtpReasoningConfig,
+                        case .templateFlag(let key, let defaultOn) = rc.promptStrategy
+                    {
+                        // Resolve reasoning level → Bool? (same as FM path L1329-1349)
+                        let resolved: Bool? = { () -> Bool? in
+                            if let level = options.reasoningLevel?.lowercased() {
+                                switch level {
+                                case "light", "moderate", "deep":
+                                    return true
+                                default:
+                                    // .custom("no_think") or unknown → interpret via enableReasoning fallback
+                                    return options.enableReasoning ? true : false
+                                }
+                            }
+                            return nil  // User didn't specify — fall through to defaultOn
+                        }()
+                        let enabled = resolved ?? defaultOn
+                        mtpThinkingEnabled = enabled
+                        mtpToolAwareContext = [key: enabled]
+                    } else {
+                        // Non-templateFlag model (alwaysOn or none) — same as upstream L1191-1193
+                        mtpThinkingEnabled = options.enableReasoning
+                        mtpToolAwareContext = nil
                     }
                     // Upstream L1271-1272: ".required enables think-then-call reasoning phase
                     // before tool dispatch" — Phase 1 is only for .required mode.
