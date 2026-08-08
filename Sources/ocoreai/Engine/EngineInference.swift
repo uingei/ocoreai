@@ -132,6 +132,7 @@ extension EnginePool {
                     await self._runInference(
                         modelId: modelId,
                         input: input,
+                        messages: nil,
                         sampling: sampling,
                         options: options,
                         metrics: metrics,
@@ -208,6 +209,7 @@ extension EnginePool {
     private func _runInference(
         modelId: String,
         input: [Int32],
+        messages: [Message]?,
         sampling: SamplingConfiguration,
         options: InferenceOptions,
         metrics: PerRequestMetrics,
@@ -248,6 +250,26 @@ extension EnginePool {
             if options.grammarSchema != nil || options.useGuidedGeneration {
                 logger.info(
                     "Falling back to MLX for grammar/tool-constrained request on model \(modelId)")
+                // P0-fix: prefer original messages over detokenize to preserve full conversation history.
+                // The detokenize→single-Message path drops all prior turns and loses reasoning control tokens.
+                if let msgs = messages, !msgs.isEmpty {
+                    logger.info(
+                        "CoreAI→MLX fallback: using original messages (\(msgs.count) turns)")
+                    await _runInferenceWithMessages(
+                        modelId: modelId,
+                        messages: msgs,
+                        sampling: sampling,
+                        options: options,
+                        metrics: metrics,
+                        continuation: continuation,
+                        conversationId: nil,
+                        cancellation: cancellation,
+                        skipLock: true
+                    )
+                    return
+                }
+
+                // Fallback when caller had no messages (direct token entry path)
                 let promptText: String
                 do {
                     promptText = try await detokenize(modelId: modelId, tokens: input)
@@ -259,7 +281,6 @@ extension EnginePool {
                     continuation.finish()
                     return
                 }
-
                 // Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip.
                 // Qwen3: 151645=<thinking_open>, 151646=<thinking_close>
                 let reasoningControlTokens = Set([151645, 151646])
@@ -498,7 +519,9 @@ extension EnginePool {
                                 tokPerSec: metrics.generatedTokenCount > 0
                                     ? Double(metrics.generatedTokenCount)
                                         / (Double(metrics.overallMs) / 1000.0)
-                                    : nil)))
+                                    : nil,
+                                promptTokPerSec: nil,
+                                reasoningTokenCount: 0)))
                 }
 
                 // CoreAI 34f0db3: no per-turn reset. KV cache persists across turns;
@@ -821,6 +844,7 @@ extension EnginePool {
                 await _runInference(
                     modelId: modelId,
                     input: tokens,
+                    messages: messages,
                     sampling: sampling,
                     options: options,
                     metrics: metrics,
@@ -1150,7 +1174,9 @@ extension EnginePool {
                                         kind: .done(
                                             StopReason.cancelled,
                                             tokenCount: guidedTokenCount,
-                                            tokPerSec: tokPerSec)))
+                                            tokPerSec: tokPerSec,
+                                            promptTokPerSec: nil,
+                                            reasoningTokenCount: 0)))
                                 return false
                             }
                             // Record TTFT on first text chunk
@@ -1179,8 +1205,11 @@ extension EnginePool {
                                 continuation.yield(
                                     .init(
                                         kind: .done(
-                                            StopReason.stopSequence, tokenCount: guidedTokenCount,
-                                            tokPerSec: tokPerSec)))
+                                            StopReason.stopSequence,
+                                            tokenCount: guidedTokenCount,
+                                            tokPerSec: tokPerSec,
+                                            promptTokPerSec: nil,
+                                            reasoningTokenCount: 0)))
                                 return false
                             }
                             continuation.yield(.init(kind: .text(text)))
@@ -1228,7 +1257,11 @@ extension EnginePool {
                                 continuation.yield(
                                     .init(
                                         kind: .done(
-                                            stopReason, tokenCount: tc, tokPerSec: tokPerSec)))
+                                            stopReason,
+                                            tokenCount: tc,
+                                            tokPerSec: tokPerSec,
+                                            promptTokPerSec: nil,
+                                            reasoningTokenCount: 0)))
                             }
                         }
                     }
@@ -1259,7 +1292,9 @@ extension EnginePool {
                                 kind: .done(
                                     .error,
                                     tokenCount: diagnosticSink.generatedTokenCount,
-                                    tokPerSec: tokPerSec)))
+                                    tokPerSec: tokPerSec,
+                                    promptTokPerSec: nil,
+                                    reasoningTokenCount: 0)))
                     }
                     throw error
                 }
@@ -1272,12 +1307,16 @@ extension EnginePool {
         // Returns (shouldBreak: Bool, updatedAccumulated: String).
         // `segment` = current chunk to yield on normal path.
         // `accumulated` = running text checked for stop-sequence suffix.
+        // Extra .done fields (promptTokPerSec, reasoningTokenCount, draft metrics) propagated
+        // with nil defaults so callers that don't track them still compile.
         @Sendable func checkStopSequence(
             segment: String,
             accumulated: String,
             eventKind: @escaping @Sendable (String) -> InferenceEvent.Kind,
             tokenCount: Int?,
-            tokenFallback: Int
+            tokenFallback: Int,
+            promptTokPerSec: Double? = nil,
+            reasoningTokenCount: Int? = nil
         ) -> (Bool, String) {
             if requestStopSequences.isEmpty {
                 continuation.yield(.init(kind: eventKind(segment)))
@@ -1296,7 +1335,9 @@ extension EnginePool {
                         kind: .done(
                             StopReason.stopSequence,
                             tokenCount: tc,
-                            tokPerSec: tokPerSec)))
+                            tokPerSec: tokPerSec,
+                            promptTokPerSec: promptTokPerSec,
+                            reasoningTokenCount: reasoningTokenCount)))
                 return (true, accumulated)
             }
             continuation.yield(.init(kind: eventKind(segment)))
@@ -2164,6 +2205,7 @@ extension EnginePool {
                                         StopReason.cancelled,
                                         tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
                                         tokPerSec: cancelTokPerSec,
+                                        promptTokPerSec: localPromptTokPerSec,
                                         reasoningTokenCount: min(
                                             phase1ReasoningTokenCount + phase2ReasoningTokenCount,
                                             actualTokenCount ?? metrics.generatedTokenCount) > 0
@@ -2274,6 +2316,7 @@ extension EnginePool {
                                             tokenCount: actualTokenCount
                                                 ?? metrics.generatedTokenCount,
                                             tokPerSec: mtpCancelTokPerSec,
+                                            promptTokPerSec: localPromptTokPerSec,
                                             reasoningTokenCount: min(
                                                 phase1ReasoningTokenCount
                                                     + phase2ReasoningTokenCount,
@@ -2310,7 +2353,10 @@ extension EnginePool {
                                                 accumulated: localAccumulatedText,
                                                 eventKind: { .reasoning($0) },
                                                 tokenCount: localTokenCount,
-                                                tokenFallback: metrics.generatedTokenCount
+                                                tokenFallback: metrics.generatedTokenCount,
+                                                promptTokPerSec: localPromptTokPerSec,
+                                                reasoningTokenCount: phase1ReasoningTokenCount
+                                                    + phase2ReasoningTokenCount
                                             )
                                             if shouldBreak2 {
                                                 localAccumulatedText = newText2
@@ -2324,7 +2370,10 @@ extension EnginePool {
                                                 accumulated: localAccumulatedText,
                                                 eventKind: { .text($0) },
                                                 tokenCount: localTokenCount,
-                                                tokenFallback: metrics.generatedTokenCount
+                                                tokenFallback: metrics.generatedTokenCount,
+                                                promptTokPerSec: localPromptTokPerSec,
+                                                reasoningTokenCount: phase1ReasoningTokenCount
+                                                    + phase2ReasoningTokenCount
                                             )
                                             if shouldBreak {
                                                 localAccumulatedText = newText
@@ -2341,7 +2390,10 @@ extension EnginePool {
                                         accumulated: localAccumulatedText,
                                         eventKind: { .text($0) },
                                         tokenCount: localTokenCount,
-                                        tokenFallback: metrics.generatedTokenCount
+                                        tokenFallback: metrics.generatedTokenCount,
+                                        promptTokPerSec: localPromptTokPerSec,
+                                        reasoningTokenCount: phase1ReasoningTokenCount
+                                            + phase2ReasoningTokenCount
                                     )
                                     if shouldBreak3 {
                                         localAccumulatedText = newText3
@@ -2404,6 +2456,7 @@ extension EnginePool {
                                             tokenCount: actualTokenCount
                                                 ?? metrics.generatedTokenCount,
                                             tokPerSec: errTokPerSec,
+                                            promptTokPerSec: localPromptTokPerSec,
                                             reasoningTokenCount: min(
                                                 phase1ReasoningTokenCount
                                                     + phase2ReasoningTokenCount,
@@ -2662,7 +2715,9 @@ extension EnginePool {
                                                 accumulated: localStdAccumulated,
                                                 eventKind: { .reasoning($0) },
                                                 tokenCount: localStdTokenCount,
-                                                tokenFallback: localStdTokenIds.count
+                                                tokenFallback: localStdTokenIds.count,
+                                                promptTokPerSec: localStdPromptTokPerSec,
+                                                reasoningTokenCount: localStdReasoningTokenCount
                                             )
                                             if shouldBreak {
                                                 localStdAccumulated = newText
@@ -2676,7 +2731,9 @@ extension EnginePool {
                                                 accumulated: localStdAccumulated,
                                                 eventKind: { .text($0) },
                                                 tokenCount: localStdTokenCount,
-                                                tokenFallback: localStdTokenIds.count
+                                                tokenFallback: localStdTokenIds.count,
+                                                promptTokPerSec: localStdPromptTokPerSec,
+                                                reasoningTokenCount: localStdReasoningTokenCount
                                             )
                                             if shouldBreak2 {
                                                 localStdAccumulated = newText2
@@ -2824,8 +2881,10 @@ extension EnginePool {
                             continuation.yield(
                                 .init(
                                     kind: .done(
-                                        StopReason.cancelled, tokenCount: actualTokenCount ?? 0,
+                                        StopReason.cancelled,
+                                        tokenCount: actualTokenCount ?? 0,
                                         tokPerSec: cancelTokPerSec,
+                                        promptTokPerSec: promptTokPerSec,
                                         reasoningTokenCount: 0)))
                             break
                         }
@@ -2841,7 +2900,8 @@ extension EnginePool {
                                 accumulated: localStdAccumulated,
                                 eventKind: { .text($0) },
                                 tokenCount: actualTokenCount,
-                                tokenFallback: metrics.generatedTokenCount
+                                tokenFallback: metrics.generatedTokenCount,
+                                promptTokPerSec: promptTokPerSec
                             )
                             if shouldBreakS3 {
                                 localStdAccumulated = newText3
