@@ -2543,20 +2543,9 @@ extension EnginePool {
                     // When tools or grammar schema are present, the constrained/tool path handles
                     // thinking internally — entering std reasoning here would double-inject
                     // thinking kwargs and bypass the tool-aware prompt rendering.
-                    if isPoolHit, let sessionToRelease = chatSession {
-                        log.debug(
-                            "Pool hit but std reasoning can't reuse ChatSession cache — returning slot"
-                        )
-                        await poolRefForRelease?.release(
-                            pooled: PooledChatSession(
-                                session: sessionToRelease,
-                                lastAccessedAt: ContinuousClock.now,
-                            ),
-                            modelId: modelId,
-                            conversationId: convKey,
-                        )
-                        chatSession = nil  // prevent defer from re-releasing
-                    }
+                    // P2-fix: removed early pool release — reasoning needs token-level segmentation
+                    // that ChatSession doesn't provide, but the pooled session should be returned
+                    // normally downstream so subsequent std requests can reuse the KV cache.
                     log.info("Routing through reasoning path — upstream generateTokens() alignment")
 
                     let stdResult: StandardReasoningResult
