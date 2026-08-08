@@ -309,9 +309,13 @@ extension EnginePool {
                 //   → .text / .reasoning / .toolCall events
                 // We replicate that segmentation here so CoreAI path no longer
                 // bypasses reasoning segmentation and tool-call detection.
+                // Upstream: ThinkTagParser defaults to ``; open/close
+                // markers resolved at model init from tokenizer token ids
+                // (CoreAILanguageModel.swift L384-388). Use upstream defaults
+                // unless model-specific detection is available.
                 var thinkParser = ThinkTagParser(
-                    open: "<thinking>",
-                    close: "</thinking>"
+                    open: "</think>",
+                    close: "<think>"
                 )
                 var toolParser = ToolCallParser()
                 var accumulatedTokens: [Int32] = []
