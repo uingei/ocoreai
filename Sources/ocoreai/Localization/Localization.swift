@@ -100,6 +100,7 @@ public enum StringKey: String, CaseIterable {
     case attachFiles = "Attach.Files"
     case attachFilesHint = "Attach.FilesHint"
     case imageAttachment = "Attach.ImageAttachment"
+    case videoPlaceholder = "Attach.VideoPlaceholder"
     case send = "Chat.Send"
     case stop = "Chat.Stop"
     case tokPerSec = "Chat.TokPerSec"
@@ -532,6 +533,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .attachFiles: "Attach Files",
         .attachFilesHint: "Choose an image to attach",
         .imageAttachment: "Image attachment",
+        .videoPlaceholder: "Video",
         .send: "Send",
         .stop: "Stop",
         .newConversation: "New Conversation",
@@ -935,6 +937,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .attachFiles: "附加文件",
         .attachFilesHint: "选择要附加的图片",
         .imageAttachment: "图片附件",
+        .videoPlaceholder: "视频",
         .send: "发送",
         .stop: "停止",
         .newConversation: "新对话",

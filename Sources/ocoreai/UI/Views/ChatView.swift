@@ -99,6 +99,9 @@ struct ChatView: View {
     // Image attachments for multimodal input
     @State private var attachments: [ChatState.AttachedImage] = []
 
+    // P2-fix: streaming reasoning block collapse state — default expanded to preserve visibility
+    @State private var showStreamingReasoning = true
+
     init() {
         _chatState = State(initialValue: ChatState.shared)
     }
@@ -312,27 +315,46 @@ struct ChatView: View {
                         if !chatState.responseTextDisplay.isEmpty {
                             VStack(spacing: 4) {
                                 ChatHeader(isUser: false, timestamp: Date())
-                                // P0: Progressive reasoning block — renders closed thinking blocks
-                                // during streaming so users see reasoning in real-time instead of
-                                // only after the message completes.
+                                // P2-fix: collapsible streaming reasoning block —
+                                // users can toggle visibility via header button.
                                 if !chatState.currentReasoningText.isEmpty {
                                     VStack(alignment: .leading, spacing: 6) {
-                                        HStack(spacing: 6) {
-                                            Image(systemName: "brain")
-                                                .font(.ocoreaiText(10))
+                                        Button {
+                                            withAnimationRespectingAccessibility {
+                                                showStreamingReasoning.toggle()
+                                            }
+                                        } label: {
+                                            HStack(spacing: 6) {
+                                                Image(systemName: "brain")
+                                                    .font(.ocoreaiText(10))
+                                                    .foregroundStyle(theme.textTertiary)
+                                                Text(StringKey.systemReasoningSection.l)
+                                                    .font(.ocoreaiText(11, weight: .medium))
+                                                    .foregroundStyle(theme.textTertiary)
+                                                Spacer()
+                                                Image(
+                                                    systemName: showStreamingReasoning
+                                                        ? "chevron.down" : "chevron.right"
+                                                )
+                                                .font(.ocoreaiText(9))
                                                 .foregroundStyle(theme.textTertiary)
-                                            Text(StringKey.systemReasoningSection.l)
-                                                .font(.ocoreaiText(11, weight: .medium))
-                                                .foregroundStyle(theme.textTertiary)
-                                        }
-                                        Text(chatState.currentReasoningText)
-                                            .font(.ocoreaiText(13))
-                                            .foregroundStyle(theme.textSecondary)
-                                            .lineSpacing(2)
+                                            }
                                             .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
-                                            .background(
-                                                theme.cardBg, in: RoundedRectangle(cornerRadius: 8))
+                                            .padding(.vertical, 4)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityHidden(true)  // Hidden from accessibility tree; reasoning appears inline
+                                        if showStreamingReasoning {
+                                            Text(chatState.currentReasoningText)
+                                                .font(.ocoreaiText(13))
+                                                .foregroundStyle(theme.textSecondary)
+                                                .lineSpacing(2)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 8)
+                                                .background(
+                                                    theme.cardBg,
+                                                    in: RoundedRectangle(cornerRadius: 8))
+                                        }
                                     }
                                     .padding(.horizontal, 4)
                                     .background(

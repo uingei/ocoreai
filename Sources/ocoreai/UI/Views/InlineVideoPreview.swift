@@ -24,16 +24,13 @@ struct InlineVideoPreview: View {
         Group {
             if url != nil, let player {
                 VideoPlayer(player: player)
-                    .task {
-                        // Load remote content for HTTP/HTTPS URLs
-                    }
             } else {
                 // Fallback placeholder — video not available
                 VStack(spacing: 8) {
                     Image(systemName: "film")
                         .font(.system(size: 24))
                         .foregroundStyle(.secondary)
-                    Text("Video")
+                    Text(StringKey.videoPlaceholder.l)
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
