@@ -1093,16 +1093,26 @@ extension CoreAISequentialEngine {
     }
 
     /// Run the inference function.
+    ///
+    /// Zero-copy state binding: uses _overrideLifetime on the persistent
+    /// KV cache arrays so mutableRawView() never triggers COW. Only the
+    /// logits output array is round-tripped (read results).
+    ///
+    /// Upstream alignment: matches GrowingNDArrayState.bind(into:) pattern
+    /// (coreai-models 1677713) — eliminates O(seq_len × vocab) per-step
+    /// copy overhead that dominates long-context inference.
     private func runInference() async throws {
-        // Local copies to avoid lifetime dependencies across async boundary
-        var kCache = self.keyCache
-        var vCache = self.valueCache
-        var lArray = self.logitsArray
-
+        // Zero-copy state binding — _overrideLifetime lets us express that
+        // the engine (self) outlives the MutableViews borrow, so the
+        // mutableRawView references stay valid across the async boundary.
         var states = InferenceFunction.MutableViews()
-        states.insert(&kCache, for: keyCacheName)
-        states.insert(&vCache, for: valueCacheName)
+        let kView = _overrideLifetime(keyCache.mutableRawView(), borrowing: Void())
+        states.insert(kView, for: keyCacheName)
+        let vView = _overrideLifetime(valueCache.mutableRawView(), borrowing: Void())
+        states.insert(vView, for: valueCacheName)
 
+        // Logits output still needs a local (read results after run).
+        var lArray = self.logitsArray
         var outputViews = InferenceFunction.MutableViews()
         outputViews.insert(&lArray, for: logitsName)
 
@@ -1112,9 +1122,8 @@ extension CoreAISequentialEngine {
             outputViews: consume outputViews
         )
 
-        self.keyCache = kCache
-        self.valueCache = vCache
         self.logitsArray = lArray
+        // KV cache is updated in-place — no round-trip needed.
     }
 
     /// Dynamic KV cache growth: double capacity when needed.
