@@ -69,24 +69,26 @@ final class ModelManager {
     /// Returns recommended models — ordered from lightest to heaviest.
     static var recommendedModels: [RecommendedQuickModel] {
         [
+            // Qwen 系列 → ModelScope 为主
             RecommendedQuickModel(
-                id: "Qwen/Qwen3-4B-Instruct",
-                description: "Qwen3, fast reasoning, ~3 GB",
+                id: "mlx-community/Qwen3.5-0.8B-4bit",
+                description: "Qwen3.5 0.8B 4-bit, 轻量快速, ~1 GB",
                 hub: .modelScope
             ),
             RecommendedQuickModel(
-                id: "Qwen/Qwen3-Coder-3B-Instruct",
-                description: "Qwen3 Coder, code generation, ~2 GB",
+                id: "mlx-community/Qwen3.6-27B-4bit",
+                description: "Qwen3.6 27B 4-bit, 强推理, ~15 GB",
                 hub: .modelScope
             ),
+            // Gemma 系列 → HuggingFace 为主
             RecommendedQuickModel(
-                id: "Qwen/Qwen3-8B-Instruct",
-                description: "Qwen3 balanced, ~6 GB",
-                hub: .modelScope
+                id: "mlx-community/gemma-4-e2b-it-4bit",
+                description: "Gemma 4 E2B 4-bit, 轻量为指令 tuned, ~1.5 GB",
+                hub: .huggingFace
             ),
             RecommendedQuickModel(
-                id: "mlx-community/Qwen3-4B-Instruct-4bit",
-                description: "Qwen3 MLX quantized, fast, ~2.5 GB",
+                id: "mlx-community/gemma-4-26b-a4b-it-4bit",
+                description: "Gemma 4 26B 4-bit, 强混合注意力, ~14 GB",
                 hub: .huggingFace
             ),
         ]
