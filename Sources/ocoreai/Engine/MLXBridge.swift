@@ -236,8 +236,7 @@ actor MLXModelLoader {
 
     /// Start polling HF cache directory to estimate download progress.
     /// Returns a cancellable Task — cancel it when download completes.
-    /// Omlx pattern: watch directory byte count + newest file mtime,
-    /// estimate progress from observed growth vs expected size.
+    /// Reports real disk bytes via `updateBytes` so UI shows honest progress.
     ///
     /// **mtime stall detection**: In addition to byte-count, track the
     /// modification date of the newest file. If byte count is flat AND
@@ -251,11 +250,24 @@ actor MLXModelLoader {
     ) -> Task<Void, Never> {
         Task.detached {
             let pollInterval: TimeInterval = 2
+            // Seed initial state so the first update fires immediately
             var lastBytes: Int64 = directoryByteCount(cacheDir)
-            var expectedBytes: Int64 = max(lastBytes, 1) * 2  // crude lower-bound
+            var peakBytes: Int64 = lastBytes
+            var expectedBytes: Int64 = max(lastBytes, 1)
             var idleCount = 0  // consecutive polls with no growth
             var lastMtime: Date? = newestModificationDate(in: cacheDir)
             let mtimeStallTimeout: TimeInterval = 90  // 90s mtime stagnation = stall
+
+            // Report seed bytes immediately so UI can show from the start
+            if lastBytes > 0 {
+                await MainActor.run {
+                    OcoreaiDownloadProgress.shared.updateBytes(
+                        completed: lastBytes,
+                        total: max(expectedBytes, lastBytes + 1),
+                        for: modelId
+                    )
+                }
+            }
 
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(pollInterval))
@@ -263,13 +275,16 @@ actor MLXModelLoader {
                 let currentBytes = directoryByteCount(cacheDir)
 
                 if currentBytes > lastBytes {
-                    // Directory growing — update estimate and progress
-                    expectedBytes = max(expectedBytes, currentBytes * 2)
-                    let fraction = Double(currentBytes) / Double(max(expectedBytes, 1))
-                    let progress = Progress(totalUnitCount: 100)
-                    progress.completedUnitCount = Int64(min(max(1, fraction * 99), 99))
+                    // Directory growing — update expected based on observed growth curve
+                    peakBytes = max(peakBytes, currentBytes)
+                    // Refine expected size from growth rate; cap at 4x current to avoid wild overestimates
+                    expectedBytes = min(max(expectedBytes, peakBytes * 2), currentBytes * 4)
                     await MainActor.run {
-                        OcoreaiDownloadProgress.shared.update(progress, for: modelId)
+                        OcoreaiDownloadProgress.shared.updateBytes(
+                            completed: currentBytes,
+                            total: max(expectedBytes, currentBytes + 1),
+                            for: modelId
+                        )
                     }
                     lastBytes = currentBytes
                     idleCount = 0
@@ -287,7 +302,7 @@ actor MLXModelLoader {
                             "HF download stalled — mtime unchanged for ~\(Int(mtimeStallTimeout))s")
                         break
                     }
-                    // Legacy byte-count timeout — catches empty cache edge case
+                    // Byte-count timeout — catches empty cache edge case
                     if idleCount > 15 {
                         logger.warning("HF download polling stopped — no growth for ~30s")
                         break

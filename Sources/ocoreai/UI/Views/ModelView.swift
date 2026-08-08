@@ -153,13 +153,30 @@ private struct HFResultsList: View {
 
     var body: some View {
         LazyVStack(spacing: 8) {
-            ForEach(Array(modelManager.hfResults.prefix(20).enumerated()), id: \.offset) {
+            ForEach(Array(modelManager.hfResults.prefix(30).enumerated()), id: \.offset) {
                 _, model in
+                let subParts: [String] = [
+                    model.pipelineTag ?? "",
+                    Self.shortNumber(model.downloads ?? 0, suffix: "↓"),
+                    model.sizeString,
+                ].filter { !$0.isEmpty }
+                let mlxBadge: String = model.isMLXCompatible ? "⚡MLX" : ""
+                let sub = [mlxBadge, subParts.joined(separator: " · ")].filter { !$0.isEmpty }
+                    .joined(separator: " · ")
                 ModelResultRow(
-                    display: model.id, sub: model.pipelineTag ?? "", modelId: model.id,
+                    display: model.id, sub: sub, modelId: model.id,
                     modelManager: modelManager, theme: theme)
             }
         }
+    }
+
+    private static func shortNumber(_ n: Int, suffix: String) -> String {
+        if n >= 1_000_000 {
+            return String(format: "%.1fm\(suffix)", Double(n) / 1_000_000)
+        } else if n >= 1_000 {
+            return String(format: "%.0fk\(suffix)", Double(n) / 1_000)
+        }
+        return "\(n)\(suffix)"
     }
 }
 
@@ -171,13 +188,33 @@ private struct MSResultsList: View {
 
     var body: some View {
         LazyVStack(spacing: 8) {
-            ForEach(Array(modelManager.msResults.prefix(20).enumerated()), id: \.offset) {
+            ForEach(Array(modelManager.msResults.prefix(30).enumerated()), id: \.offset) {
                 _, model in
+                let subParts: [String] = [
+                    model.description ?? "",
+                    Self.shortStars(model.stars),
+                    Self.shortNumber(model.downloads, suffix: "↓"),
+                    model.storageSize ?? "",
+                ].filter { !$0.isEmpty }
                 ModelResultRow(
-                    display: model.path, sub: String(model.stars), modelId: model.path,
+                    display: model.path, sub: subParts.joined(separator: " · "),
+                    modelId: model.path,
                     modelManager: modelManager, theme: theme)
             }
         }
+    }
+
+    private static func shortStars(_ n: Int) -> String {
+        n > 0 ? "⭐\(n)" : ""
+    }
+
+    private static func shortNumber(_ n: Int, suffix: String) -> String {
+        if n >= 1_000_000 {
+            return String(format: "%.1fm\(suffix)", Double(n) / 1_000_000)
+        } else if n >= 1_000 {
+            return String(format: "%.0fk\(suffix)", Double(n) / 1_000)
+        }
+        return "\(n)\(suffix)"
     }
 }
 
@@ -224,7 +261,7 @@ private struct ModelResultRow: View {
     @ViewBuilder
     private var downloadButton: some View {
         if modelManager.downloadingModelId == modelId {
-            // Show download progress with percentage
+            // Show download progress with percentage, bytes, and throughput
             if let progress = OcoreaiDownloadProgress.shared.progress(for: modelId) {
                 VStack(spacing: 2) {
                     ProgressView(value: progress.fraction)
@@ -233,6 +270,12 @@ private struct ModelResultRow: View {
                     Text("\(Int(progress.fraction * 100))%")
                         .font(.ocoreaiMono(8))
                         .foregroundStyle(theme.textTertiary)
+                    DownloadStatsView(
+                        completed: progress.completedBytes,
+                        total: progress.totalBytes,
+                        throughput: progress.throughputBytesPerSec,
+                        theme: theme
+                    )
                 }
             } else {
                 ProgressView()
@@ -253,6 +296,84 @@ private struct ModelResultRow: View {
             }
             .disabled(modelManager.isDownloading)
         }
+    }
+}
+
+// MARK: - Byte helpers for download progress display
+
+/// Download stats sub-view: bytes downloaded/total and throughput.
+/// Extracted so we can compute local strings before building Text views.
+private struct DownloadStatsView: View {
+    let completed: Int64
+    let total: Int64
+    let throughput: Double?
+    let theme: OcoreaiTheme
+
+    private static func byteString(_ bytes: Int64) -> String {
+        guard bytes > 0 else { return "" }
+        if bytes >= 1_073_741_824 {
+            return String(format: "%.1f GB", Double(bytes) / 1_073_741_824)
+        } else if bytes >= 1_048_576 {
+            return String(format: "%.1f MB", Double(bytes) / 1_048_576)
+        } else if bytes >= 1_024 {
+            return String(format: "%.1f KB", Double(bytes) / 1_024)
+        }
+        return "\(bytes) B"
+    }
+
+    private static func byteRateString(_ bytesPerSec: Double) -> String {
+        if bytesPerSec >= 1_073_741_824 {
+            return String(format: "%.1f GB", bytesPerSec / 1_073_741_824)
+        } else if bytesPerSec >= 1_048_576 {
+            return String(format: "%.1f MB", bytesPerSec / 1_048_576)
+        } else if bytesPerSec >= 1_024 {
+            return String(format: "%.1f KB", bytesPerSec / 1_024)
+        }
+        return "\(Int(bytesPerSec)) B"
+    }
+
+    var body: some View {
+        let downloaded = Self.byteString(completed)
+        let totalStr = Self.byteString(total)
+        let bytesLine = downloaded + (totalStr.isEmpty ? "" : " / \(totalStr)")
+
+        VStack(spacing: 1) {
+            Text(bytesLine)
+                .font(.ocoreaiMono(8))
+                .foregroundStyle(theme.textTertiary)
+            if let tp = throughput, tp > 0 {
+                Text("\(Self.byteRateString(tp))/s")
+                    .font(.ocoreaiMono(8))
+                    .foregroundStyle(theme.accent.opacity(0.8))
+            }
+        }
+    }
+}
+
+extension ModelResultRow {
+    /// Human-readable byte string (GB/MB/KB) for download progress.
+    private static func byteString(_ bytes: Int64) -> String {
+        guard bytes > 0 else { return "" }
+        if bytes >= 1_073_741_824 {
+            return String(format: "%.1f GB", Double(bytes) / 1_073_741_824)
+        } else if bytes >= 1_048_576 {
+            return String(format: "%.1f MB", Double(bytes) / 1_048_576)
+        } else if bytes >= 1_024 {
+            return String(format: "%.1f KB", Double(bytes) / 1_024)
+        }
+        return "\(bytes) B"
+    }
+
+    /// Human-readable byte rate for throughput display.
+    private static func byteRateString(_ bytesPerSec: Double) -> String {
+        if bytesPerSec >= 1_073_741_824 {
+            return String(format: "%.1f GB", bytesPerSec / 1_073_741_824)
+        } else if bytesPerSec >= 1_048_576 {
+            return String(format: "%.1f MB", bytesPerSec / 1_048_576)
+        } else if bytesPerSec >= 1_024 {
+            return String(format: "%.1f KB", bytesPerSec / 1_024)
+        }
+        return "\(Int(bytesPerSec)) B"
     }
 }
 

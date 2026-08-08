@@ -114,6 +114,53 @@ final class OcoreaiDownloadProgress {
         _progress[modelId] = state
     }
 
+    /// Update progress with real byte counts (used by HF directory polling).
+    /// Unlike `update(_:for:)` which takes a `Progress` with abstract unit counts,
+    /// this gives the real disk byte numbers so the UI can show "4.2 GB / 8.5 GB"
+    /// and compute honest throughput.
+    func updateBytes(completed: Int64, total: Int64, for modelId: String) {
+        let fraction = total > 0 ? Double(completed) / Double(total) : 0
+
+        var state =
+            _progress[modelId]
+            ?? OcoreaiDownloadProgressState(
+                fraction: 0, completedFiles: 0, totalFiles: 0, active: true,
+            )
+        if state.startedAt == nil {
+            state.startedAt = Date()
+            _samples[modelId]?.removeAll()
+        }
+
+        state = OcoreaiDownloadProgressState(
+            fraction: fraction,
+            completedFiles: 0,
+            totalFiles: 0,
+            active: true,
+            throughputBytesPerSec: nil,
+            completedBytes: completed,
+            totalBytes: total,
+            startedAt: state.startedAt
+        )
+
+        // Rolling throughput based on real bytes
+        _samples[modelId, default: []].append((time: Date(), bytes: completed))
+        let cutoff = Date().addingTimeInterval(-throughputWindow)
+        _samples[modelId] = _samples[modelId]?.filter { $0.time >= cutoff }
+
+        if let oldest = _samples[modelId]?.first,
+            let newest = _samples[modelId]?.last,
+            (_samples[modelId]?.count ?? 0) >= 2
+        {
+            let dt = newest.time.timeIntervalSince(oldest.time)
+            if dt > 0.1 {
+                let db = newest.bytes - oldest.bytes
+                state.throughputBytesPerSec = Double(db) / dt
+            }
+        }
+
+        _progress[modelId] = state
+    }
+
     /// Mark a download as complete (or failed).
     /// On success the entry is marked as completed and auto-evicted after a brief
     /// delay so the UI can show a "✓ completed" flash before cleanup.

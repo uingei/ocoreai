@@ -70,23 +70,23 @@ final class ModelManager {
     static var recommendedModels: [RecommendedQuickModel] {
         [
             RecommendedQuickModel(
-                id: "Qwen/Qwen2.5-3B-Instruct",
-                description: "General purpose, fast, ~2 GB",
+                id: "Qwen/Qwen3-4B-Instruct",
+                description: "Qwen3, fast reasoning, ~3 GB",
                 hub: .modelScope
             ),
             RecommendedQuickModel(
-                id: "Qwen/Qwen2.5-Coder-3B-Instruct",
-                description: "Code generation, ~2 GB",
+                id: "Qwen/Qwen3-Coder-3B-Instruct",
+                description: "Qwen3 Coder, code generation, ~2 GB",
                 hub: .modelScope
             ),
             RecommendedQuickModel(
-                id: "Qwen/Qwen2.5-7B-Instruct",
-                description: "Balanced quality & speed, ~5 GB",
+                id: "Qwen/Qwen3-8B-Instruct",
+                description: "Qwen3 balanced, ~6 GB",
                 hub: .modelScope
             ),
             RecommendedQuickModel(
-                id: "meta-llama/Llama-3.2-3B-Instruct",
-                description: "Llama 3.2, general purpose, ~2 GB",
+                id: "mlx-community/Qwen3-4B-Instruct-4bit",
+                description: "Qwen3 MLX quantized, fast, ~2.5 GB",
                 hub: .huggingFace
             ),
         ]
@@ -134,6 +134,9 @@ final class ModelManager {
             return
         }
 
+        // Guard against concurrent searches — skip if one is already running
+        guard !isSearching else { return }
+
         isSearching = true
         currentError = nil
 
@@ -158,7 +161,7 @@ final class ModelManager {
     private func _searchHF(_ query: String) async -> [HFHubModel] {
         let client = HuggingFaceSearchClient()
         do {
-            return try await client.search(query: query, limit: 15)
+            return try await client.search(query: query, limit: 30)
         } catch {
             currentError = .errorOccurred
             return []
@@ -171,7 +174,7 @@ final class ModelManager {
         let msToken = SettingsStore.shared.modelScopeToken
         let client = ModelScopeSearchClient(token: msToken)
         do {
-            let result = try await client.search(keyword: query, pageSize: 15)
+            let result = try await client.search(keyword: query, pageSize: 30)
             return result.models
         } catch {
             currentError = .errorOccurred
