@@ -243,7 +243,8 @@ extension EnginePool {
 
         #if canImport(CoreAI)
         if #available(macOS 27.0, iOS 27.0, *) {
-            // CoreAI lacks grammar constraints and tool dispatch — fall back to MLX
+            // CoreAI supports tool calling via ToolCallParser but lacks grammar constraints —
+            // fall back to MLX only for grammar-guided requests
             if options.grammarSchema != nil || options.useGuidedGeneration {
                 logger.info(
                     "Falling back to MLX for grammar/tool-constrained request on model \(modelId)")
@@ -292,37 +293,6 @@ extension EnginePool {
                 sampling.frequencyPenalty != nil ? "frequencyPenalty" : "",
             ].filter { !$0.isEmpty }
 
-            // stopSequences are NOT supported by CoreAI's engine.generate
-            // → explicitly fall back to MLX path to avoid silent failures
-            let hasStopSeq = !(sampling.stopSequences ?? []).isEmpty
-            if hasStopSeq {
-                logger.info("Falling back to MLX for stopSequences on model \(modelId)")
-                let promptText: String
-                do {
-                    promptText = try await detokenize(modelId: modelId, tokens: input)
-                } catch {
-                    logger.warning(
-                        "Detokenize failed for stopSeq MLX fallback: \(error.localizedDescription)")
-                    continuation.yield(
-                        .init(kind: .error("Detokenization failed — cannot fall back MLX path")))
-                    continuation.finish()
-                    return
-                }
-                let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
-                await _runInferenceWithMessages(
-                    modelId: modelId,
-                    messages: mlxMessages,
-                    sampling: sampling,
-                    options: options,
-                    metrics: metrics,
-                    continuation: continuation,
-                    conversationId: nil,
-                    cancellation: cancellation,
-                    skipLock: true
-                )
-                return
-            }
-
             if !coreaiUnhonoredFields.isEmpty {
                 logger.warning(
                     "[CoreAI] Sampling fields not honored by SDK: \(coreaiUnhonoredFields.joined(separator: ", "))"
@@ -333,63 +303,189 @@ extension EnginePool {
                 // Use cached engine — CoreAI 34f0db3: single engine per model preserves
                 // KV cache across turns. TokenHistory.resolve handles prefix caching automatically.
                 let engine = try await loaded.getCachedEngine()
-                let sequence = try await engine.generate(
+
+                // upstream CoreAILanguageModel.Executor.respondVanilla() pipeline:
+                //   token stream → detokenize deltas → ThinkTagParser → ToolCallParser
+                //   → .text / .reasoning / .toolCall events
+                // We replicate that segmentation here so CoreAI path no longer
+                // bypasses reasoning segmentation and tool-call detection.
+                var thinkParser = ThinkTagParser(
+                    open: "<thinking>",
+                    close: "</thinking>"
+                )
+                var toolParser = ToolCallParser()
+                var accumulatedTokens: [Int32] = []
+                // Decode in batches to reduce detokenize overhead — mirrors MLX path
+                // batch detokenize strategy (ChatHandler L778 decodeBatchSize = 8).
+                let decodeBatchSize = 8
+                // Native stop sequence detection — no MLX fallback needed.
+                // upstream CoreAIExecutor.respondVanilla() does the same text-level check
+                // after each detokenize step (StopSequences.matches on decoded span).
+                let stopSequences = sampling.stopSequences ?? []
+
+                // Generate token stream — store in genSequence to avoid shadowing stdlib `sequence`
+                let genSequence = try await engine.generate(
                     with: input,
                     samplingConfiguration: sampling,
-                    inferenceOptions: options,
+                    inferenceOptions: options
                 )
 
-                var streamCancelled = false
                 do {
-                    for try await output in sequence {
-                        if Task.isCancelled || cancellation.isCancelled {
-                            streamCancelled = true
-                            // Drain remaining output to release GPU memory
-                            // (CoreAI keeps pending tokens on GPU until consumed or drained)
-                            break
+                    var streamCancelled = false
+                    var effectiveStopReason: StopReason? = nil
+                    do {
+                        for try await output in genSequence {
+                            if Task.isCancelled || cancellation.isCancelled {
+                                streamCancelled = true
+                                break
+                            }
+                            let tokenId = (output as? InferenceOutput)?.tokenId ?? 0
+                            accumulatedTokens.append(tokenId)
+                            metrics.incrementGenerated()
+                            if metrics.generatedTokenCount == 1 {
+                                metrics.firstTokenMs = metrics.overallMs
+                            }
+
+                            // Decode batch when aligned
+                            guard accumulatedTokens.count % decodeBatchSize == 0
+                            else { continue }
+
+                            // Detokenize batch + run through parser pipeline (inline, no local closure)
+                            do {
+                                let decoded: String = try await detokenize(
+                                    modelId: modelId,
+                                    tokens: accumulatedTokens
+                                )
+
+                                // Stop sequence detection — check decoded text before feeding parsers
+                                // (aligned with upstream StopSequences text-level check after each detokenize)
+                                if let hit = Self.firstMatchStopSequence(
+                                    in: decoded, sequences: stopSequences)
+                                {
+                                    let preStop = String(decoded[decoded.startIndex ..< hit.offset])
+                                    if !preStop.isEmpty {
+                                        Self.yieldParserEvents(
+                                            preStop,
+                                            thinkParser: &thinkParser,
+                                            toolParser: &toolParser,
+                                            continuation: continuation
+                                        )
+                                    }
+                                    effectiveStopReason = .stopSequence
+                                    accumulatedTokens = []
+                                    break
+                                }
+
+                                Self.yieldParserEvents(
+                                    decoded,
+                                    thinkParser: &thinkParser,
+                                    toolParser: &toolParser,
+                                    continuation: continuation
+                                )
+                            } catch {
+                                logger.warning(
+                                    "CoreAI batch detokenize failed (size=\(accumulatedTokens.count)): \(error.localizedDescription)"
+                                )
+                            }
+                            accumulatedTokens = []
                         }
-                        metrics.incrementGenerated()
-                        if metrics.generatedTokenCount == 1 {
-                            metrics.firstTokenMs = metrics.overallMs
+                    } catch {
+                        // Flush residual tokens before error
+                        if !accumulatedTokens.isEmpty {
+                            do {
+                                let decoded = try await detokenize(
+                                    modelId: modelId,
+                                    tokens: accumulatedTokens
+                                )
+                                Self.yieldParserEvents(
+                                    decoded,
+                                    thinkParser: &thinkParser,
+                                    toolParser: &toolParser,
+                                    continuation: continuation
+                                )
+                            } catch {
+                                logger.warning(
+                                    "CoreAI residual detokenize failed: \(error.localizedDescription)"
+                                )
+                            }
+                            accumulatedTokens = []
                         }
                         continuation.yield(
                             .init(
-                                kind: .token(
-                                    (output as? InferenceOutput)?.tokenId ?? 0
-                                )))
+                                kind: .error(
+                                    InferenceError.guidedGenerationFailed("generation failed")
+                                        .errorDescription ?? "error")))
+                        return
                     }
-                } catch {
-                    continuation.yield(
-                        .init(
-                            kind: .error(
-                                InferenceError.guidedGenerationFailed("generation failed")
-                                    .errorDescription ?? "error")))
-                    return
-                }
 
-                if streamCancelled {
-                    // Drain remaining tokens to free CoreAI GPU memory
-                    // (upstream #113 fix: pipelined sequence retains output until consumed)
-                    logger.debug("CoreAI stream cancelled — draining remaining output")
-                    do {
-                        for try await _ in sequence {}
-                    } catch {
-                        // Drain error — the stream was already cancelled, this is expected
-                        logger.debug("CoreAI drain error: \(error.localizedDescription)")
+                    // Flush residual tokens
+                    if !accumulatedTokens.isEmpty {
+                        do {
+                            let decoded = try await detokenize(
+                                modelId: modelId,
+                                tokens: accumulatedTokens
+                            )
+                            Self.yieldParserEvents(
+                                decoded,
+                                thinkParser: &thinkParser,
+                                toolParser: &toolParser,
+                                continuation: continuation
+                            )
+                        } catch {
+                            logger.warning(
+                                "CoreAI residual detokenize failed: \(error.localizedDescription)")
+                        }
+                        accumulatedTokens = []
                     }
-                    continuation.yield(
-                        .init(
-                            kind: .done(
-                                StopReason.cancelled,
-                                tokenCount: metrics.generatedTokenCount,
-                                tokPerSec: metrics.generatedTokenCount > 0
-                                    ? Double(metrics.generatedTokenCount)
-                                        / (Double(metrics.overallMs) / 1000.0)
-                                    : nil)))
-                } else if !Task.isCancelled {
-                    // Read actual stop reason from sequence; default to maxTokens if unset
-                    // (e.g., empty prefix-hit path or early termination edge case)
-                    let stopReason: StopReason = sequence.stopReason?.stopReason ?? .maxTokens
+
+                    // Flush parsers — emit held-back buffers
+                    for thinkEvent in thinkParser.flush() {
+                        switch thinkEvent {
+                        case .reasoning(let segText):
+                            continuation.yield(.init(kind: .reasoning(segText)))
+                        case .text(let segText):
+                            for toolEvent in toolParser.consume(segText) {
+                                switch toolEvent {
+                                case .text(let plainText):
+                                    continuation.yield(.init(kind: .text(plainText)))
+                                case .toolCall(let id, let name, let argsJSON):
+                                    continuation.yield(
+                                        .init(
+                                            kind: .toolCall(
+                                                ToolCall(
+                                                    id: id,
+                                                    type: "function",
+                                                    function: ToolCallFunction(
+                                                        name: name,
+                                                        arguments: argsJSON
+                                                    )
+                                                )
+                                            )))
+                                }
+                            }
+                        }
+                    }
+                    _ = toolParser.flush()
+
+                    if streamCancelled {
+                        // Drain remaining tokens to free CoreAI GPU memory
+                        // (upstream #113 fix: pipelined sequence retains output until consumed)
+                        logger.debug("CoreAI stream cancelled — draining remaining output")
+                        do {
+                            for try await _ in genSequence {}
+                        } catch {
+                            logger.debug("CoreAI drain error: \(error.localizedDescription)")
+                        }
+                    }
+
+                    let stopReason: StopReason
+                    if streamCancelled {
+                        stopReason = .cancelled
+                    } else if effectiveStopReason == .stopSequence {
+                        stopReason = .stopSequence
+                    } else {
+                        stopReason = genSequence.stopReason?.stopReason ?? .maxTokens
+                    }
                     continuation.yield(
                         .init(
                             kind: .done(
@@ -2930,6 +3026,59 @@ extension EnginePool {
 
         metrics.inferenceMs = metrics.overallMs
         continuation.finish()
+    }
+
+    // MARK: - Static helpers (CoreAI path)
+
+    /// Check decoded text for any stop sequence. Returns the earliest match offset.
+    /// Aligned with upstream `StopSequences.matches` but at text level.
+    private struct StopMatch { let offset: String.Index }
+    private static func firstMatchStopSequence(in text: String, sequences: [String]) -> StopMatch? {
+        var bestEarly: StopMatch? = nil
+        for seq in sequences where !seq.isEmpty {
+            if let range = text.range(of: seq) {
+                if bestEarly == nil || range.lowerBound < bestEarly!.offset {
+                    bestEarly = StopMatch(offset: range.lowerBound)
+                }
+            }
+        }
+        return bestEarly
+    }
+
+    /// Yield ThinkTagParser + ToolCallParser events for a decoded text segment.
+    /// Extracted to avoid duplicating the switch chain across 3 call sites.
+    private static func yieldParserEvents(
+        _ decoded: String,
+        thinkParser: inout ThinkTagParser,
+        toolParser: inout ToolCallParser,
+        continuation: AsyncThrowingStream<InferenceEvent, Error>.Continuation
+    ) {
+        for thinkEvent in thinkParser.consume(decoded) {
+            switch thinkEvent {
+            case .reasoning(let segText):
+                continuation.yield(.init(kind: .reasoning(segText)))
+            case .text(let segText):
+                for toolEvent in toolParser.consume(segText) {
+                    switch toolEvent {
+                    case .text(let plainText):
+                        continuation.yield(.init(kind: .text(plainText)))
+                    case .toolCall(let id, let name, let argsJSON):
+                        continuation.yield(
+                            .init(
+                                kind: .toolCall(
+                                    ToolCall(
+                                        id: id,
+                                        type: "function",
+                                        function: ToolCallFunction(
+                                            name: name,
+                                            arguments: argsJSON
+                                        )
+                                    )
+                                )))
+                    }
+                }
+            }
+        }
     }
 }
 
