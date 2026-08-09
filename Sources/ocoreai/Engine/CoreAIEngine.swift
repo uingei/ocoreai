@@ -438,9 +438,19 @@ struct EngineFactory: Sendable {
         }
 
         // Auto-detect, then fall back to sequential for unimplemented variants
+        // — but only when sequential is actually compatible with the model structure.
         let detected = autoDetectVariant(structure: structure)
         if detected == .sequential {
             return .sequential
+        }
+        // Guard: sequential engine cannot handle chunked-static models
+        // (upstream checkVariantCompatibility returns false).
+        // Rather than silently run an incompatible engine, reject with a clear error.
+        guard checkVariantCompatibility(variant: .sequential, structure: structure).compatible
+        else {
+            throw InferenceError.unsupportedEngineVariant(
+                "Model structure '\(structure.description)' requires '\(detected.rawValue)' engine (not yet available). Auto-detection selected '\(detected.rawValue)' but it is unimplemented, and sequential is incompatible with this structure."
+            )
         }
         Self.log.info(
             "CoreAI auto-detected variant '\(detected.rawValue)' not yet implemented — falling back to sequential for structure \(structure.description)"
@@ -528,8 +538,8 @@ struct EngineFactory: Sendable {
             let raw = try decoder.decode(RawConfig.self, from: data)
             return InternalModelConfig(
                 name: raw.name,
-                vocabSize: raw.vocabSize ?? 151_936,
-                maxContextLength: raw.maxContextLength ?? 131_072,
+                vocabSize: raw.vocabSize ?? Self.defaultVocabSize,
+                maxContextLength: raw.maxContextLength ?? Self.defaultMaxContextLength,
                 function: raw.function ?? "main"
             )
         } catch {
@@ -537,12 +547,19 @@ struct EngineFactory: Sendable {
                 "CoreAI config parsing failed: \(error.localizedDescription) — using defaults")
             return InternalModelConfig(
                 name: "unknown",
-                vocabSize: 151_936,
-                maxContextLength: 131_072,
+                vocabSize: Self.defaultVocabSize,
+                maxContextLength: Self.defaultMaxContextLength,
                 function: "main"
             )
         }
     }
+
+    /// Safe defaults for CoreAI model config when JSON is missing or unparseable.
+    /// These are intentionally broad to cover most models — the actual vocab size
+    /// is probed from the logits descriptor at engine creation time (L720), so the
+    /// default only matters before the first forward pass.
+    private static let defaultVocabSize = 32_768
+    private static let defaultMaxContextLength = 131_072
 }
 
 // MARK: - GenerationToken
