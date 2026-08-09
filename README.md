@@ -1,17 +1,17 @@
 # ocoreai — Self-Contained AI Agent OS
 
-**macOS-native AI agent platform** — Dual-channel on-device inference (MLX Metal GPU + CoreAI), prefix caching, KV cache quantization, speculative decoding (MTP + drafter), agent loop with tool use, skill system, session memory, and multimodal I/O, all in one binary. Built with Swift 6.4, Hummingbird 2.25, SwiftUI.
+**macOS-native AI agent platform** — Dual-channel on-device inference (MLX Metal GPU + CoreAI), prefix caching, KV cache quantization, speculative decoding (MTP + drafter), agent loop with tool use, skill system, session memory, and multimodal I/O, all in one binary. Built with Swift 6.1, Hummingbird 2.25, SwiftUI.
 
-[![Swift 6.4](https://img.shields.io/badge/Swift-6.4-orange.svg)](https://www.swift.org)
+[![Swift 6.1](https://img.shields.io/badge/Swift-6.1-orange.svg)](https://www.swift.org)
 [![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue.svg)](https://www.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests: 726](https://img.shields.io/badge/Tests-726%2F726-brightgreen)](Tests/)
+[![Tests: 775](https://img.shields.io/badge/Tests-775%2F775-brightgreen)](Tests/)
 
 ---
 
 ### Quick Start
 
-**macOS 15+ · Apple Silicon · Swift 6.4 · Pure SwiftPM**
+**macOS 15+ · Apple Silicon · Swift 6.1 · Pure SwiftPM**
 
 ```bash
 git clone https://github.com/uingei/ocoreai.git && cd ocoreai
@@ -32,7 +32,7 @@ Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
 ocoreai unifies inference engine, agent orchestration, and persistence in one process:
 
-- **Dual inference backends** — MLX (Metal GPU, default, dual-channel on-device inference via `MLXLanguageModel` + `ChatSession` pipeline) + CoreAI (1,593 LOC, dynamic KV cache, `TokenHistory` prefix caching). Zero network calls — inference runs on your Mac.
+- **Dual inference backends** — MLX (Metal GPU, default, dual-channel on-device inference via `MLXLanguageModel` + `ChatSession` pipeline) + CoreAI (1,291 LOC, dynamic KV cache, `TokenHistory` prefix caching). Zero network calls — inference runs on your Mac.
 - **Adaptive hardware routing** — Real-time HardwareRouter dispatches requests to GPU / ANE / CPU based on thermal pressure, memory headroom, and GPU utilization. AdmissionGate enforces a 3-tier admission policy (allow → ANE-only → reject) with configurable abort margin.
 - **Wired Memory GPU isolation** — hardware-level GPU memory bounds prevent OOM during inference.
 - **Thinking budget** — Adaptive token budget allocation driven by ComplexityAnalyzer scoring (length, intent, history dimensions) on Bridge Path. Fast Path (desktop GUI) has ThinkingBudget calibration loop wired but with simplified complexity input (constant 0.5 — no upstream ComplexityAnalyzer).
@@ -44,7 +44,7 @@ ocoreai unifies inference engine, agent orchestration, and persistence in one pr
 - **KV cache quantization** — Enabled by default (turbo4 scheme, 4-bit INT4, activates after 256 tokens). Backed by `GenerateParameters.kvBits` / `kvScheme` / `quantizedKVStart` in upstream MLXLMCommon.
 - **Guided generation** — Grammar-constrained output via `MLXGuidedGeneration` (xgrammar/JSON schema), with DiagnosticSink observability and dynamic `CompletionReserve.estimate` structural reserve calculations. Auto-enabled when tool calling or explicit grammar schema is set. Multimodal messages bypass grammar constraints.
 - **macOS 27 FM path** — Native `MLXLanguageModel` → `LanguageModelSession` + `MLXFoundationModels` on macOS 27 with tool calling via `FMToolProxy` bridge, reasoning via `ContextOptions`, and transcript-driven streaming. Falls back to ChatSession pipeline on earlier macOS.
-- **Speculative decoding** — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support with model-id isolation. Upstream pin `cd1ab3d` includes Qwen3-VL-MoE support (#322) and GatedDelta precision fix via Kahan compensated summation (#488).
+- **Speculative decoding** — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support with model-id isolation. Upstream pin `c97539d` includes Olmo3 sliding-window cache fix (#462) and balanced chunking via `PrefillParameters` (#470).
 - **AIModelCache** — native CoreAI compiled model artifact caching (macOS 27 SDK).
 - **Config system** — YAML config with file watcher (poll-based). Hardware auto-detection for memory budget.
 - **Multimodal I/O** — camera capture, screen capture, microphone input, Vision OCR, 16kHz Apple Speech STT, i18n TTS — all native. Camera/screen toggles are off by default; STT requires microphone permission.
@@ -176,7 +176,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 | **Multimodal** | `Multimodal/` | Camera, screen, audio I/O, TTS (Apple Speech), Vision OCR |
 | **Security** | `Security/` | Keychain store, structured logger, audit trail, ContentGuard, AdaptiveThreshold |
 | **Reasoning** | `Reasoning/` | ComplexityAnalyzer, ThinkingBudget (adaptive reasoning depth) |
-| **Profiling** | `Profiling/` | ErrorContext (structured error capture), TimingHooks (latency/TTFB) |
+- **Profiling** | `Profiling/` | TimingHooks (latency/TTFB) |
 | **Metrics** | `Metrics/` | Prometheus metrics collection and export |
 | **Locale** | `Localization/` | 6-language i18n (en, zh, ja, ko, fr, de) |
 
@@ -191,7 +191,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 - **AdaptiveThreshold** — EMA-based health monitoring with dynamic threshold adjustment.
 - **StructuredLogger** — Structured audit trail, log file rotation, macOS Keychain integration.
 - **Global crash handler** — On uncaught exception or POSIX signal (segv/abort/bus), writes structured crash log to `~/Library/Application Support/ocoreai/logs/`, then exits.
-- **Concurrent safety** — Swift 6 strict concurrency, actor isolation on scheduler/tool registry/inference engine. All 33 `@unchecked Sendable` declarations justified with concurrency comments.
+- **Concurrency** — Swift 6 strict concurrency, actor isolation on scheduler/tool registry/inference engine. All 32 `@unchecked Sendable` declarations justified with concurrency comments.
 
 ---
 
@@ -226,16 +226,16 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 | i18n | ⚠️ Framework complete; en + zh-Hans shipped, 5 locales defined but untranslated |
 | SwiftUI dashboard UI | ✅ |
 | Self-adaptation (EMA health) | ✅ |
-| Profiling (ErrorContext + TimingHooks) | ✅ |
+| Profiling (TimingHooks) | ✅ |
 
 ---
 
 ### Build Info
 
-- Swift 6.4 · SwiftUI · Hummingbird 2.26.0
-- 134 Swift source files, ~39,761 LOC
+- Swift 6.1 · SwiftUI · Hummingbird 2.25.0
+- 136 Swift source files, ~43,249 LOC
 - macOS 15+ · Apple Silicon only
-- Tests: 49 test files across 128 suites, 726 @Test cases
+- Tests: 52 test files across 141 suites, 775 @Test cases
 - Build: 0 warnings, 0 errors
 - Development: Built entirely by **qwen3.6:27b-mtp-q4_K_M** — self-contained AI agent with no external tool use. All architecture, code, and tests authored autonomously.
 

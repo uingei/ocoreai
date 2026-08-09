@@ -6,11 +6,11 @@
 
 ## Identity
 
-**What it is:** macOS-native AI agent runtime — dual-channel on-device inference (MLX Metal GPU + CoreAI ANE), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline. One binary, 135 Swift files (38,836 LOC).
+**What it is:** macOS-native AI agent runtime — dual-channel on-device inference (MLX Metal GPU + CoreAI), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline. One binary, 136 Swift files (43,249 LOC).
 
-**Tech stack:** Swift 6.3 · SwiftPM · Hummingbird 2.25 · SwiftUI · SQLite + FTS5
+**Tech stack:** Swift 6.1 · SwiftPM · Hummingbird 2.25 · SwiftUI · SQLite + FTS5
 
-**Key modules:** 21 subdirectories under `Sources/ocoreai/`: Engine, Agents, Client, Scheduler, MCP, Tools, UI, SQLite, Config, Multimodal, Reasoning, Profiling, Tokenizer, Security, Skills, etc.
+**Key modules:** 22 subdirectories under `Sources/ocoreai/`: Engine, Agents, Client, Scheduler, MCP, Tools, UI, SQLite, Config, Multimodal, Reasoning, Profiling, Tokenizer, Security, Skills, etc.
 
 ---
 
@@ -42,7 +42,7 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 ```bash
 swift build -c release                    # production build
 swift build --traits mlx                 # debug build with mlx
-swift test                               # all 703 tests
+swift test                               # all 775 @Test cases
 swift test --enable-code-coverage        # with coverage
 swift test --filter OcoreAITests.System  # system tests only
 ```
@@ -63,9 +63,10 @@ swift test --filter OcoreAITests.System  # system tests only
 
 ### Error Handling
 - **Zero `try!`, `as!`, `fatalError`, `assert`, `precondition`, `print()`** in production code.
-- `129 try?` usages exist — MCP files are the hotspot (10+ each). Known risk.
-- `ErrorContext.swift` infrastructure exists but is **unused** — `withLog`/`withLogAsync` have zero callers.
-- 3 empty `catch {}` blocks on async operations (EngineInference L62,116; MCPStdioClient L137).
+- `175 try?` usages exist — MCP files are the hotspot (10+ each). Known risk.
+- `ErrorContext.swift` does not exist — `Profiling/` only contains `TimingHooks.swift`.
+- 2 empty `catch {}` blocks on async operations (EngineInference L153,198).
+- 1 `TODO` in `FMToolBridge.swift L174`.
 
 ### Naming
 - Target names ≠ module boundaries (e.g., `GuidedGenerationLoop` is peer to `ChatSession`, not nested).
@@ -95,11 +96,11 @@ swift test --filter OcoreAITests.System  # system tests only
 
 ---
 
-## Upstream Audit Dependencies
+### Upstream Audit Dependencies
 
 Three sources for empirical verification:
-1. **mlx-swift-lm** — pinned at cd1ab3d (2026-08-01: +20 commits from previous lock 18edd22; Qwen3-VL-MoE support #322, GatedDelta precision fix #488, Linux guided-gen fix #483)
-2. **coreai-models** — pinned at 49becc6 (2026-08-02: +30+ commits from previous lock 5ed9981; ConstrainedGenerationSession rollback/jump-forward, custom KV cache op, macOS 27 Beta 4 fixes)
+1. **mlx-swift-lm** — pinned at c97539d (2026-08-09: Olmo3 sliding-window cache fix #462, PrefillParameters balanced chunking #470, KVCache typed config #453, MTP speculation before cache wrap #506, ChatConventions migration #502, custom LogitProcessor injection #401)
+2. **coreai-models** — pinned at upstream main; ConstrainedGenerationSession, XGrammar, Pipelined/Sequential engines, StateHandler, VLM engine, CompositeSampler, PerformanceMetrics (coreai-models is a reference repo, not an SPM dependency)
 3. **Apple Developer Docs** — developer.apple.com/documentation/CoreAI (requires login)
 
 ---
