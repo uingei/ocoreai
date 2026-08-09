@@ -790,8 +790,9 @@ struct ModelSamplingConfig: Codable {
     /// Sampling mode selection (mirrors upstream MLXSamplingMode). nil → per-field behavior.
     var mode: SamplingMode? = nil
 
-    /// Prefill step size for prompt chunking
-    var prefillStepSize: Int? = nil
+    /// Prefill config — stepSize + chunking strategy (aligns with PrefillConfig / upstream PrefillParameters).
+    /// JSON key remains "prefill_step_size" for backward compat; chunking added as "prefill_chunking".
+    var prefill: PrefillConfig = .default
 
     /// Max KV cache size (enables RotatingKVCache when set)
     var maxKVSize: Int? = nil
@@ -816,7 +817,7 @@ struct ModelSamplingConfig: Codable {
         temperature == 0.7 && topP == nil && topK == nil && maxTokens == nil
             && frequencyPenalty == 0 && presencePenalty == 0 && minP == nil && seed == nil
             && responseFormat == nil
-            && prefillStepSize == nil && maxKVSize == nil
+            && prefill.stepSize == nil && prefill.chunking == .balanced && maxKVSize == nil
     }
 
     // MARK: - Snake-Case Key Mapping (OpenAI API compat for PATCH)
@@ -830,7 +831,7 @@ struct ModelSamplingConfig: Codable {
         case presencePenalty = "presence_penalty"
         case minP = "min_p"
         case seed
-        case prefillStepSize = "prefill_step_size"
+        case prefill
         case maxKVSize = "max_kv_size"
         case repetitionContextSize = "repetition_context_size"
         case presenceContextSize = "presence_context_size"
@@ -868,6 +869,14 @@ struct ModelSamplingPatch: Decodable {
         if let mp = minP { config.minP = mp }
         if let s = seed { config.seed = s }
         if let r = responseFormat { config.responseFormat = r }
+        if let ps = prefillStepSize {
+            // Backward compat: stepSize from old key merges into new prefill struct
+            config.prefill.stepSize = ps
+        }
+        if let m = maxKVSize { config.maxKVSize = m }
+        if let r = repetitionContextSize { config.repetitionContextSize = r }
+        if let p = presenceContextSize { config.presenceContextSize = p }
+        if let f = frequencyContextSize { config.frequencyContextSize = f }
         return config
     }
 

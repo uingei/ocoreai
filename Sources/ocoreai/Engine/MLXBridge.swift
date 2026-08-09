@@ -691,9 +691,18 @@ nonisolated func makeGenerateParameters(
     if let s = sampling.seed {
         params.seed = UInt64(s)
     }
-    // Prefill step size — controls prompt chunking for long inputs
-    if let prefillStepSize = sampling.prefillStepSize {
-        params.prefillStepSize = prefillStepSize
+    // Prefill parameters — structured PrefillConfig → upstream PrefillParameters
+    // Upstream: GenerateParameters.prefill (Evaluate.swift L58, PrefillParameters.swift)
+    // stepSize: ceiling per forward; chunking: division strategy
+    // Progress callback not exposed — would require user-side closure in API config
+    if let stepSize = sampling.prefill.stepSize {
+        params.prefill.stepSize = stepSize
+    }
+    // Map chunking strategy — string match with upstream Chunking enum (balanced/remainder/unchunked)
+    switch sampling.prefill.chunking.rawValue {
+    case "remainder": params.prefill.chunking = .remainder
+    case "unchunked": params.prefill.chunking = .unchunked
+    default: break  // .balanced is both our and upstream default
     }
     // Max KV cache size — enables RotatingKVCache when set
     if let maxKVSize = sampling.maxKVSize {

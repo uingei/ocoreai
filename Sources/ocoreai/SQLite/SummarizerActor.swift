@@ -103,6 +103,7 @@ actor SummarizerActor {
             stopSequences: nil,
             logitBias: nil,
             combined: true,
+            prefill: .default,
         ).normalized()
 
         let options = InferenceOptions(

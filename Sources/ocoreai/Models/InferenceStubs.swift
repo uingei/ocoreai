@@ -12,6 +12,47 @@
 import Foundation
 import Logging
 
+// MARK: - Prefill Configuration
+
+/// Prefill parameters for prompt chunking.
+///
+/// Aligns with upstream `MLXLMCommon.PrefillParameters` (Evaluate.swift L58,
+/// PrefillParameters.swift): stepSize controls ceiling per forward, chunking
+/// controls division strategy, progress reports prefill progress.
+public struct PrefillConfig: Sendable, Codable, Equatable {
+    /// Ceiling on tokens evaluated per prefill forward. `nil` lets each model
+    /// pick its own default (512 for the generic path).
+    public var stepSize: Int?
+
+    /// Chunking strategy for dividing the prompt.
+    /// - balanced: fewest equal chunks that respect step-size ceiling (default, aligns
+    ///   with upstream PrefillParameters.Chunking.balanced)
+    /// - remainder: legacy stride — chunks of exactly the step size
+    /// - unchunked: whole prompt in one forward (validation only)
+    public var chunking: Chunking = .balanced
+
+    public enum Chunking: String, Sendable, Codable, Equatable, CaseIterable {
+        case balanced
+        case remainder
+        case unchunked
+    }
+
+    public static let `default` = PrefillConfig()
+
+    public init(
+        stepSize: Int? = nil,
+        chunking: Chunking = .balanced
+    ) {
+        self.stepSize = stepSize
+        self.chunking = chunking
+    }
+
+    /// Map to upstream chunking. Use string equivalence — InferenceStubs has no
+    /// backend dependency so we cannot import MLXLMCommon here. Map at the bridge.
+}
+
+// MARK: - Sampling Configuration
+
 /// Intermediate sampling configuration — used by both CoreAI and MLX backends.
 /// `mode` field mirrors upstream MLXSamplingMode (greedy/nucleus/topK) for mode-driven
 /// sampling parameter resolution (explicit-zero-wins semantics).
@@ -30,8 +71,9 @@ struct SamplingConfiguration: Codable, Equatable {
     var logitBias: [String: Double]?
     var combined: Bool = true
 
-    // GenerateParameters fields that control prefill/KV cache/windowing
-    var prefillStepSize: Int? = nil
+    // Prefill configuration — structured to match upstream PrefillParameters
+    var prefill: PrefillConfig = .default
+    // GenerateParameters fields that control KV cache/windowing
     var maxKVSize: Int? = nil
     var kvBits: Int? = nil
     var kvGroupSize: Int = 64
@@ -54,7 +96,7 @@ struct SamplingConfiguration: Codable, Equatable {
         stopSequences: [String]? = nil,
         logitBias: [String: Double]? = nil,
         combined: Bool = true,
-        prefillStepSize: Int? = nil,
+        prefill: PrefillConfig = .default,
         maxKVSize: Int? = nil,
         kvBits: Int? = nil,
         kvGroupSize: Int = 64,
@@ -76,7 +118,7 @@ struct SamplingConfiguration: Codable, Equatable {
         self.stopSequences = stopSequences
         self.logitBias = logitBias
         self.combined = combined
-        self.prefillStepSize = prefillStepSize
+        self.prefill = prefill
         self.maxKVSize = maxKVSize
         self.kvBits = kvBits
         self.kvGroupSize = kvGroupSize

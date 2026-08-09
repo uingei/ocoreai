@@ -296,8 +296,14 @@ func chatCompletionsHandler(
             ? request.frequencyPenalty
             : runtimeDefaults.frequencyPenalty
 
-        /// Resolve prefill/KV cache parameters with nil → runtime → nil cascade.
-        let effectivePrefillStepSize = request.prefillStepSize ?? runtimeDefaults.prefillStepSize
+        /// Resolve prefill parameters: stepSize cascades, chunking uses runtime default.
+        let effectivePrefillStepSize =
+            request.prefillStepSize
+            ?? runtimeDefaults.prefill.stepSize
+        let effectivePrefill = PrefillConfig(
+            stepSize: effectivePrefillStepSize,
+            chunking: runtimeDefaults.prefill.chunking
+        )
         let effectiveMaxKVSize = request.maxKVSize ?? runtimeDefaults.maxKVSize
         let effectiveRepetitionContextSize =
             request.repetitionContextSize ?? runtimeDefaults.repetitionContextSize
@@ -319,7 +325,7 @@ func chatCompletionsHandler(
             stopSequences: request.stop,
             logitBias: nil,  // logitBias 暂不暴露（ChatCompletionRequest 无对应字段）
             combined: true,
-            prefillStepSize: effectivePrefillStepSize,
+            prefill: effectivePrefill,
             maxKVSize: effectiveMaxKVSize,
             repetitionContextSize: effectiveRepetitionContextSize,
             presenceContextSize: effectivePresenceContextSize,

@@ -487,8 +487,9 @@ public struct SamplingConfig: Sendable, Codable, Equatable {
     public var presencePenalty: Double?
     public var frequencyPenalty: Double?
     public var seed: Int64?
-    /// Prefill step size for prompt chunking
-    public var prefillStepSize: Int? = nil
+    /// Prefill config — stepSize (ceiling per forward), chunking (division strategy).
+    /// Aligns with upstream PrefillParameters (Evaluate.swift L58).
+    public var prefill: PrefillConfig = .default
     /// Max KV cache size (enables RotatingKVCache when set)
     public var maxKVSize: Int? = nil
     /// Context window for repetition penalty
@@ -512,7 +513,7 @@ public struct SamplingConfig: Sendable, Codable, Equatable {
         presencePenalty: Double? = nil,
         frequencyPenalty: Double? = nil,
         seed: Int64? = nil,
-        prefillStepSize: Int? = nil,
+        prefill: PrefillConfig = .default,
         maxKVSize: Int? = nil,
         repetitionContextSize: Int = 20,
         presenceContextSize: Int = 20,
@@ -529,7 +530,7 @@ public struct SamplingConfig: Sendable, Codable, Equatable {
         self.presencePenalty = presencePenalty
         self.frequencyPenalty = frequencyPenalty
         self.seed = seed
-        self.prefillStepSize = prefillStepSize
+        self.prefill = prefill
         self.maxKVSize = maxKVSize
         self.repetitionContextSize = repetitionContextSize
         self.presenceContextSize = presenceContextSize
