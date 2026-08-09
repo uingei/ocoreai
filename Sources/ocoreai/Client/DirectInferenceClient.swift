@@ -323,6 +323,13 @@ extension DirectInferenceClient {
         // Capture prompt throughput from engine layer — populated when .info fires
         var enginePromptTokPerSec: Double?
         var engineTokPerSec: Double?
+        // GAP-3/4: capture reasoning token count + MTP telemetry from .done
+        var capturedReasoningTokenCount: Int?
+        var capturedProposedDraftTokens: Int?
+        var capturedAcceptedDraftTokens: Int?
+        var capturedPassthroughReason: String?
+        // GAP-4: track incomplete/budget-truncated signal
+        var capturedTruncatedByBudget = false
 
         func currentMetrics() -> (ttftMs: Double?, tokPerSec: Double?, promptTokPerSec: Double?) {
             guard let ttft = firstChunkTime else { return (nil, nil, nil) }
@@ -373,7 +380,9 @@ extension DirectInferenceClient {
                     }
                     accumulatedText += reasoningText
                     continuation.yield(.init(isComplete: false, reasoningContent: reasoningText))
-                case .done(let reason, let tokenCount, let tokPS, let ptokPs, _, _, _, _):
+                case .done(
+                    let reason, let tokenCount, let tokPS, let ptokPs,
+                    let reasoningTC, let proposed, let accepted, let passthrough):
                     finishReason = stopReasonToString(reason) ?? "stop"
                     // Use actual token count from upstream .info/.done — per-event
                     // counting would severely underestimate when .text spans multiple tokens
@@ -381,6 +390,12 @@ extension DirectInferenceClient {
                     // Capture BOTH throughput metrics from engine layer (upstream GenerateCompletionInfo)
                     engineTokPerSec = tokPS
                     enginePromptTokPerSec = ptokPs
+                    // GAP-3: capture reasoning token count for UI
+                    capturedReasoningTokenCount = reasoningTC
+                    // GAP-2: capture MTP speculative decoding telemetry
+                    capturedProposedDraftTokens = proposed
+                    capturedAcceptedDraftTokens = accepted
+                    capturedPassthroughReason = passthrough
                 case .error(let errorMsg):
                     continuation.finish()
                     throw AppError.generationError(errorMsg)
@@ -400,8 +415,22 @@ extension DirectInferenceClient {
                                     durationMs: nil
                                 ))
                         ))
-                case .guidedGenDiagnostic, .incompleteOutput, .channel:
-                    // Diagnostic/channel events — informational, not surfaced in this client
+                case .guidedGenDiagnostic(
+                    grammarTerminated: _,
+                    incompleteOutput: true
+                ):
+                    // GAP-4: capture incomplete/budget-truncated signal for UI
+                    capturedTruncatedByBudget = true
+                case .guidedGenDiagnostic:
+                    break
+                case .incompleteOutput(let incomplete):
+                    // GAP-4: .incompleteOutput(Bool) is dead (never emitted by Engine)
+                    // but if it fires, treat same as guidedGenDiagnostic
+                    if incomplete {
+                        capturedTruncatedByBudget = true
+                    }
+                case .channel:
+                    // Compute channel identification — informational, no content
                     break
                 }
             }
@@ -415,6 +444,16 @@ extension DirectInferenceClient {
             let d = streamStartTime.duration(to: ft)
             return Double(d.components.seconds) * 1000 + Double(d.components.attoseconds) / 1e15
         }
+        // GAP-1/2/3/4 fix
+        let mpt =
+            (capturedProposedDraftTokens != nil || capturedAcceptedDraftTokens != nil
+                || capturedPassthroughReason != nil)
+            ? DirectChatChunk.MTPMetrics(
+                proposedDraftTokens: capturedProposedDraftTokens,
+                acceptedDraftTokens: capturedAcceptedDraftTokens,
+                passthroughReason: capturedPassthroughReason
+            )
+            : nil
         continuation.yield(
             .init(
                 text: "",
@@ -423,7 +462,10 @@ extension DirectInferenceClient {
                 outputTokens: outputTokens,
                 ttftMs: finalTtftMs,
                 tokPerSec: engineTokPerSec,
-                promptTokPerSec: enginePromptTokPerSec
+                promptTokPerSec: enginePromptTokPerSec,
+                truncatedByBudget: capturedTruncatedByBudget ? true : nil,
+                reasoningTokenCount: capturedReasoningTokenCount,
+                mptMetrics: mpt
             ))
         // Post-stream quality signal → ThinkingBudget calibration loop.
         // Fire-and-forget: failures silently ignored to avoid blocking stream end.
@@ -640,6 +682,18 @@ struct DirectChatChunk {
     /// When present, the client should accumulate these into a structured ChatMessage.
     let metadata: DirectChunkMetadata?
 
+    /// True when the response was truncated by reasoning budget exhaustion
+    /// (model ended mid-thought before closing </thinking>).
+    /// Surfaces .guidedGenDiagnostic(incompleteOutput:) from Engine layer.
+    let truncatedByBudget: Bool?
+
+    /// Number of reasoning tokens consumed (separate from outputTokens).
+    /// Sourced from .done(reasoningTokenCount:) — nil for non-reasoning models.
+    let reasoningTokenCount: Int?
+
+    /// MTP speculative decoding telemetry — nil when MTP not active.
+    let mptMetrics: MTPMetrics?
+
     /// Metadata for structured inference events beyond plain text deltas.
     enum DirectChunkMetadata: Codable {
         case toolCall(ToolCallMeta)
@@ -655,6 +709,13 @@ struct DirectChatChunk {
         let durationMs: Double?
     }
 
+    /// MTP speculative decoding telemetry.
+    struct MTPMetrics: Codable {
+        let proposedDraftTokens: Int?
+        let acceptedDraftTokens: Int?
+        let passthroughReason: String?
+    }
+
     init(
         text: String? = nil,
         isComplete: Bool,
@@ -665,7 +726,10 @@ struct DirectChatChunk {
         ttftMs: Double? = nil,
         tokPerSec: Double? = nil,
         promptTokPerSec: Double? = nil,
-        metadata: DirectChunkMetadata? = nil
+        metadata: DirectChunkMetadata? = nil,
+        truncatedByBudget: Bool? = nil,
+        reasoningTokenCount: Int? = nil,
+        mptMetrics: MTPMetrics? = nil
     ) {
         self.text = text
         self.isComplete = isComplete
@@ -677,6 +741,9 @@ struct DirectChatChunk {
         self.tokPerSec = tokPerSec
         self.promptTokPerSec = promptTokPerSec
         self.metadata = metadata
+        self.truncatedByBudget = truncatedByBudget
+        self.reasoningTokenCount = reasoningTokenCount
+        self.mptMetrics = mptMetrics
     }
 }
 

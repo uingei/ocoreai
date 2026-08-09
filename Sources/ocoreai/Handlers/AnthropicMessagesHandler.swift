@@ -382,9 +382,20 @@ private func nonStreamAnthropicResponse(
                 try Task.checkCancellation()
                 totalOutputTokens += 1
                 accumulatedText = (accumulatedText ?? "") + r
-            case .guidedGenDiagnostic, .incompleteOutput, .channel:
-                // Diagnostic/channel events — informational, no content in Anthropic API
+            case .guidedGenDiagnostic(
+                grammarTerminated: _,
+                incompleteOutput: true
+            ):
+                // GAP-4: log guided gen diagnostics in Anthropic non-stream path
+                logger.warning("Anthropic handler: guided gen incomplete")
+            case .guidedGenDiagnostic:
                 break
+            case .incompleteOutput(let incomplete):
+                if incomplete {
+                    logger.warning("Anthropic handler: incomplete output")
+                }
+            case .channel(let ch):
+                logger.info("Compute channel: \(ch)")
             }
         }
     } catch {
@@ -603,9 +614,20 @@ private func streamAnthropicResponse(
                     case .reasoning:
                         // Reasoning text flows into Anthropic text delta as normal content
                         break
-                    case .guidedGenDiagnostic, .incompleteOutput, .channel:
-                        // Diagnostic/channel events — informational, no content in Anthropic API
+                    case .guidedGenDiagnostic(
+                        grammarTerminated: _,
+                        incompleteOutput: true
+                    ):
+                        // GAP-4: log in Anthropic SSE path
+                        logger.warning("Anthropic SSE: guided gen incomplete")
+                    case .guidedGenDiagnostic:
                         break
+                    case .incompleteOutput(let incomplete):
+                        if incomplete {
+                            logger.warning("Anthropic SSE: incomplete output")
+                        }
+                    case .channel(let ch):
+                        logger.info("Anthropic SSE: compute channel \(ch)")
                     }
                 }
             } catch {

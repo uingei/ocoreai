@@ -148,6 +148,12 @@ final class ChatState {
     var currentPromptTokPerSec: Double?
     /// Live streaming time-to-first-token (ms). Set on first chunk.
     var currentTTFTMs: Double?
+    /// Reasoning tokens consumed — surfaced from .done(reasoningTokenCount:).
+    /// Nil for non-reasoning models. Set only at stream completion.
+    var currentReasoningTokenCount: Int?
+    /// MTP speculative decoding telemetry — populated at stream completion.
+    var currentMTPDraftProposed: Int?
+    var currentMTPDraftAccepted: Int?
 
     // Single source of truth — no separate health polling task
     var connected: Bool {
@@ -699,6 +705,15 @@ final class ChatState {
                 if let ptps = chunk.promptTokPerSec {
                     currentPromptTokPerSec = ptps
                 }
+                // GAP-3: Wire reasoning token count from .done
+                if let rtc = chunk.reasoningTokenCount {
+                    currentReasoningTokenCount = rtc
+                }
+                // GAP-2: Wire MTP speculative decoding telemetry
+                if let mtp = chunk.mptMetrics {
+                    currentMTPDraftProposed = mtp.proposedDraftTokens
+                    currentMTPDraftAccepted = mtp.acceptedDraftTokens
+                }
                 // Consume tool call metadata during streaming — makes tool-use progress visible
                 if let meta = chunk.metadata {
                     switch meta {
@@ -866,6 +881,9 @@ final class ChatState {
         loading = false
         currentTokPerSec = nil
         currentTTFTMs = nil
+        currentReasoningTokenCount = nil
+        currentMTPDraftProposed = nil
+        currentMTPDraftAccepted = nil
     }
 
     /// Store the last user input for retry after inference failure.

@@ -139,8 +139,19 @@ actor SummarizerActor {
                 case .reasoning(let r):
                     // Reasoning text from ReasoningEventEmitter — include in summary
                     summary += r
-                case .guidedGenDiagnostic, .incompleteOutput, .channel:
-                    // Diagnostic/channel events — no content to summarize
+                case .guidedGenDiagnostic(
+                    grammarTerminated: _,
+                    incompleteOutput: true
+                ):
+                    // GAP-4: log guided gen diagnostics
+                    logger.warning("Summarizer: guided gen incomplete")
+                case .guidedGenDiagnostic:
+                    break
+                case .incompleteOutput:
+                    // Dead code: never emitted by Engine
+                    break
+                case .channel:
+                    // Informational
                     break
                 }
             }

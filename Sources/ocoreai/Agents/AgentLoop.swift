@@ -478,9 +478,20 @@ enum AgentLoop {
                     // Reasoning chunk from ReasoningEventEmitter — accumulate alongside text
                     accumulatedText += r
                     tokCount += 1
-                case .guidedGenDiagnostic, .incompleteOutput, .channel:
-                    // Diagnostic/channel events — informational, no content to accumulate
+                case .guidedGenDiagnostic(
+                    grammarTerminated: _,
+                    incompleteOutput: true
+                ):
+                    // GAP-4: log guided gen truncation
+                    logger.warning("AgentLoop: guided gen truncated by budget")
+                case .guidedGenDiagnostic:
                     break
+                case .incompleteOutput(let incomplete):
+                    if incomplete {
+                        logger.warning("AgentLoop: incomplete output")
+                    }
+                case .channel(let ch):
+                    logger.info("AgentLoop: compute channel \(ch)")
                 }
             }
         } catch {

@@ -386,6 +386,20 @@ struct ChatView: View {
                                             .font(.system(.caption, design: .monospaced))
                                             .foregroundStyle(theme.textTertiary)
                                         }
+                                        if let rtc = chatState.currentReasoningTokenCount {
+                                            Divider().frame(height: 12)
+                                            Text("reasoning: \(rtc) tok")
+                                                .font(.system(.caption, design: .monospaced))
+                                                .foregroundStyle(theme.textTertiary)
+                                        }
+                                        if let proposed = chatState.currentMTPDraftProposed,
+                                            let accepted = chatState.currentMTPDraftAccepted
+                                        {
+                                            Divider().frame(height: 12)
+                                            Text("mtp: \(accepted)/\(proposed)")
+                                                .font(.system(.caption, design: .monospaced))
+                                                .foregroundStyle(theme.textTertiary)
+                                        }
                                     }
                                     .transition(.opacity)
                                 }

@@ -542,9 +542,20 @@ private func nonStreamWithToolCalling(
             case .reasoning(let r):
                 // Reasoning text from ReasoningEventEmitter — accumulate for self-correction
                 accumulatedContent += r
-            case .guidedGenDiagnostic, .incompleteOutput, .channel:
-                // Diagnostic/channel events — informational, no content
+            case .guidedGenDiagnostic(
+                grammarTerminated: _,
+                incompleteOutput: true
+            ):
+                // GAP-4: log guided gen diagnostics instead of silent drop
+                logger.warning("Guided gen incomplete: budget exhausted before completion")
+            case .guidedGenDiagnostic:
                 break
+            case .incompleteOutput(let incomplete):
+                if incomplete {
+                    logger.warning("Incomplete output: budget exhausted")
+                }
+            case .channel(let ch):
+                logger.info("Compute channel: \(ch)")
             }
         }
     } catch {
@@ -599,8 +610,14 @@ private func nonStreamWithToolCalling(
                         case .reasoning(let r):
                             // Reasoning text accumulates into accText for self-correction
                             accText = (accText ?? "") + r
-                        case .guidedGenDiagnostic, .incompleteOutput, .channel:
-                            // Diagnostic/channel events — informational, no content
+                        case .guidedGenDiagnostic:
+                            // Self-correction path: guided gen skipped intentionally
+                            break
+                        case .incompleteOutput:
+                            // Dead code: never emitted by Engine
+                            break
+                        case .channel:
+                            // Informational — no content
                             break
                         }
                     }
@@ -1040,9 +1057,22 @@ private func streamWithToolCalling(
                     )
                     _ = yieldSSE(rChunk, to: continuation)
 
-                /// .guidedGenDiagnostic / .incompleteOutput / .channel — diagnostic events.
-                /// Silently consumed; no SSE equivalent, no content to render.
-                case .guidedGenDiagnostic, .incompleteOutput, .channel:
+                /// .guidedGenDiagnostic / .incompleteOutput — diagnostic events.
+                /// Log instead of silently discarding; emit SSE diagnostic marker for client visibility.
+                case .guidedGenDiagnostic(
+                    grammarTerminated: _,
+                    incompleteOutput: true
+                ):
+                    // GAP-4: log + emit SSE diagnostic marker
+                    logger.warning("SSE stream: guided gen incomplete — budget exhausted")
+                    yieldSSERaw("[diagnostic: budget_truncated]", to: continuation)
+                case .guidedGenDiagnostic:
+                    break
+                case .incompleteOutput:
+                    // Dead code: never emitted by Engine
+                    break
+                case .channel:
+                    // Compute channel identification — no SSE equivalent
                     break
                 }
             }
