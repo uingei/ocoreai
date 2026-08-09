@@ -147,6 +147,8 @@ actor SummarizerActor {
                     logger.warning("Summarizer: guided gen incomplete")
                 case .guidedGenDiagnostic:
                     break
+                case .prefillProgress:
+                    break
                 case .incompleteOutput:
                     // Dead code: never emitted by Engine
                     break

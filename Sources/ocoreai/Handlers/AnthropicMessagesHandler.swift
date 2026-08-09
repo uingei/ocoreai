@@ -390,6 +390,9 @@ private func nonStreamAnthropicResponse(
                 logger.warning("Anthropic handler: guided gen incomplete")
             case .guidedGenDiagnostic:
                 break
+            case .prefillProgress:
+                // Prefill progress — silent in Anthropic handler.
+                break
             case .incompleteOutput(let incomplete):
                 if incomplete {
                     logger.warning("Anthropic handler: incomplete output")
@@ -621,6 +624,9 @@ private func streamAnthropicResponse(
                         // GAP-4: log in Anthropic SSE path
                         logger.warning("Anthropic SSE: guided gen incomplete")
                     case .guidedGenDiagnostic:
+                        break
+                    case .prefillProgress:
+                        // Prefill progress — silent in Anthropic SSE handler.
                         break
                     case .incompleteOutput(let incomplete):
                         if incomplete {

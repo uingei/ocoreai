@@ -349,6 +349,10 @@ extension DirectInferenceClient {
                 case .token:
                     // Individual token events — text will arrive in .text events
                     break
+                case .prefillProgress:
+                    // Prefill progress — emitted by EngineInference prefill callback.
+                    // Silent at client level; UI layer reads the event if desired.
+                    break
                 case .text(let text):
                     // Safety check: filter harmful output
                     if let contentGuard = streamGuard {
@@ -611,6 +615,9 @@ extension DirectInferenceClient {
             switch event.kind {
             case .token:
                 outputTok += 1
+            case .prefillProgress:
+                // Prefill progress — silent in direct client.
+                break
             case .text(let text):
                 outputTok += 1
                 accumulatedText += text

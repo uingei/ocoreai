@@ -550,6 +550,8 @@ private func nonStreamWithToolCalling(
                 logger.warning("Guided gen incomplete: budget exhausted before completion")
             case .guidedGenDiagnostic:
                 break
+            case .prefillProgress:
+                break
             case .incompleteOutput(let incomplete):
                 if incomplete {
                     logger.warning("Incomplete output: budget exhausted")
@@ -612,6 +614,8 @@ private func nonStreamWithToolCalling(
                             accText = (accText ?? "") + r
                         case .guidedGenDiagnostic:
                             // Self-correction path: guided gen skipped intentionally
+                            break
+                        case .prefillProgress:
                             break
                         case .incompleteOutput:
                             // Dead code: never emitted by Engine
@@ -1067,6 +1071,8 @@ private func streamWithToolCalling(
                     logger.warning("SSE stream: guided gen incomplete — budget exhausted")
                     yieldSSERaw("[diagnostic: budget_truncated]", to: continuation)
                 case .guidedGenDiagnostic:
+                    break
+                case .prefillProgress:
                     break
                 case .incompleteOutput:
                     // Dead code: never emitted by Engine

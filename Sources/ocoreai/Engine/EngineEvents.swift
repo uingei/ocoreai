@@ -131,6 +131,13 @@ struct InferenceEvent {
         /// - .cpu: CPU fallback path
         /// - .ane: CoreAI engine path (ANE offload)
         case channel(ComputeChannel)
+
+        /// Prefill progress update — emitted after each prefill chunk.
+        /// Carries (processed, total) position counts from upstream
+        /// PrefillParameters.progress so the HTTP/SSE layer can report
+        /// prefill progress to the client in real-time.
+        /// Upstream: PrefillParameters.swift L26-32.
+        case prefillProgress(processed: Int, total: Int)
     }
 
     /// Event payload

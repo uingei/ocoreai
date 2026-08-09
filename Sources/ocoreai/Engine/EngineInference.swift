@@ -1006,6 +1006,11 @@ extension EnginePool {
             from: sampling,
             maxTokens: options.maxTokens,
             kvCacheQuant: config.kvCacheQuantization,
+            progressHandler: { processed, total in
+                continuation.yield(
+                    .init(kind: .prefillProgress(processed: processed, total: total))
+                )
+            },
         )
 
         // Build speculative decoding config once before inference body.
@@ -1138,6 +1143,10 @@ extension EnginePool {
                 let completionReserve = Swift.max(structuralReserve * 3, maxTokens / 4)
                 let hardReserve = structuralReserve * 8
 
+                // Extract KV quantization params from typed config for GuidedGenerationLoop
+                // (which still consumes legacy scalar kvBits/kvGroupSize/quantizedKVStart).
+                let guidedKVParams = extractKVQuantizationParams(from: genParams.kvCache)
+
                 do {
                     diagnosticResult = try GuidedGenerationDiagnosticSink.$current.withValue(
                         diagnosticSink
@@ -1152,9 +1161,9 @@ extension EnginePool {
                             constraint: constraint,
                             maxTokens: maxTokens,
                             vocabSize: Int(loaded.modelConfig.vocabSize),
-                            kvBits: genParams.kvBits,
-                            kvGroupSize: genParams.kvGroupSize,
-                            quantizedKVStart: genParams.quantizedKVStart,
+                            kvBits: guidedKVParams.bits,
+                            kvGroupSize: guidedKVParams.groupSize,
+                            quantizedKVStart: guidedKVParams.compressionStart,
                             completionReserve: completionReserve,
                             hardReserve: hardReserve,
                             closingBias: closingBias,

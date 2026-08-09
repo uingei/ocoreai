@@ -486,6 +486,8 @@ enum AgentLoop {
                     logger.warning("AgentLoop: guided gen truncated by budget")
                 case .guidedGenDiagnostic:
                     break
+                case .prefillProgress:
+                    break
                 case .incompleteOutput(let incomplete):
                     if incomplete {
                         logger.warning("AgentLoop: incomplete output")

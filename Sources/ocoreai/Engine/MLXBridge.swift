@@ -602,24 +602,186 @@ actor MLXModelLoader {
     }
 }
 
-// MARK: - Sampling Config Bridge
+// MARK: - KV Cache Typed Configuration
+
+/// Extract effective quantization parameters from a ``KVCacheConfiguration``
+/// for consumers (like ``GuidedGenerationLoop``) that still expect legacy
+/// kvBits/kvGroupSize/quantizedKVStart scalars.
+nonisolated func extractKVQuantizationParams(
+    from config: MLXLMCommon.KVCacheConfiguration?
+) -> (bits: Int?, groupSize: Int, compressionStart: Int) {
+    guard let config = config else { return (nil, 64, 0) }
+    let strategyId = config.strategy.identifier
+    switch strategyId.rawValue {
+    case "full-precision":
+        return (nil, 64, 0)
+    case "affine":
+        return (4, 64, 0)
+    case "turbo-quant":
+        return (4, 64, 0)
+    default:
+        return (nil, 64, 0)
+    }
+}
+
+/// Convert legacy KV cache quantization parameters to the typed
+/// ``KVCacheConfiguration`` API (mlx-swift-lm Evaluate.swift L74-79).
+///
+/// Strategy resolution:
+/// - `kvScheme` starts with "turbo" → ``.turboQuant(...)`` (with K/V precision)
+/// - `kvScheme` starts with "affine" → ``.affine(...)`` (with bit width)
+/// - `kvScheme` is nil but `bits` is set → ``.affine`` (conservative default)
+/// - Disabled or invalid → nil (full precision, no compression)
+nonisolated func makeKVCacheConfiguration(
+    kvCacheQuant: KVCacheQuantizationConfig?,
+    fallbackBits: Int?,
+    fallbackGroupSize: Int,
+    fallbackQuantizedKVStart: Int,
+    fallbackScheme: String?
+) -> MLXLMCommon.KVCacheConfiguration? {
+    // Primary source: global kvCacheQuant config
+    if let config = kvCacheQuant {
+        guard config.enabled else { return nil }
+        let bits = config.bits ?? 4
+        let groupSize = config.groupSize > 0 ? config.groupSize : 64
+        let compressionStart = max(0, config.quantizedKVStart)
+        let scheme = config.kvScheme
+
+        var strategy: MLXLMCommon.KVCacheConfiguration.Strategy
+        if let s = scheme, s.hasPrefix("turbo") {
+            let kPrecision: TurboQuantKVCacheConfiguration.KeyPrecision
+            let vPrecision: TurboQuantKVCacheConfiguration.ValuePrecision
+
+            if s == "turbo4" {
+                kPrecision = .fourBit
+                vPrecision = .fourBit
+            } else if let (kBits, vBits) = parseTurboScheme(s) {
+                kPrecision = kPrecisionFromBits(kBits)
+                vPrecision = vPrecisionFromBits(vBits)
+            } else {
+                kPrecision = .fourBit
+                vPrecision = .fourBit
+            }
+
+            strategy = .turboQuant(
+                try! TurboQuantKVCacheConfiguration(
+                    keyPrecision: kPrecision,
+                    valuePrecision: vPrecision,
+                    compressionStart: compressionStart
+                ))
+        } else if let s = scheme, s.hasPrefix("affine") {
+            let affineBits = parseSchemeBits(s) ?? bits
+            strategy = .affine(
+                try! AffineKVCacheConfiguration(
+                    bits: affineBits, groupSize: groupSize, compressionStart: compressionStart
+                ))
+        } else {
+            strategy = .affine(
+                try! AffineKVCacheConfiguration(
+                    bits: bits, groupSize: groupSize, compressionStart: compressionStart
+                ))
+        }
+        return MLXLMCommon.KVCacheConfiguration(strategy: strategy)
+    }
+
+    // Fallback: sampling-level kvBits field
+    if let bits = fallbackBits {
+        let groupSize = fallbackGroupSize > 0 ? fallbackGroupSize : 64
+        let compressionStart = max(0, fallbackQuantizedKVStart)
+
+        var strategy: MLXLMCommon.KVCacheConfiguration.Strategy
+        if let s = fallbackScheme, s.hasPrefix("turbo") {
+            let kPrecision: TurboQuantKVCacheConfiguration.KeyPrecision
+            let vPrecision: TurboQuantKVCacheConfiguration.ValuePrecision
+
+            if let (kBits, vBits) = parseTurboScheme(s) {
+                kPrecision = kPrecisionFromBits(kBits)
+                vPrecision = vPrecisionFromBits(vBits)
+            } else {
+                kPrecision = .fourBit
+                vPrecision = .fourBit
+            }
+
+            strategy = .turboQuant(
+                try! TurboQuantKVCacheConfiguration(
+                    keyPrecision: kPrecision,
+                    valuePrecision: vPrecision,
+                    compressionStart: compressionStart
+                ))
+        } else {
+            strategy = .affine(
+                try! AffineKVCacheConfiguration(
+                    bits: bits, groupSize: groupSize, compressionStart: compressionStart
+                ))
+        }
+        return MLXLMCommon.KVCacheConfiguration(strategy: strategy)
+    }
+
+    return nil
+}
+
+private func parseTurboScheme(_ scheme: String) -> (Int, Int)? {
+    guard let vIdx = scheme.range(of: "v", options: .backwards)?.lowerBound else {
+        let suffix = String(scheme.dropFirst(5))
+        if let d = Int(suffix), d > 0 {
+            return (d, d)
+        }
+        return nil
+    }
+    let kPart = String(scheme[..<vIdx].dropFirst(5))
+    let vPart = String(scheme[vIdx...].dropFirst(1))
+    guard let k = Int(kPart), k >= 0, let v = Int(vPart), v > 0 else { return nil }
+    return (k, v)
+}
+
+private func kPrecisionFromBits(_ bits: Int) -> TurboQuantKVCacheConfiguration.KeyPrecision {
+    switch bits {
+    case 0: return .fp16
+    case 2: return .twoBit
+    case 3: return .threeBit
+    case 4: return .fourBit
+    case 8: return .affineEightBit
+    default: return .fourBit
+    }
+}
+
+private func vPrecisionFromBits(_ bits: Int) -> TurboQuantKVCacheConfiguration.ValuePrecision {
+    switch bits {
+    case 2: return .twoBit
+    case 3: return .threeBit
+    case 4: return .fourBit
+    default: return .fourBit
+    }
+}
+
+private func parseSchemeBits(_ scheme: String) -> Int? {
+    let suffix = String(scheme.dropFirst(6))
+    return Int(suffix)
+}
 
 /// Convert ``SamplingConfiguration`` to mlx-swift-lm ``GenerateParameters``.
 nonisolated func makeGenerateParameters(
     from sampling: SamplingConfiguration,
     maxTokens: Int?,
     kvCacheQuant: KVCacheQuantizationConfig? = nil,
+    progressHandler: (@Sendable (Int, Int) -> Void)? = nil,
 ) -> MLXLMCommon.GenerateParameters {
     var params = MLXLMCommon.GenerateParameters()
     // P1-fix: Pass maxTokens through directly — upstream default is nil (no limit).
     // Hard-coding 1024 truncated all requests without explicit maxTokens config.
     params.maxTokens = maxTokens
-    if let config = kvCacheQuant, config.enabled {
-        params.kvBits = config.bits
-        params.kvGroupSize = config.groupSize
-        params.quantizedKVStart = config.quantizedKVStart
-        params.kvScheme = config.kvScheme
-    }
+    // Typed KV cache configuration — avoids legacy kvBits/kvScheme/kvGroupSize
+    // which conflict with upstream KVCacheConfiguration (Evaluate.swift L74-79:
+    // "Set either GenerateParameters.kvCache or the legacy KV-cache fields, not both")
+    // Upstream applies typed config via KVCachePlan internally.
+    let kvCacheConfig = makeKVCacheConfiguration(
+        kvCacheQuant: kvCacheQuant,
+        fallbackBits: sampling.kvBits,
+        fallbackGroupSize: sampling.kvGroupSize,
+        fallbackQuantizedKVStart: sampling.quantizedKVStart,
+        fallbackScheme: sampling.kvScheme
+    )
+    params.kvCache = kvCacheConfig
     #if FoundationModelsIntegration
     let mlxMode: MLXSamplingMode?
     switch sampling.mode {
@@ -694,7 +856,9 @@ nonisolated func makeGenerateParameters(
     // Prefill parameters — structured PrefillConfig → upstream PrefillParameters
     // Upstream: GenerateParameters.prefill (Evaluate.swift L58, PrefillParameters.swift)
     // stepSize: ceiling per forward; chunking: division strategy
-    // Progress callback not exposed — would require user-side closure in API config
+    params.prefill.progress = { processed, total in
+        progressHandler?(processed, total)
+    }
     if let stepSize = sampling.prefill.stepSize {
         params.prefill.stepSize = stepSize
     }
@@ -712,16 +876,6 @@ nonisolated func makeGenerateParameters(
     params.repetitionContextSize = sampling.repetitionContextSize
     params.presenceContextSize = sampling.presenceContextSize
     params.frequencyContextSize = sampling.frequencyContextSize
-    // KV quantization fallback — SamplingConfiguration fields override when kvCacheQuant nil
-    if params.kvBits == nil, let bits = sampling.kvBits {
-        params.kvBits = bits
-    }
-    if params.kvScheme == nil, let scheme = sampling.kvScheme {
-        params.kvScheme = scheme
-    }
-    if params.quantizedKVStart == 0, sampling.quantizedKVStart > 0 {
-        params.quantizedKVStart = sampling.quantizedKVStart
-    }
     return params
 }
 
