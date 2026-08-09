@@ -246,11 +246,12 @@ actor MLXSessionPool {
         conversationId: String,
     ) async {
         let key = poolKey(modelId: modelId, conversationId: conversationId)
-        // Clear tools + toolDispatch to prevent cross-session tool leakage.
-        // Without this, a pooled session reused by a different request could
-        // carry over tool specs and dispatch closures from the previous caller.
+        // Clear tools + toolDispatch + additionalContext to prevent cross-session leakage.
+        // Without this, a pooled session reused by a different request could carry over
+        // tool specs, dispatch closures, or reasoning context from the previous caller.
         pooled.session.tools = nil
         pooled.session.toolDispatch = nil
+        pooled.session.additionalContext = nil
         // synchronize KV cache before returning to pool — ensures any async GPU
         // cache operations from the last stream are flushed. Without this, a
         // reused pooled session could serve stale cache state.
