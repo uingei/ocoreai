@@ -1717,31 +1717,48 @@ extension EnginePool {
             // is true, the guided path may fall through (e.g., multimodal + grammar conflict)
             // and still need a valid session.
             // Hoist registry ref before closure — ToolRegistry is an actor, capture is safe
-            // Tool dispatch closure: ChatSession owns tool execution via its built-in
-            // loop (ChatSession.swift L748 restart). Both pool-hit and new-session paths
-            // set tools+toolDispatch so tool calls are handled internally.
-            // AgentLoop (Agents/AgentLoop.swift) is no longer used for MLX/ChatSession
-            // paths — it serves only as a fallback for CoreAI/bridge paths where
-            // ChatSession is unavailable.
+            // Tool dispatch via ChatSession's built-in restart loop (ChatSession.swift L1208).
+            // When toolDispatch != nil, ChatSession collects .toolCall events internally,
+            // executes them, and appends tool results as pending messages that trigger
+            // another generation pass — all inside ChatSession.streamMap().
             //
-            // Fix: ChatSession L1043 intercepts .toolCall events when toolDispatch != nil
-            // ("collect tool calls for dispatch; if no toolDispatch the caller handles
-            //  them via the transform") — they never reach streamDetails. Intercepted
-            // tool calls are tracked here so we can emit .toolCall events downstream
-            // after the stream loop completes but before .done.
-            // Thread-safe via actor — @Sendable closures can't mutate outer vars in Swift 6.
-            let tracker = _InterceptedToolCallTracker()
+            // Real-time .toolCall events:
+            // - MTP path (L2437): direct event yield per iteration
+            // - Std non-reasoning path (L2938): streamDetails emits .toolCall
+            // - Std reasoning path: No tool calls (tools → mayRunReasoning == false)
+            //
+            // Double-serialization fix: removed tracker.post-hoc record + JSON roundtrip.
+            // ChatSession.toolDispatch closure now calls registry directly — no intermediate
+            // actor, no JSON encode/decode of MLXLMCommon.JSONValue.
             var toolDispatchClosure: (@Sendable (MLXLMCommon.ToolCall) async throws -> String)? =
                 nil
             if let registry = toolRegistry {
-                toolDispatchClosure = { toolCall in
-                    await tracker.record(toolCall)
-                    let argsDict = toolCall.function.arguments.mapValues { $0.anyValue }
-                    let jsonEncoded = try JSONSerialization.data(
-                        withJSONObject: argsDict
+                // Double-serialization fix: removed tracker record + JSON roundtrip.
+                // Previously: MLXLMCommon.JSONValue → JSONSerialization → String → registry.call().
+                // Now: MLXLMCommon.JSONValue → direct registry.call() via .anyValue.
+                toolDispatchClosure = { [registry] toolCall in
+                    // MLXLMCommon.ToolCall carries JSONValue args that need JSON-string
+                    // serialization for ToolRegistry.call(arguments: String).
+                    // Previously this went through _InterceptedToolCallTracker (JSON roundtrip)
+                    // which added post-hoc delay; now direct inline serialization.
+                    let argsDict =
+                        toolCall.function.arguments
+                        .mapValues { $0.anyValue } as? [String: Any] ?? [:]
+                    guard
+                        let data = try? JSONSerialization.data(
+                            withJSONObject: argsDict,
+                            options: []
+                        ),
+                        let jsonArgs = String(data: data, encoding: .utf8)
+                    else {
+                        // Fatal: tool args could not be serialized (should not happen in practice).
+                        fatalError("Tool args serialization failed for \(toolCall.function.name)")
+                    }
+                    return try await registry.call(
+                        toolCall.function.name,
+                        arguments: jsonArgs,
+                        caller: "mlx_engine"
                     )
-                    let argsString = String(decoding: jsonEncoded, as: UTF8.self)
-                    return try await registry.call(toolCall.function.name, arguments: argsString)
                 }
             }
 
@@ -1753,9 +1770,13 @@ extension EnginePool {
             let mayRunReasoning =
                 (registeredToolSpecs ?? []).isEmpty && options.grammarSchema == nil
 
+            // Snapshot reasoningConfig once here (replaces the second actor hop at L1807
+            // which repeated the same .configuration.reasoningConfig lookup).
+            let reasoningConfig = await handleRef.modelContainer.configuration.reasoningConfig
+
             let reasoningContext: [String: any Sendable]?
             if mayRunReasoning,
-                let rc = await handleRef.modelContainer.configuration.reasoningConfig
+                let rc = reasoningConfig
             {
                 // Mirror upstream thinkingEnabled(for:) reasoning level resolution:
                 //   reasoningLevel set → parse to Bool?
@@ -1789,7 +1810,7 @@ extension EnginePool {
                     reasoningContext = nil
                 }
             } else if !mayRunReasoning,
-                await handleRef.modelContainer.configuration.reasoningConfig != nil
+                reasoningConfig != nil
             {
                 log.info(
                     "Reasoning suppressed — tools or grammar schema present (mayRunReasoningPath)")
@@ -2826,8 +2847,7 @@ extension EnginePool {
                     promptTokPerSec = stdResult.promptTokPerSec
                     metrics.generatedTokenCount += stdResult.tokenIds.count
 
-                    /// Upstream: emit diagnostic metadata about generation state before
-                    /// any tool calls, then emit tracked tool calls, then finalize.
+                    // Upstream: emit diagnostic metadata about generation state.
                     if !stdResult.stoppedBySequence, !Task.isCancelled {
                         // Upstream: if generation ended inside a reasoning block
                         // (budget exhausted before closing </think>), emit incompleteOutput
@@ -2853,13 +2873,6 @@ extension EnginePool {
                                 )
                             )
                         )
-                    }
-
-                    // Emit tracked tool calls if any
-                    let trackedCalls = await tracker.fetch()
-                    for mlxTC in trackedCalls {
-                        let tc = InferenceEvent.mlxToolCall(from: mlxTC)
-                        continuation.yield(.init(kind: .toolCall(tc)))
                     }
 
                     // MARK: - Standard ChatSession Path (non-reasoning fallback)
@@ -2939,18 +2952,6 @@ extension EnginePool {
                             let tc = InferenceEvent.mlxToolCall(from: mlxTC)
                             continuation.yield(.init(kind: .toolCall(tc)))
                         }
-                    }
-
-                    // Emit any tool calls intercepted by ChatSession's internal
-                    // tool loop (L780). When toolDispatch was set, ChatSession
-                    // internally collects & dispatches tools — the caller never
-                    // sees .toolCall in streamDetails. Track-and-emit ensures
-                    // downstream consumers (ChatHandler, DirectInferenceClient)
-                    // still receive tool call events for telemetry/UI.
-                    let trackedCalls = await tracker.fetch()
-                    for mlxTC in trackedCalls {
-                        let tc = InferenceEvent.mlxToolCall(from: mlxTC)
-                        continuation.yield(.init(kind: .toolCall(tc)))
                     }
 
                     // Emit final .done event with prompt throughput + MTP telemetry
@@ -3211,23 +3212,5 @@ extension EnginePool {
         } catch {
             return false
         }
-    }
-}
-
-// MARK: - Tool Call Tracking
-
-/// Thread-safe tracker for tool calls intercepted by ChatSession's internal loop.
-/// When `toolDispatch` is set on ChatSession, `.toolCall` events are consumed internally
-/// and never reach `streamDetails` (ChatSession.swift L780). This actor records each
-/// intercepted call so we can re-emit them downstream after the stream completes.
-actor _InterceptedToolCallTracker {
-    private var calls: [MLXLMCommon.ToolCall] = []
-
-    func record(_ call: MLXLMCommon.ToolCall) {
-        calls.append(call)
-    }
-
-    func fetch() -> [MLXLMCommon.ToolCall] {
-        calls
     }
 }
