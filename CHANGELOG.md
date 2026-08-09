@@ -27,6 +27,9 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 - **Security** — Closed 2 P0 vulnerabilities from code review
 - **Build fixes** — Resolved build break, release warning, and release-mode crash
 - **Miscellaneous** — Removed dead HF_ENDPOINT check and dead firstError variable in MCP routeParallel
+- **SessionPool cross-session leakage** — Pool release cleared `tools`/`toolDispatch` but missed `additionalContext`, causing reasoning context from a prior request to bleed into the next pooled session (SessionPool.swift L252)
+- **CoreAI variant compatibility** — Chunked-static ANE model structure fell back to `sequential` engine, violating upstream `checkVariantCompatibility` (sequential + chunkedStatic = incompatible). Now throws a clear error instead of running an incompatible engine (CoreAIEngine.swift L445-450)
+- **CoreAI vocabSize hardcoding** — Config fallback default was Qwen3-specific (151,936). Replaced with model-agnostic 32,768 via `defaultVocabSize` constant; actual vocab size probed from logits descriptor at engine init time (CoreAIEngine.swift L554)
 
 ### Refactoring
 
@@ -46,4 +49,4 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ---
 
-*Generated from git history: v0.1.0..6a601f4 (35 commits, 2026-07-05 → 2026-07-09).*
+*Generated from git history: v0.1.0..c64a8d6 (35+ commits, 2026-07-05 → 2026-08-09).*

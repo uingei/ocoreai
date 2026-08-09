@@ -201,7 +201,7 @@ memory:
 | 组件 | 状态 |
 |------|------|
 | MLX Metal 推理 | ✅ |
-| CoreAI 推理（动态 KV Cache、Prefix Cache） | ✅ |
+| CoreAI 推理（动态 KV Cache、Prefix Cache） | ✅ Sequential engine only — staticShape/pipelined 未实现; chunkedStatic 模型结构明确报错 |
 | FM 语言模型 + 工具桥接（macOS 27） | ✅ 代码：`MLXLanguageModel` → `LanguageModelSession` → `streamResponse`；FMToolProxy 桥接 `ToolRegistry` → `FoundationModels.Tool`。macOS < 27 自动降级至 ChatSession |
 | 引导生成（语法约束） | ✅ 动态 `CompletionReserve.estimate` 结构预留 |
 | KV Cache 量化（turbo4/INT8） | ✅ |

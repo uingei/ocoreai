@@ -202,7 +202,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 | Component | Status |
 |-----------|--------|
 | MLX Metal inference | ✅ |
-| CoreAI inference (dynamic KV cache, prefix caching) | ✅ |
+| CoreAI inference (dynamic KV cache, prefix caching) | ✅ Sequential engine only — staticShape/pipelined not implemented; chunkedStatic model structure throws with clear error |
 | FM language model + tool bridge (macOS 27) | ✅ Code: `MLXLanguageModel` → `LanguageModelSession` → `streamResponse`; FMToolProxy bridges `ToolRegistry` → `FoundationModels.Tool`. Falls back to ChatSession on macOS < 27 |
 | KV cache quantization (turbo4/INT8) | ✅ |
 | VLM multimodal inference | ✅ |

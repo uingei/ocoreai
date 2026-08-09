@@ -79,17 +79,21 @@ swift test --filter OcoreAITests.System  # system tests only
 
 ---
 
-## Known Gaps (2026-07-27 Current State)
+## Known Gaps (2026-08-09 Current State)
 
 | Issue | File | Status |
 |-------|------|--------|
+| MLX path cross-session leakage | SessionPool.swift L252 | ✅ Fixed — `additionalContext` now cleared on pool release |
+| CoreAI variant chunkedStatic+sequential incompatibility | CoreAIEngine.swift L445 | ✅ Fixed — guard throws instead of running incompatible engine |
+| CoreAI vocabSize Qwen3-specific default (151,936) | CoreAIEngine.swift L554 | ✅ Fixed — model-agnostic 32,768 via constant |
+| CoreAI staticShape/pipelined engine | CoreAIEngine.swift | ❌ Not implemented — auto-detect falls back to sequential for dynamic models; chunkedStatic throws |
 | PagedKVCache removed | 2b3c965 | ✅ Resolved (P0 cleanup) |
 | SpecDecodingConfig.mode | EnginePool.swift L438 | ✅ Wired (consumed) |
 | ReasoningConfig | EngineInference.swift L1078 | ✅ Wired (ReasoningEventEmitter) |
 | MTP toolCall dispatch | EngineInference.swift L960-982 | ✅ Wired (76b7e79) |
 | ReasoningEventEmitter | Engine/EngineInference.swift 两处 | ✅ 新基础架构 |
 | Reasoning `<thinking>` regex | Engine/ | Limited — only regex-based |
-| MLXFoundationModels deeper integration | Engine/ | Partial — comment reference only |
+| MLXFoundationModels deeper integration | Engine/ | FM path wired via LanguageModelSession; FM SDK lacks per-token callback (tokenCount/tokPerSec/promptTokPerSec all nil on FM .done) |
 | try? scatter | 171 instances MCP/Models hotspot | Ongoing risk |
 | Empty catch {} | EngineInference L123,168 | 2 instances remain |
 | Coverage report | Tests/CoverageReport | Missing — no live data |
