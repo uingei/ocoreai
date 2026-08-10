@@ -380,9 +380,23 @@ final class LoadedModel: @unchecked Sendable {
         sessionCount.wrappingIncrement(ordering: .relaxed)
     }
 
-    /// Decrement session counter
+    /// Decrement session counter — clamped at zero to prevent wrap-around
+    /// when release is called more than acquire (early exit, error paths, etc.).
+    /// P0-fix: wrappingDecrement could wrap to Int.max on underflow, causing
+    /// LRU eviction to see "always active" and never evict.
     func releaseSession() {
-        sessionCount.wrappingDecrement(ordering: .relaxed)
+        // CAS loop: load → clamp → store atomically without wrapping
+        repeat {
+            let current = sessionCount.load(ordering: .relaxed)
+            guard current > 0 else { break }
+            if sessionCount.compareExchange(
+                expected: current,
+                desired: current - 1,
+                ordering: .relaxed
+            ).exchanged {
+                break
+            }
+        } while true
     }
 
     // MARK: - Engine Resolution (CoreAI)

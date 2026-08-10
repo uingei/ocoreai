@@ -71,6 +71,11 @@ actor EnginePool {
     /// Model last-access timestamps for LRU eviction (modelId → Instant)
     private var modelLastAccess: [String: ContinuousClock.Instant] = [:]
 
+    /// Active session registry — sessionId → modelId mapping for P0-fix:
+    /// markSessionActive needs to find the model by sessionId, and
+    /// releaseSession must verify the session actually existed for that model.
+    private var sessionRegistry: [String: String] = [:]
+
     /// Maximum models to keep in memory before LRU eviction kicks in
     let maxLoadedModels: Int
 
@@ -259,6 +264,9 @@ actor EnginePool {
 
         let sessionId = UUID().uuidString
 
+        // P0-fix: register sessionId → modelId for validation at release + markActive
+        sessionRegistry[sessionId] = modelId
+
         logger.info(
             "Session acquired",
             metadata: [
@@ -272,10 +280,32 @@ actor EnginePool {
     }
 
     func releaseSession(modelId: String, sessionId: String) async {
-        loadedModels[modelId]?.releaseSession()
+        // P0-fix: verify sessionId was actually registered for this model
+        guard let registeredModelId = sessionRegistry.removeValue(forKey: sessionId) else {
+            logger.warning(
+                "releaseSession: unregistered session \(sessionId) — skipped",
+                metadata: ["model": .string(modelId)]
+            )
+            return
+        }
+        guard registeredModelId == modelId else {
+            logger.warning(
+                "releaseSession: session \(sessionId) registered for \(registeredModelId) but released against \(modelId)",
+                metadata: ["expected": .string(registeredModelId), "actual": .string(modelId)]
+            )
+            return
+        }
+        loadedModels[registeredModelId]?.releaseSession()
     }
 
+    /// P0-fix: mark session active by touching model last-access timestamp.
+    /// Prevents premature LRU eviction while inference tokens are still flowing.
     func markSessionActive(sessionId: String) async {
+        guard let modelId = sessionRegistry[sessionId] else {
+            logger.warning("markSessionActive: unregistered session \(sessionId)")
+            return
+        }
+        touchModelAccess(modelId)
     }
 
     /// Wait for another caller to finish loading ``modelId``.
