@@ -344,10 +344,14 @@ actor EnginePool {
     private func loadModel(_ modelId: String) async throws -> LoadedModel {
         logger.info("Loading model: \(modelId)")
 
-        // Resolve repo id — strip hf: prefix if present
+        // Resolve repo id — strip hf: / huggingface: / mscope: prefix if present
         let repoId: String =
             if modelId.hasPrefix("hf:") {
                 String(modelId.dropFirst(3))
+            } else if modelId.hasPrefix("huggingface:") {
+                String(modelId.dropFirst(12))
+            } else if modelId.hasPrefix("mscope:") {
+                String(modelId.dropFirst(7))
             } else {
                 modelId
             }
@@ -490,25 +494,25 @@ actor EnginePool {
                 // Fallback if cast fails — unlikely but defensive
                 mlxHandleToSet = try await mlxModelLoader.load(
                     modelURL: modelURL,
-                    modelId: modelId,
+                    modelId: repoId,
                 )
-                logger.warning("MLX model \(modelId) loaded via fallback loader (cast failed)")
+                logger.warning("MLX model \(repoId) loaded via fallback loader (cast failed)")
             }
         } else {
             // FoundationModelsIntegration trait enabled but macOS < 27 — fall back to direct loader
             mlxHandleToSet = try await mlxModelLoader.load(
                 modelURL: modelURL,
-                modelId: modelId,
+                modelId: repoId,
             )
-            logger.info("MLX model \(modelId) loaded via MLXModelLoader (macOS < 27 fallback)")
+            logger.info("MLX model \(repoId) loaded via MLXModelLoader (macOS < 27 fallback)")
         }
         #else
         // Fallback: direct MLXModelLoader path when FoundationModelsIntegration is not available
         mlxHandleToSet = try await mlxModelLoader.load(
             modelURL: modelURL,
-            modelId: modelId,
+            modelId: repoId,
         )
-        logger.info("MLX model \(modelId) loaded via MLXModelLoader")
+        logger.info("MLX model \(repoId) loaded via MLXModelLoader")
         #endif
 
         #if canImport(CoreAI)
