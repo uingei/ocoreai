@@ -52,11 +52,32 @@ enum InferenceError: Error, Sendable {
 #if canImport(CoreAI)
 
 import Atomics
-import Foundation  // Foundation.Mutex (macOS 15+) — available alongside CoreAI (macOS 27 SDK)
 import CoreAI
 import Foundation
 import Logging
-import Synchronization
+
+// MARK: - Mutex shim (Foundation.Mutex is macOS 15+; we target macOS 14)
+
+final class Mutex<Value>: @unchecked Sendable {
+    private let lock: NSRecursiveLock
+    private var _value: Value
+
+    init(_ initialValue: @Sendable @escaping () -> Value) {
+        self._value = initialValue()
+        self.lock = NSRecursiveLock()
+    }
+
+    init(_ initialValue: Value) {
+        self._value = initialValue
+        self.lock = NSRecursiveLock()
+    }
+
+    func withLock<R: Sendable>(_ body: (inout Value) throws -> R) rethrows -> R {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body(&_value)
+    }
+}
 
 // MARK: - Inference Output
 
