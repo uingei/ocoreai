@@ -782,7 +782,7 @@ nonisolated func makeGenerateParameters(
         fallbackScheme: sampling.kvScheme
     )
     params.kvCache = kvCacheConfig
-    #if FoundationModelsIntegration
+    #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
     let mlxMode: MLXSamplingMode?
     switch sampling.mode {
     case .none: mlxMode = nil
