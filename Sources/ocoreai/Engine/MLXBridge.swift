@@ -822,14 +822,15 @@ nonisolated func makeGenerateParameters(
             forcesGreedy = true  // align with upstream — smallest pool ≈ deterministic
         case .nucleus(let p):
             params.topP = Float(p)
-        case .topK(let k):
-            params.topK = k >= 1 ? k : nil  // upstream guard: k<=0 → no filter
+        case .topK(let k) where k >= 1:
+            params.topK = k
+        // k <= 0 → upstream: no filter (topK unset)
         case .none:
             if let topP = sampling.topP, topP > 0 {
                 params.topP = Float(topP)
             }
-            if let topK = sampling.topK {
-                params.topK = topK >= 1 ? topK : nil
+            if let topK = sampling.topK, topK >= 1 {
+                params.topK = topK
             }
         }
     }
