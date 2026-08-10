@@ -236,7 +236,7 @@ final class SettingsState {
         errorMessage = nil
         let ready = OcoreaiEngine.shared.activeEnginePool != nil
         connected = ready
-        verifyMessage = ready ? nil : "Engine not initialized"
+        verifyMessage = ready ? nil : StringKey.engineNotAvailable.l
         verifying = false
     }
 

@@ -48,7 +48,7 @@ import Tokenizers
 // macOS 26 SDK too. MLXLanguageModel and other types use _version: 2 +
 // @available(macOS 27.0, iOS 27.0, *) which gate them to macOS 27+.
 
-#if FoundationModelsIntegration
+#if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
 import MLXFoundationModels
 #endif
 

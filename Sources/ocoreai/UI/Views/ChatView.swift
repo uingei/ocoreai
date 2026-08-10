@@ -14,6 +14,10 @@ import SwiftUI
 import AppKit
 #endif
 
+#if os(iOS)
+import PhotosUI
+#endif
+
 /// Stable identity wrapper for chat messages — uses UUID string for deterministic identity
 ///
 /// Mirrors ChatMessage structure: flat `content` for compatibility + optional `parts`
@@ -98,6 +102,12 @@ struct ChatView: View {
 
     // Image attachments for multimodal input
     @State private var attachments: [ChatState.AttachedImage] = []
+
+    #if os(iOS)
+    // P0-fix: iOS photo picker — PhotosPicker (iOS 16+, HIG-compliant)
+    @State private var showPhotoPicker = false
+    @State private var photoPickerItems: [PhotosUI.PhotosPickerItem] = []
+    #endif
 
     // P2-fix: streaming reasoning block collapse state — default expanded to preserve visibility
     @State private var showStreamingReasoning = true
@@ -271,6 +281,20 @@ struct ChatView: View {
             chatState.onModelChanged(newModelId: targetModel)
         }
         .accessibilityLabel(StringKey.chatLabel.l)
+        // P0-fix: iOS photo picker sheet — PhotosPicker (iOS 16+, HIG-compliant)
+        #if os(iOS)
+        .sheet(isPresented: $showPhotoPicker) {
+            PhotosUI.PhotosPicker(
+                selection: $photoPickerItems,
+                maxSelectionCount: 5,
+                preferredItemEncoding: .automatic,
+                label: StringKey.attachFiles.l
+            )
+            .onChange(of: photoPickerItems) {
+                processPhotoPickerItems(Array(photoPickerItems))
+            }
+        }
+        #endif
     }
 
     // MARK: - Header
@@ -648,9 +672,41 @@ struct ChatView: View {
             }
         }
         #else
-        // iOS: UIImagePickerController via sheet — stub for now
+        // P0-fix: iOS — present PhotosPicker sheet (iOS 16+, HIG-compliant)
+        showPhotoPicker = true
         #endif
     }
+
+    #if os(iOS)
+    // Process PhotosPicker items: load image data, compress, create base64 attachments
+    private func processPhotoPickerItems(_ items: [PhotosUI.PhotosPickerItem]) {
+        guard !items.isEmpty else { return }
+        Task.detached(priority: .utility) {
+            let maxFileSize = 10 * 1024 * 1024
+            var attachmentsToAppend: [ChatState.AttachedImage] = []
+            for item in items {
+                do {
+                    guard let data = try await item.loadTransferable(type: Data.self) else {
+                        continue
+                    }
+                    guard data.count <= maxFileSize else {
+                        continue
+                    }
+                    let compressed = compressImage(data)
+                    attachmentsToAppend.append(
+                        ChatState.AttachedImage(
+                            dataURL: "data:image/jpeg;base64,\(compressed.base64EncodedString())"
+                        ))
+                } catch {
+                    // Skip items that fail to load
+                }
+            }
+            await MainActor.run {
+                self.attachments.append(contentsOf: attachmentsToAppend)
+            }
+        }
+    }
+    #endif
 
     // MARK: - Actions
 

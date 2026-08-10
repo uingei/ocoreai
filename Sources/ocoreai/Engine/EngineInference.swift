@@ -816,6 +816,19 @@ extension EnginePool {
             return
         }
 
+        // P0-fix: Validate ANE runtime availability before emitting channel event.
+        // On macOS/iOS < 27 with canImport(CoreAI) compiled, _runInference falls
+        // back to MLX GPU via the #available guard below — without this check,
+        // downstream (UI/SSE) receives .ane event while actual inference runs on GPU.
+        #if canImport(CoreAI)
+        if computeChannel == .ane, !PlatformHelpers.isCoreAIRuntimeAvailable {
+            logger.warning(
+                "HardwareRouter → ANE but CoreAI runtime unavailable, falling back to GPU for \(modelId)"
+            )
+            computeChannel = .gpu
+        }
+        #endif
+
         // Emit channel identification event — tells downstream (UI, diagnostics)
         // which inference pipeline produced the response: FM/Metal GPU, CPU, or CoreAI ANE.
         continuation.yield(.init(kind: .channel(computeChannel)))

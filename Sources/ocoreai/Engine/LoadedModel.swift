@@ -464,9 +464,15 @@ final class LoadedModel: @unchecked Sendable {
         // Without this, the cached InferenceFunction + NDArrays + AIModel asset
         // stay resident even after unloadModel() completes, causing Unified Memory
         // accumulation under model-switch workloads.
+        // P0-fix: Only log when CoreAI runtime was actually active — on macOS/iOS < 27
+        // with canImport(CoreAI) compiled, this block still enters but cachedEngine
+        // is always nil, so logging would be misleading.
+        let wasActive = cachedEngine != nil || _preparedModel != nil
         cachedEngine = nil
         _preparedModel = nil
-        logger.info("CoreAI engine + prepared model released")
+        if wasActive {
+            logger.info("CoreAI engine + prepared model released")
+        }
         #endif
 
         // P1-fix: Clear MLX model handles + drafter to release GPU weights
