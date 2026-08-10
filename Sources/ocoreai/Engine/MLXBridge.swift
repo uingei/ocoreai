@@ -832,7 +832,7 @@ nonisolated func makeGenerateParameters(
             params.topP = Float(p)
         case .topK(let k) where k >= 1:
             params.topK = k
-        case .topK:
+        case .topK(_):
             // k <= 0 → upstream: no filter (topK unset)
             ()
         case .none:
