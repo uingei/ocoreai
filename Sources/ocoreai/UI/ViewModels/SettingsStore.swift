@@ -131,6 +131,47 @@ final class SettingsStore {
         set { defaults.set(newValue, forKey: Key.customSystemPrompt.rawValue) }
     }
 
+    // MARK: - Perception
+
+    /// Master toggle for continuous perception system
+    var perceptionEnabled: Bool {
+        get { defaults.bool(forKey: Key.perceptionEnabled.rawValue) }
+        set { defaults.set(newValue, forKey: Key.perceptionEnabled.rawValue) }
+    }
+
+    /// Filesystem monitoring channel
+    var perceptionFilesystemEnabled: Bool {
+        get { defaults.bool(forKey: Key.perceptionFilesystemEnabled.rawValue) }
+        set { defaults.set(newValue, forKey: Key.perceptionFilesystemEnabled.rawValue) }
+    }
+
+    /// Internet content awareness channel
+    var perceptionInternetEnabled: Bool {
+        get { defaults.bool(forKey: Key.perceptionInternetEnabled.rawValue) }
+        set { defaults.set(newValue, forKey: Key.perceptionInternetEnabled.rawValue) }
+    }
+
+    /// System context awareness channel (thermal, memory, CPU)
+    var perceptionSystemEnabled: Bool {
+        get { defaults.bool(forKey: Key.perceptionSystemEnabled.rawValue) }
+        set { defaults.set(newValue, forKey: Key.perceptionSystemEnabled.rawValue) }
+    }
+
+    /// Speaker feedback channel (TTS output loopback)
+    var perceptionSpeakerEnabled: Bool {
+        get { defaults.bool(forKey: Key.perceptionSpeakerEnabled.rawValue) }
+        set { defaults.set(newValue, forKey: Key.perceptionSpeakerEnabled.rawValue) }
+    }
+
+    /// Power profile for perception sampling rate
+    var perceptionPowerProfile: String {
+        get { defaults.string(forKey: Key.perceptionPowerProfile.rawValue) ?? "normal" }
+        set {
+            let val = ["normal", "reduced", "minimal"].contains(newValue) ? newValue : "normal"
+            defaults.set(val, forKey: Key.perceptionPowerProfile.rawValue)
+        }
+    }
+
     var lastSessionId: Int64? {
         get { defaults.object(forKey: Key.lastSessionId.rawValue) as? Int64 }
         set {
@@ -264,6 +305,14 @@ final class SettingsStore {
         // Hub Tokens
         case hfToken = "settings.hub.hfToken"
         case modelScopeToken = "settings.hub.modelScopeToken"
+
+        // Perception
+        case perceptionEnabled = "settings.perception.enabled"
+        case perceptionFilesystemEnabled = "settings.perception.filesystem"
+        case perceptionInternetEnabled = "settings.perception.internet"
+        case perceptionSystemEnabled = "settings.perception.system"
+        case perceptionSpeakerEnabled = "settings.perception.speaker"
+        case perceptionPowerProfile = "settings.perception.powerProfile"
     }
 
     private let defaults: UserDefaults

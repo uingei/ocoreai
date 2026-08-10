@@ -25,6 +25,7 @@ struct SettingsView: View {
             serverSection
             modelSection
             hubTokenSection
+            perceptionSection
             performanceSection
             kvCacheSection
             specDecodingSection
@@ -203,6 +204,40 @@ struct SettingsView: View {
             Text(StringKey.specDecodingSection.l)
         } footer: {
             Text(StringKey.specDecodingFooter.l)
+        }
+    }
+
+    // MARK: - Perception
+
+    private var perceptionSection: some View {
+        Section {
+            Toggle(StringKey.perceptionToggle.l, isOn: $settingsState.perceptionEnabled)
+                .accessibilityLabel(StringKey.perceptionToggle.l)
+            if settingsState.perceptionEnabled {
+                Toggle(
+                    StringKey.perceptionFilesystem.l,
+                    isOn: $settingsState.perceptionFilesystemEnabled
+                )
+                .accessibilityLabel(StringKey.perceptionFilesystem.l)
+                Toggle(
+                    StringKey.perceptionInternet.l,
+                    isOn: $settingsState.perceptionInternetEnabled
+                )
+                .accessibilityLabel(StringKey.perceptionInternet.l)
+                Picker(
+                    StringKey.perceptionPowerProfile.l,
+                    selection: $settingsState.perceptionPowerProfile
+                ) {
+                    Text(StringKey.perceptionPowerProfileNormal.l).tag("normal")
+                    Text(StringKey.perceptionPowerProfileReduced.l).tag("reduced")
+                    Text(StringKey.perceptionPowerProfileMinimal.l).tag("minimal")
+                }
+                .accessibilityLabel(StringKey.perceptionPowerProfile.l)
+            }
+        } header: {
+            Text(StringKey.perceptionSection.l)
+        } footer: {
+            Text(StringKey.perceptionToggleHint.l)
         }
     }
 

@@ -164,6 +164,23 @@ public enum StringKey: String, CaseIterable {
     case customSystemPromptHint = "Settings.CustomSystemPromptHint"
     case customSystemPromptPlaceholder = "Settings.CustomSystemPromptPlaceholder"
 
+    // — Perception —
+    case perceptionSection = "Settings.PerceptionSection"
+    case perceptionToggle = "Settings.PerceptionToggle"
+    case perceptionToggleHint = "Settings.PerceptionToggleHint"
+    case perceptionFilesystem = "Settings.PerceptionFilesystem"
+    case perceptionFilesystemHint = "Settings.PerceptionFilesystemHint"
+    case perceptionInternet = "Settings.PerceptionInternet"
+    case perceptionInternetHint = "Settings.PerceptionInternetHint"
+    case perceptionPowerProfile = "Settings.PerceptionPowerProfile"
+    case perceptionPowerProfileNormal = "Settings.PerceptionPowerNormal"
+    case perceptionPowerProfileReduced = "Settings.PerceptionPowerReduced"
+    case perceptionPowerProfileMinimal = "Settings.PerceptionPowerMinimal"
+    case perceptionSystem = "Settings.PerceptionSystem"
+    case perceptionSystemHint = "Settings.PerceptionSystemHint"
+    case perceptionSpeaker = "Settings.PerceptionSpeaker"
+    case perceptionSpeakerHint = "Settings.PerceptionSpeakerHint"
+
     // — Navigation —
     case tabDashboard = "Navigation.Dashboard"
     case tabChat = "Navigation.Chat"
@@ -591,6 +608,25 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
             "Your custom instructions are prepended to the system prompt with highest priority.",
         .customSystemPromptPlaceholder:
             "e.g. Be concise and answer in the user's preferred language.",
+
+        // Perception
+        .perceptionSection: "Perception",
+        .perceptionToggle: "Enable Continuous Perception",
+        .perceptionToggleHint:
+            "Monitor camera, screen, network, filesystem, and internet for contextual awareness",
+        .perceptionFilesystem: "Filesystem Monitoring",
+        .perceptionFilesystemHint: "Track file changes in watched directories",
+        .perceptionInternet: "Internet Awareness",
+        .perceptionInternetHint: "Poll RSS feeds for environmental context",
+        .perceptionPowerProfile: "Sampling Rate",
+        .perceptionPowerProfileNormal: "Normal",
+        .perceptionPowerProfileReduced: "Reduced",
+        .perceptionPowerProfileMinimal: "Minimal",
+        .perceptionSystem: "System Context",
+        .perceptionSystemHint: "Thermal state, memory pressure, CPU load, uptime",
+        .perceptionSpeaker: "Speaker Feedback",
+        .perceptionSpeakerHint: "Monitor TTS output for audio loopback awareness",
+
         .hubTokensTitle: "Hub Tokens",
         .hubTokensHint:
             "Tokens for accessing model hubs (HuggingFace, ModelScope). Stored securely in macOS Keychain.",
@@ -995,6 +1031,23 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .customSystemPrompt: "自定义系统提示",
         .customSystemPromptHint: "自定义指令会以最高优先级注入到系统提示中。",
         .customSystemPromptPlaceholder: "例如：保持简洁，使用用户首选语言回答。",
+
+        // Perception
+        .perceptionSection: "感知",
+        .perceptionToggle: "启用持续感知",
+        .perceptionToggleHint: "监控摄像头、屏幕、网络、文件系统和互联网以获取上下文感知",
+        .perceptionFilesystem: "文件系统监控",
+        .perceptionFilesystemHint: "跟踪监控目录中的文件变更",
+        .perceptionInternet: "互联网感知",
+        .perceptionInternetHint: "轮询 RSS 订阅以获取环境上下文",
+        .perceptionPowerProfile: "采样速率",
+        .perceptionPowerProfileNormal: "标准",
+        .perceptionPowerProfileReduced: "降低",
+        .perceptionPowerProfileMinimal: "最低",
+        .perceptionSystem: "系统上下文",
+        .perceptionSystemHint: "温度状态、内存压力、CPU 负载、运行时间",
+        .perceptionSpeaker: "扬声器反馈",
+        .perceptionSpeakerHint: "监控 TTS 输出用于音频闭环感知",
 
         // Navigation
         .tabDashboard: "仪表盘",

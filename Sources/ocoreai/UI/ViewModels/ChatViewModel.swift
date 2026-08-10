@@ -562,20 +562,38 @@ final class ChatState {
         // Ensure persistent session exists
         await ensureSession(for: model)
 
-        // MARK: - Multimodal context capture
-        // Capture visual context (camera + screen) if enabled before inference
-        // OCR bridge: camera frames with significant OCR text are sent as structured
-        // text (~20 tokens) instead of images (~800 tokens), saving ~97% VLM tokens.
-        let mmState = MultimodalState.shared
-        let mmContext = await mmState.captureContext()
+        // MARK: - Perception context capture
+        // Capture multimodal context (camera + screen + network) via PerceptionEngine.
+        // Engine produces ContentParts directly — OCR bridge active (~97% token savings
+        // for text-rich frames), plus network context for environment awareness.
+        //
+        // Inference lifecycle: signal engine to throttle GPU-heavy sensors during generate.
+        await PerceptionEngine.shared.inferenceStarted()
+        defer { await PerceptionEngine.shared.inferenceEnded() }
+
+        // Build perception ContentParts from the buffered ring buffer
+        let perceptionParts = await PerceptionEngine.shared.contentParts()
 
         // Merge user attachment images into multimodal context
-        var allContext = mmContext
+        var allPerceptionParts = perceptionParts
         for att in attachments {
-            allContext.append(
-                MultimodalState.MMContextEntry(
-                    name: "attachment", dataURL: att.dataURL, ocrText: nil, audioURL: nil
+            allPerceptionParts.append(
+                ContentPart(
+                    type: "image_url",
+                    text: nil,
+                    imageUrl: ContentPart.ImageURL(url: att.dataURL)
                 ))
+        }
+
+        // Check for pending voice transcript from microphone channel
+        if let pendingVoice = MultimodalState.shared.pendingVoiceTranscript, !pendingVoice.isEmpty {
+            allPerceptionParts.append(
+                ContentPart(
+                    type: "text",
+                    text: "[Voice Input] \(pendingVoice)",
+                    imageUrl: nil
+                ))
+            MultimodalState.shared.pendingVoiceTranscript = nil
         }
 
         // Push and persist user message (text only for persistence)
@@ -603,61 +621,27 @@ final class ChatState {
 
             // P1-fix: Extract system messages from cleanMessages so they reach the engine
             // via the systemPrompt path (MessageBuilderContext.userSystemPrompt).
-            // cleanMessages strips them, but they still carry the conversation's system instructions.
             let systemMessages = messages.filter { $0.role == "system" }
             var systemPrompt = systemMessages.map { $0.content }.joined(separator: "\n")
 
             // Merge user's custom system prompt from SettingsStore — highest priority.
-            // If both are present, custom prompt takes precedence, history prompt is appended as context.
             let custom = SettingsStore.shared.customSystemPrompt
             if !custom.isEmpty {
                 systemPrompt = custom + (systemPrompt.isEmpty ? "" : "\n\n" + systemPrompt)
             }
 
-            // Convert to typed Messages — last user message gets multimodal parts if available
-            // OCR bridge: mmContext entries with OCR text are injected as text parts,
-            // image entries as image_url parts, saving ~97% tokens for text-rich frames.
+            // Convert to typed Messages — last user message gets perception parts if available
             let typedMessages: [Message] = {
                 var result: [Message] = []
                 let count = cleanMsgs.count
                 for (idx, msg) in cleanMsgs.enumerated() {
-                    // If this is the last user message AND we have multimodal context,
-                    // inject context as ContentPart text/image parts
                     let isLastUserMsg =
-                        (msg.role == "user") && (idx == count - 1) && !allContext.isEmpty
+                        (msg.role == "user") && (idx == count - 1) && !allPerceptionParts.isEmpty
                     if isLastUserMsg {
                         var parts: [ContentPart] = [
                             ContentPart(type: "text", text: msg.content, imageUrl: nil)
                         ]
-                        for ctx in allContext {
-                            // OCR bridge: if OCR text exists, send as text part
-                            if let ocrText = ctx.ocrText, !ocrText.isEmpty {
-                                parts.append(
-                                    ContentPart(
-                                        type: "text",
-                                        text: "[Camera OCR: \(ocrText)]",
-                                        imageUrl: nil
-                                    ))
-                            } else if let url = ctx.dataURL {
-                                parts.append(
-                                    ContentPart(
-                                        type: "image_url",
-                                        text: nil,
-                                        imageUrl: ContentPart.ImageURL(url: url)
-                                    ))
-                            }
-                            // Audio: inject raw recording so VLM can "hear" directly
-                            if let audioUrl = ctx.audioURL {
-                                parts.append(
-                                    ContentPart(
-                                        type: "audio",
-                                        text: nil,
-                                        imageUrl: nil,
-                                        videoUrl: nil,
-                                        audioURL: ContentPart.AudioURL(url: audioUrl)
-                                    ))
-                            }
-                        }
+                        parts.append(contentsOf: allPerceptionParts)
                         result.append(Message(role: "user", content: .parts(parts)))
                     } else {
                         result.append(Message(role: msg.role, content: .text(msg.content)))
@@ -849,7 +833,7 @@ final class ChatState {
                         // MARK: - Post-inference TTS
                         // If speaker is enabled, speak the cleaned response (no thinking tags)
                         if !cleanedText.trimmingCharacters(in: .whitespaces).isEmpty {
-                            mmState.speakIfEnabled(cleanedText)
+                            MultimodalState.shared.speakIfEnabled(cleanedText)
                         }
                     }
                 }

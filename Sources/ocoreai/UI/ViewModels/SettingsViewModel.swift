@@ -42,6 +42,10 @@ final class SettingsState {
         customSystemPrompt = SettingsStore.shared.customSystemPrompt
         hfToken = SettingsStore.shared.hfToken
         modelScopeToken = SettingsStore.shared.modelScopeToken
+        perceptionEnabled = SettingsStore.shared.perceptionEnabled
+        perceptionFilesystemEnabled = SettingsStore.shared.perceptionFilesystemEnabled
+        perceptionInternetEnabled = SettingsStore.shared.perceptionInternetEnabled
+        perceptionPowerProfile = SettingsStore.shared.perceptionPowerProfile
     }
 
     // MARK: - Server Connection (persisted via SettingsStore)
@@ -161,6 +165,83 @@ final class SettingsState {
         didSet {
             guard oldValue != customSystemPrompt else { return }
             SettingsStore.shared.customSystemPrompt = customSystemPrompt
+        }
+    }
+
+    // MARK: - Perception
+
+    var perceptionEnabled: Bool = SettingsStore.shared.perceptionEnabled {
+        didSet {
+            guard oldValue != perceptionEnabled else { return }
+            SettingsStore.shared.perceptionEnabled = perceptionEnabled
+            applyPerceptionSettings()
+        }
+    }
+
+    var perceptionFilesystemEnabled: Bool = SettingsStore.shared.perceptionFilesystemEnabled {
+        didSet {
+            guard oldValue != perceptionFilesystemEnabled else { return }
+            SettingsStore.shared.perceptionFilesystemEnabled = perceptionFilesystemEnabled
+            applyPerceptionSettings()
+        }
+    }
+
+    var perceptionInternetEnabled: Bool = SettingsStore.shared.perceptionInternetEnabled {
+        didSet {
+            guard oldValue != perceptionInternetEnabled else { return }
+            SettingsStore.shared.perceptionInternetEnabled = perceptionInternetEnabled
+            applyPerceptionSettings()
+        }
+    }
+
+    var perceptionSystemEnabled: Bool = SettingsStore.shared.perceptionSystemEnabled {
+        didSet {
+            guard oldValue != perceptionSystemEnabled else { return }
+            SettingsStore.shared.perceptionSystemEnabled = perceptionSystemEnabled
+            applyPerceptionSettings()
+        }
+    }
+
+    var perceptionSpeakerEnabled: Bool = SettingsStore.shared.perceptionSpeakerEnabled {
+        didSet {
+            guard oldValue != perceptionSpeakerEnabled else { return }
+            SettingsStore.shared.perceptionSpeakerEnabled = perceptionSpeakerEnabled
+            applyPerceptionSettings()
+        }
+    }
+
+    var perceptionPowerProfile: String = SettingsStore.shared.perceptionPowerProfile {
+        didSet {
+            guard oldValue != perceptionPowerProfile else { return }
+            SettingsStore.shared.perceptionPowerProfile = perceptionPowerProfile
+            applyPerceptionSettings()
+        }
+    }
+
+    /// Apply perception settings to the live engine.
+    private func applyPerceptionSettings() {
+        let engine = PerceptionEngine.shared
+        if perceptionEnabled {
+            let flags = ChannelFlags(
+                camera: MultimodalState.shared.cameraEnabled,
+                screen: MultimodalState.shared.screenCaptureEnabled,
+                network: true,
+                filesystem: perceptionFilesystemEnabled,
+                internet: perceptionInternetEnabled,
+                system: perceptionSystemEnabled,
+                speaker: perceptionSpeakerEnabled
+            )
+            engine.setChannels(flags)
+            switch perceptionPowerProfile {
+            case "reduced": engine.setPowerProfile(.reduced)
+            case "minimal": engine.setPowerProfile(.minimal)
+            default: break
+            }
+            if !engine.isRunning {
+                Task { await engine.start() }
+            }
+        } else {
+            engine.stop()
         }
     }
 
