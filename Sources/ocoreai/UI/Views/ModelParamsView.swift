@@ -48,13 +48,18 @@ struct ModelParamsView: View {
         }
     }
 
+    /// Display-safe model name: strips mscope: / hf: prefix for user clarity
+    private var displayName: String {
+        modelId.progressKey
+    }
+
     private var headerBar: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(StringKey.modelParamsTitle.l)
                     .font(.ocoreaiText(18, weight: .bold))
                     .foregroundStyle(theme.text)
-                Text(modelId)
+                Text(displayName)
                     .font(.ocoreaiText(13))
                     .foregroundStyle(theme.textSecondary)
                     .lineLimit(1)

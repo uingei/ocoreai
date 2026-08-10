@@ -265,7 +265,7 @@ final class ModelManager {
             return true
         } catch {
             OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
-            currentError = .errorOccurred
+            currentError = .loadFailed(error.localizedDescription)
             isDownloading = false
             downloadingModelId = ""
             return false

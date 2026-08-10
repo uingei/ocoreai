@@ -350,33 +350,6 @@ private struct DownloadStatsView: View {
     }
 }
 
-extension ModelResultRow {
-    /// Human-readable byte string (GB/MB/KB) for download progress.
-    private static func byteString(_ bytes: Int64) -> String {
-        guard bytes > 0 else { return "" }
-        if bytes >= 1_073_741_824 {
-            return String(format: "%.1f GB", Double(bytes) / 1_073_741_824)
-        } else if bytes >= 1_048_576 {
-            return String(format: "%.1f MB", Double(bytes) / 1_048_576)
-        } else if bytes >= 1_024 {
-            return String(format: "%.1f KB", Double(bytes) / 1_024)
-        }
-        return "\(bytes) B"
-    }
-
-    /// Human-readable byte rate for throughput display.
-    private static func byteRateString(_ bytesPerSec: Double) -> String {
-        if bytesPerSec >= 1_073_741_824 {
-            return String(format: "%.1f GB", bytesPerSec / 1_073_741_824)
-        } else if bytesPerSec >= 1_048_576 {
-            return String(format: "%.1f MB", bytesPerSec / 1_048_576)
-        } else if bytesPerSec >= 1_024 {
-            return String(format: "%.1f KB", bytesPerSec / 1_024)
-        }
-        return "\(Int(bytesPerSec)) B"
-    }
-}
-
 // MARK: - Local Models List (dedicated View to break conditional chain)
 
 private struct ModelLocalListView: View {
@@ -551,7 +524,7 @@ private struct LiveModelCard: View {
     private var statusA11yLabel: String {
         if isDownloading { return StringKey.modelStartingLabel.l }
         if isServing { return StringKey.modelServingLabel.l }
-        return StringKey.modelRunningLabel.l
+        return StringKey.modelStoppedLabel.l
     }
 
     private var cardContent: some View {

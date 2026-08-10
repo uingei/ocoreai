@@ -298,6 +298,7 @@ public enum StringKey: String, CaseIterable {
     case modelRunningLabel = "A11y.ModelRunningLabel"
     case modelStartingLabel = "A11y.ModelStartingLabel"
     case modelServingLabel = "A11y.ModelServingLabel"
+    case modelStoppedLabel = "A11y.ModelStoppedLabel"
     case multimodalControlsLabel = "A11y.MultimodalControlsLabel"
     case enableCameraLabel = "A11y.EnableCameraLabel"
     case enableCameraHint = "A11y.EnableCameraHint"
