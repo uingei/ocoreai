@@ -335,11 +335,14 @@ extension EnginePool {
                 // (CoreAILanguageModel.swift L384-388). Use upstream defaults
                 // unless model-specific detection is available.
                 var thinkParser = ThinkTagParser(
-                    open: "</think>",
-                    close: "<think>"
+                    open: "<think" + "ing>",
+                    close: "</think" + "ing>"
                 )
                 var toolParser = ToolCallParser()
                 var accumulatedTokens: [Int32] = []
+                // Track reasoning characters for accurate reasoningTokenCount reporting
+                // (CoreAI path doesn't provide per-token reasoning boundaries.)
+                var accumulatedReasoningChars = 0
                 // Decode in batches to reduce detokenize overhead — mirrors MLX path
                 // batch detokenize strategy (ChatHandler L778 decodeBatchSize = 8).
                 let decodeBatchSize = 8
@@ -389,7 +392,7 @@ extension EnginePool {
                                 {
                                     let preStop = String(decoded[decoded.startIndex ..< hit.offset])
                                     if !preStop.isEmpty {
-                                        Self.yieldParserEvents(
+                                        accumulatedReasoningChars += Self.yieldParserEvents(
                                             preStop,
                                             thinkParser: &thinkParser,
                                             toolParser: &toolParser,
@@ -401,7 +404,7 @@ extension EnginePool {
                                     break
                                 }
 
-                                Self.yieldParserEvents(
+                                accumulatedReasoningChars += Self.yieldParserEvents(
                                     decoded,
                                     thinkParser: &thinkParser,
                                     toolParser: &toolParser,
@@ -422,7 +425,7 @@ extension EnginePool {
                                     modelId: modelId,
                                     tokens: accumulatedTokens
                                 )
-                                Self.yieldParserEvents(
+                                accumulatedReasoningChars += Self.yieldParserEvents(
                                     decoded,
                                     thinkParser: &thinkParser,
                                     toolParser: &toolParser,
@@ -450,7 +453,7 @@ extension EnginePool {
                                 modelId: modelId,
                                 tokens: accumulatedTokens
                             )
-                            Self.yieldParserEvents(
+                            accumulatedReasoningChars += Self.yieldParserEvents(
                                 decoded,
                                 thinkParser: &thinkParser,
                                 toolParser: &toolParser,
@@ -467,6 +470,7 @@ extension EnginePool {
                     for thinkEvent in thinkParser.flush() {
                         switch thinkEvent {
                         case .reasoning(let segText):
+                            accumulatedReasoningChars += segText.utf8.count
                             continuation.yield(.init(kind: .reasoning(segText)))
                         case .text(let segText):
                             for toolEvent in toolParser.consume(segText) {
@@ -511,6 +515,19 @@ extension EnginePool {
                     } else {
                         stopReason = genSequence.stopReason?.stopReason ?? .maxTokens
                     }
+                    // Estimate prompt throughput from inference start overhead
+                    // (tokenization + warmup share the prefix of overallMs with inference;
+                    //  using overallMs as denominator yields a conservative lower bound)
+                    let promptTokPerSec: Double? =
+                        metrics.promptTokenCount > 0 && Double(metrics.overallMs) > 0
+                        ? Double(metrics.promptTokenCount) / (Double(metrics.overallMs) / 1000.0)
+                        : nil
+                    // Estimate reasoning token count from reasoning character count
+                    // (CoreAI path lacks per-token reasoning boundaries; ~3.5 chars/token heuristic)
+                    let reasoningTokenCount: Int? =
+                        accumulatedReasoningChars > 0
+                        ? Int(Double(accumulatedReasoningChars) / 3.5)
+                        : nil
                     continuation.yield(
                         .init(
                             kind: .done(
@@ -520,8 +537,8 @@ extension EnginePool {
                                     ? Double(metrics.generatedTokenCount)
                                         / (Double(metrics.overallMs) / 1000.0)
                                     : nil,
-                                promptTokPerSec: nil,
-                                reasoningTokenCount: 0)))
+                                promptTokPerSec: promptTokPerSec,
+                                reasoningTokenCount: reasoningTokenCount)))
                 }
 
                 // CoreAI 34f0db3: no per-turn reset. KV cache persists across turns;
@@ -3123,15 +3140,18 @@ extension EnginePool {
 
     /// Yield ThinkTagParser + ToolCallParser events for a decoded text segment.
     /// Extracted to avoid duplicating the switch chain across 3 call sites.
-    private static func yieldParserEvents(
+    /// Returns the number of reasoning characters emitted (for reasoningTokenCount estimation).
+    nonisolated private static func yieldParserEvents(
         _ decoded: String,
         thinkParser: inout ThinkTagParser,
         toolParser: inout ToolCallParser,
         continuation: AsyncThrowingStream<InferenceEvent, Error>.Continuation
-    ) {
+    ) -> Int {
+        var reasoningChars = 0
         for thinkEvent in thinkParser.consume(decoded) {
             switch thinkEvent {
             case .reasoning(let segText):
+                reasoningChars += segText.utf8.count
                 continuation.yield(.init(kind: .reasoning(segText)))
             case .text(let segText):
                 for toolEvent in toolParser.consume(segText) {
@@ -3155,6 +3175,7 @@ extension EnginePool {
                 }
             }
         }
+        return reasoningChars
     }
 }
 
