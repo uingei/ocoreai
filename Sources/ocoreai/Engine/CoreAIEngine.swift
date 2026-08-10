@@ -311,6 +311,14 @@ struct TokenHistory: Sendable {
 
     var count: Int { tokens.count }
 
+    /// Trim front so the array never exceeds `maxCapacity`.
+    /// P0-fix: bounds TokenHistory growth to O(context_length) not O(total_tokens).
+    mutating func trim(maxCapacity: Int) {
+        guard tokens.count > maxCapacity else { return }
+        let keep = maxCapacity
+        tokens.removeFirst(tokens.count - keep)
+    }
+
     mutating func truncate(to position: Int) {
         precondition(position >= 0)
         guard position < tokens.count else { return }
@@ -1235,8 +1243,15 @@ extension CoreAISequentialEngine {
     }
 
     /// Record a generated token in history and update processed count.
+    /// P0-fix: truncate TokenHistory when it exceeds maxContextLength to prevent
+    /// unbounded memory growth during long-running inference.
     func recordToken(_ token: Int32) {
-        history.withLock { $0.append(token) }
+        history.withLock {
+            $0.append(token)
+            // Bound growth: keep history within context window so prefix-cache
+            // resolve() stays O(context_length) not O(total_tokens).
+            $0.trim(maxCapacity: self.config.maxContextLength)
+        }
         _processedTokenCount.wrappingIncrement(ordering: .relaxed)
     }
 
