@@ -647,39 +647,43 @@ nonisolated func makeKVCacheConfiguration(
         let compressionStart = max(0, config.quantizedKVStart)
         let scheme = config.kvScheme
 
-        var strategy: MLXLMCommon.KVCacheConfiguration.Strategy
-        if let s = scheme, s.hasPrefix("turbo") {
-            let kPrecision: TurboQuantKVCacheConfiguration.KeyPrecision
-            let vPrecision: TurboQuantKVCacheConfiguration.ValuePrecision
+        let strategy: MLXLMCommon.KVCacheConfiguration.Strategy
+        do {
+            if let s = scheme, s.hasPrefix("turbo") {
+                let kPrecision: TurboQuantKVCacheConfiguration.KeyPrecision
+                let vPrecision: TurboQuantKVCacheConfiguration.ValuePrecision
 
-            if s == "turbo4" {
-                kPrecision = .fourBit
-                vPrecision = .fourBit
-            } else if let (kBits, vBits) = parseTurboScheme(s) {
-                kPrecision = kPrecisionFromBits(kBits)
-                vPrecision = vPrecisionFromBits(vBits)
+                if s == "turbo4" {
+                    kPrecision = .fourBit
+                    vPrecision = .fourBit
+                } else if let (kBits, vBits) = parseTurboScheme(s) {
+                    kPrecision = kPrecisionFromBits(kBits)
+                    vPrecision = vPrecisionFromBits(vBits)
+                } else {
+                    kPrecision = .fourBit
+                    vPrecision = .fourBit
+                }
+
+                strategy = .turboQuant(
+                    try TurboQuantKVCacheConfiguration(
+                        keyPrecision: kPrecision,
+                        valuePrecision: vPrecision,
+                        compressionStart: compressionStart
+                    ))
+            } else if let s = scheme, s.hasPrefix("affine") {
+                let affineBits = parseSchemeBits(s) ?? bits
+                strategy = .affine(
+                    try AffineKVCacheConfiguration(
+                        bits: affineBits, groupSize: groupSize, compressionStart: compressionStart
+                    ))
             } else {
-                kPrecision = .fourBit
-                vPrecision = .fourBit
+                strategy = .affine(
+                    try AffineKVCacheConfiguration(
+                        bits: bits, groupSize: groupSize, compressionStart: compressionStart
+                    ))
             }
-
-            strategy = .turboQuant(
-                try! TurboQuantKVCacheConfiguration(
-                    keyPrecision: kPrecision,
-                    valuePrecision: vPrecision,
-                    compressionStart: compressionStart
-                ))
-        } else if let s = scheme, s.hasPrefix("affine") {
-            let affineBits = parseSchemeBits(s) ?? bits
-            strategy = .affine(
-                try! AffineKVCacheConfiguration(
-                    bits: affineBits, groupSize: groupSize, compressionStart: compressionStart
-                ))
-        } else {
-            strategy = .affine(
-                try! AffineKVCacheConfiguration(
-                    bits: bits, groupSize: groupSize, compressionStart: compressionStart
-                ))
+        } catch {
+            return nil
         }
         return MLXLMCommon.KVCacheConfiguration(strategy: strategy)
     }
@@ -689,30 +693,34 @@ nonisolated func makeKVCacheConfiguration(
         let groupSize = fallbackGroupSize > 0 ? fallbackGroupSize : 64
         let compressionStart = max(0, fallbackQuantizedKVStart)
 
-        var strategy: MLXLMCommon.KVCacheConfiguration.Strategy
-        if let s = fallbackScheme, s.hasPrefix("turbo") {
-            let kPrecision: TurboQuantKVCacheConfiguration.KeyPrecision
-            let vPrecision: TurboQuantKVCacheConfiguration.ValuePrecision
+        let strategy: MLXLMCommon.KVCacheConfiguration.Strategy
+        do {
+            if let s = fallbackScheme, s.hasPrefix("turbo") {
+                let kPrecision: TurboQuantKVCacheConfiguration.KeyPrecision
+                let vPrecision: TurboQuantKVCacheConfiguration.ValuePrecision
 
-            if let (kBits, vBits) = parseTurboScheme(s) {
-                kPrecision = kPrecisionFromBits(kBits)
-                vPrecision = vPrecisionFromBits(vBits)
+                if let (kBits, vBits) = parseTurboScheme(s) {
+                    kPrecision = kPrecisionFromBits(kBits)
+                    vPrecision = vPrecisionFromBits(vBits)
+                } else {
+                    kPrecision = .fourBit
+                    vPrecision = .fourBit
+                }
+
+                strategy = .turboQuant(
+                    try TurboQuantKVCacheConfiguration(
+                        keyPrecision: kPrecision,
+                        valuePrecision: vPrecision,
+                        compressionStart: compressionStart
+                    ))
             } else {
-                kPrecision = .fourBit
-                vPrecision = .fourBit
+                strategy = .affine(
+                    try AffineKVCacheConfiguration(
+                        bits: bits, groupSize: groupSize, compressionStart: compressionStart
+                    ))
             }
-
-            strategy = .turboQuant(
-                try! TurboQuantKVCacheConfiguration(
-                    keyPrecision: kPrecision,
-                    valuePrecision: vPrecision,
-                    compressionStart: compressionStart
-                ))
-        } else {
-            strategy = .affine(
-                try! AffineKVCacheConfiguration(
-                    bits: bits, groupSize: groupSize, compressionStart: compressionStart
-                ))
+        } catch {
+            return nil
         }
         return MLXLMCommon.KVCacheConfiguration(strategy: strategy)
     }
