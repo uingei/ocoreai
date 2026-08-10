@@ -983,12 +983,6 @@ final class CoreAIIterator: AsyncIteratorProtocol, @unchecked Sendable {
         self.stopStore = stopStore
     }
 
-    /// Sample a token from logits. Uses argmax for greedy, otherwise temperature scaling.
-    private func sample(from logits: [UnsafeMutablePointer<Float>?]) -> Int32 {
-        guard let data = logits.first, let ptr = data else { return -1 }
-        return Int32(Float(ptr.pointee))
-    }
-
     nonisolated func next() async throws -> InferenceOutput? {
         guard !done else { return nil }
         guard let engine else {
