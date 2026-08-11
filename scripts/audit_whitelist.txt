@@ -13,3 +13,11 @@ ErrorContext
 # ModelScopeSearchClient: defaultBaseURL is a compile-time literal —
 # URL(string: "https://modelscope.cn"!) can never fail at runtime.
 ModelScopeSearchClient
+
+# CoreAIStubs: error string literals are LocalizedError.message fallbacks,
+# not UI view strings — returned from enum cases, never rendered directly.
+CoreAIStubs
+
+# StateHandler: error description strings for KV cache negotiation failures,
+# consumed by EnginePool error handling, not displayed in views.
+StateHandler
