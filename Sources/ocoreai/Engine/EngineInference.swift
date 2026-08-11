@@ -281,10 +281,14 @@ extension EnginePool {
                     continuation.finish()
                     return
                 }
-                // Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip.
-                // Qwen3: 151645=<thinking_open>, 151646=<thinking_close>
-                let reasoningControlTokens = Set([151645, 151646])
-                if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
+                // Check for reasoning control tokens that will be lost in
+                // detokenize→retokenize roundtrip. Qwen3: 151645=<begin_of_thought>,
+                // 151646=<eot_id>. Other families (DeepSeek, Gemma) use different IDs.
+                // Text-level fallback catches all reasoning tag variants.
+                let hasReasoningMarkers =
+                    promptText.contains("< thinking>") || promptText.contains("</ thinking>")
+                    || promptText.contains("<think") || promptText.contains("</think")
+                if hasReasoningMarkers || input.contains(where: { $0 == 151645 || $0 == 151646 }) {
                     logger.warning(
                         "CoreAI input contains reasoning control tokens that would be lost in MLX fallback — staying on CoreAI path, grammar constraints dropped for model \(modelId)"
                     )
@@ -494,7 +498,28 @@ extension EnginePool {
                             }
                         }
                     }
-                    _ = toolParser.flush()
+                    // Handle residual toolCallParser events from flush — unclosed tool call
+                    // blocks at EOS are dropped (malformed JSON is not useful to surface),
+                    // but plain text held back for marker matching must still be emitted.
+                    for toolFlushEvent in toolParser.flush() {
+                        switch toolFlushEvent {
+                        case .text(let plainText):
+                            continuation.yield(.init(kind: .text(plainText)))
+                        case .toolCall(let id, let name, let argsJSON):
+                            continuation.yield(
+                                .init(
+                                    kind: .toolCall(
+                                        ToolCall(
+                                            id: id,
+                                            type: "function",
+                                            function: ToolCallFunction(
+                                                name: name,
+                                                arguments: argsJSON
+                                            )
+                                        )
+                                    )))
+                        }
+                    }
 
                     if streamCancelled {
                         // Drain remaining tokens to free CoreAI GPU memory
@@ -601,11 +626,15 @@ extension EnginePool {
             return
         }
 
-        // Check for model-specific reasoning control tokens that will be lost in detokenize→retokenize roundtrip
-        // P0-fix: removed universal ASCII control chars (newline=198, ESC=27) — they fire on every request
-        // and flood the log. Only flag reasoning-specific tokens (<|begin_of_thought|>, <|eot_id|>).
-        let reasoningControlTokens = Set([151645, 151646])  // <|begin_of_thought|>, <|eot_id|>
-        if input.contains(where: { reasoningControlTokens.contains(Int($0)) }) {
+        // Check for reasoning control tokens that will be lost in
+        // detokenize→retokenize roundtrip. Qwen3: 151645/151646; other families
+        // (DeepSeek, Gemma) use different IDs. Text-level fallback catches all.
+        // P0-fix: removed universal ASCII control chars (newline=198, ESC=27) —
+        // they fire on every request and flood the log.
+        let hasReasoningMarkers =
+            promptText.contains("< thinking>") || promptText.contains("</ thinking>")
+            || promptText.contains("<think") || promptText.contains("</think")
+        if hasReasoningMarkers || input.contains(where: { $0 == 151645 || $0 == 151646 }) {
             logger.warning("MLX token→text→token path may drop control tokens for model \(modelId)")
         }
 
