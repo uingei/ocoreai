@@ -1435,6 +1435,15 @@ extension EnginePool {
         /// This activates the ChatSession's built-in tool-dispatch agent loop (L748 restart)
         /// instead of relying solely on the local AgentLoop coordinator.
         func runInferenceBody(wiredMemoryTicket: MLX.WiredMemoryTicket?) async throws {
+            // P-S2: Fetch perception context via MainActor to bridge @MainActor
+            // PerceptionEngine into the nonisolated inference body.
+            // String result is trivially Sendable — safe to capture in @Sendable closures.
+            @Sendable
+            func fetchPerceptionContext() async -> String {
+                await MainActor.run {
+                    PerceptionEngine.shared.contextText()
+                }
+            }
             let convKey: String = conversationId ?? "\(modelId):ephemeral"
             var isPoolHit = false
             var chatSession: ChatSession?
@@ -1826,11 +1835,19 @@ extension EnginePool {
                         // Fatal: tool args could not be serialized (should not happen in practice).
                         fatalError("Tool args serialization failed for \(toolCall.function.name)")
                     }
-                    return try await registry.call(
+                    let toolResult = try await registry.call(
                         toolCall.function.name,
                         arguments: jsonArgs,
                         caller: "mlx_engine"
                     )
+                    // P-S2: Append fresh perception context to tool result so the model
+                    // sees updated environment state on each tool dispatch iteration.
+                    // Uses MainActor.run to bridge @MainActor PerceptionEngine boundary.
+                    let freshContext = await fetchPerceptionContext()
+                    if !freshContext.isEmpty {
+                        return toolResult + "\n" + freshContext
+                    }
+                    return toolResult
                 }
             }
 
@@ -2581,7 +2598,7 @@ extension EnginePool {
                         for toolCall in iterationToolCalls {
                             // Use toolDispatchClosure if available (dispatches via ToolRegistry)
                             // Otherwise dispatch inline
-                            let result: String
+                            var result: String
                             do {
                                 if let dispatch = mtpToolDispatch {
                                     result = try await dispatch(toolCall)
@@ -2606,6 +2623,17 @@ extension EnginePool {
                                 log.warning(
                                     "MTP tool dispatch error for \(toolCall.function.name): \(error)"
                                 )
+                            }
+                            // P-S2: Append fresh perception context to tool result so the model
+                            // sees updated environment state on each MTP iteration.
+                            // Uses MainActor.run to bridge @MainActor PerceptionEngine boundary.
+                            let perception = await fetchPerceptionContext()
+                            if !perception.isEmpty {
+                                // Append to result string only for inline path;
+                                // mtpToolDispatch already injects perception via standard path fix.
+                                if mtpToolDispatch == nil {
+                                    result = result + "\n" + perception
+                                }
                             }
                             // Append tool result message for next iteration
                             mtpMessages.append(

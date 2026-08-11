@@ -516,10 +516,19 @@ final class PerceptionEngine: Sendable {
 
     /// Produce a compact perception summary string suitable for system prompt
     /// augmentation. Format: "[System Perception] channel=value ..."
-    /// Nonisolated so it can be called from @Sendable inference closures.
-    func contextText() -> String {
-        // Snapshot latest frames from all channels
-        let snaps = snapshot()
+    ///
+    /// nonisolated instance method — underlying PerceptionBuffer is
+    /// @unchecked Sendable (mutex-protected), so reads are safe off MainActor.
+    ///
+    /// IMPORTANT: To call from @Sendable closures (toolDispatch, MTP loop),
+    /// capture the PerceptionEngine instance reference OUTSIDE the closure
+    /// (`let pe = PerceptionEngine.shared`) then call `pe.contextText()` inside.
+    /// This avoids the MainActor static property isolation trap.
+    nonisolated func contextText() -> String {
+        // Snapshot latest frames from all channels — safe off MainActor.
+        // self.buffer is @unchecked Sendable (mutex-protected), so direct
+        // access from nonisolated context is safe.
+        let snaps = self.buffer.snapshot(budget: PerceptionBudget.default)
         var parts: [String] = ["[System Perception]"]
 
         for (_, frame) in snaps {
