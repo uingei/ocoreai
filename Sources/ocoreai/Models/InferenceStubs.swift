@@ -338,11 +338,15 @@ struct InferenceOptions: Codable {
     /// Default is `.auto` — ocoreai uses presence of tools to infer mode
     /// (same as current behavior).
     var toolCallingMode: String? = nil
+    /// When set, engines use these token IDs instead of sampling.
+    /// Used by MMLU-style evaluation to compute P(continuation|context).
+    /// Aligned with upstream InferenceOptions.forcedContinuation.
+    var forcedContinuation: [Int32]? = nil
 
     init(
         maxTokens: Int? = nil, includeLogits: Bool = false, useGuidedGeneration: Bool = false,
         grammarSchema: String? = nil, enableReasoning: Bool = false, reasoningLevel: String? = nil,
-        toolCallingMode: String? = nil
+        toolCallingMode: String? = nil, forcedContinuation: [Int32]? = nil
     ) {
         self.maxTokens = maxTokens
         self.includeLogits = includeLogits
@@ -351,6 +355,7 @@ struct InferenceOptions: Codable {
         self.enableReasoning = enableReasoning
         self.reasoningLevel = reasoningLevel
         self.toolCallingMode = toolCallingMode
+        self.forcedContinuation = forcedContinuation
     }
 
     init() {}
