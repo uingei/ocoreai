@@ -338,9 +338,30 @@ extension EnginePool {
                 // markers resolved at model init from tokenizer token ids
                 // (CoreAILanguageModel.swift L384-388). Use upstream defaults
                 // unless model-specific detection is available.
+                // Detect primedInside: Qwen3-thinking / DeepSeek-R1 prefill the opening
+                // delimiter into the prompt, so the first generated token is already
+                // reasoning content. Without this, the entire thought block is misrouted
+                // to .text events.
+                let openMarker = "<think" + "ing>"
+                let closeMarker = "</think" + "ing>"
+                let primedInside: Bool
+                do {
+                    let tailPrompt = try await detokenize(modelId: modelId, tokens: input)
+                    primedInside = ThinkTagParser.promptEndsInsideReasoning(
+                        renderedPromptTail: tailPrompt,
+                        openMarker: openMarker,
+                        closeMarker: closeMarker
+                    )
+                } catch {
+                    primedInside = false
+                    logger.warning(
+                        "CoreAI primedInside detection failed — defaulting to false: \(error.localizedDescription)"
+                    )
+                }
                 var thinkParser = ThinkTagParser(
-                    open: "<think" + "ing>",
-                    close: "</think" + "ing>"
+                    open: openMarker,
+                    close: closeMarker,
+                    primedInside: primedInside
                 )
                 var toolParser = ToolCallParser()
                 var accumulatedTokens: [Int32] = []

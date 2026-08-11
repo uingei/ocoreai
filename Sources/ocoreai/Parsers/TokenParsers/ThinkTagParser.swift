@@ -33,10 +33,41 @@ struct ThinkTagParser {
 
     init(
         open: String = "<thinking>",
-        close: String = "</thinking>"
+        close: String = "</thinking>",
+        primedInside: Bool = false
     ) {
         self.openMarker = open
         self.closeMarker = close
+        self.insideThink = primedInside
+    }
+
+    /// Whether a rendered prompt tail ends inside an open reasoning block.
+    ///
+    /// Qwen3-thinking / DeepSeek-R1 prefill the opening delimiter into the
+    /// assistant generation prompt, so the first generated token is already
+    /// reasoning content and never emits an opening `` in the stream.
+    /// A parser started `Outside` would misroute the entire thought block.
+    ///
+    /// Trim trailing whitespace, then check if the last start marker is not
+    /// followed by a matching end marker.
+    static func promptEndsInsideReasoning(
+        renderedPromptTail tail: String,
+        openMarker: String,
+        closeMarker: String
+    ) -> Bool {
+        let trimmed = tail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        let lastOpen = trimmed.range(of: openMarker, options: .backwards)?.upperBound
+        let lastClose = trimmed.range(of: closeMarker, options: .backwards)?.upperBound
+
+        switch (lastOpen, lastClose) {
+        case (.none, .none): return false
+        case (.some(let o), .none): return true
+        case (.none, .some): return false
+        case (.some(let o), .some(let c)):
+            return o > c
+        }
     }
 
     /// Feed a decoded delta string. Returns segmented events.
