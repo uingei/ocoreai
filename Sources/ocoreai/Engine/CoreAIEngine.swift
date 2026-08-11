@@ -56,28 +56,7 @@ import CoreAI
 import Foundation
 import Logging
 
-// MARK: - Mutex shim (Foundation.Mutex is macOS 15+; we target macOS 14)
-
-final class Mutex<Value>: @unchecked Sendable {
-    private let lock: NSRecursiveLock
-    private var _value: Value
-
-    init(_ initialValue: @Sendable @escaping () -> Value) {
-        self._value = initialValue()
-        self.lock = NSRecursiveLock()
-    }
-
-    init(_ initialValue: Value) {
-        self._value = initialValue
-        self.lock = NSRecursiveLock()
-    }
-
-    func withLock<R: Sendable>(_ body: (inout Value) throws -> R) rethrows -> R {
-        lock.lock()
-        defer { lock.unlock() }
-        return try body(&_value)
-    }
-}
+// MARK: - Mutex shim lives in Engine/Mutex.swift (decoupled from CoreAI gate)
 
 // MARK: - Inference Output
 
