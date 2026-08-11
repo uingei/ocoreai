@@ -356,26 +356,25 @@ actor MLXSessionPool {
             return nil
         }
         do {
-            let (caches, _) = try MLXLMCommon.loadPromptCache(url: cacheURL)
-            guard !caches.isEmpty else { return nil }
-            // Recover token count from cache offset — accurate record of how many
-            // tokens were prefill-ed into this cached KV state.
-            let restoredTokenCount = caches.first?.offset ?? 0
+            // Use loadPromptCacheSnapshot to keep model state alongside KV cache.
+            // Upstream 5c1d95a: models like Qwen-VL store continuation anchors in
+            // LMOutput.State; without the state key the next turn would continue
+            // from position 0 instead of the cached prefix, silently corrupting output.
+            let snapshot = try MLXLMCommon.loadPromptCacheSnapshot(url: cacheURL)
+            guard !snapshot.cache.isEmpty else { return nil }
+            let restoredTokenCount = snapshot.cache.first?.offset ?? 0
             logger.info(
-                "Restoring KV cache from: \(cacheURL.lastPathComponent) (tokens: \(restoredTokenCount))"
+                "Restoring KV cache snapshot: \(cacheURL.lastPathComponent) tokens=\(restoredTokenCount) state=\(snapshot.state != nil)"
             )
-            // components: custom logitProcessorFactory for grammar-constrained decoding.
-            // Penalty enforcement is automatic via GenerateParameters.processor().
-            let restoredSession = ChatSession(
+            return ChatSession(
                 modelContainer,
-                instructions: nil,  // cache already encodes system prompt — upstream L319-322
-                cache: caches,
+                instructions: nil,  // snapshot cache already encodes system prompt
+                promptCache: snapshot,
                 speculativeDecoding: speculativeDecoding,
                 generateParameters: genParams,
                 components: .init(),
                 processing: processing ?? .init(resize: config.vlmImageResize),
             )
-            return restoredSession
         } catch {
             logger.warning(
                 "Cache restore failed (\(cacheURL.lastPathComponent)): \(error.localizedDescription)"
