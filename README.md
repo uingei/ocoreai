@@ -22,7 +22,7 @@ swift run
 Direct SwiftPM build, no Xcode project required.
 Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
-> ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. It has no auth, rate limiting, or TLS. Do not expose to external networks.
+> ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. It has no auth, rate limiting, or TLS. Expose only to trusted networks.
 
 > 🛠️ **Dev release** — This is a development build. Production use requires additional hardening (see Security section below).
 
@@ -32,7 +32,7 @@ Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
 ocoreai unifies inference engine, agent orchestration, and persistence in one process:
 
-- **Dual inference backends** — MLX (Metal GPU, default, dual-channel on-device inference via `MLXLanguageModel` + `ChatSession` pipeline) + CoreAI (1,291 LOC, dynamic KV cache, `TokenHistory` prefix caching). Zero network calls — inference runs on your Mac.
+- **Dual inference backends** — MLX (Metal GPU, default, dual-channel on-device inference via `MLXLanguageModel` + `ChatSession` pipeline) + CoreAI (1,528 LOC, derived from Apple's coreai-models reference implementation, dynamic KV cache, `TokenHistory` prefix caching). Zero network calls — inference runs on your Mac.
 - **Adaptive hardware routing** — Real-time HardwareRouter dispatches requests to GPU / ANE / CPU based on thermal pressure, memory headroom, and GPU utilization. AdmissionGate enforces a 3-tier admission policy (allow → ANE-only → reject) with configurable abort margin.
 - **Wired Memory GPU isolation** — hardware-level GPU memory bounds prevent OOM during inference.
 - **Thinking budget** — Adaptive token budget allocation driven by ComplexityAnalyzer scoring (length, intent, history dimensions) on Bridge Path. Fast Path (desktop GUI) has ThinkingBudget calibration loop wired but with simplified complexity input (constant 0.5 — no upstream ComplexityAnalyzer).
@@ -235,9 +235,9 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 ### Build Info
 
 - Swift 6.2 · SwiftUI · Hummingbird 2.25.0
-- 136 Swift source files, ~43,249 LOC
+- 150 Swift source files, ~46,889 LOC
 - macOS 15+ · Apple Silicon only
-- Tests: 52 test files across 141 suites, 775 @Test cases
+- Tests: 52 test files across 140 suites, 775 @Test cases
 - Build: 0 warnings, 0 errors
 - Development: Built entirely by **qwen3.6:27b-mtp-q4_K_M** — self-contained AI agent with no external tool use. All architecture, code, and tests authored autonomously.
 

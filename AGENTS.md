@@ -6,7 +6,7 @@
 
 ## Identity
 
-**What it is:** macOS-native AI agent runtime — dual-channel on-device inference (MLX Metal GPU + CoreAI), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception system. One binary, ~140 Swift files (46,753 LOC).
+**What it is:** macOS-native AI agent runtime — dual-channel on-device inference (MLX Metal GPU + CoreAI derived from coreai-models reference), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception system. One binary, ~150 Swift files (46,889 LOC).
 
 **Tech stack:** Swift 6.2 · SwiftPM · Hummingbird 2.25 · SwiftUI · SQLite + FTS5
 
@@ -29,7 +29,7 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 **Dual Path reality:**
 - `EnginePool` uses inline `#if canImport(CoreAI)` branches, NOT `BackendProtocol` (protocol defined but unused)
 - **MLX path:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — **fully aligned** with upstream `mlx-swift-lm` `2af378b`
-- **CoreAI path:** `_runInf()` → `engine.generate()` — no session pool, falls back to MLX for guided gen
+- **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement. Currently sequential-only (`CoreAISequentialEngine` ~556 LOC); `AIModelCache` (~60 LOC) for compiled model artifact caching; staticShape/pipelined not yet implemented.
 - **ANE path:** Stub/empty via CoreAI — no specialization yet
 - **MTP path:** `_runInferenceWithMessages` → `generate(::mtpDrafter:)` — bypasses ChatSession, tool calls collected + dispatched per-iteration (aligned with upstream `MTPSpeculativeTokenIterator`)
 - **SessionPool:** Prefix-level prompt cache reuse via message divergence tracking; HardwareRouter pressure events trigger aggressive eviction; `loadPromptCacheSnapshot` restores LM state + KV cache

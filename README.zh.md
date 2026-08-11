@@ -22,7 +22,7 @@ swift run
 直接 SwiftPM 构建，无需 Xcode 工程。
 服务监听 `127.0.0.1:8080`。配置位于 `~/.ocoreai/config.yaml`。
 
-> ⚠️ **仅本机访问** — HTTP API 默认绑定 `127.0.0.1`，无认证、无 TLS。不要暴露在外部网络。
+> ⚠️ **仅本机访问** — HTTP API 默认绑定 `127.0.0.1`，无认证、无 TLS。仅在受信网络环境暴露。
 
 > 🛠️ **开发版本** — 此为开发构建。生产使用需要额外加固（见下方 Security 部分）。
 
@@ -32,7 +32,7 @@ swift run
 
 ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中：
 
-- **双通道推理引擎** — MLX（Metal GPU，默认，`MLXLanguageModel` + `ChatSession` 管线双通道端侧推理）+ CoreAI（1,291 LOC，动态 KV Cache、`TokenHistory` prefix caching）。零网络调用 — 推理在你的 Mac 上运行。
+- **双通道推理引擎** — MLX（Metal GPU，默认，`MLXLanguageModel` + `ChatSession` 管线双通道端侧推理）+ CoreAI（1,528 LOC，派生自 Apple coreai-models 参考实现，动态 KV Cache、`TokenHistory` prefix caching）。零网络调用 — 推理在你的 Mac 上运行。
 - **自适应硬件路由** — HardwareRouter 根据热压力、内存余量、GPU 利用率实时将请求分发至 GPU / ANE / CPU。AdmissionGate 执行三级准入策略（允许 → 仅限 ANE → 拒绝），支持可配置 abort margin。
 - **Wired Memory 显存硬隔离** — 硬件级显存边界，防止推理 OOM。
 - **Thinking Budget（推理预算）** — 基于 ComplexityAnalyzer（长度、意图、历史三维度评分）的自适应 token 预算分配。Bridge Path 接入完整 ComplexityAnalyzer；Fast Path（桌面 GUI）已接入 ThinkingBudget 校准循环，使用简化复杂度输入（固定 0.5）。
@@ -235,9 +235,9 @@ memory:
 ### Build Info
 
 - Swift 6.2 · SwiftUI · Hummingbird 2.25.0
-- 136 个 Swift 源文件，~43,249 LOC
+- 150 个 Swift 源文件，~46,889 LOC
 - macOS 15+ · Apple Silicon only
-- 测试：52 个测试文件，141 套件，775 @Test 用例
+- 测试：52 个测试文件，140 套件，775 @Test 用例
 - 构建：0 警告，0 错误
 - 开发：由 **qwen3.6:27b-mtp-q4_K_M** 独立完成——无外部工具调用的自包含 AI Agent，所有架构、代码、测试均为自主编写。
 ---
