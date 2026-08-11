@@ -288,6 +288,9 @@ extension DirectInferenceClient {
         // Phase 5: Dispatch inference
         await handle.markActive()
 
+        // Emit preparing phase so UI shows "preparing model" instead of a blank spinner
+        continuation.yield(.init(text: nil, isComplete: false, phase: .preparing))
+
         // Pass cancellation token to propagate UI cancel signal to the inference layer
         let cancellation = request.cancellation ?? .none
 
@@ -330,6 +333,8 @@ extension DirectInferenceClient {
         var capturedPassthroughReason: String?
         // GAP-4: track incomplete/budget-truncated signal
         var capturedTruncatedByBudget = false
+        // Phase tracking: emit .generating once on the first content delta
+        var didEmitGeneratingPhase = false
 
         func currentMetrics() -> (ttftMs: Double?, tokPerSec: Double?, promptTokPerSec: Double?) {
             guard let ttft = firstChunkTime else { return (nil, nil, nil) }
@@ -349,10 +354,14 @@ extension DirectInferenceClient {
                 case .token:
                     // Individual token events — text will arrive in .text events
                     break
-                case .prefillProgress:
-                    // Prefill progress — emitted by EngineInference prefill callback.
-                    // Silent at client level; UI layer reads the event if desired.
-                    break
+                case .prefillProgress(let processed, let total):
+                    // Prefill progress — emit to UI so long-context prefill
+                    // shows progress instead of a blank spinner.
+                    continuation.yield(.init(
+                        text: nil,
+                        isComplete: false,
+                        phase: .prefilling(processed: processed, total: total)
+                    ))
                 case .text(let text):
                     // Safety check: filter harmful output
                     if let contentGuard = streamGuard {
@@ -375,15 +384,24 @@ extension DirectInferenceClient {
                     // Streaming metrics: report the REAL TTFT only (tokPerSec stays nil
                     // until completion — see note on currentMetrics()).
                     let (ttftMs, _, _) = currentMetrics()
+                    // Emit phase on first content delta so UI transitions from prefill → generating
+                    let generatingPhase: DirectChatChunk.InferencePhase? =
+                        (didEmitGeneratingPhase ? nil : {.generating}())
+                    if generatingPhase != nil { didEmitGeneratingPhase = true }
                     continuation.yield(
-                        .init(text: text, isComplete: false, ttftMs: ttftMs, tokPerSec: nil))
+                        .init(text: text, isComplete: false, ttftMs: ttftMs, tokPerSec: nil,
+                              phase: generatingPhase))
                 case .reasoning(let reasoningText):
                     // Reasoning chunk from ReasoningEventEmitter — emit as reasoning content delta
                     if firstChunkTime == nil {
                         firstChunkTime = ContinuousClock.now
                     }
                     accumulatedText += reasoningText
-                    continuation.yield(.init(isComplete: false, reasoningContent: reasoningText))
+                    let reasoningPhase: DirectChatChunk.InferencePhase? =
+                        (didEmitGeneratingPhase ? nil : {.generating}())
+                    if reasoningPhase != nil { didEmitGeneratingPhase = true }
+                    continuation.yield(.init(isComplete: false, reasoningContent: reasoningText,
+                                             phase: reasoningPhase))
                 case .done(
                     let reason, let tokenCount, let tokPS, let ptokPs,
                     let reasoningTC, let proposed, let accepted, let passthrough):
@@ -405,7 +423,8 @@ extension DirectInferenceClient {
                     throw AppError.generationError(errorMsg)
                 case .toolCall(let tc):
                     // Forward tool call events to UI so tool-use progress is visible
-                    // tc is ocoreai ToolCall (from InferenceEvent.mlxToolCall bridge)
+                    // Emit both the structured metadata (for transcript injection)
+                    // and the phase signal (for live tool-executing indicator)
                     continuation.yield(
                         .init(
                             text: nil,
@@ -417,7 +436,8 @@ extension DirectInferenceClient {
                                         ? nil : tc.function.arguments,
                                     resultSummary: nil,
                                     durationMs: nil
-                                ))
+                                )),
+                            phase: .toolExecuting(name: tc.function.name)
                         ))
                 case .guidedGenDiagnostic(
                     grammarTerminated: _,
@@ -701,6 +721,24 @@ struct DirectChatChunk {
     /// MTP speculative decoding telemetry — nil when MTP not active.
     let mptMetrics: MTPMetrics?
 
+    /// Inference phase for UI progress indication.
+    /// Emitted to surface prefill/loading/generating/tool_executing states
+    /// so the UI can show contextual progress instead of a generic spinner.
+    let phase: InferencePhase?
+
+    /// Inference phase enumeration — mirrors InferenceEvent.Kind phases
+    /// that matter to the end user.
+    public enum InferencePhase: Codable, Sendable {
+        /// Model warming up — loading weights, warming caches.
+        case preparing
+        /// Prefilling context / KV cache.
+        case prefilling(processed: Int, total: Int?)
+        /// Token-by-token generation is active.
+        case generating
+        /// Tool(s) executing mid-stream.
+        case toolExecuting(name: String)
+    }
+
     /// Metadata for structured inference events beyond plain text deltas.
     enum DirectChunkMetadata: Codable {
         case toolCall(ToolCallMeta)
@@ -736,7 +774,8 @@ struct DirectChatChunk {
         metadata: DirectChunkMetadata? = nil,
         truncatedByBudget: Bool? = nil,
         reasoningTokenCount: Int? = nil,
-        mptMetrics: MTPMetrics? = nil
+        mptMetrics: MTPMetrics? = nil,
+        phase: InferencePhase? = nil
     ) {
         self.text = text
         self.isComplete = isComplete
@@ -751,6 +790,7 @@ struct DirectChatChunk {
         self.truncatedByBudget = truncatedByBudget
         self.reasoningTokenCount = reasoningTokenCount
         self.mptMetrics = mptMetrics
+        self.phase = phase
     }
 }
 

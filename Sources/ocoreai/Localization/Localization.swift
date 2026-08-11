@@ -96,6 +96,12 @@ public enum StringKey: String, CaseIterable {
     // — Chat —
     case chatPlaceholder = "Chat.Placeholder"
     case interruptedLabel = "Chat.InterruptedLabel"
+    // — Chat phases (progress display) —
+    case phasePreparing = "Chat.Phase.Preparing"
+    case phasePrefilling = "Chat.Phase.Prefilling"
+    case phasePrefillingProgress = "Chat.Phase.PrefillingProgress"
+    case phaseGenerating = "Chat.Phase.Generating"
+    case phaseToolExecuting = "Chat.Phase.ToolExecuting"
     // — Attachment —
     case attachFiles = "Attach.Files"
     case attachFilesHint = "Attach.FilesHint"
@@ -557,6 +563,11 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .newConversation: "New Conversation",
         .interruptedLabel: "Interrupted",
         .tokPerSec: "Tok/S",
+        .phasePreparing: "Preparing model…",
+        .phasePrefilling: "Prefilling context…",
+        .phasePrefillingProgress: "Context: %d/%d (%d%%)",
+        .phaseGenerating: "Generating…",
+        .phaseToolExecuting: "Running tool: %s",
 
         // Settings
         .settingsTitle: "Settings",
@@ -981,6 +992,11 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .interruptedLabel: "已中断",
         .tokPerSec: "Token/s",
         .chatTTFT: "首 Token",
+        .phasePreparing: "准备模型中…",
+        .phasePrefilling: "填充上下文中…",
+        .phasePrefillingProgress: "上下文: %d/%d (%d%%)",
+        .phaseGenerating: "正在生成…",
+        .phaseToolExecuting: "运行工具: %s",
         .loadingSessions: "加载会话中…",
         .loadingConfig: "加载配置中…",
         .paramPlaceholder: "数值",

@@ -1,0 +1,38 @@
+opt_in_rules:
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - empty_count
+  - empty_elements
+  - todo
+  - redundant_discard
+  - unused_import
+  - unused_closure_parameter
+
+force_unwrapping:
+  severity: warning
+  includes:
+    - forced_casts
+    - force_try
+
+implicitly_unwrapped_optional:
+  severity: warning
+
+disabled_rules:
+  - trailing_whitespace
+  - line_length
+  - type_body_length
+  - file_length
+  - function_body_length
+  - type_name
+  - identifier_name
+  - cyclomatic_complexity
+  - function_parameter_count
+  - nesting
+  - large_tuple
+  - multiple_closures_on_line
+  - discouraged_optional_collection
+
+excluded:
+  - .build
+  - references
+  - Packages

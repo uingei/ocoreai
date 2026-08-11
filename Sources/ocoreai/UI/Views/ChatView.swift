@@ -432,10 +432,21 @@ struct ChatView: View {
                             .accessibilityLabel(StringKey.assistantTyping.l)
                             .accessibilityHidden(false)
                         } else if isStreaming {
-                            // No text yet — show typing indicator dots
+                            // No text yet — show typing indicator with phase context
+                            // so users see what the engine is actually doing instead
+                            // of staring at three bouncing dots.
                             HStack {
                                 Spacer(minLength: 26)  // Align with assistant avatar
-                                TypingIndicator()
+                                VStack(alignment: .leading, spacing: 10) {
+                                    TypingIndicator()
+                                    if let phaseLabel = chatState.phaseLabel {
+                                        Text(phaseLabel)
+                                            .font(.ocoreaiText(10))
+                                            .foregroundStyle(theme.textTertiary)
+                                            .lineLimit(1)
+                                            .accessibilityHidden(true)
+                                    }
+                                }
                             }
                             .padding()
                             .transition(.opacity)

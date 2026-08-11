@@ -115,6 +115,17 @@ private struct TranscriptPartMessage {
     }
 }
 
+// MARK: - Inference Phase (UI mirror of inference pipeline phases)
+
+/// Inference phase for progress display — mirrors DirectChatChunk.InferencePhase
+/// but lives in the UI module to avoid cross-layer coupling.
+enum InferencePhase: Sendable {
+    case preparing
+    case prefilling(processed: Int, total: Int?)
+    case generating
+    case toolExecuting(name: String)
+}
+
 // MARK: - Chat State
 
 @Observable
@@ -154,6 +165,31 @@ final class ChatState {
     /// MTP speculative decoding telemetry — populated at stream completion.
     var currentMTPDraftProposed: Int?
     var currentMTPDraftAccepted: Int?
+
+    /// Current inference phase for UI progress display.
+    /// Drives contextual progress labels instead of a generic spinner.
+    var inferencePhase: InferencePhase?
+
+    /// Human-readable label for the current inference phase.
+    /// Computed from inferencePhase for convenience.
+    var phaseLabel: String? {
+        switch inferencePhase {
+        case .preparing:
+            return StringKey.phasePreparing.l
+        case .prefilling(let processed, let total):
+            if let total, total > 0 {
+                let pct = Int(Double(processed) / Double(total) * 100)
+                return String(format: StringKey.phasePrefillingProgress.l, processed, total, pct)
+            }
+            return String(format: StringKey.phasePrefilling.l, processed)
+        case .generating:
+            return StringKey.phaseGenerating.l
+        case .toolExecuting(let name):
+            return String(format: StringKey.phaseToolExecuting.l, name)
+        case .none:
+            return nil
+        }
+    }
 
     // Single source of truth — no separate health polling task
     var connected: Bool {
@@ -527,6 +563,19 @@ final class ChatState {
         ChatMessage(role: mm.role, content: mm.content, timestamp: mm.createdAt)
     }
 
+    /// Map Client-layer DirectChatChunk.InferencePhase → UI-layer InferencePhase
+    /// (decouples UI module from the Client module)
+    private nonisolated static func mapPhase(
+        from client: DirectChatChunk.InferencePhase
+    ) -> InferencePhase {
+        switch client {
+        case .preparing: return .preparing
+        case .prefilling(let p, let t): return .prefilling(processed: p, total: t)
+        case .generating: return .generating
+        case .toolExecuting(let name): return .toolExecuting(name: name)
+        }
+    }
+
     // MARK: - Chat (Fast Path)
 
     /// User-provided image attachment for multimodal input.
@@ -696,6 +745,10 @@ final class ChatState {
                 if let mtp = chunk.mptMetrics {
                     currentMTPDraftProposed = mtp.proposedDraftTokens
                     currentMTPDraftAccepted = mtp.acceptedDraftTokens
+                }
+                // Wire inference phase for UI progress display
+                if let chunkPhase = chunk.phase {
+                    inferencePhase = Self.mapPhase(from: chunkPhase)
                 }
                 // Consume tool call metadata during streaming — makes tool-use progress visible
                 if let meta = chunk.metadata {
@@ -868,6 +921,7 @@ final class ChatState {
         currentReasoningTokenCount = nil
         currentMTPDraftProposed = nil
         currentMTPDraftAccepted = nil
+        inferencePhase = nil
     }
 
     /// Store the last user input for retry after inference failure.
