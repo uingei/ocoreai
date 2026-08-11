@@ -264,6 +264,88 @@ actor MLXSessionPool {
         }
     }
 
+    // MARK: - Memory Pressure Response
+
+    /// React to system-level memory pressure by aggressively evicting pooled sessions.
+    ///
+    /// Called from HardwareRouter's pressure callback in EnginePool.
+    ///
+    /// - Parameters:
+    ///   - level: 0-3 pressure level from HardwareRouter.
+    ///     Level 2+ (serious) → evict sessions older than aggressiveTTL.
+    ///     Level 3 (critical) → evict all sessions immediately.
+    ///   - trigger: "thermal" or "memory" pressure source for observability.
+    func onMemoryPressure(level: Int, trigger: String) async {
+        guard level >= 2 else {
+            return  // nominal/fair — no action
+        }
+
+        let now = ContinuousClock.now
+        let before = pool.count
+        let persistFlag = config.persistCache
+
+        if level >= 3 {
+            // Critical: flush everything to disk and clear pool
+            logger.warning(
+                "Critical \(trigger) pressure (level 3) — flushing entire session pool (\(before) sessions)"
+            )
+            let allEntries = pool.map { ($0.key, $0.value) }
+            pool.removeAll()
+            for (key, entry) in allEntries {
+                if persistFlag {
+                    enforceDiskBudget()
+                }
+                if persistFlag, let cacheURL = entry.cacheFileURL {
+                    let cachePath = cacheURL.lastPathComponent
+                    let log = self.logger
+                    _ = Task.detached(priority: .utility) { [entry, log, cachePath] in
+                        do {
+                            try await entry.session.saveCache(to: cacheURL)
+                            log.debug("Saved KV cache (pressure flush): \(cachePath)")
+                        } catch {
+                            log.warning(
+                                "Failed to save KV cache (pressure): \(error.localizedDescription)")
+                        }
+                    }
+                }
+            }
+        } else {
+            // Serious (level 2): aggressive TTL — evict anything older than 60s
+            let aggressiveTTL = Duration.seconds(60)
+            let entriesToRemove: [(key: String, entry: PooledChatSession)] = pool.compactMap {
+                key, entry in
+                let expired = entry.lastAccessedAt.duration(to: now) >= aggressiveTTL
+                return expired ? (key, entry) : nil
+            }
+            logger.warning(
+                "Serious \(trigger) pressure (level 2) — aggressive eviction (\(entriesToRemove.count) sessions >60s)"
+            )
+            for (key, entry) in entriesToRemove {
+                if persistFlag {
+                    enforceDiskBudget()
+                }
+                if persistFlag, let cacheURL = entry.cacheFileURL {
+                    let cachePath = cacheURL.lastPathComponent
+                    let log = self.logger
+                    _ = Task.detached(priority: .utility) { [entry, log, cachePath] in
+                        do {
+                            try await entry.session.saveCache(to: cacheURL)
+                            log.debug("Saved KV cache (pressure): \(cachePath)")
+                        } catch {
+                            log.warning(
+                                "Failed to save KV cache (pressure): \(error.localizedDescription)")
+                        }
+                    }
+                }
+                pool.removeValue(forKey: key)
+            }
+        }
+        let removed = before - pool.count
+        if removed > 0 {
+            logger.info("Pressure evicted \(removed) session(s) (\(pool.count) remain)")
+        }
+    }
+
     // MARK: - Eviction with on-disk persistence
 
     /// Remove expired sessions based on TTL, persisting their KV cache to disk before eviction.

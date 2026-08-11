@@ -163,6 +163,22 @@ actor EnginePool {
             logger.info(
                 "MLXSessionPool enabled (max=\(poolConfig.maxSessions), ttl=\(poolConfig.sessionTTLSeconds)s)"
             )
+            // Wire HardwareRouter pressure events → SessionPool aggressive eviction
+            if let router = hardwareRouter {
+                router.setThermalCallback({ [weak self] event in
+                    guard let self else { return }
+                    // Determine pressure level from channel transition
+                    let pressureLevel = event.to == .cpu ? 3 : 2
+                    Task {
+                        await self.sessionPool?.onMemoryPressure(
+                            level: pressureLevel,
+                            trigger: event.trigger
+                        )
+                    }
+                })
+                _ = router.startPolling()
+                logger.info("HardwareRouter pressure callback wired to SessionPool")
+            }
         } else {
             sessionPool = nil
             logger.info("MLXSessionPool disabled (create-and-destroy per request)")
