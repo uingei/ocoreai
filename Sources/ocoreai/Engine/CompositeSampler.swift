@@ -3,8 +3,12 @@
 //
 // Provides `CompositeSampler.sample(from:config:)` for the sequential engine
 // CPU fallback path. Ocoreai's `SamplingConfiguration.fallbackSampler` routes here.
+//
+// Gated behind #if canImport(CoreAI) — LogitsScalarType lives inside CoreAI engine module.
 
 import Foundation
+
+#if canImport(CoreAI)
 
 /// CPU fallback sampler for CoreAI path.
 ///
@@ -168,3 +172,5 @@ extension SamplingConfiguration {
         CompositeSampler.sample(from: &logits, config: self)
     }
 }
+
+#endif  // canImport(CoreAI)
