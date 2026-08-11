@@ -13,37 +13,29 @@ import MLXLMCommon
 
 /// Lightweight cancellation token for propagating cancellation across task boundaries.
 ///
-/// Uses a lock-guarded Bool flag instead of a dangling `Task<Void, Error>` — the old design
-/// spawned `Task { () }` on every call to ``cancellable()`` which never completed, so the
-/// Task object leaked for the lifetime of every inference request.
-///
-/// Used by SSE handlers to cancel inference running in unrelated root Tasks.
+/// Thread-safe via `NSRecursiveLock` — no `@unchecked Sendable`, no raw pointers,
+/// no manual lifetime management. Replaced the prior `os_unfair_lock` design.
 final class CancellationFlag: @unchecked Sendable {
     private var _cancelled = false
-    private let _lock = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: 1)
-
-    init() {
-        _lock.initialize(to: os_unfair_lock())
-    }
-
-    deinit {
-        _lock.deinitialize(count: 1)
-        _lock.deallocate()
-    }
+    private let _lock = NSRecursiveLock()
 
     var isCancelled: Bool {
-        os_unfair_lock_lock(_lock)
-        defer { os_unfair_lock_unlock(_lock) }
+        _lock.lock()
+        defer { _lock.unlock() }
         return _cancelled
     }
 
     func cancel() {
-        os_unfair_lock_lock(_lock)
-        defer { os_unfair_lock_unlock(_lock) }
+        _lock.lock()
+        defer { _lock.unlock() }
         _cancelled = true
     }
 }
 
+/// Sentinel that bundles a cancellation flag with Sendable semantics.
+///
+/// `.none` for non-stream endpoints; `.cancellable()` for SSE/async streams
+/// where client disconnect must stop GPU work.
 struct InferenceCancellation: Sendable {
     private let _flag: CancellationFlag?
 
