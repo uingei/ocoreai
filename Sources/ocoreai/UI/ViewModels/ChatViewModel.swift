@@ -386,9 +386,17 @@ final class ChatState {
     /// that could concurrently modify EnginePool.loadedModels.
     private var pendingUnloadTask: Task<Void, Error>?
 
+    /// Monotonic version counter — increments on every model switch.
+    /// Stale tasks observe this counter and abort when the version changed.
+    private var modelSwitchVersion: Int = 0
+
     func onModelChanged(newModelId: String) {
         // Cancel any in-flight inference before switching
         cancelInference()
+
+        // Bump version so previously queued tasks can detect they are stale
+        modelSwitchVersion += 1
+        let targetVersion = modelSwitchVersion
 
         // Cancel previous unload that hasn't finished yet
         pendingUnloadTask?.cancel()
@@ -398,13 +406,19 @@ final class ChatState {
         if let oldModel = activeModelId, oldModel != newModelId {
             // P1-fix: Asynchronous model cleanup — unload old model, reset session
             // for new model, but preserve UI message history for conversation continuity.
+            // P1-fix (rapid switch): version gate prevents stale unload tasks from
+            // overwriting a newer activeModelId (A→B→C→A: B's task sees version bump
+            // and exits without touching state).
             loading = true
             Task { @MainActor in
-                guard !Task.isCancelled else { return }
+                // Verify this task is still the freshest
+                guard !Task.isCancelled, targetVersion == modelSwitchVersion else { return }
                 // Unload old model from GPU
                 if let pool = OcoreaiEngine.shared.activeEnginePool {
                     await pool.unloadModel(oldModel)
                 }
+                // Re-verify before mutating shared state
+                guard !Task.isCancelled, targetVersion == modelSwitchVersion else { return }
                 // Create new SQLite session for the new model
                 if let sc = OcoreaiEngine.shared.activeSessionCompressor {
                     do {
@@ -418,7 +432,8 @@ final class ChatState {
                 self.inferenceSessionId = "chat-\(UUID().uuidString.prefix(8))"
                 // P1-fix: Clear only the streaming response text — preserve messages
                 self.responseText = ""
-                loading = false
+                self.currentReasoningText = ""
+                self.loading = false
             }
         }
     }
