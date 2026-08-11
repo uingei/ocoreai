@@ -512,6 +512,42 @@ final class PerceptionEngine: Sendable {
         return parts
     }
 
+    // MARK: - System context text
+
+    /// Produce a compact perception summary string suitable for system prompt
+    /// augmentation. Format: "[System Perception] channel=value ..."
+    /// Nonisolated so it can be called from @Sendable inference closures.
+    func contextText() -> String {
+        // Snapshot latest frames from all channels
+        let snaps = snapshot()
+        var parts: [String] = ["[System Perception]"]
+
+        for (_, frame) in snaps {
+            let label: String
+            let value: String
+
+            if let ocr = frame.ocrText, !ocr.isEmpty {
+                label = "\(frame.channel.rawValue):ocr"
+                value = String(ocr.prefix(500))  // cap to prevent context overflow
+            } else if frame.imageURL != nil {
+                label = "\(frame.channel.rawValue)"
+                value = "[image frame available]"
+            } else if let ctx = frame.textContext, !ctx.isEmpty {
+                label = "\(frame.channel.rawValue)"
+                value = ctx
+            } else if frame.audioURL != nil {
+                label = "\(frame.channel.rawValue)"
+                value = "[audio frame available]"
+            } else {
+                continue
+            }
+
+            parts.append("\(label)=\(value)")
+        }
+
+        return parts.joined(separator: ", ")
+    }
+
     // MARK: - Inference lifecycle
 
     @MainActor

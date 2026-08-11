@@ -563,21 +563,17 @@ final class ChatState {
         await ensureSession(for: model)
 
         // MARK: - Perception context capture
-        // Capture multimodal context (camera + screen + network) via PerceptionEngine.
-        // Engine produces ContentParts directly — OCR bridge active (~97% token savings
-        // for text-rich frames), plus network context for environment awareness.
-        //
-        // Inference lifecycle: signal engine to throttle GPU-heavy sensors during generate.
+        // Signal engine to throttle GPU-heavy sensors during generate.
+        // Perception data is no longer injected as user message parts — it flows
+        // through EngineInference as system prompt augmentation (P-S1 fix) and is
+        // refreshed before each tool dispatch in the MTP loop (P-S2 fix).
         await PerceptionEngine.shared.inferenceStarted()
         defer { await PerceptionEngine.shared.inferenceEnded() }
 
-        // Build perception ContentParts from the buffered ring buffer
-        let perceptionParts = await PerceptionEngine.shared.contentParts()
-
         // Merge user attachment images into multimodal context
-        var allPerceptionParts = perceptionParts
+        var attachmentParts: [ContentPart] = []
         for att in attachments {
-            allPerceptionParts.append(
+            attachmentParts.append(
                 ContentPart(
                     type: "image_url",
                     text: nil,
@@ -586,13 +582,16 @@ final class ChatState {
         }
 
         // Check for pending voice transcript from microphone channel
+        // Voice input stays as user message part (not system context)
         if let pendingVoice = MultimodalState.shared.pendingVoiceTranscript, !pendingVoice.isEmpty {
-            allPerceptionParts.append(
-                ContentPart(
-                    type: "text",
-                    text: "[Voice Input] \(pendingVoice)",
-                    imageUrl: nil
-                ))
+            let voicePart: ContentPart = .init(
+                type: "text",
+                text: "[Voice Input] \(pendingVoice)",
+                imageUrl: nil
+            )
+            attachmentParts.append(voicePart)
+            _ = MultimodalState.shared.pendingVoiceTranscript
+        } else {
             MultimodalState.shared.pendingVoiceTranscript = nil
         }
 
@@ -630,18 +629,18 @@ final class ChatState {
                 systemPrompt = custom + (systemPrompt.isEmpty ? "" : "\n\n" + systemPrompt)
             }
 
-            // Convert to typed Messages — last user message gets perception parts if available
+            // Convert to typed Messages — last user message gets attachment parts
             let typedMessages: [Message] = {
                 var result: [Message] = []
                 let count = cleanMsgs.count
                 for (idx, msg) in cleanMsgs.enumerated() {
                     let isLastUserMsg =
-                        (msg.role == "user") && (idx == count - 1) && !allPerceptionParts.isEmpty
-                    if isLastUserMsg {
+                        (msg.role == "user") && (idx == count - 1)
+                    if isLastUserMsg, !attachmentParts.isEmpty {
                         var parts: [ContentPart] = [
                             ContentPart(type: "text", text: msg.content, imageUrl: nil)
                         ]
-                        parts.append(contentsOf: allPerceptionParts)
+                        parts.append(contentsOf: attachmentParts)
                         result.append(Message(role: "user", content: .parts(parts)))
                     } else {
                         result.append(Message(role: msg.role, content: .text(msg.content)))

@@ -988,12 +988,25 @@ extension EnginePool {
         // Upstream L186/L219: instructions are prepended as .system messages
         // inside ChatSession — passing them via messages: triggers duplicate
         // tokenization (upstream L319-322).
-        let systemInstructions: String? =
+        //
+        // P-S1 fix: Append perception context to system instructions so
+        // multimodal environment awareness flows through the correct path
+        // (system context, not user message parts).
+        var systemInstructions: String? =
             switch messages.first(where: { $0.role == "system" })?.content {
             case .text(let t): t
             case .parts(let p): p.first(where: { $0.text != nil })?.text
             case nil: nil
             }
+
+        // Inject perception context as system augmentation
+        let perceptionContext = await PerceptionEngine.shared.contextText()
+        if !perceptionContext.isEmpty {
+            systemInstructions =
+                (systemInstructions ?? "") + (systemInstructions?.isEmpty == false ? "\n" : "")
+                + perceptionContext
+        }
+
         let nonSystemMessages = messages.filter { $0.role != "system" }
 
         let mlxMessages: [Chat.Message] = nonSystemMessages.map { msg in
