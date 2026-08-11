@@ -416,7 +416,7 @@ public struct ModelConfigEntry: Sendable, Codable, Equatable {
     /// Detect physical memory. macOS via sysctl hw.memsize; iOS via ProcessInfo hardwareInfo.
     /// Returns bytes. Falls back to 16 GB if detection fails.
     public static func detectPhysicalMemory() -> UInt64 {
-        #if os(iOS) || os(visionOS)
+        #if os(iOS)
         return UInt64(ProcessInfo.processInfo.physicalMemory)
         #else
         var memSize: UInt64 = 0

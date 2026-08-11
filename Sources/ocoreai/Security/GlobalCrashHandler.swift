@@ -171,10 +171,10 @@ private final class CrashHandler: @unchecked Sendable {
 
 #endif
 
-#if os(iOS) || os(watchOS) || os(tvOS)
+#if os(iOS)
 
 public func registerGlobalCrashHandlers() {
-    // iOS/tvOS/watchOS: no POSIX signal handlers (system handles it)
+    // iOS: no POSIX signal handlers (system handles it)
     let cHandler: @convention(c) (NSException?) -> Void = { exception in
         guard let e = exception else { return }
         let log = "Exception: \(e.name.rawValue), Reason: \(e.reason ?? "unknown")"

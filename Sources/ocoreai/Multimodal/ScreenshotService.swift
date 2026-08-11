@@ -378,7 +378,7 @@ final class ScreenshotService {
     }
 }
 
-#elseif os(iOS) || os(visionOS)
+#elseif os(iOS)
 
 import Foundation
 import os.log
