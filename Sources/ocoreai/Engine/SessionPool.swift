@@ -69,7 +69,22 @@ struct SessionPoolConfig {
 
 // MARK: - Pooled Session Entry
 
-/// Metadata wrapper around a ChatSession with LRU tracking.
+// MARK: - Pooled Session Entry
+
+/// Lightweight message identity for prefix match without carrying full text.
+/// (role, content truncated to first 64 chars for hash).
+struct MessageHistoryKey: Hashable, Sendable {
+    let role: String
+    /// Hash of the content prefix — enough to detect content changes without storing
+    /// full text. Full prefix match relies on (role, content_hash) equality.
+    let contentHash: Int
+    static func from(_ msg: Chat.Message) -> Self {
+        Self(role: msg.role.rawValue, contentHash: "\(msg.content)".hashValue)
+    }
+}
+
+/// Metadata wrapper around a ChatSession with LRU tracking and message history
+/// for prompt prefix-level cache reuse decisions.
 ///
 /// ``@unchecked Sendable``: this struct lives exclusively inside
 /// ``MLXSessionPool`` actor — all reads and mutations are actor-isolated,
@@ -87,6 +102,28 @@ struct PooledChatSession: @unchecked Sendable {
 
     /// On-disk cache file URL for this session (nil if never persisted).
     var cacheFileURL: URL?
+
+    /// Rendered message history keys for prefix matching.
+    /// Each entry corresponds to a role+content pair that contributed tokens to the KV cache.
+    /// On acquire, we compare new messages against this to find the longest common prefix.
+    var messageHistory: [MessageHistoryKey] = []
+}
+
+/// Result of acquiring a session, with prefix match details.
+struct AcquireResult {
+    /// The pooled session (or fresh session on miss)
+    let pooled: PooledChatSession
+
+    /// Whether a prefixed cache was found (partial or full match).
+    /// When false, this is a cold start — caller must pass full history.
+    let isHit: Bool
+
+    /// Number of messages that already match the cached prefix.
+    /// Caller should only pass messages[divergenceIndex...] to avoid redundant prefill.
+    /// - 0: no cached prefix (cold miss)
+    /// - < messages.count: partial prefix match (pass suffix)
+    /// - == messages.count: full match (only new messages needed, but pool hit means nothing new yet)
+    let divergenceIndex: Int
 }
 
 // MARK: - Session Pool Actor
@@ -153,14 +190,24 @@ actor MLXSessionPool {
     /// If no pooled session exists (or it expired), the pool attempts to restore
     /// from on-disk KV cache. If that fails, a new session is created.
     ///
-    /// - Returns: tuple with the session and a flag indicating whether the session
-    ///   already has KV cache context (true = only pass new messages, false = pass
-    ///   full conversation history for prefill).
+    /// Prompt prefix match (`prefixMessages`) is checked against the session's
+    /// ``PooledChatSession/messageHistory`` to find the longest common message
+    /// prefix.  The caller should only ``prefixMessages[divergenceIndex...]``
+    /// to ``ChatSession`` — the cached KV context already represents the
+    /// matched portion.
+    ///
+    /// - Note: On cold miss, `prefixMessages` is recorded into the session's
+    ///   history so the next turn can benefit from prefix matching.  The caller
+    ///   should pass the same messages that go to ``ChatSession``.
     ///
     /// - Parameters:
+    ///   - prefixMessages: Rendered messages for this turn, used for prefix matching.
+    ///     Pass nil if the caller only needs a session-level hit/miss.
     ///   - instructions: System prompt via ChatSession's `instructions:` parameter
     ///   - processing: VLM resize config. Aligned across all inference paths
     ///     to avoid inconsistent per-image token counts.
+    ///   - prefixMessages: Rendered message keys for this turn, used for prefix matching.
+    ///     Convert `[Chat.Message]` to `[MessageHistoryKey]` before calling across actor boundary.
     func acquire(
         from modelContainer: MLXLMCommon.ModelContainer,
         modelId: String,
@@ -169,21 +216,38 @@ actor MLXSessionPool {
         speculativeDecoding: MLXLMCommon.SpeculativeDecodingConfig? = nil,
         instructions: String? = nil,
         processing: MLXLMCommon.UserInput.Processing? = nil,
-    ) async -> (pooled: PooledChatSession, isHit: Bool) {
+        prefixMessages: [MessageHistoryKey]? = nil,
+    ) async -> AcquireResult {
         // 1. Expire stale sessions
         await evictExpired()
 
         // 2. Build pool key
         let key = poolKey(modelId: modelId, conversationId: conversationId)
 
-        // 3. Try hit
+        // 3. Try hit — with prefix match
         if let pooled = pool[key] {
             pool[key] = nil
             hitCount += 1
             totalAcquireAttempts += 1
             logHitRateIfNeeded()
-            logger.debug("Session pool HIT: \(key)")
-            return (pooled, isHit: true)
+
+            let divergence: Int
+            if let prefix = prefixMessages {
+                divergence = longestCommonPrefixCount(
+                    history: pooled.messageHistory,
+                    prefix: prefix
+                )
+            } else {
+                divergence = 0
+            }
+
+            logger.debug(
+                "Session pool HIT: \(key), divergence=\(divergence)/\(prefixMessages?.count ?? 0)")
+            return AcquireResult(
+                pooled: pooled,
+                isHit: divergence > 0,
+                divergenceIndex: divergence
+            )
         }
 
         // 4. Pool miss — try restore from disk first (fallback path)
@@ -201,13 +265,18 @@ actor MLXSessionPool {
                 session: restored,
                 lastAccessedAt: ContinuousClock.now,
                 cacheFileURL: cacheURL,
+                messageHistory: []
             )
             missCount += 1
             totalAcquireAttempts += 1
             logHitRateIfNeeded()
             logger.info("Session RESTORED from disk cache: \(key)")
-            // Disk restore = KV cache already has context → caller passes new messages only
-            return (diskPooled, isHit: true)
+            // Disk restore loses transcript → no prefix match available
+            return AcquireResult(
+                pooled: diskPooled,
+                isHit: false,
+                divergenceIndex: 0
+            )
         }
 
         // 5. Cold miss — create fresh session with instructions + processing
@@ -226,12 +295,17 @@ actor MLXSessionPool {
             session: freshSession,
             lastAccessedAt: ContinuousClock.now,
             cacheFileURL: cacheFile,
+            messageHistory: []
         )
         missCount += 1
         totalAcquireAttempts += 1
         logHitRateIfNeeded()
         logger.debug("Session pool MISS: \(key)")
-        return (freshPooled, isHit: false)
+        return AcquireResult(
+            pooled: freshPooled,
+            isHit: false,
+            divergenceIndex: 0
+        )
     }
 
     /// Return a session back to the pool after inference completes.
@@ -240,10 +314,15 @@ actor MLXSessionPool {
     ///   - pooled: session to return
     ///   - modelId: model identifier
     ///   - conversationId: conversation identifier
+    ///   - assistantMessage: Lightweight key of the assistant response appended to the conversation,
+    ///     used to extend the message history for prefix matching on the next turn.
+    ///     Convert the assistant `Chat.Message` to `MessageHistoryKey` before calling across actor boundary.
+    ///     Pass nil for guided gen / tool paths or when generation was cancelled.
     func release(
         pooled: PooledChatSession,
         modelId: String,
         conversationId: String,
+        assistantMessage: MessageHistoryKey? = nil,
     ) async {
         let key = poolKey(modelId: modelId, conversationId: conversationId)
         // Clear tools + toolDispatch + additionalContext to prevent cross-session leakage.
@@ -256,7 +335,16 @@ actor MLXSessionPool {
         // cache operations from the last stream are flushed. Without this, a
         // reused pooled session could serve stale cache state.
         await pooled.session.synchronize()
-        pool[key] = pooled
+
+        // Extend message history with the assistant response for prefix matching
+        // on the next turn. Without the assistant turn, the history would diverge
+        // from the KV cache ledger on every round.
+        var entryToPool = pooled
+        if let assistantMessage {
+            entryToPool.messageHistory.append(assistantMessage)
+        }
+
+        pool[key] = entryToPool
 
         // LRU eviction if pool exceeds max
         if pool.count > config.maxSessions {
@@ -567,6 +655,23 @@ actor MLXSessionPool {
     }
 
     // MARK: - Helpers
+
+    /// Compute the longest common prefix between the session's message history
+    /// and the incoming prompt messages.
+    ///
+    /// Returns the number of messages that match at the start of both sequences.
+    /// A mismatch at any position means the KV cache represents a different
+    /// context and the caller must prefill from that divergence point.
+    private func longestCommonPrefixCount(
+        history: [MessageHistoryKey],
+        prefix: [MessageHistoryKey]
+    ) -> Int {
+        let minCount = Swift.min(history.count, prefix.count)
+        for i in 0 ..< minCount where history[i] != prefix[i] {
+            return i
+        }
+        return minCount
+    }
 
     private func poolKey(modelId: String, conversationId convId: String) -> String {
         "\(modelId):\(convId)"

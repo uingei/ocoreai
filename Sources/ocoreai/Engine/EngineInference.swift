@@ -1466,8 +1466,13 @@ extension EnginePool {
                 }
             }
             let convKey: String = conversationId ?? "\(modelId):ephemeral"
-            var isPoolHit = false
             var chatSession: ChatSession?
+            /// Full pooled session wrapper (carries message history for prefix matching).
+            /// Used by releasePoolSlot to return the session with its history intact.
+            var pooledSession: PooledChatSession?
+            /// Collected assistant text from Standard reasoning/ChatSession path.
+            /// Used to build MessageHistoryKey for pool message history before final release.
+            var stdAccumulated: String?
             var registeredToolSpecs: [ToolSpec]?
 
             // Bridge ToolRegistry → ChatSession tools + toolDispatch
@@ -1930,9 +1935,10 @@ extension EnginePool {
             }
 
             // Track which messages to feed to ChatSession. ChatSession accumulates
-            // KV cache internally — on pool hits we only feed the new message(s),
-            // on pool miss / no pool we feed the full history.
+            // KV cache internally — on pool hits we only feed the suffix starting at
+            // divergenceIndex, on pool miss / no pool we feed the full history.
             var newMessages: [Chat.Message]
+            var divergenceIndex: Int = 0
             // Keep pool reference in scope beyond the if-let block so guided gen / MTP /
             // std reasoning paths (below) can return the slot early when they can't
             // reuse ChatSession's private cache.
@@ -1940,6 +1946,7 @@ extension EnginePool {
             _ = poolRefForRelease  // used below in guided gen / MTP / std reasoning early-release
 
             if let pool = poolRef {
+                let keys = mlxMessages.map(MessageHistoryKey.from)
                 let acquired = await pool.acquire(
                     from: handleRef.modelContainer,
                     modelId: modelId,
@@ -1948,19 +1955,26 @@ extension EnginePool {
                     speculativeDecoding: specConfig,
                     instructions: systemInstructions,
                     processing: sessionProcessing,
+                    prefixMessages: keys
                 )
                 chatSession = acquired.pooled.session
-                isPoolHit = acquired.isHit
+                pooledSession = acquired.pooled
+                divergenceIndex = acquired.divergenceIndex
                 // Pool slot is released at end of inference body (below).
                 // Early-release paths (guided gen / MTP / std on pool hit) release
                 // via poolRefForRelease and nil out chatSession to prevent double release.
-                if isPoolHit {
-                    log.debug("Pool HIT for \(convKey) — KV cache reused")
-                    // Pool hit: ChatSession's KV cache already has history baked in.
-                    // Only pass new messages — don't re-tokenize or re-prefill old ones.
-                    newMessages = [mlxMessages.last ?? Chat.Message(role: .user, content: "")]
+                if divergenceIndex > 0 {
+                    log.debug(
+                        "Pool reuse for \(convKey) — divergence at \(divergenceIndex)/\(mlxMessages.count),"
+                    )
+                    log.debug(
+                        "Passing \(mlxMessages.count - divergenceIndex) message(s) — skipping cached prefix"
+                    )
+                    // Cached prefix covers messages[..<divergenceIndex]; only feed the suffix.
+                    newMessages = Array(mlxMessages[divergenceIndex...])
                 } else {
-                    // Pool miss / cold start: pass full history including system
+                    // Pool hit but no prefix match (e.g. system instructions changed)
+                    // or cold miss / pool miss. Pass full history including system
                     // instructions so processor.prepare() can prefill the complete context.
                     newMessages = mlxMessages
                 }
@@ -1995,6 +2009,42 @@ extension EnginePool {
                 )
             }
 
+            // releasePoolSlot: RAII helper to release the pooled ChatSession
+            // and nil it out. Safe to call multiple times — pooledSession == nil
+            // on subsequent calls (no-op). Used by all inference paths including
+            // the catch handler to guarantee pool slot is never leaked.
+            func releasePoolSlot() async {
+                if let pool = poolRefForRelease,
+                    let pooled = pooledSession
+                {
+                    await pool.release(
+                        pooled: pooled,
+                        modelId: modelId,
+                        conversationId: convKey,
+                        assistantMessage: nil
+                    )
+                    pooledSession = nil
+                    chatSession = nil
+                }
+            }
+
+            // Override: release pool slot with the assistant response for message
+            // history extension. Called only after standard path completes.
+            func releasePoolSlotWithAssistant(_ historyKey: MessageHistoryKey?) async {
+                if let pool = poolRefForRelease,
+                    let pooled = pooledSession
+                {
+                    await pool.release(
+                        pooled: pooled,
+                        modelId: modelId,
+                        conversationId: convKey,
+                        assistantMessage: historyKey
+                    )
+                    pooledSession = nil
+                    chatSession = nil
+                }
+            }
+
             do {
                 // State for Guided/MTP branches — standard ChatSession manages its own
                 var actualTokenCount: Int?
@@ -2025,25 +2075,14 @@ extension EnginePool {
                 {
                     // Guided gen creates its own KV cache scope inside GuidedGenerationLoop,
                     // so it can't reuse ChatSession's cache (private, only visible to ChatSession).
-                    // On pool hit, return the slot before inference to avoid leaking; guided gen
+                    // Return the pooled slot before inference to avoid leaking; guided gen
                     // will cold-start with full message history.
-                    if isPoolHit, let sessionToRelease = chatSession {
+                    if chatSession != nil {
                         log.debug(
-                            "Pool hit but guided gen can't reuse ChatSession cache — returning slot"
+                            "Pooled session acquired but guided gen can't reuse ChatSession cache — returning slot"
                         )
-                        await poolRefForRelease?.release(
-                            pooled: PooledChatSession(
-                                session: sessionToRelease,
-                                lastAccessedAt: ContinuousClock.now,
-                            ),
-                            modelId: modelId,
-                            conversationId: convKey,
-                        )
-                        chatSession = nil  // prevent defer from re-releasing
+                        await releasePoolSlot()
                     }
-                    // If pool miss (isPoolHit == false), newMessages already contains full history
-                    // and chatSession has fresh cache — no-op.
-                    // If no pool, chatSession is nil — also no-op.
                     log.info("Routing through GuidedGenerationLoop with grammar constraint")
                     try await handleGuidedGeneration(
                         messagePairs: mlxMessages.map {
@@ -2069,18 +2108,12 @@ extension EnginePool {
                     })
                 {
                     // MTP creates its own TokenIterator scope — can't reuse ChatSession's cache.
-                    // Same pattern as guided gen: return the slot on pool hit.
-                    if isPoolHit, let sessionToRelease = chatSession {
-                        log.debug("Pool hit but MTP can't reuse ChatSession cache — returning slot")
-                        await poolRefForRelease?.release(
-                            pooled: PooledChatSession(
-                                session: sessionToRelease,
-                                lastAccessedAt: ContinuousClock.now,
-                            ),
-                            modelId: modelId,
-                            conversationId: convKey,
+                    // Same pattern as guided gen: return the pooled slot.
+                    if chatSession != nil {
+                        log.debug(
+                            "Pooled session acquired but MTP can't reuse ChatSession cache — returning slot"
                         )
-                        chatSession = nil  // prevent defer from re-releasing
+                        await releasePoolSlot()
                     }
                     log.info("Routing through MTP speculative decoding")
                     let messagePairs: [(role: String, content: String)] = mlxMessages.map {
@@ -2106,6 +2139,9 @@ extension EnginePool {
                     guard let drafterContainer = self.mtpDrafterContainer else {
                         log.warning(
                             "MTP drafter released during inference — falling back to ChatSession")
+                        // RAII: release pool slot before early return (pool miss case).
+                        // Pool hit case already early-released and niled chatSession at L2073.
+                        await releasePoolSlot()
                         return
                     }
                     let drafterWrapper: MTPDrafterModelWrapper
@@ -2726,6 +2762,8 @@ extension EnginePool {
                     let proposedDraftTokens: Int?
                     let acceptedDraftTokens: Int?
                     let passthroughReason: String?
+                    // Collected assistant response text for pool message history tracking
+                    let accumulatedText: String?
                 }
 
                 // SAFETY: [Chat.Message] is non-Sendable — snapshot as Sendable
@@ -2941,7 +2979,9 @@ extension EnginePool {
                                 endedInsideReasoning: endedInsideReasoning,
                                 proposedDraftTokens: localStdProposedDraftTokens,
                                 acceptedDraftTokens: localStdAcceptedDraftTokens,
-                                passthroughReason: localStdPassthroughReason
+                                passthroughReason: localStdPassthroughReason,
+                                accumulatedText: localStdAccumulated.isEmpty
+                                    ? nil : localStdAccumulated
                             )
                         }
                     } catch {
@@ -2967,6 +3007,8 @@ extension EnginePool {
                     generationTokPerSec = stdResult.genTokPerSec
                     promptTokPerSec = stdResult.promptTokPerSec
                     metrics.generatedTokenCount += stdResult.tokenIds.count
+                    // Capture assistant text for pool message history tracking
+                    stdAccumulated = stdResult.accumulatedText
 
                     // Upstream: emit diagnostic metadata about generation state.
                     if !stdResult.stoppedBySequence, !Task.isCancelled {
@@ -3089,23 +3131,36 @@ extension EnginePool {
                                     acceptedDraftTokens: localStdAcceptedDraftTokens,
                                     passthroughReason: localStdPassthroughReason)))
                     }
+                    // Capture assistant text for pool message history tracking
+                    if !localStdAccumulated.isEmpty {
+                        stdAccumulated = localStdAccumulated
+                    }
                 }
 
+            } catch let error {
+                // RAII: guarantee pool slot release on any inference exception.
+                await releasePoolSlot()
+                throw error
             }
 
-            // pool.release: early-release paths (guided gen / MTP / std on pool hit)
-            // already returned the slot via poolRefForRelease and niled chatSession.
-            // If chatSession is still non-nil here, this is the normal completion path
-            // — release the slot now before leaving modelContainer.perform.
-            if let pool = poolRefForRelease, let pooledSession = chatSession {
-                await pool.release(
-                    pooled: PooledChatSession(
-                        session: pooledSession,
-                        lastAccessedAt: ContinuousClock.now,
-                    ),
-                    modelId: modelId,
-                    conversationId: convKey,
+            // Normal completion: release pool slot if still held.
+            // Early-return paths (guided gen / MTP on pool hit) already released and niled chatSession,
+            // so subsequent calls to releasePoolSlot are no-ops.
+            //
+            // Set lastAssistantMessage for pooled session history extension:
+            // - Standard reasoning path: localStdAccumulated (from reasoning TokenCollector)
+            // - Standard ChatSession path: localStdAccumulated (from streamDetails)
+            // FM path accumulates in fmAccumulated, MTP in mtpAccumulated — both are local
+            // to their respective blocks and released before this point via early-release.
+            // At this scope, localStdAccumulated holds the assistant response text.
+            if let acc = stdAccumulated {
+                let assistantKey = MessageHistoryKey(
+                    role: "assistant",
+                    contentHash: "\(acc)".hashValue
                 )
+                await releasePoolSlotWithAssistant(assistantKey)
+            } else {
+                await releasePoolSlot()
             }
         }
 
