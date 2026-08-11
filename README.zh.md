@@ -1,8 +1,8 @@
 # ocoreai — 自包含 AI Agent 操作系统
 
-**macOS 原生 AI Agent 平台** — 双通道端侧推理（MLX Metal GPU + CoreAI）、Prefix Cache、KV Cache 量化、推测解码（MTP + Drafter）、Agent 循环与工具调用、技能系统、会话记忆、多模态 I/O，一体成型。基于 Swift 6.1、Hummingbird 2.25、SwiftUI 构建。
+**macOS 原生 AI Agent 平台** — 双通道端侧推理（MLX Metal GPU + CoreAI）、Prefix Cache、KV Cache 量化、推测解码（MTP + Drafter）、Agent 循环与工具调用、技能系统、会话记忆、持续感知、多模态 I/O，一体成型。基于 Swift 6.2、Hummingbird 2.25、SwiftUI 构建。
 
-[![Swift 6.1](https://img.shields.io/badge/Swift-6.1-orange.svg)](https://www.swift.org)
+[![Swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue.svg)](https://www.apple.com/macos/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests: 775](https://img.shields.io/badge/Tests-775%2F775-brightgreen)](Tests/)
@@ -11,7 +11,7 @@
 
 ### 快速开始
 
-**macOS 15+ · Apple Silicon · Swift 6.1 · 纯 SwiftPM**
+**macOS 15+ · Apple Silicon · Swift 6.2 · 纯 SwiftPM**
 
 ```bash
 git clone https://github.com/uingei/ocoreai.git && cd ocoreai
@@ -44,7 +44,9 @@ ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中
 - **KV Cache 量化** — 默认开启（turbo4 scheme，4-bit INT4，256 token 后激活）。后端为上游 `GenerateParameters.kvBits` / `kvScheme` / `quantizedKVStart`（MLXLMCommon/Evaluate.swift）。
 - **引导生成** — 通过 `MLXGuidedGeneration`（xgrammar/JSON schema）实现语法约束输出，带 `GuidedGenerationDiagnosticSink` 可观测性与动态 `CompletionReserve.estimate` 结构预留计算。工具调用时自动启用。多模态消息绕过文法约束。
 - **macOS 27 FM 路径** — 原生 `MLXLanguageModel` → `LanguageModelSession` + `MLXFoundationModels`（macOS 27），含 `FMToolProxy` 工具桥接、`ContextOptions` 推理控制与 transcript 流式传输。低版本 macOS 自动降级至 ChatSession 管线。
-- **推测解码** — Gemma drafter 模型支持（12B/26B/31B 独立路由），MTP 模式已接入。上游 pin `c97539d` 包含 Olmo3 滑动窗口 cache 修复 (#462) 及 `PrefillParameters` 均衡分块 (#470)。
+- **持续感知** — 8 通道系统（摄像头、传感器、环境），工具派发循环中 P-S1/P-S2 感知上下文注入。
+- **SessionPool** — 消息前缀级别 Prompt Cache 复用，HardwareRouter 压力事件触发激进驱逐，`loadPromptCacheSnapshot` 恢复 LM 状态与 KV Cache 精确锚定。
+- **推测解码** — Gemma drafter 模型支持（12B/26B/31B 独立路由），MTP 模式已接入。上游 pin `2af378b` 包含 KVCacheRound 分阶段事务回滚 (#516)、TurboFlash 短上下文快路径 (#520)、Qwen3MoE 清理 (#490) 及 `PrefillParameters` 均衡分块 (#470)。
 - **配置系统** — YAML 配置 + 文件监听器（轮询）。显存预算硬件自动检测。
 - **多模态 I/O** — 摄像头捕获、屏幕截图、麦克风输入、Vision OCR、16kHz Apple Speech STT、多语言 TTS — 全部原生。摄像头/屏幕默认关闭；STT 需要麦克风权限。
 - **i18n** — StringKey 本地化框架完整；英文已部署。中文（zh-Hans）已有基础翻译覆盖。其他语种（ja, ko, fr, de, es）已定义但未翻译。
@@ -232,7 +234,7 @@ memory:
 
 ### Build Info
 
-- Swift 6.1 · SwiftUI · Hummingbird 2.25.0
+- Swift 6.2 · SwiftUI · Hummingbird 2.25.0
 - 136 个 Swift 源文件，~43,249 LOC
 - macOS 15+ · Apple Silicon only
 - 测试：52 个测试文件，141 套件，775 @Test 用例

@@ -2,7 +2,43 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-07-09
+## [Unreleased] — 2026-08-12
+
+### Features
+
+- **Swift 6.2** — Upgraded `swift-tools-version` 6.1 → 6.2 (align with mlx-swift-lm #519)
+- **MLX typed KV cache + TurboQuant** — Full `KVCacheConfiguration` support with `.turboQuant` and `.affine` strategies via `makeKVCacheConfiguration` (MLXBridge)
+- **SessionPool prefix reuse** — Message divergence tracking for prefix-level prompt cache reuse; pooled sessions only re-prefill the diverging suffix
+- **SessionPool HardwareRouter eviction** — GPU pressure events trigger aggressive cache eviction before OOM
+- **SessionPool state restore** — `loadPromptCacheSnapshot` restores LMOutput.State alongside KV cache for correct position anchoring
+- **8-channel persistent-perception system** — Full persistent-perception pipeline (camera, sensors, environment) with P-S1/P-S2 perception context injection in tool dispatch loops
+- **CoreAI sequential engine family alignment** — Option A p1: align CoreAI engine types with upstream sequential/variant architecture
+- **MTP speculative decoding** — `generate(::mtpDrafter:)` path with streaming reasoning events
+- **Upstream pin 2af378b** — mlx-swift-lm upgraded to #516 (KVCacheRound staged rounds, MTP past sliding window, Qwen3MoE sanitization)
+
+### Bug Fixes
+
+- **Concurrency** — Replaced `os_unfair_lock` raw pointer with `NSRecursiveLock`; extracted Mutex shim for macOS 26 CI compile compatibility
+- **Session lifecycle** — P0: 3 fixes including TokenHistory growth bounded to `maxContextLength`
+- **CoreAI macOS 26 crash** — Removed `Synchronization` dependency, added Mutex shim, fixed `MLXSamplingMode`/`topK`/tuple enum partial match in MLXBridge
+- **CoreAI path metrics** — `reasoningTokenCount`/`promptTokPerSec` now tracked via `ThinkTagParser` with `primedInside` detection
+- **toolParser flush** — P0-2: residual event handling + dynamic reasoning detection
+- **MLXBridge safety** — `try!` → `do-catch` on KVCacheConfiguration init; all force patterns eliminated
+- **ModelScope download** — Strips `mscope:` prefix in `EnginePool.loadModel()`
+- **Platform channel state** — P0: iOS picker + i18n hardcoded string fixes
+
+### Refactoring
+
+- **Dead code removal** — `sample(from:)` in CoreAIEngine; consolidated MLX KV cache path
+
+### Documentation
+
+- **AGENTS.md** — Updated Known Gaps, upstream audit status, architecture notes
+- **README** — Swift 6.2, typed KV cache, SessionPool improvements
+
+---
+
+## [v0.1.0] — 2026-07-05 → 2026-08-09
 
 ### Features
 
@@ -49,4 +85,4 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ---
 
-*Generated from git history: v0.1.0..c64a8d6 (35+ commits, 2026-07-05 → 2026-08-09).*
+*Last updated: 2026-08-12. Current HEAD: 1deba64.*
