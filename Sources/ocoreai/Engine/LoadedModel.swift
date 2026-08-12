@@ -85,6 +85,17 @@ final class LoadedModel: @unchecked Sendable {
     /// MTP assistant drafter container — loaded by EnginePool, reused across MTP inference calls.
     private var _mtpDrafterContainer: MLXLMCommon.MTPDrafterContainer?
 
+    /// MTP KV cache keyed by conversation — each conversation gets its own cache
+    /// so switching dialogs does not leak stale GPU activations.
+    private var _mtpKVCacheMap: [String: [MLXLMCommon.KVCache]] = [:]
+    /// Last-access timestamp per conversation (seconds since process boot via uptime).
+    private var _mtpKVCacheLastAccess: [String: TimeInterval] = [:]
+    private static let mtpKVCacheTTLSeconds: TimeInterval = 600
+    /// Hard limit on simultaneous conversation cache entries to prevent GPU OOM.
+    /// 20 sessions × ~1–4 GB each ≈ 80 GB ceiling on 128 GB unified — still safe.
+    /// On 16/24 GB machines, per-model cache pressure is lower due to fewer layers cached.
+    private static let mtpKVCacheMaxEntries = 20
+
     /// Logger for observability
     let logger: Logger
 
@@ -206,6 +217,91 @@ final class LoadedModel: @unchecked Sendable {
     func setMTPDrafter(_ drafter: MLXLMCommon.MTPDrafterContext) {
         _mtpDrafterContainer = MLXLMCommon.MTPDrafterContainer(context: drafter)
         logger.info("MTP drafer container set on loaded model")
+    }
+
+    // MARK: - MTP KV Cache Management
+
+    /// Return the MTP KV cache array if within TTL; expire and clear otherwise.
+    /// Mirrors SessionPool TTL eviction: cache is invalidated after
+    /// ``mtpKVCacheTTLSeconds`` of idle time to prevent unbounded GPU memory growth.
+    /// KVCache objects are reference types — the returned array shares GPU memory
+    /// with the stored instances, so no deep copy is made.
+    /// Monotonic clock helper — uses ProcessInfo systemUptime which is always available.
+    fileprivate static func mtpKVCacheNow() -> TimeInterval {
+        ProcessInfo.processInfo.systemUptime
+    }
+
+    func mtpKVCache(conversationId: String) -> [MLXLMCommon.KVCache]? {
+        guard let cache = _mtpKVCacheMap[conversationId] else { return nil }
+        guard let lastAccess = _mtpKVCacheLastAccess[conversationId] else { return nil }
+        guard (Self.mtpKVCacheNow() - lastAccess) < Self.mtpKVCacheTTLSeconds
+        else {
+            logger.info("MTP KV cache expired after \(Self.mtpKVCacheTTLSeconds)s idle — clearing")
+            _mtpKVCacheMap.removeValue(forKey: conversationId)
+            _mtpKVCacheLastAccess.removeValue(forKey: conversationId)
+            return nil
+        }
+        _mtpKVCacheLastAccess[conversationId] = Self.mtpKVCacheNow()
+        return cache
+    }
+
+    func setMTPKVCache(_ cache: [MLXLMCommon.KVCache], conversationId: String) {
+        _mtpKVCacheMap[conversationId] = cache
+        _mtpKVCacheLastAccess[conversationId] = Self.mtpKVCacheNow()
+    }
+
+    func clearMTPKVCache() {
+        _mtpKVCacheMap.removeAll()
+        _mtpKVCacheLastAccess.removeAll()
+    }
+
+    /// Lazy create an initial (empty) KV cache if none exists for this conversation.
+    /// Must be called inside ``ModelContainer.perform`` closure so the model
+    /// reference is available. Safe for `@unchecked Sendable` because the call
+    /// site is serialized by ``ModelContainer``.
+    /// Evicts stale + LRU entries when cache exceeds ``mtpKVCacheMaxEntries`` to
+    /// prevent GPU OOM under bursty concurrent session load.
+    func initializeMTPKVCacheIfNeeded(
+        conversationId: String,
+        model: any MLXLMCommon.LanguageModel,
+        parameters: MLXLMCommon.GenerateParameters
+    ) {
+        if _mtpKVCacheMap[conversationId] == nil {
+            // Evict if over capacity: first TTL-expired, then LRU tail
+            if _mtpKVCacheMap.count >= Self.mtpKVCacheMaxEntries {
+                evictEvictedMKPCache()
+            }
+        }
+        if _mtpKVCacheMap[conversationId] == nil {
+            _mtpKVCacheMap[conversationId] = model.newCache(parameters: parameters)
+            _mtpKVCacheLastAccess[conversationId] = Self.mtpKVCacheNow()
+        }
+    }
+
+    /// Evict expired entries first, then LRU tail to stay under ``mtpKVCacheMaxEntries``.
+    /// Called before inserting a new conversation cache slot.
+    private func evictEvictedMKPCache() {
+        let now = Self.mtpKVCacheNow()
+        // Phase 1: remove TTL-expired entries
+        var expired: [String] = []
+        for (key, ts) in _mtpKVCacheLastAccess where (now - ts) >= Self.mtpKVCacheTTLSeconds {
+            expired.append(key)
+        }
+        for key in expired {
+            _mtpKVCacheMap.removeValue(forKey: key)
+            _mtpKVCacheLastAccess.removeValue(forKey: key)
+        }
+        if _mtpKVCacheMap.count < Self.mtpKVCacheMaxEntries {
+            return
+        }
+        // Phase 2: evict LRU tail (oldest access time)
+        let sortedKeys = _mtpKVCacheLastAccess.sorted { $0.value < $1.value }.map(\.key)
+        let excess = _mtpKVCacheMap.count - Self.mtpKVCacheMaxEntries + 1
+        let dropCount = min(excess, sortedKeys.count)
+        for key in sortedKeys.prefix(dropCount) {
+            _mtpKVCacheMap.removeValue(forKey: key)
+            _mtpKVCacheLastAccess.removeValue(forKey: key)
+        }
     }
 
     /// Build ``SpeculativeDecodingConfig`` for ChatSession initialization.
@@ -493,6 +589,8 @@ final class LoadedModel: @unchecked Sendable {
         mlxModelHandle = nil
         draftModelHandle = nil
         _mtpDrafterContainer = nil
+        // Clear MTP KV cache to release cached GPU tensors
+        clearMTPKVCache()
         #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
         // upstream: MLXLanguageModel.evict() L509 — remove from shared ModelCache
         // evict() is async — fire-and-forget in cleanup (same as warmUp via prewarm)

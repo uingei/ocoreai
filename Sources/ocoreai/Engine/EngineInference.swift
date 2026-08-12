@@ -2448,6 +2448,14 @@ extension EnginePool {
                                 nonSendable: drafterWrapper
                             ) { context, wrapped in
                                 let drafterModel = wrapped.model
+                                // P1-fix: ensure MTP KV cache exists (lazy init inside the
+                                // perform lock so model reference is available).
+                                // Conversation-aware: each dialog gets its own cache bucket.
+                                loaded.initializeMTPKVCacheIfNeeded(
+                                    conversationId: convKey,
+                                    model: context.model,
+                                    parameters: genParams
+                                )
                                 // Reconstruct Chat.Message from Sendable pairs
                                 let messages = iterationPairs.map { (role, content) in
                                     Chat.Message(
@@ -2465,9 +2473,15 @@ extension EnginePool {
                                     input: mtpUserInput)
                                 // P1-fix: thread wiredMemoryTicket through MTP generate().
                                 // Upstream: generate(input:cache:parameters:context:mtpDrafter:blockSize:components:wiredMemoryTicket:)
-                                // Evaluate.swift L1803
+                                // Evaluate.swift L2025
+                                // P1-fix: thread cached MTP KV cache to avoid cold-start on each
+                                // generation. KVCache objects are reference types — they hold
+                                // pointers to GPU memory, so the array is cheap to pass and the
+                                // objects are updated in-place by upstream during generation.
+                                let mtpKVCache = loaded.mtpKVCache(conversationId: convKey)
                                 let mtpGenStream = try MLXLMCommon.generate(
                                     input: mtpInput,
+                                    cache: mtpKVCache,
                                     parameters: genParams,
                                     context: context,
                                     mtpDrafter: drafterModel,
