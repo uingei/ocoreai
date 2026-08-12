@@ -357,11 +357,12 @@ extension DirectInferenceClient {
                 case .prefillProgress(let processed, let total):
                     // Prefill progress — emit to UI so long-context prefill
                     // shows progress instead of a blank spinner.
-                    continuation.yield(.init(
-                        text: nil,
-                        isComplete: false,
-                        phase: .prefilling(processed: processed, total: total)
-                    ))
+                    continuation.yield(
+                        .init(
+                            text: nil,
+                            isComplete: false,
+                            phase: .prefilling(processed: processed, total: total)
+                        ))
                 case .text(let text):
                     // Safety check: filter harmful output
                     if let contentGuard = streamGuard {
@@ -386,11 +387,12 @@ extension DirectInferenceClient {
                     let (ttftMs, _, _) = currentMetrics()
                     // Emit phase on first content delta so UI transitions from prefill → generating
                     let generatingPhase: DirectChatChunk.InferencePhase? =
-                        (didEmitGeneratingPhase ? nil : {.generating}())
+                        (didEmitGeneratingPhase ? nil : { .generating }())
                     if generatingPhase != nil { didEmitGeneratingPhase = true }
                     continuation.yield(
-                        .init(text: text, isComplete: false, ttftMs: ttftMs, tokPerSec: nil,
-                              phase: generatingPhase))
+                        .init(
+                            text: text, isComplete: false, ttftMs: ttftMs, tokPerSec: nil,
+                            phase: generatingPhase))
                 case .reasoning(let reasoningText):
                     // Reasoning chunk from ReasoningEventEmitter — emit as reasoning content delta
                     if firstChunkTime == nil {
@@ -398,10 +400,12 @@ extension DirectInferenceClient {
                     }
                     accumulatedText += reasoningText
                     let reasoningPhase: DirectChatChunk.InferencePhase? =
-                        (didEmitGeneratingPhase ? nil : {.generating}())
+                        (didEmitGeneratingPhase ? nil : { .generating }())
                     if reasoningPhase != nil { didEmitGeneratingPhase = true }
-                    continuation.yield(.init(isComplete: false, reasoningContent: reasoningText,
-                                             phase: reasoningPhase))
+                    continuation.yield(
+                        .init(
+                            isComplete: false, reasoningContent: reasoningText,
+                            phase: reasoningPhase))
                 case .done(
                     let reason, let tokenCount, let tokPS, let ptokPs,
                     let reasoningTC, let proposed, let accepted, let passthrough):
