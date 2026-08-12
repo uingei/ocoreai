@@ -270,6 +270,10 @@ struct ChatView: View {
         .overlay(alignment: .bottom) {
             InferenceErrorOverlay(chatState: chatState)
         }
+        // P1: Transient channel shift toast (auto-dismiss 3s)
+        .overlay(alignment: .bottom) {
+            ChannelShiftToastOverlay(toast: AppState.shared.channelShiftToast)
+        }
         // B4 fix: removed .sheet — model search/load already available via Models tab
         // P0-2: On model selector change, unload old model to free GPU memory
         .onChange(of: currentModel) { _, newModel in
@@ -1122,10 +1126,65 @@ struct InferenceErrorOverlay: View {
     }
 }
 
+// MARK: - Channel Shift Toast Overlay
+
+/// P1: Transient toast shown at the bottom when HardwareRouter shifts channels.
+/// Auto-dismisses after 3s via AppState.
+struct ChannelShiftToastOverlay: View {
+    var toast: ChannelShiftToast?
+    @Environment(\.ocoreaiTheme) var theme
+
+    var body: some View {
+        if let toast {
+            HStack(spacing: 6) {
+                HStack(spacing: 4) {
+                    Image(systemName: toast.from.badgeIcon)
+                        .foregroundStyle(ComputeChannelUI.colorFor(toast.from))
+                    Text("arrow.right")
+                        .font(.system(.caption))
+                        .foregroundStyle(theme.textTertiary)
+                    Image(systemName: toast.to.badgeIcon)
+                        .foregroundStyle(ComputeChannelUI.colorFor(toast.to))
+                }
+                Text(
+                    toast.trigger == "thermal"
+                        ? StringKey.channelShiftThermal.l
+                        : StringKey.channelShiftMemory.l
+                )
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(theme.textSecondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(theme.cardBg.opacity(0.95))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .padding(.bottom, 40)  // Above error overlay to avoid collision
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
+            .animation(.easeOut(duration: 0.3), value: toast)
+            .accessibilityLabel(toast.accessibilityLabel)
+        }
+    }
+}
+
+/// P1: Accessibility label for channel shift toast.
+extension ChannelShiftToast {
+    var accessibilityLabel: String {
+        String(
+            format: StringKey.channelShiftA11y.l,
+            from.badgeLabel,
+            to.badgeLabel,
+            trigger == "thermal"
+                ? StringKey.channelShiftThermal.l
+                : StringKey.channelShiftMemory.l)
+    }
+}
+
 // MARK: - Channel badge color provider
 
-/// SwiftUI-side color mapping for ``ComputeChannel`` badges.
+/// SwiftUI-side color and label mapping for ``ComputeChannel`` badges.
 /// Lives here (not in HardwareRouter) to keep the scheduler module SwiftUI-free.
+/// Badge label uses a generic abbreviation (GPU/ANE/CPU) since these are accelerator names,
+/// not user-facing strings — consistent with macOS Activity Monitor conventions.
 private enum ComputeChannelUI {
     static func colorFor(_ ch: ComputeChannel) -> Color {
         switch ch {

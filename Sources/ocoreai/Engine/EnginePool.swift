@@ -164,6 +164,7 @@ actor EnginePool {
                 "MLXSessionPool enabled (max=\(poolConfig.maxSessions), ttl=\(poolConfig.sessionTTLSeconds)s)"
             )
             // Wire HardwareRouter pressure events → SessionPool aggressive eviction
+            // P1: Fan-out to AppState for UI toast + state sync
             if let router = hardwareRouter {
                 router.setThermalCallback({ [weak self] event in
                     guard let self else { return }
@@ -175,6 +176,8 @@ actor EnginePool {
                             trigger: event.trigger
                         )
                     }
+                    // P1: forward to AppState for transient UI toast bridge
+                    await AppState.shared.onThermalPressureEvent(event)
                 })
                 _ = router.startPolling()
                 logger.info("HardwareRouter pressure callback wired to SessionPool")

@@ -102,6 +102,10 @@ public enum StringKey: String, CaseIterable {
     case phasePrefillingProgress = "Chat.Phase.PrefillingProgress"
     case phaseGenerating = "Chat.Phase.Generating"
     case phaseToolExecuting = "Chat.Phase.ToolExecuting"
+    // — Channel shift toast —
+    case channelShiftThermal = "Chat.ChannelShift.Thermal"
+    case channelShiftMemory = "Chat.ChannelShift.Memory"
+    case channelShiftA11y = "Chat.ChannelShift.A11y"
     // — Attachment —
     case attachFiles = "Attach.Files"
     case attachFilesHint = "Attach.FilesHint"
@@ -568,6 +572,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .phasePrefillingProgress: "Context: %d/%d (%d%%)",
         .phaseGenerating: "Generating…",
         .phaseToolExecuting: "Running tool: %s",
+        .channelShiftThermal: "Thermal shift",
+        .channelShiftMemory: "Memory shift",
+        .channelShiftA11y: "%@ → %@ — %@",
 
         // Settings
         .settingsTitle: "Settings",
@@ -997,6 +1004,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .phasePrefillingProgress: "上下文: %d/%d (%d%%)",
         .phaseGenerating: "正在生成…",
         .phaseToolExecuting: "运行工具: %s",
+        .channelShiftThermal: "热力切换",
+        .channelShiftMemory: "内存切换",
+        .channelShiftA11y: "%@ → %@ — %@",
         .loadingSessions: "加载会话中…",
         .loadingConfig: "加载配置中…",
         .paramPlaceholder: "数值",

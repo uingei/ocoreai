@@ -19,6 +19,29 @@ final class AppState {
     /// ScenePhase gate — true when app is active, false in background
     var isForeground: Bool = true
 
+    /// P1: Current compute channel baseline from HardwareRouter
+    /// Mirrors RouterPoller.baselineChannel so UI knows the live route
+    var currentBaselineChannel: ComputeChannel?
+
+    /// P1: Transient toast for channel shift events (auto-dismiss 3s)
+    var channelShiftToast: ChannelShiftToast?
+
+    // MARK: - Thermal event bridge
+
+    /// Receive ThermalPressureEvent from HardwareRouter poller.
+    /// Called on callback thread (non-MainActor), bridges to @Observable state.
+    func onThermalPressureEvent(_ event: ThermalPressureEvent) async {
+        await MainActor.run { [self] in
+            self.currentBaselineChannel = event.to
+            self.channelShiftToast = .init(event: event)
+        }
+        // Auto-dismiss after 3s
+        try? await Task.sleep(nanoseconds: 3_000_000_000)
+        await MainActor.run { [self] in
+            self.channelShiftToast = nil
+        }
+    }
+
     /// Undo slot — set by any ViewModel before a destructive op, cleared after undo
     var undoAction: (@MainActor () -> Void)?
 
@@ -178,5 +201,24 @@ enum AppTab: String, CaseIterable, Identifiable {
 
     static var systemGroup: [AppTab] {
         [.skills, .system, .status, .settings]
+    }
+}
+
+// MARK: - Channel Shift Toast DTO
+
+/// P1: Transient notification for compute channel shifts.
+/// Carries from/to channels + trigger reason so the UI can say
+/// "Shifted GPU → ANE (thermal pressure)" instead of a generic toast.
+struct ChannelShiftToast: Equatable {
+    let from: ComputeChannel
+    let to: ComputeChannel
+    let trigger: String  // "thermal" or "memory"
+    let timestamp: Date
+
+    init(event: ThermalPressureEvent) {
+        self.from = event.from
+        self.to = event.to
+        self.trigger = event.trigger
+        self.timestamp = event.timestamp
     }
 }
