@@ -2013,35 +2013,39 @@ extension EnginePool {
             // and nil it out. Safe to call multiple times — pooledSession == nil
             // on subsequent calls (no-op). Used by all inference paths including
             // the catch handler to guarantee pool slot is never leaked.
+            // Swift 6 strict concurrency: clear locals BEFORE await to avoid
+            // "sending 'chatSession' risks causing data races". Captured `pooled`
+            // stays alive for the release call.
             func releasePoolSlot() async {
                 if let pool = poolRefForRelease,
                     let pooled = pooledSession
                 {
+                    pooledSession = nil
+                    chatSession = nil
                     await pool.release(
                         pooled: pooled,
                         modelId: modelId,
                         conversationId: convKey,
                         assistantMessage: nil
                     )
-                    pooledSession = nil
-                    chatSession = nil
                 }
             }
 
             // Override: release pool slot with the assistant response for message
             // history extension. Called only after standard path completes.
+            // Same Swift 6 pattern: clear locals before await.
             func releasePoolSlotWithAssistant(_ historyKey: MessageHistoryKey?) async {
                 if let pool = poolRefForRelease,
                     let pooled = pooledSession
                 {
+                    pooledSession = nil
+                    chatSession = nil
                     await pool.release(
                         pooled: pooled,
                         modelId: modelId,
                         conversationId: convKey,
                         assistantMessage: historyKey
                     )
-                    pooledSession = nil
-                    chatSession = nil
                 }
             }
 
