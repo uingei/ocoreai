@@ -309,10 +309,48 @@ struct SettingsView: View {
                     .font(.subheadline).foregroundStyle(.secondary)
                 Text(StringKey.aboutVersion.l)
                     .font(.caption).foregroundStyle(.secondary)
+                // P1: Capability badge — shows which inference backends are available
+                HStack(spacing: 6) {
+                    Label(StringKey.capabilityBackend.l, systemImage: "cpu")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                    capabilityBadges
+                }
             }
             .frame(maxWidth: .infinity).padding(.vertical, 4)
         } header: {
             Text(StringKey.aboutSection.l)
+        }
+    }
+
+    // P1: Dynamic capability pills based on runtime platform
+    @ViewBuilder
+    private var capabilityBadges: some View {
+        // MLX always available
+        HStack(spacing: 4) {
+            Text("MLX")
+                .font(.caption.monospaced())
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Color.blue.opacity(0.15))
+                .foregroundStyle(Color.blue)
+                .clipShape(Capsule())
+            #if canImport(CoreAI)
+            if #available(macOS 27.0, iOS 27.0, *) {
+                Text("CoreAI")
+                    .font(.caption.monospaced())
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.green.opacity(0.15))
+                    .foregroundStyle(Color.green)
+                    .clipShape(Capsule())
+            } else {
+                Text("CoreAI")
+                    .font(.caption.monospaced())
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.gray.opacity(0.15))
+                    .foregroundStyle(Color.gray)
+                    .clipShape(Capsule())
+            }
+            #endif
         }
     }
 
