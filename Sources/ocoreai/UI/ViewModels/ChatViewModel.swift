@@ -632,7 +632,7 @@ final class ChatState {
         // through EngineInference as system prompt augmentation (P-S1 fix) and is
         // refreshed before each tool dispatch in the MTP loop (P-S2 fix).
         await PerceptionEngine.shared.inferenceStarted()
-        defer { await PerceptionEngine.shared.inferenceEnded() }
+        // defer with await is rejected by Swift 6 on macOS 26 CI; cleanup is at line 936.
 
         // Merge user attachment images into multimodal context
         var attachmentParts: [ContentPart] = []
@@ -930,6 +930,9 @@ final class ChatState {
             responseText = ""
             currentCancellation = nil
         }
+        // Swift 6 on macOS 26: await not allowed in defer.
+        // inferenceEnded() fires here at the common exit point of chat().
+        await PerceptionEngine.shared.inferenceEnded()
         loading = false
         currentTokPerSec = nil
         currentTTFTMs = nil
