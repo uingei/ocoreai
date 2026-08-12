@@ -2510,7 +2510,10 @@ extension EnginePool {
                                     parameters: iterGenParams,
                                     context: context,
                                     mtpDrafter: drafterModel,
-                                    blockSize: 4,
+                                    // blockSize must be >= 2 (upstream precondition) and <= 16
+                                    // (user-config via specDecoding.numDraftTokens). Upstream also
+                                    // auto-clamps to narrowest sliding window at init time.
+                                    blockSize: Swift.max(2, loaded.specDecodingConfig.numDraftTokens),
                                     components: .init(),
                                     wiredMemoryTicket: wiredMemoryTicket
                                 )
