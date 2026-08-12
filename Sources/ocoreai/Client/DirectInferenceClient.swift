@@ -333,6 +333,8 @@ extension DirectInferenceClient {
         var capturedPassthroughReason: String?
         // GAP-4: track incomplete/budget-truncated signal
         var capturedTruncatedByBudget = false
+        // P0: capture compute channel from .channel event for UI badge
+        var capturedChannel: ComputeChannel?
         // Phase tracking: emit .generating once on the first content delta
         var didEmitGeneratingPhase = false
 
@@ -457,9 +459,11 @@ extension DirectInferenceClient {
                     if incomplete {
                         capturedTruncatedByBudget = true
                     }
-                case .channel:
-                    // Compute channel identification — informational, no content
-                    break
+                case .channel(let ch):
+                    // P0: capture compute channel and yield so ChatViewModel/UI know
+                    // which accelerator (GPU/ANE/CPU) handled the request.
+                    capturedChannel = ch
+                    continuation.yield(.init(text: "", isComplete: false, channel: ch))
                 }
             }
         }
@@ -730,6 +734,11 @@ struct DirectChatChunk {
     /// so the UI can show contextual progress instead of a generic spinner.
     let phase: InferencePhase?
 
+    /// Compute channel that produced this response.
+    /// Emitted as the first non-diagnostic event so ChatViewModel knows
+    /// which accelerator handled the request before text arrives.
+    let channel: ComputeChannel?
+
     /// Inference phase enumeration — mirrors InferenceEvent.Kind phases
     /// that matter to the end user.
     public enum InferencePhase: Codable, Sendable {
@@ -779,7 +788,8 @@ struct DirectChatChunk {
         truncatedByBudget: Bool? = nil,
         reasoningTokenCount: Int? = nil,
         mptMetrics: MTPMetrics? = nil,
-        phase: InferencePhase? = nil
+        phase: InferencePhase? = nil,
+        channel: ComputeChannel? = nil
     ) {
         self.text = text
         self.isComplete = isComplete
@@ -795,6 +805,7 @@ struct DirectChatChunk {
         self.reasoningTokenCount = reasoningTokenCount
         self.mptMetrics = mptMetrics
         self.phase = phase
+        self.channel = channel
     }
 }
 

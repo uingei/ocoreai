@@ -446,6 +446,22 @@ struct ChatView: View {
                                             .lineLimit(1)
                                             .accessibilityHidden(true)
                                     }
+                                    // P0: Channel badge — user sees which accelerator handled the request
+                                    if let ch = chatState.currentComputeChannel {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: ch.badgeIcon)
+                                            Text(ch.badgeLabel)
+                                        }
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(ComputeChannelUI.colorFor(ch))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(
+                                            ComputeChannelUI.colorFor(ch).opacity(0.12),
+                                            in: Capsule()
+                                        )
+                                        .transition(.opacity)
+                                    }
                                 }
                             }
                             .padding()
@@ -1102,6 +1118,20 @@ struct InferenceErrorOverlay: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.bottom, 8)
             .accessibilityLabel(StringKey.statusError.l)
+        }
+    }
+}
+
+// MARK: - Channel badge color provider
+
+/// SwiftUI-side color mapping for ``ComputeChannel`` badges.
+/// Lives here (not in HardwareRouter) to keep the scheduler module SwiftUI-free.
+private enum ComputeChannelUI {
+    static func colorFor(_ ch: ComputeChannel) -> Color {
+        switch ch {
+        case .gpu: return .blue
+        case .ane: return .green
+        case .cpu: return .orange
         }
     }
 }

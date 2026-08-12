@@ -169,6 +169,9 @@ final class ChatState {
     /// Current inference phase for UI progress display.
     /// Drives contextual progress labels instead of a generic spinner.
     var inferencePhase: InferencePhase?
+    /// P0: Compute channel used for the current streaming response.
+    /// Drives the channel badge (⚡GPU / 🧠ANE / 💻CPU) in ChatView.
+    var currentComputeChannel: ComputeChannel?
 
     /// Human-readable label for the current inference phase.
     /// Computed from inferencePhase for convenience.
@@ -764,6 +767,10 @@ final class ChatState {
                 // Wire inference phase for UI progress display
                 if let chunkPhase = chunk.phase {
                     inferencePhase = Self.mapPhase(from: chunkPhase)
+                }
+                // P0: Wire compute channel for badge display
+                if let ch = chunk.channel {
+                    currentComputeChannel = ch
                 }
                 // Consume tool call metadata during streaming — makes tool-use progress visible
                 if let meta = chunk.metadata {

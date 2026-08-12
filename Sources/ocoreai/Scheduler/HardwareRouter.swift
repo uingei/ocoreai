@@ -62,6 +62,26 @@ extension ComputeChannel {
         }
     }
     #endif
+
+    // MARK: - UI Badge helpers
+
+    /// SF Symbol name for the badge.
+    public var badgeIcon: String {
+        switch self {
+        case .gpu: "bolt.fill"
+        case .ane: "brain.fill"
+        case .cpu: "cpu"
+        }
+    }
+
+    /// Human-readable label for the badge.
+    public var badgeLabel: String {
+        switch self {
+        case .gpu: "GPU"
+        case .ane: "ANE"
+        case .cpu: "CPU"
+        }
+    }
 }
 
 // MARK: - Thermal Pressure Event
