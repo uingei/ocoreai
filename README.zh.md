@@ -46,7 +46,7 @@ ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中
 - **macOS 27 FM 路径** — 原生 `MLXLanguageModel` → `LanguageModelSession` + `MLXFoundationModels`（macOS 27），含 `FMToolProxy` 工具桥接、`ContextOptions` 推理控制与 transcript 流式传输。低版本 macOS 自动降级至 ChatSession 管线。
 - **持续感知** — 8 通道系统（摄像头、传感器、环境），工具派发循环中 P-S1/P-S2 感知上下文注入。
 - **SessionPool** — 消息前缀级别 Prompt Cache 复用，HardwareRouter 压力事件触发激进驱逐，`loadPromptCacheSnapshot` 恢复 LM 状态与 KV Cache 精确锚定。
-- **推测解码** — Gemma drafter 模型支持（12B/26B/31B 独立路由），MTP 模式已接入。上游 pin `2af378b` 包含 KVCacheRound 分阶段事务回滚 (#516)、TurboFlash 短上下文快路径 (#520)、Qwen3MoE 清理 (#490) 及 `PrefillParameters` 均衡分块 (#470)。
+- **推测解码** — Gemma drafter 模型支持（12B/26B/31B 独立路由），MTP 模式已接入。上游 pin `0b47e69` 包含 KVCacheRound 分阶段事务回滚 (#516)、TurboFlash 短上下文快路径 (#520)、Qwen3MoE 清理 (#490) 及 `PrefillParameters` 均衡分块 (#470)。
 - **配置系统** — YAML 配置 + 文件监听器（轮询）。显存预算硬件自动检测。
 - **多模态 I/O** — 摄像头捕获、屏幕截图、麦克风输入、Vision OCR、16kHz Apple Speech STT、多语言 TTS — 全部原生。摄像头/屏幕默认关闭；STT 需要麦克风权限。
 - **i18n** — StringKey 本地化框架完整；英文已部署。中文（zh-Hans）已有基础翻译覆盖。其他语种（ja, ko, fr, de, es）已定义但未翻译。

@@ -22,6 +22,7 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ### Bug Fixes
 
+- **P0: Release-safe error handling** — All `precondition` calls removed from production hot paths (28 → 0); replaced with guard/throw/clamp in Metrics, RateLimitMiddleware, TokenizerManager, EnginePool, CoreAIEngine, CoreAISequentialEngine, AgentLoop, AuthMiddleware, EngineLifecycleState, TimingHooks. Tool dispatch `fatalError` replaced with graceful error response. Build verified: 0 errors.
 - **Concurrency** — Replaced `os_unfair_lock` raw pointer with `NSRecursiveLock`; extracted Mutex shim for macOS 26 CI compile compatibility
 - **Session lifecycle** — P0: 3 fixes including TokenHistory growth bounded to `maxContextLength`
 - **CoreAI macOS 26 crash** — Removed `Synchronization` dependency, added Mutex shim, fixed `MLXSamplingMode`/`topK`/tuple enum partial match in MLXBridge
@@ -89,4 +90,4 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ---
 
-*Last updated: 2026-08-12. Current HEAD: c693be0.*
+*Last updated: 2026-08-12. Current HEAD: d8cca10.*

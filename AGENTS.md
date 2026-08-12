@@ -28,7 +28,7 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 
 **Dual Path reality:**
 - `EnginePool` uses inline `#if canImport(CoreAI)` branches, NOT `BackendProtocol` (protocol defined but unused)
-- **MLX path:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — **fully aligned** with upstream `mlx-swift-lm` `2af378b`
+- **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — **fully aligned** with upstream `mlx-swift-lm` `0b47e69`
 - **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement. Currently sequential-only (`CoreAISequentialEngine` ~556 LOC); `AIModelCache` (~60 LOC) for compiled model artifact caching; staticShape/pipelined not yet implemented.
 - **ANE path:** Stub/empty via CoreAI — no specialization yet
 - **MTP path:** `_runInferenceWithMessages` → `generate(::mtpDrafter:)` — bypasses ChatSession, tool calls collected + dispatched per-iteration (aligned with upstream `MTPSpeculativeTokenIterator`)
@@ -69,10 +69,12 @@ swift test --filter OcoreAITests.System  # system tests only
 - `@unchecked Sendable` requires justification comment. Closure `var` declared inside closure scope (not outer).
 
 ### Error Handling
-- **Zero `try!`, `as!`, `fatalError`, `assert`, `precondition`, `print()`** in production code.
-- `try?` usages concentrated in MCP files (known risk, ~175 instances).
+- **Precondition free in production code** — 0 `precondition` calls remain after P0 cleanup; all replaced with guard/throw/clamp.
+- **Zero `try!`, `as!`, `print()`** in production code.
+- **Remaining:** 2 `fatalError` (defense-only stub + unreachable SDK regression path), 1 `assert` (release-optimized away in Tools/ToolEntry).
+- `try?` usages concentrated in MCP/Models hotspot (~200 instances, defensive fallback pattern).
 - `ErrorContext.swift` does not exist — `Profiling/` only contains `TimingHooks.swift`.
-- 2 empty `catch {}` blocks on async operations (EngineInference).
+- 2 empty `catch {}` blocks on async operations (EngineInference, watchdog cancellation).
 
 ### Naming
 - Target names ≠ module boundaries (e.g., `GuidedGenerationLoop` is peer to `ChatSession`, not nested).
@@ -100,7 +102,9 @@ swift test --filter OcoreAITests.System  # system tests only
 | Reasoning `<thinking>` regex | Engine/ | ⚠️ Limited — regex-based, no AST |
 | MLXFoundationModels deeper integration | Engine/ | FM path wired; lacks per-token callback on FM `.done` |
 | `kvCacheRuntimeReport` diagnostic | ChatSession.swift | ⏳ Upstream API available, not consumed yet |
-| try? scatter | ~175 instances MCP/Models hotspot | Ongoing risk |
+| try? scatter | ~200 instances MCP/Models hotspot | Ongoing risk |
+| precondition | 0 in production (P0 cleanup complete) | ✅ Resolved |
+| fatalError | 2 (defense-only stub + unreachable SDK path) | Acceptable |
 | Empty catch {} | EngineInference | 2 instances remain |
 | Coverage report | Tests/CoverageReport | Missing — no live data |
 | HardwareRouter tests | Tests/ | ❌ Zero coverage |
@@ -111,7 +115,7 @@ swift test --filter OcoreAITests.System  # system tests only
 ### Upstream Audit Dependencies
 
 Three sources for empirical verification:
-1. **mlx-swift-lm** — pinned at `2af378b` (2026-08-12: KVCacheRound staged rounds #516, TurboFlash short-context fast-path #520, Qwen3MoE sanitization #490, PrefillParameters balanced chunking #470, typed KVCache config #453, MTP speculation past sliding window, ChatConventions migration #502, custom LogitProcessor injection #401)
+1. **mlx-swift-lm** — pinned at `0b47e69` (2026-08-12: KVCacheRound staged rounds #516, TurboFlash short-context fast-path #520, Qwen3MoE sanitization #490, PrefillParameters balanced chunking #470, typed KVCache config #453, MTP speculation past sliding window, ChatConventions migration #502, custom LogitProcessor injection #401)
 2. **coreai-models** — pinned at upstream main; ConstrainedGenerationSession, XGrammar, Pipelined/Sequential engines, StateHandler, VLM engine, CompositeSampler, PerformanceMetrics (reference repo, not SPM dependency)
 3. **Apple Developer Docs** — developer.apple.com/documentation/CoreAI (requires login)
 
