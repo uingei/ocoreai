@@ -2443,6 +2443,23 @@ extension EnginePool {
                             (m.role.rawValue, m.content)
                         }
                         let snapMtpToolAwareContext = mtpToolAwareContext
+                        // N1-fix: completionReserve floor on MTP phase2 per-iteration budget.
+                        // Upstream MLXLanguageModel.respond() L1372-1376:
+                        //   phase2MaxTokens = max(maxT - reasoningTokenIDs.count, completionReserve)
+                        // where completionReserve = maxTokens / 4 (minimum floor).
+                        // Without this, long reasoning spans can consume all tokens in early
+                        // iterations, leaving zero budget for tool dispatch on later iterations.
+                        let mtpReasoningTotal = phase1ReasoningTokenCount + phase2ReasoningTokenCount
+                        let mtpRemainingBudget = (options.maxTokens ?? .max) - mtpReasoningTotal
+                        let mtpCompletionReserve = (options.maxTokens ?? .max) / 4
+                        // Snapshot as let to satisfy Sendable closure capture rules —
+                        // GenerateParameters is a struct, so a copy is cheap.
+                        let iterGenParams: GenerateParameters = {
+                            var params = genParams
+                            params.maxTokens = Swift.max(mtpRemainingBudget, mtpCompletionReserve)
+                            return params
+                        }()
+
                         do {
                             iterResult = try await handleRef.modelContainer.perform(
                                 nonSendable: drafterWrapper
@@ -2482,7 +2499,7 @@ extension EnginePool {
                                 let mtpGenStream = try MLXLMCommon.generate(
                                     input: mtpInput,
                                     cache: mtpKVCache,
-                                    parameters: genParams,
+                                    parameters: iterGenParams,
                                     context: context,
                                     mtpDrafter: drafterModel,
                                     blockSize: 4,
