@@ -2688,7 +2688,14 @@ extension EnginePool {
                         // think-then-call reasoning phase before tool dispatch").
                         guard toolCallDetected && !localStoppedBySeq else {
                             let isRequiredMode = options.toolCallingMode?.lowercased() == "required"
-                            if isRequiredMode, !toolCallDetected {
+                            // G4 fix: only warn on .required when the model stopped for non-normal
+                            // reasons (cancelled/interrupted) AND produced no tool call.
+                            // EOS/maxTokens/stopSequence are legitimate termination — not a violation.
+                            let abnormalStop =
+                                localStopReason == .cancelled
+                                || localStopReason == .externalInterrupt
+
+                            if isRequiredMode, !toolCallDetected, abnormalStop {
                                 log.warning(
                                     "MTP .required mode: model produced no tool call — tools were mandatory"
                                 )
@@ -2700,7 +2707,7 @@ extension EnginePool {
                                 continuation.yield(
                                     .init(
                                         kind: .done(
-                                            StopReason.maxTokens,
+                                            localStopReason,
                                             tokenCount: actualTokenCount
                                                 ?? metrics.generatedTokenCount,
                                             tokPerSec: errTokPerSec,
