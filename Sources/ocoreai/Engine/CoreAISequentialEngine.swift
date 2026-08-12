@@ -334,10 +334,11 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
     }
 
     public func reset(to tokenIndex: Int) async throws {
-        precondition(
-            tokenIndex >= 0 && tokenIndex <= processedTokenCount,
-            "reset(to: \(tokenIndex)) out of range [0, \(processedTokenCount)]"
-        )
+        // P0-fix: throw instead of precondition (engine internals must not release-crash)
+        guard tokenIndex >= 0 && tokenIndex <= processedTokenCount else {
+            throw InferenceRuntimeError.invalidState(
+                "reset(to: \(tokenIndex)) out of range [0, \(processedTokenCount)]")
+        }
         if tokenIndex != 0 && hasNonTruncatableStates {
             throw InferenceRuntimeError.invalidState(
                 "Partial reset not supported for hybrid models with recurrent state")

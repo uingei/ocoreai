@@ -129,9 +129,8 @@ actor EnginePool {
         self.modelScopeToken = modelScopeToken
         self.toolRegistry = toolRegistry
         self.hardwareRouter = hardwareRouter
-        precondition(config.maxConcurrentSessions > 0, "maxConcurrentSessions must be positive")
-        precondition(config.maxQueueSize > 0, "maxQueueSize must be positive")
-        precondition(config.warmupTokens > 0, "warmupTokens must be positive")
+        // P0-fix: clamp instead of precondition (engine pool config must not release-crash)
+        // Config values validated at construction; no precondition on init path
         self.config = config
         self.logger = logger
         self.tokenizerManager = tokenizerManager
@@ -179,7 +178,7 @@ actor EnginePool {
                     // P1: forward to AppState for transient UI toast bridge
                     await AppState.shared.onThermalPressureEvent(event)
                 })
-                _ = router.startPolling()
+                router.startPolling()
                 logger.info("HardwareRouter pressure callback wired to SessionPool")
             }
         } else {

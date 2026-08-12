@@ -1843,7 +1843,7 @@ extension EnginePool {
                 // Double-serialization fix: removed tracker record + JSON roundtrip.
                 // Previously: MLXLMCommon.JSONValue → JSONSerialization → String → registry.call().
                 // Now: MLXLMCommon.JSONValue → direct registry.call() via .anyValue.
-                toolDispatchClosure = { [registry] toolCall in
+                toolDispatchClosure = { [registry, logger = self.logger] toolCall in
                     // MLXLMCommon.ToolCall carries JSONValue args that need JSON-string
                     // serialization for ToolRegistry.call(arguments: String).
                     // Previously this went through _InterceptedToolCallTracker (JSON roundtrip)
@@ -1851,6 +1851,9 @@ extension EnginePool {
                     let argsDict =
                         toolCall.function.arguments
                         .mapValues { $0.anyValue } as? [String: Any] ?? [:]
+                    
+                    // P0-fix: replace fatalError with graceful error response
+                    // (tool args should always serialize, but release must not crash)
                     guard
                         let data = try? JSONSerialization.data(
                             withJSONObject: argsDict,
@@ -1858,9 +1861,12 @@ extension EnginePool {
                         ),
                         let jsonArgs = String(data: data, encoding: .utf8)
                     else {
-                        // Fatal: tool args could not be serialized (should not happen in practice).
-                        fatalError("Tool args serialization failed for \(toolCall.function.name)")
+                        logger.error(
+                            "Tool dispatch: args serialization failed for \\(toolCall.function.name)"
+                        )
+                        return "[tool_dispatch_error: could not serialize arguments for \\(toolCall.function.name)]"
                     }
+                    
                     let toolResult = try await registry.call(
                         toolCall.function.name,
                         arguments: jsonArgs,

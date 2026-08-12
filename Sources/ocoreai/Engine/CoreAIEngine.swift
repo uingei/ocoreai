@@ -301,7 +301,8 @@ struct TokenHistory: Sendable {
     }
 
     mutating func truncate(to position: Int) {
-        precondition(position >= 0)
+        // P0-fix: guard instead of precondition (engine internals must not release-crash)
+        guard position >= 0 else { return }
         guard position < tokens.count else { return }
         tokens.removeSubrange(position...)
     }

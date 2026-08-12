@@ -61,8 +61,8 @@ struct AgentLoopConfig {
         builder: MessageBuilder,
         caller: String = "agent"
     ) {
-        precondition(maxIter >= 1, "maxIter must be >= 1")
-        self.maxIter = maxIter
+        // P0-fix: clamp instead of precondition (agent config must not release-crash)
+        self.maxIter = max(maxIter, 1)
         self.tokenBudget = tokenBudget
         self.guardMargin = guardMargin
         self.timeoutSeconds = timeoutSeconds

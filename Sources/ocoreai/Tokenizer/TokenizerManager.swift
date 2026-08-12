@@ -84,8 +84,13 @@ actor TokenizerManager {
 
     /// Register a tokenizer loaded from a local directory path.
     func registerTokenizer(for modelId: String, tokenizerPath: String) async throws {
-        precondition(!modelId.isEmpty, "modelId must not be empty")
-        precondition(!tokenizerPath.isEmpty, "tokenizerPath must not be empty")
+        // P0-fix: throw instead of precondition (already throws method)
+        guard !modelId.isEmpty else {
+            throw AppError.invalidRequest("modelId must not be empty")
+        }
+        guard !tokenizerPath.isEmpty else {
+            throw AppError.invalidRequest("tokenizerPath must not be empty")
+        }
 
         let tokenizerURL = URL(fileURLWithPath: tokenizerPath)
         let tokenizer: any Tokenizer = try await AutoTokenizer.from(
@@ -100,8 +105,13 @@ actor TokenizerManager {
 
     /// Register a tokenizer downloaded from HuggingFace Hub.
     func registerTokenizerFromHub(for modelId: String, hubId: String) async throws {
-        precondition(!modelId.isEmpty, "modelId must not be empty")
-        precondition(!hubId.isEmpty, "hubId must not be empty")
+        // P0-fix: throw instead of precondition (already throws method)
+        guard !modelId.isEmpty else {
+            throw AppError.invalidRequest("modelId must not be empty")
+        }
+        guard !hubId.isEmpty else {
+            throw AppError.invalidRequest("hubId must not be empty")
+        }
 
         let tokenizer: any Tokenizer = try await AutoTokenizer.from(pretrained: hubId)
 
@@ -140,8 +150,8 @@ final class DirectTokenizer: Sendable {
     private let _tokenizer: any Tokenizer
 
     init(modelId: String, tokenizer: any Tokenizer) {
-        precondition(!modelId.isEmpty, "DirectTokenizer requires a non-empty modelId")
-        name = modelId
+        // P0-fix: default name instead of precondition (tokenizer must not release-crash)
+        name = modelId.isEmpty ? "tokenizer" : modelId
         _tokenizer = tokenizer
     }
 

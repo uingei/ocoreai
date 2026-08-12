@@ -43,12 +43,11 @@ actor TokenBucket {
     ///   - rate: Tokens added per second
     ///   - capacity: Maximum burst size
     init(rate: Double, capacity: Double) {
-        precondition(rate > 0, "rate must be positive, got \(rate)")
-        precondition(capacity > 0, "capacity must be positive, got \(capacity)")
-        available = capacity  // Start full
+        // P0-fix: guard + clamp instead of precondition (rate limiter must not release-crash)
+        self.rate = rate > 0 ? rate : 1.0
+        self.capacity = capacity > 0 ? capacity : 100.0
+        available = self.capacity  // Start full
         lastRefill = .now
-        self.rate = rate
-        self.capacity = capacity
     }
 
     /// Try to acquire a single token (non-blocking).
@@ -68,7 +67,8 @@ actor TokenBucket {
     /// - Returns: `true` if all tokens acquired, `false` if insufficient
     @discardableResult
     func tryAcquire(count: Int) -> Bool {
-        precondition(count > 0, "count must be positive")
+        // P0-fix: guard instead of precondition (rate limiter must not release-crash)
+        guard count > 0 else { return true }
         refill()
         guard available >= Double(count) else { return false }
         available -= Double(count)
@@ -158,12 +158,13 @@ actor RateLimitProvider {
     ///   - config: Rate limiting configuration
     ///   - logger: Logger instance
     init(config: Config = Config(), logger: Logger) {
+        // P0-fix: clamp instead of precondition (rate limiter must not release-crash)
+        let safeGlobal = config.globalRate > 0 ? config.globalRate : 100
+        let safePerModel = config.perModelRate > 0 ? config.perModelRate : 20
+        let safePerIP = config.perIPRate > 0 ? config.perIPRate : 10
         self.config = config
-        globalBucket = TokenBucket(rate: config.globalRate, capacity: Double(config.globalBurst))
+        globalBucket = TokenBucket(rate: safeGlobal, capacity: Double(config.globalBurst))
         self.logger = logger
-        precondition(config.globalRate > 0, "globalRate must be positive")
-        precondition(config.perModelRate > 0, "perModelRate must be positive")
-        precondition(config.perIPRate > 0, "perIPRate must be positive")
     }
 
     /// Get or create a model-bound token bucket, tracking last-used timestamp for eviction.

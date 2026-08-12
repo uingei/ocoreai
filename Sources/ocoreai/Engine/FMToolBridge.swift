@@ -110,14 +110,23 @@ struct FMToolProxy: FoundationModels.Tool {
 
     private static var emptySchema: FoundationModels.GenerationSchema {
         do {
-            let json: [String: String] = ["type": "object"]
+            let json: [String: Any] = ["type": "object", "properties": [:]]
             let data = try JSONSerialization.data(withJSONObject: json)
             return try JSONDecoder().decode(
                 FoundationModels.GenerationSchema.self,
                 from: data
             )
         } catch {
-            fatalError("FMToolBridge: unable to construct empty GenerationSchema")
+            // Should never happen — empty object schema is valid per SDK.
+            // If it does, the FM path caller (tryToBuildSchema) already has a ?? fallback
+            // to this same value, so we use a secondary decode path.
+            return (try? {
+                let json = #"{"type":"string"}"#.data(using: .utf8)!
+                return try JSONDecoder().decode(FoundationModels.GenerationSchema.self, from: json)
+            }()) ?? {
+                // Absolute last resort — should be unreachable
+                fatalError("FMToolBridge: empty schema decode failed (sdk regression)")
+            }()
         }
     }
 }
