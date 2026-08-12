@@ -2689,11 +2689,11 @@ extension EnginePool {
                         guard toolCallDetected && !localStoppedBySeq else {
                             let isRequiredMode = options.toolCallingMode?.lowercased() == "required"
                             // G4 fix: only warn on .required when the model stopped for non-normal
-                            // reasons (cancelled/interrupted) AND produced no tool call.
+                            // reasons (cancelled/error) AND produced no tool call.
                             // EOS/maxTokens/stopSequence are legitimate termination — not a violation.
                             let abnormalStop =
                                 localStopReason == .cancelled
-                                || localStopReason == .externalInterrupt
+                                || localStopReason == .error
 
                             if isRequiredMode, !toolCallDetected, abnormalStop {
                                 log.warning(
@@ -2707,7 +2707,7 @@ extension EnginePool {
                                 continuation.yield(
                                     .init(
                                         kind: .done(
-                                            localStopReason,
+                                            localStopReason ?? .maxTokens,
                                             tokenCount: actualTokenCount
                                                 ?? metrics.generatedTokenCount,
                                             tokPerSec: errTokPerSec,
@@ -2957,6 +2957,9 @@ extension EnginePool {
                                                     localStdReasoningTokenCount,
                                                     localStdTokenCount
                                                         ?? metrics.generatedTokenCount))))
+                                    // G5 fix: cancel the generation task before breaking
+                                    // to release GPU kernel references and prevent handle leak
+                                    stdTokenTask.cancel()
                                     break
                                 }
                                 switch generation {
