@@ -269,8 +269,7 @@ final class PerceptionEngine: Sendable {
             perceptionLogger.warning("[PerceptionEngine] camera: unavailable")
             return
         }
-
-        defer { await cs.stopCapture() }
+        defer { cs.stopCapture() }
 
         while !Task.isCancelled {
             let inferring = await _inferenceFlag.active
@@ -311,7 +310,7 @@ final class PerceptionEngine: Sendable {
     private func sampleScreen(every interval: TimeInterval) async {
         let ss = ScreenshotService.shared
 
-        defer { await ss.stopCapture() }
+        defer { ss.stopCapture() }
 
         while !Task.isCancelled {
             let inferring = await _inferenceFlag.active
