@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Multimodal Controls — camera/microphone/speaker/screen toggle panel with preview
+/// Multimodal Controls — camera/microphone/speaker toggle panel with preview
 /// Accessibility: full VoiceOver labels on toggles, buttons, and status indicators
 /// Theme-driven: all colors resolve through @Environment(\.ocoreaiTheme)
 /// Fix P0-4: DataURLPreview replaces AsyncImage (data URLs do not work with URLSession)
+/// X3-fix: cross-platform — camera/mic/speaker work on iOS; screen section #if os(macOS)
 
-#if os(macOS)
 import SwiftUI
 
 struct MultimodalControls: View {
@@ -16,7 +16,9 @@ struct MultimodalControls: View {
     private let mmState = MultimodalState.shared
     private let captureService = CaptureService.shared
     private let audioIO = AudioIO.shared
+    #if os(macOS)
     private let screenshotService = ScreenshotService.shared
+    #endif
 
     // Camera/screen preview frame relay — needed solely because DataURLPreview
     // requires a @Binding. The @Observable properties above make the rest of the
@@ -49,8 +51,10 @@ struct MultimodalControls: View {
             // Camera section
             cameraSection
 
-            // Screen capture section
+            // Screen capture section (macOS only — ScreenCaptureKit unavailable on iOS)
+            #if os(macOS)
             screenSection
+            #endif
 
             // Microphone section
             microphoneSection
@@ -327,10 +331,13 @@ struct MultimodalControls: View {
                 isActive: audioIO.isSpeaking,
                 label: StringKey.statusSpeaking.l
             )
+            // Screen capture status (macOS only)
+            #if os(macOS)
             StatusDot(
                 isActive: screenshotService.isCapturing,
                 label: StringKey.multimodalScreenCaptureActive.l
             )
+            #endif
         }
         .accessibilityLabel(StringKey.statusIndicatorsLabel.l)
     }
@@ -363,5 +370,3 @@ extension MultimodalControls {
         }
     }
 }
-
-#endif  // os(macOS)

@@ -883,16 +883,28 @@ extension EnginePool {
             return
         }
 
-        // P0-fix: Validate ANE runtime availability before emitting channel event.
-        // On macOS/iOS < 27 with canImport(CoreAI) compiled, _runInference falls
-        // back to MLX GPU via the #available guard below — without this check,
-        // downstream (UI/SSE) receives .ane event while actual inference runs on GPU.
+        // P0-fix: Validate ANE runtime availability and content compatibility
+        // before emitting channel event. On macOS/iOS < 27 with canImport(CoreAI) compiled,
+        // _runInference falls back to MLX GPU via the #available guard below —
+        // without this check, downstream (UI/SSE) receives .ane event while actual
+        // inference runs on GPU.
+        // X6-fix: Also check multimodal content — CoreAI `_runInference` cannot tokenize
+        // multimodal content (`contentToString()` in EnginePool.tokenize() silently drops
+        // images/videos/audio, producing text-only output for VLM requests).
+        // Gate both BEFORE badge emit so the badge reflects the actual accelerator.
         #if canImport(CoreAI)
-        if computeChannel == .ane, !PlatformHelpers.isCoreAIRuntimeAvailable {
-            logger.warning(
-                "HardwareRouter → ANE but CoreAI runtime unavailable, falling back to GPU for \(modelId)"
-            )
-            computeChannel = .gpu
+        if computeChannel == .ane {
+            if !PlatformHelpers.isCoreAIRuntimeAvailable {
+                logger.warning(
+                    "HardwareRouter → ANE but CoreAI runtime unavailable, falling back to GPU for \(modelId)"
+                )
+                computeChannel = .gpu
+            } else if hasMultimodalContent(messages) {
+                logger.info(
+                    "ANE selected but multimodal content present (CoreAI cannot tokenize VLM), falling back to GPU for \(modelId)"
+                )
+                computeChannel = .gpu
+            }
         }
         #endif
 
@@ -900,12 +912,8 @@ extension EnginePool {
         // which inference pipeline produced the response: FM/Metal GPU, CPU, or CoreAI ANE.
         continuation.yield(.init(kind: .channel(computeChannel)))
 
-        // P0 fix: CoreAI `_runInference` cannot tokenize multimodal content —
-        // `contentToString()` in EnginePool.tokenize() silently drops images/videos/audio,
-        // producing text-only output for VLM requests. When ANE is selected but multimodal
-        // content is present, force GPU fallback to MLX path which handles VLM natively.
         #if canImport(CoreAI)
-        if computeChannel == .ane, !hasMultimodalContent(messages) {
+        if computeChannel == .ane {
             logger.info("ANE channel: routing model \(modelId) through CoreAI engine")
             do {
                 let tokens = try await tokenize(modelId: modelId, messages: messages)

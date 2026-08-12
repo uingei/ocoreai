@@ -34,6 +34,16 @@ final class AppState {
         await MainActor.run { [self] in
             self.currentBaselineChannel = event.to
             self.channelShiftToast = .init(event: event)
+            // X1-fix: thermal/inference channel shift → adjust perception sampling rate
+            // so PerceptionEngine doesn't compete with the active accelerator.
+            switch event.to {
+            case .cpu:
+                PerceptionEngine.shared.setPowerProfile(.minimal)
+            case .ane:
+                PerceptionEngine.shared.setPowerProfile(.reduced)
+            case .gpu:
+                PerceptionEngine.shared.setPowerProfile(.normal)
+            }
         }
         // Auto-dismiss after 3s
         try? await Task.sleep(nanoseconds: 3_000_000_000)
