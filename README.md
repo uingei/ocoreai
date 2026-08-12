@@ -33,7 +33,7 @@ Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 ocoreai unifies inference engine, agent orchestration, and persistence in one process:
 
 - **Dual inference backends** — MLX (Metal GPU, default, dual-channel on-device inference via `MLXLanguageModel` + `ChatSession` pipeline) + CoreAI (1,528 LOC, derived from Apple's coreai-models reference implementation, dynamic KV cache, `TokenHistory` prefix caching). Zero network calls — inference runs on your Mac.
-- **Adaptive hardware routing** — Real-time HardwareRouter dispatches requests to GPU / ANE / CPU based on thermal pressure, memory headroom, and GPU utilization. AdmissionGate enforces a 3-tier admission policy (allow → ANE-only → reject) with configurable abort margin.
+- **Adaptive hardware routing** — Real-time HardwareRouter dispatches requests to GPU / ANE / CPU based on thermal pressure, memory headroom, and GPU utilization. AdmissionGate enforces a 3-tier admission policy (allow → ANE-only → reject) with configurable abort margin. Live channel badge in ChatView streaming indicator + Dashboard health bar; thermal-pressure toast on channel shifts (EN/ZH i18n).
 - **Wired Memory GPU isolation** — hardware-level GPU memory bounds prevent OOM during inference.
 - **Thinking budget** — Adaptive token budget allocation driven by ComplexityAnalyzer scoring (length, intent, history dimensions) on Bridge Path. Fast Path (desktop GUI) has ThinkingBudget calibration loop wired but with simplified complexity input (constant 0.5 — no upstream ComplexityAnalyzer).
 - **Agent loop** — multi-turn tool use: the model reasons, calls registered tools, reads results, and iterates (up to 30 rounds, 180s timeout). Built-in tools for system info, skills, and search. Extensible via `ToolRegistry`.
@@ -226,8 +226,8 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 | TTS (speech output) | ⚠️ Wired; lazy-triggered via `speakerEnabled` toggle (off by default) |
 | Self Correction Pipeline | ⚠️ Bridge Path only — requires explicit `selfCorrection: true`; no UI toggle |
 | i18n | ⚠️ Framework complete; en + zh-Hans shipped, 5 locales defined but untranslated |
-| SwiftUI dashboard UI | ✅ |
-| Self-adaptation (EMA health) | ✅ |
+- **SwiftUI dashboard UI** — ✅ Live channel badge (GPU/ANE/CPU) in health bar + ChatView; thermal-pressure toast on channel shifts; Settings capability pills (MLX/CoreAI) with proper runtime gating
+- **Self-adaptation (EMA health)** — ✅
 | Profiling (TimingHooks) | ✅ |
 
 ---

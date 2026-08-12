@@ -33,7 +33,7 @@ swift run
 ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中：
 
 - **双通道推理引擎** — MLX（Metal GPU，默认，`MLXLanguageModel` + `ChatSession` 管线双通道端侧推理）+ CoreAI（1,528 LOC，派生自 Apple coreai-models 参考实现，动态 KV Cache、`TokenHistory` prefix caching）。零网络调用 — 推理在你的 Mac 上运行。
-- **自适应硬件路由** — HardwareRouter 根据热压力、内存余量、GPU 利用率实时将请求分发至 GPU / ANE / CPU。AdmissionGate 执行三级准入策略（允许 → 仅限 ANE → 拒绝），支持可配置 abort margin。
+- **自适应硬件路由** — HardwareRouter 根据热压力、内存余量、GPU 利用率实时将请求分发至 GPU / ANE / CPU。AdmissionGate 执行三级准入策略（允许 → 仅限 ANE → 拒绝），支持可配置 abort margin。ChatView 流式指示器 + Dashboard 健康栏实时显示通道标识；通道切换时热力 Toast 通知（EN/ZH i18n）。
 - **Wired Memory 显存硬隔离** — 硬件级显存边界，防止推理 OOM。
 - **Thinking Budget（推理预算）** — 基于 ComplexityAnalyzer（长度、意图、历史三维度评分）的自适应 token 预算分配。Bridge Path 接入完整 ComplexityAnalyzer；Fast Path（桌面 GUI）已接入 ThinkingBudget 校准循环，使用简化复杂度输入（固定 0.5）。
 - **Agent 循环** — 多轮工具调用：模型推理 → 调用注册工具 → 读取结果 → 循环迭代（最多 30 轮，180 秒超时）。内置系统信息、技能、搜索工具。通过 `ToolRegistry` 扩展。
@@ -226,7 +226,7 @@ memory:
 | TTS（语音输出） | ⚠️ 已接入；通过 `speakerEnabled` 惰性触发（默认关闭） |
 | Self Correction Pipeline | ⚠️ 仅 Bridge Path — 需显式 `selfCorrection: true`；无 UI 开关 |
 | i18n | ⚠️ 框架完整；英文+中文已部署，另 5 语种已定义未翻译 |
-| SwiftUI 仪表盘 | ✅ |
+| SwiftUI 仪表盘 | ✅ 健康栏实时通道标识（GPU/ANE/CPU）+ ChatView；通道切换热力 Toast；Settings 能力 pill（MLX/CoreAI）带运行时门控 |
 | 自适应健康（EMA） | ✅ |
 | 分析模块（TimingHooks） | ✅ |
 
