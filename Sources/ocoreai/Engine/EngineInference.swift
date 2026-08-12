@@ -2085,7 +2085,17 @@ extension EnginePool {
                         log.debug(
                             "Pooled session acquired but guided gen can't reuse ChatSession cache — returning slot"
                         )
-                        await releasePoolSlot()
+                        // Swift 6: clear refs before await to avoid data-race on chatSession
+                        if let pool = poolRefForRelease, let pooled = pooledSession {
+                            pooledSession = nil
+                            chatSession = nil
+                            await pool.release(
+                                pooled: pooled,
+                                modelId: modelId,
+                                conversationId: convKey,
+                                assistantMessage: nil
+                            )
+                        }
                     }
                     log.info("Routing through GuidedGenerationLoop with grammar constraint")
                     try await handleGuidedGeneration(
@@ -2117,7 +2127,17 @@ extension EnginePool {
                         log.debug(
                             "Pooled session acquired but MTP can't reuse ChatSession cache — returning slot"
                         )
-                        await releasePoolSlot()
+                        // Swift 6: clear refs before await to avoid data-race on chatSession
+                        if let pool = poolRefForRelease, let pooled = pooledSession {
+                            pooledSession = nil
+                            chatSession = nil
+                            await pool.release(
+                                pooled: pooled,
+                                modelId: modelId,
+                                conversationId: convKey,
+                                assistantMessage: nil
+                            )
+                        }
                     }
                     log.info("Routing through MTP speculative decoding")
                     let messagePairs: [(role: String, content: String)] = mlxMessages.map {
