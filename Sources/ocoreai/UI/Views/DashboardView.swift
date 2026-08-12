@@ -92,6 +92,23 @@ struct DashboardView: View {
                 "System status: \(dashboardState.isLive ? StringKey.systemOnline.l : StringKey.systemLoading.l)"
             )
             .accessibilityAddTraits(.isStaticText)
+            // P1: Channel baseline badge
+            if dashboardState.isLive,
+                let channel = AppState.shared.currentBaselineChannel
+            {
+                HStack(spacing: 3) {
+                    Image(systemName: channel.badgeIcon)
+                        .font(.system(.caption2))
+                    Text(channel.badgeLabel)
+                        .font(.system(.caption2, design: .monospaced))
+                }
+                .foregroundStyle(ComputeChannelUI_colorFor(channel))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(ComputeChannelUI_colorFor(channel).opacity(0.12))
+                .clipShape(Capsule())
+                .accessibilityLabel("Compute channel: \(channel.badgeLabel)")
+            }
             Spacer()
             if dashboardState.isLive {
                 Text(uptimeLabel)
@@ -439,3 +456,15 @@ private struct InfoBadge: View {
 }
 
 // MARK: - Preview (Xcode only — #Preview requires PreviewsMacros plugin)
+
+// MARK: - P1: Channel color helper
+
+/// P1: Shared color mapping for ``ComputeChannel`` so DashboardView can render
+/// channel badges without importing ChatView internals.
+private func ComputeChannelUI_colorFor(_ ch: ComputeChannel) -> Color {
+    switch ch {
+    case .gpu: return .blue
+    case .ane: return .green
+    case .cpu: return .orange
+    }
+}
