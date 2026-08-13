@@ -6,13 +6,13 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ### Upstream Sync
 
-- **mlx-swift-lm pinned 01472a7** — Qwen3.5 MTP speculative decoding (#351), ThinkingBudget enforcement (#521), KVCache limits (#514), TurboFlash (#520), ChatConventions migration (#502)
-- **coreai-models pinned f401272** — macOS export hooks refactor, Parakeet export, **SyncInputHandler protocol** (#147), **bind(into:) zero-copy state binding** (#156)
+- **mlx-swift-lm pinned 5a81319** — mlx-swift→0.31.6, Qwen3.5 JSON tool-call fallback (#529), Qwen3.5 MTP speculative decoding (#351), ThinkingBudget enforcement (#521), KVCache limits (#514), TurboFlash (#520), ChatConventions migration (#502), CacheConfiguration engine (#514)
+- **coreai-models pinned d13b882** — iOS export use contract (#168)
 - **mlx-swift pinned da31870** — JIT source auto-derive, fp8 conversion, Muon optimizer, LR schedules
 
 ### Features
 
-- **Upstream alignment verified** — Full source-level audit of MLX/CoreAI/upstream alignment. ReasoningEventEmitter ✅ (22 MLX-path refs), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge L612-719). AgentLoop × SessionPool gap ❌ (tool-heavy agent prefill overhead). CoreAI grammar ❌ (fallback MLX only)
+- **Upstream alignment verified** — Full source-level audit of MLX/CoreAI/upstream alignment. ReasoningEventEmitter ✅ (12 code refs), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge L631-745). AgentLoop × SessionPool gap ❌ (tool-heavy agent prefill overhead). CoreAI grammar ❌ (fallback MLX only)
 - **macOS/iOS dual deploy target** — `Package.swift` declares macOS 14 + iOS 17 minimum. iOS build skips HTTP bridge (L500 `#else`), runs SwiftUI-only Fast Path. CoreAI gate: `#if canImport(CoreAI)` + `@available(macOS 27.0, iOS 27.0, *)` dual-gating
 - **P0: Compute channel visibility** — Live `ComputeChannel` badge in ChatView streaming indicator + Dashboard health bar, wired from `HardwareRouter` → `EnginePool` → `AppState` (EN/ZH i18n)
 - **P1: Thermal-pressure channel-shift toast** — Auto-dismiss toast on thermal/memory pressure events with from→to channel icons; `ChannelShiftToastOverlay` at ChatView bottom; toast i18n for trigger reason + VoiceOver a11y label
@@ -23,10 +23,10 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 - **SessionPool prefix reuse** — Message divergence tracking for prefix-level prompt cache reuse; pooled sessions only re-prefill the diverging suffix
 - **SessionPool HardwareRouter eviction** — GPU pressure events trigger aggressive cache eviction before OOM
 - **SessionPool state restore** — `loadPromptCacheSnapshot` restores LMOutput.State alongside KV cache for correct position anchoring
-- **8-channel persistent-perception system** — PerceptionEngine (7 files, 1845 LOC in `Multimodal/`): full 8-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
+- **Persistent-perception system** — PerceptionEngine (13 files, 3049 LOC in `Multimodal/`): full 7-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
 - **CoreAI sequential engine family alignment** — Option A p1: align CoreAI engine types with upstream sequential/variant architecture
 - **MTP speculative decoding** — `generate(::mtpDrafter:)` path with streaming reasoning events
-- **Upstream pin 01472a7** — mlx-swift-lm synced 2026-08-13: Qwen3.5 MTP speculative decoding, ThinkingBudget enforcement, KVCache limits, TurboFlash, ChatConventions migration. coreai-models synced f401272: zero-copy bind(into:), SyncInputHandler, Parakeet. ReasoningEventEmitter ✅ (22 refs), KVCacheRuntime ✅ (turboQuant/affine). Gaps: ThinkingBudgetProcessor ❌ (P0), AgentLoop×SessionPool ❌ (P1), CoreAI grammar ❌ (P1)
+- **Upstream pin 5a81319** — mlx-swift-lm synced 2026-08-14: Qwen3.5 JSON tool-call fallback, Qwen3.5 MTP speculative decoding, ThinkingBudget enforcement, KVCache limits, TurboFlash, CacheConfiguration engine, KVCacheRound staged rounds. coreai-models synced d13b882: iOS export contract. ReasoningEventEmitter ✅ (12 refs), KVCacheRuntime ✅ (turboQuant/affine). Gaps: upstream ThinkingBudget hard-budget enforcement ❌ (P1), AgentLoop×SessionPool ❌ (P1), CoreAI grammar ❌ (P1)
 
 ### Bug Fixes
 

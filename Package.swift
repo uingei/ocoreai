@@ -43,7 +43,7 @@ let package = Package(
         // ChatConventionsProviding (#482), LFM2 tool-call fix + Gemma3n mask + GuidedGen structured continuation,
         // KVCacheRound staged rounds + RotatingStagedKVCache for sliding window (#516),
         // Qwen 3.5 JSON tool-call fallback (#529).
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "3260260"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "5a81319"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)

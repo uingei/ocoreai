@@ -28,8 +28,8 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 
 **Dual Path reality:**
 - `EnginePool` uses inline `#if canImport(CoreAI)` branches, NOT `BackendProtocol` (protocol defined but unused)
-- **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (22 refs), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge L612-719). Pinned upstream `mlx-swift-lm` at `01472a7` (2026-08-13). Gaps: ThinkingBudgetProcessor ❌, SyncInputHandler ❌, ChatConventions ❌.
-- **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement. Three engines: `CoreAISequentialEngine` (~557 LOC), `CoreAIPipelinedEngine` (1314 LOC, pipelined variant stub — throws "not yet available"), `CoreAIStaticShapeEngine` (611 LOC, wired and functional). `#if canImport(CoreAI)` + `@available(macOS 27.0, iOS 27.0, *)` dual-gating. Engine auto-detect maps `.dynamic→pipelined`, `.chunkedStatic→staticShape`.
+- **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (12 code refs across 4 files), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge L631-745). Pinned upstream `mlx-swift-lm` at `5a81319` (2026-08-14, mlx-swift→0.31.6). Gaps: upstream ThinkingBudget hard-budget enforcement ❌ (orthogonal to ocoreai ThinkingBudget actor), SyncInputHandler ❌, ChatConventions ❌ (comment-only at L490).
+- **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement, ~3,090 LOC across 4 engine files. Three engines: `CoreAISequentialEngine` (~557 LOC), `CoreAIPipelinedEngine` (1327 LOC, pipelined variant stub — throws "not yet available"), `CoreAIStaticShapeEngine` (611 LOC, wired and functional). `#if canImport(CoreAI)` + `@available(macOS 27.0, iOS 27.0, *)` dual-gating. Engine auto-detect maps `.dynamic→pipelined`, `.chunkedStatic→staticShape`.
 - **ANE path:** Stub/empty via CoreAI — no specialization yet
 - **MTP path:** `_runInferenceWithMessages` → `generate(::mtpDrafter:)` — bypasses ChatSession, tool calls collected + dispatched per-iteration (aligned with upstream `MTPSpeculativeTokenIterator`)
 - **SessionPool:** Prefix-level prompt cache reuse via message divergence tracking; HardwareRouter pressure events trigger aggressive eviction; `loadPromptCacheSnapshot` restores LM state + KV cache
@@ -64,15 +64,15 @@ swift test --filter OcoreAITests.System  # system tests only
 
 ### Concurrency
 - Swift 6.2 strict concurrency mode. `Sendable` enforcement active.
-- `EnginePool` is an `actor` with `@unchecked Sendable` mutable state (perform-based isolation).
+- `EnginePool` is an `actor` with `@unchecked Sendable` mutable state (perform-based isolation). 39 total `@unchecked Sendable` declarations, all with justification comments.
 - UI layer runs on `@MainActor`. Engine layer is actor-isolated. Cross-actor calls via `await`.
 - `@unchecked Sendable` requires justification comment. Closure `var` declared inside closure scope (not outer).
 
 ### Error Handling
-- **Precondition free in production code** — 0 `precondition` calls remain after P0 cleanup; all replaced with guard/throw/clamp.
+- Precondition free in production code — 0 `precondition` calls remain after P0 cleanup; all replaced with guard/throw/clamp.
 - **Zero `try!`, `as!`, `print()`** in production code.
 - **Remaining:** 2 `fatalError` (defense-only stub + unreachable SDK regression path), 1 `assert` (release-optimized away in Tools/ToolEntry).
-- `try?` usages concentrated in MCP/Models hotspot (~170 instances, defensive fallback pattern).
+- `try?` usages concentrated in MCP/Models hotspot (~54 instances, defensive fallback pattern).
 - `ErrorContext.swift` does not exist — `Profiling/` only contains `TimingHooks.swift`.
 - 2 empty `catch {}` blocks on async operations (EngineInference, watchdog cancellation).
 
@@ -87,20 +87,18 @@ swift test --filter OcoreAITests.System  # system tests only
 
 ---
 
-## Known Gaps (2026-08-13 Current State)
-
 ### Upstream Alignment Gaps
 
 | Issue | File | Status |
 |-------|------|--------|
-| **ThinkingBudgetProcessor** | EngineInference.swift | ❌ P0 — token-level thinking budget enforcement missing. DeepSeek-R1/Qwen3-thinking 等 always-on reasoning 模型无 token 级安全网 |
+| **upstream ThinkingBudget hard-budget enforcement** | Engine/ThoughtsBudget.swift | ❌ P1 — upstream hard token budget enforcement (b42181e) not consumed; ocoreai ThinkingBudget is an adapter for adaptive scaffolding (orthogonal capability) |
 | **SyncInputHandler** | Engine/StateHandler.swift | ❌ P1 — upstream InputHandler abstraction + InputCoverage.verify not consumed. Missing fail-fast validation layer. |
 | **ChatConventionsRegistry** | Engine/EnginePool.swift | ❌ P1 — only comment-level reference (L490), no actual ChatConventionsRegistry consumption. |
 | **AgentLoop × SessionPool KV reuse** | Agents/AgentLoop.swift + Engine/SessionPool.swift | ❌ P1 — agent iterations create new inference context each loop, no pooled session KV cache reuse. Token-heavy agent 场景下每轮重新 prefill 全部 history. |
-| **TurboFlash** | EngineInference.swift | ⚠️ Upstream 5c1d95a TurboFlash kernels not consumed in downstream call sites. |
+| **TurboFlash** | EngineInference.swift | ✅ Consumed internally by upstream `generate*()` — TurboFlash is an attention kernel mechanism; ocoreai doesn't call it directly |
 | **CoreAI grammar constrained decoding** | Engine/CoreAIEngine.swift | ❌ P1 — grammar support falls back to MLX path only; CoreAI path lacks ConstrainedDecodingStrategy/xgrammar integration |
 | **iOS UI parity** | UI/ | ⚠️ iOS build confirmed Fast-Path-only; full parity audit pending (MCP/Security on iOS TBD) |
-| **PerceptionEngine** | Multimodal/PerceptionEngine.swift | ✅ Implemented (7 files, 1845 LOC in `Multimodal/`) — full 8-channel perception scheduler with RingBuffer, adaptive sampling, inference-aware snapshot. Cross-platform gates (screen macOS-only, filesystem all). |
+| **PerceptionEngine** | Multimodal/PerceptionEngine.swift | ✅ Implemented (13 files, 3049 LOC in `Multimodal/`) — full 7-channel perception scheduler with RingBuffer, adaptive sampling, inference-aware snapshot. Cross-platform gates (screen macOS-only, filesystem all). |
 
 ### Legacy Issues (Previously Fixed)
 
@@ -113,11 +111,11 @@ swift test --filter OcoreAITests.System  # system tests only
 | PagedKVCache removed | — | ✅ Resolved (P0 cleanup) |
 | MLX KVCacheRound/TurboFlash/TurboQuant | EngineInference.swift | ✅ Consumed upstream — no gap |
 | MTP toolCall dispatch | EngineInference.swift | ✅ Aligned with upstream `MTPSpeculativeTokenIterator` |
-| ReasoningEventEmitter | Engine/EngineInference.swift | ✅ Wired (both MLX + CoreAI paths) |
+| ReasoningEventEmitter | Engine/EngineInference.swift | ✅ Wired (both MLX + CoreAI paths, 12 code refs) |
 | Reasoning `<thinking>` regex | Engine/ | ⚠️ Limited — regex-based, no AST |
 | MLXFoundationModels deeper integration | Engine/ | FM path wired; lacks per-token callback on FM `.done` |
-| `kvCacheRuntimeReport` diagnostic | ChatSession.swift | ⏳ Upstream API available, not consumed yet |
-| try? scatter | ~200 instances MCP/Models hotspot | Ongoing risk |
+| `kvCacheRuntimeReport` diagnostic | ChatSession.swift | ❌ Upstream API available, not consumed yet |
+| try? scatter | ~54 instances MCP/Models hotspot | Ongoing risk |
 | precondition | 0 in production (P0 cleanup complete) | ✅ Resolved |
 | fatalError | 2 (defense-only stub + unreachable SDK path) | Acceptable |
 | Empty catch {} | EngineInference | 2 instances remain |
@@ -130,8 +128,8 @@ swift test --filter OcoreAITests.System  # system tests only
 ### Upstream Audit Dependencies
 
 Three sources for empirical verification:
-1. **mlx-swift-lm** — pinned at `01472a7` (2026-08-13: Qwen3.5 MTP speculative decoding #351, ThinkingBudget enforcement #521, KVCache limits #514, TurboFlash #520, ChatConventions migration #502, GuidedGenerationLoop)
-2. **coreai-models** — pinned at `f401272` (2026-08-13: macOS export hooks refactor, Parakeet export, **SyncInputHandler protocol #147**, **bind(into:) zero-copy state binding #156**). Reference repo, not SPM dependency.
+1. **mlx-swift-lm** — pinned at `5a81319` (2026-08-14: Qwen3.5 MTP speculative decoding #351, ThinkingBudget enforcement #521, KVCache limits #514, TurboFlash #520, ChatConventions migration #502, mlx-swift→0.31.6)
+2. **coreai-models** — pinned at `d13b882` (iOS export use contract #168). Reference repo, not SPM dependency.
 3. **Apple Developer Docs** — developer.apple.com/documentation/CoreAI (requires login)
 
 **Wiki audit report:** `~/wiki/ocoreai_upstream_sync_analysis.md` — full consumption matrix with file:line evidence.

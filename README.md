@@ -32,7 +32,7 @@ Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
 ocoreai unifies inference engine, agent orchestration, and persistence in one process:
 
-- **Dual inference backends** — MLX (Metal GPU, default, dual-channel on-device inference via `MLXLanguageModel` + `ChatSession` pipeline) + CoreAI (1,528 LOC, derived from Apple's coreai-models reference implementation, dynamic KV cache, `TokenHistory` prefix caching). Zero network calls — inference runs on your Mac.
+Dual inference backends — MLX (Metal GPU, default, dual-channel on-device inference via `MLXLanguageModel` + `ChatSession` pipeline) + CoreAI (~3,090 LOC across 4 engine files, derived from Apple's coreai-models reference implementation, dynamic KV cache, `TokenHistory` prefix caching).
 - **Adaptive hardware routing** — Real-time HardwareRouter dispatches requests to GPU / ANE / CPU based on thermal pressure, memory headroom, and GPU utilization. AdmissionGate enforces a 3-tier admission policy (allow → ANE-only → reject) with configurable abort margin. Live channel badge in ChatView streaming indicator + Dashboard health bar; thermal-pressure toast on channel shifts (EN/ZH i18n).
 - **Wired Memory GPU isolation** — hardware-level GPU memory bounds prevent OOM during inference.
 - **Thinking budget** — Adaptive token budget allocation driven by ComplexityAnalyzer scoring (length, intent, history dimensions) on Bridge Path. Fast Path (desktop GUI) has ThinkingBudget calibration loop wired but with simplified complexity input (constant 0.5 — no upstream ComplexityAnalyzer).
@@ -44,9 +44,9 @@ ocoreai unifies inference engine, agent orchestration, and persistence in one pr
 - **KV cache quantization** — Enabled by default (turbo4 scheme, 4-bit INT4, activates after 256 tokens). Backed by `GenerateParameters.kvBits` / `kvScheme` / `quantizedKVStart` in upstream MLXLMCommon.
 - **Guided generation** — Grammar-constrained output via `MLXGuidedGeneration` (xgrammar/JSON schema), with DiagnosticSink observability and dynamic `CompletionReserve.estimate` structural reserve calculations. Auto-enabled when tool calling or explicit grammar schema is set. Multimodal messages bypass grammar constraints.
 - **macOS 27 FM path** — Native `MLXLanguageModel` → `LanguageModelSession` + `MLXFoundationModels` on macOS 27 with tool calling via `FMToolProxy` bridge, reasoning via `ContextOptions`, and transcript-driven streaming. Falls back to ChatSession pipeline on earlier macOS.
-- **Speculative decoding** — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support with model-id isolation. Upstream sync 2026-08-13: ReasoningEventEmitter ✅ (22 refs), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge). Gaps: ThinkingBudgetProcessor ❌ (P0), AgentLoop×SessionPool ❌ (P1), CoreAI grammar ❌ (P1). See `CHANGELOG.md` + upstream audit report.
+Speculative decoding — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support with model-id isolation. Upstream sync 2026-08-14 (mlx-swift-lm 5a81319): ReasoningEventEmitter ✅ (12 code refs), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge). Gaps: upstream ThinkingBudget hard-budget enforcement ❌ (P1), AgentLoop×SessionPool ❌ (P1), CoreAI grammar ❌ (P1). See `CHANGELOG.md` + upstream audit report.
 - **SessionPool** — Prefix-level prompt cache reuse via message divergence tracking; HardwareRouter pressure events trigger aggressive eviction; `loadPromptCacheSnapshot` restores LM state alongside KV cache for correct position anchoring.
-- **Persistent perception** — PerceptionEngine (7 files, 1845 LOC in `Multimodal/`): full 8-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
+Persistent perception — PerceptionEngine (13 files, 3049 LOC in `Multimodal/`): full 7-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
 - **AIModelCache** — native CoreAI compiled model artifact caching (macOS 27 SDK).
 - **Config system** — YAML config with file watcher (poll-based). Hardware auto-detection for memory budget.
 - **Multimodal I/O** — camera capture, screen capture, microphone input, Vision OCR, 16kHz Apple Speech STT, i18n TTS — all native. Camera/screen toggles are off by default; STT requires microphone permission.
@@ -193,7 +193,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 - **AdaptiveThreshold** — EMA-based health monitoring with dynamic threshold adjustment.
 - **StructuredLogger** — Structured audit trail, log file rotation, macOS Keychain integration.
 - **Global crash handler** — On uncaught exception or POSIX signal (segv/abort/bus), writes structured crash log to `~/Library/Application Support/ocoreai/logs/`, then exits.
-- **Concurrency** — Swift 6 strict concurrency, actor isolation on scheduler/tool registry/inference engine. All 32 `@unchecked Sendable` declarations justified with concurrency comments.
+- **Concurrency** — Swift 6 strict concurrency, actor isolation on scheduler/tool registry/inference engine. All 39 `@unchecked Sendable` declarations justified with concurrency comments.
 
 ---
 
