@@ -1,6 +1,7 @@
 // Copyright 2026 Apple Inc. (BSD-3-Clause)
 // Copied from coreai-models, wrapped in struct for @available compatibility.
 
+#if canImport(CoreAI)
 import CoreAI
 import Metal
 
@@ -37,3 +38,4 @@ enum _CoreAIEncodeHelpers {
             outputViews: consume asyncOutputs, to: computeStream)
     }
 }
+#endif
