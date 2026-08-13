@@ -78,15 +78,16 @@ final class CoreAIPipelinedEngine: InferenceEngine, Sendable {
 
     /// Atomically claim exclusive use of `engine`.
     ///
-    /// Traps on contention. Callers must guarantee single-ownership.
-    private func acquireEngine() {
+    /// Throws `InferenceRuntimeError.invalidState` when another caller holds the lock,
+    /// eliminating fatalError from the hot path.
+    private func acquireEngine() throws {
         let (exchanged, _) = engineInUse.compareExchange(
             expected: false,
             desired: true,
             ordering: .acquiring
         )
         guard exchanged else {
-            fatalError("Trying to acquire engine when it's already in use")
+            throw InferenceRuntimeError.invalidState("CoreAI pipelined engine already in use")
         }
     }
 
@@ -141,7 +142,13 @@ final class CoreAIPipelinedEngine: InferenceEngine, Sendable {
         _activeToken.withLock { $0 = token }
 
         let task = Task {
-            self.acquireEngine()
+            do {
+                try self.acquireEngine()
+            } catch {
+                stopReasonStore.set(.error)
+                outputContinuation.finish(throwing: error)
+                return
+            }
             defer {
                 self.releaseEngine()
                 // Only clear if this generation still owns both slots
@@ -244,12 +251,18 @@ final class CoreAIPipelinedEngine: InferenceEngine, Sendable {
     }
 
     /// Wait for any in-flight generate() Task to return the engine.
-    private func drain() {
+    ///
+    /// Throws `InferenceRuntimeError.invalidState` after 5 s of spinning
+    /// so callers (reset/cancel) get a proper error instead of a trap.
+    private func drain() throws {
         var attempts = 0
+        let deadline = ContinuousClock.now + .seconds(5)
         while engineInUse.load(ordering: .acquiring) {
             attempts += 1
-            if attempts > 5000 {
-                fatalError("Engine not returned after drain() — tokenSequence Task stuck?")
+            guard ContinuousClock.now < deadline else {
+                throw InferenceRuntimeError.invalidState(
+                    "CoreAI pipelined engine did not release after 5 s — tokenSequence Task may be stuck (spun \(attempts) times)"
+                )
             }
             Thread.sleep(forTimeInterval: 0.001)
         }
@@ -282,7 +295,7 @@ final class CoreAIPipelinedEngine: InferenceEngine, Sendable {
                 $0?.cancel()
                 $0 = nil
             }
-            drain()
+            try drain()
             await engine.computeStream.currentWorkCompleted()
             guard tryAcquireEngine() else { return }
             defer { releaseEngine() }
@@ -297,7 +310,7 @@ final class CoreAIPipelinedEngine: InferenceEngine, Sendable {
                     "Partial reset is not supported for hybrid models with recurrent state. "
                         + "Use reset(to: 0) and replay the prefix.")
             }
-            drain()
+            try drain()
             await engine.computeStream.currentWorkCompleted()
             guard tryAcquireEngine() else { return }
             defer { releaseEngine() }
@@ -323,7 +336,7 @@ final class CoreAIPipelinedEngine: InferenceEngine, Sendable {
     }
 
     func warmup(queryLength: Int, sampling: SamplingConfiguration?) async throws {
-        acquireEngine()
+        try acquireEngine()
         defer { releaseEngine() }
         try await engine.performWarmup(queryLength: queryLength, samplingConfig: sampling)
     }

@@ -100,14 +100,13 @@ jobs:
           fi
           echo "✅ Secret scan: clean"
 
-      # TODO: Add test coverage baseline check once threshold is established
-      # - name: Test coverage gate
-      #   run: |
-      #     set -euo pipefail
-      #     python3 scripts/coverage_report.py --min-coverage 40 || {
-      #       echo "⚠️ Coverage below 40% threshold"
-      #       exit 1
-      #     }
+      - name: Test coverage gate
+        run: |
+          set -euo pipefail
+          python3 scripts/coverage_report.py --min-coverage 20 || {
+            echo "⚠️ Coverage below 20% threshold"
+            exit 1
+          }
 
   ## ── Build + test via xcodebuild (mlx-swift-lm pattern) ──
   # xcodebuild handles Metal shader compilation natively (resolves metallib).

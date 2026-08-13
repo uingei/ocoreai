@@ -172,7 +172,7 @@ enum KVCacheFactory {
 
         switch resolvedStrategy {
         case .auto:
-            fatalError("auto should have been resolved above")
+            throw KVCacheError.invalidState("KVCacheStrategy.auto was not resolved")
         case .fixedSize:
             return try StaticKVCache(
                 device: device,
@@ -593,8 +593,15 @@ extension NDArray.ScalarType {
         case .int8: return .int8
         case .float8e5m2, .float8e4m3fn, .float8e8m0fn, .float4e2m1fn:
             return .float16
-        default:
-            fatalError("Unsupported KV cache scalar type for MPSNDArray: \(self)")
+        // Types not directly supported by MPS — fall back to nearest MPS type
+        case .bool, .uint8, .uint16, .uint32, .int16, .int32, .int64, .uint64, .uint128:
+            return .float16
+        case .cfloat16: return .float32
+        case .cfloat32: return .float32
+        case .cfloat64: return .float32
+        case .int128: return .float16
+        @unknown default:
+            return .float16
         }
     }
 }

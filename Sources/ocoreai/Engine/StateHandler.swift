@@ -410,6 +410,7 @@ enum KVCacheError: Error, LocalizedError {
     case unsupportedStrategy(String)
     case layoutCreationFailed
     case capacityExceeded(needed: Int, available: Int)
+    case invalidState(String)
 
     var errorDescription: String? {
         switch self {
@@ -422,6 +423,8 @@ enum KVCacheError: Error, LocalizedError {
         case .capacityExceeded(let needed, let available):
             return
                 "KV cache capacity exceeded: need \(needed) tokens but only \(available) available"
+        case .invalidState(let msg):
+            return "KV cache invalid state: \(msg)"
         }
     }
 }
