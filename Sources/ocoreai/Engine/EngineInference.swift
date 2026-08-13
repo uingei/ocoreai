@@ -2476,7 +2476,7 @@ extension EnginePool {
                                 // P1-fix: ensure MTP KV cache exists (lazy init inside the
                                 // perform lock so model reference is available).
                                 // Conversation-aware: each dialog gets its own cache bucket.
-                                loaded.initializeMTPKVCacheIfNeeded(
+                                try loaded.initializeMTPKVCacheIfNeeded(
                                     conversationId: convKey,
                                     model: context.model,
                                     parameters: genParams

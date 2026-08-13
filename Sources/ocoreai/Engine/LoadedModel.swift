@@ -265,7 +265,7 @@ final class LoadedModel: @unchecked Sendable {
         conversationId: String,
         model: any MLXLMCommon.LanguageModel,
         parameters: MLXLMCommon.GenerateParameters
-    ) {
+    ) throws {
         if _mtpKVCacheMap[conversationId] == nil {
             // Evict if over capacity: first TTL-expired, then LRU tail
             if _mtpKVCacheMap.count >= Self.mtpKVCacheMaxEntries {
@@ -273,7 +273,7 @@ final class LoadedModel: @unchecked Sendable {
             }
         }
         if _mtpKVCacheMap[conversationId] == nil {
-            _mtpKVCacheMap[conversationId] = model.newCache(parameters: parameters)
+            _mtpKVCacheMap[conversationId] = try model.newCache(parameters: parameters)
             _mtpKVCacheLastAccess[conversationId] = Self.mtpKVCacheNow()
         }
     }
