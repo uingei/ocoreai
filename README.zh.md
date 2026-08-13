@@ -1,9 +1,9 @@
 # ocoreai — 自包含 AI Agent 操作系统
 
-**macOS 原生 AI Agent 平台** — 双通道端侧推理（MLX Metal GPU + CoreAI）、Prefix Cache、KV Cache 量化、推测解码（MTP + Drafter）、Agent 循环与工具调用、技能系统、会话记忆、持续感知、多模态 I/O，一体成型。基于 Swift 6.2、Hummingbird 2.25、SwiftUI 构建。
+**macOS/iOS AI Agent 平台** — 双通道端侧推理（MLX Metal GPU + CoreAI）、Prefix Cache、KV Cache 量化、推测解码（MTP + Drafter）、Agent 循环与工具调用、技能系统、会话记忆、持续感知、多模态 I/O，一体成型。基于 Swift 6.2、Hummingbird 2.25、SwiftUI 构建。
 
 [![Swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
-[![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue.svg)](https://www.apple.com/macos/)
+[![macOS 14+ | iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests: 775](https://img.shields.io/badge/Tests-775%2F775-brightgreen)](Tests/)
 
@@ -44,9 +44,9 @@ ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中
 - **KV Cache 量化** — 默认开启（turbo4 scheme，4-bit INT4，256 token 后激活）。后端为上游 `GenerateParameters.kvBits` / `kvScheme` / `quantizedKVStart`（MLXLMCommon/Evaluate.swift）。
 - **引导生成** — 通过 `MLXGuidedGeneration`（xgrammar/JSON schema）实现语法约束输出，带 `GuidedGenerationDiagnosticSink` 可观测性与动态 `CompletionReserve.estimate` 结构预留计算。工具调用时自动启用。多模态消息绕过文法约束。
 - **macOS 27 FM 路径** — 原生 `MLXLanguageModel` → `LanguageModelSession` + `MLXFoundationModels`（macOS 27），含 `FMToolProxy` 工具桥接、`ContextOptions` 推理控制与 transcript 流式传输。低版本 macOS 自动降级至 ChatSession 管线。
-- **持续感知** — 8 通道系统（摄像头、传感器、环境），工具派发循环中 P-S1/P-S2 感知上下文注入。
+- **持续感知（已实现）** — PerceptionEngine (7 文件, 1845 LOC 在 `Multimodal/`): 8 通道调度器（摄像头、屏幕、网络、文件系统、互联网、系统、扬声器），含自适应采样、RingBuffer + TTL、推理感知无锁快照，工具派发循环中 P-S1/P-S2 感知上下文注入，跨平台门控（屏幕 macOS-only）。
 - **SessionPool** — 消息前缀级别 Prompt Cache 复用，HardwareRouter 压力事件触发激进驱逐，`loadPromptCacheSnapshot` 恢复 LM 状态与 KV Cache 精确锚定。
-- **推测解码** — Gemma drafter 模型支持（12B/26B/31B 独立路由），MTP 模式已接入。上游 pin `0b47e69` 包含 KVCacheRound 分阶段事务回滚 (#516)、TurboFlash 短上下文快路径 (#520)、Qwen3MoE 清理 (#490) 及 `PrefillParameters` 均衡分块 (#470)。
+|- **推测解码** — Gemma drafter 模型支持（12B/26B/31B 独立路由），MTP 模式已接入。上游同步 2026-08-13: ReasoningEventEmitter ✅ (22 refs)、KVCacheRuntime ✅ (turboQuant/affine)。缺口：ThinkingBudgetProcessor ❌ (P0)、AgentLoop×SessionPool ❌ (P1)、CoreAI grammar ❌ (P1)。详见 `CHANGELOG.md` + 上游对齐报告。
 - **配置系统** — YAML 配置 + 文件监听器（轮询）。显存预算硬件自动检测。
 - **多模态 I/O** — 摄像头捕获、屏幕截图、麦克风输入、Vision OCR、16kHz Apple Speech STT、多语言 TTS — 全部原生。摄像头/屏幕默认关闭；STT 需要麦克风权限。
 - **i18n** — StringKey 本地化框架完整；英文已部署。中文（zh-Hans）已有基础翻译覆盖。其他语种（ja, ko, fr, de, es）已定义但未翻译。
@@ -235,8 +235,8 @@ memory:
 ### Build Info
 
 - Swift 6.2 · SwiftUI · Hummingbird 2.25.0
-- 150 个 Swift 源文件，~46,889 LOC
-- macOS 15+ · Apple Silicon only
+- 160 个 Swift 源文件，~47K LOC
+- macOS 14+ / iOS 17+ · Apple Silicon
 - 测试：52 个测试文件，140 套件，775 @Test 用例
 - 构建：0 警告，0 错误
 - 开发：由 **qwen3.6:27b-mtp-q4_K_M** 独立完成——无外部工具调用的自包含 AI Agent，所有架构、代码、测试均为自主编写。

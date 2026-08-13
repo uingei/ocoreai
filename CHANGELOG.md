@@ -2,10 +2,18 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-08-12
+## [Unreleased] — 2026-08-13
+
+### Upstream Sync
+
+- **mlx-swift-lm pinned 01472a7** — Qwen3.5 MTP speculative decoding (#351), ThinkingBudget enforcement (#521), KVCache limits (#514), TurboFlash (#520), ChatConventions migration (#502)
+- **coreai-models pinned f401272** — macOS export hooks refactor, Parakeet export, **SyncInputHandler protocol** (#147), **bind(into:) zero-copy state binding** (#156)
+- **mlx-swift pinned da31870** — JIT source auto-derive, fp8 conversion, Muon optimizer, LR schedules
 
 ### Features
 
+- **Upstream alignment verified** — Full source-level audit of MLX/CoreAI/upstream alignment. ReasoningEventEmitter ✅ (22 MLX-path refs), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge L612-719). AgentLoop × SessionPool gap ❌ (tool-heavy agent prefill overhead). CoreAI grammar ❌ (fallback MLX only)
+- **macOS/iOS dual deploy target** — `Package.swift` declares macOS 14 + iOS 17 minimum. iOS build skips HTTP bridge (L500 `#else`), runs SwiftUI-only Fast Path. CoreAI gate: `#if canImport(CoreAI)` + `@available(macOS 27.0, iOS 27.0, *)` dual-gating
 - **P0: Compute channel visibility** — Live `ComputeChannel` badge in ChatView streaming indicator + Dashboard health bar, wired from `HardwareRouter` → `EnginePool` → `AppState` (EN/ZH i18n)
 - **P1: Thermal-pressure channel-shift toast** — Auto-dismiss toast on thermal/memory pressure events with from→to channel icons; `ChannelShiftToastOverlay` at ChatView bottom; toast i18n for trigger reason + VoiceOver a11y label
 - **P1: Settings capability pills** — MLX/CoreAI pills in About section with `#if canImport(CoreAI)` + `#available(macOS 27.0)` dual-gating; CoreAI grays out on pre-27 platforms
@@ -15,10 +23,10 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 - **SessionPool prefix reuse** — Message divergence tracking for prefix-level prompt cache reuse; pooled sessions only re-prefill the diverging suffix
 - **SessionPool HardwareRouter eviction** — GPU pressure events trigger aggressive cache eviction before OOM
 - **SessionPool state restore** — `loadPromptCacheSnapshot` restores LMOutput.State alongside KV cache for correct position anchoring
-- **8-channel persistent-perception system** — Full persistent-perception pipeline (camera, sensors, environment) with P-S1/P-S2 perception context injection in tool dispatch loops
+- **8-channel persistent-perception system** — PerceptionEngine (7 files, 1845 LOC in `Multimodal/`): full 8-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
 - **CoreAI sequential engine family alignment** — Option A p1: align CoreAI engine types with upstream sequential/variant architecture
 - **MTP speculative decoding** — `generate(::mtpDrafter:)` path with streaming reasoning events
-- **Upstream pin 2af378b** — mlx-swift-lm upgraded to #516 (KVCacheRound staged rounds, MTP past sliding window, Qwen3MoE sanitization)
+- **Upstream pin 01472a7** — mlx-swift-lm synced 2026-08-13: Qwen3.5 MTP speculative decoding, ThinkingBudget enforcement, KVCache limits, TurboFlash, ChatConventions migration. coreai-models synced f401272: zero-copy bind(into:), SyncInputHandler, Parakeet. ReasoningEventEmitter ✅ (22 refs), KVCacheRuntime ✅ (turboQuant/affine). Gaps: ThinkingBudgetProcessor ❌ (P0), AgentLoop×SessionPool ❌ (P1), CoreAI grammar ❌ (P1)
 
 ### Bug Fixes
 
@@ -90,4 +98,4 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ---
 
-*Last updated: 2026-08-12. Current HEAD: d8cca10.*
+*Last updated: 2026-08-13. Current HEAD: d9b060d.*

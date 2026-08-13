@@ -6,7 +6,7 @@
 
 ## Identity
 
-**What it is:** macOS-native AI agent runtime — dual-channel on-device inference (MLX Metal GPU + CoreAI derived from coreai-models reference), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception system. One binary, ~150 Swift files (46,889 LOC).
+**What it is:** macOS/iOS AI agent platform — dual-channel on-device inference (MLX Metal GPU + CoreAI derived from coreai-models reference), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception pipeline (planned). One binary, 160 Swift files (~52K LOC).
 
 **Tech stack:** Swift 6.2 · SwiftPM · Hummingbird 2.25 · SwiftUI · SQLite + FTS5
 
@@ -28,15 +28,15 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 
 **Dual Path reality:**
 - `EnginePool` uses inline `#if canImport(CoreAI)` branches, NOT `BackendProtocol` (protocol defined but unused)
-- **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — **fully aligned** with upstream `mlx-swift-lm` `0b47e69`
-- **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement. Currently sequential-only (`CoreAISequentialEngine` ~556 LOC); `AIModelCache` (~60 LOC) for compiled model artifact caching; staticShape/pipelined not yet implemented.
+- **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (22 refs), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge L612-719). Pinned upstream `mlx-swift-lm` at `01472a7` (2026-08-13). Gaps: ThinkingBudgetProcessor ❌, SyncInputHandler ❌, ChatConventions ❌.
+- **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement. Three engines: `CoreAISequentialEngine` (~557 LOC), `CoreAIPipelinedEngine` (1314 LOC, pipelined variant stub — throws "not yet available"), `CoreAIStaticShapeEngine` (611 LOC, wired and functional). `#if canImport(CoreAI)` + `@available(macOS 27.0, iOS 27.0, *)` dual-gating. Engine auto-detect maps `.dynamic→pipelined`, `.chunkedStatic→staticShape`.
 - **ANE path:** Stub/empty via CoreAI — no specialization yet
 - **MTP path:** `_runInferenceWithMessages` → `generate(::mtpDrafter:)` — bypasses ChatSession, tool calls collected + dispatched per-iteration (aligned with upstream `MTPSpeculativeTokenIterator`)
 - **SessionPool:** Prefix-level prompt cache reuse via message divergence tracking; HardwareRouter pressure events trigger aggressive eviction; `loadPromptCacheSnapshot` restores LM state + KV cache
 
 **Key:** `#if canImport(CoreAI)` single-layer compile-time gate; `sampleToken()` → argmax; toolDispatch wired in both MLX and CoreAI paths.
 
-**Upstream alignment (verified 2026-08-12):**
+**Upstream alignment (verified 2026-08-13):**
 - `KVCacheRound` / `TurboFlash` / `TurboQuant`: consumed internally by upstream `generate*()` — no downstream intervention needed
 - `KVCacheConfiguration`: full `.turboQuant` + `.affine` dual-path via `makeKVCacheConfiguration` (MLXBridge)
 - `toolDispatch`: ocoreai closure → `ToolRegistry.call()` wired through ChatSession restart loop
@@ -72,7 +72,7 @@ swift test --filter OcoreAITests.System  # system tests only
 - **Precondition free in production code** — 0 `precondition` calls remain after P0 cleanup; all replaced with guard/throw/clamp.
 - **Zero `try!`, `as!`, `print()`** in production code.
 - **Remaining:** 2 `fatalError` (defense-only stub + unreachable SDK regression path), 1 `assert` (release-optimized away in Tools/ToolEntry).
-- `try?` usages concentrated in MCP/Models hotspot (~200 instances, defensive fallback pattern).
+- `try?` usages concentrated in MCP/Models hotspot (~170 instances, defensive fallback pattern).
 - `ErrorContext.swift` does not exist — `Profiling/` only contains `TimingHooks.swift`.
 - 2 empty `catch {}` blocks on async operations (EngineInference, watchdog cancellation).
 
@@ -87,14 +87,29 @@ swift test --filter OcoreAITests.System  # system tests only
 
 ---
 
-## Known Gaps (2026-08-12 Current State)
+## Known Gaps (2026-08-13 Current State)
+
+### Upstream Alignment Gaps
+
+| Issue | File | Status |
+|-------|------|--------|
+| **ThinkingBudgetProcessor** | EngineInference.swift | ❌ P0 — token-level thinking budget enforcement missing. DeepSeek-R1/Qwen3-thinking 等 always-on reasoning 模型无 token 级安全网 |
+| **SyncInputHandler** | Engine/StateHandler.swift | ❌ P1 — upstream InputHandler abstraction + InputCoverage.verify not consumed. Missing fail-fast validation layer. |
+| **ChatConventionsRegistry** | Engine/EnginePool.swift | ❌ P1 — only comment-level reference (L490), no actual ChatConventionsRegistry consumption. |
+| **AgentLoop × SessionPool KV reuse** | Agents/AgentLoop.swift + Engine/SessionPool.swift | ❌ P1 — agent iterations create new inference context each loop, no pooled session KV cache reuse. Token-heavy agent 场景下每轮重新 prefill 全部 history. |
+| **TurboFlash** | EngineInference.swift | ⚠️ Upstream 5c1d95a TurboFlash kernels not consumed in downstream call sites. |
+| **CoreAI grammar constrained decoding** | Engine/CoreAIEngine.swift | ❌ P1 — grammar support falls back to MLX path only; CoreAI path lacks ConstrainedDecodingStrategy/xgrammar integration |
+| **iOS UI parity** | UI/ | ⚠️ iOS build confirmed Fast-Path-only; full parity audit pending (MCP/Security on iOS TBD) |
+| **PerceptionEngine** | Multimodal/PerceptionEngine.swift | ✅ Implemented (7 files, 1845 LOC in `Multimodal/`) — full 8-channel perception scheduler with RingBuffer, adaptive sampling, inference-aware snapshot. Cross-platform gates (screen macOS-only, filesystem all). |
+
+### Legacy Issues (Previously Fixed)
 
 | Issue | File | Status |
 |-------|------|--------|
 | MLX path cross-session leakage | SessionPool.swift | ✅ Fixed — full cleanup on pool release |
 | CoreAI variant chunkedStatic+sequential incompatibility | CoreAIEngine.swift | ✅ Fixed — guard throws |
 | CoreAI vocabSize Qwen3-specific default | CoreAIEngine.swift | ✅ Fixed — model-agnostic 32,768 |
-| CoreAI staticShape/pipelined engine | CoreAIEngine.swift | ❌ Not implemented — auto-detect falls back to sequential |
+| CoreAI staticShape/pipelined engine | CoreAIEngine.swift | ✅ StaticShape (611 LOC) wired; Pipelined (1314 LOC) engine exists but auto-detect `.dynamic` throws "pipelined not yet available" — fallback to sequential for dynamic models |
 | PagedKVCache removed | — | ✅ Resolved (P0 cleanup) |
 | MLX KVCacheRound/TurboFlash/TurboQuant | EngineInference.swift | ✅ Consumed upstream — no gap |
 | MTP toolCall dispatch | EngineInference.swift | ✅ Aligned with upstream `MTPSpeculativeTokenIterator` |
@@ -115,9 +130,11 @@ swift test --filter OcoreAITests.System  # system tests only
 ### Upstream Audit Dependencies
 
 Three sources for empirical verification:
-1. **mlx-swift-lm** — pinned at `0b47e69` (2026-08-12: KVCacheRound staged rounds #516, TurboFlash short-context fast-path #520, Qwen3MoE sanitization #490, PrefillParameters balanced chunking #470, typed KVCache config #453, MTP speculation past sliding window, ChatConventions migration #502, custom LogitProcessor injection #401)
-2. **coreai-models** — pinned at upstream main; ConstrainedGenerationSession, XGrammar, Pipelined/Sequential engines, StateHandler, VLM engine, CompositeSampler, PerformanceMetrics (reference repo, not SPM dependency)
+1. **mlx-swift-lm** — pinned at `01472a7` (2026-08-13: Qwen3.5 MTP speculative decoding #351, ThinkingBudget enforcement #521, KVCache limits #514, TurboFlash #520, ChatConventions migration #502, GuidedGenerationLoop)
+2. **coreai-models** — pinned at `f401272` (2026-08-13: macOS export hooks refactor, Parakeet export, **SyncInputHandler protocol #147**, **bind(into:) zero-copy state binding #156**). Reference repo, not SPM dependency.
 3. **Apple Developer Docs** — developer.apple.com/documentation/CoreAI (requires login)
+
+**Wiki audit report:** `~/wiki/ocoreai_upstream_sync_analysis.md` — full consumption matrix with file:line evidence.
 
 ---
 

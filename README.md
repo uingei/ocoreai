@@ -1,9 +1,9 @@
 # ocoreai — Self-Contained AI Agent OS
 
-**macOS-native AI agent platform** — Dual-channel on-device inference (MLX Metal GPU + CoreAI), prefix caching, KV cache quantization, speculative decoding (MTP + drafter), agent loop with tool use, skill system, session memory, persistent-perception, and multimodal I/O, all in one binary. Built with Swift 6.2, Hummingbird 2.25, SwiftUI.
+**macOS/iOS AI agent platform** — Dual-channel on-device inference (MLX Metal GPU + CoreAI), prefix caching, KV cache quantization, speculative decoding (MTP + drafter), agent loop with tool use, skill system, session memory, persistent-perception, and multimodal I/O, all in one binary. Built with Swift 6.2, Hummingbird 2.25, SwiftUI.
 
 [![swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
-[![macOS 15+](https://img.shields.io/badge/macOS-15%2B-blue.svg)](https://www.apple.com/macos/)
+[![macOS 14+ / iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests: 775](https://img.shields.io/badge/Tests-775%2F775-brightgreen)](Tests/)
 
@@ -44,9 +44,9 @@ ocoreai unifies inference engine, agent orchestration, and persistence in one pr
 - **KV cache quantization** — Enabled by default (turbo4 scheme, 4-bit INT4, activates after 256 tokens). Backed by `GenerateParameters.kvBits` / `kvScheme` / `quantizedKVStart` in upstream MLXLMCommon.
 - **Guided generation** — Grammar-constrained output via `MLXGuidedGeneration` (xgrammar/JSON schema), with DiagnosticSink observability and dynamic `CompletionReserve.estimate` structural reserve calculations. Auto-enabled when tool calling or explicit grammar schema is set. Multimodal messages bypass grammar constraints.
 - **macOS 27 FM path** — Native `MLXLanguageModel` → `LanguageModelSession` + `MLXFoundationModels` on macOS 27 with tool calling via `FMToolProxy` bridge, reasoning via `ContextOptions`, and transcript-driven streaming. Falls back to ChatSession pipeline on earlier macOS.
-- **Speculative decoding** — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support with model-id isolation. Upstream pin `0b47e69` includes KVCacheRound staged rounds (#516), TurboFlash short-context fast-path (#520), Qwen3MoE sanitization (#490), balanced chunking via `PrefillParameters` (#470).
+- **Speculative decoding** — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support with model-id isolation. Upstream sync 2026-08-13: ReasoningEventEmitter ✅ (22 refs), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge). Gaps: ThinkingBudgetProcessor ❌ (P0), AgentLoop×SessionPool ❌ (P1), CoreAI grammar ❌ (P1). See `CHANGELOG.md` + upstream audit report.
 - **SessionPool** — Prefix-level prompt cache reuse via message divergence tracking; HardwareRouter pressure events trigger aggressive eviction; `loadPromptCacheSnapshot` restores LM state alongside KV cache for correct position anchoring.
-- **Persistent perception** — 8-channel system (camera, sensors, environment) with P-S1/P-S2 perception context injection in tool dispatch loops.
+- **Persistent perception** — PerceptionEngine (7 files, 1845 LOC in `Multimodal/`): full 8-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
 - **AIModelCache** — native CoreAI compiled model artifact caching (macOS 27 SDK).
 - **Config system** — YAML config with file watcher (poll-based). Hardware auto-detection for memory budget.
 - **Multimodal I/O** — camera capture, screen capture, microphone input, Vision OCR, 16kHz Apple Speech STT, i18n TTS — all native. Camera/screen toggles are off by default; STT requires microphone permission.
@@ -235,8 +235,8 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 ### Build Info
 
 - Swift 6.2 · SwiftUI · Hummingbird 2.25.0
-- 150 Swift source files, ~46,889 LOC
-- macOS 15+ · Apple Silicon only
+- 160 Swift source files, ~52K LOC
+- macOS 14+ / iOS 17+ · Apple Silicon
 - Tests: 52 test files across 140 suites, 775 @Test cases
 - Build: 0 warnings, 0 errors
 - Development: Built entirely by **qwen3.6:27b-mtp-q4_K_M** — self-contained AI agent with no external tool use. All architecture, code, and tests authored autonomously.
