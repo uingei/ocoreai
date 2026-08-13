@@ -37,12 +37,13 @@ let package = Package(
         // not SwiftPM packages — imported directly in source via `#if canImport(CoreAI)` guards
         // Pinned to exact revision — upstream main branch drifts; update via `swift package update`
         // then bump .revision + test. Current pin: 2026-08-13 — TurboFlash kernels + 2-phase
-        // turboquant KV cache (#519), single-dispatch TurboFlash for short contexts (#520),
+        // + turboquant KV cache (#519), single-dispatch TurboFlash for short contexts (#520),
         // KV cache config + reporting (#453), MTP speculation sliding cache wrap fix (#506),
         // Qwen3-VL-MoE (#322), GatedDelta precision fix (#488), Linux guided gen fix (#483),
         // ChatConventionsProviding (#482), LFM2 tool-call fix + Gemma3n mask + GuidedGen structured continuation,
-        // KVCacheRound staged rounds + RotatingStagedKVCache for sliding window (#516).
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "01472a7"),
+        // KVCacheRound staged rounds + RotatingStagedKVCache for sliding window (#516),
+        // Qwen 3.5 JSON tool-call fallback (#529).
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "3260260"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)

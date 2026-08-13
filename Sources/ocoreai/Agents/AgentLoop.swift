@@ -251,6 +251,32 @@ enum AgentLoop {
                 let toolResults = await executeTools(
                     tc: tc, registry: config.registry, caller: config.caller, logger: log)
 
+                // ── Verify: gate tool results before context injection ──
+                // P1-2: Verify hook (0-M framework). Validates structural soundness of
+                // tool outputs before they become inference context. If ALL tools failed
+                // in this round, forces convergence — injecting error strings as context
+                // would just cascade into more tool errors.
+                let (verified, verifyConverge) = await verifyToolResults(
+                    toolResults, iteration: i, logger: log)
+
+                if verifyConverge {
+                    logs.append(
+                        AgentLoopIterationLog(
+                            iteration: i,
+                            tok: 0,
+                            toolN: tc.count,
+                            ms: 0,
+                            tag: "verify-gate: all tools failed"
+                        ))
+                    return AgentLoopResult(
+                        text: "[agent-loop: all tools returned errors in iteration \(i)]",
+                        iterationCount: i,
+                        iters: logs,
+                        finishReason: "verify_failed",
+                        totalTokens: totalTok
+                    )
+                }
+
                 // ── Inject tool messages ────────────────────────────────
                 // Assistant message with tool calls
                 msgs.append(
@@ -262,8 +288,8 @@ enum AgentLoop {
                         toolCallID: nil
                     ))
 
-                // Tool result messages
-                for (idx, result) in toolResults.enumerated() {
+                // Tool result messages (verified)
+                for (idx, result) in verified.enumerated() {
                     msgs.append(
                         Message(
                             role: "tool",
@@ -503,5 +529,28 @@ enum AgentLoop {
             throw error
         }
         return (accumulatedText, tokCount, collectedToolCalls)
+    }
+
+    // MARK: - Verify gate
+
+    /// Verify hook (0-M framework): validates tool results before context injection.
+    /// Returns `(verified_results, converge_flag)`. If ALL tools failed, signals
+    /// convergence to prevent error-cascade loops.
+    private static func verifyToolResults(
+        _ results: [String],
+        iteration: Int,
+        logger: Logger
+    ) async -> (verified: [String], converge: Bool) {
+        let allFailed = results.allSatisfy { result in
+            result.hasPrefix("[tool-error:")
+            || result.hasPrefix("[tool-output-filtered:")
+            || result.isEmpty
+            || result.count < 3
+        }
+        if allFailed {
+            logger.warning("AgentLoop iter \(iteration): all \(results.count) tools returned errors — forcing convergence")
+            return (results, true)
+        }
+        return (results, false)
     }
 }

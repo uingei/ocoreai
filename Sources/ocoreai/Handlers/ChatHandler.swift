@@ -496,13 +496,47 @@ private func nonStreamWithToolCalling(
     /// Mark session active — resets KV cache idle eviction timer.
     await handle.markActive()
 
+    // MARK: P1-5 — Learn signal: recall MemoryEvents before inference
+    // SelfCorrectionPipeline stores structured memory events (correction traces,
+    // patterns, facts). Recall them here so the next inference pass is informed
+    // by what was learned from past requests. This closes the Learn→Observe loop.
+    // P1-5: SelfCorrectionPipeline stores structured memory events (correction traces,
+    // patterns, facts). Recall them here so the next inference pass is informed
+    // by what was learned from past requests. This closes the Learn->Observe loop.
+    let userPrompt = request.messages.first(where: { $0.role == "user" })?.textContent() ?? ""
+    let inferenceMessages: [Message]
+    do {
+        let recalled = try await sessionCompressor.recallPermanentMemory(
+            query: userPrompt,
+            memoryTypes: [.fact, .pattern],
+            minConfidence: 0.6,
+            limit: 5
+        )
+        if !recalled.isEmpty {
+            let summaries = recalled.map {
+                "[\($0.memoryType.rawValue)] \($0.cause) -> \($0.result)"
+            }.joined(separator: "\n")
+            let contextMsg = Message(
+                role: "system",
+                content: "Learned patterns from past sessions:\n" + summaries
+            )
+            inferenceMessages = [contextMsg] + messages
+            logger.info("P1-5: injected \(recalled.count) recalled memory events as context")
+        } else {
+            inferenceMessages = messages
+        }
+    } catch {
+        // Memory recall failure is non-fatal — proceed without it
+        inferenceMessages = messages
+    }
+
     // MARK: Inference — direct stream via generateFromMessages
     /// ChatSession owns tool execution internally (toolDispatch closure).
     /// AgentLoop is no longer used for MLX paths — it served only as a wrapper
     /// that duplicated ChatSession's built-in tool loop. We now call the stream
     /// directly and collect the result.
     let tokenStream = handle.generateFromMessages(
-        messages: messages,
+        messages: inferenceMessages,
         sampling: sampling,
         options: options,
         conversationId: conversationId,
