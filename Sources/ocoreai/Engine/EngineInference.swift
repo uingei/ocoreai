@@ -2932,12 +2932,37 @@ extension EnginePool {
                             var localStdPassthroughReason: String?
 
                             // Std reasoning: generateTokensTask() returns (AsyncStream, Task)
-                            // P1-fix: thread wiredMemoryTicket to upstream
+                            // P1 (ThinkingBudget hard-budget): Build GenerationComponents with
+                            // upstream ThinkingBudgetProcessor when budgetTransition is present
+                            // (QwenReasoningProtocol supplies one). Budget limits reasoning tokens
+                            // to half of maxTokens, reserving the other half for the answer.
+                            // The existing ocoreai ThinkingBudget actor (adaptive scaffolding) and
+                            // ThinkingBudgetProcessor (hard token ceiling) are orthogonal.
+                            let genComponents: MLXLMCommon.GenerationComponents
+                            do {
+                                let budgetTokens = (genParams.maxTokens ?? 2048) / 2
+                                let budgetConfig = try MLXLMCommon.ThinkingBudgetConfiguration(
+                                    maximumTokenCount: budgetTokens,
+                                    minimumAnswerTokenCount: 256,
+                                    transitionOverride: nil  // use rc's own budgetTransition
+                                )
+                                genComponents = try MLXLMCommon.GenerationComponents()
+                                    .applyingThinkingBudget(
+                                        budgetConfig,
+                                        reasoning: rc,
+                                        tokenizer: context.tokenizer,
+                                        diagnosticHandler: nil)
+                            } catch {
+                                // If budget setup fails (e.g. protocol lacks transition),
+                                // fall back to no hard budget — adaptive scaffolding still active
+                                log.warning("ThinkingBudget hard-budget not applied: \(error)")
+                                genComponents = MLXLMCommon.GenerationComponents()
+                            }
                             let (stdTokenStream, stdTokenTask) = try MLXLMCommon.generateTokensTask(
                                 input: stdInput,
                                 parameters: genParams,
                                 context: context,
-                                components: .init(),
+                                components: genComponents,
                                 wiredMemoryTicket: wiredMemoryTicket
                             )
 
