@@ -21,6 +21,14 @@ import Foundation
 ///
 /// Aligned with upstream ``SyncStateHandler`` from coreai-models.
 @available(macOS 27.0, iOS 27.0, *)
+/// Classification of a model state's lifecycle behavior.
+enum StateKind: String, Codable, Sendable {
+    case kvCache = "kv_cache"
+    case slidingCache = "sliding_cache"
+    case fixed
+}
+
+@available(macOS 27.0, iOS 27.0, *)
 protocol SyncStateHandler: Sendable {
     /// Current KV cache capacity in tokens.
     var currentCapacity: Int { get }
@@ -207,6 +215,46 @@ struct StaticNDArrayState: SyncStateHandler, Sendable {
 /// Aligned with upstream ``StateHandlerFactory`` from coreai-models.
 @available(macOS 27.0, iOS 27.0, *)
 enum StateHandlerFactory {
+    /// Classify model states by name heuristic (mirrors upstream classifyStates).
+    static func classifyStates(
+        descriptor: InferenceFunctionDescriptor,
+        stateKinds: [String: StateKind]? = nil,
+        verbose: Bool = false
+    ) -> [(name: String, kind: StateKind)] {
+        let names = descriptor.stateNames
+        if let kinds = stateKinds {
+            return names.map { name in (name, kinds[name] ?? inferKind(name: name, descriptor: descriptor)) }
+        }
+        if names.count == 2 {
+            return names.map { ($0, StateKind.kvCache) }
+        }
+        return names.map { name in (name, inferKind(name: name, descriptor: descriptor)) }
+    }
+
+    private static func inferKind(
+        name: String,
+        descriptor: InferenceFunctionDescriptor
+    ) -> StateKind {
+        let lower = name.lowercased()
+        if lower.contains("kv") || lower.contains("cache_key") || lower.contains("cache_value") {
+            return .kvCache
+        }
+        if lower.contains("sliding") || lower.contains("window") {
+            return .slidingCache
+        }
+        if lower.contains("recurrent") || lower.contains("conv") || lower.contains("memory") {
+            return .fixed
+        }
+        // Heuristic: check if shape has a dynamic dim
+        if case .ndArray(let desc) = descriptor.stateDescriptor(of: name) {
+            for dim in desc.shape {
+                if dim < 0 { return .kvCache }
+            }
+            return .fixed
+        }
+        return .fixed
+    }
+
     /// Creates the KV cache handler and optional persistent state handler.
     ///
     /// - ``kvCache``: The primary state handler (always present).

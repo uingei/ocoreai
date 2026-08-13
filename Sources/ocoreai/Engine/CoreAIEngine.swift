@@ -204,6 +204,7 @@ final class StopReasonStore: @unchecked Sendable {
 /// Interface for inference engines.
 /// KV cache is preserved between generate() calls. Call reset() to clear.
 protocol InferenceEngine: Sendable {
+    typealias TokenId = Int32
     associatedtype OutputSequence: InferenceOutputSequence
 
     /// Stream token generation.
@@ -417,8 +418,10 @@ struct EngineFactory: Sendable {
                 "pipelined engine not yet available (requires GPU-direct sampling + buffer rotation)"
             )
         case .staticShape:
-            throw InferenceError.engineUnavailable(
-                "staticShape engine not yet available (requires chunkedStatic model support)"
+            return try await CoreAIStaticShapeEngine(
+                config: parsedConfig,
+                preparedModel: preparedModel,
+                options: options
             )
         }
     }

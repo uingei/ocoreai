@@ -81,6 +81,8 @@ let package = Package(
                 // .define("mlx") kept for backward compatibility with any #if mlx guards
                 // that may still exist in source.
                 .define("mlx"),
+                // Lifetimes required for CoreAI @_lifetime attributes in StateHandler+MTLBuffer
+                .enableExperimentalFeature("Lifetimes"),
             ],
             linkerSettings: [
                 .linkedLibrary("sqlite3")
