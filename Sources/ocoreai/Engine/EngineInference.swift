@@ -292,7 +292,9 @@ extension EnginePool {
                     logger.warning(
                         "CoreAI input contains reasoning control tokens that would be lost in MLX fallback — staying on CoreAI path, grammar constraints dropped for model \(modelId)"
                     )
-                    // Continue to CoreAI path below, grammar/stopSeq silently ignored.
+                    // Continue to CoreAI path below; grammarSchema is
+                    // dropped (CoreAI lacks grammar-constrained decoding).
+                    // stopSequences are still active — handled at L377/L416.
                 } else {
                     let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
                     await _runInferenceWithMessages(
