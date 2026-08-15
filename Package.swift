@@ -43,6 +43,17 @@ let package = Package(
         // ChatConventionsProviding (#482), LFM2 tool-call fix + Gemma3n mask + GuidedGen structured continuation,
         // KVCacheRound staged rounds + RotatingStagedKVCache for sliding window (#516),
         // Qwen 3.5 JSON tool-call fallback (#529).
+        //
+        // DO NOT bump past d667610 without first verifying MLXFoundationModels
+        // exhaustiveness on the target SDK:
+        //   d7dc03d (#512) added `.rejectedToolCall` to internal
+        //   `TokenStreamEvent`, but `MLXLanguageModel.swift:1890` and `:1943`
+        //   `switch event` sites omit it (only L1613/1633 handle it). This is
+        //   compiled under `#if FoundationModelsIntegration` + FM v2
+        //   availability — both true in ocoreai's default configuration
+        //   (Package.swift L26 enables the trait; macOS 27 SDK exposes FM v2).
+        //   Result: default build fails. Re-evaluate only when upstream adds
+        //   the missing cases at L1890/L1943.
         .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "d667610"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),

@@ -552,15 +552,19 @@ private struct EngineImpl: ~Copyable {
 
         // Extract input descriptors
         guard case .ndArray(let inputIdsDesc) = descriptor.inputDescriptor(of: inputIdsName) else {
-            throw InferenceRuntimeError.invalidInputType("Cannot get descriptor for '\(inputIdsName)'")
+            throw InferenceRuntimeError.invalidInputType(
+                "Cannot get descriptor for '\(inputIdsName)'")
         }
         guard case .ndArray(let posIdsDesc) = descriptor.inputDescriptor(of: positionIdsName) else {
-            throw InferenceRuntimeError.invalidInputType("Cannot get descriptor for '\(positionIdsName)'")
+            throw InferenceRuntimeError.invalidInputType(
+                "Cannot get descriptor for '\(positionIdsName)'")
         }
 
         // Extract logits descriptor
-        guard case .ndArray(let logitsDesc) = descriptor.outputDescriptor(of: logitsOutputName) else {
-            throw InferenceRuntimeError.invalidOutputType("Cannot get descriptor for '\(logitsOutputName)'")
+        guard case .ndArray(let logitsDesc) = descriptor.outputDescriptor(of: logitsOutputName)
+        else {
+            throw InferenceRuntimeError.invalidOutputType(
+                "Cannot get descriptor for '\(logitsOutputName)'")
         }
         guard logitsDesc.scalarType == .float16 else {
             throw InferenceRuntimeError.unsupportedLogitsType(
@@ -569,16 +573,22 @@ private struct EngineImpl: ~Copyable {
 
         // Allocate inputTokens MTLBuffer
         let inputTokensByteCount = config.maxContextLength * inputIdsDesc.scalarType.byteSize
-        guard let inputTokensBuf = device.makeBuffer(length: inputTokensByteCount, options: .storageModeShared) else {
-            throw InferenceRuntimeError.bufferAllocationFailed("inputTokens (\(inputTokensByteCount) bytes)")
+        guard
+            let inputTokensBuf = device.makeBuffer(
+                length: inputTokensByteCount, options: .storageModeShared)
+        else {
+            throw InferenceRuntimeError.bufferAllocationFailed(
+                "inputTokens (\(inputTokensByteCount) bytes)")
         }
 
         // Allocate pipeline-depth-matched cache position buffers
         let cachePosSize = config.maxContextLength * posIdsDesc.scalarType.byteSize
         var cachePosBuffers: [MTLBuffer] = []
-        for _ in 0..<pipelineDepth {
-            guard let buf = device.makeBuffer(length: cachePosSize, options: .storageModeShared) else {
-                throw InferenceRuntimeError.bufferAllocationFailed("cachePositions (\(cachePosSize) bytes)")
+        for _ in 0 ..< pipelineDepth {
+            guard let buf = device.makeBuffer(length: cachePosSize, options: .storageModeShared)
+            else {
+                throw InferenceRuntimeError.bufferAllocationFailed(
+                    "cachePositions (\(cachePosSize) bytes)")
             }
             cachePosBuffers.append(buf)
         }
@@ -586,16 +596,17 @@ private struct EngineImpl: ~Copyable {
         // Pre-populate cache positions with [0, 1, ..., maxCtx-1]
         for buf in cachePosBuffers {
             let ptr = buf.contents().bindMemory(to: Int32.self, capacity: config.maxContextLength)
-            for i in 0..<config.maxContextLength {
+            for i in 0 ..< config.maxContextLength {
                 ptr[i] = Int32(i)
             }
         }
 
         // Allocate pipeline-depth-matched decode output buffers (sampler writes next token)
         var decodeOutBuffers: [MTLBuffer] = []
-        for _ in 0..<pipelineDepth {
+        for _ in 0 ..< pipelineDepth {
             let decodeOutSize = max(minimumMPSNDArrayBufferSize, MemoryLayout<Int32>.size)
-            guard let buf = device.makeBuffer(length: decodeOutSize, options: .storageModeShared) else {
+            guard let buf = device.makeBuffer(length: decodeOutSize, options: .storageModeShared)
+            else {
                 throw InferenceRuntimeError.bufferAllocationFailed(
                     "decodeOutputBuffer (\(decodeOutSize) bytes)")
             }
@@ -605,9 +616,11 @@ private struct EngineImpl: ~Copyable {
         // Allocate pipeline-depth-matched decode logits buffers (inference writes logits for decode)
         let decodeLogitsSize = config.vocabSize * MemoryLayout<UInt16>.size
         var decodeLogBufs: [MTLBuffer] = []
-        for _ in 0..<pipelineDepth {
-            guard let buf = device.makeBuffer(length: decodeLogitsSize, options: .storageModeShared) else {
-                throw InferenceRuntimeError.bufferAllocationFailed("decodeLogitsBuffer (\(decodeLogitsSize) bytes)")
+        for _ in 0 ..< pipelineDepth {
+            guard let buf = device.makeBuffer(length: decodeLogitsSize, options: .storageModeShared)
+            else {
+                throw InferenceRuntimeError.bufferAllocationFailed(
+                    "decodeLogitsBuffer (\(decodeLogitsSize) bytes)")
             }
             decodeLogBufs.append(buf)
         }
@@ -637,7 +650,8 @@ private struct EngineImpl: ~Copyable {
                 // Resolve dynamic dims to max for any extra growing states
                 let resolved =
                     desc.shape.contains(where: { $0 < 0 })
-                    ? desc.resolvingDynamicDimensions(desc.shape.map { $0 < 0 ? config.maxContextLength : $0 })
+                    ? desc.resolvingDynamicDimensions(
+                        desc.shape.map { $0 < 0 ? config.maxContextLength : $0 })
                     : desc
                 extraStates.append((name, resolved))
             }
@@ -699,7 +713,9 @@ private struct EngineImpl: ~Copyable {
 
     // MARK: - Sampler
 
-    private mutating func getOrCreateSampler(for config: SamplingConfiguration) throws -> any MPSGraphSampler {
+    private mutating func getOrCreateSampler(for config: SamplingConfiguration) throws
+        -> any MPSGraphSampler
+    {
         let config = config.normalized()
         let temperature = config.temperature
 
@@ -716,7 +732,8 @@ private struct EngineImpl: ~Copyable {
                 && abs(existingTemp - (temperature ?? 0)) > temperatureTolerance
             {
                 throw InferenceRuntimeError.genericError(
-                    "Temperature changed mid-generation (\(existingTemp) -> \(temperature)). Call reset() first.")
+                    "Temperature changed mid-generation (\(existingTemp) -> \(temperature)). Call reset() first."
+                )
             }
             return existingSampler
         }
@@ -842,7 +859,8 @@ private struct EngineImpl: ~Copyable {
 
         // Build Output as AsyncMutableValue (logits)
         // Decode uses per-step rotating buffer; prefill uses the shared growing buffer.
-        let logitsOutputBuffer = tokens.isEmpty ? decodeLogitsBuffers[step % pipelineDepth] : logits.metalBuffer
+        let logitsOutputBuffer =
+            tokens.isEmpty ? decodeLogitsBuffers[step % pipelineDepth] : logits.metalBuffer
         let logitsShape = [1, queryLength, vocabSize]
         let logitsStrides = try resolvedStrides(descriptor: logitsBaseDesc, shape: logitsShape)
 
@@ -871,7 +889,8 @@ private struct EngineImpl: ~Copyable {
         // GPU sampling via Metal queue
         let localGPUSampler = gpuSampler
         let outputBuffer = decodeOutputBuffers[step % pipelineDepth]
-        let samplerLogitsBuffer = tokens.isEmpty ? decodeLogitsBuffers[step % pipelineDepth] : logits.metalBuffer
+        let samplerLogitsBuffer =
+            tokens.isEmpty ? decodeLogitsBuffers[step % pipelineDepth] : logits.metalBuffer
         let logitsOffset = (actualTokenCount - 1) * vocabSize * MemoryLayout<UInt16>.size
         let samplerStrategy = gpuSampler is MPSGraphArgmaxSampler ? "GPU-argmax" : "GPU-composite"
         let samplerTemperature = cachedSamplerTemperature ?? 0.0
@@ -882,10 +901,16 @@ private struct EngineImpl: ~Copyable {
         do {
             let queue = pipelineQueue
             let localInFlightGate = inFlightGate
-            let completionCallback: (Int32) -> Void = { nextToken in
+            let completionCallback: (Int32, Error?) -> Void = { nextToken, error in
                 // Release the pipeline slot acquired before encode. Happens on
                 // Metal's callback thread — PipelineGate.release() is thread-safe.
                 localInFlightGate.release()
+                if let error {
+                    // GPU sampler failure: surface it in the generation stream
+                    // instead of silently emitting token id 0 (coreai-models #169).
+                    continuation.finish(throwing: error)
+                    return
+                }
                 InstrumentsProfiler.endCustomInterval(
                     name: "CoreAIPipelinedEncodeNextStep",
                     signpostID: encodeStepID,
@@ -926,7 +951,7 @@ private struct EngineImpl: ~Copyable {
         yieldingTo continuation: AsyncThrowingStream<InferenceEngine.TokenId, Error>.Continuation,
         isCancelled: borrowing Atomic<Bool>
     ) async throws {
-        for _ in 0..<count {
+        for _ in 0 ..< count {
             guard !isCancelled.load(ordering: .relaxed) else { return }
             try await _encodeNextStepGPU(
                 tokens: [],
@@ -1165,7 +1190,9 @@ private struct EngineImpl: ~Copyable {
 
     // MARK: - Warmup
 
-    mutating func performWarmup(queryLength: Int, samplingConfig: SamplingConfiguration?) async throws {
+    mutating func performWarmup(queryLength: Int, samplingConfig: SamplingConfiguration?)
+        async throws
+    {
         let warmupStart = ContinuousClock.now
         let warmupSpan = InstrumentsProfiler.beginWarmup()
 
@@ -1180,7 +1207,6 @@ private struct EngineImpl: ~Copyable {
         } else {
             shapesToWarm = [1, defaultWarmupLength]
         }
-
 
         let maxShape = shapesToWarm.last ?? 1
         try logits.ensureCapacity(forContextLength: maxShape)
@@ -1200,7 +1226,7 @@ private struct EngineImpl: ~Copyable {
         for shape in shapesToWarm {
             // Write dummy tokens
             let ptr = inputTokensBuffer.contents().bindMemory(to: Int32.self, capacity: shape)
-            for i in 0..<shape { ptr[i] = 1 }
+            for i in 0 ..< shape { ptr[i] = 1 }
 
             let cachePosBuffer = cachePositionBuffers[step % pipelineDepth]
             let posLength = processedTokenCount + shape
@@ -1257,7 +1283,7 @@ private struct EngineImpl: ~Copyable {
                     logitsOffset: logitsOffset,
                     outputBuffer: warmupOutputBuffer,
                     outputOffset: 0,
-                    completion: { _ in }
+                    completion: { _, _ in }
                 )
             }
 
@@ -1322,6 +1348,5 @@ extension CoreAIPipelinedEngine.GenerationSequence {
         }
     }
 }
-
 
 #endif

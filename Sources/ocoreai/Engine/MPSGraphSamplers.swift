@@ -65,7 +65,7 @@ protocol MPSGraphSampler: AnyObject, Sendable {
         logitsOffset: Int,
         outputBuffer: MTLBuffer,
         outputOffset: Int,
-        completion: @escaping (Int32) -> Void
+        completion: @escaping (Int32, Error?) -> Void
     )
 
     /// Encode sampling with slice support for prefill.
@@ -83,7 +83,7 @@ protocol MPSGraphSampler: AnyObject, Sendable {
         queryLength: Int,
         outputBuffer: MTLBuffer,
         outputOffset: Int,
-        completion: @escaping (Int32) -> Void
+        completion: @escaping (Int32, Error?) -> Void
     )
 }
 
@@ -162,10 +162,11 @@ private func buildBitmaskExpansionGraph(
     bitmaskSize: Int
 ) -> MPSGraphTensor {
     // Reshape bitmask for broadcast: [bitmaskSize] -> [bitmaskSize, 1]
-    let bitmask2D = graph.reshape(bitmaskPlaceholder, shape: [bitmaskSize as NSNumber, 1], name: "bitmask_2d")
+    let bitmask2D = graph.reshape(
+        bitmaskPlaceholder, shape: [bitmaskSize as NSNumber, 1], name: "bitmask_2d")
 
     // Bit position indices: [0, 1, 2, ..., 31] shaped [1, 32]
-    var bitIndicesData = (0..<32).map { Int32($0) }
+    var bitIndicesData = (0 ..< 32).map { Int32($0) }
     let bitIndices = bitIndicesData.withUnsafeMutableBufferPointer { buf in
         graph.constant(
             Data(buffer: buf),
@@ -187,14 +188,16 @@ private func buildBitmaskExpansionGraph(
 
     // Flatten [bitmaskSize, 32] -> [bitmaskSize * 32], slice to [vocabSize]
     let flat = graph.reshape(boolMask, shape: [bitmaskSize * 32 as NSNumber], name: "flat_mask")
-    let sliced = graph.sliceTensor(flat, dimension: 0, start: 0, length: vocabSize, name: "sliced_mask")
+    let sliced = graph.sliceTensor(
+        flat, dimension: 0, start: 0, length: vocabSize, name: "sliced_mask")
 
     // Reshape to [1, vocabSize] to match logits
     let predicate = graph.reshape(sliced, shape: [1, vocabSize as NSNumber], name: "predicate")
 
     // Apply mask: select(allowed → logits, blocked → -65504)
     let negInf = graph.constant(-65504.0, shape: [1, vocabSize as NSNumber], dataType: .float16)
-    return graph.select(predicate: predicate, trueTensor: logits, falseTensor: negInf, name: "masked_logits")
+    return graph.select(
+        predicate: predicate, trueTensor: logits, falseTensor: negInf, name: "masked_logits")
 }
 
 // MARK: - MPSGraph Argmax Sampler
@@ -381,11 +384,11 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
         outputBuffer: MTLBuffer,
         outputOffset: Int,
         applyBitmask: Bool,
-        completion: @escaping (Int32) -> Void
+        completion: @escaping (Int32, Error?) -> Void
     ) {
         if applyBitmask {
             guard let (constrained, bitmaskTensorData) = try? ensureConstrainedResources() else {
-                completion(0)
+                completion(0, MPSGraphSamplerError.graphCompilationFailed)
                 return
             }
             let inputData = MPSGraphTensorData(
@@ -396,13 +399,13 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
             execDesc.completionHandler = { [outputBuffer, outputOffset] (_, error) in
                 if let error = error {
                     print("MPSGraph constrained argmax error: \(error)")
-                    completion(0)
+                    completion(0, error)
                     return
                 }
                 let result = outputBuffer.contents()
                     .advanced(by: outputOffset)
                     .assumingMemoryBound(to: Int32.self).pointee
-                completion(result)
+                completion(result, nil)
             }
             constrained.runAsync(
                 with: queue, inputs: [inputData, bitmaskTensorData],
@@ -423,7 +426,7 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
         outputBuffer: MTLBuffer,
         outputOffset: Int,
         applyBitmask: Bool,
-        completion: @escaping (Int32) -> Void
+        completion: @escaping (Int32, Error?) -> Void
     ) {
         if queryLength == 1 {
             encode(
@@ -439,7 +442,7 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
             let blitCmdBuffer = queue.makeCommandBuffer(),
             let blitEncoder = blitCmdBuffer.makeBlitCommandEncoder()
         else {
-            completion(0)
+            completion(0, MPSGraphSamplerError.bufferAllocationFailed)
             return
         }
         blitEncoder.copy(
@@ -472,7 +475,7 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
         logitsOffset: Int,
         outputBuffer: MTLBuffer,
         outputOffset: Int,
-        completion: @escaping (Int32) -> Void
+        completion: @escaping (Int32, Error?) -> Void
     ) {
         // Reuse MPSGraphTensorData if buffers haven't changed (avoids object creation overhead)
         let inputData: MPSGraphTensorData
@@ -503,10 +506,11 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
 
         // Reuse pre-allocated execution descriptor, update completion handler
         let execDescriptor = MPSGraphExecutableExecutionDescriptor()
-        execDescriptor.completionHandler = { [outputBuffer, outputOffset] (resultsDictionary, error) in
+        execDescriptor.completionHandler = {
+            [outputBuffer, outputOffset] (resultsDictionary, error) in
             if let error = error {
                 print("MPSGraph argmax error: \(error)")
-                completion(0)
+                completion(0, error)
                 return
             }
 
@@ -515,7 +519,7 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
                 .advanced(by: outputOffset)
                 .assumingMemoryBound(to: Int32.self)
                 .pointee
-            completion(result)
+            completion(result, nil)
         }
 
         executable.runAsync(
@@ -544,7 +548,7 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
         queryLength: Int,
         outputBuffer: MTLBuffer,
         outputOffset: Int,
-        completion: @escaping (Int32) -> Void
+        completion: @escaping (Int32, Error?) -> Void
     ) {
         // Calculate offset to last token's logits
         let logitsOffset = (queryLength - 1) * vocabSize * MemoryLayout<UInt16>.size
@@ -568,20 +572,21 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
 
         // Create a temporary buffer for the single token's logits
         let sliceSize = vocabSize * MemoryLayout<UInt16>.size
-        guard let tempBuffer = device.makeBuffer(length: sliceSize, options: .storageModeShared) else {
-            completion(0)
+        guard let tempBuffer = device.makeBuffer(length: sliceSize, options: .storageModeShared)
+        else {
+            completion(0, MPSGraphSamplerError.bufferAllocationFailed)
             return
         }
 
         // Step 1: Create and commit blit command buffer separately
         guard let blitCmdBuffer = queue.makeCommandBuffer() else {
-            completion(0)
+            completion(0, MPSGraphSamplerError.bufferAllocationFailed)
             return
         }
         blitCmdBuffer.label = "MPSGraph Argmax Blit"
 
         guard let blitEncoder = blitCmdBuffer.makeBlitCommandEncoder() else {
-            completion(0)
+            completion(0, MPSGraphSamplerError.bufferAllocationFailed)
             return
         }
         blitEncoder.copy(
@@ -612,7 +617,7 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
         execDescriptor.completionHandler = { [outputBuffer, outputOffset] (_, error) in
             if let error = error {
                 print("MPSGraph argmax error: \(error)")
-                completion(0)
+                completion(0, error)
                 return
             }
 
@@ -620,7 +625,7 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
                 .advanced(by: outputOffset)
                 .assumingMemoryBound(to: Int32.self)
                 .pointee
-            completion(result)
+            completion(result, nil)
         }
 
         // Run async - GPU naturally orders this after the blit due to queue ordering
@@ -728,7 +733,10 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
     ///   - temperature: Sampling temperature
     ///   - topP: Nucleus sampling threshold (1.0 = disabled)
     ///   - minP: Minimum probability threshold (0.0 = disabled)
-    init(device: MTLDevice, vocabSize: Int, k: Int = 40, temperature: Float = 1.0, topP: Float = 1.0, minP: Float = 0.0)
+    init(
+        device: MTLDevice, vocabSize: Int, k: Int = 40, temperature: Float = 1.0, topP: Float = 1.0,
+        minP: Float = 0.0
+    )
         throws
     {
         self.device = device
@@ -741,10 +749,15 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         self.bitmaskSize = (vocabSize + 31) / 32
 
         // Pre-allocate buffers
-        guard let randomBuffer = device.makeBuffer(length: MemoryLayout<Float>.size, options: .storageModeShared),
-            let temperatureBuffer = device.makeBuffer(length: MemoryLayout<Float>.size, options: .storageModeShared),
-            let topPBuffer = device.makeBuffer(length: MemoryLayout<Float>.size, options: .storageModeShared),
-            let minPBuffer = device.makeBuffer(length: MemoryLayout<Float>.size, options: .storageModeShared)
+        guard
+            let randomBuffer = device.makeBuffer(
+                length: MemoryLayout<Float>.size, options: .storageModeShared),
+            let temperatureBuffer = device.makeBuffer(
+                length: MemoryLayout<Float>.size, options: .storageModeShared),
+            let topPBuffer = device.makeBuffer(
+                length: MemoryLayout<Float>.size, options: .storageModeShared),
+            let minPBuffer = device.makeBuffer(
+                length: MemoryLayout<Float>.size, options: .storageModeShared)
         else {
             throw MPSGraphSamplerError.bufferAllocationFailed
         }
@@ -813,7 +826,8 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
 
         // Step 4: MinP filtering
         // max_prob is the first element (topK returns sorted descending)
-        let maxProb = graph.sliceTensor(probabilities, dimension: 1, start: 0, length: 1, name: "max_prob")
+        let maxProb = graph.sliceTensor(
+            probabilities, dimension: 1, start: 0, length: 1, name: "max_prob")
         // threshold = minP * max_prob
         let minPThreshold = graph.multiplication(minPPlaceholder, maxProb, name: "minp_threshold")
         // mask: probs >= threshold (broadcasts [1,1] to [1,k])
@@ -839,15 +853,20 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         let normalizedProbs = graph.division(maskedProbs, safeDenominator, name: "normalized_probs")
 
         // Step 8: Multinomial sampling via cumulative sum + random comparison
-        let cumsum = graph.cumulativeSum(normalizedProbs, axis: 1, exclusive: false, reverse: false, name: "cumsum")
-        let selectionMask = graph.greaterThanOrEqualTo(cumsum, randomPlaceholder, name: "selection_mask")
-        let selectionMaskFloat = graph.cast(selectionMask, to: .float32, name: "selection_mask_float")
-        let selectedIdx = graph.reductionArgMaximum(with: selectionMaskFloat, axis: 1, name: "selected_idx")
+        let cumsum = graph.cumulativeSum(
+            normalizedProbs, axis: 1, exclusive: false, reverse: false, name: "cumsum")
+        let selectionMask = graph.greaterThanOrEqualTo(
+            cumsum, randomPlaceholder, name: "selection_mask")
+        let selectionMaskFloat = graph.cast(
+            selectionMask, to: .float32, name: "selection_mask_float")
+        let selectedIdx = graph.reductionArgMaximum(
+            with: selectionMaskFloat, axis: 1, name: "selected_idx")
 
         // Step 9: Gather the token index from topKIndices
         let selectedIdxInt32 = graph.cast(selectedIdx, to: .int32, name: "selected_idx_i32")
         let indicesFlat = graph.reshape(topKIndices, shape: [k as NSNumber], name: "indices_flat")
-        let selectedIdxFlat = graph.reshape(selectedIdxInt32, shape: [1 as NSNumber], name: "selected_flat")
+        let selectedIdxFlat = graph.reshape(
+            selectedIdxInt32, shape: [1 as NSNumber], name: "selected_flat")
 
         let outputTensor = graph.gatherAlongAxis(
             0,
@@ -859,7 +878,8 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
 
         // Compile to executable
         let feeds: [MPSGraphTensor: MPSGraphShapedType] = [
-            logitsPlaceholder: MPSGraphShapedType(shape: [1, vocabSize as NSNumber], dataType: .float16),
+            logitsPlaceholder: MPSGraphShapedType(
+                shape: [1, vocabSize as NSNumber], dataType: .float16),
             temperaturePlaceholder: MPSGraphShapedType(shape: [1 as NSNumber], dataType: .float32),
             randomPlaceholder: MPSGraphShapedType(shape: [1 as NSNumber], dataType: .float32),
             topPPlaceholder: MPSGraphShapedType(shape: [1 as NSNumber], dataType: .float32),
@@ -930,12 +950,15 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         let _ = try bitmaskBuffer
 
         let cGraph = MPSGraph()
-        let cLogits = cGraph.placeholder(shape: [1, vocabSize as NSNumber], dataType: .float16, name: "logits")
-        let cTemp = cGraph.placeholder(shape: [1 as NSNumber], dataType: .float32, name: "temperature")
+        let cLogits = cGraph.placeholder(
+            shape: [1, vocabSize as NSNumber], dataType: .float16, name: "logits")
+        let cTemp = cGraph.placeholder(
+            shape: [1 as NSNumber], dataType: .float32, name: "temperature")
         let cRandom = cGraph.placeholder(shape: [1 as NSNumber], dataType: .float32, name: "random")
         let cTopP = cGraph.placeholder(shape: [1 as NSNumber], dataType: .float32, name: "topP")
         let cMinP = cGraph.placeholder(shape: [1 as NSNumber], dataType: .float32, name: "minP")
-        let cBitmask = cGraph.placeholder(shape: [bitmaskSize as NSNumber], dataType: .int32, name: "bitmask")
+        let cBitmask = cGraph.placeholder(
+            shape: [bitmaskSize as NSNumber], dataType: .int32, name: "bitmask")
 
         let cMaskedLogits = buildBitmaskExpansionGraph(
             graph: cGraph, logits: cLogits, bitmaskPlaceholder: cBitmask,
@@ -946,11 +969,13 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         let cScaled = cGraph.division(cTopK[0], cTemp, name: "scaled")
         let cProbs = cGraph.softMax(with: cScaled, axis: 1, name: "probs")
 
-        let cMaxProb = cGraph.sliceTensor(cProbs, dimension: 1, start: 0, length: 1, name: "max_prob")
+        let cMaxProb = cGraph.sliceTensor(
+            cProbs, dimension: 1, start: 0, length: 1, name: "max_prob")
         let cMinPThreshold = cGraph.multiplication(cMinP, cMaxProb, name: "minp_threshold")
         let cMinPMask = cGraph.greaterThanOrEqualTo(cProbs, cMinPThreshold, name: "minp_mask")
 
-        let cExclCumsum = cGraph.cumulativeSum(cProbs, axis: 1, exclusive: true, reverse: false, name: "excl_cumsum")
+        let cExclCumsum = cGraph.cumulativeSum(
+            cProbs, axis: 1, exclusive: true, reverse: false, name: "excl_cumsum")
         let cTopPMask = cGraph.lessThan(cExclCumsum, cTopP, name: "topp_mask")
 
         let cCombinedMask = cGraph.logicalAND(cMinPMask, cTopPMask, name: "combined_mask")
@@ -961,14 +986,16 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         let cSafeDenom = cGraph.maximum(cSumMasked, cEpsilon, name: "safe_denom")
         let cNormProbs = cGraph.division(cMaskedProbs, cSafeDenom, name: "normalized_probs")
 
-        let cCumsum = cGraph.cumulativeSum(cNormProbs, axis: 1, exclusive: false, reverse: false, name: "cumsum")
+        let cCumsum = cGraph.cumulativeSum(
+            cNormProbs, axis: 1, exclusive: false, reverse: false, name: "cumsum")
         let cSelMask = cGraph.greaterThanOrEqualTo(cCumsum, cRandom, name: "selection_mask")
         let cSelMaskF = cGraph.cast(cSelMask, to: .float32, name: "selection_mask_float")
         let cSelIdx = cGraph.reductionArgMaximum(with: cSelMaskF, axis: 1, name: "selected_idx")
         let cSelI32 = cGraph.cast(cSelIdx, to: .int32, name: "selected_idx_i32")
         let cIndFlat = cGraph.reshape(cTopK[1], shape: [k as NSNumber], name: "indices_flat")
         let cSelFlat = cGraph.reshape(cSelI32, shape: [1 as NSNumber], name: "selected_flat")
-        let cOutput = cGraph.gatherAlongAxis(0, updates: cIndFlat, indices: cSelFlat, name: "token_id")
+        let cOutput = cGraph.gatherAlongAxis(
+            0, updates: cIndFlat, indices: cSelFlat, name: "token_id")
 
         let cFeeds: [MPSGraphTensor: MPSGraphShapedType] = [
             cLogits: MPSGraphShapedType(shape: [1, vocabSize as NSNumber], dataType: .float16),
@@ -1000,17 +1027,18 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         outputBuffer: MTLBuffer,
         outputOffset: Int,
         applyBitmask: Bool,
-        completion: @escaping (Int32) -> Void
+        completion: @escaping (Int32, Error?) -> Void
     ) {
         if applyBitmask {
             guard let (constrained, bitmaskTensorData) = try? ensureConstrainedResources() else {
-                completion(0)
+                completion(0, MPSGraphSamplerError.graphCompilationFailed)
                 return
             }
-            temperatureBuffer.contents().assumingMemoryBound(to: Float.self).pointee = max(temperature, 0.01)
+            temperatureBuffer.contents().assumingMemoryBound(to: Float.self).pointee = max(
+                temperature, 0.01)
             topPBuffer.contents().assumingMemoryBound(to: Float.self).pointee = topP
             minPBuffer.contents().assumingMemoryBound(to: Float.self).pointee = minP
-            let randomValue = testingOnlyRandomOverride ?? Float.random(in: 0..<1)
+            let randomValue = testingOnlyRandomOverride ?? Float.random(in: 0 ..< 1)
             randomBuffer.contents().assumingMemoryBound(to: Float.self).pointee = randomValue
 
             let logitsData = MPSGraphTensorData(
@@ -1021,17 +1049,19 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
             execDesc.completionHandler = { [outputBuffer, outputOffset] (_, error) in
                 if let error = error {
                     print("MPSGraph constrained composite error: \(error)")
-                    completion(0)
+                    completion(0, error)
                     return
                 }
                 let result = outputBuffer.contents()
                     .advanced(by: outputOffset)
                     .assumingMemoryBound(to: Int32.self).pointee
-                completion(result)
+                completion(result, nil)
             }
             constrained.runAsync(
                 with: queue,
-                inputs: [logitsData, temperatureData, randomData, topPData, minPData, bitmaskTensorData],
+                inputs: [
+                    logitsData, temperatureData, randomData, topPData, minPData, bitmaskTensorData,
+                ],
                 results: [outputData], executionDescriptor: execDesc)
         } else {
             encode(
@@ -1049,7 +1079,7 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         outputBuffer: MTLBuffer,
         outputOffset: Int,
         applyBitmask: Bool,
-        completion: @escaping (Int32) -> Void
+        completion: @escaping (Int32, Error?) -> Void
     ) {
         if queryLength == 1 {
             encode(
@@ -1064,7 +1094,7 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
             let blitCmdBuffer = queue.makeCommandBuffer(),
             let blitEncoder = blitCmdBuffer.makeBlitCommandEncoder()
         else {
-            completion(0)
+            completion(0, MPSGraphSamplerError.bufferAllocationFailed)
             return
         }
         blitEncoder.copy(
@@ -1086,14 +1116,15 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         logitsOffset: Int,
         outputBuffer: MTLBuffer,
         outputOffset: Int,
-        completion: @escaping (Int32) -> Void
+        completion: @escaping (Int32, Error?) -> Void
     ) {
         // Write runtime values to buffers
-        temperatureBuffer.contents().assumingMemoryBound(to: Float.self).pointee = max(temperature, 0.01)
+        temperatureBuffer.contents().assumingMemoryBound(to: Float.self).pointee = max(
+            temperature, 0.01)
         topPBuffer.contents().assumingMemoryBound(to: Float.self).pointee = topP
         minPBuffer.contents().assumingMemoryBound(to: Float.self).pointee = minP
 
-        let randomValue = testingOnlyRandomOverride ?? Float.random(in: 0..<1)
+        let randomValue = testingOnlyRandomOverride ?? Float.random(in: 0 ..< 1)
         randomBuffer.contents().assumingMemoryBound(to: Float.self).pointee = randomValue
 
         // Reuse MPSGraphTensorData if buffers haven't changed
@@ -1129,7 +1160,7 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         desc.completionHandler = { [outputBuffer, outputOffset] (_, error) in
             if let error = error {
                 print("MPSGraph composite sampler error: \(error)")
-                completion(0)
+                completion(0, error)
                 return
             }
 
@@ -1137,7 +1168,7 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
                 .advanced(by: outputOffset)
                 .assumingMemoryBound(to: Int32.self)
                 .pointee
-            completion(result)
+            completion(result, nil)
         }
 
         executable.runAsync(
@@ -1155,7 +1186,7 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         queryLength: Int,
         outputBuffer: MTLBuffer,
         outputOffset: Int,
-        completion: @escaping (Int32) -> Void
+        completion: @escaping (Int32, Error?) -> Void
     ) {
         if queryLength == 1 {
             encode(
@@ -1172,19 +1203,20 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         let logitsOffset = (queryLength - 1) * vocabSize * MemoryLayout<UInt16>.size
         let sliceSize = vocabSize * MemoryLayout<UInt16>.size
 
-        guard let tempBuffer = device.makeBuffer(length: sliceSize, options: .storageModeShared) else {
-            completion(0)
+        guard let tempBuffer = device.makeBuffer(length: sliceSize, options: .storageModeShared)
+        else {
+            completion(0, MPSGraphSamplerError.bufferAllocationFailed)
             return
         }
 
         guard let blitCmdBuffer = queue.makeCommandBuffer() else {
-            completion(0)
+            completion(0, MPSGraphSamplerError.bufferAllocationFailed)
             return
         }
         blitCmdBuffer.label = "MPSGraph Composite Blit"
 
         guard let blitEncoder = blitCmdBuffer.makeBlitCommandEncoder() else {
-            completion(0)
+            completion(0, MPSGraphSamplerError.bufferAllocationFailed)
             return
         }
         blitEncoder.copy(
@@ -1198,20 +1230,22 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         blitCmdBuffer.commit()
 
         // Write runtime values
-        temperatureBuffer.contents().assumingMemoryBound(to: Float.self).pointee = max(self.temperature, 0.01)
+        temperatureBuffer.contents().assumingMemoryBound(to: Float.self).pointee = max(
+            self.temperature, 0.01)
         topPBuffer.contents().assumingMemoryBound(to: Float.self).pointee = topP
         minPBuffer.contents().assumingMemoryBound(to: Float.self).pointee = minP
-        let randomValue = testingOnlyRandomOverride ?? Float.random(in: 0..<1)
+        let randomValue = testingOnlyRandomOverride ?? Float.random(in: 0 ..< 1)
         randomBuffer.contents().assumingMemoryBound(to: Float.self).pointee = randomValue
 
-        let logitsData = MPSGraphTensorData(tempBuffer, shape: [1, vocabSize as NSNumber], dataType: .float16)
+        let logitsData = MPSGraphTensorData(
+            tempBuffer, shape: [1, vocabSize as NSNumber], dataType: .float16)
         let outputData = MPSGraphTensorData(outputBuffer, shape: [1 as NSNumber], dataType: .int32)
 
         let prefillExecDescriptor = MPSGraphExecutableExecutionDescriptor()
         prefillExecDescriptor.completionHandler = { [outputBuffer, outputOffset] (_, error) in
             if let error = error {
                 print("MPSGraph composite sampler error: \(error)")
-                completion(0)
+                completion(0, error)
                 return
             }
 
@@ -1219,7 +1253,7 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
                 .advanced(by: outputOffset)
                 .assumingMemoryBound(to: Int32.self)
                 .pointee
-            completion(result)
+            completion(result, nil)
         }
 
         executable.runAsync(
@@ -1243,5 +1277,3 @@ enum MPSGraphSamplerError: Error {
     case graphCompilationFailed
     case unsupportedDevice
 }
-
-

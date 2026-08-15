@@ -571,8 +571,12 @@ private func nonStreamWithToolCalling(
                 throw AppError.generationError(msg)
             case .toolCall(let tc):
                 // tc is already ocoreai's ToolCall type (via InferenceEvent.mlxToolCall).
-                // Collect for post-processing.
-                detectedToolCalls = [tc]
+                // P0-3 fix: APPEND, don't overwrite. A single generation turn may emit
+                // multiple tool calls — the CoreAI `ToolCallParser` yields every one via
+                // flush() (EngineInference.swift:474-492) and the MLX path streams each.
+                // The old `detectedToolCalls = [tc]` silently dropped every call but the
+                // last, corrupting multi-tool turns into a single-call response.
+                detectedToolCalls = (detectedToolCalls ?? []) + [tc]
             case .reasoning(let r):
                 // Reasoning text from ReasoningEventEmitter — accumulate for self-correction
                 accumulatedContent += r
