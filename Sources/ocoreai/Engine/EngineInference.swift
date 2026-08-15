@@ -245,91 +245,38 @@ extension EnginePool {
 
         #if canImport(CoreAI)
         if #available(macOS 27.0, iOS 27.0, *) {
-            // CoreAI supports tool calling via ToolCallParser but lacks grammar constraints —
-            // fall back to MLX only for grammar-guided requests
-            if options.grammarSchema != nil || options.useGuidedGeneration {
-                logger.info(
-                    "Falling back to MLX for grammar/tool-constrained request on model \(modelId)")
-                // P0-fix: prefer original messages over detokenize to preserve full conversation history.
-                // The detokenize→single-Message path drops all prior turns and loses reasoning control tokens.
-                if let msgs = messages, !msgs.isEmpty {
-                    logger.info(
-                        "CoreAI→MLX fallback: using original messages (\(msgs.count) turns)")
-                    await _runInferenceWithMessages(
-                        modelId: modelId,
-                        messages: msgs,
-                        sampling: sampling,
-                        options: options,
-                        metrics: metrics,
-                        continuation: continuation,
-                        conversationId: nil,
-                        cancellation: cancellation,
-                        skipLock: true
-                    )
-                    return
-                }
-
-                // Fallback when caller had no messages (direct token entry path)
-                let promptText: String
-                do {
-                    promptText = try await detokenize(modelId: modelId, tokens: input)
-                } catch {
-                    logger.warning(
-                        "Detokenize failed for CoreAI→MLX fallback: \(error.localizedDescription)")
-                    continuation.yield(
-                        .init(kind: .error("Detokenization failed — cannot fall back MLX path")))
-                    continuation.finish()
-                    return
-                }
-                // Check for reasoning control tokens that will be lost in
-                // detokenize→retokenize roundtrip. Qwen3: 151645=<begin_of_thought>,
-                // 151646=<eot_id>. Other families (DeepSeek, Gemma) use different IDs.
-                // Text-level fallback catches all reasoning tag variants.
-                let hasReasoningMarkers =
-                    promptText.contains("< thinking>") || promptText.contains("</ thinking>")
-                    || promptText.contains("<think") || promptText.contains("</think")
-                if hasReasoningMarkers || input.contains(where: { $0 == 151645 || $0 == 151646 }) {
-                    logger.warning(
-                        "CoreAI input contains reasoning control tokens that would be lost in MLX fallback — staying on CoreAI path, grammar constraints dropped for model \(modelId)"
-                    )
-                    // Continue to CoreAI path below; grammarSchema is
-                    // dropped (CoreAI lacks grammar-constrained decoding).
-                    // stopSequences are still active — handled at L377/L416.
-                } else {
-                    let mlxMessages: [Message] = [.init(role: "user", content: promptText)]
-                    await _runInferenceWithMessages(
-                        modelId: modelId,
-                        messages: mlxMessages,
-                        sampling: sampling,
-                        options: options,
-                        metrics: metrics,
-                        continuation: continuation,
-                        conversationId: nil,
-                        cancellation: cancellation,
-                        skipLock: true
-                    )
-                    return
-                }
-            }
-            // Warn about sampling fields CoreAI SDK cannot honor
-            // (CoreAI.SamplingConfiguration only supports temperature/topK/topP/minP/combined)
-            let coreaiUnhonoredFields: [String] = [
-                sampling.seed != nil ? "seed" : "",
-                sampling.repetitionPenalty != nil ? "repetitionPenalty" : "",
-                sampling.presencePenalty != nil ? "presencePenalty" : "",
-                sampling.frequencyPenalty != nil ? "frequencyPenalty" : "",
-            ].filter { !$0.isEmpty }
-
-            if !coreaiUnhonoredFields.isEmpty {
-                logger.warning(
-                    "[CoreAI] Sampling fields not honored by SDK: \(coreaiUnhonoredFields.joined(separator: ", "))"
-                )
-            }
-
+            // CoreAI constrained decoding — grammar requests stay on CoreAI path.
+            // CoreAI is CoreAI, MLX is MLX — no cross-framework fallback.
             do {
-                // Use cached engine — CoreAI 34f0db3: single engine per model preserves
-                // KV cache across turns. TokenHistory.resolve handles prefix caching automatically.
                 let engine = try await loaded.getCachedEngine()
+                let sequential = engine as? CoreAISequentialEngine
+                // Check: grammar request + Sequential engine → route to constrained path
+                if (options.grammarSchema != nil || options.useGuidedGeneration)
+                    && sequential != nil
+                {
+                    // CoreAI constrained decoding — grammar/tool-constrained request.
+                    await _runConstrainedDecoding(
+                        engine: sequential!,  // safe: checked above
+                        modelId: modelId,
+                        messages: messages,
+                        input: input,
+                        sampling: sampling,
+                        options: options,
+                        metrics: metrics,
+                        continuation: continuation,
+                        cancellation: cancellation
+                    )
+                    return
+                }
+                // Non-grammar requests or non-Sequential engine → standard CoreAI path below.
+                // Warn if grammar was requested but engine can't handle it.
+                if (options.grammarSchema != nil || options.useGuidedGeneration)
+                    && sequential == nil
+                {
+                    logger.warning(
+                        "Grammar constrained request but engine is \(String(describing: type(of: engine))) — falling back to standard CoreAI, grammar constraints dropped"
+                    )
+                }
 
                 // upstream CoreAILanguageModel.Executor.respondVanilla() pipeline:
                 //   token stream → detokenize deltas → ThinkTagParser → ToolCallParser
@@ -804,6 +751,444 @@ extension EnginePool {
             ),
             id: tc.id
         )
+    }
+
+    // MARK: - CoreAI Constrained Decoding
+
+    /// CoreAI-native grammar constrained decoding loop.
+    ///
+    /// Architecture: CoreAI is CoreAI, MLX is MLX — no cross-framework fallback.
+    /// This loop runs entirely within the CoreAI engine's inference context.
+    ///
+    /// Pipeline: prefill → [logits → grammar bitmask mask → CompositeSampler.sample
+    /// → GrammarConstraint.accept → detokenize batch → parser yield] × maxTokens
+    ///
+    /// Aligned with upstream ConstrainedGenerationSession.applyMask() pattern:
+    /// each decode step gets raw logits from SequentialEngine, applies xgrammar
+    /// bitmask via _applyBitmask, then samples through CompositeSampler.
+    @available(macOS 27.0, iOS 27.0, *)
+    private func _runConstrainedDecoding(
+        engine: CoreAISequentialEngine,
+        modelId: String,
+        messages: [Message]?,
+        input: [Int32],
+        sampling: SamplingConfiguration,
+        options: InferenceOptions,
+        metrics: PerRequestMetrics,
+        continuation: AsyncThrowingStream<InferenceEvent, Error>.Continuation,
+        cancellation: InferenceCancellation
+    ) async {
+        guard let loaded = loadedModels[modelId] else {
+            continuation.yield(.init(kind: .error("Model not loaded: \(modelId)")))
+            continuation.finish()
+            return
+        }
+
+        let stopSequences = sampling.stopSequences ?? []
+        let maxTokens = options.maxTokens ?? loaded.modelConfig.maxContextLength
+
+        // ThinkTagParser + ToolCallParser — same as standard CoreAI path
+        let openMarker = "<think" + "ing>"
+        let closeMarker = "</think" + "ing>"
+        let primedInside: Bool
+        do {
+            let tailPrompt = try await detokenize(modelId: modelId, tokens: input)
+            primedInside = ThinkTagParser.promptEndsInsideReasoning(
+                renderedPromptTail: tailPrompt,
+                openMarker: openMarker,
+                closeMarker: closeMarker
+            )
+        } catch {
+            primedInside = false
+            logger.warning(
+                "Constrained decoding primedInside detection failed: \(error.localizedDescription)"
+            )
+        }
+        var thinkParser = ThinkTagParser(
+            open: openMarker, close: closeMarker, primedInside: primedInside)
+        var toolParser = ToolCallParser()
+
+        // — Grammar constraint setup —
+        // CoreAI-native tokenizer path: CoreAI models have no `mlxModelHandle`,
+        // so the constraint is built from the CoreAI-side swift-transformers
+        // tokenizer (registered via TokenizerManager), bridged through
+        // `TokenizersMLXTokenizerAdapter`. `GrammarTokenizer`/`GrammarConstraint`
+        // are xgrammar-backed (MLXCXGrammar C++ shim) — no MLX tensor
+        // dependencies. fastForward is disabled because the adapter's
+        // applyChatTemplate is conformance-only.
+        do {
+            guard let provider = await tokenizerManager.getTokenizer(for: modelId) else {
+                continuation.yield(
+                    .init(
+                        kind: .error(
+                            InferenceError.standardPathFailed(
+                                "No tokenizer registered for model: \(modelId)"
+                            )
+                            .errorDescription ?? "error")))
+                continuation.finish()
+                return
+            }
+            let host = TokenizersMLXTokenizerAdapter(base: provider.underlying)
+            let grammarTokenizer = try loaded.getOrCreateGrammarTokenizer(from: host)
+            let constraint = try loaded.getOrCreateConstraint(
+                grammarTokenizer: grammarTokenizer,
+                hostTokenizer: host,
+                jsonSchema: options.grammarSchema
+                    ?? """
+                    {"type":"object","properties":{}}
+                    """,
+                fastForward: false
+            )
+
+            // — Constrained decode loop —
+            var accumulatedTokens: [Int32] = []
+            var accumulatedReasoningChars = 0
+            var firstYielded = false
+            var grammarTerminated = false
+            var effectiveStopReason: StopReason? = nil
+            let decodeBatchSize = 8
+
+            // Phase 1: Prefill — let engine process all input tokens
+            // startConstrainedDecoding returns DecodeStepLogits on first call
+            // (logits for position 0 post-prefill) or nil if prefill complete.
+            let initLogits = try await engine.startConstrainedDecoding(
+                with: input,
+                maxTokens: maxTokens
+            )
+
+            // Phase 2: Per-token decode loop
+            // The loop: logits → grammar mask → sample → commit → feed to engine
+            // First iteration uses initLogits from prefill; subsequent iterations
+            // get logits from feedToken().
+            var nextLogits: CoreAISequentialEngine.DecodeStepLogits? = initLogits
+            for step in 0 ..< maxTokens {
+                if Task.isCancelled || cancellation.isCancelled {
+                    await self._flushResidualTokensAsync(
+                        &accumulatedTokens,
+                        modelId: modelId,
+                        thinkParser: &thinkParser,
+                        toolParser: &toolParser,
+                        continuation: continuation,
+                        metrics: metrics,
+                        logger: self.logger,
+                        stopReason: .cancelled,
+                        tokenCount: metrics.generatedTokenCount,
+                        reasoningTokenCount: accumulatedReasoningChars
+                    )
+                    return
+                }
+
+                // Need logits for this step
+                guard let logitsBundle = nextLogits, !logitsBundle.logits.isEmpty
+                else {
+                    // Engine exhausted (no more decode positions)
+                    await self._flushResidualTokensAsync(
+                        &accumulatedTokens,
+                        modelId: modelId,
+                        thinkParser: &thinkParser,
+                        toolParser: &toolParser,
+                        continuation: continuation,
+                        metrics: metrics,
+                        logger: self.logger,
+                        stopReason: .maxTokens,
+                        tokenCount: metrics.generatedTokenCount,
+                        reasoningTokenCount: accumulatedReasoningChars
+                    )
+                    return
+                }
+
+                // Clone logits — grammar constraint mutates in-place
+                var logits: [LogitsScalarType] = logitsBundle.logits
+                nextLogits = nil
+
+                // Grammar mask: disallowed tokens → -inf (upstream ConstrainedGen pattern)
+                if !grammarTerminated {
+                    do {
+                        let maskResult = try constraint.computeMask()
+                        if maskResult.needsApply {
+                            maskResult.mask.withUnsafeBufferPointer { maskBuf in
+                                var f32logits = logits.map { Float($0) }
+                                Self._applyBitmask(
+                                    &f32logits,
+                                    mask: maskBuf,
+                                    vocabSize: maskResult.mask.count * 32
+                                )
+                                logits = f32logits.map { LogitsScalarType($0) }
+                            }
+                        }
+                        if maskResult.isTerminated {
+                            grammarTerminated = true
+                        }
+                    } catch {
+                        logger.warning(
+                            "Constrained mask compute failed (step \(step)): \(error.localizedDescription)"
+                        )
+                    }
+                }
+
+                // Sample token from masked logits
+                let tokenId = CompositeSampler.sample(from: &logits, config: sampling)
+
+                // Commit token to grammar state (may fast-forward)
+                do {
+                    let commitResult = try constraint.commitToken(tokenId)
+                    // Emit fast-forward tokens if any (structural grammar tokens)
+                    for ffToken in commitResult.tokens {
+                        accumulatedTokens.append(ffToken)
+                        metrics.incrementGenerated()
+                        if step == 0 && accumulatedTokens.count == 1 {
+                            metrics.firstTokenMs = metrics.overallMs
+                        }
+                    }
+                    if commitResult.isTerminated {
+                        grammarTerminated = true
+                    }
+                } catch {
+                    logger.warning(
+                        "Constrained commit failed (step \(step) token \(tokenId)): \(error.localizedDescription)"
+                    )
+                }
+
+                // Check EOS
+                if tokenId == engine.config.eosTokenId {
+                    accumulatedTokens.append(tokenId)
+                    metrics.incrementGenerated()
+                    await self._flushResidualTokensAsync(
+                        &accumulatedTokens,
+                        modelId: modelId,
+                        thinkParser: &thinkParser,
+                        toolParser: &toolParser,
+                        continuation: continuation,
+                        metrics: metrics,
+                        logger: self.logger,
+                        stopReason: .eos,
+                        tokenCount: metrics.generatedTokenCount,
+                        reasoningTokenCount: accumulatedReasoningChars
+                    )
+                    return
+                }
+
+                // Grammar terminated
+                if grammarTerminated {
+                    accumulatedTokens.append(tokenId)
+                    metrics.incrementGenerated()
+                    await self._flushResidualTokensAsync(
+                        &accumulatedTokens,
+                        modelId: modelId,
+                        thinkParser: &thinkParser,
+                        toolParser: &toolParser,
+                        continuation: continuation,
+                        metrics: metrics,
+                        logger: self.logger,
+                        stopReason: .maxTokens,
+                        tokenCount: metrics.generatedTokenCount,
+                        reasoningTokenCount: accumulatedReasoningChars
+                    )
+                    return
+                }
+
+                accumulatedTokens.append(tokenId)
+                metrics.incrementGenerated()
+                if step == 0 {
+                    metrics.firstTokenMs = metrics.overallMs
+                }
+
+                // Batch detokenize every decodeBatchSize tokens
+                guard accumulatedTokens.count % decodeBatchSize != 0
+                else {
+                    await self._detokenizeAndYieldBatch(
+                        &accumulatedTokens,
+                        modelId: modelId,
+                        thinkParser: &thinkParser,
+                        toolParser: &toolParser,
+                        continuation: continuation,
+                        metrics: metrics,
+                        logger: self.logger,
+                        stopSequences: stopSequences,
+                        effectiveStopReason: &effectiveStopReason,
+                        accumulatedReasoningChars: &accumulatedReasoningChars
+                    )
+                    // Feed sampled token back to engine to advance decode
+                    do {
+                        nextLogits = try await engine.feedToken(tokenId, maxTokens: maxTokens)
+                    } catch {
+                        logger.warning(
+                            "Constrained feedToken failed (step \(step)): \(error.localizedDescription)"
+                        )
+                    }
+                    continue
+                }
+
+                // Feed sampled token back to engine to advance decode
+                do {
+                    nextLogits = try await engine.feedToken(tokenId, maxTokens: maxTokens)
+                } catch {
+                    logger.warning(
+                        "Constrained feedToken failed (step \(step)): \(error.localizedDescription)"
+                    )
+                }
+            }
+
+            // Flush any remaining tokens and close
+            await self._flushResidualTokensAsync(
+                &accumulatedTokens,
+                modelId: modelId,
+                thinkParser: &thinkParser,
+                toolParser: &toolParser,
+                continuation: continuation,
+                metrics: metrics,
+                logger: self.logger,
+                stopReason: effectiveStopReason ?? .maxTokens,
+                tokenCount: metrics.generatedTokenCount,
+                reasoningTokenCount: accumulatedReasoningChars
+            )
+
+        } catch {
+            continuation.yield(
+                .init(
+                    kind: .error(
+                        InferenceError.standardPathFailed(
+                            "Constrained decoding failed: \(error.localizedDescription)"
+                        )
+                        .errorDescription ?? "error")))
+            continuation.finish()
+        }
+    }
+
+    /// Apply xgrammar bitmask to logits — disallowed tokens → -inf.
+    /// LSB-first int32 bitmask: bit `i` of word `w` covers token `w*32+i`.
+    private static func _applyBitmask(
+        _ logits: inout [Float],
+        mask: UnsafeBufferPointer<Int32>,
+        vocabSize: Int
+    ) {
+        for wordIdx in 0 ..< mask.count {
+            var word = mask[wordIdx]
+            for bit in 0 ..< 32 {
+                let tokenIdx = wordIdx * 32 + bit
+                guard tokenIdx < vocabSize, tokenIdx < logits.count else { return }
+                if (word & (1 << bit)) == 0 {
+                    logits[tokenIdx] = Float.leastNormalMagnitude * -1
+                }
+            }
+        }
+    }
+
+    /// Flush remaining accumulated tokens, run through parser pipeline,
+    /// flush held-back parser buffers, and yield the final .done event.
+    @available(macOS 27.0, iOS 27.0, *)
+    private func _flushResidualTokensAsync(
+        _ accumulatedTokens: inout [Int32],
+        modelId: String,
+        thinkParser: inout ThinkTagParser,
+        toolParser: inout ToolCallParser,
+        continuation: AsyncThrowingStream<InferenceEvent, Error>.Continuation,
+        metrics: PerRequestMetrics,
+        logger: Logger,
+        stopReason: StopReason,
+        tokenCount: Int,
+        reasoningTokenCount: Int
+    ) async {
+        if !accumulatedTokens.isEmpty {
+            do {
+                let decoded = try await detokenize(modelId: modelId, tokens: accumulatedTokens)
+                _ = Self.yieldParserEvents(
+                    decoded,
+                    thinkParser: &thinkParser,
+                    toolParser: &toolParser,
+                    continuation: continuation
+                )
+            } catch {
+                logger.warning(
+                    "Constrained decode residual flush failed: \(error.localizedDescription)")
+            }
+            accumulatedTokens = []
+        }
+
+        for thinkEvent in thinkParser.flush() {
+            switch thinkEvent {
+            case .reasoning(let segText):
+                continuation.yield(.init(kind: .reasoning(segText)))
+            case .text(let segText):
+                for toolEvent in toolParser.consume(segText) {
+                    switch toolEvent {
+                    case .text(let plainText):
+                        continuation.yield(.init(kind: .text(plainText)))
+                    case .toolCall(let id, let name, let argsJSON):
+                        continuation.yield(
+                            .init(
+                                kind: .toolCall(
+                                    ToolCall(
+                                        id: id, type: "function",
+                                        function: ToolCallFunction(name: name, arguments: argsJSON))
+                                )))
+                    }
+                }
+            }
+        }
+
+        let tokPerSec =
+            tokenCount > 0
+            ? Double(tokenCount) / (Double(metrics.overallMs) / 1000.0)
+            : nil
+        continuation.yield(
+            .init(
+                kind: .done(
+                    stopReason,
+                    tokenCount: tokenCount,
+                    tokPerSec: tokPerSec,
+                    promptTokPerSec: nil,
+                    reasoningTokenCount: reasoningTokenCount
+                )))
+        continuation.finish()
+    }
+
+    /// Detokenize a batch of tokens, check stop sequences, and yield parser events.
+    /// Sets `effectiveStopReason` if a stop sequence is hit.
+    @available(macOS 27.0, iOS 27.0, *)
+    private func _detokenizeAndYieldBatch(
+        _ accumulatedTokens: inout [Int32],
+        modelId: String,
+        thinkParser: inout ThinkTagParser,
+        toolParser: inout ToolCallParser,
+        continuation: AsyncThrowingStream<InferenceEvent, Error>.Continuation,
+        metrics: PerRequestMetrics,
+        logger: Logger,
+        stopSequences: [String],
+        effectiveStopReason: inout StopReason?,
+        accumulatedReasoningChars: inout Int
+    ) async {
+        do {
+            let decoded: String
+            decoded = try await detokenize(modelId: modelId, tokens: accumulatedTokens)
+
+            // Stop sequence check
+            if let hit = Self.firstMatchStopSequence(in: decoded, sequences: stopSequences) {
+                let preStop = String(decoded[decoded.startIndex ..< hit.offset])
+                if !preStop.isEmpty {
+                    accumulatedReasoningChars += Self.yieldParserEvents(
+                        preStop,
+                        thinkParser: &thinkParser,
+                        toolParser: &toolParser,
+                        continuation: continuation
+                    )
+                }
+                effectiveStopReason = .stopSequence
+                accumulatedTokens = []
+                return
+            }
+
+            accumulatedReasoningChars += Self.yieldParserEvents(
+                decoded,
+                thinkParser: &thinkParser,
+                toolParser: &toolParser,
+                continuation: continuation
+            )
+        } catch {
+            logger.warning(
+                "Constrained decode batch detokenize failed: \(error.localizedDescription)")
+        }
+        accumulatedTokens = []
     }
 
     private func _runInferenceWithMessages(
@@ -1861,7 +2246,7 @@ extension EnginePool {
                     let argsDict =
                         toolCall.function.arguments
                         .mapValues { $0.anyValue } as? [String: Any] ?? [:]
-                    
+
                     // P0-fix: replace fatalError with graceful error response
                     // (tool args should always serialize, but release must not crash)
                     guard
@@ -1874,9 +2259,10 @@ extension EnginePool {
                         logger.error(
                             "Tool dispatch: args serialization failed for \\(toolCall.function.name)"
                         )
-                        return "[tool_dispatch_error: could not serialize arguments for \\(toolCall.function.name)]"
+                        return
+                            "[tool_dispatch_error: could not serialize arguments for \\(toolCall.function.name)]"
                     }
-                    
+
                     let toolResult = try await registry.call(
                         toolCall.function.name,
                         arguments: jsonArgs,
@@ -2459,7 +2845,8 @@ extension EnginePool {
                         // where completionReserve = maxTokens / 4 (minimum floor).
                         // Without this, long reasoning spans can consume all tokens in early
                         // iterations, leaving zero budget for tool dispatch on later iterations.
-                        let mtpReasoningTotal = phase1ReasoningTokenCount + phase2ReasoningTokenCount
+                        let mtpReasoningTotal =
+                            phase1ReasoningTokenCount + phase2ReasoningTokenCount
                         let mtpRemainingBudget = (options.maxTokens ?? .max) - mtpReasoningTotal
                         let mtpCompletionReserve = (options.maxTokens ?? .max) / 4
                         // Snapshot as let to satisfy Sendable closure capture rules —
@@ -2515,7 +2902,8 @@ extension EnginePool {
                                     // blockSize must be >= 2 (upstream precondition) and <= 16
                                     // (user-config via specDecoding.numDraftTokens). Upstream also
                                     // auto-clamps to narrowest sliding window at init time.
-                                    blockSize: Swift.max(2, loaded.specDecodingConfig.numDraftTokens),
+                                    blockSize: Swift.max(
+                                        2, loaded.specDecodingConfig.numDraftTokens),
                                     components: .init(),
                                     wiredMemoryTicket: wiredMemoryTicket
                                 )

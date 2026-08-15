@@ -147,7 +147,8 @@ actor TokenizerManager {
 /// Delegates all operations to the underlying swift-transformers tokenizer.
 final class DirectTokenizer: Sendable {
     let name: String
-    private let _tokenizer: any Tokenizer
+    private let _tokenizer: any Tokenizers.Tokenizer
+    var underlying: any Tokenizers.Tokenizer { _tokenizer }
 
     init(modelId: String, tokenizer: any Tokenizer) {
         // P0-fix: default name instead of precondition (tokenizer must not release-crash)

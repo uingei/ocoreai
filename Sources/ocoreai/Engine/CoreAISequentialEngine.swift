@@ -264,6 +264,72 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
         return lastTokenLogits(from: lastLogits, vocabSize: config.vocabSize)
     }
 
+    // MARK: - Constrained Decoding Step
+
+    /// Single decode step that returns raw logits instead of sampling.
+    /// The caller applies grammar masking to logits, samples, then feeds
+    /// the chosen token back via `feedToken(_:to:)`.
+    ///
+    /// Used by EngineInference for grammar-constrained generation — the
+    /// core loop: prefill → decodeStep → mask logits → sample → accept → repeat.
+    struct DecodeStepLogits {
+        let logits: [LogitsScalarType]
+        let vocabSize: Int
+    }
+
+    /// Returns raw logits for the next decode position.
+    /// - Parameter input: The input tokens already processed (used for prefill).
+    /// - Returns: Logits array of length `vocabSize`, or `nil` if prefill is done
+    ///   and the engine is ready for feed-token calls.
+    func startConstrainedDecoding(
+        with input: [TokenId],
+        maxTokens: Int
+    ) async throws -> DecodeStepLogits? {
+        // Run prefill — same logic as Iterator.next() but returns logits
+        guard processedTokenCount < input.count else {
+            return nil  // prefill already complete, call feedToken instead
+        }
+
+        let oldProcessedCount = processedTokenCount
+        let newTokens = input[processedTokenCount...]
+        let strategy = selectPrefillStrategy(newTokenCount: newTokens.count)
+
+        let logitBuffer: [LogitsScalarType]
+        switch strategy {
+        case .chunked(let chunkSize):
+            logitBuffer = try await processChunkedPrompt(tokens: newTokens, chunkSize: chunkSize)
+        case .wholeBatch:
+            let allLogits = try await processTokenBatch(newTokens)
+            logitBuffer = lastTokenLogits(from: allLogits, vocabSize: config.vocabSize)
+        case .oneAtATime:
+            var lastLogits: [LogitsScalarType] = []
+            for j in newTokens.indices {
+                lastLogits = try await processTokenBatch(newTokens[j ... j])
+            }
+            logitBuffer = lastLogits
+        }
+
+        // Update history
+        let processedSlice = input[oldProcessedCount ..< processedTokenCount]
+        history.append(contentsOf: processedSlice)
+
+        return DecodeStepLogits(logits: logitBuffer, vocabSize: config.vocabSize)
+    }
+
+    /// Feed a token sampled after grammar masking. This advances the engine
+    /// by one decode step and returns logits for the caller to mask again.
+    /// Returns `nil` when context length is reached.
+    func feedToken(_ tokenId: TokenId, maxTokens: Int) async throws -> DecodeStepLogits? {
+        // Push the chosen token into the decode history
+        history.append(tokenId)
+
+        // Run one decode step
+        let oneToken: ArraySlice<TokenId> = [tokenId][...]
+        let logitBuffer = try await processTokenBatch(oneToken)
+
+        return DecodeStepLogits(logits: logitBuffer, vocabSize: config.vocabSize)
+    }
+
     // MARK: - Generate (primary API)
 
     public func generate(
