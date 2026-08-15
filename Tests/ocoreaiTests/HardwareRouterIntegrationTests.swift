@@ -88,53 +88,76 @@ struct ThermalLevelMappingTests {
     }
 }
 
-@Suite("HardwareRouter query() integration — CPU fraction calculation + urgent bypass wiring")
-struct QueryIntegrationTests {
-    @Test("Query with zero budget returns zero fraction (default GPU)")
-    func zeroBudget() {
-        let router = HardwareRouter(policy: .balanced)
-        let channel = router.query(
-            gpuActiveBytes: 1_000_000,
-            gpuBudgetBytes: 0,
-            priority: .chat
-        )
-        #expect(channel == .gpu)
+// NOTE: These tests deliberately drive the PURE routing decision
+// (HardwareRouter.route) with explicitly-injected machine state, NOT
+// query()/queryWithState(), because those read LIVE ProcessInfo thermal
+// state and host memory pressure and therefore produce a machine-dependent
+// channel. Asserting a fixed channel through query() made the suite flaky:
+// on a host at memory-pressure level >= 2 (the .balanced threshold) the
+// Tier-1 guard forces .cpu and every non-CPU expectation fails. route() is
+// the deterministic unit under test; the machine-specific snapshot math in
+// queryWithState() is still exercised for its machine-independent fields.
+@Suite("HardwareRouter routing tiers — deterministic, injected machine state")
+struct QueryTierTests {
+    // Tier 0 (healthy): no thermal / memory pressure / GPU saturation -> GPU.
+    @Test("Healthy machine with zero GPU fraction routes to GPU")
+    func healthyDefaultGPU() {
+        #expect(
+            HardwareRouter.route(
+                thermal: .nominal, memoryPressure: 0, gpuFraction: 0.0,
+                policy: .balanced, urgentBypass: false) == .gpu)
     }
 
-    @Test("Query with high GPU fraction forces ANE (balanced)")
-    func highGpuFraction() {
-        let router = HardwareRouter(policy: .balanced)
-        let channel = router.query(
-            gpuActiveBytes: 30_000_000,
-            gpuBudgetBytes: 40_000_000,  // 0.75 > 0.7
-            priority: .chat
-        )
-        #expect(channel == .ane)
+    // Tier 3: GPU saturation above the balanced watermark (0.7) shifts to ANE.
+    @Test("GPU saturation (0.75 > 0.7) shifts to ANE on a healthy thermal/memory host")
+    func gpuSaturationANE() {
+        #expect(
+            HardwareRouter.route(
+                thermal: .nominal, memoryPressure: 0, gpuFraction: 0.75,
+                policy: .balanced, urgentBypass: false) == .ane)
     }
 
-    @Test("Query with interrupt priority bypasses ANE shift")
-    func interruptBypass() {
-        let router = HardwareRouter(policy: .balanced)
-        let channel = router.query(
-            gpuActiveBytes: 30_000_000,
-            gpuBudgetBytes: 40_000_000,  // would trigger ANE
-            priority: .interrupt
-        )
-        #expect(channel == .gpu)
+    // Tier 2: serious thermal (level 2, == balanced threshold) shifts chat traffic to ANE.
+    @Test("Serious thermal shifts chat traffic to ANE")
+    func thermalShiftChat() {
+        #expect(
+            HardwareRouter.route(
+                thermal: .serious, memoryPressure: 0, gpuFraction: 0.30,
+                policy: .balanced, urgentBypass: false) == .ane)
     }
 
-    @Test("QueryWithState returns both channel and state snapshot")
-    func queryWithState() {
+    // Tier 2: urgent (interrupt) requests bypass a serious-thermal ANE shift back to GPU.
+    @Test("Interrupt priority bypasses a serious-thermal ANE shift")
+    func thermalBypassInterrupt() {
+        #expect(
+            HardwareRouter.route(
+                thermal: .serious, memoryPressure: 0, gpuFraction: 0.30,
+                policy: .balanced, urgentBypass: true) == .gpu)
+    }
+
+    // Tier 1: memory pressure is absolute — even an urgent request is forced to CPU.
+    @Test("Severe memory pressure forces CPU regardless of priority")
+    func memoryPressureCPU() {
+        #expect(
+            HardwareRouter.route(
+                thermal: .nominal, memoryPressure: 2, gpuFraction: 0.0,
+                policy: .balanced, urgentBypass: true) == .cpu)
+    }
+
+    // queryWithState() wiring: assert only the machine-INDEPENDENT fields
+    // (exact fraction math + core counts), not the machine-dependent channel.
+    @Test("queryWithState computes exact gpuUsageFraction and sane core counts")
+    func queryWithStateMath() {
         let router = HardwareRouter(policy: .balanced)
-        let (channel, state) = router.queryWithState(
+        let (_, state) = router.queryWithState(
             gpuActiveBytes: 10_000_000,
             gpuBudgetBytes: 40_000_000,
             priority: .chat
         )
-        #expect(channel == .gpu)
         #expect(state.gpuUsageFraction == 0.25)
         #expect(state.totalCores > 0)
         #expect(state.computeCores > 0)
+        #expect(state.computeCores <= state.totalCores)
     }
 }
 

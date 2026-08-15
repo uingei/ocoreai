@@ -344,7 +344,7 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
         }
 
         // Implicit prefix caching: resolve input against history
-        if history.count > 0 {
+        if !history.isEmpty {
             let (commonPrefix, _) = history.resolve(input: input)
             if hasNonTruncatableStates {
                 // Hybrid model: recurrent state can't be partially rewound

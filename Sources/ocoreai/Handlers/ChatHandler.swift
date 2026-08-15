@@ -353,7 +353,7 @@ func chatCompletionsHandler(
         /// - Tool calls (structured function_call/tool_calling JSON)
         /// - JSON Schema responses (strict JSON output validation)
         let useGuidedGeneration: Bool = {
-            let hasTools = request.tools != nil && !request.tools!.isEmpty
+            let hasTools = request.tools?.isEmpty == false
             let hasJsonSchema =
                 request.responseFormat?.type == "json_schema"
                 || request.responseFormat?.type == "json_object"

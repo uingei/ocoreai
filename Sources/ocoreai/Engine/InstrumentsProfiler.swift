@@ -236,7 +236,7 @@ final class StatsStorage {
     }
 
     func stats(for category: SignpostCategory) -> AggregateStats? {
-        guard let catStats = stats[category], catStats.count > 0 else { return nil }
+        guard let catStats = stats[category], catStats.hasSample else { return nil }
 
         let nanosecondsToSeconds = { (nanoseconds: UInt64) -> TimeInterval in
             Double(nanoseconds) / 1_000_000_000.0
@@ -276,12 +276,14 @@ final class StatsStorage {
 extension StatsStorage {
     private struct CategoryStats {
         var count: Int = 0
+        var hasSample = false
         var totalNanoseconds: UInt64 = 0
         var minNanoseconds: UInt64 = .max
         var maxNanoseconds: UInt64 = 0
 
         mutating func record(durationNanoseconds: UInt64) {
             count += 1
+            hasSample = true
             totalNanoseconds += durationNanoseconds
             minNanoseconds = min(minNanoseconds, durationNanoseconds)
             maxNanoseconds = max(maxNanoseconds, durationNanoseconds)

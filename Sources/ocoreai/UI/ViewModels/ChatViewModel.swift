@@ -825,9 +825,9 @@ final class ChatState {
 
                         // Clean text: reuse the split from above (avoid redundant regex pass).
                         let cleanedText =
-                            if splitResult != nil {
+                            if let split = splitResult {
                                 // Fallback path — use cleaned text from splitThinkingTags
-                                splitResult!.remaining
+                                split.remaining
                             } else {
                                 responseText
                             }

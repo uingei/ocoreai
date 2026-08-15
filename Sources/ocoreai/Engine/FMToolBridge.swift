@@ -78,6 +78,10 @@ struct FMToolProxy: FoundationModels.Tool {
             else { continue }
 
             let schema = tryToBuildSchema(from: toolParams, name: toolName, logger: logger)
+            guard let schema else {
+                // A tool with an unusable schema is worse than no tool — skip it.
+                continue
+            }
             let proxy = FMToolProxy(
                 name: toolName,
                 description: toolDesc,
@@ -91,46 +95,28 @@ struct FMToolProxy: FoundationModels.Tool {
         return result
     }
 
-    /// Try to construct a GenerationSchema from JSON, fallback to empty.
+    /// Try to construct a GenerationSchema from JSON. Returns nil when the
+    /// schema cannot be built (caller skips the tool — an unusable schema is
+    /// worse than no tool, unlike the old fake-empty-schema fallback).
     private static func tryToBuildSchema(
         from json: [String: any Sendable],
         name: String,
         logger: Logging.Logger
-    ) -> FoundationModels.GenerationSchema {
+    ) -> FoundationModels.GenerationSchema? {
         guard let data = try? JSONSerialization.data(withJSONObject: json) else {
             logger.warning("FMToolProxy: cannot serialize params for \(name)")
-            return emptySchema
+            return nil
         }
-        return
-            (try? JSONDecoder().decode(
-                FoundationModels.GenerationSchema.self,
-                from: data
-            )) ?? emptySchema
-    }
-
-    private static var emptySchema: FoundationModels.GenerationSchema {
-        do {
-            let json: [String: Any] = ["type": "object", "properties": [:]]
-            let data = try JSONSerialization.data(withJSONObject: json)
-            return try JSONDecoder().decode(
+        guard
+            let schema = try? JSONDecoder().decode(
                 FoundationModels.GenerationSchema.self,
                 from: data
             )
-        } catch {
-            // Should never happen — empty object schema is valid per SDK.
-            // If it does, the FM path caller (tryToBuildSchema) already has a ?? fallback
-            // to this same value, so we use a secondary decode path.
-            return
-                (try? {
-                    let json = #"{"type":"string"}"#.data(using: .utf8)!
-                    return try JSONDecoder().decode(
-                        FoundationModels.GenerationSchema.self, from: json)
-                }())
-                ?? {
-                    // Absolute last resort — should be unreachable
-                    fatalError("FMToolBridge: empty schema decode failed (sdk regression)")
-                }()
+        else {
+            logger.warning("FMToolProxy: schema decode failed for \(name)")
+            return nil
         }
+        return schema
     }
 }
 

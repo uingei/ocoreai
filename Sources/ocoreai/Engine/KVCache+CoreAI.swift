@@ -161,9 +161,17 @@ enum KVCacheFactory {
             resolvedStrategy = options.kvCacheStrategy
         }
 
-        // Get size from explicit override, or use resolved strategy's default
-        let size =
-            options.kvCacheSize ?? resolvedStrategy.defaultSize(maxContextLength: maxContextLength)!
+        // Get size from explicit override, or use resolved strategy's default.
+        // `.auto` is the only case where defaultSize returns nil — throw, not crash.
+        guard
+            let size =
+                options.kvCacheSize
+                ?? resolvedStrategy.defaultSize(maxContextLength: maxContextLength)
+        else {
+            throw KVCacheError.invalidState(
+                "KVCacheStrategy '\(resolvedStrategy.rawValue)' has no default size for maxContextLength=\(maxContextLength)"
+            )
+        }
 
         // Validate strategy compatibility with model (only for explicit non-auto strategies)
         if options.kvCacheStrategy != .auto && options.kvCacheStrategy != .fixedSize && !isDynamic {

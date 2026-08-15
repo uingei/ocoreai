@@ -369,7 +369,10 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
             targetTensors: [cOutput], targetOperations: nil,
             compilationDescriptor: desc)
         constrainedExecutable = exec
-        return (exec, constrainedBitmaskData!)
+        guard let data = constrainedBitmaskData else {
+            throw MPSGraphSamplerError.bufferAllocationFailed
+        }
+        return (exec, data)  // safe: set synchronously by `try bitmaskBuffer` above
     }
 
     /// Encode argmax sampling with optional bitmask constraint.
@@ -1013,7 +1016,10 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
             targetTensors: [cOutput], targetOperations: nil,
             compilationDescriptor: desc)
         constrainedExecutable = exec
-        return (exec, constrainedBitmaskData!)
+        guard let data = constrainedBitmaskData else {
+            throw MPSGraphSamplerError.bufferAllocationFailed
+        }
+        return (exec, data)  // safe: set synchronously by `try bitmaskBuffer` above
     }
 
     /// Encode composite sampling with optional bitmask constraint.

@@ -265,22 +265,20 @@ struct TokenHistory: Sendable {
 
     mutating func resolve(input: [Int32]) -> (commonPrefix: Int, newTokens: ArraySlice<Int32>) {
         let limit = min(input.count, tokens.count)
-        var commonPrefix = limit
-        if limit > 0 {
-            input.withUnsafeBufferPointer { inputBuf in
-                tokens.withUnsafeBufferPointer { cachedBuf in
-                    let bytes = limit * MemoryLayout<Int32>.stride
-                    if memcmp(inputBuf.baseAddress!, cachedBuf.baseAddress!, bytes) != 0 {
-                        commonPrefix = 0
-                        for i in 0 ..< limit {
-                            if inputBuf[i] != cachedBuf[i] { break }
-                            commonPrefix = i + 1
-                        }
-                    }
-                }
-            }
+        guard limit > 0 else {
+            return (0, input[...])
         }
-        return (commonPrefix, input[commonPrefix...])
+        // Element-wise scan for the common prefix. Avoids the memcmp fast path
+        // (which required force-unwrapping baseAddress of the buffer pointers);
+        // the per-element loop is the safe equivalent and only runs once per
+        // inference round, not per token.
+        var common = 0
+        var i = 0
+        while i < limit && input[i] == tokens[i] {
+            common += 1
+            i += 1
+        }
+        return (common, input[common...])
     }
 
     mutating func append(contentsOf slice: ArraySlice<Int32>) {
@@ -292,6 +290,7 @@ struct TokenHistory: Sendable {
     }
 
     var count: Int { tokens.count }
+    var isEmpty: Bool { tokens.isEmpty }
 
     /// Trim front so the array never exceeds `maxCapacity`.
     /// P0-fix: bounds TokenHistory growth to O(context_length) not O(total_tokens).

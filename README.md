@@ -5,7 +5,7 @@
 [![swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 14+ / iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests: 775](https://img.shields.io/badge/Tests-775%2F775-brightgreen)](Tests/)
+[![Tests: 777](https://img.shields.io/badge/Tests-777%2F777-brightgreen)](Tests/)
 
 ---
 

@@ -15,8 +15,11 @@ import MLXLMCommon
 /// MTPDrafterModelFactory._load() accepts a TokenizerLoader but immediately
 /// ignores it — the drafer borrows its target's tokenizer at inference time.
 final class NoOpTokenizerLoader: TokenizerLoader, Sendable {
+    struct NotLoadedError: Error {}
+
     func load(from directory: URL) async throws -> any Tokenizer {
-        fatalError(
-            "NoOpTokenizerLoader should not be called — MTP drafters borrow the target's tokenizer")
+        // Restored declared semantics: this loader throws when asked —
+        // MTP drafters borrow the target's tokenizer and never load one.
+        throw NotLoadedError()
     }
 }

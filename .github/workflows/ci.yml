@@ -43,11 +43,49 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup SwiftLint
-        run: brew install swiftlint
+        run: |
+          brew install swiftlint
+          # Version lock (mlx-swift-lm lesson: "a new release can change
+          # formatting rules and reformat files no PR touched"). If brew ever
+          # ships a newer SwiftLint, fail loudly instead of silently
+          # re-scoring the baseline.
+          SWIFTLINT_VERSION="$(swiftlint version 2>/dev/null | tr -d '[:space:]')"
+          if [ "$SWIFTLINT_VERSION" != "0.65.0" ]; then
+            echo "❌ SwiftLint $SWIFTLINT_VERSION != pinned 0.65.0 — bump this pin deliberately (with a re-lint), never silently."
+            exit 1
+          fi
+          echo "✅ SwiftLint pinned: $SWIFTLINT_VERSION"
+
+      - name: Setup swift-format
+        run: |
+          brew install swift-format
+          # Same version-lock pattern. swift-format 603.0.0 is the release
+          # whose format output this codebase conforms to.
+          SF="$(swift-format --version 2>&1 | head -1)"
+          case "$SF" in
+            *603.0.0*) echo "✅ swift-format pinned: $SF" ;;
+            *) echo "❌ swift-format not 603.0.0 (got: $SF) — bump deliberately with a reformat." ; exit 1 ;;
+          esac
 
       # Pattern-based static audit (whitelist-protected)
       - name: Run static audit
         run: bash scripts/audit.swift_patterns.sh
+
+      # Format gate — mlx-swift-lm pattern (pre-commit run --all, swift-format
+      # format hook). Run swift-format in-place then require zero diff: any
+      # file that would be reformatted fails the pipeline.
+      - name: Swift-format gate
+        run: |
+          set -euo pipefail
+          swift-format format --in-place --recursive --parallel --configuration .swift-format Sources/ Tests/
+          if ! git diff --exit-code -- Sources/ Tests/ > /tmp/format-diff.txt 2>&1; then
+            echo "❌ swift-format reformatted files (see diff) — run locally:"
+            echo "   swift-format format --in-place --recursive --configuration .swift-format Sources/ Tests/ && git add -A"
+            git --no-pager diff --stat -- Sources/ Tests/ || true
+            head -40 /tmp/format-diff.txt || true
+            exit 1
+          fi
+          echo "✅ swift-format gate: zero files reformatted"
 
       # Full lint report — advisory only (style errors expected)
       - name: Run SwiftLint (report)
@@ -65,16 +103,22 @@ jobs:
           set -euo pipefail
           swiftlint lint --config .swiftlint.yml Sources/ 2>&1 \
             | tee /tmp/swiftlint-sources.txt || true
-          FU=$(grep -c 'force_unwrapping.*warning' /tmp/swiftlint-sources.txt || true)
-          IU=$(grep -c 'implicitly_unwrapped_optional.*warning' /tmp/swiftlint-sources.txt || true)
-          FE=$(grep -c 'fatal_error_message.*warning' /tmp/swiftlint-sources.txt || true)
-          echo "🔒 force_unwrapping=$FU  implicitly_unwrapped=$IU  fatal_error_message=$FE"
+          # swiftlint output line format: "path:ln:col: warning: Human Name (rule_id)"
+          # — severity BEFORE the human name; rule id is the LAST token in parens.
+          # Match BOTH severities: force_unwrapping / implicitly_unwrapped_optional
+          # ride at warning; fatal_error_message / empty_count ride at error.
+          FU=$(grep -cE '(warning|error):.*Force Unwrapping' /tmp/swiftlint-sources.txt || true)
+          IU=$(grep -cE '(warning|error):.*Implicitly Unwrapped Optional' /tmp/swiftlint-sources.txt || true)
+          FE=$(grep -cE '(warning|error):.*Fatal Error Message' /tmp/swiftlint-sources.txt || true)
+          EC=$(grep -cE '(warning|error):.*Empty Count' /tmp/swiftlint-sources.txt || true)
+          echo "force_unwrapping=$FU  implicitly_unwrapped=$IU  fatalError=$FE  empty_count=$EC"
           FAIL=0
-          [ "$FU" -gt 0 ] && echo "❌ force_unwrapping in Sources/ — pipeline blocked" && FAIL=1
-          [ "$IU" -gt 0 ] && echo "❌ implicitly_unwrapped_optional in Sources/ — pipeline blocked" && FAIL=1
-          [ "$FE" -gt 0 ] && echo "❌ fatal_error_message in Sources/ — pipeline blocked" && FAIL=1
+          [ "$FU" -gt 0 ] && echo "BLOCKED: force_unwrapping in Sources/" && FAIL=1
+          [ "$IU" -gt 0 ] && echo "BLOCKED: implicitly_unwrapped_optional in Sources/" && FAIL=1
+          [ "$FE" -gt 0 ] && echo "BLOCKED: fatalError without message in Sources/" && FAIL=1
+          [ "$EC" -gt 0 ] && echo "BLOCKED: empty_count in Sources/" && FAIL=1
           if [ "$FAIL" -eq 1 ]; then exit 1; fi
-          echo "✅ Crash-risk rules clean in Sources/"
+          echo "OK: crash-risk rules clean in Sources/"
 
       # Secret scanning — detect hardcoded keys, tokens, passwords in the diff
       # Source: references/zeroclaw/.githooks/pre-commit + gitleaks.toml

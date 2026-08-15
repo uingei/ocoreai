@@ -292,9 +292,7 @@ final class PerceptionEngine: Sendable {
                         channel: .camera,
                         imageURL: ocrText == nil ? frameDataURL : nil,
                         ocrText: ocrText,
-                        estimatedTokens: ocrText != nil
-                            ? min(20, max(5, ocrText!.count / 4))
-                            : 800
+                        estimatedTokens: ocrText.map { min(20, max(5, $0.count / 4)) } ?? 800
                     )
                     Task { @MainActor in
                         Self.shared.pushFrame(frame)
@@ -333,9 +331,7 @@ final class PerceptionEngine: Sendable {
                         channel: .screen,
                         imageURL: ocrText == nil ? frameDataURL : nil,
                         ocrText: ocrText,
-                        estimatedTokens: ocrText != nil
-                            ? min(20, max(5, ocrText!.count / 4))
-                            : 800
+                        estimatedTokens: ocrText.map { min(20, max(5, $0.count / 4)) } ?? 800
                     )
                     Task { @MainActor in
                         Self.shared.pushFrame(frame)

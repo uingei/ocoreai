@@ -502,10 +502,12 @@ extension DirectInferenceClient {
         // Post-stream quality signal → ThinkingBudget calibration loop.
         // Fire-and-forget: failures silently ignored to avoid blocking stream end.
         if let budget = OcoreaiEngine.shared.activeThinkingBudget {
-            let outputLen =
-                (outputTokens ?? 0) > 0
-                ? min(1.0, Double(outputTokens!) / Double(effectiveMaxTokens ?? 4096))
-                : 0.0
+            let outputLen: Double
+            if let ot = outputTokens, ot > 0 {
+                outputLen = min(1.0, Double(ot) / Double(effectiveMaxTokens ?? 4096))
+            } else {
+                outputLen = 0.0
+            }
             let qualityInput = ThinkingQualityInput(
                 complexity: 0.5,  // Desktop UI has no upstream ComplexityAnalyzer
                 outputLength: outputLen,

@@ -288,7 +288,7 @@ final class CoreAIStaticShapeEngine: InferenceEngine, @unchecked Sendable {
             $0 = nil
         }
 
-        if history.count > 0 {
+        if !history.isEmpty {
             let (cp, _) = history.resolve(input: input)
             if cp < input.count && cp < history.count {
                 processedTokenCount = 0

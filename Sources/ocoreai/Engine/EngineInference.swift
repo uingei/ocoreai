@@ -251,12 +251,12 @@ extension EnginePool {
                 let engine = try await loaded.getCachedEngine()
                 let sequential = engine as? CoreAISequentialEngine
                 // Check: grammar request + Sequential engine → route to constrained path
-                if (options.grammarSchema != nil || options.useGuidedGeneration)
-                    && sequential != nil
+                if let sequential,
+                    options.grammarSchema != nil || options.useGuidedGeneration
                 {
                     // CoreAI constrained decoding — grammar/tool-constrained request.
                     await _runConstrainedDecoding(
-                        engine: sequential!,  // safe: checked above
+                        engine: sequential,
                         modelId: modelId,
                         messages: messages,
                         input: input,
@@ -1910,8 +1910,10 @@ extension EnginePool {
                 if let registry = toolRegistry {
                     let specs = await registry.toToolSpecs()
                     if !specs.isEmpty {
-                        fmTools = FMToolProxy.tools(from: registry, toolSpecs: specs, log: log)
-                        log.info("Injected \(fmTools!.count) tools into FM session")
+                        let fmToolsArray = FMToolProxy.tools(
+                            from: registry, toolSpecs: specs, log: log)
+                        fmTools = fmToolsArray
+                        log.info("Injected \(fmToolsArray.count) tools into FM session")
                     }
                 }
 
@@ -2080,8 +2082,9 @@ extension EnginePool {
                             if !text.isEmpty {
                                 // Route through reasoning emitter when available,
                                 // then check stop sequences (same as MTP/standard path).
-                                if fmEmitter != nil {
-                                    for segment in fmEmitter!.process(text) {
+                                if let e = fmEmitter {
+                                    var emitter = e
+                                    for segment in emitter.process(text) {
                                         switch segment {
                                         case .reasoning(let segText):
                                             fmAccumulated += segText
@@ -2139,8 +2142,9 @@ extension EnginePool {
                             if !partial.content.isEmpty {
                                 // Route through reasoning emitter when available,
                                 // then check stop sequences (same as MTP/standard path).
-                                if fmEmitter != nil {
-                                    for segment in fmEmitter!.process(partial.content) {
+                                if let e = fmEmitter {
+                                    var emitter = e
+                                    for segment in emitter.process(partial.content) {
                                         switch segment {
                                         case .reasoning(let segText):
                                             fmAccumulated += segText
@@ -2518,7 +2522,7 @@ extension EnginePool {
                 // → collect results → append tool/response messages → re-generate.
                 // Mirrors ChatSession.swift L748 restart loop.
                 // VLM requests fall through to ChatSession (MTP cannot carry images/videos/audios).
-                else if self.mtpDrafterContainer != nil, mlxMessages.count > 0,
+                else if self.mtpDrafterContainer != nil, !mlxMessages.isEmpty,
                     mlxMessages.allSatisfy({
                         $0.images.isEmpty && $0.audios.isEmpty && $0.videos.isEmpty
                     })
@@ -2981,8 +2985,9 @@ extension EnginePool {
                                 metrics.incrementGenerated()
                                 // If reasoning config is available, route through emitter.
                                 // Otherwise pass text through directly as .text.
-                                if reasoningEmitter != nil {
-                                    for segment in reasoningEmitter!.process(text) {
+                                if let e = reasoningEmitter {
+                                    var emitter = e
+                                    for segment in emitter.process(text) {
                                         switch segment {
                                         case .reasoning(let segmentText):
                                             localAccumulatedText += segmentText
@@ -3551,7 +3556,16 @@ extension EnginePool {
                     // newMessages (set above) contains only what's not yet cached:
                     //   - pool hit  → new user message only
                     //   - pool miss → full history including system instructions
-                    for try await generation in chatSession!.streamDetails(
+                    // `chatSession` was acquired before the reasoning/fm branches; if it
+                    // is nil here the FM path already consumed it — report, don't crash.
+                    guard let chatSession else {
+                        logger.error("Standard ChatSession path entered with nil chatSession")
+                        continuation.yield(
+                            .init(kind: .error("Engine internal error: no active chat session")))
+                        continuation.finish()
+                        return
+                    }
+                    for try await generation in chatSession.streamDetails(
                         to: newMessages
                     ) {
                         if Task.isCancelled || cancellation.isCancelled {
@@ -3773,7 +3787,11 @@ extension EnginePool {
         var bestEarly: StopMatch? = nil
         for seq in sequences where !seq.isEmpty {
             if let range = text.range(of: seq) {
-                if bestEarly == nil || range.lowerBound < bestEarly!.offset {
+                if let current = bestEarly {
+                    if range.lowerBound < current.offset {
+                        bestEarly = StopMatch(offset: range.lowerBound)
+                    }
+                } else {
                     bestEarly = StopMatch(offset: range.lowerBound)
                 }
             }

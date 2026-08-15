@@ -1,21 +1,32 @@
 opt_in_rules:
   - force_unwrapping
+  # `includes: [forced_casts, force_try]` was an invalid key — those are
+  # standalone rules (swiftlint 0.65); opt in explicitly to keep the original intent.
+  - force_cast
+  - force_try
   - implicitly_unwrapped_optional
+  # Crash-path rule: opt in at ERROR severity — CI gate treats error as blocking
+  # (iron rule: zero fatalError/assert/precondition in Sources/).
+  - fatal_error_message
   - empty_count
-  - empty_elements
   - todo
-  - redundant_discard
-  - unused_import
   - unused_closure_parameter
+  # Removed (invalid rule id in swiftlint 0.65.0, config was noisy):
+  #   empty_elements, redundant_discard, multiple_closures_on_line
+
+# 0.65.0: unused_import only runs under `swiftlint analyze`, not `lint` —
+# in analyzer_rules so the config emits no clarity warning.
+analyzer_rules:
+  - unused_import
 
 force_unwrapping:
   severity: warning
-  includes:
-    - forced_casts
-    - force_try
 
 implicitly_unwrapped_optional:
   severity: warning
+
+fatal_error_message:
+  severity: error
 
 disabled_rules:
   - trailing_whitespace
@@ -29,7 +40,6 @@ disabled_rules:
   - function_parameter_count
   - nesting
   - large_tuple
-  - multiple_closures_on_line
   - discouraged_optional_collection
 
 excluded:
