@@ -6,13 +6,13 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ### Upstream Sync
 
-- **mlx-swift-lm pinned 5a81319** — mlx-swift→0.31.6, Qwen3.5 JSON tool-call fallback (#529), Qwen3.5 MTP speculative decoding (#351), ThinkingBudget enforcement (#521), KVCache limits (#514), TurboFlash (#520), ChatConventions migration (#502), CacheConfiguration engine (#514)
-- **coreai-models pinned d13b882** — iOS export use contract (#168)
+- **mlx-swift-lm pinned d667610** — mlx-swift→0.31.6, Qwen3.5 JSON tool-call fallback (#529), Qwen3.5 MTP speculative decoding (#351), ThinkingBudget enforcement (#521), KVCache limits (#514), TurboFlash (#520), ChatConventions migration (#502), CacheConfiguration engine (#514)
+- **CoreAI SDK** — macOS 27 system framework, not SPM package (imported via `#if canImport(CoreAI)` guards). Derived code from coreai-models BSD-3-Clause (not a dependency — not in Package.swift)
 - **mlx-swift pinned da31870** — JIT source auto-derive, fp8 conversion, Muon optimizer, LR schedules
 
 ### Features
 
-- **Upstream alignment verified** — Full source-level audit of MLX/CoreAI/upstream alignment. ReasoningEventEmitter ✅ (12 code refs), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge L631-745). AgentLoop × SessionPool gap ❌ (tool-heavy agent prefill overhead). CoreAI grammar ❌ (fallback MLX only)
+- **Upstream alignment verified** — Full source-level audit of MLX/CoreAI/upstream alignment. ReasoningEventEmitter ✅ (7 code refs), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge L635). AgentLoop gap: dead code (556 LOC, 0 callers — removed from inference pipeline). CoreAI grammar: `_runConstrainedDecoding` uses MLX grammar stack (`MLXGuidedGeneration`); fails on CoreAI path (`mlxModelHandle=nil`). Upstream coreai-models has independent grammar stack (`CXGrammar` → `ConstrainedGenerationSession`) not yet consumed.
 - **macOS/iOS dual deploy target** — `Package.swift` declares macOS 14 + iOS 17 minimum. iOS build skips HTTP bridge (L500 `#else`), runs SwiftUI-only Fast Path. CoreAI gate: `#if canImport(CoreAI)` + `@available(macOS 27.0, iOS 27.0, *)` dual-gating
 - **P0: Compute channel visibility** — Live `ComputeChannel` badge in ChatView streaming indicator + Dashboard health bar, wired from `HardwareRouter` → `EnginePool` → `AppState` (EN/ZH i18n)
 - **P1: Thermal-pressure channel-shift toast** — Auto-dismiss toast on thermal/memory pressure events with from→to channel icons; `ChannelShiftToastOverlay` at ChatView bottom; toast i18n for trigger reason + VoiceOver a11y label
@@ -26,7 +26,7 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 - **Persistent-perception system** — PerceptionEngine (13 files, 3049 LOC in `Multimodal/`): full 7-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
 - **CoreAI sequential engine family alignment** — Option A p1: align CoreAI engine types with upstream sequential/variant architecture
 - **MTP speculative decoding** — `generate(::mtpDrafter:)` path with streaming reasoning events
-- **Upstream pin 5a81319** — mlx-swift-lm synced 2026-08-14: Qwen3.5 JSON tool-call fallback, Qwen3.5 MTP speculative decoding, ThinkingBudget enforcement, KVCache limits, TurboFlash, CacheConfiguration engine, KVCacheRound staged rounds. coreai-models synced d13b882: iOS export contract. ReasoningEventEmitter ✅ (12 refs), KVCacheRuntime ✅ (turboQuant/affine). Gaps: upstream ThinkingBudget hard-budget enforcement ❌ (P1), AgentLoop×SessionPool ❌ (P1), CoreAI grammar ❌ (P1)
+- **Upstream pin d667610** — mlx-swift-lm synced 2026-08-14: Qwen3.5 JSON tool-call fallback, Qwen3.5 MTP speculative decoding, ThinkingBudget enforcement, KVCache limits, TurboFlash, CacheConfiguration engine, KVCacheRound staged rounds. ReasoningEventEmitter ✅ (12 refs), KVCacheRuntime ✅ (turboQuant/affine). Gaps: upstream ThinkingBudget hard-budget enforcement ❌ (P1), CoreAI grammar ❌ (P1 — uses MLX grammar stack, need coreai-models grammar stack), AgentLoop gap: dead code
 
 ### Bug Fixes
 
@@ -98,4 +98,4 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ---
 
-*Last updated: 2026-08-13. Current HEAD: d9b060d.*
+*Last updated: 2026-08-14. Current HEAD: 14e21cb.*

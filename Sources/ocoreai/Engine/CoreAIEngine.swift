@@ -414,8 +414,17 @@ struct EngineFactory: Sendable {
                 options: options
             )
         case .pipelined:
-            throw InferenceError.engineUnavailable(
-                "pipelined engine not yet available (requires GPU-direct sampling + buffer rotation)"
+            // CoreAIPipelinedEngine implements the same InferenceEngine contract
+            // as the other two variants (generate/reset(to:)/warmup/cancel).
+            // Grammar/constrained decoding is not wired to the pipelined decode
+            // loop yet (tracks upstream coreai-models #146/#170 — GPU bitmask).
+            // A grammar request hitting this engine warns and runs unconstrained
+            // (EngineInference CoreAI branch). Auto-detect keeps the
+            // grammar-capable sequential path for .dynamic structures.
+            return try await CoreAIPipelinedEngine(
+                config: parsedConfig,
+                preparedModel: preparedModel,
+                options: options
             )
         case .staticShape:
             return try await CoreAIStaticShapeEngine(
