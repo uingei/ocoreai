@@ -2,9 +2,16 @@ repos:
 
 - repo: local
   hooks:
+    # swift-format: format ONLY the staged Swift files (pre-commit passes their
+    # names as trailing args; `$FILENAME` expands to that list). The previous
+    # `--in-place --recursive .` entry reformatted the whole tree on every
+    # commit — including untracked/modified files that were NOT part of the
+    # change — which produced 9+ files of pure-format churn in the working
+    # tree per commit and forced `git commit --no-verify` as a workaround.
+    # In-place mode was verified to touch only the named files.
     - id: swift-format
       name: swift-format
       language: system
-      entry: swift-format format --in-place --configuration .swift-format --recursive .
+      entry: swift-format format --in-place --configuration .swift-format
       require_serial: true
       types: [swift]
