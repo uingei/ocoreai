@@ -15,7 +15,10 @@ final class FixedMTLBufferState {
     var stateCount: Int { bindings.count }
 
     private var bindings:
-        [(name: String, buffer: MTLBuffer, scalarType: NDArray.ScalarType, shape: [Int], strides: [Int])]
+        [(
+            name: String, buffer: MTLBuffer, scalarType: NDArray.ScalarType, shape: [Int],
+            strides: [Int]
+        )]
 
     init(
         states: [(name: String, descriptor: NDArrayDescriptor)],
@@ -30,7 +33,9 @@ final class FixedMTLBufferState {
             let resolved = desc.resolvingDynamicDimensions(desc.shape)
             let strides = resolved.preferredStrides
             let byteCount = resolved.minimumByteCount
-            guard let buffer = device.makeBuffer(length: max(byteCount, 64), options: .storageModeShared)
+            guard
+                let buffer = device.makeBuffer(
+                    length: max(byteCount, 64), options: .storageModeShared)
             else {
                 throw InferenceRuntimeError.bufferAllocationFailed("\(name) (\(byteCount) bytes)")
             }
@@ -61,6 +66,5 @@ final class FixedMTLBufferState {
         }
     }
 }
-
 
 #endif

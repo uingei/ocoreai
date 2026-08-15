@@ -167,7 +167,7 @@ final class CoreAIStaticShapeEngine: InferenceEngine, @unchecked Sendable {
         }
         if descriptor.stateNames.count >= 2 {
             guard descriptor.stateNames.contains(Self.keyCacheName),
-                  descriptor.stateNames.contains(Self.valueCacheName)
+                descriptor.stateNames.contains(Self.valueCacheName)
             else {
                 throw InferenceRuntimeError.invalidState(
                     "\u{5c}\(functionName) missing KV cache states")
@@ -229,8 +229,8 @@ final class CoreAIStaticShapeEngine: InferenceEngine, @unchecked Sendable {
         for name in extendFunctionNames {
             let parts = Array(name.split(separator: "_").suffix(2))
             guard parts.count == 2,
-                  let ctx = Int(parts[0]),
-                  let seq = Int(parts[1])
+                let ctx = Int(parts[0]),
+                let seq = Int(parts[1])
             else { continue }
             pairs.append((ctx, seq))
         }
@@ -240,9 +240,11 @@ final class CoreAIStaticShapeEngine: InferenceEngine, @unchecked Sendable {
         }
         let selectedSeq = sorted.first(where: { $0.1 >= numInputTokens })?.1 ?? maxPair.1
         let candidates = pairs.filter { $0.1 == selectedSeq }
-        guard let selected = candidates
-            .sorted(by: { $0.0 < $1.0 })
-            .first(where: { $0.0 > currentPosition })
+        guard
+            let selected =
+                candidates
+                .sorted(by: { $0.0 < $1.0 })
+                .first(where: { $0.0 > currentPosition })
         else {
             throw InferenceRuntimeError.invalidState(
                 "No graph: cache>=\u{5c} \(currentPosition), seq=\u{5c}\(selectedSeq)")
@@ -281,7 +283,10 @@ final class CoreAIStaticShapeEngine: InferenceEngine, @unchecked Sendable {
         samplingConfiguration: SamplingConfiguration,
         inferenceOptions: InferenceOptions
     ) async throws -> GenerationSequence {
-        _activeToken.withLock { $0?.cancel(); $0 = nil }
+        _activeToken.withLock {
+            $0?.cancel()
+            $0 = nil
+        }
 
         if history.count > 0 {
             let (cp, _) = history.resolve(input: input)
@@ -340,7 +345,7 @@ final class CoreAIStaticShapeEngine: InferenceEngine, @unchecked Sendable {
             let desc = try functionDescriptor(for: graphName)
 
             guard case .ndArray(let kd) = desc.stateDescriptor(of: Self.keyCacheName),
-                  case .ndArray(let vd) = desc.stateDescriptor(of: Self.valueCacheName)
+                case .ndArray(let vd) = desc.stateDescriptor(of: Self.valueCacheName)
             else {
                 throw InferenceRuntimeError.invalidState("No KV cache desc for \(graphName)")
             }
@@ -395,7 +400,9 @@ final class CoreAIStaticShapeEngine: InferenceEngine, @unchecked Sendable {
             guard gatherFunctionNames.contains(gName) else {
                 throw InferenceRuntimeError.invalidState("No gather: \(gName)")
             }
-            guard let gathered = try await runGather(tokenIDs: Array(batchTokens), batchSize: batchSize)
+            guard
+                let gathered = try await runGather(
+                    tokenIDs: Array(batchTokens), batchSize: batchSize)
             else { throw InferenceRuntimeError.invalidState("Gather \(gName) no output") }
             inputs[txName] = gathered
         }
@@ -443,7 +450,7 @@ final class CoreAIStaticShapeEngine: InferenceEngine, @unchecked Sendable {
         let desc = try functionDescriptor(for: name)
 
         guard let td = desc.inputDescriptor(of: "in_new_token_ids"),
-              case .ndArray(let nd) = td
+            case .ndArray(let nd) = td
         else {
             throw InferenceRuntimeError.invalidState("No token desc for \(name)")
         }
@@ -472,14 +479,20 @@ final class CoreAIStaticShapeEngine: InferenceEngine, @unchecked Sendable {
     // MARK: - Lifecycle
 
     public func cancel() async throws {
-        _activeToken.withLock { $0?.cancel(); $0 = nil }
+        _activeToken.withLock {
+            $0?.cancel()
+            $0 = nil
+        }
     }
 
     public func reset(to tokenIndex: Int) async throws {
         guard tokenIndex >= 0 && tokenIndex <= processedTokenCount else {
             throw InferenceRuntimeError.invalidState("reset out of range")
         }
-        _activeToken.withLock { $0?.cancel(); $0 = nil }
+        _activeToken.withLock {
+            $0?.cancel()
+            $0 = nil
+        }
         if tokenIndex == 0 {
             processedTokenCount = 0
             history.clear()
@@ -515,11 +528,12 @@ extension CoreAIStaticShapeEngine {
         func setStopReason(_ reason: InferenceStopReason) { stopReasonStore.set(reason) }
 
         func makeAsyncIterator() -> Iterator {
-            Iterator(engine: engine, input: input,
-                     samplingConfiguration: samplingConfiguration,
-                     inferenceOptions: inferenceOptions,
-                     stopReasonStore: stopReasonStore,
-                     generationToken: generationToken)
+            Iterator(
+                engine: engine, input: input,
+                samplingConfiguration: samplingConfiguration,
+                inferenceOptions: inferenceOptions,
+                stopReasonStore: stopReasonStore,
+                generationToken: generationToken)
         }
     }
 }
@@ -571,10 +585,14 @@ extension CoreAIStaticShapeEngine.GenerationSequence {
         func next() async throws -> InferenceOutput? {
             if finished { return nil }
             if generationToken.isCancelled {
-                stopReasonStore.set(.cancelled); finishAndRelease(); return nil
+                stopReasonStore.set(.cancelled)
+                finishAndRelease()
+                return nil
             }
             guard step < maxTokens else {
-                stopReasonStore.setIfUnset(.maxTokens); finishAndRelease(); return nil
+                stopReasonStore.setIfUnset(.maxTokens)
+                finishAndRelease()
+                return nil
             }
             do {
                 try Task.checkCancellation()
@@ -586,16 +604,21 @@ extension CoreAIStaticShapeEngine.GenerationSequence {
                 let slice = inputTokens[old ..< engine.processedTokenCount]
                 engine.history.append(contentsOf: slice)
                 if generationToken.isCancelled {
-                    stopReasonStore.set(.cancelled); finishAndRelease(); return nil
+                    stopReasonStore.set(.cancelled)
+                    finishAndRelease()
+                    return nil
                 }
                 let nt = forcedContinuation?[step] ?? sampled
-                inputTokens.append(nt); step += 1
+                inputTokens.append(nt)
+                step += 1
                 return InferenceOutput(tokenId: nt, logits: returnsLogits ? logits : nil)
             } catch is CancellationError {
-                stopReasonStore.set(.cancelled); finishAndRelease()
+                stopReasonStore.set(.cancelled)
+                finishAndRelease()
                 throw CancellationError()
             } catch {
-                stopReasonStore.set(.error); finishAndRelease()
+                stopReasonStore.set(.error)
+                finishAndRelease()
                 throw error
             }
         }

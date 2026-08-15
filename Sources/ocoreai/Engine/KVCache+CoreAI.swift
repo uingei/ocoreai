@@ -62,7 +62,8 @@ protocol CoreAIKVCache {
     ///   - queue: Metal command queue for blit operations (if needed)
     /// - Returns: true if buffers were reallocated and need rebinding
     /// - Throws: `KVCacheError.capacityExceeded` if static cache cannot accommodate contextLength
-    mutating func ensureCapacity(forContextLength contextLength: Int, queue: MTLCommandQueue) throws -> Bool
+    mutating func ensureCapacity(forContextLength contextLength: Int, queue: MTLCommandQueue) throws
+        -> Bool
 
     /// Encode pipelined expansion onto a command buffer WITHOUT committing.
     /// Returns the old key/value buffers that must be kept alive until GPU completes.
@@ -116,7 +117,8 @@ enum KVCacheFactory {
         case 3:
             return "batch=\(shape[0]) × context=\(shape[1]) × features=\(shape[2])"
         case 4:
-            return "batch=\(shape[0]) × heads=\(shape[1]) × context=\(shape[2]) × head_dim=\(shape[3])"
+            return
+                "batch=\(shape[0]) × heads=\(shape[1]) × context=\(shape[2]) × head_dim=\(shape[3])"
         case 5:
             return
                 "\(shape[0]) layers × \(shape[1]) batch × \(shape[2]) heads × \(shape[3]) context × \(shape[4]) head_dim"
@@ -160,7 +162,8 @@ enum KVCacheFactory {
         }
 
         // Get size from explicit override, or use resolved strategy's default
-        let size = options.kvCacheSize ?? resolvedStrategy.defaultSize(maxContextLength: maxContextLength)!
+        let size =
+            options.kvCacheSize ?? resolvedStrategy.defaultSize(maxContextLength: maxContextLength)!
 
         // Validate strategy compatibility with model (only for explicit non-auto strategies)
         if options.kvCacheStrategy != .auto && options.kvCacheStrategy != .fixedSize && !isDynamic {
@@ -279,7 +282,9 @@ struct StaticKVCache: CoreAIKVCache {
         )
     }
 
-    mutating func ensureCapacity(forContextLength contextLength: Int, queue: MTLCommandQueue) throws -> Bool {
+    mutating func ensureCapacity(forContextLength contextLength: Int, queue: MTLCommandQueue) throws
+        -> Bool
+    {
         guard contextLength <= currentCapacity else {
             throw KVCacheError.capacityExceeded(
                 needed: contextLength,
@@ -398,14 +403,19 @@ struct GrowingKVCache: CoreAIKVCache {
     /// Wraps `encodePipelinedExpansion()` + commit
     /// Used by warmup and prompt pre-growth which has Core AI's compute stream.
     ///
-    mutating func ensureCapacity(forContextLength contextLength: Int, queue: MTLCommandQueue) throws -> Bool {
+    mutating func ensureCapacity(forContextLength contextLength: Int, queue: MTLCommandQueue) throws
+        -> Bool
+    {
         guard contextLength > currentCapacity else { return false }
 
         guard let cmd = queue.makeCommandBuffer() else {
             throw KVCacheError.allocationFailed(0)
         }
 
-        guard (try encodePipelinedExpansion(forContextLength: contextLength, commandBuffer: cmd)) != nil else {
+        guard
+            (try encodePipelinedExpansion(forContextLength: contextLength, commandBuffer: cmd))
+                != nil
+        else {
             return false
         }
         return true
@@ -449,8 +459,10 @@ struct GrowingKVCache: CoreAIKVCache {
         let newKeyByteCount = keyResolved.minimumByteCount
         let newValueByteCount = valueResolved.minimumByteCount
 
-        guard let newKeyBuf = device.makeBuffer(length: newKeyByteCount, options: .storageModeShared),
-            let newValueBuf = device.makeBuffer(length: newValueByteCount, options: .storageModeShared)
+        guard
+            let newKeyBuf = device.makeBuffer(length: newKeyByteCount, options: .storageModeShared),
+            let newValueBuf = device.makeBuffer(
+                length: newValueByteCount, options: .storageModeShared)
         else {
             throw KVCacheError.allocationFailed(newKeyByteCount + newValueByteCount)
         }
@@ -605,6 +617,5 @@ extension NDArray.ScalarType {
         }
     }
 }
-
 
 #endif

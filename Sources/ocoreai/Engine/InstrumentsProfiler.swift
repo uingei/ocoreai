@@ -169,7 +169,8 @@ struct ProfileSpan: ~Copyable {
         }
 
         if CLILogger.isEnabled(at: 3) {
-            CLILogger.log("END \(metadata) - \(duration / 1_000_000)ms", component: category.rawValue)
+            CLILogger.log(
+                "END \(metadata) - \(duration / 1_000_000)ms", component: category.rawValue)
         }
     }
 
@@ -195,7 +196,8 @@ struct ProfileSpan: ~Copyable {
         )
 
         if CLILogger.isEnabled(at: 3) {
-            CLILogger.log("END \(metadata) - \(duration / 1_000_000)ms", component: category.rawValue)
+            CLILogger.log(
+                "END \(metadata) - \(duration / 1_000_000)ms", component: category.rawValue)
         }
     }
 }
@@ -331,7 +333,9 @@ struct StatsReporter {
     }
 
     /// A row of stats data for table formatting
-    private typealias StatsRow = (group: CategoryGroup, category: SignpostCategory, stats: StatsStorage.AggregateStats)
+    private typealias StatsRow = (
+        group: CategoryGroup, category: SignpostCategory, stats: StatsStorage.AggregateStats
+    )
 
     // MARK: - Formatting Helpers (Static - Pure Functions)
 
@@ -356,14 +360,16 @@ struct StatsReporter {
     private static func buildHeader(layout: TableLayout) -> String {
         let groupPad = String(repeating: " ", count: layout.groupWidth - 5)
         let metricPad = String(repeating: " ", count: layout.metricWidth - 6)
-        return "| Group\(groupPad) | Metric\(metricPad) |    Min ms |    Avg ms |    Max ms | Count |  Total ms |"
+        return
+            "| Group\(groupPad) | Metric\(metricPad) |    Min ms |    Avg ms |    Max ms | Count |  Total ms |"
     }
 
     /// Format a single data row based on layout
     private static func formatRow(_ row: StatsRow, layout: TableLayout) -> String {
         let groupStr = row.group.rawValue
         let groupRowPad = String(repeating: " ", count: layout.groupWidth - groupStr.count)
-        let namePad = String(repeating: " ", count: layout.metricWidth - row.category.rawValue.count)
+        let namePad = String(
+            repeating: " ", count: layout.metricWidth - row.category.rawValue.count)
 
         // When count == 1, min/max are redundant (same as total), show "-"
         let minMillis: String
@@ -460,7 +466,8 @@ struct StatsReporter {
 /// Enhanced profiling system that integrates with Instruments
 @available(macOS 27.0, iOS 27.0, *)
 struct InstrumentsProfiler {
-    private static let log = OSLog(subsystem: "com.apple.coreai-models.performance", category: "performance")
+    private static let log = OSLog(
+        subsystem: "com.apple.coreai-models.performance", category: "performance")
 
     // MARK: - Unified Profiling Span API (New)
 
@@ -509,7 +516,9 @@ struct InstrumentsProfiler {
     ///   - step: Generation step number (optional, enables timeline tracking when provided)
     ///   - strategy: Sampling strategy name (e.g., "greedy", "temperature")
     ///   - temperature: Temperature value for sampling
-    static func beginSampleEncoding(step: Int? = nil, strategy: String, temperature: Double) -> ProfileSpan {
+    static func beginSampleEncoding(step: Int? = nil, strategy: String, temperature: Double)
+        -> ProfileSpan
+    {
         var metadata: [String: String] = [
             "strategy": strategy,
             "temperature": String(format: "%.3f", temperature),
@@ -567,7 +576,9 @@ struct InstrumentsProfiler {
     ///   - tokens: Number of tokens being processed
     ///   - processedCount: Total tokens processed so far
     ///   - engine: Engine identifier
-    static func beginLogitsInference(step: Int? = nil, tokens: Int, processedCount: Int, engine: String? = nil)
+    static func beginLogitsInference(
+        step: Int? = nil, tokens: Int, processedCount: Int, engine: String? = nil
+    )
         -> ProfileSpan
     {
         var metadata: [String: String] = [
@@ -592,7 +603,9 @@ struct InstrumentsProfiler {
     ///   - step: Generation step number (required for timeline tracking)
     ///   - tokens: Number of tokens being processed
     ///   - engine: Engine identifier
-    static func beginLogitsInference(step: Int, tokens: Int? = nil, engine: String? = nil) -> ProfileSpan {
+    static func beginLogitsInference(step: Int, tokens: Int? = nil, engine: String? = nil)
+        -> ProfileSpan
+    {
         var metadata: [String: String] = ["step": "\(step)"]
         if let tokens = tokens {
             metadata["tokens"] = "\(tokens)"
@@ -626,7 +639,9 @@ struct InstrumentsProfiler {
     ///   - step: Generation step number (optional, enables timeline tracking when provided)
     ///   - operation: Description of operation (e.g., "reshape+write", "rebind")
     ///   - engine: Engine identifier (e.g., "Core AI-Pipelined")
-    static func beginPrepareStep(step: Int? = nil, operation: String, engine: String? = nil) -> ProfileSpan {
+    static func beginPrepareStep(step: Int? = nil, operation: String, engine: String? = nil)
+        -> ProfileSpan
+    {
         var metadata: [String: String] = ["operation": operation]
         if let step = step {
             metadata["step"] = "\(step)"
@@ -646,7 +661,9 @@ struct InstrumentsProfiler {
     ///   - step: Generation step number (optional, enables timeline tracking when provided)
     ///   - operation: Description of cache operation (e.g., "grow", "rebind", "init")
     ///   - engine: Engine identifier
-    static func beginCacheManagement(step: Int? = nil, operation: String, engine: String? = nil) -> ProfileSpan {
+    static func beginCacheManagement(step: Int? = nil, operation: String, engine: String? = nil)
+        -> ProfileSpan
+    {
         var metadata: [String: String] = ["operation": operation]
         if let step = step {
             metadata["step"] = "\(step)"
@@ -843,5 +860,3 @@ private struct MachTaskBasicInfo {
 }
 
 private let machTaskBasicInfo: Int32 = 20
-
-

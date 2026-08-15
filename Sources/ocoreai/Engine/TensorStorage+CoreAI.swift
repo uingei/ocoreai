@@ -92,9 +92,11 @@ struct GrowingLogitsBuffer: ~Copyable {
         let resolved = baseDescriptor.resolvingDynamicDimensions([1, newCapacity, vocabSize])
         let byteCount = resolved.minimumByteCount
 
-        guard let newBuffer = device.makeBuffer(length: byteCount, options: .storageModeShared) else {
+        guard let newBuffer = device.makeBuffer(length: byteCount, options: .storageModeShared)
+        else {
             throw InferenceRuntimeError.genericError(
-                "Failed to grow logits buffer from \(currentCapacity) to \(newCapacity) tokens (\(byteCount) bytes)")
+                "Failed to grow logits buffer from \(currentCapacity) to \(newCapacity) tokens (\(byteCount) bytes)"
+            )
         }
 
         self.metalBuffer = newBuffer
@@ -102,6 +104,5 @@ struct GrowingLogitsBuffer: ~Copyable {
         return true
     }
 }
-
 
 #endif

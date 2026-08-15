@@ -543,12 +543,14 @@ enum AgentLoop {
     ) async -> (verified: [String], converge: Bool) {
         let allFailed = results.allSatisfy { result in
             result.hasPrefix("[tool-error:")
-            || result.hasPrefix("[tool-output-filtered:")
-            || result.isEmpty
-            || result.count < 3
+                || result.hasPrefix("[tool-output-filtered:")
+                || result.isEmpty
+                || result.count < 3
         }
         if allFailed {
-            logger.warning("AgentLoop iter \(iteration): all \(results.count) tools returned errors — forcing convergence")
+            logger.warning(
+                "AgentLoop iter \(iteration): all \(results.count) tools returned errors — forcing convergence"
+            )
             return (results, true)
         }
         return (results, false)

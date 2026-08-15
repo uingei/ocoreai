@@ -223,7 +223,9 @@ enum StateHandlerFactory {
     ) -> [(name: String, kind: StateKind)] {
         let names = descriptor.stateNames
         if let kinds = stateKinds {
-            return names.map { name in (name, kinds[name] ?? inferKind(name: name, descriptor: descriptor)) }
+            return names.map { name in
+                (name, kinds[name] ?? inferKind(name: name, descriptor: descriptor))
+            }
         }
         if names.count == 2 {
             return names.map { ($0, StateKind.kvCache) }

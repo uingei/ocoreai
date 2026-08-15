@@ -120,13 +120,16 @@ struct FMToolProxy: FoundationModels.Tool {
             // Should never happen — empty object schema is valid per SDK.
             // If it does, the FM path caller (tryToBuildSchema) already has a ?? fallback
             // to this same value, so we use a secondary decode path.
-            return (try? {
-                let json = #"{"type":"string"}"#.data(using: .utf8)!
-                return try JSONDecoder().decode(FoundationModels.GenerationSchema.self, from: json)
-            }()) ?? {
-                // Absolute last resort — should be unreachable
-                fatalError("FMToolBridge: empty schema decode failed (sdk regression)")
-            }()
+            return
+                (try? {
+                    let json = #"{"type":"string"}"#.data(using: .utf8)!
+                    return try JSONDecoder().decode(
+                        FoundationModels.GenerationSchema.self, from: json)
+                }())
+                ?? {
+                    // Absolute last resort — should be unreachable
+                    fatalError("FMToolBridge: empty schema decode failed (sdk regression)")
+                }()
         }
     }
 }
