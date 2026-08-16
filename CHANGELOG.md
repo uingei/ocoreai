@@ -2,7 +2,32 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-08-13
+## [Unreleased] — 2026-08-14 → 2026-08-16
+
+### Features
+
+- **CoreAI grammar constrained decoding** (b69b934) — `TokenizersMLXTokenizerAdapter` (swift-transformers → `MLXLMCommon.Tokenizer`, no MLX tensor deps) unblocks the CoreAI bootstrap guard; `CoreAISequentialEngine.startConstrainedDecoding`/`feedToken` decode-step loop drives xgrammar (`MLXCXGrammar` C shim) mask/acceptToken/rollback. GuidedGeneration 13/13 green. Replaces the 2026-08-13 "fails on CoreAI path" finding.
+- **CoreAI .pipelined variant wired** (c4c0a43) — `CoreAIPipelinedEngine` (1,352 LOC) constructed like .sequential/.staticShape (was: `engineUnavailable` throw). Grammar stays on the sequential path (tracks upstream coreai-models #146/#170 GPU bitmask on pipelined); a grammar request hitting the pipelined engine warns and runs unconstrained.
+- **ThinkingBudget hard budget** (686161c) — upstream `ThinkingBudgetProcessor` wired into the std reasoning path via `GenerationComponents.applyingThinkingBudget` (EngineInference.swift:3345); orthogonal to the ocoreai ThinkingBudget actor.
+
+### Bug Fixes
+
+- **Multi-tool-call append** (773eeda) — ChatHandler tool-call collection appends instead of overwriting; `ToolCallParser.flush()` can yield multiple tool calls per turn (all-but-last were silently dropped).
+- **CoreAI sampler error propagation** (773eeda, MPSGraphSamplers #169 alignment) — completion `(Int32) -> Void` → `(Int32, Error?) -> Void`; 16 failure paths now classify into typed `MPSGraphSamplerError`s instead of silent `completion(0)`; `CoreAIPipelinedEngine` propagates via `continuation.finish(throwing:)`.
+
+### Tooling / CI
+
+- **Pin guard** (773eeda) — Package.swift: DO NOT bump mlx-swift-lm past `d667610`. Upstream `d7dc03d` (#512) adds `TokenStreamEvent.rejectedToolCall`; the FM-trait switches at `MLXLanguageModel.swift:1890/1943` don't handle it → build-fail under `FoundationModelsIntegration && canImport(FoundationModels, _version: 2)`.
+- **pre-commit** — scope swift-format to staged files (5741015), apply to 9 files (ea79b2a), restore hook verbatim from mlx-swift-lm (e8dc47f).
+- **QC zero-crash-risk gates** (4624d29) — `.swiftlint.yml` crash rules pinned (`fatal_error_message` = error; `force_unwrapping`/`force_cast`/`force_try`/`implicitly_unwrapped_optional` = warning), CI gates wired. `Sources/` now: 0 `fatalError`, 1 `precondition` (CoreAIPipelinedEngine.swift:285, structural invariant on init), 2 debug-only `assert` (Tools/ToolEntry.swift:74, Engine/KVCache+CoreAI.swift:541).
+
+### Documentation
+
+- **Baseline accuracy pass** (this entry) — AGENTS.md / README.md / README.zh.md corrected: CoreAI grammar + pipelined now wired, pin state, LOC/counts, platform floor (macOS 14 / iOS 17), model name.
+
+---
+
+## 2026-08-13
 
 ### Upstream Sync
 
@@ -12,7 +37,7 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ### Features
 
-- **Upstream alignment verified** — Full source-level audit of MLX/CoreAI/upstream alignment. ReasoningEventEmitter ✅ (7 code refs), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge L635). AgentLoop gap: dead code (556 LOC, 0 callers — removed from inference pipeline). CoreAI grammar: `_runConstrainedDecoding` uses MLX grammar stack (`MLXGuidedGeneration`); fails on CoreAI path (`mlxModelHandle=nil`). Upstream coreai-models has independent grammar stack (`CXGrammar` → `ConstrainedGenerationSession`) not yet consumed.
+- **Upstream alignment verified** — Full source-level audit of MLX/CoreAI/upstream alignment. ReasoningEventEmitter ✅ (7 code refs), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge L635). AgentLoop gap: dead code (556 LOC, 0 callers — removed from inference pipeline; module still present). CoreAI grammar: `_runConstrainedDecoding` uses MLX grammar stack (`MLXGuidedGeneration`); fails on CoreAI path (`mlxModelHandle=nil`). Upstream coreai-models has independent grammar stack (`CXGrammar` → `ConstrainedGenerationSession`) not yet consumed. *(Superseded 2026-08-15: see [Unreleased] above — b69b934)*
 - **macOS/iOS dual deploy target** — `Package.swift` declares macOS 14 + iOS 17 minimum. iOS build skips HTTP bridge (L500 `#else`), runs SwiftUI-only Fast Path. CoreAI gate: `#if canImport(CoreAI)` + `@available(macOS 27.0, iOS 27.0, *)` dual-gating
 - **P0: Compute channel visibility** — Live `ComputeChannel` badge in ChatView streaming indicator + Dashboard health bar, wired from `HardwareRouter` → `EnginePool` → `AppState` (EN/ZH i18n)
 - **P1: Thermal-pressure channel-shift toast** — Auto-dismiss toast on thermal/memory pressure events with from→to channel icons; `ChannelShiftToastOverlay` at ChatView bottom; toast i18n for trigger reason + VoiceOver a11y label
@@ -26,7 +51,7 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 - **Persistent-perception system** — PerceptionEngine (13 files, 3049 LOC in `Multimodal/`): full 7-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
 - **CoreAI sequential engine family alignment** — Option A p1: align CoreAI engine types with upstream sequential/variant architecture
 - **MTP speculative decoding** — `generate(::mtpDrafter:)` path with streaming reasoning events
-- **Upstream pin d667610** — mlx-swift-lm synced 2026-08-14: Qwen3.5 JSON tool-call fallback, Qwen3.5 MTP speculative decoding, ThinkingBudget enforcement, KVCache limits, TurboFlash, CacheConfiguration engine, KVCacheRound staged rounds. ReasoningEventEmitter ✅ (12 refs), KVCacheRuntime ✅ (turboQuant/affine). Gaps: upstream ThinkingBudget hard-budget enforcement ❌ (P1), CoreAI grammar ❌ (P1 — uses MLX grammar stack, need coreai-models grammar stack), AgentLoop gap: dead code
+- **Upstream pin d667610** — mlx-swift-lm synced 2026-08-14: Qwen3.5 JSON tool-call fallback, Qwen3.5 MTP speculative decoding, ThinkingBudget enforcement, KVCache limits, TurboFlash, CacheConfiguration engine, KVCacheRound staged rounds. ReasoningEventEmitter ✅ (12 refs), KVCacheRuntime ✅ (turboQuant/affine). Gaps at time of entry: ThinkingBudget hard-budget ❌ (✅ wired 08-14, 686161c), CoreAI grammar ❌ (✅ wired 08-15, b69b934 + c4c0a43 pipelined), AgentLoop gap: dead code
 
 ### Bug Fixes
 
