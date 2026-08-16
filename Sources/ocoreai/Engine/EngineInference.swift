@@ -755,6 +755,7 @@ extension EnginePool {
 
     // MARK: - CoreAI Constrained Decoding
 
+    #if canImport(CoreAI)
     /// CoreAI-native grammar constrained decoding loop.
     ///
     /// Architecture: CoreAI is CoreAI, MLX is MLX — no cross-framework fallback.
@@ -1054,6 +1055,8 @@ extension EnginePool {
             continuation.finish()
         }
     }
+
+    #endif  // canImport(CoreAI)
 
     /// Apply xgrammar bitmask to logits — disallowed tokens → -inf.
     /// LSB-first int32 bitmask: bit `i` of word `w` covers token `w*32+i`.
