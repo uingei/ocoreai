@@ -176,7 +176,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 | **Config** | `Config/` | YAML config with hardware auto-detection |
 | **MCP** | `MCP/` | JSON-RPC 2.0 tool server via stdio transport |
 | **Multimodal** | `Multimodal/` | Camera, screen, audio I/O, TTS (Apple Speech), Vision OCR |
-| **Security** | `Security/` | Keychain store, structured logger, audit trail, ContentGuard, AdaptiveThreshold |
+| **Security** | `Security/` | Structured logger, audit trail, ContentGuard, AdaptiveThreshold, crash handler |
 | **Reasoning** | `Reasoning/` | ComplexityAnalyzer, ThinkingBudget (adaptive reasoning depth) |
 - **Profiling** | `Profiling/` | TimingHooks (latency/TTFB) |
 | **Metrics** | `Metrics/` | Prometheus metrics collection and export |
@@ -191,7 +191,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 - **Rate limiting** — Token-bucket rate limiter with configurable burst/window.
 - **ContentGuard** — 3-stage input/output filtering for sensitive content.
 - **AdaptiveThreshold** — EMA-based health monitoring with dynamic threshold adjustment.
-- **StructuredLogger** — Structured audit trail, log file rotation, macOS Keychain integration.
+- **StructuredLogger** — Structured audit trail, log file rotation.
 - **Global crash handler** — On uncaught exception or POSIX signal (segv/abort/bus), writes structured crash log to `~/Library/Application Support/ocoreai/logs/`, then exits.
 - **Concurrency** — Swift 6 strict concurrency, actor isolation on scheduler/tool registry/inference engine. All 41 `@unchecked Sendable` declarations justified with concurrency comments.
 

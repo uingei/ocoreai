@@ -647,7 +647,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 
         .hubTokensTitle: "Hub Tokens",
         .hubTokensHint:
-            "Tokens for accessing model hubs (HuggingFace, ModelScope). Stored securely in macOS Keychain.",
+            "Tokens for accessing model hubs (HuggingFace, ModelScope). HF_TOKEN / MODELSCOPE_TOKEN env vars take precedence.",
         .notConfigured: "Not configured",
         .enterTokenPlaceholder: "Enter token...",
         .hubHuggingFace: "HuggingFace",

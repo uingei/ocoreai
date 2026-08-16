@@ -3,7 +3,7 @@
 /// ConfigStruct.swift — Configuration data model with validation
 ///
 /// Declarative config schema backed by `Codable` + `Sendable`.
-/// All sensitive fields use `.env(name)` or `${KEYCHAIN:…}` — never plaintext.
+/// All sensitive fields use `.env(name)` — never plaintext.
 ///
 /// File location: `~/.ocoreai/config.yaml`
 
