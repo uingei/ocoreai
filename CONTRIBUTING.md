@@ -72,7 +72,7 @@ Before committing, run the 8-step verification pipeline:
 
 1. **Diff extraction** — `git diff --cached`
 2. **Static security scan** — hardcoded keys, secrets, injection patterns
-3. **Baseline test + lint** — `swift test`, SwiftLint
+3. **Baseline test + format** — `swift test`, swift-format gate
 4. **Self-review checklist** — secrets, input validation, debug leftovers
 5. **Standards review** — repo conventions + Swift smell baseline
 6. **Spec review** — implementation fidelity to the issue/description

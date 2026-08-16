@@ -54,7 +54,7 @@ swift test --enable-code-coverage        # with coverage
 swift test --filter OcoreAITests.System  # system tests only
 ```
 
-**Linting:** SwiftLint via `.swiftlint.yml`. Bug-catching rules only — not style enforcement. `force_unwrapping: warning`, `implicitly_unwrapped_optional: warning`. Run via `swiftlint lint`.
+**Linting:** none — aligned with upstream (mlx-swift-lm / coreai-models ship no swiftlint). swift-format via `.swift-format` (pinned 603.0.0) is the only style gate, enforced in CI and pre-commit. Crash-safe coding (no `try!`/`as!`/`fatalError` in Sources/) is a code convention, not a CI gate.
 
 **Build verification is MANDATORY** before claiming completion. `swift build` exit code 0 = done.
 

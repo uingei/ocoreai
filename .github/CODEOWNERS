@@ -43,7 +43,7 @@
 # ─── Configuration ───────────────────────────────────────────────
 /Package.swift                      @uingei
 /Package.resolved                   @uingei
-/.swiftlint.yml                     @uingei
+/.swift-format                      @uingei
 /.editorconfig                      @uingei
 
 # ─── Scripts ──────────────────────────────────────────────────────

@@ -100,7 +100,6 @@ struct OcoreaiShellView: View {
             TabDetailView()
         }
         .navigationSplitViewStyle(.balanced)
-        // swiftlint:disable:next identifier_name
         .environment(\.ocoreaiTheme, theme)
         // P1-fix: ScenePhase .inactive (command-tab, alert popup) should not throttle
         // polling — only background truly means the user isn't looking.

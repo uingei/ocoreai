@@ -19,7 +19,7 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 - **Pin guard** (773eeda) — Package.swift: DO NOT bump mlx-swift-lm past `d667610`. Upstream `d7dc03d` (#512) adds `TokenStreamEvent.rejectedToolCall`; the FM-trait switches at `MLXLanguageModel.swift:1890/1943` don't handle it → build-fail under `FoundationModelsIntegration && canImport(FoundationModels, _version: 2)`.
 - **pre-commit** — scope swift-format to staged files (5741015), apply to 9 files (ea79b2a), restore hook verbatim from mlx-swift-lm (e8dc47f).
-- **QC zero-crash-risk gates** (4624d29) — `.swiftlint.yml` crash rules pinned (`fatal_error_message` = error; `force_unwrapping`/`force_cast`/`force_try`/`implicitly_unwrapped_optional` = warning), CI gates wired. `Sources/` now: 0 `fatalError`, 1 `precondition` (CoreAIPipelinedEngine.swift:285, structural invariant on init), 2 debug-only `assert` (Tools/ToolEntry.swift:74, Engine/KVCache+CoreAI.swift:541).
+- **QC zero-crash-risk gates** (4624d29) — `.swiftlint.yml` crash rules pinned (`fatal_error_message` = error; `force_unwrapping`/`force_cast`/`force_try`/`implicitly_unwrapped_optional` = warning), CI gates wired. `Sources/` now: 0 `fatalError`, 1 `precondition` (CoreAIPipelinedEngine.swift:285, structural invariant on init), 2 debug-only `assert` (Tools/ToolEntry.swift:74, Engine/KVCache+CoreAI.swift:541). _Superseded (2026-08-17): swiftlint removed to align with upstream (mlx-swift-lm / coreai-models ship no swiftlint); `.swiftformat`-era `make format` also replaced with swift-format. Crash-safe coding remains a code convention, no longer a CI gate._
 
 ### Documentation
 

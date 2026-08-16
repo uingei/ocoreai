@@ -42,20 +42,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup SwiftLint
-        run: |
-          brew install swiftlint
-          # Version lock (mlx-swift-lm lesson: "a new release can change
-          # formatting rules and reformat files no PR touched"). If brew ever
-          # ships a newer SwiftLint, fail loudly instead of silently
-          # re-scoring the baseline.
-          SWIFTLINT_VERSION="$(swiftlint version 2>/dev/null | tr -d '[:space:]')"
-          if [ "$SWIFTLINT_VERSION" != "0.65.0" ]; then
-            echo "❌ SwiftLint $SWIFTLINT_VERSION != pinned 0.65.0 — bump this pin deliberately (with a re-lint), never silently."
-            exit 1
-          fi
-          echo "✅ SwiftLint pinned: $SWIFTLINT_VERSION"
-
+      # swift-format is the only style gate — aligned with upstream
+      # (mlx-swift-lm / coreai-models ship no swiftlint; .swift-format is the
+      # shared config surface). Version-locked: a new swift-format release can
+      # change formatting rules and reformat files no PR touched.
       - name: Setup swift-format
         run: |
           brew install swift-format
@@ -86,39 +76,6 @@ jobs:
             exit 1
           fi
           echo "✅ swift-format gate: zero files reformatted"
-
-      # Full lint report — advisory only (style errors expected)
-      - name: Run SwiftLint (report)
-        run: |
-          set -euo pipefail
-          swiftlint lint --config .swiftlint.yml 2>&1 | tee /tmp/swiftlint-full.txt || true
-          ERRORS=$(grep -c 'error:' /tmp/swiftlint-full.txt || true)
-          WARNINGS=$(grep -c 'warning:' /tmp/swiftlint-full.txt || true)
-          echo ""
-          echo "📊 SwiftLint report: $ERRORS errors, $WARNINGS warnings"
-
-      # Crash-risk rules MUST be zero in Sources/
-      - name: SwiftLint crash-risk gate (Sources/)
-        run: |
-          set -euo pipefail
-          swiftlint lint --config .swiftlint.yml Sources/ 2>&1 \
-            | tee /tmp/swiftlint-sources.txt || true
-          # swiftlint output line format: "path:ln:col: warning: Human Name (rule_id)"
-          # — severity BEFORE the human name; rule id is the LAST token in parens.
-          # Match BOTH severities: force_unwrapping / implicitly_unwrapped_optional
-          # ride at warning; fatal_error_message / empty_count ride at error.
-          FU=$(grep -cE '(warning|error):.*Force Unwrapping' /tmp/swiftlint-sources.txt || true)
-          IU=$(grep -cE '(warning|error):.*Implicitly Unwrapped Optional' /tmp/swiftlint-sources.txt || true)
-          FE=$(grep -cE '(warning|error):.*Fatal Error Message' /tmp/swiftlint-sources.txt || true)
-          EC=$(grep -cE '(warning|error):.*Empty Count' /tmp/swiftlint-sources.txt || true)
-          echo "force_unwrapping=$FU  implicitly_unwrapped=$IU  fatalError=$FE  empty_count=$EC"
-          FAIL=0
-          [ "$FU" -gt 0 ] && echo "BLOCKED: force_unwrapping in Sources/" && FAIL=1
-          [ "$IU" -gt 0 ] && echo "BLOCKED: implicitly_unwrapped_optional in Sources/" && FAIL=1
-          [ "$FE" -gt 0 ] && echo "BLOCKED: fatalError without message in Sources/" && FAIL=1
-          [ "$EC" -gt 0 ] && echo "BLOCKED: empty_count in Sources/" && FAIL=1
-          if [ "$FAIL" -eq 1 ]; then exit 1; fi
-          echo "OK: crash-risk rules clean in Sources/"
 
       # Secret scanning — detect hardcoded keys, tokens, passwords in the diff
       # Source: references/zeroclaw/.githooks/pre-commit + gitleaks.toml

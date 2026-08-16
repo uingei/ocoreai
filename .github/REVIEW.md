@@ -61,7 +61,7 @@ reported. This prevents noisy reviews.
 
 Do **NOT** flag these:
 - Pre-existing issues — unchanged code that has always been there
-- Lint/formatter territory — what SwiftLint or swift-format already enforces
+- Lint/formatter territory — what swift-format already enforces (upstream-aligned; no swiftlint in this repo)
 - Compiler/type-checker territory — what `swift build` catches
 - Pedantic nitpicks — a senior engineer wouldn't mention them
 - General vague concerns — without concrete evidence
@@ -209,7 +209,7 @@ Run before `git commit`. 8 steps, auto-fix loop after step 5.
 ```
 Step 1  Diff extraction        — git diff --cached
 Step 2  Static security scan   — hardcoded keys, secrets, injection
-Step 3  Baseline test + lint   — swift test, swiftlint
+Step 3  Baseline test + format  — swift test, swift-format gate
 Step 4  Self-review checklist  — 8 quick checks
 Step 5  Two-axis review        — Standards + Spec (with confidence gating)
 Step 6  Evaluate results       — pass / fail decision
@@ -234,7 +234,7 @@ swift build                                    # debug
 swift build -c release                         # release
 swift build -c release --traits appStore       # appStore trait
 swift test --enable-code-coverage              # tests
-swiftlint lint Sources/ 2>&1 | tail -3        # lint baseline
+swift-format lint --strict --recursive Sources/ Tests/  # format gate
 bash scripts/audit.swift_patterns.sh           # pattern audit
 ```
 

@@ -3,12 +3,12 @@
 #
 # Build:      build, release
 # Test:       test, test-verbose, test-coverage
-# Quality:    format, format-check, lint, lint-fix, audit
+# Quality:    format, format-check, audit
 # Dev:        clean, metallib, help
 # CI:         ci-local (full local pipeline)
 
 SHELL := /bin/bash
-.PHONY: all build release test test-verbose test-coverage format format-check lint lint-fix audit clean metallib help ci-local
+.PHONY: all build release test test-verbose test-coverage format format-check audit clean metallib help ci-local
 
 all: build
 
@@ -43,33 +43,28 @@ test-coverage:
 		echo "→ Coverage data in .build/"
 
 ## ── Code Quality ───────────────────────────────────────────────────
+# swift-format is the only style gate — aligned with upstream
+# (mlx-swift-lm / coreai-models ship no swiftlint; .swift-format is
+# the shared config surface).
 
 format:
 	@echo "✨ Formatting Swift files..."
-	swiftformat . --config .swiftformat
+	swift-format format --in-place --recursive --parallel --configuration .swift-format Sources/ Tests/
+	@echo "Done. Reverted files by hand if you disagree: git diff / git checkout -- <path>"
 
 format-check:
 	@echo "🔍 Checking Swift format..."
-	swiftformat . --config .swiftformat --dryrun || \
-	(echo ""; echo "❌ Format check failed. Run 'make format' to fix."; exit 1)
-
-lint:
-	@echo "🔍 Running SwiftLint..."
-	@swiftlint lint --config .swiftlint.yml; \
-	EXIT=$$?; \
-	if [ $$EXIT -ne 0 ]; then \
-		echo ""; \
-		echo "❌ Lint failed (exit $$EXIT). Run 'make lint-fix' to auto-fix."; \
-		exit $$EXIT; \
+	@swift-format format --in-place --recursive --parallel --configuration .swift-format Sources/ Tests/
+	@CHANGED=$$(git diff --name-only -- Sources/ Tests/ | wc -l | tr -d ' '); \
+	if [ "$$CHANGED" -eq 0 ]; then \
+	  echo "✅ swift-format: zero files reformatted"; \
+	else \
+	  echo "❌ swift-format would reformat $$CHANGED file(s):"; \
+	  git diff --name-only -- Sources/ Tests/; \
+	  echo "Restored originals — run 'make format' to accept."; \
+	  git checkout -- Sources/ Tests/; \
+	  exit 1; \
 	fi
-
-lint-fix:
-	@echo "🔧 Auto-fixing lint issues..."
-	@swiftlint lint --config .swiftlint.yml --fix
-
-lint-report:
-	@echo "📊 Lint summary..."
-	@swiftlint lint --config .swiftlint.yml 2>&1 | grep "Found.*violations"
 
 audit:
 	@echo "🔍 Running static audit..."
@@ -89,7 +84,7 @@ metallib:
 
 ## ── CI Pipeline (Local) ───────────────────────────────────────────
 
-ci-local: clean format-check lint audit build test
+ci-local: clean format-check audit build test
 	@echo ""
 	@echo "✅ Full CI pipeline passed locally"
 
@@ -110,8 +105,6 @@ help:
 	@echo "Quality:"
 	@echo "  make format         Format all Swift files"
 	@echo "  make format-check   Check format compliance (exit 1 if dirty)"
-	@echo "  make lint           Run SwiftLint (exit 1 on violations)"
-	@echo "  make lint-fix       Auto-fix lint issues"
 	@echo "  make audit          Run static audit (failure pattern check)"
 	@echo ""
 	@echo "Dev:"
@@ -120,4 +113,4 @@ help:
 	@echo "  make help           Show this help"
 	@echo ""
 	@echo "CI:"
-	@echo "  make ci-local       Full local CI pipeline (clean → format → lint → audit → build → test)"
+	@echo "  make ci-local       Full local CI pipeline (clean → format → audit → build → test)"
