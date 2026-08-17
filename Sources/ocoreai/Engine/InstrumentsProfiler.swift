@@ -4,7 +4,9 @@
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
 import Foundation
+import Logging
 import Synchronization
+import os
 import os.signpost
 
 // MARK: - Unified Profiling Span System
@@ -132,9 +134,11 @@ struct ProfileSpan: ~Copyable {
         // deinit is called after consuming operations complete
         // Only warn if end() was never explicitly called
         if !wasEnded {
-            print("⚠️ PROFILING ERROR: ProfileSpan[\(category.rawValue)] was not explicitly ended!")
-            print("   This indicates a programming error. Always call span.end()")
-            print("   Metadata: \(metadata)")
+            let metaStr = metadata.map { "\($0.key)=\($0.value)" }.joined(separator: ", ")
+            let logger = Logger(label: "ocoreai.coreai.profiler")
+            logger.error(
+                "⚠️ PROFILING ERROR: ProfileSpan[\(category.rawValue)] was not explicitly ended! This indicates a programming error. Always call span.end() Metadata: \(metaStr)"
+            )
 
             // End signpost to avoid leaving it open, but DO NOT record stats
             // (stats would be inaccurate since we don't know when work actually ended)
@@ -288,180 +292,6 @@ extension StatsStorage {
             minNanoseconds = min(minNanoseconds, durationNanoseconds)
             maxNanoseconds = max(maxNanoseconds, durationNanoseconds)
         }
-    }
-}
-
-// MARK: - Stats Reporter (Presentation Layer)
-
-/// Formats and presents profiling statistics from StatsStorage
-///
-/// Responsible for presentation logic only:
-/// - `printVerboseTable()` - detailed ASCII table with all metrics
-///
-/// This separation follows Single Responsibility Principle:
-/// - StatsStorage: thread-safe data storage and aggregation
-/// - StatsReporter: presentation and formatting
-///
-/// NOTE: Summary printing is handled by `PerformanceMetrics.printSummary()` which
-/// combines token counts with timing from StatsStorage. Consider consolidating in future.
-@MainActor
-@available(macOS 27.0, iOS 27.0, *)
-struct StatsReporter {
-    private let storage: StatsStorage
-
-    /// Create a reporter for a specific storage instance
-    /// - Parameter storage: Storage to read stats from (typically `.shared`)
-    init(storage: StatsStorage) {
-        self.storage = storage
-    }
-
-    // MARK: - Table Layout Configuration
-
-    /// Column widths for verbose table formatting
-    private struct TableLayout {
-        let groupWidth: Int
-        let metricWidth: Int
-        let numWidth: Int
-        let countWidth: Int
-
-        static func calculate(rows: [StatsRow]) -> TableLayout {
-            TableLayout(
-                groupWidth: 7,
-                metricWidth: max(16, rows.map { $0.category.rawValue.count }.max() ?? 16),
-                numWidth: 9,
-                countWidth: 5
-            )
-        }
-    }
-
-    /// A row of stats data for table formatting
-    private typealias StatsRow = (
-        group: CategoryGroup, category: SignpostCategory, stats: StatsStorage.AggregateStats
-    )
-
-    // MARK: - Formatting Helpers (Static - Pure Functions)
-
-    /// Format a value in milliseconds with consistent 2 decimal places
-    private static func formatMilliseconds(_ seconds: TimeInterval) -> String {
-        let milliseconds = seconds * 1000.0
-        return String(format: "%9.2f", milliseconds)
-    }
-
-    /// Build the table border string based on layout
-    private static func buildBorder(layout: TableLayout) -> String {
-        "+" + String(repeating: "-", count: layout.groupWidth + 2)
-            + "+" + String(repeating: "-", count: layout.metricWidth + 2)
-            + "+" + String(repeating: "-", count: layout.numWidth + 2)
-            + "+" + String(repeating: "-", count: layout.numWidth + 2)
-            + "+" + String(repeating: "-", count: layout.numWidth + 2)
-            + "+" + String(repeating: "-", count: layout.countWidth + 2)
-            + "+" + String(repeating: "-", count: layout.numWidth + 2) + "+"
-    }
-
-    /// Build the header row string based on layout
-    private static func buildHeader(layout: TableLayout) -> String {
-        let groupPad = String(repeating: " ", count: layout.groupWidth - 5)
-        let metricPad = String(repeating: " ", count: layout.metricWidth - 6)
-        return
-            "| Group\(groupPad) | Metric\(metricPad) |    Min ms |    Avg ms |    Max ms | Count |  Total ms |"
-    }
-
-    /// Format a single data row based on layout
-    private static func formatRow(_ row: StatsRow, layout: TableLayout) -> String {
-        let groupStr = row.group.rawValue
-        let groupRowPad = String(repeating: " ", count: layout.groupWidth - groupStr.count)
-        let namePad = String(
-            repeating: " ", count: layout.metricWidth - row.category.rawValue.count)
-
-        // When count == 1, min/max are redundant (same as total), show "-"
-        let minMillis: String
-        let maxMillis: String
-        if row.stats.count == 1 {
-            minMillis = String(repeating: " ", count: 8) + "-"
-            maxMillis = String(repeating: " ", count: 8) + "-"
-        } else {
-            minMillis = formatMilliseconds(row.stats.minSeconds)
-            maxMillis = formatMilliseconds(row.stats.maxSeconds)
-        }
-
-        let avgMillis = formatMilliseconds(row.stats.avgSeconds)
-        let count = String(format: "%5d", row.stats.count)
-        let totalMillis = formatMilliseconds(row.stats.totalSeconds)
-
-        return
-            "| \(groupStr)\(groupRowPad) | \(row.category.rawValue)\(namePad) | \(minMillis) | \(avgMillis) | \(maxMillis) | \(count) | \(totalMillis) |"
-    }
-
-    /// Fetch and sort rows from storage
-    private func fetchAndSortRows() -> [StatsRow] {
-        let categories = storage.allCategories
-
-        var rows: [StatsRow] = []
-        for category in categories {
-            if let s = storage.stats(for: category) {
-                rows.append((category.group, category, s))
-            }
-        }
-
-        // Sort by group first, then by category name within group
-        rows.sort { (lhs, rhs) in
-            if lhs.group != rhs.group {
-                return lhs.group < rhs.group
-            }
-            return lhs.category.rawValue < rhs.category.rawValue
-        }
-
-        return rows
-    }
-
-    // MARK: - Public API
-
-    /// Print all recorded stats as a parsable aligned table (ASCII format)
-    ///
-    /// Output format (grouped by category):
-    /// ```
-    /// +---------+------------------+----------+----------+----------+-------+----------+
-    /// | Group   | Metric           |   Min ms |   Avg ms |   Max ms | Count | Total ms |
-    /// +---------+------------------+----------+----------+----------+-------+----------+
-    /// | main    | ModelLoad        |  1540.60 |  1540.60 |  1540.60 |     1 |  1540.60 |
-    /// | main    | TokenizerLoad    |  1309.80 |  1309.80 |  1309.80 |     1 |  1309.80 |
-    /// | main    | Warmup           |   437.28 |   437.28 |   437.28 |     1 |   437.28 |
-    /// | decoder | Decode           |     0.04 |     0.08 |     0.12 |   100 |     7.46 |
-    /// | decoder | Extend           |     8.25 |    10.50 |    42.15 |    99 |  1039.50 |
-    /// | engine  | LogitsInference  |     6.79 |     8.02 |    36.75 |   100 |   802.15 |
-    /// +---------+------------------+----------+----------+----------+-------+----------+
-    /// ```
-    ///
-    func printVerboseTable() {
-        // Step 1: Fetch and sort data
-        let rows = fetchAndSortRows()
-
-        guard !rows.isEmpty else {
-            print("No profiling data recorded.")
-            return
-        }
-
-        // Step 2: Calculate layout
-        let layout = TableLayout.calculate(rows: rows)
-
-        // Step 3: Build border and header
-        let border = Self.buildBorder(layout: layout)
-        let header = Self.buildHeader(layout: layout)
-
-        // Step 4: Print table
-        print("")
-        print("==> Detailed Profiling Statistics (Overlapping, See docs/Runtime_Signposts.md)")
-        print(border)
-        print(header)
-        print(border)
-
-        // Step 5: Print data rows
-        for row in rows {
-            print(Self.formatRow(row, layout: layout))
-        }
-
-        print(border)
-        print("")
     }
 }
 

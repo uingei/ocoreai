@@ -401,7 +401,6 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
             let execDesc = MPSGraphExecutableExecutionDescriptor()
             execDesc.completionHandler = { [outputBuffer, outputOffset] (_, error) in
                 if let error = error {
-                    print("MPSGraph constrained argmax error: \(error)")
                     completion(0, error)
                     return
                 }
@@ -512,7 +511,6 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
         execDescriptor.completionHandler = {
             [outputBuffer, outputOffset] (resultsDictionary, error) in
             if let error = error {
-                print("MPSGraph argmax error: \(error)")
                 completion(0, error)
                 return
             }
@@ -619,7 +617,6 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
         let execDescriptor = MPSGraphExecutableExecutionDescriptor()
         execDescriptor.completionHandler = { [outputBuffer, outputOffset] (_, error) in
             if let error = error {
-                print("MPSGraph argmax error: \(error)")
                 completion(0, error)
                 return
             }
@@ -1054,7 +1051,6 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
             let execDesc = MPSGraphExecutableExecutionDescriptor()
             execDesc.completionHandler = { [outputBuffer, outputOffset] (_, error) in
                 if let error = error {
-                    print("MPSGraph constrained composite error: \(error)")
                     completion(0, error)
                     return
                 }
@@ -1165,7 +1161,6 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         let desc = MPSGraphExecutableExecutionDescriptor()
         desc.completionHandler = { [outputBuffer, outputOffset] (_, error) in
             if let error = error {
-                print("MPSGraph composite sampler error: \(error)")
                 completion(0, error)
                 return
             }
@@ -1250,7 +1245,6 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         let prefillExecDescriptor = MPSGraphExecutableExecutionDescriptor()
         prefillExecDescriptor.completionHandler = { [outputBuffer, outputOffset] (_, error) in
             if let error = error {
-                print("MPSGraph composite sampler error: \(error)")
                 completion(0, error)
                 return
             }

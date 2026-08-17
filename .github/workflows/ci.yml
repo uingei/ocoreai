@@ -141,7 +141,9 @@ jobs:
           restore-keys: |
             spm-deps-${{ matrix.os }}-
 
-      # macos-26: build-for-testing already runs tests (TEST BUILD SUCCEEDED)
+      # build-for-testing BUILDS the test product — it does NOT execute tests.
+      # The "Run tests (xcrun xctest)" step below is the actual test gate
+      # (upstream-aligned: mlx-swift-lm PR track = build-for-testing → xcrun xctest).
       # xcode-27: requires MetalToolchain — install before build
 
       - name: Install MetalToolchain (xcode-27)
@@ -156,7 +158,7 @@ jobs:
           export SWIFTC_SCAN_FOR_DEPS=0
           xcodebuild build-for-testing \
             -workspace ocoreai.xcworkspace \
-            -scheme ocoreai \
+            -scheme ocoreaiTests \
             -configuration Debug \
             -destination 'platform=macOS,arch=arm64' \
             -skipPackagePluginValidation \
@@ -164,6 +166,17 @@ jobs:
             ONLY_ACTIVE_ARCH=YES
         env:
           OCOREAI_BUILD: ci
+
+      # build-for-testing only compiles the test bundle. Tests must be
+      # EXECUTED in a dedicated step — `TEST BUILD SUCCEEDED` does NOT mean
+      # tests ran. This is the real test gate (757 Swift Testing tests).
+      - name: Run tests (xcrun xctest)
+        run: |
+          set -euo pipefail
+          XCB=$(ls -dt ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/Debug/ocoreaiTests.xctest 2>/dev/null | head -1 || true)
+          [ -n "$XCB" ] || { echo "❌ ocoreaiTests.xctest not found in DerivedData"; exit 1; }
+          echo "Running test bundle: $XCB"
+          xcrun xctest "$XCB"
 
       # ── Release build via xcodebuild ──
       - name: Build (xcodebuild, Release)
@@ -209,7 +222,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload test diagnostics
-        if: ${{ matrix.run_tests == true && failure() }}
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: test-diagnostics-${{ matrix.os }}
