@@ -5,7 +5,7 @@
 [![swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 14+ / iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests: 777](https://img.shields.io/badge/Tests-777%2F777-brightgreen)](Tests/)
+[![Tests: 757](https://img.shields.io/badge/Tests-757%2F757-brightgreen)](Tests/)
 
 ---
 
@@ -32,11 +32,11 @@ Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
 ocoreai unifies inference engine, agent orchestration, and persistence in one process:
 
-Dual inference backends — MLX (Metal GPU, default, dual-channel on-device inference via `MLXLanguageModel` + `ChatSession` pipeline) + CoreAI (6,278 LOC across 15 files: CoreAI*.swift ×8, StateHandler*.swift ×3, KVCache+CoreAI, TensorStorage+CoreAI, MPSGraphSamplers, TokenizersMLXTokenizerAdapter)
+Dual inference backends — MLX (Metal GPU, default, dual-channel on-device inference via `MLXLanguageModel` + `ChatSession` pipeline) + CoreAI (6,272 LOC across 15 files: CoreAI*.swift ×8, StateHandler*.swift ×3, KVCache+CoreAI, TensorStorage+CoreAI, MPSGraphSamplers, TokenizersMLXTokenizerAdapter)
 - **Adaptive hardware routing** — Real-time HardwareRouter dispatches requests to GPU / ANE / CPU based on thermal pressure, memory headroom, and GPU utilization. AdmissionGate enforces a 3-tier admission policy (allow → ANE-only → reject) with configurable abort margin. Live channel badge in ChatView streaming indicator + Dashboard health bar; thermal-pressure toast on channel shifts (EN/ZH i18n).
 - **Wired Memory GPU isolation** — hardware-level GPU memory bounds prevent OOM during inference.
 - **Thinking budget** — Adaptive token budget allocation driven by ComplexityAnalyzer scoring (length, intent, history dimensions) on Bridge Path. Fast Path (desktop GUI) has ThinkingBudget calibration loop wired but with simplified complexity input (constant 0.5 — no upstream ComplexityAnalyzer).
-- **Agent loop** — multi-turn tool use: the model reasons, calls registered tools, reads results, and iterates (up to 30 rounds, 180s timeout). Built-in tools for system info, skills, and search. Extensible via `ToolRegistry`.
+- **Agent loop** — multi-turn tool use: the model reasons, calls registered tools, reads results, and iterates (bounded by the inference timeout, 180s default). Built-in tools for system info, skills, and search. Extensible via `ToolRegistry`.
 - **Skill system** — Modular skill registry loaded at boot, bidirectional links to system prompt pipeline.
 - **Session memory** — SQLite + FTS5 full-text search with LLM-driven session compression (hot/warm/cold tiers). Memory events for cross-session fact recall. Semantic memory (vector/embedding search) **on by default** (`autoEmbed: true`, LFM2.5-Embedding-350M-4bit, 1024-d vectors, 500/session LIFO eviction).
 - **MCP bridge** — connect external MCP servers via stdio transport; HTTP endpoint available. Desktop UI has MCP section in SystemView.
@@ -44,7 +44,7 @@ Dual inference backends — MLX (Metal GPU, default, dual-channel on-device infe
 - **KV cache quantization** — Enabled by default (turbo4 scheme, 4-bit INT4, activates after 256 tokens). Backed by `GenerateParameters.kvBits` / `kvScheme` / `quantizedKVStart` in upstream MLXLMCommon.
 - **Guided generation** — Grammar-constrained output via `MLXGuidedGeneration` (xgrammar/JSON schema), with DiagnosticSink observability and dynamic `CompletionReserve.estimate` structural reserve calculations. Auto-enabled when tool calling or explicit grammar schema is set. Multimodal messages bypass grammar constraints.
 - **macOS 27 FM path** — Native `MLXLanguageModel` → `LanguageModelSession` + `MLXFoundationModels` on macOS 27 with tool calling via `FMToolProxy` bridge, reasoning via `ContextOptions`, and transcript-driven streaming. Falls back to ChatSession pipeline on earlier macOS.
-- **Speculative decoding** — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support with model-id isolation. Upstream sync 2026-08-14 (mlx-swift-lm d667610, deliberate pin — see Package.swift guard): ReasoningEventEmitter ✅ (22 refs / 7 files), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge). CoreAI grammar ✅ wired (b69b934): hybrid xgrammar path via `TokenizersMLXTokenizerAdapter`; pipelined-variant grammar tracks coreai-models #146/#170. AgentLoop: 558 LOC dead code (module present, zero callers — activate or prune). See `CHANGELOG.md` + upstream audit report.
+- **Speculative decoding** — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support with model-id isolation. Upstream sync 2026-08-14 (mlx-swift-lm d667610, deliberate pin — see Package.swift guard): ReasoningEventEmitter ✅ (22 refs / 7 files), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge). CoreAI grammar ✅ wired (b69b934): hybrid xgrammar path via `TokenizersMLXTokenizerAdapter`; pipelined-variant grammar tracks coreai-models #146/#170. AgentLoop runner pruned (4c231d3) — agent loop now in `DirectInferenceClient` + `ChatHandler`. See `CHANGELOG.md` + upstream audit report.
 - **SessionPool** — Prefix-level prompt cache reuse via message divergence tracking; HardwareRouter pressure events trigger aggressive eviction; `loadPromptCacheSnapshot` restores LM state alongside KV cache for correct position anchoring.
 - **Persistent perception** — PerceptionEngine (13 files, 3045 LOC in `Multimodal/`): full 7-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
 - **AIModelCache** — native CoreAI compiled model artifact caching (macOS 27 SDK).
@@ -235,9 +235,9 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 ### Build Info
 
 - Swift 6.2 · SwiftUI · Hummingbird 2.25.0
-- 161 Swift source files, ~53.1K LOC (+ 52 test files, ~10.5K LOC)
+- 160 Swift source files, 52,249 LOC (+ 51 test files, 10,335 LOC)
 - macOS 14+ / iOS 17+ · Apple Silicon
-- Tests: 52 test files, 140 suites, 777 @Test cases
+- Tests: 51 test files, 136 suites, 757 @Test cases
 - Build: 0 warnings, 0 errors
 - Development: Built entirely by **qwen3.8:27b-mtp-q4_K_M** — self-contained AI agent with no external tool use. All architecture, code, and tests authored autonomously.
 

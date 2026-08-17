@@ -2,7 +2,7 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-08-14 → 2026-08-16
+## [Unreleased] — 2026-08-14 → 2026-08-17
 
 ### Features
 
@@ -15,8 +15,13 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 - **Multi-tool-call append** (773eeda) — ChatHandler tool-call collection appends instead of overwriting; `ToolCallParser.flush()` can yield multiple tool calls per turn (all-but-last were silently dropped).
 - **CoreAI sampler error propagation** (773eeda, MPSGraphSamplers #169 alignment) — completion `(Int32) -> Void` → `(Int32, Error?) -> Void`; 16 failure paths now classify into typed `MPSGraphSamplerError`s instead of silent `completion(0)`; `CoreAIPipelinedEngine` propagates via `continuation.finish(throwing:)`.
 
+### Refactoring / Cleanup
+
+- **4c231d3 dead-code + print removal** (4c231d3) — `AgentLoop` enum runner + `AgentLoopConfig` pruned (523→44 LOC; zero callers after the engine iteration loop moved to `DirectInferenceClient`); `AgentLoopResult`/`AgentLoopIterationLog` kept (consumed by ThinkingTelemetry). `StatsReporter` table-display chain removed (~180 LOC — upstream llm-runner-CLI-only, zero refs). `print()` in Sources/ 18→0 (MPSGraphSamplers 6 + InstrumentsProfiler 12; MPSGraphSamplers errors already propagate to `onSamplingDone`, InstrumentsProfiler deinit rewritten as swift-log `Logger(label:)`).
+
 ### Tooling / CI
 
+- **4c231d3 CI test gate** (4c231d3) — `swift build --build-for-testing -scheme ocoreaiTests` (was `ocoreai`, which had NO test action) + a `Run tests (xcrun xctest)` step. Previously the 757 Swift Testing tests silently never compiled/reran in CI. Local gate: `swift build --build-tests` + `xcrun xctest` = 757 tests / 136 suites passed.
 - **Pin guard** (773eeda) — Package.swift: DO NOT bump mlx-swift-lm past `d667610`. Upstream `d7dc03d` (#512) adds `TokenStreamEvent.rejectedToolCall`; the FM-trait switches at `MLXLanguageModel.swift:1890/1943` don't handle it → build-fail under `FoundationModelsIntegration && canImport(FoundationModels, _version: 2)`.
 - **pre-commit** — scope swift-format to staged files (5741015), apply to 9 files (ea79b2a), restore hook verbatim from mlx-swift-lm (e8dc47f).
 - **QC zero-crash-risk gates** (4624d29) — `.swiftlint.yml` crash rules pinned (`fatal_error_message` = error; `force_unwrapping`/`force_cast`/`force_try`/`implicitly_unwrapped_optional` = warning), CI gates wired. `Sources/` now: 0 `fatalError`, 1 `precondition` (CoreAIPipelinedEngine.swift:285, structural invariant on init), 2 debug-only `assert` (Tools/ToolEntry.swift:74, Engine/KVCache+CoreAI.swift:541). _Superseded (2026-08-17): swiftlint removed to align with upstream (mlx-swift-lm / coreai-models ship no swiftlint); `.swiftformat`-era `make format` also replaced with swift-format. Crash-safe coding remains a code convention, no longer a CI gate._
@@ -48,7 +53,7 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 - **SessionPool prefix reuse** — Message divergence tracking for prefix-level prompt cache reuse; pooled sessions only re-prefill the diverging suffix
 - **SessionPool HardwareRouter eviction** — GPU pressure events trigger aggressive cache eviction before OOM
 - **SessionPool state restore** — `loadPromptCacheSnapshot` restores LMOutput.State alongside KV cache for correct position anchoring
-- **Persistent-perception system** — PerceptionEngine (13 files, 3049 LOC in `Multimodal/`): full 7-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
+- **Persistent-perception system** — PerceptionEngine (13 files, 3,045 LOC in `Multimodal/`): full 7-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
 - **CoreAI sequential engine family alignment** — Option A p1: align CoreAI engine types with upstream sequential/variant architecture
 - **MTP speculative decoding** — `generate(::mtpDrafter:)` path with streaming reasoning events
 - **Upstream pin d667610** — mlx-swift-lm synced 2026-08-14: Qwen3.5 JSON tool-call fallback, Qwen3.5 MTP speculative decoding, ThinkingBudget enforcement, KVCache limits, TurboFlash, CacheConfiguration engine, KVCacheRound staged rounds. ReasoningEventEmitter ✅ (12 refs), KVCacheRuntime ✅ (turboQuant/affine). Gaps at time of entry: ThinkingBudget hard-budget ❌ (✅ wired 08-14, 686161c), CoreAI grammar ❌ (✅ wired 08-15, b69b934 + c4c0a43 pipelined), AgentLoop gap: dead code
@@ -123,4 +128,4 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ---
 
-*Last updated: 2026-08-14. Current HEAD: 14e21cb.*
+*Last updated: 2026-08-17. Current HEAD: 4c231d3.*

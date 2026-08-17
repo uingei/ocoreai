@@ -6,7 +6,7 @@
 
 ## Identity
 
-**What it is:** macOS/iOS AI agent platform — dual-channel on-device inference (MLX Metal GPU + CoreAI derived from coreai-models reference), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception pipeline (planned). One binary, 161 Swift files (53,133 LOC).
+**What it is:** macOS/iOS AI agent platform — dual-channel on-device inference (MLX Metal GPU + CoreAI derived from coreai-models reference), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception pipeline. One binary, 160 Swift files (52,249 LOC).
 
 **Tech stack:** Swift 6.2 · SwiftPM · Hummingbird 2.25 · SwiftUI · SQLite + FTS5
 
@@ -29,8 +29,8 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 **Dual Path reality:**
 - `EnginePool` uses inline `#if canImport(CoreAI)` branches (`BackendProtocol` deleted 2123143, 0 refs remaining)
 - **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (22 refs, 7 files), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge L635). Pinned upstream `mlx-swift-lm` at `d667610` (2026-08-14, mlx-swift→0.31.6). Gaps: upstream ThinkingBudget hard-budget enforcement ❌ (orthogonal to ocoreai ThinkingBudget actor; std reasoning path wired L3314).
-- **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement, 6,278 LOC across 15 files (Engine/CoreAI*.swift 13 + MPSGraphSamplers + TokenizersMLXTokenizerAdapter, incl. KVCache+CoreAI + TensorStorage+CoreAI).
-- **ANE path:** CoreAI `MPSGraphSamplers` (1,285 LOC) wires MPS constrained argmax/composite/sampler — GPU-based constrained decoding path (c4c0a43 + 031cb54)
+- **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement, 6,272 LOC across 15 files (Engine/ 14: CoreAI* ×8 + StateHandler ×3 + MPSGraphSamplers + KVCache+CoreAI + TensorStorage+CoreAI; + Tokenizer/TokenizersMLXTokenizerAdapter).
+- **ANE path:** CoreAI `MPSGraphSamplers` (1,279 LOC) wires MPS constrained argmax/composite/sampler — GPU-based constrained decoding path (c4c0a43 + 031cb54)
 - **MTP path:** `_runInferenceWithMessages` → `generate(::mtpDrafter:)` — bypasses ChatSession, tool calls collected + dispatched per-iteration (aligned with upstream `MTPSpeculativeTokenIterator`)
 - **SessionPool:** Prefix-level prompt cache reuse via message divergence tracking; HardwareRouter pressure events trigger aggressive eviction; `loadPromptCacheSnapshot` restores LM state + KV cache
 
@@ -71,7 +71,7 @@ swift test --filter OcoreAITests.System  # system tests only
 ### Error Handling
 - Precondition near-free — 1 `precondition` call (CoreAIPipelinedEngine.swift:285, structural invariant on init); all others replaced with guard/throw/clamp after P0 cleanup.
 - **Zero `try!`** in production code.
-- **`print()`:** 18 occurrences — 6 in MPSGraphSamplers (error logging in composite/constrained sampler branches), 12 in InstrumentsProfiler (CLI diagnostics output).
+- **`print()`:** 0 in production code (18→0 at commit 4c231d3 — 6 MPSGraphSamplers + 12 InstrumentsProfiler removed; MPSGraphSamplers errors already propagate to `onSamplingDone`, InstrumentsProfiler deinit diagnostic rewritten as swift-log `Logger(label:)`).
 - **`fatalError`:** 0.
 - **`assert`:** 2 (Tools/ToolEntry.swift:74 release-optimized; Engine/KVCache+CoreAI.swift:541 structural invariant).
 - `try?` usages: 202 total across all modules — top: UI 12, Multimodal 10, Engine 8, SQLite 5, Models 5, MCP 8 (defensive fallback pattern).
@@ -96,12 +96,12 @@ swift test --filter OcoreAITests.System  # system tests only
 | **ThinkingBudget hard-budget** | Engine/EngineInference.swift | ✅ Wired std reasoning path (686161c L3314 applyingThinkingBudget); Guided/MTP paths non-reasoning = no budget needed; guided/MTP `components: .init()` (L2697/L2881) intentional |
 | **SyncInputHandler** | — | ✅ Upstream d667610 已无 `InputHandler`/`InputCoverage` 符号，gap 消失 |
 | **ChatConventionsRegistry** | — | ✅ Upstream d667610 已无 `ChatConventionsRegistry`，reasoningConfig 内化至管线 |
-| **AgentLoop dead code** | Agents/AgentLoop.swift | ❌ P1 — 558 LOC, zero callers in Sources (module present, no active call sites). MLX path uses ChatSession directly (L534-537). Either activate for non-MLX paths or prune. |
+| **AgentLoop runner** | Agents/AgentLoop.swift | ✅ Pruned at 4c231d3 (523→44 LOC) — enum runner + `AgentLoopConfig` removed (zero callers); `AgentLoopResult`/`AgentLoopIterationLog` kept (ThinkingTelemetry). Agent loop now owned by `DirectInferenceClient` (851 LOC) + `ChatHandler`. |
 | **MLX upstream sync gap** | Package.swift | ⚠️ Pinned at d667610 — DO-NOT-bump: d7dc03d (#512 rejectedToolCall) adds `MLXLanguageModel` conformers that break ocoreai EngineInference build (3 break sites, no default). Upstream at d7dc03d (2026-08-16). |
 | **KVCache typed config** | Engine/MLXBridge.swift | ✅ Wired via makeKVCacheConfiguration (L635) TurboQuant+Affine through generateParameters.kvCache; upstream CacheConfiguration (364 LOC) merged into GenerateParameters at d667610 |
 | **MTP spec decode** | Engine/EngineInference.swift | ✅ Aligned — blockSize from specDecodingConfig.numDraftTokens (L2880) + upstream auto-clamp; MTPDrafterModelWrapper is type wrapper not gap |
 | **TurboFlash** | EngineInference.swift | ✅ Consumed internally by upstream `generate*()` — TurboFlash is an attention kernel mechanism; ocoreai doesn't call it directly |
-| **CoreAI grammar constrained decoding** | Engine/ | ✅ Wired (b69b934 + c4c0a43) — `MPSGraphSamplers` (1,285 LOC) provides MPS constrained argmax/composite via CoreAI `sampleToken` path; `TokenizersMLXTokenizerAdapter` (108 LOC) bridges upstream Tokenizer. `ConstrainedGeneration` conformers in Engine/. 13 @Test green. `
+| **CoreAI grammar constrained decoding** | Engine/ | ✅ Wired (b69b934 + c4c0a43) — `MPSGraphSamplers` (1,279 LOC) provides MPS constrained argmax/composite via CoreAI `sampleToken` path; `TokenizersMLXTokenizerAdapter` (108 LOC) bridges upstream Tokenizer. `ConstrainedGeneration` conformers in Engine/. 13 @Test green. `
 | **iOS UI parity** | UI/ | ⚠️ iOS build confirmed Fast-Path-only; full parity audit pending (MCP/Security on iOS TBD) |
 | **PerceptionEngine** | Multimodal/PerceptionEngine.swift | ✅ Implemented (13 files, 3,045 LOC in `Multimodal/`) — full 7-channel perception scheduler with RingBuffer, adaptive sampling, inference-aware snapshot. Cross-platform gates (screen macOS-only, filesystem all). |
 
