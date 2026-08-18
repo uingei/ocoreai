@@ -36,25 +36,35 @@ let package = Package(
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if canImport(CoreAI)` guards
         // Pinned to exact revision — upstream main branch drifts; update via `swift package update`
-        // then bump .revision + test. Current pin: 2026-08-13 — TurboFlash kernels + 2-phase
-        // + turboquant KV cache (#519), single-dispatch TurboFlash for short contexts (#520),
-        // KV cache config + reporting (#453), MTP speculation sliding cache wrap fix (#506),
-        // Qwen3-VL-MoE (#322), GatedDelta precision fix (#488), Linux guided gen fix (#483),
-        // ChatConventionsProviding (#482), LFM2 tool-call fix + Gemma3n mask + GuidedGen structured continuation,
-        // KVCacheRound staged rounds + RotatingStagedKVCache for sliding window (#516),
-        // Qwen 3.5 JSON tool-call fallback (#529).
+        // then bump .revision + test. Current pin: 2026-08-18 — @ 7871b09.
         //
-        // DO NOT bump past d667610 without first verifying MLXFoundationModels
-        // exhaustiveness on the target SDK:
-        //   d7dc03d (#512) added `.rejectedToolCall` to internal
-        //   `TokenStreamEvent`, but `MLXLanguageModel.swift:1890` and `:1943`
-        //   `switch event` sites omit it (only L1613/1633 handle it). This is
-        //   compiled under `#if FoundationModelsIntegration` + FM v2
-        //   availability — both true in ocoreai's default configuration
-        //   (Package.swift L26 enables the trait; macOS 27 SDK exposes FM v2).
-        //   Result: default build fails. Re-evaluate only when upstream adds
-        //   the missing cases at L1890/L1943.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "d667610"),
+        // d667610→d7dc03d was blocked by upstream #512 self-injury: d7dc03d added
+        // `.rejectedToolCall` to `TokenStreamEvent`, but MLXLanguageModel.swift:1890/:1943
+        // `switch event` sites omitted it (build-fail under FoundationModelsIntegration
+        // + macOS 27 SDK). Upstream a72fcec (#538, "Handle Generation.rejectedToolCall
+        // and add an Xcode 27 compile check", 2026-08-17) fixed all ten exhaustive
+        // switches across Generation/TokenStreamEvent and added CI job
+        // `integration_build_xcode27`. d7dc03d..7871b09 also: #531 tool call parser
+        // hardening, #546 Qwen3.5 VLM fallback, #509 Qwen2.5-VL cuSeqlens, #527 nested
+        // tool grammar test, #538 above.
+        //
+        // Consequence for ocoreai (consumed at this pin):
+        //   - `Generation` gained case `.rejectedToolCall(RejectedToolCall)` —
+        //     handled at EngineInference.swift:2981 (MTP path) and :3590
+        //     (standard ChatSession path); logged, not thrown: a rejected call is
+        //     a protocol anomaly on the no-tools path, surfacing it as a fatal
+        //     error would drop legitimate text output.
+        //   - `GenerateCompletionInfo` + `rejectedToolCallCount: Int = 0`
+        //     (defaulted init — existing call sites unaffected).
+        //   - `ChatSession.stream(to:)`/`stream(messages:)` now throw
+        //     `RejectedToolCallError` internally (failOnRejectedToolCall: true);
+        //     ocoreai uses `streamDetails` (emits the case in-stream) — fine.
+        //   - `ModelConfiguration` + `messageGenerator` (defaulted nil) + `==`
+        //     rewrite — both uses in ocoreai (EnginePool:495, MLXBridge:519/534)
+        //     use `ModelConfiguration(id:)` — unaffected.
+        // Re-evaluate at each upstream main bump: re-grep `Generation` switch
+        // sites and confirm exhaustiveness before building.
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "7871b09"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)

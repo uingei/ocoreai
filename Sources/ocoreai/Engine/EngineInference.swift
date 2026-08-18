@@ -3077,6 +3077,22 @@ extension EnginePool {
                                 let tc = InferenceEvent.mlxToolCall(from: mlxTC)
                                 continuation.yield(.init(kind: .toolCall(tc)))
                                 toolCallDetected = true
+                            case .rejectedToolCall(let rejection):
+                                // Upstream #512/#538 (mlx-swift-lm 7871b09): model produced
+                                // tool-call-shaped output that could not be parsed/authorized.
+                                // Intentionally NOT treated as a detected tool call —
+                                // toolCallDetected stays false so the MTP loop does not
+                                // exit to dispatch a non-executable call; the loop
+                                // continues on the next iteration (model gets another
+                                // chance to emit a well-formed tool call). Deliberately
+                                // does not log rawTextPreview (upstream: may contain
+                                // sensitive argument values). reason/toolName/detail
+                                // are the safe diagnostic fields.
+                                self.logger.warning(
+                                    "MTP path: rejected tool call — reason=\(rejection.reason.rawValue)"
+                                        + (rejection.toolName.map { " tool=\($0)" } ?? "")
+                                        + (rejection.detail.map { " detail=\($0)" } ?? "")
+                                )
                             }
                         }
 
@@ -3628,6 +3644,20 @@ extension EnginePool {
                         case .toolCall(let mlxTC):
                             let tc = InferenceEvent.mlxToolCall(from: mlxTC)
                             continuation.yield(.init(kind: .toolCall(tc)))
+                        case .rejectedToolCall(let rejection):
+                            // Upstream #512/#538 (mlx-swift-lm 7871b09): no-tools
+                            // standard ChatSession path — a rejection here is a
+                            // protocol anomaly, not a dispatchable event. Matches
+                            // upstream own convention (MLXLanguageModel logs it on
+                            // the non-throwing decoder path). Deliberately does not
+                            // log rawTextPreview (upstream: may contain sensitive
+                            // argument values). reason/toolName/detail are the safe
+                            // diagnostic fields.
+                            self.logger.warning(
+                                "Standard ChatSession path: rejected tool call — reason=\(rejection.reason.rawValue)"
+                                    + (rejection.toolName.map { " tool=\($0)" } ?? "")
+                                    + (rejection.detail.map { " detail=\($0)" } ?? "")
+                            )
                         }
                     }
 
