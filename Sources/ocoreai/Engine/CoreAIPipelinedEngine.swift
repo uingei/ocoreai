@@ -2,6 +2,11 @@
 //
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
+// Provenance: derived from coreai-models InferenceEngines/CoreAIPipelinedEngine.swift
+//   (introduced 2026-08-13, ocoreai 558afab; upstream file created in #146 0bc7bc3, 2026-08-14).
+//   Absorbed: #169 413947a (GPU sampler error propagation).
+//   Pending: #170 031cb54 pipelined constrained sampling (+428 lines, MPSGraphSamplers bitmask) — NOT absorbed.
+//   ocoreai 2026-08-18 audit: no derived-file drift otherwise; see ~/wiki.
 
 #if canImport(CoreAI)
 import CoreAI

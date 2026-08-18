@@ -8,6 +8,15 @@
 /// - EngineFactory (model structure auto-detection → sequential engine)
 /// - TokenHistory (prefix caching via memcmp fast path)
 ///
+/// Upstream provenance (2026-08-18 audit — ocoreai-native glue, NOT verbatim copies;
+/// upstream files it mirrors: InferenceEngines/{InferenceEngine,EngineFactory,TokenHistory,
+/// GenerationToken,InputEmbeddings,KVCacheShared}.swift):
+///   - TokenHistory / EngineFactory / GenerationToken / InputEmbeddings / KVCacheShared:
+///     0 commits changed @ a5ece33..21dc8ad — aligned.
+///   - InferenceEngine.swift: 1 upstream commit in range (protocol addition, #146 0bc7bc3) —
+///     ocoreai keeps its simplified protocol variant + CoreAISequentialEngine inline;
+///     CoreAISequentialEngine.swift (the engine): 0 commits, anchor 5ba2309 (2026-08-11) current.
+///     Constrained-generation protocol (#146) → tracked as pending on CoreAIPipelinedEngine.
 /// EngineOptions, KVCacheStrategy, InferenceOptions, InferenceOutput redefined here
 /// to avoid importing reference repo (macOS 27 requirement). Types match reference API
 /// for compatibility.

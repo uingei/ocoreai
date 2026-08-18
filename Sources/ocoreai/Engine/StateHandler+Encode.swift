@@ -1,5 +1,6 @@
 // Copyright 2026 Apple Inc. (BSD-3-Clause)
 // Copied from coreai-models, wrapped in struct for @available compatibility.
+// Provenance: aligned with coreai-models Handlers/StateHandler+Encode.swift @ a5ece33 (2026-08-18 audit: 0 commits changed this file a5ece33..21dc8ad — anchor current).
 
 #if canImport(CoreAI)
 import CoreAI
