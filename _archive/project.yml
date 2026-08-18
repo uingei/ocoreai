@@ -1,3 +1,10 @@
+# ── ARCHIVED 2026-08-18 ─────────────────────────────────────────────
+# 不再使用。真实构建路径 = Package.swift（SPM pin，CI via ocoreai.xcworkspace
+# → self:Package.swift，见 .github/workflows/ci.yml build-for-testing）+
+# Resources/Info.plist。本文件的 mlx pin（702e5a0）与 Package.swift
+# Package.resolved（7871b09）已分叉，且 Makefile/CI 无任何引用。
+# 仅作历史快照保留；请勿以此为 pin 依据。
+# ────────────────────────────────────────────────────────────────────
 name: ocoreai
 options:
   bundleIdPrefix: com.ocoreai
