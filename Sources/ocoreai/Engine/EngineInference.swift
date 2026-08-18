@@ -3089,9 +3089,7 @@ extension EnginePool {
                                 // sensitive argument values). reason/toolName/detail
                                 // are the safe diagnostic fields.
                                 self.logger.warning(
-                                    "MTP path: rejected tool call — reason=\(rejection.reason.rawValue)"
-                                        + (rejection.toolName.map { " tool=\($0)" } ?? "")
-                                        + (rejection.detail.map { " detail=\($0)" } ?? "")
+                                    "MTP path: rejected tool call — reason=\(rejection.reason.rawValue) tool=\((rejection.toolName.map { String($0) } ?? "nil")) detail=\((rejection.detail.map { String($0) } ?? "nil"))"
                                 )
                             }
                         }
@@ -3654,9 +3652,7 @@ extension EnginePool {
                             // argument values). reason/toolName/detail are the safe
                             // diagnostic fields.
                             self.logger.warning(
-                                "Standard ChatSession path: rejected tool call — reason=\(rejection.reason.rawValue)"
-                                    + (rejection.toolName.map { " tool=\($0)" } ?? "")
-                                    + (rejection.detail.map { " detail=\($0)" } ?? "")
+                                "Standard ChatSession path: rejected tool call — reason=\(rejection.reason.rawValue) tool=\((rejection.toolName.map { String($0) } ?? "nil")) detail=\((rejection.detail.map { String($0) } ?? "nil"))"
                             )
                         }
                     }
