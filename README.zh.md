@@ -32,7 +32,7 @@ swift run
 
 ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中：
 
-- **双通道推理引擎** — MLX（Metal GPU，默认，`MLXLanguageModel` + `ChatSession` 管线双通道端侧推理）+ CoreAI（6,272 LOC 跨 15 文件：CoreAI*.swift ×8、StateHandler*.swift ×3、KVCache+CoreAI、TensorStorage+CoreAI、MPSGraphSamplers、TokenizersMLXTokenizerAdapter，派生自 Apple coreai-models 参考实现，动态 KV Cache、`TokenHistory` prefix caching）。零网络调用 — 推理在你的 Mac 上运行。
+- **双通道推理引擎** — MLX（Metal GPU，默认，`MLXLanguageModel` + `ChatSession` 管线双通道端侧推理）+ CoreAI（6,290 LOC 跨 15 文件，2026-08-18：CoreAI*.swift ×8、StateHandler*.swift ×3、KVCache+CoreAI、TensorStorage+CoreAI、MPSGraphSamplers、TokenizersMLXTokenizerAdapter，派生自 Apple coreai-models 参考实现，动态 KV Cache、`TokenHistory` prefix caching）。零网络调用 — 推理在你的 Mac 上运行。
 - **自适应硬件路由** — HardwareRouter 根据热压力、内存余量、GPU 利用率实时将请求分发至 GPU / ANE / CPU。AdmissionGate 执行三级准入策略（允许 → 仅限 ANE → 拒绝），支持可配置 abort margin。ChatView 流式指示器 + Dashboard 健康栏实时显示通道标识；通道切换时热力 Toast 通知（EN/ZH i18n）。
 - **Wired Memory 显存硬隔离** — 硬件级显存边界，防止推理 OOM。
 - **Thinking Budget（推理预算）** — 基于 ComplexityAnalyzer（长度、意图、历史三维度评分）的自适应 token 预算分配。Bridge Path 接入完整 ComplexityAnalyzer；Fast Path（桌面 GUI）已接入 ThinkingBudget 校准循环，使用简化复杂度输入（固定 0.5）。
@@ -203,7 +203,7 @@ memory:
 | 组件 | 状态 |
 |------|------|
 | MLX Metal 推理 | ✅ |
-| CoreAI 推理（动态 KV Cache、Prefix Cache） | ✅ 三个变体已接入 — sequential (623 LOC)、staticShape (634)、pipelined (1,352, c4c0a43)；auto-detect 对未实现变体回退 sequential，显式 override 仍抛错；grammar 约束解码在 sequential (b69b934)，pipelined grammar 追踪 coreai-models #146/#170 |
+| CoreAI 推理（动态 KV Cache、Prefix Cache） | ✅ 三个变体已接入 — sequential (623 LOC)、staticShape (634)、pipelined (1,357, c4c0a43)；auto-detect 对未实现变体回退 sequential，显式 override 仍抛错；grammar 约束解码在 sequential (b69b934)，pipelined grammar 追踪 coreai-models #146/#170 |
 | FM 语言模型 + 工具桥接（macOS 27） | ✅ 代码：`MLXLanguageModel` → `LanguageModelSession` → `streamResponse`；FMToolProxy 桥接 `ToolRegistry` → `FoundationModels.Tool`。macOS < 27 自动降级至 ChatSession |
 | 引导生成（语法约束） | ✅ 动态 `CompletionReserve.estimate` 结构预留 |
 | KV Cache 量化（turbo4/INT8） | ✅ |
@@ -235,7 +235,7 @@ memory:
 ### Build Info
 
 - Swift 6.2 · SwiftUI · Hummingbird 2.25.0
-- 160 个 Swift 源文件，52,249 LOC（另 51 测试文件、10,335 LOC）
+- 160 个 Swift 源文件，52,293 LOC（2026-08-18；另 51 测试文件、10,335 LOC）
 - macOS 14+ / iOS 17+ · Apple Silicon
 - 测试：51 个测试文件，136 套件，757 @Test 用例
 - 构建：0 警告，0 错误
