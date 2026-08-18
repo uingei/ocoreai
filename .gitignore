@@ -1,5 +1,6 @@
 ## Swift
 .build/
+build/
 .swiftpm/
 DerivedData/
 
