@@ -69,6 +69,9 @@ let package = Package(
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
         .package(url: "https://github.com/huggingface/swift-transformers.git", from: "1.3.3"),
+        // xgrammar: GPU grammar bitmask source (C++ core; consumed via local CXGrammar C bridge).
+        // Same pin as coreai-models upstream (absorbed #146 0bc7bc3 + #170 031cb54).
+        .package(url: "https://github.com/mlc-ai/xgrammar", exact: "0.2.2"),
     ],
     targets: [
         .executableTarget(
@@ -93,6 +96,7 @@ let package = Package(
                 .product(name: "MLXFoundationModels", package: "mlx-swift-lm"),
                 .product(name: "HuggingFace", package: "swift-huggingface"),
                 .product(name: "Tokenizers", package: "swift-transformers"),
+                "CXGrammar",
             ],
             resources: [
                 .process("PrivacyInfo.xcprivacy")
@@ -112,6 +116,19 @@ let package = Package(
                 // so the compiler drops them when the SDK lacks the framework —
                 // no -weak_framework linker flag needed (aligned with mlx-swift-lm).
             ],
+        ),
+        // CXGrammar C bridge — Apple-authored C shim over the xgrammar C++ core
+        // (copied from coreai-models swift/Sources/lib/CXGrammar, byte-identical).
+        .target(
+            name: "CXGrammar",
+            dependencies: [
+                .product(name: "XGrammar", package: "xgrammar")
+            ],
+            path: "Sources/lib/CXGrammar",
+            publicHeadersPath: "include",
+            linkerSettings: [
+                .linkedLibrary("c++")
+            ]
         ),
         // Shared test utilities — mocks, fixtures, helpers, tags
         .target(
@@ -151,5 +168,6 @@ let package = Package(
                 .linkedFramework("Testing"),
             ],
         ),
-    ]
+    ],
+    cxxLanguageStandard: .cxx17
 )

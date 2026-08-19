@@ -50,6 +50,10 @@ protocol MPSGraphSampler: AnyObject, Sendable {
     /// The vocabulary size this sampler was compiled for
     var vocabSize: Int { get }
 
+    /// MTLBuffer for constrained-generation bitmasks, lazily allocated.
+    /// Returns nil if the sampler does not support bitmask application.
+    var bitmaskBuffer: MTLBuffer? { get throws }
+
     /// Encode sampling for single-token decode.
     ///
     /// - Parameters:
@@ -58,6 +62,8 @@ protocol MPSGraphSampler: AnyObject, Sendable {
     ///   - logitsOffset: Byte offset to the target token's logits
     ///   - outputBuffer: MTLBuffer to write the Int32 result
     ///   - outputOffset: Byte offset for the output
+    ///   - applyBitmask: When true, apply the bitmask from `bitmaskBuffer` to
+    ///     logits before sampling (blocked tokens get -65504).
     ///   - completion: Called with the sampled token when GPU completes
     func encode(
         to queue: MTLCommandQueue,
@@ -65,8 +71,9 @@ protocol MPSGraphSampler: AnyObject, Sendable {
         logitsOffset: Int,
         outputBuffer: MTLBuffer,
         outputOffset: Int,
+        applyBitmask: Bool,
         completion: @escaping (Int32, Error?) -> Void
-    )
+    ) throws
 
     /// Encode sampling with slice support for prefill.
     ///
@@ -85,6 +92,27 @@ protocol MPSGraphSampler: AnyObject, Sendable {
         outputOffset: Int,
         completion: @escaping (Int32, Error?) -> Void
     )
+}
+
+// MARK: - Defaults
+
+@available(macOS 27.0, iOS 27.0, *)
+extension MPSGraphSampler {
+    var bitmaskBuffer: MTLBuffer? { get throws { nil } }
+
+    func encode(
+        to queue: MTLCommandQueue,
+        logitsBuffer: MTLBuffer,
+        logitsOffset: Int,
+        outputBuffer: MTLBuffer,
+        outputOffset: Int,
+        completion: @escaping (Int32, Error?) -> Void
+    ) throws {
+        try encode(
+            to: queue, logitsBuffer: logitsBuffer, logitsOffset: logitsOffset,
+            outputBuffer: outputBuffer, outputOffset: outputOffset,
+            applyBitmask: false, completion: completion)
+    }
 }
 
 // MARK: - Sampler Factory
@@ -318,7 +346,7 @@ final class MPSGraphArgmaxSampler: @unchecked Sendable {
     /// Returns the bitmask buffer, allocating it on first access.
     /// The caller writes the xgrammar bitmask into this buffer before calling
     /// `encode(..., applyBitmask: true)`.
-    var bitmaskBuffer: MTLBuffer {
+    var bitmaskBuffer: MTLBuffer? {
         get throws {
             if let buf = constrainedBitmaskBuffer { return buf }
             let byteCount = max(bitmaskSize * MemoryLayout<Int32>.size, 64)
@@ -923,7 +951,7 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
     // MARK: - Constrained Sampling (Lazy)
 
     /// Returns the bitmask buffer, allocating it on first access.
-    var bitmaskBuffer: MTLBuffer {
+    var bitmaskBuffer: MTLBuffer? {
         get throws {
             if let buf = constrainedBitmaskBuffer { return buf }
             guard
