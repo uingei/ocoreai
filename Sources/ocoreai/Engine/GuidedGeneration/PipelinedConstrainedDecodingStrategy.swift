@@ -3,6 +3,8 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
+#if canImport(CoreAI)
+
 import Foundation
 import Synchronization
 import Tokenizers
@@ -26,18 +28,19 @@ private final class SingleUseFlag: Sendable {
 ///
 /// Only used when the engine conforms to `ConstrainedGenerationCapable`. The routing logic in
 /// `CoreAILanguageModel` selects this strategy based on engine type.
-public struct PipelinedConstrainedDecodingStrategy: DecodingStrategy {
+@available(macOS 27.0, iOS 27.0, *)
+struct PipelinedConstrainedDecodingStrategy: DecodingStrategy {
     private let jsonSchema: String
     private let vocabSizeOverride: Int?
 
-    public init(jsonSchema: String, vocabSize: Int? = nil) {
+    init(jsonSchema: String, vocabSize: Int? = nil) {
         self.jsonSchema = jsonSchema
         self.vocabSizeOverride = vocabSize
     }
 
     // MARK: - DecodingStrategy conformance
 
-    public func decode(
+    func decode(
         from input: Input,
         tokenizer: any Tokenizer,
         inferenceEngine: any InferenceEngine,
@@ -99,9 +102,12 @@ public struct PipelinedConstrainedDecodingStrategy: DecodingStrategy {
 /// The engine's background Task owns session lifetime: it returns the session to
 /// cache in its `defer` block after generation completes (normal, error, or cancel).
 /// The iterator does not manage session lifecycle.
-public struct PipelinedConstrainedSequence: AsyncSequence {
-    public typealias Element = GenerationResult
-    public typealias Failure = Error
+@available(macOS 27.0, iOS 27.0, *)
+struct PipelinedConstrainedSequence: AsyncSequence {
+    @available(macOS 27.0, iOS 27.0, *)
+    typealias Element = GenerationResult
+    @available(macOS 27.0, iOS 27.0, *)
+    typealias Failure = Error
 
     fileprivate let session: ConstrainedSessionHandle
     fileprivate let inputTokens: [Int32]
@@ -114,7 +120,7 @@ public struct PipelinedConstrainedSequence: AsyncSequence {
     /// Guards against multiple `makeAsyncIterator()` calls sharing the same session box.
     private let consumed = SingleUseFlag()
 
-    public func makeAsyncIterator() -> Iterator {
+    func makeAsyncIterator() -> Iterator {
         precondition(
             !consumed.testAndSet(), "PipelinedConstrainedSequence may only be iterated once")
 
@@ -130,10 +136,14 @@ public struct PipelinedConstrainedSequence: AsyncSequence {
     }
 }
 
+@available(macOS 27.0, iOS 27.0, *)
 extension PipelinedConstrainedSequence {
-    public final class Iterator: AsyncIteratorProtocol {
-        public typealias Element = GenerationResult
-        public typealias Failure = Error
+    @available(macOS 27.0, iOS 27.0, *)
+    final class Iterator: AsyncIteratorProtocol {
+        @available(macOS 27.0, iOS 27.0, *)
+        typealias Element = GenerationResult
+        @available(macOS 27.0, iOS 27.0, *)
+        typealias Failure = Error
 
         private let tokenizer: any Tokenizer
         private let engine: any ConstrainedGenerationCapable
@@ -168,7 +178,7 @@ extension PipelinedConstrainedSequence {
             self.stopSequences = stopSequences
         }
 
-        public func next() async throws -> GenerationResult? {
+        func next() async throws -> GenerationResult? {
             if finished { return nil }
 
             // Lazily start the engine stream on first iteration
@@ -244,3 +254,5 @@ extension PipelinedConstrainedSequence {
         }
     }
 }
+
+#endif

@@ -18,6 +18,7 @@ import Metal
 import MetalPerformanceShaders
 import Synchronization
 import os
+import Tokenizers
 
 // MARK: - Timing
 

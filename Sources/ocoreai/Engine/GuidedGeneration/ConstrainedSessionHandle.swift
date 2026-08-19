@@ -3,6 +3,8 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
+#if canImport(CoreAI)
+
 import Tokenizers
 
 /// Single-owner handle wrapping a `ConstrainedGenerationSession`.
@@ -10,7 +12,8 @@ import Tokenizers
 /// Not thread-safe — ownership transfers between the engine cache and the
 /// active generation task via the checkout/checkin pattern. Only one task
 /// holds the handle at a time; concurrent access is a programming error.
-package final class ConstrainedSessionHandle: @unchecked Sendable {
+@available(macOS 27.0, iOS 27.0, *)
+final class ConstrainedSessionHandle: @unchecked Sendable {
     /// Schema string is immutable after init — cached to avoid repeated access.
     let schema: String
 
@@ -57,3 +60,5 @@ package final class ConstrainedSessionHandle: @unchecked Sendable {
         tokenizer.encode(text: string).map(Int32.init)
     }
 }
+
+#endif

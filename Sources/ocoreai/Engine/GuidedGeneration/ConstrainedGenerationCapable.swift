@@ -3,6 +3,8 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
+#if canImport(CoreAI)
+
 import Tokenizers
 
 /// An inference engine that supports GPU-accelerated grammar-constrained generation.
@@ -20,7 +22,8 @@ import Tokenizers
 /// Conformers must:
 /// - Honor `maxTokens` by finishing the stream within that limit
 /// - Return the session handle to cache in a `defer` block (even on error/cancellation)
-package protocol ConstrainedGenerationCapable: InferenceEngine {
+@available(macOS 27.0, iOS 27.0, *)
+protocol ConstrainedGenerationCapable: InferenceEngine {
     /// Obtain a constrained session handle, reusing a cached one if the schema matches.
     ///
     /// The internal cache slot is emptied on checkout — concurrent calls create independent sessions.
@@ -45,3 +48,5 @@ package protocol ConstrainedGenerationCapable: InferenceEngine {
         session: ConstrainedSessionHandle
     ) throws -> InferenceTokenSequence
 }
+
+#endif

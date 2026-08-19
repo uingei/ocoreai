@@ -7,8 +7,12 @@
 ///
 /// Concrete counterpart to `InferenceOutputSequence` for paths that yield
 /// bare token IDs rather than full `InferenceOutput` values.
-public struct InferenceTokenSequence: AsyncSequence, Sendable {
-    public typealias Element = Int32
+#if canImport(CoreAI)
+
+@available(macOS 27.0, iOS 27.0, *)
+struct InferenceTokenSequence: AsyncSequence, Sendable {
+    @available(macOS 27.0, iOS 27.0, *)
+    typealias Element = Int32
 
     private let stream: AsyncThrowingStream<Int32, Error>
     private let _stopReasonStore: StopReasonStore
@@ -18,13 +22,15 @@ public struct InferenceTokenSequence: AsyncSequence, Sendable {
         self._stopReasonStore = stopReasonStore
     }
 
-    public var stopReason: StopReason? { _stopReasonStore.stopReason }
+    var stopReason: StopReason? { _stopReasonStore.stopReason }
 
-    public func setStopReason(_ reason: StopReason) {
+    func setStopReason(_ reason: StopReason) {
         _stopReasonStore.set(reason)
     }
 
-    public func makeAsyncIterator() -> AsyncThrowingStream<Int32, Error>.AsyncIterator {
+    func makeAsyncIterator() -> AsyncThrowingStream<Int32, Error>.AsyncIterator {
         stream.makeAsyncIterator()
     }
 }
+
+#endif

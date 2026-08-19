@@ -3,18 +3,21 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
+#if canImport(CoreAI)
+
 import CXGrammar
 import Foundation
 
-public final class TokenizerInfo {
+@available(macOS 27.0, iOS 27.0, *)
+final class TokenizerInfo {
     private let handle: OpaquePointer
-    public let vocabulary: [String]
-    public let vocabularySize: Int
-    public let vocabType: VocabularyType
-    public let addPrefixSpace: Bool
+    let vocabulary: [String]
+    let vocabularySize: Int
+    let vocabType: VocabularyType
+    let addPrefixSpace: Bool
 
     /// Extract vocabulary from any tokenizer with a vocabulary property
-    public init(
+    init(
         vocabulary: [String],
         vocabType: VocabularyType = .raw,
         addPrefixSpace: Bool = false
@@ -69,10 +72,11 @@ public final class TokenizerInfo {
 // MARK: - Vocabulary Caching
 
 /// Cache for tokenizer info to avoid repeated vocabulary extraction
-public actor TokenizerInfoCache {
+@available(macOS 27.0, iOS 27.0, *)
+actor TokenizerInfoCache {
     private var cache: [String: TokenizerInfo] = [:]
 
-    public init() {}
+    init() {}
 
     /// Get or create tokenizer info for a model
     ///
@@ -80,7 +84,7 @@ public actor TokenizerInfoCache {
     ///   - modelName: Name of the model (e.g., "Qwen/Qwen2.5-1.5B")
     ///   - vocabulary: The vocabulary array
     /// - Returns: Cached or newly created TokenizerInfo
-    public func getOrCreate(
+    func getOrCreate(
         modelName: String,
         vocabulary: [String],
         vocabType: VocabularyType = .byteLevel
@@ -99,12 +103,13 @@ public actor TokenizerInfoCache {
     }
 
     /// Clear the cache
-    public func clear() {
+    func clear() {
         cache.removeAll()
     }
 }
 
-public enum VocabularyType: Sendable {
+@available(macOS 27.0, iOS 27.0, *)
+enum VocabularyType: Sendable {
     case raw
     case byteFallback
     case byteLevel
@@ -117,3 +122,5 @@ public enum VocabularyType: Sendable {
         }
     }
 }
+
+#endif

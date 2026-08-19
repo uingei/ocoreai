@@ -3,6 +3,8 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
+#if canImport(CoreAI)
+
 import Foundation
 import Tokenizers
 import os.signpost
@@ -11,8 +13,9 @@ import os.signpost
 ///
 /// Handles text decoding, stop sequence detection, and Instruments profiling.
 /// Uses `InferenceEngine.generate()` for the underlying token stream.
-public struct VanillaDecodingStrategy: DecodingStrategy {
-    public init() {}
+@available(macOS 27.0, iOS 27.0, *)
+struct VanillaDecodingStrategy: DecodingStrategy {
+    init() {}
 
     // MARK: - Primary API
 
@@ -26,7 +29,7 @@ public struct VanillaDecodingStrategy: DecodingStrategy {
     ///   - options: Inference options (maxTokens, includeLogits)
     ///   - stopSequences: Token sequences that halt generation
     /// - Returns: Stream of `GenerationResult` (text + optional logits)
-    public func decode(
+    func decode(
         from input: Input,
         tokenizer: any Tokenizer,
         inferenceEngine: any InferenceEngine,
@@ -81,11 +84,15 @@ public struct VanillaDecodingStrategy: DecodingStrategy {
 
 // MARK: - VanillaDecodedSequence
 
+@available(macOS 27.0, iOS 27.0, *)
 extension VanillaDecodingStrategy {
     /// Async sequence of `GenerationResult` produced by `decode()`.
-    public struct VanillaDecodedSequence: AsyncSequence {
-        public typealias Element = GenerationResult
-        public typealias Failure = Error
+    @available(macOS 27.0, iOS 27.0, *)
+    struct VanillaDecodedSequence: AsyncSequence {
+        @available(macOS 27.0, iOS 27.0, *)
+        typealias Element = GenerationResult
+        @available(macOS 27.0, iOS 27.0, *)
+        typealias Failure = Error
 
         /// Holds the eagerly-opened engine stream (and its single iterator) produced by `decode()`.
         fileprivate final class Prepared {
@@ -108,7 +115,7 @@ extension VanillaDecodingStrategy {
         let tokenizer: any Tokenizer
         let stopSequences: StopSequences
 
-        public func makeAsyncIterator() -> Iterator {
+        func makeAsyncIterator() -> Iterator {
             Iterator(
                 prepared: prepared,
                 tokenizer: tokenizer,
@@ -118,10 +125,14 @@ extension VanillaDecodingStrategy {
     }
 }
 
+@available(macOS 27.0, iOS 27.0, *)
 extension VanillaDecodingStrategy.VanillaDecodedSequence {
-    public final class Iterator: AsyncIteratorProtocol {
-        public typealias Element = GenerationResult
-        public typealias Failure = Error
+    @available(macOS 27.0, iOS 27.0, *)
+    final class Iterator: AsyncIteratorProtocol {
+        @available(macOS 27.0, iOS 27.0, *)
+        typealias Element = GenerationResult
+        @available(macOS 27.0, iOS 27.0, *)
+        typealias Failure = Error
 
         private let tokenizer: any Tokenizer
         private let stopSequences: StopSequences
@@ -168,7 +179,7 @@ extension VanillaDecodingStrategy.VanillaDecodedSequence {
             }
         }
 
-        public func next() async throws -> GenerationResult? {
+        func next() async throws -> GenerationResult? {
             guard !stopped, var iterator = upstreamIterator else {
                 return try await flushTrailingText()
             }
@@ -288,3 +299,5 @@ extension VanillaDecodingStrategy.VanillaDecodedSequence {
         }
     }
 }
+
+#endif

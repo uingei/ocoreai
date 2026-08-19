@@ -6,6 +6,8 @@
 // Absorbed from coreai-models TextGeneration/TextGenerator.swift (Input + PromptUtils),
 // as required by the DecodingStrategy protocol family (#146 absorption, aligned #170).
 
+#if canImport(CoreAI)
+
 import Foundation
 import Tokenizers
 
@@ -15,7 +17,8 @@ import Tokenizers
 ///
 /// Use this enum to specify whether input text should be processed as raw text
 /// or formatted as a prompt with template application.
-public enum Input: Sendable {
+@available(macOS 27.0, iOS 27.0, *)
+enum Input: Sendable {
     /// Raw text input without any template formatting
     /// - Parameter String: The unformatted text to process
     case rawText(String)
@@ -32,10 +35,11 @@ public enum Input: Sendable {
 // MARK: - Prompt Utilities
 
 /// Utility functions for prompt formatting
-public struct PromptUtils {
+@available(macOS 27.0, iOS 27.0, *)
+struct PromptUtils {
     /// Apply chat template using tokenizer's built-in functionality
     /// This method tries to use the tokenizer's applyChatTemplate method, falling back to direct encoding
-    public static func maybeApplyTokenizerChatTemplate(_ input: Input, tokenizer: any Tokenizer)
+    static func maybeApplyTokenizerChatTemplate(_ input: Input, tokenizer: any Tokenizer)
         throws
         -> [Int]
     {
@@ -57,3 +61,5 @@ public struct PromptUtils {
         }
     }
 }
+
+#endif

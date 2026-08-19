@@ -3,14 +3,17 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
+#if canImport(CoreAI)
+
 import CXGrammar
 import Foundation
 
 // MARK: - Compiled Grammar
 
-public final class CompiledGrammar {
+@available(macOS 27.0, iOS 27.0, *)
+final class CompiledGrammar {
     private let handle: OpaquePointer
-    public let tokenizerInfo: TokenizerInfo
+    let tokenizerInfo: TokenizerInfo
 
     fileprivate init(handle: OpaquePointer, tokenizerInfo: TokenizerInfo) {
         self.handle = handle
@@ -21,7 +24,7 @@ public final class CompiledGrammar {
         xgrammar_compiled_grammar_free(handle)
     }
 
-    public var memorySizeBytes: Int {
+    var memorySizeBytes: Int {
         Int(xgrammar_compiled_grammar_memory_size(handle))
     }
 
@@ -32,11 +35,12 @@ public final class CompiledGrammar {
 
 // MARK: - Grammar Compiler
 
-public final class GrammarCompiler {
+@available(macOS 27.0, iOS 27.0, *)
+final class GrammarCompiler {
     private let handle: OpaquePointer
     private let tokenizerInfo: TokenizerInfo
 
-    public init(
+    init(
         tokenizerInfo: TokenizerInfo,
         maxThreads: Int = 8,
         cacheEnabled: Bool = true
@@ -60,7 +64,7 @@ public final class GrammarCompiler {
         xgrammar_compiler_free(handle)
     }
 
-    public func compileJSONSchema(
+    func compileJSONSchema(
         _ schema: String,
         anyWhitespace: Bool = true,
         strictMode: Bool = true
@@ -82,11 +86,12 @@ public final class GrammarCompiler {
 
 // MARK: - Grammar Matcher
 
-public final class GrammarMatcher {
+@available(macOS 27.0, iOS 27.0, *)
+final class GrammarMatcher {
     private let handle: OpaquePointer
     private let vocabularySize: Int
 
-    public init(
+    init(
         compiledGrammar: CompiledGrammar,
         maxRollbackTokens: Int = 0
     ) {
@@ -108,7 +113,7 @@ public final class GrammarMatcher {
         xgrammar_matcher_free(handle)
     }
 
-    public func fillNextTokenBitmask(_ bitmask: UnsafeMutablePointer<Int32>) -> Bool {
+    func fillNextTokenBitmask(_ bitmask: UnsafeMutablePointer<Int32>) -> Bool {
         // Create DLTensor for the bitmask
         let bitmaskSize = (vocabularySize + 31) / 32
         var shape = Int64(bitmaskSize)
@@ -128,30 +133,30 @@ public final class GrammarMatcher {
         }
     }
 
-    public func acceptToken(_ tokenId: Int32) -> Bool {
+    func acceptToken(_ tokenId: Int32) -> Bool {
         return xgrammar_matcher_accept_token(handle, tokenId)
     }
 
-    public var isTerminated: Bool {
+    var isTerminated: Bool {
         return xgrammar_matcher_is_terminated(handle)
     }
 
-    public var isCompleted: Bool {
+    var isCompleted: Bool {
         return xgrammar_matcher_is_completed(handle)
     }
 
-    public func reset() {
+    func reset() {
         xgrammar_matcher_reset(handle)
     }
 
     @discardableResult
-    public func rollback(_ numTokens: Int = 1) -> Bool {
+    func rollback(_ numTokens: Int = 1) -> Bool {
         xgrammar_matcher_rollback(handle, Int32(numTokens))
     }
 
     /// Returns the longest deterministic string from the current grammar state,
     /// or nil if no jump-forward is possible. Does not change matcher state.
-    public func findJumpForwardString() -> String? {
+    func findJumpForwardString() -> String? {
         guard let cStr = xgrammar_matcher_find_jump_forward_string(handle) else {
             return nil
         }
@@ -163,13 +168,16 @@ public final class GrammarMatcher {
 
 // MARK: - Errors
 
-public enum XGrammarError: Error, LocalizedError {
+@available(macOS 27.0, iOS 27.0, *)
+enum XGrammarError: Error, LocalizedError {
     case schemaCompilationFailed(String)
 
-    public var errorDescription: String? {
+    var errorDescription: String? {
         switch self {
         case .schemaCompilationFailed(let schema):
             return "Failed to compile JSON schema: \(schema.prefix(200))"
         }
     }
 }
+
+#endif

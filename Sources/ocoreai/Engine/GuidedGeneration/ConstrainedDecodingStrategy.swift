@@ -3,6 +3,8 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
+#if canImport(CoreAI)
+
 import Foundation
 import Tokenizers
 
@@ -15,7 +17,8 @@ import Tokenizers
 /// Each step: (1) run one inference step to get logits, (2) apply the grammar bitmask
 /// to zero out tokens that would violate the JSON schema, (3) sample from the masked
 /// logits, (4) accept the token in the grammar matcher to advance the grammar state.
-public struct ConstrainedDecodingStrategy: DecodingStrategy {
+@available(macOS 27.0, iOS 27.0, *)
+struct ConstrainedDecodingStrategy: DecodingStrategy {
     /// The JSON schema that constrains generation output.
     private let jsonSchema: String
 
@@ -27,14 +30,14 @@ public struct ConstrainedDecodingStrategy: DecodingStrategy {
     /// - Parameters:
     ///   - jsonSchema: A valid JSON schema string that constrains output structure
     ///   - vocabSize: Optional vocabulary size override. If nil, derived from tokenizer.
-    public init(jsonSchema: String, vocabSize: Int? = nil) {
+    init(jsonSchema: String, vocabSize: Int? = nil) {
         self.jsonSchema = jsonSchema
         self.vocabSizeOverride = vocabSize
     }
 
     // MARK: - DecodingStrategy conformance
 
-    public func decode(
+    func decode(
         from input: Input,
         tokenizer: any Tokenizer,
         inferenceEngine: any InferenceEngine,
@@ -194,11 +197,15 @@ public struct ConstrainedDecodingStrategy: DecodingStrategy {
 
 // MARK: - ConstrainedDecodedSequence
 
+@available(macOS 27.0, iOS 27.0, *)
 extension ConstrainedDecodingStrategy {
     /// Async sequence of `GenerationResult` produced by `decode()`.
-    public struct ConstrainedDecodedSequence: AsyncSequence {
-        public typealias Element = GenerationResult
-        public typealias Failure = Error
+    @available(macOS 27.0, iOS 27.0, *)
+    struct ConstrainedDecodedSequence: AsyncSequence {
+        @available(macOS 27.0, iOS 27.0, *)
+        typealias Element = GenerationResult
+        @available(macOS 27.0, iOS 27.0, *)
+        typealias Failure = Error
 
         fileprivate let prepared: Prepared
         let tokenizer: any Tokenizer
@@ -206,7 +213,7 @@ extension ConstrainedDecodingStrategy {
         let samplingConfiguration: SamplingConfiguration
         let stopSequences: StopSequences
 
-        public func makeAsyncIterator() -> Iterator {
+        func makeAsyncIterator() -> Iterator {
             Iterator(
                 prepared: prepared,
                 tokenizer: tokenizer,
@@ -218,6 +225,7 @@ extension ConstrainedDecodingStrategy {
     }
 }
 
+@available(macOS 27.0, iOS 27.0, *)
 extension ConstrainedDecodingStrategy.ConstrainedDecodedSequence {
     /// Holds the eagerly-created, move-only generation session together with the tokenized prompt and token budget.
     fileprivate final class Prepared {
@@ -237,10 +245,14 @@ extension ConstrainedDecodingStrategy.ConstrainedDecodedSequence {
     }
 }
 
+@available(macOS 27.0, iOS 27.0, *)
 extension ConstrainedDecodingStrategy.ConstrainedDecodedSequence {
-    public final class Iterator: AsyncIteratorProtocol {
-        public typealias Element = GenerationResult
-        public typealias Failure = Error
+    @available(macOS 27.0, iOS 27.0, *)
+    final class Iterator: AsyncIteratorProtocol {
+        @available(macOS 27.0, iOS 27.0, *)
+        typealias Element = GenerationResult
+        @available(macOS 27.0, iOS 27.0, *)
+        typealias Failure = Error
 
         private let tokenizer: any Tokenizer
         private let inferenceEngine: any InferenceEngine
@@ -274,7 +286,7 @@ extension ConstrainedDecodingStrategy.ConstrainedDecodedSequence {
             self.stopSequences = stopSequences
         }
 
-        public func next() async throws -> GenerationResult? {
+        func next() async throws -> GenerationResult? {
             if finished {
                 return nil
             }
@@ -343,3 +355,5 @@ extension ConstrainedDecodingStrategy.ConstrainedDecodedSequence {
         }
     }
 }
+
+#endif

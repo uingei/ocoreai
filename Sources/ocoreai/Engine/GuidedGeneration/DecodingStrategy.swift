@@ -3,19 +3,22 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
+#if canImport(CoreAI)
+
 import Foundation
 import Tokenizers
 
 // MARK: - Generation Result
 
 /// Decoded text with optional token ID and logits.
-public struct GenerationResult: Sendable {
-    public let text: String
-    public let tokenId: Int32
+@available(macOS 27.0, iOS 27.0, *)
+struct GenerationResult: Sendable {
+    let text: String
+    let tokenId: Int32
 
-    public let rawLogits: [LogitsScalarType]?
+    let rawLogits: [LogitsScalarType]?
 
-    public init(text: String, tokenId: Int32, rawLogits: [LogitsScalarType]?) {
+    init(text: String, tokenId: Int32, rawLogits: [LogitsScalarType]?) {
         self.text = text
         self.tokenId = tokenId
         self.rawLogits = rawLogits
@@ -59,16 +62,17 @@ public struct GenerationResult: Sendable {
 ///     }
 /// }
 /// ```
-public struct StopSequences: Sendable {
+@available(macOS 27.0, iOS 27.0, *)
+struct StopSequences: Sendable {
     /// All stop sequences (each is an array of token IDs)
-    public let sequences: [[Int32]]
+    let sequences: [[Int32]]
 
     /// Maximum length of any sequence (used for sliding window buffer size)
-    public let maxLength: Int
+    let maxLength: Int
 
     /// Initialize with token sequences
     /// - Parameter sequences: Array of token ID sequences
-    public init(sequences: [[Int32]]) {
+    init(sequences: [[Int32]]) {
         self.sequences = sequences
         self.maxLength = sequences.map { $0.count }.max() ?? 0
     }
@@ -78,7 +82,7 @@ public struct StopSequences: Sendable {
     /// - Parameter additionalSequences: Optional additional stop sequences to include
     /// - Parameter additionalEosTokenIds: Optional additional single-token EOS IDs
     ///   (e.g. from tokenizer_config.json's `additional_special_tokens`)
-    public init(
+    init(
         for tokenizer: any Tokenizer,
         additionalSequences: [[Int32]] = [],
         additionalEosTokenIds: [Int32] = []
@@ -119,7 +123,7 @@ public struct StopSequences: Sendable {
     ///
     /// - Parameter recentTokens: Buffer of recently generated tokens
     /// - Returns: true if any sequence matches the end of the buffer
-    public func matches(recentTokens: [Int32]) -> Bool {
+    func matches(recentTokens: [Int32]) -> Bool {
         matchedSequence(recentTokens: recentTokens) != nil
     }
 
@@ -131,7 +135,7 @@ public struct StopSequences: Sendable {
     ///
     /// - Parameter recentTokens: Buffer of recently generated tokens
     /// - Returns: The matched sequence, or nil if none matched.
-    public func matchedSequence(recentTokens: [Int32]) -> [Int32]? {
+    func matchedSequence(recentTokens: [Int32]) -> [Int32]? {
         for sequence in sequences {
             if recentTokens.suffix(sequence.count).elementsEqual(sequence) {
                 return sequence
@@ -141,12 +145,12 @@ public struct StopSequences: Sendable {
     }
 
     /// Check if empty (no stop sequences)
-    public var isEmpty: Bool {
+    var isEmpty: Bool {
         sequences.isEmpty
     }
 
     /// Number of stop sequences
-    public var count: Int {
+    var count: Int {
         sequences.count
     }
 }
@@ -155,7 +159,8 @@ public struct StopSequences: Sendable {
 
 /// Decoding strategies produce text + optional enrichments (logits, token IDs)
 /// from an inference engine.
-public protocol DecodingStrategy: Sendable {
+@available(macOS 27.0, iOS 27.0, *)
+protocol DecodingStrategy: Sendable {
     associatedtype ResultSequence: AsyncSequence<GenerationResult, Error>
 
     /// Stream decoded text with optional logits.
@@ -184,13 +189,14 @@ public protocol DecodingStrategy: Sendable {
 // MARK: - Decoding Strategy Factory
 
 /// Factory for creating decoding strategies
-public struct DecodingStrategyFactory {
+@available(macOS 27.0, iOS 27.0, *)
+struct DecodingStrategyFactory {
     /// Creates a decoding strategy of the specified type
     /// - Parameters:
     ///   - type: The type of decoding strategy to create
     ///   - parameters: Optional parameters for configuring the strategy
     /// - Returns: A configured decoding strategy instance
-    public static func create(
+    static func create(
         type: DecodingType, parameters: DecodingParameters = DecodingParameters()
     )
         -> any DecodingStrategy
@@ -203,15 +209,19 @@ public struct DecodingStrategyFactory {
 }
 
 /// Enumeration of available decoding strategy types
-public enum DecodingType {
+@available(macOS 27.0, iOS 27.0, *)
+enum DecodingType {
     /// Standard vanilla decoding strategy (text-only)
     case vanilla
 }
 
 /// Parameters for configuring decoding strategies
-public struct DecodingParameters: Sendable {
+@available(macOS 27.0, iOS 27.0, *)
+struct DecodingParameters: Sendable {
     /// Initializes decoding parameters with default values
-    public init() {
+    init() {
         // No parameters needed for vanilla decoding
     }
 }
+
+#endif

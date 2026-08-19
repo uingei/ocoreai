@@ -3,6 +3,8 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
+#if canImport(CoreAI)
+
 import Foundation
 import Tokenizers
 
@@ -16,14 +18,15 @@ import Tokenizers
 ///
 /// Each session is tied to a specific JSON schema and vocabulary. It tracks
 /// the generation state and produces token masks that enforce schema compliance.
-public struct ConstrainedGenerationSession: ~Copyable {
+@available(macOS 27.0, iOS 27.0, *)
+struct ConstrainedGenerationSession: ~Copyable {
     static let maxRollbackTokens = 64
 
     private let tokenizerInfo: TokenizerInfo
     private let compiler: GrammarCompiler
     private let compiledGrammar: CompiledGrammar
     private let matcher: GrammarMatcher
-    public let vocabularySize: Int
+    let vocabularySize: Int
     private let bitmaskSize: Int
     private var bitmaskBuffer: [Int32]
     // Tracks termination via all-zeros bitmask (xgrammar signals completion this way
@@ -31,18 +34,18 @@ public struct ConstrainedGenerationSession: ~Copyable {
     private var allTokensBlocked = false
 
     /// The JSON schema this session enforces.
-    public let schema: String
+    let schema: String
 
     /// Whether the grammar has reached a terminal state (valid JSON complete).
     ///
     /// Returns true either when xgrammar explicitly marks the matcher as terminated,
     /// or when `fillNextTokenBitmask` returns false (all tokens blocked = JSON complete).
-    public var isTerminated: Bool {
+    var isTerminated: Bool {
         matcher.isTerminated || allTokensBlocked
     }
 
     /// Memory used by the compiled grammar in bytes.
-    public var compiledGrammarMemoryBytes: Int {
+    var compiledGrammarMemoryBytes: Int {
         compiledGrammar.memorySizeBytes
     }
 
@@ -56,7 +59,7 @@ public struct ConstrainedGenerationSession: ~Copyable {
     ///     xgrammar allows these only at grammar-terminal states (valid JSON complete).
     ///     Pass `nil` to rely on xgrammar defaults.
     /// - Throws: `ConstrainedGenerationError` if the schema is invalid JSON
-    public init(
+    init(
         jsonSchema: String,
         vocabulary: [String],
         vocabType: VocabularyType = .byteLevel,
@@ -77,7 +80,7 @@ public struct ConstrainedGenerationSession: ~Copyable {
     ///   - tokenizerInfo: Pre-built tokenizer info (must include stop token IDs if needed)
     /// - Throws: `ConstrainedGenerationError` if the schema is invalid JSON,
     ///           `XGrammarError` if schema compilation fails
-    public init(
+    init(
         jsonSchema: String,
         tokenizerInfo: TokenizerInfo
     ) throws {
@@ -126,7 +129,7 @@ public struct ConstrainedGenerationSession: ~Copyable {
     ///     xgrammar allows these tokens only at grammar-terminal states (valid JSON complete),
     ///     blocking them mid-generation. Pass `nil` to rely on xgrammar defaults (not recommended).
     /// - Throws: `ConstrainedGenerationError` if the schema is invalid JSON
-    public init(
+    init(
         jsonSchema: String,
         tokenizer: any Tokenizer,
         vocabSize: Int,
@@ -154,7 +157,7 @@ public struct ConstrainedGenerationSession: ~Copyable {
     /// Bit `i` in word `i/32` at position `i%32`.
     ///
     /// - Returns: The bitmask array, or nil if the grammar is terminated
-    public mutating func nextTokenBitmask() -> [Int32]? {
+    mutating func nextTokenBitmask() -> [Int32]? {
         if isTerminated { return nil }
 
         let hasConstraints = bitmaskBuffer.withUnsafeMutableBufferPointer { buffer in
@@ -176,7 +179,7 @@ public struct ConstrainedGenerationSession: ~Copyable {
     /// - Parameter logits: Raw logits from the model (modified in-place, length = vocab size)
     /// - Returns: `true` if mask was applied, `false` if terminated (logits unchanged)
     @discardableResult
-    public mutating func applyMask(to logits: inout [Float]) -> Bool {
+    mutating func applyMask(to logits: inout [Float]) -> Bool {
         guard let bitmask = nextTokenBitmask() else { return false }
         _applyBitmask(
             bitmask, to: &logits, vocabularySize: vocabularySize, negativeInfinity: -.infinity)
@@ -190,12 +193,12 @@ public struct ConstrainedGenerationSession: ~Copyable {
     /// - Parameter tokenId: The token ID that was sampled
     /// - Returns: `true` if the token was accepted, `false` if rejected by the grammar
     @discardableResult
-    public mutating func acceptToken(_ tokenId: Int32) -> Bool {
+    mutating func acceptToken(_ tokenId: Int32) -> Bool {
         matcher.acceptToken(tokenId)
     }
 
     /// Reset the session to the initial state for reuse with the same schema.
-    public mutating func reset() {
+    mutating func reset() {
         matcher.reset()
         allTokensBlocked = false
     }
@@ -203,19 +206,20 @@ public struct ConstrainedGenerationSession: ~Copyable {
     /// Rollback the grammar state by N tokens. Returns false if rollback failed
     /// (e.g., exceeds maxRollbackTokens budget).
     @discardableResult
-    public mutating func rollback(_ numTokens: Int = 1) -> Bool {
+    mutating func rollback(_ numTokens: Int = 1) -> Bool {
         guard numTokens >= 0 else { return false }
         return matcher.rollback(numTokens)
     }
 
     /// Find the longest deterministic string from the current grammar state.
     /// Does not change the matcher state. Returns nil if no jump-forward is possible.
-    public func findJumpForwardString() -> String? {
+    func findJumpForwardString() -> String? {
         matcher.findJumpForwardString()
     }
 
     /// Result of filling a bitmask for the next token.
-    public enum BitmaskResult: Equatable {
+    @available(macOS 27.0, iOS 27.0, *)
+    enum BitmaskResult: Equatable {
         /// Grammar is terminated or all tokens are blocked — generation should stop.
         case terminated
         /// All tokens are allowed — no mask needed, generate unconstrained.
@@ -228,7 +232,7 @@ public struct ConstrainedGenerationSession: ~Copyable {
     ///
     /// The caller must ensure the pointer has room for at least `(vocabularySize + 31) / 32`
     /// Int32 words.
-    public mutating func fillBitmask(into pointer: UnsafeMutablePointer<Int32>) -> BitmaskResult {
+    mutating func fillBitmask(into pointer: UnsafeMutablePointer<Int32>) -> BitmaskResult {
         if isTerminated { return .terminated }
 
         let needsApplication = matcher.fillNextTokenBitmask(pointer)
@@ -247,7 +251,7 @@ public struct ConstrainedGenerationSession: ~Copyable {
 
 // MARK: - Float16 Masking
 
-#if !((os(macOS) || targetEnvironment(macCatalyst)) && arch(x86_64))
+@available(macOS 27.0, iOS 27.0, *)
 extension ConstrainedGenerationSession {
     /// Apply the grammar mask to Float16 logits in-place, setting disallowed tokens to
     /// `-Float16.greatestFiniteMagnitude`.
@@ -255,7 +259,7 @@ extension ConstrainedGenerationSession {
     /// - Parameter logits: Raw logits from the model (modified in-place, length = vocab size)
     /// - Returns: `true` if mask was applied, `false` if terminated (logits unchanged)
     @discardableResult
-    public mutating func applyMask(to logits: inout [Float16]) -> Bool {
+    mutating func applyMask(to logits: inout [Float16]) -> Bool {
         guard let bitmask = nextTokenBitmask() else { return false }
         _applyBitmask(
             bitmask, to: &logits, vocabularySize: vocabularySize,
@@ -263,15 +267,15 @@ extension ConstrainedGenerationSession {
         return true
     }
 }
-#endif
 
 // MARK: - Errors
 
-public enum ConstrainedGenerationError: Error, LocalizedError {
+@available(macOS 27.0, iOS 27.0, *)
+enum ConstrainedGenerationError: Error, LocalizedError {
     case invalidSchema(String)
     case generationFailed(String)
 
-    public var errorDescription: String? {
+    var errorDescription: String? {
         switch self {
         case .invalidSchema(let schema):
             return "Invalid JSON schema: \(schema.prefix(100))..."
@@ -283,6 +287,7 @@ public enum ConstrainedGenerationError: Error, LocalizedError {
 
 // MARK: - Convenience: Schema from File
 
+@available(macOS 27.0, iOS 27.0, *)
 extension ConstrainedGenerationSession {
     /// Create a session by loading a JSON schema from a file.
     ///
@@ -292,7 +297,7 @@ extension ConstrainedGenerationSession {
     ///   - vocabType: The vocabulary encoding type
     ///   - stopTokenIds: Token IDs to treat as stop tokens (e.g., EOS)
     /// - Throws: If the file can't be read or the schema is invalid
-    public init(
+    init(
         schemaPath: String,
         vocabulary: [String],
         vocabType: VocabularyType = .byteLevel,
@@ -330,3 +335,5 @@ private func _applyBitmask<T: BinaryFloatingPoint>(
         }
     }
 }
+
+#endif
