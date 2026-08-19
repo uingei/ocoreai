@@ -1,6 +1,6 @@
-# ocoreai — 自包含 AI Agent 操作系统
+# ocoreai — 本地 Agent 可靠执行层
 
-**macOS/iOS AI Agent 平台** — 双通道端侧推理（MLX Metal GPU + CoreAI）、Prefix Cache、KV Cache 量化、推测解码（MTP + Drafter）、Agent 循环与工具调用、技能系统、会话记忆、持续感知、多模态 I/O，一体成型。基于 Swift 6.2、Hummingbird 2.25、SwiftUI 构建。
+**macOS/iOS 端侧 Agent 执行层** — 双通道端侧推理（MLX Metal GPU + CoreAI）、Prefix Cache、KV Cache 量化、推测解码（MTP + Drafter）、Agent 循环与工具调用、技能系统、会话记忆、持续感知、多模态 I/O，一体成型。基于 Swift 6.2、Hummingbird 2.25、SwiftUI 构建。
 
 [![Swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 14+ | iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
@@ -51,7 +51,7 @@ ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中
 - **多模态 I/O** — 摄像头捕获、屏幕截图、麦克风输入、Vision OCR、16kHz Apple Speech STT、多语言 TTS — 全部原生。摄像头/屏幕默认关闭；STT 需要麦克风权限。
 - **i18n** — StringKey 本地化框架完整；英文已部署。中文（zh-Hans）已有基础翻译覆盖。其他语种（ja, ko, fr, de, es）已定义但未翻译。
 
-向完整 **Agent OS** 演进 —— 设备级运行时，LLM 通过统一工具接口控制工具、应用和桌面。
+**方向** —— 第一产品：**Coding/Computer Agent**，让 LLM 在端侧可靠完成多步工程任务（**Execute** → **Verify** → **Recover**）。推理归上游（MLX / CoreAI），ocoreai 是其上的可靠执行层 —— 跟齐上游，不与之竞争。
 
 ---
 

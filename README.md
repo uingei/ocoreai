@@ -1,6 +1,6 @@
-# ocoreai — Self-Contained AI Agent OS
+# ocoreai — Reliable Execution Layer for Local Agents
 
-**macOS/iOS AI agent platform** — Dual-channel on-device inference (MLX Metal GPU + CoreAI), prefix caching, KV cache quantization, speculative decoding (MTP + drafter), agent loop with tool use, skill system, session memory, persistent-perception, and multimodal I/O, all in one binary. Built with Swift 6.2, Hummingbird 2.25, SwiftUI.
+**macOS/iOS agent execution layer** — Dual-channel on-device inference (MLX Metal GPU + CoreAI), prefix caching, KV cache quantization, speculative decoding (MTP + drafter), agent loop with tool use, skill system, session memory, persistent-perception, and multimodal I/O, all in one binary. Built with Swift 6.2, Hummingbird 2.25, SwiftUI.
 
 [![swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 14+ / iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
@@ -52,7 +52,7 @@ Dual inference backends — MLX (Metal GPU, default, dual-channel on-device infe
 - **Multimodal I/O** — camera capture, screen capture, microphone input, Vision OCR, 16kHz Apple Speech STT, i18n TTS — all native. Camera/screen toggles are off by default; STT requires microphone permission.
 - **i18n** — StringKey localization framework complete; English is the shipped locale. Chinese (zh-Hans) base translations applied via locale override. Additional locales (ja, ko, fr, de, es) defined but not yet translated into `.strings` files.
 
-Evolving toward a full **Agent OS** — a device-level runtime where the LLM controls tools, apps, and the desktop through a unified tool interface.
+**Direction** — first product: a **Coding/Computer Agent** that reliably completes multi-step engineering tasks on-device (**Execute** → **Verify** → **Recover**). Inference stays upstream (MLX / CoreAI); ocoreai is the reliable execution layer above it — follow upstream, don't compete.
 
 ---
 
