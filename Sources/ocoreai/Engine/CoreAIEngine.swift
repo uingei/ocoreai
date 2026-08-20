@@ -181,9 +181,12 @@ extension InferenceStopReason {
 }
 
 /// Async sequence of InferenceOutput with stop reason tracking.
-protocol InferenceOutputSequence: AsyncSequence {
-    associatedtype Element = InferenceOutput
-    associatedtype Failure = Error
+///
+/// Pinned primary associated types (matching coreai-models): `Element` is
+/// always `InferenceOutput`, so consuming an `any InferenceOutputSequence`
+/// existential — e.g. in a `for try await` loop — still sees the concrete
+/// output type rather than an erased `Any`.
+protocol InferenceOutputSequence: AsyncSequence<InferenceOutput, any Error> {
     var stopReason: InferenceStopReason? { get }
     func setStopReason(_ reason: InferenceStopReason)
 }

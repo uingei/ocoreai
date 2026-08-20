@@ -22,9 +22,9 @@ struct InferenceTokenSequence: AsyncSequence, Sendable {
         self._stopReasonStore = stopReasonStore
     }
 
-    var stopReason: StopReason? { _stopReasonStore.stopReason }
+    var stopReason: InferenceStopReason? { _stopReasonStore.stopReason }
 
-    func setStopReason(_ reason: StopReason) {
+    func setStopReason(_ reason: InferenceStopReason) {
         _stopReasonStore.set(reason)
     }
 

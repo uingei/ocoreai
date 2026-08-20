@@ -386,7 +386,12 @@ final class CoreAIPipelinedEngine: InferenceEngine, ConstrainedGenerationCapable
         _activeToken.withLock { $0 = token }
 
         let task = Task {
-            self.acquireEngine()
+            do {
+                try self.acquireEngine()
+            } catch {
+                continuation.finish(throwing: error)
+                return
+            }
             defer {
                 self.releaseEngine()
                 self.storeConstrainedSessionForReuse(session)
