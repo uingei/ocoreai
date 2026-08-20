@@ -36,35 +36,31 @@ let package = Package(
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if canImport(CoreAI)` guards
         // Pinned to exact revision — upstream main branch drifts; update via `swift package update`
-        // then bump .revision + test. Current pin: 2026-08-18 — @ 7871b09.
+        // then bump .revision + test. Current pin: 2026-08-21 — @ b6ba48d.
         //
-        // d667610→d7dc03d was blocked by upstream #512 self-injury: d7dc03d added
-        // `.rejectedToolCall` to `TokenStreamEvent`, but MLXLanguageModel.swift:1890/:1943
-        // `switch event` sites omitted it (build-fail under FoundationModelsIntegration
-        // + macOS 27 SDK). Upstream a72fcec (#538, "Handle Generation.rejectedToolCall
-        // and add an Xcode 27 compile check", 2026-08-17) fixed all ten exhaustive
-        // switches across Generation/TokenStreamEvent and added CI job
-        // `integration_build_xcode27`. d7dc03d..7871b09 also: #531 tool call parser
-        // hardening, #546 Qwen3.5 VLM fallback, #509 Qwen2.5-VL cuSeqlens, #527 nested
-        // tool grammar test, #538 above.
-        //
-        // Consequence for ocoreai (consumed at this pin):
-        //   - `Generation` gained case `.rejectedToolCall(RejectedToolCall)` —
-        //     handled at EngineInference.swift:2981 (MTP path) and :3590
-        //     (standard ChatSession path); logged, not thrown: a rejected call is
-        //     a protocol anomaly on the no-tools path, surfacing it as a fatal
-        //     error would drop legitimate text output.
-        //   - `GenerateCompletionInfo` + `rejectedToolCallCount: Int = 0`
-        //     (defaulted init — existing call sites unaffected).
-        //   - `ChatSession.stream(to:)`/`stream(messages:)` now throw
-        //     `RejectedToolCallError` internally (failOnRejectedToolCall: true);
-        //     ocoreai uses `streamDetails` (emits the case in-stream) — fine.
-        //   - `ModelConfiguration` + `messageGenerator` (defaulted nil) + `==`
-        //     rewrite — both uses in ocoreai (EnginePool:495, MLXBridge:519/534)
-        //     use `ModelConfiguration(id:)` — unaffected.
+        // 7871b09..b6ba48d (7 commits, all verified consumer-transparent or free riders):
+        //   - #556 (95cc8b8): Muse Glimmer honors requested KV-cache capacity —
+        //     also fixes upstream #544 (MLXLanguageModel.swift:1890/:1943 no longer
+        //     die on Xcode 27 beta 5 SDK) — unblocks local build verification.
+        //   - #559 (99c0e5f): GenerateCompletionInfo + `cachedPromptTokenCount` /
+        //     `totalPromptTokenCount` (defaulted init — existing call sites unaffected).
+        //     NEW consumer-facing metric: prompt tokens served by a reused KV prefix.
+        //   - #549 (72d9fdb): SessionPool prompt-cache reuse for text-only inputs —
+        //     upstream-internal reuse activation; ocoreai's pool slots gain it for free.
+        //   - #507 (2b39bab): opt-in q4_0 lattice calibration (model conversion only —
+        //     new `ModelConversionError.incompatibleCalibration` case; ocoreai does no
+        //     model conversion, never switches this enum).
+        //   - #555 (4c21bf6): Helium (Kyutai) LLM port — model-specific, no API change.
+        //   - #557 (3c5805a): Gemma brace-form object/array value parsing — model-specific.
+        //   - #541 (b6ba48d): LoRA dropout + training mode — LoRA public signatures
+        //     unchanged (LoRAContainer.from / LoRATrain.train / Parameters all
+        //     backward-compatible; `Parameters.completedIterations` added with default).
+        //     ModelContext now normalizes the module tree to eval mode at the
+        //     inference boundary (model.train(false)) — free correctness fix for
+        //     LoRA+dropout inference in LLMLifecycleHandler.
         // Re-evaluate at each upstream main bump: re-grep `Generation` switch
         // sites and confirm exhaustiveness before building.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "7871b09"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "b6ba48d"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
