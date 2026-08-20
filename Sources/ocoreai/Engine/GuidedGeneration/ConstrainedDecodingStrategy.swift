@@ -123,16 +123,18 @@ struct ConstrainedDecodingStrategy: DecodingStrategy {
         samplingConfiguration: SamplingConfiguration,
         constrainedOptions: InferenceOptions
     ) async throws -> (Int32?, [LogitsScalarType]?) {
-        var rawLogits: [LogitsScalarType]? = nil
-        for try await output in try await inferenceEngine.generate(
+        // Consume the first step through the typed-failure iterator (mirrors
+        // VanillaDecodingStrategy). A `for try await` over the
+        // `any InferenceOutputSequence` existential erases `Element` to `Any`;
+        // driving `next()` directly on `AsyncIteratorProtocol<InferenceOutput, Error>`
+        // keeps the pinned element type.
+        let stream = try await inferenceEngine.generate(
             with: inputTokens,
             samplingConfiguration: samplingConfiguration,
             inferenceOptions: constrainedOptions
-        ) {
-            rawLogits = output.logits
-            break
-        }
-        guard let logits = rawLogits else {
+        )
+        var iterator: any AsyncIteratorProtocol<InferenceOutput, Error> = stream.makeAsyncIterator()
+        guard let output = try await iterator.next(), let logits = output.logits else {
             throw ConstrainedGenerationError.generationFailed("No logits returned from engine")
         }
 
