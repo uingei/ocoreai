@@ -182,12 +182,20 @@ extension InferenceStopReason {
 
 /// Async sequence of InferenceOutput with stop reason tracking.
 ///
-/// Pinned primary associated types (matching coreai-models): `Element` is
-/// always `InferenceOutput`, so consuming an `any InferenceOutputSequence`
-/// existential — e.g. in a `for try await` loop — still sees the concrete
-/// output type rather than an erased `Any`.
-protocol InferenceOutputSequence: AsyncSequence<InferenceOutput, any Error> {
+/// `Element` is pinned to `InferenceOutput` so consuming an
+/// `any InferenceOutputSequence` existential — e.g. in a `for try await` loop —
+/// sees the concrete output type rather than an erased `Any` (mirrors the
+/// upstream contract without requiring the macOS 15+ typed-failure primary
+/// associatedtype on `AsyncSequence`).
+///
+/// All conformers are expected to also alias `Failure = Error` so that
+/// `for try await` in generic contexts works against the existential.
+protocol InferenceOutputSequence: AsyncSequence where Element == InferenceOutput {
+    /// Why generation stopped. Nil while the stream is still active.
     var stopReason: InferenceStopReason? { get }
+
+    /// Record why generation stopped. Called by the engine iterator for
+    /// natural completion and by consumers that stop early (EOS, stop sequence).
     func setStopReason(_ reason: InferenceStopReason)
 }
 
