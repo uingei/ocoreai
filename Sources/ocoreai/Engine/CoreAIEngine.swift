@@ -188,6 +188,13 @@ extension InferenceStopReason {
 /// and the decoded-strategy layer (copied from upstream) can store it in an
 /// existential without a compiler bad-diagnostic. All conformers already alias
 /// `Element = InferenceOutput` + `Failure = Error` with `next() async throws`.
+///
+/// The two-parameter typed-failure form `AsyncSequence<Element, Failure>` is
+/// only available on a newer OS baseline than this module's deployment floor,
+/// so gate the protocol (and everything that depends on it) to the
+/// `@available(macOS 27.0, iOS 27.0, *)` convention already used by every
+/// conformer and consumer below.
+@available(macOS 27.0, iOS 27.0, *)
 protocol InferenceOutputSequence: AsyncSequence<InferenceOutput, Error> {
     /// Why generation stopped. Nil while the stream is still active.
     var stopReason: InferenceStopReason? { get }
@@ -221,6 +228,7 @@ final class StopReasonStore: @unchecked Sendable {
 
 /// Interface for inference engines.
 /// KV cache is preserved between generate() calls. Call reset() to clear.
+@available(macOS 27.0, iOS 27.0, *)
 protocol InferenceEngine: Sendable {
     typealias TokenId = Int32
     associatedtype OutputSequence: InferenceOutputSequence
@@ -264,6 +272,7 @@ protocol InferenceConfiguration: Sendable {
 
 // MARK: - Default implementations
 
+@available(macOS 27.0, iOS 27.0, *)
 extension InferenceEngine {
     var supportsLogits: Bool { false }
     var lastPrefixHitCount: Int { 0 }

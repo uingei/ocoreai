@@ -34,14 +34,21 @@ final class MockClock: TimingClock, @unchecked Sendable {
 }
 
 // `PerformanceMetrics`, `StatsStorage`, `InstrumentsProfiler` are
-// `@available(macOS 27.0, *)` — ocoreai's deployment floor is macOS 14, so
-// the suite (and its members, which inherit the availability) must be gated.
+// `@available(macOS 27.0, *)` — but the Swift Testing macros `@Suite`/`@Test`
+// REFUSE to expand on a type or function that is itself marked `@available`
+// ("Attribute 'Suite' cannot be applied to this structure because it has been
+// marked '@available'"). So the suite and every test stay deployment-floor
+// available, and each test body narrows availability with a leading
+// `guard #available` before touching any 27-only type.
+// On macOS < 27 the guard trips (test is a no-op); on macOS 27+ it falls
+// through to the real assertions.
 @Suite("PerformanceMetrics", .serialized)
 @MainActor
-@available(macOS 27.0)
 struct PerformanceMetricsTests {
     @Test("Reset clears all timing and token counts")
     func resetClearsMetrics() {
+        guard #available(macOS 27.0, *) else { return }
+
         let metrics = PerformanceMetrics.shared
         metrics.reset()
 
@@ -57,6 +64,8 @@ struct PerformanceMetricsTests {
 
     @Test("Throughput returns zero when time is zero")
     func zeroTimeReturnsZeroThroughput() {
+        guard #available(macOS 27.0, *) else { return }
+
         let metrics = PerformanceMetrics.shared
         metrics.reset()
 
@@ -69,6 +78,8 @@ struct PerformanceMetricsTests {
 
     @Test("Mock clock enables deterministic overall timing tests")
     func mockClockDeterministicTiming() {
+        guard #available(macOS 27.0, *) else { return }
+
         let mockClock = MockClock()
         let metrics = PerformanceMetrics(clock: mockClock)
 
@@ -82,6 +93,8 @@ struct PerformanceMetricsTests {
 
     @Test("ProfileSpan populates StatsStorage and PerformanceMetrics can read it")
     func profileSpanPopulatesStatsStorage() {
+        guard #available(macOS 27.0, *) else { return }
+
         // Create isolated storage and profiler for this test
         let storage = StatsStorage(forTesting: ())
 
@@ -101,6 +114,8 @@ struct PerformanceMetricsTests {
 
     @Test("Generation throughput calculated from ProfileSpan data")
     func generationThroughputFromProfileSpan() {
+        guard #available(macOS 27.0, *) else { return }
+
         // Create isolated storage and profiler for this test
         let storage = StatsStorage(forTesting: ())
 

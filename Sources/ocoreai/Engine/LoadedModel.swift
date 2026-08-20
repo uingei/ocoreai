@@ -48,7 +48,9 @@ final class LoadedModel: @unchecked Sendable {
 
     /// Cached inference engine — created once per LoadedModel, reused across requests.
     /// CoreAI 34f0db3: engine preserves KV cache across turns; no per-turn reset needed.
-    private var cachedEngine: (any InferenceEngine)?
+    /// Stored as `Any?` to break the `@available(macOS 27.0)` transitive leakage into
+    /// `LoadedModel` (same pattern as `_preparedModel` above; `InferenceEngine` is 27-gated).
+    private var cachedEngine: Any?
     #endif
 
     /// Engine options (KV cache strategy, etc.)
@@ -528,7 +530,7 @@ final class LoadedModel: @unchecked Sendable {
     @available(macOS 27.0, iOS 27.0, *)
     func getCachedEngine() async throws -> any InferenceEngine {
         // Fast path: check cache without lock
-        if let cached = cachedEngine {
+        if let cached = cachedEngine as? any InferenceEngine {
             return cached
         }
         // Slow path: serialise creation via dedicated engine-cache CAS lock
@@ -542,7 +544,7 @@ final class LoadedModel: @unchecked Sendable {
         }
         defer { engineCacheGuard.store(false, ordering: .releasing) }
         // Double-check after acquiring lock
-        if let cached = cachedEngine {
+        if let cached = cachedEngine as? any InferenceEngine {
             return cached
         }
         let engine: any InferenceEngine = try await EngineFactory.createEngine(
