@@ -12,6 +12,7 @@ import Tokenizers
 private let defaultMaxConstrainedTokens = 512
 private let maxConsecutiveDecodeFailures = 10
 
+@available(macOS 27.0, iOS 27.0, *)
 private final class SingleUseFlag: Sendable {
     private let value = Atomic<Bool>(false)
     func testAndSet() -> Bool {
