@@ -126,7 +126,6 @@ jobs:
             build_release: true
           - os: xcode-27
             build_release: true
-    continue-on-error: ${{ matrix.os == 'xcode-27' && true }}
     steps:
       - uses: actions/checkout@v4
 

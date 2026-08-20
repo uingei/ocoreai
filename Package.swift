@@ -88,12 +88,20 @@ let package = Package(
                 .product(name: "MLXEmbedders", package: "mlx-swift-lm"),
                 .product(name: "MLXGuidedGeneration", package: "mlx-swift-lm"),
                 // MLXFoundationModels: bridges Apple's FoundationModels framework to MLX.
-                // Gated by #if FoundationModelsIntegration + canImport(FoundationModels, _version: 2).
-                // On macOS 26 SDK this compiles to an empty library — zero impact.
-                // On macOS 27 SDK it brings in MLXLanguageModel, MLXDownloadProgress,
-                // AllowedToolOutputRouter, TranscriptConverter, SchemaConverter, SamplingModeMapper,
+                // Trait-conditional (upstream precedent: mlx-swift-lm Package.swift L173/258/272
+                // use the same `condition: .when(traits:)` inside its own targets): the product
+                // is linked ONLY when FoundationModelsIntegration is enabled, so
+                // `swift build --traits -FoundationModelsIntegration` builds ocoreai without
+                // touching the FM adapter — the opt-out is real, not decorative.
+                // On macOS 26 SDK the adapter compiles to an empty library; on the 27 SDK it
+                // brings MLXLanguageModel, MLXDownloadProgress, AllowedToolOutputRouter,
+                // TranscriptConverter, SchemaConverter, SamplingModeMapper,
                 // ModelConfigurationResolver, and ModelDescriptor.
-                .product(name: "MLXFoundationModels", package: "mlx-swift-lm"),
+                .product(
+                    name: "MLXFoundationModels",
+                    package: "mlx-swift-lm",
+                    condition: .when(traits: ["FoundationModelsIntegration"])
+                ),
                 .product(name: "HuggingFace", package: "swift-huggingface"),
                 .product(name: "Tokenizers", package: "swift-transformers"),
                 "CXGrammar",

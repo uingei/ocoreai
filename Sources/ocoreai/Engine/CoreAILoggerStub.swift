@@ -1,10 +1,10 @@
-// MARK: - CLILogger stub (no-op for ocoreai, matches upstream signature)
+// MARK: - CLILogger stub (no-op for ocoreai)
+// Signature mirrors upstream coreai-models CoreAIShared/Logger/Logger.swift:
+//   public static func log(_ message: String, component: String? = nil, level: Int = 1)
+// The three call shapes used across ocoreai (message-only, component:, level:)
+// all match this single upstream declaration.
 enum CLILogger {
-    static var isEnabled: Bool { false }
-    static func isEnabled(at level: Int) -> Bool { return isEnabled }
-    static func log(
-        _ message: @autoclosure () -> String, _ level: Int = 0, file: String = "", line: UInt = 0,
-        function: String = ""
-    ) {}
-    static func log(_ message: @autoclosure () -> String, component: String) { log(message()) }
+    static func isEnabled(at level: Int) -> Bool { false }
+    static func log(_ message: @autoclosure () -> String, component: String? = nil, level: Int = 1)
+    {}
 }

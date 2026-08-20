@@ -182,15 +182,13 @@ extension InferenceStopReason {
 
 /// Async sequence of InferenceOutput with stop reason tracking.
 ///
-/// `Element` is pinned to `InferenceOutput` so consuming an
-/// `any InferenceOutputSequence` existential — e.g. in a `for try await` loop —
-/// sees the concrete output type rather than an erased `Any` (mirrors the
-/// upstream contract without requiring the macOS 15+ typed-failure primary
-/// associatedtype on `AsyncSequence`).
-///
-/// All conformers are expected to also alias `Failure = Error` so that
-/// `for try await` in generic contexts works against the existential.
-protocol InferenceOutputSequence: AsyncSequence where Element == InferenceOutput {
+/// New-style typed-failure declaration (`Element` + `Failure` primary
+/// associated types, mirrors upstream coreai-models verbatim) so
+/// `makeAsyncIterator()` yields `any AsyncIteratorProtocol<InferenceOutput, Error>`
+/// and the decoded-strategy layer (copied from upstream) can store it in an
+/// existential without a compiler bad-diagnostic. All conformers already alias
+/// `Element = InferenceOutput` + `Failure = Error` with `next() async throws`.
+protocol InferenceOutputSequence: AsyncSequence<InferenceOutput, Error> {
     /// Why generation stopped. Nil while the stream is still active.
     var stopReason: InferenceStopReason? { get }
 
