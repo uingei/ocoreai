@@ -5,51 +5,97 @@
 // Vended 2026-08-09: Pure Foundation, no heavy deps. Used in CoreAI inference path
 // to segment decoded token deltas into .reasoning vs .text events — aligns with
 // upstream CoreAIExecutor.respondVanilla() pipeline.
+//
+// 2026-08-21 (absorb #182 `637cc63`): merged agentic Format (upstream ahead)
+// WITHOUT dropping ocoreai's ahead `promptEndsInsideReasoning` + `init(primedInside:)`
+// (upstream 684ae8e grep = 0 / `git log -S` empty for `promptEndsInsideReasoning`
+// — ocoreai added these, they are consumed by `EngineInference:299/797`).
+// Result = two formats:
+//   - `.tagPair` — symmetric open/close markers (ocoreai's original mode)
+//   - `.agentic` — self/user role-based delimiters (upstream #182)
+// Both are exercised independently by `ThinkTagParserAlignmentTests`.
 
 import Foundation
 
 /// Streaming parser that segments a model's text deltas into plain text and
 /// reasoning content emitted inside chain-of-thought markers.
 ///
-/// Reasoning-capable models like Qwen3 and DeepSeek-R1 emit chain-of-thought
-/// as inline markup mixed into the regular text stream — most commonly
-/// `<thinking>...</thinking>`. Without intercepting it, the markup leaks into the
-/// user-visible response. This parser routes the body of each thinking block
-/// as `.reasoning` events and everything else as `.text` events.
+/// Two formats are supported:
 ///
-/// The marker pair is configurable at init so the same parser works for
-/// models with different conventions. Caller is responsible for picking
-/// the right pair for a given tokenizer.
+/// **Tag-pair**: symmetric open/close markers wrap reasoning content inline
+/// (`<thinking>reasoning</thinking>response`). ocoreai's default mode.
+///
+/// **Agentic**: multi-turn message routing where reasoning is emitted as
+/// `to=self` messages and responses as `to=user` messages, delimited by
+/// message boundary tokens (`#182` upstream).
 struct ThinkTagParser {
     enum Event {
         case text(String)
         case reasoning(String)
     }
 
-    private let openMarker: String
-    private let closeMarker: String
+    /// Format configuration for the parser.
+    enum Format {
+        /// Symmetric open/close tag pair (e.g. `<thinking>`/`</thinking>`).
+        case tagPair(open: String, close: String)
+
+        /// Agentic message routing with role-based delimiters.
+        /// - `selfMarker`: string that begins a reasoning segment (e.g. "to=self<|message|>")
+        /// - `userMarker`: string that begins a user-facing segment (e.g. "to=user<|message|>")
+        /// - `endOfMessage`: terminates a reasoning segment (e.g. "<|eom|>")
+        /// - `endOfTurn`: terminates a user-facing segment (e.g. "<|eot|>")
+        case agentic(
+            selfMarker: String,
+            userMarker: String,
+            endOfMessage: String,
+            endOfTurn: String
+        )
+    }
+
+    private let format: Format
     private var buffer: String = ""
     private var insideThink: Bool = false
 
-    init(
-        open: String = "<thinking>",
-        close: String = "</thinking>",
-        primedInside: Bool = false
-    ) {
-        self.openMarker = open
-        self.closeMarker = close
+    /// Backward-compatible init (ocoreai's original tagPair entry point).
+    /// `primedInside` is preserved for `Qwen3-thinking` / `DeepSeek-R1` prefill
+    /// where the opening delimiter is pre-rendered into the prompt and the
+    /// first generated token is already reasoning content — see
+    /// `EngineInference.swift:299/797`.
+    init(open: String = "<thinking>", close: String = "</thinking>", primedInside: Bool = false) {
+        self.format = .tagPair(open: open, close: close)
         self.insideThink = primedInside
     }
+
+    /// Format-driven init (upstream `#182`). For `.agentic`, the parser starts
+    /// inside a reasoning segment (the first agentic block is by convention
+    /// `to=self`).
+    init(format: Format) {
+        self.format = format
+        if case .agentic = format {
+            self.insideThink = true
+        }
+    }
+
+    /// Convenience: derive a Format from the classic open/close marker pair.
+    static func tagPairFormat(open: String, close: String) -> Format {
+        .tagPair(open: open, close: close)
+    }
+
+    // MARK: - ocoreai ahead (upstream 684ae8e has no equivalent — preserved)
 
     /// Whether a rendered prompt tail ends inside an open reasoning block.
     ///
     /// Qwen3-thinking / DeepSeek-R1 prefill the opening delimiter into the
     /// assistant generation prompt, so the first generated token is already
-    /// reasoning content and never emits an opening `` in the stream.
-    /// A parser started `Outside` would misroute the entire thought block.
+    /// reasoning content and never emits an opening `openMarker` in the stream.
+    /// A parser started Outside would misroute the entire thought block.
     ///
     /// Trim trailing whitespace, then check if the last start marker is not
     /// followed by a matching end marker.
+    ///
+    /// Upstream `coreai-models@684ae8e` does not ship this helper (see
+    /// `git log -S promptEndsInsideReasoning` → empty). ocoreai's
+    /// `EngineInference:299/797` still require it; do not remove.
     static func promptEndsInsideReasoning(
         renderedPromptTail tail: String,
         openMarker: String,
@@ -63,30 +109,47 @@ struct ThinkTagParser {
 
         switch (lastOpen, lastClose) {
         case (.none, .none): return false
-        case (.some(let o), .none): return true
+        case (.some, .none): return true
         case (.none, .some): return false
         case (.some(let o), .some(let c)):
             return o > c
         }
     }
 
+    // MARK: - Stream surface
+
     /// Feed a decoded delta string. Returns segmented events.
     @preconcurrency mutating func consume(_ delta: String) -> [Event] {
         buffer.append(delta)
-        return drain(isFinal: false)
+        switch format {
+        case .tagPair:
+            return drainTagPair(isFinal: false)
+        case .agentic:
+            return drainAgentic(isFinal: false)
+        }
     }
 
     /// Emit any pending buffered content as a final event. Required at end of
     /// stream — without it, content held back to wait for a possible marker
     /// match is silently lost.
     @preconcurrency mutating func flush() -> [Event] {
-        drain(isFinal: true)
+        switch format {
+        case .tagPair:
+            return drainTagPair(isFinal: true)
+        case .agentic:
+            return drainAgentic(isFinal: true)
+        }
     }
 
-    @preconcurrency private mutating func drain(isFinal: Bool) -> [Event] {
+    // MARK: - Tag-pair mode
+
+    /// Drives the symmetric open/close drain. Body is byte-for-byte the same
+    /// as the ocoreai 2026-08-09 vendored drain (unchanged).
+    @preconcurrency private mutating func drainTagPair(isFinal: Bool) -> [Event] {
+        guard case .tagPair = format else { return [] }
         var events: [Event] = []
         while true {
-            let marker = insideThink ? closeMarker : openMarker
+            let marker = insideThink ? closeMarkerForTagPair : openMarkerForTagPair
             let makeEvent: (String) -> Event = insideThink ? { .reasoning($0) } : { .text($0) }
 
             if let range = buffer.range(of: marker) {
@@ -105,6 +168,113 @@ struct ThinkTagParser {
             }
         }
     }
+
+    private var openMarkerForTagPair: String {
+        if case .tagPair(let open, _) = format { return open }
+        return ""
+    }
+
+    private var closeMarkerForTagPair: String {
+        if case .tagPair(_, let close) = format { return close }
+        return ""
+    }
+
+    // MARK: - Agentic mode (upstream #182 `637cc63`)
+
+    /// Drives the agentic role-routing drain. Adapted verbatim from upstream
+    /// `ThinkTagParser.drainAgentic(isFinal:)` — self/user marker routing +
+    /// eom/eot boundaries.
+    @preconcurrency private mutating func drainAgentic(isFinal: Bool) -> [Event] {
+        guard case .agentic(let selfMarker, let userMarker, let eom, let eot) = format else {
+            return []
+        }
+
+        var events: [Event] = []
+        while true {
+            // Entry markers may arrive across consume() boundaries — strip them
+            // at the top of each iteration before searching for end markers.
+            if buffer.hasPrefix(selfMarker) {
+                buffer = String(buffer.dropFirst(selfMarker.count))
+                insideThink = true
+            } else if buffer.hasPrefix(userMarker) {
+                buffer = String(buffer.dropFirst(userMarker.count))
+                insideThink = false
+            }
+
+            if insideThink {
+                if let range = buffer.range(of: eom) {
+                    let before = String(buffer[buffer.startIndex ..< range.lowerBound])
+                    if !before.isEmpty { events.append(.reasoning(before)) }
+                    buffer = String(buffer[range.upperBound...])
+                    insideThink = false
+                    // Consume the following entry marker if present (upstream
+                    // `ThinkTagParser.swift:133-138`).
+                    if buffer.hasPrefix(selfMarker) {
+                        buffer = String(buffer.dropFirst(selfMarker.count))
+                        insideThink = true
+                    } else if buffer.hasPrefix(userMarker) {
+                        buffer = String(buffer.dropFirst(userMarker.count))
+                    }
+                } else if let range = buffer.range(of: userMarker) {
+                    let before = String(buffer[buffer.startIndex ..< range.lowerBound])
+                    if !before.isEmpty { events.append(.reasoning(before)) }
+                    buffer = String(buffer[range.upperBound...])
+                    insideThink = false
+                } else {
+                    let holdBack = max(eom.count, userMarker.count) - 1
+                    return emitSafe(
+                        events: &events, holdBack: isFinal ? 0 : holdBack, asReasoning: true)
+                }
+            } else {
+                if let range = buffer.range(of: eot) {
+                    let before = String(buffer[buffer.startIndex ..< range.lowerBound])
+                    if !before.isEmpty { events.append(.text(before)) }
+                    buffer = String(buffer[range.upperBound...])
+                    insideThink = true
+                    // Consume the following entry marker if present (upstream
+                    // `ThinkTagParser.swift:155-160`).
+                    if buffer.hasPrefix(userMarker) {
+                        buffer = String(buffer.dropFirst(userMarker.count))
+                        insideThink = false
+                    } else if buffer.hasPrefix(selfMarker) {
+                        buffer = String(buffer.dropFirst(selfMarker.count))
+                    }
+                } else if let range = buffer.range(of: selfMarker) {
+                    let before = String(buffer[buffer.startIndex ..< range.lowerBound])
+                    if !before.isEmpty { events.append(.text(before)) }
+                    buffer = String(buffer[range.upperBound...])
+                    insideThink = true
+                } else {
+                    let holdBack = max(eot.count, selfMarker.count) - 1
+                    return emitSafe(
+                        events: &events, holdBack: isFinal ? 0 : holdBack, asReasoning: false)
+                }
+            }
+        }
+    }
+
+    /// Emit the safe prefix of the buffer, holding back `holdBack` chars that
+    /// might be a marker prefix — upstream `ThinkTagParser.emitSafe`.
+    private mutating func emitSafe(events: inout [Event], holdBack: Int, asReasoning: Bool)
+        -> [Event]
+    {
+        let safeEnd: String.Index
+        if holdBack <= 0 || buffer.isEmpty {
+            safeEnd = buffer.endIndex
+        } else {
+            safeEnd = buffer.index(buffer.endIndex, offsetBy: -min(holdBack, buffer.count))
+        }
+        if safeEnd > buffer.startIndex {
+            let toEmit = String(buffer[buffer.startIndex ..< safeEnd])
+            if !toEmit.isEmpty {
+                events.append(asReasoning ? .reasoning(toEmit) : .text(toEmit))
+            }
+            buffer = String(buffer[safeEnd...])
+        }
+        return events
+    }
+
+    // MARK: - Helpers
 
     /// Rightmost index such that the suffix from there to end-of-buffer is
     /// NOT a non-empty prefix of `tag`.
