@@ -36,7 +36,15 @@ let package = Package(
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if canImport(CoreAI)` guards
         // Pinned to exact revision — upstream main branch drifts; update via `swift package update`
-        // then bump .revision + test. Current pin: 2026-08-21 — @ b6ba48d.
+        // then bump .revision + test. Current pin: 2026-08-22 — @ d661402.
+        //
+        // b6ba48d..d661402 (2 commits, both verified consumer-transparent):
+        //   - #375 (b6ba48d→130e3f0): reranker API — new MLXEmbedders/MLXRerankers
+        //     surface + Reranker.swift; ocoreai has ZERO reranker references
+        //     (grep-verified), pure free rider.
+        //   - #562 (d661402): load weight files a safetensors index leaves out —
+        //     additive weight-loading behavior (Load.swift +147); no signature
+        //     break in any API ocoreai consumes.
         //
         // 7871b09..b6ba48d (7 commits, all verified consumer-transparent or free riders):
         //   - #556 (95cc8b8): Muse Glimmer honors requested KV-cache capacity —
@@ -60,7 +68,7 @@ let package = Package(
         //     LoRA+dropout inference in LLMLifecycleHandler.
         // Re-evaluate at each upstream main bump: re-grep `Generation` switch
         // sites and confirm exhaustiveness before building.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "b6ba48d"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "d661402"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
