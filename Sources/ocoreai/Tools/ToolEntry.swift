@@ -50,6 +50,7 @@ struct ToolEntry {
     ///   - toolset: Toolset group name.
     ///   - argsType: Codable type of the tool's arguments.
     ///   - description: Human-readable description (optional).
+    ///   - schema: Parameter schema exposed to the model (optional; defaults to empty).
     ///   - isDestructive: Whether this tool performs side effects.
     ///   - handler: Typed handler that receives decoded `Args` and returns a `Codable` result.
     /// - Returns: A `ToolEntry` ready for registration.
@@ -67,16 +68,17 @@ struct ToolEntry {
         toolset: String,
         argsType: Args.Type,
         description: String = "",
+        schema: ToolSchema = ToolSchema(),
         isDestructive: Bool = false,
         handler: @Sendable @escaping (Args) async throws -> String
     ) -> ToolEntry {
         let jsonDecoder = JSONDecoder()
-        assert(argsType == Args.self, "argsType unused — type inferred from generics")
+        let _ = argsType  // type is inferred from generics; kept for API stability
 
         return ToolEntry(
             name: name,
             toolset: toolset,
-            schema: ToolSchema(),
+            schema: schema,
             handler: { rawArgs in
                 guard let data = rawArgs.data(using: .utf8), !data.isEmpty else {
                     throw ToolError.invalidParameter("Arguments required for tool '\(name)'")

@@ -111,6 +111,83 @@ func bootstrapBuiltInTools(
         )
     }
 
+    // ── read_file ───────────────────────────────────────────────────────────
+    struct ReadFileArgs: Codable {
+        let path: String
+        let offset: Int?
+        let limit: Int?
+    }
+
+    try? await registry.register(
+        ToolEntry.typed(
+            name: "read_file",
+            toolset: "files",
+            argsType: ReadFileArgs.self,
+            schema: ToolSchema(parameters: [
+                "path": ToolParameter(
+                    type: .string, description: "File path (absolute, ~, or cwd-relative)"),
+                "offset": ToolParameter(
+                    type: .integer, description: "1-based first line to read (default 1)"),
+                "limit": ToolParameter(
+                    type: .integer, description: "Max lines to read (default 2000)"),
+            ])
+        ) { args in
+            try FileTools.read(path: args.path, offset: args.offset, limit: args.limit)
+        }
+    )
+
+    // ── write_file ──────────────────────────────────────────────────────────
+    struct WriteFileArgs: Codable {
+        let path: String
+        let content: String
+    }
+
+    try? await registry.register(
+        ToolEntry.typed(
+            name: "write_file",
+            toolset: "files",
+            argsType: WriteFileArgs.self,
+            description: "Write (create or replace) a text file; verified by read-back",
+            schema: ToolSchema(parameters: [
+                "path": ToolParameter(
+                    type: .string, description: "File path to create or overwrite"),
+                "content": ToolParameter(type: .string, description: "Full new content"),
+            ]),
+            isDestructive: true
+        ) { args in
+            try FileTools.write(path: args.path, content: args.content)
+        }
+    )
+
+    // ── search_files ────────────────────────────────────────────────────────
+    struct SearchFilesArgs: Codable {
+        let path: String
+        let pattern: String
+        let target: String?
+        let limit: Int?
+    }
+
+    try? await registry.register(
+        ToolEntry.typed(
+            name: "search_files",
+            toolset: "files",
+            argsType: SearchFilesArgs.self,
+            schema: ToolSchema(parameters: [
+                "path": ToolParameter(
+                    type: .string, description: "Directory (or file) to search in"),
+                "pattern": ToolParameter(
+                    type: .string,
+                    description:
+                        "Filename glob (* supported) in files mode, substring in content mode"),
+                "target": ToolParameter(type: .string, description: "files (default) or content"),
+                "limit": ToolParameter(type: .integer, description: "Max results (default 50)"),
+            ])
+        ) { args in
+            try FileTools.search(
+                path: args.path, pattern: args.pattern, target: args.target, limit: args.limit)
+        }
+    )
+
     // ── echo ────────────────────────────────────────────────────────────────
     struct EchoArgs: Codable {
         let message: String?
