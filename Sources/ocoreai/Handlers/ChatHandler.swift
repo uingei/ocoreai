@@ -354,10 +354,10 @@ func chatCompletionsHandler(
             topK: effectiveTopK,
             mode: runtimeDefaults.mode,
             minP: effectiveMinP.map(Double.init),
-            presencePenalty: Double(effectivePresencePenalty),
-            frequencyPenalty: Double(effectiveFrequencyPenalty),
             repetitionPenalty: effectiveRepetitionPenalty,
             repetitionPenaltyWindow: effectiveRepetitionPenaltyWindow,
+            presencePenalty: Double(effectivePresencePenalty),
+            frequencyPenalty: Double(effectiveFrequencyPenalty),
             stopSequences: request.stop,
             logitBias: nil,  // logitBias 暂不暴露（ChatCompletionRequest 无对应字段）
             combined: true,

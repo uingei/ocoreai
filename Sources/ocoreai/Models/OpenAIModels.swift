@@ -176,6 +176,8 @@ struct ChatCompletionRequest: Decodable {
         stream: Bool = false,
         stop: [String]? = nil,
         frequencyPenalty: Float = 0,
+        repetitionPenalty: Double? = nil,
+        repetitionPenaltyWindow: Int? = nil,
         presencePenalty: Float = 0,
         sessionID: String? = nil,
         system: String? = nil,
@@ -194,6 +196,8 @@ struct ChatCompletionRequest: Decodable {
         self.stream = stream
         self.stop = stop
         self.frequencyPenalty = frequencyPenalty
+        self.repetitionPenalty = repetitionPenalty
+        self.repetitionPenaltyWindow = repetitionPenaltyWindow
         self.presencePenalty = presencePenalty
         self.sessionID = sessionID
         self.system = system
