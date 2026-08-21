@@ -923,7 +923,7 @@ actor EnginePool {
 ///
 /// Deterministic: the lexicographically-smallest model id flagged `defaultModel == true`
 /// wins. Returns `nil` when no model has been flagged as default.
-package func pureDefaultModelId(defaults: [String: ModelSamplingConfig]) -> String? {
+internal func pureDefaultModelId(defaults: [String: ModelSamplingConfig]) -> String? {
     defaults
         .sorted { $0.key < $1.key }
         .first(where: { $0.value.defaultModel })?.key
