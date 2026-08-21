@@ -172,14 +172,14 @@ enum CompositeSampler {
 /// Discourages the model from re-emitting recently generated tokens.
 /// Mirrors upstream coreai-models `Samplers/RepetitionPenaltyProcessor.swift`
 /// (5660fc6, #176) — sign-aware divide/multiply, dedup, range-guarded.
-public struct RepetitionPenaltyProcessor {
+struct RepetitionPenaltyProcessor {
     /// Apply repetition penalty to logits in-place.
     ///
     /// - Parameters:
     ///   - logits: Mutable logits array (vocab-sized). Modified in-place.
     ///   - recentTokenIds: Token IDs from recent generation history.
     ///   - penalty: The penalty factor (> 1.0 penalizes, 1.0 = no-op).
-    public static func apply<C: Collection<Int32>>(
+    static func apply<C: Collection<Int32>>(
         to logits: inout [LogitsScalarType],
         recentTokenIds: C,
         penalty: Float
