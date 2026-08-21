@@ -8,10 +8,18 @@
 //
 // Guarded with `#available(macOS 27)` in each test body (the @Suite / @Test
 // macros do not accept @available — see PerformanceMetricsTests.swift).
+//
+// Whole suite wrapped in `#if canImport(CoreAI)` — identical guard as the
+// source files (CoreAIStubs.swift:6, NDArrayHelpers.swift:4).  On the
+// macos-26 runner (Xcode 26.6 / SDK 26.5) the CoreAI framework is absent, so
+// NDArray / Span / fillNDArray / readNDArray do not exist and there is
+// nothing to test; the compiler skips the block entirely.
 
-import CoreAI
 import Foundation
 import Testing
+
+#if canImport(CoreAI)
+import CoreAI
 
 @testable import ocoreai
 
@@ -65,3 +73,5 @@ struct NDArrayHelpersAlignmentTests {
         #expect(prefix == [100, 101, 102, 103, 104])
     }
 }
+
+#endif
