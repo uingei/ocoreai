@@ -391,6 +391,10 @@ func toChatCompletionRequest(_ req: AnthropicMessageRequest) -> ChatCompletionRe
         stream: req.stream,
         stop: req.stopSequences,
         frequencyPenalty: 0,
+        // #176 alignment — Anthropic API has no repetition-penalty param; default
+        // nil = runtime-default cascade (ChatHandler) still applies.
+        repetitionPenalty: nil,
+        repetitionPenaltyWindow: nil,
         presencePenalty: 0,
         sessionID: req.metadata?.sessionId,
         system: req.system,

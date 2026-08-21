@@ -73,6 +73,17 @@ struct ChatCompletionRequest: Decodable {
     /// Frequency penalty (penalize repeated tokens)
     var frequencyPenalty: Float = 0
 
+    /// Repetition penalty factor for tokens seen in recent generated history.
+    /// `nil` = not set; `> 1.0` active (upstream `needsRepetitionPenalty`,
+    /// coreai-models 5660fc6, #176). Consumed by both CoreAI (CompositeSampler
+    /// sign-aware divide/multiply over `repetitionPenaltyWindow` history) and
+    /// MLX (`GenerateParameters.repetitionPenalty` + `repetitionContextSize`).
+    var repetitionPenalty: Double? = nil
+
+    /// Recent-token window for repetition penalty (nil = full generated history),
+    /// #176 alignment (upstream `repetitionPenaltyWindow`).
+    var repetitionPenaltyWindow: Int? = nil
+
     /// Presence penalty (penalize tokens already in output)
     var presencePenalty: Float = 0
 
@@ -136,6 +147,8 @@ struct ChatCompletionRequest: Decodable {
         case maxTokens = "max_tokens"
         case responseFormat = "response_format"
         case frequencyPenalty = "frequency_penalty"
+        case repetitionPenalty = "repetition_penalty"
+        case repetitionPenaltyWindow = "repetition_penalty_window"
         case presencePenalty = "presence_penalty"
         case minP = "min_p"
         case seed
@@ -203,6 +216,11 @@ struct ChatCompletionRequest: Decodable {
         maxTokens = try c.decodeIfPresent(Int.self, forKey: .maxTokens)
         responseFormat = try c.decodeIfPresent(ResponseFormat.self, forKey: .responseFormat)
         frequencyPenalty = (try? c.decodeIfPresent(Float.self, forKey: .frequencyPenalty)) ?? 0
+        // #176 alignment — repetition penalty is Double? (nil = not set); decoded
+        // nil-tolerant like minP/seed, consumed via the nil-driven cascade in
+        // ChatHandler (unlike the 0-sentinel of the Float-defaulted presence/freq).
+        repetitionPenalty = try? c.decodeIfPresent(Double.self, forKey: .repetitionPenalty)
+        repetitionPenaltyWindow = try? c.decodeIfPresent(Int.self, forKey: .repetitionPenaltyWindow)
         presencePenalty = (try? c.decodeIfPresent(Float.self, forKey: .presencePenalty)) ?? 0
         sessionID = try c.decodeIfPresent(String.self, forKey: .sessionID)
         tools = try c.decodeIfPresent([ToolDef].self, forKey: .tools)
@@ -780,6 +798,12 @@ struct ModelSamplingConfig: Codable {
     /// Frequency penalty
     var frequencyPenalty: Float = 0
 
+    /// Repetition penalty factor (nil = not set; > 1.0 active). #176 alignment.
+    var repetitionPenalty: Double? = nil
+
+    /// Recent-token window for repetition penalty (nil = full generated history).
+    var repetitionPenaltyWindow: Int? = nil
+
     /// Presence penalty
     var presencePenalty: Float = 0
 
@@ -831,6 +855,7 @@ struct ModelSamplingConfig: Codable {
     var isDefault: Bool {
         temperature == 0.7 && topP == nil && topK == nil && maxTokens == nil
             && frequencyPenalty == 0 && presencePenalty == 0 && minP == nil && seed == nil
+            && repetitionPenalty == nil && repetitionPenaltyWindow == nil
             && responseFormat == nil
             && prefill.stepSize == nil && prefill.chunking == .balanced && maxKVSize == nil
             && maxContextWindow == nil && defaultModel == false && pinned == false
@@ -844,6 +869,8 @@ struct ModelSamplingConfig: Codable {
         case topK = "top_k"
         case maxTokens = "max_tokens"
         case frequencyPenalty = "frequency_penalty"
+        case repetitionPenalty = "repetition_penalty"
+        case repetitionPenaltyWindow = "repetition_penalty_window"
         case presencePenalty = "presence_penalty"
         case minP = "min_p"
         case seed
@@ -866,6 +893,8 @@ struct ModelSamplingPatch: Decodable {
     var topK: Int? = nil
     var maxTokens: Int? = nil
     var frequencyPenalty: Float? = nil
+    var repetitionPenalty: Double? = nil
+    var repetitionPenaltyWindow: Int? = nil
     var presencePenalty: Float? = nil
     var minP: Float? = nil
     var seed: Int64? = nil
@@ -887,6 +916,8 @@ struct ModelSamplingPatch: Decodable {
         if let k = topK { config.topK = k }
         if let m = maxTokens { config.maxTokens = m }
         if let f = frequencyPenalty { config.frequencyPenalty = f }
+        if let rp = repetitionPenalty { config.repetitionPenalty = rp }
+        if let rpw = repetitionPenaltyWindow { config.repetitionPenaltyWindow = rpw }
         if let p = presencePenalty { config.presencePenalty = p }
         if let mp = minP { config.minP = mp }
         if let s = seed { config.seed = s }
@@ -930,6 +961,8 @@ struct ModelSamplingResponse: Encodable {
     let topK: Int?
     let maxTokens: Int?
     let frequencyPenalty: Float
+    let repetitionPenalty: Double?
+    let repetitionPenaltyWindow: Int?
     let presencePenalty: Float
     let responseFormat: String?
     let maxContextWindow: Int?
@@ -943,6 +976,8 @@ struct ModelSamplingResponse: Encodable {
         topK = config.topK
         maxTokens = config.maxTokens
         frequencyPenalty = config.frequencyPenalty
+        repetitionPenalty = config.repetitionPenalty
+        repetitionPenaltyWindow = config.repetitionPenaltyWindow
         presencePenalty = config.presencePenalty
         responseFormat = config.responseFormat
         maxContextWindow = config.maxContextWindow
@@ -956,6 +991,8 @@ struct ModelSamplingResponse: Encodable {
         case topK = "top_k"
         case maxTokens = "max_tokens"
         case frequencyPenalty = "frequency_penalty"
+        case repetitionPenalty = "repetition_penalty"
+        case repetitionPenaltyWindow = "repetition_penalty_window"
         case presencePenalty = "presence_penalty"
         case responseFormat = "response_format"
         case maxContextWindow = "max_context_window"

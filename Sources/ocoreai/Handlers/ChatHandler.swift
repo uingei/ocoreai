@@ -323,6 +323,13 @@ func chatCompletionsHandler(
             ? request.frequencyPenalty
             : runtimeDefaults.frequencyPenalty
 
+        /// #176 alignment — repetition penalty cascades nil-driven (request > runtime
+        /// > unset), mirroring upstream `repetitionPenalty`/`repetitionPenaltyWindow`.
+        let effectiveRepetitionPenalty =
+            request.repetitionPenalty ?? runtimeDefaults.repetitionPenalty
+        let effectiveRepetitionPenaltyWindow =
+            request.repetitionPenaltyWindow ?? runtimeDefaults.repetitionPenaltyWindow
+
         /// Resolve prefill parameters: stepSize cascades, chunking uses runtime default.
         let effectivePrefillStepSize =
             request.prefillStepSize
@@ -349,6 +356,8 @@ func chatCompletionsHandler(
             minP: effectiveMinP.map(Double.init),
             presencePenalty: Double(effectivePresencePenalty),
             frequencyPenalty: Double(effectiveFrequencyPenalty),
+            repetitionPenalty: effectiveRepetitionPenalty,
+            repetitionPenaltyWindow: effectiveRepetitionPenaltyWindow,
             stopSequences: request.stop,
             logitBias: nil,  // logitBias 暂不暴露（ChatCompletionRequest 无对应字段）
             combined: true,
