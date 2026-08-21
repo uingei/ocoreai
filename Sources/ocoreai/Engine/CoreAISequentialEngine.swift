@@ -490,6 +490,10 @@ extension CoreAISequentialEngine.GenerationSequence {
         private var inputTokens: [CoreAISequentialEngine.TokenId]
         private var step: Int = 0
         private var finished: Bool = false
+        // Prompt length at turn start — repetition penalty only penalizes
+        // tokens generated this turn (inputTokens[generationStartOffset...]).
+        // Aligned with upstream coreai-models CoreAISequentialEngine (5660fc6).
+        private let generationStartOffset: Int
 
         init(
             engine: CoreAISequentialEngine,
@@ -514,6 +518,7 @@ extension CoreAISequentialEngine.GenerationSequence {
             self.stopReasonStore = stopReasonStore
             self.generationToken = generationToken
             self.inputTokens = input
+            self.generationStartOffset = input.count
         }
 
         deinit {
@@ -580,7 +585,8 @@ extension CoreAISequentialEngine.GenerationSequence {
                     nextToken = forced[step]
                 } else {
                     var mutableLogits = logitBuffer
-                    nextToken = samplingConfiguration.fallbackSampler(from: &mutableLogits)
+                    nextToken = samplingConfiguration.fallbackSampler(
+                        from: &mutableLogits, tokenHistory: inputTokens[generationStartOffset...])
                 }
 
                 // Check for EOS

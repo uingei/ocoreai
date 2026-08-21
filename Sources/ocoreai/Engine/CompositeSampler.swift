@@ -163,13 +163,80 @@ enum CompositeSampler {
     }
 }
 
-/// Extension to match upstream SamplingConfiguration.fallbackSampler
+/// Applies repetition penalty to logits based on token generation history.
+///
+/// For each unique token ID in the recent history:
+/// - If logit > 0: divide by penalty factor
+/// - If logit < 0: multiply by penalty factor
+///
+/// Discourages the model from re-emitting recently generated tokens.
+/// Mirrors upstream coreai-models `Samplers/RepetitionPenaltyProcessor.swift`
+/// (5660fc6, #176) — sign-aware divide/multiply, dedup, range-guarded.
+public struct RepetitionPenaltyProcessor {
+    /// Apply repetition penalty to logits in-place.
+    ///
+    /// - Parameters:
+    ///   - logits: Mutable logits array (vocab-sized). Modified in-place.
+    ///   - recentTokenIds: Token IDs from recent generation history.
+    ///   - penalty: The penalty factor (> 1.0 penalizes, 1.0 = no-op).
+    public static func apply<C: Collection<Int32>>(
+        to logits: inout [LogitsScalarType],
+        recentTokenIds: C,
+        penalty: Float
+    ) {
+        guard penalty > 1.0 else { return }
+        guard !recentTokenIds.isEmpty else { return }
+
+        let vocabSize = logits.count
+        var seen = Set<Int32>(minimumCapacity: min(recentTokenIds.count, 512))
+
+        for tokenId in recentTokenIds {
+            guard tokenId >= 0 && Int(tokenId) < vocabSize else { continue }
+            guard seen.insert(tokenId).inserted else { continue }
+
+            let logit = Float(logits[Int(tokenId)])
+            if logit > 0 {
+                logits[Int(tokenId)] = LogitsScalarType(logit / penalty)
+            } else if logit < 0 {
+                logits[Int(tokenId)] = LogitsScalarType(logit * penalty)
+            }
+        }
+    }
+}
+
+/// Extension to match upstream SamplingConfiguration.fallbackSampler.
+/// The single-arg form samples without repetition penalty (explicit no-penalty);
+/// the `(from:tokenHistory:)` overload applies the penalty first when configured.
 extension SamplingConfiguration {
-    /// Samples next token via CPU composite sampler.
+    /// Samples next token via CPU composite sampler (no repetition penalty).
     /// Mutates logits in-place (temperature scaling).
     /// - Returns: Sampled token ID.
     func fallbackSampler(from logits: inout [LogitsScalarType]) -> Int32 {
         CompositeSampler.sample(from: &logits, config: self)
+    }
+
+    /// Samples the next token with repetition penalty applied first.
+    ///
+    /// Applies repetition penalty (if configured) to the logits based on token
+    /// history, then delegates to the standard sampler pipeline.
+    /// - Parameters:
+    ///   - logits: Mutable logits array. May be modified during sampling.
+    ///   - tokenHistory: Recent generated token IDs for the penalty (prompt
+    ///     tokens excluded by the caller — only tokens generated this turn).
+    /// - Returns: Sampled token ID.
+    func fallbackSampler(
+        from logits: inout [LogitsScalarType],
+        tokenHistory: some Collection<Int32>
+    ) -> Int32 {
+        if needsRepetitionPenalty, let penalty = repetitionPenalty {
+            let window =
+                repetitionPenaltyWindow.map { min($0, tokenHistory.count) }
+                ?? tokenHistory.count
+            let recentTokens = tokenHistory.suffix(window)
+            RepetitionPenaltyProcessor.apply(
+                to: &logits, recentTokenIds: recentTokens, penalty: Float(penalty))
+        }
+        return CompositeSampler.sample(from: &logits, config: self)
     }
 }
 

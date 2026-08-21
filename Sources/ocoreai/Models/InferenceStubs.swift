@@ -65,6 +65,8 @@ struct SamplingConfiguration: Codable, Equatable {
     var mode: SamplingMode?
     var minP: Double?
     var repetitionPenalty: Double?
+    /// Recent-token window for repetition penalty (nil = full generated history).
+    var repetitionPenaltyWindow: Int?
     var presencePenalty: Double?
     var frequencyPenalty: Double?
     var stopSequences: [String]?
@@ -91,6 +93,7 @@ struct SamplingConfiguration: Codable, Equatable {
         mode: SamplingMode? = nil,
         minP: Double? = nil,
         repetitionPenalty: Double? = nil,
+        repetitionPenaltyWindow: Int? = nil,
         presencePenalty: Double? = nil,
         frequencyPenalty: Double? = nil,
         stopSequences: [String]? = nil,
@@ -113,6 +116,7 @@ struct SamplingConfiguration: Codable, Equatable {
         self.mode = mode
         self.minP = minP
         self.repetitionPenalty = repetitionPenalty
+        self.repetitionPenaltyWindow = repetitionPenaltyWindow
         self.presencePenalty = presencePenalty
         self.frequencyPenalty = frequencyPenalty
         self.stopSequences = stopSequences
@@ -144,6 +148,13 @@ struct SamplingConfiguration: Codable, Equatable {
             config.topP = nil
         }
         return config
+    }
+
+    /// Whether repetition penalty is active (> 1.0). Aligned with upstream
+    /// `SamplingConfiguration.needsRepetitionPenalty` (coreai-models 5660fc6, #176).
+    var needsRepetitionPenalty: Bool {
+        guard let penalty = repetitionPenalty else { return false }
+        return penalty > 1.0
     }
 
     /// Sample next token ID from logits, consuming temperature/topK/topP/minP.

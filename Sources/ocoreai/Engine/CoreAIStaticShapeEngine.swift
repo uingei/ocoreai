@@ -316,7 +316,8 @@ final class CoreAIStaticShapeEngine: InferenceEngine, @unchecked Sendable {
     func inference(
         inputTokens: [Int32],
         samplingConfig: SamplingConfiguration,
-        returnsLogits: Bool
+        returnsLogits: Bool,
+        generationStartOffset: Int = 0
     ) async throws -> (logits: [LogitsScalarType]?, token: Int32) {
         let total = inputTokens.count
         guard processedTokenCount < total else {
@@ -378,7 +379,8 @@ final class CoreAIStaticShapeEngine: InferenceEngine, @unchecked Sendable {
             processedTokenCount = pos
         }
 
-        let nextToken = samplingConfig.fallbackSampler(from: &logitBuffer)
+        let nextToken = samplingConfig.fallbackSampler(
+            from: &logitBuffer, tokenHistory: inputTokens[generationStartOffset...])
         return (logits: returnsLogits ? logitBuffer : nil, token: nextToken)
     }
 
@@ -556,6 +558,9 @@ extension CoreAIStaticShapeEngine.GenerationSequence {
         private var inputTokens: [Int32]
         private var step: Int = 0
         private var finished: Bool = false
+        // Prompt length at turn start — repetition penalty penalizes only
+        // tokens generated this turn (inputTokens[generationStartOffset...]).
+        private let generationStartOffset: Int
 
         init(
             engine: CoreAIStaticShapeEngine, input: [Int32],
@@ -571,6 +576,7 @@ extension CoreAIStaticShapeEngine.GenerationSequence {
             self.stopReasonStore = stopReasonStore
             self.generationToken = generationToken
             self.inputTokens = input
+            self.generationStartOffset = input.count
             if let fc = inferenceOptions.forcedContinuation {
                 self.maxTokens = fc.count
             } else {
@@ -600,7 +606,8 @@ extension CoreAIStaticShapeEngine.GenerationSequence {
                 let (logits, sampled) = try await engine.inference(
                     inputTokens: inputTokens,
                     samplingConfig: samplingConfig,
-                    returnsLogits: returnsLogits || forcedContinuation != nil)
+                    returnsLogits: returnsLogits || forcedContinuation != nil,
+                    generationStartOffset: generationStartOffset)
                 let slice = inputTokens[old ..< engine.processedTokenCount]
                 engine.history.append(contentsOf: slice)
                 if generationToken.isCancelled {
