@@ -948,6 +948,8 @@ struct ModelSamplingPatch: Decodable {
         case topK = "top_k"
         case maxTokens = "max_tokens"
         case frequencyPenalty = "frequency_penalty"
+        case repetitionPenalty = "repetition_penalty"
+        case repetitionPenaltyWindow = "repetition_penalty_window"
         case presencePenalty = "presence_penalty"
         case minP = "min_p"
         case seed
