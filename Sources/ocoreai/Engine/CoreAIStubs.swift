@@ -77,6 +77,11 @@ func fillNDArray<T: BitwiseCopyable>(
     view.copyElements(fromContentsOf: elements)
 }
 
+/// Fill an NDArray using a closure that maps index → value.
+///
+/// Uses stride-aware indexing (falls back to the `isContiguousRowMajor`
+/// fast path) to land correctly on GPU-aligned (non-contiguous) 4D+ tensors,
+/// matching upstream `NDArray+Helpers.swift`.
 @available(macOS 27.0, iOS 27.0, *)
 func fillNDArray<T: BitwiseCopyable>(
     _ array: inout NDArray,
@@ -84,30 +89,69 @@ func fillNDArray<T: BitwiseCopyable>(
     count: Int,
     using generator: (Int) -> T
 ) {
-    var view = array.mutableView(as: type)
-    view.withUnsafeMutablePointer { ptr, shape, _ in
+    let view = array.mutableView(as: type)
+    view.withUnsafeMutablePointer { ptr, shape, strides in
+        let capacity = shape.product
+        precondition(
+            count <= capacity, "fillNDArray: count \(count) exceeds array capacity \(capacity)")
+        if isContiguousRowMajor(shape: shape, strides: strides) {
+            for i in 0 ..< count { ptr[i] = generator(i) }
+            return
+        }
+        let rank = shape.count
+        var indices = [Int](repeating: 0, count: rank)
         for i in 0 ..< count {
-            ptr[i] = generator(i)
+            var offset = 0
+            for d in 0 ..< rank { offset += indices[d] * strides[d] }
+            ptr[offset] = generator(i)
+            var dim = rank - 1
+            while dim >= 0 {
+                indices[dim] += 1
+                if indices[dim] < shape[dim] { break }
+                indices[dim] = 0
+                dim -= 1
+            }
         }
     }
 }
 
 // MARK: - NDArray Read Helper
 
+/// Read elements from an NDArray into a new Array.
+///
+/// Uses stride-aware indexing (fast path when row-major contiguous) to match
+/// upstream `NDArray+Helpers.swift` and stay correct on non-contiguous layouts.
 @available(macOS 27.0, iOS 27.0, *)
 func readNDArray<T: BitwiseCopyable>(
     _ array: NDArray,
     as type: T.Type,
     count: Int
 ) -> [T] {
-    var result = [T]()
-    result.reserveCapacity(count)
-    array.view(as: type).withUnsafePointer { ptr, shape, _ in
-        for i in 0 ..< count {
-            result.append(ptr[i])
+    array.view(as: type).withUnsafePointer { ptr, shape, strides in
+        let capacity = shape.product
+        precondition(
+            count <= capacity, "readNDArray: count \(count) exceeds array capacity \(capacity)")
+        if isContiguousRowMajor(shape: shape, strides: strides) {
+            return Array(UnsafeBufferPointer(start: ptr, count: count))
         }
+        let rank = shape.count
+        var result = [T]()
+        result.reserveCapacity(count)
+        var indices = [Int](repeating: 0, count: rank)
+        for _ in 0 ..< count {
+            var offset = 0
+            for d in 0 ..< rank { offset += indices[d] * strides[d] }
+            result.append(ptr[offset])
+            var dim = rank - 1
+            while dim >= 0 {
+                indices[dim] += 1
+                if indices[dim] < shape[dim] { break }
+                indices[dim] = 0
+                dim -= 1
+            }
+        }
+        return result
     }
-    return result
 }
 
 // MARK: - Logits Utilities (aligned with upstream KVCacheShared.swift)
