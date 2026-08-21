@@ -105,6 +105,64 @@ enum FileTools {
             "write_file: OK — \(bytes.count) bytes, \(lineCount) lines, \(verb), read-back verified (\(path))"
     }
 
+    // MARK: - edit_file
+
+    /// Search-and-replace within a single file (codex apply-patch discipline:
+    /// unique match required by default, replacement verified by read-back).
+    /// - Parameters:
+    ///   - path: File to edit.
+    ///   - oldString: Exact text to find. Must occur exactly `occurrences` times.
+    ///   - newString: Replacement text (may be empty to delete).
+    ///   - occurrences: Expected count of `oldString` in the file (default 1).
+    ///     Any other count throws before writing — no partial edits.
+    /// - Returns: Verification summary (match count, bytes before/after).
+    static func editFile(
+        path: String,
+        oldString: String,
+        newString: String,
+        occurrences: Int? = 1
+    ) throws -> String {
+        let url = resolve(path)
+        guard let original = try? String(contentsOf: url, encoding: .utf8) else {
+            throw ToolError.invalidParameter(
+                "edit_file: cannot read (missing or non-UTF8): \(path)")
+        }
+        guard !oldString.isEmpty else {
+            throw ToolError.invalidParameter("edit_file: oldString must not be empty")
+        }
+        guard oldString != newString else {
+            throw ToolError.invalidParameter("edit_file: oldString == newString (no-op)")
+        }
+        let expected = max(1, occurrences ?? 1)
+        let count = original.components(separatedBy: oldString).count - 1
+        guard count == expected else {
+            throw ToolError.invalidParameter(
+                "edit_file: expected exactly \(expected) occurrence(s) of oldString in \(path), "
+                    + "found \(count) — refusing partial edit")
+        }
+        let updated = original.replacingOccurrences(of: oldString, with: newString)
+        let bytes = updated.data(using: .utf8) ?? Data()
+        guard bytes.count <= maxWriteBytes else {
+            throw ToolError.invalidParameter(
+                "edit_file: result too large (\(bytes.count) bytes, max \(maxWriteBytes))")
+        }
+        do {
+            try bytes.write(to: url, options: .atomic)
+        } catch {
+            throw ToolError.invalidParameter(
+                "edit_file: write failed: \(error.localizedDescription)")
+        }
+        guard let readBack = try? Data(contentsOf: url, options: .uncached),
+            readBack == bytes
+        else {
+            throw ToolError.invalidParameter("edit_file: read-back verification failed: \(path)")
+        }
+        let delta = bytes.count - (original.data(using: .utf8)?.count ?? 0)
+        return
+            "edit_file: OK — \(count) replacement(s), \(delta >= 0 ? "+" : "")\(delta) bytes, "
+            + "read-back verified (\(path))"
+    }
+
     // MARK: - search_files
 
     /// Find files by filename pattern or search file contents.

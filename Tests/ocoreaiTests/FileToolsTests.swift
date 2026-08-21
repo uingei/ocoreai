@@ -113,6 +113,54 @@ struct FileToolsBehaviorTests {
                 .contains("0 files"))
     }
 
+    @Test("edit_file replaces on exact match, refuses ambiguous or missing matches")
+    func editFileBehavior() throws {
+        try seed()
+        let target = workdir.appendingPathComponent("alpha.txt").path
+        try "hello\nworld\nline3".write(
+            to: URL(fileURLWithPath: target), atomically: true, encoding: .utf8)
+
+        // Unique match → applied + verified.
+        let ok = try FileTools.editFile(
+            path: target, oldString: "world", newString: "WORLD", occurrences: 1)
+        #expect(ok.contains("OK"))
+        #expect(ok.contains("1 replacement(s)"))
+        #expect(ok.contains("read-back verified"))
+        #expect(
+            (try? String(contentsOf: URL(fileURLWithPath: target), encoding: .utf8))
+                == "hello\nWORLD\nline3")
+
+        // Ambiguous (2 matches while expecting 1) → refused, file untouched.
+        let multi = workdir.appendingPathComponent("multi.txt").path
+        try "dup x dup".write(to: URL(fileURLWithPath: multi), atomically: true, encoding: .utf8)
+        #expect(throws: ToolError.self) {
+            try FileTools.editFile(
+                path: multi, oldString: "dup", newString: "D", occurrences: 1)
+        }
+        #expect(
+            (try? String(contentsOf: URL(fileURLWithPath: multi), encoding: .utf8)) == "dup x dup")
+
+        // Explicit occurrences=2 → applied.
+        _ = try FileTools.editFile(
+            path: multi, oldString: "dup", newString: "DUP", occurrences: 2)
+        #expect(
+            (try? String(contentsOf: URL(fileURLWithPath: multi), encoding: .utf8)) == "DUP x DUP")
+
+        // Missing match → refused; no-op (old==new) → refused; empty old → refused.
+        #expect(throws: ToolError.self) {
+            try FileTools.editFile(
+                path: multi, oldString: "never-there", newString: "x", occurrences: 1)
+        }
+        #expect(throws: ToolError.self) {
+            try FileTools.editFile(
+                path: multi, oldString: "x", newString: "x", occurrences: 1)
+        }
+        #expect(throws: ToolError.self) {
+            try FileTools.editFile(
+                path: multi, oldString: "", newString: "x", occurrences: 0)
+        }
+    }
+
     @Test("binary files are rejected for read")
     func binaryReject() throws {
         try seed()
@@ -141,12 +189,15 @@ struct FileToolsRegistryTests {
         let names = await registry.listTools()
         #expect(names.contains("read_file"))
         #expect(names.contains("write_file"))
+        #expect(names.contains("edit_file"))
         #expect(names.contains("search_files"))
 
         #expect(await registry.isReadOnly("read_file"))
         #expect(await registry.isReadOnly("search_files"))
         #expect(!(await registry.isReadOnly("write_file")))
+        #expect(!(await registry.isReadOnly("edit_file")))
         #expect(await registry.isDestructive("write_file"))
+        #expect(await registry.isDestructive("edit_file"))
         #expect(!(await registry.isDestructive("read_file")))
 
         // Schemas must expose their parameters to the model.
@@ -155,6 +206,9 @@ struct FileToolsRegistryTests {
         #expect(readSchema?.parameters["limit"] != nil)
         let writeSchema = await registry.schema(for: "write_file")
         #expect(writeSchema?.parameters["content"] != nil)
+        let editSchema = await registry.schema(for: "edit_file")
+        #expect(editSchema?.parameters["oldString"] != nil)
+        #expect(editSchema?.parameters["occurrences"] != nil)
         let searchSchema = await registry.schema(for: "search_files")
         #expect(searchSchema?.parameters["pattern"] != nil)
         #expect(searchSchema?.parameters["target"] != nil)
@@ -162,13 +216,18 @@ struct FileToolsRegistryTests {
         // End-to-end dispatch through the registry.
         let target = FileManager.default.temporaryDirectory
             .appendingPathComponent("ftreg_\(UUID().uuidString).txt").path
-        let writeJSON = #"{"path":"\#(target)","content":"dispatch ok\n"}"#
+        let writeJSON = #"{"path":"\#(target)","content":"a b c\n"}"#
         let writeOut = try await registry.call("write_file", arguments: writeJSON, caller: "test")
         #expect(writeOut.contains("read-back verified"))
 
+        let editJSON = #"{"path":"\#(target)","oldString":"b","newString":"B","occurrences":1}"#
+        let editOut = try await registry.call("edit_file", arguments: editJSON, caller: "test")
+        #expect(editOut.contains("1 replacement(s)"))
+        #expect(editOut.contains("read-back verified"))
+
         let readJSON = #"{"path":"\#(target)"}"#
         let readOut = try await registry.call("read_file", arguments: readJSON, caller: "test")
-        #expect(readOut.contains("1|dispatch ok"))
+        #expect(readOut.contains("1|a B c"))
 
         let searchDir = (target as NSString).deletingLastPathComponent
         let searchOut = try await registry.call(

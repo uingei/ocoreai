@@ -159,6 +159,42 @@ func bootstrapBuiltInTools(
         }
     )
 
+    // ── edit_file ───────────────────────────────────────────────────────────
+    struct EditFileArgs: Codable {
+        let path: String
+        let oldString: String
+        let newString: String
+        let occurrences: Int?
+    }
+
+    try? await registry.register(
+        ToolEntry.typed(
+            name: "edit_file",
+            toolset: "files",
+            argsType: EditFileArgs.self,
+            description:
+                "Search-and-replace in one file; requires exact match count, verifies by read-back",
+            schema: ToolSchema(parameters: [
+                "path": ToolParameter(type: .string, description: "File path to edit"),
+                "oldString": ToolParameter(
+                    type: .string,
+                    description: "Exact text to find (must occur exactly `occurrences` times)"),
+                "newString": ToolParameter(
+                    type: .string, description: "Replacement text (empty = delete)"),
+                "occurrences": ToolParameter(
+                    type: .integer, description: "Expected match count (default 1)"),
+            ]),
+            isDestructive: true
+        ) { args in
+            try FileTools.editFile(
+                path: args.path,
+                oldString: args.oldString,
+                newString: args.newString,
+                occurrences: args.occurrences
+            )
+        }
+    )
+
     // ── search_files ────────────────────────────────────────────────────────
     struct SearchFilesArgs: Codable {
         let path: String
