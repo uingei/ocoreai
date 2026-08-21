@@ -953,6 +953,11 @@ struct ModelSamplingPatch: Decodable {
         case presencePenalty = "presence_penalty"
         case minP = "min_p"
         case seed
+        case prefillStepSize = "prefill_step_size"
+        case maxKVSize = "max_kv_size"
+        case repetitionContextSize = "repetition_context_size"
+        case presenceContextSize = "presence_context_size"
+        case frequencyContextSize = "frequency_context_size"
         case responseFormat = "response_format"
         case maxContextWindow = "max_context_window"
         case defaultModel = "default_model"
