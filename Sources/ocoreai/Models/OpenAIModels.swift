@@ -37,8 +37,10 @@ import Hummingbird
 /// OpenAI API uses ``snake_case`` keys. Swift properties are ``camelCase``.
 /// Explicit ``CodingKeys`` below bridge the two formats.
 struct ChatCompletionRequest: Decodable {
-    /// Model identifier (required — missing model returns 400)
-    var model: String
+    /// Model identifier (optional — when omitted, the default model is resolved
+    /// from `PATCH /v1/models/:model/sampling` `default_model: true`; if none is
+    /// configured, 400 is returned).
+    var model: String?
 
     /// Message history (system, user, assistant, tool roles)
     var messages: [Message]
@@ -809,6 +811,19 @@ struct ModelSamplingConfig: Codable {
     /// Response format override ("text" | "json_object")
     var responseFormat: String? = nil
 
+    /// Per-model maximum prompt token count. Requests with
+    /// `promptTokenCount > maxContextWindow` are rejected with 400.
+    /// `nil` = no per-model cap (system-level limits apply).
+    var maxContextWindow: Int? = nil
+
+    /// Whether this model is the default target when a request omits `model`.
+    /// At most one model should set this via PATCH; first found wins.
+    var defaultModel: Bool = false
+
+    /// Keep this model's pooled sessions resident: exempt from TTL + LRU eviction.
+    /// Critical memory pressure (level 3) still flushes everything.
+    var pinned: Bool = false
+
     /// System default configuration
     static let `default`: ModelSamplingConfig = .init()
 
@@ -818,6 +833,7 @@ struct ModelSamplingConfig: Codable {
             && frequencyPenalty == 0 && presencePenalty == 0 && minP == nil && seed == nil
             && responseFormat == nil
             && prefill.stepSize == nil && prefill.chunking == .balanced && maxKVSize == nil
+            && maxContextWindow == nil && defaultModel == false && pinned == false
     }
 
     // MARK: - Snake-Case Key Mapping (OpenAI API compat for PATCH)
@@ -837,6 +853,9 @@ struct ModelSamplingConfig: Codable {
         case presenceContextSize = "presence_context_size"
         case frequencyContextSize = "frequency_context_size"
         case responseFormat = "response_format"
+        case maxContextWindow = "max_context_window"
+        case defaultModel = "default_model"
+        case pinned
     }
 }
 
@@ -856,6 +875,9 @@ struct ModelSamplingPatch: Decodable {
     var presenceContextSize: Int? = nil
     var frequencyContextSize: Int? = nil
     var responseFormat: String? = nil
+    var maxContextWindow: Int? = nil
+    var defaultModel: Bool? = nil
+    var pinned: Bool? = nil
 
     /// Merge partial fields into a full ``ModelSamplingConfig``.
     func toConfig() -> ModelSamplingConfig {
@@ -877,6 +899,9 @@ struct ModelSamplingPatch: Decodable {
         if let r = repetitionContextSize { config.repetitionContextSize = r }
         if let p = presenceContextSize { config.presenceContextSize = p }
         if let f = frequencyContextSize { config.frequencyContextSize = f }
+        if let m = maxContextWindow { config.maxContextWindow = m }
+        if let d = defaultModel { config.defaultModel = d }
+        if let p = pinned { config.pinned = p }
         return config
     }
 
@@ -892,6 +917,9 @@ struct ModelSamplingPatch: Decodable {
         case minP = "min_p"
         case seed
         case responseFormat = "response_format"
+        case maxContextWindow = "max_context_window"
+        case defaultModel = "default_model"
+        case pinned
     }
 }
 
@@ -904,6 +932,9 @@ struct ModelSamplingResponse: Encodable {
     let frequencyPenalty: Float
     let presencePenalty: Float
     let responseFormat: String?
+    let maxContextWindow: Int?
+    let defaultModel: Bool
+    let pinned: Bool
 
     /// Initialize from ``ModelSamplingConfig``.
     init(config: ModelSamplingConfig) {
@@ -914,6 +945,22 @@ struct ModelSamplingResponse: Encodable {
         frequencyPenalty = config.frequencyPenalty
         presencePenalty = config.presencePenalty
         responseFormat = config.responseFormat
+        maxContextWindow = config.maxContextWindow
+        defaultModel = config.defaultModel
+        pinned = config.pinned
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case temperature
+        case topP = "top_p"
+        case topK = "top_k"
+        case maxTokens = "max_tokens"
+        case frequencyPenalty = "frequency_penalty"
+        case presencePenalty = "presence_penalty"
+        case responseFormat = "response_format"
+        case maxContextWindow = "max_context_window"
+        case defaultModel = "default_model"
+        case pinned
     }
 }
 

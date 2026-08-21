@@ -763,10 +763,29 @@ actor EnginePool {
         modelSamplingDefaults[modelId] ?? .default
     }
 
+    /// Resolve the default model (first with `defaultModel == true`).
+    /// Deterministic: ties broken by ascending model id.
+    func defaultModelId() -> String? {
+        pureDefaultModelId(defaults: modelSamplingDefaults)
+    }
+
+    /// Reflect the current pin set into the session pool so TTL/LRU
+    /// eviction skips pinned models. Called on every config mutation.
+    private func syncPinnedModelsToPool() {
+        let pinned = Set(
+            modelSamplingDefaults
+                .compactMap { $0.value.pinned ? $0.key : nil }
+        )
+        Task { [sessionPool] in
+            await sessionPool?.setPinnedModels(pinned)
+        }
+    }
+
     /// Per-model sampling config override (lazy, single actor mailbox hop).
     func updateSamplingConfig(modelId: String, config: ModelSamplingConfig) {
         modelSamplingDefaults[modelId] = config
-        logger.info("Sampling config updated for model: \\(modelId)")
+        syncPinnedModelsToPool()
+        logger.info("Sampling config updated for model: \(modelId)")
     }
 
     /// Batch-update sampling configs in a single actor mailbox round-trip.
@@ -774,16 +793,19 @@ actor EnginePool {
         for (modelId, config) in configs {
             modelSamplingDefaults[modelId] = config
         }
-        logger.info("Batch sampling config updated for \\(configs.count) models")
+        syncPinnedModelsToPool()
+        logger.info("Batch sampling config updated for \\\(configs.count) models")
     }
 
     func resetSamplingConfig(modelId: String) {
         modelSamplingDefaults.removeValue(forKey: modelId)
+        syncPinnedModelsToPool()
         logger.info("Sampling config reset to defaults for model: \(modelId)")
     }
 
     func resetAllSamplingConfig() {
         modelSamplingDefaults.removeAll()
+        syncPinnedModelsToPool()
         logger.info("All sampling configs reset to defaults")
     }
 
@@ -893,4 +915,16 @@ actor EnginePool {
         }
         loadedModels.removeAll()
     }
+}
+
+// MARK: - Pure Per-Model Settings helpers (testable without a live pool)
+
+/// Resolve the default model id from a set of per-model configs.
+///
+/// Deterministic: the lexicographically-smallest model id flagged `defaultModel == true`
+/// wins. Returns `nil` when no model has been flagged as default.
+package func pureDefaultModelId(defaults: [String: ModelSamplingConfig]) -> String? {
+    defaults
+        .sorted { $0.key < $1.key }
+        .first(where: { $0.value.defaultModel })?.key
 }

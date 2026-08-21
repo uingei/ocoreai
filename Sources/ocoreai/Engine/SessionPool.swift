@@ -145,6 +145,10 @@ actor MLXSessionPool {
     private var missCount = 0
     private var totalAcquireAttempts = 0
 
+    /// Model IDs whose pooled sessions are exempt from TTL/LRU eviction
+    /// (set from EnginePool via ``setPinnedModels``). Critical pressure (level 3) ignores this.
+    private var pinnedModelIds: Set<String> = []
+
     // MARK: - Initialization
 
     init(config: SessionPoolConfig, logger: Logger, cacheDirectory argCacheDir: URL? = nil) {
@@ -444,6 +448,10 @@ actor MLXSessionPool {
         let persistFlag = config.persistCache
         let entriesToRemove: [(key: String, entry: PooledChatSession)] = pool.compactMap {
             key, entry in
+            // Pinned models stay resident regardless of TTL (omlx is_pinned).
+            if isPinnedExempt(poolKey: key, pinnedIDs: pinnedModelIds) {
+                return nil
+            }
             let expired = entry.lastAccessedAt.duration(to: now) >= ttl
             return expired ? (key, entry) : nil
         }
@@ -479,9 +487,16 @@ actor MLXSessionPool {
     /// Remove the least-recently-used session when pool exceeds max capacity,
     /// persisting its KV cache to disk before eviction.
     private func evictLRU() async {
-        guard let oldestItem = pool.min(by: { $0.value.lastAccessedAt < $1.value.lastAccessedAt })
+        // Pinned models are exempt — find the oldest among non-pinned only.
+        let candidates = pool.filter { key, _ in
+            !isPinnedExempt(poolKey: key, pinnedIDs: pinnedModelIds)
+        }
+        guard
+            let oldestItem = candidates.min(by: {
+                $0.value.lastAccessedAt < $1.value.lastAccessedAt
+            })
         else {
-            return
+            return  // pool is over-cap but every resident is pinned
         }
         let oldestKey = oldestItem.key
         let entry = oldestItem.value
@@ -677,6 +692,15 @@ actor MLXSessionPool {
         "\(modelId):\(convId)"
     }
 
+    /// Update the set of model IDs whose sessions are exempt from TTL/LRU eviction.
+    /// Called by ``EnginePool`` whenever per-model config is updated via PATCH.
+    /// Critical memory pressure (level 3) still flushes everything regardless.
+    func setPinnedModels(_ ids: Set<String>) {
+        pinnedModelIds = ids
+        if !ids.isEmpty {
+            logger.info("Pinned models updated: \(ids.sorted())")
+        }
+    }
     private func logHitRateIfNeeded() {
         guard totalAcquireAttempts % config.metricsLogInterval == 0,
             totalAcquireAttempts > 0
@@ -687,4 +711,21 @@ actor MLXSessionPool {
             "Session pool stats after \(total) acquires: \(pool.count) pooled, hit rate \(String(format: "%.1f%%", rate))",
         )
     }
+}
+
+// MARK: - Pure Pinning helper (top-level, testable without an actor instance)
+
+/// Check whether a pool key's model is pinned (exempt from TTL/LRU eviction).
+///
+/// Pure key-string comparison — no ChatSession or actor dependency, so it is
+/// directly unit-testable. Returns `false` for malformed keys or empty pin sets
+/// (conservative: an unmatched key is treated as evictable).
+package func isPinnedExempt(poolKey key: String, pinnedIDs: Set<String>) -> Bool {
+    guard !pinnedIDs.isEmpty else {
+        return false
+    }
+    guard let mid = key.split(separator: ":").first.map(String.init) else {
+        return false
+    }
+    return pinnedIDs.contains(mid)
 }

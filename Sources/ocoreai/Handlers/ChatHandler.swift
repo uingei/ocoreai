@@ -133,7 +133,14 @@ func chatCompletionsHandler(
     logger: Logger,
 ) async throws -> Response {
     /// Extract model identifier from the request payload.
-    let modelId = request.model
+    /// When `model` is omitted, resolve to the default model (omlx is_default).
+    let fallbackModel = await enginePool.defaultModelId()
+    guard let modelId = resolveModel(requested: request.model, defaultModelId: fallbackModel) else {
+        throw AppError.invalidRequest(
+            "Missing 'model' field and no default model is configured. "
+                + "Set a default via PATCH /v1/models/:model/sampling with {\"default_model\": true}."
+        )
+    }
 
     /// NOTE: Empty-messages guard is in the router (ChatCompletionsRouter:148).
     /// If this handler is ever called directly, empty messages will still cause
@@ -263,6 +270,28 @@ func chatCompletionsHandler(
             let avgBytesPerChar = totalChars > 0 ? Double(totalBytes) / Double(totalChars) : 1.0
             let divisor = avgBytesPerChar > 1.5 ? 3 : 4
             promptTokenCount = max(1, Int(Double(totalBytes) / Double(divisor)))
+        }
+
+        /// Phase 3.5: Enforce per-model context window cap (omlx max_context_window).
+        /// When a per-model `max_context_window` is configured and the estimated
+        /// prompt token count exceeds it, reject with 400 before inference.
+        let modelContextCap = await enginePool.getSamplingConfig(modelId: modelId).maxContextWindow
+        if promptExceedsContextWindow(
+            promptTokens: promptTokenCount, maxContextWindow: modelContextCap)
+        {
+            let cap = modelContextCap ?? 0
+            let msg =
+                "Prompt length \(promptTokenCount) tokens exceeds the model's "
+                + "configured context window of \(cap) tokens. "
+                + "Shorten the input or raise `max_context_window` for this model."
+            logger.warning(
+                msg,
+                metadata: [
+                    "model": .string(modelId),
+                    "promptTokens": .string("\(promptTokenCount)"),
+                    "cap": .string("\(cap)"),
+                ])
+            throw AppError.invalidRequest(msg)
         }
 
         /// Phase 4: Three-layer Parameter Fallback Chain.
@@ -1320,4 +1349,29 @@ extension Message {
 /// Returns a JSON string that GrammarConstraint can parse.
 private func buildGrammarSchema(from request: ChatCompletionRequest) -> String? {
     buildGrammarSchema(from: request.tools, responseFormat: request.responseFormat)
+}
+
+// MARK: - Per-Model Settings (pure decision helpers — testable without a live pool)
+
+/// Resolve the target model for a request.
+///
+/// Resolution order: explicit non-empty request `model` wins; otherwise fall back
+/// to the configured default model (omlx `is_default`); otherwise `nil` (caller 400s).
+package func resolveModel(requested: String?, defaultModelId: String?) -> String? {
+    if let requested, !requested.isEmpty {
+        return requested
+    }
+    return defaultModelId
+}
+
+/// Whether a prompt of ``promptTokens`` tokens exceeds the per-model context window.
+///
+/// An unconfigured (`nil`) or non-positive cap never rejects — the system-level
+/// limit still applies downstream. This keeps the per-model cap an optional
+/// tightening, exactly like omlx's `max_context_window` (`None` = use global default).
+package func promptExceedsContextWindow(promptTokens: Int, maxContextWindow: Int?) -> Bool {
+    guard let cap = maxContextWindow, cap > 0 else {
+        return false
+    }
+    return promptTokens > cap
 }
