@@ -794,7 +794,7 @@ actor EnginePool {
             modelSamplingDefaults[modelId] = config
         }
         syncPinnedModelsToPool()
-        logger.info("Batch sampling config updated for \\\(configs.count) models")
+        logger.info("Batch sampling config updated for \(configs.count) models")
     }
 
     func resetSamplingConfig(modelId: String) {

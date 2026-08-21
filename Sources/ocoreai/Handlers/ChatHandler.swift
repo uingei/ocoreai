@@ -281,11 +281,9 @@ func chatCompletionsHandler(
         {
             let cap = modelContextCap ?? 0
             let msg =
-                "Prompt length \(promptTokenCount) tokens exceeds the model's "
-                + "configured context window of \(cap) tokens. "
-                + "Shorten the input or raise `max_context_window` for this model."
+                "Prompt length \(promptTokenCount) tokens exceeds the model's configured context window of \(cap) tokens. Shorten the input or raise `max_context_window` for this model."
             logger.warning(
-                msg,
+                "Prompt length \(promptTokenCount) tokens exceeds the model's configured context window of \(cap) tokens. Shorten the input or raise `max_context_window` for this model.",
                 metadata: [
                     "model": .string(modelId),
                     "promptTokens": .string("\(promptTokenCount)"),
