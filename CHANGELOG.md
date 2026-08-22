@@ -2,10 +2,11 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-08-14 → 2026-08-22
+## [Unreleased] — 2026-08-14 → 2026-08-23
 
 ### Features
 
+- **Pin bump: mlx-swift-lm d661402 → `1441444`** (72bbfbe) — absorbed upstream #544 (MLXFoundationModels β5-SDK compilation fix: `capabilities:` extraneous label :565, `ConvertibleToGeneratedContent` dict :718). ocoreai 0 true consumers of either changed symbol; the module must compile for ocoreai to build. β5 standalone: d661402 FAILS (2 errors) / 1441444 PASSES. Unblocks local build + test run.
 - **CoreAI GPU repetition penalty (#176 alignment)** — `RepetitionPenaltyGPUState` (125 LOC, verbatim port from upstream coreai-models) + `MPSGraphCompositeSampler` penalty stage (graph Step-0 `select(logits>0, logits/p, logits*p)` sign-aware divide/multiply, compiled into the feed tensors) + `CoreAIPipelinedEngine` wiring (`recordToken` in the completion callback, `buffer(forStep:)` at encode time, `reset()` clears the ring + buffers). `MPSGraphSamplerFactory.makeSampler` threads `config.repetitionPenalty != nil` → `penaltyEnabled`. Sequential path already covered by `RepetitionPenaltyProcessor` (unchanged).
 - **CoreAI grammar → GPU pipelined constrained path (#170 wire)** — `EngineInference` CoreAI grammar branch now dispatches by `ConstrainedGenerationCapable` capability (aligned with upstream coreai-models `CoreAILanguageModel` L582-596) instead of the hard `as? CoreAISequentialEngine` cast. This activates the previously absorbed-but-unwired `PipelinedConstrainedDecodingStrategy` (#146/#170 bitmask per token). Sequential constrained path unchanged.
 - **EngineFactory fallback layer removed** — `resolveVariantWithFallback` (dynamic→sequential silent fallback) deleted; auto-detect is now honored directly (dynamic→pipelined, chunkedStatic→staticShape), aligned with upstream `EngineFactory` (which has no fallback). `EngineFactory.{Variant, autoDetectVariant, checkVariantCompatibility, resolveVariant}` bumped `private`→internal for test access (`EngineVariantRoutingTests`).
@@ -15,6 +16,8 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ### Bug Fixes
 
+- **EngineVariantRoutingTests: 3 false-compatible assertions corrected** (72bbfbe) — `checkVariantCompatibility(variant:*, structure: .unknown)` was asserted `.compatible` for all 3 variants; upstream `EngineFactory` and ocoreai mirror both say non-LLM structures are compatible with NONE (default → `false`). Fixed: 3 assertions `== false` with segmenter-comment. Exposed by first-ever local full test run (macos-26 compiles CoreAI tests out via `canImport`; xcode-27 has Testing-macro drift).
+- **RepetitionPenaltyGPUState: eviction-order race fixed** (72bbfbe) — `buffer(forStep:)` applied dirty lists in evicted→added order; a token recorded-then-evicted within one flush interval kept its stale penalty and could never be cleared (out of ring → never evicted again). Fixed: flush applies per-token state by CURRENT refcount (`refCount > 0` = in-window). 7 sibling tests confirm no regression. Upstream has the same defect.
 - **Multi-tool-call append** (773eeda) — ChatHandler tool-call collection appends instead of overwriting; `ToolCallParser.flush()` can yield multiple tool calls per turn (all-but-last were silently dropped).
 - **CoreAI sampler error propagation** (773eeda, MPSGraphSamplers #169 alignment) — completion `(Int32) -> Void` → `(Int32, Error?) -> Void`; 16 failure paths now classify into typed `MPSGraphSamplerError`s instead of silent `completion(0)`; `CoreAIPipelinedEngine` propagates via `continuation.finish(throwing:)`.
 
@@ -29,7 +32,7 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 ### Tooling / CI
 
 - **4c231d3 CI test gate** (4c231d3) — `swift build --build-for-testing -scheme ocoreaiTests` (was `ocoreai`, which had NO test action) + a `Run tests (xcrun xctest)` step. Previously the 757 Swift Testing tests silently never compiled/reran in CI. Local gate: `swift build --build-tests` + `xcrun xctest` = 757 tests / 136 suites passed.
-- **Pin guard** (773eeda) — Package.swift: DO NOT bump mlx-swift-lm past `d667610`. Upstream `d7dc03d` (#512) adds `TokenStreamEvent.rejectedToolCall`; the FM-trait switches at `MLXLanguageModel.swift:1890/1943` don't handle it → build-fail under `FoundationModelsIntegration && canImport(FoundationModels, _version: 2)`.
+- **Pin guard** (773eeda) — Package.swift: DO NOT bump mlx-swift-lm past `d667610`. Upstream `d7dc03d` (#512) adds `TokenStreamEvent.rejectedToolCall`; the FM-trait switches at `MLXLanguageModel.swift:1890/1943` don't handle it → build-fail under `FoundationModelsIntegration && canImport(FoundationModels, _version: 2)`. _Superseded (2026-08-23, 72bbfbe): pin now at `1441444`; upstream #544 resolved the β5-SDK blocker; no active pin guard._
 - **pre-commit** — scope swift-format to staged files (5741015), apply to 9 files (ea79b2a), restore hook verbatim from mlx-swift-lm (e8dc47f).
 - **QC zero-crash-risk gates** (4624d29) — `.swiftlint.yml` crash rules pinned (`fatal_error_message` = error; `force_unwrapping`/`force_cast`/`force_try`/`implicitly_unwrapped_optional` = warning), CI gates wired. `Sources/` now: 0 `fatalError`, 1 `precondition` (CoreAIPipelinedEngine.swift:285, structural invariant on init), 2 debug-only `assert` (Tools/ToolEntry.swift:74, Engine/KVCache+CoreAI.swift:541). _Superseded (2026-08-17): swiftlint removed to align with upstream (mlx-swift-lm / coreai-models ship no swiftlint); `.swiftformat`-era `make format` also replaced with swift-format. Crash-safe coding remains a code convention, no longer a CI gate._
 
@@ -135,4 +138,4 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ---
 
-*Last updated: 2026-08-17. Current HEAD: 4c231d3.*
+*Last updated: 2026-08-23. Current HEAD: 72bbfbe.*

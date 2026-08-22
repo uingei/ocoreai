@@ -5,7 +5,7 @@
 [![Swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 14+ | iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests: 757](https://img.shields.io/badge/Tests-757%2F757-brightgreen)](Tests/)
+[![Tests: 843](https://img.shields.io/badge/Tests-843%2F843-brightgreen)](Tests/)
 
 ---
 
@@ -32,7 +32,7 @@ swift run
 
 ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中：
 
-- **双通道推理引擎** — MLX（Metal GPU，默认，`MLXLanguageModel` + `ChatSession` 管线双通道端侧推理）+ CoreAI（6,290 LOC 跨 15 文件，2026-08-18：CoreAI*.swift ×8、StateHandler*.swift ×3、KVCache+CoreAI、TensorStorage+CoreAI、MPSGraphSamplers、TokenizersMLXTokenizerAdapter，派生自 Apple coreai-models 参考实现，动态 KV Cache、`TokenHistory` prefix caching）。零网络调用 — 推理在你的 Mac 上运行。
+- **双通道推理引擎** — MLX（Metal GPU，默认，`MLXLanguageModel` + `ChatSession` 管线双通道端侧推理）+ CoreAI（6,965 LOC 跨 15 文件，2026-08-23：CoreAI*.swift ×8、StateHandler*.swift ×3、KVCache+CoreAI、TensorStorage+CoreAI、MPSGraphSamplers、TokenizersMLXTokenizerAdapter，派生自 Apple coreai-models 参考实现，动态 KV Cache、`TokenHistory` prefix caching）。零网络调用 — 推理在你的 Mac 上运行。
 - **自适应硬件路由** — HardwareRouter 根据热压力、内存余量、GPU 利用率实时将请求分发至 GPU / ANE / CPU。AdmissionGate 执行三级准入策略（允许 → 仅限 ANE → 拒绝），支持可配置 abort margin。ChatView 流式指示器 + Dashboard 健康栏实时显示通道标识；通道切换时热力 Toast 通知（EN/ZH i18n）。
 - **Wired Memory 显存硬隔离** — 硬件级显存边界，防止推理 OOM。
 - **Thinking Budget（推理预算）** — 基于 ComplexityAnalyzer（长度、意图、历史三维度评分）的自适应 token 预算分配。Bridge Path 接入完整 ComplexityAnalyzer；Fast Path（桌面 GUI）已接入 ThinkingBudget 校准循环，使用简化复杂度输入（固定 0.5）。
@@ -46,7 +46,7 @@ ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中
 - **macOS 27 FM 路径** — 原生 `MLXLanguageModel` → `LanguageModelSession` + `MLXFoundationModels`（macOS 27），含 `FMToolProxy` 工具桥接、`ContextOptions` 推理控制与 transcript 流式传输。低版本 macOS 自动降级至 ChatSession 管线。
 - **持续感知（已实现）** — PerceptionEngine (13 文件, 3045 LOC 在 `Multimodal/`): 7 通道调度器（摄像头、屏幕、网络、文件系统、互联网、系统、扬声器），含自适应采样、RingBuffer + TTL、推理感知无锁快照，工具派发循环中 P-S1/P-S2 感知上下文注入，跨平台门控（屏幕 macOS-only）。
 - **SessionPool** — 消息前缀级别 Prompt Cache 复用，HardwareRouter 压力事件触发激进驱逐，`loadPromptCacheSnapshot` 恢复 LM 状态与 KV Cache 精确锚定。
-- **推测解码** — Gemma drafter 模型支持（12B/26B/31B 独立路由），MTP 模式已接入。上游同步 2026-08-14 (mlx-swift-lm d667610，刻意 pin — 见 Package.swift 守卫): ReasoningEventEmitter ✅ (22 refs / 7 files)、KVCacheRuntime ✅ (turboQuant/affine)。CoreAI grammar ✅ 已接入 (b69b934)：经 `TokenizersMLXTokenizerAdapter` 的混合 xgrammar 路径；pipelined 变体 grammar 追踪 coreai-models #146/#170。AgentLoop runner 已剪除 (4c231d3) — agent 循环现由 `DirectInferenceClient` + `ChatHandler` 承载。详见 `CHANGELOG.md` + 上游对齐报告。
+- **推测解码** — Gemma drafter 模型支持（12B/26B/31B 独立路由），MTP 模式已接入。上游同步 2026-08-23 (mlx-swift-lm `1441444`，#544 已吸收，本地 build+test 解锁): ReasoningEventEmitter ✅ (22 refs / 7 files)、KVCacheRuntime ✅ (turboQuant/affine)。CoreAI grammar ✅ 已接入 (b69b934)：经 `TokenizersMLXTokenizerAdapter` 的混合 xgrammar 路径；pipelined 变体 grammar 追踪 coreai-models #146/#170。AgentLoop runner 已剪除 (4c231d3) — agent 循环现由 `DirectInferenceClient` + `ChatHandler` 承载。详见 `CHANGELOG.md` + 上游对齐报告。
 - **配置系统** — YAML 配置 + 文件监听器（轮询）。显存预算硬件自动检测。
 - **多模态 I/O** — 摄像头捕获、屏幕截图、麦克风输入、Vision OCR、16kHz Apple Speech STT、多语言 TTS — 全部原生。摄像头/屏幕默认关闭；STT 需要麦克风权限。
 - **i18n** — StringKey 本地化框架完整；英文已部署。中文（zh-Hans）已有基础翻译覆盖。其他语种（ja, ko, fr, de, es）已定义但未翻译。
@@ -235,9 +235,9 @@ memory:
 ### Build Info
 
 - Swift 6.2 · SwiftUI · Hummingbird 2.25.0
-- 160 个 Swift 源文件，52,293 LOC（2026-08-18；另 51 测试文件、10,335 LOC）
+- 174 个 Swift 源文件，56,513 LOC（2026-08-23；另 61 测试文件、11,897 LOC）
 - macOS 14+ / iOS 17+ · Apple Silicon
-- 测试：51 个测试文件，136 套件，757 @Test 用例
+- 测试：61 个测试文件，156 套件，843 @Test 用例（本地 xcodebuild 首次全绿 2026-08-23）
 - 构建：0 警告，0 错误
 - 开发：由 **qwen3.8:27b-mtp-q4_K_M** 独立完成——无外部工具调用的自包含 AI Agent，所有架构、代码、测试均为自主编写。
 ---

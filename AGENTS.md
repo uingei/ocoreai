@@ -6,7 +6,7 @@
 
 ## Identity
 
-**What it is:** macOS/iOS agent execution layer (reliable Execute → Verify → Recover; first product = Coding/Computer Agent) — dual-channel on-device inference (MLX Metal GPU + CoreAI derived from coreai-models reference), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception pipeline. One binary, 160 Swift files (52,249 LOC).
+**What it is:** macOS/iOS agent execution layer (reliable Execute → Verify → Recover; first product = Coding/Computer Agent) — dual-channel on-device inference (MLX Metal GPU + CoreAI derived from coreai-models reference), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception pipeline. One binary, 174 Swift files (56,513 LOC).
 
 **Tech stack:** Swift 6.2 · SwiftPM · Hummingbird 2.25 · SwiftUI · SQLite + FTS5
 
@@ -28,9 +28,9 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 
 **Dual Path reality:**
 - `EnginePool` uses inline `#if canImport(CoreAI)` branches (`BackendProtocol` deleted 2123143, 0 refs remaining)
-- **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (22 refs, 7 files), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge L635). Pinned upstream `mlx-swift-lm` at `d667610` (2026-08-14, mlx-swift→0.31.6). Gaps: upstream ThinkingBudget hard-budget enforcement ❌ (orthogonal to ocoreai ThinkingBudget actor; std reasoning path wired L3314).
-- **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement, 6,272 LOC across 15 files (Engine/ 14: CoreAI* ×8 + StateHandler ×3 + MPSGraphSamplers + KVCache+CoreAI + TensorStorage+CoreAI; + Tokenizer/TokenizersMLXTokenizerAdapter).
-- **ANE path:** CoreAI `MPSGraphSamplers` (1,279 LOC) wires MPS constrained argmax/composite/sampler — GPU-based constrained decoding path (c4c0a43 + 031cb54)
+- **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (22 refs, 7 files), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge L635). Pinned upstream `mlx-swift-lm` at `1441444` (2026-08-23: #544 MLXFoundationModels β5-SDK fix; local build+test unblocked). Gaps: upstream ThinkingBudget hard-budget enforcement ❌ (orthogonal to ocoreai ThinkingBudget actor; std reasoning path wired L3314).
+- **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement, 6,965 LOC across 15 files (Engine/ 14: CoreAI* ×8 + StateHandler ×3 + MPSGraphSamplers + KVCache+CoreAI + TensorStorage+CoreAI; + Tokenizer/TokenizersMLXTokenizerAdapter).
+- **ANE path:** CoreAI `MPSGraphSamplers` (1,421 LOC) wires MPS constrained argmax/composite/sampler — GPU-based constrained decoding path (c4c0a43 + 031cb54)
 - **MTP path:** `_runInferenceWithMessages` → `generate(::mtpDrafter:)` — bypasses ChatSession, tool calls collected + dispatched per-iteration (aligned with upstream `MTPSpeculativeTokenIterator`)
 - **SessionPool:** Prefix-level prompt cache reuse via message divergence tracking; HardwareRouter pressure events trigger aggressive eviction; `loadPromptCacheSnapshot` restores LM state + KV cache
 
@@ -49,7 +49,7 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 ```bash
 swift build -c release                    # production build
 swift build --traits mlx                 # debug build with mlx
-swift test                               # all @Test cases
+swift test                               # ⚠️ not the gate (metallib limitation) — real gate: xcodebuild → xcrun xctest (843/156)
 swift test --enable-code-coverage        # with coverage
 swift test --filter OcoreAITests.System  # system tests only
 ```
@@ -97,7 +97,7 @@ swift test --filter OcoreAITests.System  # system tests only
 | **SyncInputHandler** | — | ✅ Upstream d667610 已无 `InputHandler`/`InputCoverage` 符号，gap 消失 |
 | **ChatConventionsRegistry** | — | ✅ Upstream d667610 已无 `ChatConventionsRegistry`，reasoningConfig 内化至管线 |
 | **AgentLoop runner** | Agents/AgentLoop.swift | ✅ Pruned at 4c231d3 (523→44 LOC) — enum runner + `AgentLoopConfig` removed (zero callers); `AgentLoopResult`/`AgentLoopIterationLog` kept (ThinkingTelemetry). Agent loop now owned by `DirectInferenceClient` (851 LOC) + `ChatHandler`. |
-| **MLX upstream sync gap** | Package.swift | ⚠️ Pinned at d667610 — DO-NOT-bump: d7dc03d (#512 rejectedToolCall) adds `MLXLanguageModel` conformers that break ocoreai EngineInference build (3 break sites, no default). Upstream at d7dc03d (2026-08-16). |
+| **MLX upstream sync gap** | Package.swift | ✅ Resolved (2026-08-23): pinned at `1441444` — #544 merged (β5-SDK compilation fix); prior d661402/d7dc03d blockers closed upstream. |
 | **KVCache typed config** | Engine/MLXBridge.swift | ✅ Wired via makeKVCacheConfiguration (L635) TurboQuant+Affine through generateParameters.kvCache; upstream CacheConfiguration (364 LOC) merged into GenerateParameters at d667610 |
 | **MTP spec decode** | Engine/EngineInference.swift | ✅ Aligned — blockSize from specDecodingConfig.numDraftTokens (L2880) + upstream auto-clamp; MTPDrafterModelWrapper is type wrapper not gap |
 | **TurboFlash** | EngineInference.swift | ✅ Consumed internally by upstream `generate*()` — TurboFlash is an attention kernel mechanism; ocoreai doesn't call it directly |
@@ -133,8 +133,8 @@ swift test --filter OcoreAITests.System  # system tests only
 ### Upstream Audit Dependencies
 
 Three sources for empirical verification:
-1. **mlx-swift-lm** — pinned at `d667610` (2026-08-14: Qwen3.5 MTP speculative decoding #351, ThinkingBudget enforcement #521, KVCache limits #514, TurboFlash #520, ChatConventions migration #502, mlx-swift→0.31.6)
-2. **coreai-models** — reference at `c21ec9e` (latest main: tokenizers cap #174, GPU constrained sampling #170, pipelined constrained strategy #146-#170). Reference repo, not SPM dependency.
+1. **mlx-swift-lm** — pinned at `1441444` (2026-08-23: #544 MLXFoundationModels β5-SDK compilation fix; prior pin d667610 2026-08-14)
+2. **coreai-models** — reference at `86b363d` (2026-08-21: OpenAI-compatible LLM server #187; prior main: tokenizers cap #174, GPU constrained sampling #170, pipelined constrained strategy #146-#170). Reference repo, not SPM dependency.
 3. **Apple Developer Docs** — developer.apple.com/documentation/CoreAI (requires login)
 
 **Wiki audit report:** `~/wiki/ocoreai_upstream_sync_analysis.md` — full consumption matrix with file:line evidence.
