@@ -242,7 +242,7 @@ func chatCompletionsHandler(
     do {
         /// Phase 2: Build complete message list including system prompt + tool info injection.
         /// Delegates to shared MessageBuilder (same logic as Fast Path UI) to avoid duplication.
-        let fullMessages = try await messageBuilder.buildMessages(
+        var fullMessages = try await messageBuilder.buildMessages(
             context: MessageBuilderContext(
                 modelId: modelId,
                 rawMessages: request.messages,
@@ -274,8 +274,46 @@ func chatCompletionsHandler(
 
         /// Phase 3.5: Enforce per-model context window cap (omlx max_context_window).
         /// When a per-model `max_context_window` is configured and the estimated
-        /// prompt token count exceeds it, reject with 400 before inference.
+        /// prompt token count exceeds it, first attempt a rule-based compaction
+        /// pass (LLM-free, oldest-turn-first, tool-call units stay atomic);
+        /// the wall below re-evaluates against the compacted transcript and
+        /// throws a 400 only if it still exceeds the cap.
         let modelContextCap = await enginePool.getSamplingConfig(modelId: modelId).maxContextWindow
+        if promptExceedsContextWindow(
+            promptTokens: promptTokenCount, maxContextWindow: modelContextCap)
+        {
+            let compacted = ConversationCompaction.compact(
+                fullMessages,
+                .init(maxPromptTokens: modelContextCap)
+            )
+            if compacted.removedCount > 0 {
+                // Re-estimate the compacted transcript. If it now fits,
+                // update the working messages + the token count and let Phase 4
+                // proceed on the compacted transcript.
+                if compacted.estimatedTokens <= (modelContextCap ?? 0) {
+                    fullMessages = compacted.messages
+                    promptTokenCount = max(1, compacted.estimatedTokens)
+                    logger.info(
+                        "Prompt compacted for context window: removed \(compacted.removedCount) older message(s); post-compaction estimate \(compacted.estimatedTokens) tokens vs cap \(modelContextCap ?? 0)",
+                        metadata: [
+                            "model": .string(modelId),
+                            "removed": .string("\(compacted.removedCount)"),
+                            "postTokens": .string("\(compacted.estimatedTokens)"),
+                            "cap": .string("\(modelContextCap ?? 0)"),
+                        ]
+                    )
+                } else {
+                    logger.warning(
+                        "Prompt still exceeds context window after compaction: \(compacted.estimatedTokens) tokens vs \(modelContextCap ?? 0)",
+                        metadata: [
+                            "model": .string(modelId),
+                            "postTokens": .string("\(compacted.estimatedTokens)"),
+                            "cap": .string("\(modelContextCap ?? 0)"),
+                        ])
+                }
+            }
+            // (fall through to the wall below)
+        }
         if promptExceedsContextWindow(
             promptTokens: promptTokenCount, maxContextWindow: modelContextCap)
         {
