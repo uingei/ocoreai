@@ -29,14 +29,7 @@ import Testing
 @Suite("EngineFactory variant routing (B: no-fallback, aligned with upstream)")
 struct EngineVariantRoutingTests {
 
-    // Runtime availability guard (the compile gate is the #if above, so this
-    // only gates on OS version — a plain func, never a stored Sendable-risky
-    // closure in a static let under Swift 6 strict concurrency).
-    private static func isAvailable() -> Bool {
-        if #available(macOS 27.0, iOS 27.0, *) { return true }
-        return false
-    }
-
+    @available(macOS 27.0, iOS 27.0, *)
     private func isFailure(_ r: Result<EngineFactory.Variant, Error>) -> Bool {
         if case .failure = r { return true }
         return false
@@ -46,7 +39,7 @@ struct EngineVariantRoutingTests {
 
     @Test("auto-detect: dynamic → pipelined (GPU), no fallback to sequential")
     func dynamicAutoDetectsPipelined() {
-        guard Self.isAvailable() else { return }
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
         #expect(
             try! EngineFactory.resolveVariant(override: nil, detectedStructure: .dynamic)
                 == .pipelined)
@@ -60,7 +53,7 @@ struct EngineVariantRoutingTests {
 
     @Test("auto-detect: chunkedStatic → staticShape (ANE)")
     func chunkedStaticAutoDetectsStaticShape() {
-        guard Self.isAvailable() else { return }
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
         #expect(
             try! EngineFactory.resolveVariant(override: nil, detectedStructure: .chunkedStatic)
                 == .staticShape)
@@ -68,7 +61,7 @@ struct EngineVariantRoutingTests {
 
     @Test("auto-detect: unknown → sequential")
     func unknownAutoDetectsSequential() {
-        guard Self.isAvailable() else { return }
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
         #expect(
             try! EngineFactory.resolveVariant(override: nil, detectedStructure: .unknown)
                 == .sequential)
@@ -78,7 +71,7 @@ struct EngineVariantRoutingTests {
 
     @Test("override: explicit coreai-sequential wins on dynamic structure")
     func explicitSequentialOverride() {
-        guard Self.isAvailable() else { return }
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
         #expect(
             try! EngineFactory.resolveVariant(
                 override: "coreai-sequential", detectedStructure: .dynamic) == .sequential)
@@ -86,7 +79,7 @@ struct EngineVariantRoutingTests {
 
     @Test("override: coreai-pipelined on chunkedStatic → throws (incompatible)")
     func pipelinedOnChunkedStaticThrows() {
-        guard Self.isAvailable() else { return }
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
         let result: Result<EngineFactory.Variant, Error> = Result {
             try EngineFactory.resolveVariant(
                 override: "coreai-pipelined", detectedStructure: .chunkedStatic)
@@ -99,7 +92,7 @@ struct EngineVariantRoutingTests {
 
     @Test("override: static-shape on dynamic → throws (incompatible)")
     func staticShapeOnDynamicThrows() {
-        guard Self.isAvailable() else { return }
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
         let result: Result<EngineFactory.Variant, Error> = Result {
             try EngineFactory.resolveVariant(override: "static-shape", detectedStructure: .dynamic)
         }
@@ -108,7 +101,7 @@ struct EngineVariantRoutingTests {
 
     @Test("override: unknown variant string → throws")
     func unknownVariantStringThrows() {
-        guard Self.isAvailable() else { return }
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
         let result: Result<EngineFactory.Variant, Error> = Result {
             try EngineFactory.resolveVariant(
                 override: "turbo-fan-9000", detectedStructure: .dynamic)
@@ -120,7 +113,7 @@ struct EngineVariantRoutingTests {
 
     @Test("compatibility table matches upstream EngineFactory")
     func fullCompatibilityTable() {
-        guard Self.isAvailable() else { return }
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
         #expect(
             EngineFactory.checkVariantCompatibility(variant: .sequential, structure: .dynamic)
                 .compatible)

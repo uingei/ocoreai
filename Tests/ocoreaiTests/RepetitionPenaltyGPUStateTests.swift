@@ -170,7 +170,7 @@ struct MPSGraphCompletionOrderingTests {
             Issue.record("no MTLCommandQueue")
             return
         }
-        let sampler = MPSGraphArgmaxSampler(device: device, vocabSize: Self.vocabSize)
+        let sampler = try MPSGraphArgmaxSampler(device: device, vocabSize: Self.vocabSize)
 
         let stepCount = 16
         // Mutex<[Int]> to record completion order thread-safely.
@@ -211,7 +211,7 @@ struct MPSGraphCompletionOrderingTests {
                 return
             }
 
-            sampler.encode(
+            try sampler.encode(
                 to: queue,
                 logitsBuffer: logitsBuffer,
                 logitsOffset: 0,
