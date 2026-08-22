@@ -866,7 +866,7 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         // where(logits > 0, logits / penalty, logits * penalty)
         let penalizedLogits: MPSGraphTensor
         if penaltyEnabled {
-            penalizedLogits = applyPenaltyStage(
+            penalizedLogits = Self.applyPenaltyStage(
                 graph: graph, logits: logitsFloat32, penaltyTensor: penaltyPlaceholder!,
                 name: "penalty")
         } else {
