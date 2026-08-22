@@ -132,13 +132,13 @@ struct EngineVariantRoutingTests {
                 .compatible == false)
         #expect(
             EngineFactory.checkVariantCompatibility(variant: .sequential, structure: .unknown)
-                .compatible)
+                .compatible == false, "upstream: non-LLM structure → no variant is compatible")
         #expect(
             EngineFactory.checkVariantCompatibility(variant: .pipelined, structure: .unknown)
-                .compatible)
+                .compatible == false, "upstream: non-LLM structure → no variant is compatible")
         #expect(
             EngineFactory.checkVariantCompatibility(variant: .staticShape, structure: .unknown)
-                .compatible)
+                .compatible == false, "upstream: non-LLM structure → no variant is compatible")
     }
 }
 

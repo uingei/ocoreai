@@ -36,7 +36,17 @@ let package = Package(
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if canImport(CoreAI)` guards
         // Pinned to exact revision — upstream main branch drifts; update via `swift package update`
-        // then bump .revision + test. Current pin: 2026-08-22 — @ d661402.
+        // then bump .revision + test. Current pin: 2026-08-23 — @ 1441444.
+        //
+        // d661402..1441444 (1 commit):
+        //   - #544 (1441444): Fix MLXFoundationModels compilation against the
+        //     Xcode 27 beta 5 SDK — `LanguageModelCapabilities(capabilities:)`
+        //     label spelling (:565) + `ConvertibleToGeneratedContent` metadata
+        //     dict type (:718). ocoreai has 0 true consumers of either symbol
+        //     (grep-verified), but the module must COMPILE for ocoreai to build:
+        //     β5 standalone builds prove d661402 FAILS (2 errors, above) and
+        //     1441444 PASSES (Build complete). Unblocks local `swift build` /
+        //     `swift test` verification on the macOS 27 beta SDK.
         //
         // b6ba48d..d661402 (2 commits, both verified consumer-transparent):
         //   - #375 (b6ba48d→130e3f0): reranker API — new MLXEmbedders/MLXRerankers
@@ -68,7 +78,7 @@ let package = Package(
         //     LoRA+dropout inference in LLMLifecycleHandler.
         // Re-evaluate at each upstream main bump: re-grep `Generation` switch
         // sites and confirm exhaustiveness before building.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "d661402"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "1441444"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)

@@ -74,11 +74,20 @@ final class RepetitionPenaltyGPUState: @unchecked Sendable {
         let ptr = buf.contents().assumingMemoryBound(to: Float16.self)
 
         let dirty = dirtyTokens[slot]
-        for tokenId in dirty.evicted {
-            ptr[Int(tokenId)] = Float16(1.0)
-        }
-        for tokenId in dirty.added {
-            ptr[Int(tokenId)] = penalty
+        // Apply final state by CURRENT refcount, not list order. A token can sit
+        // in BOTH `added` and `evicted` within one flush interval (recorded,
+        // then evicted before this slot flushed) — the two-pass "evicted then
+        // added" apply order leaves a stale penalty on a token that has left
+        // the window, and it is never cleared (token is out of the ring, so it
+        // can never be evicted again). Refcount > 0 at flush time is the
+        // authoritative in-window state.
+        // Contract: RepetitionPenaltyGPUStateTests "window limits which tokens
+        // remain penalized".
+        var touched: Set<Int32> = []
+        for tokenId in dirty.evicted { touched.insert(tokenId) }
+        for tokenId in dirty.added { touched.insert(tokenId) }
+        for tokenId in touched {
+            ptr[Int(tokenId)] = refCounts[tokenId, default: 0] > 0 ? penalty : Float16(1.0)
         }
         dirtyTokens[slot] = (added: [], evicted: [])
 
