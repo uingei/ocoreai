@@ -38,3 +38,6 @@ docs/
 
 # Local scrapling venv (tooling, not project code)
 .scrapling_venv/
+
+# swift test profile dumps
+default.profraw
