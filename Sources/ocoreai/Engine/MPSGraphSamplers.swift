@@ -159,7 +159,8 @@ enum MPSGraphSamplerFactory {
             k: effectiveK,
             temperature: Float(config.temperature ?? 0),
             topP: config.topP.map { Float($0) } ?? 1.0,
-            minP: config.minP.map { Float($0) } ?? 0.0
+            minP: config.minP.map { Float($0) } ?? 0.0,
+            penaltyEnabled: config.needsRepetitionPenalty
         )
     }
 
@@ -697,6 +698,9 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
 
     // Graph tensors
     private let logitsPlaceholder: MPSGraphTensor
+    // Penalty buffer input — present only when the graph was compiled with
+    // repetition penalty (aligned with upstream #176 `penaltyPlaceholder`).
+    private let penaltyPlaceholder: MPSGraphTensor?
     private let temperaturePlaceholder: MPSGraphTensor
     private let randomPlaceholder: MPSGraphTensor
     private let topPPlaceholder: MPSGraphTensor
@@ -719,6 +723,10 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
 
     /// The minP value (0.0 = disabled)
     let minP: Float
+
+    /// Whether repetition penalty is compiled into this sampler's graph.
+    /// Aligned with upstream coreai-models `MPSGraphCompositeSampler.penaltyEnabled` (#176).
+    let penaltyEnabled: Bool
 
     /// Pre-allocated buffer for random value
     private let randomBuffer: MTLBuffer
@@ -763,7 +771,7 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
     ///   - minP: Minimum probability threshold (0.0 = disabled)
     init(
         device: MTLDevice, vocabSize: Int, k: Int = 40, temperature: Float = 1.0, topP: Float = 1.0,
-        minP: Float = 0.0
+        minP: Float = 0.0, penaltyEnabled: Bool = false
     )
         throws
     {
@@ -774,6 +782,7 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         self.temperature = temperature
         self.topP = topP
         self.minP = minP
+        self.penaltyEnabled = penaltyEnabled
         self.bitmaskSize = (vocabSize + 31) / 32
 
         // Pre-allocate buffers
@@ -805,6 +814,17 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
             name: "logits"
         )
         self.logitsPlaceholder = logitsPlaceholder
+
+        if penaltyEnabled {
+            let pp = graph.placeholder(
+                shape: [1, vocabSize as NSNumber],
+                dataType: .float16,
+                name: "penalty"
+            )
+            self.penaltyPlaceholder = pp
+        } else {
+            self.penaltyPlaceholder = nil
+        }
 
         // Temperature scalar [1]
         let temperaturePlaceholder = graph.placeholder(
@@ -841,8 +861,20 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         // Cast logits to Float32 for numerical stability
         let logitsFloat32 = graph.cast(logitsPlaceholder, to: .float32, name: "logits_f32")
 
+        // Step 0 (optional): apply repetition penalty before topK selection.
+        // Aligned with upstream coreai-models `applyPenaltyStage` (#176):
+        // where(logits > 0, logits / penalty, logits * penalty)
+        let penalizedLogits: MPSGraphTensor
+        if penaltyEnabled {
+            penalizedLogits = applyPenaltyStage(
+                graph: graph, logits: logitsFloat32, penaltyTensor: penaltyPlaceholder!,
+                name: "penalty")
+        } else {
+            penalizedLogits = logitsFloat32
+        }
+
         // Step 1: Get Top-K values and indices
-        let topKResult = graph.topK(logitsFloat32, k: k, name: "topk")
+        let topKResult = graph.topK(penalizedLogits, k: k, name: "topk")
         let topKValues = topKResult[0]  // [1, k] sorted descending
         let topKIndices = topKResult[1]  // [1, k] as Int32
 
@@ -905,7 +937,7 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         self.outputTensor = outputTensor
 
         // Compile to executable
-        let feeds: [MPSGraphTensor: MPSGraphShapedType] = [
+        var feeds: [MPSGraphTensor: MPSGraphShapedType] = [
             logitsPlaceholder: MPSGraphShapedType(
                 shape: [1, vocabSize as NSNumber], dataType: .float16),
             temperaturePlaceholder: MPSGraphShapedType(shape: [1 as NSNumber], dataType: .float32),
@@ -913,6 +945,9 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
             topPPlaceholder: MPSGraphShapedType(shape: [1 as NSNumber], dataType: .float32),
             minPPlaceholder: MPSGraphShapedType(shape: [1 as NSNumber], dataType: .float32),
         ]
+        if let pp = penaltyPlaceholder {
+            feeds[pp] = MPSGraphShapedType(shape: [1, vocabSize as NSNumber], dataType: .float16)
+        }
 
         let compilationDescriptor = MPSGraphCompilationDescriptor()
         compilationDescriptor.optimizationLevel = .level0
@@ -1045,6 +1080,21 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
             throw MPSGraphSamplerError.bufferAllocationFailed
         }
         return (exec, data)  // safe: set synchronously by `try bitmaskBuffer` above
+    }
+
+    /// Apply repetition penalty to logits: where(logits > 0, logits / penalty, logits * penalty).
+    ///
+    /// Aligned with upstream coreai-models `MPSGraphCompositeSampler.applyPenaltyStage` (#176).
+    private static func applyPenaltyStage(
+        graph: MPSGraph, logits: MPSGraphTensor, penaltyTensor: MPSGraphTensor, name: String
+    ) -> MPSGraphTensor {
+        let penaltyF32 = graph.cast(penaltyTensor, to: .float32, name: "\(name)_f32")
+        let zero = graph.constant(0.0, dataType: .float32)
+        let positive = graph.greaterThan(logits, zero, name: "\(name)_pos")
+        let divided = graph.division(logits, penaltyF32, name: "\(name)_div")
+        let multiplied = graph.multiplication(logits, penaltyF32, name: "\(name)_mul")
+        return graph.select(
+            predicate: positive, trueTensor: divided, falseTensor: multiplied, name: name)
     }
 
     /// Encode composite sampling with optional bitmask constraint.
@@ -1205,6 +1255,70 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
             inputs: [logitsData, temperatureData, randomData, topPData, minPData],
             results: [outputData],
             executionDescriptor: desc
+        )
+    }
+
+    /// Encode sampling with repetition penalty buffer.
+    /// The penalty buffer must be Float16[vocabSize] with 1.0 for unpenalized tokens.
+    /// Aligned with upstream coreai-models `MPSGraphCompositeSampler.encode(to:logitsBuffer:logitsOffset:penaltyBuffer:...)` (#176).
+    func encode(
+        to queue: MTLCommandQueue,
+        logitsBuffer: MTLBuffer,
+        logitsOffset: Int,
+        penaltyBuffer: MTLBuffer,
+        outputBuffer: MTLBuffer,
+        outputOffset: Int,
+        completion: @escaping (Int32, Error?) -> Void
+    ) {
+        guard penaltyEnabled, let penaltyPlaceholder else {
+            encode(
+                to: queue, logitsBuffer: logitsBuffer, logitsOffset: logitsOffset,
+                outputBuffer: outputBuffer, outputOffset: outputOffset, completion: completion)
+            return
+        }
+
+        temperatureBuffer.contents().assumingMemoryBound(to: Float.self).pointee = max(
+            temperature, 0.01)
+        topPBuffer.contents().assumingMemoryBound(to: Float.self).pointee = topP
+        minPBuffer.contents().assumingMemoryBound(to: Float.self).pointee = minP
+        let randomValue = testingOnlyRandomOverride ?? Float.random(in: 0 ..< 1)
+        randomBuffer.contents().assumingMemoryBound(to: Float.self).pointee = randomValue
+
+        let logitsData = MPSGraphTensorData(
+            logitsBuffer, shape: [1, vocabSize as NSNumber], dataType: .float16)
+        let penaltyData = MPSGraphTensorData(
+            penaltyBuffer, shape: [1, vocabSize as NSNumber], dataType: .float16)
+        let outputData = MPSGraphTensorData(
+            outputBuffer, shape: [1 as NSNumber], dataType: .int32)
+
+        let tensorDataMap: [MPSGraphTensor: MPSGraphTensorData] = [
+            logitsPlaceholder: logitsData,
+            penaltyPlaceholder: penaltyData,
+            temperaturePlaceholder: temperatureData,
+            randomPlaceholder: randomData,
+            topPPlaceholder: topPData,
+            minPPlaceholder: minPData,
+        ]
+        let inputs = executable.feedTensors!.map { tensorDataMap[$0]! }
+
+        let execDesc = MPSGraphExecutableExecutionDescriptor()
+        execDesc.completionHandler = { [outputBuffer, outputOffset] (_, error) in
+            if let error = error {
+                completion(0, error)
+                return
+            }
+            let result = outputBuffer.contents()
+                .advanced(by: outputOffset)
+                .assumingMemoryBound(to: Int32.self)
+                .pointee
+            completion(result, nil)
+        }
+
+        executable.runAsync(
+            with: queue,
+            inputs: inputs,
+            results: [outputData],
+            executionDescriptor: execDesc
         )
     }
 

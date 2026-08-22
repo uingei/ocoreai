@@ -421,10 +421,11 @@ struct EngineFactory: Sendable {
         let preparedModel = try await PreparedModel.prepare(
             at: coreAIModelURL, functionName: parsedConfig.function)
 
-        // Resolve variant with fallback chain: when auto-detect picks an
-        // unimplemented variant, gracefully fall back to sequential (the only
-        // engine we have). User overrides still throw — explicit intent wins.
-        let variant = try resolveVariantWithFallback(
+        // Resolve variant: user override wins (throws if incompatible), otherwise
+        // auto-detect from model structure (dynamic → pipelined,
+        // chunkedStatic → staticShape). Aligned with upstream coreai-models
+        // EngineFactory — ocoreai implements all three variants, no fallback layer.
+        let variant = try resolveVariant(
             override: options.variant, detectedStructure: preparedModel.structure)
 
         log.info(
@@ -461,56 +462,19 @@ struct EngineFactory: Sendable {
         }
     }
 
-    // Engine variant registry — aligned with upstream coreai-models EngineFactory
-    private enum Variant: String, Sendable, CaseIterable {
+    // Engine variant registry — aligned with upstream coreai-models EngineFactory.
+    // internal (not private) so EngineVariantRoutingTests can exercise the table.
+    enum Variant: String, Sendable, CaseIterable {
         case sequential = "coreai-sequential"
         case pipelined = "coreai-pipelined"
         case staticShape = "static-shape"
     }
 
-    /// Auto-detect variant, then fall back to sequential when the detected
-    /// variant is not yet implemented in ocoreai. User overrides still throw.
-    ///
-    /// Upstream (coreai-models EngineFactory) has CoreAIPipelinedEngine and
-    /// StaticShapeEngine so it can honor the auto-detected variant directly.
-    /// ocoreai only has CoreAISequentialEngine, so dynamic → pipelined would
-    /// always fail. The fallback chain closes this gap:
-    ///   auto → detected → available? → yes: use it
-    ///                    → no:  warn + fall back to sequential
-    private static func resolveVariantWithFallback(
-        override variantOverride: String?,
-        detectedStructure structure: ModelStructure
-    ) throws -> Variant {
-        // User-specified override: honor explicit intent (may throw if unavailable)
-        if let vo = variantOverride, vo != "auto", vo != "default" {
-            return try resolveVariant(override: vo, detectedStructure: structure)
-        }
-
-        // Auto-detect, then fall back to sequential for unimplemented variants
-        // — but only when sequential is actually compatible with the model structure.
-        let detected = autoDetectVariant(structure: structure)
-        if detected == .sequential {
-            return .sequential
-        }
-        // Guard: sequential engine cannot handle chunked-static models
-        // (upstream checkVariantCompatibility returns false).
-        // Rather than silently run an incompatible engine, reject with a clear error.
-        guard checkVariantCompatibility(variant: .sequential, structure: structure).compatible
-        else {
-            throw InferenceError.unsupportedEngineVariant(
-                "Model structure '\(structure.description)' requires '\(detected.rawValue)' engine (not yet available). Auto-detection selected '\(detected.rawValue)' but it is unimplemented, and sequential is incompatible with this structure."
-            )
-        }
-        Self.log.info(
-            "CoreAI auto-detected variant '\(detected.rawValue)' not yet implemented — falling back to sequential for structure \(structure.description)"
-        )
-        return .sequential
-    }
-
     /// Auto-detect optimal variant from model structure.
     /// Mirrors upstream EngineFactory.autoDetectVariant —
     /// dynamic → pipelined (GPU), chunkedStatic → staticShape (ANE).
-    private static func autoDetectVariant(structure: ModelStructure) -> Variant {
+    /// internal (not private) so EngineVariantRoutingTests can exercise it.
+    static func autoDetectVariant(structure: ModelStructure) -> Variant {
         switch structure {
         case .dynamic: return .pipelined
         case .chunkedStatic: return .staticShape
@@ -520,7 +484,8 @@ struct EngineFactory: Sendable {
 
     /// Check if a variant override is compatible with the model structure.
     /// Mirrors upstream EngineFactory.checkVariantCompatibility.
-    private static func checkVariantCompatibility(
+    /// internal (not private) so EngineVariantRoutingTests can exercise it.
+    static func checkVariantCompatibility(
         variant: Variant,
         structure: ModelStructure
     ) -> (compatible: Bool, warning: String?) {
@@ -540,7 +505,9 @@ struct EngineFactory: Sendable {
         }
     }
 
-    private static func resolveVariant(
+    /// Resolve the final variant: explicit override (validated) or auto-detect.
+    /// internal (not private) so EngineVariantRoutingTests can exercise it.
+    static func resolveVariant(
         override variantOverride: String?,
         detectedStructure structure: ModelStructure
     ) throws -> Variant {

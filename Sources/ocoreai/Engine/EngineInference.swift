@@ -249,30 +249,49 @@ extension EnginePool {
             // CoreAI is CoreAI, MLX is MLX — no cross-framework fallback.
             do {
                 let engine = try await loaded.getCachedEngine()
-                let sequential = engine as? CoreAISequentialEngine
-                // Check: grammar request + Sequential engine → route to constrained path
-                if let sequential,
-                    options.grammarSchema != nil || options.useGuidedGeneration
-                {
-                    // CoreAI constrained decoding — grammar/tool-constrained request.
-                    await _runConstrainedDecoding(
-                        engine: sequential,
-                        modelId: modelId,
-                        messages: messages,
-                        input: input,
-                        sampling: sampling,
-                        options: options,
-                        metrics: metrics,
-                        continuation: continuation,
-                        cancellation: cancellation
-                    )
-                    return
-                }
-                // Non-grammar requests or non-Sequential engine → standard CoreAI path below.
-                // Warn if grammar was requested but engine can't handle it.
-                if (options.grammarSchema != nil || options.useGuidedGeneration)
-                    && sequential == nil
-                {
+                // Grammar request → route to the constrained path by ENGINE
+                // CAPABILITY, aligned with upstream coreai-models
+                // CoreAILanguageModel.respondConstrained (L582-596):
+                //   ConstrainedGenerationCapable (GPU pipelined, #170)
+                //     → PipelinedConstrainedDecodingStrategy
+                //       (xgrammar bitmask applied inside the MPSGraph sampler
+                //        on GPU — no ~296KB logits CPU round-trip per token)
+                //   otherwise
+                //     → sequential _runConstrainedDecoding (CPU bitmask loop)
+                if options.grammarSchema != nil || options.useGuidedGeneration {
+                    if let pipeline = engine as? any ConstrainedGenerationCapable {
+                        // GPU pipelined constrained decoding (#170) — dispatched
+                        // by capability so dynamic-structure models (auto →
+                        // pipelined) keep their grammar constraints.
+                        await _runPipelinedConstrainedDecoding(
+                            engine: pipeline,
+                            modelId: modelId,
+                            messages: messages,
+                            input: input,
+                            sampling: sampling,
+                            options: options,
+                            metrics: metrics,
+                            continuation: continuation,
+                            cancellation: cancellation
+                        )
+                        return
+                    }
+                    // Capability unavailable — sequential constrained loop
+                    // (unchanged pre-#170 behavior for non-GPU engines).
+                    if let sequential = engine as? CoreAISequentialEngine {
+                        await _runConstrainedDecoding(
+                            engine: sequential,
+                            modelId: modelId,
+                            messages: messages,
+                            input: input,
+                            sampling: sampling,
+                            options: options,
+                            metrics: metrics,
+                            continuation: continuation,
+                            cancellation: cancellation
+                        )
+                        return
+                    }
                     logger.warning(
                         "Grammar constrained request but engine is \(String(describing: type(of: engine))) — falling back to standard CoreAI, grammar constraints dropped"
                     )
@@ -756,6 +775,171 @@ extension EnginePool {
     // MARK: - CoreAI Constrained Decoding
 
     #if canImport(CoreAI)
+    /// GPU pipelined grammar-constrained decoding (#170).
+    ///
+    /// Dispatch companion to `_runConstrainedDecoding`: same request context,
+    /// but the decode loop runs on the GPU pipelined engine — the xgrammar
+    /// bitmask is applied inside the MPSGraph sampler (no ~296KB logits CPU
+    /// round-trip per token). Aligned with upstream coreai-models
+    /// `CoreAILanguageModel.respondConstrained` (L582-596), which routes to
+    /// `PipelinedConstrainedDecodingStrategy` when the engine is
+    /// `ConstrainedGenerationCapable`.
+    ///
+    /// Text segmentation (ThinkTagParser → ToolCallParser) reuses the same
+    /// helpers as the other CoreAI paths (`.text` / `.reasoning` / `.toolCall`).
+    @available(macOS 27.0, iOS 27.0, *)
+    private func _runPipelinedConstrainedDecoding(
+        engine: any ConstrainedGenerationCapable,
+        modelId: String,
+        messages: [Message]?,
+        input: [Int32],
+        sampling: SamplingConfiguration,
+        options: InferenceOptions,
+        metrics: PerRequestMetrics,
+        continuation: AsyncThrowingStream<InferenceEvent, Error>.Continuation,
+        cancellation: InferenceCancellation
+    ) async {
+        _ = messages
+        defer { continuation.finish() }
+
+        // Tokenizer — CoreAI-native path: swift-transformers tokenizer
+        // registered via TokenizerManager (same provider the sequential loop uses).
+        guard let provider = await tokenizerManager.getTokenizer(for: modelId) else {
+            continuation.yield(
+                .init(
+                    kind: .error(
+                        InferenceError.standardPathFailed(
+                            "No tokenizer registered for model: \(modelId)"
+                        )
+                        .errorDescription ?? "error")))
+            return
+        }
+        let tokenizer = provider.underlying
+
+        let jsonSchema =
+            options.grammarSchema
+                ?? """
+                {"type":"object","properties":{}}
+                """
+
+        let stopSequences = StopSequences(
+            for: tokenizer,
+            additionalSequences: (sampling.stopSequences ?? []).map {
+                Array(provider.underlying.encode(text: $0).map(Int32.init))
+            },
+            additionalEosTokenIds: [Int32(0)]
+        )
+
+        let maxTokens = options.maxTokens ?? 4096
+
+        // Same think/tool parser setup + primedInside detection as the
+        // sequential constrained loop (upstream ThinkTagParser defaults).
+        let openMarker = "<think" + "ing>"
+        let closeMarker = "</think" + "ing>"
+        let primedInside: Bool
+        do {
+            let tailPrompt = try await detokenize(modelId: modelId, tokens: input)
+            primedInside = ThinkTagParser.promptEndsInsideReasoning(
+                renderedPromptTail: tailPrompt,
+                openMarker: openMarker,
+                closeMarker: closeMarker
+            )
+        } catch {
+            primedInside = false
+            logger.warning(
+                "Pipelined constrained primedInside detection failed: \(error.localizedDescription)"
+            )
+        }
+        var thinkParser = ThinkTagParser(
+            open: openMarker, close: closeMarker, primedInside: primedInside)
+        var toolParser = ToolCallParser()
+        var accumulatedTokens: [Int32] = []
+        var accumulatedReasoningChars = 0
+
+        do {
+            // Strategy: capability-selected per upstream respondConstrained —
+            // the engine conforms to ConstrainedGenerationCapable, so the
+            // decoded sequence is a GPU pipelined one.
+            let sequence: PipelinedConstrainedSequence =
+                try await PipelinedConstrainedDecodingStrategy(
+                    jsonSchema: jsonSchema
+                ).decode(
+                    from: .tokens(Array(input.map { Int($0) })),
+                    tokenizer: tokenizer,
+                    inferenceEngine: engine,
+                    samplingConfiguration: sampling,
+                    options: InferenceOptions(maxTokens: maxTokens),
+                    stopSequences: stopSequences
+                )
+
+            for try await result in sequence {
+                if Task.isCancelled || cancellation.isCancelled { break }
+
+                metrics.incrementGenerated()
+                if metrics.generatedTokenCount == 1 {
+                    metrics.firstTokenMs = metrics.overallMs
+                }
+                if let tokenId = result.tokenId {
+                    accumulatedTokens.append(tokenId)
+                }
+
+                let text = result.text
+                guard !text.isEmpty else { continue }
+
+                for thinkEvent in thinkParser.consume(text) {
+                    switch thinkEvent {
+                    case .reasoning(let segText):
+                        accumulatedReasoningChars += segText.utf8.count
+                        continuation.yield(.init(kind: .reasoning(segText)))
+                    case .text(let segText):
+                        for toolEvent in toolParser.consume(segText) {
+                            switch toolEvent {
+                            case .text(let plainText):
+                                continuation.yield(.init(kind: .text(plainText)))
+                            case .toolCall(let id, let name, let argsJSON):
+                                continuation.yield(
+                                    .init(
+                                        kind: .toolCall(
+                                            ToolCall(
+                                                id: id,
+                                                type: "function",
+                                                function: ToolCallFunction(
+                                                    name: name,
+                                                    arguments: argsJSON
+                                                )
+                                            )
+                                        )))
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Grammar/EOS termination → flush residual + .done (same flush
+            // convention as the sequential constrained loop).
+            await self._flushResidualTokensAsync(
+                &accumulatedTokens,
+                modelId: modelId,
+                thinkParser: &thinkParser,
+                toolParser: &toolParser,
+                continuation: continuation,
+                metrics: metrics,
+                logger: self.logger,
+                stopReason: .eos,
+                tokenCount: metrics.generatedTokenCount,
+                reasoningTokenCount: accumulatedReasoningChars
+            )
+        } catch {
+            continuation.yield(
+                .init(
+                    kind: .error(
+                        InferenceError.standardPathFailed(
+                            "Pipelined constrained decoding failed: \(error.localizedDescription)"
+                        )
+                        .errorDescription ?? "error")))
+        }
+    }
+
     /// CoreAI-native grammar constrained decoding loop.
     ///
     /// Architecture: CoreAI is CoreAI, MLX is MLX — no cross-framework fallback.

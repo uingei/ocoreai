@@ -591,6 +591,12 @@ private struct EngineImpl: ~Copyable {
     var cachedSampler: (any MPSGraphSampler)?
     var cachedSamplerTemperature: Double?
 
+    // GPU repetition penalty state (coreai-models #176). Non-nil only when the
+    // active sampling configuration has repetitionPenalty > 1.0 on the pipelined
+    // engine. Owns a per-depth ring of Float16 penalty buffers read by the
+    // composite sampler's penalty stage.
+    var penaltyState: RepetitionPenaltyGPUState?
+
     // State
     var processedTokenCount: Int = 0
     var step: Int = 0
@@ -825,6 +831,7 @@ private struct EngineImpl: ~Copyable {
         self.logits = logitsRef
         self.cachedSampler = nil
         self.cachedSamplerTemperature = nil
+        self.penaltyState = nil
 
     }
 
@@ -853,6 +860,25 @@ private struct EngineImpl: ~Copyable {
                 )
             }
             return existingSampler
+        }
+
+        // Create penalized sampler if repetition penalty is configured
+        // (aligned with upstream coreai-models CoreAIPipelinedEngine.#176).
+        if config.needsRepetitionPenalty {
+            if config.temperature == 0 {
+                throw InferenceRuntimeError.invalidArgument(
+                    "Repetition penalty with greedy sampling is not supported on pipelined engine. "
+                        + "Use temperature > 0, or use a sequential engine.")
+            }
+            if penaltyState == nil {
+                penaltyState = try RepetitionPenaltyGPUState(
+                    device: device,
+                    vocabSize: self.config.vocabSize,
+                    pipelineDepth: pipelineDepth,
+                    penalty: config.repetitionPenalty!,
+                    windowSize: config.repetitionPenaltyWindow
+                )
+            }
         }
 
         let newSampler = try MPSGraphSamplerFactory.makeSampler(
@@ -1018,7 +1044,11 @@ private struct EngineImpl: ~Copyable {
         do {
             let queue = pipelineQueue
             let localInFlightGate = inFlightGate
+            let localPenaltyState = penaltyState
             let completionCallback: (Int32, Error?) -> Void = { nextToken, error in
+                // Update penalty state BEFORE releasing the gate, so the next
+                // buffer(forStep:) call in this slot sees the token.
+                localPenaltyState?.recordToken(nextToken)
                 // Release the pipeline slot acquired before encode. Happens on
                 // Metal's callback thread — PipelineGate.release() is thread-safe.
                 localInFlightGate.release()
@@ -1037,6 +1067,25 @@ private struct EngineImpl: ~Copyable {
             }
 
             if queryLength == 1 {
+                // Penalty-aware path for decode steps when the sampler was compiled
+                // with the repetition-penalty stage (aligned with upstream #176).
+                if let state = localPenaltyState,
+                    let compositeSampler = localGPUSampler as? MPSGraphCompositeSampler,
+                    compositeSampler.penaltyEnabled
+                {
+                    let penaltyBuf = state.buffer(forStep: currentStep)
+                    compositeSampler.encode(
+                        to: queue,
+                        logitsBuffer: samplerLogitsBuffer,
+                        logitsOffset: logitsOffset,
+                        penaltyBuffer: penaltyBuf,
+                        outputBuffer: outputBuffer,
+                        outputOffset: 0,
+                        completion: completionCallback
+                    )
+                    sampleSpan.end()
+                    return
+                }
                 do {
                     try localGPUSampler.encode(
                         to: queue,
@@ -1309,6 +1358,9 @@ private struct EngineImpl: ~Copyable {
         step = 0
         cachedSampler = nil
         cachedSamplerTemperature = nil
+        // Clear the GPU penalty ring so a new conversation doesn't inherit
+        // penalty state from the previous one (aligned with upstream reset()).
+        penaltyState?.reset()
         // Zero SSM states so the next conversation starts from a clean slate.
         additionalStates?.reset()
         span.end()

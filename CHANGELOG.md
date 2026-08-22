@@ -2,12 +2,15 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-08-14 → 2026-08-17
+## [Unreleased] — 2026-08-14 → 2026-08-22
 
 ### Features
 
+- **CoreAI GPU repetition penalty (#176 alignment)** — `RepetitionPenaltyGPUState` (125 LOC, verbatim port from upstream coreai-models) + `MPSGraphCompositeSampler` penalty stage (graph Step-0 `select(logits>0, logits/p, logits*p)` sign-aware divide/multiply, compiled into the feed tensors) + `CoreAIPipelinedEngine` wiring (`recordToken` in the completion callback, `buffer(forStep:)` at encode time, `reset()` clears the ring + buffers). `MPSGraphSamplerFactory.makeSampler` threads `config.repetitionPenalty != nil` → `penaltyEnabled`. Sequential path already covered by `RepetitionPenaltyProcessor` (unchanged).
+- **CoreAI grammar → GPU pipelined constrained path (#170 wire)** — `EngineInference` CoreAI grammar branch now dispatches by `ConstrainedGenerationCapable` capability (aligned with upstream coreai-models `CoreAILanguageModel` L582-596) instead of the hard `as? CoreAISequentialEngine` cast. This activates the previously absorbed-but-unwired `PipelinedConstrainedDecodingStrategy` (#146/#170 bitmask per token). Sequential constrained path unchanged.
+- **EngineFactory fallback layer removed** — `resolveVariantWithFallback` (dynamic→sequential silent fallback) deleted; auto-detect is now honored directly (dynamic→pipelined, chunkedStatic→staticShape), aligned with upstream `EngineFactory` (which has no fallback). `EngineFactory.{Variant, autoDetectVariant, checkVariantCompatibility, resolveVariant}` bumped `private`→internal for test access (`EngineVariantRoutingTests`).
 - **CoreAI grammar constrained decoding** (b69b934) — `TokenizersMLXTokenizerAdapter` (swift-transformers → `MLXLMCommon.Tokenizer`, no MLX tensor deps) unblocks the CoreAI bootstrap guard; `CoreAISequentialEngine.startConstrainedDecoding`/`feedToken` decode-step loop drives xgrammar (`MLXCXGrammar` C shim) mask/acceptToken/rollback. GuidedGeneration 13/13 green. Replaces the 2026-08-13 "fails on CoreAI path" finding.
-- **CoreAI .pipelined variant wired** (c4c0a43) — `CoreAIPipelinedEngine` (1,352 LOC) constructed like .sequential/.staticShape (was: `engineUnavailable` throw). Grammar stays on the sequential path (tracks upstream coreai-models #146/#170 GPU bitmask on pipelined); a grammar request hitting the pipelined engine warns and runs unconstrained.
+- **CoreAI .pipelined variant wired** (c4c0a43) — `CoreAIPipelinedEngine` (1,352 LOC) constructed like .sequential/.staticShape (was: `engineUnavailable` throw). Grammar stays on the sequential path (tracks upstream coreai-models #146/#170 GPU bitmask on pipelined); a grammar request hitting the pipelined engine warns and runs unconstrained. _(Superseded 2026-08-22: see "#170 wire" above — grammar now routes to the pipelined GPU bitmask loop when the engine conforms to `ConstrainedGenerationCapable`.)_
 - **ThinkingBudget hard budget** (686161c) — upstream `ThinkingBudgetProcessor` wired into the std reasoning path via `GenerationComponents.applyingThinkingBudget` (EngineInference.swift:3345); orthogonal to the ocoreai ThinkingBudget actor.
 
 ### Bug Fixes
@@ -18,6 +21,10 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 ### Refactoring / Cleanup
 
 - **4c231d3 dead-code + print removal** (4c231d3) — `AgentLoop` enum runner + `AgentLoopConfig` pruned (523→44 LOC; zero callers after the engine iteration loop moved to `DirectInferenceClient`); `AgentLoopResult`/`AgentLoopIterationLog` kept (consumed by ThinkingTelemetry). `StatsReporter` table-display chain removed (~180 LOC — upstream llm-runner-CLI-only, zero refs). `print()` in Sources/ 18→0 (MPSGraphSamplers 6 + InstrumentsProfiler 12; MPSGraphSamplers errors already propagate to `onSamplingDone`, InstrumentsProfiler deinit rewritten as swift-log `Logger(label:)`).
+
+### Tests
+
+- **#176 GPUState + #170 routing tests** — `RepetitionPenaltyGPUStateTests.swift` (6 contract tests: fresh-is-noop, recorded-is-penalized, dedup, window scoping, out-of-range ignored, reset-clears-all) + `MPSGraphCompletionOrderingTests` (16-encode ordering sentinel — guards the completion-ordering assumption `RepetitionPenaltyGPUState` relies on; ported from upstream `CoreAIPipelinedTests.swift`). Both `.enabled(if: MTLCreateSystemDefaultDevice() != nil)` (CPU-only/CI-VM skip). `EngineVariantRoutingTests.swift` (8 tests: dynamic→pipelined, chunkedStatic→staticShape, unknown→sequential, explicit override, incompatible overrides throw, unknown string throws, full compatibility table) — `@available(macOS 27.0)` guard in each test body (no `@available` on macros, skill §6.1).
 
 ### Tooling / CI
 
