@@ -12,6 +12,11 @@ import Logging
 actor ToolRegistry {
     /// Audit trail for tool execution logging (nil = auditing disabled)
     private let auditTrail: AuditTrail?
+    /// Codex-aligned lifecycle hooks for PreToolUse veto / PostToolUse observation.
+    /// Default empty → hooks are opt-in via a non-empty `[Hook]` (e.g. `auditPolicy`,
+    /// `destructiveOnly`, etc.). A `nil` matcher means the hook applies to every tool.
+    /// See `Agents/Hooks/ToolHookRunner.swift` for the surface and semantics.
+    private let hookRunner: ToolHookRunner
     /// Read-only tool lookup table (published after registration changes)
     private var tools: [String: ToolEntry] = [:]
     /// Toolset → [tool name] mapping for batch queries
@@ -31,11 +36,13 @@ actor ToolRegistry {
         readOnlyWhitelist: [String] = ["search_files", "read_file", "memory_search"],
         destructiveBlacklist: [String] = ["write_file", "delete_file", "execute_code"],
         auditTrail: AuditTrail? = nil,
+        hooks: [Hook] = [],
         log: Logger = Logger(label: "ocoreai.tools.registry"),
     ) {
         self.readOnlyWhitelist = Set(readOnlyWhitelist)
         self.destructiveBlacklist = Set(destructiveBlacklist)
         self.auditTrail = auditTrail
+        self.hookRunner = ToolHookRunner(hooks: hooks)
         logger = log
     }
 
@@ -115,6 +122,27 @@ actor ToolRegistry {
     /// - Throws: ``ToolError`` on validation or execution failure
     func call(_ name: String, arguments: String, caller: String = "unknown") async throws -> String
     {
+        // 0. PreToolUse hook veto — codex `HookEventName.preToolUse`.
+        //    A single deny/ask from any non-skipped matcher short-circuits here,
+        //    BEFORE audit, loop detection, or handler execution. If a hook is
+        //    added later with `matcher == nil` it will apply to every tool —
+        //    that's the design intent (mirrors codex "no matcher → global").
+        let verdict = await hookRunner.evaluatePreToolUse(toolName: name, arguments: arguments)
+        if verdict != .allow {
+            switch verdict {
+            case .deny(let reason):
+                logger.info("Tool '\(name)' denied by PreToolUse hook")
+                throw ToolError.denied(reason: reason)
+            case .ask(let reason):
+                // `.ask` requires a user-approval surface that does not yet exist
+                // in ocoreai. Rather than silently allow, treat as a hard deny so
+                // the hook remains a real gate until an approval UI is wired.
+                logger.info("Tool '\(name)' requires approval (no surface yet) — denying")
+                throw ToolError.denied(reason: reason)
+            case .allow: break
+            }
+        }
+
         // 1. Lookup
         guard let entry = tools[name] else {
             throw ToolError.notFound(name)
@@ -147,6 +175,9 @@ actor ToolRegistry {
         }
 
         // 5. Execute
+        //    PostToolUse hooks fire AFTER the handler returns, on both success and
+        //    failure paths, so an observation hook can log both outcomes (codex
+        //    semantics — hooks are observation-only here; the verdict is ignored).
         do {
             let result = try await entry.handler(arguments)
             recordExecution(name, hash: inputHash)
@@ -154,6 +185,8 @@ actor ToolRegistry {
             if let t = token {
                 await auditTrail?.completeToken(t, status: .success, result: result)
             }
+            await hookRunner.firePostToolUse(
+                toolName: name, arguments: arguments, result: result, error: nil)
             return result
         } catch {
             // Complete audit on error
@@ -161,6 +194,9 @@ actor ToolRegistry {
                 await auditTrail?.completeToken(
                     t, status: .error, result: error.localizedDescription)
             }
+            await hookRunner.firePostToolUse(
+                toolName: name, arguments: arguments, result: nil,
+                error: error.localizedDescription)
             // If handler already threw a ToolError, re-throw without double-wrapping
             if let toolErr = error as? ToolError {
                 throw toolErr

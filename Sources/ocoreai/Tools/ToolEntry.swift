@@ -191,6 +191,9 @@ enum ToolError: Error, LocalizedError {
     case checkFailed(String)
     case loopDetected(String)
     case executionFailed(Error)
+    /// Denied by a `PreToolUse` hook (codex `HookEventName.preToolUse`).
+    /// Reason is the hook's message; surfaced to the caller as an HTTP 403-equivalent.
+    case denied(reason: String)
 
     var errorDescription: String? {
         switch self {
@@ -199,6 +202,7 @@ enum ToolError: Error, LocalizedError {
         case .checkFailed(let name): "Tool check failed: \(name)"
         case .loopDetected(let name): "Execution loop detected: \(name)"
         case .executionFailed(let error): "Tool execution failed: \(error.localizedDescription)"
+        case .denied(let reason): "Tool call denied by hook: \(reason)"
         }
     }
 }
