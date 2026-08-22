@@ -5,25 +5,34 @@
 // aligned with upstream coreai-models `EngineFactory`; ocoreai removed the
 // sequential-fallback layer so auto-detect is honored directly).
 //
-// Exercises the pure routing table + override validation. No engine
-// construction, no Metal, no CoreAI import needed — the routing functions are
-// @available(macOS 27.0, *) because the struct EngineFactory is, so the suite
-// is #available-gated (not canImport-gated) per ocoreai-dev skill §6.1:
-// @Suite/@Test macros can NOT carry @available → guard inside a plain test
-// body instead.
+// Gated with `#if canImport(CoreAI)`: the real `struct EngineFactory` lives in
+// CoreAIEngine.swift `#if canImport(CoreAI)` (L61), while a same-named
+// fallback `enum EngineFactory` lives in InferenceStubs.swift
+// `#if !canImport(CoreAI)` (L464). On a non-CoreAI runner (macos-26, no
+// CoreAI framework in SDK 26.5) the name resolves to the stub enum, which
+// has no `Variant` — so this suite must NOT compile there. Same convention as
+// RepetitionPenaltyGPUStateTests.swift (canImport = compile gate; the
+// macos-26 runner skips the block).
+//
+// Inside the gate, `struct EngineFactory` is @available(macOS 27.0, iOS 27.0, *)
+// and the deployment target is macOS 14 / iOS 17, so every test body guards
+// with #available(macOS 27.0) — @Suite/@Test macros can NOT carry @available
+// (ocoreai-dev skill §6.1).
 
 import Foundation
 import Testing
+
+#if canImport(CoreAI)
 
 @testable import ocoreai
 
 @Suite("EngineFactory variant routing (B: no-fallback, aligned with upstream)")
 struct EngineVariantRoutingTests {
 
-    // EngineFactory is @available(macOS 27.0, iOS 27.0) — deployment target is
-    // macOS 14 / iOS 17, so every test body guards with #available(macOS 27.0)
-    // (test-body guard; @Suite/@Test macros can't carry @available — skill §6.1).
-    private static let isAvailable = { () -> Bool in
+    // Runtime availability guard (the compile gate is the #if above, so this
+    // only gates on OS version — a plain func, never a stored Sendable-risky
+    // closure in a static let under Swift 6 strict concurrency).
+    private static func isAvailable() -> Bool {
         if #available(macOS 27.0, iOS 27.0, *) { return true }
         return false
     }
@@ -139,3 +148,5 @@ struct EngineVariantRoutingTests {
                 .compatible)
     }
 }
+
+#endif  // canImport(CoreAI)

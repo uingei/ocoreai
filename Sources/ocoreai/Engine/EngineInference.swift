@@ -879,9 +879,7 @@ extension EnginePool {
                 if metrics.generatedTokenCount == 1 {
                     metrics.firstTokenMs = metrics.overallMs
                 }
-                if let tokenId = result.tokenId {
-                    accumulatedTokens.append(tokenId)
-                }
+                accumulatedTokens.append(result.tokenId)
 
                 let text = result.text
                 guard !text.isEmpty else { continue }
