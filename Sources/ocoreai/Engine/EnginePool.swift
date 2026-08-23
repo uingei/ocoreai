@@ -26,6 +26,19 @@ import MLXFoundationModels
 import FoundationModels
 #endif
 
+/// A hub repo id the request layer hands to the pool: "hf:org/model",
+/// "mscope:org/model", or bare "org/model". Distinguished from local file
+/// paths (which contain '/' — absolute "/a/b" or relative "a/b/model.safetensors").
+/// Pure shape check, shared by every build so the routing decision is
+/// always unit-testable.
+func isHubModelIdentifier(_ modelId: String) -> Bool {
+    if modelId.hasPrefix("hf:") || modelId.hasPrefix("mscope:") { return true }
+    let slash = modelId.firstIndex(of: "/")
+    guard let slash else { return false }
+    // Exactly one '/' segment ⇒ "org/model"; two or more ⇒ file path.
+    return !modelId[modelId.index(after: slash)...].contains("/")
+}
+
 /// Convert ContentPolymorphic to String for tokenization input.
 /// - Returns: (text to tokenize, count of non-text parts silently dropped)
 func contentToString(_ content: ContentPolymorphic?) -> (String, Int) {
@@ -433,26 +446,45 @@ actor EnginePool {
         if #available(macOS 27.0, iOS 27.0, *),
             let loader = _coreAIPreparedModelLoader as? CoreAIModelLoader
         {
-            let preparedModel = try await loader.load(
-                modelURL: modelURL,
-                modelId: modelId,
-            )
+            // CoreAI specialization targets a local file asset (.aimodel) — not a
+            // hub repo id. A hub model ("hf:…"/"mscope:…"/"org/model") is a
+            // download, not a file: routing it to AIModel(contentsOf:) made
+            // load() return a stub LoadedModel (nil mlxModelHandle, no weights)
+            // and silently skip the MLX download+load path. Gate on a real
+            // local file path so hub ids fall through to the MLX path below.
+            let localPath = (modelId as NSString).expandingTildeInPath
+            let isLocalFile =
+                !isHubModelIdentifier(modelId)
+                && localPath.hasPrefix("/")
+                && FileManager.default.fileExists(atPath: localPath)
+                && !FileManager.default.fileExists(atPath: localPath + "/")
+            if isLocalFile {
+                let preparedModel = try await loader.load(
+                    modelURL: modelURL,
+                    modelId: modelId,
+                )
 
-            let loadTag = preparedModel.isSpecialized ? "specialized" : "fallback (EngineFactory)"
-            logger.info(
-                "Model \(modelId) prepared: \(loadTag)",
-                metadata: [
-                    "specialized": .string(String(preparedModel.isSpecialized))
-                ],
-            )
+                let loadTag =
+                    preparedModel.isSpecialized ? "specialized" : "fallback (EngineFactory)"
+                logger.info(
+                    "Model \(modelId) prepared: \(loadTag)",
+                    metadata: [
+                        "specialized": .string(String(preparedModel.isSpecialized))
+                    ],
+                )
 
-            return LoadedModel(
-                configData: configData,
-                modelURL: modelURL,
-                modelConfig: modelConfig,
-                preparedModel: preparedModel,
-                logger: logger,
-            )
+                return LoadedModel(
+                    configData: configData,
+                    modelURL: modelURL,
+                    modelConfig: modelConfig,
+                    preparedModel: preparedModel,
+                    logger: logger,
+                )
+            } else {
+                logger.info(
+                    "CoreAI specialization skipped for \(modelId) — routing to MLX download+load"
+                )
+            }
         } else {
             logger.info("CoreAI unavailable on this platform version — falling back to MLX")
         }
