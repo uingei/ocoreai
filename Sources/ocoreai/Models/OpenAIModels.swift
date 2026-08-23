@@ -863,6 +863,11 @@ struct ModelSamplingConfig: Codable {
     /// Context window for frequency penalty
     var frequencyContextSize: Int = 20
 
+    /// Model chat-template reasoning effort (e.g. Qwen3.8 `reasoning_effort`).
+    /// Wire-not-brain (08-23): stored verbatim; word table is the model's,
+    /// codex-aligned (low/medium/high/xhigh/max/ultra). nil = model default.
+    var reasoningEffort: String? = nil
+
     /// Response format override ("text" | "json_object")
     var responseFormat: String? = nil
 
@@ -887,7 +892,7 @@ struct ModelSamplingConfig: Codable {
         temperature == 0.7 && topP == nil && topK == nil && maxTokens == nil
             && frequencyPenalty == 0 && presencePenalty == 0 && minP == nil && seed == nil
             && repetitionPenalty == nil && repetitionPenaltyWindow == nil
-            && responseFormat == nil
+            && responseFormat == nil && reasoningEffort == nil
             && prefill.stepSize == nil && prefill.chunking == .balanced && maxKVSize == nil
             && maxContextWindow == nil && defaultModel == false && pinned == false
     }

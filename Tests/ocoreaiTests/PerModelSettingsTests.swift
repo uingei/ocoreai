@@ -40,6 +40,7 @@ struct PerModelConfigCodableTests {
         #expect(cfg.maxContextWindow == nil)
         #expect(cfg.defaultModel == false)
         #expect(cfg.pinned == false)
+        #expect(cfg.reasoningEffort == nil)
     }
 
     @Test("isDefault becomes false when any per-model flag is set")
@@ -58,6 +59,11 @@ struct PerModelConfigCodableTests {
         var c = ModelSamplingConfig.default
         c.pinned = true
         #expect(!c.isDefault)
+
+        // reasoning_effort: word-table stored verbatim (wire-not-brain).
+        var d = ModelSamplingConfig.default
+        d.reasoningEffort = "xhigh"
+        #expect(!d.isDefault)
     }
 }
 

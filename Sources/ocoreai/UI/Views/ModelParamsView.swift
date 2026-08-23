@@ -57,6 +57,7 @@ struct ModelParamsView: View {
             repeatContextCard
             presenceContextCard
             frequencyContextCard
+            reasoningEffortCard
             actionRow
             Spacer(minLength: 24)
         }
@@ -324,6 +325,19 @@ struct ModelParamsView: View {
         )
     }
 
+    /// Reasoning-effort is a model chat-template kwarg, not a sampling numeric —
+    /// its own card above the numeric group. Wire-not-brain: option list mirrors
+    /// the codex `ReasoningEffort` word table; the model self-rejects words it
+    /// does not support (Qwen3.8 raise_exception). "Model default" = nil.
+    private var reasoningEffortCard: some View {
+        ReasoningEffortCard(
+            label: StringKey.modelParamReasoningEffort.l,
+            hint: StringKey.modelParamReasoningEffortHint.l,
+            value: $config.reasoningEffort,
+            autoSave: { autoSave() },
+        )
+    }
+
     private var actionRow: some View {
         HStack(spacing: 12) {
             Button(StringKey.modelParamReset.l) {
@@ -353,6 +367,62 @@ struct ModelParamsView: View {
             let store = SettingsStore.shared
             await store.saveSamplingConfig(config, for: modelId)
         }
+    }
+}
+
+// MARK: - Reasoning Effort Card (ModelParamsView)
+
+private struct ReasoningEffortCard: View {
+    @Environment(\.ocoreaiTheme) private var theme
+    let label: String
+    let hint: String
+    @Binding var value: String?
+    let autoSave: () -> Void
+
+    /// codex `ReasoningEffort` word table (low/medium/high/xhigh/max/ultra).
+    /// Display order ascending by depth; the model is the single source of
+    /// truth for which subset it accepts.
+    private static let options = ["low", "medium", "high", "xhigh", "max", "ultra"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(label)
+                    .font(.ocoreaiText(14, weight: .semibold))
+                    .foregroundStyle(theme.text)
+                Spacer()
+                Text(value ?? StringKey.modelParamDefaults.l)
+                    .font(.ocoreaiText(14, weight: .medium))
+                    .foregroundStyle(theme.accent)
+            }
+            if !hint.isEmpty {
+                Text(hint)
+                    .font(.ocoreaiText(11))
+                    .foregroundStyle(theme.textTertiary)
+            }
+            HStack(spacing: 8) {
+                Image(systemName: "slider.horizontal.below.rectangle")
+                    .font(.ocoreaiText(13))
+                    .foregroundStyle(theme.accent)
+                    .accessibilityHidden(true)
+                // Optional selection: nil = model default; tag type String? must
+                // match the selection type exactly (SwiftUI Picker contract).
+                Picker("Reasoning Effort", selection: $value) {
+                    Text(StringKey.modelParamDefaults.l).tag(String?.none)
+                    ForEach(Self.options, id: \.self) { opt in
+                        Text(opt).tag(String?.some(opt))
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .tint(theme.accent)
+                Spacer()
+            }
+            .onChange(of: value) { _, _ in autoSave() }
+        }
+        .padding(16)
+        .modifier(theme.cardStyle())
+        .accessibilityLabel(label)
     }
 }
 

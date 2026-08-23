@@ -729,6 +729,7 @@ final class ChatState {
                 maxTokens: samplingCfg.maxTokens,
                 sessionId: inferenceSessionId ?? "chat-\(UUID().uuidString.prefix(8))",
                 cancellation: cancellation,
+                reasoningEffort: samplingCfg.reasoningEffort,
             )
 
             // Stream via Fast Path

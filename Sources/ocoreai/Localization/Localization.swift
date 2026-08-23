@@ -492,6 +492,8 @@ public enum StringKey: String, CaseIterable {
     case modelParamFrequencyCtxHint = "Models.ParamFrequencyCtxHint"
     case modelParamFrequencyPenalty = "Models.ParamFrequencyPenalty"
     case modelParamPresencePenalty = "Models.ParamPresencePenalty"
+    case modelParamReasoningEffort = "Models.ParamReasoningEffort"
+    case modelParamReasoningEffortHint = "Models.ParamReasoningEffortHint"
     case modelParamSave = "Models.ParamSave"
     case modelParamReset = "Models.ParamReset"
     case modelParamDefaults = "Models.ParamDefaults"
@@ -882,6 +884,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .modelParamRepeatPenaltyHint: "Penalty for repeated tokens (>1.0)",
         .modelParamFrequencyPenalty: "Frequency Penalty",
         .modelParamPresencePenalty: "Presence Penalty",
+        .modelParamReasoningEffort: "Reasoning Effort",
+        .modelParamReasoningEffortHint:
+            "Model chat-template effort. Leave on default unless the model documents a word (Qwen3.8: xhigh / medium / low).",
         .modelParamMinP: "Min P",
         .modelParamMinPHint: "Min-p threshold (0.0–1.0)",
         .modelParamSeed: "Seed",
@@ -1415,6 +1420,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .modelParamRepeatPenaltyHint: "重复 token 的惩罚系数",
         .modelParamFrequencyPenalty: "频率惩罚",
         .modelParamPresencePenalty: "存在惩罚",
+        .modelParamReasoningEffort: "推理强度",
+        .modelParamReasoningEffortHint:
+            "模型 chat-template 档位。留空用模型默认值（Qwen3.8 支持：xhigh / medium / low）。",
         .modelParamMinP: "最小 P",
         .modelParamMinPHint: "最小概率阈值 (0.0–1.0)",
         .modelParamSeed: "种子",
