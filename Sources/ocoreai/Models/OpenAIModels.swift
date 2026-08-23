@@ -139,6 +139,10 @@ struct ChatCompletionRequest: Decodable {
     var reasoning: Bool? = false
     /// Reasoning level for FM backend (light/moderate/deep) — aligns with SDK ReasoningLevel
     var reasoningLevel: String? = nil
+    /// Reasoning effort (codex-aligned words: low/medium/high/xhigh/max/ultra).
+    /// The model chat template consumes the subset it supports (Qwen3.8:
+    /// xhigh/medium/low) and rejects the rest itself. Nil = model default.
+    var reasoningEffort: String? = nil
 
     /// Stream options for controlling streaming behavior.
     var streamOptions: StreamOptions? = nil
@@ -169,6 +173,7 @@ struct ChatCompletionRequest: Decodable {
         case selfCorrection = "self_correction"
         case reasoning
         case reasoningLevel = "reasoning_level"
+        case reasoningEffort = "reasoning_effort"
         case streamOptions = "stream_options"
     }
 
@@ -252,6 +257,7 @@ struct ChatCompletionRequest: Decodable {
         selfCorrection = try c.decodeIfPresent(Bool.self, forKey: .selfCorrection)
         streamOptions = try c.decodeIfPresent(StreamOptions.self, forKey: .streamOptions)
         reasoningLevel = try c.decodeIfPresent(String.self, forKey: .reasoningLevel)
+        reasoningEffort = try c.decodeIfPresent(String.self, forKey: .reasoningEffort)
     }
 }
 

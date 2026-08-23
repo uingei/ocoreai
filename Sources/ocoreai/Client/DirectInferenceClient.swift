@@ -44,6 +44,9 @@ struct InferenceRequest {
     /// Reasoning level for FM backend (light/moderate/deep) — nil defaults to reasoning bool.
     let reasoningLevel: String?
 
+    /// Reasoning effort (codex-aligned words) for model chat templates (e.g. Qwen3.8).
+    let reasoningEffort: String?
+
     init(
         modelId: String,
         messages: [Message],
@@ -59,6 +62,7 @@ struct InferenceRequest {
         cancellation: InferenceCancellation? = nil,
         reasoning: Bool? = nil,
         reasoningLevel: String? = nil,
+        reasoningEffort: String? = nil,
     ) {
         self.modelId = modelId
         self.messages = messages
@@ -74,6 +78,7 @@ struct InferenceRequest {
         self.cancellation = cancellation
         self.reasoning = reasoning
         self.reasoningLevel = reasoningLevel
+        self.reasoningEffort = reasoningEffort
     }
 }
 
@@ -283,6 +288,7 @@ extension DirectInferenceClient {
             grammarSchema: request.tools.map { buildGrammarSchema(from: $0) }.flatMap { $0 },
             enableReasoning: request.reasoning == true,
             reasoningLevel: request.reasoningLevel,
+            reasoningEffort: request.reasoningEffort,
         )
 
         // Phase 5: Dispatch inference
@@ -621,6 +627,7 @@ extension DirectInferenceClient {
             grammarSchema: request.tools.map { buildGrammarSchema(from: $0) }.flatMap { $0 },
             enableReasoning: request.reasoning == true,
             reasoningLevel: request.reasoningLevel,
+            reasoningEffort: request.reasoningEffort,
         )
 
         // Phase 5: Dispatch inference — direct stream via generateFromMessages

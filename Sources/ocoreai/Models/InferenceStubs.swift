@@ -339,6 +339,12 @@ struct InferenceOptions: Codable {
     /// ("light", "moderate", "deep", or nil for default). ChatSession path uses
     /// enableReasoning only; this field exists for FM path granularity.
     var reasoningLevel: String? = nil
+    /// Model chat-template reasoning effort (e.g. Qwen3.8 `reasoning_effort`:
+    /// xhigh|medium|low), word table aligned with codex `ReasoningEffort`.
+    /// Nil = model template uses its own default. Unknown values are
+    /// rejected by the model template itself (Qwen3.8 raise_exception).
+    /// Wire-not-brain: raw value pass-through, no local mapping (08-23).
+    var reasoningEffort: String? = nil
     /// Tool calling mode — controls whether the model is allowed, required,
     /// or disallowed from calling tools. Aligns with upstream
     /// ToolCallingModeResolution (.allowed / .required / .disallowed).
@@ -357,7 +363,8 @@ struct InferenceOptions: Codable {
     init(
         maxTokens: Int? = nil, includeLogits: Bool = false, useGuidedGeneration: Bool = false,
         grammarSchema: String? = nil, enableReasoning: Bool = false, reasoningLevel: String? = nil,
-        toolCallingMode: String? = nil, forcedContinuation: [Int32]? = nil
+        reasoningEffort: String? = nil, toolCallingMode: String? = nil,
+        forcedContinuation: [Int32]? = nil
     ) {
         self.maxTokens = maxTokens
         self.includeLogits = includeLogits
@@ -365,6 +372,7 @@ struct InferenceOptions: Codable {
         self.grammarSchema = grammarSchema
         self.enableReasoning = enableReasoning
         self.reasoningLevel = reasoningLevel
+        self.reasoningEffort = reasoningEffort
         self.toolCallingMode = toolCallingMode
         self.forcedContinuation = forcedContinuation
     }

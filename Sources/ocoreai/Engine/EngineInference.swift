@@ -2480,7 +2480,7 @@ extension EnginePool {
             // which repeated the same .configuration.reasoningConfig lookup).
             let reasoningConfig = await handleRef.modelContainer.configuration.reasoningConfig
 
-            let reasoningContext: [String: any Sendable]?
+            var baseReasoningContext: [String: any Sendable]?
             if mayRunReasoning,
                 let rc = reasoningConfig
             {
@@ -2502,7 +2502,7 @@ extension EnginePool {
                     return nil
                 }()
                 do {
-                    reasoningContext = try rc.promptStrategy.additionalContext(
+                    baseReasoningContext = try rc.promptStrategy.additionalContext(
                         forThinkingEnabled: thinkingEnabled
                     )
                 } catch {
@@ -2513,17 +2513,24 @@ extension EnginePool {
                             "Model \(modelId) cannot disable reasoning — ignoring user request"
                         )
                     }
-                    reasoningContext = nil
+                    baseReasoningContext = nil
                 }
             } else if !mayRunReasoning,
                 reasoningConfig != nil
             {
                 log.info(
                     "Reasoning suppressed — tools or grammar schema present (mayRunReasoningPath)")
-                reasoningContext = nil
+                baseReasoningContext = nil
             } else {
-                reasoningContext = nil
+                baseReasoningContext = nil
             }
+            // Wire-not-brain reasoning effort (08-23): inject the caller's raw
+            // value into the jinja chat-template context. The model template
+            // reads it only with thinking enabled and validates it itself
+            // (Qwen3.8 raise_exception). No local mapping — the word table is
+            // codex-aligned; unsupported values are the model's to reject.
+            let reasoningContext: [String: any Sendable]? =
+                ReasoningEffortWire.context(baseReasoningContext, rawValue: options.reasoningEffort)
 
             // Track which messages to feed to ChatSession. ChatSession accumulates
             // KV cache internally — on pool hits we only feed the suffix starting at
@@ -2836,7 +2843,8 @@ extension EnginePool {
                         }()
                         let enabled = resolved ?? defaultOn
                         mtpThinkingEnabled = enabled
-                        mtpToolAwareContext = [key: enabled]
+                        mtpToolAwareContext = ReasoningEffortWire.context(
+                            [key: enabled], rawValue: options.reasoningEffort)
                     } else {
                         // Non-templateFlag model (alwaysOn or none) — same as upstream L1191-1193
                         mtpThinkingEnabled = options.enableReasoning

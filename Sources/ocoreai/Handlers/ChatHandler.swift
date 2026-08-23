@@ -455,7 +455,8 @@ func chatCompletionsHandler(
             useGuidedGeneration: useGuidedGeneration,
             grammarSchema: grammarSchema,
             enableReasoning: reasoningEnabled,
-            reasoningLevel: request.reasoningLevel
+            reasoningLevel: request.reasoningLevel,
+            reasoningEffort: request.reasoningEffort
         )
 
         /// Log if guided generation is enabled for this request.
