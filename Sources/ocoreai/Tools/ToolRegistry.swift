@@ -30,6 +30,9 @@ actor ToolRegistry {
     private var executionHistory: [(name: String, hash: String, time: ContinuousClock.Instant)] = []
     private let maxHistoryDepth = 3
 
+    /// 审批 broker（codex `ExecApprovalRequest` 通路）；`nil` 时 `.ask` 保持硬拒
+    /// （回归保护：无 UI 面时不得静默放行）。
+    private let approvalBroker: ApprovalBroker?
     let logger: Logger
 
     init(
@@ -37,12 +40,14 @@ actor ToolRegistry {
         destructiveBlacklist: [String] = ["write_file", "delete_file", "execute_code"],
         auditTrail: AuditTrail? = nil,
         hooks: [Hook] = [],
+        approvalBroker: ApprovalBroker? = nil,
         log: Logger = Logger(label: "ocoreai.tools.registry"),
     ) {
         self.readOnlyWhitelist = Set(readOnlyWhitelist)
         self.destructiveBlacklist = Set(destructiveBlacklist)
         self.auditTrail = auditTrail
         self.hookRunner = ToolHookRunner(hooks: hooks)
+        self.approvalBroker = approvalBroker
         logger = log
     }
 
@@ -134,11 +139,24 @@ actor ToolRegistry {
                 logger.info("Tool '\(name)' denied by PreToolUse hook")
                 throw ToolError.denied(reason: reason)
             case .ask(let reason):
-                // `.ask` requires a user-approval surface that does not yet exist
-                // in ocoreai. Rather than silently allow, treat as a hard deny so
-                // the hook remains a real gate until an approval UI is wired.
-                logger.info("Tool '\(name)' requires approval (no surface yet) — denying")
-                throw ToolError.denied(reason: reason)
+                // User-approval gate — codex `ExecApprovalRequest` → TUI cell → `ReviewDecision`。
+                // broker 存在 → 挂起等裁决（approved/approvedForSession 放行，denied 回传理由）；
+                // broker 缺席 → 硬拒（回归保护：无审批面时绝不静默放行）。
+                if let broker = approvalBroker {
+                    logger.info("Tool '\(name)' requires approval — routing to broker")
+                    let decision = await broker.request(
+                        toolName: name, arguments: arguments, reason: reason)
+                    switch decision {
+                    case .approved, .approvedForSession:
+                        break
+                    case .denied(let denyReason):
+                        logger.info("Tool '\(name)' denied by user")
+                        throw ToolError.denied(reason: denyReason)
+                    }
+                } else {
+                    logger.info("Tool '\(name)' requires approval (no broker) — denying")
+                    throw ToolError.denied(reason: reason)
+                }
             case .allow: break
             }
         }

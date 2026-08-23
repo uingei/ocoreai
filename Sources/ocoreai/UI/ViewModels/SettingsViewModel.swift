@@ -46,6 +46,7 @@ final class SettingsState {
         perceptionFilesystemEnabled = SettingsStore.shared.perceptionFilesystemEnabled
         perceptionInternetEnabled = SettingsStore.shared.perceptionInternetEnabled
         perceptionPowerProfile = SettingsStore.shared.perceptionPowerProfile
+        approvalPolicy = SettingsStore.shared.approvalPolicy
     }
 
     // MARK: - Server Connection (persisted via SettingsStore)
@@ -215,6 +216,20 @@ final class SettingsState {
             guard oldValue != perceptionPowerProfile else { return }
             SettingsStore.shared.perceptionPowerProfile = perceptionPowerProfile
             applyPerceptionSettings()
+        }
+    }
+
+    /// Agent tool approval policy (codex AskForApproval 形状).
+    /// didSet 即写 SettingsStore；运行时 broker 策略经
+    /// `OcoreaiEngine.shared.activeApprovalBroker?.setPolicy(_:)` 热切换。
+    var approvalPolicy: String = SettingsStore.shared.approvalPolicy {
+        didSet {
+            guard oldValue != approvalPolicy else { return }
+            SettingsStore.shared.approvalPolicy = approvalPolicy
+            let policy = ApprovalPolicy(rawValue: approvalPolicy) ?? .interactive
+            Task { @MainActor in
+                await OcoreaiEngine.shared.activeApprovalBroker?.setPolicy(policy)
+            }
         }
     }
 

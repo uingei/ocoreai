@@ -125,6 +125,13 @@ public final class OcoreaiEngine {
         _auditTrail
     }
 
+    /// Direct accessor to the approval broker (codex `ExecApprovalRequest`
+    /// → TUI cell → `ReviewDecision` loop). Chat banner + Settings policy
+    /// both read through this single instance.
+    var activeApprovalBroker: ApprovalBroker? {
+        _approvalBroker
+    }
+
     /// Direct accessor to ContentGuard — safety filter for both paths.
     var activeContentGuard: ContentGuard? {
         _contentGuard
@@ -159,6 +166,7 @@ public final class OcoreaiEngine {
     private var _skillRegistry: SkillRegistry?
     private var _mcpBridge: MCPBridge?
     private var _toolRegistry: ToolRegistry?
+    private var _approvalBroker: ApprovalBroker?
     private var _auditTrail: AuditTrail?
     private var _memoryTracker: MemoryTracker?
     private var _complexityAnalyzer: ComplexityAnalyzer?
@@ -336,7 +344,30 @@ public final class OcoreaiEngine {
         guard let auditTrail = _auditTrail else {
             return failStartup("Failed to create audit trail")
         }
-        _toolRegistry = ToolRegistry(auditTrail: auditTrail)
+        // Approval broker — codex `ExecApprovalRequest` 通路（参照形状）。
+        // 策略读 SettingsStore（`.interactive` 默认 = 高危才问）；hook 只拦
+        // 已注册的危险工具（write_file / edit_file）→ `.ask` → broker 裁决。
+        // broker 缺席时 `.ask` 保持硬拒（ToolRegistry 内回归保护）。
+        let approvalPolicyRaw = SettingsStore.shared.approvalPolicy
+        let approvalPolicy = ApprovalPolicy(rawValue: approvalPolicyRaw) ?? .interactive
+        let approvalBroker = ApprovalBroker(policy: approvalPolicy)
+        _approvalBroker = approvalBroker
+        // 审批 UI 桥：broker pending/resolved → AppState（@MainActor）
+        await approvalBroker.setOnPending { row in
+            AppState.shared.pendingApprovals.insert(row, at: 0)
+        }
+        await approvalBroker.setOnResolved { row, _ in
+            AppState.shared.pendingApprovals.removeAll { $0.id == row.id }
+        }
+        _toolRegistry = ToolRegistry(
+            auditTrail: auditTrail,
+            hooks: [
+                .matching("write_file,edit_file") { _ in
+                    .ask(reason: "destructive tool call")
+                }
+            ],
+            approvalBroker: approvalBroker,
+        )
 
         // Bootstrap built-in tools (info, skills_list, skills_lookup, echo)
         guard let toolRegistry = _toolRegistry else {

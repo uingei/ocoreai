@@ -530,6 +530,17 @@ public enum StringKey: String, CaseIterable {
     case modelSearchHint = "ModelSearch.Hint"
     case modelSearchNoResults = "ModelSearch.NoResults"
     case modelSearchEmpty = "ModelSearch.Empty"
+
+    // — Agent tool approval (codex AskForApproval 形状) —
+    case agentApprovalSection = "Agent.ApprovalSection"
+    case agentApprovalPolicy = "Agent.ApprovalPolicy"
+    case agentApprovalInteractive = "Agent.ApprovalInteractive"
+    case agentApprovalAuto = "Agent.ApprovalAuto"
+    case agentApprovalNever = "Agent.ApprovalNever"
+    case agentApprovalHint = "Agent.ApprovalHint"
+    case agentApproveOnce = "Agent.ApproveOnce"
+    case agentApproveSession = "Agent.ApproveSession"
+    case agentDeny = "Agent.Deny"
 }
 
 // MARK: - Translation Table (per locale)
@@ -658,6 +669,15 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .perceptionSystemHint: "Thermal state, memory pressure, CPU load, uptime",
         .perceptionSpeaker: "Speaker Feedback",
         .perceptionSpeakerHint: "Monitor TTS output for audio loopback awareness",
+        .agentApprovalSection: "Tool Approval",
+        .agentApprovalPolicy: "Approval Policy",
+        .agentApprovalInteractive: "Ask when risky (default)",
+        .agentApprovalAuto: "Auto-approve risky calls",
+        .agentApprovalNever: "Always deny risky calls",
+        .agentApprovalHint: "Risky tools: write_file, edit_file.",
+        .agentApproveOnce: "Allow once",
+        .agentApproveSession: "Allow for this session",
+        .agentDeny: "Deny",
 
         .hubTokensTitle: "Hub Tokens",
         .hubTokensHint:
@@ -1103,6 +1123,15 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .perceptionSystemHint: "温度状态、内存压力、CPU 负载、运行时间",
         .perceptionSpeaker: "扬声器反馈",
         .perceptionSpeakerHint: "监控 TTS 输出用于音频闭环感知",
+        .agentApprovalSection: "工具审批",
+        .agentApprovalPolicy: "审批策略",
+        .agentApprovalInteractive: "高危时询问（默认）",
+        .agentApprovalAuto: "自动放行高危调用",
+        .agentApprovalNever: "一律拒绝高危调用",
+        .agentApprovalHint: "高危工具：write_file、edit_file。",
+        .agentApproveOnce: "允许本次",
+        .agentApproveSession: "本会话内允许",
+        .agentDeny: "拒绝",
 
         // Navigation
         .tabDashboard: "仪表盘",

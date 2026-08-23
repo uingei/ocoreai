@@ -66,6 +66,35 @@ final class AppState {
         undoAction = nil
     }
 
+    // MARK: - Agent tool approval (codex ExecApprovalRequest → 裁决)
+
+    /// Pending approval requests — published by `ApprovalBroker` observers,
+    /// presented in ChatView banner, cleared on resolve.
+    var pendingApprovals: [PendingApproval] = []
+
+    /// 三档裁决（codex ReviewDecision：Approved / ApprovedForSession / Denied）。
+    /// broker 缺席（未启动）→ 静默 no-op，banner 下次 snapshot 自然清场。
+    func approveOnce(_ row: PendingApproval) {
+        Task {
+            _ = await OcoreaiEngine.shared.activeApprovalBroker?
+                .resolve(id: row.id, decision: .approved)
+        }
+    }
+
+    func approveForSession(_ row: PendingApproval) {
+        Task {
+            _ = await OcoreaiEngine.shared.activeApprovalBroker?
+                .resolve(id: row.id, decision: .approvedForSession)
+        }
+    }
+
+    func denyApproval(_ row: PendingApproval) {
+        Task {
+            _ = await OcoreaiEngine.shared.activeApprovalBroker?
+                .resolve(id: row.id, decision: .denied(reason: "denied-by-user"))
+        }
+    }
+
     private let engine = OcoreaiEngine.shared
     private var metricsTask: Task<Void, Never>?
     /// Idempotency guard — initialize() is safe to call multiple times

@@ -172,6 +172,18 @@ final class SettingsStore {
         }
     }
 
+    /// Agent approval policy (codex AskForApproval 形状).
+    /// 合法值三档（对齐 codex 三轴：on-request / 沙箱允许面 / Never）；
+    /// 非法/缺失 → `.interactive`（默认高危才问，fail-safe 不静默放行）。
+    var approvalPolicy: String {
+        get { defaults.string(forKey: Key.approvalPolicy.rawValue) ?? "interactive" }
+        set {
+            let val =
+                ["interactive", "auto", "never"].contains(newValue) ? newValue : "interactive"
+            defaults.set(val, forKey: Key.approvalPolicy.rawValue)
+        }
+    }
+
     var lastSessionId: Int64? {
         get { defaults.object(forKey: Key.lastSessionId.rawValue) as? Int64 }
         set {
@@ -321,6 +333,9 @@ final class SettingsStore {
         case perceptionSystemEnabled = "settings.perception.system"
         case perceptionSpeakerEnabled = "settings.perception.speaker"
         case perceptionPowerProfile = "settings.perception.powerProfile"
+
+        // Agent approval (codex AskForApproval 两档 + 沙箱允许面 ≈ 第三档)
+        case approvalPolicy = "settings.agent.approvalPolicy"
     }
 
     private let defaults: UserDefaults

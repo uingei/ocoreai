@@ -26,6 +26,7 @@ struct SettingsView: View {
             modelSection
             hubTokenSection
             perceptionSection
+            agentApprovalSection
             performanceSection
             kvCacheSection
             specDecodingSection
@@ -238,6 +239,26 @@ struct SettingsView: View {
             Text(StringKey.perceptionSection.l)
         } footer: {
             Text(StringKey.perceptionToggleHint.l)
+        }
+    }
+
+    // MARK: - Agent tool approval (codex AskForApproval 形状)
+
+    private var agentApprovalSection: some View {
+        Section {
+            Picker(
+                StringKey.agentApprovalPolicy.l,
+                selection: $settingsState.approvalPolicy
+            ) {
+                Text(StringKey.agentApprovalInteractive.l).tag("interactive")
+                Text(StringKey.agentApprovalAuto.l).tag("auto")
+                Text(StringKey.agentApprovalNever.l).tag("never")
+            }
+            .accessibilityLabel(StringKey.agentApprovalPolicy.l)
+        } header: {
+            Text(StringKey.agentApprovalSection.l)
+        } footer: {
+            Text(StringKey.agentApprovalHint.l)
         }
     }
 

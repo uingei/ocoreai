@@ -274,6 +274,10 @@ struct ChatView: View {
         .overlay(alignment: .bottom) {
             ChannelShiftToastOverlay(toast: AppState.shared.channelShiftToast)
         }
+        // Agent approval banner — codex `ExecApprovalRequest` → 三档裁决
+        .overlay(alignment: .bottom) {
+            ApprovalBanner(appState: AppState.shared)
+        }
         // B4 fix: removed .sheet — model search/load already available via Models tab
         // P0-2: On model selector change, unload old model to free GPU memory
         .onChange(of: currentModel) { _, newModel in
@@ -1191,6 +1195,85 @@ private enum ComputeChannelUI {
         case .gpu: return .blue
         case .ane: return .green
         case .cpu: return .orange
+        }
+    }
+}
+
+// MARK: - Agent Approval Banner
+
+/// 高危工具审批 banner — codex `ExecApprovalRequest` → TUI approvals cell 形状。
+/// 呈现：工具名 + 参数 snippet（`ApprovalCore.snippet` 已截断）+ 三档裁决按钮。
+/// 空 pending → 不占位（`EmptyView`）。
+struct ApprovalBanner: View {
+    var appState: AppState
+    @Environment(\.ocoreaiTheme) private var theme
+
+    var body: some View {
+        let rows = appState.pendingApprovals
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(rows, id: \.id) { row in
+                    approvalRow(row)
+                    if row.id != rows.last?.id {
+                        Divider().background(theme.cardBorder)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(theme.cardBg.opacity(0.97))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(theme.accent.opacity(0.5), lineWidth: 1)
+            )
+            .padding(.horizontal, 16)
+            .padding(.bottom, 44)  // Clear error + channel-shift toasts
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
+            .animation(.easeOut(duration: 0.25), value: rows.count)
+        }
+    }
+
+    @ViewBuilder
+    private func approvalRow(_ row: PendingApproval) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.shield")
+                    .foregroundStyle(theme.accent)
+                Text(row.toolName)
+                    .font(.system(.callout, design: .monospaced))
+                    .foregroundStyle(theme.text)
+                Text("· \(row.reason)")
+                    .font(.caption)
+                    .foregroundStyle(theme.textSecondary)
+                    .lineLimit(1)
+            }
+            if !row.snippet.isEmpty {
+                Text(row.snippet)
+                    .font(.caption)
+                    .foregroundStyle(theme.textTertiary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack(spacing: 8) {
+                Button(StringKey.agentApproveOnce.l) {
+                    appState.approveOnce(row)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                Button(StringKey.agentApproveSession.l) {
+                    appState.approveForSession(row)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Button(StringKey.agentDeny.l, role: .destructive) {
+                    appState.denyApproval(row)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Spacer()
+            }
+            .padding(.top, 2)
         }
     }
 }
