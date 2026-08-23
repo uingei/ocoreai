@@ -72,23 +72,28 @@ final class ModelManager {
             // Qwen 系列 → ModelScope 为主
             RecommendedQuickModel(
                 id: "mlx-community/Qwen3.5-0.8B-4bit",
-                description: "Qwen3.5 0.8B 4-bit, 轻量快速, ~1 GB",
+                description: "Qwen3.5 0.8B 4-bit, 轻量快速, ~652 MB",
                 hub: .modelScope
             ),
             RecommendedQuickModel(
-                id: "mlx-community/Qwen3.6-27B-4bit",
-                description: "Qwen3.6 27B 4-bit, 强推理, ~15 GB",
+                id: "mlx-community/Qwen3.8-27B-4bit",
+                description: "Qwen3.8 27B 4-bit, 强推理, ~16.1 GB",
+                hub: .modelScope
+            ),
+            RecommendedQuickModel(
+                id: "mlx-community/Qwen3.6-35B-A3B-4bit",
+                description: "Qwen3.6 35B MoE 4-bit, 强推理, ~20.4 GB",
                 hub: .modelScope
             ),
             // Gemma 系列 → HuggingFace 为主
             RecommendedQuickModel(
                 id: "mlx-community/gemma-4-e2b-it-4bit",
-                description: "Gemma 4 E2B 4-bit, 轻量为指令 tuned, ~1.5 GB",
+                description: "Gemma 4 E2B 4-bit, 轻量为指令 tuned, ~3.58 GB",
                 hub: .huggingFace
             ),
             RecommendedQuickModel(
                 id: "mlx-community/gemma-4-26b-a4b-it-4bit",
-                description: "Gemma 4 26B 4-bit, 强混合注意力, ~14 GB",
+                description: "Gemma 4 26B 4-bit, 强混合注意力, ~15.4 GB",
                 hub: .huggingFace
             ),
         ]
