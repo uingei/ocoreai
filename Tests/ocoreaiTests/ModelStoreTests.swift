@@ -269,8 +269,9 @@ struct ModelStoreTests {
         try ModelStore.removeReady(repoId: "org/repoY", source: "modelScope")
         let dbgTree = { () -> String in
             var lines: [String] = []
-            let e = fm.enumerator(at: rootURL, includingPropertiesForKeys: nil)
-            while let u = e.nextObject() as? URL { lines.append(u.path) }
+            if let e = fm.enumerator(at: rootURL, includingPropertiesForKeys: nil) {
+                while let u = e.nextObject() as? URL { lines.append(u.path) }
+            }
             return lines.joined(separator: "\n")
         }()
         #expect(
@@ -308,13 +309,13 @@ struct ModelStoreTests {
         _ = try Self.file(at: dir.appendingPathComponent("model.safetensors"))
         #expect(fm.fileExists(atPath: dir.appendingPathComponent("model.safetensors").path))
         let gotR = ModelStore.msReadyDir("org/name")
+        let fileList: [String] =
+            (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil))?.map(
+                \.lastPathComponent) ?? []
         #expect(
             gotR != nil && gotR!.path == dir.path,
-            "flat ready path-equal. hasValid=\(ModelStore.hasValidSafetensors(in: dir)) gotR=\(gotR?.path ?? "nil") gotRStd=\(gotR?.standardizedFileURL.path ?? "-") dir=\(dir.path) dirStd=\(dir.standardizedFileURL.path) list=\((try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) ?? []).map(\.lastPathComponent))"
+            "flat ready = repo dir (path identity). hasValid=\(ModelStore.hasValidSafetensors(in: dir)) gotR=\(gotR?.path ?? "nil") dir=\(dir.path) list=\(fileList)"
         )
-        #expect(
-            ModelStore.msReadyDir("org/name")?.standardizedFileURL == dir.standardizedFileURL,
-            "valid safetensors → ready (standardized)")
 
         // 遗留三级(root/modelscope/leg/x/main)仍可读 — omlx 对齐后新布局优先、旧布局兜底
         let legacyReady = try Self.file(
