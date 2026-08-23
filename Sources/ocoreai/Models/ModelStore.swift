@@ -6,19 +6,24 @@
 /// omlx 对应物: `~/.omlx/models`(`settings.py:44` DEFAULT_BASE_PATH;
 /// `settings.py:232` get_model_dirs;`admin/routes.py:297` HF 直接落盘 model_dir)。
 ///
-/// 布局(全部在 root 下,与旧 Caches 散落布局并存、互不覆盖):
+/// 布局(全部在 root 下,omlx `~/.omlx/models` 同构):
 /// ```
-/// <root>/huggingface/models--<ns>--<name>/   HubCache 原生布局(blobs/ + snapshots/<rev>/…)
-///                                             — 断点续传 ✓、与 Python huggingface 互通 ✓
-/// <root>/modelscope/<ns>/<name>/<revision>/  ModelScopeDownloader 原生布局
-/// <root>/local/<name>/                       用户自行放置的模型
+/// <root>/huggingface/models--<ns>--<name>/   HubCache 原生布局(blobs/ + snapshots/<rev>/…) —
+///                                             swift-huggingface 库形态硬约束(HubCache 仅
+///                                             .environment / .cacheDirectory 两 init,
+///                                             .build/checkouts/swift-huggingface HubCache.swift:85,93),
+///                                             断点续传 ✓、与 Python huggingface 家缓存互通 ✓
+/// <root>/<ns>/<name>/                         ModelScope 平铺 — omlx 对齐(无 /{revision} 三级,
+///                                             对齐 omlx/admin/ms_downloader.py: "Preserve {owner}/{model}
+///                                             layout to match other tools (LMStudio, huggingface-cli)")
+/// <root>/local/<name>/                        用户自行放置的模型
 /// ```
 ///
-/// root 解析:`$OCOREAI_MODELS_DIR` > `~/Library/Application Support/ocoreai/models`(macOS)>
-/// `~/.local/share/ocoreai/models`(Linux/其它)。
-///
-/// 迁移纪律:旧散落位置(~/.cache/huggingface/hub、Caches/org.ml-explore.mlx-swift-lm、
-/// Caches/ocoreai/modelscope)只被**发现/清理**,不搬移数据(可逆;用户数据零损失)。
+/// 根目录:`$OCOREAI_MODELS_DIR` > `~/.ocoreai/models`(平台无关;omlx `~/.omlx/models`
+/// 对齐,settings.py:209 "[] means ~/.omlx/models")。
+/// 旧散落位置(仅发现/清理,不搬移、不写入):旧默认根(Application Support / .local/share)、
+/// 旧 `modelscope/<ns>/<name>/<rev>/` 三级、HF 家缓存 `~/.cache/huggingface/hub`、
+/// `Caches/org.ml-explore.mlx-swift-lm`、`Caches/ocoreai/modelscope`。
 ///
 /// 铁律:本文件是"哪个目录算就绪模型"的唯一事实源——下载侧(MS/HF)、加载侧(isModelCached)、
 /// UI 侧(列表/删除)都从本文件取路径,禁止各自拼 Caches 路径。
@@ -39,13 +44,22 @@ enum ModelStore {
 
     // MARK: - 根目录
 
-    /// 就绪模型根目录(env 覆盖 → 平台默认)。
+    /// 就绪模型统一根(omlx `~/.omlx/models` 对齐,settings.py:209):
+    /// `$OCOREAI_MODELS_DIR` > `~/.ocoreai/models`(平台无关)。
     static var root: URL {
         if let override = ProcessInfo.processInfo.environment["OCOREAI_MODELS_DIR"],
             !override.isEmpty
         {
             return URL(fileURLWithPath: (override as NSString).expandingTildeInPath)
         }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".ocoreai")
+            .appendingPathComponent("models")
+    }
+
+    /// 旧默认根(遗留,只发现/清理不写入):
+    /// macOS `~/Library/Application Support/ocoreai/models`;其它 `~/.local/share/ocoreai/models`。
+    static var legacyRoot: URL {
         let home = FileManager.default.homeDirectoryForCurrentUser
         #if os(macOS)
         return
@@ -79,6 +93,51 @@ enum ModelStore {
 
     /// 用户自放模型根(root/local)。
     static var localRoot: URL { root.appendingPathComponent(localSubRoot) }
+
+    // MARK: - ModelScope 布局(omlx 对齐)
+
+    /// MS 就绪仓库目录(规范写入位,omlx 平铺):`root/<ns>/<name>/` —
+    /// 无 /{revision} 三级;omlx/admin/ms_downloader.py:885
+    /// `target_dir = self._model_dir / task.repo_id`,注释 "Preserve {owner}/{model}
+    /// layout to match other tools (LMStudio, huggingface-cli)"。
+    static func msRepoDir(_ repoId: String) -> URL {
+        var dir = root
+        for part in repoId.split(separator: "/") where !part.isEmpty {
+            dir = dir.appendingPathComponent(String(part))
+        }
+        return dir
+    }
+
+    /// MS 遗留三级布局基(只发现/清理,不写入):`.../<base-modelscope>/<ns>/<name>/<rev>/`。
+    /// = 旧默认根/modelscope、旧规范根/modelscope(54f92b7 时代)、旧 Caches ocoreai/modelscope。
+    static func msBases() -> [URL] {
+        var bases: [URL] = [
+            legacyRoot.appendingPathComponent(msSubRoot),
+            root.appendingPathComponent(msSubRoot),
+        ]
+        if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            bases.append(caches.appendingPathComponent("ocoreai/modelscope"))
+        }
+        return bases
+    }
+
+    // MARK: - 遗留落位(只发现/清理,不搬移、不写入)
+
+    /// HF 侧遗留基目录:旧默认根 + 家缓存(`.cache/huggingface/hub`)+ Caches 平铺
+    /// (`org.ml-explore.mlx-swift-lm`)。统一供 resolve/discover/remove 使用。
+    static func legacyHFBases() -> [URL] {
+        var bases: [URL] = [legacyRoot]
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        bases.append(
+            home
+                .appendingPathComponent(".cache")
+                .appendingPathComponent("huggingface")
+                .appendingPathComponent("hub"))
+        if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            bases.append(caches.appendingPathComponent("org.ml-explore.mlx-swift-lm"))
+        }
+        return bases
+    }
 
     /// 确保所需子目录存在(幂等)。
     @discardableResult
@@ -132,38 +191,34 @@ enum ModelStore {
         return false
     }
 
-    /// HF 仓库目录候选(新 root 优先,旧散落位置随后)——按序返回第一个就绪的。
-    /// 新布局:`<root>/huggingface/models--<ns>--<name>/snapshots/<rev>/`(含 blobs 快路径)。
-    /// 旧布局 A:`~/.cache/huggingface/hub/models--<ns>--<name>/snapshots/<rev>/`。
-    /// 旧布局 B(macOS):`~/Library/Caches/org.ml-explore.mlx-swift-lm/<ns>/<name>/`(平铺,无 snapshots)。
+    /// HF 仓库就绪目录 — 按序解析,返回第一个含非空 safetensors 的候选:
+    /// 1) 新根 `root/huggingface/models--<ns>--<name>/snapshots/<rev>/`(HubCache 形态,写入锚点)
+    /// 2) 旧默认根同形态(历史 `Application Support/ocoreai/models/huggingface/…`)
+    /// 3) HF 家缓存 `~/.cache/huggingface/hub/…`(Python 客户端共享)
+    /// 4) Caches 平铺 `org.ml-explore.mlx-swift-lm/<repoId>/`(早期宏默认)
     static func hubReadyDir(_ repoId: String) -> URL? {
         let encoded = encodeHubRepo(repoId)
-        let fm = FileManager.default
-        let home = FileManager.default.homeDirectoryForCurrentUser
-
-        let newBase = hubRoot.appendingPathComponent(encoded)
-        if let dir = snapshotDir(of: newBase) { return dir }
-
-        // 旧布局 A:python 风格 home cache
-        let legacyA =
-            home
-            .appendingPathComponent(".cache")
-            .appendingPathComponent("huggingface")
-            .appendingPathComponent("hub")
-            .appendingPathComponent(encoded)
-        if let dir = snapshotDir(of: legacyA) { return dir }
-
-        // 旧布局 B:macOS caches 平铺(HubBridge 早期宏默认位置)
-        let legacyB = fm.urls(for: .cachesDirectory, in: .userDomainMask).first?
-            .appendingPathComponent("org.ml-explore.mlx-swift-lm")
-            .appendingPathComponent(repoId)
-        if legacyB != nil, hasValidSafetensors(in: legacyB!) { return legacyB }
-
+        for base in [hubRoot, legacyRoot.appendingPathComponent(hubSubRoot)] {
+            if let dir = snapshotDir(of: base.appendingPathComponent(encoded)) {
+                return dir
+            }
+        }
+        if let dir = snapshotDir(of: legacyHFBases()[1].appendingPathComponent(encoded)) {
+            return dir
+        }
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+        if let caches {
+            let legacyBase = caches.appendingPathComponent("org.ml-explore.mlx-swift-lm")
+            for sub in [encoded, repoId] {
+                let dir = legacyBase.appendingPathComponent(sub)
+                if hasValidSafetensors(in: dir) { return dir }
+            }
+        }
         return nil
     }
 
-    /// HubCache 布局:`prefer snapshots/<first-valid-rev>/`,否则平铺目录本身。
-    private static func snapshotDir(of repoDir: URL) -> URL? {
+    /// 目录按 HubCache 形态解析:`snapshots/<first-valid-rev>/` 优先,否则平铺目录本身。
+    static func snapshotDir(of repoDir: URL) -> URL? {
         guard FileManager.default.fileExists(atPath: repoDir.path) else { return nil }
         let snapshots = repoDir.appendingPathComponent("snapshots")
         if let kids = try? FileManager.default.contentsOfDirectory(
@@ -175,32 +230,28 @@ enum ModelStore {
         return nil
     }
 
-    /// MS 就绪目录:`<base>/<ns>/<name>/<revision>/`(按序试 master → main → 其它已存 revision)。
-    /// base 取新 root;旧 Caches 位置随后。
+    /// MS 就绪目录 — ① 规范平铺 `root/<ns>/<name>/`(omlx 对齐)→
+    /// ② 遗留三级 `msBases()/<ns>/<name>/<rev>/`(rev 序 master → main → 任意已存)。
     static func msReadyDir(_ repoId: String) -> URL? {
+        let fm = FileManager.default
+        let flat = msRepoDir(repoId)
+        if hasValidSafetensors(in: flat) { return flat }
         for base in msBases() {
             let repoBase = base.appendingPathComponent(repoId)
-            guard FileManager.default.fileExists(atPath: repoBase.path) else { continue }
+            guard fm.fileExists(atPath: repoBase.path),
+                let entries = try? fm.contentsOfDirectory(
+                    at: repoBase, includingPropertiesForKeys: nil)
+            else { continue }
+            let all = entries.filter { $0.hasDirectoryPath }
             for rev in ["master", "main"] {
                 let revDir = repoBase.appendingPathComponent(rev)
                 if hasValidSafetensors(in: revDir) { return revDir }
             }
-            if let revs = try? FileManager.default.contentsOfDirectory(
-                at: repoBase, includingPropertiesForKeys: nil)
-            {
-                for rev in revs where hasValidSafetensors(in: rev) { return rev }
+            if let first = all.first(where: { hasValidSafetensors(in: $0) }) {
+                return first
             }
         }
         return nil
-    }
-
-    /// MS 根候选:新 root 优先,旧 Caches 散落位置随后(只读/清理,不迁移)。
-    static func msBases() -> [URL] {
-        var bases: [URL] = [msRoot]
-        let legacy = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
-            .appendingPathComponent("ocoreai/modelscope")
-        if let legacy { bases.append(legacy) }
-        return bases
     }
 
     // MARK: - 就绪模型发现(dedup,来源无关)
@@ -269,7 +320,33 @@ enum ModelStore {
             }
         }
 
-        // 2) ModelScope — 三级目录 <base>/<ns>/<name>/<rev>/
+        // 2) ModelScope — 新平铺 root/<ns>/<name>/ 直扫(omlx 对齐;排除 provider 保留目录)
+        let reserved = Set([hubSubRoot, localSubRoot, msSubRoot])
+        if let orgEntries = try? fm.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: nil)
+        {
+            for org in orgEntries {
+                guard
+                    org.hasDirectoryPath,
+                    !reserved.contains(org.lastPathComponent),
+                    let names = try? fm.contentsOfDirectory(
+                        at: org, includingPropertiesForKeys: nil)
+                else { continue }
+                for name in names {
+                    if hasValidSafetensors(in: name) {
+                        add(
+                            ReadyModel(
+                                id: "mscope:\(org.lastPathComponent)/\(name.lastPathComponent)",
+                                weightsDir: name,
+                                isVlm: fm.fileExists(
+                                    atPath: name.appendingPathComponent("preprocessor_config.json")
+                                        .path
+                                )))
+                    }
+                }
+            }
+        }
+        // 2b) MS 遗留三级 <base>/<ns>/<name>/<rev>/ — 旧默认根/旧规范根/旧 Caches
         for base in msBases() where fm.fileExists(atPath: base.path) {
             guard
                 let nsList = try? fm.contentsOfDirectory(
@@ -315,9 +392,9 @@ enum ModelStore {
         return out
     }
 
-    // MARK: - 清理(删除 = 删除目录;旧位置同样命中)
+    // MARK: - 清理(删除 = 删除目录;遗留位置同样命中,不搬移)
 
-    /// 删除一个 hub 模型的全部本地权重(新 + 旧位置)。`local` 源不在此处理。
+    /// 删除一个 hub 模型的全部本地落位(新规范位 + 全部遗留位)。`local` 源不在此处理。
     /// `source` 仅接受 `"huggingFace"` / `"modelScope"`(其他值抛 `removeNotApplicable`)。
     static func removeReady(repoId: String, source: String) throws {
         enum ModelStoreError: Error, Equatable {
@@ -325,25 +402,32 @@ enum ModelStore {
         }
 
         let fm = FileManager.default
+        func rm(_ url: URL) throws {
+            if fm.fileExists(atPath: url.path) { try fm.removeItem(at: url) }
+        }
+
         switch source {
         case "huggingFace":
             let encoded = encodeHubRepo(repoId)
-            var targets: [URL] = [hubRoot.appendingPathComponent(encoded)]
-            targets.append(
-                fm.homeDirectoryForCurrentUser
-                    .appendingPathComponent(".cache").appendingPathComponent("huggingface")
-                    .appendingPathComponent("hub").appendingPathComponent(encoded))
-            let legacyB = fm.urls(for: .cachesDirectory, in: .userDomainMask).first?
-                .appendingPathComponent("org.ml-explore.mlx-swift-lm").appendingPathComponent(
-                    repoId)
-            if let legacyB { targets.append(legacyB) }
-            for t in targets where fm.fileExists(atPath: t.path) {
-                try fm.removeItem(at: t)
+            // HubCache 形态:新根 + 旧默认根 + 家缓存
+            for base in [
+                hubRoot, legacyRoot.appendingPathComponent(hubSubRoot), legacyHFBases()[1],
+            ] {
+                try rm(base.appendingPathComponent(encoded))
+            }
+            // 早期宏 Caches 平铺(两种目录名形态)
+            if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
+                .first
+            {
+                let legacyBase = caches.appendingPathComponent("org.ml-explore.mlx-swift-lm")
+                try rm(legacyBase.appendingPathComponent(encoded))
+                try rm(legacyBase.appendingPathComponent(repoId))
             }
         case "modelScope":
+            // 新平铺:root/<ns>/<name>/;旧三级:各遗留基/<ns>/<name>/ 整仓库目录
+            try rm(msRepoDir(repoId))
             for base in msBases() {
-                let t = base.appendingPathComponent(repoId)
-                if fm.fileExists(atPath: t.path) { try fm.removeItem(at: t) }
+                try rm(base.appendingPathComponent(repoId))
             }
         default:
             throw ModelStoreError.removeNotApplicable(source: source)

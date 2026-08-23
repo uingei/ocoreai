@@ -17,7 +17,7 @@ import Testing
 
 @testable import ocoreai
 
-@Suite("ModelStore: 就绪模型目录")
+@Suite("ModelStore: 就绪模型目录", .serialized)
 struct ModelStoreTests {
 
     // MARK: - helpers
@@ -95,13 +95,8 @@ struct ModelStoreTests {
         let home = fm.homeDirectoryForCurrentUser
 
         // New root: blobs + snapshots/main (python-compatible layout)
-        let newBlob = try Self.file(
-            at:
-                rootURL
-                .appendingPathComponent("huggingface")
-                .appendingPathComponent("models--org--ready")
-                .appendingPathComponent("blobs")
-                .appendingPathComponent("abc.weight"))
+        _ = try Self.file(
+            at: rootURL.appendingPathComponent("huggingface/models--org--ready/blobs/abc.weight"))
         let newSnap = try Self.file(
             at:
                 rootURL
@@ -110,7 +105,7 @@ struct ModelStoreTests {
                 .appendingPathComponent("snapshots")
                 .appendingPathComponent("main")
                 .appendingPathComponent("model.safetensors"))
-        _ = (newBlob, newSnap)
+        _ = newSnap
 
         // env redirect → root points at our tmp tree
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
@@ -150,12 +145,12 @@ struct ModelStoreTests {
         let rootURL = Self.tmpRoot.appendingPathComponent("root")
         let fm = FileManager.default
 
-        // master ready
+        // master ready(规范平铺,omlx 对齐)
         let master = try Self.file(
             at:
                 rootURL
-                .appendingPathComponent("modelscope/org/a/master/model.safetensors"))
-        // main ready (different repo)
+                .appendingPathComponent("org/a/model.safetensors"))
+        // main ready(遗留三级:msRoot/modelscope/org/b/main)
         let main = try Self.file(
             at:
                 rootURL
@@ -185,7 +180,8 @@ struct ModelStoreTests {
         }
 
         _ = try touch("huggingface/models--ns--hf1/snapshots/main/model.safetensors")
-        _ = try touch("modelscope/ns/ms1/master/model.safetensors")
+        _ = try touch("org/ms1/model.safetensors")  // 规范平铺(omlx 对齐)
+        _ = try touch("modelscope/legacy-ms/m1/master/model.safetensors")  // 遗留三级
         _ = try touch("local/mylocal/model.safetensors")
         // incomplete (zero bytes) must NOT be discovered
         let brokenDir =
@@ -202,7 +198,8 @@ struct ModelStoreTests {
         let ids = Set(ready.map(\.id))
 
         #expect(ids.contains("hf:ns/hf1"), "HF ready model missing: \(ids)")
-        #expect(ids.contains("mscope:ns/ms1"), "MS ready model missing: \(ids)")
+        #expect(ids.contains("mscope:org/ms1"), "MS flat ready model missing: \(ids)")
+        #expect(ids.contains("mscope:legacy-ms/m1"), "MS legacy ready model missing: \(ids)")
         #expect(
             ids.contains(where: { $0.hasSuffix("local/mylocal") }),
             "local ready model missing: \(ids)")
@@ -224,22 +221,26 @@ struct ModelStoreTests {
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser
 
+        // 规范平铺写入(root/org/del,omlx 对齐)+ 遗留三级(msRoot/modelscope/org/del/…)
         _ = try Self.file(
             at:
                 rootURL
-                .appendingPathComponent(
-                    "huggingface/models--org--del/snapshots/main/model.safetensors"))
-        try Self.file(
+                .appendingPathComponent("org/del/model.safetensors"))
+        _ = try Self.file(
+            at:
+                rootURL
+                .appendingPathComponent("modelscope/org/del/master/model.safetensors"))
+        _ = try Self.file(
             at:
                 home
                 .appendingPathComponent(
                     ".cache/huggingface/hub/models--org--del/snapshots/main/model.safetensors"))
 
-        let msRepo =
+        let msFlat =
             home
             .appendingPathComponent("Library/Caches/ocoreai-modelstore-tests")
             .appendingPathComponent("ms/ns/repoX")
-        _ = try Self.file(at: msRepo.appendingPathComponent("master/model.safetensors"))
+        _ = try Self.file(at: msFlat.appendingPathComponent("master/model.safetensors"))
 
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }
@@ -256,19 +257,74 @@ struct ModelStoreTests {
                     home
                     .appendingPathComponent(".cache/huggingface/hub/models--org--del").path))
 
-        // MS removal via a base under our tmp root (msBases = msRoot first)
+        // MS 删除:规范平铺 org/repoY + 遗留三级 modelscope/org/repoY 一次清净(同一 repoId)
         _ = try Self.file(
             at:
                 rootURL
-                .appendingPathComponent("modelscope/ns/repoY/master/model.safetensors"))
-        try ModelStore.removeReady(repoId: "ns/repoY", source: "modelScope")
+                .appendingPathComponent("org/repoY/model.safetensors"))
+        _ = try Self.file(
+            at:
+                rootURL
+                .appendingPathComponent("modelscope/org/repoY/master/model.safetensors"))
+        try ModelStore.removeReady(repoId: "org/repoY", source: "modelScope")
+        let dbgTree = { () -> String in
+            var lines: [String] = []
+            let e = fm.enumerator(at: rootURL, includingPropertiesForKeys: nil)
+            while let u = e.nextObject() as? URL { lines.append(u.path) }
+            return lines.joined(separator: "\n")
+        }()
+        #expect(
+            !fm.fileExists(atPath: rootURL.appendingPathComponent("org/repoY").path),
+            "flat removed. root=\(ModelStore.root.path) msRepoDir=\(ModelStore.msRepoDir("org/repoY").path) msBases=\(ModelStore.msBases().map(\.path))\nREMAIN:\n\(dbgTree)"
+        )
         #expect(
             !fm.fileExists(
                 atPath:
                     rootURL
-                    .appendingPathComponent("modelscope/ns/repoY").path))
+                    .appendingPathComponent("modelscope/org/repoY").path))
 
-        try? fm.removeItem(at: msRepo)
+        try? fm.removeItem(at: msFlat)
+        try? fm.removeItem(at: rootURL)
+    }
+
+    // MARK: - MS 平铺规范布局(omlx 对齐)
+
+    @Test("msRepoDir is flat root/<org>/<name>; msReadyDir honors valid safetensors")
+    func msFlatLayout() throws {
+        let rootURL = Self.tmpRoot.appendingPathComponent("msflat")
+        setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
+        defer { unsetenv("OCOREAI_MODELS_DIR") }
+
+        let dir = ModelStore.msRepoDir("org/name")
+        let fm = FileManager.default
+        #expect(
+            dir.path == rootURL.appendingPathComponent("org/name").path,
+            "flat repo dir, no provider/rev layer")
+        #expect(
+            ModelStore.msRepoDir("a/b/c").path == rootURL.appendingPathComponent("a/b/c").path,
+            "3-segment id flattens, no provider/rev injection")
+        #expect(ModelStore.msReadyDir("org/name") == nil, "empty repo not ready")
+
+        _ = try Self.file(at: dir.appendingPathComponent("model.safetensors"))
+        #expect(fm.fileExists(atPath: dir.appendingPathComponent("model.safetensors").path))
+        let gotR = ModelStore.msReadyDir("org/name")
+        #expect(
+            gotR != nil && gotR!.path == dir.path,
+            "flat ready path-equal. hasValid=\(ModelStore.hasValidSafetensors(in: dir)) gotR=\(gotR?.path ?? "nil") gotRStd=\(gotR?.standardizedFileURL.path ?? "-") dir=\(dir.path) dirStd=\(dir.standardizedFileURL.path) list=\((try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) ?? []).map(\.lastPathComponent))"
+        )
+        #expect(
+            ModelStore.msReadyDir("org/name")?.standardizedFileURL == dir.standardizedFileURL,
+            "valid safetensors → ready (standardized)")
+
+        // 遗留三级(root/modelscope/leg/x/main)仍可读 — omlx 对齐后新布局优先、旧布局兜底
+        let legacyReady = try Self.file(
+            at:
+                rootURL
+                .appendingPathComponent("modelscope/leg/x/main/model.safetensors"))
+        #expect(
+            ModelStore.msReadyDir("leg/x") == legacyReady.deletingLastPathComponent(),
+            "legacy three-level base still resolved")
+
         try? fm.removeItem(at: rootURL)
     }
 }

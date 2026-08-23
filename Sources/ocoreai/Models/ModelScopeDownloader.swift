@@ -8,7 +8,8 @@
 // ### Architecture:
 // - ModelId format: `"mscope:Qwen/Qwen2.5-7B-Instruct"` (prefix: provider)
 //   - The Downloader receives just the repo-id after prefix is stripped
-// - Cache path: `~/Library/Caches/ocoreai/modelscope/{repo_id}/{revision}/`
+// - Cache path: `~/.ocoreai/models/{owner}/{model}/`(omlx 平铺,无 /{revision} 三级 —
+//   omlx/admin/ms_downloader.py: "Preserve {owner}/{model} layout to match other tools")
 // - Download: lists file tree via ModelScope API, filters by glob patterns,
 //   then downloads files in parallel with progress tracking
 // - Retry: exponential backoff with jitter on transient network errors
@@ -82,12 +83,11 @@ actor ModelScopeDownloader: Downloader {
             cacheRoot
             ?? {
                 // 就绪模型目录(omlx 对齐:下载即落进统一登记簿)。
-                // 事实源:ModelStore.msRoot——$OCOREAI_MODELS_DIR > ~/Library/Application
-                // Support/ocoreai/models/modelscope(macOS)
-                // Layout under msRoot: <ns>/<name>/<revision>/ (download(): cacheDir =
-                // cacheRoot/id/rev).
+                // 事实源:ModelStore.root——$OCOREAI_MODELS_DIR > ~/.ocoreai/models
+                // (omlx `~/.omlx/models` 同构)。写入布局:`<root>/<ns>/<name>/`
+                // 平铺,无 /{revision} 三级(omlx 对齐)。
                 ModelStore.ensureLayout()
-                return ModelStore.msRoot
+                return ModelStore.root
             }()
         try? FileManager.default.createDirectory(
             at: self.cacheRoot, withIntermediateDirectories: true,
@@ -114,10 +114,9 @@ actor ModelScopeDownloader: Downloader {
            导致代码误判为 gated → 退到 HuggingFace。
            模型详情 API 返回 Revision 字段确认为 "master"。 */
         let rev = revision ?? "master"
-        let cacheDir =
-            cacheRoot
-            .appendingPathComponent(id)
-            .appendingPathComponent(rev)
+        // omlx 平铺布局:`cacheRoot/<ns>/<name>/`(revision 不落盘,
+        // 对齐 omlx ms_downloader.py target_dir = model_dir / task.repo_id)
+        let cacheDir = cacheRoot.appendingPathComponent(id)
 
         if !useLatest, let existingFiles = try? listLocalFiles(in: cacheDir),
             firstMissingPattern(patterns, in: existingFiles) == nil
