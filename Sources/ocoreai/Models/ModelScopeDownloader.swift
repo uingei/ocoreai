@@ -81,9 +81,13 @@ actor ModelScopeDownloader: Downloader {
         self.cacheRoot =
             cacheRoot
             ?? {
-                let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-                return urls.first?.appendingPathComponent("ocoreai/modelscope")
-                    ?? URL(fileURLWithPath: "/tmp/ocoreai-modelscope-cache")
+                // 就绪模型目录(omlx 对齐:下载即落进统一登记簿)。
+                // 事实源:ModelStore.msRoot——$OCOREAI_MODELS_DIR > ~/Library/Application
+                // Support/ocoreai/models/modelscope(macOS)
+                // Layout under msRoot: <ns>/<name>/<revision>/ (download(): cacheDir =
+                // cacheRoot/id/rev).
+                ModelStore.ensureLayout()
+                return ModelStore.msRoot
             }()
         try? FileManager.default.createDirectory(
             at: self.cacheRoot, withIntermediateDirectories: true,

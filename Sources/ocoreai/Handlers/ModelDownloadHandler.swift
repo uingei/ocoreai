@@ -156,10 +156,11 @@ private func downloadFromHF(
     logger: Logger,
     emit: @Sendable @escaping (DownloadSSEEvent) -> Void,
 ) async throws -> String {
-    // Native MLX path: #hubDownloader() gives built-in cache, resume, progress.
-    // Auth is auto-detected by HubClient from HF_TOKEN env var / filesystem —
-    // no need to wire token through handler.
-    let downloader = #hubDownloader()
+    // M7: 就绪模型目录 — ready downloader (same contract as #hubDownloader(),
+    // pinned to ModelStore.hubRoot so the registry stays the single source).
+    // Auth auto-detection (HF_TOKEN / keychain) is unchanged: HubClient
+    // resolves credentials the same way it did under the default cache.
+    let downloader = ReadyHubDownloader(hub: ModelStore.readyHubClient())
     logger.info("Downloading from HuggingFace", metadata: ["model": .string(modelId)])
 
     let result: URL

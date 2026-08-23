@@ -48,6 +48,22 @@ struct ModelView: View {
                     onEdit: { modelId in
                         editingModelId = modelId
                     })
+
+                // M7: ready-model directory (就绪模型目录) — 所有已就绪模型的统一登记簿
+                if !modelManager.readyRootPath.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "folder.badge.gearshape")
+                            .font(.ocoreaiMono(9))
+                        Text(StringKey.readyRootHint.l)
+                            .font(.ocoreaiText(11))
+                        Text(modelManager.readyRootPath)
+                            .font(.ocoreaiMono(10))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .foregroundStyle(theme.textTertiary)
+                    .help(modelManager.readyRootPath)
+                }
             }
         }
         .formStyle(.grouped)

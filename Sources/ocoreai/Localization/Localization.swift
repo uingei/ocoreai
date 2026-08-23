@@ -207,6 +207,7 @@ public enum StringKey: String, CaseIterable {
     case sectionSystem = "Sidebar.Section.System"
     case sectionModels = "Sidebar.Section.Models"
     case sectionGeneral = "Sidebar.Section.General"
+    case readyRootHint = "Models.ReadyRootHint"
 
     // — Quick Metrics —
     case metricOverview = "Metrics.Overview"
@@ -704,6 +705,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .sectionServer: "Server",
         .sectionModels: "Models",
         .sectionGeneral: "General",
+        .readyRootHint: "Ready models",
         .sectionSystem: "System",
         .sectionWorkflow: "Workflow",
 
@@ -1221,6 +1223,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .notConfigured: "未配置",
         .sectionGeneral: "通用",
         .sectionModels: "模型",
+        .readyRootHint: "就绪模型目录",
         .sectionServer: "服务",
         .sectionSystem: "系统",
         .sectionWorkflow: "工作流",

@@ -161,31 +161,42 @@ actor MLXModelLoader {
     }
 
     /// Resolve cache directory for a provider/repo pair, then check for valid safetensors.
+    /// M7: paths come from ModelStore (就绪模型目录单一事实源) — new ready root first,
+    /// legacy Caches locations after (discovery/clean only, never moved).
     private static func hasValidSafetensors(
         for provider: MLXModelLoader.HubProvider,
         repoId: String,
         log: Logger?
     ) -> Bool {
-        let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-        guard let baseDir = urls.first else { return false }
-
-        let cacheRoot: URL
+        let readyDir: URL?
         switch provider {
-        case .modelScope:
-            cacheRoot =
-                baseDir
-                .appendingPathComponent("ocoreai/modelscope")
-                .appendingPathComponent(repoId)
-                .appendingPathComponent("master")
         case .huggingFace:
-            cacheRoot =
-                baseDir
-                .appendingPathComponent("org.ml-explore.mlx-swift-lm")
-                .appendingPathComponent(repoId)
+            readyDir = ModelStore.hubReadyDir(repoId)
+        case .modelScope:
+            readyDir = ModelStore.msReadyDir(repoId)
         }
+        guard let readyDir else {
+            log?.debug("\(provider == .huggingFace ? "HF" : "MS") \(repoId): no ready dir found")
+            return false
+        }
+        return ModelStore.hasValidSafetensors(in: readyDir)
+    }
 
-        // Must have at least one non-empty safetensors file
-        return hasValidSafetensors(in: cacheRoot, log: log)
+    /// M7 (omlx 对齐):weights dir for a model that is already ready (就绪),or nil.
+    /// `hf:`/`huggingface:` → HF ready dir;`mscope:` → MS ready dir;bare id → try HF then MS.
+    static func readyWeightsDir(for modelId: String) -> URL? {
+        if modelId.hasPrefix("hf:") {
+            return ModelStore.hubReadyDir(String(modelId.dropFirst(3)))
+        }
+        if modelId.hasPrefix("huggingface:") {
+            return ModelStore.hubReadyDir(String(modelId.dropFirst(12)))
+        }
+        if modelId.hasPrefix("mscope:") {
+            return ModelStore.msReadyDir(String(modelId.dropFirst(7)))
+        }
+        // Bare repo id — legacy convention defaulted org/repo to HF.
+        if let hub = ModelStore.hubReadyDir(modelId) { return hub }
+        return ModelStore.msReadyDir(modelId)
     }
 
     private static func hasValidSafetensors(in url: URL, log: Logger?) -> Bool {
@@ -363,6 +374,16 @@ actor MLXModelLoader {
             return MLXModelHandleImpl(modelContainer: container, modelId: modelId)
         }
 
+        // Ready-model shortcut — 就绪模型目录(M7):weights already on disk under the
+        // ready root (or a legacy location) load directly from disk, no download,
+        // no progress UI. M7: omlx 对齐——就绪模型 = 目录里能直接 load。
+        if let readyDir = Self.readyWeightsDir(for: modelId) {
+            logger.info("Loading ready model \(modelId) from \(readyDir.path)")
+            let container = try await loadContainer(from: readyDir)
+            logElapsed("MLX model \(modelId) loaded (ready dir)", start)
+            return MLXModelHandleImpl(modelContainer: container, modelId: modelId)
+        }
+
         // Determine hub provider — defaultHub property decides, hf: prefix overrides
         let provider: HubProvider
         let repoId: String
@@ -480,30 +501,24 @@ actor MLXModelLoader {
             }
 
         case .huggingFace:
-            // Native MLX path — #hubDownloader() gives built-in cache, resume, progress.
-            // Auth auto-detected by HubClient from HF_TOKEN / filesystem.
+            // M7: 就绪模型目录 —— HubCache(cacheDirectory:) pins snapshots to
+            // ModelStore.hubRoot (native blobs/snapshots layout, resume intact).
+            // Same semantics as the #hubDownloader() macro, but addressable —
+            // progress polling, discovery, and deletion all key off the same tree.
+            // Auth auto-detected by HubClient from HF_TOKEN / keychain.
             // Equivalent to MLXChatExample: factory.loadContainer(from: downloader, ...)
             // VLM: try LLMModelFactory first, fall back to VLMModelFactory on error.
-            //
-            // Progress: #hubDownloader() is a black-box macro with no callback injection.
-            // We use omlx-style directory polling to estimate progress.
             logger.info("Downloading from HuggingFace: \(repoId)")
             // Notify UI that download started
             await MainActor.run {
                 OcoreaiDownloadProgress.shared.start(modelId: progressKey)
             }
 
-            // Determine HF cache directory for polling
-            let hfCacheDir: URL = {
-                let urls = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)
-                guard let baseDir = urls.first else {
-                    return URL(fileURLWithPath: "/dev/null")
-                }
-                return
-                    baseDir
-                    .appendingPathComponent("org.ml-explore.mlx-swift-lm")
-                    .appendingPathComponent(repoId)
-            }()
+            // Determine ready-hub blobs directory for progress polling
+            let hfCacheDir =
+                ModelStore.hubRoot
+                .appendingPathComponent(ModelStore.encodeHubRepo(repoId))
+                .appendingPathComponent("blobs")
 
             // Start directory polling task for progress estimation
             let pollTask = Self.startHFProgressPolling(
@@ -511,10 +526,11 @@ actor MLXModelLoader {
                 modelId: progressKey,
                 logger: logger
             )
+            let readyDownloader = ReadyHubDownloader(hub: ModelStore.readyHubClient())
 
             do {
                 let container = try await LLMModelFactory.shared.loadContainer(
-                    from: #hubDownloader(),
+                    from: readyDownloader,
                     using: #huggingFaceTokenizerLoader(),
                     configuration: ModelConfiguration(id: repoId),
                 )
@@ -529,7 +545,7 @@ actor MLXModelLoader {
                     "LLM load failed for \(repoId), trying VLM: \(error.localizedDescription)")
                 do {
                     let container = try await MLXVLM.VLMModelFactory.shared.loadContainer(
-                        from: #hubDownloader(),
+                        from: readyDownloader,
                         using: #huggingFaceTokenizerLoader(),
                         configuration: ModelConfiguration(id: repoId),
                     )
@@ -577,7 +593,7 @@ actor MLXModelLoader {
             return MLXLMCommon.MTPDrafterContainer(context: drafter)
         } else {
             let drafter = try await MLXLMCommon.MTPDrafterModelFactory.shared.load(
-                from: #hubDownloader(),
+                from: ReadyHubDownloader(hub: ModelStore.readyHubClient()),
                 using: NoOpTokenizerLoader(),
                 configuration: MLXLMCommon.ModelConfiguration(id: modelId)
             )
@@ -599,6 +615,41 @@ actor MLXModelLoader {
             Double(elapsed.components.seconds) * 1000.0
             + Double(elapsed.components.attoseconds) / 1e15
         logger.info("\(msg) in \(String(format: "%.0fms", ms))")
+    }
+}
+
+/// M7: addressable HuggingFace Downloader — same semantics as the `#hubDownloader()`
+/// macro's generated `HubBridge`, but constructed against an explicit `HubClient`
+/// so the ready-model root (`ModelStore.hubRoot`) is the single cache location.
+/// Conforms to MLXLMCommon.Downloader; download → downloadSnapshot into the
+/// HubCache layout (blobs/ + snapshots/<rev>/), resume preserved.
+struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
+    let hub: HuggingFace.HubClient
+
+    init(hub: HuggingFace.HubClient) {
+        self.hub = hub
+    }
+
+    func download(
+        id: String,
+        revision: String?,
+        matching patterns: [String],
+        useLatest: Bool,
+        progressHandler: @Sendable @escaping (Foundation.Progress) -> Void
+    ) async throws -> URL {
+        guard let repoID = HuggingFace.Repo.ID(rawValue: id) else {
+            throw HuggingFaceDownloaderError.invalidRepositoryID(id)
+        }
+        // 1:1 with upstream HubBridge (#hubDownloader() macro): revision ?? "main".
+        let rev = revision ?? "main"
+        return try await hub.downloadSnapshot(
+            of: repoID,
+            revision: rev,
+            matching: patterns,
+            progressHandler: { @MainActor progress in
+                progressHandler(progress)
+            }
+        )
     }
 }
 

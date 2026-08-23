@@ -112,6 +112,9 @@ final class ModelManager {
 
     var localModels: [ModelID] = []
 
+    /// M7: ready-model directory (就绪模型目录) shown in the Models tab footer.
+    var readyRootPath: String = ModelStore.root.path
+
     /// Models currently serving inference requests (activeSessions > 0).
     /// Updated alongside localModels during refresh.
     var servingModelIds: Set<String> = []
@@ -301,7 +304,25 @@ final class ModelManager {
             }
         }
 
+        // M7 (omlx 对齐): merge "ready but not loaded" models from the ready-model
+        // directory — the registry omlx's `discover_models` covers. Loaded entries
+        // win (they carry real max_context/vocab metadata); discovered ones fill
+        // the roster so the user sees everything they have on disk.
+        var seen = Set(models.map(\.id))
+        for ready in ModelStore.discoverReady() {
+            guard !seen.contains(ready.id) else { continue }
+            seen.insert(ready.id)
+            let config = store.loadSamplingConfig(for: ready.id)
+            configBatch[ready.id] = config
+            models.append(
+                ModelID(
+                    id: ready.id,
+                    isVlm: ready.isVlm,
+                    paramsCustomized: !config.isDefault))
+        }
+
         // Batch-apply all configs in a single actor mailbox round-trip
+        // (after merge, so discovered models' persisted configs ride along)
         if !configBatch.isEmpty {
             await pool.updateSamplingConfigs(configBatch)
         }
@@ -370,32 +391,24 @@ final class ModelManager {
     }
 
     private func deleteCachedFiles(for identity: ModelIdentity) async throws {
-        let fileManager = FileManager.default
-        guard let cachesDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
-        else {
-            throw RepositoryError.deleteFailed("Cannot locate cache directory")
-        }
-
+        // M7: single source of truth — ModelStore.removeReady covers new root
+        // + legacy Caches locations (discovery/clean only, never moved).
         switch identity.source {
-        case .modelScope(let repoId):
-            let dir =
-                cachesDir
-                .appendingPathComponent("ocoreai/modelscope")
-                .appendingPathComponent(repoId)
-            if fileManager.fileExists(atPath: dir.path) {
-                try fileManager.removeItem(at: dir)
-            }
         case .huggingFace(let repoId):
-            let dir =
-                cachesDir
-                .appendingPathComponent("org.ml-explore.mlx-swift-lm")
-                .appendingPathComponent(repoId)
-            if fileManager.fileExists(atPath: dir.path) {
-                try fileManager.removeItem(at: dir)
+            try ModelStore.removeReady(repoId: repoId, source: "huggingFace")
+        case .modelScope(let repoId):
+            try ModelStore.removeReady(repoId: repoId, source: "modelScope")
+        case .local(let path):
+            // M7: user models registered under the ready root (local/<name>/)
+            // are removed; external paths are left untouched.
+            let fm = FileManager.default
+            let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+            let readyLocal = ModelStore.localRoot.standardizedFileURL
+            let target = url.standardizedFileURL
+            guard fm.fileExists(atPath: target.path) else { return }
+            if target.path == readyLocal.path || target.path.hasPrefix(readyLocal.path + "/") {
+                try fm.removeItem(at: target)
             }
-        case .local:
-            // Local models are not managed in cache — nothing to delete
-            break
         }
     }
 
