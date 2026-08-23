@@ -569,6 +569,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .metrics: "Metrics",
         .throughput: "Throughput",
         .ttft: "TTFT",
+        .chatTTFT: "TTFT",
         .ttfb: "TTFB",
         .gpuMemory: "GPU Memory",
         .kvCache: "KV Cache",
@@ -1244,6 +1245,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .statusStopped: "已停止",
         .statusError: "错误",
         .dismissError: "关闭错误",
+        .retryAction: "重试",
 
         // LogLevel display names
         .logLevelDebug: "调试",

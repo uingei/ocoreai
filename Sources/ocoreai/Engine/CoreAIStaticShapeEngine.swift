@@ -28,6 +28,8 @@ private enum StaticShapeLog {
 // MARK: - CoreAI StaticShape Engine
 
 @available(macOS 27.0, iOS 27.0, *)
+// Sendable safety: all storage is `let` (immutable after init); the only mutable
+// state lives in a `Mutex`-guarded lock (NSRecursiveLock), never accessed unsynchronized.
 final class CoreAIStaticShapeEngine: InferenceEngine, @unchecked Sendable {
     typealias ConfigType = InternalModelConfig
     typealias TokenId = Int32
