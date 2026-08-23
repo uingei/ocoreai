@@ -61,7 +61,13 @@ enum FileTools {
             throw ToolError.invalidParameter(
                 "read_file: offset \(start) exceeds file length (\(total) lines)")
         }
-        let end = min(total, start + max(0, limit ?? defaultReadLimit) - 1)
+        // Window from `start` inclusive holds `total - start + 1` lines.
+        // Clamp limit into [1, holdable] so that:
+        //   1. `end = start + safeLimit - 1` can never overflow (safeLimit ≤ holdable ≤ total)
+        //   2. `end ≥ start` always, so `start...end` satisfies its range precondition (no limit=0 crash)
+        let holdable = total - start + 1
+        let safeLimit = min(max(1, limit ?? defaultReadLimit), holdable)
+        let end = start + safeLimit - 1  // ≤ total, overflow-proof
         var out = ""
         for i in start ... end {
             out += "\(i)|\(lines[i - 1].replacingOccurrences(of: "\r", with: ""))\n"

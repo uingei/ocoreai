@@ -55,7 +55,37 @@ struct FileToolsBehaviorTests {
             try FileTools.read(path: workdir.appendingPathComponent("missing.txt").path)
         }
     }
+    // Regression: previously `start + limit - 1` overflowed for a huge `limit`
+    // and `start...end` tripped its range precondition for `limit == 0`.
+    // Both crash the process ("Fatal error: arithmetic overflow" /
+    // "Range requires lowerBound <= upperBound") — they must now degrade safely.
+    @Test("read_file never overflows for extreme limit: 0, negative, Int.max")
+    func readExtremeLimit() throws {
+        try seed()
+        let alpha = workdir.appendingPathComponent("alpha.txt").path
 
+        let zero = try FileTools.read(path: alpha, offset: 1, limit: 0)
+        #expect(zero.contains("1|hello"))
+
+        let negative = try FileTools.read(path: alpha, offset: 1, limit: -5)
+        #expect(negative.contains("1|hello"))
+
+        let huge = try FileTools.read(path: alpha, offset: 1, limit: Int.max)
+        #expect(huge.contains("1|hello"))
+        #expect(huge.contains("3|line3"))
+        #expect(huge.contains("total_lines: 3 (full)"))
+        #expect(!huge.contains("continue at offset"))
+
+    }
+    @Test("read_file window read near EOF with huge limit stays bounded (no overflow)")
+    func readWindowNearEOFHugeLimit() throws {
+        try seed()
+        let alpha = workdir.appendingPathComponent("alpha.txt").path
+        let mid = try FileTools.read(path: alpha, offset: 2, limit: Int.max)
+        #expect(mid.contains("2|world"))
+        #expect(mid.contains("3|line3"))
+        #expect(mid.contains("total_lines: 3 (full)"))
+    }
     @Test("write_file creates, replaces, and verifies by read-back")
     func writeBasics() throws {
         try seed()
