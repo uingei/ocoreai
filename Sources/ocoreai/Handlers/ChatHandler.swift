@@ -345,10 +345,13 @@ func chatCompletionsHandler(
         let effectiveTemp: Float = request.temperature
 
         /// Resolve optional parameters with nil → runtime → nil cascade.
+        /// Max output tokens: OpenAI standard priority (upstream coreai-models
+        /// #187 `ChatHandler.swift:134`): max_completion_tokens > max_tokens > runtime default.
         let effectiveTopP = request.topP ?? runtimeDefaults.topP
         let effectiveTopK = request.topK ?? runtimeDefaults.topK
         let effectiveMinP = request.minP ?? runtimeDefaults.minP
-        let effectiveMaxTokens = request.maxTokens ?? runtimeDefaults.maxTokens
+        let effectiveMaxTokens =
+            request.maxCompletionTokens ?? request.maxTokens ?? runtimeDefaults.maxTokens
         let effectiveSeed = request.seed ?? runtimeDefaults.seed
 
         /// Resolve penalty parameters (0 = not set, non-zero = explicit value).

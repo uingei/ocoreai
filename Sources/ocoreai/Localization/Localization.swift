@@ -476,6 +476,20 @@ public enum StringKey: String, CaseIterable {
     case modelParamMaxTokensHint = "Models.ParamMaxTokensHint"
     case modelParamRepeatPenalty = "Models.ParamRepeatPenalty"
     case modelParamRepeatPenaltyHint = "Models.ParamRepeatPenaltyHint"
+    case modelParamMinP = "Models.ParamMinP"
+    case modelParamMinPHint = "Models.ParamMinPHint"
+    case modelParamSeed = "Models.ParamSeed"
+    case modelParamSeedHint = "Models.ParamSeedHint"
+    case modelParamMaxKV = "Models.ParamMaxKV"
+    case modelParamMaxKVHint = "Models.ParamMaxKVHint"
+    case modelParamRepeatWindow = "Models.ParamRepeatWindow"
+    case modelParamRepeatWindowHint = "Models.ParamRepeatWindowHint"
+    case modelParamRepeatCtx = "Models.ParamRepeatCtx"
+    case modelParamRepeatCtxHint = "Models.ParamRepeatCtxHint"
+    case modelParamPresenceCtx = "Models.ParamPresenceCtx"
+    case modelParamPresenceCtxHint = "Models.ParamPresenceCtxHint"
+    case modelParamFrequencyCtx = "Models.ParamFrequencyCtx"
+    case modelParamFrequencyCtxHint = "Models.ParamFrequencyCtxHint"
     case modelParamFrequencyPenalty = "Models.ParamFrequencyPenalty"
     case modelParamPresencePenalty = "Models.ParamPresencePenalty"
     case modelParamSave = "Models.ParamSave"
@@ -845,9 +859,23 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .modelParamMaxTokens: "Max Tokens",
         .modelParamMaxTokensHint: "Maximum output tokens",
         .modelParamRepeatPenalty: "Repeat Penalty",
-        .modelParamRepeatPenaltyHint: "Penalty for repeated tokens",
+        .modelParamRepeatPenaltyHint: "Penalty for repeated tokens (>1.0)",
         .modelParamFrequencyPenalty: "Frequency Penalty",
         .modelParamPresencePenalty: "Presence Penalty",
+        .modelParamMinP: "Min P",
+        .modelParamMinPHint: "Min-p threshold (0.0–1.0)",
+        .modelParamSeed: "Seed",
+        .modelParamSeedHint: "Deterministic sampling seed",
+        .modelParamMaxKV: "Max KV Cache",
+        .modelParamMaxKVHint: "Max KV cache size (enables rotating cache)",
+        .modelParamRepeatWindow: "Repeat Pen. Window",
+        .modelParamRepeatWindowHint: "Recent-token window for repeat penalty",
+        .modelParamRepeatCtx: "Repeat Ctx Size",
+        .modelParamRepeatCtxHint: "Context window for repeat penalty",
+        .modelParamPresenceCtx: "Presence Ctx Size",
+        .modelParamPresenceCtxHint: "Context window for presence penalty",
+        .modelParamFrequencyCtx: "Frequency Ctx Size",
+        .modelParamFrequencyCtxHint: "Context window for frequency penalty",
         .modelParamSave: "Save",
         .modelParamReset: "Reset to Defaults",
         .modelParamDefaults: "Defaults",
@@ -1358,6 +1386,20 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .modelParamRepeatPenaltyHint: "重复 token 的惩罚系数",
         .modelParamFrequencyPenalty: "频率惩罚",
         .modelParamPresencePenalty: "存在惩罚",
+        .modelParamMinP: "最小 P",
+        .modelParamMinPHint: "最小概率阈值 (0.0–1.0)",
+        .modelParamSeed: "种子",
+        .modelParamSeedHint: "确定性采样种子",
+        .modelParamMaxKV: "最大 KV 缓存",
+        .modelParamMaxKVHint: "最大 KV 缓存大小（启用轮转缓存）",
+        .modelParamRepeatWindow: "重复惩罚窗口",
+        .modelParamRepeatWindowHint: "重复惩罚的近期 token 窗口",
+        .modelParamRepeatCtx: "重复上下文大小",
+        .modelParamRepeatCtxHint: "重复惩罚的上下文窗口",
+        .modelParamPresenceCtx: "存在上下文大小",
+        .modelParamPresenceCtxHint: "存在惩罚的上下文窗口",
+        .modelParamFrequencyCtx: "频率上下文大小",
+        .modelParamFrequencyCtxHint: "频率惩罚的上下文窗口",
         .modelParamSave: "保存",
         .modelParamReset: "恢复默认",
         .modelParamDefaults: "默认值",

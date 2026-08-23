@@ -13,6 +13,9 @@ struct ModelParamsView: View {
     @State private var config: ModelSamplingConfig
     @State private var topKText: String = ""
     @State private var maxTokensText: String = ""
+    @State private var seedText: String = ""
+    @State private var maxKVText: String = ""
+    @State private var repeatWindowText: String = ""
     @Environment(\.ocoreaiTheme) private var theme
 
     init(modelId: String, onCancel: @escaping () -> Void = {}) {
@@ -23,6 +26,9 @@ struct ModelParamsView: View {
         _config = State(initialValue: cfg)
         _topKText = State(initialValue: cfg.topK.map(String.init) ?? "")
         _maxTokensText = State(initialValue: cfg.maxTokens.map(String.init) ?? "")
+        _seedText = State(initialValue: cfg.seed.map(String.init) ?? "")
+        _maxKVText = State(initialValue: cfg.maxKVSize.map(String.init) ?? "")
+        _repeatWindowText = State(initialValue: cfg.repetitionPenaltyWindow.map(String.init) ?? "")
     }
 
     var body: some View {
@@ -43,6 +49,14 @@ struct ModelParamsView: View {
             maxTokensCard
             frequencyPenaltyCard
             presencePenaltyCard
+            repetitionPenaltyCard
+            repetitionWindowCard
+            minPCard
+            seedCard
+            maxKVCard
+            repeatContextCard
+            presenceContextCard
+            frequencyContextCard
             actionRow
             Spacer(minLength: 24)
         }
@@ -158,6 +172,154 @@ struct ModelParamsView: View {
             display: String(format: "%.2f", config.presencePenalty),
             value: $config.presencePenalty,
             range: -2 ... 2,
+            autoSave: { autoSave() },
+        )
+    }
+
+    /// Repetition penalty (#176, coreai-models 5660fc6): nil = unset, > 1.0 active.
+    private var repetitionPenaltyCard: some View {
+        SliderAutoSaveView(
+            label: StringKey.modelParamRepeatPenalty.l,
+            hint: StringKey.modelParamRepeatPenaltyHint.l,
+            display: config.repetitionPenalty.map { String(format: "%.2f", $0) }
+                ?? StringKey.modelParamDefaults.l,
+            value: Binding(
+                get: { config.repetitionPenalty.map(Float.init) ?? 1.0 },
+                set: {
+                    config.repetitionPenalty = Double($0)
+                    autoSave()
+                },
+            ),
+            range: 1 ... 2,
+            hasReset: true,
+            resetAction: {
+                config.repetitionPenalty = nil
+                autoSave()
+            },
+            autoSave: {},
+        )
+    }
+
+    private var repetitionWindowCard: some View {
+        TextFieldParamView(
+            label: StringKey.modelParamRepeatWindow.l,
+            hint: StringKey.modelParamRepeatWindowHint.l,
+            valueText: config.repetitionPenaltyWindow.map(String.init)
+                ?? StringKey.modelParamDefaults.l,
+            textBinding: $repeatWindowText,
+            onDone: {
+                config.repetitionPenaltyWindow = max(Int(repeatWindowText) ?? 1, 1)
+                autoSave()
+            },
+            resetAction: {
+                config.repetitionPenaltyWindow = nil
+                repeatWindowText = ""
+                autoSave()
+            },
+        )
+    }
+
+    private var minPCard: some View {
+        SliderAutoSaveView(
+            label: StringKey.modelParamMinP.l,
+            hint: StringKey.modelParamMinPHint.l,
+            display: config.minP.map { String(format: "%.2f", $0) }
+                ?? StringKey.modelParamDefaults.l,
+            value: Binding(
+                get: { config.minP ?? 0.5 },
+                set: {
+                    config.minP = $0
+                    autoSave()
+                },
+            ),
+            range: 0 ... 1,
+            hasReset: true,
+            resetAction: {
+                config.minP = nil
+                autoSave()
+            },
+            autoSave: {},
+        )
+    }
+
+    private var seedCard: some View {
+        TextFieldParamView(
+            label: StringKey.modelParamSeed.l,
+            hint: StringKey.modelParamSeedHint.l,
+            valueText: config.seed.map(String.init) ?? StringKey.modelParamDefaults.l,
+            textBinding: $seedText,
+            onDone: {
+                config.seed = Int64(seedText)
+                autoSave()
+            },
+            resetAction: {
+                config.seed = nil
+                seedText = ""
+                autoSave()
+            },
+        )
+    }
+
+    private var maxKVCard: some View {
+        TextFieldParamView(
+            label: StringKey.modelParamMaxKV.l,
+            hint: StringKey.modelParamMaxKVHint.l,
+            valueText: config.maxKVSize.map(String.init) ?? StringKey.modelParamDefaults.l,
+            textBinding: $maxKVText,
+            onDone: {
+                config.maxKVSize = max(Int(maxKVText) ?? 1, 1)
+                autoSave()
+            },
+            resetAction: {
+                config.maxKVSize = nil
+                maxKVText = ""
+                autoSave()
+            },
+        )
+    }
+
+    // MARK: - Context-window group (non-optional, default 20)
+
+    private var repeatContextCard: some View {
+        contextSizeCard(
+            label: StringKey.modelParamRepeatCtx.l,
+            hint: StringKey.modelParamRepeatCtxHint.l,
+            value: Binding(
+                get: { Float(config.repetitionContextSize) },
+                set: { config.repetitionContextSize = max(Int($0), 1) },
+            ),
+        )
+    }
+
+    private var presenceContextCard: some View {
+        contextSizeCard(
+            label: StringKey.modelParamPresenceCtx.l,
+            hint: StringKey.modelParamPresenceCtxHint.l,
+            value: Binding(
+                get: { Float(config.presenceContextSize) },
+                set: { config.presenceContextSize = max(Int($0), 1) },
+            ),
+        )
+    }
+
+    private var frequencyContextCard: some View {
+        contextSizeCard(
+            label: StringKey.modelParamFrequencyCtx.l,
+            hint: StringKey.modelParamFrequencyCtxHint.l,
+            value: Binding(
+                get: { Float(config.frequencyContextSize) },
+                set: { config.frequencyContextSize = max(Int($0), 1) },
+            ),
+        )
+    }
+
+    private func contextSizeCard(label: String, hint: String, value: Binding<Float>) -> some View {
+        SliderAutoSaveView(
+            label: label,
+            hint: hint,
+            display: String(Int(value.wrappedValue)),
+            value: value,
+            range: 1 ... 256,
             autoSave: { autoSave() },
         )
     }

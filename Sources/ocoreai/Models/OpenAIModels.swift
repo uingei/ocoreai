@@ -59,6 +59,11 @@ struct ChatCompletionRequest: Decodable {
     /// Maximum output tokens (nil = model default)
     var maxTokens: Int? = nil
 
+    /// Maximum completion tokens (OpenAI standard name, upstream coreai-models
+    /// #187 `ServerAPITypes.swift:15/25`). Takes priority over `maxTokens`
+    /// in the ChatHandler cascade when both are present.
+    var maxCompletionTokens: Int? = nil
+
     /// JSON schema for response format override
     var responseFormat: ResponseFormat? = nil
 
@@ -145,6 +150,7 @@ struct ChatCompletionRequest: Decodable {
         case topP = "top_p"
         case topK = "top_k"
         case maxTokens = "max_tokens"
+        case maxCompletionTokens = "max_completion_tokens"
         case responseFormat = "response_format"
         case frequencyPenalty = "frequency_penalty"
         case repetitionPenalty = "repetition_penalty"
@@ -160,8 +166,9 @@ struct ChatCompletionRequest: Decodable {
         case sessionID = "session_id"
         case tools, toolChoice
         case parallelToolCalls = "parallel_tool_calls"
-        case selfCorrection
+        case selfCorrection = "self_correction"
         case reasoning
+        case reasoningLevel = "reasoning_level"
         case streamOptions = "stream_options"
     }
 
@@ -218,6 +225,7 @@ struct ChatCompletionRequest: Decodable {
         topP = try c.decodeIfPresent(Float.self, forKey: .topP)
         topK = try c.decodeIfPresent(Int.self, forKey: .topK)
         maxTokens = try c.decodeIfPresent(Int.self, forKey: .maxTokens)
+        maxCompletionTokens = try c.decodeIfPresent(Int.self, forKey: .maxCompletionTokens)
         responseFormat = try c.decodeIfPresent(ResponseFormat.self, forKey: .responseFormat)
         frequencyPenalty = (try? c.decodeIfPresent(Float.self, forKey: .frequencyPenalty)) ?? 0
         // #176 alignment — repetition penalty is Double? (nil = not set); decoded
@@ -231,6 +239,19 @@ struct ChatCompletionRequest: Decodable {
         toolChoice = try c.decodeIfPresent(String.self, forKey: .toolChoice)
         parallelToolCalls = try c.decodeIfPresent(Bool.self, forKey: .parallelToolCalls)
         reasoning = try c.decodeIfPresent(Bool.self, forKey: .reasoning)
+        // Wire-contract completeness — these fields were declared with CodingKeys
+        // but silently dropped by decode (standard names, upstream #187 wire
+        // baseline). Filled 2026-08-23.
+        minP = try c.decodeIfPresent(Float.self, forKey: .minP)
+        seed = try c.decodeIfPresent(Int64.self, forKey: .seed)
+        prefillStepSize = try c.decodeIfPresent(Int.self, forKey: .prefillStepSize)
+        maxKVSize = try c.decodeIfPresent(Int.self, forKey: .maxKVSize)
+        repetitionContextSize = try c.decodeIfPresent(Int.self, forKey: .repetitionContextSize)
+        presenceContextSize = try c.decodeIfPresent(Int.self, forKey: .presenceContextSize)
+        frequencyContextSize = try c.decodeIfPresent(Int.self, forKey: .frequencyContextSize)
+        selfCorrection = try c.decodeIfPresent(Bool.self, forKey: .selfCorrection)
+        streamOptions = try c.decodeIfPresent(StreamOptions.self, forKey: .streamOptions)
+        reasoningLevel = try c.decodeIfPresent(String.self, forKey: .reasoningLevel)
     }
 }
 
@@ -975,6 +996,12 @@ struct ModelSamplingResponse: Encodable {
     let repetitionPenalty: Double?
     let repetitionPenaltyWindow: Int?
     let presencePenalty: Float
+    let minP: Float?
+    let seed: Int64?
+    let maxKVSize: Int?
+    let repetitionContextSize: Int
+    let presenceContextSize: Int
+    let frequencyContextSize: Int
     let responseFormat: String?
     let maxContextWindow: Int?
     let defaultModel: Bool
@@ -990,6 +1017,12 @@ struct ModelSamplingResponse: Encodable {
         repetitionPenalty = config.repetitionPenalty
         repetitionPenaltyWindow = config.repetitionPenaltyWindow
         presencePenalty = config.presencePenalty
+        minP = config.minP
+        seed = config.seed
+        maxKVSize = config.maxKVSize
+        repetitionContextSize = config.repetitionContextSize
+        presenceContextSize = config.presenceContextSize
+        frequencyContextSize = config.frequencyContextSize
         responseFormat = config.responseFormat
         maxContextWindow = config.maxContextWindow
         defaultModel = config.defaultModel
@@ -1005,6 +1038,12 @@ struct ModelSamplingResponse: Encodable {
         case repetitionPenalty = "repetition_penalty"
         case repetitionPenaltyWindow = "repetition_penalty_window"
         case presencePenalty = "presence_penalty"
+        case minP = "min_p"
+        case seed
+        case maxKVSize = "max_kv_size"
+        case repetitionContextSize = "repetition_context_size"
+        case presenceContextSize = "presence_context_size"
+        case frequencyContextSize = "frequency_context_size"
         case responseFormat = "response_format"
         case maxContextWindow = "max_context_window"
         case defaultModel = "default_model"
