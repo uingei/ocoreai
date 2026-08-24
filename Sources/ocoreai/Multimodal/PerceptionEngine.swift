@@ -142,7 +142,7 @@ final class PerceptionEngine: Sendable {
 
     // MARK: - Internal
 
-    private let buffer = PerceptionBuffer(capacity: 32, defaultTTL: 60)
+    let buffer = PerceptionBuffer(capacity: 32, defaultTTL: 60)
     private var _samplingTasks: [String: Task<Void, Never>] = [:]
     private let _inferenceFlag = InferenceFlag()
 
@@ -494,11 +494,16 @@ final class PerceptionEngine: Sendable {
                     )
                 )
             } else if let audio = frame.audioURL {
+                // Deliver the actual audio bytes — the engine consumes this via
+                // makeMLXAudio()/UserInput.Audio. Text-only placeholder here was
+                // silently discarding the recording (behavior fork: vision/image
+                // frames carry bytes, audio did not).
                 parts.append(
                     ContentPart(
-                        type: "text",
-                        text: "[Audio recording context]",
-                        imageUrl: nil
+                        type: "audio",
+                        text: nil,
+                        imageUrl: nil,
+                        audioURL: ContentPart.AudioURL(url: audio)
                     )
                 )
             }
