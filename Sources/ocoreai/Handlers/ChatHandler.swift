@@ -285,7 +285,7 @@ func chatCompletionsHandler(
             // Fire PreCompact hooks (codex PreCompactHookOutcome::Stopped → abort).
             // Scoped to compact-specific hooks (matcher == nil or "*"); existing
             // tool-scoped hooks (e.g. `.matching("write_file")`) do not fire here.
-            let runner = await enginePool.toolRegistry?.hookRunner
+            let runner = enginePool.toolRegistry?.hookRunner
             let preVerdict =
                 await runner?.evaluatePreCompact(
                     reason: "context-window-exceeded",

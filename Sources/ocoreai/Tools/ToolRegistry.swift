@@ -37,7 +37,9 @@ actor ToolRegistry {
 
     init(
         readOnlyWhitelist: [String] = ["search_files", "read_file", "memory_search"],
-        destructiveBlacklist: [String] = ["write_file", "delete_file", "execute_code"],
+        destructiveBlacklist: [String] = [
+            "write_file", "delete_file", "exec_command", "execute_code",
+        ],
         auditTrail: AuditTrail? = nil,
         hooks: [Hook] = [],
         approvalBroker: ApprovalBroker? = nil,

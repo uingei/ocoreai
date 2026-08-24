@@ -224,6 +224,43 @@ func bootstrapBuiltInTools(
         }
     )
 
+    // ── exec_command ────────────────────────────────────────────────────────
+    // Baseline: codex unified exec — `ToolName::plain("exec_command")`
+    // (`core/src/unified_exec/process_manager.rs:1308`), zsh (`core/src/shell.rs`),
+    // `ExecApprovalRequest` gating before execution (approval = user-side).
+    struct ExecCommandArgs: Codable {
+        let command: String
+        let cwd: String?
+        let timeoutSeconds: Int?
+    }
+
+    try? await registry.register(
+        ToolEntry.typed(
+            name: "exec_command",
+            toolset: "shell",
+            argsType: ExecCommandArgs.self,
+            description:
+                "Run a shell command via /bin/zsh -c and return stdout, stderr, and exit code",
+            schema: ToolSchema(parameters: [
+                "command": ToolParameter(
+                    type: .string, description: "Shell command line to execute under zsh"),
+                "cwd": ToolParameter(
+                    type: .string,
+                    description: "Optional working directory (absolute, `~`-expanded, or relative)"),
+                "timeoutSeconds": ToolParameter(
+                    type: .integer,
+                    description: "Optional timeout in seconds (clamped to 1–300, default 60)"),
+            ]),
+            isDestructive: true
+        ) { args in
+            try await ExecTools.run(
+                command: args.command,
+                cwd: args.cwd,
+                timeoutSeconds: args.timeoutSeconds ?? ExecTools.defaultTimeoutSeconds
+            )
+        }
+    )
+
     // ── echo ────────────────────────────────────────────────────────────────
     struct EchoArgs: Codable {
         let message: String?
