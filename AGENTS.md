@@ -69,7 +69,7 @@ swift test --filter OcoreAITests.System  # system tests only
 - `@unchecked Sendable` requires justification comment. Closure `var` declared inside closure scope (not outer).
 
 ### Error Handling
-- Precondition near-free — 1 `precondition` call (CoreAIPipelinedEngine.swift:285, structural invariant on init); all others replaced with guard/throw/clamp after P0 cleanup.
+- Precondition near-free — 4 `precondition` calls (CoreAIPipelinedEngine:298, CoreAIStubs:95, CoreAIStubs:132, PipelinedConstrainedDecodingStrategy:125); all others replaced with guard/throw/clamp after P0 cleanup.
 - **Zero `try!`** in production code.
 - **`print()`:** 0 in production code (18→0 at commit 4c231d3 — 6 MPSGraphSamplers + 12 InstrumentsProfiler removed; MPSGraphSamplers errors already propagate to `onSamplingDone`, InstrumentsProfiler deinit diagnostic rewritten as swift-log `Logger(label:)`).
 - **`fatalError`:** 0.
@@ -96,7 +96,7 @@ swift test --filter OcoreAITests.System  # system tests only
 | **ThinkingBudget hard-budget** | Engine/EngineInference.swift | ✅ Wired std reasoning path (686161c L3314 applyingThinkingBudget); Guided/MTP paths non-reasoning = no budget needed; guided/MTP `components: .init()` (L2697/L2881) intentional |
 | **SyncInputHandler** | — | ✅ Upstream d667610 已无 `InputHandler`/`InputCoverage` 符号，gap 消失 |
 | **ChatConventionsRegistry** | — | ✅ Upstream d667610 已无 `ChatConventionsRegistry`，reasoningConfig 内化至管线 |
-| **AgentLoop runner** | Agents/AgentLoop.swift | ✅ Pruned at 4c231d3 (523→44 LOC) — enum runner + `AgentLoopConfig` removed (zero callers); `AgentLoopResult`/`AgentLoopIterationLog` kept (ThinkingTelemetry). Agent loop now owned by `DirectInferenceClient` (851 LOC) + `ChatHandler`. |
+| **AgentLoop runner** | Agents/AgentLoop.swift | ✅ Pruned at 4c231d3 (523→44 LOC) — enum runner + `AgentLoopConfig` removed (zero callers); `AgentLoopResult`/`AgentLoopIterationLog` kept (ThinkingTelemetry). Agent loop now owned by `DirectInferenceClient` (858 LOC) + `ChatHandler`. |
 | **MLX upstream sync gap** | Package.swift | ✅ Resolved (2026-08-23): pinned at `1441444` — #544 merged (β5-SDK compilation fix); prior d661402/d7dc03d blockers closed upstream. |
 | **KVCache typed config** | Engine/MLXBridge.swift | ✅ Wired via makeKVCacheConfiguration (L635) TurboQuant+Affine through generateParameters.kvCache; upstream CacheConfiguration (364 LOC) merged into GenerateParameters at d667610 |
 | **MTP spec decode** | Engine/EngineInference.swift | ✅ Aligned — blockSize from specDecodingConfig.numDraftTokens (L2880) + upstream auto-clamp; MTPDrafterModelWrapper is type wrapper not gap |
