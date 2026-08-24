@@ -648,19 +648,36 @@ final class ChatState {
                 ))
         }
 
-        // Check for pending voice transcript from microphone channel
-        // Voice input stays as user message part (not system context)
-        if let pendingVoice = MultimodalState.shared.pendingVoiceTranscript, !pendingVoice.isEmpty {
+        // Voice input from the microphone channel — stays as a user message part
+        // (not system context). Prefer the RAW recording when present so the VLM
+        // hears it directly (bypasses STT); also keep the STT transcript as a text
+        // caption so non-audio models still understand. This closes the previously
+        // broken wire: stopRecording() stored lastRecordingDataURL but chat() only
+        // forwarded the transcript, discarding the audio before it reached
+        // EngineInference.makeMLXAudio / MLX UserInput.Audio.
+        let rawRecording = MultimodalState.shared.lastRecordingDataURL
+        let pendingVoice = MultimodalState.shared.pendingVoiceTranscript
+        if let rawRecording, !rawRecording.isEmpty {
+            attachmentParts.append(
+                ContentPart(
+                    type: "audio",
+                    text: nil,
+                    imageUrl: nil,
+                    audioURL: ContentPart.AudioURL(url: rawRecording)
+                )
+            )
+        }
+        if let pendingVoice, !pendingVoice.isEmpty {
             let voicePart: ContentPart = .init(
                 type: "text",
-                text: "[Voice Input] \(pendingVoice)",
+                text: " [Voice Input] \(pendingVoice)",
                 imageUrl: nil
             )
             attachmentParts.append(voicePart)
-            _ = MultimodalState.shared.pendingVoiceTranscript
-        } else {
-            MultimodalState.shared.pendingVoiceTranscript = nil
         }
+        // One-shot consumption — the .caf was already read from disk by stopRecording().
+        MultimodalState.shared.lastRecordingDataURL = nil
+        MultimodalState.shared.pendingVoiceTranscript = nil
 
         // Push and persist user message (text only for persistence)
         // Store attachment data URLs for inline preview
