@@ -190,6 +190,8 @@ public enum StringKey: String, CaseIterable {
     case perceptionSystemHint = "Settings.PerceptionSystemHint"
     case perceptionSpeaker = "Settings.PerceptionSpeaker"
     case perceptionSpeakerHint = "Settings.PerceptionSpeakerHint"
+    case perceptionAudio = "Settings.PerceptionAudio"
+    case perceptionAudioHint = "Settings.PerceptionAudioHint"
 
     // — Navigation —
     case tabDashboard = "Navigation.Dashboard"
@@ -673,6 +675,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .perceptionSystemHint: "Thermal state, memory pressure, CPU load, uptime",
         .perceptionSpeaker: "Speaker Feedback",
         .perceptionSpeakerHint: "Monitor TTS output for audio loopback awareness",
+        .perceptionAudio: "Ambient Audio",
+        .perceptionAudioHint:
+            "Continuously transcribe ambient speech into agent context (off by default)",
         .agentApprovalSection: "Tool Approval",
         .agentApprovalPolicy: "Approval Policy",
         .agentApprovalInteractive: "Ask when risky (default)",
@@ -1132,6 +1137,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .perceptionSystemHint: "温度状态、内存压力、CPU 负载、运行时间",
         .perceptionSpeaker: "扬声器反馈",
         .perceptionSpeakerHint: "监控 TTS 输出用于音频闭环感知",
+        .perceptionAudio: "环境语音",
+        .perceptionAudioHint: "持续将环境语音转写为 agent 上下文（默认关闭）",
         .agentApprovalSection: "工具审批",
         .agentApprovalPolicy: "审批策略",
         .agentApprovalInteractive: "高危时询问（默认）",

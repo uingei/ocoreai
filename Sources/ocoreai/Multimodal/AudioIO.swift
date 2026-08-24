@@ -247,9 +247,14 @@ extension AudioIO {
     /// - Parameters:
     ///   - timeout: Maximum recognition duration in seconds
     ///   - useVAD: Enable voice activity detection (default: true)
+    ///   - feedback: Play start/end system feedback sounds (default: true).
+    ///     Continuous perception loops pass false — beeping every cycle is not
+    ///     feedback, it's noise.
     /// - Returns: Final transcribed text, or nil on cancel/error.
     ///   Partial results streamed to `partialText` property.
-    func transcribe(timeout: TimeInterval = 30, useVAD: Bool = true) async -> String? {
+    func transcribe(timeout: TimeInterval = 30, useVAD: Bool = true, feedback: Bool = true) async
+        -> String?
+    {
         // 1. Check authorization
         let authorized = await requestSpeechPermission()
         guard authorized else {
@@ -301,7 +306,7 @@ extension AudioIO {
         isRecognizing = true
         recognizedText = ""
         partialText = ""
-        AudioFeedback.playTranscriptionStart()
+        if feedback { AudioFeedback.playTranscriptionStart() }
 
         do {
             let task = recognizer.recognitionTask(with: request) { result, error in
@@ -360,7 +365,7 @@ extension AudioIO {
             audioEngine.stop()
             isRecognizing = false
             partialText = ""
-            AudioFeedback.playTranscriptionEnd()
+            if feedback { AudioFeedback.playTranscriptionEnd() }
 
             if !recognizedText.isEmpty {
                 return recognizedText
@@ -372,7 +377,7 @@ extension AudioIO {
             audioEngine.stop()
             isRecognizing = false
             partialText = ""
-            AudioFeedback.playTranscriptionEnd()
+            if feedback { AudioFeedback.playTranscriptionEnd() }
             return nil
         }
     }

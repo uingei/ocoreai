@@ -46,6 +46,7 @@ final class SettingsState {
         perceptionFilesystemEnabled = SettingsStore.shared.perceptionFilesystemEnabled
         perceptionInternetEnabled = SettingsStore.shared.perceptionInternetEnabled
         perceptionPowerProfile = SettingsStore.shared.perceptionPowerProfile
+        perceptionAudioEnabled = SettingsStore.shared.perceptionAudioEnabled
         approvalPolicy = SettingsStore.shared.approvalPolicy
     }
 
@@ -211,6 +212,14 @@ final class SettingsState {
         }
     }
 
+    var perceptionAudioEnabled: Bool = SettingsStore.shared.perceptionAudioEnabled {
+        didSet {
+            guard oldValue != perceptionAudioEnabled else { return }
+            SettingsStore.shared.perceptionAudioEnabled = perceptionAudioEnabled
+            applyPerceptionSettings()
+        }
+    }
+
     var perceptionPowerProfile: String = SettingsStore.shared.perceptionPowerProfile {
         didSet {
             guard oldValue != perceptionPowerProfile else { return }
@@ -244,7 +253,8 @@ final class SettingsState {
                 filesystem: perceptionFilesystemEnabled,
                 internet: perceptionInternetEnabled,
                 system: perceptionSystemEnabled,
-                speaker: perceptionSpeakerEnabled
+                speaker: perceptionSpeakerEnabled,
+                audio: perceptionAudioEnabled
             )
             engine.setChannels(flags)
             switch perceptionPowerProfile {

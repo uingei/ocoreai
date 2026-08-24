@@ -43,3 +43,50 @@ struct PerceptionAudioDeliveryTests {
         )
     }
 }
+
+// MARK: - Producer wiring (batch 2: .audio channel producer loop)
+
+/// Regression for the `.audio` perception channel producer wiring:
+/// `ChannelFlags.audio` must register the channel in `activeChannels`,
+/// `ChannelConfig` must carry a non-zero sampling interval, and a text
+/// transcript frame must surface on the live `contextText()` path.
+@Suite("PerceptionEngine — audio channel producer wiring")
+struct PerceptionAudioChannelWiringTests {
+
+    @MainActor
+    @Test("audio flag registers the .audio channel")
+    func audioFlagRegistersChannel() {
+        PerceptionEngine.shared.channels = ChannelFlags(
+            camera: false, screen: false, network: false,
+            filesystem: false, internet: false, system: false,
+            speaker: false, audio: true)
+        #expect(PerceptionEngine.shared.activeChannels == [.audio])
+    }
+
+    @MainActor
+    @Test("audio default is OFF (no mic contention by default)")
+    func audioDefaultOff() {
+        let flags = ChannelFlags()
+        #expect(!flags.audio)
+    }
+
+    @MainActor
+    @Test("presets carry a finite audio interval; minimal/halted halt audio")
+    func audioIntervalConfigured() {
+        // Sampling presets run the loop; power-saving presets intentionally halt it (interval=0).
+        #expect(ChannelConfig.default.audioInterval > 0)
+        #expect(ChannelConfig.reduced.audioInterval > 0)
+        #expect(ChannelConfig.minimal.audioInterval == 0)
+        #expect(ChannelConfig.halted.audioInterval == 0)
+    }
+
+    @MainActor
+    @Test("audio transcript frame renders on the live contextText() path")
+    func audioTranscriptRendersInContextText() {
+        let frame = PerceptionFrame(channel: .audio, textContext: "hello from ambient loop")
+        PerceptionEngine.shared.buffer.push(frame)
+        let text = PerceptionEngine.shared.contextText()
+        #expect(text.hasPrefix("[System Perception]"))
+        #expect(text.contains("audio=hello from ambient loop"))
+    }
+}

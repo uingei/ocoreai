@@ -163,6 +163,12 @@ final class SettingsStore {
         set { defaults.set(newValue, forKey: Key.perceptionSpeakerEnabled.rawValue) }
     }
 
+    /// Audio (ambient speech) channel — continuous STT transcript stream
+    var perceptionAudioEnabled: Bool {
+        get { defaults.bool(forKey: Key.perceptionAudioEnabled.rawValue) }
+        set { defaults.set(newValue, forKey: Key.perceptionAudioEnabled.rawValue) }
+    }
+
     /// Power profile for perception sampling rate
     var perceptionPowerProfile: String {
         get { defaults.string(forKey: Key.perceptionPowerProfile.rawValue) ?? "normal" }
@@ -332,6 +338,7 @@ final class SettingsStore {
         case perceptionInternetEnabled = "settings.perception.internet"
         case perceptionSystemEnabled = "settings.perception.system"
         case perceptionSpeakerEnabled = "settings.perception.speaker"
+        case perceptionAudioEnabled = "settings.perception.audio"
         case perceptionPowerProfile = "settings.perception.powerProfile"
 
         // Agent approval (codex AskForApproval 两档 + 沙箱允许面 ≈ 第三档)

@@ -225,6 +225,14 @@ struct SettingsView: View {
                     isOn: $settingsState.perceptionInternetEnabled
                 )
                 .accessibilityLabel(StringKey.perceptionInternet.l)
+                Toggle(
+                    StringKey.perceptionAudio.l,
+                    isOn: $settingsState.perceptionAudioEnabled
+                )
+                .accessibilityLabel(StringKey.perceptionAudio.l)
+                Text(StringKey.perceptionAudioHint.l)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Picker(
                     StringKey.perceptionPowerProfile.l,
                     selection: $settingsState.perceptionPowerProfile

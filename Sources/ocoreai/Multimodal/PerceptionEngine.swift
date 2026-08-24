@@ -49,6 +49,7 @@ public struct ChannelConfig: Codable, Sendable {
     var internetInterval: TimeInterval
     var systemInterval: TimeInterval
     var speakerInterval: TimeInterval
+    var audioInterval: TimeInterval
 
     static let `default` = ChannelConfig(
         cameraInterval: 5.0,
@@ -57,7 +58,8 @@ public struct ChannelConfig: Codable, Sendable {
         filesystemInterval: 30.0,
         internetInterval: 300.0,
         systemInterval: 60.0,
-        speakerInterval: 30.0
+        speakerInterval: 30.0,
+        audioInterval: 30.0
     )
     static let reduced = ChannelConfig(
         cameraInterval: 15.0,
@@ -66,7 +68,8 @@ public struct ChannelConfig: Codable, Sendable {
         filesystemInterval: 90.0,
         internetInterval: 600.0,
         systemInterval: 120.0,
-        speakerInterval: 60.0
+        speakerInterval: 60.0,
+        audioInterval: 60.0
     )
     static let minimal = ChannelConfig(
         cameraInterval: 0,
@@ -75,7 +78,8 @@ public struct ChannelConfig: Codable, Sendable {
         filesystemInterval: 120.0,
         internetInterval: 0,
         systemInterval: 300.0,
-        speakerInterval: 0
+        speakerInterval: 0,
+        audioInterval: 0
     )
     static let halted = ChannelConfig(
         cameraInterval: 0,
@@ -84,7 +88,8 @@ public struct ChannelConfig: Codable, Sendable {
         filesystemInterval: 0,
         internetInterval: 0,
         systemInterval: 0,
-        speakerInterval: 0
+        speakerInterval: 0,
+        audioInterval: 0
     )
 }
 
@@ -98,17 +103,21 @@ public struct ChannelFlags: Codable, Sendable {
     var internet: Bool = false
     var system: Bool = true
     var speaker: Bool = false
+    /// Continuous ambient-audio perception (STT transcript stream).
+    /// Off by default — the single-instance mic is shared with press-to-talk,
+    /// and continuous capture is an explicit privacy choice.
+    var audio: Bool = false
 
     static let allOn = ChannelFlags(
         camera: true, screen: true, network: true,
         filesystem: true, internet: true,
-        system: true, speaker: true
+        system: true, speaker: true, audio: true
     )
     static let `default` = ChannelFlags(camera: false, screen: false, network: true, system: true)
     static let allOff = ChannelFlags(
         camera: false, screen: false, network: false,
         filesystem: false, internet: false,
-        system: false, speaker: false
+        system: false, speaker: false, audio: false
     )
 }
 
@@ -134,6 +143,7 @@ final class PerceptionEngine: Sendable {
         if channels.filesystem || channels.internet { list.append(.environment) }
         if channels.system { list.append(.system) }
         if channels.speaker { list.append(.speaker) }
+        if channels.audio { list.append(.audio) }
         #if os(macOS)
         if channels.screen { list.append(.screen) }
         #endif
@@ -210,6 +220,17 @@ final class PerceptionEngine: Sendable {
         if channels.speaker, config.speakerInterval > 0 {
             _samplingTasks["speaker"] = Task.detached(priority: .utility) {
                 await Self.shared.sampleSpeaker(every: config.speakerInterval)
+            }
+        }
+
+        // Continuous ambient-audio channel (STT transcript stream).
+        // Reuses the shared AudioIO speech pipeline, mirroring the .speaker
+        // text-context pattern — no new audio primitives. Guarded against
+        // press-to-talk: the loop skips a tick when the mic is already
+        // actively used (recognizing/recording).
+        if channels.audio, config.audioInterval > 0 {
+            _samplingTasks["audio"] = Task.detached(priority: .utility) {
+                await Self.shared.sampleAmbientAudio(every: config.audioInterval)
             }
         }
 
@@ -432,6 +453,42 @@ final class PerceptionEngine: Sendable {
             Task { @MainActor in
                 Self.shared.pushFrame(frame)
             }
+            try? await Task.sleep(for: .seconds(interval))
+        }
+    }
+
+    /// Continuous ambient-audio perception producer (the `.audio` channel's
+    /// one missing loop). Mirrors `sampleSpeaker` exactly: bounded VAD + STT
+    /// per tick, transcript delivered as `textContext` — the live
+    /// `contextText()` injection path — rather than raw audio bytes.
+    ///
+    /// Mic-sharing safety with press-to-talk: `AudioIO.audioEngine` is a
+    /// single instance, so a tick is skipped whenever an explicit STT or
+    /// recording session is in flight. The ambient tick is further bounded by
+    /// `transcribe(timeout:)`'s own VAD auto-stop, so a silent tick returns
+    /// quickly (nil) instead of holding the engine.
+    private nonisolated func sampleAmbientAudio(every interval: TimeInterval) async {
+        while !Task.isCancelled {
+            // Yield the mic to explicit sessions (press-to-talk STT / recording).
+            let audio = await AudioIO.shared
+            guard !(await audio.isRecognizing), !(await audio.isRecording) else {
+                try? await Task.sleep(for: .seconds(interval))
+                continue
+            }
+
+            let transcript = await audio.transcribe(timeout: 20, useVAD: true, feedback: false)
+
+            if let transcript = transcript, !transcript.isEmpty {
+                let frame = PerceptionFrame(
+                    channel: .audio,
+                    textContext: transcript,
+                    estimatedTokens: max(3, transcript.count / 4)
+                )
+                Task { @MainActor in
+                    Self.shared.pushFrame(frame)
+                }
+            }
+
             try? await Task.sleep(for: .seconds(interval))
         }
     }
