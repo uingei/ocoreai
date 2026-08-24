@@ -261,6 +261,41 @@ func bootstrapBuiltInTools(
         }
     )
 
+    // ── view_image ──────────────────────────────────────────────────────────
+    // Baseline: codex `view_image` (`core/src/tools/handlers/view_image_spec.rs`,
+    // `VIEW_IMAGE_TOOL_NAME` = "view_image") — "View a local image file from the
+    // filesystem when visual inspection is needed." One required `path`;
+    // optional `detail` ("high" | "original"). ocoreai's pre-flight half:
+    // verify the file is a real decodable image + report true WxH (ImageIO).
+    struct ViewImageArgs: Codable {
+        let path: String
+        let detail: String?
+    }
+
+    try? await registry.register(
+        ToolEntry.typed(
+            name: "view_image",
+            toolset: "files",
+            argsType: ViewImageArgs.self,
+            description:
+                "Verify an on-disk image file is a real decodable image and report "
+                + "its path, extension, MIME, byte size, and true pixel dimensions",
+            schema: ToolSchema(parameters: [
+                "path": ToolParameter(
+                    type: .string,
+                    description: "Filesystem path to an image file (absolute, `~`, or relative)"),
+                "detail": ToolParameter(
+                    type: .string,
+                    description:
+                        "Detail level: `high` (default) or `original` (echo of the "
+                        + "codex spec vocabulary; ocoreai does not resize)"),
+            ])
+        ) { args in
+            let report = try ViewImage.run(path: args.path, detail: args.detail)
+            return ViewImage.reportString(report)
+        }
+    )
+
     // ── echo ────────────────────────────────────────────────────────────────
     struct EchoArgs: Codable {
         let message: String?
