@@ -282,11 +282,46 @@ func chatCompletionsHandler(
         if promptExceedsContextWindow(
             promptTokens: promptTokenCount, maxContextWindow: modelContextCap)
         {
+            // Fire PreCompact hooks (codex PreCompactHookOutcome::Stopped → abort).
+            // Scoped to compact-specific hooks (matcher == nil or "*"); existing
+            // tool-scoped hooks (e.g. `.matching("write_file")`) do not fire here.
+            let runner = await enginePool.toolRegistry?.hookRunner
+            let preVerdict =
+                await runner?.evaluatePreCompact(
+                    reason: "context-window-exceeded",
+                    sessionId: request.sessionID
+                ) ?? .allow
+            if !preVerdict.isAllow {
+                // codex: PreCompactHookOutcome::Stopped → CodexErr::TurnAborted.
+                // Here: the transcript no longer fits the cap, so abort with a
+                // 400 rather than send a super-cap transcript. (Aligned semantics:
+                // hook-vetoed compact with no alternative path = request fails.)
+                let reason = "compact-vetoed-by-hook"
+                logger.warning(
+                    "PreCompact hook vetoed compaction; aborting request",
+                    metadata: [
+                        "model": .string(modelId),
+                        "reason": .string(reason),
+                        "promptTokens": .string("\(promptTokenCount)"),
+                        "cap": .string("\(modelContextCap ?? 0)"),
+                    ])
+                throw AppError.invalidRequest(
+                    "Compaction was vetoed by a PreCompact hook and the transcript still exceeds the context window. "
+                        + "Shorten the input, lower `reserveTokens`, or allow compaction for this request."
+                )
+            }
+
             let compacted = ConversationCompaction.compact(
                 fullMessages,
                 .init(maxPromptTokens: modelContextCap)
             )
             if compacted.removedCount > 0 {
+                // PostCompact observation (codex PostCompactHookOutcome).
+                _ = await runner?.firePostCompact(
+                    reason: "context-window-exceeded",
+                    removedCount: compacted.removedCount,
+                    sessionId: request.sessionID
+                )
                 // Re-estimate the compacted transcript. If it now fits,
                 // update the working messages + the token count and let Phase 4
                 // proceed on the compacted transcript.

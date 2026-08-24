@@ -16,7 +16,7 @@ actor ToolRegistry {
     /// Default empty → hooks are opt-in via a non-empty `[Hook]` (e.g. `auditPolicy`,
     /// `destructiveOnly`, etc.). A `nil` matcher means the hook applies to every tool.
     /// See `Agents/Hooks/ToolHookRunner.swift` for the surface and semantics.
-    private let hookRunner: ToolHookRunner
+    internal let hookRunner: ToolHookRunner
     /// Read-only tool lookup table (published after registration changes)
     private var tools: [String: ToolEntry] = [:]
     /// Toolset → [tool name] mapping for batch queries

@@ -6,6 +6,18 @@
 /// This module implements the five ocoreai-relevant ones:
 ///   PreToolUse / PostToolUse / PreCompact / PostCompact / Stop
 ///
+/// Fire methods exist for all five:
+///   - PreToolUse / PostToolUse fire at `ToolRegistry.call` (tool chokepoint).
+///   - PreCompact / PostCompact fire at `ChatHandler` Phase 3.5 (compact chokepoint),
+///     scoped to compact-specific hooks (`matcher == nil` or `"*"`) so existing
+///     tool-scoped hooks (e.g. `.matching("write_file")`) do not fire on compact.
+///     Semantics: PreCompact `.deny` aborts compaction (codex
+///     `PreCompactHookOutcome::Stopped` → `CodexErr::TurnAborted`); PostCompact
+///     is observation-only.
+///   - Stop is a dead enum case in this pass (no real turn-end chokepoint in
+///     the ocoreai stream architecture; codex fires it per root turn, which
+///     is a different lifecycle shape than ocoreai's per-request handler model).
+///
 /// Deliberately NOT implemented (consumer-transparent for ocoreai, per the user
 /// "don't pre-build speculative agent-loop abstractions" rule): UserPromptSubmit
 /// (handled inline in MessageBuilder), SubagentStart / SubagentStop (delegation is
@@ -51,6 +63,9 @@ public struct HookContext: Sendable, Equatable {
     public let result: String?
     /// Sanitized error message when a tool failed (nil otherwise).
     public let error: String?
+    /// Compact trigger reason (nil for tool events). Populated for
+    /// `PreCompact` / `PostCompact` events so handlers can inspect the cause.
+    public let reason: String?
     /// Session identity propagated to audit/observability handlers (nil-safe).
     public let sessionId: String?
 
@@ -60,6 +75,7 @@ public struct HookContext: Sendable, Equatable {
         arguments: String = "",
         result: String? = nil,
         error: String? = nil,
+        reason: String? = nil,
         sessionId: String? = nil
     ) {
         self.event = event
@@ -67,6 +83,7 @@ public struct HookContext: Sendable, Equatable {
         self.arguments = arguments
         self.result = result
         self.error = error
+        self.reason = reason
         self.sessionId = sessionId
     }
 }
@@ -156,6 +173,16 @@ public struct Hook: Sendable {
     public let matcher: ToolMatcher?
     public let handler: @Sendable (HookContext) async -> HookVerdict
 
+    /// Compact-specific applicability: fires on compact events only when the
+    /// hook has no tool-scope restriction (nil matcher) or a global matcher
+    /// (`"*"`). Pre/post-tool-scoped hooks (e.g. `.matching("write_file")`) do
+    /// NOT fire on compact — aligned with codex's separation of tool hooks and
+    /// compact hooks (different request types, different matcher surface).
+    internal func compactApplies() -> Bool {
+        guard let matcher else { return true }
+        return matcher.matchesEverything
+    }
+
     public init(
         events: Set<HookEvent> = Set(HookEvent.allCases),
         matcher: ToolMatcher? = nil,
@@ -204,17 +231,22 @@ public struct Hook: Sendable {
 /// Matcher application is uniform everywhere: a hook fires only if its matcher
 /// (when present) matches the target tool name.
 ///
-/// **Scope (deliberate, per user "禁投机式 API 大构建" rule)** — only the
-/// two codex hook events with a real ocoreai chokepoint in this pass are
-/// implemented:
+/// **Scope** — five codex hook events with a real ocoreai chokepoint are fired:
 ///   - ``HookEvent/preToolUse`` → veto at `ToolRegistry.call` (the single
 ///     chokepoint every LLM tool call routes through)
 ///   - ``HookEvent/postToolUse`` → observation on both success/failure paths
+///   - ``HookEvent/preCompact`` → observation at `ChatHandler` Phase 3.5;
+///     `.deny` verdict aborts compaction (aligned with codex
+///     `PreCompactHookOutcome::Stopped` → `CodexErr::TurnAborted`)
+///   - ``HookEvent/postCompact`` → observation after compaction completes
+///   - ``HookEvent/stop`` → reserved enum case, no fire site in this pass
+///     (no real turn-end chokepoint in the ocoreai stream architecture;
+///     codex fires it per root turn, which is a different lifecycle shape
+///     than ocoreai's per-request handler model).
 ///
-/// Not implemented (consumer-transparent for ocoreai): ``HookEvent/preCompact``,
-/// ``HookEvent/postCompact`` (would require a new ChatHandler dependency),
-/// ``HookEvent/stop`` (would require an EngineInference change), and the two
-/// codex subagent events (delegation is a prohibited architecture by user mandate).
+/// Compact events are scoped to compact-specific hooks (`matcher == nil` or
+/// `"*"`), so existing tool-scoped hooks (e.g. `.matching("write_file")`) do
+/// not fire on compact invocations.
 public struct ToolHookRunner: Sendable {
     public let hooks: [Hook]
 
@@ -277,4 +309,72 @@ public struct ToolHookRunner: Sendable {
             _ = await hook.handler(ctx)
         }
     }
+
+    // MARK: - Compact gating (PreCompact / PostCompact)
+
+    /// Evaluation of a compact event. Returns `.allow` unless a
+    /// compact-scoped hook (matcher == nil or `"*"`) returns `.deny`
+    /// (short-circuits) — `.ask` is treated as `.deny` on compact events
+    /// since there is no approval UI surface at the compact chokepoint
+    /// (mirrors the PreToolUse `.ask`-no-UI semantics already documented).
+    public func evaluatePreCompact(
+        reason: String,
+        sessionId: String? = nil
+    ) async -> HookVerdict {
+        let ctx = Self.compactCtx(.preCompact, reason: reason, sessionId: sessionId)
+        var pendingAsk: HookVerdict? = nil
+        for hook in hooks
+        where hook.events.contains(.preCompact)
+            && hook.compactApplies()
+        {
+            let verdict = await hook.handler(ctx)
+            switch verdict {
+            case .allow:
+                continue
+            case .deny(let reason):
+                return .deny(reason: reason)
+            case .ask(let reason):
+                if pendingAsk == nil { pendingAsk = .ask(reason: reason) }
+            }
+        }
+        return pendingAsk ?? .allow
+    }
+
+    /// Post-compact observation. Verdicts are ignored (observation-only) —
+    /// codex `PostCompactHookOutcome::Stopped` has no clean ocoreai mapping
+    /// (would require unwinding the already-built transcript); treated as
+    /// observation.
+    public func firePostCompact(
+        reason: String,
+        removedCount: Int,
+        sessionId: String? = nil
+    ) async {
+        let ctx = Self.compactCtx(
+            .postCompact,
+            reason: reason,
+            result: "\(removedCount) message(s) compacted",
+            sessionId: sessionId)
+        for hook in hooks
+        where hook.events.contains(.postCompact)
+            && hook.compactApplies()
+        {
+            await hook.handler(ctx)
+        }
+    }
+
+    private static func compactCtx(
+        _ event: HookEvent,
+        reason: String,
+        result: String? = nil,
+        sessionId: String? = nil
+    ) -> HookContext {
+        HookContext(
+            event: event,
+            arguments: "",
+            result: result,
+            error: nil,
+            reason: reason,
+            sessionId: sessionId)
+    }
+
 }

@@ -367,6 +367,118 @@ struct ToolRegistryHookIntegrationTests {
     }
 }
 
+// MARK: - PreCompact / PostCompact (compact events)
+
+@Suite("ToolHook — PreCompact (veto) + PostCompact (observation)")
+struct CompactHookTests {
+
+    @Test("PreCompact: no hooks → allow")
+    func noHooks() async {
+        let runner = ToolHookRunner(hooks: [])
+        #expect(await runner.evaluatePreCompact(reason: "ctx-window") == .allow)
+    }
+
+    @Test("PreCompact: all-allow → allow; allow+deny → deny (first deny wins)")
+    func allowThenDeny() async {
+        let r = ToolHookRunner(hooks: [
+            Hook.any { _ in .allow },
+            .matching("*") { _ in .deny(reason: "deny-alpha") },
+        ])
+        #expect(await r.evaluatePreCompact(reason: "r") == .deny(reason: "deny-alpha"))
+        let a = ToolHookRunner(hooks: [Hook.any { _ in .allow }])
+        #expect(await a.evaluatePreCompact(reason: "r") == .allow)
+    }
+
+    @Test("PreCompact: ask returned (callers treat as deny)")
+    func askReturned() async {
+        let r = ToolHookRunner(hooks: [
+            Hook.any { _ in .allow },
+            .matching("*") { _ in .ask(reason: "needs-approval") },
+        ])
+        #expect(await r.evaluatePreCompact(reason: "r") == .ask(reason: "needs-approval"))
+    }
+
+    @Test("PreCompact: event-isolation — postCompact-only hook does NOT fire on pre")
+    func eventIsolation() async {
+        let r = ToolHookRunner(hooks: [
+            Hook(events: [.postCompact]) { _ in .deny(reason: "post-only") }
+        ])
+        #expect(await r.evaluatePreCompact(reason: "r") == .allow)
+    }
+
+    @Test("PreCompact: tool-scoped (named-match) hook does NOT fire on compact")
+    func toolScopeNoFire() async {
+        let r = ToolHookRunner(hooks: [
+            .matching("write_file") { _ in .deny(reason: "tool-scoped") }
+        ])
+        #expect(await r.evaluatePreCompact(reason: "r") == .allow)
+    }
+
+    @Test("PreCompact: global `*` hook fires with exact ctx fields")
+    func globalStarExactCtx() async {
+        let r = ToolHookRunner(hooks: [
+            .matching("*") { ctx in
+                let ok =
+                    ctx.event == .preCompact
+                    && ctx.reason == "ctx-window"
+                    && ctx.sessionId == "sess-99"
+                    && ctx.toolName == nil
+                    && ctx.result == nil
+                    && ctx.error == nil
+                    && ctx.arguments == ""
+                return ok ? .allow : .deny(reason: "ctx-field-mismatch")
+            }
+        ])
+        #expect(await r.evaluatePreCompact(reason: "ctx-window", sessionId: "sess-99") == .allow)
+    }
+
+    @Test("PostCompact: global `*` handler fires once with exact ctx (observation)")
+    func postFiresOnce() async {
+        let counter = RanCounter()
+        let r = ToolHookRunner(hooks: [
+            .matching("*") { ctx in
+                let ok =
+                    ctx.event == .postCompact
+                    && ctx.reason == "ctx-window"
+                    && ctx.result == "3 message(s) compacted"
+                    && ctx.sessionId == "sess-7"
+                    && ctx.toolName == nil
+                if !ok { return .deny(reason: "ctx-field-mismatch") }
+                await counter.increment()
+                return .allow
+            }
+        ])
+        await r.firePostCompact(reason: "ctx-window", removedCount: 3, sessionId: "sess-7")
+        #expect(await counter.value == 1)
+    }
+
+    @Test("PostCompact: tool-scoped hook does NOT fire on compact (0 calls)")
+    func postToolScopeNoFire() async {
+        let counter = RanCounter()
+        let r = ToolHookRunner(hooks: [
+            .matching("write_file") { _ in
+                await counter.increment()
+                return .allow
+            }
+        ])
+        await r.firePostCompact(reason: "r", removedCount: 5)
+        #expect(await counter.value == 0)
+    }
+
+    @Test("PostCompact: event-isolation — preCompact-only hook does NOT fire on post")
+    func postEventIsolation() async {
+        let counter = RanCounter()
+        let r = ToolHookRunner(hooks: [
+            Hook(events: [.preCompact]) { _ in
+                await counter.increment()
+                return .allow
+            }
+        ])
+        await r.firePostCompact(reason: "r", removedCount: 1)
+        #expect(await counter.value == 0)
+    }
+}
+
 // MARK: - Counter
 
 actor RanCounter {
