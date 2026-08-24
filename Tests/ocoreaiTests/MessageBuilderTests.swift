@@ -9,7 +9,7 @@
 ///  - System prompt injection (Phase 1-4)
 ///  - Tool definition injection (Phase 5)
 ///  - Empty-message guard (Phase 6)
-///  - Complexity caching (lastTaskType / lastComplexityScore)
+///  - Complexity caching (lastComplexityScore)
 
 import Foundation
 import Logging
@@ -298,12 +298,6 @@ struct ReasoningScaffoldTests {
 
 @Suite("MessageBuilder — complexity cache query")
 struct ComplexityCacheTests {
-    @Test("lastTaskType returns .general before build")
-    func lastTaskTypeBefore() async throws {
-        let builder = try await makeFixture()
-        #expect(await builder.lastTaskType() == .general)
-    }
-
     @Test("lastComplexityScore is nil before build")
     func lastScoreNil() async throws {
         let builder = try await makeFixture()
@@ -327,10 +321,10 @@ struct ComplexityCacheTests {
         let score = await builder.lastComplexityScore()
         #expect(score != nil, "Complexity score should be populated after build")
         // "function", "reverses", "linked list" → .code via keyword match
-        let taskType = await builder.lastTaskType()
         #expect(
-            taskType == .code,
-            "Python linked-list prompt should be classified as .code (got \(taskType.rawValue))")
+            score?.taskType == .code,
+            "Python linked-list prompt should be classified as .code (got \(score?.taskType.rawValue ?? "nil"))"
+        )
         // Verify score composite is populated — code task should yield a positive score
         // ComplexityAnalyzer: 20 messages (messageCount=20 → complexity ≥ 0.15)
         // + code keywords → task multiplier → composite ≥ 0.2

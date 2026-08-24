@@ -5,7 +5,7 @@
 /// Upstream alignment: ToolTests.swift (chunk-by-chunk tool call detection).
 ///
 /// L2 focus: InferenceCancellation state machine, SamplingConfiguration normalization,
-/// task-aware temperature adjustment, parseToolCalls false positive prevention.
+/// parseToolCalls false positive prevention.
 ///
 /// Removed: InferenceEvent enum mapping, contentToString, EnginePoolConfig defaults,
 /// InferenceOptions preservation, SamplingConfiguration field checks (all DTO-level).
@@ -90,54 +90,6 @@ struct SamplingConfigNormalizedTests {
         let normalized = config.normalized()
         #expect(normalized.topP == 0.9)
         #expect(normalized.topK == 50)
-    }
-}
-
-@Suite("SamplingConfiguration: task-aware temperature adjustment")
-struct TaskAwareTests {
-
-    @Test("code task lowers temperature to ≤ 0.4")
-    func codeLowersTemp() {
-        let config = SamplingConfiguration(temperature: 0.9)
-        let adjusted = config.withTaskAwareParams(for: .code)
-        #expect(adjusted.temperature! <= 0.4)
-    }
-
-    @Test("math task lowers temperature to ≤ 0.4")
-    func mathLowersTemp() {
-        let config = SamplingConfiguration(temperature: 0.8)
-        let adjusted = config.withTaskAwareParams(for: .math)
-        #expect(adjusted.temperature! <= 0.4)
-    }
-
-    @Test("json task tightens topP to ≤ 0.92")
-    func jsonTightensTopP() {
-        let config = SamplingConfiguration(temperature: 0.7, topP: 0.99)
-        let adjusted = config.withTaskAwareParams(for: .json)
-        #expect(adjusted.topP! <= 0.92)
-    }
-
-    @Test("comparison task moderate reduction (≤ 0.5)")
-    func comparisonModerate() {
-        let config = SamplingConfiguration(temperature: 0.8)
-        let adjusted = config.withTaskAwareParams(for: .comparison)
-        #expect(adjusted.temperature! <= 0.5)
-    }
-
-    @Test("low temperature (< 0.5) unchanged even for precision tasks")
-    func lowTempUnchanged() {
-        let config = SamplingConfiguration(temperature: 0.3)
-        let adjusted = config.withTaskAwareParams(for: .code)
-        #expect(adjusted.temperature == 0.3)
-    }
-
-    @Test("task-aware config preserves presencePenalty and frequencyPenalty")
-    func penaltiesPreserved() {
-        let config = SamplingConfiguration(
-            temperature: 0.9, presencePenalty: 0.3, frequencyPenalty: 0.1)
-        let adjusted = config.withTaskAwareParams(for: TaskType.general)
-        #expect(adjusted.presencePenalty == 0.3)
-        #expect(adjusted.frequencyPenalty == 0.1)
     }
 }
 

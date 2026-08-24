@@ -409,19 +409,10 @@ func chatCompletionsHandler(
             frequencyContextSize: effectiveFrequencyContextSize,
         )
 
-        /// Phase 4b: Task-aware parameter adjustment — precision tasks get lower temperature.
-        let taskType = await messageBuilder.lastTaskType()
-        let taskAwareSampling = rawSampling.withTaskAwareParams(for: taskType)
-        if taskAwareSampling != rawSampling {
-            logger.info(
-                "Task-aware params adjusted for \(taskType.rawValue): temp=\(String(describing: rawSampling.temperature))→\(String(describing: taskAwareSampling.temperature))"
-            )
-        }
-
-        let sampling = taskAwareSampling.normalized()
+        let sampling = rawSampling.normalized()
 
         /// Log warning if normalization dropped parameters.
-        if sampling != taskAwareSampling {
+        if sampling != rawSampling {
             logger.warning("Sampling config normalized (redundant params dropped)")
         }
 
