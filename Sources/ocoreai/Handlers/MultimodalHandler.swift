@@ -134,7 +134,7 @@ func multimodalSpeakHandler(
                 message: "Speaker is disabled",
             ))
     }
-    logger.info("Multimodal: speaking text (\\(request.text.count) chars)")
+    logger.info("Multimodal: speaking text (\(request.text.count) chars)")
     await AudioIO.shared.speak(request.text)
     return try await Response.json(
         CaptureResponse(

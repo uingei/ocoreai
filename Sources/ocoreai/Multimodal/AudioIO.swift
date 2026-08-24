@@ -118,6 +118,10 @@ final class AudioIO: NSObject {
     @MainActor
     override init() {
         super.init()
+        // Wire delegate so didFinish/didCancel reset `isSpeaking` — without
+        // this the flag stays true forever once speak() is called, corrupting
+        // the SpeakerFeedbackSensor perception channel and the UI state pill.
+        synthesizer.delegate = self
         Task {
             if #available(macOS 15, *) {
                 await AVCaptureDevice.requestAccess(for: .audio)

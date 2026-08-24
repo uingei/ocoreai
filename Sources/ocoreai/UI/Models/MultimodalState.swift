@@ -12,16 +12,10 @@ import os.log
 
 private let mmLogger = Logger(subsystem: "ocoreai", category: "multimodal_state")
 
-#if os(macOS)
 // Forward declarations to avoid circular import — imported via Multimodule later
 typealias MMCaptureService = CaptureService
 typealias MMScreenshotService = ScreenshotService
 typealias MMAudioIO = AudioIO
-#else
-typealias MMCaptureService = CaptureService
-typealias MMScreenshotService = ScreenshotService
-typealias MMAudioIO = AudioIO
-#endif
 
 @Observable
 @MainActor
@@ -223,7 +217,7 @@ final class MultimodalState {
                 contexts.append(
                     MMContextEntry(name: "camera", dataURL: nil, ocrText: ocrText, audioURL: nil))
                 mmLogger.info(
-                    "[MultimodalState] Context: camera OCR text captured (\\(ocrText.count) chars)")
+                    "[MultimodalState] Context: camera OCR text captured (\(ocrText.count) chars)")
             } else if let frameURL = await cs.captureFrame() {
                 self.cameraSnapshot = frameURL
                 contexts.append(
@@ -240,7 +234,7 @@ final class MultimodalState {
                 contexts.append(
                     MMContextEntry(name: "screen", dataURL: nil, ocrText: ocrText, audioURL: nil))
                 mmLogger.info(
-                    "[MultimodalState] Context: screen OCR text captured (\\(ocrText.count) chars)")
+                    "[MultimodalState] Context: screen OCR text captured (\(ocrText.count) chars)")
             } else if let frameURL = await ss.captureScreen() {
                 self.screenSnapshot = frameURL
                 contexts.append(
