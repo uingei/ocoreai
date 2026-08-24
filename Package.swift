@@ -36,7 +36,27 @@ let package = Package(
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if canImport(CoreAI)` guards
         // Pinned to exact revision — upstream main branch drifts; update via `swift package update`
-        // then bump .revision + test. Current pin: 2026-08-23 — @ 1441444.
+        // then bump .revision + test. Current pin: 2026-08-25 — @ 626516b.
+        //
+        // 1441444..626516b (4 commits, all verified consumer-transparent / free riders):
+        //   - #564 (1970177): Fix mixed-precision QLoRA output promotion —
+        //     LoRA+Layers.swift +8L internal promotion fix; no API change.
+        //   - #570 (d3f28a8): Tune TurboFlash query grouping for short decode —
+        //     TurboQuantKernels.swift internal kernel tuning; `.turboQuant`
+        //     path ocoreai consumes gains it for free (no opt-in needed).
+        //   - #565 (60985ee): Extensible VLM processor loading rules —
+        //     NEW VLMProcessorLoadingRegistry (opt-in; default `.shared`
+        //     resolution unchanged) + VLMModelFactory init gains defaulted
+        //     `processorLoadingRegistry:` param. ocoreai's
+        //     `VLMModelFactory.shared.loadContainer` call sites (MLXBridge
+        //     L128/L547) are signature-compatible — no ocoreai change.
+        //   - #567 (626516b): Share fused Qwen3.5 router top-k across LLM/VLM —
+        //     new MLXLMCommon/MoERouterTopK.swift + Qwen35.swift refactor;
+        //     model-specific internals, no ocoreai-facing API change.
+        //   Exhaustiveness sweep: none of the 4 adds a public enum case on a
+        //   type ocoreai switches over (grep `case .` in Sources/ vs
+        //   Libraries/MLXLMCommon diff — no new Generation/TokenStreamEvent
+        //   cases in range).
         //
         // d661402..1441444 (1 commit):
         //   - #544 (1441444): Fix MLXFoundationModels compilation against the
@@ -78,7 +98,7 @@ let package = Package(
         //     LoRA+dropout inference in LLMLifecycleHandler.
         // Re-evaluate at each upstream main bump: re-grep `Generation` switch
         // sites and confirm exhaustiveness before building.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "1441444"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "626516b"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
