@@ -3,10 +3,11 @@
 /// ToolHookRunner.swift — Lifecycle hooks aligned with codex-rs `HookEventName`.
 ///
 /// Baseline: codex `codex-rs/protocol/src/protocol.rs:1510` defines 11 hook events.
-/// This module implements the five ocoreai-relevant ones:
+/// ocoreai declares the five ocoreai-relevant ones in the `HookEvent` enum:
 ///   PreToolUse / PostToolUse / PreCompact / PostCompact / Stop
 ///
-/// Fire methods exist for all five:
+/// Four of the five carry fire/evaluate methods (Stop is declared but
+/// intentionally NOT wired — see the Stop note below):
 ///   - PreToolUse / PostToolUse fire at `ToolRegistry.call` (tool chokepoint).
 ///   - PreCompact / PostCompact fire at `ChatHandler` Phase 3.5 (compact chokepoint),
 ///     scoped to compact-specific hooks (`matcher == nil` or `"*"`) so existing
