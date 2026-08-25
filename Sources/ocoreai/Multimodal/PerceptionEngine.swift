@@ -569,6 +569,19 @@ final class PerceptionEngine: Sendable {
         return parts
     }
 
+    /// Media-only parts (image bytes + audio bytes) for VLM delivery.
+    ///
+    /// Production injection point: `_runInferenceWithMessages` attaches these
+    /// to the last user message (b2). Text/OCR frames are excluded on purpose:
+    /// `contextText()` already carries them on the system path — including
+    /// them here would double-deliver the same text and double-count tokens
+    /// against the budget.
+    @MainActor
+    func mediaContentParts(budget: PerceptionBudget? = nil) -> [ContentPart] {
+        self.contentParts(budget: budget)
+            .filter { $0.imageUrl != nil || $0.audioURL != nil }
+    }
+
     // MARK: - System context text
 
     /// Produce a compact perception summary string suitable for system prompt

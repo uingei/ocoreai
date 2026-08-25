@@ -112,6 +112,123 @@ private func logGuidedGenError(
 /// NOTE: Bias caching is deferred pending Synchronization.AsyncLock availability
 /// in non-actor contexts. Currently re-computed per inference (low overhead).
 
+// MARK: - Perception Media Attachment (free function)
+
+/// Attach perception capture media (image bytes + audio) to the last
+/// user-role message. Perceptual context rides the USER turn, not system
+/// instructions (skill: perception injection = user message, not system).
+///
+/// Pure/free — no `EnginePool` self, no shared state; the `makeImage`/`makeAudio`
+/// closures are injected so callers decide byte-decoding semantics (data-URL /
+/// EXIF / temp `.caf`). This keeps the attach logic independently testable
+/// without constructing a full inference actor.
+///
+/// Returns temp audio file URLs the caller must clean up after inference.
+/// Chat.Message is a Sendable struct with `var images`/`var audios`, so
+/// post-map mutation of the last user message is safe.
+func attachPerceptionMedia(
+    _ messages: inout [Chat.Message],
+    mediaParts: [ContentPart],
+    makeImage: (String) -> MLXLMCommon.UserInput.Image?,
+    makeAudio: (String) -> (audio: MLXLMCommon.UserInput.Audio?, tempURL: URL?)
+) -> [URL] {
+    var images: [MLXLMCommon.UserInput.Image] = []
+    var audios: [MLXLMCommon.UserInput.Audio] = []
+    var tempURLs: [URL] = []
+    for part in mediaParts {
+        if let img = part.imageUrl, let image = makeImage(img.url) {
+            images.append(image)
+        }
+        if let audio = part.audioURL {
+            let result = makeAudio(audio.url)
+            if let audioInput = result.audio {
+                audios.append(audioInput)
+            }
+            if let tempFile = result.tempURL {
+                tempURLs.append(tempFile)
+            }
+        }
+    }
+    guard !images.isEmpty || !audios.isEmpty,
+        let lastUser = messages.lastIndex(where: { $0.role == .user })
+    else { return tempURLs }
+    messages[lastUser].images.append(contentsOf: images)
+    messages[lastUser].audios.append(contentsOf: audios)
+    return tempURLs
+}
+
+// MARK: - MLX Media Decoders (free functions)
+
+/// Convert a string that may be a data URL (`data:image/…;base64,…`) or a
+/// regular URL into an ``MLXLMCommon/UserInput/Image``.
+/// Data URLs are decoded to `CIImage`; remote/local URLs are passed through.
+/// Free function — does not capture `EnginePool` self (avoids Sendable taint in
+/// the inference body); independently testable (b4).
+func makeMLXImage(from urlString: String) -> MLXLMCommon.UserInput.Image? {
+    // Handle data: URIs (camera/screen snapshots come as base64 data URLs)
+    if urlString.hasPrefix("data:") {
+        // Use the LAST comma — base64 payload or URL-encoded data may contain commas
+        if let lastComma = urlString.lastIndex(of: ",") {
+            let base64Data = String(urlString[urlString.index(after: lastComma)...])
+            guard let data = Data(base64Encoded: base64Data) else { return nil }
+            // Decode via CGImageSource with auto-orient so EXIF orientation
+            // is baked into pixel data before CIImage consumes it (CIImage
+            // ignores EXIF orientation, causing rotated output.  Aligns with
+            // mlx-swift-examples ChatView.swift L105-128.)
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                let cgImage = CGImageSourceCreateImageAtIndex(
+                    source,
+                    0,
+                    ["ShouldAutoOrient": true] as CFDictionary
+                )
+            else { return nil }
+            return .ciImage(CIImage(cgImage: cgImage))
+        }
+
+        return nil
+    }
+
+    // Fallback: regular URL (http, file, etc.)
+    if let url = URL(string: urlString) {
+        return .url(url)
+    }
+
+    return nil
+}
+
+/// Convert a string that may be a data URL (`data:audio/…;base64,…`) or a
+/// regular URL into an ``MLXLMCommon/UserInput/Audio``.
+/// Data URLs are decoded to a temp `.caf` file; remote/local URLs are passed through.
+/// Free function — returns (audio, tempURL) so callers can clean up the temp file
+/// after inference. Independently testable (b4).
+func makeMLXAudio(from urlString: String) -> (
+    audio: MLXLMCommon.UserInput.Audio?, tempURL: URL?
+) {
+    // Handle data: URIs (recordings come as base64 data URLs)
+    if urlString.hasPrefix("data:") {
+        // Use the LAST comma — base64 payload may contain commas
+        guard let lastComma = urlString.lastIndex(of: ",") else { return (nil, nil) }
+        let base64Data = String(urlString[urlString.index(after: lastComma)...])
+        guard let data = Data(base64Encoded: base64Data) else { return (nil, nil) }
+        // Write to temp file so AVAssetReader can decode it
+        let tmpName = "ocoreai_audio_\(UUID().uuidString.prefix(8)).caf"
+        let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(tmpName)
+        do {
+            try data.write(to: tmpURL)
+            return (.url(tmpURL), tmpURL)
+        } catch {
+            return (nil, nil)
+        }
+    }
+
+    // Fallback: regular URL (http, file, etc.) — no temp file created
+    if let url = URL(string: urlString) {
+        return (.url(url), nil)
+    }
+
+    return (nil, nil)
+}
+
 extension EnginePool {
     // MARK: - Entry Points (TaskGroup dispatch)
 
@@ -643,76 +760,6 @@ extension EnginePool {
 
         metrics.inferenceMs = metrics.overallMs
         continuation.finish()
-    }
-    // MARK: - MLX Image Helper
-
-    /// Convert a string that may be a data URL (`data:image/…;base64,…`) or a
-    /// regular URL into an ``MLXLMCommon/UserInput/Image``.
-    /// Data URLs are decoded to `CIImage`; remote/local URLs are passed through.
-    /// Top-level free function — does not capture `self` (avoids Sendable taint).
-    nonisolated func makeMLXImage(from urlString: String) -> MLXLMCommon.UserInput.Image? {
-        // Handle data: URIs (camera/screen snapshots come as base64 data URLs)
-        if urlString.hasPrefix("data:") {
-            // Use the LAST comma — base64 payload or URL-encoded data may contain commas
-            if let lastComma = urlString.lastIndex(of: ",") {
-                let base64Data = String(urlString[urlString.index(after: lastComma)...])
-                guard let data = Data(base64Encoded: base64Data) else { return nil }
-                // Decode via CGImageSource with auto-orient so EXIF orientation
-                // is baked into pixel data before CIImage consumes it (CIImage
-                // ignores EXIF orientation, causing rotated output.  Aligns with
-                // mlx-swift-examples ChatView.swift L105-128.)
-                guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-                    let cgImage = CGImageSourceCreateImageAtIndex(
-                        source,
-                        0,
-                        ["ShouldAutoOrient": true] as CFDictionary
-                    )
-                else { return nil }
-                return .ciImage(CIImage(cgImage: cgImage))
-            }
-
-            return nil
-        }
-
-        // Fallback: regular URL (http, file, etc.)
-        if let url = URL(string: urlString) {
-            return .url(url)
-        }
-
-        return nil
-    }
-
-    /// Convert a string that may be a data URL (`data:audio/…;base64,…`) or a
-    /// regular URL into an ``MLXLMCommon/UserInput/Audio``.
-    /// Data URLs are decoded to a temp `.caf` file; remote/local URLs are passed through.
-    /// Top-level free function — does not capture `self` (avoids Sendable taint).
-    /// Returns the created temp file URL (if any) so callers can clean up after inference.
-    nonisolated func makeMLXAudio(from urlString: String) -> (
-        audio: MLXLMCommon.UserInput.Audio?, tempURL: URL?
-    ) {
-        // Handle data: URIs (recordings come as base64 data URLs)
-        if urlString.hasPrefix("data:") {
-            // Use the LAST comma — base64 payload may contain commas
-            guard let lastComma = urlString.lastIndex(of: ",") else { return (nil, nil) }
-            let base64Data = String(urlString[urlString.index(after: lastComma)...])
-            guard let data = Data(base64Encoded: base64Data) else { return (nil, nil) }
-            // Write to temp file so AVAssetReader can decode it
-            let tmpName = "ocoreai_audio_\(UUID().uuidString.prefix(8)).caf"
-            let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(tmpName)
-            do {
-                try data.write(to: tmpURL)
-                return (.url(tmpURL), tmpURL)
-            } catch {
-                return (nil, nil)
-            }
-        }
-
-        // Fallback: regular URL (http, file, etc.) — no temp file created
-        if let url = URL(string: urlString) {
-            return (.url(url), nil)
-        }
-
-        return (nil, nil)
     }
 
     // MARK: - MLX ToolCall Conversion
@@ -1463,9 +1510,15 @@ extension EnginePool {
         // X6-fix: Also check multimodal content — CoreAI `_runInference` cannot tokenize
         // multimodal content (`contentToString()` in EnginePool.tokenize() silently drops
         // images/videos/audio, producing text-only output for VLM requests).
+        // b3: Also check captured perception media — the b2 injection delivers image/
+        // audio bytes only via the MLX path. If ANE is selected, a VLM's perception
+        // media would be silently dropped (CoreAI cannot tokenize VLM media), so
+        // fall back to GPU exactly like user-attached media.
         // Gate both BEFORE badge emit so the badge reflects the actual accelerator.
         #if canImport(CoreAI)
         if computeChannel == .ane {
+            let perceptionMediaParts = await PerceptionEngine.shared.mediaContentParts()
+            let perceptionMediaPresent = loaded.isVlm && !perceptionMediaParts.isEmpty
             if !PlatformHelpers.isCoreAIRuntimeAvailable {
                 logger.warning(
                     "HardwareRouter → ANE but CoreAI runtime unavailable, falling back to GPU for \(modelId)"
@@ -1474,6 +1527,11 @@ extension EnginePool {
             } else if hasMultimodalContent(messages) {
                 logger.info(
                     "ANE selected but multimodal content present (CoreAI cannot tokenize VLM), falling back to GPU for \(modelId)"
+                )
+                computeChannel = .gpu
+            } else if perceptionMediaPresent {
+                logger.info(
+                    "ANE selected but perception media present (CoreAI cannot tokenize VLM media), falling back to GPU for \(modelId)"
                 )
                 computeChannel = .gpu
             }
@@ -1610,7 +1668,7 @@ extension EnginePool {
 
         let nonSystemMessages = messages.filter { $0.role != "system" }
 
-        let mlxMessages: [Chat.Message] = nonSystemMessages.map { msg in
+        var mlxMessages: [Chat.Message] = nonSystemMessages.map { msg in
             let role: Chat.Message.Role =
                 switch msg.role {
                 case "assistant": .assistant
@@ -1672,6 +1730,27 @@ extension EnginePool {
                 )
             case nil:
                 return Chat.Message(role: role, content: "")
+            }
+        }
+
+        // b2: Delivery of perception media (image bytes/audio) — attach to the
+        // last user message so VLMs receive actual pixels/audio. The LLM-only
+        // rejection at L1448 (hasMultimodalContent) already guards user-attached
+        // media; perception media is only injected for VLMs (loaded.isVlm), so
+        // the same guarantee holds here. Text/OCR frames stay on the system
+        // path via contextText() — see mediaContentParts() doc.
+        if loaded.isVlm {
+            let perceptionMedia = await MainActor.run {
+                PerceptionEngine.shared.mediaContentParts()
+            }
+            if !perceptionMedia.isEmpty {
+                let mediaTempURLs = attachPerceptionMedia(
+                    &mlxMessages,
+                    mediaParts: perceptionMedia,
+                    makeImage: makeMLXImage,
+                    makeAudio: makeMLXAudio
+                )
+                tempAudioURLs.append(contentsOf: mediaTempURLs)
             }
         }
 
