@@ -39,6 +39,7 @@ actor ToolRegistry {
         readOnlyWhitelist: [String] = ["search_files", "read_file", "memory_search"],
         destructiveBlacklist: [String] = [
             "write_file", "delete_file", "exec_command", "execute_code",
+            "exec_shell", "write_stdin", "exec_poll",
         ],
         auditTrail: AuditTrail? = nil,
         hooks: [Hook] = [],

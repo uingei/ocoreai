@@ -362,7 +362,9 @@ public final class OcoreaiEngine {
         _toolRegistry = ToolRegistry(
             auditTrail: auditTrail,
             hooks: [
-                .matching("write_file,edit_file,exec_command,execute_code") { _ in
+                .matching(
+                    "write_file,edit_file,exec_command,execute_code,exec_shell,write_stdin,exec_poll"
+                ) { _ in
                     .ask(reason: "destructive tool call")
                 }
             ],

@@ -261,6 +261,143 @@ func bootstrapBuiltInTools(
         }
     )
 
+    // ── exec_shell / write_stdin / exec_poll — session exec surface ────────
+    // Baseline: codex `unified_exec` (references/codex, HEAD):
+    //   - `exec_command` yield form (`tools/handlers/unified_exec/exec_command.rs`,
+    //     `core/src/unified_exec/mod.rs` `clamp_yield_time` 250–30_000ms
+    //     default 10_000) → ocoreai `exec_shell`: spawn, yield ≤ yieldMs,
+    //     return a session the model keeps polling.
+    //   - `write_stdin` (`tools/handlers/unified_exec/write_stdin.rs`,
+    //     `process_manager.rs:824-832` dual regime): non-empty write clamps
+    //     to 250–30_000 (default 250); **empty poll clamps to 5_000–300_000
+    //     (default 5_000**, `DEFAULT_MAX_BACKGROUND_TERMINAL_TIMEOUT_MS`) →
+    //     ocoreai `write_stdin` mirrors both forms + both clamp branches.
+    //   - `exec_poll`: poll-only alias of the same drain (empty regime).
+    // Additive to `exec_command` (pinned blocking contract, 9-test gate in
+    // `ExecCommandToolTests.swift`): `exec_command` stays for short
+    // block-and-report; the session trio serves long-running / interactive
+    // children (dev servers, REPLs, watch builds).
+    struct ExecShellArgs: Codable {
+        let command: String
+        let cwd: String?
+        let yieldMs: Int?
+    }
+
+    try? await registry.register(
+        ToolEntry.typed(
+            name: "exec_shell",
+            toolset: "shell",
+            argsType: ExecShellArgs.self,
+            description:
+                "Start a long-running / interactive shell session via /bin/zsh -c. "
+                + "Returns a session id plus the output produced during the yield "
+                + "window (clamped to 250–30000 ms, default 10000). Keep the id, "
+                + "then drive the child with `write_stdin` (send stdin, optionally "
+                + "yield) or `exec_poll` (yield without writing). For one-shot "
+                + "commands, prefer `exec_command`.",
+            schema: ToolSchema(parameters: [
+                "command": ToolParameter(
+                    type: .string, description: "Shell command line to run under zsh"),
+                "cwd": ToolParameter(
+                    type: .string,
+                    description: "Optional working directory (absolute, `~`-expanded)"),
+                "yieldMs": ToolParameter(
+                    type: .integer,
+                    description: "How long to wait for output before returning "
+                        + "(ms; clamped to 250–30000, default 10000)"),
+            ]),
+            isDestructive: true
+        ) { args in
+            let res = try await ExecSessionManager.shared.spawn(
+                command: args.command,
+                cwd: args.cwd,
+                yieldMs: args.yieldMs ?? ExecSessionManager.defaultYieldMs
+            )
+            let status =
+                res.completed
+                ? "finished"
+                : "alive — send stdin with `write_stdin`, collect more output with `exec_poll`"
+            return "\(res.report)\nsession_id: \(res.sessionId) (\(status))"
+        }
+    )
+
+    struct WriteStdinArgs: Codable {
+        let sessionId: Int
+        let data: String?
+        let yieldMs: Int?
+    }
+
+    try? await registry.register(
+        ToolEntry.typed(
+            name: "write_stdin",
+            toolset: "shell",
+            argsType: WriteStdinArgs.self,
+            description:
+                "Write text to a shell session's stdin (no implicit newline), then "
+                + "yield up to `yieldMs` and return the new output. With empty "
+                + "`data` this is a pure poll (the stdin pipe is never touched).",
+            schema: ToolSchema(parameters: [
+                "sessionId": ToolParameter(
+                    type: .integer, description: "Session id returned by `exec_shell`"),
+                "data": ToolParameter(
+                    type: .string,
+                    description: "Text to write to the child's stdin "
+                        + "(default empty = poll only)"),
+                "yieldMs": ToolParameter(
+                    type: .integer,
+                    description: "How long to wait for output after the write "
+                        + "(ms; non-empty write clamped 250–30000, default 250)"),
+            ]),
+            isDestructive: true
+        ) { args in
+            let res = try await ExecSessionManager.shared.writeStdin(
+                sessionId: args.sessionId,
+                data: args.data ?? "",
+                yieldMs: args.yieldMs
+            )
+            let status =
+                res.completed
+                ? "finished"
+                : "alive — more input: `write_stdin`, more output: `exec_poll`"
+            return "\(res.report)\nsession_id: \(args.sessionId) (\(status))"
+        }
+    )
+
+    struct ExecPollArgs: Codable {
+        let sessionId: Int
+        let yieldMs: Int?
+    }
+
+    try? await registry.register(
+        ToolEntry.typed(
+            name: "exec_poll",
+            toolset: "shell",
+            argsType: ExecPollArgs.self,
+            description:
+                "Yield up to `yieldMs` on a shell session and return the new output "
+                + "(no stdin write). A finished session returns its final report.",
+            schema: ToolSchema(parameters: [
+                "sessionId": ToolParameter(
+                    type: .integer, description: "Session id returned by `exec_shell`"),
+                "yieldMs": ToolParameter(
+                    type: .integer,
+                    description: "How long to wait for output "
+                        + "(ms; empty poll clamped 5000–300000, default 5000)"),
+            ]),
+            isDestructive: true
+        ) { args in
+            let res = try await ExecSessionManager.shared.poll(
+                sessionId: args.sessionId,
+                yieldMs: args.yieldMs
+            )
+            let status =
+                res.completed
+                ? "finished"
+                : "alive — send input with `write_stdin`"
+            return "\(res.report)\nsession_id: \(args.sessionId) (\(status))"
+        }
+    )
+
     // ── view_image ──────────────────────────────────────────────────────────
     // Baseline: codex `view_image` (`core/src/tools/handlers/view_image_spec.rs`,
     // `VIEW_IMAGE_TOOL_NAME` = "view_image") — "View a local image file from the

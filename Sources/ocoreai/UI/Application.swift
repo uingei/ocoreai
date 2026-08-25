@@ -242,5 +242,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             mainWindow.makeKeyAndOrderFront(nil)
         }
     }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        // exec_sessions: terminate any live shell sessions (SIGTERM → 2s
+        // grace → SIGKILL, mirrors ExecTools.terminateProc) + drop their
+        // temp capture dirs. Bounded wait so a hung child never blocks
+        // the AppKit termination path indefinitely.
+        let group = DispatchGroup()
+        group.enter()
+        Task {
+            _ = await ExecSessionManager.shared.shutdown()
+            group.leave()
+        }
+        _ = group.wait(timeout: .now() + 5)
+    }
 }
 #endif
