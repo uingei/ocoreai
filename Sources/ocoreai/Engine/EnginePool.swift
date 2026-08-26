@@ -646,35 +646,28 @@ actor EnginePool {
             // MTP mode: load drafter via MLXModelLoader.
             // Guard: only families with a known compatible drafter may self-spec:
             //   - Gemma-4: separate assistant checkpoint (gemma4_assistant / gemma4_unified_assistant)
-            //   - Qwen3.5/3.6: self-spec drafter — mtp.* weights live in the main model's checkpoint
+            //   - Qwen3.5/3.6/3.8: self-spec drafter — mtp.* weights live in the main model's
+            //     checkpoint. All three share the upstream `qwen3_5` MTP arch (model_type
+            //     "qwen3_5"/"qwen3_5_text" with mtp_num_hidden_layers), so the same registered
+            //     drafter (Qwen35TextMTPRegistration / Qwen35VLMMTPRegistration) serves them —
+            //     upstream resolves by model_type, not by generation, so 3.8 rides the 3.5 drafter.
             // Unknown families skip loading to prevent token-table mismatch.
             if config.specDecoding.mode == "mtp" && !model.hasMTPDrafter {
-                let lowerId = modelId.lowercased()
-                let isGemma = lowerId.contains("gemma")
-                // Upstream Qwen3.5/3.6 model_ids all begin with "Qwen3.5"/"Qwen3.6"
-                // (mlx-community/Qwen3.5-4B-…, Qwen/Qwen3.6-…, etc.)
-                let isQwen = lowerId.contains("qwen3.5") || lowerId.contains("qwen3.6")
-                if !isGemma && !isQwen {
+                // Admission + drafter selection is extracted to a pure, exact-value-tested
+                // seam (pureMTPDrafterSelection) so the generation whitelist can't silently
+                // regress. Only families with a known compatible drafter may self-spec;
+                // unknown families skip to prevent token-table mismatch.
+                //   - Qwen3.5/3.6/3.8: self-spec — the mtp.* weights live in the main model's
+                //     own checkpoint and all three share the upstream `qwen3_5` MTP arch
+                //     (model_type "qwen3_5"), so the SAME registered drafter serves them and
+                //     drafterModelId reuses the main model id.
+                //   - Gemma-4: a distinct assistant checkpoint, selected by size marker.
+                let selection = pureMTPDrafterSelection(modelId: modelId)
+                if !selection.admit {
                     logger.warning(
-                        "Speculative decoding in 'mtp' mode requires a Gemma-4 or Qwen3.5/3.6 model — model \(modelId) has no registered MTP drafter, skipped. Set specDecoding.mode to 'traditional' or disable specDecoding."
+                        "Speculative decoding in 'mtp' mode requires a Gemma-4 or Qwen3.5/3.6/3.8 model — model \(modelId) has no registered MTP drafter, skipped. Set specDecoding.mode to 'traditional' or disable specDecoding."
                     )
-                } else {
-                    // P0-fix (mlx-swift-lm#415 78eaa5b): Gemma 4 12B (gemma4_unified)
-                    // uses a distinct drafter — gemma4_unified_assistant. The 12B model
-                    // id contains neither "31" nor "26", so defaulting to 26B drafter
-                    // causes token-table mismatch and MTP failure.
-                    let drafterModelId: String
-                    if isQwen {
-                        // Self-spec: the Qwen drafter loads mtp.* from the main model's own
-                        // checkpoint. Reuse the same hub id — no separate assistant repo.
-                        drafterModelId = modelId
-                    } else if lowerId.contains("12") {
-                        drafterModelId = "mlx-community/gemma-4-12B-it-assistant-bf16"
-                    } else if lowerId.contains("31") {
-                        drafterModelId = "mlx-community/gemma-4-31B-it-assistant-bf16"
-                    } else {
-                        drafterModelId = "mlx-community/gemma-4-26B-A4B-it-assistant-bf16"
-                    }
+                } else if let drafterModelId = selection.drafterModelId {
                     do {
                         self.mtpDrafterContainer = try await mlxModelLoader.loadMTPDrafter(
                             modelId: drafterModelId)
@@ -975,4 +968,40 @@ internal func pureDefaultModelId(defaults: [String: ModelSamplingConfig]) -> Str
     defaults
         .sorted { $0.key < $1.key }
         .first(where: { $0.value.defaultModel })?.key
+}
+
+/// Pure, exact-value-testable MTP-drafter admission + drafter-model-id selection, factored
+/// out of `EnginePool`'s self-spec path so the generation whitelist is a single source of
+/// truth (and can never silently regress in two places). Mirrors upstream mlx-swift-lm,
+/// which resolves the drafter by `model_type` — so every Qwen generation that ships the
+/// `qwen3_5` MTP arch routes to the same registered drafter.
+///
+/// - Returns `(admit: false, drafterModelId: nil)` for families with no known compatible
+///   drafter (unknown → skip, to prevent token-table mismatch).
+/// - Qwen3.5/3.6/3.8 self-spec: the `mtp.*` weights live in the main model's own checkpoint
+///   and all three carry `model_type: "qwen3_5"` (e.g. Qwen3.8-27B's config.json), so
+///   `drafterModelId == modelId` (no separate assistant repo; one drafter serves all three).
+/// - Gemma-4: a distinct assistant checkpoint selected by size marker (12B/31B/26B-default),
+///   per upstream mlx-swift-lm#415 (78eaa5b).
+internal func pureMTPDrafterSelection(
+    modelId: String
+) -> (admit: Bool, drafterModelId: String?) {
+    let lower = modelId.lowercased()
+    let isGemma = lower.contains("gemma")
+    let isQwen =
+        lower.contains("qwen3.5") || lower.contains("qwen3.6") || lower.contains("qwen3.8")
+    if !isGemma && !isQwen {
+        return (false, nil)
+    }
+    let drafter: String
+    if isQwen {
+        drafter = modelId
+    } else if lower.contains("12") {
+        drafter = "mlx-community/gemma-4-12B-it-assistant-bf16"
+    } else if lower.contains("31") {
+        drafter = "mlx-community/gemma-4-31B-it-assistant-bf16"
+    } else {
+        drafter = "mlx-community/gemma-4-26B-A4B-it-assistant-bf16"
+    }
+    return (true, drafter)
 }
