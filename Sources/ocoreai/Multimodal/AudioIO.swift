@@ -151,7 +151,13 @@ final class AudioIO: NSObject {
     }
 
     /// Stop recording and return audio as base64 data URL
-    func stopRecording() async -> String? {
+    ///
+    /// - Parameter keepFile: when `true`, the .caf file stays on disk and
+    ///   `recordedURL` remains valid so a file-based consumer (the L3 local
+    ///   engine via `transcribeFromFile()`) can use it; the caller owns
+    ///   cleanup. Default `false` preserves the historical consume-and-delete
+    ///   behavior (VLM raw-audio path).
+    func stopRecording(keepFile: Bool = false) async -> String? {
         guard isRecording else { return nil }
         stopRecordingInternal()
         isRecording = false
@@ -165,12 +171,75 @@ final class AudioIO: NSObject {
 
         do {
             let data = try Data(contentsOf: url)
-            try? FileManager.default.removeItem(at: url)
+            if !keepFile {
+                try? FileManager.default.removeItem(at: url)
+            }
             return "data:audio/caf;base64,\(data.base64EncodedString())"
         } catch {
             audioLogger.error("[AudioIO] Failed to read recording: \(error.localizedDescription)")
             return nil
         }
+    }
+
+    /// Transcribe the LAST recorded file on the ladder's local engine (L3).
+    ///
+    /// macOS 26 / iOS 26+: `LocalSTT` runs the stored .caf OFFLINE via the
+    /// Speech framework — no network, no cloud dictation. Below the floor
+    /// (macOS 14/15, iOS 17/18) it falls back to the live-mic
+    /// `SFSpeechRecognizer` + VAD path so press-to-talk never regresses.
+    ///
+    /// Precondition (ladder = `.localSpeechFile`): `stopRecording(keepFile:
+    /// true)` kept the file on disk and `recordedURL` points at it.
+    func transcribeFromFile() async -> String? {
+        // Resolution: user preference (Settings ▸ Voice Feedback) × the
+        // adaptive ladder. "cloud" always forces live-mic dictation;
+        // "local" forces the offline file engine if the OS supports it
+        // (else graceful live-mic fallback); "auto" follows the ladder
+        // (local on macOS 26 / iOS 26+, cloud below).
+        let preference = SettingsStore.shared.sttEngine
+        let ladderLocal = AudioStack.current.stt == .localSpeechFile
+        let useLocal =
+            (preference == "cloud")
+            ? false
+            : (preference == "local")
+                ? true
+                : ladderLocal
+
+        if useLocal, #available(macOS 26.0, iOS 26.0, *),
+            let url = recordedURL,
+            FileManager.default.fileExists(atPath: url.path)
+        {
+            do {
+                let text = try await LocalSTT.transcribe(url: url, locale: Locale.current)
+                try? FileManager.default.removeItem(at: url)
+                if !text.isEmpty {
+                    recognizedText = text
+                    audioLogger.info("[AudioIO] LocalSTT OK — \(text.count) chars (offline)")
+                    return text
+                }
+                audioLogger.info("[AudioIO] LocalSTT empty — live-mic fallback")
+            } catch {
+                audioLogger.error(
+                    "[AudioIO] LocalSTT failed: \(error.localizedDescription) — live-mic fallback")
+            }
+            try? FileManager.default.removeItem(at: url)
+        } else if preference == "local" {
+            audioLogger.info(
+                "[AudioIO] sttEngine=.local requested but OS below the local floor (macOS 26 / iOS 26) or no file — live-mic fallback"
+            )
+            // Clean any leftover file from keepFile:true
+            if let url = recordedURL, FileManager.default.fileExists(atPath: url.path) {
+                try? FileManager.default.removeItem(at: url)
+            }
+        } else if ladderLocal, let url = recordedURL {
+            // Auto ladder is local but the file is gone/other guard miss —
+            // still clean up defensively.
+            if FileManager.default.fileExists(atPath: url.path) {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+
+        return await transcribe(timeout: 20, useVAD: true, feedback: false)
     }
 
     /// Toggle recording on/off
@@ -207,10 +276,16 @@ extension AudioIO {
         guard !text.isEmpty else { return }
         synthesizer.stopSpeaking(at: .immediate)
         let utterance = AVSpeechUtterance(string: text)
-        // Match TTS voice to current app locale (BCP 47 tag: "zh-Hans", "ja", "en", ...)
-        // AVSpeechSynthesisVoice falls back to system default if no matching voice exists
-        utterance.voice = AVSpeechSynthesisVoice(
-            language: Locale.current.language.languageCode?.identifier ?? "en")
+        // Match TTS voice to current app locale (BCP 47 tag: "zh-Hans", "ja", "en", ...).
+        // L1 of the adaptive audio ladder (see AudioStack): the user's Personal
+        // Voice has a floor of macOS 14 / iOS 17 — exactly ocoreai's deployment
+        // floor — so it is eligible on all eight target versions with no
+        // #available. Selection is opt-in (Settings ▸ Voice Feedback); off, or
+        // not yet authorized in System Settings, keeps the regular locale
+        // voice. resolveVoice() never returns a failing voice.
+        let langTag = Locale.current.language.languageCode?.identifier ?? "en"
+        utterance.voice = PersonalVoiceTTS.resolveVoice(
+            enabled: SettingsStore.shared.enablePersonalVoice, language: langTag)
         synthesizer.speak(utterance)
         isSpeaking = true
     }

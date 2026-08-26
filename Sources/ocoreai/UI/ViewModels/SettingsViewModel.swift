@@ -48,6 +48,8 @@ final class SettingsState {
         perceptionPowerProfile = SettingsStore.shared.perceptionPowerProfile
         perceptionAudioEnabled = SettingsStore.shared.perceptionAudioEnabled
         approvalPolicy = SettingsStore.shared.approvalPolicy
+        enablePersonalVoice = SettingsStore.shared.enablePersonalVoice
+        sttEngine = SettingsStore.shared.sttEngine
     }
 
     // MARK: - Server Connection (persisted via SettingsStore)
@@ -226,6 +228,33 @@ final class SettingsState {
             SettingsStore.shared.perceptionPowerProfile = perceptionPowerProfile
             applyPerceptionSettings()
         }
+    }
+
+    // MARK: - Voice Feedback
+
+    /// L1 Personal Voice TTS (user's own voice). Persists to SettingsStore;
+    /// consumed by `AudioIO.speak()` at every utterance.
+    var enablePersonalVoice: Bool = SettingsStore.shared.enablePersonalVoice {
+        didSet {
+            guard oldValue != enablePersonalVoice else { return }
+            SettingsStore.shared.enablePersonalVoice = enablePersonalVoice
+        }
+    }
+
+    /// L3 press-to-talk STT engine preference ("auto" / "cloud" / "local").
+    /// Consumed by `AudioIO.transcribeFromFile()` at each transcription.
+    var sttEngine: String = SettingsStore.shared.sttEngine {
+        didSet {
+            guard oldValue != sttEngine else { return }
+            SettingsStore.shared.sttEngine = sttEngine
+        }
+    }
+
+    /// Ask the OS for Personal Voice authorization
+    /// (`AVSpeechSynthesizer.requestPersonalVoiceAuthorization`). The OS
+    /// caches the decision — a repeat call does not re-prompt once decided.
+    func requestPersonalVoice() async {
+        _ = await PersonalVoiceTTS.requestAuthorization()
     }
 
     /// Agent tool approval policy (codex AskForApproval 形状).

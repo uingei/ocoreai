@@ -26,6 +26,7 @@ struct SettingsView: View {
             modelSection
             hubTokenSection
             perceptionSection
+            voiceFeedbackSection
             agentApprovalSection
             performanceSection
             kvCacheSection
@@ -247,6 +248,40 @@ struct SettingsView: View {
             Text(StringKey.perceptionSection.l)
         } footer: {
             Text(StringKey.perceptionToggleHint.l)
+        }
+    }
+
+    // MARK: - Voice Feedback (L1 Personal Voice + L3 STT engine)
+
+    private var voiceFeedbackSection: some View {
+        Section {
+            Toggle(
+                StringKey.personalVoiceToggle.l,
+                isOn: $settingsState.enablePersonalVoice
+            )
+            .accessibilityLabel(StringKey.personalVoiceToggle.l)
+            .accessibilityHint(StringKey.personalVoiceHint.l)
+            Text(StringKey.personalVoiceHint.l)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if settingsState.enablePersonalVoice {
+                Button(StringKey.personalVoiceRequest.l) {
+                    Task { await settingsState.requestPersonalVoice() }
+                }
+                .accessibilityLabel(StringKey.personalVoiceRequest.l)
+                .accessibilityHint(StringKey.personalVoiceHint.l)
+            }
+            Picker(StringKey.sttEngine.l, selection: $settingsState.sttEngine) {
+                Text(StringKey.sttEngineAuto.l).tag("auto")
+                Text(StringKey.sttEngineCloud.l).tag("cloud")
+                Text(StringKey.sttEngineLocal.l).tag("local")
+            }
+            .accessibilityLabel(StringKey.sttEngine.l)
+            Text(StringKey.sttEngineHint.l)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } header: {
+            Text(StringKey.voiceFeedbackSection.l)
         }
     }
 

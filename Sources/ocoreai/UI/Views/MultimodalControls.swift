@@ -218,13 +218,19 @@ struct MultimodalControls: View {
             if mmState.microphoneEnabled {
                 Button(action: {
                     if audioIO.isRecording {
-                        // Stop recording then auto-transcribe
+                        // Stop recording, keep the .caf on disk for the L3 local
+                        // engine, then transcribe (falls back to live-mic below
+                        // the local floor).
                         Task {
-                            if let audioDataURL = await audioIO.stopRecording() {
+                            if let audioDataURL = await audioIO.stopRecording(keepFile: true) {
                                 // Save raw audio for VLM — bypasses STT so VLM can "hear" directly
                                 MultimodalState.shared.lastRecordingDataURL = audioDataURL
                             }
-                            if let transcript = await audioIO.transcribe(timeout: 15) {
+                            // L3 (macOS 26 / iOS 26+): offline Speech-framework
+                            // transcription of the stored file. Below floor:
+                            // live-mic SFSpeechRecognizer fallback (inside the
+                            // helper) — voice input never regresses.
+                            if let transcript = await audioIO.transcribeFromFile() {
                                 // Save to shared state so UI can display it
                                 MultimodalState.shared.lastTranscript = transcript
                                 // Signal ChatView to auto-send via @Observable (voice loop)

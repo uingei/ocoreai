@@ -178,6 +178,28 @@ final class SettingsStore {
         }
     }
 
+    // MARK: - Voice Feedback (L1 Personal Voice)
+
+    /// Speak replies with the USER'S OWN VOICE (Personal Voice TTS, L1 of the
+    /// audio ladder — floor macOS 14 / iOS 17 = all eight target versions).
+    /// Live availability is gated by the System-Settings authorization.
+    var enablePersonalVoice: Bool {
+        get { defaults.bool(forKey: Key.enablePersonalVoice.rawValue) }
+        set { defaults.set(newValue, forKey: Key.enablePersonalVoice.rawValue) }
+    }
+
+    /// Preferred press-to-talk STT engine (L3). "auto" follows the adaptive
+    /// ladder (local Speech framework on 26+, cloud dictation below); "cloud"
+    /// forces SFSpeechRecognizer; "local" forces the Speech framework (on <26
+    /// degrades to the live-mic fallback so input never breaks).
+    var sttEngine: String {
+        get { defaults.string(forKey: Key.sttEngine.rawValue) ?? "auto" }
+        set {
+            let val = ["auto", "local", "cloud"].contains(newValue) ? newValue : "auto"
+            defaults.set(val, forKey: Key.sttEngine.rawValue)
+        }
+    }
+
     /// Agent approval policy (codex AskForApproval 形状).
     /// 合法值三档（对齐 codex 三轴：on-request / 沙箱允许面 / Never）；
     /// 非法/缺失 → `.interactive`（默认高危才问，fail-safe 不静默放行）。
@@ -340,6 +362,10 @@ final class SettingsStore {
         case perceptionSpeakerEnabled = "settings.perception.speaker"
         case perceptionAudioEnabled = "settings.perception.audio"
         case perceptionPowerProfile = "settings.perception.powerProfile"
+
+        // Voice Feedback (L1 Personal Voice + L3 STT engine)
+        case enablePersonalVoice = "settings.voice.enablePersonalVoice"
+        case sttEngine = "settings.voice.sttEngine"
 
         // Agent approval (codex AskForApproval 两档 + 沙箱允许面 ≈ 第三档)
         case approvalPolicy = "settings.agent.approvalPolicy"

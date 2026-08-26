@@ -476,7 +476,7 @@ final class PerceptionEngine: Sendable {
                 continue
             }
 
-            let transcript = await audio.transcribe(timeout: 20, useVAD: true, feedback: false)
+            let transcript = await audio.transcribeFromFile()
 
             if let transcript = transcript, !transcript.isEmpty {
                 let frame = PerceptionFrame(

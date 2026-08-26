@@ -193,6 +193,17 @@ public enum StringKey: String, CaseIterable {
     case perceptionAudio = "Settings.PerceptionAudio"
     case perceptionAudioHint = "Settings.PerceptionAudioHint"
 
+    // Voice Feedback (L1 Personal Voice + L3 STT engine)
+    case voiceFeedbackSection = "Settings.VoiceFeedbackSection"
+    case personalVoiceToggle = "Settings.PersonalVoiceToggle"
+    case personalVoiceHint = "Settings.PersonalVoiceHint"
+    case personalVoiceRequest = "Settings.PersonalVoiceRequest"
+    case sttEngine = "Settings.SttEngine"
+    case sttEngineHint = "Settings.SttEngineHint"
+    case sttEngineAuto = "Settings.SttEngineAuto"
+    case sttEngineCloud = "Settings.SttEngineCloud"
+    case sttEngineLocal = "Settings.SttEngineLocal"
+
     // — Navigation —
     case tabDashboard = "Navigation.Dashboard"
     case tabChat = "Navigation.Chat"
@@ -678,6 +689,17 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .perceptionAudio: "Ambient Audio",
         .perceptionAudioHint:
             "Continuously transcribe ambient speech into agent context (off by default)",
+        .voiceFeedbackSection: "Voice Feedback",
+        .personalVoiceToggle: "Personal Voice",
+        .personalVoiceHint:
+            "Speak replies in your own voice. Once on, authorize in System Settings ▸ Privacy & Security ▸ Personal Voice.",
+        .personalVoiceRequest: "Request Personal Voice…",
+        .sttEngine: "Transcription Engine",
+        .sttEngineHint:
+            "Voice-to-text for the microphone. Local runs fully on-device (macOS 26 / iOS 26+); Cloud uses system dictation on every version.",
+        .sttEngineAuto: "Auto (local on 26+, cloud below)",
+        .sttEngineCloud: "Cloud dictation",
+        .sttEngineLocal: "Local (on-device)",
         .agentApprovalSection: "Tool Approval",
         .agentApprovalPolicy: "Approval Policy",
         .agentApprovalInteractive: "Ask when risky (default)",
@@ -1139,6 +1161,17 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .perceptionSpeakerHint: "监控 TTS 输出用于音频闭环感知",
         .perceptionAudio: "环境语音",
         .perceptionAudioHint: "持续将环境语音转写为 agent 上下文（默认关闭）",
+        .voiceFeedbackSection: "语音反馈",
+        .personalVoiceToggle: "个人声线",
+        .personalVoiceHint:
+            "以你的声线朗读回复。开启后请前往 系统设置 ▸ 隐私与安全性 ▸ 个人声线 完成授权。",
+        .personalVoiceRequest: "请求个人声线授权…",
+        .sttEngine: "语音转写引擎",
+        .sttEngineHint:
+            "麦克风输入的语音转写。本地引擎完全在设备端运行（macOS 26 / iOS 26+）；云端引擎在全部版本可用（系统听写）。",
+        .sttEngineAuto: "自动（26+ 本地 / 旧版云端）",
+        .sttEngineCloud: "云端听写",
+        .sttEngineLocal: "本地（设备端）",
         .agentApprovalSection: "工具审批",
         .agentApprovalPolicy: "审批策略",
         .agentApprovalInteractive: "高危时询问（默认）",
