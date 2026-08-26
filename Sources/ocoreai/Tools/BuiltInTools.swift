@@ -447,4 +447,9 @@ func bootstrapBuiltInTools(
             args.message ?? ""
         }
     )
+
+    // ── web_search ─────────────────────────────────────────────────────────
+    // 获取信息一等工具。基准: codex ToolSpec::WebSearch (tool_spec.rs:39)。
+    // 本地推理无 provider 代搜 → handler 调 ollama /v1/responses web_search。
+    try? await registry.register(WebSearchClient.toolEntry())
 }
