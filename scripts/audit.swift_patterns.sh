@@ -55,9 +55,10 @@ check "Class-F: .first! force unwrap" '\.first!' \
 # --- Class-B: Hardcoded UI in view layer ---
 # Only flag lines from: AppState.swift, StatusPill.swift, StatusView.swift, SettingsStore.swift, AppTabs, Views/
 # CoreAIEngine: errorDescription switch cases are LocalizedError implementations, not UI strings
+# Wan21VideoContract: WanError.errorDescription switch cases are LocalizedError implementations (upstream verbatim messages), not UI strings
 check "Class-B: Hardcoded UI in view layer" \
     'return\s*"[A-Z][a-z]' \
-    "Localization.swift|systemName|SystemName|errorDescription|ToolEntry|DownloadManager|ConfigStruct|KeychainStore|Scheduler|MCPServer|OpenAIModels|ModelScopeDownloader|HuggingFaceDownloader|SQLiteStore|SkillModels|MLXBridge|CoreAIBridge|EngineInference|Profiling|ThinkingBudget|CoreAIEngine|CoreAIStubs|StateHandler|InstrumentsProfiler|CoreAILoggerStub|XGrammarWrapper|ConstrainedGenerationSession"
+    "Localization.swift|systemName|SystemName|errorDescription|ToolEntry|DownloadManager|ConfigStruct|KeychainStore|Scheduler|MCPServer|OpenAIModels|ModelScopeDownloader|HuggingFaceDownloader|SQLiteStore|SkillModels|MLXBridge|CoreAIBridge|EngineInference|Profiling|ThinkingBudget|CoreAIEngine|CoreAIStubs|StateHandler|InstrumentsProfiler|CoreAILoggerStub|XGrammarWrapper|ConstrainedGenerationSession|Wan21VideoContract"
 
 # --- Class-A: Empty catch ---
 check "Class-A: Empty catch" 'catch\s*{[[:space:]]*}' \
