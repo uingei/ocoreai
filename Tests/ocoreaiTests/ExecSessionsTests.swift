@@ -126,6 +126,32 @@ struct ExecSessionsSpawnTests {
         #expect(res.report.contains("exit code: 7"))
     }
 
+    @Test("back-to-back reaped children finalize on wall clock (runner wedge regression)")
+    func spawnExitCascade() async throws {
+        // Regression guard for the 2026-08-26 CI hang: the finalize path
+        // must read `terminationStatus` of an already-reaped child
+        // WITHOUT a second blocking `waitUntilExit()`. On the macOS 26
+        // runner that redundant wait wedged the whole 60-min job right
+        // at this exact test class. N back-to-back spawn→poll cycles
+        // must all land with their EXACT exit codes inside a hard wall
+        // clock — a stall now shows up as a bounded local failure
+        // (seconds), not an unbounded CI timeout.
+        let m = ExecSessionManager.shared
+        let t0 = Date()
+        for i in 0 ..< 5 {
+            let status = 7 + i
+            let res = try await m.spawn(command: "exit \(status)", yieldMs: 500)
+            #expect(res.completed, "spawn cycle \(i) must complete in-window")
+            #expect(res.report.contains("end of process output"))
+            #expect(res.report.contains("exit code: \(status)"))
+            let poll = try await m.poll(sessionId: res.sessionId, yieldMs: 200)
+            #expect(poll.completed)
+            #expect(poll.report.contains("exit code: \(status)"), "poll cycle \(i)")
+        }
+        let dt = Date().timeIntervalSince(t0)
+        #expect(dt < 15, "spawn/poll cycles must stay on wall clock, got \(dt)s")
+    }
+
     @Test("live child outlives yield window → not completed, exit placeholder -1")
     func spawnStillAlive() async throws {
         let m = ExecSessionManager.shared

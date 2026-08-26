@@ -95,12 +95,6 @@ private final class SessionProc: @unchecked Sendable {
         return proc?.isRunning ?? false
     }
 
-    func waitUntilExit() {
-        lock.lock()
-        defer { lock.unlock() }
-        proc?.waitUntilExit()
-    }
-
     func terminationStatus() -> Int32 {
         lock.lock()
         defer { lock.unlock() }
@@ -400,7 +394,14 @@ actor ExecSessionManager {
                 Thread.sleep(forTimeInterval: 0.05)
             }
             if ownerProc.isRunning() { ownerProc.forceKill() }
-            ownerProc.waitUntilExit()
+            // Bounded reap after SIGKILL (delivery is async): poll the
+            // proven non-wedging `isRunning()` primitive with a deadline
+            // instead of an unbounded `waitUntilExit()` — which wedged
+            // the whole CI job on the macOS 26 runner (2026-08-26 hang).
+            let reapDeadline = Date(timeIntervalSinceNow: Self.killGraceSeconds)
+            while ownerProc.isRunning() && Date() < reapDeadline {
+                Thread.sleep(forTimeInterval: 0.05)
+            }
             let out = Self.readTail(after: fromOut, at: outPath)
             let err = Self.readTail(after: fromErr, at: errPath)
             return (
@@ -497,7 +498,12 @@ actor ExecSessionManager {
                     Thread.sleep(forTimeInterval: 0.05)
                 }
                 if oldestProc.isRunning() { oldestProc.forceKill() }
-                oldestProc.waitUntilExit()
+                // Bounded reap, same reason as `kill`: the unbounded
+                // `waitUntilExit()` wedged the macOS 26 CI job (2026-08-26).
+                let reapDeadline = Date(timeIntervalSinceNow: Self.killGraceSeconds)
+                while oldestProc.isRunning() && Date() < reapDeadline {
+                    Thread.sleep(forTimeInterval: 0.05)
+                }
                 oldestProc.closeStdin()
             }
         } catch {
@@ -557,7 +563,13 @@ actor ExecSessionManager {
         var exitCode = Int32(-1)
         let completed = !owner.isRunning()
         if completed {
-            owner.waitUntilExit()
+            // No `waitUntilExit()` here: `isRunning() == false` means
+            // Foundation already reaped the child, so `terminationStatus`
+            // is cached (probe: exit 0/7/signal all readable straight
+            // after — `scripts/proc-status-cache-probe.swift`). The
+            // redundant blocking wait was a SECOND `waitpid` on the
+            // reaped child, and on the macOS 26 CI runner it wedged the
+            // whole 60-min job (2026-08-26 hang, `spawnExit7`).
             exitCode = owner.terminationStatus()
         }
         return (
