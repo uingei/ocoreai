@@ -457,4 +457,10 @@ func bootstrapBuiltInTools(
     // 读取已知 URL 的渲染内容(WebKit 后端)。与 web_search 正交:
     //   web_search=找答案, web_fetch=读具体页面(JS 渲染站纯 HTTP 拿不到,WebKit 能)。
     try? await registry.register(WebFetchClient.toolEntry())
+
+    // ── view_screen ────────────────────────────────────────────────────────
+    // 视觉感知轴的 agent 可触面: 截当前屏幕 + Vision OCR 出屏幕文字(文本通道,
+    // 不吐像素)。基础设施复用已验证的 ScreenshotService(ScreenCaptureKit) +
+    // VisionOCR —— PerceptionEngine 已在 UI 侧消费同一管线;本工具补 agent 面。
+    try? await registry.register(ScreenCaptureClient.toolEntry())
 }
