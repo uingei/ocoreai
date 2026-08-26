@@ -2,9 +2,12 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-08-14 → 2026-08-23
+## [Unreleased] — 2026-08-14 → 2026-08-26
 
 ### Features
+
+- **Pin bump: mlx-swift-lm `1441444` → `6745899`** — absorbs upstream commits since 08-25: #575 parallel byte-balanced weight loading (measured 1.8× faster model loads, ~5.9 GB/s on M4 Pro — free consumption, no ocoreai code), #329 variance-normalized KV cache (new opt-in strategy; ocoreai `makeKVCacheConfiguration` dual-path unchanged — explicit, not exhaustive switch, zero drift), #576 LFM2VL image-token-id-from-vocab (no LFM2VL consumers in ocoreai), #571/#574 SSM gradient fix+tests (training-side)。事件面核对: `.rejectedToolCall` 已在两处消费（EngineInference.swift:3349/3914），无 `TokenStreamEvent` exhaustive switch——pin bump 无事件面断裂。
+- **MCP tool results: non-text content preserved, no more hard-fail (codex `75cb7c9` / #40737 baseline)** — `MCPBridge.renderToolResultBlocks` 静态核心: text 块逐字拼接（`\n---\n` 分隔），非 text 块（`image`/`audio` 等）渲染为显式占位符（`[image]`…）而非 `throw "No text content"` / 静默 `(no content)` / 丢弃。三条工具结果通路统一接线（forward、registered-handler、local-call）。8 个精确值测试（`MCPToolResultRenderingTests`）。
 
 - **Context-window compaction before the 400 wall (codex `compact.rs` 范式)** — `ConversationCompaction`（`Reasoning/ConversationCompaction.swift`，197 行，确定性 LLM-free 核心）：当 prompt 估算超过 per-model `max_context_window` 时，从 OLDEST 完整可移除单元开始压缩，保护前缀 system + 最近 N 轮，且绝不把 tool result 与其发起的 assistant 轮拆散（原子单元移除）。Token 估算与 Phase 3 heuristic 逐字一致（UTF-8 bytes/4，CJK>1.5 走 /3），驱动 wall 与 budget 的是同一个数。接线于 `ChatHandler` Phase 3.5：压缩 → 重估 → 若 fit 则按压缩后 transcript 继续，否则 wall 仍持 400。11 个精确值测试（`ConversationCompactionTests`，含 CJK 公式 / nil-budget / at-budget 边界 / tool-call 原子性 / boundary / reserve / deterministic 共 11 条）。
 

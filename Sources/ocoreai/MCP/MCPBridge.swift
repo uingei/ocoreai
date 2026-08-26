@@ -340,24 +340,29 @@ actor MCPBridge {
                 toolName, reason: "Local tool not found or execution failed")
         }
 
-        // 提取文本内容
-        var texts: [String] = []
-        for content in contents {
-            if let text = content["text"] as? String {
-                texts.append(text)
+        // 提取内容块：文本直出，非文本（image/audio 等）类型占位不丢失。
+        // 逐块拍平为 [String: String]（与 MCPStdioClient.parseToolCallResponse 同法）；
+        // data 型字段（base64 图/音频）若展开为文本是百万级 token 噪声，
+        // renderer 只认 text/type 两键——media 块自然折叠为 [type] 占位。
+        let blocks: [[String: String]] = contents.map { block -> [String: String] in
+            var coerced: [String: String] = [:]
+            for (key, value) in block {
+                coerced[key] = String(describing: value)
             }
+            return coerced
         }
+        let rendered = Self.renderToolResultBlocks(blocks)
 
         // 检查是否是错误响应
         if (result["isError"] as? Bool) == true {
-            throw MCPBridgeError.routingFailed(toolName, reason: texts.joined(separator: "\n"))
+            throw MCPBridgeError.routingFailed(toolName, reason: rendered)
         }
 
-        guard !texts.isEmpty else {
+        guard !rendered.isEmpty else {
             throw MCPBridgeError.routingFailed(toolName, reason: "No text content in response")
         }
 
-        return texts.joined(separator: "\n")
+        return rendered
     }
 
     /// 路由到外部 MCP servers。
@@ -475,6 +480,29 @@ actor MCPBridge {
         try await routeSerial(toolName, arguments: arguments, names: names)
     }
 
+    /// Render MCP content blocks into one tool-result string.
+    ///
+    /// Text blocks are joined verbatim. Media blocks (image/audio) are valid
+    /// MCP `tools/call` results but this tool-result channel is text-only
+    /// (`ChatSession.toolDispatch` returns `String`,
+    /// `MLXLMCommon/ChatSession.swift:318` — upstream API surface, not ocoreai
+    /// choice), so they render as an explicit `[<type>]` placeholder: the agent
+    /// learns content existed and of what kind instead of the call failing or
+    /// the content vanishing (old local/handler paths both did).
+    /// Baseline: codex `75cb7c903d` "Preserve MCP tool output as content items"
+    /// — non-text content must survive the tool-result channel.
+    static func renderToolResultBlocks(_ blocks: [[String: String]]) -> String {
+        var parts: [String] = []
+        for block in blocks {
+            if let text = block["text"], !text.isEmpty {
+                parts.append(text)
+            } else if let type = block["type"] {
+                parts.append("[\(type)]")
+            }
+        }
+        return parts.joined(separator: "\n---\n")
+    }
+
     /// 向指定客户端转发工具调用，合并内容块为字符串。
     private func forwardToolCall(
         to client: MCPStdioClient,
@@ -487,22 +515,15 @@ actor MCPBridge {
         {
             argsDict = parsed
         } else if !jsonStr.isEmpty {
-            log.warning("Failed to parse tool args JSON for \\(tool): \\(jsonStr.prefix(80))")
+            log.warning("Failed to parse tool args JSON for \(tool): \(jsonStr.prefix(80))")
         }
 
         let contentBlocks = try await client.callTool(tool, arguments: argsDict)
-        var texts: [String] = []
-        for block in contentBlocks {
-            if let text = block["text"] {
-                texts.append(text)
-            } else if let type = block["type"] {
-                texts.append("[\(type)]")
-            }
-        }
-        guard !texts.isEmpty else {
+        let rendered = Self.renderToolResultBlocks(contentBlocks)
+        guard !rendered.isEmpty else {
             throw MCPClientError.protocolError("No text content in tool response")
         }
-        return texts.joined(separator: "\n---\n")
+        return rendered
     }
 
     // MARK: - Endpoint 管理
@@ -557,9 +578,8 @@ actor MCPBridge {
             let handler: @Sendable (String) async throws -> String = { arguments in
                 let results = try await self.forwardToolCall(
                     name: toolName, arguments: arguments, source: source)
-                let texts = results.compactMap { $0["text"] }
-                guard !texts.isEmpty else { return "(no content)" }
-                return texts.joined(separator: "\n")
+                let rendered = Self.renderToolResultBlocks(results)
+                return rendered.isEmpty ? "(no content)" : rendered
             }
 
             let entry = ToolEntry(

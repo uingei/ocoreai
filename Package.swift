@@ -35,8 +35,18 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if canImport(CoreAI)` guards
-        // Pinned to exact revision — upstream main branch drifts; update via `swift package update`
-        // then bump .revision + test. Current pin: 2026-08-25 — @ 626516b.
+        // Pins exact revision of upstream main branch. Drifts; please update with `swift package update`. Current pin: 2026-08-26 — @ 6745899.
+        // then bump .revision + test.
+        //
+        // 626516b..6745899 (5 commits, all verified consumer-transparent / free riders):
+        //   - #575: Parallel byte-balanced weight loading — ~1.8× faster model
+        //     loads upstream (M4 Pro, ~5.9 GB/s); free consumption, no ocoreai code.
+        //   - #329: Variance-normalized KV cache — new OPT-IN strategy; ocoreai
+        //     makeKVCacheConfiguration is explicit dual-path (not exhaustive switch) — zero drift.
+        //   - #576: LFM2VL image-token-id-from-vocab — no LFM2VL consumers in ocoreai.
+        //   - #571/#574: SSM gradient fix + tests — training-side.
+        //   - #571 event surface: `.rejectedToolCall` TokenStreamEvent — already
+        //     consumed at EngineInference.swift:3349/3914; no exhaustive switch break.
         //
         // 1441444..626516b (4 commits, all verified consumer-transparent / free riders):
         //   - #564 (1970177): Fix mixed-precision QLoRA output promotion —
@@ -98,7 +108,7 @@ let package = Package(
         //     LoRA+dropout inference in LLMLifecycleHandler.
         // Re-evaluate at each upstream main bump: re-grep `Generation` switch
         // sites and confirm exhaustiveness before building.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "626516b"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "6745899"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
