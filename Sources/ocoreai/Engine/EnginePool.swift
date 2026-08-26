@@ -210,10 +210,16 @@ actor EnginePool {
         } else {
             logger.info("Speculative decoding disabled")
         }
-        // Register MTP drafter types (idempotent, async)
+        // Register MTP drafter types (idempotent, async).
+        // Gemma-4: separate assistant checkpoint (gemma4_assistant / gemma4_unified_assistant).
+        // Qwen3.5/3.6: self-spec drafter — the mtp.* weights live in the main model's
+        // checkpoint; the drafter borrows the target tokenizer. Type strings are `qwen3_5`,
+        // `qwen3_5_text`, `qwen3_5_mtp`, `qwen3_5_moe` (upstream #351 registration surface).
         Task {
             await Gemma4AssistantRegistration.register()
-            logger.info("MTP drafter types registered")
+            await Qwen35TextMTPRegistration.register()
+            await Qwen35VLMMTPRegistration.register()
+            logger.info("MTP drafter types registered (gemma4 / qwen3.5-text / qwen3.5-vlm)")
         }
     }
 
@@ -637,14 +643,20 @@ actor EnginePool {
         // Configure speculative decoding — lazy-load draft model on first model load
         model.setSpecDecodingConfig(config.specDecoding)
         if config.specDecoding.enabled {
-            // MTP mode: load assistant drafter via MLXModelLoader
-            // Guard: only Gemma-4 models have known-compatible assistant drafter
-            // Unknown families skip loading to prevent token table mismatch
+            // MTP mode: load drafter via MLXModelLoader.
+            // Guard: only families with a known compatible drafter may self-spec:
+            //   - Gemma-4: separate assistant checkpoint (gemma4_assistant / gemma4_unified_assistant)
+            //   - Qwen3.5/3.6: self-spec drafter — mtp.* weights live in the main model's checkpoint
+            // Unknown families skip loading to prevent token-table mismatch.
             if config.specDecoding.mode == "mtp" && !model.hasMTPDrafter {
-                let isGemma = modelId.lowercased().contains("gemma")
-                if !isGemma {
+                let lowerId = modelId.lowercased()
+                let isGemma = lowerId.contains("gemma")
+                // Upstream Qwen3.5/3.6 model_ids all begin with "Qwen3.5"/"Qwen3.6"
+                // (mlx-community/Qwen3.5-4B-…, Qwen/Qwen3.6-…, etc.)
+                let isQwen = lowerId.contains("qwen3.5") || lowerId.contains("qwen3.6")
+                if !isGemma && !isQwen {
                     logger.warning(
-                        "Speculative decoding in 'mtp' mode requires a Gemma-4 model — model \(modelId) is not Gemma, MTP drafter skipped. Set specDecoding.mode to 'traditional' or disable specDecoding."
+                        "Speculative decoding in 'mtp' mode requires a Gemma-4 or Qwen3.5/3.6 model — model \(modelId) has no registered MTP drafter, skipped. Set specDecoding.mode to 'traditional' or disable specDecoding."
                     )
                 } else {
                     // P0-fix (mlx-swift-lm#415 78eaa5b): Gemma 4 12B (gemma4_unified)
@@ -652,9 +664,13 @@ actor EnginePool {
                     // id contains neither "31" nor "26", so defaulting to 26B drafter
                     // causes token-table mismatch and MTP failure.
                     let drafterModelId: String
-                    if modelId.lowercased().contains("12") {
+                    if isQwen {
+                        // Self-spec: the Qwen drafter loads mtp.* from the main model's own
+                        // checkpoint. Reuse the same hub id — no separate assistant repo.
+                        drafterModelId = modelId
+                    } else if lowerId.contains("12") {
                         drafterModelId = "mlx-community/gemma-4-12B-it-assistant-bf16"
-                    } else if modelId.lowercased().contains("31") {
+                    } else if lowerId.contains("31") {
                         drafterModelId = "mlx-community/gemma-4-31B-it-assistant-bf16"
                     } else {
                         drafterModelId = "mlx-community/gemma-4-26B-A4B-it-assistant-bf16"
