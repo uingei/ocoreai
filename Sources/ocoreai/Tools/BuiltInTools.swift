@@ -452,4 +452,9 @@ func bootstrapBuiltInTools(
     // 获取信息一等工具。基准: codex ToolSpec::WebSearch (tool_spec.rs:39)。
     // 本地推理无 provider 代搜 → handler 调 ollama /v1/responses web_search。
     try? await registry.register(WebSearchClient.toolEntry())
+
+    // ── web_fetch ──────────────────────────────────────────────────────────
+    // 读取已知 URL 的渲染内容(WebKit 后端)。与 web_search 正交:
+    //   web_search=找答案, web_fetch=读具体页面(JS 渲染站纯 HTTP 拿不到,WebKit 能)。
+    try? await registry.register(WebFetchClient.toolEntry())
 }
