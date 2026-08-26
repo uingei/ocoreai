@@ -151,7 +151,12 @@ public enum LocalSTT {
                 }
                 if result.isFinal { finalText = plain }
             }
-        } catch {}
+        } catch {
+            // Drain error is best-effort: `t.results` is a partial-collection
+            // side-channel. The authoritative completion is `analyzeSequence`
+            // (awaited below), which still throws on real failure — so a drain
+            // hiccup here must not cancel a successful analysis.
+        }
         _ = try await run
         return finalText.isEmpty ? joined(chunks) : finalText
     }
