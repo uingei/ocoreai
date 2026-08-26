@@ -315,8 +315,6 @@ public enum StringKey: String, CaseIterable {
     case chatLoading = "A11y.ChatLoading"
     case messagesLabel = "A11y.MessagesLabel"
     case assistantTyping = "A11y.AssistantTyping"
-    case voiceInputLabel = "A11y.VoiceInputLabel"
-    case voiceInputHint = "A11y.VoiceInputHint"
     case messageInputLabel = "A11y.MessageInputLabel"
     case messageInputHint = "A11y.MessageInputHint"
     case stopStreamingLabel = "A11y.StopStreamingLabel"
@@ -831,8 +829,6 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .chatLoading: "Backend loading",
         .messagesLabel: "Messages",
         .assistantTyping: "Assistant typing",
-        .voiceInputLabel: "Voice Input",
-        .voiceInputHint: "Tap to use voice input (coming soon)",
         .messageInputLabel: "Message Input",
         .messageInputHint: "Type your message and press Enter to send",
         .stopStreamingLabel: "Stop Streaming",
@@ -1311,8 +1307,6 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .chatLoading: "后端加载中",
         .messagesLabel: "消息",
         .assistantTyping: "助手正在输入",
-        .voiceInputLabel: "语音输入",
-        .voiceInputHint: "点击使用语音输入（即将推出）",
         .messageInputLabel: "消息输入框",
         .messageInputHint: "输入消息后按回车发送",
         .stopStreamingLabel: "停止流式输出",

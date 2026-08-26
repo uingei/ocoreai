@@ -28,6 +28,7 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ### Refactoring / Cleanup
 
+- **Orphaned "Voice Input" a11y labels removed** — `voiceInputLabel` / `voiceInputHint` (`A11y.VoiceInputLabel`/`A11y.VoiceInputHint`, en+zh) referenced nowhere: not in any view, test, or raw a11y-ID string (6 self-contained occurrences in `Localization.swift` only). The label text "coming soon" / "即将推出" is stale — voice input is already wired end-to-end (`MultimodalControls` start/stop → `LocalSTT.transcribe` → `MultimodalState.pendingVoiceTranscript` → `ChatView.sendVoiceMessage` → chat). Removed the case decls + en + zh string values. No behavioral change; kills a misleading dead label on the UI/UX + i18n axis.
 - **4c231d3 dead-code + print removal** (4c231d3) — `AgentLoop` enum runner + `AgentLoopConfig` pruned (523→44 LOC; zero callers after the engine iteration loop moved to `DirectInferenceClient`); `AgentLoopResult`/`AgentLoopIterationLog` kept (consumed by ThinkingTelemetry). `StatsReporter` table-display chain removed (~180 LOC — upstream llm-runner-CLI-only, zero refs). `print()` in Sources/ 18→0 (MPSGraphSamplers 6 + InstrumentsProfiler 12; MPSGraphSamplers errors already propagate to `onSamplingDone`, InstrumentsProfiler deinit rewritten as swift-log `Logger(label:)`).
 
 ### Tests
