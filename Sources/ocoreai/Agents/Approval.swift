@@ -143,6 +143,13 @@ public actor ApprovalBroker {
             // codex 沙箱允许面：不问、放行
             return .approved
         case .interactive:
+            // codex #41159：审查面是 `snippet`（80 grapheme）。无法在审查面完整
+            // 呈现的 arguments 必须 fail-closed 拒绝——绝不"审截断版、执行全量
+            // 载荷"（未审查的尾部字节到达终端）。先于 session 缓存：缓存的批准
+            // 不覆盖从未被完整审查过的载荷。
+            guard ApprovalCore.isReviewable(arguments) else {
+                return .denied(reason: ApprovalCore.denialReason(toolName: toolName))
+            }
             if sessionApproved.contains(toolName) {
                 return .approved
             }
@@ -195,10 +202,15 @@ public actor ApprovalBroker {
 // MARK: - 纯函数层（无 actor，测试直连）
 
 enum ApprovalCore {
+    /// 审查面呈现预算（grapheme）——`snippet` 的单一真源。
+    /// codex #41159 把「可审查性」绑定到审查面本身；ocoreai 的审查面 = 审批卡的
+    /// snippet 呈现（`ChatView` 审批卡），故预算钉在此处，门与呈现不得各自硬编码。
+    static let reviewSurfaceGraphemes = 80
+
     /// codex `truncate_text`（`tui/src/text_formatting.rs:89`）逐字语义：
     /// ≤ max graphemes → 原文；> max → 前 max-3 graphemes + "..."（总长 ≤ max）。
     /// max < 3 → 前 max graphemes，无省略号（codex 同一分支）。
-    static func snippet(_ text: String, maxGraphemes: Int = 80) -> String {
+    static func snippet(_ text: String, maxGraphemes: Int = reviewSurfaceGraphemes) -> String {
         let graphemes = Array(text)
         guard graphemes.count > maxGraphemes else {
             return text
@@ -207,5 +219,16 @@ enum ApprovalCore {
             return String(graphemes.prefix(maxGraphemes - 3)) + "..."
         }
         return String(graphemes.prefix(maxGraphemes))
+    }
+
+    /// codex #41159 "Reject oversized reviewed terminal input" 对齐（语义，非逐行）：
+    /// 审查面无法**完整呈现**的动作必须 fail-closed 拒绝——绝不"审截断版、执行全量
+    /// 载荷"（未审查的尾部字节不得到达终端）。
+    static func isReviewable(_ text: String) -> Bool { snippet(text) == text }
+
+    /// #41159 拒绝文案（单一真源，测试断言锚点）。
+    static func denialReason(toolName: String) -> String {
+        "\(toolName) arguments cannot be shown in full on the approval review surface"
+            + " (\(reviewSurfaceGraphemes) grapheme max); split into smaller inputs"
     }
 }

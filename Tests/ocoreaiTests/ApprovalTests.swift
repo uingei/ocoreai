@@ -295,3 +295,87 @@ struct ApprovalRegistryTests {
         #expect(await b.snapshot().count == 0)
     }
 }
+
+// MARK: - codex #41159 review-surface gate（审截断+送全量 stdin 缺口 fail-closed）
+
+@Suite("#41159 — review-surface completeness gate")
+struct ReviewSurfaceGateTests {
+
+    @Test("isReviewable: 80 graphemes yes, 81 no (boundary, exact)")
+    func boundary() {
+        #expect(ApprovalCore.isReviewable("{}"))
+        let atMax = String(repeating: "a", count: ApprovalCore.reviewSurfaceGraphemes)
+        #expect(ApprovalCore.isReviewable(atMax))
+        #expect(!ApprovalCore.isReviewable(atMax + "b"))
+    }
+
+    @Test("denialReason single source: exact text")
+    func reasonText() {
+        #expect(
+            ApprovalCore.denialReason(toolName: "write_stdin")
+                == "write_stdin arguments cannot be shown in full on the approval review surface"
+                + " (80 grapheme max); split into smaller inputs")
+    }
+
+    @Test("oversized → denied BEFORE approval request: exact reason + zero pending")
+    func oversizedDeniedNoPending() async {
+        let b = ApprovalBroker(policy: .interactive)
+        let oversized = String(repeating: "x", count: ApprovalCore.reviewSurfaceGraphemes + 1)
+        #expect(
+            await b.request(toolName: "write_stdin", arguments: oversized, reason: "stdin")
+                == .denied(reason: ApprovalCore.denialReason(toolName: "write_stdin")))
+        #expect(await b.snapshot().count == 0)
+    }
+
+    @Test("exactly reviewable (80) → still routes to pending, not blocked")
+    func atMaxStillAsks() async {
+        let b = ApprovalBroker(policy: .interactive)
+        let args = String(repeating: "a", count: ApprovalCore.reviewSurfaceGraphemes)
+        let t = Task {
+            await b.request(toolName: "write_stdin", arguments: args, reason: "stdin")
+        }
+        for _ in 0 ..< 400 {
+            if let row = await b.snapshot().first {
+                // 80 必须**能**过门到 pending——断言后裁决清场（不泄漏挂起 continuation）
+                #expect(await b.resolve(id: row.id, decision: .denied(reason: "t")) == true)
+                _ = await t.value
+                #expect(await b.snapshot().count == 0)
+                return
+            }
+            try? await Task.sleep(nanoseconds: 2_000_000)
+        }
+        #expect(false, "reviewable (80) arguments must reach pending")
+    }
+
+    @Test("session approval does NOT cover an unreviewed larger payload")
+    func cacheDoesNotCoverUnreviewed() async {
+        let b = ApprovalBroker(policy: .interactive)
+        // 合法小载荷 → approvedForSession（缓存工具）
+        let t1 = Task {
+            await b.request(toolName: "write_stdin", arguments: "{}", reason: "stdin")
+        }
+        // 本 struct 作用域内联轮询（waitForRow 属另一个 struct，private 不可见）
+        guard let row = await snapshotRow(b) else {
+            #expect(false, "row never published")
+            return
+        }
+        #expect(await b.resolve(id: row.id, decision: .approvedForSession) == true)
+        #expect(await t1.value == .approvedForSession)
+
+        // 同一工具的更大载荷：缓存批准不得覆盖「未被完整审查的尾部字节」
+        let oversized = String(repeating: "p", count: ApprovalCore.reviewSurfaceGraphemes + 2)
+        #expect(
+            await b.request(toolName: "write_stdin", arguments: oversized, reason: "stdin")
+                == .denied(reason: ApprovalCore.denialReason(toolName: "write_stdin")))
+        #expect(await b.snapshot().count == 0)
+    }
+
+    private func snapshotRow(_ b: ApprovalBroker) async -> PendingApproval? {
+        for _ in 0 ..< 400 {
+            let rows = await b.snapshot()
+            if let row = rows.first { return row }
+            try? await Task.sleep(nanoseconds: 2_000_000)
+        }
+        return nil
+    }
+}
