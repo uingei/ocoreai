@@ -114,7 +114,7 @@ jobs:
   # mlx-swift-lm CI uses: xcodebuild build-for-testing → xcrun xctest.
   # This avoids the swift test metallib path issue entirely.
   build-and-test:
-    name: "Build & Test (${{ matrix.os }}${{ matrix.destination == 'ios' and ' · iOS compile-only' or '' }})"
+    name: "Build & Test (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     needs: [audit]
@@ -126,9 +126,6 @@ jobs:
             build_release: true
           - os: xcode-27
             build_release: true
-          - os: macos-26
-            destination: ios
-            build_release: false
     steps:
       - uses: actions/checkout@v4
 
@@ -139,7 +136,7 @@ jobs:
           path: |
             ~/.cache/org.swift.swiftpm/repositories
             .build/checkouts
-          key: spm-deps-${{ matrix.os }}-${{ matrix.destination || 'mac' }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: spm-deps-${{ matrix.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             spm-deps-${{ matrix.os }}-
 
@@ -154,27 +151,7 @@ jobs:
           set -euo pipefail
           xcodebuild -downloadComponent MetalToolchain
 
-      # iOS leg (build-only): verify all #if os(iOS) branches compile.
-      # iOS is build-only — no test execution (ocoreaiTest target links macOS-only
-      # frameworks; no simulator runner in this env). The macOS legs remain the
-      # full build+test gate. See Package.swift platforms: .iOS(.v17).
-      - name: Build for iOS (generic, compile-validate)
-        if: ${{ matrix.destination == 'ios' }}
-        run: |
-          set -euo pipefail
-          export SWIFTC_SCAN_FOR_DEPS=0
-          xcodebuild build \
-            -workspace ocoreai.xcworkspace \
-            -scheme ocoreai \
-            -configuration Debug \
-            -destination 'generic/platform=iOS' \
-            -skipPackagePluginValidation \
-            -skipMacroValidation
-        env:
-          OCOREAI_BUILD: ci
-
       - name: Build for testing (xcodebuild)
-        if: ${{ matrix.destination != 'ios' }}
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
@@ -193,7 +170,6 @@ jobs:
       # EXECUTED in a dedicated step — `TEST BUILD SUCCEEDED` does NOT mean
       # tests ran. This is the real test gate (757 Swift Testing tests).
       - name: Run tests (xcrun xctest)
-        if: ${{ matrix.destination != 'ios' }}
         run: |
           set -euo pipefail
           XCB=$(ls -dt ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/Debug/ocoreaiTests.xctest 2>/dev/null | head -1 || true)
@@ -203,7 +179,6 @@ jobs:
 
       # ── Release build via xcodebuild ──
       - name: Build (xcodebuild, Release)
-        if: ${{ matrix.destination != 'ios' }}
         if: ${{ matrix.build_release == true }}
         run: |
           set -euo pipefail
@@ -220,7 +195,6 @@ jobs:
           OCOREAI_BUILD: ci
 
       - name: Collect artifacts (Release)
-        if: ${{ matrix.destination != 'ios' }}
         if: ${{ matrix.build_release == true && always() }}
         run: |
           set -euo pipefail
@@ -238,7 +212,6 @@ jobs:
         continue-on-error: true
 
       - name: Upload build artifacts
-        if: ${{ matrix.destination != 'ios' }}
         if: ${{ matrix.build_release == true && always() }}
         uses: actions/upload-artifact@v4
         with:
@@ -256,6 +229,45 @@ jobs:
             ~/Library/Logs/DiagnosticReports/*
           if-no-files-found: warn
           retention-days: 7
+
+  ## ── iOS compile-validation (independent job — no matrix sharing) ──
+  # ocoreai declares .iOS(.v17) first-class; the #if os(iOS) branches had no CI
+  # compile gate. Build-only on the macos-26 runner (Mac runners ship the iOS
+  # SDK) — macOS legs above remain the full build+test gate; the test target
+  # links macOS-only frameworks and cannot xctest on iOS.
+  build-ios:
+    name: "macOS 26 · iOS compile-only"
+    runs-on: macos-26
+    timeout-minutes: 60
+    needs: [audit]
+    steps:
+      - uses: actions/checkout@v4
+
+      # Shared SPM checkout cache with the macOS legs (restore hit speeds first build)
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/org.swift.swiftpm/repositories
+            .build/checkouts
+          key: spm-deps-macos-26-ios-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            spm-deps-macos-26-
+
+      - name: Build for iOS (generic — no simulator needed for compile validation)
+        run: |
+          set -euo pipefail
+          export SWIFTC_SCAN_FOR_DEPS=0
+          xcodebuild build \
+            -workspace ocoreai.xcworkspace \
+            -scheme ocoreai \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            -skipPackagePluginValidation \
+            -skipMacroValidation
+        env:
+          OCOREAI_BUILD: ci
+
 
   ## ── Release (tagged pushes only) ────────────────────────────────
   # Uses artifacts from both macos-26 and xcode-27 runners.
