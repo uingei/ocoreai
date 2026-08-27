@@ -463,4 +463,18 @@ func bootstrapBuiltInTools(
     // 不吐像素)。基础设施复用已验证的 ScreenshotService(ScreenCaptureKit) +
     // VisionOCR —— PerceptionEngine 已在 UI 侧消费同一管线;本工具补 agent 面。
     try? await registry.register(ScreenCaptureClient.toolEntry())
+
+    // ── transcribe_audio ───────────────────────────────────────────────────
+    // 听觉感知轴的 agent 可触面: 复用已建的音频基设(而非另造)——
+    //   LocalSTT(L3, macOS 26 / iOS 26+ 离线 Speech framework 文件识别)
+    //   + AudioIO 的 live-mic 兜底阶梯。返回识别文字(文本通道,非音频)。
+    // 基设已在 UI press-to-talk / MultimodalHandler(HTTP /v1/multimodal)侧消费;
+    // 本工具补 agent 面 —— 与 view_screen 同一「基设已建、补 agent 面」形态。
+    try? await registry.register(TranscribeAudioClient.toolEntry())
+
+    // ── speak ──────────────────────────────────────────────────────────────
+    // 语音反馈轴的 agent 可触面: 复用 AudioIO.speak + PersonalVoiceTTS(L1,
+    // 用户自己的声音, floor=部署 floor 14/17 → 八版全 eligible)。
+    // MultimodalSpeakHandler(HTTP)已用同一 seam;本工具把它接到模型可调度面。
+    try? await registry.register(SpeakClient.toolEntry())
 }
