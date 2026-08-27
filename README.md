@@ -5,7 +5,7 @@
 [![swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 14+ / iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests: 843](https://img.shields.io/badge/Tests-843%2F843-brightgreen)](Tests/)
+[![Tests: 1195 @Test](https://img.shields.io/badge/Tests-1195%20%40Test%20%7C%20219%20%40Suite-brightgreen)](Tests/)
 
 ---
 
@@ -44,9 +44,9 @@ Dual inference backends — MLX (Metal GPU, default, dual-channel on-device infe
 - **KV cache quantization** — Enabled by default (turbo4 scheme, 4-bit INT4, activates after 256 tokens). Backed by `GenerateParameters.kvBits` / `kvScheme` / `quantizedKVStart` in upstream MLXLMCommon.
 - **Guided generation** — Grammar-constrained output via `MLXGuidedGeneration` (xgrammar/JSON schema), with DiagnosticSink observability and dynamic `CompletionReserve.estimate` structural reserve calculations. Auto-enabled when tool calling or explicit grammar schema is set. Multimodal messages bypass grammar constraints.
 - **macOS 27 FM path** — Native `MLXLanguageModel` → `LanguageModelSession` + `MLXFoundationModels` on macOS 27 with tool calling via `FMToolProxy` bridge, reasoning via `ContextOptions`, and transcript-driven streaming. Falls back to ChatSession pipeline on earlier macOS.
-- **Speculative decoding** — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support with model-id isolation. Upstream sync 2026-08-23 (mlx-swift-lm `1441444`, #544 absorbed, local build+test unblocked): ReasoningEventEmitter ✅ (22 refs / 7 files), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge). CoreAI grammar ✅ wired (b69b934): hybrid xgrammar path via `TokenizersMLXTokenizerAdapter`; pipelined-variant grammar tracks coreai-models #146/#170. AgentLoop runner pruned (4c231d3) — agent loop now in `DirectInferenceClient` + `ChatHandler`. See `CHANGELOG.md` + upstream audit report.
+- **Speculative decoding** — Gemma drafter model with per-model awareness (12B/26B/31B), MTP support with model-id isolation. Upstream sync 2026-08-23 (mlx-swift-lm `1441444`, #544 absorbed, local build+test unblocked): ReasoningEventEmitter ✅ (21 refs / 6 files), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge). CoreAI grammar ✅ wired (b69b934): hybrid xgrammar path via `TokenizersMLXTokenizerAdapter`; pipelined-variant grammar tracks coreai-models #146/#170. AgentLoop runner pruned (4c231d3) — agent loop now in `DirectInferenceClient` + `ChatHandler`. See `CHANGELOG.md` + upstream audit report.
 - **SessionPool** — Prefix-level prompt cache reuse via message divergence tracking; HardwareRouter pressure events trigger aggressive eviction; `loadPromptCacheSnapshot` restores LM state alongside KV cache for correct position anchoring.
-- **Persistent perception** — PerceptionEngine (13 files, 3049 LOC in `Multimodal/`): full 7-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
+- **Persistent perception** — PerceptionEngine (16 files, 3,600 LOC in `Multimodal/`): full 7-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
 - **AIModelCache** — native CoreAI compiled model artifact caching (macOS 27 SDK).
 - **Config system** — YAML config with file watcher (poll-based). Hardware auto-detection for memory budget.
 - **Multimodal I/O** — camera capture, screen capture, microphone input, Vision OCR, 16kHz Apple Speech STT, i18n TTS — all native. Camera/screen toggles are off by default; STT requires microphone permission.
@@ -178,7 +178,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 | **Multimodal** | `Multimodal/` | Camera, screen, audio I/O, TTS (Apple Speech), Vision OCR |
 | **Security** | `Security/` | Structured logger, audit trail, ContentGuard, crash handler |
 | **Reasoning** | `Reasoning/` | ComplexityAnalyzer, ThinkingBudget (adaptive reasoning depth) |
-- **Profiling** | `Profiling/` | TimingHooks (latency/TTFB) |
+| **Profiling** | `Profiling/` | TimingHooks (latency/TTFB) |
 | **Metrics** | `Metrics/` | Prometheus metrics collection and export |
 | **Locale** | `Localization/` | 6-language i18n (en, zh, ja, ko, fr, de) |
 
@@ -192,7 +192,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 - **ContentGuard** — 3-stage input/output filtering for sensitive content.
 - **StructuredLogger** — Structured audit trail, log file rotation.
 - **Global crash handler** — On uncaught exception or POSIX signal (segv/abort/bus), writes structured crash log to `~/Library/Application Support/ocoreai/logs/`, then exits.
-- **Concurrency** — Swift 6 strict concurrency, actor isolation on scheduler/tool registry/inference engine. All 44 `@unchecked Sendable` declarations justified with concurrency comments.
+- **Concurrency** — Swift 6 strict concurrency, actor isolation on scheduler/tool registry/inference engine. All 51 `@unchecked Sendable` declarations justified with concurrency comments.
 
 ---
 
@@ -225,8 +225,8 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 | TTS (speech output) | ⚠️ Wired; lazy-triggered via `speakerEnabled` toggle (off by default) |
 | Self Correction Pipeline | ⚠️ Bridge Path only — requires explicit `selfCorrection: true`; no UI toggle |
 | i18n | ⚠️ Framework complete; en + zh-Hans shipped, 5 locales defined but untranslated |
-- **SwiftUI dashboard UI** — ✅ Live channel badge (GPU/ANE/CPU) in health bar + ChatView; thermal-pressure toast on channel shifts; Settings capability pills (MLX/CoreAI) with proper runtime gating
-- **Self-adaptation (EMA health)** — ✅
+| SwiftUI dashboard UI | ✅ Live channel badge (GPU/ANE/CPU) in health bar + ChatView; thermal-pressure toast on channel shifts; Settings capability pills (MLX/CoreAI) with proper runtime gating |
+| Self-adaptation (EMA health) | ✅ |
 | Profiling (TimingHooks) | ✅ |
 
 ---
@@ -234,10 +234,10 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 ### Build Info
 
 - Swift 6.2 · SwiftUI · Hummingbird 2.25.0
-- 178 Swift source files, 58,166 LOC as of 2026-08-24 (+ 68 test files, 13,449 LOC)
+- 192 Swift source files, 62,168 LOC (+ 83 test files, 16,591 LOC) — measured 2026-08-27
 - macOS 14+ / iOS 17+ · Apple Silicon
-- Tests: 68 test files, 169 suites, 921 @Test cases (local xcodebuild first green 2026-08-23; CI macos-26 green 2026-08-24)
-- Build: 0 warnings, 0 errors
+- Tests: 1,181 `@Test` in 214 `@Suite`s / 83 test files (grep-verified 2026-08-27; CI last full-green report: 1,110 tests / 200 suites on 2026-08-26) — full gate: `xcodebuild build-for-testing` → `xcrun xctest` on CI macos-26 + xcode-27
+- Build: 0 errors
 - Development: Built entirely by **qwen3.8:27b-mtp-q4_K_M** — self-contained AI agent with no external tool use. All architecture, code, and tests authored autonomously.
 
 ---

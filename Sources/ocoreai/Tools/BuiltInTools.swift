@@ -477,4 +477,13 @@ func bootstrapBuiltInTools(
     // 用户自己的声音, floor=部署 floor 14/17 → 八版全 eligible)。
     // MultimodalSpeakHandler(HTTP)已用同一 seam;本工具把它接到模型可调度面。
     try? await registry.register(SpeakClient.toolEntry())
+
+    // ── clock ──────────────────────────────────────────────────────────────
+    // codex `clock` namespace 两个 agent-loop 原语(0.150.1 HEAD): 读时间 + 受控等待。
+    //   curr_time  无参, UTC `YYYY-MM-DD HH:MM:SS UTC`(codex current_time.rs)
+    //   sleep      `duration_ms` 1..43,200,000(12h) 报墙钟经过秒(codex sleep.rs)
+    // ocoreai 此前 0 注册(agent 想读时间只能靠 info.uptime 间接推;想等只能靠
+    // exec sleep 走子进程)→ 本批补一等原语。命名/取值/报告形态逐行对齐 codex。
+    try? await registry.register(CurrTimeClient.toolEntry())
+    try? await registry.register(SleepClient.toolEntry())
 }
