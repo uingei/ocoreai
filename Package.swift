@@ -35,7 +35,7 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         // NOTE: CoreAI, CoreAILanguageModels, CoreAIShared are macOS system frameworks,
         // not SwiftPM packages — imported directly in source via `#if canImport(CoreAI)` guards
-        // Pins exact revision of upstream main branch. Drifts; please update with `swift package update`. Current pin: 2026-08-26 — @ 6745899.
+        // Pins exact revision of upstream main branch. Drifts; please update with `swift package update`. Current pin: 2026-08-28 — @ db767ef (#568 MoE router top-k shared across Qwen3MoE/Qwen35/OLMoE/Mixtral/Jamba/GraniteMoeHybrid + #569 compiled decode segments generalized; both package-scoped, no public breaks). Prior: 2026-08-26 — @ 6745899.
         // then bump .revision + test.
         //
         // 626516b..6745899 (5 commits, all verified consumer-transparent / free riders):
@@ -108,7 +108,7 @@ let package = Package(
         //     LoRA+dropout inference in LLMLifecycleHandler.
         // Re-evaluate at each upstream main bump: re-grep `Generation` switch
         // sites and confirm exhaustiveness before building.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "6745899"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "db767ef"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
