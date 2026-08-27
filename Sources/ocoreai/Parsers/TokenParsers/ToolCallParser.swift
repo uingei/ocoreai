@@ -5,6 +5,10 @@
 // Vended 2026-08-09: Pure Foundation, no heavy deps. Used in CoreAI inference path
 // to detect tool call blocks in decoded token deltas — aligns with upstream
 // CoreAIExecutor.respondVanilla() pipeline.
+//
+// Re-vendored 2026-08-28: tool-call id → `call_<8hex>` (coreai-models #203,
+// OpenAI-style), consistent with ocoreai's ToolCallAccumulator (OpenAIModels.swift)
+// and the round-trip result message (EngineInference.swift `Chat.Message.tool`).
 
 import Foundation
 
@@ -110,7 +114,8 @@ struct ToolCallParser {
             argsJSON = "{}"
         }
 
-        return .toolCall(id: UUID().uuidString, name: name, argsJSON: argsJSON)
+        let callId = "call_\(UUID().uuidString.prefix(8).lowercased())"
+        return .toolCall(id: callId, name: name, argsJSON: argsJSON)
     }
 
     /// Rightmost index such that the suffix from there to end-of-buffer is NOT
