@@ -284,8 +284,15 @@ actor MCPBridge {
             log.debug("Local registry miss: \(toolName)")
         }
 
-        // 3. Fan-out 到外部 MCP servers
+        // 3. Fan-out 到外部 MCP servers.
+        // Security gate FIRST (codex #41094 parity: sensitive MCP actions route to
+        // the synchronous reviewer). Same `ToolRegistry.securityPrecheck` chokepoint
+        // as local tools — hooks with `matcher == nil` apply to every tool, so
+        // deny/ask verdicts fire here without per-MCP-name enumeration. A deny/ask
+        // without an approval broker throws `ToolError.denied` (never silently
+        // forwarded); with a broker, the call suspends for a user decision.
         do {
+            try await securityGate(forExternalTool: toolName, arguments: arguments)
             let externalResult = try await routeToExternalServers(toolName, arguments: arguments)
             if config.callCacheEnabled {
                 let cacheKey = cacheKey(for: toolName, args: arguments)
@@ -293,9 +300,17 @@ actor MCPBridge {
             }
             return externalResult
         } catch {
-            log.warning("Tool routing failed for \(toolName): \(error.localizedDescription)")
+            log.warning("Tool routing failed for '\(toolName)': \(error.localizedDescription)")
             throw MCPBridgeError.routingFailed(toolName, reason: error.localizedDescription)
         }
+    }
+
+    /// Security preflight before forwarding a call to an external MCP server.
+    /// Wraps `ToolRegistry.securityPrecheck` (PreToolUse hooks + approval broker)
+    /// so the local and external tool paths share one gate. Exposed for tests:
+    /// deny/ask must throw before `forwardToolCall` runs; allow must not.
+    func securityGate(forExternalTool toolName: String, arguments: String) async throws {
+        try await toolRegistry.securityPrecheck(toolName: toolName, arguments: arguments)
     }
 
     /// 调用本地工具（通过 MCPServer dispatch）。

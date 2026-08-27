@@ -121,6 +121,57 @@ actor ToolRegistry {
 
     // MARK: - Execution
 
+    /// Shared security preflight for a tool call — PreToolUse hooks (allow/deny/ask)
+    /// and the user-approval broker (`.ask` → pending → decision).
+    ///
+    /// Codex baseline: the `ExecApprovalRequest` chokepoint applies to **all**
+    /// tool execution, including MCP-routed sensitive actions (#41094 routes
+    /// marked MCP actions to the synchronous reviewer). ocoreai parity: this is
+    /// the single gate — local tools via `call`, external MCP tools via
+    /// `MCPBridge.routeToExternalServers`. The hook's reason always carries the
+    /// gate context (`.ask(let reason)`); hooks with `matcher == nil` apply to
+    /// every tool (codex "no matcher → global"), so MCP tool names need no
+    /// per-name enumeration.
+    ///
+    /// Extracted from `call` — local-tool behavior is unchanged: same verdict
+    /// order, same broker path, same deny reasons, same log lines.
+    /// - Throws: ``ToolError/denied(reason:):`` on `.deny` or user denial.
+    func securityPrecheck(toolName: String, arguments: String) async throws {
+        // PreToolUse hook veto — codex `HookEventName.preToolUse`.
+        // A single deny/ask from any non-skipped matcher short-circuits here,
+        // BEFORE audit, loop detection, or handler execution. If a hook is
+        // added later with `matcher == nil` it will apply to every tool —
+        // that's the design intent (mirrors codex "no matcher → global").
+        let verdict = await hookRunner.evaluatePreToolUse(toolName: toolName, arguments: arguments)
+        if verdict != .allow {
+            switch verdict {
+            case .deny(let reason):
+                logger.info("Tool '\(toolName)' denied by PreToolUse hook")
+                throw ToolError.denied(reason: reason)
+            case .ask(let reason):
+                // User-approval gate — codex `ExecApprovalRequest` → TUI cell →
+                // `ReviewDecision`. broker 存在 → 挂起等裁决；broker 缺席 → 硬拒
+                // （回归保护：无审批面时绝不静默放行）。
+                if let broker = approvalBroker {
+                    logger.info("Tool '\(toolName)' requires approval — routing to broker")
+                    let decision = await broker.request(
+                        toolName: toolName, arguments: arguments, reason: reason)
+                    switch decision {
+                    case .approved, .approvedForSession:
+                        break
+                    case .denied(let denyReason):
+                        logger.info("Tool '\(toolName)' denied by user")
+                        throw ToolError.denied(reason: denyReason)
+                    }
+                } else {
+                    logger.info("Tool '\(toolName)' requires approval (no broker) — denying")
+                    throw ToolError.denied(reason: reason)
+                }
+            case .allow: break
+            }
+        }
+    }
+
     /// Dispatch a tool call after safety checks.
     /// - Parameters:
     ///   - name: Tool name to invoke
@@ -130,39 +181,9 @@ actor ToolRegistry {
     /// - Throws: ``ToolError`` on validation or execution failure
     func call(_ name: String, arguments: String, caller: String = "unknown") async throws -> String
     {
-        // 0. PreToolUse hook veto — codex `HookEventName.preToolUse`.
-        //    A single deny/ask from any non-skipped matcher short-circuits here,
-        //    BEFORE audit, loop detection, or handler execution. If a hook is
-        //    added later with `matcher == nil` it will apply to every tool —
-        //    that's the design intent (mirrors codex "no matcher → global").
-        let verdict = await hookRunner.evaluatePreToolUse(toolName: name, arguments: arguments)
-        if verdict != .allow {
-            switch verdict {
-            case .deny(let reason):
-                logger.info("Tool '\(name)' denied by PreToolUse hook")
-                throw ToolError.denied(reason: reason)
-            case .ask(let reason):
-                // User-approval gate — codex `ExecApprovalRequest` → TUI cell → `ReviewDecision`。
-                // broker 存在 → 挂起等裁决（approved/approvedForSession 放行，denied 回传理由）；
-                // broker 缺席 → 硬拒（回归保护：无审批面时绝不静默放行）。
-                if let broker = approvalBroker {
-                    logger.info("Tool '\(name)' requires approval — routing to broker")
-                    let decision = await broker.request(
-                        toolName: name, arguments: arguments, reason: reason)
-                    switch decision {
-                    case .approved, .approvedForSession:
-                        break
-                    case .denied(let denyReason):
-                        logger.info("Tool '\(name)' denied by user")
-                        throw ToolError.denied(reason: denyReason)
-                    }
-                } else {
-                    logger.info("Tool '\(name)' requires approval (no broker) — denying")
-                    throw ToolError.denied(reason: reason)
-                }
-            case .allow: break
-            }
-        }
+        // 0. Security preflight (PreToolUse hooks + approval broker gate) —
+        //    shared with the external-MCP path (see `securityPrecheck`).
+        try await securityPrecheck(toolName: name, arguments: arguments)
 
         // 1. Lookup
         guard let entry = tools[name] else {
