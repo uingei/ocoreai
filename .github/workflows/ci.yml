@@ -114,7 +114,7 @@ jobs:
   # mlx-swift-lm CI uses: xcodebuild build-for-testing → xcrun xctest.
   # This avoids the swift test metallib path issue entirely.
   build-and-test:
-    name: "Build & Test (${{ matrix.os }})"
+    name: "Build & Test (${{ matrix.os }}${{ matrix.destination == 'ios' and ' · iOS compile-only' or '' }})"
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     needs: [audit]
@@ -126,9 +126,9 @@ jobs:
             build_release: true
           - os: xcode-27
             build_release: true
-          - os: ios
+          - os: macos-26
+            destination: ios
             build_release: false
-            is_ios: true
     steps:
       - uses: actions/checkout@v4
 
@@ -139,7 +139,7 @@ jobs:
           path: |
             ~/.cache/org.swift.swiftpm/repositories
             .build/checkouts
-          key: spm-deps-${{ matrix.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          key: spm-deps-${{ matrix.os }}-${{ matrix.destination || 'mac' }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             spm-deps-${{ matrix.os }}-
 
@@ -159,7 +159,7 @@ jobs:
       # frameworks; no simulator runner in this env). The macOS legs remain the
       # full build+test gate. See Package.swift platforms: .iOS(.v17).
       - name: Build for iOS (generic, compile-validate)
-        if: ${{ matrix.is_ios == true }}
+        if: ${{ matrix.destination == 'ios' }}
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
@@ -174,7 +174,7 @@ jobs:
           OCOREAI_BUILD: ci
 
       - name: Build for testing (xcodebuild)
-        if: ${{ matrix.is_ios != true }}
+        if: ${{ matrix.destination != 'ios' }}
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
@@ -193,7 +193,7 @@ jobs:
       # EXECUTED in a dedicated step — `TEST BUILD SUCCEEDED` does NOT mean
       # tests ran. This is the real test gate (757 Swift Testing tests).
       - name: Run tests (xcrun xctest)
-        if: ${{ matrix.is_ios != true }}
+        if: ${{ matrix.destination != 'ios' }}
         run: |
           set -euo pipefail
           XCB=$(ls -dt ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/Debug/ocoreaiTests.xctest 2>/dev/null | head -1 || true)
@@ -203,7 +203,7 @@ jobs:
 
       # ── Release build via xcodebuild ──
       - name: Build (xcodebuild, Release)
-        if: ${{ matrix.is_ios != true }}
+        if: ${{ matrix.destination != 'ios' }}
         if: ${{ matrix.build_release == true }}
         run: |
           set -euo pipefail
@@ -220,7 +220,7 @@ jobs:
           OCOREAI_BUILD: ci
 
       - name: Collect artifacts (Release)
-        if: ${{ matrix.is_ios != true }}
+        if: ${{ matrix.destination != 'ios' }}
         if: ${{ matrix.build_release == true && always() }}
         run: |
           set -euo pipefail
@@ -238,7 +238,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload build artifacts
-        if: ${{ matrix.is_ios != true }}
+        if: ${{ matrix.destination != 'ios' }}
         if: ${{ matrix.build_release == true && always() }}
         uses: actions/upload-artifact@v4
         with:
