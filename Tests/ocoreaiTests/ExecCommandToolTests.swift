@@ -121,8 +121,14 @@ struct ExecToolsRunTests {
         #expect(ExecTools.truncate(s) == s)
         let over = String(repeating: "a", count: ExecTools.maxReportChars + 1)
         let out = ExecTools.truncate(over)
-        #expect(out.count > 0)
-        #expect(out.contains("[TRUNCATED"))
+        // Exact structural assertion (no weak `count > 0`): the truncated report
+        // is head(maxReportChars/2) + marker + tail(maxReportChars/2), derived
+        // from the same `maxReportChars` constant the impl uses.
+        let half = ExecTools.maxReportChars / 2
+        let marker = "[TRUNCATED \(over.count) total; showing first \(half) + last \(half) chars]"
+        #expect(
+            out == String(repeating: "a", count: half) + "\n\(marker)\n"
+                + String(repeating: "a", count: half))
     }
 
     @Test("expand() — ~ , ~/path, absolute passthrough, relative passthrough")
