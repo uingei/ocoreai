@@ -173,7 +173,6 @@ public final class OcoreaiEngine {
     private var _thinkingBudget: ThinkingBudget?
     private var _contentGuard: ContentGuard?
     private var _semanticSearch: SemanticSearch?
-
     /// Config system — loaded at startup, hot-reload capable
     private var configSystem: ConfigSystem?
     /// Config snapshot — set on start, updated on hot-reload. Reads are same-actor.

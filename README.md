@@ -5,7 +5,7 @@
 [![swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 14+ / iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests: 1195 @Test](https://img.shields.io/badge/Tests-1195%20%40Test%20%7C%20219%20%40Suite-brightgreen)](Tests/)
+[![Tests: 1208 @Test](https://img.shields.io/badge/Tests-1208%20%40Test%20%7C%20222%20%40Suite-brightgreen)](Tests/)
 
 ---
 
@@ -236,7 +236,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 - Swift 6.2 · SwiftUI · Hummingbird 2.25.0
 - 192 Swift source files, 62,168 LOC (+ 83 test files, 16,591 LOC) — measured 2026-08-27
 - macOS 14+ / iOS 17+ · Apple Silicon
-- Tests: 1,181 `@Test` in 214 `@Suite`s / 83 test files (grep-verified 2026-08-27; CI last full-green report: 1,110 tests / 200 suites on 2026-08-26) — full gate: `xcodebuild build-for-testing` → `xcrun xctest` on CI macos-26 + xcode-27
+- Tests: 1,208 `@Test` in 222 `@Suite`s / 84 test files (grep-verified 2026-08-27; CI last full-green report: 1,110 tests / 200 suites on 2026-08-26) — full gate: `xcodebuild build-for-testing` → `xcrun xctest` on CI macos-26 + xcode-27
 - Build: 0 errors
 - Development: Built entirely by **qwen3.8:27b-mtp-q4_K_M** — self-contained AI agent with no external tool use. All architecture, code, and tests authored autonomously.
 

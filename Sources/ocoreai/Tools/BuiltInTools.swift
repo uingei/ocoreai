@@ -448,7 +448,14 @@ func bootstrapBuiltInTools(
         }
     )
 
-    // ── web_search ─────────────────────────────────────────────────────────
+    // ── get_context_remaining ────────────────────────────────────────────────
+    // codex `get_context_remaining`(06d2c64, 逐行对齐): 无参, 报告当前上下文窗口剩余 token。
+    //   真值 = turn 入口(ChatHandler)每轮已算的 promptTokenCount(used) + 模型窗口(limit)
+    //   → 写进 ContextStatusStore;本工具读时算 `max(0, limit - used)`,无窗口/无活跃会话→unknown。
+    //   基准: codex core/src/session/context_window.rs(tokens_remaining) +
+    //        core/src/context/token_budget_context.rs:170-172(report 逐字)。
+    let contextStore = ContextStatusStore.shared
+    try? await registry.register(GetContextRemainingClient.toolEntry(store: contextStore))
     // 获取信息一等工具。基准: codex ToolSpec::WebSearch (tool_spec.rs:39)。
     // 本地推理无 provider 代搜 → handler 调 ollama /v1/responses web_search。
     try? await registry.register(WebSearchClient.toolEntry())

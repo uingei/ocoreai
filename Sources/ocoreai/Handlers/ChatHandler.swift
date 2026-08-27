@@ -279,6 +279,10 @@ func chatCompletionsHandler(
         /// the wall below re-evaluates against the compacted transcript and
         /// throws a 400 only if it still exceeds the cap.
         let modelContextCap = await enginePool.getSamplingConfig(modelId: modelId).maxContextWindow
+        // 写当前活跃上下文供 get_context_remaining 工具读(codex `invocation.session` 真值)。
+        // used = 本轮 prompt 占满上下文的 token 数;limit = 该模型窗口(可能 nil→unknown)。
+        await ContextStatusStore.shared.set(
+            usedTokens: promptTokenCount, windowLimit: modelContextCap)
         if promptExceedsContextWindow(
             promptTokens: promptTokenCount, maxContextWindow: modelContextCap)
         {
