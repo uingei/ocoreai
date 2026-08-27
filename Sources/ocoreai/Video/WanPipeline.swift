@@ -4,12 +4,13 @@
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
 import Accelerate
-import CoreAI
 import CoreGraphics
 import Foundation
 import Tokenizers
 
 #if canImport(CoreAI)
+
+import CoreAI
 
 /// Wan 2.1 text-to-video pipeline using Core AI backend.
 ///
