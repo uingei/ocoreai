@@ -865,9 +865,12 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         // Aligned with upstream coreai-models `applyPenaltyStage` (#176):
         // where(logits > 0, logits / penalty, logits * penalty)
         let penalizedLogits: MPSGraphTensor
-        if penaltyEnabled {
+        if penaltyEnabled, let penaltyTensor = penaltyPlaceholder {
+            // Invariant (construction site L818-827): penaltyEnabled ⟹ penaltyPlaceholder != nil.
+            // Defensive fallback: if the invariant ever breaks, skip penalty rather than
+            // trapping — penalty is a quality knob, never a correctness requirement.
             penalizedLogits = Self.applyPenaltyStage(
-                graph: graph, logits: logitsFloat32, penaltyTensor: penaltyPlaceholder!,
+                graph: graph, logits: logitsFloat32, penaltyTensor: penaltyTensor,
                 name: "penalty")
         } else {
             penalizedLogits = logitsFloat32
@@ -1299,7 +1302,18 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
             topPPlaceholder: topPData,
             minPPlaceholder: minPData,
         ]
-        let inputs = executable.feedTensors!.map { tensorDataMap[$0]! }
+        // feedTensors is non-nil for any successfully compiled executable (MPSGraph
+        // invariant); defensive guard instead of force-unwrap — failure is reported
+        // to the caller via completion, matching the buffer-allocation path above.
+        guard let feedTensors = executable.feedTensors else {
+            completion(0, MPSGraphSamplerError.graphCompilationFailed)
+            return
+        }
+        let inputs = feedTensors.compactMap { tensorDataMap[$0] }
+        if inputs.count != feedTensors.count {
+            completion(0, MPSGraphSamplerError.graphCompilationFailed)
+            return
+        }
 
         let execDesc = MPSGraphExecutableExecutionDescriptor()
         execDesc.completionHandler = { [outputBuffer, outputOffset] (_, error) in

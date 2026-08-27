@@ -160,8 +160,12 @@ struct ConstrainedGenerationSession: ~Copyable {
     mutating func nextTokenBitmask() -> [Int32]? {
         if isTerminated { return nil }
 
+        // bitmaskBuffer is non-empty by construction (allocated for vocabSize at
+        // session init); guard instead of force-unwrap — an empty buffer would
+        // simply report "no constraints" and terminate the grammar.
         let hasConstraints = bitmaskBuffer.withUnsafeMutableBufferPointer { buffer in
-            matcher.fillNextTokenBitmask(buffer.baseAddress!)
+            guard let baseAddress = buffer.baseAddress else { return false }
+            return matcher.fillNextTokenBitmask(baseAddress)
         }
         // xgrammar may signal completion either by returning false, or by filling
         // an all-zeros bitmask (no tokens allowed). Both indicate the grammar is done.

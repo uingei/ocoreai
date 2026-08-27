@@ -166,10 +166,10 @@ enum FMTranscriptHelpers {
                     segments.append(
                         .text(FoundationModels.Transcript.TextSegment(content: msg.content)))
                 }
-                // NOTE: Transcript image attachments require Transcript.ImageAttachment which
-                // has no public initializer (opaque SDK type). For now, skip images in transcript
-                // path — the core value (tools/reasoning/sampling) is unlocked without them.
-                // TODO: Investigate VMultimodalSession or PromptBuilder path for images.
+                // NOTE: Transcript path carries text only. Transcript.ImageAttachment has
+                // no public initializer (opaque SDK type), so image segments cannot be
+                // constructed here — an SDK API-surface constraint, not a pending task.
+                // Core value (tools/reasoning/sampling) is fully unlocked without images.
                 _ = msg.images  // avoid unused warning
                 if !segments.isEmpty {
                     entries.append(

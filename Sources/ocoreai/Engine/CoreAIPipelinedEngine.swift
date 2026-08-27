@@ -864,7 +864,9 @@ private struct EngineImpl: ~Copyable {
 
         // Create penalized sampler if repetition penalty is configured
         // (aligned with upstream coreai-models CoreAIPipelinedEngine.#176).
-        if config.needsRepetitionPenalty {
+        // needsRepetitionPenalty implies repetitionPenalty != nil (InferenceStubs:155-160),
+        // so `if let` here is behavior-preserving.
+        if config.needsRepetitionPenalty, let penalty = config.repetitionPenalty {
             if config.temperature == 0 {
                 throw InferenceRuntimeError.invalidArgument(
                     "Repetition penalty with greedy sampling is not supported on pipelined engine. "
@@ -875,7 +877,7 @@ private struct EngineImpl: ~Copyable {
                     device: device,
                     vocabSize: self.config.vocabSize,
                     pipelineDepth: pipelineDepth,
-                    penalty: config.repetitionPenalty!,
+                    penalty: penalty,
                     windowSize: config.repetitionPenaltyWindow
                 )
             }
