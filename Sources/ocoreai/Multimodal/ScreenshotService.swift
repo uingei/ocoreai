@@ -390,6 +390,7 @@ final class ScreenshotService: NSObject {
     static let isAvailable = false
     var isCapturing: Bool = false
     var latestFrameDataURL: String?
+    var latestOCRText: String? = nil
 
     @discardableResult
     func captureScreen() async -> String? {

@@ -52,7 +52,7 @@ enum ModelStore {
         {
             return URL(fileURLWithPath: (override as NSString).expandingTildeInPath)
         }
-        return FileManager.default.homeDirectoryForCurrentUser
+        return URL(fileURLWithPath: NSHomeDirectory())
             .appendingPathComponent(".ocoreai")
             .appendingPathComponent("models")
     }
@@ -60,7 +60,7 @@ enum ModelStore {
     /// 旧默认根(遗留,只发现/清理不写入):
     /// macOS `~/Library/Application Support/ocoreai/models`;其它 `~/.local/share/ocoreai/models`。
     static var legacyRoot: URL {
-        let home = FileManager.default.homeDirectoryForCurrentUser
+        let home = URL(fileURLWithPath: NSHomeDirectory())
         #if os(macOS)
         return
             home
@@ -127,7 +127,7 @@ enum ModelStore {
     /// (`org.ml-explore.mlx-swift-lm`)。统一供 resolve/discover/remove 使用。
     static func legacyHFBases() -> [URL] {
         var bases: [URL] = [legacyRoot]
-        let home = FileManager.default.homeDirectoryForCurrentUser
+        let home = URL(fileURLWithPath: NSHomeDirectory())
         bases.append(
             home
                 .appendingPathComponent(".cache")
@@ -279,7 +279,7 @@ enum ModelStore {
         // 1) HF — 新 root + 旧 home cache(models-- 编码目录)
         let hubBases = [
             hubRoot,
-            fm.homeDirectoryForCurrentUser
+            URL(fileURLWithPath: NSHomeDirectory())
                 .appendingPathComponent(".cache").appendingPathComponent("huggingface")
                 .appendingPathComponent("hub"),
         ]

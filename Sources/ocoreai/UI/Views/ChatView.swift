@@ -139,6 +139,32 @@ struct ChatView: View {
         ModelManager.shared.modelIdStrings()
     }
 
+    /// Model selector (toolbar item). Kept as a distinct `@ToolbarContentBuilder`
+    /// so the inline `.toolbar` expression stays within the compiler's type-check budget
+    /// (iOS SwiftUI type-checks the whole toolbar closure as one expression).
+    @ToolbarContentBuilder
+    private var modelSelectorToolbar: some ToolbarContent {
+        // Model selector moved to toolbar — HIG: global controls belong in toolbar
+        ToolbarItem(placement: .automatic) {
+            Menu {
+                ForEach(models, id: \.self) { m in
+                    Button(m) { currentModel = m }
+                }
+                // B4: model search/load moved to Models tab
+                Divider()
+                Button(StringKey.defaultModel.l) { currentModel = "" }
+            } label: {
+                Label(
+                    currentModel.isEmpty ? StringKey.noModelSelected.l : currentModel,
+                    systemImage: "brain",
+                )
+            }
+            .accessibilityLabel(StringKey.modelSelectorLabel.l)
+            .accessibilityValue(
+                currentModel.isEmpty ? StringKey.modelSelectorValueDefault.l : currentModel)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             chatHeader
@@ -220,26 +246,7 @@ struct ChatView: View {
         }
         #endif
         .toolbar {
-            // Model selector moved to toolbar — HIG: global controls belong in toolbar
-            ToolbarItem(placement: .automatic) {
-                Menu {
-                    ForEach(models, id: \.self) { m in
-                        Button(m) { currentModel = m }
-                    }
-                    // B4: model search/load moved to Models tab
-                    Divider()
-                    Button(StringKey.defaultModel.l) { currentModel = "" }
-                } label: {
-                    Label(
-                        currentModel.isEmpty ? StringKey.noModelSelected.l : currentModel,
-                        systemImage: "brain",
-                    )
-                }
-                .accessibilityLabel(StringKey.modelSelectorLabel.l)
-                .accessibilityValue(
-                    currentModel.isEmpty ? StringKey.modelSelectorValueDefault.l : currentModel)
-            }
-
+            modelSelectorToolbar
             // HIG-02: destructive non-modal operations shouldn't be in .primaryAction —
             // .automatic is the neutral placement for secondary/destructive toolbar items
             ToolbarItem(placement: .automatic) {
@@ -292,11 +299,14 @@ struct ChatView: View {
         // P0-fix: iOS photo picker sheet — PhotosPicker (iOS 16+, HIG-compliant)
         #if os(iOS)
         .sheet(isPresented: $showPhotoPicker) {
+            // `label:` on the `maxSelectionCount:` init expects a `@Sendable () -> some View`
+            // closure (SwiftUI overlay, iOS 27 SDK). Use the positional String-title init
+            // (no `label:` param) — SDK-verified (L148, `S : StringProtocol`).
             PhotosUI.PhotosPicker(
+                StringKey.attachFiles.l,
                 selection: $photoPickerItems,
                 maxSelectionCount: 5,
-                preferredItemEncoding: .automatic,
-                label: StringKey.attachFiles.l
+                preferredItemEncoding: .automatic
             )
             .onChange(of: photoPickerItems) {
                 processPhotoPickerItems(Array(photoPickerItems))
@@ -849,7 +859,7 @@ struct ChatBubble: View {
                 }
                 #else
                 Button(StringKey.copyMessage.l) {
-                    copyToPasteboard(message.content)
+                    UIPasteboard.general.string = message.content
                 }
                 if message.role == "user" {
                     Divider()
@@ -904,16 +914,25 @@ private struct InlineImagePreview: View {
     let dataURL: String
 
     var body: some View {
-        Group {
-            if let nsImage = dataURL.dataURLImage {
-                Image(nsImage: nsImage)
-                    .resizable()
-                    .scaledToFit()
-            } else {
-                Image(systemName: "photo")
-                    .foregroundStyle(.secondary)
-            }
+        #if os(iOS)
+        if let imageAny = dataURL.dataURLImage, let uiImage = imageAny as? UIImage {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFit()
+        } else {
+            Image(systemName: "photo")
+                .foregroundStyle(.secondary)
         }
+        #else
+        if let imageAny = dataURL.dataURLImage, let nsImage = imageAny as? NSImage {
+            Image(nsImage: nsImage)
+                .resizable()
+                .scaledToFit()
+        } else {
+            Image(systemName: "photo")
+                .foregroundStyle(.secondary)
+        }
+        #endif
     }
 }
 

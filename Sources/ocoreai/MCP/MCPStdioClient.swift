@@ -61,6 +61,7 @@ actor MCPStdioClient {
         throw MCPClientError.platformNotSupported
         #endif
 
+        #if os(macOS)
         guard process == nil else {
             log.warning("Already connected to '\(endpoint.name)'")
             return
@@ -92,6 +93,11 @@ actor MCPStdioClient {
             await cleanup()
             throw error
         }
+        #endif
+        #if !os(macOS)
+        // iOS: throw 已在函数入口拦截；此分支仅为编译闭合。
+        throw MCPClientError.platformNotSupported
+        #endif
     }
 
     /// 断开连接（终止子进程）。\

@@ -150,24 +150,50 @@ private struct SidebarView: View {
     @Bindable private var appState = AppState.shared
 
     var body: some View {
+        sidebarBody
+            .listStyle(.sidebar)
+            .accessibilityLabel(StringKey.sidebarNavigation.l)
+    }
+
+    #if os(macOS)
+    private var sidebarBody: some View {
         List(selection: $appState.selectedTab) {
-            sidebarSection(
-                icon: "server.rack", title: StringKey.sectionServer.l, tabs: AppTab.serverGroup)
-            sidebarSection(
-                icon: "brain.head.profile", title: StringKey.sectionWorkflow.l,
-                tabs: AppTab.workflowGroup)
-            sidebarSection(
-                icon: "gearshape.2", title: StringKey.sectionSystem.l, tabs: AppTab.systemGroup)
+            sidebarSections
         }
-        .listStyle(.sidebar)
-        .accessibilityLabel(StringKey.sidebarNavigation.l)
+    }
+    #else
+    // iOS: `List(selection:)` is unavailable — rows drive `selectedTab`
+    // via their Button action instead (macOS keeps binding selection).
+    private var sidebarBody: some View {
+        List {
+            sidebarSections
+        }
+    }
+    #endif
+
+    @ViewBuilder
+    private var sidebarSections: some View {
+        sidebarSection(
+            icon: "server.rack", title: StringKey.sectionServer.l, tabs: AppTab.serverGroup)
+        sidebarSection(
+            icon: "brain.head.profile", title: StringKey.sectionWorkflow.l,
+            tabs: AppTab.workflowGroup)
+        sidebarSection(
+            icon: "gearshape.2", title: StringKey.sectionSystem.l, tabs: AppTab.systemGroup)
     }
 
     private func sidebarSection(icon: String, title: String, tabs: [AppTab]) -> some View {
         Section {
             ForEach(tabs) { tab in
+                #if os(macOS)
                 SidebarRow(tab: tab)
                     .tag(tab)
+                #else
+                Button(action: { appState.selectedTab = tab }) {
+                    SidebarRow(tab: tab)
+                }
+                .buttonStyle(.plain)
+                #endif
             }
         } header: {
             SectionHeaderLabel(icon: icon, title: title)

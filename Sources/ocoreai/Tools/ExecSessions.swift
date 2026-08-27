@@ -73,6 +73,7 @@ private func runOnBackground<T: Sendable>(
 /// `Process` is non-`Sendable`; the lock bounds each method call so the
 /// reference can safely live in actor state and be captured by `@Sendable`
 /// dispatch closures without the reference itself racing.
+#if os(macOS)
 private final class SessionProc: @unchecked Sendable {
     private let lock = NSLock()
     private var proc: Process?
@@ -133,6 +134,28 @@ private final class SessionProc: @unchecked Sendable {
         stdinHandle = nil
     }
 }
+#else
+// iOS: `Process`/subprocesses are not available (sandbox). The class is
+// kept as a no-op stub so shared non-procedural code (Session struct,
+// makeRoom, finishSession, drainBlocking) compiles identically on both
+// platforms. iOS code paths never actually touch this — spawn/write_stdin/
+// kill all throw `checkFailed` first.
+private final class SessionProc: @unchecked Sendable {
+    init(process: AnyObject, stdinHandle: FileHandle?) {
+        _ = (process, stdinHandle)
+    }
+    func run() throws {}
+    func isRunning() -> Bool { false }
+    func terminationStatus() -> Int32 { -1 }
+    func terminate() {}
+    func forceKill() {}
+    @discardableResult
+    func writeStdin(_ data: Data) throws {
+        _ = data
+    }
+    func closeStdin() {}
+}
+#endif
 
 actor ExecSessionManager {
     // MARK: - Bounds (codex parity where noted)

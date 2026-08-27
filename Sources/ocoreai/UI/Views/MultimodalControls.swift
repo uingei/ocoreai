@@ -142,8 +142,9 @@ struct MultimodalControls: View {
         }
     }
 
-    // MARK: - Screen Section
+    // MARK: - Screen Section (macOS only — ScreenCaptureKit unavailable on iOS)
 
+    #if os(macOS)
     private var screenSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -185,6 +186,7 @@ struct MultimodalControls: View {
             }
         }
     }
+    #endif
 
     // MARK: - Microphone Section
 

@@ -126,6 +126,9 @@ jobs:
             build_release: true
           - os: xcode-27
             build_release: true
+          - os: ios
+            build_release: false
+            is_ios: true
     steps:
       - uses: actions/checkout@v4
 
@@ -151,7 +154,27 @@ jobs:
           set -euo pipefail
           xcodebuild -downloadComponent MetalToolchain
 
+      # iOS leg (build-only): verify all #if os(iOS) branches compile.
+      # iOS is build-only — no test execution (ocoreaiTest target links macOS-only
+      # frameworks; no simulator runner in this env). The macOS legs remain the
+      # full build+test gate. See Package.swift platforms: .iOS(.v17).
+      - name: Build for iOS (generic, compile-validate)
+        if: ${{ matrix.is_ios == true }}
+        run: |
+          set -euo pipefail
+          export SWIFTC_SCAN_FOR_DEPS=0
+          xcodebuild build \
+            -workspace ocoreai.xcworkspace \
+            -scheme ocoreai \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            -skipPackagePluginValidation \
+            -skipMacroValidation
+        env:
+          OCOREAI_BUILD: ci
+
       - name: Build for testing (xcodebuild)
+        if: ${{ matrix.is_ios != true }}
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
@@ -170,6 +193,7 @@ jobs:
       # EXECUTED in a dedicated step — `TEST BUILD SUCCEEDED` does NOT mean
       # tests ran. This is the real test gate (757 Swift Testing tests).
       - name: Run tests (xcrun xctest)
+        if: ${{ matrix.is_ios != true }}
         run: |
           set -euo pipefail
           XCB=$(ls -dt ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/Debug/ocoreaiTests.xctest 2>/dev/null | head -1 || true)
@@ -179,6 +203,7 @@ jobs:
 
       # ── Release build via xcodebuild ──
       - name: Build (xcodebuild, Release)
+        if: ${{ matrix.is_ios != true }}
         if: ${{ matrix.build_release == true }}
         run: |
           set -euo pipefail
@@ -195,6 +220,7 @@ jobs:
           OCOREAI_BUILD: ci
 
       - name: Collect artifacts (Release)
+        if: ${{ matrix.is_ios != true }}
         if: ${{ matrix.build_release == true && always() }}
         run: |
           set -euo pipefail
@@ -212,6 +238,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload build artifacts
+        if: ${{ matrix.is_ios != true }}
         if: ${{ matrix.build_release == true && always() }}
         uses: actions/upload-artifact@v4
         with:
