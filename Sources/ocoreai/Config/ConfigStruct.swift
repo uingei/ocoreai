@@ -241,6 +241,32 @@ func pureSpecDecodingUIOverlay(
     }
 }
 
+/// Merge an explicit UI KV-quantization choice into the authored backend
+/// config. A `nil` dimension means the user did not touch that control
+/// (UserDefaults key absent) — that dimension keeps the authored value.
+///
+/// When `uiBits` is present it also pins `kvScheme` to the matching affine
+/// width: the engine's scheme-first resolver (MLXBridge `makeKVCacheConfiguration`)
+/// takes an authored `"turbo*"` scheme over `bits`, so without the scheme fix an
+/// explicit UI bit selection would be silently ignored (UI shows 8, engine runs
+/// 4-bit turbo). `"affine\<bits>"` routes the engine to the affine branch where
+/// the bit width is honored; 4/8 are the valid affine widths.
+/// Kept pure so the merge semantics are exact-value testable
+/// (cf. `pureSpecDecodingUIOverlay`, `pureMTPDrafterSelection`).
+func pureKVQuantUIOverlay(
+    config: inout KVCacheQuantizationConfig,
+    uiEnabled: Bool?,
+    uiBits: Int?
+) {
+    if let uiEnabled {
+        config.enabled = uiEnabled
+    }
+    if let uiBits {
+        config.bits = uiBits
+        config.kvScheme = "affine\(uiBits)"
+    }
+}
+
 /// Inference backend selection and resource limits.
 public struct BackendConfig: Sendable, Codable, Equatable {
     public var preference: [String]

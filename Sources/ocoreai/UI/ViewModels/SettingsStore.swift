@@ -69,6 +69,22 @@ final class SettingsStore {
         }
     }
 
+    /// True when the user has explicitly toggled the KV-quantization enable
+    /// control (UserDefaults key present). `Bool` reads default to `false` for
+    /// an untouched key, so without this flag the engine's authored default
+    /// (`enabled: true`) would silently flip off. When false, that dimension
+    /// keeps the authored value.
+    var kvQuantizationEnabledIsSet: Bool {
+        defaults.object(forKey: Key.kvQuantizationEnabled.rawValue) != nil
+    }
+
+    /// True when the user has explicitly chosen the KV-quantization bits.
+    /// Untouched (`integer(forKey:)` → 0, which is not a legal width) must not
+    /// be read as a selection; that dimension keeps the authored value.
+    var kvQuantizationBitsIsSet: Bool {
+        defaults.object(forKey: Key.kvQuantizationBits.rawValue) != nil
+    }
+
     /// KV cache memory budget in GB
     var kvCacheBudgetGB: Double {
         get {

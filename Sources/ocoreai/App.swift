@@ -429,6 +429,19 @@ public final class OcoreaiEngine {
             _configSnapshot = snap
         }
 
+        // KV-cache quantization: same bridge, independent dimensions.
+        let kvEnabledSet = SettingsStore.shared.kvQuantizationEnabledIsSet
+        let kvBitsSet = SettingsStore.shared.kvQuantizationBitsIsSet
+        if kvEnabledSet || kvBitsSet {
+            var snap = _configSnapshot
+            pureKVQuantUIOverlay(
+                config: &snap.backend.kvCacheQuantization,
+                uiEnabled: kvEnabledSet ? SettingsStore.shared.kvQuantizationEnabled : nil,
+                uiBits: kvBitsSet ? SettingsStore.shared.kvQuantizationBits : nil
+            )
+            _configSnapshot = snap
+        }
+
         // Build engine config from ConfigSystem (or fallback to hard-coded defaults)
         let engineConfig = EnginePoolConfig(from: _configSnapshot, logger: logger)
 
