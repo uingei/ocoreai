@@ -95,6 +95,18 @@ final class SettingsStore {
         }
     }
 
+    /// True when the user has explicitly set the specDecoding enabled control
+    /// (UserDefaults key present). When false, the engine must keep whatever the
+    /// authored config declares for that dimension rather than defaulting it.
+    var specDecodingEnabledIsSet: Bool {
+        defaults.object(forKey: Key.specDecodingEnabled.rawValue) != nil
+    }
+
+    /// True when the user has explicitly set the specDecoding mode control.
+    var specDecodingModeIsSet: Bool {
+        defaults.object(forKey: Key.specDecodingMode.rawValue) != nil
+    }
+
     // MARK: - Logs & Profiling
 
     var logLevel: LogLevelRaw {

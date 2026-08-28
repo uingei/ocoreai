@@ -416,6 +416,19 @@ public final class OcoreaiEngine {
 
         let coreAILoadingConfig = CoreAILoadingConfig.production
 
+        let sdEnabledSet = SettingsStore.shared.specDecodingEnabledIsSet
+        let sdModeSet = SettingsStore.shared.specDecodingModeIsSet
+        let sdMode = SettingsStore.shared.specDecodingMode
+        if sdEnabledSet || sdModeSet {
+            var snap = _configSnapshot
+            pureSpecDecodingUIOverlay(
+                config: &snap.backend.specDecoding,
+                uiEnabled: sdEnabledSet ? SettingsStore.shared.specDecodingEnabled : nil,
+                uiMode: sdModeSet ? sdMode : nil
+            )
+            _configSnapshot = snap
+        }
+
         // Build engine config from ConfigSystem (or fallback to hard-coded defaults)
         let engineConfig = EnginePoolConfig(from: _configSnapshot, logger: logger)
 

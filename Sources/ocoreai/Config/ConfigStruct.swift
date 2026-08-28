@@ -223,6 +223,24 @@ public struct SpecDecodingConfig: Sendable, Codable, Equatable {
     }
 }
 
+/// Pure overlay of UI specDecoding selections onto an authored config.
+/// `uiEnabled` / `uiMode` are `nil` when the user never touched the matching
+/// UI control (UserDefaults key absent) — that dimension keeps the authored value.
+/// When a value is present it takes precedence over the authored one in that dimension.
+/// Kept pure so the merge semantics are exact-value testable (cf. pureMTPDrafterSelection).
+func pureSpecDecodingUIOverlay(
+    config: inout SpecDecodingConfig,
+    uiEnabled: Bool?,
+    uiMode: String?
+) {
+    if let uiEnabled {
+        config.enabled = uiEnabled
+    }
+    if let uiMode {
+        config.mode = uiMode
+    }
+}
+
 /// Inference backend selection and resource limits.
 public struct BackendConfig: Sendable, Codable, Equatable {
     public var preference: [String]
