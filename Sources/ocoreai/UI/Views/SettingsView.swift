@@ -328,7 +328,7 @@ struct SettingsView: View {
     private var appSection: some View {
         Section {
             Picker(StringKey.localePicker.l, selection: $settingsState.appLocale) {
-                ForEach(OCALocale.allCases, id: \.self) {
+                ForEach(OCALocale.availableLocales, id: \.self) {
                     Text($0.displayName).tag($0)
                 }
             }

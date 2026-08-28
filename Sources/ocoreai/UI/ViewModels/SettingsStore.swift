@@ -140,7 +140,17 @@ final class SettingsStore {
     // MARK: - App Preferences
 
     var appLocale: OCALocale {
-        get { OCALocale(rawValue: defaults.string(forKey: Key.appLocale.rawValue) ?? "en") ?? .en }
+        // Default: follow the system locale (HIG: a language picker must
+        // default to the user's language, not a hardcoded one).
+        get {
+            if let raw = defaults.string(forKey: Key.appLocale.rawValue),
+                let locale = OCALocale(rawValue: raw),
+                OCALocale.availableLocales.contains(locale)
+            {
+                return locale
+            }
+            return .systemLocale()
+        }
         set { defaults.set(newValue.rawValue, forKey: Key.appLocale.rawValue) }
     }
 

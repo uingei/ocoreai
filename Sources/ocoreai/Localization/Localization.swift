@@ -14,7 +14,7 @@ import Foundation
 // MARK: - Supported Locales
 
 /// Locales supported by ocoreai. Expand this array to add new languages.
-public enum OCALocale: String, CaseIterable {
+public enum OCALocale: String, CaseIterable, Sendable {
     /// English (base language — fallback for missing translation)
     case en
     /// Simplified中文 — 简体中文
@@ -49,6 +49,29 @@ public enum OCALocale: String, CaseIterable {
         case .fr: "fr"
         case .es: "es"
         }
+    }
+
+    /// Locales with a complete translation table (en = base fallback, zh = 404/405 keys).
+    /// Single source of truth for UI pickers — never hardcode a language list,
+    /// derive it from what `resolve()` actually has. Adding ja/ko/fr/es requires
+    /// a full table entry before adding it here.
+    public static let availableLocales: [OCALocale] = [.en, .zhHans]
+
+    /// The user's explicit language choice, or `.systemLocale()` for
+    /// first-run / never-changed. Reads the same UserDefaults key as
+    /// `SettingsStore.appLocale` so Settings persistence and runtime
+    /// rendering stay in lockstep without a second storage location.
+    /// HIG: a picker that is persisted must affect the rendered UI — the
+    /// previous behaviour persisted but rendered the system locale, making
+    /// the picker decorative. This closes that.
+    public static func userSelected() -> OCALocale {
+        if let raw = UserDefaults.standard.string(forKey: "settings.app.locale"),
+            let locale = OCALocale(rawValue: raw),
+            availableLocales.contains(locale)
+        {
+            return locale
+        }
+        return .systemLocale()
     }
 
     /// Detect user locale from system. Falls back to ``.en``.
@@ -560,13 +583,15 @@ public enum StringKey: String, CaseIterable {
 // MARK: - Translation Table (per locale)
 
 extension StringKey {
-    /// Quick inline access to resolved string
+    /// Quick inline access to resolved string.
+    /// Honors the user's language choice (Settings ▸ App Preferences),
+    /// falling back to the system locale on first run / never-changed.
     public var l: String {
-        localized(for: .systemLocale())
+        localized(for: .userSelected())
     }
 
     /// Resolve via fallback chain: requested locale → base (en).
-    public func localized(for locale: OCALocale = .systemLocale()) -> String {
+    public func localized(for locale: OCALocale = .userSelected()) -> String {
         resolve(key: self, locale: locale)
     }
 }
