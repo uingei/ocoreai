@@ -21,3 +21,8 @@ CoreAIStubs
 # StateHandler: error description strings for KV cache negotiation failures,
 # consumed by EnginePool error handling, not displayed in views.
 StateHandler
+
+# VideoWriter: errorDescription strings for VideoWriterError (LocalizedError
+# impl face, upstream verbatim copy) — LocalizedError pattern, not UI strings.
+# Same precedent as CoreAIStubs / Wan21VideoContract / CoreAIDiffusionModelFunction.
+VideoWriter

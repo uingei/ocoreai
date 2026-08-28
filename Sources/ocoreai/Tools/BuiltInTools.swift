@@ -485,6 +485,13 @@ func bootstrapBuiltInTools(
     // MultimodalSpeakHandler(HTTP)已用同一 seam;本工具把它接到模型可调度面。
     try? await registry.register(SpeakClient.toolEntry())
 
+    // ── generate_video ─────────────────────────────────────────────────────
+    // 视频生成轴(五要素④)的 agent 可触面: 复用已 absorb 的视频基设
+    //   WanPipeline(coreai-models conformer, 27 门控面)→ [CGImage]
+    //   + VideoWriter(coreai-models Output, 纯 AVFoundation)→ mp4/gif/apng/webp。
+    // 低于 floor / 无 CoreAI / 权重未部署 → 诚实上报, 不静默失败。
+    try? await registry.register(GenerateVideoClient.toolEntry())
+
     // ── clock ──────────────────────────────────────────────────────────────
     // codex `clock` namespace 两个 agent-loop 原语(0.150.1 HEAD): 读时间 + 受控等待。
     //   curr_time  无参, UTC `YYYY-MM-DD HH:MM:SS UTC`(codex current_time.rs)

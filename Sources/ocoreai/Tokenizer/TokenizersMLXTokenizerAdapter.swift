@@ -44,6 +44,10 @@ import MLXLMCommon
 import Tokenizers
 
 @preconcurrency
+/// All stored fields are immutable `let` set in `init` (no mutation after
+/// creation), so Sendability reduces to the wrapped `base` tokenizer's
+/// Sendability (swift-transformers `Tokenizer` protocol — thread-safe by
+/// design; we never cache mutable state here).
 final class TokenizersMLXTokenizerAdapter: MLXLMCommon.Tokenizer, @unchecked Sendable {
     private let base: any Tokenizers.Tokenizer
     private let _bosToken: String?
