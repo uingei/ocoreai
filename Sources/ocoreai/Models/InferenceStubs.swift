@@ -150,6 +150,38 @@ struct SamplingConfiguration: Codable, Equatable {
         return config
     }
 
+    /// Fill per-model sampling fields from a runtime `ModelSamplingConfig`,
+    /// leaving any already-set field on `self` (request-level) untouched.
+    ///
+    /// This is the single cascade used by the Fast Path (native UI stream/
+    /// complete) whose `InferenceRequest` surface carries only
+    /// temperature/topP/topK/maxTokens/stop/logitBias — the remaining per-model
+    /// parameters live solely on `ModelSamplingConfig`. Presence/frequency
+    /// penalties follow the wire path's `0` = "not set" sentinel: a zero
+    /// runtime value is mapped to `nil` so the engine treats it as unset.
+    func fastPathDefaults(_ d: ModelSamplingConfig) -> SamplingConfiguration {
+        var c = self
+        if c.seed == nil { c.seed = d.seed }
+        if c.mode == nil { c.mode = d.mode }
+        if c.minP == nil { c.minP = d.minP.map(Double.init) }
+        if c.repetitionPenalty == nil { c.repetitionPenalty = d.repetitionPenalty }
+        if c.repetitionPenaltyWindow == nil {
+            c.repetitionPenaltyWindow = d.repetitionPenaltyWindow
+        }
+        if (c.presencePenalty ?? 0) == 0, d.presencePenalty != 0 {
+            c.presencePenalty = Double(d.presencePenalty)
+        }
+        if (c.frequencyPenalty ?? 0) == 0, d.frequencyPenalty != 0 {
+            c.frequencyPenalty = Double(d.frequencyPenalty)
+        }
+        if c.maxKVSize == nil { c.maxKVSize = d.maxKVSize }
+        if c.prefill == PrefillConfig.default { c.prefill = d.prefill }
+        if c.repetitionContextSize == 20 { c.repetitionContextSize = d.repetitionContextSize }
+        if c.presenceContextSize == 20 { c.presenceContextSize = d.presenceContextSize }
+        if c.frequencyContextSize == 20 { c.frequencyContextSize = d.frequencyContextSize }
+        return c
+    }
+
     /// Whether repetition penalty is active (> 1.0). Aligned with upstream
     /// `SamplingConfiguration.needsRepetitionPenalty` (coreai-models 5660fc6, #176).
     var needsRepetitionPenalty: Bool {

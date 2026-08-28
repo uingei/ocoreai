@@ -91,6 +91,25 @@ struct StreamingInferenceResult {
     var outputTokens: Int
 }
 
+// MARK: - Per-model context-window parity (400 wall)
+
+/// Enforce the per-model `maxContextWindow` cap on the Fast Path, mirroring
+/// the wire path's Phase 3.5 wall (`ChatHandler`). The Fast Path previously
+/// bypassed this check entirely — a user-set `max_context_window` was honored
+/// over HTTP but inert in the native UI. Reuses the shared
+/// `promptExceedsContextWindow` predicate and `estimatePromptTokens` estimator
+/// so both routes compare the same token count against the same cap
+/// (omlx `max_context_window` = reject-oversized-prompt semantics).
+private func enforceContextWindowCap(cap: Int?, messages: [Message]) throws {
+    let promptTokens = ConversationCompaction.estimatePromptTokens(messages)
+    guard promptExceedsContextWindow(promptTokens: promptTokens, maxContextWindow: cap) else {
+        return
+    }
+    throw AppError.invalidRequest(
+        "Prompt length \(promptTokens) tokens exceeds the model's configured context window of \(cap ?? 0) tokens. Shorten the input or raise `max_context_window` for this model."
+    )
+}
+
 // MARK: - Direct Inference Client
 
 @MainActor
@@ -211,6 +230,14 @@ extension DirectInferenceClient {
         )
         let fullMessages = try await messageBuilder.buildMessages(context: context)
 
+        // Enforce per-model context-window cap (omlx max_context_window parity).
+        // The wire path (ChatHandler Phase 3.5) does this with a compaction
+        // pass first; the Fast Path is single-turn-oriented, so a 400 backstop
+        // on the assembled transcript is the parity floor.
+        let contextCap = await enginePool.getSamplingConfig(modelId: request.modelId)
+            .maxContextWindow
+        try enforceContextWindowCap(cap: contextCap, messages: fullMessages)
+
         // Phase 2: Submit to scheduler + dispatch (streaming)
         let schedulingRequest = SchedulingRequest(
             id: "req-\(UUID().uuidString.prefix(8))",
@@ -278,8 +305,9 @@ extension DirectInferenceClient {
             topK: effectiveTopK,
             stopSequences: request.stopSequences,
             logitBias: request.logitBias,
-            combined: true,
-        ).normalized()
+        )
+        .fastPathDefaults(runtimeDefaults)
+        .normalized()
 
         let inferenceOpts = InferenceOptions(
             maxTokens: effectiveMaxTokens,
@@ -550,6 +578,12 @@ extension DirectInferenceClient {
         )
         let fullMessages = try await messageBuilder.buildMessages(context: context)
 
+        // Enforce per-model context-window cap (omlx max_context_window parity,
+        // same as the stream path — single floor for both Fast Path routes).
+        let contextCap = await enginePool.getSamplingConfig(modelId: request.modelId)
+            .maxContextWindow
+        try enforceContextWindowCap(cap: contextCap, messages: fullMessages)
+
         // Phase 2: Submit to scheduler + dispatch (non-streaming)
         let schedulingRequest = SchedulingRequest(
             id: "req-\(UUID().uuidString.prefix(8))",
@@ -617,8 +651,9 @@ extension DirectInferenceClient {
             topK: effectiveTopK,
             stopSequences: request.stopSequences,
             logitBias: request.logitBias,
-            combined: true,
-        ).normalized()
+        )
+        .fastPathDefaults(runtimeDefaults)
+        .normalized()
 
         let infOpts = InferenceOptions(
             maxTokens: effectiveMaxTokens,

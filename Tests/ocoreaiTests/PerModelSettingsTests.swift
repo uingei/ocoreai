@@ -233,3 +233,91 @@ struct IsPinnedExemptTests {
         #expect(!isPinnedExempt(poolKey: "other:gemma-conv", pinnedIDs: ["gemma"]))
     }
 }
+
+// MARK: - Fast Path cascade (fastPathDefaults) — single source of truth
+
+@Suite("SamplingConfiguration.fastPathDefaults — per-model cascade")
+struct FastPathCascadeTests {
+    private func fullyCustom() -> ModelSamplingConfig {
+        var d = ModelSamplingConfig.default
+        d.seed = 42
+        d.mode = .topK(25)
+        d.minP = 0.1
+        d.repetitionPenalty = 1.2
+        d.repetitionPenaltyWindow = 64
+        d.presencePenalty = 0.6
+        d.frequencyPenalty = 0.3
+        d.prefill = PrefillConfig(stepSize: 1024, chunking: .remainder)
+        d.maxKVSize = 8192
+        d.repetitionContextSize = 40
+        d.presenceContextSize = 50
+        d.frequencyContextSize = 60
+        return d
+    }
+
+    @Test("request-surface only → all 10 per-model fields cascade from runtime")
+    func fullCascade() {
+        let s = SamplingConfiguration(temperature: 0.9, topP: 0.9, topK: 40)
+            .fastPathDefaults(fullyCustom())
+        #expect(s.seed == 42)
+        #expect(s.mode == .topK(25))
+        #expect(abs(s.minP! - 0.1) < 1e-6)  // minP sourced from Float → tolerance assert
+        #expect(s.repetitionPenalty == 1.2)
+        #expect(s.repetitionPenaltyWindow == 64)
+        #expect(abs(s.presencePenalty! - 0.6) < 1e-6)
+        #expect(abs(s.frequencyPenalty! - 0.3) < 1e-6)
+        #expect(s.prefill == PrefillConfig(stepSize: 1024, chunking: .remainder))
+        #expect(s.maxKVSize == 8192)
+        #expect(s.repetitionContextSize == 40)
+        #expect(s.presenceContextSize == 50)
+        #expect(s.frequencyContextSize == 60)
+        // Request-level surface preserved untouched.
+        #expect(s.temperature == 0.9)
+        #expect(s.topP == 0.9)
+        #expect(s.topK == 40)
+    }
+
+    @Test("request-level value already set → not overridden by runtime")
+    func requestWins() {
+        let s = SamplingConfiguration(seed: 7, mode: .greedy, minP: 0.5)
+            .fastPathDefaults(fullyCustom())
+        #expect(s.seed == 7)
+        #expect(s.mode == .greedy)
+        #expect(s.minP == 0.5)
+    }
+
+    @Test("presence/frequency penalty 0 sentinel → nil (not explicit 0.0)")
+    func penaltyZeroIsNil() {
+        var d = ModelSamplingConfig.default
+        d.presencePenalty = 0
+        d.frequencyPenalty = 0
+        let s = SamplingConfiguration().fastPathDefaults(d)
+        #expect(s.presencePenalty == nil)
+        #expect(s.frequencyPenalty == nil)
+    }
+
+    @Test("presence/frequency penalty non-zero → applied")
+    func penaltyApplied() {
+        var d = ModelSamplingConfig.default
+        d.presencePenalty = 0.8
+        d.frequencyPenalty = 0.4
+        let s = SamplingConfiguration().fastPathDefaults(d)
+        #expect(abs(s.presencePenalty! - 0.8) < 1e-6)
+        #expect(abs(s.frequencyPenalty! - 0.4) < 1e-6)
+    }
+
+    @Test("defaults config → no field forced (request surface stays as-is)")
+    func defaultsNoOp() {
+        let s = SamplingConfiguration(temperature: 1.0)
+            .fastPathDefaults(ModelSamplingConfig.default)
+            .normalized()
+        #expect(s.temperature == 1.0)
+        #expect(s.seed == nil)
+        #expect(s.mode == nil)
+        #expect(s.minP == nil)
+        #expect(s.presencePenalty == nil)
+        #expect(s.frequencyPenalty == nil)
+        #expect(s.maxKVSize == nil)
+        #expect(s.prefill == .default)
+    }
+}
