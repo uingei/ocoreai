@@ -12,7 +12,22 @@
 ///   SpeechTranscriber           @available(anyAppleOS 26)   [L345]
 ///   Result.text (AttributedString)                           [L430]
 ///   supportedLocale(equivalentTo:) async -> Locale?          [L414]
+///   SpeechDetector              @available(anyAppleOS 26)   [L267]
+///   SpeechDetector.init(detectionOptions:reportResults:)     [L268]
+///   SensitivityLevel low/medium/high                          [L270-286]
+///   DetectionOptions(sensitivityLevel:)                       [L288-292]
+///   results: AsyncSequence<SpeechDetector.Result, any Error>  [L~298]
+///   Result.speechDetected (range / resultsFinalizationTime)   [L~300-304]
 ///   AssetInventory.assetInstallationRequest(supporting:)     [Apple docs, live-verified]
+///
+/// Hardware VAD: the 26-gen `SpeechDetector` (hardware speech-activity
+/// detection, anyAppleOS 26) runs inside the SAME `SpeechAnalyzer` as the
+/// transcriber — no separate engine. `transcribe` now also reports
+/// `detected: Bool` (true iff the OS speech detector fired), so callers can
+/// answer "was there speech in this file" with OS truth instead of guessing
+/// from empty text. The legacy hand-rolled RMS-VAD path (AudioIO.live-mic)
+/// stays for the 13+/17+ cloud tier; this file's file path now gets the
+/// hardware detector for free.
 ///
 /// The LIVE-microphone variant (`CaptureInputSequenceProvider`) is `anyAppleOS 27`
 /// and requires a `AVCaptureSession` mic pipeline — that ships in the next
@@ -38,13 +53,16 @@ public enum LocalSTT {
     ///   - locale: preferred result locale; falls back to a supported one.
     ///   - onResult: optional per-result callback (streaming partials if
     ///     the transcriber reports them; at minimum the final chunk lands here).
-    /// - Returns: the final transcribed text (empty on no speech/unsupported locale).
+    /// - Returns: the transcribed text plus `detected` — OS truth from the
+    ///   26-gen `SpeechDetector` (was there speech in the file at all). Empty
+    ///   text + `detected == false` = honest "no speech"; empty text +
+    ///   `detected == true` = speech was there but no words were produced.
     /// - Throws: `SpeechAnalyzer`/`SpeechTranscriber` errors surface as thrown.
     public static func transcribe(
         _ file: AVAudioFile,
         locale: Locale,
         onResult: (@Sendable (String, Bool) -> Void)? = nil,
-    ) async throws -> String {
+    ) async throws -> SttResult {
         // Step 1 (Apple docs): resolve a SUPPORTED locale — the transcriber
         // may map our locale to a nearby supported one.
         guard
@@ -57,24 +75,39 @@ public enum LocalSTT {
             return try await transcribeFallback(file: file, onResult: onResult)
         }
         let t = SpeechTranscriber(locale: transcriber, preset: .transcription)
+        // Hardware VAD (26 代): speech-activity detection inside the SAME
+        // analyzer as the transcriber — OS truth, no separate engine.
+        let detector = SpeechDetector(
+            detectionOptions: .init(sensitivityLevel: .medium),
+            reportResults: true
+        )
 
         // Step 2 (Apple docs): ensure assets are installed before analysis.
         // `assetInstallationRequest` returns nil when nothing to do.
         if let request =
             try? await AssetInventory
-            .assetInstallationRequest(supporting: [t])
+            .assetInstallationRequest(supporting: [t, detector])
         {
             try? await request.downloadAndInstall()
         }
 
         // Step 3-4: analyzer over the audio file (file-path convenience init, 26+).
-        let analyzer = try await SpeechAnalyzer(inputAudioFile: file, modules: [t])
+        // finishAfterFile: true — Apple docs require it for file input: otherwise
+        // the analyzer "won't terminate its result streams and will wait for
+        // additional audio input sequences", so the `for try await` drains below
+        // would hang. (Default is false; see Speech.swiftinterface L340.)
+        let analyzer = try await SpeechAnalyzer(
+            inputAudioFile: file,
+            modules: [t, detector],
+            finishAfterFile: true
+        )
 
-        // Step 6-7: run the analysis while concurrently draining the module's
-        // `results` AsyncSequence (the Apple-documented pattern; module-level
-        // results are consumed off the module, not the analyzer).
+        // Step 6-7: run the analysis while concurrently draining BOTH modules'
+        // `results` (the Apple-documented pattern; module-level results are
+        // consumed off the module, not the analyzer).
         var finalText = ""
         var chunks: [String] = []
+        var detected = false
         async let run: CMTime? = analyzer.analyzeSequence(from: file)
         do {
             for try await result in t.results {
@@ -90,11 +123,21 @@ public enum LocalSTT {
         } catch {
             // Drain error — analysis may still be settling; fall through.
         }
+        do {
+            for try await d in detector.results {
+                if d.speechDetected {
+                    detected = true
+                }
+            }
+        } catch {
+            // Detector drain is best-effort — text is the authoritative output.
+        }
         _ = try await run
 
         // `analyzeSequence` finalizes; if the module streamed nothing useful
         // (e.g. a very short clip before finalization) we still have `finalText`.
-        return finalText.isEmpty ? joined(chunks) : finalText
+        let text = finalText.isEmpty ? joined(chunks) : finalText
+        return SttResult(text: text, detected: detected)
     }
 
     /// Convenience: transcribe an `AVAudioFile` at a URL.
@@ -102,9 +145,15 @@ public enum LocalSTT {
         url: URL,
         locale: Locale,
         onResult: (@Sendable (String, Bool) -> Void)? = nil,
-    ) async throws -> String {
+    ) async throws -> SttResult {
         let file = try AVAudioFile(forReading: url)
         return try await transcribe(file, locale: locale, onResult: onResult)
+    }
+
+    /// Local (non-cloud) transcription outcome: text + OS-detected-speech flag.
+    public struct SttResult: Sendable {
+        public let text: String
+        public let detected: Bool
     }
 
     /// Whether the local (non-cloud) transcriber has a usable model for the
@@ -132,15 +181,25 @@ public enum LocalSTT {
     /// run with the system-default locale so at least SOMETHING is produced.
     private static func transcribeFallback(
         file: AVAudioFile, onResult: (@Sendable (String, Bool) -> Void)?
-    ) async throws -> String {
+    ) async throws -> SttResult {
         let t = SpeechTranscriber(
             locale: Locale(identifier: "en-US"), preset: .transcription)
-        if let request = try? await AssetInventory.assetInstallationRequest(supporting: [t]) {
+        let detector = SpeechDetector(
+            detectionOptions: .init(sensitivityLevel: .medium),
+            reportResults: true)
+        if let request = try? await AssetInventory.assetInstallationRequest(supporting: [
+            t, detector,
+        ]) {
             try? await request.downloadAndInstall()
         }
-        let analyzer = try await SpeechAnalyzer(inputAudioFile: file, modules: [t])
+        let analyzer = try await SpeechAnalyzer(
+            inputAudioFile: file,
+            modules: [t, detector],
+            finishAfterFile: true
+        )
         var finalText = ""
         var chunks: [String] = []
+        var detected = false
         async let run: CMTime? = analyzer.analyzeSequence(from: file)
         do {
             for try await result in t.results {
@@ -157,7 +216,15 @@ public enum LocalSTT {
             // (awaited below), which still throws on real failure — so a drain
             // hiccup here must not cancel a successful analysis.
         }
+        do {
+            for try await d in detector.results {
+                if d.speechDetected { detected = true }
+            }
+        } catch {
+            // Detector drain is best-effort.
+        }
         _ = try await run
-        return finalText.isEmpty ? joined(chunks) : finalText
+        let text = finalText.isEmpty ? joined(chunks) : finalText
+        return SttResult(text: text, detected: detected)
     }
 }

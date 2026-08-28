@@ -210,15 +210,20 @@ final class AudioIO: NSObject {
             FileManager.default.fileExists(atPath: url.path)
         {
             do {
-                let text = try await LocalSTT.transcribe(
+                let result = try await LocalSTT.transcribe(
                     url: url, locale: Locale(identifier: OCALocale.userSelected().bcp47Tag))
                 try? FileManager.default.removeItem(at: url)
+                let text = result.text
                 if !text.isEmpty {
                     recognizedText = text
                     audioLogger.info("[AudioIO] LocalSTT OK — \(text.count) chars (offline)")
                     return text
                 }
-                audioLogger.info("[AudioIO] LocalSTT empty — live-mic fallback")
+                // Empty text — distinguish with the OS speech-detector truth:
+                // detector fired → speech present, engine produced no words;
+                // never fired → honest "no speech" (same outcome here: fallback).
+                audioLogger.info(
+                    "[AudioIO] LocalSTT empty (detected=\(result.detected)) — live-mic fallback")
             } catch {
                 audioLogger.error(
                     "[AudioIO] LocalSTT failed: \(error.localizedDescription) — live-mic fallback")

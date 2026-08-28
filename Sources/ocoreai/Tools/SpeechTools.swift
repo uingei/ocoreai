@@ -75,18 +75,48 @@ protocol STTTranscriber: Sendable {
     func transcribe(url: URL, locale: Locale) async -> STTOutcome
 }
 
+/// 纯判定(无 I/O,可单测):`(OS 文本, SpeechDetector 检出?, OS outcome) → outcome`。
+/// 规则:
+///   - 文本非空 → `.success`(以 trim 后为准)
+///   - 文本空 + OS outcome 非 `.noSpeech` → 沿用 OS 语义(fileMissing/belowFloor/failed)
+///   - 文本空 + `.noSpeech`:检测器检出过语音 → `.failed`(有语音无词 ≠ 真无语音);
+///     未检出 → `.noSpeech`(诚实)
+enum STTDecision {
+    static func decide(
+        trimmedText: String,
+        osDetected: Bool,
+        osOutcome: STTOutcome
+    ) -> STTOutcome {
+        if !trimmedText.isEmpty {
+            return .success(text: trimmedText)
+        }
+        switch osOutcome {
+        case .noSpeech:
+            return osDetected
+                ? .failed("speech was detected but no words were transcribed")
+                : .noSpeech
+        case .success, .fileMissing, .belowFloor, .failed:
+            return osOutcome
+        }
+    }
+}
+
 /// 平台实现: 优先 `LocalSTT` 离线引擎(macOS/iOS 26+);文件缺失/低于 floor 给出
-/// 可区分的诚实 outcome。`LocalSTT` 自身在 locale 无模型时已做 en-US best-effort,
-/// 故不会抛「locale 不支持」,只在真实失败时 throw → 归 `.failed`。
+/// 可区分的诚实 outcome。OS 语义由 `LocalSTT`(locale 无模型时 en-US best-effort)+
+/// `SpeechDetector`(硬件 VAD 真值)产生;裁决收在纯 `STTDecision.decide`。
 struct PlatformSTTTranscriber: STTTranscriber, @unchecked Sendable {
-    // 无共享可变状态(纯转发 LocalSTT 静态 API),故 @unchecked Sendable 安全。
+    // 无共享可变状态(纯转发 LocalSTT 静态 API + 纯裁决),故 @unchecked Sendable 安全。
     nonisolated func transcribe(url: URL, locale: Locale) async -> STTOutcome {
         guard FileManager.default.fileExists(atPath: url.path) else { return .fileMissing }
         guard #available(macOS 26.0, iOS 26.0, *) else { return .belowFloor }
         do {
-            let text = try await LocalSTT.transcribe(url: url, locale: locale)
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? .noSpeech : .success(text: trimmed)
+            let result = try await LocalSTT.transcribe(url: url, locale: locale)
+            let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return .success(text: trimmed)
+            }
+            return STTDecision.decide(
+                trimmedText: "", osDetected: result.detected, osOutcome: .noSpeech)
         } catch {
             return .failed(error.localizedDescription)
         }

@@ -263,3 +263,45 @@ struct SpeakClientTests {
         #expect(fake.spoken.value[0].count == Speak.maxMaxChars)
     }
 }
+
+// MARK: - STTDecision: OS 真值裁决(纯)
+
+/// `STTDecision.decide` — 文本空时, `SpeechDetector` 硬件 VAD 真值决定
+/// 「真没语音」还是「有语音但没认出词」。纯函数, 精确断言。
+@Suite("STTDecision — honest no-speech arbitration (pure)")
+struct STTDecisionTests {
+
+    @Test
+    func nonEmptyTextIsSuccessRegardlessOfDetector() {
+        #expect(
+            STTDecision.decide(trimmedText: "hello", osDetected: false, osOutcome: .noSpeech)
+                == .success(text: "hello"))
+    }
+
+    @Test
+    func emptyTextUndetectedIsHonestNoSpeech() {
+        #expect(
+            STTDecision.decide(trimmedText: "", osDetected: false, osOutcome: .noSpeech)
+                == .noSpeech)
+    }
+
+    @Test
+    func emptyTextButDetectorFiredIsFailedWithReason() {
+        #expect(
+            STTDecision.decide(trimmedText: "", osDetected: true, osOutcome: .noSpeech)
+                == .failed("speech was detected but no words were transcribed"))
+    }
+
+    @Test
+    func osOutcomePassthrough() {
+        #expect(
+            STTDecision.decide(trimmedText: "", osDetected: false, osOutcome: .fileMissing)
+                == .fileMissing)
+        #expect(
+            STTDecision.decide(trimmedText: "", osDetected: false, osOutcome: .belowFloor)
+                == .belowFloor)
+        #expect(
+            STTDecision.decide(trimmedText: "", osDetected: false, osOutcome: .failed("boom"))
+                == .failed("boom"))
+    }
+}
