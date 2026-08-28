@@ -51,6 +51,18 @@ public enum OCALocale: String, CaseIterable, Sendable {
         }
     }
 
+    /// The bare ISO-639 primary subtag ("en", "zh", …).
+    ///
+    /// `AVSpeechSynthesisVoice` reports `language` as a *region* variant
+    /// ("en-GB", "zh-CN"), which never equals a script tag — so the
+    /// `PersonalVoiceTTS` exact→prefix matching ladder resolves a Chinese
+    /// selection only when handed this bare code, not "zh-Hans".
+    /// Recognizers (`SFSpeechRecognizer` / `LocalSTT`) take `bcp47Tag`
+    /// instead — script-accurate, where zh-Hans ≠ zh-Hant.
+    public var languageCode: String {
+        Locale(identifier: bcp47Tag).language.languageCode?.identifier ?? "en"
+    }
+
     /// Locales with a complete translation table (en = base fallback, zh = 404/405 keys).
     /// Single source of truth for UI pickers — never hardcode a language list,
     /// derive it from what `resolve()` actually has. Adding ja/ko/fr/es requires

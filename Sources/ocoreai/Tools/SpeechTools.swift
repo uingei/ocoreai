@@ -32,10 +32,10 @@ enum TranscribeAudio {
         let maxChars: Int
     }
 
-    /// `locale` = BCP-47 tag(nil → `Locale.current`);`maxChars` nil→default, 0/负→按 100,
+    /// `locale` = BCP-47 tag(nil → follow the app's locale);`maxChars` nil→default, 0/负→按 100,
     /// 否则 clamp 进 [100, 8000]。
     static func build(locale: String?, maxChars: Int?) -> Built {
-        let tag = (locale ?? Locale.current.language.languageCode?.identifier ?? "en")
+        let tag = (locale ?? OCALocale.userSelected().bcp47Tag)
         var cap = defaultMaxChars
         if let raw = maxChars {
             cap = min(max(raw, minMaxChars), maxMaxChars)
@@ -245,7 +245,7 @@ enum SpeakClient {
         guard built.ok else {
             return "speak: error: no text to speak"
         }
-        let localeTag = Locale.current.language.languageCode?.identifier ?? "en"
+        let localeTag = OCALocale.userSelected().bcp47Tag
         await backend.speak(built.text)
         return Speak.report(enqueued: true, text: built.text, localeIdentifier: localeTag)
     }

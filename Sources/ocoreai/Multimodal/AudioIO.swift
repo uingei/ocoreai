@@ -210,7 +210,8 @@ final class AudioIO: NSObject {
             FileManager.default.fileExists(atPath: url.path)
         {
             do {
-                let text = try await LocalSTT.transcribe(url: url, locale: Locale.current)
+                let text = try await LocalSTT.transcribe(
+                    url: url, locale: Locale(identifier: OCALocale.userSelected().bcp47Tag))
                 try? FileManager.default.removeItem(at: url)
                 if !text.isEmpty {
                     recognizedText = text
@@ -283,7 +284,7 @@ extension AudioIO {
         // #available. Selection is opt-in (Settings ▸ Voice Feedback); off, or
         // not yet authorized in System Settings, keeps the regular locale
         // voice. resolveVoice() never returns a failing voice.
-        let langTag = Locale.current.language.languageCode?.identifier ?? "en"
+        let langTag = OCALocale.userSelected().languageCode
         utterance.voice = PersonalVoiceTTS.resolveVoice(
             enabled: SettingsStore.shared.enablePersonalVoice, language: langTag)
         synthesizer.speak(utterance)
@@ -337,7 +338,10 @@ extension AudioIO {
             return nil
         }
 
-        guard let recognizer = SFSpeechRecognizer(locale: Locale.current) else {
+        guard
+            let recognizer = SFSpeechRecognizer(
+                locale: Locale(identifier: OCALocale.userSelected().bcp47Tag))
+        else {
             audioLogger.error("[AudioIO] No available speech recognizer")
             return nil
         }
