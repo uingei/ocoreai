@@ -30,11 +30,14 @@
 ///   SpeechTranscriber  : @available(anyAppleOS 26)             [Speech.swiftinterface L345]
 ///   windNoiseRemoval   : API_AVAILABLE(macos 15.0, ios 18.0)   [AVCaptureInput.h L393/403]
 ///   multichannelAudio  : API_AVAILABLE(macos 15.0, ios 18.0)   [AVCaptureInput.h]
+///   CaptureInputSeqProv: @available(anyAppleOS 27)             [Speech.swiftinterface L717-736]
+///   SpeechAnalyzer.start(inputSequence:)                       [Speech.swiftinterface L238]
 ///
 /// Rule of thumb applied throughout: the ENTRY type's floor is NOT the
 /// effective gate — e.g. `SpeechAnalyzer` is 26, but its LIVE-microphone
 /// input provider (`CaptureInputSequenceProvider`) is 27, so B1 wires the
-/// FILE path (26) and the live path ships next batch.
+/// FILE path (26) and the live path ships next batch.  ← B2 (this file) now
+/// carries that live-mic flag: `supportsLiveMic == true` iff majorVersion ≥ 27.
 
 import Foundation
 
@@ -83,11 +86,24 @@ public struct PerceivedAudioStack: Equatable, Sendable {
     /// Enhanced microphone capture: multichannel mode + wind-noise removal
     /// (macOS 15+ / iOS 18+), via `AVCaptureDeviceInput`.
     public var micEnhancement: Bool
+    /// **Live-microphone local STT** — `CaptureInputSequenceProvider` +
+    /// `SpeechAnalyzer.start(inputSequence:)` streaming real-time capture into
+    /// the same local offline transcriber as the file path.  Floor `anyAppleOS 27`
+    /// (SDK swiftinterface L717-736): the *provider* is 27 even though the
+    /// *analyzer* is 26 — the analyzer alone is not enough to stream a live
+    /// mic; you need the 27-level capture provider that yields
+    /// `AnalyzerInput` sequences.  Only meaningful when `stt == .localSpeechFile`
+    /// (26+); on 27 both file AND live are available.
+    public var supportsLiveMic: Bool
 
-    public init(stt: STTTier, personalVoiceTTS: Bool, micEnhancement: Bool) {
+    public init(
+        stt: STTTier, personalVoiceTTS: Bool, micEnhancement: Bool,
+        supportsLiveMic: Bool = false,
+    ) {
         self.stt = stt
         self.personalVoiceTTS = personalVoiceTTS
         self.micEnhancement = micEnhancement
+        self.supportsLiveMic = supportsLiveMic
     }
 }
 
@@ -117,8 +133,16 @@ public enum AudioStack {
                 ? q.majorVersion >= 14
                 : q.majorVersion >= 17)
 
+        // Live-mic floor = anyAppleOS 27 (CaptureInputSequenceProvider).
+        // Only meaningful when the local STT engine is also available
+        // (stt == .localSpeechFile, i.e. majorVersion >= 26); on every 27+
+        // version this is automatically satisfied.  Explicit guard for clarity.
+        let liveMic = (q.majorVersion >= 27 && stt == .localSpeechFile)
+
         return PerceivedAudioStack(
-            stt: stt, personalVoiceTTS: pvEligible, micEnhancement: micEnhancement)
+            stt: stt, personalVoiceTTS: pvEligible, micEnhancement: micEnhancement,
+            supportsLiveMic: liveMic,
+        )
     }
 
     // MARK: - Live probe

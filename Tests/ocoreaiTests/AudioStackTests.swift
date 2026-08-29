@@ -50,12 +50,13 @@ struct AudioStackTests {
                     stt: .localSpeechFile, personalVoiceTTS: true, micEnhancement: true))
     }
 
-    @Test("macOS 27 → LOCAL STT + personal voice + enhanced mic")
+    @Test("macOS 27 → LOCAL STT + personal voice + enhanced mic + LIVE-MIC STT")
     func macOS27() {
         #expect(
             AudioStack.resolve(Self.m27)
                 == PerceivedAudioStack(
-                    stt: .localSpeechFile, personalVoiceTTS: true, micEnhancement: true))
+                    stt: .localSpeechFile, personalVoiceTTS: true,
+                    micEnhancement: true, supportsLiveMic: true))
     }
 
     @Test("iOS 17 → dictation STT + personal voice + baseline mic")
@@ -82,12 +83,13 @@ struct AudioStackTests {
                     stt: .localSpeechFile, personalVoiceTTS: true, micEnhancement: true))
     }
 
-    @Test("iOS 27 → LOCAL STT + personal voice + enhanced mic")
+    @Test("iOS 27 → LOCAL STT + personal voice + enhanced mic + LIVE-MIC STT")
     func iOS27() {
         #expect(
             AudioStack.resolve(Self.i27)
                 == PerceivedAudioStack(
-                    stt: .localSpeechFile, personalVoiceTTS: true, micEnhancement: true))
+                    stt: .localSpeechFile, personalVoiceTTS: true,
+                    micEnhancement: true, supportsLiveMic: true))
     }
 
     @Test("STT boundary: localSpeechFile iff majorVersion >= 26")
@@ -139,6 +141,30 @@ struct AudioStackTests {
         ] {
             #expect(AudioStack.resolve(q).personalVoiceTTS == true)
         }
+    }
+
+    @Test("live-mic boundary: supportsLiveMic iff majorVersion >= 27 AND local STT")
+    func liveMicBoundary() {
+        // The CaptureInputSequenceProvider floor is 27, so live-mic STT appears
+        // exactly at 26→27 for both platforms; and it is meaningless without the
+        // local offline engine (stt == .localSpeechFile, i.e. >= 26), which the
+        // resolver gates explicitly.
+        #expect(
+            AudioStack.resolve(
+                AudioStackQuery(platform: .macOS, majorVersion: 26)
+            ).supportsLiveMic == false)
+        #expect(
+            AudioStack.resolve(
+                AudioStackQuery(platform: .macOS, majorVersion: 27)
+            ).supportsLiveMic == true)
+        #expect(
+            AudioStack.resolve(
+                AudioStackQuery(platform: .iOS, majorVersion: 26)
+            ).supportsLiveMic == false)
+        #expect(
+            AudioStack.resolve(
+                AudioStackQuery(platform: .iOS, majorVersion: 27)
+            ).supportsLiveMic == true)
     }
 
     @Test("resolve is deterministic (Sendable value-equality contract)")
