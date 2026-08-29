@@ -256,59 +256,19 @@ final class MultimodalState {
     // MARK: - Post-Inference TTS
 
     /// If speaker is enabled, speak the given text via TTS.
-    /// Strips `<thinking>` blocks, code blocks, and truncates long content
-    /// to avoid reading out debug/internal artifacts.
     ///
-    /// P0-fix: code block stripping uses line-by-line scanner instead of regex
-    /// — Swift's `[\\s\\S]` matches two characters (whitespace + non-whitespace),
-    /// not "any character", so multiline code blocks were never removed.
+    /// Routes through the canonical ``TTSCleaning.speakable`` so the chat
+    /// speaker and the agent `speak` tool apply the exact same
+    /// thinking+code cleaning; the speaker then truncates to the 500-char UX
+    /// cap (vs. the agent `speak` tool's 8000 cap — different UX intents).
+    @MainActor
     func speakIfEnabled(_ text: String) {
         guard self.speakerEnabled, !text.isEmpty else { return }
-        // Strip <thinking> tags — greedy match handles multiline content and
-        // nested HTML/code fragments inside reasoning blocks.
-        let stripped = Self.stripThinkingTags(from: text)
-        // P0-fix: line-by-line code block scanner replaces broken [\\s\\S] regex
-        var content = stripCodeBlocks(from: stripped)
-        // Truncate to 500 chars to avoid reading out very long outputs
-        if content.count > 500 {
-            content = String(content.prefix(500)) + "..."
-        }
-        guard !content.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        let content = TTSCleaning.speakable(text, TTSCleaning.speakerDefaultCap)
+        guard !content.isEmpty else { return }
         mmLogger.info("[MultimodalState] Speaker active — TTS: \(content.prefix(50))...")
         // speak() is non-throwing — no TTS crash propagation risk
         MMAudioIO.shared.speak(content)
-    }
-
-    /// Strip ``<thinking>`` blocks using NSRegularExpression so .*? matches
-    /// across newlines and nested content.
-    private nonisolated static func stripThinkingTags(from text: String) -> String {
-        guard text.contains("<thinking>") else { return text }
-        return
-            (try? NSRegularExpression(
-                pattern: "<thinking>.*?</thinking>",
-                options: .dotMatchesLineSeparators
-            ).stringByReplacingMatches(
-                in: text,
-                range: NSRange(text.startIndex..., in: text),
-                withTemplate: "")) ?? text
-    }
-
-    /// Remove fenced code blocks line-by-line.
-    /// Returns text with ``` … ``` regions replaced by "[code omitted]".
-    private nonisolated func stripCodeBlocks(from content: String) -> String {
-        let lines = content.components(separatedBy: "\n")
-        var filtered = [String]()
-        var inCodeBlock = false
-        for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("```") {
-                inCodeBlock.toggle()
-                continue
-            }
-            guard !inCodeBlock else { continue }
-            filtered.append(line)
-        }
-        return filtered.joined(separator: "\n")
     }
 
     // MARK: - Storage

@@ -137,12 +137,19 @@ enum Speak {
         let ok: Bool
     }
 
-    /// `text` trim;空 → `ok=false`(工具报 honest error,不念空气);
-    /// 超 `maxMaxChars` 只保留前缀。
-    static func build(_ text: String) -> Built {
+    /// `text` → trim → canonical TTS cleaning (strip `<thinking>` tags +
+    /// fenced ``` code blocks — never spoken) → truncate to `maxChars`.
+    ///
+    /// The cleaning step routes through ``TTSCleaning`` so the agent `speak`
+    /// tool and the chat speaker apply the exact same pre-sink cleaning.
+    /// `maxChars` defaults to the historical agent cap (8000); pass a smaller
+    /// value (e.g. `TTSCleaning.speakerDefaultCap`) for the speaker UX.
+    static func build(_ text: String, maxChars: Int = maxMaxChars) -> Built {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return Built(text: "", ok: false) }
-        return Built(text: String(trimmed.prefix(maxMaxChars)), ok: true)
+        let speakable = TTSCleaning.speakable(trimmed, maxChars)
+        guard !speakable.isEmpty else { return Built(text: "", ok: false) }
+        return Built(text: speakable, ok: true)
     }
 
     /// 报告(可离线断言): `speak OK — 123 chars enqueued (locale=<tag>)`。
