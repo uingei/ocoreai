@@ -403,6 +403,27 @@ func runWithStates(
     )
 }
 
+/// Run a step with combined states but no output binding — for functions whose
+/// descriptor declares no outputs (the `prefill` graph). Mirrors `runWithStates`
+/// minus the output views.
+@available(macOS 27.0, iOS 27.0, *)
+func runWithStatesNoOutputs(
+    function: InferenceFunction,
+    inputs: [String: NDArray],
+    primary: any SyncStateHandler,
+    secondary: FixedNDArrayState?
+) async throws {
+    var states = InferenceFunction.MutableViews()
+    primary.bind(into: &states)
+    secondary?.bind(into: &states)
+
+    _ = try await function.run(
+        inputs: inputs,
+        states: states,
+        outputViews: InferenceFunction.MutableViews()
+    )
+}
+
 // MARK: - KVCacheError
 
 /// Error type for KV cache capacity and layout issues.
