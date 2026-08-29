@@ -9,8 +9,9 @@
 ///
 /// NOTE: MultimodalState is a @MainActor singleton whose didSet wiring fires
 /// real AVFoundation services — direct toggle tests belong in UI integration
-/// tests, not unit tests. TTSFilterConfig validation is covered by
-/// TTSFilterConfigTests.
+/// tests, not unit tests. TTS output cleaning (ex-`TTSFilterConfig` filter
+/// surface, removed as zero-consumer dead config) is covered by
+/// `TTSCleaningTests`.
 
 import Testing
 import ocoreaiTestUtilities
