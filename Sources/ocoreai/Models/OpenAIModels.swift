@@ -329,6 +329,20 @@ struct AnyCodable: Codable, Equatable, @unchecked Sendable {
         }
     }
 
+    /// 递归包装任意 JSON 兼容值（`Any` 叶子 + 任意深度 `[Any]` / `[String: Any]`），
+    /// 供 `ToolDef`/`FunctionDef`/`JSONSchemaRequest` 等动态 schema 构造路径使用。
+    ///
+    /// 背景：`encode(to:)` 的 cast 只认 `AnyCodable` 容器 —— 直接塞 `[String: Any]`
+    /// 会 cast 失败落入 `encodeNil`，整段 schema 被静默吞掉（API 载荷里字段消失，
+    /// 但值仍在 struct 里，值测试看不出来）。本方法在构造处统一规范化，
+    /// 杜绝该静默丢失面。
+    static func wrap(_ v: Any) -> AnyCodable {
+        if let nc = v as? AnyCodable { return nc }  // 已是包装值
+        if let o = v as? [String: Any] { return AnyCodable(o.mapValues { wrap($0) }) }  // NSDictionary 亦桥接至此
+        if let a = v as? [Any] { return AnyCodable(a.map { wrap($0) }) }  // NSArray 亦桥接至此
+        return AnyCodable(v)  // 叶子(Bool/Int/Double/String/NSNull 等)
+    }
+
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch value {
@@ -338,7 +352,17 @@ struct AnyCodable: Codable, Equatable, @unchecked Sendable {
         case let s as String: try container.encode(s)
         case let a as [AnyCodable]: try container.encode(a)
         case let o as [String: AnyCodable]: try container.encode(o)
-        default: try container.encodeNil()
+        default:
+            // NSNull / 未预包的 JSON 兼容容器在此兜底（NSNull 是类型模式）。
+            if value is NSNull {
+                try container.encodeNil()
+            } else if let a = value as? [Any] {
+                try container.encode(a.map { Self.wrap($0) })
+            } else if let o = value as? [String: Any] {
+                try container.encode(o.mapValues { Self.wrap($0) })
+            } else {
+                try container.encodeNil()
+            }
         }
     }
 

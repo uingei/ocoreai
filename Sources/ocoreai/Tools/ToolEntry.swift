@@ -107,23 +107,44 @@ struct ToolSchema: Codable {
     }
 }
 
-/// Tool parameter with type and description — aligns with upstream MLXLMCommon.ToolParameter.
-/// Each parameter exposes `["type": ..., "description": ...]` in JSON Schema, which is
-/// required for the model to understand tool inputs accurately.
-struct ToolParameter: Codable {
+/// Tool 参数描述（JSON Schema 面），对齐上游 MLXLMCommon.ToolParameter.schema 行为：
+/// 每个参数在 JSON Schema 中暴露 `["type": ..., "description": ...]`，模型据此精确理解入参。
+/// `final class`：支持 `items` 自嵌套（struct 不允许自递归存储；class 引用安全）。
+/// `@unchecked Sendable`：所有存储属性 `let`（构造后不可变），跨隔离域共享安全。
+final class ToolParameter: Codable, Equatable, @unchecked Sendable {
     let type: ParameterType
     let description: String
+    /// 数组元素的子 schema（仅 `.array` 有效；对齐 JSON Schema `items`）。
+    /// nil = 无 items 声明（向后兼容既有工具）。
+    let items: ToolParameter?
+    /// 对象必填键（仅 `.object` 有效；元素级必填，如 plan step 的 `step`）。
+    let required: [String]?
 
-    init(type: ParameterType, description: String = "") {
+    init(
+        type: ParameterType, description: String = "", items: ToolParameter? = nil,
+        required: [String]? = nil
+    ) {
         self.type = type
         self.description = description
+        self.items = items
+        self.required = required
     }
 
-    /// Static shorthands for dictionary literals — e.g. `["key": .string]`.
-    static let string = ToolParameter(type: .string)
-    static let integer = ToolParameter(type: .integer)
-    static let boolean = ToolParameter(type: .boolean)
-    static let array = ToolParameter(type: .array)
+    /// Static shorthands for dictionary literals — e.g. `["key": .string]`。
+    /// `nonisolated(unsafe)`：`let` 不可变全局 + 类全属性 `let` → 无数据竞争。
+    nonisolated(unsafe) static let string = ToolParameter(type: .string)
+    nonisolated(unsafe) static let integer = ToolParameter(type: .integer)
+    nonisolated(unsafe) static let boolean = ToolParameter(type: .boolean)
+    nonisolated(unsafe) static let array = ToolParameter(type: .array)
+    nonisolated(unsafe) static let object = ToolParameter(type: .object)
+
+    // 值语义比较（测试字段级断言用；类默认引用相等，这里显式补值相等）。
+    static func == (lhs: ToolParameter, rhs: ToolParameter) -> Bool {
+        lhs.type == rhs.type
+            && lhs.description == rhs.description
+            && lhs.items == rhs.items
+            && lhs.required == rhs.required
+    }
 }
 
 /// Supported parameter types for tool argument coercion
@@ -132,6 +153,7 @@ enum ParameterType: String, Codable, CaseIterable {
     case integer
     case boolean
     case array
+    case object
 }
 
 // MARK: - ToolDef bridge
@@ -155,13 +177,24 @@ extension ToolEntry {
         guard !schema.parameters.isEmpty else { return nil }
         // Build properties as [String: AnyCodable] where each value is a JSON Schema object
         // containing both "type" and "description" — aligns with upstream ToolParameter.schema.
+        // `.array` 元素带 `items`；`.object` 元素带 `required`（JSON Schema 标准形状）。
+        func propSchema(_ param: ToolParameter) -> [String: Any] {
+            var s: [String: Any] = ["type": param.type.rawValue]
+            if !param.description.isEmpty {
+                s["description"] = param.description
+            }
+            if let items = param.items {
+                s["items"] = propSchema(items)
+            }
+            if let required = param.required {
+                s["required"] = required
+            }
+            return s
+        }
+
         var properties: [String: AnyCodable] = [:]
         for (paramName, param) in schema.parameters {
-            var propSchema: [String: Any] = ["type": param.type.rawValue]
-            if !param.description.isEmpty {
-                propSchema["description"] = param.description
-            }
-            properties[paramName] = AnyCodable(propSchema)
+            properties[paramName] = AnyCodable(propSchema(param))
         }
         var json: [String: AnyCodable] = [
             "type": AnyCodable("object"),
@@ -180,6 +213,7 @@ extension ParameterType {
         case .integer: return "integer"
         case .boolean: return "boolean"
         case .array: return "array"
+        case .object: return "object"
         }
     }
 }

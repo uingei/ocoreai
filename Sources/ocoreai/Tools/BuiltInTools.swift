@@ -498,6 +498,10 @@ func bootstrapBuiltInTools(
     //   sleep      `duration_ms` 1..43,200,000(12h) 报墙钟经过秒(codex sleep.rs)
     // ocoreai 此前 0 注册(agent 想读时间只能靠 info.uptime 间接推;想等只能靠
     // exec sleep 走子进程)→ 本批补一等原语。命名/取值/报告形态逐行对齐 codex。
+    // update_plan — codex plan 工具基线对齐（#41630，工具名/参数面/输出版式与上游原值一致）。
+    try? await registry.register(UpdatePlanClient.toolEntry())
+
+    // clock — codex 0.150.1 基线对齐（curr_time / sleep 原值命名）。
     try? await registry.register(CurrTimeClient.toolEntry())
     try? await registry.register(SleepClient.toolEntry())
 }
