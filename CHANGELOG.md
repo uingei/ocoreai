@@ -2,7 +2,7 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-08-14 → 2026-08-27
+## [Unreleased] — 2026-08-14 → 2026-08-30
 
 ### Features
 
@@ -50,6 +50,9 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 - **RepetitionPenaltyGPUState: eviction-order race fixed** (72bbfbe) — `buffer(forStep:)` applied dirty lists in evicted→added order; a token recorded-then-evicted within one flush interval kept its stale penalty and could never be cleared (out of ring → never evicted again). Fixed: flush applies per-token state by CURRENT refcount (`refCount > 0` = in-window). 7 sibling tests confirm no regression. Upstream has the same defect.
 - **Multi-tool-call append** (773eeda) — ChatHandler tool-call collection appends instead of overwriting; `ToolCallParser.flush()` can yield multiple tool calls per turn (all-but-last were silently dropped).
 - **CoreAI sampler error propagation** (773eeda, MPSGraphSamplers #169 alignment) — completion `(Int32) -> Void` → `(Int32, Error?) -> Void`; 16 failure paths now classify into typed `MPSGraphSamplerError`s instead of silent `completion(0)`; `CoreAIPipelinedEngine` propagates via `continuation.finish(throwing:)`.
+
+- **ToolRegistry loop net: failure path now records attempts** — `recordExecution`（`checkLoop` 数据源）此前只在成功路径（`do` 块）调用，`catch` 路径完全漏记 → 一个持续抛错的工具用同一组入参反复重试时，循环网永远"看不见"它，声明的「≥ maxHistoryDepth 相同调用」阈值对坏工具形同虚设（agent 可无限磨坏工具）。修复：`catch` 块内补 `recordExecution(name, hash:)`，失败尝试与成功同样计数。精确值锁：`repeatedFailuresAreLoopDetected`（坏 handler 相同入参 ×3 为普通 failure，第 4 次 `ToolError.loopDetected`）；既有 `loop detection blocks maxDepth+1 identical calls`（成功路径）与 `different input bypasses loop detection`（不同入参不触发）零回归。
+- **Exec-host failure breaker — 连续 handler 失败熔断 (absorbs codex #41454)** — 工具级 loop 网只认「相同入参重复」这一形状，**不同入参的连环 exec 失败不在其面域**（每换一个写法都是"新调用"），agent 对着坏 exec 宿主换参数磨下去，产品「可靠执行/恢复」的承诺在此无网。吸收 codex `ext/goal` 失败会计（`GoalAccountingState`，`62b458c931`）语义：**仅 exec 宿主面**（`exec_shell` / `write_stdin` / `exec_poll`，`destructiveBlacklist` 成员；codex 只计 `exec` 且 `handler_executed`）· **仅 handler 执行失败计**（notFound / denied / loop 等前置拒绝在 `do` 前 throw，codex 的 `Blocked`/前置失败同样不计）· **3 连续失败 → 第 4 次调用在 handler 运行前拒绝** · **任一工具成功即重置**（非仅 exec 面）· **60s TTL 过期清零**（与 loop 网同窗约定，`.zero` 注入 = 确定性测试过期分支）。新增 `ToolError.breakerEngaged`（独立于 `loopDetected`：这是熔断拒绝而非同参循环，agent 换工具/换路径后一次成功即解锁）。`ToolRegistry.init` 新增 `execFailureTTL: Duration = .seconds(60)` + `execHostTools: [String]`（默认三件套）；`call` 前置 0a 守卫点查表；成功路径 `resetExecBreaker()`；`catch` 路径 `recordExecFailure`（仅 exec 宿主名 + 超窗重置/递增）。4 精确值测试（3 败→第 4 次拒 · 成功重置不触发 · 非 exec 坏工具 5 败不侵蚀 exec 宿主满 3 次容忍 · TTL `.zero` 过期分支）+ `ToolRegistryTests` **20/20 全绿** + `swift build --target ocoreai` exit 0 + swift-format 603.0.0 in-place 幂等零重排。
 
 ### Refactoring / Cleanup
 

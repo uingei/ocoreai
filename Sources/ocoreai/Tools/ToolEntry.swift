@@ -194,6 +194,11 @@ enum ToolError: Error, LocalizedError {
     /// Denied by a `PreToolUse` hook (codex `HookEventName.preToolUse`).
     /// Reason is the hook's message; surfaced to the caller as an HTTP 403-equivalent.
     case denied(reason: String)
+    /// Exec-host failure breaker engaged (absorbs codex #41454: exec goal blocked
+    /// after 3 consecutive failed attempts). Distinct from `loopDetected` so an
+    /// agent can stop-and-retry with a different tool (a success unblocks it)
+    /// rather than looking like a same-input cycle.
+    case breakerEngaged(String)
 
     var errorDescription: String? {
         switch self {
@@ -203,6 +208,8 @@ enum ToolError: Error, LocalizedError {
         case .loopDetected(let name): "Execution loop detected: \(name)"
         case .executionFailed(let error): "Tool execution failed: \(error.localizedDescription)"
         case .denied(let reason): "Tool call denied by hook: \(reason)"
+        case .breakerEngaged(let name):
+            "Exec host blocked after 3 consecutive failures (tool: \(name))"
         }
     }
 }

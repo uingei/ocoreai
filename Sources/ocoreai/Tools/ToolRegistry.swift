@@ -30,6 +30,24 @@ actor ToolRegistry {
     private var executionHistory: [(name: String, hash: String, time: ContinuousClock.Instant)] = []
     private let maxHistoryDepth = 3
 
+    /// Exec-host failure circuit breaker (absorbs codex #41454 `GoalAccountingState`.
+    /// Scope: the exec-host tools only (codex counts `exec` failures whose handler
+    /// ran — ocoreai's equivalent surface is these three, `BuiltInTools.swift:288/332/373`
+    /// on the destructive blacklist).
+    /// Count: a handler execution failure (reaching the catch below). Preflight
+    /// errors (notFound / denied / loop) throw BEFORE `do` — they are NOT failures
+    /// of the handler and do not count (codex: `Blocked` / `Failed{handler_executed:false}`
+    /// do not advance the streak).
+    /// Trips: 3 consecutive handler failures → the 4th call is refused before the
+    /// handler runs (codex: `consecutive_execution_failure_turns >= 3` blocks the goal).
+    /// Resets: ANY successful tool call (codex: `successful_tool` in the turn clears it)
+    /// and TTL expiry (same 60s window convention as the loop net above).
+    private var execFailureStreak = 0
+    private var lastExecFailure: ContinuousClock.Instant?
+    private let execFailureThreshold = 3
+    private let execFailureTTL: Duration
+    private let execHostTools: Set<String>
+
     /// 审批 broker（codex `ExecApprovalRequest` 通路）；`nil` 时 `.ask` 保持硬拒
     /// （回归保护：无 UI 面时不得静默放行）。
     private let approvalBroker: ApprovalBroker?
@@ -44,6 +62,10 @@ actor ToolRegistry {
         auditTrail: AuditTrail? = nil,
         hooks: [Hook] = [],
         approvalBroker: ApprovalBroker? = nil,
+        /// TTL for the exec-host failure breaker. `.zero` = never trippable
+        /// (used by tests to exercise the expiry branch deterministically).
+        execFailureTTL: Duration = .seconds(60),
+        execHostTools: [String] = ["exec_shell", "write_stdin", "exec_poll"],
         log: Logger = Logger(label: "ocoreai.tools.registry"),
     ) {
         self.readOnlyWhitelist = Set(readOnlyWhitelist)
@@ -51,6 +73,8 @@ actor ToolRegistry {
         self.auditTrail = auditTrail
         self.hookRunner = ToolHookRunner(hooks: hooks)
         self.approvalBroker = approvalBroker
+        self.execFailureTTL = execFailureTTL
+        self.execHostTools = Set(execHostTools)
         logger = log
     }
 
@@ -181,6 +205,12 @@ actor ToolRegistry {
     /// - Throws: ``ToolError`` on validation or execution failure
     func call(_ name: String, arguments: String, caller: String = "unknown") async throws -> String
     {
+        // 0a. Exec-host state guard (absorbs codex #41454): a blocked exec host
+        //      is refused BEFORE any hook/approval — asking the user for a call
+        //      we know we will refuse is a wart, and codex blocks the goal
+        //      before the exec attempt itself.
+        try checkExecBreaker(name: name)
+
         // 0. Security preflight (PreToolUse hooks + approval broker gate) —
         //    shared with the external-MCP path (see `securityPrecheck`).
         try await securityPrecheck(toolName: name, arguments: arguments)
@@ -223,6 +253,10 @@ actor ToolRegistry {
         do {
             let result = try await entry.handler(arguments)
             recordExecution(name, hash: inputHash)
+            // Exec-breaker reset (codex #41454: any successful tool clears the
+            // streak in the turn). Success of ANY tool — not just the exec
+            // surface — breaks the "consecutive" run, matching `successful_tool`.
+            resetExecBreaker()
             // Complete audit on success
             if let t = token {
                 await auditTrail?.completeToken(t, status: .success, result: result)
@@ -231,6 +265,18 @@ actor ToolRegistry {
                 toolName: name, arguments: arguments, result: result, error: nil)
             return result
         } catch {
+            // Count the attempt even when it FAILS: the loop net (L183 / checkLoop)
+            // must see repeated identical calls, and a tool that keeps erroring was
+            // previously invisible to it — only the success path (L225) recorded.
+            // That let an agent grind a broken tool with identical args past the
+            // declared "≥ maxHistoryDepth identical calls" cap. See
+            // ToolRegistryTests.repeatedFailuresAreLoopDetected for the exact-value lock.
+            recordExecution(name, hash: inputHash)
+            // Exec-breaking (codex #41454): a HANDLER failure on the exec surface
+            // advances the consecutive-failure streak. Only exec-host tools count
+            // (codex scopes to `exec`); only failures that got this far count
+            // (preflight rejections threw earlier and are not handler failures).
+            recordExecFailure(name: name)
             // Complete audit on error
             if let t = token {
                 await auditTrail?.completeToken(
@@ -295,6 +341,46 @@ actor ToolRegistry {
         if executionHistory.count > 100 {
             executionHistory.removeFirst(50)
         }
+    }
+
+    // MARK: - Exec-host failure breaker (absorbs codex #41454)
+
+    /// Refuse an exec-host call once 3 consecutive handler failures are recorded
+    /// within the TTL window (codex `execution_failure_goal`: `>= 3` blocks).
+    private func checkExecBreaker(name: String) throws {
+        // TTL: a stale streak (older than the window) no longer counts — same
+        // 60s convention as `checkLoop` above (`.zero` TTL = never stale, tests).
+        if let last = lastExecFailure, execFailureStreak > 0, execFailureTTL >= .nanoseconds(0) {
+            let age = ContinuousClock.now - last
+            if age >= execFailureTTL {
+                execFailureStreak = 0
+                lastExecFailure = nil
+            }
+        }
+        guard
+            execHostTools.contains(name),
+            execFailureStreak >= execFailureThreshold
+        else { return }
+        logger.warning(
+            "Exec-host breaker engaged: \(execFailureStreak) consecutive handler failures (window \(execFailureTTL.formatted())) — refusing '\(name)'"
+        )
+        throw ToolError.breakerEngaged(name)
+    }
+
+    /// Any successful tool call clears the consecutive-failure run
+    /// (codex: `successful_tool` in the turn resets `consecutive_execution_failure_turns`).
+    private func resetExecBreaker() {
+        execFailureStreak = 0
+        lastExecFailure = nil
+    }
+
+    /// Count a handler failure on the exec surface (codex: `Failed { handler_executed: true }`
+    /// on `exec` only). Non-exec tools are ignored — codex does not let other
+    /// tool failures advance the exec-failure goal.
+    private func recordExecFailure(name: String) {
+        guard execHostTools.contains(name) else { return }
+        execFailureStreak += 1
+        lastExecFailure = ContinuousClock.now
     }
 
     // MARK: - Lifecycle
