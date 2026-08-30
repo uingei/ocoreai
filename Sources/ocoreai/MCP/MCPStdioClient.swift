@@ -285,6 +285,8 @@ actor MCPStdioClient {
     /// - 手动 disconnect 后：仅记录状态，不触发重连。
     /// - 意外退出：status 保持 `.connected`（等待下次 request() 检测 + 重连），
     ///   捕获 termination status 供精确值测试。
+    /// Process iOS 不可用 → 调用方 launchProcess 亦 os(macOS)，此处同门控。
+    #if os(macOS)
     nonisolated private func onChildExit(_ proc: Process) {
         let code: Int32 = proc.terminationStatus
         let signal: Int32 = proc.terminationReason == .uncaughtSignal ? proc.terminationStatus : 0
@@ -293,6 +295,7 @@ actor MCPStdioClient {
             await self.applyChildExit(status: code, signal: signal)
         }
     }
+    #endif
 
     private func applyChildExit(status: Int32, signal: Int32) {
         self.childExitStatus = signal != 0 ? signal : status
@@ -305,18 +308,17 @@ actor MCPStdioClient {
     /// 成功 → `.connected`；失败 → `.error`（后续 request() 直接抛错，不重试 —
     /// 对齐 codex rmcp_client reconnect_failed_startup 语义）。
     private func connectViaPipeline() async throws {
-        #if os(iOS)
+        #if os(macOS)
+        try await attemptConnection()
+        #else
         throw MCPClientError.platformNotSupported
         #endif
-        try await attemptConnection()
     }
 
     /// 执行一次完整的连接尝试（启动子进程 + initialize）。
     /// 成功 → `.connected` + 重置 reconnectionAttempts；失败 → `.error`。
     private func attemptConnection() async throws {
-        #if os(iOS)
-        throw MCPClientError.platformNotSupported
-        #endif
+        #if os(macOS)
         guard process == nil else {
             log.warning("Already connected to '\(endpoint.name)'")
             return
@@ -339,9 +341,13 @@ actor MCPStdioClient {
             log.error("Connection failed for '\(endpoint.name)': \(error)")
             throw MCPClientError.protocolError(error.localizedDescription)
         }
+        #else
+        throw MCPClientError.platformNotSupported
+        #endif
     }
 
     func reconnectOrFail() async throws {
+        #if os(macOS)
         // 子进程已退出 — cleanup 后重连
         if let proc = process {
             _ = proc.terminationStatus  // 确保 terminationStatus 已同步
@@ -358,6 +364,9 @@ actor MCPStdioClient {
             status = .error
             throw MCPClientError.notConnected(endpoint.name)
         }
+        #else
+        throw MCPClientError.platformNotSupported
+        #endif
     }
 
     // MARK: - Test hooks（精确值测试驱动重连路径，模拟子进程意外崩溃）
