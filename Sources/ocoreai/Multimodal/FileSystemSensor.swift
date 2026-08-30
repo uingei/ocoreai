@@ -208,6 +208,13 @@ final class FileSystemSensor: Sendable {
                 summaryText: summary
             )
 
+            // 自主回路切片 1：新文件到达 → 主动建议（只提案、不执行）。
+            // 权限面 = 本通道已开启（用户显式同意被感知），零新增权限。
+            let evaluation = ProactiveAdvisor.evaluate(events: changes)
+            if evaluation.shouldSuggest, let fileName = evaluation.fileName {
+                ProactiveSuggestionStore.shared.present(fileName: fileName)
+            }
+
             fsLogger.debug("[FileSystemSensor] \(changes.count) changes detected")
         }
     }

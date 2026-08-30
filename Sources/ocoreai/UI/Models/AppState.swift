@@ -95,6 +95,26 @@ final class AppState {
         }
     }
 
+    // MARK: - 主动建议（自主回路切片 1）— 视图直接绑 `ProactiveSuggestionStore`，
+    // 此二函数仅作为 UI→store 的语义封装，避免闭包陈旧。
+
+    /// 用户点"查看"→ 把建议草稿填入输入框（**发送权留在用户**，永不自动发）。
+    func acceptProactiveSuggestion() {
+        let draft = ProactiveSuggestionStore.shared.accept()
+        if draft != ProactiveSuggestionStore.notApplicable {
+            // AppState 不持有 TextField 绑；调用方（ChatView）用返回值填 inputText。
+            acceptedProactiveDraft = draft
+        }
+    }
+
+    /// 用户点"忽略"→ 清场。
+    func dismissProactiveSuggestion() {
+        ProactiveSuggestionStore.shared.dismiss()
+    }
+
+    /// 最近一次"查看"产生的草稿（供 ChatView `onChange` 消费）。
+    var acceptedProactiveDraft: String?
+
     private let engine = OcoreaiEngine.shared
     private var metricsTask: Task<Void, Never>?
     /// Idempotency guard — initialize() is safe to call multiple times

@@ -245,6 +245,13 @@ struct ChatView: View {
             }
         }
         #endif
+        // 自主回路切片 1：点"查看"后把建议草稿填入输入框（用户自己决定发送）
+        .onChange(of: AppState.shared.acceptedProactiveDraft) { _, draft in
+            if let draft, !draft.isEmpty {
+                inputText = draft
+                AppState.shared.acceptedProactiveDraft = nil
+            }
+        }
         .toolbar {
             modelSelectorToolbar
             // HIG-02: destructive non-modal operations shouldn't be in .primaryAction —
@@ -598,6 +605,9 @@ struct ChatView: View {
                 .padding(.horizontal)
                 .frame(height: 56)
             }
+
+            // 自主回路切片 1：主动建议条（只提案、永不自动执行；点"查看"= 填入输入框待审）
+            ProactiveSuggestionBar(appState: AppState.shared)
 
             // Main input row
             HStack(spacing: 10) {
@@ -1293,6 +1303,56 @@ struct ApprovalBanner: View {
                 Spacer()
             }
             .padding(.top, 2)
+        }
+    }
+}
+
+// MARK: - Proactive Suggestion Bar (autonomous-loop slice 1)
+
+/// 主动建议条：呈现 `ProactiveSuggestionStore.current`。
+/// 契约 — **只提案、永不自动执行**：
+///  - "查看" = 把草稿填入输入框（用户审完自己按发送，发送权在用户手里）
+///  - "忽略" = 清场
+/// 无待呈递建议 → `EmptyView`（不占位）。
+struct ProactiveSuggestionBar: View {
+    var appState: AppState
+    @Environment(\.ocoreaiTheme) private var theme
+    @Bindable var store = ProactiveSuggestionStore.shared
+
+    var body: some View {
+        if let s = store.current {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(theme.accent)
+                let fileName = s.fileName
+                Text(String(format: StringKey.proactiveNewFile.l, fileName))
+                    .font(.callout)
+                    .foregroundStyle(theme.text)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button(StringKey.proactiveActionView.l) {
+                    appState.acceptProactiveSuggestion()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                Button(StringKey.proactiveDismiss.l, role: .destructive) {
+                    appState.dismissProactiveSuggestion()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(theme.cardBg.opacity(0.97))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(theme.accent.opacity(0.4), lineWidth: 1)
+            )
+            .padding(.horizontal, 16)
+            .padding(.bottom, 4)
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
+            .accessibilityElement(children: .contain)
         }
     }
 }

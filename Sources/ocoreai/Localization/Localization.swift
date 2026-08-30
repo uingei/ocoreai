@@ -590,6 +590,12 @@ public enum StringKey: String, CaseIterable {
     case agentApproveOnce = "Agent.ApproveOnce"
     case agentApproveSession = "Agent.ApproveSession"
     case agentDeny = "Agent.Deny"
+
+    // — Proactive suggestion (autonomous-loop slice 1) —
+    case proactiveNewFile = "Proactive.NewFile"
+    case proactiveActionView = "Proactive.ActionView"
+    case proactiveDismiss = "Proactive.Dismiss"
+    case proactiveDraft = "Proactive.Draft"
 }
 
 // MARK: - Translation Table (per locale)
@@ -744,6 +750,13 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .agentApproveOnce: "Allow once",
         .agentApproveSession: "Allow for this session",
         .agentDeny: "Deny",
+
+        .proactiveNewFile: "New file arrived: %@"
+            + " — should I take a look?",
+        .proactiveActionView: "View",
+        .proactiveDismiss: "Dismiss",
+        .proactiveDraft: "A new file arrived in a watched folder: %@ "
+            + "— should I take a look?",
 
         .hubTokensTitle: "Hub Tokens",
         .hubTokensHint:
@@ -1214,6 +1227,11 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .agentApproveOnce: "允许本次",
         .agentApproveSession: "本会话内允许",
         .agentDeny: "拒绝",
+
+        .proactiveNewFile: "检测到新文件：%@　要我看一眼吗？",
+        .proactiveActionView: "查看",
+        .proactiveDismiss: "忽略",
+        .proactiveDraft: "检测到一个新文件到达了被监控的目录：%@　要我看一眼吗？",
 
         // Navigation
         .tabDashboard: "仪表盘",
