@@ -39,6 +39,8 @@
 	<string>ocoreai uses the camera to capture visual input for multimodal AI inference.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>ocoreai uses the microphone to capture audio input for speech recognition.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>ocoreai uses speech recognition to transcribe recorded audio into text.</string>
 
 	<!-- Apple Silicon -->
 	<key>NSRequiresAquaSystemAppearance</key>

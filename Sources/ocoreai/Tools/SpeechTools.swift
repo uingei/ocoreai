@@ -4,7 +4,8 @@
 /// 消费的音频基设,不平行另造:
 ///
 ///   transcribe_audio  听觉感知   — 复用 `LocalSTT`(L3, macOS/iOS 26+ 离线 Speech
-///                                   framework)+ `AudioIO` 的 live-mic 兜底阶梯
+///                                   framework)+ `SFSpeechURLRecognitionRequest`
+///                                   (10.15+/13+ 云端, <26 及 L3 失败时降级)
 ///   speak             语音反馈   — 复用 `AudioIO.speak` + `PersonalVoiceTTS`(L1,
 ///                                   用户自己的声音, floor=部署 floor 14/17)
 ///
@@ -17,6 +18,7 @@
 /// 自有面, 不引入基准行为分叉。
 import AVFoundation
 import Foundation
+import Speech
 
 // MARK: - transcribe_audio
 
@@ -103,22 +105,65 @@ enum STTDecision {
 
 /// 平台实现: 优先 `LocalSTT` 离线引擎(macOS/iOS 26+);文件缺失/低于 floor 给出
 /// 可区分的诚实 outcome。OS 语义由 `LocalSTT`(locale 无模型时 en-US best-effort)+
-/// `SpeechDetector`(硬件 VAD 真值)产生;裁决收在纯 `STTDecision.decide`。
+/// `SpeechDetector`(硬件 VAD 真值)产生;L3 失败或 <26 降级到
+/// `SFSpeechURLRecognitionRequest` 云端(10.15+/13+, 四档全可用)。裁决收在纯 `STTDecision.decide`。
 struct PlatformSTTTranscriber: STTTranscriber, @unchecked Sendable {
-    // 无共享可变状态(纯转发 LocalSTT 静态 API + 纯裁决),故 @unchecked Sendable 安全。
+    // 无共享可变状态(纯转发 LocalSTT/SFSpeechRecognizer + 纯裁决),故 @unchecked Sendable 安全。
     nonisolated func transcribe(url: URL, locale: Locale) async -> STTOutcome {
         guard FileManager.default.fileExists(atPath: url.path) else { return .fileMissing }
-        guard #available(macOS 26.0, iOS 26.0, *) else { return .belowFloor }
-        do {
-            let result = try await LocalSTT.transcribe(url: url, locale: locale)
-            let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                return .success(text: trimmed)
+        if #available(macOS 26.0, iOS 26.0, *) {
+            do {
+                let result = try await LocalSTT.transcribe(url: url, locale: locale)
+                let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    return .success(text: trimmed)
+                }
+                return STTDecision.decide(
+                    trimmedText: "", osDetected: result.detected, osOutcome: .noSpeech)
+            } catch {
+                // LocalSTT 失败(如 locale 不在本地模型)→ cloud 降级
+                return await transcribeCloud(url: url, locale: locale)
             }
-            return STTDecision.decide(
-                trimmedText: "", osDetected: result.detected, osOutcome: .noSpeech)
-        } catch {
-            return .failed(error.localizedDescription)
+        }
+        // <macOS 26 / <iOS 26: SFSpeechURLRecognitionRequest (10.15+/13+), 四档全可用
+        return await transcribeCloud(url: url, locale: locale)
+    }
+
+    /// Cloud 文件识别 — `SFSpeechURLRecognitionRequest`(macOS 10.15+ / iOS 13+)。
+    /// 失败路径均返回 `.failed` 带可诊断 reason(授权缺失/服务不可用/识别失败)。
+    nonisolated private func transcribeCloud(url: URL, locale: Locale) async -> STTOutcome {
+        let authorized: Bool = await withCheckedContinuation { continuation in
+            SFSpeechRecognizer.requestAuthorization {
+                continuation.resume(returning: $0 == .authorized)
+            }
+        }
+        guard authorized else {
+            return .failed(
+                "speech recognition not authorized — enable in "
+                    + "System Settings ▸ Privacy & Security ▸ Speech Recognition")
+        }
+        guard let recognizer = SFSpeechRecognizer(locale: locale) else {
+            return .failed("no speech recognition service for \(locale.identifier)")
+        }
+        guard recognizer.isAvailable else {
+            return .failed(
+                "speech recognition service unavailable for \(locale.identifier) "
+                    + "— check network connection")
+        }
+        let request = SFSpeechURLRecognitionRequest(url: url)
+        request.shouldReportPartialResults = false
+        return await withCheckedContinuation { continuation in
+            recognizer.recognitionTask(with: request) { result, error in
+                if let result {
+                    let text =
+                        result.bestTranscription.formattedString
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    continuation.resume(returning: text.isEmpty ? .noSpeech : .success(text: text))
+                } else {
+                    continuation.resume(
+                        returning: .failed(error?.localizedDescription ?? "recognition failed"))
+                }
+            }
         }
     }
 }
@@ -187,10 +232,11 @@ enum TranscribeAudioClient {
             toolset: "audio",
             argsType: Args.self,
             description:
-                "Hear an audio file: transcribe it to text using ocoreai's local offline "
-                + "speech engine (macOS 26 / iOS 26+) and return the recognized words. "
+                "Hear an audio file: transcribe it to text. Prefers ocoreai's local "
+                + "offline speech engine (macOS 26 / iOS 26+); below that OS it falls "
+                + "back to the Speech framework's cloud engine (macOS 10.15+ / iOS 13+). "
                 + "Use to read out what was said in a recorded .caf/.m4a/.mp3/.wav file. "
-                + "Below the OS floor it reports which, instead of silently failing.",
+                + "On auth/availability failures it reports the honest reason.",
             schema: ToolSchema(parameters: [
                 "path": ToolParameter(
                     type: .string,
@@ -238,8 +284,8 @@ enum TranscribeAudioClient {
         case .noSpeech:
             return "transcribe_audio: error: no recognizable speech in the file"
         case .belowFloor:
-            return "transcribe_audio: error: local offline speech needs macOS 26 / iOS 26+ "
-                + "(this OS is below the floor — the mic press-to-talk path via Settings still works)"
+            return "transcribe_audio: error: no speech recognition engine for this OS — "
+                + "both local (macOS 26 / iOS 26+) and cloud (10.15+ / 13+) engines unavailable"
         case .fileMissing:
             return "transcribe_audio: error: file not found at \(path)"
         case .failed(let reason):

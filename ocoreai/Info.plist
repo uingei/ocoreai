@@ -26,5 +26,7 @@
 	<string>ocoreai uses your camera for vision input and multimodal interaction.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>ocoreai uses your microphone for voice input and real-time audio processing.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>ocoreai uses speech recognition to transcribe recorded audio into text.</string>
 </dict>
 </plist>

@@ -152,8 +152,49 @@ struct TranscribeAudioClientTests {
         let out = await TranscribeAudioClient.runForTool(
             path: "/tmp/x.caf", locale: nil, maxChars: nil,
             backend: FakeSTT(outcome: .belowFloor))
-        #expect(out.contains("macOS 26 / iOS 26+"))
+        // 双引擎(L3 离线 + cloud 10.15+)均不可用才到这 — 精确文案锁定
+        #expect(
+            out == "transcribe_audio: error: no speech recognition engine for this OS — "
+                + "both local (macOS 26 / iOS 26+) and cloud (10.15+ / 13+) engines unavailable")
+    }
+
+    @Test
+    func cloudAuthorizationDenialReportsHonestReason() async {
+        // 授权缺失(<26 cloud 路径 / 26+ L3 降级路径)的精确 reason — 模型可读、可转述
+        let out = await TranscribeAudioClient.runForTool(
+            path: "/tmp/x.caf", locale: nil, maxChars: nil,
+            backend: FakeSTT(
+                outcome: .failed(
+                    "speech recognition not authorized — enable in "
+                        + "System Settings ▸ Privacy & Security ▸ Speech Recognition")))
+        #expect(
+            out == "transcribe_audio: error: speech recognition not authorized — enable in "
+                + "System Settings ▸ Privacy & Security ▸ Speech Recognition")
+    }
+
+    @Test
+    func cloudServiceUnavailableReportsLocaleAndNetworkHint() async {
+        let out = await TranscribeAudioClient.runForTool(
+            path: "/tmp/x.caf", locale: "fr-FR", maxChars: nil,
+            backend: FakeSTT(
+                outcome: .failed(
+                    "speech recognition service unavailable for fr-FR — check network connection")))
+        #expect(out.contains("unavailable for fr-FR"))
+        #expect(out.contains("check network connection"))
         #expect(out.hasPrefix("transcribe_audio: error:"))
+    }
+
+    @Test
+    func cloudSuccessUsesSameReportShapeAsLocal() async {
+        // cloud 降级成功走同一 report(精确两行) — 工具面不暴露"哪档引擎"
+        let out = await TranscribeAudioClient.runForTool(
+            path: "/tmp/x.caf", locale: "en-US", maxChars: 2000,
+            backend: FakeSTT(outcome: .success(text: "  the words come through ")))
+        let lines = out.components(separatedBy: "\n")
+        // 两行形态 + 精确计数 + 正文 trim 后原样
+        #expect(lines.count == 2)
+        #expect(lines[0] == "transcribe_audio OK — 22 chars (locale=en-US)")
+        #expect(lines[1] == "the words come through")
     }
 
     @Test
