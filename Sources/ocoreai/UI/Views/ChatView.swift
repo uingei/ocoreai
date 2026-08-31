@@ -415,7 +415,9 @@ struct ChatView: View {
                                     )
                                     .transition(.opacity.combined(with: .move(edge: .top)))
                                     .animation(
-                                        .spring(response: 0.25, dampingFraction: 0.9),
+                                        reduceMotion
+                                            ? nil
+                                            : .spring(response: 0.25, dampingFraction: 0.9),
                                         value: chatState.currentReasoningText)
                                 }
                                 MarkdownMessage(content: chatState.responseTextDisplay)
@@ -1203,7 +1205,7 @@ struct ChannelShiftToastOverlay: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.bottom, 40)  // Above error overlay to avoid collision
             .transition(.opacity.combined(with: .move(edge: .bottom)))
-            .animation(.easeOut(duration: 0.3), value: toast)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: toast)
             .accessibilityLabel(toast.accessibilityLabel)
         }
     }
@@ -1269,7 +1271,7 @@ struct ApprovalBanner: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 44)  // Clear error + channel-shift toasts
             .transition(.opacity.combined(with: .move(edge: .bottom)))
-            .animation(.easeOut(duration: 0.25), value: rows.count)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: rows.count)
         }
     }
 
