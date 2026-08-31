@@ -452,6 +452,23 @@ actor SQLiteStore {
             sql: "CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at);",
             db: db)
 
+        // Plan 任务态 checkpoint（Recover 片 1：update_plan 快照持久化，重启可恢复面板态）
+        // 多行历史 = 可见的任务推进轨迹；消费面取最近一条（updated_at DESC）。
+        try Self.exec(
+            sql: """
+                CREATE TABLE IF NOT EXISTS plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+                    items_json TEXT NOT NULL,
+                    explanation TEXT,
+                    updated_at INTEGER NOT NULL
+                );
+                """, db: db)
+        try Self.exec(
+            sql:
+                "CREATE INDEX IF NOT EXISTS idx_plans_session_updated ON plans(session_id, updated_at);",
+            db: db)
+
         // Structured memory events — six-element knowledge model (方案 B 单层)
         // 时间(timestamp), 地点(context), 人物(entities), 起因(cause), 经过(process), 结果(result)
         // SET NULL on session delete — events survive session TTL as permanent memory

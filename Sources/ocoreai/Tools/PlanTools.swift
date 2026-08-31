@@ -136,9 +136,15 @@ final class PlanStateRecorder: PlanStatePublisher, @unchecked Sendable {
 enum UpdatePlanClient {
     static let toolName = "update_plan"
 
-    static func toolEntry(publisher: PlanStateRecorder? = nil) -> ToolEntry {
+    static func toolEntry(
+        publisher: PlanStateRecorder? = nil,
+        recovery: PlanRecoverySeam? = nil,
+    ) -> ToolEntry {
         // publisher 具体类型捕获(闭包 @Sendable 安全);nil = 无事件交付(模型侧语义不变)。
+        // recovery = Recover 片 1 第二消费者(任务态 checkpoint + UI 面板);nil = 纯内存事件面
+        // (测试面 / opt-in 未开持久化)。两消费者都 fire-and-forget: 工具输出恒 `Plan updated`。
         let rec = publisher
+        let chk = recovery
         return ToolEntry.typed(
             name: toolName,
             toolset: "plan",
@@ -170,6 +176,7 @@ enum UpdatePlanClient {
             case .failure(let err): return err.message
             case .success(let v):
                 rec?.publish(explanation: v.explanation, steps: v.steps)
+                await chk?.planUpdated(explanation: v.explanation, steps: v.steps)
                 return PlanUpdate.planUpdated
             }
         }

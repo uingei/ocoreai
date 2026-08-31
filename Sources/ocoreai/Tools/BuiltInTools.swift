@@ -14,13 +14,15 @@ import Foundation
 /// - Parameters:
 ///   - registry: The tool registry to populate.
 ///   - skillRegistry: Optional skill registry for skill-related tools.
-///   - updatePlanEnabled: `update_plan` opt-in（**默认 false**，对齐 codex `#41744`：
+///   - updatePlanEnabled: `update_plan` opt-in 开关（**默认 false** = codex `#41744` 基线；
 ///     `tools.update_plan.enabled` default→false；ocoreai 无 plan prompt-hint 注入面，
-///     off-path 与上游一致 = 不注册即无指引）。显式 true 才注册。
+///     off-path 与上游一致 = 不注册即无指引；显式 true 才注册）。
+///   - planRecovery: 任务态 checkpoint 消费者（Recover 片 1；nil = 纯内存事件面）。
 func bootstrapBuiltInTools(
     registry: ToolRegistry,
     skillRegistry: SkillRegistry? = nil,
     updatePlanEnabled: Bool = false,
+    planRecovery: PlanRecoverySeam? = nil,
 ) async {
     // ── info ────────────────────────────────────────────────────────────────
     struct InfoArgs: Codable {
@@ -507,7 +509,8 @@ func bootstrapBuiltInTools(
     // 显式开启才注册；off-path 无指引，与上游一致）。ocoreai 侧的"开"= Settings
     // `settings.updatePlan.enabled`（见 `Bootstrap/updatePlanEnabled` 参数注入）。
     if updatePlanEnabled {
-        try? await registry.register(UpdatePlanClient.toolEntry())
+        try? await registry.register(
+            UpdatePlanClient.toolEntry(publisher: nil, recovery: planRecovery))
     }
 
     // clock — codex 0.150.1 基线对齐（curr_time / sleep 原值命名）。

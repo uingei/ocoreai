@@ -491,6 +491,10 @@ final class ChatState {
                 let chronMessages = dbMessages.reversed().map { fromMessageModel($0) }
                 messages = chronMessages
                 inferenceSessionId = "chat-\(UUID().uuidString.prefix(8))"
+                // Recover 片 1：切换/重载会话 → 恢复该会话的任务态快照（空 = 清面板）
+                if let sid = sessionId {
+                    await PlanTaskStore.shared.rehydrate(sessionID: sid)
+                }
             } catch {
                 Self.logger.warning(
                     "Failed to load session \(session.id): \(error.localizedDescription)")
@@ -535,6 +539,10 @@ final class ChatState {
             // multiple chat() calls — ThinkingBudget adaptive calibration requires
             // a consistent key to accumulate quality multipliers.
             inferenceSessionId = "chat-\(UUID().uuidString.prefix(8))"
+            // Recover 片 1：新会话激活 → hydrate 其任务态（空会话 = 清面板）
+            if let sid = sessionId {
+                await PlanTaskStore.shared.rehydrate(sessionID: sid)
+            }
         } catch {
             // Non-fatal: continue with in-memory mode
             Self.logger.warning("Failed to create session: \(error.localizedDescription)")

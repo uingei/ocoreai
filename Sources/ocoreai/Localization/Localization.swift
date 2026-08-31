@@ -191,6 +191,8 @@ public enum StringKey: String, CaseIterable {
     case planSection = "Settings.PlanSection"
     case planToggle = "Settings.PlanToggle"
     case planHint = "Settings.PlanHint"
+    case planCardTitle = "PlanCard.Title"
+    case planCardHint = "PlanCard.Hint"
     case logsSection = "Settings.LogsSection"
     case logLevel = "Settings.LogLevel"
     case profileToggle = "Settings.ProfileToggle"
@@ -696,6 +698,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .planToggle: "Enable update_plan (agent to-do list)",
         .planHint:
             "Disabled by default (upstream baseline: opt-in). When enabled, the agent maintains a task list (update_plan: add / reorder / complete) visible in chat.",
+        .planCardTitle: "Task",
+        .planCardHint: "Live update_plan state — persists across restarts",
         .logsSection: "Logs & Profiling",
         .logLevel: "Log Level",
         .profileToggle: "Enable Performance Profiling",
@@ -1185,6 +1189,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .planSection: "计划",
         .planToggle: "启用 update_plan（agent 任务清单）",
         .planHint: "默认关闭（对齐上游 opt-in 基线）。开启后 agent 维护可见的任务清单（update_plan：增 / 改序 / 完成）。",
+        .planCardTitle: "任务",
+        .planCardHint: "实时 update_plan 状态 — 重启后仍在",
         .logsSection: "日志与性能分析",
         .logLevel: "日志级别",
         .profileToggle: "启用性能分析",

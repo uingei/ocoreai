@@ -610,6 +610,12 @@ struct ChatView: View {
                 .frame(height: 56)
             }
 
+            // Recover 片 1：任务态面板（update_plan 持久化快照；nil/空 = 不渲染 = 零 chrome 噪声）
+            if let planSnapshot = PlanTaskStore.shared.current, !planSnapshot.items.isEmpty {
+                PlanCard(snapshot: planSnapshot)
+                    .padding(.horizontal)
+            }
+
             // 自主回路切片 1：主动建议条（只提案、永不自动执行；点"查看"= 填入输入框待审）
             ProactiveSuggestionBar(appState: AppState.shared)
 

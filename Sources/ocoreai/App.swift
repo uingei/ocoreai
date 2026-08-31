@@ -304,6 +304,12 @@ public final class OcoreaiEngine {
         let semanticSearch = SemanticSearch(store: store)
         _semanticSearch = semanticSearch
 
+        // Recover 片 1：plan 任务态 checkpoint 绑定已打开的 SQLite 连接
+        // （绑定后 update_plan 每次成功都落 plans 表；未绑定 = 纯内存事件面）。
+        await MainActor.run {
+            PlanTaskStore.shared.attach(store: store)
+        }
+
         // MARK: - Config System (YAML + env override + hot-reload)
 
         configSystem = await ConfigSystem.create()
@@ -381,6 +387,7 @@ public final class OcoreaiEngine {
             registry: toolRegistry,
             skillRegistry: skRegistry,
             updatePlanEnabled: SettingsStore.shared.updatePlanEnabled,
+            planRecovery: PlanTaskStore.shared,
         )
         let mcpTransport = MCPStdioTransport(log: logger)
         _mcpBridge = MCPBridge(
