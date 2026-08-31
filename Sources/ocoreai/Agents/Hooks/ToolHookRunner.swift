@@ -2,7 +2,10 @@
 // Licensed under MIT.
 /// ToolHookRunner.swift — Lifecycle hooks aligned with codex-rs `HookEventName`.
 ///
-/// Baseline: codex `codex-rs/protocol/src/protocol.rs:1510` defines 11 hook events.
+/// Baseline: codex `codex-rs/protocol/src/protocol.rs:1557` defines 12 hook events
+/// (`HookEventName`: PreToolUse/PermissionRequest/PostToolUse/PreCompact/
+/// PostCompact/SessionStart/SessionEnd/UserPromptSubmit/SubagentStart/
+/// SubagentStop/Stop/Interrupt).
 /// ocoreai declares the five ocoreai-relevant ones in the `HookEvent` enum:
 ///   PreToolUse / PostToolUse / PreCompact / PostCompact / Stop
 ///
