@@ -188,6 +188,9 @@ public enum StringKey: String, CaseIterable {
     case specDecodingModeTraditional = "Settings.SpecDecodingModeTraditional"
     case specDecodingHint = "Settings.SpecDecodingHint"
     case specDecodingFooter = "Settings.SpecDecodingFooter"
+    case planSection = "Settings.PlanSection"
+    case planToggle = "Settings.PlanToggle"
+    case planHint = "Settings.PlanHint"
     case logsSection = "Settings.LogsSection"
     case logLevel = "Settings.LogLevel"
     case profileToggle = "Settings.ProfileToggle"
@@ -689,6 +692,10 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .specDecodingModeTraditional: "Traditional (Draft Model)",
         .specDecodingHint: "MTP uses the main model's built-in MTP layers for speculation",
         .specDecodingFooter: "Speculative decoding can significantly improve throughput",
+        .planSection: "Planning",
+        .planToggle: "Enable update_plan (agent to-do list)",
+        .planHint:
+            "Disabled by default (upstream baseline: opt-in). When enabled, the agent maintains a task list (update_plan: add / reorder / complete) visible in chat.",
         .logsSection: "Logs & Profiling",
         .logLevel: "Log Level",
         .profileToggle: "Enable Performance Profiling",
@@ -1175,6 +1182,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .specDecodingModeTraditional: "传统（草稿模型）",
         .specDecodingHint: "MTP 使用主模型内置 MTP 层进行推测",
         .specDecodingFooter: "推测解码可显著提升生成吞吐量，重启应用后生效",
+        .planSection: "计划",
+        .planToggle: "启用 update_plan（agent 任务清单）",
+        .planHint: "默认关闭（对齐上游 opt-in 基线）。开启后 agent 维护可见的任务清单（update_plan：增 / 改序 / 完成）。",
         .logsSection: "日志与性能分析",
         .logLevel: "日志级别",
         .profileToggle: "启用性能分析",

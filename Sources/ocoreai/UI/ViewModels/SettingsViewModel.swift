@@ -132,6 +132,15 @@ final class SettingsState {
         }
     }
 
+    // MARK: - Plan（update_plan opt-in，默认 false — 对齐 codex `#41744`）
+
+    var updatePlanEnabled: Bool = SettingsStore.shared.updatePlanEnabled {
+        didSet {
+            guard oldValue != updatePlanEnabled else { return }
+            SettingsStore.shared.updatePlanEnabled = updatePlanEnabled
+        }
+    }
+
     // MARK: - Logs & Profiling
 
     var logLevel: LogLevelRaw = SettingsStore.shared.logLevel {

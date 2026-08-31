@@ -31,6 +31,7 @@ struct SettingsView: View {
             performanceSection
             kvCacheSection
             specDecodingSection
+            planSection
             logsSection
             appSection
             customSystemPromptSection
@@ -206,6 +207,17 @@ struct SettingsView: View {
             Text(StringKey.specDecodingSection.l)
         } footer: {
             Text(StringKey.specDecodingFooter.l)
+        }
+    }
+
+    private var planSection: some View {
+        Section {
+            Toggle(StringKey.planToggle.l, isOn: $settingsState.updatePlanEnabled)
+                .accessibilityLabel(StringKey.planToggle.l)
+            Text(StringKey.planHint.l)
+                .font(.ocoreaiText(12)).foregroundStyle(.secondary)
+        } header: {
+            Text(StringKey.planSection.l)
         }
     }
 

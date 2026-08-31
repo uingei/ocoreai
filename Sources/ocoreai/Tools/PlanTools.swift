@@ -12,8 +12,8 @@
 /// + `codex-rs/core/src/tools/handlers/plan.rs`
 /// (`PLAN_UPDATED_MESSAGE = "Plan updated"`, output success=true;
 ///  参数解析失败/状态越界 = `RespondToModel`(可读拒绝, 不发事件))
-/// + config `tools.update_plan.enabled` 默认 true(#41630: default/explicit-enable/
-///  explicit-disable 三态; API 面默认开启)。
+/// + config `tools.update_plan.enabled` 默认 **false**（codex `#41744`，2026-08-31：
+///  default→false，opt-in；#41630 的 default=true 已被上游翻转；API 面显式开启才注册）。
 ///
 /// ocoreai 对齐:
 ///   - 工具名 / 参数名 / required 面 / 输出文案 = codex 原值;

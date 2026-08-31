@@ -111,6 +111,12 @@ final class SettingsStore {
         }
     }
 
+    /// update_plan opt-in（**默认 false**，对齐 codex `#41744`；UserDefaults Bool 未触达 = false）。
+    var updatePlanEnabled: Bool {
+        get { defaults.bool(forKey: Key.updatePlanEnabled.rawValue) }
+        set { defaults.set(newValue, forKey: Key.updatePlanEnabled.rawValue) }
+    }
+
     /// True when the user has explicitly set the specDecoding enabled control
     /// (UserDefaults key present). When false, the engine must keep whatever the
     /// authored config declares for that dimension rather than defaulting it.
@@ -377,6 +383,9 @@ final class SettingsStore {
         // Speculative Decoding
         case specDecodingEnabled = "settings.specDecoding.enabled"
         case specDecodingMode = "settings.specDecoding.mode"
+
+        // Plan（update_plan opt-in，对齐 codex `#41744`）
+        case updatePlanEnabled = "settings.updatePlan.enabled"
 
         // App
         case appLocale = "settings.app.locale"

@@ -380,6 +380,7 @@ public final class OcoreaiEngine {
         await bootstrapBuiltInTools(
             registry: toolRegistry,
             skillRegistry: skRegistry,
+            updatePlanEnabled: SettingsStore.shared.updatePlanEnabled,
         )
         let mcpTransport = MCPStdioTransport(log: logger)
         _mcpBridge = MCPBridge(
