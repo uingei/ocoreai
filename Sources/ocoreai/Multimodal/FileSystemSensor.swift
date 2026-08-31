@@ -13,9 +13,13 @@ private let fsLogger = Logger(subsystem: "ocoreai", category: "filesystem_sensor
 // MARK: - File System Change Event
 
 public struct FileChangeEvent: Codable, Sendable {
+    /// 触发文件的**绝对路径**（字段名 = 真值，可直接喂 `read_file` 等工具）。
     public let path: String
     public let eventType: FileChangeEventType
     public let timestamp: Date
+
+    /// 文件短名（派生，供 UI/建议展示）；不参与编解码。
+    public var fileName: String { URL(fileURLWithPath: path).lastPathComponent }
 
     public enum FileChangeEventType: String, Codable, Sendable {
         case created
@@ -169,7 +173,7 @@ final class FileSystemSensor: Sendable {
 
                     changes.append(
                         FileChangeEvent(
-                            path: fileURL.lastPathComponent,
+                            path: fileURL.path,
                             eventType: eventType,
                             timestamp: .init()
                         ))
@@ -208,11 +212,11 @@ final class FileSystemSensor: Sendable {
                 summaryText: summary
             )
 
-            // 自主回路切片 1：新文件到达 → 主动建议（只提案、不执行）。
+            // 自主回路切片 3：新文件到达 → 主动建议（携带**可寻址绝对路径**；只提案、不执行）。
             // 权限面 = 本通道已开启（用户显式同意被感知），零新增权限。
             let evaluation = ProactiveAdvisor.evaluate(events: changes)
-            if evaluation.shouldSuggest, let fileName = evaluation.fileName {
-                ProactiveSuggestionStore.shared.present(fileName: fileName)
+            if evaluation.shouldSuggest, let filePath = evaluation.filePath {
+                ProactiveSuggestionStore.shared.present(filePath: filePath)
             }
 
             fsLogger.debug("[FileSystemSensor] \(changes.count) changes detected")

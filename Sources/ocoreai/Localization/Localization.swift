@@ -755,8 +755,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
             + " — should I take a look?",
         .proactiveActionView: "View",
         .proactiveDismiss: "Dismiss",
-        .proactiveDraft: "A new file arrived in a watched folder: %@ "
-            + "— should I take a look?",
+        .proactiveDraft: "New file arrived: %@ "
+            + "— please review it at its full path: %@"
+            + " (read-only; do not modify).",
 
         .hubTokensTitle: "Hub Tokens",
         .hubTokensHint:
@@ -1231,7 +1232,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .proactiveNewFile: "检测到新文件：%@　要我看一眼吗？",
         .proactiveActionView: "查看",
         .proactiveDismiss: "忽略",
-        .proactiveDraft: "检测到一个新文件到达了被监控的目录：%@　要我看一眼吗？",
+        .proactiveDraft: "检测到新文件：%@（完整路径：%@）。\n请按该路径用只读方式查看内容（read_file / view_image，不修改）。",
 
         // Navigation
         .tabDashboard: "仪表盘",
