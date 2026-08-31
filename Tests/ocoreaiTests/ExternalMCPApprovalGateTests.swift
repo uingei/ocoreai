@@ -2,14 +2,23 @@
 // tool path must pass the same security preflight (PreToolUse hooks +
 // approval broker) as local tools before any `forwardToolCall` runs.
 //
+// codex baseline (approvals.rs:505 precedence "1. Hooks 2. user";
+// mcp_tool_call.rs:1497): MCP calls are FIRST-CLASS approval objects — a call
+// no hook claims still routes through the policy/broker (OnRequest default →
+// user decides; policy Never → denied). A broker-less `.ask` NEVER silently
+// forwards; it hard-denies (regression protection).
+//
 // Coverage (exact values, per test-quality bar):
 //   1. deny hook (matcher=nil → applies to every tool) → ToolError.denied
 //      with the hook's EXACT reason, thrown from `securityGate`.
-//   2. ask hook + no broker → ToolError.denied (regression contract: never
-//      silently forwards to an external server).
-//   3. allow (no hooks) → `securityGate` completes without error.
-//   4. hook matching only ANOTHER tool → gate passes for the MCP tool
-//      (matcher is still honored on the shared path).
+//   2. ask hook + no broker → ToolError.denied (hook's exact reason).
+//   3. no hooks + no broker → ToolError.denied with the ungated EXACT reason
+//      (regression contract: never silently forwards to an external server).
+//   4. no hooks + interactive broker → row published with the ungated EXACT
+//      reason; approve → gate passes; deny → exact reason propagates.
+//      (codex `OnRequest` default for unclaimed MCP calls.)
+//   5. hook matching only ANOTHER tool → ungated fallback applies (ask →
+//      broker), NOT a silent pass.
 
 import Logging
 import Testing
@@ -80,26 +89,99 @@ struct ExternalMCPApprovalGateTests {
         }
     }
 
-    @Test("no hooks → gate passes (allow path)")
-    func allowPath() async throws {
+    /// The ungated (no-hook) ask reason — must match the production constant
+    /// in `ToolRegistry.securityPrecheckExternal` EXACTLY (precise-value bar).
+    private let ungatedReason =
+        "External MCP tool — operator approval required (no hook claims this call)"
+
+    @Test("no hooks + no broker → hard deny with exact ungated reason (codex Never default)")
+    func allowPath() async {
         let bridge = makeBridge(hooks: [], broker: nil)
-        try await bridge.securityGate(forExternalTool: "remote_search", arguments: "{}")
+        do {
+            try await bridge.securityGate(forExternalTool: "remote_search", arguments: "…")
+            #expect(false, "expected ToolError.denied (ungated, no broker)")
+        } catch {
+            expectDenied(error, reason: ungatedReason)
+        }
     }
 
-    @Test("hook matching another tool → does not fire on this tool")
+    @Test(
+        "no hooks + interactive broker → row with exact ungated reason; approve → passes; deny → exact reason"
+    )
+    func noHookBrokerDecision() async {
+        let broker = ApprovalBroker(policy: .interactive)
+        let bridge = makeBridge(hooks: [], broker: broker)
+
+        // Approve: gate completes. Row carries the ungated reason (not a hook's).
+        let t1 = Task {
+            try await bridge.securityGate(forExternalTool: "remote_read_file", arguments: "{}")
+        }
+        guard let row = await waitForRow(broker) else {
+            #expect(false, "approval row never published")
+            return
+        }
+        #expect(row.toolName == "remote_read_file")
+        #expect(row.reason == ungatedReason)
+        #expect(await broker.resolve(id: row.id, decision: .approved) == true)
+        do {
+            _ = try await t1.value
+        } catch {
+            #expect(false, "gate should complete after approval, but threw: \(error)")
+        }
+
+        // Deny on a second call: reason comes from the broker decision.
+        let t2 = Task {
+            try await bridge.securityGate(forExternalTool: "remote_write_file", arguments: "{}")
+        }
+        guard let row2 = await waitForRow(broker) else {
+            #expect(false, "second approval row never published")
+            return
+        }
+        #expect(row2.toolName == "remote_write_file")
+        #expect(
+            await broker.resolve(id: row2.id, decision: .denied(reason: "operator says no")) == true
+        )
+        do {
+            _ = try await t2.value
+            #expect(false, "expected ToolError.denied")
+        } catch {
+            expectDenied(error, reason: "operator says no")
+        }
+    }
+
+    @Test("hook matching another tool → ungated ask fires (NOT a silent pass); broker decides")
     func matcherSkips() async {
+        let broker = ApprovalBroker(policy: .interactive)
         let bridge = makeBridge(
             hooks: [
                 Hook.pre(matcher: ToolMatcher("unrelated_tool")) { _ in
                     .deny(reason: "should not fire")
                 }
             ],
-            broker: nil,
+            broker: broker,
         )
+        // The matcher does NOT claim this tool → ungated fallback = .ask →
+        // broker publishes a pending row (does not throw immediately, but does
+        // NOT silently pass either). Poll for the row.
+        let t = Task {
+            try await bridge.securityGate(forExternalTool: "remote_write_file", arguments: "{}")
+        }
+        Task.detached {
+            for _ in 0 ..< 200 {
+                if let row = await broker.snapshot().first {
+                    #expect(row.toolName == "remote_write_file")
+                    #expect(row.reason == ungatedReason)
+                    await broker.resolve(id: row.id, decision: .approved)
+                    break
+                }
+                try? await Task.sleep(nanoseconds: 2_000_000)
+            }
+        }
         do {
-            _ = try await bridge.securityGate(forExternalTool: "remote_write_file", arguments: "{}")
+            _ = try await t.value
+            #expect(true)  // gate completed after approval — no silent pass, no deny
         } catch {
-            #expect(false, "gate should pass, but threw: \(error)")
+            #expect(false, "gate should complete after approval, but threw: \(error)")
         }
     }
 

@@ -159,40 +159,81 @@ actor ToolRegistry {
     ///
     /// Extracted from `call` — local-tool behavior is unchanged: same verdict
     /// order, same broker path, same deny reasons, same log lines.
+    /// Security preflight for **local** tool calls (legacy surface, behavior
+    /// unchanged): a hook verdict governs; a call no hook claims is ungated —
+    /// the bootstrap hook in `App.swift` (destructive-tool matcher) is the
+    /// approval surface for the 7 built-in local tools.
     /// - Throws: ``ToolError/denied(reason:):`` on `.deny` or user denial.
     func securityPrecheck(toolName: String, arguments: String) async throws {
+        try await securityGate(toolName: toolName, arguments: arguments, ungated: .allow)
+    }
+
+    /// Security gate for **external (MCP)** tool calls — codex makes MCP calls
+    /// first-class approval objects: `ApprovalAction::McpToolCall`
+    /// (`core/src/tools/approvals.rs:112`) is decided by the approval policy,
+    /// not by hook enumeration — `mcp_tool_call.rs:1497` (`OnRequest` default
+    /// → user approval surface; policy `Never` → denied). External tool names
+    /// are unbounded (server-manifest driven), so a per-MCP-name hook is not
+    /// the model: a call no hook claims still routes through the broker, where
+    /// the policy decides —
+    ///   - `.never`  → broker auto-denies          (codex `Never` → denied)
+    ///   - `.auto`   → broker auto-approves        (codex sandbox-allow surface)
+    ///   - `.interactive` (default) → user decides (codex `OnRequest` default)
+    ///   - no broker wired → hard deny (same regression protection as local)
+    /// Without this, MCP calls bypassed approval under the default wiring
+    /// (7-name local hook never matches an external name → `.allow`).
+    /// - Throws: ``ToolError/denied(reason:):`` on deny path.
+    func securityPrecheckExternal(toolName: String, arguments: String) async throws {
+        try await securityGate(
+            toolName: toolName, arguments: arguments,
+            ungated: .ask(
+                reason: "External MCP tool — operator approval required (no hook claims this call)")
+        )
+    }
+
+    /// Shared gate body. `ungated` = effective verdict when NO hook claims the
+    /// call (local: `.allow`; external: `.ask` → policy/broker decides).
+    private func securityGate(
+        toolName: String, arguments: String, ungated: HookVerdict
+    ) async throws {
         // PreToolUse hook veto — codex `HookEventName.preToolUse`.
-        // A single deny/ask from any non-skipped matcher short-circuits here,
-        // BEFORE audit, loop detection, or handler execution. If a hook is
-        // added later with `matcher == nil` it will apply to every tool —
-        // that's the design intent (mirrors codex "no matcher → global").
-        let verdict = await hookRunner.evaluatePreToolUse(toolName: toolName, arguments: arguments)
-        if verdict != .allow {
-            switch verdict {
-            case .deny(let reason):
-                logger.info("Tool '\(toolName)' denied by PreToolUse hook")
-                throw ToolError.denied(reason: reason)
-            case .ask(let reason):
-                // User-approval gate — codex `ExecApprovalRequest` → TUI cell →
-                // `ReviewDecision`. broker 存在 → 挂起等裁决；broker 缺席 → 硬拒
-                // （回归保护：无审批面时绝不静默放行）。
-                if let broker = approvalBroker {
-                    logger.info("Tool '\(toolName)' requires approval — routing to broker")
-                    let decision = await broker.request(
-                        toolName: toolName, arguments: arguments, reason: reason)
-                    switch decision {
-                    case .approved, .approvedForSession:
-                        break
-                    case .denied(let denyReason):
-                        logger.info("Tool '\(toolName)' denied by user")
-                        throw ToolError.denied(reason: denyReason)
-                    }
-                } else {
-                    logger.info("Tool '\(toolName)' requires approval (no broker) — denying")
-                    throw ToolError.denied(reason: reason)
+        // A single deny/ask from any matching hook short-circuits here,
+        // BEFORE the ungated fallback applies. A `nil`/`"*"` matcher hook
+        // applies to every tool (mirrors codex "no matcher → global") — that
+        // remains the way to force-deny a specific external tool by name.
+        let verdict = await hookRunner.evaluatePreToolUse(
+            toolName: toolName, arguments: arguments)
+        let effective: HookVerdict
+        if case .allow = verdict {
+            effective = ungated
+        } else {
+            effective = verdict
+        }
+        switch effective {
+        case .deny(let reason):
+            logger.info("Tool '\(toolName)' denied by PreToolUse hook")
+            throw ToolError.denied(reason: reason)
+        case .ask(let reason):
+            // User-approval gate — codex `ExecApprovalRequest` → TUI cell →
+            // `ReviewDecision`. broker 存在 → 挂起等裁决；broker 缺席 → 硬拒
+            // （回归保护：无审批面时绝不静默放行）。
+            if let broker = approvalBroker {
+                logger.info("Tool '\(toolName)' requires approval — routing to broker")
+                let decision = await broker.request(
+                    toolName: toolName, arguments: arguments, reason: reason)
+                switch decision {
+                case .approved, .approvedForSession:
+                    break
+                case .denied(let denyReason):
+                    logger.info("Tool '\(toolName)' denied by user")
+                    throw ToolError.denied(reason: denyReason)
                 }
-            case .allow: break
+            } else {
+                logger.info("Tool '\(toolName)' requires approval (no broker) — denying")
+                throw ToolError.denied(reason: reason)
             }
+        case .allow:
+            break
         }
     }
 

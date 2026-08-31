@@ -285,12 +285,14 @@ actor MCPBridge {
         }
 
         // 3. Fan-out 到外部 MCP servers.
-        // Security gate FIRST (codex #41094 parity: sensitive MCP actions route to
-        // the synchronous reviewer). Same `ToolRegistry.securityPrecheck` chokepoint
-        // as local tools — hooks with `matcher == nil` apply to every tool, so
-        // deny/ask verdicts fire here without per-MCP-name enumeration. A deny/ask
-        // without an approval broker throws `ToolError.denied` (never silently
-        // forwarded); with a broker, the call suspends for a user decision.
+        // Security gate FIRST (codex #41094 parity: MCP calls are first-class
+        // approval objects — not hook-enumerated). `securityGate(forExternalTool:)`
+        // routes through `ToolRegistry.securityPrecheckExternal`: a deny/ask
+        // matching hook short-circuits here (deny → throw, ask → broker); a
+        // call NO hook claims still raises the approval surface
+        // (codex `OnRequest` default) — never silently forwarded. A broker-less
+        // `.ask` throws `ToolError.denied`; with a broker the call suspends
+        // for a user decision (approve-once / approve-for-session / deny).
         do {
             try await securityGate(forExternalTool: toolName, arguments: arguments)
             let externalResult = try await routeToExternalServers(toolName, arguments: arguments)
@@ -305,12 +307,14 @@ actor MCPBridge {
         }
     }
 
-    /// Security preflight before forwarding a call to an external MCP server.
-    /// Wraps `ToolRegistry.securityPrecheck` (PreToolUse hooks + approval broker)
-    /// so the local and external tool paths share one gate. Exposed for tests:
+    /// Security gate before forwarding a call to an external MCP server.
+    /// Wraps `ToolRegistry.securityPrecheckExternal` — external tool names are
+    /// unbounded (server-manifest driven), so a call no hook claims still
+    /// routes through the broker where the approval policy decides
+    /// (codex `ApprovalAction::McpToolCall` first-class approval). Exposed for tests:
     /// deny/ask must throw before `forwardToolCall` runs; allow must not.
     func securityGate(forExternalTool toolName: String, arguments: String) async throws {
-        try await toolRegistry.securityPrecheck(toolName: toolName, arguments: arguments)
+        try await toolRegistry.securityPrecheckExternal(toolName: toolName, arguments: arguments)
     }
 
     /// 调用本地工具（通过 MCPServer dispatch）。
