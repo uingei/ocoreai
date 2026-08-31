@@ -193,6 +193,46 @@ struct WebSearchParserTests {
     }
 }
 
+@Suite("web_search probe (fail-fast on down backend)")
+struct WebSearchProbeTests {
+
+    @Test
+    func stripsV1SuffixForApiVersion() throws {
+        let p = try WebSearchProbe.build(
+            baseUrl: "http://192.168.101.146:11434/v1", timeoutS: 5)
+        #expect(p.url.absoluteString == "http://192.168.101.146:11434/api/version")
+        #expect(p.timeoutS == 5)
+    }
+
+    @Test
+    func appendsV1WhenBaseHasNoSuffix() throws {
+        let p = try WebSearchProbe.build(baseUrl: "http://192.168.101.146:11434", timeoutS: 5)
+        #expect(p.url.absoluteString == "http://192.168.101.146:11434/api/version")
+    }
+
+    @Test
+    func trimsTrailingSlash() throws {
+        let p = try WebSearchProbe.build(baseUrl: "http://h:11434/v1/", timeoutS: 5)
+        #expect(p.url.absoluteString == "http://h:11434/api/version")
+    }
+
+    @Test
+    func clampsTimeoutTo1Through30() throws {
+        #expect(try WebSearchProbe.build(baseUrl: "http://h:1", timeoutS: 0).timeoutS == 1)
+        #expect(try WebSearchProbe.build(baseUrl: "http://h:1", timeoutS: 99).timeoutS == 30)
+        #expect(try WebSearchProbe.build(baseUrl: "http://h:1", timeoutS: 7).timeoutS == 7)
+    }
+
+    @Test
+    func rejectsInvalidBase() {
+        #expect(
+            throws: WebSearchError.unreachable(reason: "invalid base_url for probe: h")
+        ) {
+            _ = try WebSearchProbe.build(baseUrl: "h", timeoutS: 5)
+        }
+    }
+}
+
 @Suite("web_search tool surface")
 struct WebSearchToolSurfaceTests {
 

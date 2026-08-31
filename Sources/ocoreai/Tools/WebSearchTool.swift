@@ -57,6 +57,7 @@ struct WebSearchResult: Sendable, Equatable {
 enum WebSearchError: Error, LocalizedError, Equatable {
     case httpStatus(Int, bodyExcerpt: String)
     case unreachable(reason: String)
+    case down(probeUrl: String, timeoutS: Int)
     case decode(message: String, bodyExcerpt: String)
     case apiError(status: String?, message: String)
     case emptyAnswer
@@ -67,6 +68,9 @@ enum WebSearchError: Error, LocalizedError, Equatable {
             "search backend HTTP \(code): \(excerpt)"
         case .unreachable(let reason):
             "search backend unreachable: \(reason)"
+        case .down(let probeUrl, let timeoutS):
+            "search backend offline (GET \(probeUrl) failed within \(timeoutS)s) — "
+                + "degrade via web_fetch/exec_command or answer without new web data"
         case .decode(let message, let excerpt):
             "search response decode failed: \(message) — body(300): \(excerpt)"
         case .apiError(let status, let message):
@@ -208,6 +212,48 @@ enum WebSearchParser {
     }
 }
 
+// MARK: - Probe(纯函数 URL 构造 + async 探活,宕机快速失败)
+
+enum WebSearchProbe {
+    struct Built: Sendable, Equatable {
+        let url: URL
+        let timeoutS: Int
+    }
+
+    /// `/api/version` 探活 URL。base 含 `/v1` 后缀则剥离(ollama 双端点:`/api/*` 与 `/v1/*`)。
+    /// timeout 下限 1s(env 注入可测:OCRE_SEARCH_PROBE_TIMEOUT,默认 5)。
+    static func build(baseUrl: String, timeoutS: Int = 5) throws -> Built {
+        var base = baseUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        if base.hasSuffix("/") { base.removeLast() }
+        if base.hasSuffix("/v1") { base.removeLast(3) }
+        guard base.count > "http://".count, let url = URL(string: base + "/api/version") else {
+            throw WebSearchError.unreachable(
+                reason: "invalid base_url for probe: \(baseUrl)")
+        }
+        return Built(url: url, timeoutS: max(1, min(timeoutS, 30)))
+    }
+
+    /// GET 探活。任何 HTTP 响应 = 在线;连接层失败 = 离线(快速失败,不吞)。
+    static func isUp(
+        base: String, environment: [String: String] = ProcessInfo.processInfo.environment
+    )
+        async -> Bool
+    {
+        let timeoutEnv = Int(environment["OCRE_SEARCH_PROBE_TIMEOUT"] ?? "") ?? 5
+        let built: Built
+        do { built = try build(baseUrl: base, timeoutS: timeoutEnv) } catch { return false }
+        var req = URLRequest(url: built.url)
+        req.httpMethod = "GET"
+        req.timeoutInterval = TimeInterval(built.timeoutS)
+        do {
+            let (_, response) = try await URLSession.shared.data(for: req)
+            return (response as? HTTPURLResponse) != nil
+        } catch {
+            return false
+        }
+    }
+}
+
 // MARK: - Client(async,env 注入可测)
 
 enum WebSearchClient {
@@ -225,6 +271,18 @@ enum WebSearchClient {
 
         let built = try WebSearchRequest.build(
             query: query, maxOutputTokens: maxOutputTokens, model: model, baseUrl: base)
+
+        // 宕机快速失败:先 GET /api/version(短超时),不通直接抛 .down,不等 POST 的长超时。
+        let probe: WebSearchProbe.Built
+        do {
+            probe = try WebSearchProbe.build(
+                baseUrl: base, timeoutS: Int(environment["OCRE_SEARCH_PROBE_TIMEOUT"] ?? "") ?? 5)
+        } catch {
+            throw WebSearchError.unreachable(reason: "\(error.localizedDescription)")
+        }
+        if await !WebSearchProbe.isUp(base: base, environment: environment) {
+            throw WebSearchError.down(probeUrl: probe.url.absoluteString, timeoutS: probe.timeoutS)
+        }
 
         var urlRequest = URLRequest(url: built.url)
         urlRequest.httpMethod = "POST"
