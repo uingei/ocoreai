@@ -37,9 +37,11 @@
 /// - Handlers are `@Sendable (HookContext) async -> HookVerdict` closures — flat,
 ///   no external command execution, no MCP-server dependency, exactly testable.
 ///
-/// `.ask` semantics: no approval UI surface exists yet, so callers treat `.ask`
-/// the same as a soft deny for the *current* call unless they wire an approval
-/// prompt. Documented so the gate is a hard boundary until then.
+/// `.ask` semantics: the caller (`ToolRegistry`) routes it to the
+/// `ApprovalBroker` when one is wired (→ `AppState.pendingApprovals` →
+/// ChatView approval banner → user's 3-way `ApprovalDecision`), and
+/// hard-denies when no broker exists (regression guard: no approval
+/// surface available → never silently continue).
 
 import Foundation
 
