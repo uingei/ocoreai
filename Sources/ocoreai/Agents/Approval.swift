@@ -18,8 +18,9 @@
 ///   （pending 呈现：工具名 + snippet；decision 三档按钮）→ ChatView banner（UI 层）
 /// - `codex-rs/core/src/tools/sandboxing.rs:43`
 ///   （session 缓存语义："future requests touching any subset can also skip
-///   prompting"）与 `with_cached_approval`（`ApprovedForSession` 按 key 缓存）
-///   → `ApprovalBroker.sessionApprovedByTool`。
+///   prompting"）与 `with_cached_approval`（`ApprovedForSession` 按
+///   **action 身份 key** 缓存，见 `approvals.rs::cache_keys`）
+///   → `ApprovalBroker.sessionApprovedKeys`（tool+arguments 身份键）。
 /// - `codex-rs/tui/src/text_formatting.rs:89` `truncate_text`
 ///   （>max graphemes → 截 max-3 + "..."）→ `ApprovalCore.snippet` 逐字同构。
 ///
@@ -51,8 +52,8 @@ public enum ApprovalPolicy: String, Sendable, Equatable, CaseIterable, Codable {
 public enum ApprovalDecision: Sendable, Equatable {
     /// 本次放行
     case approved
-    /// 本会话内同工具自动放行（codex ApprovedForSession，缓存语义见
-    /// `sandboxing.rs` 注释与 `with_cached_approval`）
+    /// 本会话内**相同 action（工具+载荷）**自动放行（codex ApprovedForSession，
+    /// 按 `UnifiedExecApprovalKey` action 身份键缓存，非同工具所有载荷）
     case approvedForSession
     /// 拒绝；reason 原样进入 `ToolError.denied`，回传模型供其换路
     case denied(reason: String)
@@ -100,7 +101,7 @@ public actor ApprovalBroker {
                 ApprovalDecision, Never
             >
         )] = [:]
-    private var sessionApproved: Set<String> = []
+    private var sessionApprovedKeys: Set<String> = []
 
     /// UI 观察者（pending 发布 / resolved 清场）。@MainActor 隔离由 UI 侧保证。
     private var onPending: (@MainActor (PendingApproval) async -> Void)?
@@ -150,7 +151,9 @@ public actor ApprovalBroker {
             guard ApprovalCore.isReviewable(arguments) else {
                 return .denied(reason: ApprovalCore.denialReason(toolName: toolName))
             }
-            if sessionApproved.contains(toolName) {
+            if sessionApprovedKeys.contains(
+                ApprovalCore.approvalCacheKey(toolName: toolName, arguments: arguments))
+            {
                 return .approved
             }
             let row = PendingApproval(
@@ -181,7 +184,9 @@ public actor ApprovalBroker {
             return false
         }
         if decision == .approvedForSession {
-            sessionApproved.insert(entry.row.toolName)
+            sessionApprovedKeys.insert(
+                ApprovalCore.approvalCacheKey(
+                    toolName: entry.row.toolName, arguments: entry.row.arguments))
         }
         Task { [onResolved] in
             await onResolved?(entry.row, decision)
@@ -225,6 +230,16 @@ enum ApprovalCore {
     /// 审查面无法**完整呈现**的动作必须 fail-closed 拒绝——绝不"审截断版、执行全量
     /// 载荷"（未审查的尾部字节不得到达终端）。
     static func isReviewable(_ text: String) -> Bool { snippet(text) == text }
+
+    /// 会话级放行缓存键 — codex `ApprovedForSession` 按 **action 身份**缓存
+    /// （`UnifiedExecApprovalKey{executable, canonicalized command, cwd}`，
+    /// `approvals.rs::cache_keys`；tool name 在 codex 只用于 metrics）：
+    /// 放行「这条命令」≠ 放行「该工具的所有命令」。
+    /// ocoreai 侧 action 身份 = toolName + arguments（审查面已完整呈现的载荷），
+    /// 故缓存命中仅当工具与载荷逐字节同源；不同载荷必须再问（fail-safe 方向）。
+    static func approvalCacheKey(toolName: String, arguments: String) -> String {
+        toolName + "\u{0}" + arguments
+    }
 
     /// #41159 拒绝文案（单一真源，测试断言锚点）。
     static func denialReason(toolName: String) -> String {

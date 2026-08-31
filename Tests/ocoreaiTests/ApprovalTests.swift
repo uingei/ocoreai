@@ -92,11 +92,15 @@ struct ApprovalBrokerTests {
         #expect(await b.snapshot().count == 0)
     }
 
-    @Test("approvedForSession caches per tool; other tools still ask")
+    /// 会话放行按 **action 身份（工具+载荷）** 缓存（codex `UnifiedExecApprovalKey`）：
+    /// 同工具同载荷 → 命中；同工具异载荷 / 异工具 → 必须再问（fail-safe 方向）。
+    @Test(
+        "approvedForSession caches per action (tool+arguments); same tool different payload still asks"
+    )
     func session() async {
         let b = ApprovalBroker(policy: .interactive)
         let t1 = Task {
-            await b.request(toolName: "write_file", arguments: "{}", reason: "r")
+            await b.request(toolName: "write_file", arguments: "{\"path\":\"/tmp/x\"}", reason: "r")
         }
         guard let row = await waitForRow(b) else {
             #expect(false, "approval row never published")
@@ -105,11 +109,26 @@ struct ApprovalBrokerTests {
         #expect(await b.resolve(id: row.id, decision: .approvedForSession) == true)
         #expect(await t1.value == .approvedForSession)
 
-        // 同工具：缓存命中，无 pending
-        #expect(await b.request(toolName: "write_file", arguments: "{}", reason: "r") == .approved)
+        // 同 action（工具+载荷逐字节同源）：缓存命中，无 pending
+        #expect(
+            await b.request(toolName: "write_file", arguments: "{\"path\":\"/tmp/x\"}", reason: "r")
+                == .approved)
         #expect(await b.snapshot().count == 0)
 
-        // 异工具：仍挂起（缓存按工具粒度）
+        // 同工具异载荷：缓存键含载荷 → 不得命中，必须再问（对齐 codex：
+        // 放行「这条命令」≠ 放行「该工具所有命令」）
+        let t2a = Task {
+            await b.request(
+                toolName: "write_file", arguments: "{\"path\":\"/etc/passwd\"}", reason: "r")
+        }
+        guard let row2a = await waitForRow(b) else {
+            #expect(false, "different-payload row never published")
+            return
+        }
+        #expect(await b.resolve(id: row2a.id, decision: .approved) == true)
+        #expect(await t2a.value == .approved)
+
+        // 异工具：仍挂起
         let t2 = Task {
             await b.request(toolName: "delete_file", arguments: "{}", reason: "r")
         }
