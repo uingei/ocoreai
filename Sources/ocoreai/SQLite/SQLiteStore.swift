@@ -469,6 +469,29 @@ actor SQLiteStore {
                 "CREATE INDEX IF NOT EXISTS idx_plans_session_updated ON plans(session_id, updated_at);",
             db: db)
 
+        // Verify 段 P0（2026-08-31 闭合）：工具调用审计 trace 持久化。
+        // 内存环（AuditTrail）是快路径；audit_traces = 合规级耐久性（System
+        // 页跨会话/跨重启读回）。全局合规面 → 不挂 session（独立于 sessions
+        // 生命周期），retention 由 `AuditTrail.persistEntry` 按 retentionDays 清除。
+        try Self.exec(
+            sql: """
+                CREATE TABLE IF NOT EXISTS audit_traces (
+                    id TEXT PRIMARY KEY,
+                    timestamp_ms INTEGER NOT NULL,
+                    caller TEXT NOT NULL,
+                    tool_name TEXT NOT NULL,
+                    toolset TEXT NOT NULL,
+                    arguments_json TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    result_summary TEXT NOT NULL,
+                    duration_ms REAL NOT NULL,
+                    trace_id TEXT NOT NULL
+                );
+                """, db: db)
+        try Self.exec(
+            sql: "CREATE INDEX IF NOT EXISTS idx_audit_traces_ts ON audit_traces(timestamp_ms);",
+            db: db)
+
         // Structured memory events — six-element knowledge model (方案 B 单层)
         // 时间(timestamp), 地点(context), 人物(entities), 起因(cause), 经过(process), 结果(result)
         // SET NULL on session delete — events survive session TTL as permanent memory

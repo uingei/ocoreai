@@ -349,6 +349,11 @@ public final class OcoreaiEngine {
         guard let auditTrail = _auditTrail else {
             return failStartup("Failed to create audit trail")
         }
+        // Verify 段 P0（2026-08-31）：审计 trace 持久化 —— 绑定已打开的
+        // SQLite 连接（copy `PlanTaskStore.shared.attach` 接线形状，同块同序）。
+        // 绑定后 completeToken fire-and-forget 落 `audit_traces`，retentionDays
+        // 由 persist 路径真消费；未绑定 = 纯内存环（AuditTrail 文档明示）。
+        await auditTrail.attach(store: store)
         // Approval broker — codex `ExecApprovalRequest` 通路（参照形状）。
         // 策略读 SettingsStore（`.interactive` 默认 = 高危才问）；hook 只拦
         // 已注册的危险工具（write_file / edit_file）→ `.ask` → broker 裁决。
