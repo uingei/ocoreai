@@ -73,9 +73,11 @@ struct PlanCard: View {
                 .font(.caption)
                 .foregroundStyle(.green)
         case "in_progress":
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.caption)
-                .foregroundStyle(.tint)
+            // HIG Progress indicators: "Keep progress indicators moving … People tend to
+            // associate a stationary indicator with a stalled process or a frozen app."
+            // Static SF Symbol reads like the app is hung → use a real spinner.
+            ProgressView()
+                .controlSize(.small)
         default:
             Image(systemName: "circle")
                 .font(.caption)
