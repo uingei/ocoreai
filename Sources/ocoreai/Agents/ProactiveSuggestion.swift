@@ -128,8 +128,9 @@ public final class ProactiveSuggestionStore: Sendable {
         current = nil
     }
 
-    /// UI 侧：用户点"查看" → 返回要填入输入框的可执行草稿（**发送权在用户**）。
-    /// 读取即校验过期；过期返回 "not-applicable" 哨兵 + 清场。
+    /// UI 侧："查看" = 批准执行一次**只读动作**（read_file 该文件）。
+    /// 返回可执行草稿（action 侧消费）；过期/无建议返回哨兵。
+    /// 读取即校验过期；过期时清场（调用方据此回退/忽略）。
     @discardableResult
     public func accept() -> String {
         guard let s = current else { return ProactiveSuggestionStore.notApplicable }
@@ -137,7 +138,10 @@ public final class ProactiveSuggestionStore: Sendable {
             current = nil
             return ProactiveSuggestionStore.notApplicable
         }
-        return Self.draftText(for: s)
+        // 批准成功 → 清场（action 侧已接手；banner 随之消失 = 已批准）。
+        let result = s
+        current = nil
+        return Self.draftText(for: result)
     }
 
     // MARK: - Helpers

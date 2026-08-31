@@ -245,12 +245,16 @@ struct ChatView: View {
             }
         }
         #endif
-        // 自主回路切片 1：点"查看"后把建议草稿填入输入框（用户自己决定发送）
-        .onChange(of: AppState.shared.acceptedProactiveDraft) { _, draft in
-            if let draft, !draft.isEmpty {
-                inputText = draft
-                AppState.shared.acceptedProactiveDraft = nil
+        // 自主回路切片 1+4：点"查看"= 批准 → 只读观察 + 对话注入 + 草稿入输入框。
+        // 观察消息 role="system"（`ChatView:707` 把它提进 systemPrompt，模型下一轮可见）。
+        .onChange(of: AppState.shared.proactiveObservation) { _, obs in
+            guard let obs, !obs.text.isEmpty else {
+                AppState.shared.proactiveObservation = nil
+                return
             }
+            ChatState.shared.messages.append(ChatMessage(role: "system", content: obs.text))
+            inputText = obs.draft
+            AppState.shared.proactiveObservation = nil
         }
         .toolbar {
             modelSelectorToolbar
@@ -1331,7 +1335,10 @@ struct ProactiveSuggestionBar: View {
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Button(StringKey.proactiveActionView.l) {
-                    appState.acceptProactiveSuggestion()
+                    Task {
+                        let obs = await appState.observeAndAccept()
+                        AppState.shared.proactiveObservation = obs
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)

@@ -596,6 +596,8 @@ public enum StringKey: String, CaseIterable {
     case proactiveActionView = "Proactive.ActionView"
     case proactiveDismiss = "Proactive.Dismiss"
     case proactiveDraft = "Proactive.Draft"
+    case proactiveObservation = "Proactive.Observation"
+    case proactiveReadFailed = "Proactive.ReadFailed"
 }
 
 // MARK: - Translation Table (per locale)
@@ -758,6 +760,10 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .proactiveDraft: "New file arrived: %@ "
             + "— please review it at its full path: %@"
             + " (read-only; do not modify).",
+        .proactiveObservation:
+            "I just opened %@ (read-only). Here is what it looks like:\n\n%@\n\nDraft (your message, not yet sent): %@",
+        .proactiveReadFailed:
+            "I tried to read %@ (read-only) but couldn't. Reason: %@\nDraft (your message, not yet sent): %@",
 
         .hubTokensTitle: "Hub Tokens",
         .hubTokensHint:
@@ -1233,6 +1239,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .proactiveActionView: "查看",
         .proactiveDismiss: "忽略",
         .proactiveDraft: "检测到新文件：%@（完整路径：%@）。\n请按该路径用只读方式查看内容（read_file / view_image，不修改）。",
+        .proactiveObservation: "已读取：%@（只读观察）：\n\n%@\n\n草稿（尚未发送）：%@\n",
+        .proactiveReadFailed: "我无法只读访问：%@。原因：%@\n草稿（尚未发送）：%@\n",
 
         // Navigation
         .tabDashboard: "仪表盘",

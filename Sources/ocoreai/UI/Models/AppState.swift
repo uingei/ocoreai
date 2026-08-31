@@ -95,25 +95,31 @@ final class AppState {
         }
     }
 
-    // MARK: - 主动建议（自主回路切片 1）— 视图直接绑 `ProactiveSuggestionStore`，
-    // 此二函数仅作为 UI→store 的语义封装，避免闭包陈旧。
+    // MARK: - 主动建议（自主回路切片 1+4）— "查看" = 批准 → 切片 4 执行一次**只读观察**。
 
-    /// 用户点"查看"→ 把建议草稿填入输入框（**发送权留在用户**，永不自动发）。
-    func acceptProactiveSuggestion() {
-        let draft = ProactiveSuggestionStore.shared.accept()
-        if draft != ProactiveSuggestionStore.notApplicable {
-            // AppState 不持有 TextField 绑；调用方（ChatView）用返回值填 inputText。
-            acceptedProactiveDraft = draft
-        }
+    /// 用户点"查看" → 批准 = `ProactiveActionExecutor.observe`（`async`，经
+    /// 共享 `ToolRegistry.call` 跑一次 `read_file`，与模型同一只"手"）。
+    /// **不自动发 LLM、不写/exec**（见 `ProactiveActionExecutor` 契约）。
+    /// `async`：actor 隔离的 registry.call 是必经路径。
+    func observeAndAccept() async -> ProactiveObservation {
+        let suggestion =
+            ProactiveSuggestionStore.shared.current
+            ?? ProactiveSuggestion(
+                source: "filesystem",
+                filePath: "",
+                detailKey: ProactiveAdvisor.detailKeyForNewFile)
+        let obs = await ProactiveActionExecutor().observe(suggestion: suggestion)
+        // 清场在 executor 内做（accept() 已把 store.current 置 nil）
+        return obs
     }
 
-    /// 用户点"忽略"→ 清场。
+    /// 用户点"忽略" → 清场。
     func dismissProactiveSuggestion() {
         ProactiveSuggestionStore.shared.dismiss()
     }
 
-    /// 最近一次"查看"产生的草稿（供 ChatView `onChange` 消费）。
-    var acceptedProactiveDraft: String?
+    /// 最近一次"查看"产生的观察（供 ChatView 消费）。
+    var proactiveObservation: ProactiveObservation?
 
     private let engine = OcoreaiEngine.shared
     private var metricsTask: Task<Void, Never>?
