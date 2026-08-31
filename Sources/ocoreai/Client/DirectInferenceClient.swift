@@ -16,6 +16,15 @@ import Foundation
 
 // MARK: - Inference Request
 
+/// Single shared key for sessionless (nil `sessionId`) inference calls.
+///
+/// The calibration read path (``MessageBuilder`` → ``ComplexityAnalyzer``/
+/// ``ThinkingBudget``) and the write path (``ThinkingTelemetry``) must agree on
+/// the key or the adaptive loop is a silent no-op. A shared constant (rather than
+/// a fresh ``UUID`` per call) keeps sessionless traffic on ONE bounded key and
+/// guarantees read/write alignment.
+private let _sessionlessKey = "sessionless"
+
 struct InferenceRequest {
     let modelId: String
     let messages: [Message]
@@ -226,7 +235,7 @@ extension DirectInferenceClient {
             rawMessages: request.messages,
             userSystemPrompt: request.systemPrompt,
             tools: request.tools,
-            sessionId: request.sessionId ?? UUID().uuidString,
+            sessionId: request.sessionId ?? _sessionlessKey,
         )
         let fullMessages = try await messageBuilder.buildMessages(context: context)
 
@@ -551,7 +560,7 @@ extension DirectInferenceClient {
             )
             _ = await ThinkingTelemetry.signal(
                 input: qualityInput,
-                sessionId: request.sessionId ?? "0",
+                sessionId: request.sessionId ?? _sessionlessKey,
                 budget: budget
             )
         }
@@ -574,7 +583,7 @@ extension DirectInferenceClient {
             rawMessages: request.messages,
             userSystemPrompt: request.systemPrompt,
             tools: request.tools,
-            sessionId: request.sessionId ?? UUID().uuidString,
+            sessionId: request.sessionId ?? _sessionlessKey,
         )
         let fullMessages = try await messageBuilder.buildMessages(context: context)
 

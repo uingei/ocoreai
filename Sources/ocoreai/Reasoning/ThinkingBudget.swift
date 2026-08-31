@@ -18,6 +18,16 @@ actor ThinkingBudget {
     /// Default multiplier for new sessions.
     private let defaultMultiplier: Double = 1.0
 
+    /// 会话键基数上限（按插入序 LRU 淘汰）。
+    /// bridge 路径是公开 API 面：调用方可以每次请求带不同的 session_id，
+    /// 无界 per-key dict = 外部可触发的内存无界增长（memory-DoS 向量）。
+    static let maxSessionKeys = 64
+    /// 会话键插入序（最旧在前）— 淘汰用；键删除时同步维护。
+    private var keyOrder: [String] = []
+
+    /// 当前会话键数（只读断言面：LRU 淘汰后必须精确 == maxSessionKeys）。
+    public var sessionKeyCount: Int { keyOrder.count }
+
     /// Max consecutive quality threshold to bump budget up.
     private let bumpThreshold: Int = 3
 
@@ -96,6 +106,16 @@ extension ThinkingBudget {
     /// - Parameter quality: 0.0 (poor) – 1.0 (excellent) for this session
     /// Call after user feedback, task completion, or self-correction trigger.
     func recordQuality(_ quality: Double, for sessionId: String) {
+        // LRU touch: keeps the per-session *key set* bounded in a long-lived process.
+        // Previously only per-key histories were capped (≤20); the key set itself was
+        // retained forever per new session_id → unbounded memory growth.
+        if let existingIdx = keyOrder.firstIndex(of: sessionId) {
+            keyOrder.remove(at: existingIdx)
+        } else if keyOrder.count >= Self.maxSessionKeys {
+            evictOldestSession()
+        }
+        keyOrder.append(sessionId)
+
         var history = qualityHistory[sessionId] ?? []
         history.append(min(1.0, max(0.0, quality)))
         if history.count > 20 { history.removeFirst() }
@@ -111,6 +131,15 @@ extension ThinkingBudget {
             current = max(0.5, current - 0.15)  // reduce for poor quality
         }
         multiplier[sessionId] = current
+    }
+
+    /// Evict the least-recently-used session key when the key set exceeds the cap.
+    /// Drops only that session's calibration state; all other sessions are untouched.
+    private func evictOldestSession() {
+        guard let oldest = keyOrder.first else { return }
+        keyOrder.removeFirst()
+        multiplier[oldest] = nil
+        qualityHistory[oldest] = nil
     }
 
     /// Get current budget multiplier for a session.

@@ -393,4 +393,25 @@ struct ComplexityAnalyzerEnumTests {
         #expect(score.history >= 0)
         #expect(score.history <= 1)
     }
+
+    // MARK: - Session Key Set Bound (unbounded-key leak regression)
+
+    @Test("sessionKeySetBoundedAtCapEvictingOldestHistory")
+    func sessionKeySetBoundedAtCapEvictingOldestHistory() async {
+        let a = ComplexityAnalyzer()
+        #expect(await a.sessionKeyCount == 0)
+        for i in 0 ..< 64 {
+            _ = await a.analyze(
+                input: "write a function that scales", messageCount: 1, sessionId: "s\(i)")
+        }
+        #expect(await a.sessionKeyCount == ComplexityAnalyzer.maxSessionKeys)
+        #expect(await a.sessionBaseline(sessionId: "s0") != nil)
+        // 65th distinct session crosses the cap → oldest ("s0") history evicted
+        _ = await a.analyze(
+            input: "write a function that scales", messageCount: 1, sessionId: "s64")
+        #expect(await a.sessionKeyCount == ComplexityAnalyzer.maxSessionKeys)
+        #expect(await a.sessionBaseline(sessionId: "s0") == nil)  // evicted
+        #expect(await a.sessionBaseline(sessionId: "s1") != nil)  // retained
+        #expect(await a.sessionBaseline(sessionId: "s64") != nil)  // added
+    }
 }

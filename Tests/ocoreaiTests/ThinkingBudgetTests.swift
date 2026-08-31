@@ -129,4 +129,39 @@ struct ThinkingBudgetTests {
         }
         _ = await tb.currentMultiplier(for: "s6")
     }
+
+    // MARK: - Session Key Set Bound (unbounded-key leak regression)
+
+    @Test("sessionKeySetBoundedAtCapLRUEvictingOldest")
+    func sessionKeySetBoundedAtCapLRUEvictingOldest() async throws {
+        let tb = ThinkingBudget()
+        #expect(await tb.sessionKeyCount == 0)
+        // 64 distinct sessions × quality 0.95 → each multiplier 1.0+0.2 = 1.2
+        for i in 0 ..< 64 { await tb.recordQuality(0.95, for: "k\(i)") }
+        #expect(await tb.sessionKeyCount == ThinkingBudget.maxSessionKeys)
+        // 65th session crosses the cap → oldest ("k0") evicted, key set stays at cap
+        await tb.recordQuality(0.95, for: "k64")
+        #expect(await tb.sessionKeyCount == ThinkingBudget.maxSessionKeys)
+        // Evicted session's calibration resets to default; retained/added keep 1.2
+        #expect(await tb.currentMultiplier(for: "k0") == 1.0)
+        #expect(await tb.currentMultiplier(for: "k1") == 1.2)
+        #expect(await tb.currentMultiplier(for: "k64") == 1.2)
+    }
+
+    @Test("LRUTouchPreservesRecentlyUsedKeyOverOldest")
+    func lruTouchPreservesRecentlyUsedKeyOverOldest() async throws {
+        let tb = ThinkingBudget()
+        for i in 0 ..< 63 { await tb.recordQuality(0.95, for: "a\(i)") }
+        #expect(await tb.sessionKeyCount == 63)
+        // Touch "a0" — most-recent, must survive the next eviction (2nd 0.95 → 1.4)
+        await tb.recordQuality(0.95, for: "a0")
+        #expect(await tb.sessionKeyCount == 63)
+        await tb.recordQuality(0.95, for: "b0")  // 64th key — fits, no eviction
+        #expect(await tb.sessionKeyCount == 64)
+        await tb.recordQuality(0.95, for: "c0")  // 65th — evicts OLDEST surviving = "a1"
+        #expect(await tb.sessionKeyCount == 64)
+        #expect(await tb.currentMultiplier(for: "a1") == 1.0)  // evicted → default
+        #expect(await tb.currentMultiplier(for: "a0") == 1.4)  // touched → preserved
+        #expect(await tb.currentMultiplier(for: "b0") == 1.2)
+    }
 }

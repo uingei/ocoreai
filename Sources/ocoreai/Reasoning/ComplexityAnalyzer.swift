@@ -174,6 +174,18 @@ actor ComplexityAnalyzer {
     /// Per-session complexity history (used by AdaptiveStrategy).
     private var sessionScores: [String: [Double]] = [:]
 
+    /// Session-key order (insertion order, oldest first) — bounds the per-session
+    /// key set in a long-lived process. Previously `sessionScores` grew one entry
+    /// per distinct session_id with no eviction (per-value arrays were capped at
+    /// 50, but the *key set itself* was retained forever) → unbounded growth.
+    private var sessionKeyOrder: [String] = []
+
+    /// Key-set cap (LRU-evicted). Mirrors ThinkingBudget.maxSessionKeys.
+    static let maxSessionKeys = 64
+
+    /// Assertion surface: current per-session key count (LRU-evicted at cap).
+    public var sessionKeyCount: Int { sessionKeyOrder.count }
+
     /// Global moving average score — stabilizes across cold-start.
     private var globalScore: Double = 0.5
     private var scoreCount: Int = 0
@@ -220,8 +232,18 @@ extension ComplexityAnalyzer {
             contextBoost: contextBoost,
         )
 
-        // Update tracking state
+        // Update tracking state — key set LRU-bounded (see sessionKeyOrder doc).
         let sessionKey = "session_\(sessionId)"
+        // Evict the *key set* if it would exceed the cap (insertion-order LRU).
+        if sessionKeyOrder.contains(sessionKey) {
+            // touch: moves to most-recent
+            sessionKeyOrder.removeAll { $0 == sessionKey }
+        } else if sessionKeyOrder.count >= Self.maxSessionKeys {
+            let oldest = sessionKeyOrder.removeFirst()
+            sessionScores[oldest] = nil
+        }
+        sessionKeyOrder.append(sessionKey)
+
         var scores = sessionScores[sessionKey] ?? []
         scores.append(composite)
         if scores.count > 50 { scores.removeFirst() }  // cap per-session history

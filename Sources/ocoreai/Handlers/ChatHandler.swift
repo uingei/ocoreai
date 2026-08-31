@@ -822,12 +822,16 @@ private func nonStreamWithToolCalling(
     // OcoreaiEngine is @MainActor → cross-actor property access requires await.
     // This is a fire-and-forget calibration signal — failures are silently ignored.
     let budget = await OcoreaiEngine.shared.activeThinkingBudget
-    if let budget {
+    // Key the calibration write by the SAME key the read path uses
+    // (MessageBuilderContext.sessionId = raw session_id), not the Int64-ized
+    // self-correction key. Previously non-numeric session ids Int64-ized to "0",
+    // so recordQuality landed on a key scaffolding() never read → the adaptive
+    // loop was a silent no-op (and sessionless traffic polluted a shared "0").
+    if let budget, let sessionKey = request.sessionID {
         let complexity =
             await OcoreaiEngine.shared.activeMessageBuilder?.lastComplexityScore()?.composite ?? 0.5
-        let sessionId = String(resolveSessionId(for: request))
         _ = await ThinkingTelemetry.signal(
-            sessionId: sessionId,
+            sessionId: sessionKey,
             complexity: complexity,
             outputTokens: totalOutputTokens,
             maxTokens: options.maxTokens ?? 4096,
@@ -1320,11 +1324,14 @@ private func streamWithToolCalling(
         //   - MessageBuilder.lastComplexityScore() is actor-isolated → async
         let budget = await OcoreaiEngine.shared.activeThinkingBudget
         let mbuilder = await OcoreaiEngine.shared.activeMessageBuilder
-        if let budget {
+        // Stream path: write the calibration under the SAME key the read path uses
+        // (request.sessionID) so scaffolding() actually sees the recorded quality.
+        // Sessionless stream traffic skips calibration entirely (was previously
+        // polluting a shared "stream-unknown" bucket — a cross-session leak).
+        if let budget, let sessionKey = request.sessionID {
             let complexity = await mbuilder?.lastComplexityScore()?.composite ?? 0.5
-            let sessionId = request.sessionID ?? "stream-unknown"
             _ = await ThinkingTelemetry.signal(
-                sessionId: sessionId,
+                sessionId: sessionKey,
                 complexity: complexity,
                 outputTokens: totalOutputTokens,
                 maxTokens: options.maxTokens ?? 4096,
