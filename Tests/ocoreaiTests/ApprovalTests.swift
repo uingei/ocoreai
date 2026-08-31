@@ -172,6 +172,62 @@ struct ApprovalBrokerTests {
         #expect(await b.resolve(id: UUID(), decision: .approved) == false)
         #expect(await b.snapshot().count == 0)
     }
+
+    @Test(
+        "cancelAll: session approvals cleared (count 1→0, re-ask after) + pending denied(session-ended)"
+    )
+    func cancelAllResetsSession() async {
+        let b = ApprovalBroker(policy: .interactive)
+        // ① 会话级放行 → 缓存 0→1；同 action 二次请求命中缓存（= .approved，无 pending）
+        let t1 = Task {
+            await b.request(toolName: "write_file", arguments: "{}", reason: "r")
+        }
+        guard let row1 = await waitForRow(b) else {
+            #expect(false, "row1 never published")
+            return
+        }
+        #expect(await b.resolve(id: row1.id, decision: .approvedForSession) == true)
+        #expect(await b.sessionApprovalCount == 1)
+        #expect(await b.request(toolName: "write_file", arguments: "{}", reason: "r") == .approved)
+
+        // ② 一次放行 + 一条新挂起（覆盖 cancelAll 双路径：一次放行被拒绝、会话放行被清除）
+        let t2 = Task {
+            await b.request(toolName: "delete_file", arguments: "{}", reason: "r")
+        }
+        guard let row2 = await waitForRow(b) else {
+            #expect(false, "row2 never published")
+            return
+        }
+        #expect(await b.resolve(id: row2.id, decision: .approved) == true)
+        #expect(await t2.value == .approved)
+        let t3 = Task {
+            await b.request(toolName: "exec_shell", arguments: "{}", reason: "r")
+        }
+        guard let row3 = await waitForRow(b) else {
+            #expect(false, "row3 never published")
+            return
+        }
+
+        // ③ 会话终结：挂起 call 全部 .denied("session-ended")，会话放行缓存清零
+        await b.cancelAll()
+        #expect(await b.sessionApprovalCount == 0)
+        #expect(await b.snapshot().count == 0)
+        #expect(await t3.value == .denied(reason: "session-ended"))
+
+        // ④ 缓存已失效：同 action 不再自动放行 → 重新挂起发布新 pending 行
+        //    （若缓存未清则命中静默放行、此行永不发布 —— 正是泄漏的 fail-safe 方向）
+        let t4 = Task {
+            await b.request(toolName: "write_file", arguments: "{}", reason: "r")
+        }
+        guard let row4 = await waitForRow(b) else {
+            #expect(false, "cache should be cleared → row4 never published (cache-hit leak?)")
+            return
+        }
+        #expect(row4.toolName == "write_file")
+        #expect(await b.resolve(id: row4.id, decision: .denied(reason: "test-cleanup")) == true)
+        _ = await t4.value  // task 已完成；显式 await 标记消费
+    }
+
 }
 
 // MARK: - registry 集成（生产 chokepoint）
@@ -387,6 +443,72 @@ struct ReviewSurfaceGateTests {
             await b.request(toolName: "write_stdin", arguments: oversized, reason: "stdin")
                 == .denied(reason: ApprovalCore.denialReason(toolName: "write_stdin")))
         #expect(await b.snapshot().count == 0)
+    }
+
+    @Test(
+        "compaction does NOT drop broker session-approval state — invariant openclaw #133912 / codex #41846 fixed"
+    )
+    func approvalStateSurvivesCompaction() async {
+        // openclaw #133912 ("preserve policy owners across reviews and compaction")
+        // 与 codex #41846 ("Preserve Guardian review evidence across compaction")
+        // 都在防同一类回归：会话压缩把「已审批/策略归属」状态吞掉，导致本会话内
+        // 已授权的动作在 compaction 之后被重新询问（或策略 owner 丢失）。
+        //
+        // ocoreai 的结构性保证：审批态活在 `ApprovalBroker`（actor 内
+        // `sessionApprovedKeys`），而 `ConversationCompaction.compact` 是纯函数
+        // ——只重排 `[Message]`，从不触碰 broker。本测试把这个不变量钉死，
+        // 防止未来有人把审批态挪进 transcript / 或让 compaction 路径去动 broker。
+        let b = ApprovalBroker(policy: .interactive)
+
+        // 1) 本会话批准一个 action（工具+载荷逐字节）→ 缓存命中
+        let t1 = Task {
+            await b.request(
+                toolName: "write_file", arguments: "{\"path\":\"/tmp/keep\"}", reason: "r")
+        }
+        guard let row = await snapshotRow(b) else {
+            #expect(false, "row never published")
+            return
+        }
+        #expect(await b.resolve(id: row.id, decision: .approvedForSession) == true)
+        #expect(await t1.value == .approvedForSession)
+        #expect(
+            await b.request(
+                toolName: "write_file", arguments: "{\"path\":\"/tmp/keep\"}", reason: "r")
+                == .approved)  // 缓存命中基线
+
+        // 2) 对同一会话的 transcript 做真实压缩（budget 收紧到必触发移除）
+        var transcript: [Message] = [
+            Message(role: "user", content: .text(String(repeating: "x", count: 4000)))
+        ]
+        for i in 0 ..< 24 {
+            transcript.append(
+                Message(role: "user", content: .text(String(repeating: "y", count: 500) + "\(i)")))
+        }
+        transcript.append(
+            Message(role: "assistant", content: .text(String(repeating: "z", count: 500))))
+        let compacted = ConversationCompaction.compact(transcript, .init(maxPromptTokens: 30))
+        #expect(compacted.removedCount > 0, "test premise: compaction actually removed messages")
+
+        // 3) 不变量：compaction 之后，broker 内该 action 的会话放行态仍然命中
+        //    ——若有人把审批态挪进 transcript（或让 compaction 清 broker），此断言必红。
+        let stillApproved = await b.request(
+            toolName: "write_file", arguments: "{\"path\":\"/tmp/keep\"}", reason: "r")
+        #expect(stillApproved == .approved, "session-approval state must survive compaction")
+        #expect(await b.snapshot().count == 0, "no new prompt after compaction for cached action")
+
+        // 4) 反例对照：未批准过的 action，compaction 前后行为一致（仍须询问）→ 证明是
+        //    「状态存活」而非「compaction 被整体禁用 / 审批被整体放行」。
+        let t2 = Task {
+            await b.request(
+                toolName: "delete_file", arguments: "{\"path\":\"/tmp/other\"}", reason: "r")
+        }
+        guard let row2 = await snapshotRow(b) else {
+            #expect(false, "unapproved action must still prompt after compaction")
+            return
+        }
+        #expect(row2.toolName == "delete_file")
+        _ = await b.resolve(id: row2.id, decision: .approved)
+        _ = await t2.value
     }
 
     private func snapshotRow(_ b: ApprovalBroker) async -> PendingApproval? {

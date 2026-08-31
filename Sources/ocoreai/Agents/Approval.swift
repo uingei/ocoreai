@@ -104,6 +104,9 @@ public actor ApprovalBroker {
         )] = [:]
     private var sessionApprovedKeys: Set<String> = []
 
+    /// 会话级放行缓存大小（只读断言面；`cancelAll()` 后必为 0）。
+    public var sessionApprovalCount: Int { sessionApprovedKeys.count }
+
     /// UI 观察者（pending 发布 / resolved 清场）。@MainActor 隔离由 UI 侧保证。
     private var onPending: (@MainActor (PendingApproval) async -> Void)?
     private var onResolved: (@MainActor (PendingApproval, ApprovalDecision) async -> Void)?
@@ -196,12 +199,15 @@ public actor ApprovalBroker {
         return true
     }
 
-    /// 清场（App 关闭 / 会话重置）。所有挂起 call 收到 `.denied(reason: "session-ended")`。
+    /// 清场（App 关闭 / 会话重置）。所有挂起 call 收到 `.denied(reason: "session-ended")`，
+    /// 且清空会话级放行（codex 语义：批准是 **session-scoped**，会话终结即失效——
+    /// 若不清，`resetConversation()` 后同一 tool+arguments 仍永久免审批，跨会话泄漏）。
     public func cancelAll() async {
         let rows = Array(pendingByID.keys)
         for id in rows {
             _ = self.resolve(id: id, decision: .denied(reason: "session-ended"))
         }
+        sessionApprovedKeys.removeAll()
     }
 }
 

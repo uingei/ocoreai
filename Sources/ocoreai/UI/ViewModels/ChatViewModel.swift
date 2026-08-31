@@ -1015,8 +1015,23 @@ final class ChatState {
         activeModelId = nil
         // P0-fix: reset idempotency barrier so cancelInference can fire clean this turn
         _cancelledByUI = false
+        // 会话终结 = 审批会话终结（codex 语义：批准是 session-scoped）：
+        // 挂起裁决全部 `.denied("session-ended")` + 会话级放行清空，防跨会话免审批泄漏；
+        // 顺带清 UI banner（否则 reset 后旧审批卡仍可 resolve 复活已死 call）
+        Task { [weak self] in
+            await self?.clearApprovalSession()
+        }
         // Register undo with AppState for Cmd+Z access
         AppState.shared.undoAction = { [weak self] in self?.undoReset() }
+    }
+
+    /// 会话级审批清场（`resetConversation()` 调用）：broker 挂起行全部
+    /// `.denied("session-ended")` + 会话放行缓存清空 + UI banner 清空。
+    /// broker 缺席（未启动）→ 仍清 banner，静默 no-op（与 `AppState`
+    /// 「broker 缺席 → 静默 no-op」约定同形）。
+    func clearApprovalSession() async {
+        await OcoreaiEngine.shared.activeApprovalBroker?.cancelAll()
+        AppState.shared.pendingApprovals.removeAll()
     }
 
     /// Restore from the last snapshot if one exists.
