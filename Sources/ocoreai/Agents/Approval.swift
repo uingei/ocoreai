@@ -16,9 +16,10 @@
 /// execpolicy 持久规则为后续任务，不预建。
 /// - `codex-rs/tui/src/history_cell/approvals.rs`
 ///   （pending 呈现：工具名 + snippet；decision 三档按钮）→ ChatView banner（UI 层）
-/// - `codex-rs/core/src/tools/sandboxing.rs:43`
-///   （session 缓存语义："future requests touching any subset can also skip
-///   prompting"）与 `with_cached_approval`（`ApprovedForSession` 按
+/// - `codex-rs/core/src/tools/sandboxing.rs:40`
+///   （`ApprovalStore`，session 缓存语义见 `:69`：
+///   "future requests touching any subset can also skip
+///   prompting"）与 `with_cached_approval`（`:70`；`ApprovedForSession` 按
 ///   **action 身份 key** 缓存，见 `approvals.rs::cache_keys`）
 ///   → `ApprovalBroker.sessionApprovedKeys`（tool+arguments 身份键）。
 /// - `codex-rs/tui/src/text_formatting.rs:89` `truncate_text`
