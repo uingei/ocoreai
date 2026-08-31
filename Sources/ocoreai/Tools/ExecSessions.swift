@@ -19,7 +19,7 @@
 ///                      final report)
 ///
 /// Baseline — codex `unified_exec` (references/codex, HEAD):
-///   - `clamp_yield_time` (core/src/unified_exec/mod.rs:203):
+///   - `clamp_yield_time` (core/src/unified_exec/mod.rs:210):
 ///     `yield_ms.clamp(MIN_YIELD_TIME_MS=250, MAX_YIELD_TIME_MS=30_000)` —
 ///     mirrored exactly by `clampYieldMs` (bounds are test-pinned).
 ///   - `write_stdin` handler (tools/handlers/unified_exec/write_stdin.rs):
@@ -160,14 +160,14 @@ private final class SessionProc: @unchecked Sendable {
 actor ExecSessionManager {
     // MARK: - Bounds (codex parity where noted)
 
-    // codex `mod.rs:68-78` constants + `write_stdin.rs:25` serde default —
+    // codex `mod.rs:73-78` constants + `write_stdin.rs:28` serde default —
     // the three yield regimes verbatim (see `clampYieldMs`/`clampEmptyYieldMs`
     // docs for which surface each applies to).
-    static let clampMinYieldMs = 250  // codex MIN_YIELD_TIME_MS (mod.rs:68)
-    static let clampMaxYieldMs = 30_000  // codex MAX_YIELD_TIME_MS (mod.rs:72)
-    static let defaultYieldMs = 10_000  // codex default_exec_yield_time_ms (unified_exec.rs:60)
-    static let emptyYieldMinMs = 5_000  // codex MIN_EMPTY_YIELD_TIME_MS (mod.rs:71)
-    static let emptyYieldMaxMs = 300_000  // codex DEFAULT_MAX_BACKGROUND_TERMINAL_TIMEOUT_MS (mod.rs:73)
+    static let clampMinYieldMs = 250  // codex MIN_YIELD_TIME_MS (mod.rs:73)
+    static let clampMaxYieldMs = 30_000  // codex MAX_YIELD_TIME_MS (mod.rs:77)
+    static let defaultYieldMs = 10_000  // codex default_exec_yield_time_ms()=10_000 (unified_exec.rs:62)
+    static let emptyYieldMinMs = 5_000  // codex MIN_EMPTY_YIELD_TIME_MS (mod.rs:76)
+    static let emptyYieldMaxMs = 300_000  // codex DEFAULT_MAX_BACKGROUND_TERMINAL_TIMEOUT_MS (mod.rs:78)
     static let emptyYieldDefaultMs = 5_000  // empty poll default (codex `input.is_empty()` regime)
     static let maxLive = 16  // codex MAX_UNIFIED_EXEC_PROCESSES=64 (documented deviation)
     static let maxDiskOutputBytes = 262_144  // 256KB per-stream cap (mirrors ExecTools)
@@ -199,14 +199,14 @@ actor ExecSessionManager {
     // MARK: - Pure helpers (test-pinned, no actor hop)
 
     /// Non-empty-stdin + spawn regime: `yield_ms.clamp(250, 30_000)` —
-    /// codex `clamp_yield_time` (mod.rs:203) + `process_manager.rs:830`
+    /// codex `clamp_yield_time` (mod.rs:210) + `process_manager.rs:936`
     /// `time_ms.min(MAX_YIELD_TIME_MS)` branch.
     static func clampYieldMs(_ ms: Int) -> Int {
         min(max(ms, clampMinYieldMs), clampMaxYieldMs)
     }
 
     /// Empty-stdin (poll) regime: `yield_ms.clamp(5_000, 300_000)` —
-    /// codex `process_manager.rs:828` `clamp(MIN_EMPTY_YIELD_TIME_MS,
+    /// codex `process_manager.rs:934` `clamp(MIN_EMPTY_YIELD_TIME_MS,
     /// max_write_stdin_yield_time_ms)` branch (empty polls use the
     /// background-timeout bounds; non-empty writes keep the 250/30_000
     /// responsive window so interactive stdin stays snappy).
@@ -329,8 +329,8 @@ actor ExecSessionManager {
     @discardableResult
     /// `yieldMs`: codex regime — non-empty `data` clamps to 250–30_000
     /// (default 250, `default_write_stdin_yield_time_ms`=250 in
-    /// `unified_exec.rs:64`); empty `data` clamps to 5_000–300_000
-    /// (default 5_000) per `process_manager.rs:828`. `nil` = regime default.
+    /// (`unified_exec.rs:66`); empty `data` clamps to 5_000–300_000
+    /// (default 5_000) per `process_manager.rs:934`. `nil` = regime default.
     func writeStdin(sessionId: Int, data: String = "", yieldMs: Int? = nil)
         async throws -> PollResult
     {
