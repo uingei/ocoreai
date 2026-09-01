@@ -1620,16 +1620,27 @@ private struct EngineImpl: ~Copyable {
             }
         }
 
-        continuation.yield(lastToken)
+        // NOTE: `lastToken` is deliberately NOT yielded here. A sampled token is
+        // only emitted after the grammar has accepted it (at the top of the loop)
+        // and we've confirmed the acceptance did not terminate the grammar.
+        // (absorbed from coreai-models #217, 2026-08-31)
 
         // Constrained decode loop
-        var generated = 1
+        var generated = 0
         while generated < maxTokens {
             guard !isCancelled.load(ordering: .relaxed) else { break }
             try Task.checkCancellation()
 
+            // Accept the most recently sampled token in the grammar.
             if !session.acceptToken(lastToken) { break }
+            // If accepting it terminated the grammar, `lastToken` is the terminal
+            // (stop) token — break WITHOUT emitting it.
             if session.isTerminated { break }
+
+            // `lastToken` is confirmed to be valid structured content — emit it now.
+            continuation.yield(lastToken)
+            generated += 1
+            if generated >= maxTokens { break }
 
             // Jump-forward: deterministic grammar segments batch-encoded
             if let jumpString = session.findJumpForwardString(),
@@ -1658,9 +1669,13 @@ private struct EngineImpl: ~Copyable {
                     }
                 }
 
-                for jt in jumpTokens { continuation.yield(jt) }
-                continuation.yield(lastToken)
-                generated += jumpTokens.count + 1
+                // Emit the deterministic jump-forward tokens now. The freshly sampled
+                // `lastToken` is deferred to the next iteration's accept/termination
+                // check so a terminal token never leaks into the output.
+                for jt in jumpTokens {
+                    continuation.yield(jt)
+                }
+                generated += jumpTokens.count
                 continue
             }
 
@@ -1688,8 +1703,7 @@ private struct EngineImpl: ~Copyable {
                 }
             }
 
-            continuation.yield(lastToken)
-            generated += 1
+            // `lastToken` is delayed until the accept/termination check in the next iteration.
         }
 
         // Drain: sentinel command buffer to ensure all GPU work completes
