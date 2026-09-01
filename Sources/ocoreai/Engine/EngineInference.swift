@@ -477,7 +477,7 @@ extension EnginePool {
                                 streamCancelled = true
                                 break
                             }
-                            let tokenId = (output as? InferenceOutput)?.tokenId ?? 0
+                            let tokenId = output.tokenId
                             accumulatedTokens.append(tokenId)
                             metrics.incrementGenerated()
                             if metrics.generatedTokenCount == 1 {
@@ -1073,7 +1073,6 @@ extension EnginePool {
             // — Constrained decode loop —
             var accumulatedTokens: [Int32] = []
             var accumulatedReasoningChars = 0
-            var firstYielded = false
             var grammarTerminated = false
             var effectiveStopReason: StopReason? = nil
             let decodeBatchSize = 8
@@ -1295,7 +1294,7 @@ extension EnginePool {
         vocabSize: Int
     ) {
         for wordIdx in 0 ..< mask.count {
-            var word = mask[wordIdx]
+            let word = mask[wordIdx]
             for bit in 0 ..< 32 {
                 let tokenIdx = wordIdx * 32 + bit
                 guard tokenIdx < vocabSize, tokenIdx < logits.count else { return }

@@ -59,9 +59,9 @@ protocol PlanRecoverySeam: Sendable {
 @Observable
 final class PlanTaskStore {
     /// 进程级单例（UI 与工具面共享同一任务态）。
-    /// nonisolated(unsafe)：全局唯一实例、主线程创建+主线程消费（工具事件经
+    /// 全局唯一实例、主线程创建+主线程消费（工具事件经
     /// `@MainActor` 工具闭包投递、UI 读面在 MainActor）——无跨线程竞争面。
-    nonisolated(unsafe) static let shared = PlanTaskStore()
+    static let shared = PlanTaskStore()
     /// 当前会话的 plan 快照（任务面板渲染源）。
     var current: PlanSnapshot?
     /// 已激活的会话 id（观测面）。

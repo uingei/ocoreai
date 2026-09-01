@@ -117,7 +117,6 @@ private final class SessionProc: @unchecked Sendable {
         #endif
     }
 
-    @discardableResult
     func writeStdin(_ data: Data) throws {
         lock.lock()
         defer { lock.unlock() }

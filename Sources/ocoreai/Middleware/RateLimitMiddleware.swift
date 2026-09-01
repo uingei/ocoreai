@@ -160,8 +160,6 @@ actor RateLimitProvider {
     init(config: Config = Config(), logger: Logger) {
         // P0-fix: clamp instead of precondition (rate limiter must not release-crash)
         let safeGlobal = config.globalRate > 0 ? config.globalRate : 100
-        let safePerModel = config.perModelRate > 0 ? config.perModelRate : 20
-        let safePerIP = config.perIPRate > 0 ? config.perIPRate : 10
         self.config = config
         globalBucket = TokenBucket(rate: safeGlobal, capacity: Double(config.globalBurst))
         self.logger = logger

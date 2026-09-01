@@ -131,12 +131,12 @@ final class ToolParameter: Codable, Equatable, @unchecked Sendable {
     }
 
     /// Static shorthands for dictionary literals — e.g. `["key": .string]`。
-    /// `nonisolated(unsafe)`：`let` 不可变全局 + 类全属性 `let` → 无数据竞争。
-    nonisolated(unsafe) static let string = ToolParameter(type: .string)
-    nonisolated(unsafe) static let integer = ToolParameter(type: .integer)
-    nonisolated(unsafe) static let boolean = ToolParameter(type: .boolean)
-    nonisolated(unsafe) static let array = ToolParameter(type: .array)
-    nonisolated(unsafe) static let object = ToolParameter(type: .object)
+    /// 不可变全局 `let` + 类属性全 `let` → 无数据竞争面。
+    static let string = ToolParameter(type: .string)
+    static let integer = ToolParameter(type: .integer)
+    static let boolean = ToolParameter(type: .boolean)
+    static let array = ToolParameter(type: .array)
+    static let object = ToolParameter(type: .object)
 
     // 值语义比较（测试字段级断言用；类默认引用相等，这里显式补值相等）。
     static func == (lhs: ToolParameter, rhs: ToolParameter) -> Bool {
