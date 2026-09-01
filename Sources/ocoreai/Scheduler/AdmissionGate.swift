@@ -127,17 +127,30 @@ actor AdmissionGate {
         return UInt64(totalTokens) * UInt64(Self.KBPerToken)
     }
 
-    /// Query available headroom from MemoryTracker + our reservations.
-    /// Returns (totalBudget, availableHeadroom, recommendedChannel).
+    /// Query available headroom from the budget + our own reservations.
+    /// Returns (totalBudget, available, recommendedChannel).
     ///
-    /// On Apple Silicon UMA, system memory from `pollSystemMemory()` already
-    /// includes GPU pressure (CPU/GPU share physical RAM), so we do NOT add
-    /// `gpuActiveBytes` again — that would double-count GPU pressure.
-    /// We only query gpuActive for the HardwareRouter's channel recommendation.
+    /// Headroom = `budget` − **our** reservations (`reservedBytes`), i.e. the
+    /// MLX working-set cap minus what *we* have already admitted. On UMA this
+    /// is exactly the admission math upstream uses (MLX `WiredMemoryManager`:
+    /// "the baseline is used for admission math only"; omlx `SystemStatsSampler`
+    /// reports `usedBytes = wired + active + compressed`, explicitly excluding
+    /// the reclaimable inactive/file-cache bucket).
     ///
-    /// The `recommendedChannel` from `HardwareRouter` tells us which
-    /// compute accelerator should handle the request — this is the bridge
-    /// between "can we admit?" and "where should it run?".
+    /// We deliberately do NOT subtract the whole-machine usage
+    /// (active + inactive + wired + compressed ≈ the entire system, e.g. ~20 GiB
+    /// on a loaded 16 GiB box) from our 8.8 GiB cap — that mixes two unrelated
+    /// quantities with two unrelated denominators and rejects *every* request
+    /// the moment other apps or the file cache consume more than our cap,
+    /// producing the "one chat and it dies" symptom. That is the same
+    /// whole-machine-vs-our-budget conflation already fixed as advisory logging
+    /// in ``MemoryTracker`` (see `checkSystemLevel` "previously … permanently
+    /// stuck at .oom"). System pressure stays advisory: it drives the OOMGuard
+    /// downgrade level and the routing channel — it does not gate the per-request
+    /// headroom. The real OOM backstop is MLX's own `Memory.cacheLimit`.
+    ///
+    /// `currentUsage()` is still polled for the advisory level/logging and to
+    /// feed the HardwareRouter's channel recommendation.
     private func queryHeadroom(
         priority: RequestPriority = .chat
     ) async -> (totalBudget: UInt64, available: UInt64, channel: ComputeChannel?) {
@@ -146,27 +159,22 @@ actor AdmissionGate {
             return (0, .max, nil)
         }
 
-        // Query system memory state from tracker
-        let systemUsed = await tracker.currentUsage()
+        // Advisory: system pressure level + recommended compute channel.
+        // (currentUsage() is not part of the headroom math — see doc above.)
+        _ = await tracker.currentUsage()
         let gpuActive = await tracker.gpuActiveMemoryBytes()
         let budget = await tracker.getBudget()
 
-        // Ask HardwareRouter to recommend a compute channel (once, cached locally)
+        // Ask HardwareRouter to recommend a compute channel (once, cached locally).
         let channel: ComputeChannel? = hardwareRouter.map {
             $0.query(gpuActiveBytes: gpuActive, gpuBudgetBytes: budget, priority: priority)
         }
-
         if let ch = channel {
             logger.debug("HardwareRouter → \(ch.rawValue)")
         }
 
-        // Total pressure: system usage (already includes GPU on UMA) + our reservations.
-        // On UMA, gpuActiveBytes is already part of systemUsed — adding it again
-        // would double-count GPU pressure and cause legitimate requests to be rejected.
-        let used = systemUsed + reservedBytes
-
-        // Available after accounting for reservations
-        let available = max(budget - used, 0)
+        // Available = budget − our own admitted reservations (clamped to ≥0).
+        let available = max(budget - reservedBytes, 0)
         return (budget, available, channel)
     }
 

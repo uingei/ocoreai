@@ -57,7 +57,12 @@ actor MemoryTracker {
     private var oomCallback: (@Sendable (MemoryLevel) async -> Void)?
 
     /// Reference to OOMGuard for budget sync.
-    private var oomGuard: OOMGuard?
+    private let oomGuard: OOMGuard?
+
+    /// Optional override for the whole-machine usage reading. `nil` (production
+    /// default) → ``pollSystemMemory()``. Tests inject a pinned value so the
+    /// headroom path is hermetic (independent of the machine's real load).
+    private let systemUsageOverride: (@Sendable () -> UInt64?)?
 
     // MARK: - System Memory Polling
 
@@ -118,13 +123,11 @@ actor MemoryTracker {
 
     /// Snapshot current system memory usage (does NOT touch reservedBytes).
     ///
-    /// Tries Darwin kernel poll first. Returns system-wide used memory, which
-    /// AdmissionGate uses to compute headroom. Falls back to `reservedBytes`
-    /// when the kernel API is unavailable.
-    ///
-    /// Returns actual used bytes from system memory stats.
+    /// Tries the injected override (tests) or Darwin kernel poll first.
+    /// Returns system-wide used memory — advisory for the level chain and
+    /// logging. Falls back to `reservedBytes` when both are unavailable.
     func currentUsage() -> UInt64 {
-        if let systemUsage = pollSystemMemory() {
+        if let systemUsage = systemUsageOverride?() ?? pollSystemMemory() {
             checkSystemLevel(using: systemUsage)
             return systemUsage
         }
@@ -200,14 +203,19 @@ actor MemoryTracker {
     // MARK: - Initialization
 
     /// Initialize with a memory budget in bytes.
-    /// - Parameter budgetBytes: Maximum memory allocation in bytes.
+    /// - Parameters:
+    ///   - budgetBytes: Maximum memory allocation in bytes.
+    ///   - systemUsageOverride: Test-only injection for the whole-machine
+    ///     usage reading (production passes `nil` → host_statistics64 poll).
     init(
         budgetBytes: UInt64,
         oomGuard: OOMGuard? = nil,
+        systemUsageOverride: (@Sendable () -> UInt64?)? = nil,
         log: Logger = Logger(label: "ocoreai.scheduler.memory"),
     ) {
         self.budgetBytes = budgetBytes
         self.oomGuard = oomGuard
+        self.systemUsageOverride = systemUsageOverride
         logger = log
 
         #if os(macOS) || os(iOS)
