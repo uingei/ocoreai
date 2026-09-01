@@ -288,27 +288,12 @@ extension EnginePool {
     ) -> AsyncThrowingStream<InferenceEvent, Error> {
         AsyncThrowingStream { continuation in
             Task { [self] in
-                // Pre-turn context compaction (codex-aligned): compress
-                // over-threshold history before the turn. Runs OUTSIDE the
-                // inference guard so the nested summarization acquire
-                // cannot deadlock with the main inference hold. Non-fatal —
-                // nil means "proceed unchanged" (codex contract).
-                var effectiveMessages = messages
-                if let compacted = await compactionIfNeeded(modelId: modelId, messages: messages) {
-                    logger.info(
-                        """
-                        Pre-turn compaction: \(messages.count) -> \(compacted.count) \
-                        messages before doInferenceMLX for \(modelId)
-                        """
-                    )
-                    effectiveMessages = compacted
-                }
                 let deadline = ContinuousClock.now + .seconds(config.inferenceTimeoutSeconds)
                 // P0-2 fix: tracker, register, and cleanup outside group eliminates race window
                 let tracker = Task<Void, Never> {
                     await self._runInferenceWithMessages(
                         modelId: modelId,
-                        messages: effectiveMessages,
+                        messages: messages,
                         sampling: sampling,
                         options: options,
                         metrics: metrics,

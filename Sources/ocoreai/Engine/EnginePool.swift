@@ -92,11 +92,6 @@ actor EnginePool {
     /// Maximum models to keep in memory before LRU eviction kicks in
     let maxLoadedModels: Int
 
-    /// Pre-turn context compaction (Agent line, codex-aligned).
-    /// Injected via `installContextCompactor` — nil = feature off.
-    /// The closure owns model resolution + summarization (SummarizerActor).
-    var contextCompactor: (@Sendable (String) async throws -> String)? = nil
-
     /// Memory tracker — reports GPU memory allocations to MemoryTracker.
     let memoryTracker: MemoryTracker?
 
@@ -250,38 +245,6 @@ actor EnginePool {
             throw AppError.modelNotFound(modelId)
         }
         return try await provider.detokenize(tokenIds: tokens)
-    }
-
-    // MARK: - Pre-turn Context Compaction (codex-aligned)
-
-    /// Compress over-threshold prompt history before a turn starts.
-    ///
-    /// Returns the compacted history, or `nil` when compaction was skipped
-    /// (no compactor installed, under threshold, or any failure) — callers
-    /// proceed unchanged on `nil`, matching the codex contract that a
-    /// compaction failure never blocks a turn.
-    func compactionIfNeeded(modelId: String, messages: [Message]) async -> [Message]? {
-        guard let summarize = contextCompactor else { return nil }
-        guard let loaded = loadedModels[modelId] else { return nil }
-        let window = loaded.modelConfig.maxContextLength
-        let estimate = InferenceCompactor.estimateTokens(messages)
-        let threshold = Int(Double(window) * InferenceCompactor.thresholdFraction)
-        guard estimate > threshold else { return nil }
-        // compact() catches summarization failures internally (codex
-        // contract: compaction failure never blocks the turn) and returns
-        // nil to mean "proceed unchanged".
-        return await InferenceCompactor.compact(
-            messages,
-            contextWindowTokens: window,
-            summarize: summarize
-        )
-    }
-
-    /// Install or disable the pre-turn context compaction callback.
-    /// Nil installs nothing and turns the feature off (`compactionIfNeeded`
-    /// returns nil immediately without touching model state).
-    func setContextCompactor(_ summarize: (@Sendable (String) async throws -> String)?) {
-        contextCompactor = summarize
     }
 
     // MARK: - Acquire / Release
