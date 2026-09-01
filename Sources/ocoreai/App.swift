@@ -523,6 +523,15 @@ public final class OcoreaiEngine {
         await _sessionCompressor?.setSummarizer(summarizer.makeCallback())
         logger.info("SessionCompressor: LLM summarizer injected via SummarizerActor")
 
+        // Pre-turn context compaction (Agent line, codex-aligned): same
+        // summarizer callback drives turn-level history compression on the
+        // inference path. Off until this line runs; compactionIfNeeded is a
+        // no-op while contextCompactor is nil.
+        let compactionCallback = await summarizer.makeCallback()
+        await saPool.setContextCompactor(compactionCallback)
+        logger.info(
+            "EnginePool: pre-turn context compactor installed (threshold = 90% of model context)")
+
         metrics = MetricsRegistry()
 
         // MARK: - Fast Path Ready Signal
