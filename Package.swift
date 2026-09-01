@@ -106,9 +106,19 @@ let package = Package(
         //     ModelContext now normalizes the module tree to eval mode at the
         //     inference boundary (model.train(false)) — free correctness fix for
         //     LoRA+dropout inference in LLMLifecycleHandler.
+        // 37688d2..0f25e86 (7 commits, 09-01 sync): 3 条命中 ocoreai 消费面，2 条真 bug fix：
+        //   - #592 (d443de7): DeepSeek MTP 层过滤修复 — DeepseekV3.swift (ocoreai 经 MLXLLM 消费)。
+        //   - #598 (28a7f30): Qwen3.5 含 MTP 权重 checkpoint 不再误判 raw → 修 norm 权重
+        //     二次 shift 产生垃圾 token 的真 bug（Qwen35.swift，ocoreai 消费此模型定义）。
+        //   - #511 (ad00de5): Qwen3.5 GDN/MoE/SwitchGLU 访问门 public/open 纯放宽
+        //     (additive, ocoreai 不特化 → 零行为变化)。
+        //   - 其余 4 条 (#591/#596/#587/#594) = FoundationModels 上报/Falcon SPI/CI/警告清理，
+        //     ocoreai 0 消费 (free rider)。
         // Re-evaluate at each upstream main bump: re-grep `Generation` switch
         // sites and confirm exhaustiveness before building.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "37688d2"),
+        .package(
+            url: "https://github.com/ml-explore/mlx-swift-lm.git",
+            revision: "0f25e8605947cd23ca1edcd6885b2507a898d2ac"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
