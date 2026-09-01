@@ -140,6 +140,10 @@ final class ChatState {
     static let shared = ChatState()
     private init() {}
 
+    /// Turn-end 停语音 seam:生产绑 `AudioIO.shared.stopSpeaking`（幂等）,
+    /// 测试可覆盖为 spy 闭包断言「turn 终结 ⇒ 停 TTS」, 不依赖 AVFoundation。
+    internal var turnEndVoiceStopHook: @MainActor () -> Void = { AudioIO.shared.stopSpeaking() }
+
     var messages: [ChatMessage] = []
     var responseText: String = ""
     /// Display version — strips <thinking> tags so the live streaming preview
@@ -342,6 +346,12 @@ final class ChatState {
         _cancelledByUI = true
         currentCancellation?.cancel()
         currentCancellation = nil
+        // Turn-end 停 TTS（openclaw d6afb1109a9 同形: "cancel narration requests when their turn ends"）。
+        // stop/reset/switch/reload/resend 6 条路径都 funnel 进本函数,
+        // 之前只 cancel 推理流、从不 stopSpeak, 语音层把整段回复念完。
+        // @MainActor 同步执行; 生产默认绑 AudioIO.shared.stopSpeaking（幂等）,
+        // 测试可注入 spy 断言, 不依赖 AVFoundation。
+        turnEndVoiceStopHook()
         loading = false
 
         // P0-3 UX: Preserve the partial response instead of instantly blanking the screen.
