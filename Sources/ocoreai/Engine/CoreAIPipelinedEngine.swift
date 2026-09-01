@@ -10,6 +10,10 @@
 //     — 2026-08-20 ocoreai main; encode routed via _CoreAIEncodeHelpers.encodeWithStates;
 //     PipelineGate omitted (sequential loop, ≤1 encode in flight).
 //   ocoreai 2026-08-18 audit: no derived-file drift otherwise; see ~/wiki.
+//   Absorbed: #176 5660fc6 (repetition penalty, tokenHistory overload).
+//   Absorbed: #204 156cdb6 (prefillFunction / independent prefill graph).
+//   Absorbed: #217 54e6163 (defer yield until after accept/termination check, ocoreai 25a6686 2026-09-01).
+//   Upstream HEAD anchor: 54e6163 (2026-09-01 audit: all in-range commits absorbed).
 
 #if canImport(CoreAI)
 import CoreAI

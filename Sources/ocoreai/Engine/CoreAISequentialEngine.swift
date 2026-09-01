@@ -1,5 +1,9 @@
 // Copyright 2026 Apple Inc. (BSD-3-clause upstream)
-// Adapted for ocoreai — aligned with coreai-models CoreAISequentialEngine.swift HEAD a5ece33
+// Adapted for ocoreai — aligned with coreai-models CoreAISequentialEngine.swift HEAD 4a3f8e4 (2026-09-01 audit).
+//   Absorbed: #176 5660fc6 (repetition penalty, tokenHistory overload).
+//   Absorbed: #204 156cdb6 (prefillFunction / independent prefill graph).
+//   Pending (gated): #202 4a3f8e4 (Muse Glimmer sliding-window ring cache, useCompactPositionIds) —
+//     Muse Glimmer not in ocoreai model surface (0 hits); activates when that model is added.
 //
 /// Clean Core AI inference engine built from public APIs.
 ///

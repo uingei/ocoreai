@@ -1,5 +1,6 @@
 // Copyright 2026 Apple Inc. (BSD-3-clause upstream)
-// Adapted for ocoreai — aligned with coreai-models CoreAIStaticShapeEngine.swift HEAD f401272
+// Adapted for ocoreai — aligned with coreai-models CoreAIStaticShapeEngine.swift HEAD 5660fc6 (2026-09-01 audit).
+//   Absorbed: #176 5660fc6 (repetition penalty, tokenHistory overload via generationStartOffset).
 //
 /// Static-shape inference engine using Core AI chunked models (.aimodel).
 ///
