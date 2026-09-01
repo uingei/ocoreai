@@ -8,7 +8,7 @@
 # CI:         ci-local (full local pipeline)
 
 SHELL := /bin/bash
-.PHONY: all build release test test-verbose test-coverage format format-check audit clean metallib help ci-local
+.PHONY: all build release test test-verbose test-coverage test-ci format format-check audit clean metallib help ci-local
 
 all: build
 
@@ -41,6 +41,25 @@ test-coverage:
 	@swift test --show-codecov-path 2>/dev/null && \
 		echo "→ Open the above path for detailed report" || \
 		echo "→ Coverage data in .build/"
+
+# Full test gate — CI-identical path (xcodebuild build-for-testing → xcrun xctest).
+# `swift test` cannot resolve metallib at runtime (see AGENTS.md / ci.yml L112-115);
+# the xcodebuild path resolves it natively, so this is the AUTHORITATIVE local gate.
+test-ci:
+	@echo "🧪 Running the CI-identical full gate (xcodebuild → xctest)..."
+	@export OCOREAI_BUILD=ci; \
+	xcodebuild build-for-testing \
+	  -workspace ocoreai.xcworkspace \
+	  -scheme ocoreaiTests \
+	  -configuration Debug \
+	  -destination 'platform=macOS,arch=arm64' \
+	  -skipPackagePluginValidation \
+	  -skipMacroValidation \
+	  ONLY_ACTIVE_ARCH=YES; \
+	XCB=$$(ls -dt ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/Debug/ocoreaiTests.xctest 2>/dev/null | head -1 || true); \
+	[ -n "$$XCB" ] || { echo "❌ ocoreaiTests.xctest not found in DerivedData"; exit 1; }; \
+	echo "Running test bundle: $$XCB"; \
+	xcrun xctest "$$XCB"
 
 ## ── Code Quality ───────────────────────────────────────────────────
 # swift-format is the only style gate — aligned with upstream
@@ -84,7 +103,7 @@ metallib:
 
 ## ── CI Pipeline (Local) ───────────────────────────────────────────
 
-ci-local: clean format-check audit build test
+ci-local: clean format-check audit build test-ci
 	@echo ""
 	@echo "✅ Full CI pipeline passed locally"
 
@@ -113,4 +132,5 @@ help:
 	@echo "  make help           Show this help"
 	@echo ""
 	@echo "CI:"
-	@echo "  make ci-local       Full local CI pipeline (clean → format → audit → build → test)"
+	@echo "  make test-ci        CI 同款全量门 (xcodebuild build-for-testing → xcrun xctest; swift test 有 metallib 路径缺陷)"
+	@echo "  make ci-local       Full local CI pipeline (clean → format → audit → build → test-ci)"
