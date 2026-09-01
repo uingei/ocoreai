@@ -118,4 +118,35 @@ struct ChatStateSessionTests {
         #expect(!s.loading)
         #expect(s.messages.count == 1)
     }
+
+    @MainActor @Test("B3: resetConversation closes the stream append gate (no ghost resumption)")
+    func resetClosesAppendGate() throws {
+        let s = ChatState.shared
+        defer { s.resetForTesting() }
+        s.messages = [ChatMessage(role: "user", content: "hi")]
+        s.responseText = "partial"
+        s.resetConversation()
+        // Core invariant of the fix: after reset the in-flight-stream re-append path is
+        // CLOSED — before the fix resetConversation left _cancelledByUI == false (gate
+        // open), allowing the running stream tail to resurrect the cleared conversation.
+        #expect(s.responseText.isEmpty)
+        #expect(s._cancelledByUI == true)  // gate CLOSED — in-flight tail can't re-append
+    }
+
+    @MainActor @Test("B3: partial response survives reset as recoverable interrupted message")
+    func resetRecoversPartialViaUndo() throws {
+        let s = ChatState.shared
+        defer { s.resetForTesting() }
+        s.messages = [ChatMessage(role: "user", content: "hi")]
+        s.responseText = "partial"
+        s.resetConversation()
+        // resetConversation clears the UI, but the partial is preserved (interrupted
+        // assistant) inside the undo snapshot — recoverable, not lost or resurrected.
+        #expect(s.messages.isEmpty)
+        #expect(s.hasUndo)
+        s.undoReset()
+        #expect(s.messages.count == 2)
+        #expect(s.messages.last?.interrupted == true)
+        #expect(s.messages.last?.content.contains("partial") == true)
+    }
 }

@@ -998,6 +998,20 @@ final class ChatState {
     /// Also resets SQLite session ID to prevent new messages bleeding
     /// into the old session's database record.
     func resetConversation() {
+        // P0-fix (B3): cancel in-flight inference FIRST, before clearing any state.
+        // Before: resetConversation cleared messages/responseText/sessionId but never
+        // stopped the running stream — and actively re-opened the `_cancelledByUI` append
+        // gate — so the still-running stream tail resumed, re-appended the partial into
+        // the just-cleared UI state and re-persisted it, resurrecting the "cleared"
+        // conversation (violating the invariant: "prevent new messages bleeding into the
+        // old session"). cancelInference() is the in-repo precedent (onModelChanged
+        // L396-398, stop() L473): stops the stream, preserves the partial as an
+        // interrupted message (captured by the undo snapshot below for Cmd+Z), and
+        // closes the `_cancelledByUI` gate.
+        cancelInference()
+        // Symmetric with onModelChanged L405-406 / resetForTesting L1057-1058.
+        pendingUnloadTask?.cancel()
+        pendingUnloadTask = nil
         // P2-fix: cap undo snapshot to last 50 messages — prevents holding entire
         // conversation in memory when user clears a long-running session
         let maxUndoMessages = 50
@@ -1013,8 +1027,6 @@ final class ChatState {
         // FIX: clear session state to prevent DB session bleed
         sessionId = nil
         activeModelId = nil
-        // P0-fix: reset idempotency barrier so cancelInference can fire clean this turn
-        _cancelledByUI = false
         // 会话终结 = 审批会话终结（codex 语义：批准是 session-scoped）：
         // 挂起裁决全部 `.denied("session-ended")` + 会话级放行清空，防跨会话免审批泄漏；
         // 顺带清 UI banner（否则 reset 后旧审批卡仍可 resolve 复活已死 call）
