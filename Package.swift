@@ -116,9 +116,7 @@ let package = Package(
         //     ocoreai 0 消费 (free rider)。
         // Re-evaluate at each upstream main bump: re-grep `Generation` switch
         // sites and confirm exhaustiveness before building.
-        .package(
-            url: "https://github.com/ml-explore/mlx-swift-lm.git",
-            revision: "0f25e8605947cd23ca1edcd6885b2507a898d2ac"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "0f25e86"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
