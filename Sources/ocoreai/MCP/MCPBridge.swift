@@ -817,14 +817,51 @@ actor MCPBridge {
         return "\(toolName):\(hashStr)"
     }
 
+    // MARK: - Test hooks（shutdown 锁测试断言面）
+
+    /// 每个 external endpoint 当前 client 的子进程 PID（-1 = 无 client / 无进程）。
+    /// 测试断言 shutdown 前后 PID 存活状态翻转（terminate 生效）。
+    func testClientPIDs() async -> [String: Int32] {
+        var m: [String: Int32] = [:]
+        for (name, client) in externalClients {
+            m[name] = await client.testChildPID()
+        }
+        return m
+    }
+
+    /// endpoint 状态快照（测试断言 shutdown 后 handle 为 .disconnected 或 absent）。
+    func testEndpointStatuses() -> [String: String] {
+        var m: [String: String] = [:]
+        for (name, handle) in endpointHandles {
+            m[name] = handle.status.rawValue
+        }
+        return m
+    }
+
+    /// 每个 endpoint client 的子进程是否仍在运行（进程句柄层面，zombie 安全）。
+    /// shutdown 后应全为 false（terminate 生效，无孤儿存活）。
+    func testClientChildRunning() async -> [String: Bool] {
+        var m: [String: Bool] = [:]
+        for (name, client) in externalClients {
+            m[name] = await client.testChildRunning()
+        }
+        return m
+    }
+
     // MARK: - Shutdown
 
     /// 优雅关闭所有资源。
-    func shutdown() {
-        for epName in Array(endpointHandles.keys) {
-            if externalClients[epName] != nil {
-                log.info("Closing external endpoint: \(epName)")
-            }
+    ///
+    /// Contract: every connected external endpoint is fully torn down —
+    /// `client.disconnect()` → `cleanup()` → `cleanupProcess()` → `proc.terminate()` —
+    /// before the dictionaries are dropped. (Mirror of codex rmcp-client
+    /// `stdio_server_launcher` teardown: the transport process is terminated at
+    /// scope end. Dropping the reference alone leaves the spawned child running
+    /// as an orphan — `npx`/`uvx`/`python` MCP servers outlive the app.)
+    func shutdown() async {
+        for epName in Array(endpointHandles.keys) where externalClients[epName] != nil {
+            log.info("Tearing down external endpoint: \(epName)")
+            await self.disconnectEndpoint(name: epName)
         }
         externalClients.removeAll()
         endpointHandles.removeAll()

@@ -5,6 +5,7 @@
 /// The stub responds to initialize / tools/list / tools/call with minimal
 /// valid JSON-RPC responses, then keeps reading stdin.
 import Foundation
+import Logging
 import Testing
 import ocoreaiTestUtilities
 
@@ -157,6 +158,53 @@ struct MCPStdioLifecycleTests {
         } catch let e as MCPClientError {
             #expect(e.isNotConnected())
         }
+    }
+
+    @Test("shutdown() tears down every connected stdio child (no orphan survive)")
+    func shutdownDestroysChildProcess() async throws {
+        let registry = ToolRegistry()
+        let bridge = MCPBridge(
+            toolRegistry: registry,
+            transport: MCPStdioTransport(),
+            log: Logger(label: "test.mcp.shutdown"),
+        )
+
+        // Connect a REAL child (python3 stub)
+        try await bridge.connectEndpoint(
+            name: "shutdown-target",
+            command: "python3",
+            args: [try writeMCPStubServer().path],
+            capabilities: ["tools"],
+        )
+
+        // Pre-shutdown: child alive, handle connected, PID > 0
+        var running = await bridge.testClientChildRunning()
+        #expect(running["shutdown-target"] == true, "Child must be running pre-shutdown")
+        let pid = (await bridge.testClientPIDs())["shutdown-target"] ?? -1
+        #expect(pid > 0, "Connected endpoint must have a live PID")
+
+        // SHUTDOWN — must terminate the child
+        await bridge.shutdown()
+
+        // Post-shutdown: child gone (terminate is via Task inside disconnectEndpoint,
+        // poll up to 3s for the process to actually die)
+        let deadline = Date().addingTimeInterval(3.0)
+        var gone = false
+        while Date() < deadline {
+            running = await bridge.testClientChildRunning()
+            if running["shutdown-target"] != true {
+                gone = true
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(gone, "Child process must NOT survive bridge.shutdown()")
+
+        // State: all handles removed or disconnected, dictionaries empty
+        let statuses = await bridge.testEndpointStatuses()
+        #expect(statuses.isEmpty, "endpointHandles must be empty post-shutdown (got \(statuses))")
+        let pids = await bridge.testClientPIDs()
+        #expect(pids.isEmpty, "externalClients must be empty post-shutdown (got \(pids))")
     }
 
     #endif

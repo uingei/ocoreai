@@ -695,6 +695,14 @@ public final class OcoreaiEngine {
         metrics = nil
         scheduler = nil
 
+        // MARK: - MCP bridge teardown
+        //
+        // Terminate any connected external stdio MCP servers (their child
+        // processes — npx/uvx/python — do NOT die with the parent on macOS,
+        // they orphan). Disconnect each before the bridge is released.
+        await _mcpBridge?.shutdown()
+        _mcpBridge = nil
+
         // MARK: - MLX GPU cache cleanup
         //
         // FIX: Without this, MLX's GPU resident cache persists after engine
