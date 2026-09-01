@@ -692,7 +692,7 @@ struct AssistantMessage: Encodable {
     }
 }
 
-/// Token usage statistics (prompt + completion + total).
+/// Token usage statistics (prompt + completion + total + per-category details).
 struct Usage: Encodable {
     /// Input (prompt) token count
     let input: Int
@@ -703,10 +703,62 @@ struct Usage: Encodable {
     /// Total token count
     let total: Int
 
-    init(input: Int, output: Int) {
+    /// Prompt-side breakdowns (OpenAI `prompt_tokens_details`).
+    let promptDetails: PromptTokensDetails?
+
+    /// Completion-side breakdowns (OpenAI `completion_tokens_details`).
+    let completionDetails: CompletionTokensDetails?
+
+    /// OpenAI `prompt_tokens_details` — breakdown of the prompt token count.
+    struct PromptTokensDetails: Encodable {
+        /// Tokens served by a reused KV-cache prefix (upstream
+        /// `GenerateCompletionInfo.cachedPromptTokenCount`, mlx-swift-lm #559).
+        let cachedTokens: Int
+
+        init(cachedTokens: Int) {
+            self.cachedTokens = cachedTokens
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case cachedTokens = "cached_tokens"
+        }
+    }
+
+    /// OpenAI `completion_tokens_details` — breakdown of the completion token count.
+    struct CompletionTokensDetails: Encodable {
+        /// Reasoning/thinking tokens (baseline: mlx-swift-lm + coreai-models
+        /// `reasoningTokenCount` in their completion info).
+        let reasoningTokens: Int
+
+        init(reasoningTokens: Int) {
+            self.reasoningTokens = reasoningTokens
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case reasoningTokens = "reasoning_tokens"
+        }
+    }
+
+    init(
+        input: Int,
+        output: Int,
+        cachedPromptTokens: Int? = nil,
+        reasoningTokens: Int? = nil
+    ) {
         self.input = input
         self.output = output
         total = input + output
+        // Details are omitted entirely when the leg produced no value (nil) —
+        // OpenAI treats the whole `*_tokens_details` object as optional.
+        let rt = reasoningTokens
+        let prompt: PromptTokensDetails? = cachedPromptTokens.map {
+            PromptTokensDetails(cachedTokens: $0)
+        }
+        let completion: CompletionTokensDetails? = rt.flatMap {
+            $0 > 0 ? CompletionTokensDetails(reasoningTokens: $0) : nil
+        }
+        self.promptDetails = prompt
+        self.completionDetails = completion
     }
 
     /// Coding keys matching OpenAI API field names.
@@ -714,6 +766,8 @@ struct Usage: Encodable {
         case input = "prompt_tokens"
         case output = "completion_tokens"
         case total = "total_tokens"
+        case promptDetails = "prompt_tokens_details"
+        case completionDetails = "completion_tokens_details"
     }
 }
 

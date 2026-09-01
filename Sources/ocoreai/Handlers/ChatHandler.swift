@@ -654,6 +654,10 @@ private func nonStreamWithToolCalling(
     var totalOutputTokens = 0
     var finishReason: String = "stop"
     var detectedToolCalls: [ToolCall]? = nil
+    /// Reasoning tokens from upstream `.done(reasoningTokenCount:)` (baseline:
+    /// mlx-swift-lm + coreai-models completion info) → OpenAI
+    /// `completion_tokens_details.reasoning_tokens`.
+    var finalReasoningTokens: Int? = nil
 
     do {
         for try await event in tokenStream {
@@ -663,10 +667,11 @@ private func nonStreamWithToolCalling(
             case .text(let text):
                 accumulatedContent += text
                 totalOutputTokens += 1
-            case .done(let reason, let tokenCount, _, _, _, _, _, _):
+            case .done(let reason, let tokenCount, _, _, _, let reasoningTokenCount, _, _):
                 if let tokenCount {
                     totalOutputTokens = tokenCount
                 }
+                finalReasoningTokens = reasoningTokenCount
                 finishReason =
                     switch reason {
                     case .maxTokens: "length"
@@ -848,7 +853,11 @@ private func nonStreamWithToolCalling(
         created: created,
         model: modelId,
         choices: [choice],
-        usage: Usage(input: promptTokenCount, output: totalOutputTokens),
+        usage: Usage(
+            input: promptTokenCount,
+            output: totalOutputTokens,
+            reasoningTokens: finalReasoningTokens
+        ),
     )
 
     /// Persist conversation to SQLite (fire-and-forget, non-blocking).
@@ -951,6 +960,9 @@ private func streamWithToolCalling(
         var totalOutputTokens = 0
         var accumulatedTokens: [Int32] = []
         var prevDecodedText = ""
+        /// Reasoning tokens from upstream `.done(reasoningTokenCount:)` →
+        /// `completion_tokens_details.reasoning_tokens` in the usage chunk.
+        var finalReasoningTokens: Int? = nil
         /// Batch decode interval — detokenize every N tokens to avoid O(n²).
         let decodeBatchSize = 8
 
@@ -1062,7 +1074,8 @@ private func streamWithToolCalling(
                     _ = yieldSSE(tChunk, to: continuation)
 
                 /// .done — flush remaining tokens, detect tool calls, send stop chunk.
-                case .done(let reason, _, _, _, _, _, _, _):
+                case .done(let reason, _, _, _, _, let reasoningTokenCount, _, _):
+                    finalReasoningTokens = reasoningTokenCount
                     /// Final flush: detokenize any remaining tokens not yet emitted.
                     if !accumulatedTokens.isEmpty, accumulatedTokens.count % decodeBatchSize != 0 {
                         do {
@@ -1152,7 +1165,11 @@ private func streamWithToolCalling(
                             created: created,
                             model: modelId,
                             choices: [],
-                            usage: Usage(input: promptTokenCount, output: totalOutputTokens),
+                            usage: Usage(
+                                input: promptTokenCount,
+                                output: totalOutputTokens,
+                                reasoningTokens: finalReasoningTokens
+                            ),
                         )
                         _ = yieldSSE(usageChunk, to: continuation)
                     }
