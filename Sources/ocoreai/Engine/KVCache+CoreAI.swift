@@ -539,7 +539,10 @@ struct GrowingKVCache: CoreAIKVCache {
         // Flatten L×B×H into one dimension — valid because L,B,H are contiguous in both layouts.
         // This holds when the buffer is C-order (allocated as shape.reduce * elementSize).
         // Assert the total element count matches to catch any alignment padding.
-        assert(
+        // precondition (not assert): this is a memory-safety invariant — if the
+        // buffer is not C-order contiguous, reading below is undefined behavior,
+        // and a release build must not silently drop the check.
+        precondition(
             l * b * h * oldS * d == oldKeyBuf.length / (keyReqsTemplate.scalarType.byteSize),
             "L,B,H flattening requires C-order contiguous buffer (no alignment padding)")
         let lbh = l * b * h

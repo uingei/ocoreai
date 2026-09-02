@@ -7,6 +7,7 @@
 import Foundation
 
 final class Mutex<Value>: @unchecked Sendable {
+    // 所有 `_value` 访问都经 NSRecursiveLock 串行化(唯一入口 withLock), 故 @unchecked Sendable 安全。
     private let lock: NSRecursiveLock
     private var _value: Value
 
