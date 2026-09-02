@@ -2752,8 +2752,16 @@ extension EnginePool {
                             "Pooled session acquired but guided gen can't reuse ChatSession cache — returning slot"
                         )
                         // Swift 6: clear refs before await to avoid data-race on chatSession
-                        // (releasePoolSlot clears pooledSession + chatSession before its await)
-                        await releasePoolSlot()
+                        if let pool = poolRefForRelease, let pooled = pooledSession {
+                            pooledSession = nil
+                            chatSession = nil
+                            await pool.release(
+                                pooled: pooled,
+                                modelId: modelId,
+                                conversationId: convKey,
+                                assistantMessage: nil
+                            )
+                        }
                     }
                     log.info("Routing through GuidedGenerationLoop with grammar constraint")
                     try await handleGuidedGeneration(
