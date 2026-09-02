@@ -164,6 +164,21 @@ func buildRouter(
         )
     }
 
+    routes.post("/v1/completions") { request, context in
+        let completionRequest = try await request.decode(
+            as: CompletionRequest.self, context: context)
+        guard !completionRequest.prompt.isEmpty else {
+            throw AppError.invalidRequest("Prompt must be a non-empty string or array of strings")
+        }
+        return try await completionsHandler(
+            request: completionRequest,
+            enginePool: enginePool,
+            scheduler: scheduler,
+            metrics: metrics,
+            logger: logger,
+        )
+    }
+
     routes.post("/v1/count-tokens") { request, context in
         let countRequest = try await request.decode(as: CountTokensRequest.self, context: context)
         guard !countRequest.prompt.isEmpty else {

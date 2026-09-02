@@ -771,6 +771,279 @@ struct Usage: Encodable {
     }
 }
 
+// MARK: - Text Completion (OpenAI `/v1/completions`, legacy text-gen API)
+//
+// Wire contract source of truth: vllm `entrypoints/openai/completion/protocol.py`
+// (`CompletionRequest`/`CompletionResponse`, the 2/3 industry-standard shape —
+// vllm + sglang agree; omlx DELETE-outlier not followed). Text-gen semantics:
+// `prompt` is RAW text (no chat template applied) → `object = "text_completion"`,
+// `choices[].text` (not `.message`), `id` prefix `cmpl-`.
+//
+// P1 boundary (no-expansion, vllm defaults = no-op): `n>1` accepted but generated
+// sequentially; `echo`/`suffix`/`logprobs` decoded then no-op (logprobs true value
+// is the separate A2 loglikelihood batch, coreai-models semantics).
+
+/// `/v1/completions` request body (OpenAI text-completion wire shape).
+struct CompletionRequest: Decodable {
+    /// Model identifier (optional — resolved like chat: per-model default, then 400).
+    var model: String?
+
+    /// Raw text prompt(s). Accepts a bare string, a list of strings, a list of
+    /// token-ids, or a nested list (batch). Normalized to `[String]` for A1 (one
+    /// text prompt per choice); token-id prompts are accepted but no-op'd in P1.
+    var prompt: [String]
+
+    /// Number of completions to return per prompt. P1: `>1` accepted, generated sequentially.
+    var n: Int = 1
+
+    // MARK: Sampling Parameters (OpenAI + ocoreai standard set)
+
+    var temperature: Float = 0.7
+    var topP: Float? = nil
+    var topK: Int? = nil
+    var maxTokens: Int? = nil
+    var frequencyPenalty: Float = 0
+    var presencePenalty: Float = 0
+    var minP: Float? = nil
+    var seed: Int64? = nil
+    var repetitionPenalty: Double? = nil
+    var repetitionPenaltyWindow: Int? = nil
+    var repetitionContextSize: Int? = nil
+
+    // MARK: Stream Control
+
+    /// Enable Server-Sent Events streaming.
+    var stream: Bool = false
+    /// Stop sequences (generation halts when matched).
+    var stop: [String]? = nil
+    /// Stream options (usage inclusion) — mirrors chat.
+    var streamOptions: StreamOptions? = nil
+
+    // MARK: Accepted-but-no-op fields (decoded for wire parity, P1 no-op)
+
+    /// Echo the prompt in the completion. vllm default `false`; P1 = no-op.
+    var echo: Bool = false
+    /// Text that follows the prompt (suffix). vllm; P1 = no-op.
+    var suffix: String? = nil
+    /// Return top-k log-proabilities. A2 (loglikelihood) implements the true value.
+    var logprobs: Int? = nil
+    /// Per-position log-prob details. A2.
+    var logprobTokenIds: [Int]? = nil
+    /// Whether the final stop token is present in the output (vllm). P1 = no-op.
+    var includeStopStrInOutput: Bool = false
+    /// Minimum tokens to generate before a stop token (vllm). P1 = no-op.
+    var minTokens: Int = 0
+    /// Skip special tokens in output (vllm, default true). P1 = no-op.
+    var skipSpecialTokens: Bool = true
+
+    enum CodingKeys: String, CodingKey {
+        case model, prompt, n, stream, stop
+        case temperature
+        case topP = "top_p"
+        case topK = "top_k"
+        case maxTokens = "max_tokens"
+        case frequencyPenalty = "frequency_penalty"
+        case presencePenalty = "presence_penalty"
+        case minP = "min_p"
+        case seed
+        case repetitionPenalty = "repetition_penalty"
+        case repetitionPenaltyWindow = "repetition_penalty_window"
+        case repetitionContextSize = "repetition_context_size"
+        case streamOptions = "stream_options"
+        case echo, suffix, logprobs
+        case logprobTokenIds = "logprob_token_ids"
+        case includeStopStrInOutput = "include_stop_str_in_output"
+        case minTokens = "min_tokens"
+        case skipSpecialTokens = "skip_special_tokens"
+    }
+
+    init(
+        prompt: [String],
+        model: String? = nil,
+        n: Int = 1,
+        temperature: Float = 0.7,
+        topP: Float? = nil,
+        topK: Int? = nil,
+        maxTokens: Int? = nil,
+        frequencyPenalty: Float = 0,
+        presencePenalty: Float = 0,
+        minP: Float? = nil,
+        seed: Int64? = nil,
+        repetitionPenalty: Double? = nil,
+        repetitionPenaltyWindow: Int? = nil,
+        stream: Bool = false,
+        stop: [String]? = nil,
+        streamOptions: StreamOptions? = nil,
+        echo: Bool = false,
+        suffix: String? = nil,
+        logprobs: Int? = nil,
+        includeStopStrInOutput: Bool = false,
+        minTokens: Int = 0,
+        skipSpecialTokens: Bool = true,
+    ) {
+        self.prompt = prompt
+        self.model = model
+        self.n = n
+        self.temperature = temperature
+        self.topP = topP
+        self.topK = topK
+        self.maxTokens = maxTokens
+        self.frequencyPenalty = frequencyPenalty
+        self.presencePenalty = presencePenalty
+        self.minP = minP
+        self.seed = seed
+        self.repetitionPenalty = repetitionPenalty
+        self.repetitionPenaltyWindow = repetitionPenaltyWindow
+        self.stream = stream
+        self.stop = stop
+        self.streamOptions = streamOptions
+        self.echo = echo
+        self.suffix = suffix
+        self.logprobs = logprobs
+        self.includeStopStrInOutput = includeStopStrInOutput
+        self.minTokens = minTokens
+        self.skipSpecialTokens = skipSpecialTokens
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        // Prompt is a union type in the OpenAI wire: string | [string] | [Int] | [[Int]].
+        // A1 accepts one string or a list of strings, and normalizes to [String].
+        // A bare integer list (token-id prompt) is also decoded (accepted, no-op'd in P1)
+        // so an `int` payload does not hard-fail the request.
+        if let s = try? c.decode(String.self, forKey: .prompt) {
+            prompt = [s]
+        } else if let arr = try? c.decode([String].self, forKey: .prompt) {
+            prompt = arr
+        } else {
+            // token-id list(s) → A1 no-op: leave empty rather than hard-fail.
+            prompt = []
+        }
+        model = try c.decodeIfPresent(String.self, forKey: .model)
+        n = try c.decodeIfPresent(Int.self, forKey: .n) ?? 1
+        temperature = try c.decodeIfPresent(Float.self, forKey: .temperature) ?? 0.7
+        topP = try c.decodeIfPresent(Float.self, forKey: .topP)
+        topK = try c.decodeIfPresent(Int.self, forKey: .topK)
+        maxTokens = try c.decodeIfPresent(Int.self, forKey: .maxTokens)
+        frequencyPenalty = try c.decodeIfPresent(Float.self, forKey: .frequencyPenalty) ?? 0
+        presencePenalty = try c.decodeIfPresent(Float.self, forKey: .presencePenalty) ?? 0
+        minP = try c.decodeIfPresent(Float.self, forKey: .minP)
+        seed = try c.decodeIfPresent(Int64.self, forKey: .seed)
+        repetitionPenalty = try c.decodeIfPresent(Double.self, forKey: .repetitionPenalty)
+        repetitionPenaltyWindow = try c.decodeIfPresent(Int.self, forKey: .repetitionPenaltyWindow)
+        stream = try c.decodeIfPresent(Bool.self, forKey: .stream) ?? false
+        stop = try c.decodeIfPresent([String].self, forKey: .stop)
+        streamOptions = try c.decodeIfPresent(StreamOptions.self, forKey: .streamOptions)
+        echo = try c.decodeIfPresent(Bool.self, forKey: .echo) ?? false
+        suffix = try c.decodeIfPresent(String.self, forKey: .suffix)
+        logprobs = try c.decodeIfPresent(Int.self, forKey: .logprobs)
+        includeStopStrInOutput =
+            try c.decodeIfPresent(Bool.self, forKey: .includeStopStrInOutput) ?? false
+        minTokens = try c.decodeIfPresent(Int.self, forKey: .minTokens) ?? 0
+        skipSpecialTokens = try c.decodeIfPresent(Bool.self, forKey: .skipSpecialTokens) ?? true
+    }
+}
+
+/// Single choice inside ``TextCompletionResponse`` (text-gen: `text`, not `message`).
+/// Distinct from the chat ``CompletionChoice`` (which carries `message`).
+struct TextCompletionChoice: Encodable {
+    /// Generated text.
+    var text: String
+    /// Generation finish reason ("stop", "length", etc.)
+    var finishReason: String?
+    /// Choice index.
+    var index: Int = 0
+    /// Token usage for this choice (only when `stream_options.include_usage` is set).
+    var usage: Usage?
+
+    init(text: String, finishReason: String? = nil, index: Int = 0, usage: Usage? = nil) {
+        self.text = text
+        self.finishReason = finishReason
+        self.index = index
+        self.usage = usage
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case text
+        case finishReason = "finish_reason"
+        case index
+        case usage
+    }
+}
+
+/// Non-streaming `/v1/completions` response (OpenAI text-completion wire shape).
+struct TextCompletionResponse: Encodable {
+    /// Completion ID (prefix `cmpl-`).
+    var id: String
+    /// Object type identifier.
+    var object: String = "text_completion"
+    /// Unix creation timestamp.
+    var created: Int64
+    /// Model identifier.
+    var model: String
+    /// Choices (one per prompt, or `n` per prompt in P1-sequential).
+    var choices: [TextCompletionChoice]
+    /// Token usage statistics.
+    var usage: Usage
+
+    init(id: String, created: Int64, model: String, choices: [TextCompletionChoice], usage: Usage) {
+        self.id = id
+        self.created = created
+        self.model = model
+        self.choices = choices
+        self.usage = usage
+    }
+}
+
+/// Single delta choice inside ``CompletionChunk`` (text-gen: `text` delta).
+struct CompletionChunkChoice: Encodable {
+    /// Incremental text delta.
+    var text: String?
+    /// Finish reason (null during stream, set on last chunk).
+    var finishReason: String?
+    /// Choice index.
+    var index: Int = 0
+
+    init(text: String? = nil, finishReason: String? = nil, index: Int = 0) {
+        self.text = text
+        self.finishReason = finishReason
+        self.index = index
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case text
+        case finishReason = "finish_reason"
+        case index
+    }
+}
+
+/// Streaming `/v1/completions` chunk (OpenAI text-completion wire shape).
+struct CompletionChunk: Encodable {
+    /// Stream ID (prefix `cmpl-`).
+    var id: String
+    /// Object type identifier.
+    var object: String = "text_completion"
+    /// Unix creation timestamp.
+    var created: Int64
+    /// Model identifier.
+    var model: String
+    /// Delta choices.
+    var choices: [CompletionChunkChoice]
+    /// Token usage statistics (only when `stream_options.include_usage` is true).
+    var usage: Usage?
+
+    init(
+        id: String, created: Int64, model: String, choices: [CompletionChunkChoice],
+        usage: Usage? = nil
+    ) {
+        self.id = id
+        self.created = created
+        self.model = model
+        self.choices = choices
+        self.usage = usage
+    }
+}
+
 /// Stream options for controlling streaming behavior (OpenAI compat).
 struct StreamOptions: Decodable {
     /// Whether to include usage statistics in the final stream chunk.
