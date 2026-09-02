@@ -6,6 +6,16 @@
 // Per-token log probability with optional top-K alternatives, Accelerate
 // vectorized log-sum-exp. Aligned with the upstream three-repo discipline:
 // the algorithm is the main-axis source, not a local invention.
+//
+// Gated to CoreAI: the algorithm consumes `LogitsScalarType` (logits vectors),
+// which only exists inside the CoreAI engine tree (#if canImport(CoreAI) in
+// CoreAIEngine.swift). Upstream this file lives in CoreAILanguageModels, a
+// module built only with the CoreAI engine (LogitsScalarType in-module). The
+// single-module equivalent of that isolation is this gate — ungated, the type
+// is unresolvable on runners without CoreAI and the build fails. Consumers
+// (CompletionsHandler loglikelihood path) are likewise CoreAI-gated.
+
+#if canImport(CoreAI)
 
 import Accelerate
 import Foundation
@@ -172,3 +182,5 @@ struct LogProbabilities: Sendable {
         return topK.reversed().map { (tokenId: Int32($0.idx), value: Double($0.val) - logSumExp) }
     }
 }
+
+#endif  // canImport(CoreAI)
