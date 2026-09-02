@@ -955,12 +955,19 @@ struct TextCompletionChoice: Encodable {
     var index: Int = 0
     /// Token usage for this choice (only when `stream_options.include_usage` is set).
     var usage: Usage?
+    /// A2 (loglikelihood) — per-token logprob details. Aligned with
+    /// coreai-models `CompletionResponse.CompletionChoice.logprobs`.
+    var logprobs: LogprobsResult?
 
-    init(text: String, finishReason: String? = nil, index: Int = 0, usage: Usage? = nil) {
+    init(
+        text: String, finishReason: String? = nil, index: Int = 0, usage: Usage? = nil,
+        logprobs: LogprobsResult? = nil
+    ) {
         self.text = text
         self.finishReason = finishReason
         self.index = index
         self.usage = usage
+        self.logprobs = logprobs
     }
 
     enum CodingKeys: String, CodingKey {
@@ -968,6 +975,36 @@ struct TextCompletionChoice: Encodable {
         case finishReason = "finish_reason"
         case index
         case usage
+        case logprobs
+    }
+}
+
+/// A2 (loglikelihood) — per-token logprob result.
+/// Aligned with coreai-models `CompletionResponse.LogprobsResult`
+/// (CoreAILMCommon/CompletionTypes.swift, 8cec4f8). Field shapes are the
+/// OpenAI-compatible `logprobs` payload: `tokens` / `token_logprobs` /
+/// `top_logprobs` / `text_offset`.
+struct LogprobsResult: Encodable, Sendable {
+    let tokens: [String]
+    let tokenLogprobs: [Double?]
+    let topLogprobs: [[String: Double]?]
+    let textOffset: [Int]
+
+    init(
+        tokens: [String], tokenLogprobs: [Double?], topLogprobs: [[String: Double]?],
+        textOffset: [Int]
+    ) {
+        self.tokens = tokens
+        self.tokenLogprobs = tokenLogprobs
+        self.topLogprobs = topLogprobs
+        self.textOffset = textOffset
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case tokens
+        case tokenLogprobs = "token_logprobs"
+        case topLogprobs = "top_logprobs"
+        case textOffset = "text_offset"
     }
 }
 
