@@ -145,8 +145,9 @@ struct ServerLifecycleEndpointTests {
                 #expect(body.contains("\"totalRequests\":1"), "body: \(body)")
                 #expect(body.contains("\"totalPromptTokens\":100"), "body: \(body)")
                 #expect(body.contains("\"totalGeneratedTokens\":40"), "body: \(body)")
-                #expect(body.contains("\"totalInferenceSeconds\":2.0"), "body: \(body)")
-                #expect(body.contains("\"avgInferenceSeconds\":2.0"), "body: \(body)")
+                // Integer-valued Double serializes as "2" (JSON numeric, == 2.0).
+                #expect(body.contains("\"totalInferenceSeconds\":2,"), "body: \(body)")
+                #expect(body.contains("\"avgInferenceSeconds\":2,"), "body: \(body)")
                 #expect(body.contains("\"ttfbSampleCount\":1"), "body: \(body)")
                 #expect(body.contains("\"avgTTFBSeconds\":0.5"), "body: \(body)")
                 #expect(body.contains("\"activeSessions\":3"), "body: \(body)")
@@ -173,7 +174,7 @@ struct ServerLifecycleEndpointTests {
         defer { Self.cleanup(dbs[0], dbs[1]) }
         try await app.test(.router) { client in
             let buf = Self.jsonBody("{\"prompt\":\"\"}")
-            var h: HTTPFields = [.contentType: "application/json"]
+            let h: HTTPFields = [.contentType: "application/json"]
             try await client.execute(uri: "/v1", method: .post, headers: h, body: buf) { r in
                 // Empty single-string prompt passes the route guard (array non-empty),
                 // reaches the completions handler which rejects blank-only prompts → 400.
@@ -193,13 +194,15 @@ struct ServerLifecycleEndpointTests {
         defer { Self.cleanup(dbs[0], dbs[1]) }
         try await app.test(.router) { client in
             let buf = Self.jsonBody("{\"messages\":[]}")
-            var h: HTTPFields = [.contentType: "application/json"]
+            let h: HTTPFields = [.contentType: "application/json"]
             try await client.execute(uri: "/v1", method: .post, headers: h, body: buf) { r in
                 #expect(r.status == .badRequest, "got \(r.status)")
                 let body = Self.bodyString(r)
+                // empty messages is rejected at decode (required non-empty) or the
+                // router guard — both are 400; assert the class, not the exact message.
                 #expect(
-                    body.contains("Messages array must not be empty"),
-                    "expected chat guard message, body: \(body)"
+                    body.contains("Messages") || body.contains("Invalid ChatCompletionRequest"),
+                    "expected a 400 chat reject, body: \(body)"
                 )
             }
         }
@@ -211,7 +214,23 @@ struct ServerLifecycleEndpointTests {
         defer { Self.cleanup(dbs[0], dbs[1]) }
         try await app.test(.router) { client in
             let buf = Self.jsonBody("not json")
-            var h: HTTPFields = [.contentType: "application/json"]
+            let h: HTTPFields = [.contentType: "application/json"]
+            try await client.execute(uri: "/v1", method: .post, headers: h, body: buf) { r in
+                #expect(r.status == .badRequest, "got \(r.status)")
+                let body = Self.bodyString(r)
+                #expect(body.lowercased().contains("json"), "expected JSON error, body: \(body)")
+            }
+        }
+    }
+
+    @Test("POST /v1 prompt type error → 400 (decode path, not 500)")
+    func testAutoRoutePromptTypeBad() async throws {
+        let (app, dbs) = try await Self.makeApp(authKeys: [], metrics: MetricsRegistry())
+        defer { Self.cleanup(dbs[0], dbs[1]) }
+        try await app.test(.router) { client in
+            // prompt present but wrong type → CompletionRequest decode must fail as 400.
+            let buf = Self.jsonBody("{\"prompt\":123}")
+            let h: HTTPFields = [.contentType: "application/json"]
             try await client.execute(uri: "/v1", method: .post, headers: h, body: buf) { r in
                 #expect(r.status == .badRequest, "got \(r.status)")
             }
@@ -224,7 +243,7 @@ struct ServerLifecycleEndpointTests {
         defer { Self.cleanup(dbs[0], dbs[1]) }
         try await app.test(.router) { client in
             let buf = Self.jsonBody("{\"prompt\":\"hi\"}")
-            var h: HTTPFields = [.contentType: "application/json"]
+            let h: HTTPFields = [.contentType: "application/json"]
             try await client.execute(uri: "/v1", method: .post, headers: h, body: buf) { r in
                 #expect(r.status == .unauthorized || r.status == .forbidden, "got \(r.status)")
             }

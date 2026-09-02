@@ -249,9 +249,18 @@ func buildRouter(
         let data = Data(bodyBuffer.readableBytesView)
         // Sniff the dispatch key (a lightweight key-existence check, not a full
         // decode) — mirrors the llm-server handleAutoRoute contract.
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        if json?["prompt"] != nil {
-            let completionRequest = try JSONDecoder().decode(CompletionRequest.self, from: data)
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            // Malformed JSON is a client error: 400, not a 500 via raw SerializationError.
+            throw AppError.invalidRequest("Body is not valid JSON")
+        }
+        if json["prompt"] != nil {
+            // Decode failures (wrong prompt type, etc.) are 400, not 500 via raw DecodingError.
+            guard
+                let completionRequest = try? JSONDecoder().decode(
+                    CompletionRequest.self, from: data)
+            else {
+                throw AppError.invalidRequest("Invalid CompletionsRequest JSON")
+            }
             guard !completionRequest.prompt.isEmpty else {
                 throw AppError.invalidRequest(
                     "Prompt must be a non-empty string or array of strings")
@@ -264,7 +273,10 @@ func buildRouter(
                 logger: logger,
             )
         }
-        let chatRequest = try JSONDecoder().decode(ChatCompletionRequest.self, from: data)
+        guard let chatRequest = try? JSONDecoder().decode(ChatCompletionRequest.self, from: data)
+        else {
+            throw AppError.invalidRequest("Invalid ChatCompletionRequest JSON")
+        }
         guard !chatRequest.messages.isEmpty else {
             throw AppError.invalidRequest("Messages array must not be empty")
         }
