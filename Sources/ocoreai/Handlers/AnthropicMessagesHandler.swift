@@ -186,19 +186,27 @@ func anthropicMessagesHandler(
 
     // ═══════════════════════════════════════════════════════
 
-    // Phase 2: Build messages + tokenize
+    // Phase 2: Build messages + input token count
     // ═══════════════════════════════════════════════════════
     let fullMessages = try buildAnthropicMessageList(request: request, handle: handle)
 
-    let tokens: [Int32]
+    /// Input token count (metrics) — tokenize or CJK-heuristic (chat Phase 3).
+    /// On the MLX axis the tokenizer registry is empty (real tokenizer lives in
+    /// the engine), so we gracefully fall back to a character-based estimate
+    /// instead of blocking the request — same discipline as Chat/Completions.
+    var inputTokenCount: Int
     do {
-        tokens = try await handle.tokenize(messages: fullMessages)
+        let tok = try await handle.tokenize(messages: fullMessages)
+        inputTokenCount = max(1, tok.count)
     } catch {
-        throw AppError.tokenizationFailed(error.localizedDescription)
+        logger.warning(
+            "Tokenization failed, using heuristic estimate for metrics — \(error.localizedDescription)"
+        )
+        inputTokenCount = estimatePromptTokensFallback(fullMessages)
     }
 
-    guard !tokens.isEmpty else {
-        throw AppError.tokenizationFailed("Empty token output for model '\(modelId)'")
+    guard inputTokenCount > 0 else {
+        throw AppError.invalidRequest("Empty prompt for model '\(modelId)'")
     }
 
     // ═══════════════════════════════════════════════════════
@@ -234,7 +242,7 @@ func anthropicMessagesHandler(
     if request.stream == true {
         return try await streamAnthropicResponse(
             handle: handle,
-            tokens: tokens,
+            inputTokenCount: inputTokenCount,
             messages: fullMessages,
             sampling: sampling,
             options: inferenceOpts,
@@ -247,7 +255,7 @@ func anthropicMessagesHandler(
     } else {
         return try await nonStreamAnthropicResponse(
             handle: handle,
-            tokens: tokens,
+            inputTokenCount: inputTokenCount,
             messages: fullMessages,
             sampling: sampling,
             options: inferenceOpts,
@@ -262,9 +270,26 @@ func anthropicMessagesHandler(
 
 // MARK: - Message Construction
 
-/// Build message list with Anthropic conventions:
-/// - system prompt injected as system message
-/// - tool definitions prepended if tools present
+/// CJK-aware prompt-token heuristic — P1-fix mirror of the inline
+/// fallback in `ChatHandler` (bytes/3 for CJK-heavy, bytes/4 for Latin).
+///
+/// `internal` (not `private`) so the exact-value contract is directly
+/// unit-tested — `AnthropicInputTokenEstimateTests`. Out of the public
+/// API surface deliberately: it is a metrics heuristic, not an API.
+func estimatePromptTokensFallback(_ messages: [Message]) -> Int {
+    /// P1-fix: CJK-aware estimation — UTF-8 bytes/4 overestimates for CJK text.
+    /// Use bytes/3 for CJK-heavy content, bytes/4 for Latin-heavy.
+    let totalBytes = messages.reduce(0) { $0 + $1.textContent().utf8.count }
+    let totalChars = messages.reduce(0) { $0 + $1.textContent().count }
+    guard totalChars > 0 else { return 0 }
+    let avgBytesPerChar = Double(totalBytes) / Double(totalChars)
+    let divisor = avgBytesPerChar > 1.5 ? 3 : 4
+    return max(1, Int(Double(totalBytes) / Double(divisor)))
+}
+
+/// Build the inference message list from an Anthropic request:
+/// - system prompt injected as the leading system message
+/// - tool definitions prepended if present
 private func buildAnthropicMessageList(
     request: AnthropicMessageRequest,
     handle _: EngineHandle,
@@ -329,7 +354,7 @@ private func buildAnthropicMessageList(
 /// Handle non-streaming Anthropic Messages request.
 private func nonStreamAnthropicResponse(
     handle: EngineHandle,
-    tokens: [Int32],
+    inputTokenCount: Int,
     messages: [Message],
     sampling: SamplingConfiguration,
     options: InferenceOptions,
@@ -454,11 +479,11 @@ private func nonStreamAnthropicResponse(
     let elapsed = Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
     await metrics.observeInferenceDuration(elapsed / 1000.0)
     await metrics.incrementTokens(kind: "generated", count: totalOutputTokens)
-    await metrics.incrementTokens(kind: "prompt", count: tokens.count)
+    await metrics.incrementTokens(kind: "prompt", count: inputTokenCount)
 
     // Build Anthropic response
     let assistantContent = AnthropicAssistantContent(text: content)
-    let usage = AnthropicUsage(inputTokens: tokens.count, outputTokens: totalOutputTokens)
+    let usage = AnthropicUsage(inputTokens: inputTokenCount, outputTokens: totalOutputTokens)
 
     let response = AnthropicMessageResponse(
         id: requestId,
@@ -482,7 +507,7 @@ private func nonStreamAnthropicResponse(
 /// Handle streaming Anthropic Messages request.
 private func streamAnthropicResponse(
     handle: EngineHandle,
-    tokens: [Int32],
+    inputTokenCount: Int,
     messages: [Message],
     sampling: SamplingConfiguration,
     options: InferenceOptions,
@@ -532,7 +557,7 @@ private func streamAnthropicResponse(
                 content: [],
                 model: modelId,
                 stopReason: nil,
-                usage: AnthropicUsage(inputTokens: tokens.count, outputTokens: 0),
+                usage: AnthropicUsage(inputTokens: inputTokenCount, outputTokens: 0),
             )
             let messageStart = AnthropicStreamEvent.messageStart(message: startResponse)
             writeSSEEvent(continuation, event: messageStart)
@@ -576,7 +601,8 @@ private func streamAnthropicResponse(
                                 let errorEvent = AnthropicStreamEvent(
                                     type: "error", index: nil, message: nil, delta: nil,
                                     usage: AnthropicStreamUsage(
-                                        outputTokens: totalOutputTokens, inputTokens: tokens.count),
+                                        outputTokens: totalOutputTokens,
+                                        inputTokens: inputTokenCount),
                                 )
                                 writeSSEEvent(continuation, event: errorEvent)
                                 continuation.finish()
@@ -602,7 +628,8 @@ private func streamAnthropicResponse(
                                 let errorEvent = AnthropicStreamEvent(
                                     type: "error", index: nil, message: nil, delta: nil,
                                     usage: AnthropicStreamUsage(
-                                        outputTokens: totalOutputTokens, inputTokens: tokens.count),
+                                        outputTokens: totalOutputTokens,
+                                        inputTokens: inputTokenCount),
                                 )
                                 writeSSEEvent(continuation, event: errorEvent)
                                 continuation.finish()
@@ -658,7 +685,7 @@ private func streamAnthropicResponse(
 
             // Emit message_stop with final usage
             let finalEvent = AnthropicStreamEvent.messageStop(
-                inputTokens: tokens.count,
+                inputTokens: inputTokenCount,
                 outputTokens: totalOutputTokens,
             )
             writeSSEEvent(continuation, event: finalEvent)
@@ -669,7 +696,7 @@ private func streamAnthropicResponse(
                 Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
             await metrics.observeInferenceDuration(elapsed / 1000.0)
             await metrics.incrementTokens(kind: "generated", count: totalOutputTokens)
-            await metrics.incrementTokens(kind: "prompt", count: tokens.count)
+            await metrics.incrementTokens(kind: "prompt", count: inputTokenCount)
 
         } catch {
             // On error, write a single error event

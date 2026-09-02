@@ -304,19 +304,23 @@ struct SendableSafetyTests {
     @Test("concurrent session ops from TaskGroup do not crash")
     func concurrentAccess() async {
         let model = makeLoadedModel()
+        // One task = one session's lifetime: acquire → hold → release.
+        // Tasks still overlap (the point: cross-task atomicity must hold),
+        // but each release pairs with its own completed acquire. The
+        // global-unordered variant (all 20 releases allowed to land before
+        // any acquire) is NOT a valid model: `releaseSession` is clamped at
+        // zero by P0 design to survive unmatched releases on error paths,
+        // so a dropped decrement there is intentional — not a race to assert
+        // against.
         await withTaskGroup(of: Void.self) { group in
             for _ in 0 ..< 20 {
                 group.addTask {
                     model.acquireSession()
-                }
-            }
-            for _ in 0 ..< 20 {
-                group.addTask {
                     model.releaseSession()
                 }
             }
         }
-        // Acquires and releases balanced — counter must be zero
+        // Every pair completed — counter must be zero
         #expect(model.activeSessions == 0)
     }
 }
