@@ -116,7 +116,21 @@ let package = Package(
         //     ocoreai 0 消费 (free rider)。
         // Re-evaluate at each upstream main bump: re-grep `Generation` switch
         // sites and confirm exhaustiveness before building.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "0f25e86"),
+        // 0f25e86 → 5694a2f (drift absorb, 09-03): 2 commits, direct-ancestry
+        // forward bump (0f25e86 is ancestor of 5694a2f), both read:
+        //   - #579 (1c1b257): Suspend instead of blocking cooperative threads
+        //       while weights load. Adds `loadWeights(...) async` overload
+        //       (hops to global queue, suspends caller) + all 6 factories
+        //       (MLXLLM/MLXVLM/MLXEmbedders/MTPDrafter/ModelConversion) flip
+        //       sync→`async` `loadWeights`. Pure additions (no API removal),
+        //       ocoreai consumes via MLXLanguageModel.preload()/loadContainer()
+        //       → factories — inherits the cooperative-thread-suspend fix for
+        //       free, zero ocoreai code change.
+        //   - #599 (5694a2f): Harden test fixtures — tests only, no source.
+        // Exhaustiveness sweep (protocol §15.3): neither commit adds a public
+        // enum case on an ocoreai-switched type; #579's only public surface is
+        // the new async overload (additive). #599 touches no Libraries/ source.
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "5694a2f"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
