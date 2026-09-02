@@ -89,6 +89,7 @@ struct InferenceEvent {
         case done(
             StopReason,
             tokenCount: Int?,
+            promptTokenCount: Int? = nil,
             tokPerSec: Double? = nil,
             promptTokPerSec: Double? = nil,
             reasoningTokenCount: Int? = nil,

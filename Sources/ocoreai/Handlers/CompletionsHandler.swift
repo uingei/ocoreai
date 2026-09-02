@@ -295,7 +295,7 @@ private func generateTextCompletion(
             acc += t
             tokens += 1
             await onText(t)
-        case .done(let reason, let tokenCount, _, _, _, _, _, _):
+        case .done(let reason, let tokenCount, let promptTokenCount, _, _, _, _, _, _):
             if let tokenCount {
                 tokens = tokenCount
             }

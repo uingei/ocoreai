@@ -452,7 +452,7 @@ extension DirectInferenceClient {
                             isComplete: false, reasoningContent: reasoningText,
                             phase: reasoningPhase))
                 case .done(
-                    let reason, let tokenCount, let tokPS, let ptokPs,
+                    let reason, let tokenCount, let promptTokenCount, let tokPS, let ptokPs,
                     let reasoningTC, let proposed, let accepted, let passthrough):
                     finishReason = stopReasonToString(reason) ?? "stop"
                     // Use actual token count from upstream .info/.done — per-event
@@ -702,7 +702,7 @@ extension DirectInferenceClient {
             case .text(let text):
                 outputTok += 1
                 accumulatedText += text
-            case .done(_, let tokenCount, _, _, _, _, _, _):
+            case .done(_, let tokenCount, _, _, _, _, _, _, _):
                 if let tokenCount {
                     outputTok = tokenCount
                 }

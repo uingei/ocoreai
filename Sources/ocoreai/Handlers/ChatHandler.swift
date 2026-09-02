@@ -658,6 +658,10 @@ private func nonStreamWithToolCalling(
     /// mlx-swift-lm + coreai-models completion info) → OpenAI
     /// `completion_tokens_details.reasoning_tokens`.
     var finalReasoningTokens: Int? = nil
+    /// True input-token count (upstream GenerateCompletionInfo.promptTokenCount)
+    /// surfaced via the engine .done channel. nil → wire keeps the pre-flight
+    /// estimate (real tokenizer when available, else the bytes/3|4 heuristic).
+    var observedPromptTokens: Int? = nil
 
     do {
         for try await event in tokenStream {
@@ -667,9 +671,14 @@ private func nonStreamWithToolCalling(
             case .text(let text):
                 accumulatedContent += text
                 totalOutputTokens += 1
-            case .done(let reason, let tokenCount, _, _, _, let reasoningTokenCount, _, _):
+            case .done(
+                let reason, let tokenCount, let donePromptTC, _, _, let reasoningTokenCount, _, _, _
+            ):
                 if let tokenCount {
                     totalOutputTokens = tokenCount
+                }
+                if let donePromptTC {
+                    observedPromptTokens = donePromptTC
                 }
                 finalReasoningTokens = reasoningTokenCount
                 finishReason =
@@ -754,7 +763,7 @@ private func nonStreamWithToolCalling(
                             accTokens.append(id)
                         case .text(let txt):
                             accText = (accText ?? "") + txt
-                        case .done(_, _, _, _, _, _, _, _):
+                        case .done(_, _, _, _, _, _, _, _, _):
                             break
                         case .error(let msg):
                             logger.warning("Self-correction re-gen error: \(msg)")
@@ -818,9 +827,10 @@ private func nonStreamWithToolCalling(
     /// Record inference metrics.
     let dur = startTime.duration(to: ContinuousClock.now)
     let elapsed = Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
+    let observedInputTokens = observedPromptTokens ?? promptTokenCount
     await metrics.observeInferenceDuration(elapsed / 1000.0)
     await metrics.incrementTokens(kind: "generated", count: totalOutputTokens)
-    await metrics.incrementTokens(kind: "prompt", count: promptTokenCount)
+    await metrics.incrementTokens(kind: "prompt", count: observedInputTokens)
 
     /// Post-inference quality signal → ThinkingBudget calibration loop.
     // Complexity is cached in MessageBuilder from the buildMessages call upstream.
@@ -854,7 +864,7 @@ private func nonStreamWithToolCalling(
         model: modelId,
         choices: [choice],
         usage: Usage(
-            input: promptTokenCount,
+            input: observedInputTokens,
             output: totalOutputTokens,
             reasoningTokens: finalReasoningTokens
         ),
@@ -867,7 +877,7 @@ private func nonStreamWithToolCalling(
             messages: messages,
             assistantContent: finalContent,
             modelId: modelId,
-            promptTokens: promptTokenCount,
+            promptTokens: observedInputTokens,
             outputTokens: totalOutputTokens,
             compressor: sessionCompressor,
             semanticSearch: semanticSearch,
@@ -963,6 +973,9 @@ private func streamWithToolCalling(
         /// Reasoning tokens from upstream `.done(reasoningTokenCount:)` →
         /// `completion_tokens_details.reasoning_tokens` in the usage chunk.
         var finalReasoningTokens: Int? = nil
+        /// True input-token count via the engine .done channel (upstream
+        /// GenerateCompletionInfo.promptTokenCount). nil → keep the pre-flight estimate.
+        var observedPromptTokens: Int? = nil
         /// Batch decode interval — detokenize every N tokens to avoid O(n²).
         let decodeBatchSize = 8
 
@@ -1074,7 +1087,9 @@ private func streamWithToolCalling(
                     _ = yieldSSE(tChunk, to: continuation)
 
                 /// .done — flush remaining tokens, detect tool calls, send stop chunk.
-                case .done(let reason, let doneTokenCount, _, _, _, let reasoningTokenCount, _, _):
+                case .done(
+                    let reason, let doneTokenCount, let donePromptTC, _, _, let reasoningTokenCount,
+                    _, _, _):
                     // Authoritative token count from the engine (both MLX and CoreAI
                     // paths emit it from tokenization truth). Streaming accumulated
                     // per-event estimates — a `.text` chunk is a detokenized batch, a
@@ -1082,6 +1097,9 @@ private func streamWithToolCalling(
                     // the non-streaming path (L670-673) and DirectInferenceClient.
                     if let doneTokenCount {
                         totalOutputTokens = doneTokenCount
+                    }
+                    if let donePromptTC {
+                        observedPromptTokens = donePromptTC
                     }
                     finalReasoningTokens = reasoningTokenCount
                     /// Final flush: detokenize any remaining tokens not yet emitted.
@@ -1174,7 +1192,7 @@ private func streamWithToolCalling(
                             model: modelId,
                             choices: [],
                             usage: Usage(
-                                input: promptTokenCount,
+                                input: observedPromptTokens ?? promptTokenCount,
                                 output: totalOutputTokens,
                                 reasoningTokens: finalReasoningTokens
                             ),
@@ -1295,7 +1313,7 @@ private func streamWithToolCalling(
         }
         await metrics.observeInferenceDuration(
             ms: inferenceDurationMs,
-            inputTokens: promptTokenCount,
+            inputTokens: observedPromptTokens ?? promptTokenCount,
             outputTokens: totalOutputTokens,
             ttfbMs: String(format: "%.1f", ttfbMsVal),
             modelId: modelId,
@@ -1307,7 +1325,7 @@ private func streamWithToolCalling(
             messages: messages,
             assistantContent: prevDecodedText,
             modelId: modelId,
-            promptTokens: promptTokenCount,
+            promptTokens: observedPromptTokens ?? promptTokenCount,
             outputTokens: totalOutputTokens,
             compressor: sessionCompressor,
             semanticSearch: semanticSearch,

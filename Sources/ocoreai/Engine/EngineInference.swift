@@ -664,6 +664,7 @@ extension EnginePool {
                             kind: .done(
                                 stopReason,
                                 tokenCount: metrics.generatedTokenCount,
+                                promptTokenCount: metrics.promptTokenCount,
                                 tokPerSec: metrics.generatedTokenCount > 0
                                     ? Double(metrics.generatedTokenCount)
                                         / (Double(metrics.overallMs) / 1000.0)
@@ -2869,6 +2870,7 @@ extension EnginePool {
                     var localStopReason: StopReason?
                     var localGenerationTokPerSec: Double?
                     var localPromptTokPerSec: Double?
+                    var localPromptTokenCount: Int?
                     var localProposedDraftTokens: Int?
                     var localAcceptedDraftTokens: Int?
                     var localPassthroughReason: String?
@@ -3071,6 +3073,7 @@ extension EnginePool {
                                     kind: .done(
                                         StopReason.cancelled,
                                         tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
+                                        promptTokenCount: localPromptTokenCount,
                                         tokPerSec: cancelTokPerSec,
                                         promptTokPerSec: localPromptTokPerSec,
                                         reasoningTokenCount: min(
@@ -3218,6 +3221,7 @@ extension EnginePool {
                                             StopReason.cancelled,
                                             tokenCount: actualTokenCount
                                                 ?? metrics.generatedTokenCount,
+                                            promptTokenCount: localPromptTokenCount,
                                             tokPerSec: mtpCancelTokPerSec,
                                             promptTokPerSec: localPromptTokPerSec,
                                             reasoningTokenCount: min(
@@ -3307,6 +3311,11 @@ extension EnginePool {
                                 }
                             case .info(let completionInfo):
                                 localTokenCount = completionInfo.generationTokenCount
+                                // True input-token count (upstream Evaluate.swift GenerateCompletionInfo.promptTokenCount,
+                                // `inputText.tokens.size`) — the wire-accurate `usage.input` value on the MLX axis.
+                                // Handlers currently use a bytes/3|4 heuristic (tokenize throws on MLX — no real
+                                // tokenizer registered); override with this when present (`.done.promptTokenCount`).
+                                localPromptTokenCount = completionInfo.promptTokenCount
                                 // Capture both throughput metrics from upstream GenerateCompletionInfo
                                 localPromptTokPerSec = completionInfo.promptTokensPerSecond
                                 localGenerationTokPerSec = completionInfo.tokensPerSecond
@@ -3380,6 +3389,7 @@ extension EnginePool {
                                             localStopReason ?? .maxTokens,
                                             tokenCount: actualTokenCount
                                                 ?? metrics.generatedTokenCount,
+                                            promptTokenCount: localPromptTokenCount,
                                             tokPerSec: errTokPerSec,
                                             promptTokPerSec: localPromptTokPerSec,
                                             reasoningTokenCount: min(
@@ -3475,6 +3485,7 @@ extension EnginePool {
                                 kind: .done(
                                     lastStopReason ?? .maxTokens,
                                     tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
+                                    promptTokenCount: localPromptTokenCount,
                                     tokPerSec: generationTokPerSec,
                                     promptTokPerSec: promptTokPerSec,
                                     reasoningTokenCount: min(
@@ -3513,6 +3524,8 @@ extension EnginePool {
                     let passthroughReason: String?
                     // Collected assistant response text for pool message history tracking
                     let accumulatedText: String?
+                    // True input-token count (upstream GenerateCompletionInfo.promptTokenCount)
+                    let promptTokenCount: Int?
                 }
 
                 // SAFETY: [Chat.Message] is non-Sendable — snapshot as Sendable
@@ -3600,6 +3613,7 @@ extension EnginePool {
                             var localStdProposedDraftTokens: Int?
                             var localStdAcceptedDraftTokens: Int?
                             var localStdPassthroughReason: String?
+                            var localPromptTokenCount: Int?
 
                             // Std reasoning: generateTokensTask() returns (AsyncStream, Task)
                             // P1 (ThinkingBudget hard-budget): Build GenerationComponents with
@@ -3646,6 +3660,7 @@ extension EnginePool {
                                                 .cancelled,
                                                 tokenCount: localStdTokenCount
                                                     ?? metrics.generatedTokenCount,
+                                                promptTokenCount: localPromptTokenCount,
                                                 tokPerSec: localStdGenTokPerSec,
                                                 promptTokPerSec: localStdPromptTokPerSec,
                                                 reasoningTokenCount: min(
@@ -3710,6 +3725,7 @@ extension EnginePool {
                                     }
                                 case .info(let info):
                                     localStdTokenCount = info.generationTokenCount
+                                    localPromptTokenCount = info.promptTokenCount
                                     localStdPromptTokPerSec = info.promptTokensPerSecond
                                     localStdGenTokPerSec = info.tokensPerSecond
                                     localStdStopReason =
@@ -3758,7 +3774,8 @@ extension EnginePool {
                                 acceptedDraftTokens: localStdAcceptedDraftTokens,
                                 passthroughReason: localStdPassthroughReason,
                                 accumulatedText: localStdAccumulated.isEmpty
-                                    ? nil : localStdAccumulated
+                                    ? nil : localStdAccumulated,
+                                promptTokenCount: localPromptTokenCount
                             )
                         }
                     } catch {
@@ -3805,14 +3822,12 @@ extension EnginePool {
                                 kind: .done(
                                     lastStopReason ?? .eos,
                                     tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
+                                    promptTokenCount: stdResult.promptTokenCount,
                                     tokPerSec: generationTokPerSec,
                                     promptTokPerSec: promptTokPerSec,
                                     reasoningTokenCount: min(
                                         stdResult.reasoningTokenCount,
-                                        actualTokenCount ?? metrics.generatedTokenCount)
-                                )
-                            )
-                        )
+                                        actualTokenCount ?? metrics.generatedTokenCount))))
                     }
 
                     // MARK: - Standard ChatSession Path (non-reasoning fallback)
@@ -3826,6 +3841,9 @@ extension EnginePool {
                     var localStdProposedDraftTokens: Int?
                     var localStdAcceptedDraftTokens: Int?
                     var localStdPassthroughReason: String?
+                    // True input-token count (upstream GenerateCompletionInfo.promptTokenCount),
+                    // captured from this branch's .info. nil → wire keeps pre-flight estimate.
+                    var localPromptTokenCount: Int?
 
                     // ChatSession's KV cache already holds context from previous rounds.
                     // newMessages (set above) contains only what's not yet cached:
@@ -3883,6 +3901,7 @@ extension EnginePool {
                             if actualTokenCount == nil {
                                 actualTokenCount = completionInfo.generationTokenCount
                             }
+                            localPromptTokenCount = completionInfo.promptTokenCount
                             // Capture both throughput metrics from upstream GenerateCompletionInfo
                             promptTokPerSec = completionInfo.promptTokensPerSecond
                             generationTokPerSec = completionInfo.tokensPerSecond
@@ -3922,6 +3941,7 @@ extension EnginePool {
                                 kind: .done(
                                     lastStopReason ?? .eos,
                                     tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
+                                    promptTokenCount: localPromptTokenCount,
                                     tokPerSec: generationTokPerSec,
                                     promptTokPerSec: promptTokPerSec,
                                     reasoningTokenCount: 0,
