@@ -91,6 +91,27 @@ func completionsHandler(
         }
     }
 
+    /// A2 loglikelihood — `logprobs` requests score per-token log probabilities
+    /// (coreai-models CompletionHandler contract) rather than generate.
+    /// `#if canImport(CoreAI)` guards the engine-side path: outside CoreAI the
+    /// wire still accepts the field (parity) and 501s via `AppError.logitsUnsupported`.
+    if request.logprobs != nil {
+        #if canImport(CoreAI)
+        if #available(macOS 27.0, iOS 27.0, *) {
+            return try await completionsLoglikelihood(
+                enginePool: enginePool,
+                prompts: prompts,
+                request: request,
+                modelId: modelId,
+                logger: logger,
+            )
+        }
+        throw AppError.logitsUnsupported
+        #else
+        throw AppError.logitsUnsupported
+        #endif
+    }
+
     /// Scheduler admission (parallelism + OOM gate).
     let schedulingRequest = SchedulingRequest(
         id: "req-\(UUID().uuidString.prefix(8))",
@@ -485,3 +506,69 @@ private func completionsBlockedResponse(
         body: .init(contentsOf: [ByteBuffer(data: data)]),
     )
 }
+
+// MARK: - A2 loglikelihood (coreai-models CompletionHandler contract)
+
+/// Engine-side gate: `EnginePool.collectLogits` (and its result type) exist
+/// only inside `#if canImport(CoreAI)` (EngineLogprobs.swift) — so does this.
+#if canImport(CoreAI)
+
+/// Score per-token log probabilities for each prompt — the A2 wire form of
+/// `logprobs` on `POST /v1/completions` (upstream coreai-models b11ac19,
+/// `handleLoglikelihood` L66-111: topN clamp, sequential per-prompt scoring,
+/// `object="text_completion"`, `finish_reason="stop"`).
+///
+/// Thin handler: all engine work delegates to ``EnginePool/collectLogits``
+/// (engine-side contract in EngineLogprobs.swift, copy-first from upstream).
+@available(macOS 27.0, iOS 27.0, *)
+private func completionsLoglikelihood(
+    enginePool: EnginePool,
+    prompts: [String],
+    request: CompletionRequest,
+    modelId: String,
+    logger: Logger,
+) async throws -> Response {
+    let created = Int64(Date().timeIntervalSince1970)
+    let requestId = "cmpl-\(UUID().uuidString.prefix(24))"
+
+    /// Upstream L74: `topN = min(logprobs ?? 1, 20)`.
+    let topN = min(request.logprobs ?? 1, 20)
+    let wantsEcho = request.echo
+
+    var choices: [TextCompletionChoice] = []
+    var totalPromptTokens = 0
+    var choiceIdx = 0
+    for prompt in prompts {
+        let r = try await enginePool.collectLogits(
+            modelId: modelId,
+            text: prompt,
+            topN: topN,
+            echo: wantsEcho,
+        )
+        totalPromptTokens += r.promptTokens
+        choices.append(
+            TextCompletionChoice(
+                text: r.text, finishReason: "stop", index: choiceIdx, logprobs: r.logprobs))
+        choiceIdx += 1
+    }
+
+    let response = TextCompletionResponse(
+        id: requestId,
+        created: created,
+        model: modelId,
+        choices: choices,
+        usage: Usage(input: totalPromptTokens, output: 0),
+    )
+
+    var headers: HTTPFields = [:]
+    headers[.contentType] = "application/json"
+    let body = try JSONEncoder().encode(response)
+    logger.debug(
+        "loglikelihood: \(prompts.count) prompt(s), topN=\(topN), echo=\(wantsEcho)")
+    return Response(
+        status: .ok,
+        headers: headers,
+        body: .init(contentsOf: [ByteBuffer(data: body)]),
+    )
+}
+#endif

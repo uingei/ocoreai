@@ -1496,6 +1496,13 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// Service Unavailable — session limit exceeded
     case sessionLimitExceeded
 
+    /// Not Implemented — engine cannot score logprobs (no logits output).
+    /// A2 loglikelihood path; upstream coreai-models 501 "Logprobs not supported".
+    case logitsUnsupported
+
+    /// Too Many Requests — single-slot engine busy (loglikelihood scoring).
+    case engineBusy
+
     /// ``CustomStringConvertible`` description (used in logs)
     var description: String {
         switch self {
@@ -1512,6 +1519,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         case .toolCallFailed(let msg): "Tool call failed: \(msg)"
         case .sessionExpired(let id): "Session - \(id) expired"
         case .sessionLimitExceeded: "Session limit exceeded"
+        case .logitsUnsupported: "Logprobs not supported by this engine"
+        case .engineBusy: "Engine is busy — try again shortly"
         }
     }
 
@@ -1535,6 +1544,10 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
             .serviceUnavailable
         case .sessionExpired:
             .gone
+        case .logitsUnsupported:
+            .notImplemented
+        case .engineBusy:
+            .tooManyRequests
         case .generationError, .kvCacheCorruption, .inferenceFailed, .tokenizationFailed:
             .internalServerError
         }
