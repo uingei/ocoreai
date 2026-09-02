@@ -368,9 +368,14 @@ private func nonStreamAnthropicResponse(
                 totalOutputTokens += 1
                 accumulatedText = (accumulatedText ?? "") + text
 
-            case .done(let reason, _, _, _, _, _, _, _):
+            case .done(let reason, let doneTokenCount, _, _, _, _, _, _):
                 let openaiReason = stopReasonToString(reason) ?? "stop"
                 finishReason = openAIToAnthropicStopReason(openaiReason)
+                // Authoritative token count from the engine — overwrite the
+                // per-event estimate (fallback when the engine reports none).
+                if let doneTokenCount {
+                    totalOutputTokens = doneTokenCount
+                }
 
             case .error(let errorMsg):
                 finishReason = "error"
