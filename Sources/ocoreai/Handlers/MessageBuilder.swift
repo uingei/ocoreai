@@ -154,15 +154,9 @@ actor MessageBuilder {
         // FIX: VLM requests with .parts (images/audio/video) produce empty textContent(),
         // causing ComplexityAnalyzer to score 0 and ThinkingBudget to return no scaffold.
         // Detect multimodal messages and provide a fallback for complexity analysis.
-        let totalMediaParts = messages.reduce(0) { sum, msg in
-            if case .parts(let pts) = msg.content {
-                let media = pts.filter {
-                    $0.imageUrl != nil || $0.videoUrl != nil || $0.audioURL != nil
-                }.count
-                return sum + media
-            }
-            return sum
-        }
+        // Uses Message.mediaPartCount (single source of truth with the engine's
+        // VLM guard — previously a parallel reduce over ContentPart).
+        let totalMediaParts = messages.reduce(0) { $0 + $1.mediaPartCount }
         let hasMultimodal = totalMediaParts > 0
 
         let effectiveInput =

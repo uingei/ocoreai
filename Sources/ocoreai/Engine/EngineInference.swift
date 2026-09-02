@@ -1481,17 +1481,7 @@ extension EnginePool {
         // Vision capability guard: reject multimodal input for LLM-only models.
         // Aligns with MLXLanguageModel Executor.respond() L950-965 — the adapter
         // is the only place that can enforce .vision before loading any weights.
-        func hasMultimodalContent(_ msgs: [Message]) -> Bool {
-            msgs.contains { msg in
-                if case .parts(let parts) = msg.content {
-                    return !parts.lazy.filter {
-                        $0.imageUrl != nil || $0.videoUrl != nil || $0.audioURL != nil
-                    }.isEmpty
-                }
-                return false
-            }
-        }
-        if !loaded.isVlm, hasMultimodalContent(messages) {
+        if !loaded.isVlm, messages.contains(where: \.hasMediaPart) {
             continuation.yield(
                 .init(
                     kind: .error(
@@ -1523,7 +1513,7 @@ extension EnginePool {
                     "HardwareRouter → ANE but CoreAI runtime unavailable, falling back to GPU for \(modelId)"
                 )
                 computeChannel = .gpu
-            } else if hasMultimodalContent(messages) {
+            } else if messages.contains(where: \.hasMediaPart) {
                 logger.info(
                     "ANE selected but multimodal content present (CoreAI cannot tokenize VLM), falling back to GPU for \(modelId)"
                 )

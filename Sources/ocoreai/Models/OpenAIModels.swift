@@ -640,6 +640,44 @@ struct ContentPart: Codable {
     }
 }
 
+// MARK: - Media Detection (single source of truth)
+
+extension ContentPart {
+    /// Whether this part carries a media payload (image, video, or audio).
+    /// Pure predicate — no side effects, safe from any isolation domain.
+    var isMedia: Bool {
+        imageUrl != nil || videoUrl != nil || audioURL != nil
+    }
+}
+
+extension Message {
+    /// Whether this message carries any multimodal payload (image, video, or audio).
+    ///
+    /// Single source of truth for the "is this a VLM request" predicate.
+    /// Previously inlined in two places (EngineInference + MessageBuilder)
+    /// with independent filter lambdas — this extension converges both and
+    /// removes the drift risk (e.g. one site adding `.audioURL` before the
+    /// other, or one site forgetting a new part type).
+    var hasMediaPart: Bool {
+        if case .parts(let parts) = content {
+            return parts.contains { $0.isMedia }
+        }
+        return false
+    }
+
+    /// Count of media parts (image/video/audio) in this message.
+    /// Returns 0 for `.text` content or `.parts` with no media.
+    ///
+    /// Previously inlined in MessageBuilder as a `reduce` over `ContentPart`
+    /// filter — this extension is the canonical form.
+    var mediaPartCount: Int {
+        if case .parts(let parts) = content {
+            return parts.filter { $0.isMedia }.count
+        }
+        return 0
+    }
+}
+
 // MARK: - Response Models
 
 /// Non-streaming chat completion response (matches OpenAI API format).
