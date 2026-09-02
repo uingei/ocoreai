@@ -4,9 +4,13 @@
 ///
 /// ### Route Matrix:
 /// - ``GET /health`` → Health check + engine pool metrics
+/// - ``GET /ready`` → Readiness probe (ready/busy) — public
 /// - ``GET /v1/models`` → Loaded model list (OpenAI-compatible)
+/// - ``GET /v1/stats`` → Inference counters/gauges (JSON) — public
 /// - ``GET /metrics`` → Prometheus-compatible metrics endpoint
+/// - ``POST /v1`` → Auto-route (prompt → completions, else chat)
 /// - ``POST /v1/chat/completions`` → Chat completion (streaming / non-streaming)
+/// - ``POST /v1/completions`` → Text completion (streaming / non-streaming)
 /// - ``POST /v1/count-tokens`` → Token count utility
 /// - ``GET /v1/models/:model/sampling`` → Runtime sampling config inspection
 /// - ``PATCH /v1/models/:model/sampling`` → Runtime sampling config hot-swap
@@ -14,7 +18,7 @@
 /// - ``DELETE /v1/models/sampling`` → Reset all model sampling defaults
 ///
 /// ### Auth Scope:
-/// - ``GET /health``, ``GET /v1/models``, ``GET /metrics`` excluded from ``AuthMiddleware``
+/// - ``GET /health``, ``GET /ready``, ``GET /v1/models``, ``GET /v1/stats``, ``GET /metrics`` excluded from ``AuthMiddleware``
 /// - All other endpoints require valid API key. PATCH/DELETE require admin key.
 ///
 /// ### Metrics:
@@ -98,12 +102,65 @@ func buildRouter(
         return try Response.json(response)
     }
 
+    /// Readiness probe (OpenAI/llm-server convention).
+    ///
+    /// Unlike ``GET /health`` (process liveness), ``GET /ready`` reports whether
+    /// the inference path is currently free to accept work — `ready` when no
+    /// session is generating, `busy` otherwise. Public (bypasses ``AuthMiddleware``).
+    ///
+    /// - Returns: ``ReadyResponse`` with status + current pool gauges.
+    routes.get("/ready") { _, _ in
+        let summary = await enginePool.engineSummary()
+        let response = ReadyResponse(
+            status: summary.activeSessions > 0 ? "busy" : "ready",
+            timestamp: Int64(Date().timeIntervalSince1970),
+            activeSessions: summary.activeSessions,
+            loadedModels: summary.loadedModels,
+        )
+        return try Response.json(response)
+    }
+
     // MARK: Models
 
     routes.get("/v1/models") { _, _ in
         let models = await enginePool.listModels()
         let modelIds = models.map { $0["id"] ?? "unknown" }
         let response = ModelListResponse(data: modelIds.map { ModelObject(id: $0) })
+        return try Response.json(response)
+    }
+
+    // MARK: Inference Stats (JSON)
+
+    /// Structured inference counters/gauges for JSON consumers (llm-server
+    /// ``GET /v1/stats`` convention). Distinct from ``GET /metrics`` (Prometheus
+    /// text) — same underlying ``MetricsRegistry``, different wire shape.
+    ///
+    /// Public (bypasses ``AuthMiddleware``) — read-only observability, no
+    /// sensitive data.
+    ///
+    /// - Returns: ``StatsResponse`` with request/token/duration/gauge counters.
+    routes.get("/v1/stats") { _, _ in
+        let snap = await metrics.snapshot()
+        let avgInferenceSeconds =
+            snap.totalRequests > 0
+            ? snap.totalInferenceSeconds / Double(snap.totalRequests)
+            : 0
+        let avgTTFBSeconds =
+            snap.ttfbSampleCount > 0
+            ? snap.totalTTFBSeconds / Double(snap.ttfbSampleCount)
+            : 0
+        let response = StatsResponse(
+            totalRequests: snap.totalRequests,
+            totalPromptTokens: snap.totalPromptTokens,
+            totalGeneratedTokens: snap.totalGeneratedTokens,
+            totalInferenceSeconds: snap.totalInferenceSeconds,
+            avgInferenceSeconds: avgInferenceSeconds,
+            ttfbSampleCount: snap.ttfbSampleCount,
+            avgTTFBSeconds: avgTTFBSeconds,
+            activeSessions: snap.activeSessions,
+            loadedModels: snap.loadedModels,
+            timestamp: Int64(Date().timeIntervalSince1970),
+        )
         return try Response.json(response)
     }
 
@@ -175,6 +232,50 @@ func buildRouter(
             enginePool: enginePool,
             scheduler: scheduler,
             metrics: metrics,
+            logger: logger,
+        )
+    }
+
+    /// Auto-routing endpoint (llm-server ``POST /v1`` convention).
+    ///
+    /// Some consumers (e.g. lm-evaluation-harness) POST directly to the base
+    /// URL instead of a specific endpoint. This route inspects the request
+    /// body: a top-level ``prompt`` key dispatches to ``POST /v1/completions``,
+    /// otherwise to ``POST /v1/chat/completions`` — then reuses the exact same
+    /// handler dispatch, so auth, guard, and wire behavior are identical to
+    /// the explicit endpoints.
+    routes.post("/v1") { request, _ in
+        let bodyBuffer = try await request.body.collect(upTo: 10 * 1024 * 1024)
+        let data = Data(bodyBuffer.readableBytesView)
+        // Sniff the dispatch key (a lightweight key-existence check, not a full
+        // decode) — mirrors the llm-server handleAutoRoute contract.
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        if json?["prompt"] != nil {
+            let completionRequest = try JSONDecoder().decode(CompletionRequest.self, from: data)
+            guard !completionRequest.prompt.isEmpty else {
+                throw AppError.invalidRequest(
+                    "Prompt must be a non-empty string or array of strings")
+            }
+            return try await completionsHandler(
+                request: completionRequest,
+                enginePool: enginePool,
+                scheduler: scheduler,
+                metrics: metrics,
+                logger: logger,
+            )
+        }
+        let chatRequest = try JSONDecoder().decode(ChatCompletionRequest.self, from: data)
+        guard !chatRequest.messages.isEmpty else {
+            throw AppError.invalidRequest("Messages array must not be empty")
+        }
+        return try await chatCompletionsHandler(
+            request: chatRequest,
+            enginePool: enginePool,
+            scheduler: scheduler,
+            metrics: metrics,
+            sessionCompressor: sessionCompressor,
+            semanticSearch: semanticSearch,
+            messageBuilder: messageBuilder,
             logger: logger,
         )
     }
@@ -418,6 +519,35 @@ struct HealthResponse: Codable {
     let status: String
     let timestamp: Int64
     let engineSummary: EngineSummary
+}
+
+/// ``GET /ready`` response — readiness state of the inference path.
+///
+/// `ready` when no session is generating (work can be accepted);
+/// `busy` when at least one session is mid-generation.
+struct ReadyResponse: Codable {
+    let status: String
+    let timestamp: Int64
+    let activeSessions: Int
+    let loadedModels: Int
+}
+
+/// ``GET /v1/stats`` response — structured inference counters/gauges.
+///
+/// JSON twin of ``GET /metrics`` (Prometheus text). Field names follow the
+/// llm-server ``GET /v1/stats`` convention; values come from
+/// ``MetricsRegistry`` (same source as Prometheus, different wire shape).
+struct StatsResponse: Codable {
+    let totalRequests: UInt64
+    let totalPromptTokens: UInt64
+    let totalGeneratedTokens: UInt64
+    let totalInferenceSeconds: Double
+    let avgInferenceSeconds: Double
+    let ttfbSampleCount: UInt64
+    let avgTTFBSeconds: Double
+    let activeSessions: Int
+    let loadedModels: Int
+    let timestamp: Int64
 }
 
 struct EngineSummary: Codable {

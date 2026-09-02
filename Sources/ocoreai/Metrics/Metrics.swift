@@ -21,6 +21,23 @@ import Atomics
 import Foundation
 import Logging
 
+// MARK: - Metrics Snapshot
+
+/// Immutable snapshot of inference counters/gauges for the ``GET /v1/stats`` endpoint.
+///
+/// Produced by ``MetricsRegistry/snapshot()``; a value type safe to send across
+/// actor boundaries (returned to the router closure).
+struct ServerStatsSnapshot: Equatable {
+    let totalRequests: UInt64
+    let totalPromptTokens: UInt64
+    let totalGeneratedTokens: UInt64
+    let totalInferenceSeconds: Double
+    let ttfbSampleCount: UInt64
+    let totalTTFBSeconds: Double
+    let activeSessions: Int
+    let loadedModels: Int
+}
+
 // MARK: - Metrics Registry (Actor-Isolated)
 
 /// Thread-safe metrics registry exposed via ``GET /metrics``.
@@ -242,6 +259,23 @@ actor MetricsRegistry {
     }
 
     // MARK: - Prometheus Export
+
+    /// Snapshot of inference counters/gauges for the ``GET /v1/stats`` JSON endpoint.
+    ///
+    /// Returns an immutable value type safe to send across actor boundaries —
+    /// unlike ``export()`` (Prometheus text), this is for structured JSON consumers.
+    func snapshot() -> ServerStatsSnapshot {
+        ServerStatsSnapshot(
+            totalRequests: inferenceDurationCount,
+            totalPromptTokens: tokenCounts["prompt"] ?? 0,
+            totalGeneratedTokens: tokenCounts["generated"] ?? 0,
+            totalInferenceSeconds: inferenceDurationSum,
+            ttfbSampleCount: ttfbCount,
+            totalTTFBSeconds: ttfbSum,
+            activeSessions: activeSessions,
+            loadedModels: loadedModels
+        )
+    }
 
     /// Export all metrics in Prometheus text format (`text/plain; version=0.0.4`).
     ///

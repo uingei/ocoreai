@@ -153,7 +153,9 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
     /// Public route paths that bypass authentication entirely
     private let publicPaths: Set<String> = [
         "/health",
+        "/ready",
         "/v1/models",
+        "/v1/stats",
         "/metrics",
     ]
 
