@@ -608,8 +608,14 @@ private func streamAnthropicResponse(
                         let deltaEvent = AnthropicStreamEvent.textDelta(index: 0, text: text)
                         writeSSEEvent(continuation, event: deltaEvent)
 
-                    case .done(_, _, _, _, _, _, _, _):
-                        break
+                    case .done(_, let doneTokenCount, _, _, _, _, _, _):
+                        // Authoritative token count from the engine — overwrite the
+                        // per-event estimate (a `.text`/`.reasoning` case is a text
+                        // segment/chunk, not a token). Same pattern as the ChatHandler
+                        // stream `.done` branch and the non-streaming path.
+                        if let doneTokenCount {
+                            totalOutputTokens = doneTokenCount
+                        }
                     case .error(let errorMsg):
                         logger.error("Stream generation error: \(errorMsg)")
                     case .toolCall:

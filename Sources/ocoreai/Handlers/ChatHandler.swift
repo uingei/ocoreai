@@ -1074,7 +1074,15 @@ private func streamWithToolCalling(
                     _ = yieldSSE(tChunk, to: continuation)
 
                 /// .done — flush remaining tokens, detect tool calls, send stop chunk.
-                case .done(let reason, _, _, _, _, let reasoningTokenCount, _, _):
+                case .done(let reason, let doneTokenCount, _, _, _, let reasoningTokenCount, _, _):
+                    // Authoritative token count from the engine (both MLX and CoreAI
+                    // paths emit it from tokenization truth). Streaming accumulated
+                    // per-event estimates — a `.text` chunk is a detokenized batch, a
+                    // `.reasoning` case a text segment — so overwrite, same pattern as
+                    // the non-streaming path (L670-673) and DirectInferenceClient.
+                    if let doneTokenCount {
+                        totalOutputTokens = doneTokenCount
+                    }
                     finalReasoningTokens = reasoningTokenCount
                     /// Final flush: detokenize any remaining tokens not yet emitted.
                     if !accumulatedTokens.isEmpty, accumulatedTokens.count % decodeBatchSize != 0 {
@@ -1278,7 +1286,9 @@ private func streamWithToolCalling(
             Double(infDur.components.seconds) * 1000 + Double(infDur.components.attoseconds) / 1e15
         var ttfbMsVal: Double = 0
         if let ttfbTimeVal = ttfbTime {
-            let ttfbDur = ttfbTimeVal.duration(to: ContinuousClock.now)
+            // TTFB = first-byte delay = start → first token (not first token → end).
+            // ttfbTime is recorded on the first `.token`/`.text`/`.reasoning` event.
+            let ttfbDur = startTime.duration(to: ttfbTimeVal)
             ttfbMsVal =
                 Double(ttfbDur.components.seconds) * 1000 + Double(ttfbDur.components.attoseconds)
                 / 1e15
