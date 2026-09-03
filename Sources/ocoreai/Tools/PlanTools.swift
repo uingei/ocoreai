@@ -182,3 +182,100 @@ enum UpdatePlanClient {
         }
     }
 }
+
+// MARK: - 读面 (get_plan — 模型的 durable 任务态读回, Recover 片 1 的 agent 侧闭环)
+
+/// `get_plan` — 读回本会话最近一次 `update_plan` 的 durable 快照（`update_plan` 的模型侧读面）:
+///
+///   get_plan()  → step × [completed|in_progress|pending] + 计数 + note(explanation?) + updated 时刻
+///
+/// 定位（Recover 片 1 收口, `PlanPersistence.swift:11` 点名的"后续切片"）: plan 状态
+/// durable（`plans` 表, `PlanTaskStore.persist`）+ rehydrate（`PlanTaskStore.rehydrate`,
+/// 会话激活后 hydrate）——但两者此前只喂 UI 面板（`PlanCard`）, **模型侧零读面**
+/// （grep `get_plan`/`plan_status`/`read_plan` 全库 = 0 命中）: 模型自己的任务态只活在
+/// 对话历史里（会被 compaction 剥掉）, 而 durable 副本就在 `PlanTaskStore.shared.current`
+/// （与 UI 面板同源的 SSOT）。本工具把该读回暴露给模型——断点续跑时模型可自问
+/// "我做到哪步了、哪些 pending", 决策权仍在模型。
+///
+/// 与 check_tools / observe_state 同一纪律: 只读、零副作用、**不替模型决策**
+/// （不自动 resume、不改 plan）; 缺席 = 诚实报「本会话未记录过 plan」, 不伪造在场。
+/// 三仓无对位物 = Apple 原生 / 产品自有的 durable 任务态读回（无基准分叉风险）。
+
+/// 纯渲染（离线可测; 快照注入, 不触 PlanTaskStore / SQLite / wall clock）。
+enum PlanRead {
+    /// UTC 时刻字符串（`curr_time` 同纪律: `yyyy-MM-dd HH:mm:ss 'UTC'`, en_US_POSIX + GMT）,
+    /// 固定 formatter — 精确断言锚点（本地时区/locale 漂移不污染输出）。
+    static func utcTime(_ timestamp: Int64) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .gmt
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss 'UTC'"
+        return f.string(from: Date(timeIntervalSince1970: TimeInterval(timestamp)))
+    }
+
+    /// 渲染精确形态:
+    /// ```
+    /// plan — 4 steps: 1 completed, 1 in_progress, 2 pending
+    /// note: 修复感知轴            (explanation 非空时)
+    /// 1. [x] init repo (completed)
+    /// 2. [>] fix channel gating (in_progress)
+    /// 3. [ ] add tests (pending)
+    /// 4. [ ] docs (pending)
+    /// updated: 2026-09-03 06:00:11 UTC
+    /// ```
+    /// 缺席 (nil) → 诚实一行（含出路指引, 不伪造在场）。
+    static func render(_ snapshot: PlanSnapshot?) -> String {
+        guard let s = snapshot else {
+            return "no plan recorded in this session — call update_plan to create one"
+        }
+        let done = s.items.filter { $0.status == "completed" }.count
+        let doing = s.items.filter { $0.status == "in_progress" }.count
+        let pending = s.items.filter { $0.status == "pending" }.count
+        var out: [String] = []
+        out.append(
+            "plan — \(s.items.count) steps: \(done) completed, \(doing) in_progress, \(pending) pending"
+        )
+        if let note = s.explanation?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty
+        {
+            out.append("note: \(note)")
+        }
+        for (i, it) in s.items.enumerated() {
+            let tick: String
+            switch it.status {
+            case "completed": tick = "x"
+            case "in_progress": tick = ">"
+            case "pending": tick = " "
+            default: tick = "?"  // 库内未知状态（非三值）→ 显式标记, 不静默吞
+            }
+            out.append("\(i + 1). [\(tick)] \(it.step) (\(it.status))")
+        }
+        out.append("updated: \(utcTime(s.updatedAt))")
+        return out.joined(separator: "\n")
+    }
+}
+
+/// `get_plan` — 零参查询面（真值源 = `PlanTaskStore.shared.current`, 与 UI 面板同源 SSOT）
+enum GetPlanClient {
+    static let toolName = "get_plan"
+
+    static func toolEntry() -> ToolEntry {
+        ToolEntry.typed(
+            name: toolName,
+            toolset: "plan",
+            argsType: Args.self,
+            description:
+                "Report the durable task plan of the current session — the latest snapshot "
+                + "written by `update_plan` (steps with completed/in_progress/pending, counts, "
+                + "note, updated time). Reads the persisted plan (survives conversation "
+                + "compaction), not the conversation itself — use to resume a task at its "
+                + "exact breakpoint. Read-only, no side effects, no re-planning. "
+                + "When no plan has been recorded, reports that honestly.",
+            schema: ToolSchema(parameters: [:])
+        ) { _ in
+            let snapshot = await PlanTaskStore.shared.current
+            return PlanRead.render(snapshot)
+        }
+    }
+
+    struct Args: Codable, Sendable {}
+}

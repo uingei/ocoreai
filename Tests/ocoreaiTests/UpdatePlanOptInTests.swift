@@ -17,6 +17,7 @@ final class UpdatePlanOptInTests {
         #expect(names.contains("echo"), "echo 应注册（回归面）")
         #expect(names.contains("info"), "info 应注册（回归面）")
         #expect(!names.contains("update_plan"), "update_plan 默认不得注册")
+        #expect(!names.contains("get_plan"), "get_plan 与 update_plan 同门控，默认不得注册")
     }
 
     @Test("显式 false → update_plan 未注册")
@@ -24,7 +25,9 @@ final class UpdatePlanOptInTests {
         let registry = ToolRegistry()
         await bootstrapBuiltInTools(
             registry: registry, skillRegistry: nil, updatePlanEnabled: false)
-        #expect(!(await registry.listTools()).contains("update_plan"))
+        let names = await registry.listTools()
+        #expect(!names.contains("update_plan"))
+        #expect(!names.contains("get_plan"), "同门控：false 时读面也不得注册（避免读写面分叉）")
     }
 
     @Test("显式 true → update_plan 注册")
@@ -32,6 +35,8 @@ final class UpdatePlanOptInTests {
         let registry = ToolRegistry()
         await bootstrapBuiltInTools(
             registry: registry, skillRegistry: nil, updatePlanEnabled: true)
-        #expect((await registry.listTools()).contains("update_plan"))
+        let names = await registry.listTools()
+        #expect(names.contains("update_plan"))
+        #expect(names.contains("get_plan"), "同门控：true 时读面应一并注册")
     }
 }

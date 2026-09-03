@@ -520,9 +520,13 @@ func bootstrapBuiltInTools(
     // 默认值对齐 codex `#41744`（2026-08-31）：`tools.update_plan.enabled` 默认 **false**（opt-in，
     // 显式开启才注册；off-path 无指引，与上游一致）。ocoreai 侧的"开"= Settings
     // `settings.updatePlan.enabled`（见 `Bootstrap/updatePlanEnabled` 参数注入）。
+    // get_plan — `update_plan` 的模型侧读面（Recover 片 1 agent 侧闭环）：读回本会话 durable
+    // 快照（`PlanTaskStore.shared.current`, 与 UI 面板同源）, 断点续跑时模型自问"做到哪步了"。
+    // **同门控**：plan 命名空间 off-path 则读写面一起消失（避免"读面开着写面关着"的不一致）。
     if updatePlanEnabled {
         try? await registry.register(
             UpdatePlanClient.toolEntry(publisher: nil, recovery: planRecovery))
+        try? await registry.register(GetPlanClient.toolEntry())
     }
 
     // clock — codex 0.150.1 基线对齐（curr_time / sleep 原值命名）。
