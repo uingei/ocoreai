@@ -482,6 +482,13 @@ func bootstrapBuiltInTools(
     // 真值源 = PerceptionEngine.shared.buffer(与 UI 注入路径同一环形缓冲), 零 sensor 副作用。
     try? await registry.register(ObserveStateClient.toolEntry())
 
+    // ── check_tools ────────────────────────────────────────────────────────
+    // Verify 段的 agent 自查询面: 读 durable 审计 trace(commit 7676ac5)的工具
+    // 执行结果真值 — success/error/timeout 计数 + 失败明细。此前 AuditTrail 全库
+    // 零非 UI 消费者(唯一读方 = SystemViewModel 展示); 本工具闭合 写→落盘→读 链路,
+    // 让模型在宣告任务完成前用审计真值替代自述。只读, 零副作用。
+    try? await registry.register(CheckToolsClient.toolEntry())
+
     // ── transcribe_audio ───────────────────────────────────────────────────
     // 听觉感知轴的 agent 可触面: 复用已建的音频基设(而非另造)——
     //   LocalSTT(L3, macOS 26 / iOS 26+ 离线 Speech framework 文件识别)

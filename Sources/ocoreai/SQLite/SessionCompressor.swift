@@ -940,14 +940,15 @@ actor SessionCompressor {
     func recallPermanentMemory(
         query: String? = nil,
         memoryTypes: [MemoryEventType] = [.fact, .preference, .pattern],
-        minConfidence _: Double = 0.5,
+        minConfidence: Double = 0.5,
         limit: Int = 50,
     ) async throws -> [MemoryEvent] {
         let typeList = memoryTypes.map(\.rawValue).joined(separator: "', '")
+        let minConf = minConfidence
         var sql = """
             SELECT * FROM memory_events
             WHERE memory_type IN ('\(typeList)')
-              AND confidence >= 0.5
+              AND confidence >= ?
             ORDER BY confidence DESC, timestamp DESC
             LIMIT ?
             """
@@ -962,14 +963,14 @@ actor SessionCompressor {
                 SELECT me.* FROM memory_events me
                 INNER JOIN memory_events_fts fts ON me.id = fts.rowid
                 WHERE me.memory_type IN ('\(typeList)')
-                  AND me.confidence >= 0.5
+                  AND me.confidence >= ?
                   AND fts MATCH ?
                 ORDER BY fts.rank ASC
                 LIMIT ?
                 """
 
             do {
-                let rows = try await store.query(sql, parameters: [q, limit])
+                let rows = try await store.query(sql, parameters: [minConf, q, limit])
                 primaryIDs = rows.compactMap { $0["id"]?.asInt64 }
                 primaryContexts = Array(
                     Set(rows.compactMap { $0["context"]?.asString }.filter { !$0.isEmpty }))
@@ -991,7 +992,7 @@ actor SessionCompressor {
 
         // No query: return top confidence events with boost
         do {
-            let rows = try await store.query(sql, parameters: [limit])
+            let rows = try await store.query(sql, parameters: [minConf, limit])
             let events = rows.compactMap { MemoryEvent(from: $0) }
             let ids = events.map(\.id)
             if !ids.isEmpty {
