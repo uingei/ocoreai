@@ -104,7 +104,7 @@ server:
 backend:
   preference: ["coreai", "mlx"]   # 默认顺序 — 取第一个可用的
   wiredMemory:
-    policy: "max"                  # max | budget | fixed
+    policy: "max"                  # max | sum | budget | fixed
 
 models:
   default:
@@ -170,7 +170,7 @@ memory:
 
 ### Build Info
 
-- Swift 6.2 · SwiftUI · Hummingbird 2.25
+- Swift 6.2 · SwiftUI · Hummingbird 2.26
 - macOS 14+ / iOS 17+ · Apple Silicon · 纯 SwiftPM
 - 质量门：`make test-ci`（xcodebuild 路径，macOS-26 腿为权威）；已知现存 5 条源码警告
 ---

@@ -104,7 +104,7 @@ server:
 backend:
   preference: ["coreai", "mlx"]   # default order — first available wins
   wiredMemory:
-    policy: "max"                  # max | budget | fixed
+    policy: "max"                  # max | sum | budget | fixed
 
 models:
   default:
@@ -169,7 +169,7 @@ Per-feature status with commit refs lives in `CHANGELOG.md` — a pinned ✅ tab
 
 ### Build Info
 
-- Swift 6.2 · SwiftUI · Hummingbird 2.25
+- Swift 6.2 · SwiftUI · Hummingbird 2.26
 - macOS 14+ / iOS 17+ · Apple Silicon · pure SwiftPM
 - No `.xcodeproj` — the test gate runs through the SPM `ocoreai.xcworkspace` → `xcodebuild` → `xctest`
 
