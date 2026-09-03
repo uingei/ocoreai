@@ -57,10 +57,11 @@ public struct PerceptionFrame: Codable, Sendable {
         ocrText: String? = nil,
         audioURL: String? = nil,
         textContext: String? = nil,
-        estimatedTokens: Int? = nil
+        estimatedTokens: Int? = nil,
+        capturedAt: Date? = nil
     ) {
         self.channel = channel
-        self.capturedAt = .init()
+        self.capturedAt = capturedAt ?? .init()
         self.imageURL = imageURL
         self.ocrText = ocrText
         self.audioURL = audioURL

@@ -477,6 +477,11 @@ func bootstrapBuiltInTools(
     // VisionOCR —— PerceptionEngine 已在 UI 侧消费同一管线;本工具补 agent 面。
     try? await registry.register(ScreenCaptureClient.toolEntry())
 
+    // ── observe_state ──────────────────────────────────────────────────────
+    // 感知轴的 agent 自查询面: 只读观察 PerceptionEngine 各通道最新帧 + 新鲜度。
+    // 真值源 = PerceptionEngine.shared.buffer(与 UI 注入路径同一环形缓冲), 零 sensor 副作用。
+    try? await registry.register(ObserveStateClient.toolEntry())
+
     // ── transcribe_audio ───────────────────────────────────────────────────
     // 听觉感知轴的 agent 可触面: 复用已建的音频基设(而非另造)——
     //   LocalSTT(L3, macOS 26 / iOS 26+ 离线 Speech framework 文件识别)
