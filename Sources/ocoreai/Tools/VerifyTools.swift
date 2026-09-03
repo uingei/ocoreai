@@ -112,6 +112,12 @@ enum CheckToolsClient {
     static let toolName = "check_tools"
 
     static func toolEntry() -> ToolEntry {
+        entry(store: nil)
+    }
+
+    /// seam 注入(离线可测真 handler): nil = 无审计源(诚实报告);非 nil = 真 handler 跑。
+    /// 生产闭包不传参(走 OcoreaiEngine 单例全局)——seam 仅面向 handler 真跑测试。
+    static func entry(store: AuditTrail?) -> ToolEntry {
         ToolEntry.typed(
             name: toolName,
             toolset: "verify",
@@ -139,7 +145,8 @@ enum CheckToolsClient {
         ) { args in
             await runForTool(
                 tool: args.tool, status: args.status,
-                windowSeconds: args.window_seconds, limit: args.limit)
+                windowSeconds: args.window_seconds, limit: args.limit,
+                store: store)
         }
     }
 
@@ -153,11 +160,20 @@ enum CheckToolsClient {
     /// 生产路径: 读 OcoreaiEngine 审计 actor（跨 actor 边界必 await, 铁律）。
     /// 双读内存环 ∪ SQLite persistent, id 去重（in-memory 优先 = `AuditTrail.merge`
     /// 同一语义, 独立纯函数 reduce 不耦合 actor）。
+    ///
+    /// `store: AuditTrail? = nil` 是 seam 注入口(离线可测真 handler);生产闭包不传参
+    /// 即走 OcoreaiEngine 单例全局——行为与 seam 前完全一致(seam 仅服务测试隔离)。
     static func runForTool(
         tool: String? = nil, status: String? = nil,
         windowSeconds: Int? = nil, limit: Int? = nil,
+        store: AuditTrail? = nil,
     ) async -> String {
-        let trail: AuditTrail? = await OcoreaiEngine.shared.activeAuditTrail
+        let trail: AuditTrail?
+        if let store {
+            trail = store
+        } else {
+            trail = await OcoreaiEngine.shared.activeAuditTrail
+        }
         guard let trail else {
             return "[Audit] audit trail not attached — no entries to verify on this path."
         }

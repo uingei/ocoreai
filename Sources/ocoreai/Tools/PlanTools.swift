@@ -259,6 +259,12 @@ enum GetPlanClient {
     static let toolName = "get_plan"
 
     static func toolEntry() -> ToolEntry {
+        entry(store: nil)
+    }
+
+    /// seam 注入口(离线可测真 handler): nil = 走 PlanTaskStore.shared 全局(生产);
+    /// 非 nil = seam 读注入的快照(handler 真跑, 不触 PlanTaskStore/SQLite)。
+    static func entry(store: PlanTaskStore?) -> ToolEntry {
         ToolEntry.typed(
             name: toolName,
             toolset: "plan",
@@ -272,10 +278,21 @@ enum GetPlanClient {
                 + "When no plan has been recorded, reports that honestly.",
             schema: ToolSchema(parameters: [:])
         ) { _ in
-            let snapshot = await PlanTaskStore.shared.current
-            return PlanRead.render(snapshot)
+            await runForTool(store: store)
         }
     }
 
     struct Args: Codable, Sendable {}
+
+    /// 生产路径: 读 PlanTaskStore.shared.current（@MainActor, 跨 actor 必 await）。
+    /// `store` seam: nil = 走 PlanTaskStore.shared(生产);非 nil = 读注入快照(handler 真跑)。
+    static func runForTool(store: PlanTaskStore?) async -> String {
+        let snapshot: PlanSnapshot?
+        if let store {
+            snapshot = await store.current
+        } else {
+            snapshot = await PlanTaskStore.shared.current
+        }
+        return PlanRead.render(snapshot)
+    }
 }
