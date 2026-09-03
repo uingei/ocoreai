@@ -48,6 +48,8 @@ struct ChunkMetadataTests {
             Issue.record("toolCall decoded as reasoningStart")
         case .reasoningEnd:
             Issue.record("toolCall decoded as reasoningEnd")
+        case .compactionNote:
+            Issue.record("toolCall decoded as compactionNote")
         }
     }
 

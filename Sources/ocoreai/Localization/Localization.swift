@@ -557,6 +557,8 @@ public enum StringKey: String, CaseIterable {
     case clearConversationMessage = "Chat.ClearConversationMessage"
     case fileTooLarge = "Chat.FileTooLarge"
     case generationFailed = "Chat.GenerationFailed"
+    // — Context compaction visibility (codex #42319 parity) —
+    case contextCompactedBadge = "Chat.ContextCompacted"
     case skillRegistryUnavailable = "Common.SkillRegistryUnavailable"
     case sessionCompressorUnavailable = "Common.SessionCompressorUnavailable"
     case sessionLoadFailed = "Common.SessionLoadFailed"
@@ -1013,6 +1015,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
             "This will delete all messages in this chat. You can undo with ⌘Z.",
         .fileTooLarge: "File too large (%@) (max 10 MB)",
         .generationFailed: "Generation failed",
+        .contextCompactedBadge: "%d earlier message(s) compacted to fit the context window",
         .skillRegistryUnavailable: "Skill registry not available",
         .sessionCompressorUnavailable: "Session compressor not available",
         .sessionLoadFailed: "Failed to load sessions",
@@ -1314,6 +1317,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .clearConversationMessage: "此操作将删除当前对话的所有消息。可使用 ⌘Z 撤销。",
         .fileTooLarge: "文件过大 (%@) (max 10 MB)",
         .generationFailed: "生成失败",
+        .contextCompactedBadge: "已压缩 %d 条早期消息以适配上下文窗口",
         .skillRegistryUnavailable: "技能注册表不可用",
         .sessionCompressorUnavailable: "会话压缩器不可用",
         .sessionLoadFailed: "加载会话失败",

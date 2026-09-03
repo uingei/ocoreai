@@ -108,6 +108,7 @@ private struct TranscriptPartMessage {
             case .text(let t): return t
             case .reasoning(let r): return r
             case .toolCall(let tc): return "[Tool: \(tc.name): \(tc.resultSummary ?? "")]"
+            case .compactionNote(let n): return "[Compacted: \(n) earlier message(s) removed]"
             case .image: return nil
             case .video: return nil
             }
@@ -769,6 +770,10 @@ final class ChatState {
 
             // Stream via Fast Path
             var streamingToolCalls: [ToolCallPart] = []
+            // Compaction badges observed mid-stream (context auto-compacted to fit
+            // the model's window) — consumed when building the final assistant
+            // message so the pruned-context event stays visible in the transcript.
+            var partsQueue: [TranscriptPart] = []
             for await chunk in try await DirectInferenceClient.shared.stream(request: request) {
                 // P0-3: respect cancellation from both the token and outer Task
                 guard !cancellation.isCancelled, !Task.isCancelled else { break }
@@ -823,6 +828,11 @@ final class ChatState {
                     case .reasoningStart, .reasoningEnd:
                         // Signaled by ReasoningEventEmitter — reasoningContent already handled above
                         break
+                    case .compactionNote(let removed):
+                        // Context was auto-compacted to fit the model's window
+                        // before this turn — queue a transcript part so the final
+                        // assistant message shows the compaction badge.
+                        partsQueue.append(.compactionNote(removedCount: removed))
                     }
                 }
                 if chunk.isComplete {
@@ -885,6 +895,12 @@ final class ChatState {
                         // reliable than regex-based detection on raw response.
                         for tcPart in streamingToolCalls {
                             parts.append(.toolCall(tcPart))
+                        }
+
+                        // Inject compaction badge — oldest turns were pruned to fit
+                        // the model's window before this turn was generated.
+                        for pqPart in partsQueue {
+                            parts.append(pqPart)
                         }
 
                         // Detect tool calls in raw response (fallback for non-streaming-metadata paths)

@@ -45,6 +45,8 @@ struct ChatBubbleMessage: Identifiable, Hashable {
                 case .text(let t): return t
                 case .reasoning(let r): return r
                 case .toolCall(let tc): return "[Tool: \(tc.name)]"
+                case .compactionNote(let n):
+                    return "[Compacted: \(n) earlier message(s) removed to fit the context window]"
                 case .image: return nil
                 case .video: return nil
                 }
@@ -1024,6 +1026,25 @@ struct TranscriptContentView: View {
 
                 case .toolCall(let tc):
                     toolCallBadge(tc)
+
+                case .compactionNote(let removed):
+                    // Context auto-compacted before this turn (codex #42319
+                    // "live compaction status", surfaced as a per-turn badge).
+                    HStack(spacing: 6) {
+                        Image(systemName: "scissors")
+                            .font(.ocoreaiText(10))
+                            .foregroundStyle(theme.tintYellow)
+                            .frame(width: 20, height: 20)
+                            .background(theme.tintYellow.opacity(0.15), in: Circle())
+
+                        Text(String(format: StringKey.contextCompactedBadge.l, removed))
+                            .font(.ocoreaiText(11, weight: .medium))
+                            .foregroundStyle(theme.textSecondary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(theme.cardBg, in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.rowSep, lineWidth: 1))
 
                 case .image(let url):
                     InlineImagePreview(dataURL: url)

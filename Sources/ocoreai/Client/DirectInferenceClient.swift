@@ -100,23 +100,79 @@ struct StreamingInferenceResult {
     var outputTokens: Int
 }
 
-// MARK: - Per-model context-window parity (400 wall)
+// MARK: - Per-model context-window parity (compact, then 400 wall)
 
-/// Enforce the per-model `maxContextWindow` cap on the Fast Path, mirroring
-/// the wire path's Phase 3.5 wall (`ChatHandler`). The Fast Path previously
-/// bypassed this check entirely — a user-set `max_context_window` was honored
-/// over HTTP but inert in the native UI. Reuses the shared
-/// `promptExceedsContextWindow` predicate and `estimatePromptTokens` estimator
-/// so both routes compare the same token count against the same cap
-/// (omlx `max_context_window` = reject-oversized-prompt semantics).
-private func enforceContextWindowCap(cap: Int?, messages: [Message]) throws {
-    let promptTokens = ConversationCompaction.estimatePromptTokens(messages)
-    guard promptExceedsContextWindow(promptTokens: promptTokens, maxContextWindow: cap) else {
-        return
+/// Enforce the per-model `maxContextWindow` cap on the Fast Path with FULL
+/// wire-path semantics (``ChatHandler`` Phase 3.5, omlx `max_context_window`).
+///
+/// Historical gap: the Fast Path used a bare 400 backstop here while the wire
+/// path first ran a rule-based compaction pass — the same prompt survived over
+/// HTTP (auto-compacted) but died in the native UI with "Shorten the input".
+/// This closes that behavioral branch: compact FIRST, throw the identical 400
+/// only if the transcript still exceeds the cap after compaction.
+///
+/// Steps (mirrors ChatHandler Phase 3.5 exactly):
+/// 1. estimate prompt tokens (same estimator as ``ConversationCompaction``)
+/// 2. if over cap → PreCompact hooks; a veto aborts with a 400
+///    (codex `PreCompactHookOutcome::Stopped` → turn aborted)
+/// 3. ``ConversationCompaction/compact`` — LLM-free, oldest-turn-first,
+///    tool-call units atomic
+/// 4. PostCompact observation (fire-and-await)
+/// 5. re-estimate → adopt the compacted transcript if it now fits
+/// 6. 400 wall on the final estimate (identical message to the wire path)
+/// 7. ``ContextStatusStore`` reflects the effective prompt/window
+///    (parity: `get_context_remaining` reads real values on both routes)
+///
+/// - Parameter hookRunner: compact-event hooks. Call sites pass
+///   `enginePool.toolRegistry?.hookRunner`; tests inject a ``ToolHookRunner``
+///   directly (thin seam, no EnginePool needed).
+func enforceContextWindow(
+    cap: Int?,
+    messages: [Message],
+    hookRunner: ToolHookRunner? = nil,
+    sessionId: String? = nil
+) async throws -> (messages: [Message], removedCount: Int) {
+    var transcript = messages
+    let startTokens = ConversationCompaction.estimatePromptTokens(transcript)
+    if !promptExceedsContextWindow(promptTokens: startTokens, maxContextWindow: cap) {
+        await ContextStatusStore.shared.set(usedTokens: startTokens, windowLimit: cap)
+        return (transcript, 0)
     }
-    throw AppError.invalidRequest(
-        "Prompt length \(promptTokens) tokens exceeds the model's configured context window of \(cap ?? 0) tokens. Shorten the input or raise `max_context_window` for this model."
-    )
+
+    let preVerdict =
+        await hookRunner?.evaluatePreCompact(
+            reason: "context-window-exceeded",
+            sessionId: sessionId
+        ) ?? .allow
+    if !preVerdict.isAllow {
+        throw AppError.invalidRequest(
+            "Compaction was vetoed by a PreCompact hook and the transcript still exceeds the context window. "
+                + "Shorten the input, lower `reserveTokens`, or allow compaction for this request."
+        )
+    }
+
+    let compacted = ConversationCompaction.compact(transcript, .init(maxPromptTokens: cap))
+    if compacted.removedCount > 0 {
+        _ = await hookRunner?.firePostCompact(
+            reason: "context-window-exceeded",
+            removedCount: compacted.removedCount,
+            sessionId: sessionId
+        )
+        // Re-estimate the compacted transcript. If it now fits, Phase 4
+        // proceeds on the compacted transcript (mirrors ChatHandler L332).
+        if compacted.estimatedTokens <= (cap ?? 0) {
+            transcript = compacted.messages
+        }
+    }
+
+    let finalTokens = ConversationCompaction.estimatePromptTokens(transcript)
+    await ContextStatusStore.shared.set(usedTokens: finalTokens, windowLimit: cap)
+    if promptExceedsContextWindow(promptTokens: finalTokens, maxContextWindow: cap) {
+        throw AppError.invalidRequest(
+            "Prompt length \(finalTokens) tokens exceeds the model's configured context window of \(cap ?? 0) tokens. Shorten the input or raise `max_context_window` for this model."
+        )
+    }
+    return (transcript, compacted.removedCount)
 }
 
 // MARK: - Direct Inference Client
@@ -239,13 +295,21 @@ extension DirectInferenceClient {
         )
         let fullMessages = try await messageBuilder.buildMessages(context: context)
 
-        // Enforce per-model context-window cap (omlx max_context_window parity).
-        // The wire path (ChatHandler Phase 3.5) does this with a compaction
-        // pass first; the Fast Path is single-turn-oriented, so a 400 backstop
-        // on the assembled transcript is the parity floor.
+        // Enforce per-model context window cap (omlx max_context_window parity).
+        // Wire-path semantics (ChatHandler Phase 3.5): compact FIRST (LLM-free,
+        // Pre/PostCompact hooks honored), the identical 400 wall only if the
+        // compacted transcript still exceeds the cap. Pre-fix the Fast Path was
+        // a bare 400 backstop — same prompt survived over HTTP but 400'd here.
         let contextCap = await enginePool.getSamplingConfig(modelId: request.modelId)
             .maxContextWindow
-        try enforceContextWindowCap(cap: contextCap, messages: fullMessages)
+        let capResult = try await enforceContextWindow(
+            cap: contextCap,
+            messages: fullMessages,
+            hookRunner: enginePool.toolRegistry?.hookRunner,
+            sessionId: request.sessionId
+        )
+        var workingMessages = capResult.messages
+        let compactedRemoved = capResult.removedCount
 
         // Phase 2: Submit to scheduler + dispatch (streaming)
         let schedulingRequest = SchedulingRequest(
@@ -334,11 +398,22 @@ extension DirectInferenceClient {
         // Emit preparing phase so UI shows "preparing model" instead of a blank spinner
         continuation.yield(.init(text: nil, isComplete: false, phase: .preparing))
 
+        // Compaction visibility (codex #42319 "live compaction status"): the wall
+        // above auto-compacted the transcript to fit the per-model window. Emit a
+        // structured note so the UI surfaces it (transcript part on the assistant
+        // message) — the user's context WAS pruned; they deserve to see it.
+        if compactedRemoved > 0 {
+            continuation.yield(
+                .init(
+                    text: nil, isComplete: false,
+                    metadata: .compactionNote(removedCount: compactedRemoved)))
+        }
+
         // Pass cancellation token to propagate UI cancel signal to the inference layer
         let cancellation = request.cancellation ?? .none
 
         let tokenStream = handle.generateFromMessages(
-            messages: fullMessages,
+            messages: workingMessages,
             sampling: sampling,
             options: inferenceOpts,
             conversationId: request.sessionId,
@@ -587,11 +662,17 @@ extension DirectInferenceClient {
         )
         let fullMessages = try await messageBuilder.buildMessages(context: context)
 
-        // Enforce per-model context-window cap (omlx max_context_window parity,
-        // same as the stream path — single floor for both Fast Path routes).
+        // Enforce per-model context window cap — same compact-first wire
+        // semantics as the stream path (parity: no behavioral branch between
+        // the two Fast Path routes).
         let contextCap = await enginePool.getSamplingConfig(modelId: request.modelId)
             .maxContextWindow
-        try enforceContextWindowCap(cap: contextCap, messages: fullMessages)
+        let capResult = try await enforceContextWindow(
+            cap: contextCap,
+            messages: fullMessages,
+            hookRunner: enginePool.toolRegistry?.hookRunner,
+            sessionId: request.sessionId
+        )
 
         // Phase 2: Submit to scheduler + dispatch (non-streaming)
         let schedulingRequest = SchedulingRequest(
@@ -681,7 +762,7 @@ extension DirectInferenceClient {
         await handle.markActive()
 
         let tokenStream = handle.generateFromMessages(
-            messages: fullMessages,
+            messages: capResult.messages,
             sampling: samplingConfig,
             options: infOpts,
             conversationId: request.sessionId,
@@ -810,6 +891,9 @@ struct DirectChatChunk {
         case toolCall(ToolCallMeta)
         case reasoningStart
         case reasoningEnd
+        /// Context was auto-compacted to fit the per-model window before this
+        /// turn — carry the removed count so the UI can show a "已压缩" badge.
+        case compactionNote(removedCount: Int)
     }
 
     /// Compact tool call metadata emitted during agent loop iterations.

@@ -35,6 +35,13 @@ enum TranscriptPart: Codable, Hashable, Sendable {
     /// Equivalent to Transcript.ToolCall.
     case toolCall(ToolCallPart)
 
+    /// Context was auto-compacted (oldest turns pruned) to fit the model's
+    /// window before this turn. Carries how many messages were removed so the
+    /// UI can tell the user their earlier context was pruned.
+    /// Codex #42319 "live compaction status" — ocoreai surfaces it as a
+    /// per-turn badge instead of a TUI banner (no terminal surface here).
+    case compactionNote(removedCount: Int)
+
     /// Image attachment (input or output).
     /// Equivalent to Transcript.ImageAttachment.
     case image(String)  // base64 data URL
@@ -51,6 +58,8 @@ enum TranscriptPart: Codable, Hashable, Sendable {
         case .text(let t): return t
         case .reasoning(let r): return "[Reasoning: \(r)]"
         case .toolCall(let tc): return "[Tool: \(tc.name) → \(tc.resultSummary ?? "…")]"
+        case .compactionNote(let n):
+            return "[\(n) earlier message(s) compacted to fit the context window]"
         case .image: return "[Image]"
         case .video: return "[Video]"
         }
@@ -60,6 +69,10 @@ enum TranscriptPart: Codable, Hashable, Sendable {
     var visibleByDefault: Bool {
         switch self {
         case .text, .image, .video: return true
+        // compactionNote is ALWAYS visible — it is the user's only signal that
+        // their context was pruned; hiding it would recreate the invisibility
+        // gap this part exists to close.
+        case .compactionNote: return true
         case .reasoning, .toolCall: return false
         }
     }
