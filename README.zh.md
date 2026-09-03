@@ -19,7 +19,12 @@ swift build -c release
 swift run
 ```
 
-直接 SwiftPM 构建（无 `.xcodeproj`；测试门经 SPM 生成的 `ocoreai.xcworkspace` → `xcodebuild` → `xctest`）。
+```bash
+curl -s http://127.0.0.1:8080/health
+# { "status": "ok", "timestamp": 1714800000, "engineSummary": { "loadedModels": 0, "activeSessions": 0, ... } }
+```
+
+直接 SwiftPM 构建，无 `.xcodeproj`（测试门经 SPM 生成的 `ocoreai.xcworkspace` → `xcodebuild` → `xctest`）。
 服务监听 `127.0.0.1:8080`。配置位于 `~/.ocoreai/config.yaml`。
 
 > ⚠️ **仅本机访问** — HTTP API 默认绑定 `127.0.0.1`。认证默认关（设 `OCOREAI_API_KEYS` 环境变量开启），无 TLS。内置令牌桶限流默认开（全局 200 次/秒）。
@@ -51,6 +56,8 @@ swift run
 | 方法 | 端点 | 用途 |
 |------|------|------|
 | `POST` | `/v1/chat/completions` | OpenAI 聊天（流式 + 非流式，工具调用） |
+| `POST` | `/v1/completions` | OpenAI 旧版 completions（prompt 输入） |
+| `POST` | `/v1` | 自动路由：按 body 键分发（`prompt`→completions，否则 chat） |
 | `POST` | `/v1/messages` | Anthropic 消息 + 工具使用 |
 | `POST` | `/v1/count-tokens` | Token 计数 |
 | `GET`  | `/v1/models` | 模型注册表 |
@@ -59,15 +66,23 @@ swift run
 | `DELETE` | `/v1/models/:model/sampling` | 重置单模型采样配置 |
 | `DELETE` | `/v1/models/sampling` | 重置全部采样配置 |
 | `POST` | `/v1/models/download` | 从 ModelScope / HuggingFace 下载 |
+| `POST` | `/v1/models/train` | LLM 训练 |
+| `POST` | `/v1/models/evaluate` | LLM 评估 |
+| `GET`  | `/v1/stats` | 运行统计（请求/Token/耗时/TTFB） |
 | `POST` | `/v1/multimodal/capture` | 摄像头或音频捕获 |
 | `POST` | `/v1/multimodal/speak` | TTS 输出 |
 | `POST` | `/v1/multimodal/status` | 多模态管线状态 |
 | `GET`  | `/sessions` | 会话列表 |
 | `GET`  | `/sessions/:id/memory` | 获取会话记忆事件 |
+| `DELETE` | `/sessions/:id` | 删除会话 |
 | `GET`  | `/sessions/search` | 会话全文搜索 |
+| `GET`  | `/skills` | 列已注册技能 |
 | `POST` | `/mcp` | MCP JSON-RPC 端点 |
-| `GET`  | `/health` | 健康检查 |
+| `GET`  | `/health` | 存活检查 |
+| `GET`  | `/ready` | 就绪探针（`ready`/`busy`） |
 | `GET`  | `/metrics` | Prometheus 指标（文本格式） |
+
+> 免认证 public 路由：`/health`、`/ready`、`/v1/models`、`/v1/stats`、`/metrics`。所有 `PATCH`/`DELETE` 需 admin key（`OCOREAI_ADMIN_KEYS`）。
 
 ---
 

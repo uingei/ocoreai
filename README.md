@@ -19,6 +19,11 @@ swift build -c release
 swift run
 ```
 
+```bash
+curl -s http://127.0.0.1:8080/health
+# { "status": "ok", "timestamp": 1714800000, "engineSummary": { "loadedModels": 0, "activeSessions": 0, ... } }
+```
+
 Direct SwiftPM build, no `.xcodeproj` (the test gate runs through the SPM `ocoreai.xcworkspace` → `xcodebuild` → `xctest`).
 Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
@@ -49,25 +54,35 @@ Known boundaries (as of this commit, not aspirations):
 ### API Endpoints
 
 | Method | Endpoint | Purpose |
-|--------|---------|---------|
-| `POST` | `/v1/chat/completions` | OpenAI chat (stream + non-stream, tool calling) |
+|------|------|------|
+| `POST` | `/v1/chat/completions` | OpenAI chat (streaming + non-streaming, tool calls) |
+| `POST` | `/v1/completions` | OpenAI legacy completions endpoint (prompt in) |
+| `POST` | `/v1` | Auto-route: dispatches by body key (`prompt`→completions, else chat) |
 | `POST` | `/v1/messages` | Anthropic messages + tool use |
 | `POST` | `/v1/count-tokens` | Token count utility |
 | `GET`  | `/v1/models` | Model registry |
 | `GET`  | `/v1/models/:model/sampling` | Get sampling config |
 | `PATCH` | `/v1/models/:model/sampling` | Hot-swap sampling config |
 | `DELETE` | `/v1/models/:model/sampling` | Reset single model sampling |
-| `DELETE` | `/v1/models/sampling` | Reset all model sampling |
+| `DELETE` | `/v1/models/sampling` | Reset all sampling |
 | `POST` | `/v1/models/download` | Download from ModelScope / HuggingFace |
+| `POST` | `/v1/models/train` | LLM training |
+| `POST` | `/v1/models/evaluate` | LLM evaluation |
+| `GET`  | `/v1/stats` | Ops statistics (requests/tokens/duration/TTFB) |
 | `POST` | `/v1/multimodal/capture` | Capture camera frame or audio sample |
 | `POST` | `/v1/multimodal/speak` | TTS output |
 | `POST` | `/v1/multimodal/status` | Multimodal pipeline status |
 | `GET`  | `/sessions` | List sessions |
 | `GET`  | `/sessions/:id/memory` | Get session memory events |
+| `DELETE` | `/sessions/:id` | Delete session |
 | `GET`  | `/sessions/search` | Full-text search sessions |
+| `GET`  | `/skills` | List registered skills |
 | `POST` | `/mcp` | MCP JSON-RPC endpoint |
-| `GET`  | `/health` | Health check |
+| `GET`  | `/health` | Liveness check |
+| `GET`  | `/ready` | Readiness probe (`ready`/`busy`) |
 | `GET`  | `/metrics` | Prometheus metrics (text format) |
+
+> Public (no auth): `/health`, `/ready`, `/v1/models`, `/v1/stats`, `/metrics`. Admin key (`OCOREAI_ADMIN_KEYS`) required for all `PATCH`/`DELETE`.
 
 ---
 
