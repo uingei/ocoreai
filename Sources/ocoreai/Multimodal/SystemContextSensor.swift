@@ -28,8 +28,18 @@ private let sysLogger = Logger(subsystem: "ocoreai", category: "system_context_s
 
 // MARK: - Memory Pressure Level
 
-private enum MemoryPressureLevel: String, Sendable {
+enum MemoryPressureLevel: String, Sendable {
     case none, light, moderate, serious, critical, unknown
+
+    /// Pure threshold classification (unit-testable, no system I/O).
+    /// Half-open bands: <0.6 none / <0.75 light / <0.85 moderate / <0.92 serious / ≥0.92 critical.
+    static func classify(usedFraction: Double) -> MemoryPressureLevel {
+        if usedFraction < 0.6 { return .none }
+        if usedFraction < 0.75 { return .light }
+        if usedFraction < 0.85 { return .moderate }
+        if usedFraction < 0.92 { return .serious }
+        return .critical
+    }
 }
 
 // MARK: - Sensor
@@ -145,29 +155,33 @@ final class SystemContextSensor: Sendable {
 
     #if os(macOS)
     private nonisolated static func vmPressureLevel() -> MemoryPressureLevel {
-        // Read free pages via sysctlbyname (follows HardwareRouter pattern)
+        // NOTE: `sysctlbyname("vm.page_count")` was the previous source but it is
+        // (a) removed from macOS 27 (returns "unknown oid") and (b) always reported
+        // total page count, not free pages — used fraction would be stuck at 0.0.
+        // The mach kernel interface reports real free pages and works across macOS 12+.
+        var stats = vm_statistics64()
+        var count = mach_msg_type_number_t(
+            MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size)
+        let kr: kern_return_t = withUnsafeMutablePointer(to: &stats) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+            }
+        }
+        guard kr == KERN_SUCCESS else { return .unknown }
+
         var pageSize: UInt64 = 4096
         var pageSizeLen = MemoryLayout<UInt64>.size
         sysctlbyname("vm.pagesize", &pageSize, &pageSizeLen, nil, 0)
-
-        var page_count: UInt64 = 0
-        var pageCountLen = MemoryLayout<UInt64>.size
-        let pcResult = sysctlbyname("vm.page_count", &page_count, &pageCountLen, nil, 0)
-        guard pcResult == 0 else { return .unknown }
-
         var hwMem: UInt64 = 0
         var hwMemLen = MemoryLayout<UInt64>.size
         sysctlbyname("hw.memsize", &hwMem, &hwMemLen, nil, 0)
         guard hwMem > 0 else { return .unknown }
 
-        let freeBytes = page_count * pageSize
-        let usedFraction = 1.0 - Double(freeBytes) / Double(hwMem)
+        // Free pages * page size gives real free bytes.
+        let freeBytes = Double(UInt64(stats.free_count)) * Double(pageSize)
+        let usedFraction = 1.0 - freeBytes / Double(hwMem)
 
-        if usedFraction < 0.6 { return .none }
-        if usedFraction < 0.75 { return .light }
-        if usedFraction < 0.85 { return .moderate }
-        if usedFraction < 0.92 { return .serious }
-        return .critical
+        return MemoryPressureLevel.classify(usedFraction: usedFraction)
     }
     #endif
 
