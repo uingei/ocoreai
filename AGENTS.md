@@ -48,10 +48,10 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 
 ```bash
 swift build -c release                    # production build
-swift build --traits mlx                 # debug build with mlx
-swift test                               # ⚠️ not the gate (metallib limitation) — real gate: xcodebuild → xcrun xctest (CI 权威门 = macos-26)
+swift build --traits appStore            # App Store build (traits: appStore | FoundationModelsIntegration)
+swift test                               # ⚠️ not the gate (metallib limitation) — real gate: xcodebuild → xcrun xctest (CI 权威门 = macos-26); use `make test-ci`
 swift test --enable-code-coverage        # with coverage
-swift test --filter OcoreAITests.System  # system tests only
+swift test --filter SystemContextSensor  # one suite (substring match)
 ```
 
 **Linting:** none — aligned with upstream (mlx-swift-lm / coreai-models ship no swiftlint). swift-format via `.swift-format` (pinned 603.0.0) is the only style gate, enforced in CI and pre-commit. Crash-safe coding (no `try!`/`as!`/`fatalError` in Sources/) is a code convention, not a CI gate.

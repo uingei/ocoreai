@@ -19,10 +19,10 @@ swift build -c release
 swift run
 ```
 
-Direct SwiftPM build, no Xcode project required.
+Direct SwiftPM build, no `.xcodeproj` (the test gate runs through the SPM `ocoreai.xcworkspace` → `xcodebuild` → `xctest`).
 Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
-> ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. It has no auth, rate limiting, or TLS. Expose only to trusted networks.
+> ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. **Auth is off unless** the `OCOREAI_API_KEYS` env var is set; **no TLS**. Built-in token-bucket rate limiting is on (200 req/s global).
 
 > 🛠️ **Dev release** — This is a development build. Production use requires additional hardening (see Security section below).
 
@@ -32,21 +32,21 @@ Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 
 ocoreai unifies inference engine, agent orchestration, and persistence in one process:
 
-Dual inference backends — MLX (Metal GPU, default, dual-channel on-device inference via `MLXLanguageModel` + `ChatSession` pipeline) + CoreAI (CoreAI*.swift ×8, StateHandler*.swift ×3, KVCache+CoreAI, TensorStorage+CoreAI, MPSGraphSamplers, TokenizersMLXTokenizerAdapter):
-- **Adaptive hardware routing** — Real-time HardwareRouter dispatches requests to GPU / ANE / CPU based on thermal pressure, memory headroom, and GPU utilization. AdmissionGate enforces a 3-tier admission policy (allow → ANE-only → reject) with configurable abort margin. Live channel badge in ChatView streaming indicator + Dashboard health bar; thermal-pressure toast on channel shifts (EN/ZH i18n).
+Dual inference backends — MLX (Metal GPU, `MLXLanguageModel` + `ChatSession` pipeline) + CoreAI (CoreAI*.swift ×8, StateHandler*.swift ×3, KVCache+CoreAI, TensorStorage+CoreAI, MPSGraphSamplers, TokenizersMLXTokenizerAdapter):
+- **Adaptive hardware routing** — Real-time HardwareRouter dispatches requests to GPU / ANE / CPU based on thermal pressure, memory headroom, and GPU utilization. AdmissionGate enforces budget admission (admit/reject + channel suggestion, with 15% abort margin reservation). Live channel badge in ChatView streaming indicator + Dashboard health bar; thermal-pressure toast on channel shifts (EN/ZH i18n).
 - **Wired Memory GPU isolation** — hardware-level GPU memory bounds prevent OOM during inference.
 - **Thinking budget** — Adaptive token budget allocation driven by ComplexityAnalyzer scoring (length, intent, history dimensions) on Bridge Path. Fast Path (desktop GUI) has ThinkingBudget calibration loop wired but with simplified complexity input (constant 0.5 — no upstream ComplexityAnalyzer).
 - **Agent loop** — multi-turn tool use: the model reasons, calls registered tools, reads results, and iterates (bounded by the inference timeout, 180s default). Built-in tools for system info, skills, and search. Extensible via `ToolRegistry`.
 - **Skill system** — Modular skill registry loaded at boot, bidirectional links to system prompt pipeline.
 - **Session memory** — SQLite + FTS5 full-text search with LLM-driven session compression (hot/warm/cold tiers). Memory events for cross-session fact recall. Semantic memory (vector/embedding search) **on by default** (`autoEmbed: true`, LFM2.5-Embedding-350M-4bit, 1024-d vectors, 500/session LIFO eviction).
 - **MCP bridge** — connect external MCP servers via stdio transport; HTTP endpoint available. Desktop UI has MCP section in SystemView.
-- **Scheduler + OOM guard** — priority dispatch (`P0` system → `P4` user), GPU memory budget enforcement, downgrade chain (4-bit → 8-bit → CPU → refuse).
+- **Scheduler + OOM guard** — priority dispatch (`P0` interrupt → `P3` background), GPU memory budget enforcement, downgrade chain (8-bit → 4-bit → refuse — no CPU tier on UMA).
 - **KV cache quantization** — Enabled by default (turbo4 scheme, 4-bit INT4, activates after 256 tokens). Backed by `GenerateParameters.kvBits` / `kvScheme` / `quantizedKVStart` in upstream MLXLMCommon.
 - **Guided generation** — Grammar-constrained output via `MLXGuidedGeneration` (xgrammar/JSON schema), with DiagnosticSink observability and dynamic `CompletionReserve.estimate` structural reserve calculations. Auto-enabled when tool calling or explicit grammar schema is set. Multimodal messages bypass grammar constraints.
 - **macOS 27 FM path** — Native `MLXLanguageModel` → `LanguageModelSession` + `MLXFoundationModels` on macOS 27 with tool calling via `FMToolProxy` bridge, reasoning via `ContextOptions`, and transcript-driven streaming. Falls back to ChatSession pipeline on earlier macOS.
 - **Speculative decoding** — Gemma drafter models with per-model awareness (12B/26B/31B), MTP support with model-id isolation; KVCacheRuntime (turboQuant/affine) via MLXBridge. CoreAI grammar wired (hybrid xgrammar path via `TokenizersMLXTokenizerAdapter`); pipelined-variant grammar tracks coreai-models #146/#170. Agent loop owned by `DirectInferenceClient` + `ChatHandler`. See `CHANGELOG.md` + upstream audit report.
 - **SessionPool** — Prefix-level prompt cache reuse via message divergence tracking; HardwareRouter pressure events trigger aggressive eviction; `loadPromptCacheSnapshot` restores LM state alongside KV cache for correct position anchoring.
-- **Persistent perception** — PerceptionEngine (in `Multimodal/`): full 7-channel scheduler (camera, screen, network, filesystem, internet, system, speaker) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only).
+- **Persistent perception** — PerceptionEngine (in `Multimodal/`): full 7-channel scheduler (`camera / screen / audio / network / environment / system / speaker` — `PerceptionContext.swift:14-30`; `environment` covers filesystem + internet RSS) with adaptive sampling, RingBuffer + TTL, inference-aware lock-free snapshot, P-S1/P-S2 perception context injection in tool dispatch loops, cross-platform gates (screen macOS-only). **Off by default** — per-channel toggles in Settings must be enabled (camera/screen/speaker also need OS permissions).
 - **AIModelCache** — native CoreAI compiled model artifact caching (macOS 27 SDK).
 - **Config system** — YAML config with file watcher (poll-based). Hardware auto-detection for memory budget.
 - **Multimodal I/O** — camera capture, screen capture, microphone input, Vision OCR, 16kHz Apple Speech STT, i18n TTS — all native. Camera/screen toggles are off by default; STT requires microphone permission.
@@ -98,7 +98,7 @@ Unified architecture — inference, agent, and memory in one process:
 │  Control Plane                                                   │
 │  ┌──────────┴────┐  ┌──────────┐  ┌──────────┐             │
 │  │ Scheduler     │  │ Agent    │  │ Skill    │             │
-│  │ P0→P4 dispatch│  │ Loop     │  │ Registry │             │
+│  │ P0→P3 dispatch│  │ Loop     │  │ Registry │             │
 │  │ OOMGuard      │  │ +ToolReg │  │          │             │
 │  │ ConfigWatch   │  │          │  │          │             │
 │  └──────────┬────┘  └────┬─────┘  └──────────┘             │
@@ -106,7 +106,7 @@ Unified architecture — inference, agent, and memory in one process:
 │  Routing Layer                                                    │
 │  ┌──────────┴────┐  ┌──────────┐                              │
 │  │ HardwareRouter│  │ Admission│                              │
-│  │ GPU/ANE/CPU   │  │ Gate     │ 3-tier: allow→ANE-only→reject│
+│  │ GPU/ANE/CPU   │  │ Gate     │ admit/reject+channel suggest │
 │  └──────────┬────┘  └──────────┘                              │
 │             │                                                 │
 │  Inference Engine                                                │
@@ -129,7 +129,7 @@ Unified architecture — inference, agent, and memory in one process:
 
 **One process, no boundary.** The scheduler feeds the inference engine directly — no localhost hop, no IPC serialization, no context loss between control plane and GPU.
 
-Memory budget auto-detected via `sysctl hw.memsize` (70% of physical RAM). OOMGuard enforces a downgrade chain with no disk I/O — the correct approach for Apple Silicon UMA.
+Memory budget auto-detected from `sysctl hw.memsize`; default guard tier is `balanced` = 55% of physical RAM (tiers: safe 40% / balanced 55% / aggressive 75%, custom 20–85%, floor 4 GB). OOMGuard enforces a downgrade chain with no disk I/O — the correct approach for Apple Silicon UMA.
 
 ---
 
@@ -143,21 +143,23 @@ server:
   host: 127.0.0.1
 
 backend:
-  type: mlx
-
-auth:
-  api_key: "your-secret-key"
+  preference: ["mlx"]        # or ["coreai", "mlx"] — first available wins
+  wiredMemory:
+    policy: "max"            # max | budget | fixed
 
 models:
   default:
-    modelScope: "mlx-community/gemma-4-e2b-it-4bit"
-    hub: huggingface
+    enabled: true
+    modelId: "mlx-community/gemma-4-e2b-it-4bit"
+    source: modelscope       # "huggingface" forces the HF path; any other value → default hub (modelscope)
 
 memory:
-  budget_gb: 0      # 0 = auto-detect (70% RAM)
+  enabled: true              # session memory (SQLite FTS5 + LLM compression)
 ```
 
-Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check), `mlx` (default, Metal).
+> **Auth** is not a YAML key: set the `OCOREAI_API_KEYS` env var (comma-separated) to enable it; empty = unauthenticated.
+
+Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check) and `mlx` (Metal). Default `backend.preference` order is `["coreai", "mlx"]` — first available backend wins (override in `config.yaml`).
 
 ---
 
@@ -187,7 +189,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 ### Security
 
 - **Network** — Binds `127.0.0.1` only. No external address exposure.
-- **Auth** — Optional `auth.api_key` in config. Disable with `auth.enabled: false`.
+- **Auth** — env var `OCOREAI_API_KEYS` (comma-separated) enables it; `OCOREAI_ADMIN_KEYS` gates PATCH/DELETE. Empty/absent = auth off. Not a YAML key.
 - **Rate limiting** — Token-bucket rate limiter with configurable burst/window.
 - **ContentGuard** — 3-stage input/output filtering for sensitive content.
 - **StructuredLogger** — Structured audit trail, log file rotation.
@@ -209,7 +211,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 | VLM multimodal inference | ✅ |
 | Wired Memory GPU isolation | ✅ |
 | HardwareRouter (adaptive GPU/ANE/CPU) | ✅ |
-| AdmissionGate (3-tier) | ✅ |
+| AdmissionGate (budget admission) | ✅ |
 | Engine lifecycle state machine + circuit breaker | ✅ |
 | ThinkingBudget (adaptive reasoning depth) | ⚠️ Bridge Path: full ComplexityAnalyzer. Fast Path: calibration loop wired with simplified complexity input |
 | Speculative decoding (traditional drafter mode) | ✅ |
@@ -236,8 +238,8 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 - Swift 6.2 · SwiftUI · Hummingbird 2.25
 - macOS 14+ / iOS 17+ · Apple Silicon · pure SwiftPM
 - Quality gate: `xcodebuild build-for-testing` → `xcrun xctest` (CI authoritative = macos-26); test counts tracked in CI, not pinned here
-- Build: 0 errors
-- Development: Built entirely by **qwen3.8:27b-mtp-q4_K_M** — self-contained AI agent with no external tool use. All architecture, code, and tests authored autonomously.
+- Build: 0 errors (5 known source warnings remain — see `make test-ci` output)
+- Development: `uingei` + AI assistance (Hermes Agent / `qwen3.8:27b-mtp`). All changes are in git — history is the source of authorship.
 
 ---
 
