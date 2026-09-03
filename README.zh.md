@@ -1,6 +1,6 @@
 # ocoreai — 本地 Agent 可靠执行层
 
-**macOS/iOS 端侧 Agent 执行层** — 双通道端侧推理（MLX Metal GPU + CoreAI）、Prefix Cache、KV Cache 量化、推测解码（MTP + Drafter）、Agent 循环与工具调用、技能系统、会话记忆、持续感知、多模态 I/O，一体成型。基于 Swift 6.2、Hummingbird 2.25、SwiftUI 构建。
+**macOS/iOS 本地 Agent 的执行层** — 一个 Swift 6.2 二进制：端侧推理（MLX Metal + CoreAI，上游衍生）、Agent 工具循环、会话记忆、Apple 原生多模态 I/O、OpenAI/Anthropic 兼容 HTTP 网关——单进程无 IPC。
 
 [![Swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 14+ | iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
@@ -28,28 +28,19 @@ swift run
 
 ---
 
-### 能力清单
+### 这里有什么
 
-ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中：
+一个进程：推理（MLX Metal + CoreAI，上游衍生）+ Agent 循环（工具调用、技能、SQLite/FTS5 会话记忆）+ HTTP 网关（OpenAI/Anthropic 兼容端点，见下表）+ 原生多模态 I/O（摄像头/屏幕/音频/OCR/STT/TTS，全 Apple 原生）+ MCP 桥接（stdio）。
 
-- **双通道推理引擎** — MLX（Metal GPU，`MLXLanguageModel` + `ChatSession` 管线双通道端侧推理）+ CoreAI（CoreAI*.swift ×8、StateHandler*.swift ×3、KVCache+CoreAI、TensorStorage+CoreAI、MPSGraphSamplers、TokenizersMLXTokenizerAdapter，派生自 Apple coreai-models 参考实现，动态 KV Cache、`TokenHistory` prefix caching）。零网络调用 — 推理在你的 Mac 上运行。
-- **自适应硬件路由** — HardwareRouter 根据热压力、内存余量、GPU 利用率实时将请求分发至 GPU / ANE / CPU。AdmissionGate 执行预算准入（admit/reject + 通道建议，含 15% abort margin 预留）。ChatView 流式指示器 + Dashboard 健康栏实时显示通道标识；通道切换时热力 Toast 通知（EN/ZH i18n）。
-- **Wired Memory 显存硬隔离** — 硬件级显存边界，防止推理 OOM。
-- **Thinking Budget（推理预算）** — 基于 ComplexityAnalyzer（长度、意图、历史三维度评分）的自适应 token 预算分配。Bridge Path 接入完整 ComplexityAnalyzer；Fast Path（桌面 GUI）已接入 ThinkingBudget 校准循环，使用简化复杂度输入（固定 0.5）。
-- **Agent 循环** — 多轮工具调用：模型推理 → 调用注册工具 → 读取结果 → 循环迭代（受推理超时约束，默认 180 秒）。内置系统信息、技能、搜索工具。通过 `ToolRegistry` 扩展。
-- **技能系统** — 模块化技能注册表，启动时加载，双向链接至系统提示管线。
-- **会话记忆** — SQLite + FTS5 全文搜索，LLM 驱动的会话压缩（热/温/冷分层）。记忆事件支持跨会话事实召回。语义记忆（向量搜索）**默认开启**（`autoEmbed: true`，LFM2.5-Embedding-350M-4bit，1024 维，500/会话 LIFO 淘汰）。
-- **MCP 桥接** — 通过 stdio 传输连接外部 MCP 服务器；HTTP 端点可用。桌面 UI SystemView 有 MCP 入口。
-- **调度器 + OOM 防护** — 优先级分发（`P0` interrupt → `P3` background），GPU 显存预算强制，降级链（8-bit → 4-bit → 拒绝，UMA 无 CPU 档）。
-- **KV Cache 量化** — 默认开启（turbo4 scheme，4-bit INT4，256 token 后激活）。后端为上游 `GenerateParameters.kvBits` / `kvScheme` / `quantizedKVStart`（MLXLMCommon/Evaluate.swift）。
-- **引导生成** — 通过 `MLXGuidedGeneration`（xgrammar/JSON schema）实现语法约束输出，带 `GuidedGenerationDiagnosticSink` 可观测性与动态 `CompletionReserve.estimate` 结构预留计算。工具调用时自动启用。多模态消息绕过文法约束。
-- **macOS 27 FM 路径** — 原生 `MLXLanguageModel` → `LanguageModelSession` + `MLXFoundationModels`（macOS 27），含 `FMToolProxy` 工具桥接、`ContextOptions` 推理控制与 transcript 流式传输。低版本 macOS 自动降级至 ChatSession 管线。
-- **持续感知（已实现）** — PerceptionEngine（`Multimodal/`）: 7 通道调度器（`camera / screen / audio / network / environment / system / speaker`，`PerceptionContext.swift:14-30`；`environment` 含文件系统 + 互联网 RSS），含自适应采样、RingBuffer + TTL、推理感知无锁快照，工具派发循环中 P-S1/P-S2 感知上下文注入，跨平台门控（屏幕 macOS-only）。**默认关闭** — 需在 Settings 逐通道开启（摄像头/屏幕/扬声器另需系统权限）。
-- **SessionPool** — 消息前缀级别 Prompt Cache 复用，HardwareRouter 压力事件触发激进驱逐，`loadPromptCacheSnapshot` 恢复 LM 状态与 KV Cache 精确锚定。
-- **推测解码** — Gemma drafter 模型支持（12B/26B/31B 独立路由），MTP 模式已接入；KVCacheRuntime（turboQuant/affine）经 MLXBridge。CoreAI grammar ✅ 已接入：经 `TokenizersMLXTokenizerAdapter` 的混合 xgrammar 路径；pipelined 变体 grammar 追踪 coreai-models #146/#170。Agent 循环现由 `DirectInferenceClient` + `ChatHandler` 承载。详见 `CHANGELOG.md` + 上游对齐报告。
-- **配置系统** — YAML 配置 + 文件监听器（轮询）。显存预算硬件自动检测。
-- **多模态 I/O** — 摄像头捕获、屏幕截图、麦克风输入、Vision OCR、16kHz Apple Speech STT、多语言 TTS — 全部原生。摄像头/屏幕默认关闭；STT 需要麦克风权限。
-- **i18n** — StringKey 本地化框架完整；英文 + 中文（zh-Hans）已部署。共 6 语种定义（en, zh-Hans, ja, ko, fr, es）；ja/ko/fr/es 尚未翻译为 `.strings` 文件。
+能力细节放在持续更新的地方：`CHANGELOG.md`（逐特性带 commit 引用）以及它跟随的上游仓 —— [mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm)、[coreai-models](https://github.com/apple/coreai-models)、[codex](https://github.com/openai/codex)。
+
+已知边界（截至本 commit，是事实不是愿景）：
+
+- **感知与 TTS 默认关闭** — Settings 逐通道开启；摄像头/屏幕/扬声器另需系统权限。
+- **TTS/STT 需麦克风权限**；屏幕捕获仅 macOS。
+- **i18n**：en + zh-Hans 已交付；ja/ko/fr/es 已定义未翻译。
+- **CI**：macOS-26 腿为权威门；xcode-27 腿当前红，失败在上游 mlx-swift-lm pin（非 ocoreai 代码）。
+- **代码审计 ✅ ≠ 行为验证** — 只说明"源码已实现"，有测试的才算验证过。
 
 **方向** —— 第一产品：**Coding/Computer Agent**，让 LLM 在端侧可靠完成多步工程任务（**Execute** → **Verify** → **Recover**）。推理归上游（MLX / CoreAI），ocoreai 是其上的可靠执行层 —— 跟齐上游，不与之竞争。
 
@@ -82,53 +73,7 @@ ocoreai 将推理引擎、Agent 编排、持久化存储统一在单一进程中
 
 ### 架构
 
-统一架构 —— 推理、Agent、记忆一体进程：
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│                         ocoreai                               │
-│                                                              │
-│  网关层                                                        │
-│  ┌────────────────┐  ┌────────┐                              │
-│  │ HTTP (HB)      │  │ GUI    │                              │
-│  │ :8080 API      │  │ SwiftUI│                              │
-│  └────────┬───────┘  └───┬────┘                              │
-│           │              │                                   │
-│  控制平面                                                    │
-│  ┌──────────┴────┐  ┌──────────┐  ┌──────────┐             │
-│  │    调度器      │  │ Agent    │  │   技能    │             │
-│  │ P0→P3 分发    │  │  循环    │  │  注册表   │             │
-│  │    OOMGuard   │  │ +ToolReg │  │          │             │
-│  │  ConfigWatch  │  │          │  │          │             │
-│  └──────────┬────┘  └────┬─────┘  └──────────┘             │
-│             │            │                                  │
-│  路由层                                                      │
-│  ┌──────────┴────┐  ┌──────────┐                            │
-│  │ HardwareRouter│  │ Admission│                            │
-│  │ GPU/ANE/CPU   │  │   Gate   │ admit/reject+通道建议      │
-│  └──────────┬────┘  └──────────┘                            │
-│             │                                              │
-│  推理引擎                                                  │
-│  ┌──────────┴────────────────┬───────┐                    │
-│  │         EnginePool (actor) │          │                    │
-│  │  ┌─────────────┐  ┌──────┐ │        │                    │
-│  │  │ MLX GPU     │  │CoreAI│ │        │                    │
-│  │  │ (Metal)     │  │ ANE  │ │        │                    │
-│  │  └─────────────┘  └──────┘ │        │                    │
-│  │  SessionPool · WiredMem · Spec · ThinkingBudget · OCR │   │
-│  └─────────────────────────────┘                    │        │
-│                                                              │
-│  持久层                                                   │
-│  ┌──────────────┐  ┌──────────┐  ┌──────────┐             │
-│  │ SQLite + FTS5│  │ 安全审计 │  │ MCP      │             │
-│  │   会话       │  │ (Audit)  │  │  桥接    │             │
-│  └──────────────┘  └──────────┘  └──────────┘             │
-└──────────────────────────────────────────────────────────────┘
-```
-
-**单一进程，无边界。** 调度器直接连接推理引擎 —— 无 localhost 跳转，无 IPC 序列化，控制平面与 GPU 之间零上下文丢失。
-
-显存预算从 `sysctl hw.memsize` 自动检测；默认保护档 `balanced` = 物理 RAM 的 55%（档位：safe 40% / balanced 55% / aggressive 75%，自定义 20–85%，下限 4 GB）。OOMGuard 强制执行降级链，无需磁盘 I/O —— 这是 Apple Silicon UMA 架构下的正确做法。
+单一进程、无边界：网关（Hummingbird `:8080` + SwiftUI）→ 控制平面（调度器 `P0`→`P3`、OOMGuard、ConfigWatcher）→ 路由（HardwareRouter GPU/ANE/CPU、AdmissionGate）→ 推理（MLX Metal / CoreAI ANE、会话池、推测解码）→ 持久层（SQLite + FTS5）。调度器经进程内直接驱动引擎——无 localhost 跳转、无 IPC。目录布局见下方模块表。
 
 ---
 
@@ -142,9 +87,9 @@ server:
   host: 127.0.0.1
 
 backend:
-  preference: ["mlx"]        # 或 ["coreai", "mlx"] — 取第一个可用的
+  preference: ["coreai", "mlx"]   # 默认顺序 — 取第一个可用的
   wiredMemory:
-    policy: "max"            # max | budget | fixed
+    policy: "max"                  # max | budget | fixed
 
 models:
   default:
@@ -157,6 +102,8 @@ memory:
 ```
 
 > **认证**不是 YAML 键：设环境变量 `OCOREAI_API_KEYS`（逗号分隔）即开启；为空 = 不认证。
+
+显存预算自 `sysctl hw.memsize` 自动检测；默认保护档 `balanced` = 物理 RAM 的 55%（档位：safe 40% / balanced 55% / aggressive 75%，下限 4 GB）。
 
 支持的推理后端：`coreai`（macOS 27+ SDK，需 `#available` 运行时检查）与 `mlx`（Metal）。默认 `backend.preference` 顺序为 `["coreai", "mlx"]` — 取第一个可用后端（可在 `config.yaml` 覆盖）。
 
@@ -199,37 +146,10 @@ memory:
 
 ### 状态
 
-> 📋 **仅代码状态** — 下表所有条目基于**静态代码审计**（grep/编译/可用性守卫分析）。绿色标记表示"源码中已实现"——**不保证**运行时稳定性或端到端验证结果。
+逐特性状态 + commit 引用在 `CHANGELOG.md`。截至本 commit 的稳定事实：
 
-| 组件 | 状态 |
-|------|------|
-| MLX Metal 推理 | ✅ |
-| CoreAI 推理（动态 KV Cache、Prefix Cache） | ✅ 三个变体已接入 — sequential、staticShape、pipelined (c4c0a43)；auto-detect 对未实现变体回退 sequential，显式 override 未实现变体仍抛错；grammar 约束解码在 sequential (b69b934)，pipelined grammar 追踪 coreai-models #146/#170 |
-| FM 语言模型 + 工具桥接（macOS 27） | ✅ 代码：`MLXLanguageModel` → `LanguageModelSession` → `streamResponse`；FMToolProxy 桥接 `ToolRegistry` → `FoundationModels.Tool`。macOS < 27 自动降级至 ChatSession |
-| 引导生成（语法约束） | ✅ 动态 `CompletionReserve.estimate` 结构预留 |
-| KV Cache 量化（turbo4/INT8） | ✅ |
-| VLM 多模态推理 | ✅ |
-| Wired Memory 显存硬隔离 | ✅ |
-| HardwareRouter（自适应 GPU/ANE/CPU） | ✅ |
-| AdmissionGate（预算准入） | ✅ |
-| 引擎生命周期状态机 + 断路器 | ✅ |
-| ThinkingBudget（自适应推理深度） | ⚠️ Bridge Path: 完整 ComplexityAnalyzer。Fast Path: 校准循环已接入，简化复杂度输入 |
-| 推测解码（传统 drafter 模式） | ✅ |
-| 推测解码（MTP 模式） | ✅ 已接通 — `createSpeculativeConfig()` 返回 nil 为设计如此；MTP 走独立推理路径 `generate(mtpDrafter:, blockSize:)` |
-| SSE 流式 + 非流式 | ✅ |
-| OpenAI + Anthropic 兼容 API | ✅ |
-| Agent 循环 + 工具调用 | ✅ |
-| 工具注册表（Actor 隔离） | ✅ |
-| SQLite 会话持久化 + FTS5 | ✅ |
-| 技能系统 + 提示构建器 | ✅ |
-| MCP 桥接 | ✅ 已接入 SystemView; HTTP 端点同步可用 |
-| 多模态 I/O（摄像头/屏幕/OCR/STT） | ⚠️ 已接入；摄像头/屏幕默认关闭，STT 需麦克风权限 |
-| TTS（语音输出） | ⚠️ 已接入；通过 `speakerEnabled` 惰性触发（默认关闭） |
-| Self Correction Pipeline | ⚠️ 仅 Bridge Path — 需显式 `selfCorrection: true`；无 UI 开关 |
-| i18n | ⚠️ 框架完整；英文+中文已部署，另 5 语种已定义未翻译 |
-| SwiftUI 仪表盘 | ✅ 健康栏实时通道标识（GPU/ANE/CPU）+ ChatView；通道切换热力 Toast；Settings 能力 pill（MLX/CoreAI）带运行时门控 |
-| 自适应健康（EMA） | ✅ |
-| 分析模块（TimingHooks） | ✅ |
+- **权威门**：`make test-ci`（xcodebuild 路径，macOS-26 腿）—— `swift test` 会撞 `.build` metallib 缺失（环境噪声，非真失败），只作增量快筛。
+- **CI**：macOS-26 腿绿；xcode-27 腿红在上游 mlx-swift-lm pin，非本仓代码。
 
 ---
 
@@ -237,9 +157,7 @@ memory:
 
 - Swift 6.2 · SwiftUI · Hummingbird 2.25
 - macOS 14+ / iOS 17+ · Apple Silicon · 纯 SwiftPM
-- 质量门：`xcodebuild build-for-testing` → `xcrun xctest`（CI 权威门 = macos-26）；测试数以 CI 为准，不在此固化
-- 构建：0 错误（现存 5 条源码警告，见 `make test-ci` 输出）
-- 开发：`uingei` + AI 辅助（Hermes Agent / `qwen3.8:27b-mtp`）。所有变更在 git 中——历史即署名。
+- 质量门：`make test-ci`（xcodebuild 路径，macOS-26 腿为权威）；已知现存 5 条源码警告
 ---
 
 ### License

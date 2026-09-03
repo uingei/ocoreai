@@ -4,6 +4,16 @@
 
 ---
 
+## AI Contribution Policy
+
+This project is developed with heavy AI assistance. The rules:
+
+1. **Every line in git is reviewable** — AI-generated or not, the owner approves each commit. "It came from the model" is never an exception to a rule in this file.
+2. **No claim without a check** — "verified", "fixed", "aligned" in a commit message or doc must be immediately backed by command output (build/test/grep) in the same session.
+3. **When in doubt, point outward** — if an upstream repo (mlx-swift-lm / coreai-models / codex) already has an answer, consume/reference it instead of authoring a local variant; cite the upstream file:line.
+
+---
+
 ## Identity
 
 **What it is:** macOS/iOS agent execution layer (reliable Execute → Verify → Recover; first product = Coding/Computer Agent) — dual-channel on-device inference (MLX Metal GPU + CoreAI derived from coreai-models reference), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception pipeline. One binary.
@@ -152,10 +162,10 @@ Three sources for empirical verification:
 
 ## Workflow
 
-- Branch naming: `feat/`, `fix/`, `docs/`, `chore/`
-- PR evidence mandatory: build logs + test output + inference logs
-- One logical change per PR, open issue first for anything non-trivial
-- Never push feature work directly to `main`
+- **Direct commits to `main`** — no branch ritual; the CI gate (`make test-ci` equivalent on macos-26) is the authority, run green before push
+- Every commit message: what changed + verification evidence (test count / command output)
+- One logical change per commit
+- `CHANGELOG.md` updated with every user-visible change (commit reference mandatory)
 
 ---
 
