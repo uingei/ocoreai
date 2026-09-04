@@ -130,7 +130,23 @@ let package = Package(
         // Exhaustiveness sweep (protocol §15.3): neither commit adds a public
         // enum case on an ocoreai-switched type; #579's only public surface is
         // the new async overload (additive). #599 touches no Libraries/ source.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "5694a2f"),
+        // 5694a2f → e3d4a20 (drift absorb, 09-04): 4 commits, all upstream
+        // additive or perf-only in MLXLMCommon/MLXLLM — none touch the
+        // public API surface ocoreai's EngineInference/EnginePool consume
+        // (UserInput, ToolCall, Chat.Message, MTPDrafterModel,
+        // SpeculativeDecodingConfig, Gemma4AssistantRegistration).
+        //   - #602 (e3d4a20): Gemma4Text `loraLayers` added so MLP LoRA
+        //     adapters load (inherent to Gemma4Text — additive, ocoreai
+        //     registers via `Gemma4AssistantRegistration` and does not
+        //     reference `loraLayers` directly).
+        //   - #589 (ebae332): Qwen35/Qwen3Next/LoRAContainer compile-state
+        //     refactor + CompiledDecodeSegments/CompileOverloads internal
+        //     path (perf, no public API surface removed or renamed that
+        //     ocoreai calls).
+        //   - #605 (ac17cf6): await fix in IntegrationTesting tests only.
+        //   - #471 (e23300b): ParoQuant MoE extension + RotateSwitchGLU
+        //     (perf, no ocoreai-facing change).
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "e3d4a20"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
