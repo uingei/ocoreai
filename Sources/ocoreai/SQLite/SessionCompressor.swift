@@ -841,9 +841,7 @@ actor SessionCompressor {
     /// If confidence crosses 0.9 and event is transient, auto-promote to pattern.
     private func boostRecalled(ids: [Int64]) async throws {
         guard !ids.isEmpty else { return }
-        let placeholders = String(repeating: "?", count: ids.count).split(separator: ",").map {
-            String($0)
-        }.joined(separator: ", ")
+        let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ", ")
         // +0.05 capped at 1.0
         try await store.execute(
             sql:
@@ -869,8 +867,7 @@ actor SessionCompressor {
         async throws -> [MemoryEvent]
     {
         guard !primaryIDs.isEmpty else { return [] }
-        let idPlaceholders = String(repeating: "?", count: primaryIDs.count).split(separator: ",")
-            .map { String($0) }.joined(separator: ", ")
+        let idPlaceholders = Array(repeating: "?", count: primaryIDs.count).joined(separator: ", ")
 
         // Gather related events: same context OR shared tags (not already in primary)
         var expandedIDs = primaryIDs
@@ -884,9 +881,8 @@ actor SessionCompressor {
 
         // Phase 2: Spread via context
         if !contexts.isEmpty {
-            let ctxPlaceholders = String(repeating: "?", count: contexts.count).split(
-                separator: ","
-            ).map { String($0) }.joined(separator: ", ")
+            let ctxPlaceholders = Array(repeating: "?", count: contexts.count).joined(
+                separator: ", ")
             let spreadSQL = """
                 SELECT * FROM memory_events
                 WHERE context IN (\(ctxPlaceholders))
@@ -964,7 +960,7 @@ actor SessionCompressor {
                 INNER JOIN memory_events_fts fts ON me.id = fts.rowid
                 WHERE me.memory_type IN ('\(typeList)')
                   AND me.confidence >= ?
-                  AND fts MATCH ?
+                  AND memory_events_fts MATCH ?
                 ORDER BY fts.rank ASC
                 LIMIT ?
                 """
@@ -1019,7 +1015,7 @@ actor SessionCompressor {
             sql = """
                 SELECT me.* FROM memory_events me
                 INNER JOIN memory_events_fts fts ON me.id = fts.rowid
-                WHERE fts MATCH ? AND me.session_id = ?
+                WHERE memory_events_fts MATCH ? AND me.session_id = ?
                 ORDER BY fts.rank ASC
                 LIMIT ?
                 """
@@ -1028,7 +1024,7 @@ actor SessionCompressor {
             sql = """
                 SELECT me.* FROM memory_events me
                 INNER JOIN memory_events_fts fts ON me.id = fts.rowid
-                WHERE fts MATCH ?
+                WHERE memory_events_fts MATCH ?
                 ORDER BY fts.rank ASC
                 LIMIT ?
                 """
