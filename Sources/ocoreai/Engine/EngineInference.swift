@@ -3161,6 +3161,35 @@ extension EnginePool {
                                 // pointers to GPU memory, so the array is cheap to pass and the
                                 // objects are updated in-place by upstream during generation.
                                 let mtpKVCache = loaded.mtpKVCache(conversationId: convKey)
+                                // P2 (ThinkingBudget MTP axis): consume the budget processor the
+                                // same way the std path does (L3622-3640) — apply only when a
+                                // reasoning config is present; on failure fall back to `.init()`
+                                // so the adaptive scaffolding still runs (identical to L3645 semantics).
+                                let mtpGenComponents: MLXLMCommon.GenerationComponents = {
+                                    guard let rc = mtpReasoningConfig else {
+                                        return MLXLMCommon.GenerationComponents()
+                                    }
+                                    do {
+                                        let budgetTokens = (iterGenParams.maxTokens ?? 2048) / 2
+                                        let budgetConfig =
+                                            try MLXLMCommon.ThinkingBudgetConfiguration(
+                                                maximumTokenCount: budgetTokens,
+                                                minimumAnswerTokenCount: 256,
+                                                transitionOverride: nil
+                                            )
+                                        return try MLXLMCommon.GenerationComponents()
+                                            .applyingThinkingBudget(
+                                                budgetConfig,
+                                                reasoning: rc,
+                                                tokenizer: context.tokenizer,
+                                                diagnosticHandler: nil
+                                            )
+                                    } catch {
+                                        log.warning(
+                                            "MTP ThinkingBudget hard-budget not applied: \(error)")
+                                        return MLXLMCommon.GenerationComponents()
+                                    }
+                                }()
                                 let mtpGenStream = try MLXLMCommon.generate(
                                     input: mtpInput,
                                     cache: mtpKVCache,
@@ -3172,7 +3201,7 @@ extension EnginePool {
                                     // auto-clamps to narrowest sliding window at init time.
                                     blockSize: Swift.max(
                                         2, loaded.specDecodingConfig.numDraftTokens),
-                                    components: .init(),
+                                    components: mtpGenComponents,
                                     wiredMemoryTicket: wiredMemoryTicket
                                 )
                                 // Capture primedInside for reasoning emitter — compute outside perform.
