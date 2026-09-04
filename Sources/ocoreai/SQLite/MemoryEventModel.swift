@@ -124,12 +124,28 @@ public struct MemoryEvent: Codable, Sendable {
         }
     }
 
-    /// Compute dedup key from context + cause + entities.
+    /// Compute a deterministic dedup key from context + cause + entities.
+    ///
+    /// MUST NOT use `String.hashValue` — Swift's hashing seed is
+    /// randomized per process for HashDoS protection, so a hashValue-derived
+    /// key differs on every launch and the DB `UNIQUE(dedup_key)` upsert
+    /// (`ON CONFLICT(DO UPDATE)`) never fires across process restarts: the
+    /// same memory re-inserts forever (unbounded duplicate rows). FNV-1a 64
+    /// is a stable, process-independent, zero-dependency hash.
+    private static func stableHash64(_ input: String) -> UInt64 {
+        var hash: UInt64 = 0xcbf_29ce_4842_2325
+        for byte in input.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x0000_0100_0000_01b3
+        }
+        return hash
+    }
+
     private static func computeDedupKey(context: String, cause: String, entities: [String])
         -> String
     {
         let raw = "\(context)|\(cause)|\(entities.sorted().joined(separator: ","))"
-        return raw.hashValue.description
+        return "dedup-\(stableHash64(raw))"
     }
 
     // Helpers for database encoding
