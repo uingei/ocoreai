@@ -28,7 +28,7 @@ struct InlineVideoPreview: View {
                 // Fallback placeholder — video not available
                 VStack(spacing: 8) {
                     Image(systemName: "film")
-                        .font(.system(size: 24))
+                        .font(.ocoreaiText(24))
                         .foregroundStyle(.secondary)
                     Text(StringKey.videoPlaceholder.l)
                         .font(.caption)
