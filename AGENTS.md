@@ -38,13 +38,13 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 
 **Dual Path reality:**
 - `EnginePool` uses inline `#if canImport(CoreAI)` branches (`BackendProtocol` deleted 2123143, 0 refs remaining)
-- **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (wired, both MLX + CoreAI paths), KVCacheRuntime ✅ (turboQuant/affine via MLXBridge L635). Pinned upstream `mlx-swift-lm` at `e3d4a20` (2026-09-03 `d7bd972` ← `5694a2f` #599 ← 37688d2 #572/#573 + #602 Gemma4Text loraLayers + #589 Qwen3.5/3Next + #605 + #471 ParoQuant MoE). Gaps: upstream ThinkingBudget hard-budget enforcement ❌ (orthogonal to ocoreai ThinkingBudget actor; std reasoning path wired L3314).
+- **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (wired, both MLX + CoreAI paths), KVCacheRuntime ✅ (`turboQuant`/`.affine` 双路 `MLXBridge.swift:669 case "affine"` / `:671 case "turbo-quant"`, 映射到 `.affine(:726/:731)` / `.turboQuant(:718)`). Pinned upstream `mlx-swift-lm` at `e3d4a20` (2026-09-03 `d7bd972` ← `5694a2f` #599 ← 37688d2 #572/#573 + #602 Gemma4Text loraLayers + #589 Qwen3.5/3Next + #605 + #471 ParoQuant MoE). **ThinkingBudget** ✅ (two paths wired: std reasoning `L3663 .applyingThinkingBudget` + MTP speculative `L3181 .applyingThinkingBudget` + `components: genComponents`/`mtpGenComponents` `L3678`/`L3204`; `guard mtpReasoningConfig` 非空才接, `catch → .init()` 回退与 std 同语义).
 - **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement. Engine/ contains CoreAI* ×8 + StateHandler ×3 + MPSGraphSamplers + KVCache+CoreAI + TensorStorage+CoreAI (37 .swift total); + Tokenizer/TokenizersMLXTokenizerAdapter.
-- **ANE path:** CoreAI `MPSGraphSamplers` wires MPS constrained argmax/composite/sampler — GPU-based constrained decoding path (c4c0a43 + 031cb54)
+- **ANE path:** CoreAI `MPSGraphSamplers` (`MPSGraphSamplers.swift` 1435 行实存, `CoreAIPipelinedEngine.swift:53/601` 消费) wires MPS constrained argmax/composite/sampler — GPU-based constrained decoding path (c4c0a43 CoreAI .pipelined wired + 256e704 penalty/ConstrainedGenerationCapable routing; 前文 031cb54 = unknown revision, 2026-09-04 实证替换)
 - **MTP path:** `_runInferenceWithMessages` → `generate(::mtpDrafter:)` — bypasses ChatSession, tool calls collected + dispatched per-iteration (aligned with upstream `MTPSpeculativeTokenIterator`)
 - **SessionPool:** Prefix-level prompt cache reuse via message divergence tracking; HardwareRouter pressure events trigger aggressive eviction; `loadPromptCacheSnapshot` restores LM state + KV cache
 
-**Key:** `#if canImport(CoreAI)` single-layer compile-time gate; `sampleToken()` → argmax; toolDispatch wired in both MLX and CoreAI paths.
+**Key:** `#if canImport(CoreAI)` single-layer compile-time gate; token sampling → `argmax`(greedy) / `multinomialSample`(temperature>0) — 真身 `Models/InferenceStubs.swift:194-213 sample(from:)`(temperature/topK/topP/minP filters, 对上游 CompositeSampler 算法); toolDispatch wired in both MLX + CoreAI paths.
 
 **Upstream alignment (verified 2026-08-13):**
 - `KVCacheRound` / `TurboFlash` / `TurboQuant`: consumed internally by upstream `generate*()` — no downstream intervention needed
@@ -79,14 +79,16 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 - `@unchecked Sendable` requires justification comment. Closure `var` declared inside closure scope (not outer).
 
 ### Error Handling
-- Precondition near-free: production code uses precondition/preconditionFailure only for structural invariants and upstream-verbatim numeric/speech surfaces; new code must not add them. **Verified 2026-09-04 (8 sites):**
-  - Video/DiscreteFlowScheduler (`preconditionFailure` ×3)
+- Precondition near-free: production code uses precondition/preconditionFailure only for structural invariants and upstream-verbatim numeric/speech surfaces; new code must not add them. **Verified 2026-09-04 (12 sites / 9 files, 2nd full re-scan):**
+  - Video/DiscreteFlowScheduler (`precondition` ×2)
   - Video/TiledDecode3D (`precondition` ×1)
   - Multimodal/StreamingWindow (`precondition` ×1)
   - Engine/CoreAIPipelinedEngine (`precondition` ×1)
   - Engine/KVCache+CoreAI (`precondition` ×1)
-  - Engine/CoreAIStubs (`precondition` ×1)
+  - Engine/CoreAIStubs (`precondition` ×2)
   - Engine/GuidedGeneration/PipelinedConstrainedDecodingStrategy (`preconditionFailure` ×1)
+  - Engine/GuidedGeneration/XGrammarWrapper (`preconditionFailure` ×2)
+  - Engine/GuidedGeneration/TokenizerInfo (`preconditionFailure` ×1)
 - **Zero `try!`** in production code.
 - **`print()`:** 0 in production code (18→0 at commit 4c231d3).
 - **`fatalError`:** 0.

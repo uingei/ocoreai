@@ -96,6 +96,7 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ### Documentation
 
+- **AGENTS.md 想当然清除第 2 轮**（2026-09-04，4 次"最值得做"命题触发的全量重扫）— ① `ANE path` 引用假 commit `031cb54`（`git rev-parse` 报 unknown revision）→ 实为 `256e704`（penalty routing + ConstrainedGenerationCapable dispatch，`git log --follow MPSGraphSamplers.swift` 实证）+ `c4c0a43`（CoreAI .pipelined wired）；② `precondition` 计数错写 "(8 sites)" + 逐文件错 → 实证 **12 处 / 9 文件**（新增 `XGrammarWrapper`×2 + `TokenizerInfo`×1;`DiscreteFlowScheduler` 改 `preconditionFailure ×3`→`precondition ×2`;`CoreAIStubs` 改 `×1`→`×2`）。前轮已修：`sampleToken` 失实引用（真身 `InferenceStubs.swift:194 sample(from:)`）+ ThinkingBudget ❌→✅（std L3663 + MTP L3181 双路实证 wiring）+ MLXBridge `L635`→`L669/L671`。
 - **Baseline accuracy pass** (this entry) — AGENTS.md / README.md / README.zh.md corrected: CoreAI grammar + pipelined now wired, pin state, LOC/counts, platform floor (macOS 14 / iOS 17), model name.
 
 ---
