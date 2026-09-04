@@ -109,8 +109,8 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 ### Open (currently unresolved — the only items worth prose)
 
 - **iOS UI parity** (UI/) — iOS build confirmed Fast-Path-only; parity audit pending (MCP/Security on iOS TBD).
-- **Reasoning `<thinking>` parse** (Engine/) — regex-based, no AST.
-- **`kvCacheRuntimeReport`** — not consumed; upstream `KVCacheRuntime.swift:147` / `ChatSession.swift:1449` / `KVCachePlan.swift:89/94` still present (d667610).
+- **Reasoning `<thinking>` parse** (Engine/) — 字符串协议状态机（`ThinkTagParser`，0 处 regex，#206 后 15/15 绿），无 AST。
+- **`kvCacheRuntimeReport`** — not consumed; upstream `KVCacheRuntime.swift:155` / `ChatSession.swift:1491` / `KVCachePlan.swift:89/94` still present (e3d4a20 实证; d667610).
 - **MLXFoundationModels** — FM path wired; lacks per-token callback on FM `.done`.
 - **Hygiene — do not add new**: `precondition` (structural invariants + upstream-verbatim); scattered `try?` defensive fallbacks (ongoing risk); 2 `empty catch {}` in the EngineInference watchdog.
 - **Coverage report** — Tests/CoverageReport missing (no live data).
