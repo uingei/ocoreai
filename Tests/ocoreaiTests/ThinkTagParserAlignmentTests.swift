@@ -101,14 +101,19 @@ struct ThinkTagParserTagPairTests {
     }
 }
 
-// MARK: - agentic (upstream #182): Format routing
+// MARK: - agentic (upstream #182 protocol markers; #206 streaming hardening merged 2026-09-04)
 
-@Suite("ThinkTagParser agentic — upstream #182 path")
-struct ThinkTagParserAgenticTests {
-    private let selfMarker = "to-self"
-    private let userMarker = "to-user"
-    private let eom = "end-message"
-    private let eot = "end-turn"
+/// Upstream `AgenticThinkTagParserTests` 用的真 marker 协议（Muse Glimmer / ATEM
+/// 风格）：`to=self<|message|>` / `to=user<|message|>` + eom/eot boundary tokens。
+/// 旧占位假 marker（`to-self`/`to-user`）不保 — 没有任何 ocoreai 生产消费者
+/// 走该路径（Engine / MLXBridge / CoreAI* 全走 tagPair + `primedInside`）。
+/// 真正的 agentic 断言面 → `AgenticThinkTagParserVendoredTests.swift`（#206）。
+@Suite("ThinkTagParser agentic — marker protocol parity guard")
+struct ThinkTagParserAgenticProtocolTests {
+    private let selfMarker = "to=self<|message|>"
+    private let userMarker = "to=user<|message|>"
+    private let eom = "<|eom|>"
+    private let eot = "<|eot|>"
 
     private func make() -> ThinkTagParser {
         ThinkTagParser(
@@ -121,35 +126,31 @@ struct ThinkTagParserAgenticTests {
         )
     }
 
-    @Test("content before first end-marker routes to reasoning")
-    func firstSegmentIsReasoning() {
+    @Test("first-turn agentic: leading-space self→user boundary, protocol not leaked")
+    func firstTurnReasoningThenUser() {
         var p = make()
-        let out = p.consume("thinking about it") + p.flush()
-        #expect(eventStrings(out, kind: .reasoning).joined() == "thinking about it")
-        #expect(eventStrings(out, kind: .text) == [])
+        let stream = " to=self<|message|>thinking...<|eom|><|start|>assistant to=user<|message|>hi"
+        let out = p.consume(stream) + p.flush()
+        #expect(eventStrings(out, kind: .reasoning).joined().contains("thinking..."))
+        #expect(eventStrings(out, kind: .text).joined() == "hi")
+        #expect(eventStrings(out, kind: .text).joined().doesNotContainProtocol)
     }
 
-    @Test("endOfMessage terminates the reasoning segment; after routes to text")
-    func eomTerminatesReasoningSegment() {
+    @Test("reasoning boundary eom emits reasoning, then user segment emits text")
+    func eomBoundaryTransition() {
         var p = make()
-        let out = p.consume("reasoning chunk" + eom + "after") + p.flush()
-        #expect(eventStrings(out, kind: .reasoning) == ["reasoning chunk"])
-        #expect(eventStrings(out, kind: .text) == ["after"])
+        let stream = " to=self<|message|>think<|eom|>user text"
+        let out = p.consume(stream) + p.flush()
+        #expect(eventStrings(out, kind: .reasoning).joined() == "think")
+        #expect(eventStrings(out, kind: .text).joined() == "user text")
     }
+}
 
-    @Test("userMarker: payload before marker is reasoning, rest buffered")
-    func userMarkerTransitions() {
-        var p = make()
-        let out = p.consume("reasoning content" + userMarker + "visible<") + p.flush()
-        #expect(eventStrings(out, kind: .reasoning) == ["reasoning content"])
-        #expect(eventStrings(out, kind: .text).joined() == "visible<")
-    }
-
-    @Test("full round trip: reasoning → user → reasoning")
-    func multiTurnRoundTrip() {
-        var p = make()
-        let out = p.consume("think" + eom + userMarker + "hello") + p.flush()
-        #expect(eventStrings(out, kind: .reasoning) == ["think"])
-        #expect(eventStrings(out, kind: .text).joined() == "hello")
+/// Protocol-leak guard: no agentic token may appear in user-facing text
+/// (`to=`/`<|message|>`/`<|start|>`/`<|eom|>`/`<|eot|>`).
+extension String {
+    fileprivate var doesNotContainProtocol: Bool {
+        !contains("to=self") && !contains("to=user") && !contains("<|message|>")
+            && !contains("<|start|>") && !contains("<|eom|>") && !contains("<|eot|>")
     }
 }

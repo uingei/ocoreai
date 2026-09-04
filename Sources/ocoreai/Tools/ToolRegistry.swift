@@ -261,7 +261,8 @@ actor ToolRegistry {
             throw ToolError.notFound(name)
         }
 
-        // 2. Loop detection via SHA256 of input
+        // 2. Loop detection via process-local hash of arguments (String.hashValue —
+        //    in-process identity key only; NOT a cryptographic digest, never persisted)
         let inputHash = String(format: "%llX", arguments.hashValue)
         try checkLoop(entry: entry, inputHash: inputHash)
 

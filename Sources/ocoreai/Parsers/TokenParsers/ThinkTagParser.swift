@@ -7,13 +7,26 @@
 // upstream CoreAIExecutor.respondVanilla() pipeline.
 //
 // 2026-08-21 (absorb #182 `637cc63`): merged agentic Format (upstream ahead)
-// WITHOUT dropping ocoreai's ahead `promptEndsInsideReasoning` + `init(primedInside:)`
-// (upstream 684ae8e grep = 0 / `git log -S` empty for `promptEndsInsideReasoning`
-// — ocoreai added these, they are consumed by `EngineInference:299/797`).
-// Result = two formats:
-//   - `.tagPair` — symmetric open/close markers (ocoreai's original mode)
-//   - `.agentic` — self/user role-based delimiters (upstream #182)
-// Both are exercised independently by `ThinkTagParserAlignmentTests`.
+// WITHOUT dropping ocoreai's ahead `promptEndsInsideReasoning` + `init(primedInside:)`.
+//
+// 2026-09-04 (absorb #206 `b91bb18`): merged upstream #206 agentic-mode hardening —
+//   - `consumeEntryMarker` handles first-turn ` to=<target><|message|>` AND
+//     continuation-turn `<|start|>assistant to=<target><|message|>` prefixes
+//     (upstream `ThinkTagParser.swift:118-152`); failure leaves buffer intact.
+//   - `isPartialRoutingHeader` holds back routing headers that arrive across
+//     consume() boundaries during streaming, so no partial token
+//     (`<|sta`/`assistant `) leaks into user-facing stream.
+//   - `static stripReasoning(from:format:)` covers both tagPair and agentic
+//     (#206 makes it a public API for non-stream consumers).
+//   - `drainAgentic` rewritten to drive from these (upstream 173-219).
+//   Kept: ocoreai-ahead `promptEndsInsideReasoning` + `init(primedInside:)`
+//   (upstream 684ae8e grep = 0 — `git log -S promptEndsInsideReasoning` empty).
+//
+// Vendored surface: `struct ThinkTagParser` (internal), `enum Event`,
+// `enum Format`, `consume(_:)`, `flush()`, `static tagPairFormat`,
+// `static promptEndsInsideReasoning`, `static stripReasoning`.
+// Test in `Tests/ocoreaiTests/AgenticThinkTagParserVendoredTests.swift`
+// (upstream `AgenticThinkTagParserTests` adapted to @testable ocoreai target).
 
 import Foundation
 
@@ -27,7 +40,9 @@ import Foundation
 ///
 /// **Agentic**: multi-turn message routing where reasoning is emitted as
 /// `to=self` messages and responses as `to=user` messages, delimited by
-/// message boundary tokens (`#182` upstream).
+/// message boundary tokens (`#182` upstream; streaming hardening `#206`).
+/// Upstream `#206` agentic hardening (routing-header prefix variants, partial
+/// holdback, `stripReasoning` static) merged 2026-09-04.
 struct ThinkTagParser {
     enum Event {
         case text(String)
@@ -90,9 +105,6 @@ struct ThinkTagParser {
     /// reasoning content and never emits an opening `openMarker` in the stream.
     /// A parser started Outside would misroute the entire thought block.
     ///
-    /// Trim trailing whitespace, then check if the last start marker is not
-    /// followed by a matching end marker.
-    ///
     /// Upstream `coreai-models@684ae8e` does not ship this helper (see
     /// `git log -S promptEndsInsideReasoning` → empty). ocoreai's
     /// `EngineInference:299/797` still require it; do not remove.
@@ -144,7 +156,8 @@ struct ThinkTagParser {
     // MARK: - Tag-pair mode
 
     /// Drives the symmetric open/close drain. Body is byte-for-byte the same
-    /// as the ocoreai 2026-08-09 vendored drain (unchanged).
+    /// as the ocoreai 2026-08-09 vendored drain (unchanged; #206 did not touch
+    /// tagPair mode).
     @preconcurrency private mutating func drainTagPair(isFinal: Bool) -> [Event] {
         guard case .tagPair = format else { return [] }
         var events: [Event] = []
@@ -179,27 +192,86 @@ struct ThinkTagParser {
         return ""
     }
 
-    // MARK: - Agentic mode (upstream #182 `637cc63`)
+    // MARK: - Agentic mode (#182 base; #206 streaming hardening merged 2026-09-04)
 
-    /// Drives the agentic role-routing drain. Adapted verbatim from upstream
-    /// `ThinkTagParser.drainAgentic(isFinal:)` — self/user marker routing +
-    /// eom/eot boundaries.
+    /// Try to consume a routing header at the start of the buffer (#206).
+    /// Returns true if a header was consumed, setting `insideThink` accordingly.
+    ///
+    /// Handles two prefix variants:
+    /// - First turn: ` to=<target><|message|>` (leading space, no `<|start|>`)
+    /// - Subsequent segments: `<|start|>assistant to=<target><|message|>`
+    ///
+    /// Non-destructive on failure: saves and restores buffer if no complete
+    /// routing header is matched.
+    @preconcurrency private mutating func consumeEntryMarker(
+        selfMarker: String, userMarker: String, messageToken: String
+    ) -> Bool {
+        let saved = buffer
+
+        if buffer.hasPrefix(" to=") {
+            buffer.removeFirst()
+        }
+
+        let headerPrefix = "<|start|>assistant "
+        if buffer.hasPrefix(headerPrefix) {
+            buffer = String(buffer.dropFirst(headerPrefix.count))
+        }
+
+        if buffer.hasPrefix(selfMarker) {
+            buffer = String(buffer.dropFirst(selfMarker.count))
+            insideThink = true
+            return true
+        }
+        if buffer.hasPrefix(userMarker) {
+            buffer = String(buffer.dropFirst(userMarker.count))
+            insideThink = false
+            return true
+        }
+        if buffer.hasPrefix("to="),
+            let range = buffer.range(of: messageToken)
+        {
+            buffer = String(buffer[range.upperBound...])
+            insideThink = false
+            return true
+        }
+
+        buffer = saved
+        return false
+    }
+
+    /// Returns true if the buffer could be the start of a routing header that
+    /// hasn't fully arrived yet during streaming (#206).
+    @preconcurrency private func isPartialRoutingHeader() -> Bool {
+        if buffer.isEmpty { return false }
+        let headerPrefix = "<|start|>assistant "
+        if headerPrefix.hasPrefix(buffer) { return true }
+        if buffer.hasPrefix(headerPrefix) && buffer.range(of: "<|message|>") == nil {
+            return true
+        }
+        if buffer.hasPrefix("to=") && buffer.range(of: "<|message|>") == nil {
+            return true
+        }
+        if " to=".hasPrefix(buffer) { return true }
+        if buffer.hasPrefix(" to=") && buffer.range(of: "<|message|>") == nil {
+            return true
+        }
+        return false
+    }
+
     @preconcurrency private mutating func drainAgentic(isFinal: Bool) -> [Event] {
         guard case .agentic(let selfMarker, let userMarker, let eom, let eot) = format else {
             return []
         }
+        let messageToken = "<|message|>"
 
         var events: [Event] = []
         while true {
-            // Entry markers may arrive across consume() boundaries — strip them
-            // at the top of each iteration before searching for end markers.
-            if buffer.hasPrefix(selfMarker) {
-                buffer = String(buffer.dropFirst(selfMarker.count))
-                insideThink = true
-            } else if buffer.hasPrefix(userMarker) {
-                buffer = String(buffer.dropFirst(userMarker.count))
-                insideThink = false
+            if !isFinal && isPartialRoutingHeader() {
+                return events
             }
+
+            _ = consumeEntryMarker(
+                selfMarker: selfMarker, userMarker: userMarker, messageToken: messageToken)
 
             if insideThink {
                 if let range = buffer.range(of: eom) {
@@ -207,14 +279,6 @@ struct ThinkTagParser {
                     if !before.isEmpty { events.append(.reasoning(before)) }
                     buffer = String(buffer[range.upperBound...])
                     insideThink = false
-                    // Consume the following entry marker if present (upstream
-                    // `ThinkTagParser.swift:133-138`).
-                    if buffer.hasPrefix(selfMarker) {
-                        buffer = String(buffer.dropFirst(selfMarker.count))
-                        insideThink = true
-                    } else if buffer.hasPrefix(userMarker) {
-                        buffer = String(buffer.dropFirst(userMarker.count))
-                    }
                 } else if let range = buffer.range(of: userMarker) {
                     let before = String(buffer[buffer.startIndex ..< range.lowerBound])
                     if !before.isEmpty { events.append(.reasoning(before)) }
@@ -231,14 +295,6 @@ struct ThinkTagParser {
                     if !before.isEmpty { events.append(.text(before)) }
                     buffer = String(buffer[range.upperBound...])
                     insideThink = true
-                    // Consume the following entry marker if present (upstream
-                    // `ThinkTagParser.swift:155-160`).
-                    if buffer.hasPrefix(userMarker) {
-                        buffer = String(buffer.dropFirst(userMarker.count))
-                        insideThink = false
-                    } else if buffer.hasPrefix(selfMarker) {
-                        buffer = String(buffer.dropFirst(selfMarker.count))
-                    }
                 } else if let range = buffer.range(of: selfMarker) {
                     let before = String(buffer[buffer.startIndex ..< range.lowerBound])
                     if !before.isEmpty { events.append(.text(before)) }
@@ -289,5 +345,47 @@ struct ThinkTagParser {
             }
         }
         return buffer.endIndex
+    }
+
+    /// Strip all completed thinking blocks from a full string.
+    /// Unclosed blocks at the end are also removed.
+    static func stripCompleted(
+        from text: String, open: String = "<thinking>", close: String = "</thinking>"
+    ) -> String {
+        var result = ""
+        result.reserveCapacity(text.count)
+        var remaining = text[...]
+        while let startRange = remaining.range(of: open) {
+            result.append(contentsOf: remaining[remaining.startIndex ..< startRange.lowerBound])
+            if let endRange = remaining.range(
+                of: close, range: startRange.upperBound ..< remaining.endIndex)
+            {
+                remaining = remaining[endRange.upperBound...]
+            } else {
+                // Unclosed block — discard everything from here
+                return result
+            }
+        }
+        result.append(contentsOf: remaining)
+        return result
+    }
+
+    /// Strip reasoning content for a given format (handles both tag-pair and agentic).
+    /// Upstream `#206` makes this a public API for non-stream consumers.
+    static func stripReasoning(from text: String, format: Format) -> String {
+        switch format {
+        case .tagPair(let open, let close):
+            return stripCompleted(from: text, open: open, close: close)
+        case .agentic(let selfMarker, let userMarker, let eom, let eot):
+            var parser = ThinkTagParser(
+                format: .agentic(
+                    selfMarker: selfMarker, userMarker: userMarker,
+                    endOfMessage: eom, endOfTurn: eot))
+            let events = parser.consume(text) + parser.flush()
+            return events.compactMap { event -> String? in
+                if case .text(let t) = event { return t }
+                return nil
+            }.joined()
+        }
     }
 }
