@@ -3,8 +3,8 @@
 /// ApprovalTests.swift — 审批参照形状（codex 基准，语义对齐非逐行抄）。
 ///
 /// 参照锚点：
-/// - `protocol.rs:924 AskForApproval`（两档 `.interactive`/`.never`）
-/// - `protocol.rs:3877 ReviewDecision`（`.approved`/`.approvedForSession`/`.denied`）
+/// - `protocol.rs:984 AskForApproval`（两档 `.interactive`/`.never`）
+/// - `protocol.rs:4053 ReviewDecision`（`.approved`/`.approvedForSession`/`.denied`）
 /// - `tui/text_formatting.rs:89 truncate_text`（snippet 截断逐字语义）
 import Foundation
 import Testing

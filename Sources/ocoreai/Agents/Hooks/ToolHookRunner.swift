@@ -2,7 +2,7 @@
 // Licensed under MIT.
 /// ToolHookRunner.swift — Lifecycle hooks aligned with codex-rs `HookEventName`.
 ///
-/// Baseline: codex `codex-rs/protocol/src/protocol.rs:1557` defines 12 hook events
+/// Baseline: codex `codex-rs/protocol/src/protocol.rs:1576` defines 12 hook events
 /// (`HookEventName`: PreToolUse/PermissionRequest/PostToolUse/PreCompact/
 /// PostCompact/SessionStart/SessionEnd/UserPromptSubmit/SubagentStart/
 /// SubagentStop/Stop/Interrupt).

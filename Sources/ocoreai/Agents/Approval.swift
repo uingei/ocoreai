@@ -3,13 +3,13 @@
 /// Approval.swift — 审批参照形状（codex 基准，语义对齐非逐行抄）。
 ///
 /// 上游锚点：
-/// - `codex-rs/protocol/src/protocol.rs:965` `AskForApproval`
+/// - `codex-rs/protocol/src/protocol.rs:984` `AskForApproval`
 ///   （on-request / untrusted / granular / never）
 ///   → ocoreai 只取两档：`.interactive`（≈ on-request：高危才问）与
 ///   `.never`（≈ never：不问、直接硬拒）。
 /// `untrusted` / `granular` 依赖 codex 的 subprocess 沙箱与细粒度策略面，
 /// ocoreai 无此执行面，按「不自己造」不取。
-/// - `codex-rs/protocol/src/protocol.rs:4008` `ReviewDecision`
+/// - `codex-rs/protocol/src/protocol.rs:4053` `ReviewDecision`
 ///   （Approved / ApprovedForSession / Denied{rejection} / Abort）
 ///   → ocoreai：`.approved` / `.approvedForSession` / `.denied(reason:)`。
 /// `Abort` 为会话级用户操作（UI Escape 承担），不属于 broker 决策；
@@ -20,7 +20,9 @@
 ///   （`ApprovalStore`，session 缓存语义见 `:69`：
 ///   "future requests touching any subset can also skip
 ///   prompting"）与 `with_cached_approval`（`:70`；`ApprovedForSession` 按
-///   **action 身份 key** 缓存，见 `approvals.rs::cache_keys`）
+///   **action 身份** key 缓存，见 `core/src/tools/approvals.rs:233`
+///   `cache_keys()` → `ApprovalCacheKey::ExecCommand(UnifiedExecApprovalKey)`，
+///   类型定义 `core/src/tools/runtimes/unified_exec.rs:91`）
 ///   → `ApprovalBroker.sessionApprovedKeys`（tool+arguments 身份键）。
 /// - `codex-rs/tui/src/text_formatting.rs:89` `truncate_text`
 ///   （>max graphemes → 截 max-3 + "..."）→ `ApprovalCore.snippet` 逐字同构。
@@ -34,7 +36,7 @@ import Foundation
 
 // MARK: - 策略（codex AskForApproval 两档）
 
-/// Pre-tool 审批策略。对齐 codex `AskForApproval`（`protocol.rs:965`）+
+/// Pre-tool 审批策略。对齐 codex `AskForApproval`（`protocol.rs:984`）+
 /// 沙箱允许面（ocoreai 无沙箱权限边，故并入策略轴）：
 /// - `.interactive` ≈ codex on-request：高危才问（默认）
 /// - `.auto` ≈ codex 沙箱允许面（如 workspace-write）：不问、直接放行
@@ -48,7 +50,7 @@ public enum ApprovalPolicy: String, Sendable, Equatable, CaseIterable, Codable {
 
 // MARK: - 决策（codex ReviewDecision 语义）
 
-/// 用户对单个高危调用的裁决。对齐 codex `ReviewDecision`（`protocol.rs:4008`）：
+/// 用户对单个高危调用的裁决。对齐 codex `ReviewDecision`（`protocol.rs:4053`）：
 /// `Approved` / `ApprovedForSession` / `Denied{rejection}`。
 public enum ApprovalDecision: Sendable, Equatable {
     /// 本次放行
