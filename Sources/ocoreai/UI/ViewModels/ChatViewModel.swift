@@ -145,6 +145,11 @@ final class ChatState {
     /// 测试可覆盖为 spy 闭包断言「turn 终结 ⇒ 停 TTS」, 不依赖 AVFoundation。
     internal var turnEndVoiceStopHook: @MainActor () -> Void = { AudioIO.shared.stopSpeaking() }
 
+    /// Turn-end 审批回路闭合 seam（codex `Abort → TurnAborted` 同语义：停止 = 挂起裁决
+    /// 一律 deny 清场）。生产默认 no-op——真实清场走下方 `clearApprovalSession()`;
+    /// 测试可覆盖为 spy 断言「stop/resend/switch/reload ⇒ 审批回路关闭」, 不依赖 broker。
+    internal var turnEndApprovalClosureHook: @MainActor () -> Void = {}
+
     var messages: [ChatMessage] = []
     var responseText: String = ""
     /// Display version — strips <thinking> tags so the live streaming preview
@@ -352,6 +357,13 @@ final class ChatState {
         // 之前只 cancel 推理流、从不 stopSpeak, 语音层把整段回复念完。
         // @MainActor 同步执行; 生产默认绑 AudioIO.shared.stopSpeaking（幂等）,
         // 测试可注入 spy 断言, 不依赖 AVFoundation。
+        // 审批回路闭合：停止 = turn 终结 ⇒ 挂起审批一律 deny 清场（codex `Abort` 语义）。
+        // 无副作用安全网：broker 缺席时 `clearApprovalSession()` 静默 no-op（与既有约定同形）；
+        // `Task` 内 async 清场不阻塞同步 path。测试 spy 可断言触发次数（同 TTS seam 先例）。
+        turnEndApprovalClosureHook()
+        Task { [weak self] in
+            await self?.clearApprovalSession()
+        }
         turnEndVoiceStopHook()
         loading = false
 
