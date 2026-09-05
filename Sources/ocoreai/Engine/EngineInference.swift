@@ -2294,7 +2294,6 @@ extension EnginePool {
                     from: mlxMessages as [MLXLMCommon.Chat.Message])
 
                 do {
-                    var fmStopReason: StopReason = .stopSequence
                     // P1-fix: Reasoning routing + stop sequence for FM path.
                     // Both guided and regular branches previously emitted .text only,
                     // bypassing ReasoningEventEmitter (no reasoning segmentation) and
@@ -2312,149 +2311,156 @@ extension EnginePool {
                         fmEmitter = ReasoningEventEmitter(config: rc, primedInside: primed)
                     }
                     var fmAccumulated = ""
-                    // Note: streamResponse returns text chunks, not token events —
-                    // FM SDK provides no per-token callback, so tokenCount is nil
-                    // (same as tokPerSec/promptTokPerSec for FM path).
+                    // 09-05 根因（FM-DIAG 6/6 实证）：ocoreai 传 ContextOptions() 无显式
+                    // level → 上游 thinkingEnabled(nil) 落到模型模板默认（Qwen3.5
+                    // enable_thinking 默认 ON）→ thinking-only 输出时 SDK 的 String 投影
+                    // content 合法地为空，token 全在 reasoning。上游 MLXLanguageModel
+                    // 把 thinking/response 作为独立 channel 事件（destination .reasoning /
+                    // .response，MLXLanguageModel.swift:699-712），SDK 对应产出
+                    // Transcript.Entry.reasoning（macOS 27）+ usage.output.reasoningTokenCount。
+                    // 三仓（coreai-models / mlx-swift-lm / codex）消费面共识：thinking 是
+                    // 独立事件流，不丢弃、不默认关。ocoreai 非 FM 路也 emit .reasoning ——
+                    // FM 路按同一语义补齐。
+                    var fmUsageTotal: Int?
+                    var fmUsageReasoning: Int?
+
+                    // thinking → .reasoning 事件（SDK 已按 Entry 分段），response → .text
+                    // （无推理配置时同），stop-sequence 语义同 MTP/standard 路。
+                    // 返回 true 表示命中 stop 序列（checkStopSequence 已 yield .done）。
+                    func fmEmit(
+                        _ responseText: String,
+                        entries: some Sequence<FoundationModels.Transcript.Entry>
+                    ) -> Bool {
+                        var hit = false
+                        if #available(macOS 27.0, *) {
+                            for entry in entries {
+                                guard case .reasoning(let r) = entry else { continue }
+                                var reasonText = ""
+                                for seg in r.segments {
+                                    if case .text(let t) = seg {
+                                        reasonText += t.content
+                                    }
+                                }
+                                if !reasonText.isEmpty,
+                                    checkStopSequence(
+                                        segment: reasonText,
+                                        accumulated: reasonText,
+                                        eventKind: { .reasoning($0) },
+                                        tokenCount: nil,
+                                        tokenFallback: 0
+                                    ).0
+                                {
+                                    hit = true
+                                    break
+                                }
+                            }
+                        }
+                        if hit || responseText.isEmpty {
+                            return hit
+                        }
+                        fmAccumulated = responseText
+                        if let e = fmEmitter {
+                            var emitter = e
+                            for segment in emitter.process(responseText) {
+                                switch segment {
+                                case .reasoning(let segText):
+                                    if checkStopSequence(
+                                        segment: segText,
+                                        accumulated: fmAccumulated,
+                                        eventKind: { .reasoning($0) },
+                                        tokenCount: nil,
+                                        tokenFallback: 0
+                                    ).0 {
+                                        hit = true
+                                        break
+                                    }
+                                case .response(let segText):
+                                    if checkStopSequence(
+                                        segment: segText,
+                                        accumulated: fmAccumulated,
+                                        eventKind: { .text($0) },
+                                        tokenCount: nil,
+                                        tokenFallback: 0
+                                    ).0 {
+                                        hit = true
+                                        break
+                                    }
+                                }
+                            }
+                        } else if checkStopSequence(
+                            segment: responseText,
+                            accumulated: fmAccumulated,
+                            eventKind: { .text($0) },
+                            tokenCount: nil,
+                            tokenFallback: 0
+                        ).0 {
+                            hit = true
+                        }
+                        return hit
+                    }
+
+                    func fmFinishFinal(_ reason: StopReason) {
+                        continuation.yield(
+                            .init(
+                                kind: .done(
+                                    reason,
+                                    tokenCount: fmUsageTotal,
+                                    tokPerSec: nil,
+                                    promptTokPerSec: nil,
+                                    reasoningTokenCount: fmUsageReasoning
+                                )
+                            ))
+                        continuation.finish()
+                    }
 
                     if let guidedSchema = fmGuidedSchema {
                         log.info("FM path: guided generation with schema constraints")
-                        for try await gc in langSession.streamResponse(
+                        // 09-05 实证：consume via collect()（SDK AsyncIterator 本环境不产出）
+                        let full = try await langSession.streamResponse(
                             to: fmPromptText,
                             schema: guidedSchema,
                             options: genOpts,
                             contextOptions: ctxOpts
-                        ) {
-                            if Task.isCancelled || cancellation.isCancelled {
-                                fmStopReason = .cancelled
-                                break
-                            }
-                            // Snapshot.rawContent is GeneratedContent. Extract text via
-                            // ConvertibleFromGeneratedContent — disambiguate by typing
-                            // the parameter so the compiler doesn't pick
-                            // RangeReplaceableCollection.init.
-                            let text = (try? String(gc.rawContent)) ?? ""
-                            if !text.isEmpty {
-                                // Route through reasoning emitter when available,
-                                // then check stop sequences (same as MTP/standard path).
-                                if let e = fmEmitter {
-                                    var emitter = e
-                                    for segment in emitter.process(text) {
-                                        switch segment {
-                                        case .reasoning(let segText):
-                                            fmAccumulated += segText
-                                            if checkStopSequence(
-                                                segment: segText,
-                                                accumulated: fmAccumulated,
-                                                eventKind: { .reasoning($0) },
-                                                tokenCount: nil,
-                                                tokenFallback: 0
-                                            ).0 {
-                                                fmStopReason = .stopSequence
-                                                break
-                                            }
-                                        case .response(let segText):
-                                            fmAccumulated += segText
-                                            if checkStopSequence(
-                                                segment: segText,
-                                                accumulated: fmAccumulated,
-                                                eventKind: { .text($0) },
-                                                tokenCount: nil,
-                                                tokenFallback: 0
-                                            ).0 {
-                                                fmStopReason = .stopSequence
-                                                break
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    // No reasoning config — stop sequence check on plain text
-                                    fmAccumulated += text
-                                    if checkStopSequence(
-                                        segment: text,
-                                        accumulated: fmAccumulated,
-                                        eventKind: { .text($0) },
-                                        tokenCount: nil,
-                                        tokenFallback: 0
-                                    ).0 {
-                                        fmStopReason = .stopSequence
-                                        break
-                                    }
-                                }
-                            }
+                        ).collect()
+                        if full.usage.output.totalTokenCount > 0 {
+                            fmUsageTotal = full.usage.output.totalTokenCount
                         }
-                        fmStopReason = fmStopReason == .stopSequence ? .eos : fmStopReason
+                        fmUsageReasoning = full.usage.output.reasoningTokenCount
+                        let text = (try? String(full.content)) ?? ""
+                        let stopHit = fmEmit(text, entries: full.transcriptEntries)
+                        if Task.isCancelled || cancellation.isCancelled {
+                            fmFinishFinal(.cancelled)
+                        } else if stopHit {
+                            // checkStopSequence 已 yield .done(.stopSequence)，不能再发
+                            continuation.finish()
+                        } else {
+                            fmFinishFinal(.eos)
+                        }
+                        return
                     } else {
-                        for try await partial in langSession.streamResponse(
+                        // 09-05 实证（FM-DIAG 6/6）：本机 macOS 27 beta 下 SDK 的
+                        // AsyncIterator 不产出 snapshot，collect() 正常返回全量内容。
+                        // 上游 .swiftinterface 将 ResponseStream.collect() 列为公开 API。
+                        let full = try await langSession.streamResponse(
                             to: fmPromptText,
                             options: genOpts,
                             contextOptions: ctxOpts
-                        ) {
-                            if Task.isCancelled || cancellation.isCancelled {
-                                fmStopReason = .cancelled
-                                break
-                            }
-                            if !partial.content.isEmpty {
-                                // Route through reasoning emitter when available,
-                                // then check stop sequences (same as MTP/standard path).
-                                if let e = fmEmitter {
-                                    var emitter = e
-                                    for segment in emitter.process(partial.content) {
-                                        switch segment {
-                                        case .reasoning(let segText):
-                                            fmAccumulated += segText
-                                            if checkStopSequence(
-                                                segment: segText,
-                                                accumulated: fmAccumulated,
-                                                eventKind: { .reasoning($0) },
-                                                tokenCount: nil,
-                                                tokenFallback: 0
-                                            ).0 {
-                                                fmStopReason = .stopSequence
-                                                break
-                                            }
-                                        case .response(let segText):
-                                            fmAccumulated += segText
-                                            if checkStopSequence(
-                                                segment: segText,
-                                                accumulated: fmAccumulated,
-                                                eventKind: { .text($0) },
-                                                tokenCount: nil,
-                                                tokenFallback: 0
-                                            ).0 {
-                                                fmStopReason = .stopSequence
-                                                break
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    // No reasoning config — stop sequence check on plain text
-                                    fmAccumulated += partial.content
-                                    if checkStopSequence(
-                                        segment: partial.content,
-                                        accumulated: fmAccumulated,
-                                        eventKind: { .text($0) },
-                                        tokenCount: nil,
-                                        tokenFallback: 0
-                                    ).0 {
-                                        fmStopReason = .stopSequence
-                                        break
-                                    }
-                                }
-                            }
+                        ).collect()
+                        if full.usage.output.totalTokenCount > 0 {
+                            fmUsageTotal = full.usage.output.totalTokenCount
                         }
+                        fmUsageReasoning = full.usage.output.reasoningTokenCount
+                        let stopHit = fmEmit(full.content, entries: full.transcriptEntries)
+                        if Task.isCancelled || cancellation.isCancelled {
+                            fmFinishFinal(.cancelled)
+                        } else if stopHit {
+                            // checkStopSequence 已 yield .done(.stopSequence)，不能再发
+                            continuation.finish()
+                        } else {
+                            fmFinishFinal(.eos)
+                        }
+                        return
                     }
-
-                    continuation.yield(
-                        .init(
-                            kind: .done(
-                                fmStopReason,
-                                tokenCount: nil,
-                                tokPerSec: nil,
-                                promptTokPerSec: nil
-                            )
-                        ))
-                    continuation.finish()
-                    return
                 } catch {
                     log.error("LanguageModelSession error: \(error.localizedDescription)")
                     continuation.yield(.init(kind: .error(error.localizedDescription)))
