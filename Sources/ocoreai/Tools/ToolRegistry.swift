@@ -90,7 +90,15 @@ actor ToolRegistry {
         }
 
         // Preflight checkFn
-        guard await entry.checkFn() else {
+        let check = await entry.checkFn()
+        if !check {
+            // 09-05 修复(静默失败 → 可见): 旧行为只 throw,调用方 27 处 `try?` 全部 silent-swallow,
+            // tool 默默消失用户无法察觉("接线闭合 ≠ 通电"在注册阶段的真面)。
+            // 现补 warning 日志(0 cost,不改变 API 签名,try? 调用点零改动),
+            // 失败原因(平台门/权限/依赖缺失)留痕于 audit/日志,可事后审计。
+            logger.warning(
+                "Tool '\(entry.name)' checkFn failed — not registered (preflight rejected)"
+            )
             throw ToolError.checkFailed(entry.name)
         }
 
