@@ -166,7 +166,15 @@ enum UpdatePlanClient {
                         type: .object,
                         description: "A plan step with `step` (text) and `status` "
                             + "(pending | in_progress | completed)",
-                        required: ["step", "status"]
+                        required: ["step", "status"],
+                        properties: [
+                            "step": ToolParameter(
+                                type: .string,
+                                description: "The step text."),
+                            "status": ToolParameter(
+                                type: .string,
+                                description: "pending | in_progress | completed"),
+                        ]
                     )
                 ),
             ])

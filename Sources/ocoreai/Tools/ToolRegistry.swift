@@ -460,14 +460,34 @@ actor ToolRegistry {
     /// ToolSpec == `[String: any Sendable]` matching upstream OpenAI function-calling schema.
     /// Each parameter includes `["type": ..., "description": ...]` dict — aligns with
     /// upstream ToolParameter.schema behavior (MLXLMCommon/Tool/ToolParameter.swift).
+    ///
+    /// 09-05: array 参数带 `items`、object 参数带 `required`（递归）——此前只写 `["type":]`
+    /// 把嵌套结构全丢（update_plan.plan 变裸 array<string>）。对齐上游
+    /// `ToolParameterType.schemaType`（array→items / object→required）+ ocoreai 自有
+    /// `buildParametersJSON()`（ToolEntry.swift），三处同形。
     func toToolSpecs() -> [[String: any Sendable]] {
         tools.values.map { entry in
-            var properties: [String: [String: any Sendable]] = [:]
-            for (paramName, param) in entry.schema.parameters {
-                properties[paramName] = ["type": param.type.rawValue]
+            func propSchema(_ param: ToolParameter) -> [String: any Sendable] {
+                var s: [String: any Sendable] = ["type": param.type.rawValue]
                 if !param.description.isEmpty {
-                    properties[paramName]?["description"] = param.description
+                    s["description"] = param.description
                 }
+                if let items = param.items {
+                    s["items"] = propSchema(items)
+                }
+                if let required = param.required, !required.isEmpty {
+                    s["required"] = required
+                }
+                if let properties = param.properties, !properties.isEmpty {
+                    var props: [String: any Sendable] = [:]
+                    for (k, v) in properties { props[k] = propSchema(v) }
+                    s["properties"] = props
+                }
+                return s
+            }
+            var properties: [String: any Sendable] = [:]
+            for (paramName, param) in entry.schema.parameters {
+                properties[paramName] = propSchema(param)
             }
             var params: [String: any Sendable] = ["type": "object", "properties": properties]
             if !entry.schema.parameters.isEmpty {

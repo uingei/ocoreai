@@ -2271,25 +2271,33 @@ extension EnginePool {
                 // ResponseStream<GeneratedContent> yields GeneratedContent which
                 // conforms to ConvertibleFromGeneratedContent — use String.init
                 // to extract text from the schema-validated output.
+                // 09-05 根因实证：GenerationSchema 的 Codable 是 canonical 形状
+                // （必须带 x-order/title），grammarSchema 是标准 JSON Schema →
+                // 走 DynamicGenerationSchema 树（与 FMToolBridge 同路），不 decode。
                 let fmGuidedSchema: FoundationModels.GenerationSchema? =
-                    if let schemaJSON = options.grammarSchema,
-                        let data = schemaJSON.data(using: .utf8),
-                        let gs = try? JSONDecoder().decode(
-                            FoundationModels.GenerationSchema.self, from: data
-                        )
-                    {
-                        gs
-                    } else {
-                        nil
-                    }
+                    (try? {
+                        guard
+                            let schemaJSON = options.grammarSchema,
+                            let data = schemaJSON.data(using: .utf8),
+                            let dict = try JSONSerialization.jsonObject(with: data)
+                                as? [String: Any]
+                        else { return nil as FoundationModels.GenerationSchema? }
+                        guard
+                            let dynamic = FMToolProxy.makeDynamicSchema(
+                                from: dict, name: "guided"
+                            )
+                        else { return nil }
+                        return try FoundationModels.GenerationSchema(
+                            root: dynamic, dependencies: [])
+                    }()) ?? nil
 
-                /* P1-fix: use actual user prompt text instead of empty string.
-                   streamResponse(to:) forwards to Executor.respond() which calls
-                   TranscriptConverter.mlxMessages(). When the transcript contains
-                   only instructions + empty response pairs (no prompt entry),
-                   mlxMessages returns [] and upstream crashes at L943 with
-                   "Cannot respond with empty messages". Extract the last user
-                   message from mlxMessages to provide the actual input. */
+                // P1-fix: use actual user prompt text instead of empty string.
+                // streamResponse(to:) forwards to Executor.respond() which calls
+                // TranscriptConverter.mlxMessages(). When the transcript contains
+                // only instructions + empty response pairs (no prompt entry),
+                // mlxMessages returns [] and upstream crashes at L943 with
+                // "Cannot respond with empty messages". Extract the last user
+                // message from mlxMessages to provide the actual input.
                 let fmPromptText = FMTranscriptHelpers.lastUserPromptText(
                     from: mlxMessages as [MLXLMCommon.Chat.Message])
 

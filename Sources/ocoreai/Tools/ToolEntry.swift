@@ -119,15 +119,20 @@ final class ToolParameter: Codable, Equatable, @unchecked Sendable {
     let items: ToolParameter?
     /// 对象必填键（仅 `.object` 有效；元素级必填，如 plan step 的 `step`）。
     let required: [String]?
+    /// 对象子键 schema（仅 `.object` 有效；对齐 JSON Schema `properties`）。
+    /// 09-05: 补齐 — 此前模型只带 `required` 键名、不带键类型，对象面
+    /// （如 update_plan.plan items 的 step/status）在 wire/FM 层退化空 object。
+    let properties: [String: ToolParameter]?
 
     init(
         type: ParameterType, description: String = "", items: ToolParameter? = nil,
-        required: [String]? = nil
+        required: [String]? = nil, properties: [String: ToolParameter]? = nil
     ) {
         self.type = type
         self.description = description
         self.items = items
         self.required = required
+        self.properties = properties
     }
 
     /// Static shorthands for dictionary literals — e.g. `["key": .string]`。
@@ -144,6 +149,7 @@ final class ToolParameter: Codable, Equatable, @unchecked Sendable {
             && lhs.description == rhs.description
             && lhs.items == rhs.items
             && lhs.required == rhs.required
+            && lhs.properties == rhs.properties
     }
 }
 
@@ -188,6 +194,11 @@ extension ToolEntry {
             }
             if let required = param.required {
                 s["required"] = required
+            }
+            if let properties = param.properties, !properties.isEmpty {
+                var props: [String: Any] = [:]
+                for (k, v) in properties { props[k] = propSchema(v) }
+                s["properties"] = props
             }
             return s
         }

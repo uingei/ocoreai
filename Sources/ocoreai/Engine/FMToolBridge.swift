@@ -96,27 +96,107 @@ struct FMToolProxy: FoundationModels.Tool {
     }
 
     /// Try to construct a GenerationSchema from JSON. Returns nil when the
-    /// schema cannot be built (caller skips the tool — an unusable schema is
+    /// schema shape is incompatible (FM will refuse the tool; that is
     /// worse than no tool, unlike the old fake-empty-schema fallback).
     private static func tryToBuildSchema(
         from json: [String: any Sendable],
         name: String,
         logger: Logging.Logger
     ) -> FoundationModels.GenerationSchema? {
-        guard let data = try? JSONSerialization.data(withJSONObject: json) else {
-            logger.warning("FMToolProxy: cannot serialize params for \(name)")
+        // 09-05 根因实证（/tmp/fm-schema-probe）：GenerationSchema 的 Codable
+        // 是 canonical 形状（必须带 "x-order"/"title"），OpenAI 风格 JSON
+        // （"type":"object","properties":...）直接 decode 必 keyNotFound。
+        // 正路 = SDK 公开的 DynamicGenerationSchema 树 → GenerationSchema(root:deps:)。
+        let dict =
+            json as? [String: Any]
+            ?? (try? JSONSerialization.jsonObject(
+                with: (try? JSONSerialization.data(withJSONObject: json))!
+            )) as? [String: Any]
+        guard let dict else {
+            logger.warning("FMToolProxy: cannot normalize params for \(name)")
             return nil
         }
-        guard
+        if let dynamic = Self.makeDynamicSchema(from: dict, name: name) {
+            if let schema = try? FoundationModels.GenerationSchema(
+                root: dynamic, dependencies: []
+            ) {
+                return schema
+            }
+        }
+        // 兜底：输入若已是 canonical 形状（含 "x-order"），保留原 decode 路。
+        if let data = try? JSONSerialization.data(withJSONObject: dict, options: []),
             let schema = try? JSONDecoder().decode(
-                FoundationModels.GenerationSchema.self,
-                from: data
+                FoundationModels.GenerationSchema.self, from: data
             )
-        else {
-            logger.warning("FMToolProxy: schema decode failed for \(name)")
-            return nil
+        {
+            return schema
         }
-        return schema
+        logger.warning(
+            "FMToolProxy: schema conversion failed for \(name) — tool skipped")
+        return nil
+    }
+
+    /// 09-05: OpenAI/JSON-Schema 风格 dict → DynamicGenerationSchema 树。
+    /// 递归处理 type/properties/required/items/enum，覆盖 ocoreai 21 内置工具的
+    /// 全部实际形状（string/integer/number/boolean/array<scalar>/array<object>）。
+    static func makeDynamicSchema(
+        from schema: [String: Any],
+        name: String
+    ) -> FoundationModels.DynamicGenerationSchema? {
+        let type = schema["type"] as? String ?? "object"
+
+        // 标量映射 — Generable 原生类型
+        switch type {
+        case "string":
+            return FoundationModels.DynamicGenerationSchema(type: String.self, guides: [])
+        case "integer", "int64", "int32":
+            return FoundationModels.DynamicGenerationSchema(type: Int.self, guides: [])
+        case "number", "float", "double":
+            return FoundationModels.DynamicGenerationSchema(type: Double.self, guides: [])
+        case "boolean":
+            return FoundationModels.DynamicGenerationSchema(type: Bool.self, guides: [])
+        default:
+            break
+        }
+
+        if type == "array" {
+            let itemSchema = (schema["items"] as? [String: Any]) ?? ["type": "string"]
+            guard
+                let itemDynamic = makeDynamicSchema(
+                    from: itemSchema, name: "\(name).items"
+                )
+            else { return nil }
+            return FoundationModels.DynamicGenerationSchema(arrayOf: itemDynamic)
+        }
+
+        if type == "object" {
+            let props = (schema["properties"] as? [String: [String: Any]]) ?? [:]
+            let required = Set(schema["required"] as? [String] ?? [])
+            var dynamicProps: [FoundationModels.DynamicGenerationSchema.Property] = []
+            for (propName, propSchema) in props {
+                guard
+                    let child = makeDynamicSchema(
+                        from: propSchema, name: "\(name).\(propName)"
+                    )
+                else { return nil }
+                dynamicProps.append(
+                    FoundationModels.DynamicGenerationSchema.Property(
+                        name: propName,
+                        description: propSchema["description"] as? String,
+                        schema: child,
+                        isOptional: !required.contains(propName)
+                    )
+                )
+            }
+            return FoundationModels.DynamicGenerationSchema(
+                name: name,
+                description: schema["description"] as? String,
+                properties: dynamicProps
+            )
+        }
+
+        // 不认识的类型（enum/object-const 等）→ 降级 string 而非整体放弃
+        return FoundationModels.DynamicGenerationSchema(type: String.self, guides: [])
     }
 }
 
