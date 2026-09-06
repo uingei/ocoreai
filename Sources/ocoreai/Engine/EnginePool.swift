@@ -519,19 +519,30 @@ actor EnginePool {
             let hubProviderStr: String = isHF ? "huggingface" : "modelscope"
 
             /// MLXLanguageModel capabilities.
-            /// Declare `.reasoning` unconditionally. ocoreai is a generic runtime —
-            /// it cannot know a priori whether each loaded model reasons. The FM path
-            /// gate (Executor.respond() L1060) requires both `declaresReasoning` AND
-            /// `resolved.reasoningConfig`; a model without reasoning capability has
-            /// `reasoningConfig == nil` so the L1106 let-bind is nil and the pipeline
-            /// naturally falls through. Declaring `.reasoning` here ensures that models
-            /// whose factory DID inject a `reasoningConfig` (via ChatConventionsRegistry
-            /// or the model's own `reasoningConfig` declaration) are not blocked by
-            /// `isLikelyReasoningModel` name-heuristic misses (community re-uploads,
-            /// ModelScope mirrors, etc.) on macOS 27/iOS 27 where FM path is the
-            /// exclusive active route.
+            /// Declare `.toolCalling` + `.reasoning` unconditionally. ocoreai is a generic
+            /// runtime — it cannot know a priori whether each loaded model tools or reasons.
+            /// The SDK capability gate (Executor.respond()) rejects a session that carries
+            /// tools when `.toolCalling` is not declared: live repro 09-06 — gemma-4-e2b-it
+            /// "Using LanguageModelSession → Injected 25 tools → doesn't have the
+            /// capabilities needed for this operation" (0 tokens, 500 in 6ms).
+            /// Upstream baseline (mlx-swift-lm MLXLanguageModel.swift:313 example
+            /// `capabilities: [.guidedGeneration, .toolCalling]`, :558 default
+            /// `[.guidedGeneration]`) declares `.guidedGeneration` for every model that
+            /// exposes tools — capability is a request-shape contract, not a per-model
+            /// knowledge the runtime has in advance.
+            /// Same logic for `.reasoning`: the FM path gate (Executor.respond() L1060)
+            /// requires both `declaresReasoning` AND `resolved.reasoningConfig`; a model
+            /// without reasoning capability has `reasoningConfig == nil` so the let-bind
+            /// is nil and the pipeline naturally falls through. Declaring it here ensures
+            /// models whose factory DID inject a `reasoningConfig` (via
+            /// ChatConventionsRegistry or the model's own `reasoningConfig` declaration)
+            /// are not blocked by `isLikelyReasoningModel` name-heuristic misses
+            /// (community re-uploads, ModelScope mirrors, etc.) on macOS 27/iOS 27 where
+            /// the FM path is the exclusive active route.
             let modelConfig = ModelConfiguration(id: modelId)
-            let baseCaps: [LanguageModelCapabilities.Capability] = [.guidedGeneration, .reasoning]
+            let baseCaps: [LanguageModelCapabilities.Capability] = [
+                .guidedGeneration, .toolCalling, .reasoning,
+            ]
             let vlmCaps: [LanguageModelCapabilities.Capability] = isVlmModel ? [.vision] : []
             mlxLM = MLXLanguageModel(
                 configuration: modelConfig,
