@@ -237,19 +237,6 @@ extension ToolEntry {
     }
 }
 
-extension ParameterType {
-    fileprivate var jsonSchemaType: String {
-        switch self {
-        case .string: return "string"
-        case .integer: return "integer"
-        case .number: return "number"
-        case .boolean: return "boolean"
-        case .array: return "array"
-        case .object: return "object"
-        }
-    }
-}
-
 // MARK: - Tool execution errors
 enum ToolError: Error, LocalizedError {
     case notFound(String)
