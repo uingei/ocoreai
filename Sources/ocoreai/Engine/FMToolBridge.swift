@@ -17,9 +17,15 @@ import FoundationModels
 
 /// Adapts a ToolRegistry entry → FoundationModels.Tool protocol conformant type.
 ///
-/// Generics: Arguments = String (raw JSON), Output = String (tool result text).
-/// String conforms to ConvertibleFromGeneratedContent and PromptRepresentable
-/// in the SDK, so this satisfies the protocol's associatedtype constraints.
+/// 09-06 契约修正(代码即文档): Arguments = GeneratedContent(非 String)。
+/// SDK swiftinterface 明文: 标量 Arguments(String/Int/Double/Float/Decimal/Bool)
+/// 的 `parameters` 便捷实现全标 unavailable("Use '@Generable' struct instead")。
+/// parse 通道 = Arguments.init(_ content: GeneratedContent) — 模型生成的工具参数
+/// 是结构体 {…}(GeneratedContent.Kind.structure),String 通道拿不到 → 通电实证
+/// "Failed to parse generated content"(SDK 运行期抛,ocoreai/三仓全树零命中)。
+/// GeneratedContent 自身 conform Generable 且自带 .jsonString — 结构动态工具
+/// (27 内置 + MCP)的 Arguments 唯一恒等类型;@Generable 结构体需编译期定型,
+/// 覆盖不了运行期注册的 MCP 工具面。
 ///
 /// The `parameters` property builds a GenerationSchema from the tool's JSON
 /// schema by serializing → Codable init — the SDK's authoritative path.
@@ -28,7 +34,7 @@ import FoundationModels
 /// collision with `MLXLMCommon.Tool` (struct, not protocol).
 @available(macOS 27.0, iOS 27.0, *)
 struct FMToolProxy: FoundationModels.Tool {
-    typealias Arguments = String
+    typealias Arguments = FoundationModels.GeneratedContent
     typealias Output = String
 
     let name: String
@@ -56,8 +62,10 @@ struct FMToolProxy: FoundationModels.Tool {
 
     /// P1-fix: Forward to ToolRegistry.call with proper error handling.
     /// ToolRegistry.call() expects (name, JSON string) signature.
-    @concurrent func call(arguments: String) async throws -> String {
-        try await _dispatch(name, arguments)
+    /// 09-06: arguments 从 String 修正为 GeneratedContent — 经 .jsonString 取
+    /// 回模型生成的原始 JSON;structure 参数在 String 通道上必丢(缺陷 3 根因)。
+    @concurrent func call(arguments: FoundationModels.GeneratedContent) async throws -> String {
+        try await _dispatch(name, arguments.jsonString)
     }
 
     // MARK: - Factory
