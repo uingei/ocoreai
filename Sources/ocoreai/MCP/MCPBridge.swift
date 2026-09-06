@@ -575,25 +575,66 @@ actor MCPBridge {
             let mcpDescription = (toolInfo["description"] as? String) ?? ""
 
             // Build schema from MCP inputSchema
+            // 09-06: 参数面形状保真(此前 number→.integer float 截断;object→.string 嵌套全丢;
+            // array.items 丢;required 子集压平 all — 与 448b587 描述静默丢弃同缺陷类)。
             let inputSchema = toolInfo["inputSchema"] as? [String: Any] ?? [:]
-            let properties = inputSchema["properties"] as? [String: [String: Any]] ?? [:]
-
-            var parameters: [String: ToolParameter] = [:]
-            for (paramName, paramInfo) in properties {
-                let typeString = (paramInfo["type"] as? String)?.lowercased() ?? "string"
-                let paramType: ParameterType
-                switch typeString {
-                case "string": paramType = .string
-                case "number", "integer": paramType = .integer
-                case "boolean": paramType = .boolean
-                case "array": paramType = .array
-                default: paramType = .string
+            let inputRequired = inputSchema["required"] as? [String]
+            func mapMCPParam(_ dict: [String: Any], name: String) -> ToolParameter {
+                func firstNonEmpty(_ v: Any?) -> String {
+                    guard let s = v as? String, !s.isEmpty else { return "" }
+                    return s
                 }
-                let description = (paramInfo["description"] as? String) ?? ""
-                parameters[paramName] = ToolParameter(type: paramType, description: description)
+                let typeString = (dict["type"] as? String)?.lowercased() ?? "string"
+                let description = firstNonEmpty(dict["description"])
+                switch typeString {
+                case "string":
+                    if let items = dict["items"] as? [String: Any] {
+                        // 字符串数组(如 tags: [string])
+                        return ToolParameter(
+                            type: .array,
+                            description: description,
+                            items: mapMCPParam(items, name: "\(name).items")
+                        )
+                    }
+                    return ToolParameter.string
+                case "integer":
+                    return ToolParameter.integer
+                case "number":
+                    // JSON Schema "number" = float
+                    return ToolParameter.number
+                case "boolean":
+                    return ToolParameter(type: .boolean, description: description)
+                case "array":
+                    var items = ToolParameter.string
+                    if let it = dict["items"] as? [String: Any] {
+                        items = mapMCPParam(it, name: "\(name).items")
+                    }
+                    return ToolParameter(type: .array, description: description, items: items)
+                case "object":
+                    var children: [String: ToolParameter] = [:]
+                    for (subName, subInfo) in (dict["properties"] as? [String: Any] ?? [:]) {
+                        if let subDict = subInfo as? [String: Any] {
+                            children[subName] = mapMCPParam(subDict, name: "\(name).\(subName)")
+                        }
+                    }
+                    let subRequired = dict["required"] as? [String]
+                    return ToolParameter(
+                        type: .object,
+                        description: description,
+                        required: subRequired,
+                        properties: children
+                    )
+                default:
+                    return ToolParameter(type: .string, description: description)
+                }
             }
-
-            let schema = ToolSchema(parameters: parameters)
+            var parameters: [String: ToolParameter] = [:]
+            for (paramName, paramInfo) in (inputSchema["properties"] as? [String: Any] ?? [:]) {
+                if let dict = paramInfo as? [String: Any] {
+                    parameters[paramName] = mapMCPParam(dict, name: paramName)
+                }
+            }
+            let schema = ToolSchema(parameters: parameters, required: inputRequired)
 
             // Handler forwards calls to the MCP client via the bridge
             let handler: @Sendable (String) async throws -> String = { arguments in

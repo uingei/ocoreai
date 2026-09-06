@@ -108,9 +108,14 @@ struct ToolEntry {
 /// JSON Schema describing tool parameters
 struct ToolSchema: Codable {
     let parameters: [String: ToolParameter]
+    /// 09-06: 工具级"必填键"子集(JSON Schema inputSchema.required 的忠实透传)。
+    /// nil = 未声明 → 下游惯例保持 "所有已声明 = required"(built-in 现有行为)。
+    /// 非 nil = 仅这些键 required(可选参数不再被误标必填)。
+    let required: [String]?
 
-    init(parameters: [String: ToolParameter] = [:]) {
+    init(parameters: [String: ToolParameter] = [:], required: [String]? = nil) {
         self.parameters = parameters
+        self.required = required
     }
 }
 
@@ -124,6 +129,8 @@ final class ToolParameter: Codable, Equatable, @unchecked Sendable {
     /// 数组元素的子 schema（仅 `.array` 有效；对齐 JSON Schema `items`）。
     /// nil = 无 items 声明（向后兼容既有工具）。
     let items: ToolParameter?
+    /// 09-06: number(=JSON Schema "number"/float)参数 shorthand。
+    static let number = ToolParameter(type: .number)
     /// 对象必填键（仅 `.object` 有效；元素级必填，如 plan step 的 `step`）。
     let required: [String]?
     /// 对象子键 schema（仅 `.object` 有效；对齐 JSON Schema `properties`）。
@@ -164,6 +171,9 @@ final class ToolParameter: Codable, Equatable, @unchecked Sendable {
 enum ParameterType: String, Codable, CaseIterable {
     case string
     case integer
+    /// 09-06: float 参数档(JSON Schema "number")。此前 MCP number 字段被映射成 .integer,
+    /// wire "integer" — 模型按整型生成, float 字段截断。
+    case number
     case boolean
     case array
     case object
@@ -232,6 +242,7 @@ extension ParameterType {
         switch self {
         case .string: return "string"
         case .integer: return "integer"
+        case .number: return "number"
         case .boolean: return "boolean"
         case .array: return "array"
         case .object: return "object"

@@ -498,7 +498,11 @@ actor ToolRegistry {
                 properties[paramName] = propSchema(param)
             }
             var params: [String: any Sendable] = ["type": "object", "properties": properties]
-            if !entry.schema.parameters.isEmpty {
+            // 09-06: 有显式 required 子集(MCP inputSchema.required 忠实透传)→ 用子集;
+            // 无声明(built-in 惯例: 全声明=required)→ 保持原行为。
+            if let req = entry.schema.required {
+                params["required"] = req
+            } else if !entry.schema.parameters.isEmpty {
                 params["required"] = Array(entry.schema.parameters.keys)
             }
             return [
