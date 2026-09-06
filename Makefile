@@ -79,9 +79,11 @@ format-check:
 	  echo "✅ swift-format: zero files reformatted"; \
 	else \
 	  echo "❌ swift-format would reformat $$CHANGED file(s):"; \
-	  git diff --name-only -- Sources/ Tests/; \
-	  echo "Restored originals — run 'make format' to accept."; \
-	  git checkout -- Sources/ Tests/; \
+	  git --no-pager diff --name-status -- Sources/ Tests/; \
+	  echo; \
+	  echo "Working tree KEEPS both your uncommitted changes and the reformat (CI-parity: no blind checkout)."; \
+	  echo "Accept reformat:  make format   →  git add -A"; \
+	  echo "Or inspect:       git diff -- Sources/ Tests/  (format lines vs. your feature lines)"; \
 	  exit 1; \
 	fi
 
