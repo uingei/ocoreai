@@ -12,6 +12,10 @@ struct ToolEntry {
     let name: String
     let toolset: String
     let schema: ToolSchema
+    /// Human-readable description of what the tool does — surfaced to the model
+    /// via `toToolSpecs()` / `toToolDef()`. Empty = not provided → callers fall
+    /// back to a clean synthesized line (never the raw source text).
+    let description: String
     let handler: @Sendable (String) async throws -> String
     let checkFn: @Sendable () async -> Bool
     let isDestructive: Bool
@@ -27,6 +31,7 @@ struct ToolEntry {
         name: String,
         toolset: String,
         schema: ToolSchema,
+        description: String = "",
         handler: @Sendable @escaping (String) async throws -> String,
         checkFn: @Sendable @escaping () async -> Bool = { true },
         isDestructive: Bool = false,
@@ -36,6 +41,7 @@ struct ToolEntry {
         self.name = name
         self.toolset = toolset
         self.schema = schema
+        self.description = description
         self.handler = handler
         self.checkFn = checkFn
         self.isDestructive = isDestructive
@@ -79,6 +85,7 @@ struct ToolEntry {
             name: name,
             toolset: toolset,
             schema: schema,
+            description: description,
             handler: { rawArgs in
                 guard let data = rawArgs.data(using: .utf8), !data.isEmpty else {
                     throw ToolError.invalidParameter("Arguments required for tool '\(name)'")
@@ -167,9 +174,12 @@ enum ParameterType: String, Codable, CaseIterable {
 extension ToolEntry {
     /// Convert to OpenAI-format ToolDef — used by Fast Path callers.
     func toToolDef() -> ToolDef {
+        // 09-06: 优先工具自带 description;缺失才回退合成行(name/toolset/参数摘要)。
+        // 此前合成行无条件发送——22 个有真实描述的内置工具也发不出。
+        let synth = "Tool: \(name) [\(toolset)]. Parameters: \(parametersDescription)"
         let function = FunctionDef(
             name: name,
-            description: "Tool: \(name) [\(toolset)]. Parameters: \(parametersDescription)",
+            description: (!description.isEmpty ? description : synth),
             parameters: buildParametersJSON()
         )
         return ToolDef(type: "function", function: function)

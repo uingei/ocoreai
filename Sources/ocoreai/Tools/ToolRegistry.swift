@@ -505,7 +505,13 @@ actor ToolRegistry {
                 "type": "function" as any Sendable,
                 "function": [
                     "name": entry.name as any Sendable,
-                    "description": "Tool: \\(entry.name) [\\(entry.toolset)]" as any Sendable,
+                    // 09-06 通电缺陷: 此前是 `\\(entry.name)` 双反斜杠——插值被转义,
+                    // 模型收到源码文本 `\(entry.name)` 而非真实工具名。现优先用工具
+                    // 自带 description;缺失时回退干净合成行(绝不泄源码文本)。
+                    "description":
+                        (entry.description.isEmpty
+                        ? "Tool: \(entry.name) [\(entry.toolset)]"
+                        : entry.description) as any Sendable,
                     "parameters": params as any Sendable,
                 ] as [String: any Sendable],
             ] as [String: any Sendable]

@@ -571,6 +571,8 @@ actor MCPBridge {
         for toolInfo in tools {
             let toolName = (toolInfo["name"] as? String) ?? ""
             guard !toolName.isEmpty else { continue }
+            // 09-06: MCP 工具级 description 此前静默丢弃——外部工具模型同样看不到"这工具干嘛"。
+            let mcpDescription = (toolInfo["description"] as? String) ?? ""
 
             // Build schema from MCP inputSchema
             let inputSchema = toolInfo["inputSchema"] as? [String: Any] ?? [:]
@@ -605,6 +607,7 @@ actor MCPBridge {
                 name: toolName,
                 toolset: "mcp:\(source)",
                 schema: schema,
+                description: mcpDescription,
                 handler: handler,
                 mcpSource: source,
             )

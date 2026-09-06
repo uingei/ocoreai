@@ -16,6 +16,7 @@
 /// existing `ToolRegistryTests.swift`.
 
 import Foundation
+import Logging
 import Testing
 
 @testable import ocoreai
@@ -149,5 +150,84 @@ struct ToolEntrySpecTests {
         let entry = typedEntry("noargs", "t", [:])
         let def = entry.toToolDef()
         #expect(def.function.parameters == nil)
+    }
+
+    // MARK: - tool-level description survival (09-06 live defect)
+    // Power-on repro: toToolSpecs():508 sent the *source text* `\(entry.name)`
+    // (double-escaped) to the model, and ToolEntry.typed() accepted a
+    // `description:` argument and silently dropped it — 22/22 built-in tools
+    // shipped real descriptions the model never saw.
+
+    @Test("typed(description:) survives to entry.description (was silently dropped)")
+    func typedDescriptionSurvives() {
+        struct A: Codable, Sendable {}
+        let entry = ToolEntry.typed(
+            name: "observe_state",
+            toolset: "perception",
+            argsType: A.self,
+            description: "Observe the live environment state."
+        ) { _ in "ok" }
+        #expect(entry.description == "Observe the live environment state.")
+    }
+
+    @Test("toToolSpecs description is the real one; fallback never leaks source text")
+    func toToolSpecsDescriptionIsClean() async throws {
+        let registry = ToolRegistry(log: Logger(label: "test.specdesc"))
+        struct A: Codable, Sendable {}
+        let realDesc = "See the current screen and return on-screen text."
+        let withDesc = ToolEntry.typed(
+            name: "view_screen", toolset: "screen",
+            argsType: A.self, description: realDesc
+        ) { _ in "ok" }
+        let withoutDesc = ToolEntry(
+            name: "no_desc_tool", toolset: "misc",
+            schema: ToolSchema(), handler: { _ in "ok" })
+        try await registry.register(withDesc)
+        try await registry.register(withoutDesc)
+
+        let specs = await registry.toToolSpecs()
+        for spec in specs {
+            guard let fn = spec["function"] as? [String: any Sendable],
+                let name = fn["name"] as? String,
+                let desc = fn["description"] as? String
+            else { continue }
+            // The live repro: `\(entry.name)` source text reached the model.
+            let hasLeak = desc.contains("\\(") || desc.contains("entry.name")
+            #expect(!hasLeak, "source-text leak in: \(desc)")
+            if name == "view_screen" {
+                #expect(desc == realDesc)
+            }
+        }
+        // Without a registered description the fallback stays clean (no source text).
+        var noDescSpec: [String: any Sendable]?
+        for spec in specs {
+            let fn = spec["function"] as? [String: any Sendable]
+            if (fn?["name"] as? String) == "no_desc_tool" {
+                noDescSpec = spec
+                break
+            }
+        }
+        let noDescFn = noDescSpec?["function"] as? [String: any Sendable]
+        guard let noDesc = noDescFn?["description"] as? String else { return }
+        let noLeak = noDesc.contains("\\(")
+        #expect(!noLeak)
+        #expect(noDesc.contains("no_desc_tool"))
+    }
+
+    @Test("toToolDef prefers real description; falls back to synthesized when absent")
+    func toToolDefPrefersRealDescription() {
+        struct A: Codable, Sendable {}
+        let realDesc = "Transcribe an audio file to text."
+        let withDesc = ToolEntry.typed(
+            name: "transcribe_audio", toolset: "audio",
+            argsType: A.self, description: realDesc
+        ) { _ in "ok" }
+        #expect(withDesc.toToolDef().function.description == realDesc)
+
+        let withoutDesc = typedEntry("legacy", "t", [:])
+        let fb = withoutDesc.toToolDef().function.description
+        #expect(fb!.contains("legacy"))
+        let fbLeak = fb!.contains("\\(")
+        #expect(!fbLeak)
     }
 }
