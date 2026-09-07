@@ -109,9 +109,14 @@ struct EngineVariantRoutingTests {
         #expect(self.isFailure(result), "expected throw, got \(result)")
     }
 
-    // MARK: full compatibility table (matches upstream EngineFactory)
+    // MARK: full compatibility table
+    // LLM variants (dynamic/chunkedStatic) match upstream EngineFactory (coreai-models
+    // EngineFactory.swift, upstream 27a66f9..df81198 zero drift).
+    // ocoreai .unknown is a graceful-degradation path (→ sequential); upstream uses
+    // .multiFunctionSegmenter (→ preconditionFailure). Behavior differs by design.
 
-    @Test("compatibility table matches upstream EngineFactory")
+    @Test(
+        "compatibility table (LLM variants match upstream; .unknown is ocoreai-specific fallback)")
     func fullCompatibilityTable() {
         guard #available(macOS 27.0, iOS 27.0, *) else { return }
         #expect(
