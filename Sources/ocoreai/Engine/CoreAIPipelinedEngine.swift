@@ -575,6 +575,10 @@ private struct EngineImpl: ~Copyable {
     let logitsOutputName: String
     let keyCacheScalarType: NDArray.ScalarType
     let valueCacheScalarType: NDArray.ScalarType
+    /// Descriptor layout (name resolution + shape policies). Absorbed from
+    /// coreai-models 27a66f9 #227 — replaces per-engine positional name extraction
+    /// and static-logits detection.
+    let inputLayout: InputLayout
 
     // Base descriptors for shape resolution (preferredStrides, not contiguous)
     let inputIdsBaseDesc: NDArrayDescriptor
@@ -672,10 +676,17 @@ private struct EngineImpl: ~Copyable {
         // Additional growing states beyond the primary pair
         let extraGrowingNames = Array(growingNames.dropFirst(2))
 
-        // Extract names
-        let inputIdsName = descriptor.inputNames[0]
-        let positionIdsName = descriptor.inputNames[1]
-        let logitsOutputName = descriptor.outputNames[0]
+        // Analyze descriptor for name resolution and shape policies
+        // (absorbed from coreai-models 27a66f9 #227 / fix #212 — InputLayout).
+        // Replaces the old `inputNames[0]/[1]/outputNames[0]` positional extraction:
+        // handles alternate names (in_new_token_ids, pos_ids) and detects the
+        // static [1,1,vocab] S=1 logits descriptor used by Qwen3.5 / GDN bundles.
+        let layout = try InputLayout.analyze(
+            model: model, functionName: config.function, config: config,
+            useCompactPositionIds: false)
+        let inputIdsName = layout.inputIdsName
+        let positionIdsName = layout.positionIdsName
+        let logitsOutputName = layout.logitsName
 
         // Extract state descriptors for KV cache shape/type
         guard case .ndArray(let keyCacheDesc) = descriptor.stateDescriptor(of: keyCacheName),
@@ -803,18 +814,27 @@ private struct EngineImpl: ~Copyable {
         }
 
         // Create growing logits buffer (reuses TensorStorage+CoreAI.swift).
-        // With a prefill graph, `function` only ever sees one token, so a prompt-sized
-        // logits buffer — hundreds of MB at large vocabularies — would go unused.
+        // Static-logits bundles (S=1 GDN, e.g. Qwen3.5) must match the fixed dim;
+        // dynamic models start at the prompt-size guess and grow. (#212 fix)
+        let logitsMaxCapacity: Int
+        let logitsInitialCapacity: Int
+        if case .fixed(let seqLen) = layout.logitsPolicy {
+            logitsMaxCapacity = seqLen
+            logitsInitialCapacity = seqLen
+        } else {
+            logitsMaxCapacity = config.maxContextLength
+            logitsInitialCapacity = prefillLogitsInitialCapacity(
+                hasPrefillGraph: prefillFn != nil,
+                averagePromptSize: averageExpectedPromptSize
+            )
+        }
         let logitsRef = try GrowingLogitsBuffer(
             device: device,
             descriptor: descriptor,
             name: logitsOutputName,
             vocabSize: config.vocabSize,
-            maxCapacity: config.maxContextLength,
-            initialCapacity: prefillLogitsInitialCapacity(
-                hasPrefillGraph: prefillFn != nil,
-                averagePromptSize: averageExpectedPromptSize
-            )
+            maxCapacity: logitsMaxCapacity,
+            initialCapacity: logitsInitialCapacity
         )
 
         // Load inference function
@@ -857,6 +877,7 @@ private struct EngineImpl: ~Copyable {
         self.additionalStates = additionalStatesLocal
         self.hasNonTruncatableStates = classified.contains(where: { $0.kind == .fixed })
         self.logits = logitsRef
+        self.inputLayout = layout
         self.cachedSampler = nil
         self.cachedSamplerTemperature = nil
         self.penaltyState = nil
@@ -1307,7 +1328,9 @@ private struct EngineImpl: ~Copyable {
             return prompt.suffix(1)
         }
 
-        if prompt.count > config.chunkThreshold {
+        if case .chunk(let threshold, _) = inputLayout.prefillPolicy,
+            prompt.count > threshold
+        {
             return try await processChunkedInput(tokens: prompt)
         }
 
@@ -1322,7 +1345,12 @@ private struct EngineImpl: ~Copyable {
     }
 
     mutating func processChunkedInput(tokens: [Int32]) async throws -> ArraySlice<Int32> {
-        let chunkSize = config.prefillChunkSize
+        let chunkSize: Int
+        if case .chunk(_, let cs) = inputLayout.prefillPolicy {
+            chunkSize = cs
+        } else {
+            chunkSize = config.prefillChunkSize
+        }
         var remainingTokens = tokens[...]
 
         try logits.ensureCapacity(forContextLength: chunkSize)
@@ -1590,7 +1618,9 @@ private struct EngineImpl: ~Copyable {
 
         // Prefill prompt (unconstrained — grammar doesn't constrain the prompt)
         let prefillTokens: [Int32]
-        if prompt.count > config.chunkThreshold {
+        if case .chunk(let threshold, _) = inputLayout.prefillPolicy,
+            prompt.count > threshold
+        {
             let remaining = try await processChunkedInput(tokens: prompt)
             prefillTokens = Array(remaining)
         } else {

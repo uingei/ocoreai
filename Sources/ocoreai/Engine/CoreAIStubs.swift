@@ -4,14 +4,15 @@
 // Shared inference types: InferenceRuntimeError, fillNDArray, readNDArray,
 // lastTokenLogits.
 //
-// All gated behind #if canImport(CoreAI) + @available(macOS 27, iOS 27).
+// All gated behind #if canImport(CoreAI).
+// (No @available needed: InferenceRuntimeError is a pure Foundation error enum;
+//  it's only compiled when CoreAI is importable (macOS 27 SDK), matching upstream.)
 
 import Foundation
 
 #if canImport(CoreAI)
 import CoreAI
 
-@available(macOS 27.0, iOS 27.0, *)
 public enum InferenceRuntimeError: Error, LocalizedError {
     case functionNotFound(String)
     case modelNotFound(String)
