@@ -352,30 +352,34 @@ actor MCPBridge {
         guard let response = await server.dispatch(reqStr),
             let respData = response.data(using: .utf8),
             let respObj = try? JSONSerialization.jsonObject(with: respData) as? [String: Any],
-            let result = respObj["result"] as? [String: Any],
-            let contents = result["content"] as? [[String: Any]]
+            let result = respObj["result"] as? [String: Any]
         else {
             throw MCPBridgeError.routingFailed(
                 toolName, reason: "Local tool not found or execution failed")
         }
 
-        // 提取内容块：文本直出，非文本（image/audio 等）类型占位不丢失。
-        // 逐块拍平为 [String: String]（与 MCPStdioClient.parseToolCallResponse 同法）；
-        // data 型字段（base64 图/音频）若展开为文本是百万级 token 噪声，
-        // renderer 只认 text/type 两键——media 块自然折叠为 [type] 占位。
-        let blocks: [[String: String]] = contents.map { block -> [String: String] in
-            var coerced: [String: String] = [:]
-            for (key, value) in block {
-                coerced[key] = String(describing: value)
-            }
-            return coerced
+        // 协议级失败(本地未注册该工具 → result 无 content/structuredContent)必须
+        // throw 回 local-miss → 外部路径 + 安全门；`decodeToolCallResult` 的兜底块
+        // 是"解码失败提示"而非"调用成功"，不得让它在此冒充成功返回(09-07 回归:
+        // .never 门因此被绕过, elicit 入站链全断)。
+        let hasContent = (result["content"] as? [[String: Any]]) != nil
+        let hasStructured =
+            result["structuredContent"] != nil && !(result["structuredContent"] is NSNull)
+        guard hasContent || hasStructured else {
+            throw MCPBridgeError.routingFailed(
+                toolName, reason: "Local tool not found or execution failed")
         }
-        let rendered = Self.renderToolResultBlocks(blocks)
 
-        // 检查是否是错误响应
+        // 检查是否是错误响应（先于内容解析：错误语义优先，保持既有 throw 语义）
         if (result["isError"] as? Bool) == true {
-            throw MCPBridgeError.routingFailed(toolName, reason: rendered)
+            let first = (result["content"] as? [[String: Any]])?.first
+            let errText = (first?["text"] as? String) ?? "Local tool execution failed"
+            throw MCPBridgeError.routingFailed(toolName, reason: errText)
         }
+
+        // 解码：委托单一真源（structuredContent 优先于 content，codex 基准）。
+        let blocks = Self.decodeToolCallResult(result)
+        let rendered = Self.renderToolResultBlocks(blocks)
 
         guard !rendered.isEmpty else {
             throw MCPBridgeError.routingFailed(toolName, reason: "No text content in response")
@@ -510,6 +514,155 @@ actor MCPBridge {
     /// the content vanishing (old local/handler paths both did).
     /// Baseline: codex `75cb7c903d` "Preserve MCP tool output as content items"
     /// — non-text content must survive the tool-result channel.
+    // MARK: - tools/call 响应解码（structuredContent 单一真源）
+
+    /// 解码 JSON-RPC tools/call **完整响应**（含 `result` 外层）。
+    /// 外部 stdio 客户端路径入口；本地 dispatch 路径用 `decodeToolCallResult`。
+    static func parseToolCallJSON(_ json: String) -> [[String: String]] {
+        guard let data = json.data(using: .utf8),
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let result = obj["result"] as? [String: Any]
+        else {
+            return [["type": "text", "text": "Failed to parse response"]]
+        }
+        return decodeToolCallResult(result)
+    }
+
+    /// 解码 tools/call **result 对象**为内容块（两条 dispatch 路径的单一真源）。
+    ///
+    /// codex 基准（`codex-rs/protocol/src/models.rs:2227-2266` 真值链）：
+    /// - `structuredContent` 非 null → **序列化后优先于 `content`**（模型的结构化语义视图）；
+    /// - 缺失/显式 null → 回退 `content` 数组（text 直出；非文本块由 renderer 折叠为 `[type]` 占位）；
+    /// - 无 `content` 且无结构化 → 失败提示块。
+    static func decodeToolCallResult(_ result: [String: Any]) -> [[String: String]] {
+        // codex: structuredContent 非 null 时独占输出（序列化优先于 content 数组）。
+        if let structured = result["structuredContent"], !(structured is NSNull) {
+            return [["type": "text", "text": serializeStructuredContent(structured)]]
+        }
+
+        guard let content = result["content"] as? [[String: Any]] else {
+            return [["type": "text", "text": "Failed to parse response"]]
+        }
+        // 逐块拍平为 [String: String] 保证 Sendable（renderer 只认 text/type 两键）。
+        return content.map { block -> [String: String] in
+            var coerced: [String: String] = [:]
+            for (key, value) in block {
+                coerced[key] = String(describing: value)
+            }
+            return coerced
+        }
+    }
+
+    /// 序列化 structuredContent 为紧凑 JSON 字符串。
+    ///
+    /// structuredContent 是 MCP spec（2025-06-18）的 **任意 JSON Value** —
+    /// object / array / string / number / boolean 全合法。`JSONSerialization`
+    /// 拒收 top-level scalar/array（`isValidJSONObject` 只许 NSDictionary/NSArray），
+    /// 故统一走 `JSONEncoder` + `JSONValue`（Codable），四种形态全覆盖。
+    // 注: JSONValue / toJSONValue 为 internal — 测试 target 走 @testable import（仓库既有惯例）。
+    internal static func serializeStructuredContent(_ value: Any) -> String {
+        let encoder = JSONEncoder()
+        guard let jv = Self.toJSONValue(value), let data = try? encoder.encode(jv)
+        else {
+            // 非 JSON 输入（Date 等极端情形）：降级 Swift 描述，绝不静默吞。
+            return String(describing: value)
+        }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    private static func toJSONValue(_ v: Any) -> JSONValue? {
+        if v is NSNull { return .null }
+        // NSNumber/Bool 桥接歧义: `1 as? Bool` 与 `true as? Int` 都成功 — 任何固定
+        // 先/后顺序都会失真其中一个。按底层类型身份判别: JSONSerialization 的
+        // JSON true/false 是 CFBoolean(@?)；其余 NSNumber 一律数值。
+        if let num = v as? NSNumber {
+            if CFGetTypeID(num as CFTypeRef) == CFBooleanGetTypeID() {
+                return .bool(num.boolValue)
+            }
+            return .number(num.doubleValue)
+        }
+        if let b = v as? Bool { return .bool(b) }
+        if let s = v as? String { return .string(s) }
+        if let arr = v as? [Any] {
+            var out: [JSONValue] = []
+            out.reserveCapacity(arr.count)
+            for el in arr {
+                guard let jv = toJSONValue(el) else { return nil }
+                out.append(jv)
+            }
+            return .array(out)
+        }
+        if let obj = v as? [String: Any] {
+            var d: [String: JSONValue] = [:]
+            d.reserveCapacity(obj.count)
+            for (k, val) in obj {
+                guard let jv = toJSONValue(val) else { return nil }
+                d[k] = jv
+            }
+            return .object(d)
+        }
+        return nil
+    }
+
+    // MARK: - JSON 值类型（structuredContent 任意 JSON Value 编码）
+
+    /// MCP `structuredContent` 是任意 JSON Value（object / array / string / number / bool / null）。
+    /// `JSONEncoder`/`JSONSerialization` 拒收 top-level scalar/array，故用本类型统一编码。
+    enum JSONValue: Codable, Sendable {
+        case null
+        case bool(Bool)
+        case number(Double)
+        case string(String)
+        case array([JSONValue])
+        case object([String: JSONValue])
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.singleValueContainer()
+            if c.decodeNil() {
+                self = .null
+                return
+            }
+            if let b = try? c.decode(Bool.self) {
+                self = .bool(b)
+                return
+            }
+            if let i = try? c.decode(Int.self) {
+                self = .number(Double(i))
+                return
+            }
+            if let d = try? c.decode(Double.self) {
+                self = .number(d)
+                return
+            }
+            if let s = try? c.decode(String.self) {
+                self = .string(s)
+                return
+            }
+            if let a = try? c.decode([JSONValue].self) {
+                self = .array(a)
+                return
+            }
+            if let o = try? c.decode([String: JSONValue].self) {
+                self = .object(o)
+                return
+            }
+            throw DecodingError.dataCorruptedError(
+                in: c, debugDescription: "Unsupported JSON value")
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.singleValueContainer()
+            switch self {
+            case .null: try c.encodeNil()
+            case .bool(let b): try c.encode(b)
+            case .number(let d): try c.encode(d)
+            case .string(let s): try c.encode(s)
+            case .array(let a): try c.encode(a)
+            case .object(let o): try c.encode(o)
+            }
+        }
+    }
+
     static func renderToolResultBlocks(_ blocks: [[String: String]]) -> String {
         var parts: [String] = []
         for block in blocks {

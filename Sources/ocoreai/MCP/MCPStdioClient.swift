@@ -492,22 +492,9 @@ actor MCPStdioClient {
     }
 
     /// 解析 tools/call 响应体（Sendable 兼容）。
+    /// 委托 `MCPBridge.parseToolCallJSON` — structuredContent 优先级链（codex 基准）单一真源。
     private func parseToolCallResponse(_ json: String) -> [[String: String]] {
-        guard let data = json.data(using: .utf8),
-            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let result = obj["result"] as? [String: Any],
-            let content = result["content"] as? [[String: Any]]
-        else {
-            return [["type": "text", "text": "Failed to parse response"]]
-        }
-        // 转换为 [String: String] 保证 Sendable
-        return content.map { block -> [String: String] in
-            var result: [String: String] = [:]
-            for (key, value) in block {
-                result[key] = String(describing: value)
-            }
-            return result
-        }
+        return MCPBridge.parseToolCallJSON(json)
     }
 }
 
