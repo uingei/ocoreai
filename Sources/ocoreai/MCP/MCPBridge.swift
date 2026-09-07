@@ -707,7 +707,11 @@ actor MCPBridge {
 
         do {
             let transport = MCPStdioTransport(log: Logger(label: "ocoreai.mcp.client.\(name)"))
-            let client = MCPStdioClient(endpoint: ep, transport: transport, log: log)
+            let client = MCPStdioClient(
+                endpoint: ep, transport: transport, log: log,
+                incomingRequestHandler: { line in
+                    await self.respondInboundRequest(line, from: name)
+                })
             try await client.connect()
 
             handle.status = .connected
@@ -910,6 +914,78 @@ actor MCPBridge {
         externalClients.removeAll()
         endpointHandles.removeAll()
         log.info("MCPBridge shutdown complete")
+    }
+
+    // MARK: - 入站请求应答（MCP stdio 双向通道）
+
+    /// 外部 MCP server 的入站请求应答面（`MCPStdioClient.incomingRequestHandler`）。
+    ///
+    /// MCP stdio 是双向 JSON-RPC：elicitation server 会在 `tools/call` 响应**之前**
+    /// 发 `elicit`（user-verification）/ `ping` 入站请求（codex `555b82afa9`
+    /// "Add opt-in MCP user-verification transport" 的 server 面）。应答语义：
+    /// - `elicit` → 审批门裁决（`securityElicitationAccepts`，`.never`→decline /
+    ///   `.auto`→accept / `.interactive`→UI 裁决挂起）→ wire `{"action":"accept",
+    ///   "content":{...}}` / `{"action":"decline"}`（MCP elicitation response shape）
+    /// - `ping` → `{}` 空 result（MCP spec：无数据）
+    /// - notification → `nil`（不应答）；其余入站请求 → 不猜不答（`nil`），记 warning。
+    /// - Returns: 要写回 server 的 JSON-RPC 响应行；`nil` = 不应答。
+    func respondInboundRequest(_ line: String, from endpointName: String) async -> String? {
+        guard
+            let data = line.data(using: .utf8),
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let method = obj["method"] as? String,
+            !method.hasPrefix("notifications/")
+        else {
+            return nil
+        }
+        let id = obj["id"] as Any?
+        switch method {
+        case "elicit":
+            let params = obj["params"] as? [String: Any]
+            if let message = params?["message"] as? String {
+                do {
+                    try await toolRegistry.securityElicitationAccepts(
+                        server: endpointName, message: message)
+                } catch {
+                    let decline: [String: Any] = [
+                        "jsonrpc": "2.0", "id": id as Any, "result": ["action": "decline"],
+                    ]
+                    return Self.inboundResponseJSON(decline)
+                }
+            }
+            // accepted（含无 message 的裸请求 — fail-safe 放行给 server 的 tools/call 流程）
+            let accept: [String: Any] = [
+                "jsonrpc": "2.0", "id": id as Any, "result": ["action": "accept"],
+            ]
+            return Self.inboundResponseJSON(accept)
+        case "ping":
+            let pong: [String: Any] = [
+                "jsonrpc": "2.0", "id": id as Any, "result": [:] as [String: Any],
+            ]
+            return Self.inboundResponseJSON(pong)
+        default:
+            log.warning(
+                "Unrecognized inbound request '\(method)' from '\(endpointName)' — no response")
+            return nil
+        }
+    }
+
+    /// 序列化入站请求应答行（JSON 键序无意义；失败回退固定安全形状——宁可错形也不返回 nil 让 server 挂等）。
+    private static func inboundResponseJSON(_ dict: [String: Any]) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: dict)
+        else {
+            return #"{"jsonrpc":"2.0","result":{"action":"decline"}}"#
+        }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    /// 每个 endpoint client 最近一次应答过的入站请求计数快照（测试断言面）。
+    func testClientElicitationStats(name: String) async -> (elicitationCount: Int, pongCount: Int) {
+        guard let client = externalClients[name] else {
+            return (0, 0)
+        }
+        let m = await client.testInboundResponses()
+        return (m["elicit"] ?? 0, m["ping"] ?? 0)
     }
 }
 

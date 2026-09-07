@@ -47,6 +47,13 @@ actor MCPStdioClient {
     private(set) var reconnectionAttempts: Int = 0
     /// 子进程最近一次退出信号号（SIGTERM=15 等）；正常退出时为退出码本身。精确值测试锚点。
     private(set) var childExitStatus: Int32?
+    /// 入站请求（server→client）应答：返回要写回的响应行，`nil` = 不应答
+    /// （notification / 无法应答）。接入后 `waitForResponse` 把带 method 的行
+    /// 全部先路由至此——旧缺陷（09-07）：无路由层，elicit 行被误当
+    /// tools/call 响应消费（elicitation server 挂死 / 调用返回错乱垃圾）。
+    private let incomingRequestHandler: (@Sendable (String) async -> String?)?
+    /// 已应答的入站请求计数（按 method）——精确值测试断言面（elicit→1、ping→1）。
+    private(set) var inboundResponses: [String: Int] = [:]
 
     // MARK: - 初始化
 
@@ -54,10 +61,12 @@ actor MCPStdioClient {
         endpoint: MCPEndpoint,
         transport: MCPStdioTransport,
         log: Logger = Logger(label: "ocoreai.mcp.client"),
+        incomingRequestHandler: (@Sendable (String) async -> String?)? = nil,
     ) {
         self.endpoint = endpoint
         self.transport = transport
         self.log = log
+        self.incomingRequestHandler = incomingRequestHandler
     }
 
     // MARK: - 连接管理
@@ -232,11 +241,16 @@ actor MCPStdioClient {
         _ = await transport.writeDirect(notifJSON)
     }
 
-    /// 等待从管道读取一行 JSON-RPC 响应。
+    /// 等待从管道读取一行 JSON-RPC **响应**（入站请求先应答并丢弃，继续等）。
     ///
     /// 每次循环迭代都检测：
     /// - `Task.isCancelled`：外层 withTimeout 的 cancelAll() 生效 → 立即退出，不空转。
     /// - 死进程：子进程已退出 → 管道已 EOF，读回 nil 无意义，直接判错交上层重连。
+    /// - **入站请求**（带 method）：路由给 `incomingRequestHandler` 应答后继续等——
+    ///   MCP stdio 是双向通道，elicitation server 会在 tools/call 响应之前
+    ///   发 `elicit`/`ping` 请求（codex `555b82afa9` user-verification）。
+    ///   旧缺陷：无应答面 → 这些行要么被误当响应返回（调用结果错乱），
+    ///   要么 server 永久等待（挂死）。
     private func waitForResponse() async throws -> String {
         let deadline = ContinuousClock.now + .milliseconds(15000)
         while ContinuousClock.now < deadline {
@@ -251,6 +265,22 @@ actor MCPStdioClient {
             #endif
             guard let line = await transport.readLine(), !line.isEmpty else {
                 try await Task.sleep(for: .milliseconds(100))
+                continue
+            }
+            // 入站请求（server→client，带 method）：应答并丢弃，不返回给调用方。
+            if let data = line.data(using: .utf8),
+                let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let method = obj["method"] as? String
+            {
+                if let handler = incomingRequestHandler {
+                    if let response = await handler(line) {
+                        _ = await transport.writeDirect(response)
+                        inboundResponses[method, default: 0] += 1
+                        log.info("Responded to inbound '\(method)' from '\(endpoint.name)'")
+                    }
+                } else {
+                    log.warning("Dropping unhandled inbound '\(method)' from '\(endpoint.name)'")
+                }
                 continue
             }
             // 检查是否是 JSON-RPC 错误响应
@@ -399,6 +429,9 @@ actor MCPStdioClient {
 
     /// 最后一次错误描述（测试断言精确值）。
     func testLastError() -> String? { lastError }
+
+    /// 入站请求应答计数（按 method）——精确值测试断言面（elicit→1、ping→1）。
+    func testInboundResponses() -> [String: Int] { inboundResponses }
 
     /// 安全终止子进程。
     private func cleanupProcess() {

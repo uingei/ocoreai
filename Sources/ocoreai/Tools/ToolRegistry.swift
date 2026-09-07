@@ -199,6 +199,23 @@ actor ToolRegistry {
         )
     }
 
+    /// 外部 MCP server 的 elicit（user-verification）请求裁决面。
+    ///
+    /// codex `555b82afa9`（Add opt-in MCP user-verification transport）：
+    /// verification 请求路由到 approval surface，**不静默 cancel**——
+    /// `.never` → deny；`.auto` → pass；`.interactive` → 用户裁决（挂起/恢复）。
+    /// ocoreai 同语义：复用 `securityGate` 同一 chokepoint（与
+    /// `securityPrecheckExternal` 同路），不建第二条判定路径。
+    /// - Throws: ``ToolError/denied(reason:):`` on decline path（caller 映射为 wire `decline`）。
+    func securityElicitationAccepts(server: String, message: String) async throws {
+        try await securityGate(
+            toolName: "mcp_elicit[\(server)]",
+            arguments: message.isEmpty ? "(no message)" : message,
+            ungated: .ask(
+                reason: "External MCP server '\(server)' is requesting user confirmation (elicit)")
+        )
+    }
+
     /// Shared gate body. `ungated` = effective verdict when NO hook claims the
     /// call (local: `.allow`; external: `.ask` → policy/broker decides).
     private func securityGate(
