@@ -2,6 +2,7 @@
 // Adapted for ocoreai — aligned with coreai-models CoreAISequentialEngine.swift HEAD 4a3f8e4 (2026-09-01 audit).
 //   Absorbed: #176 5660fc6 (repetition penalty, tokenHistory overload).
 //   Absorbed: #204 156cdb6 (prefillFunction / independent prefill graph).
+//   Absorbed: #227 27a66f9 (InputLayout name resolution — in_new_token_ids/pos_ids).
 //   Pending (gated): #202 4a3f8e4 (Muse Glimmer sliding-window ring cache, useCompactPositionIds) —
 //     Muse Glimmer not in ocoreai model surface (0 hits); activates when that model is added.
 //
@@ -124,10 +125,17 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
             )
         }
 
-        // Extract names
-        self.inputIdsName = descriptor.inputNames[0]
-        self.positionIdsName = descriptor.inputNames[1]
-        self.logitsName = descriptor.outputNames[0]
+        // Extract names via InputLayout (absorbed from coreai-models 27a66f9 #227 /
+        // fix #212) — replaces positional inputNames[0]/[1]/outputNames[0]: handles
+        // in_new_token_ids / pos_ids bundles. useCompactPositionIds=false: ocoreai
+        // sequential has no sliding-ring cache path yet (#202 4a3f8e4 pending, Muse
+        // Glimmer not in model surface — see file header).
+        let layout = try InputLayout.analyze(
+            model: model, functionName: config.function, config: config,
+            useCompactPositionIds: false)
+        self.inputIdsName = layout.inputIdsName
+        self.positionIdsName = layout.positionIdsName
+        self.logitsName = layout.logitsName
 
         // Extract input descriptors
         guard case .ndArray(let inputDesc) = descriptor.inputDescriptor(of: inputIdsName) else {
