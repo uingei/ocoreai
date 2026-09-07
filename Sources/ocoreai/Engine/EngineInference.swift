@@ -1497,13 +1497,19 @@ extension EnginePool {
         // _runInference falls back to MLX GPU via the #available guard below —
         // without this check, downstream (UI/SSE) receives .ane event while actual
         // inference runs on GPU.
-        // X6-fix: Also check multimodal content — CoreAI `_runInference` cannot tokenize
-        // multimodal content (`contentToString()` in EnginePool.tokenize() silently drops
-        // images/videos/audio, producing text-only output for VLM requests).
+        // X6-fix: Also check multimodal content — the in-tree CoreAI engine family
+        // (CoreAIPipelined/Sequential/StaticShape) has NO VLM engine, and CoreAI
+        // `_runInference` cannot tokenize multimodal content (`contentToString()` in
+        // EnginePool.tokenize() silently drops images/videos/audio, producing
+        // text-only output for VLM requests).
         // b3: Also check captured perception media — the b2 injection delivers image/
         // audio bytes only via the MLX path. If ANE is selected, a VLM's perception
-        // media would be silently dropped (CoreAI cannot tokenize VLM media), so
-        // fall back to GPU exactly like user-attached media.
+        // media would be silently dropped (the CoreAI path has no VLM consumer),
+        // so fall back to GPU exactly like user-attached media.
+        // 09-07 口径校正: 此 gate 的真实边界是 ocoreai in-tree 缺口（上游
+        // coreai-models `CoreAISequentialVLMEngine`(1300L) + VLMModelConfig/VisionConfig
+        // 已交付一等 ANE-VLM 路, 尚未 in-tree 衍生吸收), 不是 CoreAI SDK 能力边界
+        // (SDK 通用运行时 loadFunction+run 对 VLM bundle 可用, macOS 27 SDK 实证).
         // Gate both BEFORE badge emit so the badge reflects the actual accelerator.
         #if canImport(CoreAI)
         if computeChannel == .ane {
@@ -1516,12 +1522,12 @@ extension EnginePool {
                 computeChannel = .gpu
             } else if messages.contains(where: \.hasMediaPart) {
                 logger.info(
-                    "ANE selected but multimodal content present (CoreAI cannot tokenize VLM), falling back to GPU for \(modelId)"
+                    "ANE selected but multimodal content present (in-tree CoreAI VLM engine not yet absorbed, upstream CoreAISequentialVLMEngine pending), falling back to GPU for \(modelId)"
                 )
                 computeChannel = .gpu
             } else if perceptionMediaPresent {
                 logger.info(
-                    "ANE selected but perception media present (CoreAI cannot tokenize VLM media), falling back to GPU for \(modelId)"
+                    "ANE selected but perception media present (in-tree CoreAI VLM engine not yet absorbed, upstream CoreAISequentialVLMEngine pending), falling back to GPU for \(modelId)"
                 )
                 computeChannel = .gpu
             }
