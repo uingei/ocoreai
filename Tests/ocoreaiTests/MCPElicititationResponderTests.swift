@@ -11,6 +11,15 @@
 // —— verification 请求路由 approval surface，**不静默 cancel**；
 // response 形状 `{"action":"accept"|"decline", "content":{...}}`。
 //
+// 09-07 wire 对齐（spec 权威实证，modelcontextprotocol.io/specification/2025-06-18/client/elicitation）：
+//   - 方法名 = **`elicitation/create`**（spec 原文两处 wire 示例；codex 权威常量
+//     `MCP_ELICITATION_CREATE_METHOD = "elicitation/create"`）——旧实现监听 `"elicit"`，
+//     规范 server 发的请求被丢弃；
+//   - client MUST 初始化声明 `capabilities: {"elicitation": {}}`（spec MUST 条款）；
+//   - elicitation 为 **2025-06-18 新增**（"newly introduced in this version"）→
+//     握手版本从 2024-11-05 升到 2025-06-18（codex legacy 基线同为 V_2025_06_18）；
+//   - initialize 响应必须消费（协商版本）——旧实现 `_ = try await sendRPC` 丢弃。
+//
 // 纪律：Python stdio stub 驱动**生产同路**
 // （`MCPBridge.connectEndpoint` → `routeToolCall` → `MCPStdioClient` →
 // `waitForResponse` 的入站请求分流），断言精确值：
@@ -29,9 +38,9 @@ import Testing
 // MARK: - Stub server（elicit / ping 应答后才回 tools/call 结果）
 
 /// Python stdio stub：
-/// - `initialize` → 2024-11-05 握手
+/// - `initialize` → 2025-06-18 握手（elicitation 基线版本；09-07 前为 2024-11-05）
 /// - `tools/list` → 单个工具 `elicit_gate`
-/// - `tools/call` → **先**发 `elicit` 入站请求（form 形态，requestedSchema）
+/// - `tools/call` → **先**发 `elicitation/create` 入站请求（form 形态，requestedSchema）
 ///   + `ping` 入站请求，**等两条应答都收到**才返回最终 tools/call 结果，
 ///   应答 shape 原样回显在结果文本（`elicit_result=...|ping_result=...`）
 ///   → 接受/拒绝 / 空 result 精确断言面。
@@ -52,6 +61,8 @@ private func writeElicitationStub() throws -> URL {
             sys.stdout.write(json.dumps(o) + "\n"); sys.stdout.flush()
         replies = {"elicit": None, "ping": None}
         pending = None  # tools/call 的 id + 参数
+        init_version = None    # initialize 请求里 client 声明的 protocolVersion（09-07 wire 断言面）
+        init_caps = None       # initialize 请求里 client 声明的 capabilities（MUST: elicitation）
         def read_line():
             try:
                 l = sys.stdin.readline()
@@ -70,8 +81,11 @@ private func writeElicitationStub() throws -> URL {
             method = msg.get("method", "")
             mid = msg.get("id")
             if method == "initialize":
+                p = msg.get("params") or {}
+                init_version = p.get("protocolVersion")
+                init_caps = p.get("capabilities")
                 out({"jsonrpc": "2.0", "id": mid,
-                     "result": {"protocolVersion": "2024-11-05",
+                     "result": {"protocolVersion": "2025-06-18",
                                 "capabilities": {"tools": {}},
                                 "serverInfo": {"name": "elicit-stub", "version": "0.1"}}})
             elif method.startswith("notifications/"):
@@ -81,7 +95,7 @@ private func writeElicitationStub() throws -> URL {
             elif method == "tools/call":
                 pending = mid
                 # server→client 入站请求（MCP elicitation spec §elicit）
-                out({"jsonrpc": "2.0", "id": 100, "method": "elicit",
+                out({"jsonrpc": "2.0", "id": 100, "method": "elicitation/create",
                      "params": {"message": "Confirm action?",
                                 "requestedSchema": {
                                     "type": "object",
@@ -110,7 +124,9 @@ private func writeElicitationStub() throws -> URL {
                 out({"jsonrpc": "2.0", "id": pending,
                      "result": {"content": [
                          {"type": "text",
-                          "text": "elicit_result=%s|ping_result=%s" % (
+                          "text": "init_version=%s|init_elicit_cap=%s|elicit_result=%s|ping_result=%s" % (
+                              init_version,
+                              "yes" if (init_caps and "elicitation" in init_caps) else "no",
                               compact(replies.get("elicit")),
                               compact(replies.get("ping")))}]}})
             else:
@@ -198,10 +214,20 @@ struct MCPElicititationResponderTests {
         // 精确 shape: {"action":"accept"}（bridge `inboundResponseJSON` 输出，无空格）
         #expect(
             elicitResp.contains("\"action\":\"accept\""),
-            "elicit 应答非 accept: \(elicitResp)")
+            "elicit 应答非 accept: \((elicitResp))")
         // ping 应答: {} 空 result（MCP spec 无数据）
         let pingResp = extractField(result, "ping_result")
         #expect(pingResp == "{}", "ping 应答应为空 result {}, 实际: \(pingResp)")
+        // 09-07 wire 断言面（elicitation 2025-06-18 新增 → 握手版本必须 ≥ 该版本，
+        // 否则规范 server 按协商版本根本不发 elicitation/create）
+        #expect(
+            extractField(result, "init_version") == "2025-06-18",
+            "client initialize 声明的 protocolVersion 必须是 2025-06-18（elicitation 基线版本）, 实际: \(extractField(result, "init_version"))"
+        )
+        #expect(
+            extractField(result, "init_elicit_cap") == "yes",
+            "client initialize 必须声明 elicitation capability（spec MUST）, 实际: \(extractField(result, "init_elicit_cap"))"
+        )
         // 无挂死（挂死 = 超时，已被 withTimeout 捕获）
     }
 

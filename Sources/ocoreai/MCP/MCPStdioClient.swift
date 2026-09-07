@@ -24,6 +24,16 @@ actor MCPStdioClient {
     let endpoint: MCPEndpoint
     /// 当前连接状态
     private(set) var status: MCPClientConnectionStatus = .disconnected
+    /// 端点支持的最高 MCP spec 版本（initialize 时声明，server 选不晚于此的版本）。
+    ///
+    /// **2025-06-18** 为本 client 的消费能力边界：
+    /// - form-mode elicitation（`elicitation/create`）于该版本引入（spec 原文
+    ///   "newly introduced in this version"；codex legacy 基线同为 V_2025_06_18）；
+    /// - URL-mode elicitation（2025-11-25+）/ message limits（2026-07-28）
+    ///   为后续版本新增面，本 client 未消费，故不声明该两版本。
+    static let supportedProtocolVersion = "2025-06-18"
+    /// initialize 协商结果：server 回选定的 protocolVersion（`nil` = 响应格式异常）。
+    private(set) var negotiatedProtocolVersion: String?
     #if os(macOS)
     /// 子进程句柄
     private var process: Process?
@@ -226,19 +236,38 @@ actor MCPStdioClient {
 
     /// 发送 MCP initialize 请求。
     private func sendInitialize() async throws {
-        _ = try await sendRPC(
+        let resp = try await sendRPC(
             id: 0, method: "initialize",
             params: [
-                "protocolVersion": "2024-11-05",
-                "capabilities": ["roots": ["listChanged": true]],
+                "protocolVersion": Self.supportedProtocolVersion,
+                "capabilities": [
+                    "roots": ["listChanged": true],
+                    // MCP spec (2025-06-18, client/elicitation): Clients that support
+                    // elicitation MUST declare the elicitation capability during
+                    // initialization.
+                    "elicitation": [:] as [String: Any],
+                ],
                 "clientInfo": [
                     "name": "ocoreai-mcp-bridge",
                     "version": "0.7.0",
                 ],
             ])
+        // 消费协商结果：server 回选定的 protocolVersion（旧实现直接丢弃）。
+        self.negotiatedProtocolVersion =
+            Self.parsedProtocolVersion(from: resp)
         // 发送 initialized notification（忽略响应）
         let notifJSON = try serializeJSON(["jsonrpc": "2.0", "method": "notifications/initialized"])
         _ = await transport.writeDirect(notifJSON)
+    }
+
+    /// 从 initialize 响应里提取 negotiated `protocolVersion`（`{"result":{"protocolVersion":...}}`）。
+    static func parsedProtocolVersion(from responseJSON: String) -> String? {
+        guard
+            let data = responseJSON.data(using: .utf8),
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let result = obj["result"] as? [String: Any]
+        else { return nil }
+        return result["protocolVersion"] as? String
     }
 
     /// 等待从管道读取一行 JSON-RPC **响应**（入站请求先应答并丢弃，继续等）。

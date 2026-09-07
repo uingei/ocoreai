@@ -940,20 +940,27 @@ actor MCPBridge {
         }
         let id = obj["id"] as Any?
         switch method {
-        case "elicit":
+        // MCP spec 2025-06-18（client/elicitation）wire method 名 = `elicitation/create`
+        // （codex 权威常量 `MCP_ELICITATION_CREATE_METHOD = "elicitation/create"`；
+        //  旧实现写 `"elicit"`——规范 server 发的请求会落 default 分支被丢弃）。
+        case "elicitation/create":
             let params = obj["params"] as? [String: Any]
             if let message = params?["message"] as? String {
                 do {
                     try await toolRegistry.securityElicitationAccepts(
                         server: endpointName, message: message)
                 } catch {
+                    // spec 三动作模型：decline = 用户显式拒绝，content 省略。
                     let decline: [String: Any] = [
                         "jsonrpc": "2.0", "id": id as Any, "result": ["action": "decline"],
                     ]
                     return Self.inboundResponseJSON(decline)
                 }
             }
-            // accepted（含无 message 的裸请求 — fail-safe 放行给 server 的 tools/call 流程）
+            // accepted：form-mode 的 content 承载表单数据——本 client 无交互式表单面，
+            // gate 语义下以空 content 应答（schema default 由 server 侧兜底）；
+            // 与 spec "action: accept + content 匹配请求 schema" 相容（content 可省略于
+            // 无数据可提交的场景，如 URL-mode 即显式省略 content）。
             let accept: [String: Any] = [
                 "jsonrpc": "2.0", "id": id as Any, "result": ["action": "accept"],
             ]
@@ -985,7 +992,7 @@ actor MCPBridge {
             return (0, 0)
         }
         let m = await client.testInboundResponses()
-        return (m["elicit"] ?? 0, m["ping"] ?? 0)
+        return (m["elicitation/create"] ?? 0, m["ping"] ?? 0)
     }
 }
 

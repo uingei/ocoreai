@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// MCP Server — JSON-RPC 2.0 server exposing ToolRegistry tools.
-/// Protocol: MCP v2024-11-05 (initialize, tools/list, tools/call, ping).
+/// Protocol: MCP v2025-06-18 (initialize, tools/list, tools/call, ping).
 import Foundation
 import Logging
 
@@ -123,7 +123,7 @@ actor MCPServer {
     private func doInit(_: [String: Any]?) -> JVal {
         ready = true
         return JVal([
-            "protocolVersion": "2024-11-05",
+            "protocolVersion": "2025-06-18",
             "serverInfo": ["name": "ocoreai", "version": "0.7.0"],
             "capabilities": ["tools": ["listChanged": true]],
         ])
