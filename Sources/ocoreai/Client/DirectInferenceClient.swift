@@ -126,16 +126,21 @@ struct StreamingInferenceResult {
 /// - Parameter hookRunner: compact-event hooks. Call sites pass
 ///   `enginePool.toolRegistry?.hookRunner`; tests inject a ``ToolHookRunner``
 ///   directly (thin seam, no EnginePool needed).
+/// - Parameter store: where the effective prompt/window lands. Production
+///   keeps ``ContextStatusStore/shared`` (so `get_context_remaining` reads
+///   real values); tests inject a private store so concurrent suites in the
+///   shared test process never last-writer-wins over each other.
 func enforceContextWindow(
     cap: Int?,
     messages: [Message],
     hookRunner: ToolHookRunner? = nil,
-    sessionId: String? = nil
+    sessionId: String?,
+    store: ContextStatusStore = .shared
 ) async throws -> (messages: [Message], removedCount: Int) {
     var transcript = messages
     let startTokens = ConversationCompaction.estimatePromptTokens(transcript)
     if !promptExceedsContextWindow(promptTokens: startTokens, maxContextWindow: cap) {
-        await ContextStatusStore.shared.set(usedTokens: startTokens, windowLimit: cap)
+        await store.set(usedTokens: startTokens, windowLimit: cap)
         return (transcript, 0)
     }
 
@@ -166,7 +171,7 @@ func enforceContextWindow(
     }
 
     let finalTokens = ConversationCompaction.estimatePromptTokens(transcript)
-    await ContextStatusStore.shared.set(usedTokens: finalTokens, windowLimit: cap)
+    await store.set(usedTokens: finalTokens, windowLimit: cap)
     if promptExceedsContextWindow(promptTokens: finalTokens, maxContextWindow: cap) {
         throw AppError.invalidRequest(
             "Prompt length \(finalTokens) tokens exceeds the model's configured context window of \(cap ?? 0) tokens. Shorten the input or raise `max_context_window` for this model."

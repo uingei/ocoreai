@@ -55,8 +55,10 @@ struct FastPathContextWindowGateTests {
         let msgs = fixture6
         let before = est(msgs)
         #expect(before == 164)  // 5 + 50 + 51 + 5 + 50 + 3 (exact, independent)
+        let store = ContextStatusStore()
 
-        let result = try await enforceContextWindow(cap: 200_000, messages: msgs)
+        let result = try await enforceContextWindow(
+            cap: 200_000, messages: msgs, sessionId: nil, store: store)
 
         #expect(result.removedCount == 0)
         #expect(result.messages.count == msgs.count)
@@ -67,7 +69,9 @@ struct FastPathContextWindowGateTests {
         #expect(est(result.messages) == 164)
 
         // ContextStatusStore parity: `get_context_remaining` reads real values.
-        let active = await ContextStatusStore.shared.peek()
+        // Private store: concurrent tests in the shared test process must never
+        // last-writer-wins over the value under assertion.
+        let active = await store.peek()
         #expect(active != nil)
         #expect(active?.usedTokens ?? -1 == 164)
         #expect(active?.windowLimit ?? -1 == 200_000)
@@ -83,7 +87,8 @@ struct FastPathContextWindowGateTests {
         // cap 100: compact target = max(0, 100 - 4096) = 0 → remove from oldest
         // until fixedEst + noteEst + regionEst ≤ 0 (impossible) — so the greedy
         // sweep empties the removable region [200a, 204a, 20a] (50+51+5 = 106).
-        let result = try await enforceContextWindow(cap: 100, messages: msgs)
+        let result = try await enforceContextWindow(
+            cap: 100, messages: msgs, sessionId: nil, store: ContextStatusStore())
 
         // All 3 removable units removed; prefix+suffix untouched, note in
         // position 1 (prefix, note, suffix[0], suffix[1]).
@@ -113,7 +118,8 @@ struct FastPathContextWindowGateTests {
 
         // cap 10: target 0, region fully emptied, still 63+noteEst > 10 → wall.
         do {
-            _ = try await enforceContextWindow(cap: 10, messages: msgs)
+            _ = try await enforceContextWindow(
+                cap: 10, messages: msgs, sessionId: nil, store: ContextStatusStore())
             Issue.record("Expected AppError.invalidRequest (400 wall)")
         } catch let AppError.invalidRequest(msg) {
             // Same wall text as the wire path (ChatHandler Phase 3.5).
@@ -136,7 +142,8 @@ struct FastPathContextWindowGateTests {
         ])
         do {
             _ = try await enforceContextWindow(
-                cap: 100, messages: msgs, hookRunner: runner)
+                cap: 100, messages: msgs, hookRunner: runner,
+                sessionId: nil, store: ContextStatusStore())
             Issue.record("Expected AppError.invalidRequest (veto)")
         } catch let AppError.invalidRequest(msg) {
             #expect(msg.contains("vetoed"))
@@ -151,7 +158,8 @@ struct FastPathContextWindowGateTests {
     @Test("nil cap → passthrough, no compaction, no wall")
     func nilCap() async throws {
         let msgs = fixture6
-        let result = try await enforceContextWindow(cap: nil, messages: msgs)
+        let result = try await enforceContextWindow(
+            cap: nil, messages: msgs, sessionId: nil, store: ContextStatusStore())
         #expect(result.removedCount == 0)
         #expect(result.messages.count == msgs.count)
     }
