@@ -2167,9 +2167,23 @@ extension EnginePool {
             // trade-off: a vision request yields the FM tools/reasoning
             // pipeline in exchange for vision actually working. The silent
             // blind-fallback is the regression being fixed.
-            let hasVisionContent = mlxMessages.contains { !$0.images.isEmpty }
+            //
+            // 09-08 audio parity (same structural blind spot): the check above
+            // covered images only — an audio request (audios non-empty, images
+            // empty) still entered the FM text path where its audio_url bytes
+            // were silently dropped. Live proof (pre-fix, port 8096): 0.27s and
+            // ~7s say-voices both → prompt_tokens=183 (zero audio tokens),
+            // model answered "provide the file path… transcribe_audio tool" —
+            // blind, like the image case before 311be24. Widen the gate to ALL
+            // media kinds: any message with images/videos/audios routes to the
+            // else-path ChatSession (streamDetails(to: newMessages)), which
+            // carries ChatMessageMedia.audios through upstream respond()
+            // (ChatSession.swift L714/718 → executor) intact.
+            let hasMediaContent = mlxMessages.contains {
+                !$0.images.isEmpty || !$0.videos.isEmpty || !$0.audios.isEmpty
+            }
             if #available(macOS 27.0, iOS 27.0, *), let mlxLM = loaded.mlxLanguageModel,
-                !hasVisionContent
+                !hasMediaContent
             {
                 log.info("Using LanguageModelSession (macOS 27 SDK path)")
 
