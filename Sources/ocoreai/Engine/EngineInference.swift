@@ -229,6 +229,44 @@ func makeMLXAudio(from urlString: String) -> (
     return (nil, nil)
 }
 
+/// Convert a string that may be a data URL (`data:video/…;base64,…`) or a
+/// regular URL into an ``MLXLMCommon/UserInput/Video``.
+/// Data URLs are decoded to a temp `.mp4` file (AVAsset cannot read data:
+/// URLs); remote/local URLs are passed through unchanged.
+/// Mirror of ``makeMLXAudio(from:)`` — same data-URI contract, same (input,
+/// tempURL) shape so callers reuse the same temp-cleanup path (L1635-1638).
+///
+/// Why this exists (09-08 E2E refuted claim): before this, the extraction at
+/// L1704-1708 did `URL(string: videoUrl)` → `.url(dataURL)` directly. Upstream
+/// `MediaProcessing.asProcessedSequence` wraps it in `AVAsset(url:)`, which
+/// cannot decode a data: URL — the video was silently dropped (E2E port 8099:
+/// red 1-frame mp4 → pt=180 ≈ text baseline, model answered boilerplate
+/// self-intro, zero video tokens). Decoding to a real temp file makes the
+/// bytes reachable by AVFoundation — the same fix the audio path already had.
+func makeMLXVideo(from urlString: String) -> (
+    video: MLXLMCommon.UserInput.Video?, tempURL: URL?
+) {
+    if urlString.hasPrefix("data:") {
+        guard let lastComma = urlString.lastIndex(of: ",") else { return (nil, nil) }
+        let base64Data = String(urlString[urlString.index(after: lastComma)...])
+        guard let data = Data(base64Encoded: base64Data) else { return (nil, nil) }
+        let tmpName = "ocoreai_video_\(UUID().uuidString.prefix(8)).mp4"
+        let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(tmpName)
+        do {
+            try data.write(to: tmpURL)
+            return (.url(tmpURL), tmpURL)
+        } catch {
+            return (nil, nil)
+        }
+    }
+
+    if let url = URL(string: urlString) {
+        return (.url(url), nil)
+    }
+
+    return (nil, nil)
+}
+
 extension EnginePool {
     // MARK: - Entry Points (TaskGroup dispatch)
 
@@ -1701,9 +1739,16 @@ extension EnginePool {
                         images.append(image)
                     }
                     if let video = part.videoUrl {
-                        // Video URL into VLM — upstream processes frames via Gemma4Processor
-                        if let url = URL(string: video.url) {
-                            videos.append(.url(url))
+                        // Video URL into VLM — upstream processes frames via Gemma4Processor.
+                        // 09-08: data: URLs must hit makeMLXVideo (temp file) — a raw
+                        // .url(dataURL) is unreadable by AVAsset (E2E: zero video tokens,
+                        // model answered as if no video present).
+                        let result = makeMLXVideo(from: video.url)
+                        if let videoInput = result.video {
+                            videos.append(videoInput)
+                        }
+                        if let tempFile = result.tempURL {
+                            tempAudioURLs.append(tempFile)
                         }
                     }
                     if let audio = part.audioURL {

@@ -656,6 +656,29 @@ struct ContentPart: Codable {
             self.url = url
             self.maxFrames = maxFrames
         }
+
+        /// 09-08 E2E root cause (video silent drop): `maxFrames` is a non-optional
+        /// `Int` and the synthesized `init(from:)` decodes it with plain
+        /// `decode(Int.self, ...)`. A real client — our own HTTP probe, any
+        /// OpenAI-compatible caller — sends `{"url": "..."}` WITHOUT `max_frames`,
+        /// so the `VideoURL` decode fails, the whole `[ContentPart]` array
+        /// decode throws, `ContentPolymorphic` falls back to `.text("")` and
+        /// the video (plus the text in the same message) is silently dropped
+        /// end-to-end: red 1-frame mp4 → `prompt_tokens:180` (zero video tokens),
+        /// `DIAG mlxMessages: i:0/v:0/a:0/t:0`, model answered boilerplate
+        /// self-introduction — as if the message never arrived. The 311be24
+        /// contract test passed because its wire fixture carried `max_frames:8`
+        /// (the full optional shape), masking the real-client gap.
+        /// Fix: decode `max_frames` with `decodeIfPresent` → 16 if absent.
+        /// `maxFrames` has 0 read sites in the ocoreai video-consumption path
+        /// (upstream `UserInput.Video` has no maxFrames; frame selection lives
+        /// in `Gemma4ProcessorConfig.max_frames`), so the default is inert, not
+        /// guessed — it only unblocks decoding.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            url = try c.decode(String.self, forKey: .url)
+            maxFrames = try c.decodeIfPresent(Int.self, forKey: .maxFrames) ?? 16
+        }
     }
 
     /// Audio URL wrapper.

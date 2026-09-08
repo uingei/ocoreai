@@ -54,6 +54,53 @@ struct ContentPartWireDecodeTests {
         #expect(part.isMedia == true)
     }
 
+    @Test(
+        "video_url WITHOUT max_frames (real-client shape) decodes — 09-08 E2E"
+    )
+    func videoPartDecodesWithoutMaxFrames() throws {
+        // The 09-08 audio/video/video-red probes sent {"url": "data:..."} with
+        // NO max_frames. The synthesized `init(from:)` required `max_frames`
+        // (non-optional Int), so the `[ContentPart]` array decode threw and
+        // `ContentPolymorphic` fell back to `.text("")` — the video AND its
+        // sibling text were dropped end-to-end (prompt_tokens:180, zero video
+        // tokens, model answered boilerplate). A part-only decode of this wire
+        // is the exact red case that fix must turn green.
+        let wire = #"""
+            {"type":"video","text":null,"video_url":{"url":"data:video/mp4;base64,QUJD"}}
+            """#
+        let part = try JSONDecoder().decode(
+            ContentPart.self, from: wire.data(using: .utf8)!)
+        #expect(part.videoUrl != nil)
+        #expect(part.videoUrl?.url == "data:video/mp4;base64,QUJD")
+        #expect(part.videoUrl?.maxFrames == 16)
+        #expect(part.isMedia == true)
+    }
+
+    @Test(
+        "mixed [text, video] array decodes when video lacks max_frames"
+    )
+    func mixedArraySurvivesVideoWithoutMaxFrames() throws {
+        // The production drop was the ARRAY falling back to .text(""), not a
+        // single part. This asserts the array — including a text sibling — is
+        // preserved when the video part is the minimal real-client shape.
+        let wire = #"""
+            [
+                {"type":"text","text":"What color is this video?"},
+                {"type":"video","video_url":{"url":"data:video/mp4;base64,QUJD"}}
+            ]
+            """#
+        let content = try JSONDecoder().decode(
+            ContentPolymorphic.self, from: wire.data(using: .utf8)!)
+        guard case .parts(let parts) = content else {
+            Issue.record("array fell back to .text('') — video dropped")
+            return
+        }
+        #expect(parts.count == 2)
+        #expect(parts.first?.text == "What color is this video?")
+        #expect(parts.last?.videoUrl != nil)
+        #expect(parts.last?.isMedia == true)
+    }
+
     @Test("audio_url part decodes to non-nil audioURL with url intact")
     func audioPartDecodes() throws {
         let wire = #"""
