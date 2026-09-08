@@ -1228,20 +1228,19 @@ private func streamWithToolCalling(
                     )
                     _ = yieldSSE(tcChunk, to: continuation)
 
-                /// .error — send error chunk and terminate.
+                /// .error — send a raw diagnostic marker and terminate.
+                /// NOT assistant content: the SSE consumer appends every content
+                /// delta to the transcript, so yielding `[error: ...]` as content
+                /// (prior behavior) poisoned the conversation with a fake
+                /// assistant turn when the engine recovered (live-verified:
+                /// grammar-build transient failed, tools still executed, and
+                /// the error text landed inside the model's final answer).
+                /// Mirrors the adjacent `incompleteOutput` diagnostic marker
+                /// (L1268) and the non-stream self-correction path (L777),
+                /// both of which treat .error as log+marker, not content.
                 case .error(let errorMsg):
-                    let errChunk = ChatCompletionChunk(
-                        id: requestId,
-                        created: created,
-                        model: modelId,
-                        choices: [
-                            ChunkChoice(
-                                delta: ChatDelta(content: "[error: \(errorMsg)]"),
-                                finishReason: "error",
-                            )
-                        ],
-                    )
-                    _ = yieldSSE(errChunk, to: continuation)
+                    logger.warning("SSE stream: engine error event — \(errorMsg)")
+                    yieldSSERaw("[diagnostic: engine_error \(errorMsg)]", to: continuation)
 
                 /// .reasoning — ReasoningEventEmitter routed reasoning segment.
                 /// Emit as SSE delta chunk with reasoning_content.
@@ -1285,20 +1284,13 @@ private func streamWithToolCalling(
                 }
             }
         } catch {
-            /// Stream consumption error — yield error + done markers.
+            /// Stream consumption error — yield a raw diagnostic marker + done.
+            /// Same transcript-poisoning rule as the `.error` case above: never
+            /// yield the failure as assistant content.
             logger.error("Stream token consumption failed: \(error)")
-            let errChunk = ChatCompletionChunk(
-                id: requestId,
-                created: created,
-                model: modelId,
-                choices: [
-                    ChunkChoice(
-                        delta: ChatDelta(content: "[error: \(error.localizedDescription)]"),
-                        finishReason: "error",
-                    )
-                ],
-            )
-            _ = yieldSSE(errChunk, to: continuation)
+            yieldSSERaw(
+                "[diagnostic: stream_consumption_error \(error.localizedDescription)]",
+                to: continuation)
             yieldSSERaw("[done]", to: continuation)
             continuation.finish()
             return
