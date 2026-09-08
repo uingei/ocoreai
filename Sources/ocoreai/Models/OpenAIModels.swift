@@ -1689,9 +1689,26 @@ func buildGrammarSchema(
     from tools: [ToolDef]?,
     responseFormat: ResponseFormat? = nil
 ) -> String? {
-    // Helper: convert [String: AnyCodable] → [String: Any] for JSONSerialization
+    // Helper: 递归扁平化 AnyCodable 嵌套 → JSON 原生 Any(Bool/Int/Double/String/NSNull/[Any]/[String:Any])。
+    // ⚠️ E2E 实证(09-08):旧版只剥最外层一层 [String: AnyCodable],嵌套值仍是 AnyCodable struct
+    // → JSONSerialization 遇 __SwiftValue → "Invalid type in JSON write" NSException。
+    // ObjC 异常不是 Swift Error —— `try?` 接不住,整个进程死(日志实证:带 tools 请求崩,
+    // 无 tools 请求正常,"coding agent 工具回路"从未活体工作过)。此处全深度递归剥壳。
+    func flatten(_ v: Any) -> Any {
+        if let c = v as? AnyCodable {
+            return flatten(c.value)
+        }
+        if let a = v as? [Any] {
+            return a.map { flatten($0) }
+        }
+        if let o = v as? [String: Any] {
+            return o.mapValues { flatten($0) }
+        }
+        return v
+    }
+
     let toAny: ([String: AnyCodable]) -> [String: Any] = { dict in
-        Dictionary(uniqueKeysWithValues: dict.map { ($0, $1.value) })
+        (flatten(dict) as? [String: Any]) ?? [:]
     }
 
     // Tools path: build function_call-style schema with $defs hoisting
