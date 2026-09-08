@@ -484,6 +484,12 @@ func chatCompletionsHandler(
             includeLogits: false,
             useGuidedGeneration: useGuidedGeneration,
             grammarSchema: grammarSchema,
+            // Route native tool calls to the ChatSession toolDispatch agent
+            // loop (MLXLMCommon "loop can restart on tool calls"), NOT the
+            // one-shot FM guided path. json_schema stays on guided (that is
+            // guided's real job). Observed 09-08: tools on the FM guided path
+            // execute but never continue — the loop is the intended route.
+            hasNativeTools: request.tools?.isEmpty == false,
             enableReasoning: reasoningEnabled,
             reasoningLevel: request.reasoningLevel,
             reasoningEffort: request.reasoningEffort

@@ -2227,8 +2227,23 @@ extension EnginePool {
             let hasMediaContent = mlxMessages.contains {
                 !$0.images.isEmpty || !$0.videos.isEmpty || !$0.audios.isEmpty
             }
+            // 09-08 P0-2: native tool calls (request.tools present) route OUT
+            // of the one-shot FM guided path and INTO the ChatSession
+            // toolDispatch agent loop. The FM path's
+            // `streamResponse(to:schema:).collect()` executes the tool and
+            // records the result in the transcript (DIAG entry[2]) but does
+            // NOT continue — `entry[3]` (the model's answer with the tool
+            // result) is empty, and `full.content` is a THROWing init
+            // (DIAG: `content=<throw>`). The ChatSession path (L2749
+            // `chatSession.tools = registeredToolSpecs` +
+            // `chatSession.toolDispatch = toolDispatchClosure` →
+            // MLXLMCommon "loop can restart on tool calls", L1003) IS the
+            // loop the code comments (L2156/L2583) describe as the intended
+            // route. json_schema (no tools) stays on FM guided — that is
+            // guided's real job (schema-constrained single-shot output).
+            let hasNativeTools = options.hasNativeTools
             if #available(macOS 27.0, iOS 27.0, *), let mlxLM = loaded.mlxLanguageModel,
-                !hasMediaContent
+                !hasMediaContent, !hasNativeTools
             {
                 log.info("Using LanguageModelSession (macOS 27 SDK path)")
 

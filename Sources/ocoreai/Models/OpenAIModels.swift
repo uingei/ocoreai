@@ -544,6 +544,14 @@ struct Message: Codable {
     /// Tool call ID for tool role messages (response to assistant call)
     var toolCallID: String? = nil
 
+    enum CodingKeys: String, CodingKey {
+        case role
+        case content
+        case name
+        case toolCalls = "tool_calls"
+        case toolCallID = "tool_call_id"
+    }
+
     /// Simple string content initializer.
     init(role: String, content: String) {
         self.role = role
@@ -759,6 +767,12 @@ struct CompletionChoice: Encodable {
 
     /// Choice index
     let index: Int = 0
+
+    enum CodingKeys: String, CodingKey {
+        case message
+        case finishReason = "finish_reason"
+        case index
+    }
 }
 
 /// Assistant message with optional tool calls.
@@ -775,6 +789,12 @@ struct AssistantMessage: Encodable {
     init(content: String, toolCalls: [ToolCall]? = nil) {
         self.content = content
         self.toolCalls = toolCalls
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case role
+        case content
+        case toolCalls = "tool_calls"
     }
 }
 
@@ -1265,6 +1285,12 @@ struct ChunkChoice: Encodable {
 
     /// Choice index
     let index: Int = 0
+
+    enum CodingKeys: String, CodingKey {
+        case delta
+        case finishReason = "finish_reason"
+        case index
+    }
 }
 
 /// Incremental content delta for SSE streaming.
@@ -1280,6 +1306,13 @@ struct ChatDelta: Encodable {
 
     /// Tool calls delta (if model is requesting tool execution)
     var toolCalls: [ToolCall]?
+
+    enum CodingKeys: String, CodingKey {
+        case role
+        case content
+        case reasoningContent = "reasoning_content"
+        case toolCalls = "tool_calls"
+    }
 }
 
 // MARK: - Runtime Parameter Hot-Swap DTOs

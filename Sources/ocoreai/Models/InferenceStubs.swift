@@ -326,6 +326,19 @@ struct InferenceOptions: Codable {
     /// The JSON schema string to constrain output grammar.
     /// Used by tools (tool call schema) or response_format.json_schema.
     var grammarSchema: String? = nil
+    /// When true the request carries a native `tools` array (function-calling)
+    /// — as opposed to a `response_format.json_schema` structured-output
+    /// request. Native tool calls run the SDK's **loop** (emit call →
+    /// dispatch → feed result back → continue answering) via the
+    /// ChatSession `toolDispatch` agent loop (MLXLMCommon
+    /// `ChatSession.swift` L1003 "loop can restart on tool calls"), NOT the
+    /// one-shot FM `streamResponse(to:schema:).collect()` guided path
+    /// (observed 09-08 E2E: tool executes, result appears in transcript
+    /// `entry[2]`, but no continuation — model never answers with the
+    /// result). Distinct from `useGuidedGeneration`, which covers BOTH
+    /// tools and json_schema — this field lets the engine route tools to
+    /// the loop while keeping json_schema on guided.
+    var hasNativeTools: Bool = false
     /// When true, enable reasoning/chain-of-thought mode.
     /// Passed as additionalContext["enable_thinking"] to ChatSession.
     var enableReasoning: Bool = false
@@ -356,7 +369,8 @@ struct InferenceOptions: Codable {
 
     init(
         maxTokens: Int? = nil, includeLogits: Bool = false, useGuidedGeneration: Bool = false,
-        grammarSchema: String? = nil, enableReasoning: Bool = false, reasoningLevel: String? = nil,
+        grammarSchema: String? = nil, hasNativeTools: Bool = false,
+        enableReasoning: Bool = false, reasoningLevel: String? = nil,
         reasoningEffort: String? = nil, toolCallingMode: String? = nil,
         forcedContinuation: [Int32]? = nil
     ) {
@@ -364,6 +378,7 @@ struct InferenceOptions: Codable {
         self.includeLogits = includeLogits
         self.useGuidedGeneration = useGuidedGeneration
         self.grammarSchema = grammarSchema
+        self.hasNativeTools = hasNativeTools
         self.enableReasoning = enableReasoning
         self.reasoningLevel = reasoningLevel
         self.reasoningEffort = reasoningEffort
