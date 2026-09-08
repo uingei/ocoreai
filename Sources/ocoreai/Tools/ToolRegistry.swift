@@ -9,6 +9,30 @@
 import Foundation
 import Logging
 
+/// P0-3 whitelist surface: filter produced tool specs down to the client-
+/// declared names. OpenAI wire semantics — `tools[]` in the request IS the
+/// tool whitelist for that call, so the advertised surface must be exactly
+/// those names. A declared name that is not registered simply stays absent
+/// (it has no spec); ordering follows the passed spec order. Zero forced
+/// casts: the `function`/`name` slots are read with `as?` guards only.
+///
+/// Deliberately a module-level free function (not an actor method): the
+/// engine's injection sites are nonisolated while `ToolRegistry` is
+/// actor-isolated; a pure function over the already-produced specs sidesteps
+/// the isolation seam entirely.
+func toolSurfaceWhitelist(_ specs: [[String: any Sendable]], to names: [String]) -> [[String:
+    any Sendable]]
+{
+    let allowed = Set(names)
+    return specs.filter { spec in
+        guard
+            let functionDict = spec["function"] as? [String: any Sendable],
+            let name = functionDict["name"] as? String
+        else { return false }
+        return allowed.contains(name)
+    }
+}
+
 actor ToolRegistry {
     /// Audit trail for tool execution logging (nil = auditing disabled)
     private let auditTrail: AuditTrail?

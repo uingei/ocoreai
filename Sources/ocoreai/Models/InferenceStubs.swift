@@ -362,6 +362,22 @@ struct InferenceOptions: Codable {
     /// Default is `.auto` — ocoreai uses presence of tools to infer mode
     /// (same as current behavior).
     var toolCallingMode: String? = nil
+    /// Tool-calling whitelist — the *names* the client declared in its
+    /// `tools[]`, in declaration order.
+    /// - nil = client declared no `tools[]` → ocoreai injects the **full**
+    ///   ToolRegistry surface (local-first convenience; live-verified viable
+    ///   even for a small model: 09-08 zero-declaration coding probe →
+    ///   'Injected 25 tools into FM session' → gemma-4-e2b 4bit picked the
+    ///   3 correct tools of 25 and executed them for real).
+    /// - non-nil = OpenAI wire semantics: `tools[]` IS the whitelist →
+    ///   engines inject ONLY these names (spec-level filter at the
+    ///   injection site; names not registered → naturally absent).
+    /// nil default keeps every path that doesn't set it behavior-identical.
+    /// Fills the P0-3 gap the wire-contract audit flagged: `request.tools`
+    /// previously only drove the `hasNativeTools` routing boolean while the
+    /// advertised surface stayed the full registry (declared whitelist
+    /// ignored — double source of truth).
+    var declaredToolNames: [String]? = nil
     /// When set, engines use these token IDs instead of sampling.
     /// Used by MMLU-style evaluation to compute P(continuation|context).
     /// Aligned with upstream InferenceOptions.forcedContinuation.
@@ -372,6 +388,7 @@ struct InferenceOptions: Codable {
         grammarSchema: String? = nil, hasNativeTools: Bool = false,
         enableReasoning: Bool = false, reasoningLevel: String? = nil,
         reasoningEffort: String? = nil, toolCallingMode: String? = nil,
+        declaredToolNames: [String]? = nil,
         forcedContinuation: [Int32]? = nil
     ) {
         self.maxTokens = maxTokens
@@ -383,6 +400,7 @@ struct InferenceOptions: Codable {
         self.reasoningLevel = reasoningLevel
         self.reasoningEffort = reasoningEffort
         self.toolCallingMode = toolCallingMode
+        self.declaredToolNames = declaredToolNames
         self.forcedContinuation = forcedContinuation
     }
 

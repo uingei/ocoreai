@@ -492,7 +492,10 @@ func chatCompletionsHandler(
             hasNativeTools: request.tools?.isEmpty == false,
             enableReasoning: reasoningEnabled,
             reasoningLevel: request.reasoningLevel,
-            reasoningEffort: request.reasoningEffort
+            reasoningEffort: request.reasoningEffort,
+            // P0-3: declared names (OpenAI `tools[]` whitelist); nil when the
+            // client declared none → engine keeps the full registry surface.
+            declaredToolNames: request.tools?.map { $0.function.name }
         )
 
         /// Log if guided generation is enabled for this request.
