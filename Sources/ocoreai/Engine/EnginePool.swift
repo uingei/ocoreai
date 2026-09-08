@@ -622,13 +622,25 @@ actor EnginePool {
             /// (community re-uploads, ModelScope mirrors, etc.) on macOS 27/iOS 27 where
             /// the FM path is the exclusive active route.
             let modelConfig = ModelConfiguration(id: modelId)
+            // .vision declared unconditionally, same as .toolCalling / .reasoning
+            // above (ocoreai is a generic runtime that cannot know a priori
+            // whether each loaded model supports it; cf. the L604-623 rationale
+            // and the SDK L313 example declaring .toolCalling for every model
+            // that exposes tools). Upstream MLXLanguageModel.swift:929's
+            // `.vision` gate only throws when a request carries images AND the
+            // capability is absent — a no-op for plain-text requests. The
+            // authoritative model-specific guard is EngineInference:1485
+            // (reads post-download model.isVlm after the L726 re-detect), so a
+            // text-only model is still blocked there before any routing.
+            // The pre-download `isVlmModel` flag (L581) is unreliable on a
+            // first download — the directory is incomplete when it runs — so
+            // we no longer condition the capability on it.
             let baseCaps: [LanguageModelCapabilities.Capability] = [
-                .guidedGeneration, .toolCalling, .reasoning,
+                .guidedGeneration, .toolCalling, .reasoning, .vision,
             ]
-            let vlmCaps: [LanguageModelCapabilities.Capability] = isVlmModel ? [.vision] : []
             mlxLM = MLXLanguageModel(
                 configuration: modelConfig,
-                capabilities: baseCaps + vlmCaps,
+                capabilities: baseCaps,
                 configurationResolver: DefaultConfigurationResolver(),
                 weightsLocation: { _ in modelURL },
                 load: {
@@ -723,7 +735,14 @@ actor EnginePool {
         )
         #endif
         model.setMLXHandle(mlxHandleToSet)
-        model.isVlm = isVlmModel
+        // Re-detect AFTER the container is loaded: on a first download the
+        // directory is incomplete when L581 ran (only .download-* fragments),
+        // so the preload-time flag froze to .false while loadContainer()
+        // (post-download) correctly detected the VLM container. Re-evaluating
+        // here — directory now complete — keeps model.isVlm aligned with the
+        // real container (guard at EngineInference:1485, perception injection,
+        // UI icons, engineSummary). Hot loads see the same value as L581.
+        model.isVlm = MLXModelLoader.isVLMModel(at: modelURL)
         model.kvCacheQuantization = config.kvCacheQuantization
         // Persist MLXLanguageModel so executor.respond() can route through
         // capability gates, ToolCallingModeResolution, and ConfigurationResolver
