@@ -321,7 +321,7 @@ public final class OcoreaiEngine {
 
         _skillRegistry = SkillRegistry(log: logger)
         _systemPromptBuilder = SystemPromptBuilder(
-            basePrompt: "You are oCoreAI, an intelligent assistant running on macOS.",
+            basePrompt: SystemPromptBuilder.codingAgentBase,
         )
         // _systemPromptBuilder is guaranteed non-nil after direct init above
         guard let spb = _systemPromptBuilder else {

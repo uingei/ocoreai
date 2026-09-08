@@ -15,6 +15,26 @@ import Foundation
 
 /// Actor that builds and caches the current system prompt.
 actor SystemPromptBuilder {
+    /// Coding-agent base prompt (single source of truth).
+    ///
+    /// Consumed by `App` at startup and asserted by
+    /// `SystemPromptContractTests` so the behavioral contract
+    /// (action-first tool use, verification report, destructive-command
+    /// guard) cannot silently regress to a generic assistant line.
+    ///
+    /// Aligned with the codex axis contract (`codex-rs/core/gpt_5_1_prompt.md`):
+    /// "assume the user wants you to make code changes or run tools to solve
+    /// the user's problem … you should go ahead and actually implement the
+    /// change." Kept short-phrase on purpose — the target models (1.5B–8B
+    /// local) need a direct behavioral command, not a policy prose.
+    static let codingAgentBase =
+        "You are oCoreAI, a coding agent running on macOS. "
+        + "You are expected to be precise, safe, and helpful. "
+        + "Assume the user wants code changes or tool actions that solve their problem: "
+        + "use your tools to actually implement changes and run commands, don't just describe what you would do. "
+        + "When you finish, report what changed and how you verified it. "
+        + "NEVER run destructive commands (git reset --hard, rm -rf) unless the user explicitly requests them."
+
     private var basePrompt: String
     private var registry: SkillRegistry?
     private var currentPrompt: String?
