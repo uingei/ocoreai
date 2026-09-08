@@ -237,7 +237,7 @@ struct MCPElicititationResponderTests {
         // → throw → `routeToolCall` re-throw → server 完全无感知，elicit 入站请求根本没机会发出。
         // 锁定"工具级门先于 elicit 入站请求"的两层门边界（elicitation 门在更下游）。
         let bridge = try await Self.makeBridge(policy: .never)
-        defer { await bridge.disconnectEndpoint(name: "mcp-elicit") }
+        defer { Task { await bridge.disconnectEndpoint(name: "mcp-elicit") } }
 
         do {
             _ = try await Self.withTimeout(seconds: 30) {
@@ -277,7 +277,7 @@ struct MCPElicititationResponderTests {
         try await bridge.connectEndpoint(
             name: "mcp-elicit", command: "python3",
             args: [try writeElicitationStub().path], capabilities: ["tools"])
-        defer { await bridge.disconnectEndpoint(name: "mcp-elicit") }
+        defer { Task { await bridge.disconnectEndpoint(name: "mcp-elicit") } }
 
         // 调用应当**完成**（不挂死）——elicitation 被拒绝，但 server 拿到应答后继续完成
         let result = try await Self.withTimeout(seconds: 30) {
