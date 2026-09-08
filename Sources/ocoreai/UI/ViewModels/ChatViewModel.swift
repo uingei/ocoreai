@@ -767,10 +767,21 @@ final class ChatState {
             // Load persisted sampling config for this model
             let samplingCfg = SettingsStore.shared.loadSamplingConfig(for: model)
 
+            // Coding-agent tool surface — this native path IS the agent's face.
+            // Pass the full registry surface (P0-3 / local-first semantics,
+            // InferenceStubs `declaredToolNames` contract: the client's declared
+            // surface = what the engine exposes; nil was the UI's wiring
+            // omission, never a product choice). Native-side contract:
+            // InferenceOptions.toolRouting → hasNativeTools → ChatSession tool
+            // loop (the same engine path the HTTP wire proves live).
+            let toolSurface: [ToolDef]? =
+                await OcoreaiEngine.shared.activeToolRegistry?.toToolDefs()
+
             let request = InferenceRequest(
                 modelId: model,
                 messages: typedMessages,
                 systemPrompt: systemPrompt.isEmpty ? nil : systemPrompt,
+                tools: toolSurface,
                 temperature: samplingCfg.temperature != 0 ? Double(samplingCfg.temperature) : nil,
                 topP: samplingCfg.topP.map(Double.init),
                 topK: samplingCfg.topK,

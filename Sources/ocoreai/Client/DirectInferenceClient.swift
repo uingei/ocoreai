@@ -387,14 +387,17 @@ extension DirectInferenceClient {
         .fastPathDefaults(runtimeDefaults)
         .normalized()
 
+        let toolRouting = InferenceOptions.toolRouting(from: request.tools)
         let inferenceOpts = InferenceOptions(
             maxTokens: effectiveMaxTokens,
             includeLogits: false,
             useGuidedGeneration: request.tools.map { !$0.isEmpty } ?? false,
             grammarSchema: request.tools.map { buildGrammarSchema(from: $0) }.flatMap { $0 },
+            hasNativeTools: toolRouting.hasNativeTools,
             enableReasoning: request.reasoning == true,
             reasoningLevel: request.reasoningLevel,
             reasoningEffort: request.reasoningEffort,
+            declaredToolNames: toolRouting.declaredToolNames,
         )
 
         // Phase 5: Dispatch inference
@@ -750,14 +753,17 @@ extension DirectInferenceClient {
         .fastPathDefaults(runtimeDefaults)
         .normalized()
 
+        let toolRouting = InferenceOptions.toolRouting(from: request.tools)
         let infOpts = InferenceOptions(
             maxTokens: effectiveMaxTokens,
             includeLogits: false,
             useGuidedGeneration: request.tools.map { !$0.isEmpty } ?? false,
             grammarSchema: request.tools.map { buildGrammarSchema(from: $0) }.flatMap { $0 },
+            hasNativeTools: toolRouting.hasNativeTools,
             enableReasoning: request.reasoning == true,
             reasoningLevel: request.reasoningLevel,
             reasoningEffort: request.reasoningEffort,
+            declaredToolNames: toolRouting.declaredToolNames,
         )
 
         // Phase 5: Dispatch inference — direct stream via generateFromMessages

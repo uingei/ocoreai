@@ -318,6 +318,30 @@ struct SamplingConfiguration: Codable, Equatable {
 
 /// Intermediate inference options — used by both CoreAI and MLX backends.
 struct InferenceOptions: Codable {
+    /// Tool-routing contract shared by every native (non-HTTP) client.
+    ///
+    /// Mirrors ChatHandler (the HTTP wire contract, live-E2E-verified 09-08):
+    /// `tools` non-empty ⇒ `hasNativeTools = true`, which keeps the engine
+    /// OFF the macOS-27 FM `LanguageModelSession` one-shot guided path
+    /// (L2261 guard, EngineInference.swift) and ON the ChatSession tool
+    /// **loop** (ChatSession.swift:1003 "loop can restart on tool calls":
+    /// emit → dispatch → feed result → continue). `declaredToolNames`
+    /// carries the OpenAI `tools[]` whitelist contract (P0-3).
+    ///
+    /// Before this helper the two Fast Path sites (doStreamInference /
+    /// doCompleteInference) set only `useGuidedGeneration` from `tools`,
+    /// leaving `hasNativeTools = false` — the exact divergence that left
+    /// the desktop UI unable to close a tool loop while the HTTP path
+    /// could close it.
+    static func toolRouting(
+        from tools: [ToolDef]?
+    ) -> (hasNativeTools: Bool, declaredToolNames: [String]?) {
+        guard let tools, !tools.isEmpty else {
+            return (false, nil)
+        }
+        return (true, tools.map { $0.function.name })
+    }
+
     var maxTokens: Int?
     var includeLogits: Bool = false
     /// When true, use GuidedGenerationLoop for grammar-constrained output
