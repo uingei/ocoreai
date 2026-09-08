@@ -1519,6 +1519,12 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// Service Unavailable — engine unavailable (load failure)
     case engineUnavailable
 
+    /// Service Unavailable — model still loading / prewarming; caller should
+    /// retry (poll `state: "loading"` on ``GET /v1/models`` until it flips
+    /// to `ready`). Distinct from ``engineUnavailable`` so JSON clients can
+    /// tell "transient, retry" apart from "permanent, give up".
+    case modelLoading(String)
+
     /// Internal Error — inference pipeline failed
     case inferenceFailed(String)
 
@@ -1552,6 +1558,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         case .generationError(let msg): "Generation failed: \(msg)"
         case .kvCacheCorruption(let msg): "KV cache corruption: \(msg)"
         case .engineUnavailable: "Engine unavailable"
+        case .modelLoading(let name):
+            "Model \(name) is still loading — retry when state == \"ready\""
         case .inferenceFailed(let msg): "Inference failed: \(msg)"
         case .tokenizationFailed(let msg): "Tokenization failed: \(msg)"
         case .toolCallFailed(let msg): "Tool call failed: \(msg)"
@@ -1577,7 +1585,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
             .badRequest
         case .modelNotFound, .coldStoreNotFound:
             .notFound
-        case .poolExhausted, .queueClosed, .engineUnavailable,
+        case .poolExhausted, .queueClosed, .engineUnavailable, .modelLoading,
             .sessionLimitExceeded:
             .serviceUnavailable
         case .sessionExpired:

@@ -55,6 +55,8 @@ public final class OcoreaiEngine {
     private var serverApp: (any ApplicationProtocol)?
     private var gaugeTask: Task<Void, Never>?
     private var cleanupTask: Task<Void, Never>?
+    /// Background default-model prewarm — cancelled on stop().
+    private var prewarmTask: Task<Void, Never>?
 
     /// HTTP server task — tracked so stop() can cancel it.
     private var serverTask: Task<Void, Never>?
@@ -470,6 +472,21 @@ public final class OcoreaiEngine {
             toolRegistry: toolRegistry,
         )
         logger.info("EnginePool initialized with HardwareRouter integration")
+
+        // Background default-model prewarm — removes the lazy-load cost from
+        // the user's first request (historically ~5 minutes of silent waiting;
+        // the model now loads at boot on a background task). Non-fatal: a
+        // failed prewarm means the first request pays the full load cost,
+        // exactly as before. Only runs for hub ids or existing local paths —
+        // never a download-forcing path without an existing cache entry.
+        if let pool = enginePool, !engineConfig.defaultModelId.isEmpty {
+            prewarmTask = Task.detached(priority: .utility) {
+                await pool.prewarmDefaultModel(engineConfig.defaultModelId)
+            }
+            logger.info(
+                "Background prewarm scheduled for default model (first request won't pay the load cost)"
+            )
+        }
         // Build LLM summarizer callback for session compression
         _sessionCompressor = SessionCompressor(
             store: store,
@@ -677,6 +694,7 @@ public final class OcoreaiEngine {
         serverTask?.cancel()
         cleanupTask?.cancel()
         gaugeTask?.cancel()
+        prewarmTask?.cancel()
 
         logger.info("Shutdown signal received, draining active sessions...")
 

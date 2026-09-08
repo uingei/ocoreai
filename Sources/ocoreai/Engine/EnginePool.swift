@@ -81,6 +81,12 @@ actor EnginePool {
     /// Models currently being loaded — prevents concurrent duplicate loads.
     private var loadingModels: Set<String> = []
 
+    /// Models currently being prewarmed at startup — distinct from
+    /// `loadingModels` so that `acquire()`'s `waitForLoading` gate (which keys
+    /// off `loadingModels` only) never blocks a user request behind a
+    /// background prewarm. Prewarm load failures are logged, not thrown.
+    private var prewarmingModels: Set<String> = []
+
     /// Model last-access timestamps for LRU eviction (modelId → Instant)
     private var modelLastAccess: [String: ContinuousClock.Instant] = [:]
 
@@ -345,6 +351,80 @@ actor EnginePool {
         touchModelAccess(modelId)
     }
 
+    /// Best-effort prewarm: load ``modelId`` ahead of the first real request.
+    ///
+    /// Runs on a background task at startup so the user's first inference
+    /// (historically: full weight load + Metal compile) sees a cache hit.
+    /// Errors are logged, never propagated — a failed prewarm simply means the
+    /// first request pays the load cost itself, exactly as before.
+    ///
+    /// A model under prewarm is NOT registered in ``loadingModels``, so a
+    /// concurrent real request (``acquire`` → ``waitForLoading``) proceeds
+    /// independently instead of blocking behind the background prewarm:
+    /// whichever finishes its load first wins the ``loadedModels`` slot. The
+    /// prewarm's follow-up warmup trip (``prewarmIfNeeded``) is always
+    /// idempotent and session-safe — it never registers a session — so even if
+    /// it observes a model already in ``loadedModels`` (won by a real request)
+    /// the extra warmup is harmless and the loser simply keeps its bookkeeping.
+    func prewarmDefaultModel(_ modelId: String) async {
+        guard !loadedModels.keys.contains(modelId) else { return }
+        guard !prewarmingModels.contains(modelId) else { return }
+        guard
+            isHubModel(modelId)
+                || FileManager.default.fileExists(
+                    atPath: (modelId as NSString).expandingTildeInPath)
+        else {
+            logger.debug(
+                "Prewarm skipped: \((modelId).prefix(24)) is neither hub id nor existing local path"
+            )
+            return
+        }
+        prewarmingModels.insert(modelId)
+        defer { prewarmingModels.remove(modelId) }
+        // Hold the loading slot so a concurrent acquire() takes the
+        // waitForLoading wait path instead of starting a second heavy load.
+        // (acquire() → waitForLoading() spins on loadingModels membership.)
+        loadingModels.insert(modelId)
+        defer { loadingModels.remove(modelId) }
+        do {
+            let start = ContinuousClock.now
+            logger.info("Prewarming model: \((modelId))")
+            let model = try await loadModel(modelId)
+            // Register immediately after load (before the warmup pass) so a
+            // concurrent acquire() sees the model in the pool and takes the
+            // fast path instead of starting a second heavy load. Warmup is
+            // CAS-idempotent (wasPrewarmed), so racing warm passes are no-ops.
+            if let existing = loadedModels[modelId] {
+                // A real request won the race first — warm THAT instance.
+                try? await existing.prewarmIfNeeded(config.warmupTokens)
+                let elapsed = start.duration(to: .now)
+                logger.info(
+                    "Prewarm attached to already-loaded model \(modelId) after \((Int(elapsed.components.seconds)))s"
+                )
+                return
+            }
+            touchModelAccess(modelId)
+            await evictIdleModelsIfNeeded()
+            loadedModels[modelId] = model
+            // Warmup trip (Metal shader compile + tokenizer + N warmup tokens)
+            // — non-fatal: a model that fails warmup is still usable cold;
+            // the first real request (via acquire → _acquireSession) retries
+            // prewarmIfNeeded once more with identical CAS semantics.
+            try? await model.prewarmIfNeeded(config.warmupTokens)
+            let elapsed = start.duration(to: .now)
+            let secs =
+                Int(elapsed.components.seconds)
+                + (elapsed.components.attoseconds > 5_000_000_000_000_000_000 ? 1 : 0)
+            logger.info("Model \(modelId) prewarmed in \(secs)s — first request will be fast")
+        } catch is CancellationError {
+            logger.info("Prewarm cancelled: \((modelId))")
+        } catch {
+            logger.warning(
+                "Prewarm failed for \((modelId)): \((error)) — first request will pay the full load"
+            )
+        }
+    }
+
     /// Wait for another caller to finish loading ``modelId``.
     ///
     /// Uses a ``ContinuousClock`` deadline instead of busy-spinning.
@@ -356,7 +436,9 @@ actor EnginePool {
         while loadingModels.contains(modelId) {
             try Task.checkCancellation()
             guard ContinuousClock.now < deadline else {
-                throw AppError.engineUnavailable
+                // Still loading past the wait window → transient: the load is
+                // in flight, not dead. Tell the client to poll, not to give up.
+                throw AppError.modelLoading(modelId)
             }
             try await Task.sleep(until: deadline, clock: .continuous)
         }
@@ -744,8 +826,18 @@ actor EnginePool {
                 }
                 #endif
                 entry["vlm"] = String(model.isVlm)
+                // A prewarm is in flight for this exact model → not yet ready;
+                // surface it so clients can poll instead of blind-timing-out.
+                entry["state"] = prewarmingModels.contains(id) ? "loading" : "ready"
                 result.append(entry)
             }
+        }
+        // In-flight loads/prewarms for models NOT yet registered: expose them
+        // as state="loading" so a client sees the model exists and is warming.
+        var seen = Set(ids)
+        for id in prewarmingModels.union(loadingModels) where !seen.contains(id) {
+            result.append(["id": id, "state": "loading"])
+            seen.insert(id)
         }
         return result
     }
