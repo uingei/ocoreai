@@ -181,6 +181,16 @@ final class SettingsState {
         }
     }
 
+    /// Workspace directory shown/edited in Settings; persists via SettingsStore
+    /// (validated setter). Used by the coding agent to anchor exec + file tools
+    /// and to discover AGENTS.md project instructions.
+    var workspaceDirectory: String = SettingsStore.shared.workspaceDirectory {
+        didSet {
+            guard oldValue != workspaceDirectory else { return }
+            SettingsStore.shared.workspaceDirectory = workspaceDirectory
+        }
+    }
+
     // MARK: - Perception
 
     var perceptionEnabled: Bool = SettingsStore.shared.perceptionEnabled {

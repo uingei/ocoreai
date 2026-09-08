@@ -213,6 +213,9 @@ public enum StringKey: String, CaseIterable {
     case customSystemPrompt = "Settings.CustomSystemPrompt"
     case customSystemPromptHint = "Settings.CustomSystemPromptHint"
     case customSystemPromptPlaceholder = "Settings.CustomSystemPromptPlaceholder"
+    case workspace = "Settings.Workspace"
+    case workspaceHint = "Settings.WorkspaceHint"
+    case workspacePlaceholder = "Settings.WorkspacePlaceholder"
 
     // — Perception —
     case perceptionSection = "Settings.PerceptionSection"
@@ -724,6 +727,10 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
             "Your custom instructions are prepended to the system prompt with highest priority.",
         .customSystemPromptPlaceholder:
             "e.g. Be concise and answer in the user's preferred language.",
+        .workspace: "Workspace",
+        .workspaceHint:
+            "Project directory the coding agent works in: exec commands and file tools land here, and AGENTS.md files in it are injected into the system prompt.",
+        .workspacePlaceholder: "e.g. ~/code/my-project",
 
         // Perception
         .perceptionSection: "Perception",
@@ -1214,6 +1221,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .customSystemPrompt: "自定义系统提示",
         .customSystemPromptHint: "自定义指令会以最高优先级注入到系统提示中。",
         .customSystemPromptPlaceholder: "例如：保持简洁，使用用户首选语言回答。",
+        .workspace: "工作目录",
+        .workspaceHint: "编码智能体的项目目录：命令与文件工具在此目录执行；其中的 AGENTS.md 会注入系统提示。",
+        .workspacePlaceholder: "例如：~/code/my-project",
 
         // Perception
         .perceptionSection: "感知",

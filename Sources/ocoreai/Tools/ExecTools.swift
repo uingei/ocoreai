@@ -123,7 +123,10 @@ enum ExecTools {
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     cont.resume(
-                        returning: try runSync(command: command, cwd: cwd, timeoutSeconds: clamped))
+                        returning: try runSync(
+                            command: command,
+                            cwd: effectiveCwd(cwd),
+                            timeoutSeconds: clamped))
                 } catch {
                     cont.resume(throwing: error)
                 }
@@ -135,6 +138,14 @@ enum ExecTools {
         throw ToolError.checkFailed(
             "exec_command is unavailable on iOS (POSIX Process is macOS-only)")
         #endif
+    }
+
+    /// Effective working directory: explicit `cwd` wins; otherwise the
+    /// configured workspace (codex `turn_environment.cwd()` default). Without a
+    /// workspace the process inherits the server's cwd (pre-callback behavior).
+    static func effectiveCwd(_ cwd: String?) -> String? {
+        if let cwd, !cwd.isEmpty { return cwd }
+        return WorkspaceContext.configuredDirectory()
     }
 
     #if os(macOS)

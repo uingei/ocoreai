@@ -175,6 +175,30 @@ final class SettingsStore {
         set { defaults.set(newValue, forKey: Key.customSystemPrompt.rawValue) }
     }
 
+    /// Workspace directory for the coding agent (codex `turn_environment.cwd()`
+    /// analog): tools default their working directory here, and project
+    /// AGENTS.md instructions are discovered from here into the system prompt.
+    /// Setter validates (expands `~`, must be an existing directory); empty
+    /// string clears the workspace.
+    var workspaceDirectory: String {
+        get { defaults.string(forKey: Key.workspaceDirectory.rawValue) ?? "" }
+        set {
+            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty {
+                defaults.removeObject(forKey: Key.workspaceDirectory.rawValue)
+                return
+            }
+            let expanded = (trimmed as NSString).expandingTildeInPath
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: expanded, isDirectory: &isDir),
+                isDir.boolValue
+            {
+                defaults.set(expanded, forKey: Key.workspaceDirectory.rawValue)
+            }
+            // Non-directory write is rejected — keeps configuredDirectory() honest.
+        }
+    }
+
     // MARK: - Perception
 
     /// Master toggle for continuous perception system
@@ -393,6 +417,7 @@ final class SettingsStore {
 
         // Custom System Prompt
         case customSystemPrompt = "settings.app.customSystemPrompt"
+        case workspaceDirectory = "settings.agent.workspaceDirectory"
 
         // Last selected session for restore on app launch
         case lastSessionId = "settings.app.lastSessionId"

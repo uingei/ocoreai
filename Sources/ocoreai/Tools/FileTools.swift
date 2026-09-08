@@ -230,15 +230,17 @@ enum FileTools {
 
     // MARK: - Helpers
 
-    /// Resolve a tool-supplied path: `~` expanded; absolute stays; relative anchors to cwd.
+    /// Resolve a tool-supplied path: `~` expanded; absolute stays; relative
+    /// anchors to the configured workspace, falling back to the process cwd
+    /// when no workspace is set (pre-feature behavior).
     static func resolve(_ raw: String) -> URL {
         let expanded = (raw as NSString).expandingTildeInPath
         if (expanded as NSString).isAbsolutePath {
             return URL(fileURLWithPath: expanded)
         }
-        return URL(
-            fileURLWithPath: expanded,
-            relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath))
+        let anchor =
+            WorkspaceContext.configuredDirectory() ?? FileManager.default.currentDirectoryPath
+        return URL(fileURLWithPath: expanded, relativeTo: URL(fileURLWithPath: anchor))
     }
 
     /// Hidden files and VCS/build dirs are skipped; depth-bounded DFS.

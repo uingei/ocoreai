@@ -101,12 +101,24 @@ actor MessageBuilder {
             // Memory recall failure is non-fatal — proceed without it
         }
 
-        // Phase 3: Compose final system prompt (priority: user > built > memory)
+        // Phase 3: Compose final system prompt (priority: user > workspace/project
+        // instructions > built base+skills > memory — codex agents_md.rs order:
+        // host user instructions before project AGENTS.md docs, both before
+        // internal guidance). Workspace section comes from the configured
+        // working directory (AGENTS.md discovery); empty when unset.
+        let workspaceSection = WorkspaceContext.buildSection(
+            cwd: WorkspaceContext.configuredDirectory() ?? "")
+
         let finalSystem: String =
             if let userSystem = context.userSystemPrompt, !userSystem.isEmpty {
-                userSystem + "\n\n" + builtSystemPrompt + memoryContext
+                userSystem
+                    + (workspaceSection.isEmpty ? "" : "\n\n" + workspaceSection)
+                    + "\n\n" + builtSystemPrompt + memoryContext
             } else if !builtSystemPrompt.isEmpty {
-                builtSystemPrompt + memoryContext
+                (workspaceSection.isEmpty ? "" : workspaceSection + "\n\n")
+                    + builtSystemPrompt + memoryContext
+            } else if !workspaceSection.isEmpty {
+                workspaceSection + memoryContext
             } else {
                 memoryContext.isEmpty ? "" : memoryContext
             }

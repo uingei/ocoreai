@@ -35,6 +35,7 @@ struct SettingsView: View {
             logsSection
             appSection
             customSystemPromptSection
+            workspaceSection
             aboutSection
             dangerSection
         }
@@ -371,6 +372,23 @@ struct SettingsView: View {
                 .accessibilityHint(StringKey.customSystemPromptPlaceholder.l)
         } header: {
             Text(StringKey.customSystemPrompt.l)
+        }
+    }
+
+    // MARK: - Workspace
+
+    private var workspaceSection: some View {
+        Section {
+            Text(StringKey.workspaceHint.l)
+                .font(.ocoreaiText(12))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading)
+            TextField(StringKey.workspacePlaceholder.l, text: $settingsState.workspaceDirectory)
+                .font(.ocoreaiText(13))
+                .accessibilityLabel(StringKey.workspace.l)
+                .accessibilityHint(StringKey.workspacePlaceholder.l)
+        } header: {
+            Text(StringKey.workspace.l)
         }
     }
 
