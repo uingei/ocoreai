@@ -2149,7 +2149,28 @@ extension EnginePool {
             // + Think-then-Call + AllowedToolOutputRouter + CompletionReserve
             // All activated by passing full tools/transcript/context options.
             #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-            if #available(macOS 27.0, iOS 27.0, *), let mlxLM = loaded.mlxLanguageModel {
+            // Vision carve-out (09-08, live-verified): a request carrying image
+            // content must NOT enter the FM bridge. The bridge rebuilds Chat
+            // messages from the FoundationModels Transcript via
+            // TranscriptConverter, whose only image route is
+            // Segment.attachment(Transcript.ImageAttachment); the macOS 27 SDK
+            // exposes NO public init for Transcript.ImageAttachment (interface
+            // surface: `==`, `url`, `cgImage`, `ciImage` — getters only), so
+            // FMTranscriptHelpers drops every image on entry (documented at the
+            // drop site) and generation runs blind. Live evidence: 64×64 red
+            // square → gemma-4-e2b (VLM, VLMModelFactory) answered "I need an
+            // image… provide a file path", 200 OK, prompt_tokens=187 (zero
+            // vision tokens) — silent drop, confident wrong answer.
+            // The else path feeds ChatSession the Chat.Message array directly
+            // (images intact) — the upstream MLX-VLM input surface — so a vision
+            // request there keeps pixels reaching the model. Intentional
+            // trade-off: a vision request yields the FM tools/reasoning
+            // pipeline in exchange for vision actually working. The silent
+            // blind-fallback is the regression being fixed.
+            let hasVisionContent = mlxMessages.contains { !$0.images.isEmpty }
+            if #available(macOS 27.0, iOS 27.0, *), let mlxLM = loaded.mlxLanguageModel,
+                !hasVisionContent
+            {
                 log.info("Using LanguageModelSession (macOS 27 SDK path)")
 
                 // Observe: FM path declares .reasoning for all models (generic runtime).

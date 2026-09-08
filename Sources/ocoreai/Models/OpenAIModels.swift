@@ -599,7 +599,27 @@ enum ContentPolymorphic: Codable {
 }
 
 /// Multi-part message part types (text + image_url + video + audio).
+///
+/// `CodingKeys` required: OpenAI wire uses **snake_case** (`image_url`,
+/// `video_url`, `audio_url`) but Swift stores them **camelCase**
+/// (`imageUrl`, `videoUrl`, `audioURL`). Without this mapping the bare
+/// `Codable` derives JSON keys from the Swift property names, so a real
+/// OpenAI request `{"type":"image_url","image_url":{"url":"..."}}`
+/// decodes to `imageUrl = nil` — the image is **silently dropped at the
+/// wire layer** before it ever reaches the engine. Live proof (09-08):
+/// 64×64 red square sent to `/v1/chat/completions` → `prompt_tokens:187`
+/// (zero vision tokens), model answered "I need an image… provide a file
+/// path" — confident blind answer, zero error. Root cause was this missing
+/// `CodingKeys`, not any downstream routing.
 struct ContentPart: Codable {
+    enum CodingKeys: String, CodingKey {
+        case type
+        case text
+        case imageUrl = "image_url"
+        case videoUrl = "video_url"
+        case audioURL = "audio_url"
+    }
+
     /// Part type: "text" | "image_url" | "video" | "audio"
     let type: String
 
@@ -623,6 +643,11 @@ struct ContentPart: Codable {
 
     /// Video URL wrapper.
     struct VideoURL: Codable {
+        enum CodingKeys: String, CodingKey {
+            case url
+            case maxFrames = "max_frames"
+        }
+
         /// URL string (http/https or base64 data URL)
         let url: String
         /// Maximum frames to extract per video (default: 16)
