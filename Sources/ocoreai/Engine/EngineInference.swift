@@ -2665,11 +2665,30 @@ extension EnginePool {
                             "[tool_dispatch_error: could not serialize arguments for \\(toolCall.function.name)]"
                     }
 
-                    let toolResult = try await registry.call(
-                        toolCall.function.name,
-                        arguments: jsonArgs,
-                        caller: "mlx_engine"
-                    )
+                    // Tool-failure recovery (codex semantics): a handler-level failure
+                    // (bad path, oversized read, ...) is returned to the model AS a
+                    // tool-result error string so it can self-correct and retry —
+                    // instead of propagating `try` and hard-aborting the whole
+                    // ChatSession loop (upstream ChatSession L1411/1434: toolDispatch
+                    // throw → stream terminates → 500, zero recovery path for the
+                    // model). Security preflight denials still throw (before the
+                    // handler), so authz behavior is unchanged.
+                    let toolResult: String
+                    do {
+                        toolResult = try await registry.call(
+                            toolCall.function.name,
+                            arguments: jsonArgs,
+                            caller: "mlx_engine"
+                        )
+                    } catch let error as ToolError {
+                        logger.warning(
+                            "Tool call failed — surfacing to model for recovery: \(error)")
+                        return "[tool_error: \(error.localizedDescription)]"
+                    } catch {
+                        logger.warning(
+                            "Tool call failed — surfacing to model for recovery: \(error)")
+                        return "[tool_error: \(error.localizedDescription)]"
+                    }
                     // P-S2: Append fresh perception context to tool result so the model
                     // sees updated environment state on each tool dispatch iteration.
                     // Uses MainActor.run to bridge @MainActor PerceptionEngine boundary.
