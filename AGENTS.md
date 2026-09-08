@@ -125,7 +125,7 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 
 Three sources for empirical verification:
 1. **mlx-swift-lm** — pinned in `Package.resolved` at `e3d4a20` (2026-09-03 `d7bd972`; 前序 5694a2f #599; 37688d2 #572/#573 consumer-free-ride). Upstream origin/main = `e3d4a20` (0 drift, 2026-09-04 verified via `git rev-list --count e3d4a20..origin/main` = 0).
-2. **coreai-models** — reference at `b91bb18` (#206 ATEM/agentic; 前序 cefd53d #215; b11ac19 #188 StaticInputHandler). Reference repo, not SPM dependency. #206 ThinkTagParser agentic hardening absorbed 2026-09-04 (`1076948`); ATEM ToolCallParser format NOT absorbed (zero ocoreai consumers of `Format.agentic` — no production wire-up).
+2. **coreai-models** — reference at `df81198` (2026-09-08 HEAD; 前序 b91bb18 #206 ATEM/agentic; cefd53d #215; b11ac19 #188). Reference repo, not SPM dependency. `b91bb18..df81198` = `#228` Muse Glimmer DFlash drafter(306L 新文件 `muse_glimmer_drafter_dflash.py` + muse_glimmer +131L + test 212L)——**Muse-Glimmer 专属**投机解码 drafter(5 层 sliding-window ring,共享 embed/lm_head),非通用推理路径;ocoreai 无 Muse Glimmer 模型面(`CoreAISequentialEngine.swift:6-132` 明示「Glimmer not in model surface, activates when that model is added」)→ **consumer-transparent, 零吸收义务**。#206 ThinkTagParser agentic hardening absorbed 2026-09-04 (`1076948`); ATEM ToolCallParser format NOT absorbed (zero ocoreai consumers of `Format.agentic` — no production wire-up).
 3. **Apple Developer Docs** — developer.apple.com/documentation/CoreAI (requires login)
 
 **Wiki:** `~/wiki/concepts/upstream-mlx-swift-lm-38927f5-intent.md` + `~/wiki/concepts/upstream-coreai-models.md` — consumption matrix with file:line evidence.
