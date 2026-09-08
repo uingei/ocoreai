@@ -640,12 +640,22 @@ actor ModelScopeDownloader: Downloader {
             )
         else { return [] }
         var results: [String] = []
-        let base = directory.path(percentEncoded: false)
+        // 09-08 root cause (live-proven): on macOS 27 Foundation, a directory
+        // URL's path(percentEncoded: false) carries a TRAILING SLASH, so the
+        // original `full.hasPrefix(base + "/")` required a double-slash prefix
+        // (".../gemma-4-e2b-it-4bit//") and filtered EVERY real file out —
+        // listLocalFiles returned [] while contentsOfDirectory saw 11 files.
+        // That false "nothing downloaded" verdict defeated download()'s
+        // fast-path (L121) and force a 3.5 GiB / 421 s full re-download on
+        // every cold start of an already-complete model dir. Normalize the
+        // base to exactly one directory boundary before comparing.
+        var base = directory.path(percentEncoded: false)
+        while base.hasSuffix("/") { base.removeLast() }
+        let prefix = base + "/"
         for case let url as URL in enumerator {
             let full = url.path(percentEncoded: false)
-            if full.hasPrefix(base + "/") {
-                let relative = String(full.dropFirst(base.count + 1))
-                results.append(relative)
+            if full.hasPrefix(prefix) {
+                results.append(String(full.dropFirst(prefix.count)))
             }
         }
         return results
