@@ -523,7 +523,22 @@ actor EnginePool {
             chunkThreshold: 8,
             prefillChunkSize: 4096,
         )
-        let modelURL = URL(fileURLWithPath: modelId)
+        // 09-08 root cause (live-proven): a bare hub id is a RELATIVE path, and
+        // URL(fileURLWithPath:) absolutizes it against the process CWD — the
+        // phantom dir `file:///Users/t/Projects/ocoreai/mlx-community/gemma-4-
+        // e2b-it-4bit` (visible in the CoreAI warmup warning: "Asset at
+        // mlx-community/gemma-4-e2b-it-4bit -- file:///Users/t/Projects/ocoreai/
+        // is malformed: Missing hash file"). Every isVLMModel(at: modelURL) check
+        // (L581 + post-load re-detect) then probed a directory that never holds
+        // processor_config.json → loaded.isVlm=false for the true VLM, while the
+        // downloader/MLXLanguageModel load closure resolved the REAL ready dir
+        // (ModelStore.root) and built the VLM container. The container was always
+        // correct; the flag was always wrong. Resolve the ready weights dir first
+        // (the directory that actually holds the weights), keeping the raw path
+        // for genuine local-folder models (readyWeightsDir returns nil there).
+        let modelURL =
+            MLXModelLoader.readyWeightsDir(for: modelId)
+            ?? URL(fileURLWithPath: modelId)
         // Stub configData for coreai path; actual weights come from hub download
         let configData = "{}".data(using: .utf8) ?? Data()
         logger.info(
