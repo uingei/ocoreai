@@ -829,7 +829,8 @@ private func nonStreamWithToolCalling(
     /// Build response choice with assistant message + tool calls.
     let choice = CompletionChoice(
         message: AssistantMessage(
-            content: toolCalls != nil ? "" : finalContent, toolCalls: toolCalls),
+            content: toolCalls != nil ? "" : OutputSanitizer.strip(finalContent),
+            toolCalls: toolCalls),
         finishReason: finishReasonFinal,
     )
 
