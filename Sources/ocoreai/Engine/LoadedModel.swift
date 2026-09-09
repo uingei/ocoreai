@@ -352,6 +352,26 @@ final class LoadedModel: @unchecked Sendable {
     /// Atomic flag — `true` after prewarm completes
     private let wasPrewarmed = ManagedAtomic<Bool>(false)
 
+    /// Non-fatal warmup failure observed during prewarm. When `true`, the
+    /// "first request will be fast" claim in ``EnginePool.prewarmDefaultModel``
+    /// is NOT allowed — the model is still usable cold, but the prewarm trip did
+    /// not complete (e.g. CoreAI specialization skipped due to malformed asset
+    /// such as "missing hash file"). Callers should log an honest state and
+    /// avoid promising the user a fast first request.
+    ///
+    /// Why a plain `var` rather than `ManagedAtomic<Bool>`: only the prewarm
+    /// closure (single CAS-guarded entry) writes this; all other callers
+    /// (``EnginePool``) read from the actor mailbox, so there is no
+    /// user-visible cross-actor race. The CAS entry above is the serialization
+    /// point that makes this safe (see L350 "CAS-guarded, runs once").
+    private var wasPrewarmDegraded = false
+
+    /// Whether the last prewarm trip fully succeeded.
+    ///
+    /// - Returns: `false` if any non-fatal warmup error was observed in the
+    ///   last (or current) prewarm pass for this model instance.
+    nonisolated var prewarmFullySucceeded: Bool { !wasPrewarmDegraded }
+
     /// Run the warmup (preflight) inference once, guarded by CAS.
     ///
     /// - Parameter warmupTokens: Number of tokens to generate during warmup
@@ -397,12 +417,16 @@ final class LoadedModel: @unchecked Sendable {
                 // Drain stream to complete warmup
                 for try await _ in seq {}
             } catch {
-                logger.warning("Warmup skipped (non-fatal): \(error)")
+                if !wasPrewarmDegraded {
+                    wasPrewarmDegraded = true
+                    logger.warning("Warmup skipped (non-fatal): \(error)")
+                }
             }
         }
         #else
         do {
             guard let handle = mlxModelHandle else {
+                if !wasPrewarmDegraded { wasPrewarmDegraded = true }
                 logger.warning("MLX warmup skipped: no model handle")
                 return
             }
@@ -430,6 +454,9 @@ final class LoadedModel: @unchecked Sendable {
             // The warmupTokens config limits how many tokens are generated.
             for try await _ in genStream {}
         } catch {
+            if !wasPrewarmDegraded {
+                wasPrewarmDegraded = true
+            }
             logger.warning("MLX warmup skipped (non-fatal): \(error)")
         }
         #endif

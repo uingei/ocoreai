@@ -231,6 +231,22 @@ struct WarmupTests {
         try await model.prewarmIfNeeded(4)
     }
 
+    @Test("failed warmup trip is observable as prewarmFullySucceeded == false")
+    func degradedPrewarmIsObservable() async throws {
+        let model = makeLoadedModel()
+        // Pre-warmup state: no failure observed yet.
+        #expect(model.prewarmFullySucceeded == true)
+        // Stub environment: no mlxModelHandle → warmup trip early-returns
+        // without running. The trip did NOT complete, so the honest flag
+        // must be false — the exact 09-09 "Missing hash file" case the
+        // "first request will be fast" log must not claim for.
+        try await model.prewarmIfNeeded(4)
+        #expect(model.prewarmFullySucceeded == false)
+        // Idempotent under repeated calls (CAS-guarded).
+        try await model.prewarmIfNeeded(4)
+        #expect(model.prewarmFullySucceeded == false)
+    }
+
     @Test("prewarm can be called multiple times without error")
     func prewarmIdempotent() async throws {
         let model = makeLoadedModel()

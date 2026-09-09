@@ -345,7 +345,14 @@ actor EnginePool {
     /// Prevents premature LRU eviction while inference tokens are still flowing.
     func markSessionActive(sessionId: String) async {
         guard let modelId = sessionRegistry[sessionId] else {
-            logger.warning("markSessionActive: unregistered session \(sessionId)")
+            // Late markActive after a completed release is expected under
+            // concurrent summarization (SummarizerActor's delayed summary
+            // calls markActive after the underlying session already finished).
+            // demote to debug — the 09-09 live trace showed this warning
+            // masquerading as a real "session dropped" bug when it was a
+            // normal late-signal from a background task.
+            logger.debug(
+                "markSessionActive: session \(sessionId) already released (late signal, no-op)")
             return
         }
         touchModelAccess(modelId)
@@ -398,9 +405,18 @@ actor EnginePool {
                 // A real request won the race first — warm THAT instance.
                 try? await existing.prewarmIfNeeded(config.warmupTokens)
                 let elapsed = start.duration(to: .now)
-                logger.info(
-                    "Prewarm attached to already-loaded model \(modelId) after \((Int(elapsed.components.seconds)))s"
-                )
+                let elapsedSecs =
+                    Int(elapsed.components.seconds)
+                    + (elapsed.components.attoseconds > 5_000_000_000_000_000_000 ? 1 : 0)
+                if existing.prewarmFullySucceeded {
+                    logger.info(
+                        "Prewarm attached to already-loaded model \(modelId) after \(elapsedSecs)s — first request will be fast"
+                    )
+                } else {
+                    logger.warning(
+                        "Prewarm attached to already-loaded model \(modelId) after \(elapsedSecs)s — warmup trip was skipped (non-fatal), first request may pay full cold-start cost"
+                    )
+                }
                 return
             }
             touchModelAccess(modelId)
@@ -415,7 +431,13 @@ actor EnginePool {
             let secs =
                 Int(elapsed.components.seconds)
                 + (elapsed.components.attoseconds > 5_000_000_000_000_000_000 ? 1 : 0)
-            logger.info("Model \(modelId) prewarmed in \(secs)s — first request will be fast")
+            if model.prewarmFullySucceeded {
+                logger.info("Model \(modelId) prewarmed in \(secs)s — first request will be fast")
+            } else {
+                logger.warning(
+                    "Model \(modelId) loaded in \(secs)s — warmup trip was skipped (non-fatal), first request may pay full cold-start cost"
+                )
+            }
         } catch is CancellationError {
             logger.info("Prewarm cancelled: \((modelId))")
         } catch {
@@ -759,6 +781,23 @@ actor EnginePool {
         // UI icons, engineSummary). Hot loads see the same value as L581.
         model.isVlm = MLXModelLoader.isVLMModel(at: modelURL)
         model.kvCacheQuantization = config.kvCacheQuantization
+        // Register the model's tokenizer with the shared TokenizerManager so
+        // context validation, prompt precheck (EngineInference:890/1089),
+        // and logprobs (EnginePool.tokenize:235) resolve the REAL tokenizer
+        // instead of the 4-chars/token heuristic fallback.
+        // Non-fatal: models without a loadable tokenizer.json keep the
+        // existing heuristic fallback exactly as before. At this point all
+        // three branches (FM preload / <27 fallback / no-FM fallback) have
+        // finished their download+load, so modelURL holds the complete dir.
+        do {
+            try await tokenizerManager
+                .registerTokenizer(for: modelId, tokenizerPath: modelURL.path)
+            logger.info("Tokenizer registered for \\(modelId) — context wall on real token counts")
+        } catch {
+            logger.warning(
+                "Tokenizer registration failed for \\(modelId) (\\(error.localizedDescription)) — falling back to heuristic token estimates"
+            )
+        }
         // Persist MLXLanguageModel so executor.respond() can route through
         // capability gates, ToolCallingModeResolution, and ConfigurationResolver
         // on macOS 27. The instance was constructed above and hoisted into mlxLM.
