@@ -4043,107 +4043,156 @@ extension EnginePool {
                     //   - pool miss → full history including system instructions
                     // `chatSession` was acquired before the reasoning/fm branches; if it
                     // is nil here the FM path already consumed it — report, don't crash.
-                    guard let chatSession else {
-                        logger.error("Standard ChatSession path entered with nil chatSession")
-                        continuation.yield(
-                            .init(kind: .error("Engine internal error: no active chat session")))
-                        continuation.finish()
-                        return
-                    }
-                    for try await generation in chatSession.streamDetails(
-                        to: newMessages
-                    ) {
-                        if Task.isCancelled || cancellation.isCancelled {
-                            let cancelTokPerSec =
-                                (actualTokenCount ?? 0) > 0
-                                ? Double(actualTokenCount ?? 0)
-                                    / (Double(metrics.overallMs) / 1000.0)
-                                : nil
-                            continuation.yield(
-                                .init(
-                                    kind: .done(
-                                        StopReason.cancelled,
-                                        tokenCount: actualTokenCount ?? 0,
-                                        tokPerSec: cancelTokPerSec,
-                                        promptTokPerSec: promptTokPerSec,
-                                        reasoningTokenCount: 0)))
-                            break
-                        }
-                        switch generation {
-                        case .chunk(let text):
-                            if actualTokenCount == nil {
-                                metrics.firstTokenMs = metrics.overallMs
+                    // Rejected-tool-call recovery — codex-aligned semantics (codex-rs
+                    // mcp_tool_call.rs: malformed tool JSON -> surface the error and let
+                    // the model retry, never hard-abort the loop). Pinned upstream
+                    // (mlx-swift-lm e3d4a20, ChatSession L1390-1404): once
+                    // toolDispatch != nil, a rejected tool call rolls back ONLY the
+                    // failed assistant turn, persists the rolled-back cache "so the
+                    // next request cannot reuse rejected output", then throws
+                    // RejectedToolCallError — the caller owns recovery. ocoreai is that
+                    // caller: it re-enters the SAME chatSession with a fresh corrective
+                    // turn (committed user turn + any already-executed tool results are
+                    // preserved upstream, so re-entry does not double-feed). Bounded at
+                    // 3 attempts; on exhaustion the original error propagates to the
+                    // outer `.error` handling (legacy 500 wire behavior) - unchanged.
+                    // (Empirical 2026-09-08/09: gemma-4 2B AND Qwen3.5 4B both tripped
+                    // this to a hard 500 mid multi-step task.)
+                    let maxStdRejectedAttempts = 3
+                    var stdRetryMessages: [MLXLMCommon.Chat.Message] = newMessages
+                    for stdRejectedAttempt in 1 ... maxStdRejectedAttempts {
+                        do {
+                            guard let chatSession else {
+                                logger.error(
+                                    "Standard ChatSession path entered with nil chatSession")
+                                continuation.yield(
+                                    .init(
+                                        kind: .error(
+                                            "Engine internal error: no active chat session")))
+                                continuation.finish()
+                                return
                             }
-                            metrics.incrementGenerated()
-                            localStdAccumulated += text
-                            let (shouldBreakS3, newText3) = checkStopSequence(
-                                segment: text,
-                                accumulated: localStdAccumulated,
-                                eventKind: { .text($0) },
-                                tokenCount: actualTokenCount,
-                                tokenFallback: metrics.generatedTokenCount,
-                                promptTokPerSec: promptTokPerSec
-                            )
-                            if shouldBreakS3 {
-                                localStdAccumulated = newText3
-                                lastStopReason = .stopSequence
-                                break
-                            }
-                        case .info(let completionInfo):
-                            if actualTokenCount == nil {
-                                actualTokenCount = completionInfo.generationTokenCount
-                            }
-                            localPromptTokenCount = completionInfo.promptTokenCount
-                            // Capture both throughput metrics from upstream GenerateCompletionInfo
-                            promptTokPerSec = completionInfo.promptTokensPerSecond
-                            generationTokPerSec = completionInfo.tokensPerSecond
-                            lastStopReason =
-                                switch completionInfo.stopReason {
-                                case .stop: .eos
-                                case .length: .maxTokens
-                                case .cancelled: .cancelled
+                            for try await generation in chatSession.streamDetails(
+                                to: stdRetryMessages
+                            ) {
+                                if Task.isCancelled || cancellation.isCancelled {
+                                    let cancelTokPerSec =
+                                        (actualTokenCount ?? 0) > 0
+                                        ? Double(actualTokenCount ?? 0)
+                                            / (Double(metrics.overallMs) / 1000.0)
+                                        : nil
+                                    continuation.yield(
+                                        .init(
+                                            kind: .done(
+                                                StopReason.cancelled,
+                                                tokenCount: actualTokenCount ?? 0,
+                                                tokPerSec: cancelTokPerSec,
+                                                promptTokPerSec: promptTokPerSec,
+                                                reasoningTokenCount: 0)))
+                                    break
                                 }
-                            // MTP speculative decoding metrics — present when ChatSession
-                            // uses SpeculativeTokenIterator internally. Nil on standard path.
-                            localStdProposedDraftTokens = completionInfo.proposedDraftTokens
-                            localStdAcceptedDraftTokens = completionInfo.acceptedDraftTokens
-                            localStdPassthroughReason = completionInfo.passthroughReason
-                        case .toolCall(let mlxTC):
-                            let tc = InferenceEvent.mlxToolCall(from: mlxTC)
-                            continuation.yield(.init(kind: .toolCall(tc)))
-                        case .rejectedToolCall(let rejection):
-                            // Upstream #512/#538 (mlx-swift-lm 7871b09): no-tools
-                            // standard ChatSession path — a rejection here is a
-                            // protocol anomaly, not a dispatchable event. Matches
-                            // upstream own convention (MLXLanguageModel logs it on
-                            // the non-throwing decoder path). Deliberately does not
-                            // log rawTextPreview (upstream: may contain sensitive
-                            // argument values). reason/toolName/detail are the safe
-                            // diagnostic fields.
-                            self.logger.warning(
-                                "Standard ChatSession path: rejected tool call — reason=\(rejection.reason.rawValue) tool=\((rejection.toolName.map { String($0) } ?? "nil")) detail=\((rejection.detail.map { String($0) } ?? "nil"))"
-                            )
-                        }
-                    }
+                                switch generation {
+                                case .chunk(let text):
+                                    if actualTokenCount == nil {
+                                        metrics.firstTokenMs = metrics.overallMs
+                                    }
+                                    metrics.incrementGenerated()
+                                    localStdAccumulated += text
+                                    let (shouldBreakS3, newText3) = checkStopSequence(
+                                        segment: text,
+                                        accumulated: localStdAccumulated,
+                                        eventKind: { .text($0) },
+                                        tokenCount: actualTokenCount,
+                                        tokenFallback: metrics.generatedTokenCount,
+                                        promptTokPerSec: promptTokPerSec
+                                    )
+                                    if shouldBreakS3 {
+                                        localStdAccumulated = newText3
+                                        lastStopReason = .stopSequence
+                                        break
+                                    }
+                                case .info(let completionInfo):
+                                    if actualTokenCount == nil {
+                                        actualTokenCount = completionInfo.generationTokenCount
+                                    }
+                                    localPromptTokenCount = completionInfo.promptTokenCount
+                                    // Capture both throughput metrics from upstream GenerateCompletionInfo
+                                    promptTokPerSec = completionInfo.promptTokensPerSecond
+                                    generationTokPerSec = completionInfo.tokensPerSecond
+                                    lastStopReason =
+                                        switch completionInfo.stopReason {
+                                        case .stop: .eos
+                                        case .length: .maxTokens
+                                        case .cancelled: .cancelled
+                                        }
+                                    // MTP speculative decoding metrics — present when ChatSession
+                                    // uses SpeculativeTokenIterator internally. Nil on standard path.
+                                    localStdProposedDraftTokens = completionInfo.proposedDraftTokens
+                                    localStdAcceptedDraftTokens = completionInfo.acceptedDraftTokens
+                                    localStdPassthroughReason = completionInfo.passthroughReason
+                                case .toolCall(let mlxTC):
+                                    let tc = InferenceEvent.mlxToolCall(from: mlxTC)
+                                    continuation.yield(.init(kind: .toolCall(tc)))
+                                case .rejectedToolCall(let rejection):
+                                    // Upstream #512/#538 (mlx-swift-lm 7871b09): no-tools
+                                    // standard ChatSession path — a rejection here is a
+                                    // protocol anomaly, not a dispatchable event. Matches
+                                    // upstream own convention (MLXLanguageModel logs it on
+                                    // the non-throwing decoder path). Deliberately does not
+                                    // log rawTextPreview (upstream: may contain sensitive
+                                    // argument values). reason/toolName/detail are the safe
+                                    // diagnostic fields.
+                                    self.logger.warning(
+                                        "Standard ChatSession path: rejected tool call — reason=\(rejection.reason.rawValue) tool=\((rejection.toolName.map { String($0) } ?? "nil")) detail=\((rejection.detail.map { String($0) } ?? "nil"))"
+                                    )
+                                }
+                            }
 
-                    // Emit final .done event with prompt throughput + MTP telemetry
-                    if !Task.isCancelled {
-                        continuation.yield(
-                            .init(
-                                kind: .done(
-                                    lastStopReason ?? .eos,
-                                    tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
-                                    promptTokenCount: localPromptTokenCount,
-                                    tokPerSec: generationTokPerSec,
-                                    promptTokPerSec: promptTokPerSec,
-                                    reasoningTokenCount: 0,
-                                    proposedDraftTokens: localStdProposedDraftTokens,
-                                    acceptedDraftTokens: localStdAcceptedDraftTokens,
-                                    passthroughReason: localStdPassthroughReason)))
-                    }
-                    // Capture assistant text for pool message history tracking
-                    if !localStdAccumulated.isEmpty {
-                        stdAccumulated = localStdAccumulated
+                            // Emit final .done event with prompt throughput + MTP telemetry
+                            if !Task.isCancelled {
+                                continuation.yield(
+                                    .init(
+                                        kind: .done(
+                                            lastStopReason ?? .eos,
+                                            tokenCount: actualTokenCount
+                                                ?? metrics.generatedTokenCount,
+                                            promptTokenCount: localPromptTokenCount,
+                                            tokPerSec: generationTokPerSec,
+                                            promptTokPerSec: promptTokPerSec,
+                                            reasoningTokenCount: 0,
+                                            proposedDraftTokens: localStdProposedDraftTokens,
+                                            acceptedDraftTokens: localStdAcceptedDraftTokens,
+                                            passthroughReason: localStdPassthroughReason)))
+                            }
+                            // Capture assistant text for pool message history tracking
+                            if !localStdAccumulated.isEmpty {
+                                stdAccumulated = localStdAccumulated
+                            }
+                            // Generation completed without rejection — exit the bounded
+                            // recovery loop; the rejected path re-enters from catch below.
+                            break
+                        } catch let rejection as MLXLMCommon.RejectedToolCallError {
+                            logger.warning(
+                                "Standard ChatSession path: rejected tool call — attempt \(stdRejectedAttempt)/\(maxStdRejectedAttempts) reason=\(rejection.rejection.reason.rawValue) tool=\((rejection.rejection.toolName.map { String($0) } ?? "nil"))"
+                            )
+                            if stdRejectedAttempt >= maxStdRejectedAttempts {
+                                logger.error(
+                                    "Standard ChatSession path: rejected-tool-call retry exhausted after \(maxStdRejectedAttempts) attempts — propagating"
+                                )
+                                throw rejection
+                            }
+                            // Reset partial accumulation from the rolled-back pass so
+                            // the retry's output is not concatenated onto rejected text.
+                            localStdAccumulated = ""
+                            lastStopReason = nil
+                            stdRetryMessages = [
+                                MLXLMCommon.Chat.Message(
+                                    role: .user,
+                                    content:
+                                        "The previous assistant reply was rejected by the tool-call parser (malformed tool call). Re-issue the tool call with strictly valid JSON arguments and emit no prose before the tool call."
+                                )
+                            ]
+                        }
                     }
                 }
 
