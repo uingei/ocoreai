@@ -31,11 +31,18 @@ enum OutputSanitizer {
 
     // MARK: - thinking markers (code-point assembled)
     /// gemma open:  <|channel>
-    private static let gemmaOpen = String([lt, pipeC]) + "channel" + String([gt])
+    static let gemmaOpen = String([lt, pipeC]) + "channel" + String([gt])
     /// gemma close: <channel|>
-    private static let gemmaClose = String([lt]) + "channel" + String([pipeC, gt])
+    static let gemmaClose = String([lt]) + "channel" + String([pipeC, gt])
     /// qwen closer tag: 3C 2F 74 68 69 6E 6B 3E
-    private static let qwenClose = String([lt, slashC]) + "think" + String([gt])
+    static let qwenClose = String([lt, slashC]) + "think" + String([gt])
+
+    /// Longest marker, in Characters. `StreamOutputFilter` holds back
+    /// `maxMarkerLength - 1` chars of unsettled tail so a tag that completes
+    /// exactly at a feed (detokenize-batch) boundary is still found.
+    static var maxMarkerLength: Int {
+        max(gemmaOpen.count, gemmaClose.count, qwenClose.count)
+    }
 
     // MARK: - public API
 
@@ -80,7 +87,9 @@ enum OutputSanitizer {
 
     // MARK: - tool-call array removal
 
-    private static func removeToolCallArrays(_ input: String) -> String {
+    /// Exposed for `StreamOutputFilter` so the answer region gets the
+    /// identical array-removal on the streaming wire (single implementation).
+    static func removeToolCallArrays(_ input: String) -> String {
         // Single forward scan: collect ranges of tool-plan arrays, then
         // splice them out in reverse (keeps earlier indices valid).
         var ranges: [Range<String.Index>] = []

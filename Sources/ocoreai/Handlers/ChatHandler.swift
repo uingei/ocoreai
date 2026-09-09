@@ -965,6 +965,45 @@ private func streamWithToolCalling(
         /// Streaming output safety guard — reused for every chunk
         let streamGuard = await OcoreaiEngine.shared.activeContentGuard
 
+        /// Streaming output-protocol filter: keeps the SSE `content` channel
+        /// byte-identical to `OutputSanitizer.strip()` of the full stream,
+        /// and routes the thinking regions to `reasoning_content`.
+        /// Last-marker semantics is only knowable at stream end, so the
+        /// content channel settles in `finish()` below; per-feed settlement
+        /// only ever releases finalized thinking text.
+        let textFilter = StreamOutputFilter()
+
+        /// Guard + settle + emit one engine delta on its final channel.
+        /// Returns false when the safety guard terminates the stream.
+        func emitSettled(_ raw: String) async -> Bool {
+            if let contentGuard = streamGuard {
+                let checkResult = await contentGuard.checkOutput(raw)
+                if !checkResult.passed {
+                    logger.warning(
+                        "Streaming output blocked: \(checkResult.triggeredCategories)")
+                    yieldSSERaw(
+                        "[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]",
+                        to: continuation)
+                    continuation.finish()
+                    return false
+                }
+            }
+            let settled = textFilter.feed(raw)
+            guard let reasoning = settled.reasoning else { return true }
+            let choice = ChunkChoice(
+                delta: ChatDelta(reasoningContent: reasoning),
+                finishReason: nil,
+            )
+            let chunk = ChatCompletionChunk(
+                id: requestId,
+                created: created,
+                model: modelId,
+                choices: [choice],
+            )
+            _ = yieldSSE(chunk, to: continuation)
+            return true
+        }
+
         /// Mark session active — resets KV cache idle eviction timer.
         await handle.markActive()
 
@@ -1030,32 +1069,14 @@ private func streamWithToolCalling(
                             newText
                         }
 
-                    /// Emit SSE chunk if there's new text (with safety filter).
+                    /// Emit SSE chunk if there's new text (via the protocol
+                    /// filter — see `emitSettled`; the content channel only
+                    /// settles at stream end, thinking streams now).
                     if !deltaText.isEmpty {
-                        // Safety check: filter harmful output in real-time
-                        if let contentGuard = streamGuard {
-                            let checkResult = await contentGuard.checkOutput(deltaText)
-                            if !checkResult.passed {
-                                logger.warning(
-                                    "Streaming output blocked: \(checkResult.triggeredCategories)")
-                                yieldSSERaw(
-                                    "[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]",
-                                    to: continuation)
-                                continuation.finish()
-                                return
-                            }
+                        let settled = await emitSettled(deltaText)
+                        if !settled {
+                            return
                         }
-                        let choice = ChunkChoice(
-                            delta: ChatDelta(content: deltaText),
-                            finishReason: nil,
-                        )
-                        let chunk = ChatCompletionChunk(
-                            id: requestId,
-                            created: created,
-                            model: modelId,
-                            choices: [choice],
-                        )
-                        _ = yieldSSE(chunk, to: continuation)
                     }
                     prevDecodedText = newText
 
@@ -1068,33 +1089,14 @@ private func streamWithToolCalling(
                         ttfbTime = ContinuousClock.now
                     }
 
-                    // Safety check: filter harmful output in real-time
-                    if let contentGuard = streamGuard {
-                        let checkResult = await contentGuard.checkOutput(text)
-                        if !checkResult.passed {
-                            logger.warning(
-                                "Streaming output blocked (.text): \(checkResult.triggeredCategories)"
-                            )
-                            yieldSSERaw(
-                                "[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]",
-                                to: continuation)
-                            continuation.finish()
+                    if !text.isEmpty {
+                        let settled2 = await emitSettled(text)
+                        if !settled2 {
                             return
                         }
                     }
 
                     prevDecodedText.append(text)
-                    let tChoice = ChunkChoice(
-                        delta: ChatDelta(content: text),
-                        finishReason: nil,
-                    )
-                    let tChunk = ChatCompletionChunk(
-                        id: requestId,
-                        created: created,
-                        model: modelId,
-                        choices: [tChoice],
-                    )
-                    _ = yieldSSE(tChunk, to: continuation)
 
                 /// .done — flush remaining tokens, detect tool calls, send stop chunk.
                 case .done(
@@ -1119,31 +1121,10 @@ private func streamWithToolCalling(
                             if finalText.hasPrefix(prevDecodedText) {
                                 let remainder = String(finalText.dropFirst(prevDecodedText.count))
                                 if !remainder.isEmpty {
-                                    // Safety check: final flush content
-                                    if let contentGuard = streamGuard {
-                                        let checkResult = await contentGuard.checkOutput(remainder)
-                                        if !checkResult.passed {
-                                            logger.warning(
-                                                "Streaming output blocked (final flush): \(checkResult.triggeredCategories)"
-                                            )
-                                            yieldSSERaw(
-                                                "[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]",
-                                                to: continuation)
-                                            continuation.finish()
-                                            return
-                                        }
+                                    let settled3 = await emitSettled(remainder)
+                                    if !settled3 {
+                                        return
                                     }
-                                    let choice = ChunkChoice(
-                                        delta: ChatDelta(content: remainder),
-                                        finishReason: nil,
-                                    )
-                                    let chunk = ChatCompletionChunk(
-                                        id: requestId,
-                                        created: created,
-                                        model: modelId,
-                                        choices: [choice],
-                                    )
-                                    _ = yieldSSE(chunk, to: continuation)
                                     prevDecodedText = finalText
                                 }
                             }
@@ -1152,35 +1133,104 @@ private func streamWithToolCalling(
                         }
                     }
 
-                    let finishReason = stopReasonToString(reason) ?? "stop"
-                    var finalFinishReason = finishReason
+                    /// Detect tool calls at stream end (BEFORE releasing the
+                    /// content channel — the non-stream wire empties `content`
+                    /// when toolCalls are present: the structured channel is
+                    /// authoritative, no duplication).
+                    let streamToolCalls: [ToolCall]? =
+                        if let tools = request.tools, !tools.isEmpty {
+                            parseToolCalls(from: prevDecodedText)
+                        } else {
+                            nil
+                        }
 
-                    /// Check for tool calls at stream end.
-                    if let tools = request.tools, !tools.isEmpty {
-                        if let toolCalls = parseToolCalls(from: prevDecodedText) {
-                            finalFinishReason = "tool_calls"
-                            /// Send individual tool call delta chunks.
-                            for tc in toolCalls {
-                                let tcChunk = ChatCompletionChunk(
-                                    id: requestId,
-                                    created: created,
-                                    model: modelId,
-                                    choices: [
-                                        ChunkChoice(
-                                            delta: ChatDelta(
-                                                role: "assistant",
-                                                toolCalls: [tc],
-                                            ),
-                                            finishReason: "tool_calls",
-                                        )
-                                    ],
+                    /// Settle the protocol filter at stream end: release the final answer
+                    /// (byte-identical to OutputSanitizer.strip() of the full stream — the
+                    /// golden invariant) on the content channel, and any last thinking
+                    /// region on `reasoning_content`. The answer is suppressed when the
+                    /// structured tool-calls channel was parsed (non-stream parity:
+                    /// content == "" with toolCalls).
+                    let settle = textFilter.finish()
+                    if let reasoning = settle.reasoning {
+                        if let contentGuard = streamGuard {
+                            let checkResult = await contentGuard.checkOutput(reasoning)
+                            if !checkResult.passed {
+                                logger.warning(
+                                    "Streaming output blocked (filter finish reasoning): \(checkResult.triggeredCategories)"
                                 )
-                                _ = yieldSSE(tcChunk, to: continuation)
+                                yieldSSERaw(
+                                    "[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]",
+                                    to: continuation)
+                                continuation.finish()
+                                return
                             }
+                        }
+                        let rChunk = ChatCompletionChunk(
+                            id: requestId,
+                            created: created,
+                            model: modelId,
+                            choices: [
+                                ChunkChoice(
+                                    delta: ChatDelta(reasoningContent: reasoning),
+                                    finishReason: nil,
+                                )
+                            ],
+                        )
+                        _ = yieldSSE(rChunk, to: continuation)
+                    }
+                    if let answer = settle.content, streamToolCalls == nil {
+                        if let contentGuard = streamGuard {
+                            let checkResult = await contentGuard.checkOutput(answer)
+                            if !checkResult.passed {
+                                logger.warning(
+                                    "Streaming output blocked (filter finish content): \(checkResult.triggeredCategories)"
+                                )
+                                yieldSSERaw(
+                                    "[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]",
+                                    to: continuation)
+                                continuation.finish()
+                                return
+                            }
+                        }
+                        let aChunk = ChatCompletionChunk(
+                            id: requestId,
+                            created: created,
+                            model: modelId,
+                            choices: [
+                                ChunkChoice(
+                                    delta: ChatDelta(content: answer),
+                                    finishReason: nil,
+                                )
+                            ],
+                        )
+                        _ = yieldSSE(aChunk, to: continuation)
+                    }
+                    var finalFinishReason = stopReasonToString(reason) ?? "stop"
+
+                    /// Send the parsed tool call delta chunks (structured channel).
+                    if let toolCalls = streamToolCalls {
+                        finalFinishReason = "tool_calls"
+                        for tc in toolCalls {
+                            let tcChunk = ChatCompletionChunk(
+                                id: requestId,
+                                created: created,
+                                model: modelId,
+                                choices: [
+                                    ChunkChoice(
+                                        delta: ChatDelta(
+                                            role: "assistant",
+                                            toolCalls: [tc],
+                                        ),
+                                        finishReason: "tool_calls",
+                                    )
+                                ],
+                            )
+                            _ = yieldSSE(tcChunk, to: continuation)
                         }
                     }
 
                     /// Send final stop chunk with finish reason.
+
                     let stopChunk = ChatCompletionChunk(
                         id: requestId,
                         created: created,

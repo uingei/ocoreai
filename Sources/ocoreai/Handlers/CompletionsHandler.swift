@@ -346,8 +346,13 @@ private func completionsNonStream(
                 logger: logger,
             )
             totalOutputTokens += outTok
+            // Single wire exit: identical hygiene to /v1/chat/completions
+            // non-stream (OutputSanitizer.strip) so both endpoints agree.
             choices.append(
-                TextCompletionChoice(text: text, finishReason: finish, index: choiceIdx))
+                TextCompletionChoice(
+                    text: OutputSanitizer.strip(text),
+                    finishReason: finish,
+                    index: choiceIdx))
             choiceIdx += 1
         }
     }
@@ -406,10 +411,14 @@ private func completionsStream(
         /// Streaming output safety guard (mirror chat `streamWithToolCalling`).
         let streamGuard = await OcoreaiEngine.shared.activeContentGuard
         await handle.markActive()
+        /// Streaming output-protocol filter (same golden invariant as the
+        /// chat stream: released content == OutputSanitizer.strip(full
+        /// stream)). One per choice below.
         var choiceIdx = 0
         do {
             for prompt in prompts {
                 for _ in 0 ..< n {
+                    let textFilter = StreamOutputFilter()
                     /// Freeze the choice index as a `let` so the @Sendable sink
                     /// captures no mutable state.
                     let idx = choiceIdx
@@ -436,27 +445,30 @@ private func completionsStream(
                                     return
                                 }
                             }
-                            let c = CompletionChunk(
-                                id: requestId,
-                                created: created,
-                                model: modelId,
-                                choices: [
-                                    CompletionChunkChoice(
-                                        text: chunk, finishReason: nil, index: idx)
-                                ],
-                            )
-                            _ = yieldSSE(c, to: continuation)
+                            // Protocol filter: the completions wire has no
+                            // second channel, so settled thinking text is
+                            // dropped here — the answer is released on the
+                            // stop chunk below as OutputSanitizer.strip of
+                            // the full stream.
+                            let settled = textFilter.feed(chunk)
+                            _ = settled
                         },
                     )
 
                     /// Stop chunk — finish_reason (and usage when requested).
+                    /// `textFilter.finish()` releases the settled answer —
+                    /// byte-identical to OutputSanitizer.strip(full stream) —
+                    /// so the wire carries the clean text here, matching the
+                    /// non-stream endpoint (which strips the same way).
+                    let settledFinal = textFilter.finish()
+                    let stopText = settledFinal.content ?? ""
                     let stopChunk = CompletionChunk(
                         id: requestId,
                         created: created,
                         model: modelId,
                         choices: [
                             CompletionChunkChoice(
-                                text: "", finishReason: finish, index: idx)
+                                text: stopText, finishReason: finish, index: idx)
                         ],
                         usage: includeUsage
                             ? Usage(
