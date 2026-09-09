@@ -9,6 +9,23 @@ import Foundation
 import HTTPTypes
 import Hummingbird
 
+// MARK: - SSE Wire Contract
+
+/// OpenAI-compatible SSE stream terminator — the **single source of truth**.
+///
+/// Emitters (ChatHandler, CompletionsHandler) and consumers (swift-huggingface
+/// `HTTPClient.swift` trims and compares `== SSE.doneMarker`) all depend on this
+/// exact string. Case is part of the contract: consumers compare **case-sensitively**
+/// (`swift-huggingface` does `eventData == "[DONE]"`), so a lowercase variant would
+/// silently hang or misparse any upstream client. Defined once and referenced
+/// everywhere — never re-type the literal at an emission site.
+enum SSE {
+    /// The exact terminator token yielded as the final raw SSE event.
+    static let doneMarker = "[DONE]"
+    /// Rendered `data: …` frame (double-newline SSE terminator) for the stream close.
+    static let doneFrame = "data: \(SSE.doneMarker)\n\n"
+}
+
 // MARK: - SSE Yield Helpers
 
 /// Encode and yield an SSE chunk with an ``Encodable`` payload.
@@ -32,7 +49,8 @@ func yieldSSE(
     return true
 }
 
-/// Yield a raw text SSE event (for `[done]` marker, plain error strings, etc.)
+/// Yield a raw text SSE event (for the `[DONE]` terminator marker,
+/// plain diagnostic strings, etc.)
 ///
 /// - Parameters:
 ///   - text: Raw text to emit

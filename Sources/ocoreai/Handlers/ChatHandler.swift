@@ -1342,13 +1342,17 @@ private func streamWithToolCalling(
             yieldSSERaw(
                 "[diagnostic: stream_consumption_error \(error.localizedDescription)]",
                 to: continuation)
-            yieldSSERaw("[done]", to: continuation)
+            /// OpenAI-compatible wire terminator [DONE] (canonical case;
+            /// matches CompletionsHandler + vllm/sglang/omlx/codex upstream).
+            yieldSSERaw(SSE.doneMarker, to: continuation)
             continuation.finish()
             return
         }
 
         /// Yield final done marker to close the SSE stream.
-        yieldSSERaw("[done]", to: continuation)
+        /// OpenAI-compatible wire terminator [DONE] (canonical case;
+        /// matches CompletionsHandler + vllm/sglang/omlx/codex upstream).
+        yieldSSERaw(SSE.doneMarker, to: continuation)
 
         /// Observe inference duration + TTFB metrics at stream completion.
         let infDur = startTime.duration(to: ContinuousClock.now)

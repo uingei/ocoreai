@@ -479,7 +479,7 @@ private func completionsStream(
                     choiceIdx += 1
                 }
             }
-            yieldSSERaw("[DONE]", to: continuation)
+            yieldSSERaw(SSE.doneMarker, to: continuation)
         } catch {
             yieldSSERaw("[SSEError: \(error.localizedDescription)]", to: continuation)
         }
