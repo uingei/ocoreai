@@ -173,9 +173,19 @@ func enforceContextWindow(
     let finalTokens = ConversationCompaction.estimatePromptTokens(transcript)
     await store.set(usedTokens: finalTokens, windowLimit: cap)
     if promptExceedsContextWindow(promptTokens: finalTokens, maxContextWindow: cap) {
-        throw AppError.invalidRequest(
-            "Prompt length \(finalTokens) tokens exceeds the model's configured context window of \(cap ?? 0) tokens. Shorten the input or raise `max_context_window` for this model."
-        )
+        // Typed exhaustion (parity with ChatHandler Phase 3.5 wall; hermes-agent
+        // #106260): compaction already removed every removable unit. The native
+        // UI catches this as the typed error (not a string) and can direct the
+        // user to a fresh session instead of retrying.
+        //
+        // `postTokens` = the POST-compaction floor (`compacted.estimatedTokens`),
+        // i.e. the smallest transcript compaction can produce (protected prefix +
+        // suffix + note). That is the number that *proves* exhaustion — "even
+        // with zero removable messages left it is still X > cap". It equals the
+        // original estimate when `removedCount == 0` (no-op), so one expression
+        // is correct in both cases. (Using the original `finalTokens` here would
+        // make "post_tokens"/"after compaction" a lie.)
+        throw AppError.contextWindowExhausted(postTokens: compacted.estimatedTokens, cap: cap ?? 0)
     }
     return (transcript, compacted.removedCount)
 }

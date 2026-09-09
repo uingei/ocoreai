@@ -1579,6 +1579,19 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// Bad Request — client sent malformed data
     case invalidRequest(String)
 
+    /// Bad Request — prompt exceeds the model's `max_context_window` **after**
+    /// a full compaction pass removed every removable unit (protected prefix +
+    /// suffix + the compaction note alone already exceed the cap).
+    ///
+    /// Typed (non-string) so JSON clients can branch on the condition and
+    /// carry the post-compaction estimate + cap: the transcript is the
+    /// authoritative bloated state, and retrying an equally-sized request
+    /// fails identically — callers must start a fresh, shorter conversation
+    /// instead of retrying (hermes-agent #106260 `compression_exhausted`
+    /// typed bit, absorbed 2026-09-09; was previously an untyped
+    /// `invalidRequest(String)` with no machine-readable signal).
+    case contextWindowExhausted(postTokens: Int, cap: Int)
+
     /// Not Found — model does not exist or is not loaded
     case modelNotFound(String)
 
@@ -1632,6 +1645,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     var description: String {
         switch self {
         case .invalidRequest(let msg): "Invalid request: \(msg)"
+        case .contextWindowExhausted(let postTokens, let cap):
+            "Context window exhausted: \(postTokens) tokens after compaction (cap \(cap)) — start a fresh conversation"
         case .modelNotFound(let name): "Model \(name) not found"
         case .poolExhausted(let max): "Engine pool exhausted (max: \(max))"
         case .queueClosed: "Request queue closed"
@@ -1662,7 +1677,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// even when the error is a client error (4xx).
     var status: HTTPResponse.Status {
         switch self {
-        case .invalidRequest, .toolCallFailed:
+        case .invalidRequest, .toolCallFailed, .contextWindowExhausted:
             .badRequest
         case .modelNotFound, .coldStoreNotFound:
             .notFound
@@ -1685,11 +1700,20 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         from request: Request,
         context: some RequestContext
     ) throws -> Response {
-        let detail = NSDictionary(dictionary: [
-            "message": errorDescription ?? String(describing: self),
+        let detail = NSMutableDictionary(dictionary: [
+            "message": errorDescription as Any ?? String(describing: self),
             "type": "app_error",
             "code": status.code,
         ])
+        // Typed error payload: the context-window-exhausted condition carries a
+        // machine-readable error_code + the exact numbers a client needs to
+        // react (fresh session, or raise max_context_window) — without this,
+        // clients must string-parse the message to detect exhaustion.
+        if case .contextWindowExhausted(let postTokens, let cap) = self {
+            detail["error_code"] = "context_window_exhausted"
+            detail["post_tokens"] = postTokens
+            detail["cap"] = cap
+        }
         let errorBody = NSDictionary(dictionary: ["error": detail])
         var headers: HTTPFields = [:]
         headers[.contentType] = "application/json"

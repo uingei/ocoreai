@@ -283,6 +283,10 @@ func chatCompletionsHandler(
         // used = 本轮 prompt 占满上下文的 token 数;limit = 该模型窗口(可能 nil→unknown)。
         await ContextStatusStore.shared.set(
             usedTokens: promptTokenCount, windowLimit: modelContextCap)
+        // Post-compaction floor, carried to the wall when compaction removed ≥1
+        // unit (the "even fully compacted it is still X > cap" number). nil when
+        // no compaction ran — then the transcript's own estimate is the floor.
+        var postFloor: Int? = nil
         if promptExceedsContextWindow(
             promptTokens: promptTokenCount, maxContextWindow: modelContextCap)
         {
@@ -320,6 +324,11 @@ func chatCompletionsHandler(
                 .init(maxPromptTokens: modelContextCap)
             )
             if compacted.removedCount > 0 {
+                // The floor that reaches the wall (see `postFloor` above): the
+                // fully-compacted estimate, independent of whether it was
+                // adopted (adoption requires it ≤ cap, which the wall implies
+                // is false, so it is not in the working vars below).
+                postFloor = compacted.estimatedTokens
                 // PostCompact observation (codex PostCompactHookOutcome).
                 _ = await runner?.firePostCompact(
                     reason: "context-window-exceeded",
@@ -357,8 +366,6 @@ func chatCompletionsHandler(
             promptTokens: promptTokenCount, maxContextWindow: modelContextCap)
         {
             let cap = modelContextCap ?? 0
-            let msg =
-                "Prompt length \(promptTokenCount) tokens exceeds the model's configured context window of \(cap) tokens. Shorten the input or raise `max_context_window` for this model."
             logger.warning(
                 "Prompt length \(promptTokenCount) tokens exceeds the model's configured context window of \(cap) tokens. Shorten the input or raise `max_context_window` for this model.",
                 metadata: [
@@ -366,7 +373,18 @@ func chatCompletionsHandler(
                     "promptTokens": .string("\(promptTokenCount)"),
                     "cap": .string("\(cap)"),
                 ])
-            throw AppError.invalidRequest(msg)
+            // Typed exhaustion (hermes-agent #106260): compaction already removed
+            // every removable unit — the client-visible JSON carries
+            // error_code "context_window_exhausted" + post/cap numbers so a JSON
+            // client can branch without string-parsing, and knows retrying an
+            // equally-sized request fails identically (start a fresh session).
+            //
+            // `postTokens` = the post-compaction FLOOR. Both paths agree the
+            // floor = the fully-compacted estimate. When no compaction ran
+            // (removedCount == 0, e.g. nothing removable but still over cap) the
+            // transcript's own estimate IS the floor, so fall back to it.
+            let postTokens = postFloor ?? max(1, promptTokenCount)
+            throw AppError.contextWindowExhausted(postTokens: postTokens, cap: cap)
         }
 
         /// Phase 4: Three-layer Parameter Fallback Chain.

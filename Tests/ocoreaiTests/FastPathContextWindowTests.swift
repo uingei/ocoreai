@@ -109,24 +109,39 @@ struct FastPathContextWindowGateTests {
         #expect(est(result.messages) <= 100)
     }
 
-    // MARK: - Over cap AND non-recoverable → 400 wall (identical message to wire)
+    // MARK: - Over cap AND non-recoverable → 400 wall (typed, post-compaction exhausted)
 
-    @Test("compactable region exhausted, still over cap → 400 wall with cap in message")
-    func overCapStillFails() async {
+    @Test("compactable region exhausted, still over cap → typed contextWindowExhausted (400)")
+    func overCapStillFails() async throws {
         let msgs = fixture6
         #expect(est(msgs) == 164)  // sanity
 
-        // cap 10: target 0, region fully emptied, still 63+noteEst > 10 → wall.
+        // cap 10: target 0, region fully emptied, still fixed prefix + note +
+        // suffix over cap → wall (hermes-agent #106260: typed exhaustion bit).
         do {
             _ = try await enforceContextWindow(
                 cap: 10, messages: msgs, sessionId: nil, store: ContextStatusStore())
-            Issue.record("Expected AppError.invalidRequest (400 wall)")
-        } catch let AppError.invalidRequest(msg) {
-            // Same wall text as the wire path (ChatHandler Phase 3.5).
-            #expect(msg.contains("configured context window of 10"))
-            #expect(msg.contains("Shorten the input"))
+            Issue.record("Expected AppError.contextWindowExhausted (typed 400 wall)")
+            return
+        } catch let AppError.contextWindowExhausted(postTokens, cap) {
+            // The wall is TYPED — cap and the post-compaction estimate carried
+            // exactly (independently derived: region emptied → prefix + note + suffix).
+            #expect(cap == 10)
+            let drained = ConversationCompaction.compact(msgs, .init(maxPromptTokens: 10))
+            #expect(drained.removedCount == 3)
+            #expect(postTokens == est(drained.messages))
+
+            // Status is a client 400 (not a 500) — exhaustion is a request-level
+            // condition, and the typed case + description tell the client WHY
+            // (retrying an equally-sized request fails identically).
+            #expect(
+                AppError.contextWindowExhausted(postTokens: postTokens, cap: cap).status
+                    == .badRequest)
+            #expect(
+                AppError.contextWindowExhausted(postTokens: postTokens, cap: cap)
+                    .description.contains("Context window exhausted"))
         } catch {
-            Issue.record("Expected AppError.invalidRequest, got \(type(of: error))")
+            Issue.record("Expected typed contextWindowExhausted, got \(type(of: error)): \(error)")
         }
     }
 
