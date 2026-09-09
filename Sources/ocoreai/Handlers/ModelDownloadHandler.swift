@@ -161,7 +161,9 @@ private func downloadFromHF(
     // Auth auto-detection (HF_TOKEN / keychain) is unchanged: HubClient
     // resolves credentials the same way it did under the default cache.
     let downloader = ReadyHubDownloader(hub: ModelStore.readyHubClient())
-    logger.info("Downloading from HuggingFace", metadata: ["model": .string(modelId)])
+    logger.info(
+        "Fetching from HuggingFace (local-cache hit possible)",
+        metadata: ["model": .string(modelId)])
 
     let result: URL
     result = try await downloader.download(
@@ -197,7 +199,9 @@ private func downloadFromMscope(
     emit: @Sendable @escaping (DownloadSSEEvent) -> Void,
 ) async throws -> String {
     let downloader = ModelScopeDownloader(token: msToken)
-    logger.info("Downloading from ModelScope", metadata: ["model": .string(modelId)])
+    logger.info(
+        "Fetching from ModelScope (local-cache hit possible)", metadata: ["model": .string(modelId)]
+    )
 
     let result: URL
     result = try await downloader.download(

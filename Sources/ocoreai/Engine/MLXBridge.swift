@@ -467,7 +467,7 @@ actor MLXModelLoader {
 
         switch provider {
         case .modelScope:
-            logger.info("Downloading from ModelScope: \(repoId)")
+            logger.info("Fetching from ModelScope (local-cache hit possible): \(repoId)")
             // Notify UI that download started
             await MainActor.run {
                 OcoreaiDownloadProgress.shared.start(modelId: progressKey)
@@ -508,7 +508,7 @@ actor MLXModelLoader {
             // Auth auto-detected by HubClient from HF_TOKEN / keychain.
             // Equivalent to MLXChatExample: factory.loadContainer(from: downloader, ...)
             // VLM: try LLMModelFactory first, fall back to VLMModelFactory on error.
-            logger.info("Downloading from HuggingFace: \(repoId)")
+            logger.info("Fetching from HuggingFace (local-cache hit possible): \(repoId)")
             // Notify UI that download started
             await MainActor.run {
                 OcoreaiDownloadProgress.shared.start(modelId: progressKey)

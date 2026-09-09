@@ -90,13 +90,19 @@ public struct EnginePoolConfig: Sendable {
         // Resolve default model from config, fallback to hard-coded.
         // Bare "org/repo" → Loader's defaultHub decides.
         // HF override: use "hf:org/repo" in modelId directly.
-        if let defaultEntry = app.models["default"] {
+        // models.<id>.enabled = false ⇒ treat as unconfigured (skip entry, fall through to default).
+        if let defaultEntry = app.models["default"], defaultEntry.enabled {
             self.defaultModelId =
                 switch defaultEntry.source {
                 case "huggingface": "hf:\(defaultEntry.modelId)"
                 default: defaultEntry.modelId
                 }
         } else {
+            if app.models["default"] != nil {
+                logger.info(
+                    "models.default.enabled=false — skipping as engine default, using built-in default"
+                )
+            }
             self.defaultModelId = Self.default.defaultModelId
         }
         self.warmupTokens = 4
