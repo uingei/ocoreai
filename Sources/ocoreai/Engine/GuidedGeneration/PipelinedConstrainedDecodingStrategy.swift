@@ -226,8 +226,11 @@ extension PipelinedConstrainedSequence {
                     // Decode text incrementally
                     generatedTokens.append(tokenId)
                     let fullDecode = tokenizer.decode(tokens: generatedTokens.map { Int($0) })
-                    let common = fullDecode.commonPrefix(with: previousDecodedText)
-                    let delta = String(fullDecode.dropFirst(common.count))
+                    // #613: scalar-level prefix (see ConstrainedDecodingStrategy
+                    // .computeTextDelta for the full canonical comment).
+                    let common = zip(fullDecode.unicodeScalars, previousDecodedText.unicodeScalars)
+                        .prefix { $0 == $1 }.count
+                    let delta = String(fullDecode.unicodeScalars.dropFirst(common))
 
                     if delta.unicodeScalars.contains(where: { $0 == "\u{FFFD}" }) {
                         consecutiveDecodeFailures += 1

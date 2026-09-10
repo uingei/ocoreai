@@ -51,13 +51,27 @@ final class StreamingDetokenizer: @unchecked Sendable {
         // Character-count diff (`dropFirst(_lastText.count)`) assumes decode() is
         // append-only, but SentencePiece decoding is not: appending a token can
         // rewrite earlier whitespace (e.g. Gemma: decode([newline, "  ", ","])
-        // collapses a space). Count-based diff then computes dropFirst(0) and
+        // collapses a space). Character-count diff then computes dropFirst(0) and
         // silently drops the newly decoded character, including structural JSON
         // commas, which corrupts guided-generation output.
         //
-        // Upstream fix: mlx-swift-lm 45693f6 (P1).
-        let common = fullText.commonPrefix(with: _lastText)
-        let delta = String(fullText.dropFirst(common.count))
+        // The prefix is measured in Unicode scalars, not `Character`s. A
+        // `Character` is a grapheme cluster, and a token routinely appends a
+        // combining scalar to the cluster the previous token ended: a
+        // variation selector (`🏳` then U+FE0F), a zero-width joiner, a
+        // combining accent (`e` then U+0301). Compared as `Character`s the
+        // old text's last cluster no longer equals the merged cluster, so a
+        // cluster-level prefix stops one cluster early and the whole merged
+        // cluster is emitted a second time — the consumer receives `🏳🏳️`,
+        // `eé`. Scalars compare exactly (no canonical equivalence), and the
+        // emitted tail is precisely the scalars the new token added.
+        //
+        // Upstream fixes: mlx-swift-lm 45693f6 (P1, cluster→count) + #613
+        // (`4c3d793`, Character→scalar prefix). ocoreai's CoreAI path is a
+        // local reimplementation of this function, so it must stay in step.
+        let common = zip(fullText.unicodeScalars, _lastText.unicodeScalars)
+            .prefix { $0 == $1 }.count
+        let delta = String(fullText.unicodeScalars.dropFirst(common))
         _lastText = fullText
         return delta.isEmpty ? "" : delta
     }

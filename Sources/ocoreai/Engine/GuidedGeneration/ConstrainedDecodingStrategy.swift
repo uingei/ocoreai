@@ -159,8 +159,14 @@ struct ConstrainedDecodingStrategy: DecodingStrategy {
         let fullDecodedText = tokenizer.decode(tokens: generatedTokens.map { Int($0) })
         decodeSpan.end()
 
-        let common = fullDecodedText.commonPrefix(with: previousDecodedText)
-        let delta = String(fullDecodedText.dropFirst(common.count))
+        // #613 (mlx-swift-lm 4c3d793): measure prefix in unicode scalars,
+        // not Characters — see Tokenizer/TokenizerManager.swift for the full
+        // canonical comment. A token that appends a combining scalar (VS,
+        // ZWJ, accent) to the last Character would otherwise re-emit the
+        // whole merged cluster.
+        let common = zip(fullDecodedText.unicodeScalars, previousDecodedText.unicodeScalars)
+            .prefix { $0 == $1 }.count
+        let delta = String(fullDecodedText.unicodeScalars.dropFirst(common))
 
         if delta.unicodeScalars.contains(where: { $0 == "\u{FFFD}" }) {
             return ""

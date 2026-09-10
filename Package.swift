@@ -146,7 +146,11 @@ let package = Package(
         //   - #605 (ac17cf6): await fix in IntegrationTesting tests only.
         //   - #471 (e23300b): ParoQuant MoE extension + RotateSwitchGLU
         //     (perf, no ocoreai-facing change).
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "e3d4a20"),
+        //   - #613 (4c3d793): NaiveStreamingDetokenizer scalar-level prefix
+        //     (Character→Unicode.Scalar grapheme-cluster bug). ocoreai's CoreAI
+        //     path reimplements this function; both sites ported + tested in
+        //     StreamingDetokenizerScalarDeltaTests.
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "4c3d793"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
