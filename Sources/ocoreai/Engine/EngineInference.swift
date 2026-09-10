@@ -64,6 +64,39 @@ private enum GuidedGenerationDiagnosticResult {
     case success(tokenCount: Int, sink: GuidedGenerationDiagnosticSink)
 }
 
+/// Guided 生成 `incompleteOutput` 吸收判定 — 上游 canonical 对齐, `@testable` 可测 seam。
+///
+/// 上游实证:
+///   - `GuidedGenerationLoop.swift:466` — maxTokens 耗尽且语法未终止时
+///     `throw GuidedGenerationError.incompleteOutput` (emit 已流式输出, 部分文本在)。
+///   - `MLXFoundationModels/MLXLanguageModel.swift:1370/1704` — canonical 下游处理:
+///     `catch GuidedGenerationError.incompleteOutput { incomplete = true }` 保留已产出,
+///     照常收尾, **不 throw**; prematureEOS 不在吸收清单(上游只 catch incompleteOutput)。
+///   - `GuidedGenerationError.swift:27` — "Downstream code should catch this case
+///     to emit partial results if needed."
+///
+/// ocoreai 修复前: catch 全吞 → rethrow → HTTP 500, 已采样文本全丢
+/// (活体: Qwen3.5-4B sampled=2792 finalBuf=nil → 500 硬失败)。
+///
+/// - Returns: true = 已吸收(incompleteOutput + 有已产出文本) → 调用方改走 `.success` 终态;
+///            false = 未吸收 → 调用方照抛(保留 60460ab 错误面语义)。
+/// - Note: `sink.recordBuffer` 会置位 `incompleteOutput=true` + `finalBuffer`,
+///   `.success` 分支据此 emit `.guidedGenDiagnostic(incompleteOutput: true)` +
+///   `.done(.maxTokens)`, 下游(UI/结构化解析)可识别为部分结果降级处理。
+func absorbGuidedGenerationPartialOutput(
+    error: Error,
+    sink: GuidedGenerationDiagnosticSink,
+    accumulatedText: String
+) -> Bool {
+    guard case GuidedGenerationError.incompleteOutput = error,
+        !accumulatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else {
+        return false
+    }
+    sink.recordBuffer(accumulatedText, incompleteOutput: true)
+    return true
+}
+
 // MARK: - Guided Gen Diagnostic Logging
 
 /// Log guided generation completion diagnostics.
@@ -2097,25 +2130,39 @@ extension EnginePool {
                         fastForwardTokens: diagnosticSink.fastForwardTokenIDs.count,
                         incomplete: diagnosticSink.incompleteOutput,
                         finalBuffer: diagnosticSink.finalBuffer)
-                    // P1-fix: emit .done before throwing — prevents continuation leak.
-                    // The outer do-catch (L1259/1283) will propagate the error as
-                    // .error event, but downstream also expects a terminal .done.
-                    if !doneAlreadyYielded {
-                        let tokPerSec =
-                            diagnosticSink.generatedTokenCount > 0
-                            ? Double(diagnosticSink.generatedTokenCount)
-                                / (Double(metrics.overallMs) / 1000.0)
-                            : nil
-                        continuation.yield(
-                            .init(
-                                kind: .done(
-                                    .error,
-                                    tokenCount: diagnosticSink.generatedTokenCount,
-                                    tokPerSec: tokPerSec,
-                                    promptTokPerSec: nil,
-                                    reasoningTokenCount: 0)))
+                    // 上游 canonical 对齐 (MLXFoundationModels/MLXLanguageModel.swift:1370/1704):
+                    // incompleteOutput(预算耗尽语法未终止) → 保留已流式产出的部分文本,
+                    // 转 `.success` 终态照常收尾, 不 500(活体: Qwen3.5-4B sampled=2792
+                    // finalBuf=nil → 旧行为硬 500 全丢)。prematureEOS/其它错误照抛。
+                    let absorbed = absorbGuidedGenerationPartialOutput(
+                        error: error,
+                        sink: diagnosticSink,
+                        accumulatedText: guidedAccumulated)
+                    if absorbed {
+                        diagnosticResult = .success(
+                            tokenCount: diagnosticSink.generatedTokenCount,
+                            sink: diagnosticSink)
+                    } else {
+                        // P1-fix: emit .done before throwing — prevents continuation leak.
+                        // The outer do-catch (L1259/1283) will propagate the error as
+                        // .error event, but downstream also expects a terminal .done.
+                        if !doneAlreadyYielded {
+                            let tokPerSec =
+                                diagnosticSink.generatedTokenCount > 0
+                                ? Double(diagnosticSink.generatedTokenCount)
+                                    / (Double(metrics.overallMs) / 1000.0)
+                                : nil
+                            continuation.yield(
+                                .init(
+                                    kind: .done(
+                                        .error,
+                                        tokenCount: diagnosticSink.generatedTokenCount,
+                                        tokPerSec: tokPerSec,
+                                        promptTokPerSec: nil,
+                                        reasoningTokenCount: 0)))
+                        }
+                        throw error
                     }
-                    throw error
                 }
             }
         }
