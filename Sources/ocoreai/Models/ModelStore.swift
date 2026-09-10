@@ -139,13 +139,16 @@ enum ModelStore {
         return bases
     }
 
-    /// 确保所需子目录存在(幂等)。
+    /// 确保就绪根存在(幂等)— 仅 `root`。
+    /// omlx 对齐(`~/.omlx/models` 单根,无 provider 子目录):模型一律落
+    /// `root/<org>/<name>/`,下载来源(HF/MS)不落盘隔离。
+    /// hubRoot/msRoot/localRoot 仅供各自发现/遗留兜底惰性读取,不再由布局层
+    /// 预建 —— 否则每次启动都会把 `models/{huggingface,modelscope,local}`
+    /// 三个空目录重新拉回来(用户明确:这些不应存在)。
     @discardableResult
     static func ensureLayout() -> URL {
         let fm = FileManager.default
-        for dir in [root, hubRoot, msRoot, localRoot] {
-            try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        }
+        try? fm.createDirectory(at: root, withIntermediateDirectories: true)
         return root
     }
 
