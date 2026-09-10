@@ -51,7 +51,7 @@ enum InferenceError: Error, Sendable {
         case .grammarBuildFailed(let msg): return "Grammar constraint failed: \(msg)"
         case .standardPathFailed(let msg): return "Inference failed: \(msg)"
         case .contextExceeded(let tokens, _):
-            return "Input \\(tokens) exceeds max context limit"
+            return "Input \(tokens) exceeds max context limit"
         case .engineUnavailable(_): return "Engine unavailable"
         case .genericError(let m): return m
         }

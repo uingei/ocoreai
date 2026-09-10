@@ -434,10 +434,10 @@ actor SessionCompressor {
                     \(conversationText)
                     """
                 let summary = try await llmCallback(prompt)
-                logger.info("LLM summary generated (\\(summary.count) chars)")
+                logger.info("LLM summary generated (\(summary.count) chars)")
                 return summary
             } catch {
-                logger.warning("LLM summarization failed (\\(error)), falling back to rules")
+                logger.warning("LLM summarization failed (\(error)), falling back to rules")
             }
         }
 

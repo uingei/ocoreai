@@ -485,7 +485,7 @@ private struct ModelEmptyState: View {
                         .font(.title3)
                         .foregroundStyle(theme.accent)
                 }
-                .accessibilityLabel("Load \\(rec.id)")
+                .accessibilityLabel("Load \(rec.id)")
             }
         }
         .padding(10)

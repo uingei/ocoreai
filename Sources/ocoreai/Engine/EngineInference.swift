@@ -728,13 +728,13 @@ extension EnginePool {
             // This is the same fallback as the #else branch below, duplicated because
             // the #else cannot be reached when canImport(CoreAI) is true.
             logger.info(
-                "CoreAI SDK present but macOS < 27.0 — falling back to MLX for model \\(modelId)")
+                "CoreAI SDK present but macOS < 27.0 — falling back to MLX for model \(modelId)")
             let promptText: String
             do {
                 promptText = try await detokenize(modelId: modelId, tokens: input)
             } catch {
                 logger.warning(
-                    "Detokenize failed for CoreAI→MLX runtime fallback: \\(error.localizedDescription)"
+                    "Detokenize failed for CoreAI→MLX runtime fallback: \(error.localizedDescription)"
                 )
                 continuation.yield(
                     .init(kind: .error("Detokenization failed — inference cannot proceed")))
@@ -2659,10 +2659,10 @@ extension EnginePool {
                         let jsonArgs = String(data: data, encoding: .utf8)
                     else {
                         logger.error(
-                            "Tool dispatch: args serialization failed for \\(toolCall.function.name)"
+                            "Tool dispatch: args serialization failed for \(toolCall.function.name)"
                         )
                         return
-                            "[tool_dispatch_error: could not serialize arguments for \\(toolCall.function.name)]"
+                            "[tool_dispatch_error: could not serialize arguments for \(toolCall.function.name)]"
                     }
 
                     // Tool-failure recovery (codex semantics): a handler-level failure
@@ -3199,12 +3199,12 @@ extension EnginePool {
                                 phase1ThinkingText = phase1Result.thinkingText
                                 phase1ReasoningTokenCount = phase1Result.tokenCount
                                 log.info(
-                                    "Phase 1 think-then-call completed (\\(phase1Result.tokenCount) tokens)"
+                                    "Phase 1 think-then-call completed (\(phase1Result.tokenCount) tokens)"
                                 )
                             }
                         } catch {
                             log.warning(
-                                "Phase 1 think-then-call failed: \\(error.localizedDescription)")
+                                "Phase 1 think-then-call failed: \(error.localizedDescription)")
                         }
                     }  // end if let rc = mtpReasoningConfig
                     // Append Phase 1 thinking as assistant message before tool dispatch

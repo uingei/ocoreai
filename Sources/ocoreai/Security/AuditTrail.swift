@@ -301,7 +301,7 @@ actor AuditTrail {
                 parameters: [cutoffMs as AnyHashable],
             )
         } catch {
-            log("audit persist failed: \\(error.localizedDescription)")
+            log("audit persist failed: \(error.localizedDescription)")
         }
     }
 

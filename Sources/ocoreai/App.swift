@@ -42,7 +42,7 @@ public final class OcoreaiEngine {
     /// Lifecycle state machine — replaces `isRunning` + `engineReady` booleans
     private(set) var lifecycleState: EngineLifecycleState = .idle {
         didSet {
-            logger.debug("Lifecycle: \\(oldValue) → \\(lifecycleState)")
+            logger.debug("Lifecycle: \(oldValue) → \(lifecycleState)")
         }
     }
 
@@ -334,7 +334,7 @@ public final class OcoreaiEngine {
             )
             logger.info("SkillRegistry bootstrapped")
         } catch {
-            logger.warning("SkillRegistry bootstrap failed: \\(error)")
+            logger.warning("SkillRegistry bootstrap failed: \(error)")
         }
 
         // Wire SkillRegistry → SystemPromptBuilder bidirectional link

@@ -844,7 +844,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .modelDeleteButton: "Delete",
         .modelViewDeleteConfirmTitle: "Delete Model",
         .modelViewDeleteConfirmMessage:
-            "This will remove \\(model) from memory and delete all cached files. This cannot be undone.",
+            "This will remove %@ from memory and delete all cached files. This cannot be undone.",
         .modelViewDeleteConfirmAction: "Delete",
         .modelViewDeleteCancelAction: "Cancel",
 

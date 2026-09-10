@@ -792,10 +792,10 @@ actor EnginePool {
         do {
             try await tokenizerManager
                 .registerTokenizer(for: modelId, tokenizerPath: modelURL.path)
-            logger.info("Tokenizer registered for \\(modelId) — context wall on real token counts")
+            logger.info("Tokenizer registered for \(modelId) — context wall on real token counts")
         } catch {
             logger.warning(
-                "Tokenizer registration failed for \\(modelId) (\\(error.localizedDescription)) — falling back to heuristic token estimates"
+                "Tokenizer registration failed for \(modelId) (\(error.localizedDescription)) — falling back to heuristic token estimates"
             )
         }
         // Persist MLXLanguageModel so executor.respond() can route through

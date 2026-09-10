@@ -95,7 +95,21 @@ struct FMToolProxy: FoundationModels.Tool {
                 description: toolDesc,
                 parameters: schema,
                 dispatch: { toolName, args in
-                    try await registry.call(toolName, arguments: args)
+                    do {
+                        return try await registry.call(toolName, arguments: args)
+                    } catch {
+                        // Tool-failure recovery (codex semantics, mirrors the
+                        // MLX path EngineInference L2683-2690): a handler-level
+                        // failure (e.g. edit_file refusing a partial edit) is
+                        // returned to the model AS a tool-result error string so
+                        // it can self-correct and retry — instead of propagating
+                        // `throw` to the FM SDK, which terminates the whole
+                        // generation with a 500 and zero recovery path.
+                        // E2E 09-10 repro: 4B guess-wrong oldString → hard 500.
+                        logger.warning(
+                            "FM tool '\(toolName)' failed — surfacing to model: \(error)")
+                        return "[tool_error: \(error.localizedDescription)]"
+                    }
                 }
             )
             result.append(proxy)

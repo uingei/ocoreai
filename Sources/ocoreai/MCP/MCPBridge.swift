@@ -439,7 +439,7 @@ actor MCPBridge {
             let data = try JSONSerialization.data(withJSONObject: arguments, options: [])
             argsJsonStr = String(decoding: data, as: UTF8.self)
         } catch {
-            log.error("Tool args serialization failed for \\(toolName): \\(error)")
+            log.error("Tool args serialization failed for \(toolName): \(error)")
             argsJsonStr = "{}"
         }
 
@@ -472,7 +472,7 @@ actor MCPBridge {
             let data = try JSONSerialization.data(withJSONObject: arguments, options: [])
             argsJsonStr = String(decoding: data, as: UTF8.self)
         } catch {
-            log.error("Tool args serialization failed for \\(toolName): \\(error)")
+            log.error("Tool args serialization failed for \(toolName): \(error)")
             argsJsonStr = "{}"
         }
 
@@ -831,7 +831,7 @@ actor MCPBridge {
             argsMap = parsed
         } else if !arguments.isEmpty {
             log.warning(
-                "Failed to parse tool arguments JSON for \\(name): \\(arguments.prefix(80))")
+                "Failed to parse tool arguments JSON for \(name): \(arguments.prefix(80))")
             argsMap = [:]
         } else {
             argsMap = [:]
