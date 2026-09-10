@@ -105,6 +105,23 @@ private func logGuidedGenError(
     )
 }
 
+// MARK: - Top-Level Inference Error Surface
+
+/// Wire-facing error message for the top-level `runInferenceBody` catch.
+///
+/// Previously the message was a hard-coded `"inference failed"` — it discarded the
+/// concrete cause (a `GuidedGenerationError`, an OOM, a timeout), so clients could
+/// not distinguish a grammar exhaustion from a memory failure. This preserves the
+/// underlying `localizedDescription` while keeping the `Inference failed:` prefix
+/// clients already parse. Mirrors the pipelined catch at L1020, which composes
+/// `error.localizedDescription` into its message.
+///
+/// `@testable` surface: a pure function of the thrown error, unit-testable without a model.
+func inferenceTopLevelFailedMessage(for error: Error) -> String {
+    InferenceError.standardPathFailed(error.localizedDescription).errorDescription
+        ?? "Inference failed"
+}
+
 // MARK: - Guided Generation Bias Cache
 
 /// Cached tokenizer-derived logit biases for guided generation — mirrors upstream
@@ -4297,13 +4314,12 @@ extension EnginePool {
                 "GPU post-inference delta [\(modelId)] active: \(gpuDelta.activeMemory / 1_048_576)MB, cache: \(gpuDelta.cacheMemory / 1_048_576)MB"
             )
 
-            // Propagate error if caught
-            if caughtError != nil {
+            // Propagate error if caught — preserve the underlying cause (aligned
+            // with the pipelined catch at L1020: a generic "inference failed" loses
+            // the GuidedGenerationError/OOM/timeout distinction clients need).
+            if let caughtError {
                 continuation.yield(
-                    .init(
-                        kind: .error(
-                            InferenceError.standardPathFailed("inference failed").errorDescription
-                                ?? "error")))
+                    .init(kind: .error(inferenceTopLevelFailedMessage(for: caughtError))))
             }
 
             metrics.inferenceMs = metrics.overallMs
@@ -4315,11 +4331,7 @@ extension EnginePool {
         do {
             try await runInferenceBody(wiredMemoryTicket: nil)
         } catch {
-            continuation.yield(
-                .init(
-                    kind: .error(
-                        InferenceError.standardPathFailed("inference failed").errorDescription
-                            ?? "error")))
+            continuation.yield(.init(kind: .error(inferenceTopLevelFailedMessage(for: error))))
         }
 
         metrics.inferenceMs = metrics.overallMs
