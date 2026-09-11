@@ -783,17 +783,24 @@ struct AssistantMessage: Encodable {
     /// Text content
     let content: String?
 
+    /// Reasoning/thinking content (OpenAI reasoning models protocol —
+    /// mirrors streaming ``ChatDelta.reasoningContent`` = `reasoning_content`).
+    /// nil when the model produced no reasoning.
+    let reasoningContent: String?
+
     /// Tool call invocations (if model requested tools)
     let toolCalls: [ToolCall]?
 
-    init(content: String, toolCalls: [ToolCall]? = nil) {
+    init(content: String, reasoningContent: String? = nil, toolCalls: [ToolCall]? = nil) {
         self.content = content
+        self.reasoningContent = reasoningContent
         self.toolCalls = toolCalls
     }
 
     enum CodingKeys: String, CodingKey {
         case role
         case content
+        case reasoningContent = "reasoning_content"
         case toolCalls = "tool_calls"
     }
 }

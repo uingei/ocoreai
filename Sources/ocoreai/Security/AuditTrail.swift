@@ -148,7 +148,13 @@ actor AuditTrail {
 
     /// Record a completed tool call.
     func completeToken(_ token: AuditToken, status: AuditEntry.AuditStatus, result: String) {
-        let duration = Double(token.startedAt.duration(to: .now).components.seconds) * 1000.0
+        // Sub-second precision: `seconds * 1000` alone truncates every fast
+        // tool call (<1s) to 0.0ms, making the duration metric useless.
+        // Same attoseconds formula as ChatHandler / CoreAIPipelinedEngine.
+        let toolDuration = token.startedAt.duration(to: .now)
+        let duration =
+            Double(toolDuration.components.seconds) * 1000.0
+            + Double(toolDuration.components.attoseconds) / 1e15
         let entry = AuditEntry(
             id: token.id,
             timestamp: Date(),

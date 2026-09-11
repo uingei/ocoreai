@@ -680,6 +680,11 @@ private func nonStreamWithToolCalling(
     var accumulatedContent = ""
     var totalOutputTokens = 0
     var finishReason: String = "stop"
+    /// Reasoning text from `.reasoning` events (ReasoningEventEmitter /
+    /// ThinkTagParser). Kept SEPARATE from `accumulatedContent` so the
+    /// non-streaming response mirrors the streaming `reasoning_content`
+    /// channel — reasoning must not leak into `content`.
+    var accumulatedReasoning = ""
     var detectedToolCalls: [ToolCall]? = nil
     /// Reasoning tokens from upstream `.done(reasoningTokenCount:)` (baseline:
     /// mlx-swift-lm + coreai-models completion info) → OpenAI
@@ -727,8 +732,11 @@ private func nonStreamWithToolCalling(
                 // last, corrupting multi-tool turns into a single-call response.
                 detectedToolCalls = (detectedToolCalls ?? []) + [tc]
             case .reasoning(let r):
-                // Reasoning text from ReasoningEventEmitter — accumulate for self-correction
-                accumulatedContent += r
+                // Reasoning from ReasoningEventEmitter — SEPARATE channel from
+                // `content`: mirrors the streaming `reasoning_content` path.
+                // (Previously merged into `accumulatedContent`, which leaked the
+                // full thought block into the non-streaming `content` field.)
+                accumulatedReasoning += r
             case .guidedGenDiagnostic(
                 grammarTerminated: _,
                 incompleteOutput: true
@@ -797,8 +805,10 @@ private func nonStreamWithToolCalling(
                         case .toolCall:
                             break
                         case .reasoning(let r):
-                            // Reasoning text accumulates into accText for self-correction
-                            accText = (accText ?? "") + r
+                            // Keep out of the corrected RESPONSE text — the
+                            // critique evaluates the answer, and the corrected
+                            // response mirrors the non-reasoning `content`.
+                            _ = r
                         case .guidedGenDiagnostic:
                             // Self-correction path: guided gen skipped intentionally
                             break
@@ -848,6 +858,7 @@ private func nonStreamWithToolCalling(
     let choice = CompletionChoice(
         message: AssistantMessage(
             content: toolCalls != nil ? "" : OutputSanitizer.strip(finalContent),
+            reasoningContent: accumulatedReasoning.isEmpty ? nil : accumulatedReasoning,
             toolCalls: toolCalls),
         finishReason: finishReasonFinal,
     )
