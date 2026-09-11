@@ -272,6 +272,10 @@ public struct WanPipeline: VideoPipeline {
             // Euler step
             latents = scheduler.step(output: noisePred, timeStep: timestep, sample: latents)
 
+            // coreai-models #239 (5e00960): fail fast on NaN/Inf latents
+            // instead of silently shipping a blank frame.
+            try checkLatentsAreFinite(latents, step: step)
+
             if let dumpDir = configuration.dumpDirectory {
                 try dumpIntermediate(
                     latents, name: "step\(step)_output_latent", shape: latentShape, to: dumpDir)

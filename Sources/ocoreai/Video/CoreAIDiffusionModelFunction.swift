@@ -7,6 +7,7 @@ import Foundation
 
 #if canImport(CoreAI)
 
+import Accelerate
 import CoreAI
 
 /// Core AI diffusion model function — manages a single InferenceFunction
@@ -363,6 +364,7 @@ public enum CoreAIDiffusionError: Error, LocalizedError {
     case unsupportedOutputScalarType(NDArray.ScalarType)
     case expectedSingleOutput(got: [String])
     case inputCountMismatch(name: String, shape: [Int], expected: Int, got: Int)
+    case latentsNotFinite(step: Int)
 
     public var errorDescription: String? {
         switch self {
@@ -381,7 +383,25 @@ public enum CoreAIDiffusionError: Error, LocalizedError {
         case .inputCountMismatch(let name, let shape, let expected, let got):
             return "Input '\(name)' expects \(expected) elements for shape \(shape), got \(got). "
                 + "Check the order of the values passed to run(...) — binding is positional."
+        case .latentsNotFinite(let step):
+            return "Non-finite values (NaN or Inf) detected in latents at denoising step \(step). "
+                + "This usually indicates float16 overflow in the model. Re-export with float32 compute precision."
         }
+    }
+}
+
+/// Guards the denoise loop against silently producing blank/NaN output.
+///
+/// Ported from coreai-models `CoreAIDiffusionPipeline/Components/CoreAIDiffusionModelFunction.swift`
+/// (commit 5e00960, "Fix SD 1.5 NaN output", #239). Uses `vDSP_sve` to sum the
+/// latents after each Euler step; if the sum is not finite (NaN or Inf), throws
+/// immediately with a clear message instead of shipping a blank frame.
+@available(macOS 27.0, iOS 27.0, *)
+func checkLatentsAreFinite(_ latents: [Float], step: Int) throws {
+    var sum: Float = 0
+    vDSP_sve(latents, 1, &sum, vDSP_Length(latents.count))
+    if !sum.isFinite {
+        throw CoreAIDiffusionError.latentsNotFinite(step: step)
     }
 }
 
