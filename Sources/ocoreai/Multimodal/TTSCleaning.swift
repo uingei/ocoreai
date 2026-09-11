@@ -51,15 +51,26 @@ enum TTSCleaning {
     /// bodies and nested HTML/code fragments inside are all removed. Empty input
     /// or "no thinking tags" input returns unchanged.
     private static func stripThinkingTags(from text: String) -> String {
-        guard text.contains("<thinking>") else { return text }
-        return
-            (try? NSRegularExpression(
-                pattern: "<thinking>.*?</thinking>",
+        // Strip both the model's actual family (Qwen3.5 `think`/`think`) and
+        // the legacy `thinking`/`thinking` family (multiline bodies).
+        let families: [(open: String, close: String)] = [
+            (open: "<think" + ">", close: "</think" + ">"),
+            (open: "<thinking>", close: "</thinking>"),
+        ]
+        var working = text
+        for family in families where working.contains(family.open) {
+            let pattern = family.open + ".*?" + family.close
+            if let regex = try? NSRegularExpression(
+                pattern: pattern,
                 options: .dotMatchesLineSeparators
-            ).stringByReplacingMatches(
-                in: text,
-                range: NSRange(text.startIndex..., in: text),
-                withTemplate: "")) ?? text
+            ) {
+                working = regex.stringByReplacingMatches(
+                    in: working,
+                    range: NSRange(working.startIndex..., in: working),
+                    withTemplate: "")
+            }
+        }
+        return working
     }
 
     /// Remove fenced code blocks line-by-line.

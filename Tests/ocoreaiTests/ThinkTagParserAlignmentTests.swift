@@ -37,13 +37,13 @@ private func eventStrings(_ events: [ThinkTagParser.Event], kind: EventKind) -> 
 struct ThinkTagParserTagPairTests {
     @Test("open/close tags routed across consume boundaries")
     func openCloseAcrossBoundaries() {
-        var p = ThinkTagParser()  // default "<thinking>" / "</thinking>"
+        var p = ThinkTagParser()  // now defaults to short `think`/`think` (Qwen3.5 model family)
         var out: [ThinkTagParser.Event] = []
         out += p.consume("a")
-        out += p.consume("<thinking")
+        out += p.consume("<think")
         out += p.consume(">mid")
         out += p.consume("</thi")
-        out += p.consume("nking>b")
+        out += p.consume("nk>b")
         out += p.flush()
         #expect(eventStrings(out, kind: .text) == ["a", "b"])
         #expect(eventStrings(out, kind: .reasoning) == ["mid"])
@@ -54,7 +54,7 @@ struct ThinkTagParserTagPairTests {
         var p = ThinkTagParser()
         var out: [ThinkTagParser.Event] = []
         out += p.consume("abc")
-        out += p.consume("<thinking>hidden</thinking>")
+        out += p.consume("<think" + ">hidden</think" + ">")
         out += p.consume("def")
         out += p.flush()
         #expect(eventStrings(out, kind: .text) == ["abc", "def"])
@@ -65,7 +65,8 @@ struct ThinkTagParserTagPairTests {
     func primedInsideRoutesFirstChunkToReasoning() {
         var p = ThinkTagParser(primedInside: true)
         let out =
-            p.consume("prefill text ") + p.consume("</thinking>") + p.consume("visible") + p.flush()
+            p.consume("prefill text ") + p.consume("</think" + ">") + p.consume("visible")
+            + p.flush()
         #expect(eventStrings(out, kind: .reasoning) == ["prefill text "])
         #expect(eventStrings(out, kind: .text) == ["visible"])
     }
@@ -73,7 +74,7 @@ struct ThinkTagParserTagPairTests {
     @Test("open tag with no close at EOS: remainder is reasoning")
     func unclosedOpenTagIsReasoning() {
         var p = ThinkTagParser()
-        let out = p.consume("before<thinking>tail") + p.flush()
+        let out = p.consume("before<think" + ">tail") + p.flush()
         #expect(eventStrings(out, kind: .text) == ["before"])
         #expect(eventStrings(out, kind: .reasoning) == ["tail"])
     }

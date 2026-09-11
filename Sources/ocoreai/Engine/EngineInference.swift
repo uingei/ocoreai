@@ -515,8 +515,11 @@ extension EnginePool {
                 // delimiter into the prompt, so the first generated token is already
                 // reasoning content. Without this, the entire thought block is misrouted
                 // to .text events.
-                let openMarker = "<think" + "ing>"
-                let closeMarker = "</think" + "ing>"
+                // Upstream coreai-models ThinkTagParser defaults (L42/L256) and the
+                // Qwen3.5 chat template both use the short `think`/`think` markers
+                // (byte-verified: 3c 74 68 69 6e 6b 3e / 3c 2f 74 68 69 6e 6b 3e).
+                let openMarker = "<think" + ">"
+                let closeMarker = "</think" + ">"
                 let primedInside: Bool
                 do {
                     let tailPrompt = try await detokenize(modelId: modelId, tokens: input)
@@ -970,8 +973,10 @@ extension EnginePool {
 
         // Same think/tool parser setup + primedInside detection as the
         // sequential constrained loop (upstream ThinkTagParser defaults).
-        let openMarker = "<think" + "ing>"
-        let closeMarker = "</think" + "ing>"
+        // Upstream coreai-models + Qwen3.5 chat template use the short
+        // `think`/`think` markers (byte-verified: 3c 74 68 69 6e 6b 3e).
+        let openMarker = "<think" + ">"
+        let closeMarker = "</think" + ">"
         let primedInside: Bool
         do {
             let tailPrompt = try await detokenize(modelId: modelId, tokens: input)
@@ -1107,8 +1112,10 @@ extension EnginePool {
         let maxTokens = options.maxTokens ?? loaded.modelConfig.maxContextLength
 
         // ThinkTagParser + ToolCallParser — same as standard CoreAI path
-        let openMarker = "<think" + "ing>"
-        let closeMarker = "</think" + "ing>"
+        // Upstream coreai-models + Qwen3.5 chat template use the short
+        // `think`/`think` markers (byte-verified: 3c 74 68 69 6e 6b 3e).
+        let openMarker = "<think" + ">"
+        let closeMarker = "</think" + ">"
         let primedInside: Bool
         do {
             let tailPrompt = try await detokenize(modelId: modelId, tokens: input)

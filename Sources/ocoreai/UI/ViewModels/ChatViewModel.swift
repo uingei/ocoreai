@@ -216,12 +216,14 @@ final class ChatState {
     /// Two-pass per family: complete blocks first, then trailing/incomplete tags.
     private nonisolated static func stripThinkingTags(from text: String) -> String {
         var result = text
-        // 1. OpenAI/ChatML-style <thinking>...</thinking>
+        // 1. Qwen3.5 / Qwen3 short `think`/`think` (the actual model family)
+        result = stripTagFamily(from: result, open: "<think" + ">", close: "</think" + ">")
+        // 2. OpenAI/ChatML-style `thinking` (legacy/other providers)
         result = stripTagFamily(from: result, open: "<thinking>", close: "</thinking>")
-        // 2. Qwen3 <|begin_of_thought|>...<|end_of_thought|>
+        // 3. Qwen3 <|begin_of_thought|>...<|end_of_thought|>
         result = stripTagFamily(
             from: result, open: "<|begin_of_thought|>", close: "<|end_of_thought|>")
-        // 3. Qwen3 <|begin_of_thought|>...<|eot_id|>
+        // 4. Qwen3 <|begin_of_thought|>...<|eot_id|>
         result = stripTagFamily(from: result, open: "<|begin_of_thought|>", close: "<|eot_id|>")
         return result
     }
@@ -278,29 +280,36 @@ final class ChatState {
     private nonisolated static func splitThinkingTags(from text: String) -> (
         reasoning: String?, remaining: String
     ) {
-        guard text.contains("<thinking>") else { return (nil, text) }
+        // Handle the model's actual family (Qwen3.5 `think`/`think`) plus the
+        // legacy `thinking`/`thinking` family.
+        let families: [(open: String, close: String)] = [
+            (open: "<think" + ">", close: "</think" + ">"),
+            (open: "<thinking>", close: "</thinking>"),
+        ]
+        var working = text
         var reasoningPieces: [String] = []
-        let pattern = "<thinking>(.*?)</thinking>"
-        if let regex = try? NSRegularExpression(
-            pattern: pattern,
-            options: .dotMatchesLineSeparators
-        ) {
-            let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
-            // Extract reasoning content
-            for match in matches {
-                if let range = Range(match.range(at: 1), in: text) {
-                    reasoningPieces.append(String(text[range]))
+        for family in families where working.contains(family.open) {
+            let pattern = family.open + "(.*?)" + family.close
+            if let regex = try? NSRegularExpression(
+                pattern: pattern,
+                options: .dotMatchesLineSeparators
+            ) {
+                let matches = regex.matches(
+                    in: working, range: NSRange(working.startIndex..., in: working))
+                for match in matches {
+                    if let range = Range(match.range(at: 1), in: working) {
+                        reasoningPieces.append(String(working[range]))
+                    }
                 }
+                working = regex.stringByReplacingMatches(
+                    in: working,
+                    range: NSRange(working.startIndex..., in: working),
+                    withTemplate: ""
+                )
             }
-            // Remove thinking tags for remaining text
-            let cleaned = regex.stringByReplacingMatches(
-                in: text,
-                range: NSRange(text.startIndex..., in: text),
-                withTemplate: ""
-            )
-            return (reasoningPieces.joined(separator: "\n"), cleaned)
         }
-        return (nil, text)
+        let reasoning = reasoningPieces.isEmpty ? nil : reasoningPieces.joined(separator: "\n")
+        return (reasoning, reasoning == nil ? text : working)
     }
 
     // MARK: - Persistence state

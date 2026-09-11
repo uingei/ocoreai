@@ -76,7 +76,11 @@ struct ThinkTagParser {
     /// where the opening delimiter is pre-rendered into the prompt and the
     /// first generated token is already reasoning content — see
     /// `EngineInference.swift:299/797`.
-    init(open: String = "<thinking>", close: String = "</thinking>", primedInside: Bool = false) {
+    /// Default markers match the upstream coreai-models short `think`/`think`
+    /// tags (byte-verified against the Qwen3.5 chat template + tokenizer,
+    /// and the omlx/coreai-models/mlx-swift-lm reference implementations).
+    init(open: String = "<think" + ">", close: String = "</think" + ">", primedInside: Bool = false)
+    {
         self.format = .tagPair(open: open, close: close)
         self.insideThink = primedInside
     }
@@ -350,7 +354,7 @@ struct ThinkTagParser {
     /// Strip all completed thinking blocks from a full string.
     /// Unclosed blocks at the end are also removed.
     static func stripCompleted(
-        from text: String, open: String = "<thinking>", close: String = "</thinking>"
+        from text: String, open: String = "<think" + ">", close: String = "</think" + ">"
     ) -> String {
         var result = ""
         result.reserveCapacity(text.count)
