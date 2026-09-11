@@ -514,15 +514,18 @@ actor MLXModelLoader {
                 OcoreaiDownloadProgress.shared.start(modelId: progressKey)
             }
 
-            // Determine ready-hub blobs directory for progress polling
-            let hfCacheDir =
-                ModelStore.hubRoot
-                .appendingPathComponent(ModelStore.encodeHubRepo(repoId))
-                .appendingPathComponent("blobs")
+            // Progress poller watches the SAME directory the downloader writes
+            // into (M8 flat layout, root/<org>/<name>) — watching the old
+            // HubCache-blobs dir would never grow and trip the 90s stall
+            // timeout on a real download.
+            var hfPollDir = ModelStore.root
+            for segment in repoId.split(separator: "/") where !segment.isEmpty {
+                hfPollDir = hfPollDir.appendingPathComponent(String(segment))
+            }
 
             // Start directory polling task for progress estimation
             let pollTask = Self.startHFProgressPolling(
-                cacheDir: hfCacheDir,
+                cacheDir: hfPollDir,
                 modelId: progressKey,
                 logger: logger
             )
@@ -713,11 +716,10 @@ struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
     private func allPatternsSatisfied(_ patterns: [String], in dir: URL) -> Bool {
         let fm = FileManager.default
         guard
-            var enumerator = fm.enumerator(
+            let enumerator = fm.enumerator(
                 at: dir,
                 includingPropertiesForKeys: [.isRegularFileKey],
-                options: [.skipsHiddenFiles]
-            )
+                options: [.skipsHiddenFiles])
         else { return false }
         var files: [String] = []
         while let item = enumerator.nextObject() as? URL,
