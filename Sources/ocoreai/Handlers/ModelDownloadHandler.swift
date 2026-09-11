@@ -160,7 +160,8 @@ private func downloadFromHF(
     // pinned to ModelStore.hubRoot so the registry stays the single source).
     // Auth auto-detection (HF_TOKEN / keychain) is unchanged: HubClient
     // resolves credentials the same way it did under the default cache.
-    let downloader = ReadyHubDownloader(hub: ModelStore.readyHubClient())
+    let downloader = ReadyHubDownloader(
+        hub: ModelStore.readyHubClient(), flatRoot: ModelStore.root)
     logger.info(
         "Fetching from HuggingFace (local-cache hit possible)",
         metadata: ["model": .string(modelId)])

@@ -526,7 +526,8 @@ actor MLXModelLoader {
                 modelId: progressKey,
                 logger: logger
             )
-            let readyDownloader = ReadyHubDownloader(hub: ModelStore.readyHubClient())
+            let readyDownloader = ReadyHubDownloader(
+                hub: ModelStore.readyHubClient(), flatRoot: ModelStore.root)
 
             do {
                 let container = try await LLMModelFactory.shared.loadContainer(
@@ -593,7 +594,8 @@ actor MLXModelLoader {
             return MLXLMCommon.MTPDrafterContainer(context: drafter)
         } else {
             let drafter = try await MLXLMCommon.MTPDrafterModelFactory.shared.load(
-                from: ReadyHubDownloader(hub: ModelStore.readyHubClient()),
+                from: ReadyHubDownloader(
+                    hub: ModelStore.readyHubClient(), flatRoot: ModelStore.root),
                 using: NoOpTokenizerLoader(),
                 configuration: MLXLMCommon.ModelConfiguration(id: modelId)
             )
@@ -618,16 +620,46 @@ actor MLXModelLoader {
     }
 }
 
-/// M7: addressable HuggingFace Downloader — same semantics as the `#hubDownloader()`
-/// macro's generated `HubBridge`, but constructed against an explicit `HubClient`
-/// so the ready-model root (`ModelStore.hubRoot`) is the single cache location.
-/// Conforms to MLXLMCommon.Downloader; download → downloadSnapshot into the
-/// HubCache layout (blobs/ + snapshots/<rev>/), resume preserved.
+/// M8: addressable HuggingFace Downloader — same contract as the `#hubDownloader()`
+/// macro's generated `HubBridge`, but with two upgrades over HubCache:
+///
+/// 1. **Flat layout** — weights land in `flatRoot/<org>/<name>/` (single root,
+///    provider-agnostic identity, omlx `ms_downloader`/`HF_downloader` `target_dir = model_dir / repo_id`).
+///    swift-huggingface `downloadSnapshot(to:)` (HubClient+Files.swift:1152) is the
+///    exact API that omlx uses on the Python side (`local_dir=...` in
+///    omlx/admin/HF_downloader.py:1122), so this is not a local invention.
+/// 2. **Local-first** — before any network is touched, check whether a ready
+///    snapshot already exists at `flatRoot/<org>/<name>/` (non-empty `.safetensors`);
+///    when present and `useLatest == false`, return it directly. Mirrors
+///    `ModelScopeDownloader.download()` L121-125.
+///
+/// Conforms to `MLXLMCommon.Downloader`; resume/etag are handled inside the
+/// upstream `downloadSnapshot(to:)` fast-path (cachedSnapshotPath → copy
+/// snapshot to destination).
 struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
     let hub: HuggingFace.HubClient
+    /// When nil, falls back to legacy HubCache behavior (backward compat for tests
+    /// that don't set a root). In production this is `ModelStore.root`.
+    let flatRoot: URL?
 
-    init(hub: HuggingFace.HubClient) {
+    init(hub: HuggingFace.HubClient, flatRoot: URL? = nil) {
         self.hub = hub
+        self.flatRoot = flatRoot
+    }
+
+    /// Flat destination for `org/name`: `flatRoot/org/name`. Returns nil when no
+    /// root is configured (legacy HubCache path) or id isn't in `org/name` shape.
+    private func flatTarget(for repoId: String) -> URL? {
+        guard let root = flatRoot else { return nil }
+        let trimmed =
+            repoId
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard trimmed.contains("/") else { return nil }
+        var dir = root
+        for part in trimmed.split(separator: "/") where !part.isEmpty {
+            dir = dir.appendingPathComponent(String(part))
+        }
+        return dir
     }
 
     func download(
@@ -640,8 +672,29 @@ struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
         guard let repoID = HuggingFace.Repo.ID(rawValue: id) else {
             throw HuggingFaceDownloaderError.invalidRepositoryID(id)
         }
+        // Local-first: if every requested glob already matches a non-empty file
+        // in the flat destination, skip the network entirely (ModelScopeDownloader
+        // parity — same semantics as firstMissingPattern, L121-125/664).
+        // `useLatest == true` forces refresh semantics — do not short-circuit.
+        if !useLatest, let target = flatTarget(for: id),
+            allPatternsSatisfied(patterns, in: target)
+        {
+            return target
+        }
         // 1:1 with upstream HubBridge (#hubDownloader() macro): revision ?? "main".
         let rev = revision ?? "main"
+        if let target = flatTarget(for: id) {
+            return try await hub.downloadSnapshot(
+                of: repoID,
+                to: target,
+                revision: rev,
+                matching: patterns,
+                progressHandler: { @MainActor progress in
+                    progressHandler(progress)
+                }
+            )
+        }
+        // Legacy HubCache layout (flatRoot unset — tests / pre-M8 callers).
         return try await hub.downloadSnapshot(
             of: repoID,
             revision: rev,
@@ -650,6 +703,39 @@ struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
                 progressHandler(progress)
             }
         )
+    }
+
+    /// Per-pattern presence check — same contract as
+    /// `ModelScopeDownloader.firstMissingPattern` / `matchesGlob` (L660-676):
+    /// every glob in `patterns` must match at least one regular file directly
+    /// under `dir`. Empty pattern list → true (caller's decision; call sites
+    /// always pass non-empty patterns).
+    private func allPatternsSatisfied(_ patterns: [String], in dir: URL) -> Bool {
+        let fm = FileManager.default
+        guard
+            var enumerator = fm.enumerator(
+                at: dir,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )
+        else { return false }
+        var files: [String] = []
+        while let item = enumerator.nextObject() as? URL,
+            (try? item.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
+        {
+            files.append(item.lastPathComponent)
+        }
+        for pattern in patterns {
+            let matched = files.contains { name in
+                if pattern.hasPrefix("*") {
+                    let ext = pattern.drop { $0 == "*" }
+                    return name.hasSuffix(ext)
+                }
+                return name == pattern
+            }
+            if !matched { return false }
+        }
+        return true
     }
 }
 
