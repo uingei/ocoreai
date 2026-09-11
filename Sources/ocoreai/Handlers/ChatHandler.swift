@@ -854,10 +854,31 @@ private func nonStreamWithToolCalling(
     /// Override finish reason if tool calls were detected.
     let finishReasonFinal = toolCalls != nil ? "tool_calls" : finishReason
 
+    /// Content fallback (live-verified 2026-09-12, Qwen3.5-4B over the FM/SDK
+    /// path with thinking enabled): the SDK classifies the ENTIRE generation —
+    /// answer included — into `Transcript.Entry.reasoning`, so the text channel
+    /// arrives empty (usage: reasoning_tokens=337, content=""). Consumers that
+    /// only read `content` (standard OpenAI non-stream contract) would get an
+    /// empty answer. When the structured tool-calls channel is absent and the
+    /// text content is empty, fall back to the reasoning text so the answer
+    /// reaches the wire. `reasoningContent` is always kept as-is: it is the
+    /// dedicated, optional channel — no information is lost or duplicated for
+    /// consumers that understand it.
+    let wireContent: String
+    if toolCalls != nil {
+        wireContent = ""
+    } else {
+        let stripped = OutputSanitizer.strip(finalContent)
+        wireContent =
+            stripped.isEmpty && !accumulatedReasoning.isEmpty
+            ? OutputSanitizer.strip(accumulatedReasoning)
+            : stripped
+    }
+
     /// Build response choice with assistant message + tool calls.
     let choice = CompletionChoice(
         message: AssistantMessage(
-            content: toolCalls != nil ? "" : OutputSanitizer.strip(finalContent),
+            content: wireContent,
             reasoningContent: accumulatedReasoning.isEmpty ? nil : accumulatedReasoning,
             toolCalls: toolCalls),
         finishReason: finishReasonFinal,
