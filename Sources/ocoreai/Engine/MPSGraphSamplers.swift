@@ -750,6 +750,12 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
     private let topPData: MPSGraphTensorData
     private let minPData: MPSGraphTensorData
 
+    // Pre-allocated neutral penalty buffer (all 1.0 in f16) used by non-penalty
+    // encode paths when the executable was compiled with penalty support
+    // (#244, d65a651).
+    private let neutralPenaltyData: MPSGraphTensorData?
+    private let neutralPenaltyBuffer: MTLBuffer?
+
     // Constrained sampling — compiled lazily on first applyBitmask: true call.
     private var constrainedExecutable: MPSGraphExecutable?
     private var constrainedBitmaskBuffer: MTLBuffer?
@@ -760,6 +766,12 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
 
     /// Testing only: Override random value for deterministic tests.
     var testingOnlyRandomOverride: Float?
+
+    /// The backing MTLBuffer of the neutral penalty tensor, exposed for test
+    /// introspection of the exact #244 fix value (all 1.0 in f16). Nil when
+    /// not penalty-enabled.
+    @available(macOS 27.0, iOS 27.0, *)
+    var testingOnlyNeutralPenaltyBuffer: MTLBuffer? { neutralPenaltyBuffer }
 
     /// Initialize the MPSGraph composite sampler.
     /// - Parameters:
@@ -984,6 +996,65 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
             shape: [1 as NSNumber],
             dataType: .float32
         )
+
+        // Pre-allocate a neutral penalty buffer (all 1.0 in f16) so that
+        // non-penalty encode paths can feed the penalty-enabled executable
+        // without a caller-provided penalty buffer. (#244, d65a651)
+        if penaltyEnabled {
+            let neutralByteCount = vocabSize * MemoryLayout<UInt16>.size
+            guard
+                let neutralBuf = device.makeBuffer(
+                    length: neutralByteCount, options: .storageModeShared)
+            else {
+                throw MPSGraphSamplerError.bufferAllocationFailed
+            }
+            // Fill with 1.0 in Float16 (0x3C00).
+            let ptr = neutralBuf.contents().assumingMemoryBound(to: UInt16.self)
+            for i in 0 ..< vocabSize {
+                ptr[i] = 0x3C00
+            }
+            self.neutralPenaltyData = MPSGraphTensorData(
+                neutralBuf, shape: [1, vocabSize as NSNumber], dataType: .float16)
+            self.neutralPenaltyBuffer = neutralBuf
+        } else {
+            self.neutralPenaltyData = nil
+            self.neutralPenaltyBuffer = nil
+        }
+    }
+
+    // MARK: - Feed Tensor Ordering
+
+    /// Build the inputs array in the exact order `executable.feedTensors` expects.
+    ///
+    /// MPSGraph's feedTensors order is determined at compile time and may not
+    /// match dictionary insertion order. We match by operation name so each
+    /// MPSGraphTensorData lands in the correct feed position, avoiding type
+    /// mismatches (e.g. f32 scalar data landing where an f16 penalty tensor is
+    /// expected). (#244, d65a651)
+    private func buildInputs(
+        logitsData: MPSGraphTensorData,
+        penaltyData: MPSGraphTensorData? = nil
+    ) -> [MPSGraphTensorData]? {
+        let effectivePenalty = penaltyData ?? neutralPenaltyData
+        guard let feedTensors = executable.feedTensors else { return nil }
+        var inputs: [MPSGraphTensorData] = []
+        for tensor in feedTensors {
+            switch tensor.operation.name {
+            case "logits": inputs.append(logitsData)
+            case "penalty":
+                guard let penalty = effectivePenalty else { return nil }
+                inputs.append(penalty)
+            case "temperature": inputs.append(temperatureData)
+            case "random": inputs.append(randomData)
+            case "topP": inputs.append(topPData)
+            case "minP": inputs.append(minPData)
+            default:
+                // feed tensor with no known data — graph/config drift; refuse
+                // to misorder inputs rather than feed a wrong tensor.
+                return nil
+            }
+        }
+        return inputs
     }
 
     // MARK: - Constrained Sampling (Lazy)
@@ -1253,9 +1324,17 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
             completion(result, nil)
         }
 
+        // #244 (d65a651): feed the penalty stage its neutral buffer (all 1.0)
+        // when the graph was compiled with penalty support, instead of omitting
+        // it — omission shifts every later feed and crashes MPSGraph.
+        guard let inputs = buildInputs(logitsData: logitsData) else {
+            completion(0, MPSGraphSamplerError.graphCompilationFailed)
+            return
+        }
+
         executable.runAsync(
             with: queue,
-            inputs: [logitsData, temperatureData, randomData, topPData, minPData],
+            inputs: inputs,
             results: [outputData],
             executionDescriptor: desc
         )
@@ -1294,23 +1373,10 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         let outputData = MPSGraphTensorData(
             outputBuffer, shape: [1 as NSNumber], dataType: .int32)
 
-        let tensorDataMap: [MPSGraphTensor: MPSGraphTensorData] = [
-            logitsPlaceholder: logitsData,
-            penaltyPlaceholder: penaltyData,
-            temperaturePlaceholder: temperatureData,
-            randomPlaceholder: randomData,
-            topPPlaceholder: topPData,
-            minPPlaceholder: minPData,
-        ]
-        // feedTensors is non-nil for any successfully compiled executable (MPSGraph
-        // invariant); defensive guard instead of force-unwrap — failure is reported
-        // to the caller via completion, matching the buffer-allocation path above.
-        guard let feedTensors = executable.feedTensors else {
-            completion(0, MPSGraphSamplerError.graphCompilationFailed)
-            return
-        }
-        let inputs = feedTensors.compactMap { tensorDataMap[$0] }
-        if inputs.count != feedTensors.count {
+        // Reuse the shared feed-ordering helper so the caller-provided penalty
+        // buffer lands on the "penalty" feed exactly (#244, d65a651).
+        guard let inputs = buildInputs(logitsData: logitsData, penaltyData: penaltyData)
+        else {
             completion(0, MPSGraphSamplerError.graphCompilationFailed)
             return
         }
@@ -1412,9 +1478,19 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
             completion(result, nil)
         }
 
+        // #244 (d65a651): the executable was compiled with the penalty stage
+        // when penaltyEnabled is set — feed the neutral penalty tensor
+        // (all 1.0) on the prefill path instead of omitting it, which would
+        // shift every later input one feed earlier and crash MPSGraph
+        // ("expected element type f16 but received f32").
+        guard let inputs = buildInputs(logitsData: logitsData) else {
+            completion(0, MPSGraphSamplerError.graphCompilationFailed)
+            return
+        }
+
         executable.runAsync(
             with: queue,
-            inputs: [logitsData, temperatureData, randomData, topPData, minPData],
+            inputs: inputs,
             results: [outputData],
             executionDescriptor: prefillExecDescriptor
         )
