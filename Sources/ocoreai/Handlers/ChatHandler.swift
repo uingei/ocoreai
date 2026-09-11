@@ -119,9 +119,39 @@ private func buildCorrectedMessages(
 ///   - scheduler: Request scheduler with OOMGuard + priority queue
 ///   - metrics: Shared metrics registry (Prometheus-compatible)
 ///   - sessionCompressor: Session persistence layer
-///   - messageBuilder: Shared message assembly (Fast Path + Bridge Path)
+/// - messageBuilder: Shared message assembly (Fast Path + Bridge Path)
 ///   - logger: Observability logger
 /// - Returns: HTTP Response (SSE stream or JSON completion)
+///
+/// Wire-content projection with reasoning-channel fallback (file-scope so
+/// the contract is unit-testable). Live-verified 2026-09-12 (Qwen3.5-4B
+/// over the FM/SDK path, thinking on): the SDK classifies the ENTIRE
+/// generation — answer included — into `Transcript.Entry.reasoning`, so
+/// the text channel arrives empty (non-stream: reasoning_tokens>0 with
+/// content=""; stream: zero `delta.content`, all text on
+/// `reasoning_content`). Both wire projections (non-stream
+/// `CompletionChoice` and stream-end settle) delegate to this one decision:
+/// when the text channel is empty, no tool-calls channel is present, and
+/// reasoning text exists, the reasoning text carries the answer on the
+/// wire. `reasoningContent` is always emitted alongside as-is (dedicated
+/// optional channel, nothing lost).
+///
+/// Coverage: `Tests/ocoreaiTests/ReasoningContentWireTests.swift`.
+func contentWireFallback(
+    text: String,
+    reasoning: String,
+    toolCallsPresent: Bool
+) -> String {
+    if toolCallsPresent {
+        return ""
+    }
+    let stripped = OutputSanitizer.strip(text)
+    if stripped.isEmpty, !reasoning.isEmpty {
+        return OutputSanitizer.strip(reasoning)
+    }
+    return stripped
+}
+
 func chatCompletionsHandler(
     request: ChatCompletionRequest,
     enginePool: EnginePool,
@@ -854,31 +884,14 @@ private func nonStreamWithToolCalling(
     /// Override finish reason if tool calls were detected.
     let finishReasonFinal = toolCalls != nil ? "tool_calls" : finishReason
 
-    /// Content fallback (live-verified 2026-09-12, Qwen3.5-4B over the FM/SDK
-    /// path with thinking enabled): the SDK classifies the ENTIRE generation —
-    /// answer included — into `Transcript.Entry.reasoning`, so the text channel
-    /// arrives empty (usage: reasoning_tokens=337, content=""). Consumers that
-    /// only read `content` (standard OpenAI non-stream contract) would get an
-    /// empty answer. When the structured tool-calls channel is absent and the
-    /// text content is empty, fall back to the reasoning text so the answer
-    /// reaches the wire. `reasoningContent` is always kept as-is: it is the
-    /// dedicated, optional channel — no information is lost or duplicated for
-    /// consumers that understand it.
-    let wireContent: String
-    if toolCalls != nil {
-        wireContent = ""
-    } else {
-        let stripped = OutputSanitizer.strip(finalContent)
-        wireContent =
-            stripped.isEmpty && !accumulatedReasoning.isEmpty
-            ? OutputSanitizer.strip(accumulatedReasoning)
-            : stripped
-    }
-
     /// Build response choice with assistant message + tool calls.
     let choice = CompletionChoice(
         message: AssistantMessage(
-            content: wireContent,
+            content: contentWireFallback(
+                text: finalContent,
+                reasoning: accumulatedReasoning,
+                toolCallsPresent: toolCalls != nil
+            ),
             reasoningContent: accumulatedReasoning.isEmpty ? nil : accumulatedReasoning,
             toolCalls: toolCalls),
         finishReason: finishReasonFinal,
@@ -1022,6 +1035,16 @@ private func streamWithToolCalling(
         /// content channel settles in `finish()` below; per-feed settlement
         /// only ever releases finalized thinking text.
         let textFilter = StreamOutputFilter()
+
+        /// Reasoning text that has been delivered on the `reasoning_content`
+        /// channel (accumulated as it settles, either per-event or at stream
+        /// settle). Used ONLY by the stream-end content fallback (see the
+        /// `.done` branch): when the engine classifies the entire generation
+        /// as reasoning (think-on over the FM/SDK path), the content channel
+        /// arrives empty and standard consumers would receive no answer. The
+        /// fallback, applied once at stream end, re-delivers that reasoning
+        /// text as content so the answer isn't lost.
+        var accumulatedEmittedReasoning = ""
 
         /// Guard + settle + emit one engine delta on its final channel.
         /// Returns false when the safety guard terminates the stream.
@@ -1215,6 +1238,7 @@ private func streamWithToolCalling(
                                 return
                             }
                         }
+                        accumulatedEmittedReasoning += reasoning
                         let rChunk = ChatCompletionChunk(
                             id: requestId,
                             created: created,
@@ -1228,7 +1252,21 @@ private func streamWithToolCalling(
                         )
                         _ = yieldSSE(rChunk, to: continuation)
                     }
-                    if let answer = settle.content, streamToolCalls == nil {
+                    /// Streaming content fallback (streaming parity with the
+                    /// non-stream projection, same shared decision):
+                    /// `settle.content` is the settled text-channel answer; if
+                    /// it is empty the whole generation landed on
+                    /// `reasoning_content` (live-verified 2026-09-12, FM/SDK
+                    /// think-on) and the shared fallback re-exposes that text
+                    /// on the content channel so standard consumers receive
+                    /// the answer. Suppressed with a tool-calls channel.
+                    let settleContent = contentWireFallback(
+                        text: settle.content ?? "",
+                        reasoning: accumulatedEmittedReasoning,
+                        toolCallsPresent: streamToolCalls != nil
+                    )
+                    let answer = settleContent
+                    if !answer.isEmpty, streamToolCalls == nil {
                         if let contentGuard = streamGuard {
                             let checkResult = await contentGuard.checkOutput(answer)
                             if !checkResult.passed {
@@ -1362,6 +1400,7 @@ private func streamWithToolCalling(
                         choices: [rChoice],
                     )
                     _ = yieldSSE(rChunk, to: continuation)
+                    accumulatedEmittedReasoning += reasoningText
 
                 /// .guidedGenDiagnostic / .incompleteOutput — diagnostic events.
                 /// Log instead of silently discarding; emit SSE diagnostic marker for client visibility.
