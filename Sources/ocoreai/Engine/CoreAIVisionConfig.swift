@@ -125,13 +125,30 @@ struct VLMModelConfig: Codable, Sendable, InferenceConfiguration {
     var name: String { base.name }
     var eosTokenId: Int32 { base.eosTokenId }
 
-    /// Prefill chunk size from base config.
     var prefillChunkSize: Int { base.prefillChunkSize }
     var chunkThreshold: Int { base.chunkThreshold }
 
-    init(base: InternalModelConfig, visionConfig: VisionConfig) {
+    /// Runtime override (applied by the engine init; ocoreai idiom — upstream
+    /// `applyChunkingOverrides` mutates a `var` base config, but ocoreai's
+    /// `InternalModelConfig` is `let`-based, so the override lives here).
+    var prefillChunkSizeOverride: Int?
+    var prefillChunkThresholdOverride: Int?
+
+    /// Prefill chunk size — override wins, else base model config.
+    var effectivePrefillChunkSize: Int { prefillChunkSizeOverride ?? prefillChunkSize }
+    /// Chunk threshold — override wins, else base model config.
+    var effectiveChunkThreshold: Int { prefillChunkThresholdOverride ?? chunkThreshold }
+
+    init(
+        base: InternalModelConfig,
+        visionConfig: VisionConfig,
+        prefillChunkSizeOverride: Int? = nil,
+        prefillChunkThresholdOverride: Int? = nil
+    ) {
         self.base = base
         self.visionConfig = visionConfig
+        self.prefillChunkSizeOverride = prefillChunkSizeOverride
+        self.prefillChunkThresholdOverride = prefillChunkThresholdOverride
     }
 }
 #endif  // canImport(CoreAI)

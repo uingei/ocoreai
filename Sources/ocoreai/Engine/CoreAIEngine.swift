@@ -62,6 +62,7 @@ enum InferenceError: Error, Sendable {
 
 import Atomics
 import CoreAI
+import CoreGraphics
 import Foundation
 import Logging
 
@@ -113,15 +114,25 @@ struct EngineOptions: Sendable {
     let variant: String?
     let kvCacheStrategy: KVCacheStrategy
     let kvCacheSize: Int?
+    /// Override for the prefill chunk size (tokens per chunk).
+    /// When set, takes precedence over model metadata and engine defaults.
+    let prefillChunkSize: Int?
+    /// Override for the chunk threshold (minimum prompt tokens to trigger chunking).
+    /// When set, takes precedence over model metadata and engine defaults.
+    let prefillChunkThreshold: Int?
 
     init(
         variant: String? = nil,
         kvCacheStrategy: KVCacheStrategy = .auto,
-        kvCacheSize: Int? = nil
+        kvCacheSize: Int? = nil,
+        prefillChunkSize: Int? = nil,
+        prefillChunkThreshold: Int? = nil
     ) {
         self.variant = variant
         self.kvCacheStrategy = kvCacheStrategy
         self.kvCacheSize = kvCacheSize
+        self.prefillChunkSize = prefillChunkSize
+        self.prefillChunkThreshold = prefillChunkThreshold
     }
 
     func resolvedKVCacheSize(maxContextLength: Int) -> Int? {
@@ -261,6 +272,31 @@ protocol InferenceEngine: Sendable {
     /// Configuration.
     associatedtype ConfigType: Codable, InferenceConfiguration
     var config: ConfigType { get }
+}
+
+/// Multimodal engine: text engine (`InferenceEngine`) plus image/video
+/// encode + embedded-input generate. Mirrors upstream coreai-models
+/// `InferenceEngines/InferenceEngine.swift` L308-331 verbatim (absorbed
+/// 2026-09-12, coreai-models HEAD 5716935).
+@available(macOS 27.0, iOS 27.0, *)
+protocol MultimodalInferenceEngine: InferenceEngine {
+    /// Encode an image into embeddings suitable for injection into the VLM.
+    /// Returns the embedded representation — caller decides whether to cache.
+    func encodeImage(at url: URL) async throws -> InputEmbeddings
+
+    /// Encode a CGImage into embeddings.
+    func encodeImage(cgImage: CGImage) async throws -> InputEmbeddings
+
+    /// Encode video frames into concatenated embeddings for injection into the VLM.
+    func encodeVideo(_ video: VideoInput) async throws -> InputEmbeddings
+
+    /// Generate tokens from a token sequence with embedded image regions.
+    func generate(
+        with input: InputEmbeddings,
+        tokens: [TokenId],
+        samplingConfiguration: SamplingConfiguration,
+        inferenceOptions: InferenceOptions
+    ) async throws -> OutputSequence
 }
 
 /// Config protocol that engines must expose.

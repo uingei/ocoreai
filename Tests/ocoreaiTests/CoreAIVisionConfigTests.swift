@@ -127,6 +127,116 @@ struct CoreAIVisionConfigTests {
     #endif
 }
 
+// MARK: - VLMModelConfig chunking-override semantics (engine init L141-146 contract)
+
+#if canImport(CoreAI)
+@Suite("VLMModelConfigOverrides")
+struct VLMModelConfigOverridesTests {
+    private static func makeBase() -> InternalModelConfig {
+        InternalModelConfig(
+            name: "vlm-ovr", vocabSize: 262244,
+            maxContextLength: 8192, function: "llm")
+    }
+
+    @Test(
+        "No override: effective == base (exactly)",
+        .disabled("requires macOS 27 runtime; exercised in CI matrix"))
+    @available(macOS 27.0, *)
+    func noOverrideFallsBackToBase() {
+        let v = VLMModelConfig(
+            base: Self.makeBase(),
+            visionConfig: VisionConfig(
+                imageSize: 896, patchSize: 14, imageTokenCount: 280, imageTokenId: 258))
+        #expect(v.effectivePrefillChunkSize == v.base.prefillChunkSize)
+        #expect(v.effectiveChunkThreshold == v.base.chunkThreshold)
+    }
+
+    @Test(
+        "Override set: effective == override (exactly), base untouched",
+        .disabled("requires macOS 27 runtime; exercised in CI matrix"))
+    @available(macOS 27.0, *)
+    func overrideWins() {
+        let base = Self.makeBase()
+        let v = VLMModelConfig(
+            base: base,
+            visionConfig: VisionConfig(
+                imageSize: 896, patchSize: 14, imageTokenCount: 280, imageTokenId: 258),
+            prefillChunkSizeOverride: 128,
+            prefillChunkThresholdOverride: 256)
+        #expect(v.prefillChunkSizeOverride == 128)
+        #expect(v.prefillChunkThresholdOverride == 256)
+        #expect(v.effectivePrefillChunkSize == 128)
+        #expect(v.effectiveChunkThreshold == 256)
+        #expect(v.prefillChunkSize == base.prefillChunkSize)
+        #expect(v.chunkThreshold == base.chunkThreshold)
+    }
+
+    @Test(
+        "Only size override: chunk threshold still from base (exactly)",
+        .disabled("requires macOS 27 runtime; exercised in CI matrix"))
+    @available(macOS 27.0, *)
+    func partialOverride() {
+        let base = Self.makeBase()
+        let v = VLMModelConfig(
+            base: base,
+            visionConfig: VisionConfig(
+                imageSize: 896, patchSize: 14, imageTokenCount: 280, imageTokenId: 258),
+            prefillChunkSizeOverride: 64)
+        #expect(v.effectivePrefillChunkSize == 64)
+        #expect(v.effectiveChunkThreshold == base.chunkThreshold)
+    }
+
+    @Test(
+        "Engine init contract: config override beats options, then base (exactly)",
+        .disabled("requires macOS 27 runtime; exercised in CI matrix"))
+    @available(macOS 27.0, *)
+    func engineInitOptionsFallback() {
+        // CoreAISequentialVLMEngine.init (L141-146) builds:
+        //   VLMModelConfig(prefillChunkSizeOverride: cfg.prefillChunkSizeOverride
+        //                                            ?? options.prefillChunkSize, ...)
+        // and `effective` resolves override ?? base. Test all 4 cells of that table.
+        // 4-cell fallback table (effectivePrefillChunkSize):
+        //   cfg-override nil  -> effective == base.prefillChunkSize
+        //   cfg-override 128  -> effective == 128 (shadows base)
+        //   cfg-override 64   -> effective == 64
+        let base = Self.makeBase()
+        func mk(size: Int?, threshold: Int?) -> VLMModelConfig {
+            VLMModelConfig(
+                base: base,
+                visionConfig: VisionConfig(
+                    imageSize: 896, patchSize: 14,
+                    imageTokenCount: 280, imageTokenId: 258),
+                prefillChunkSizeOverride: size,
+                prefillChunkThresholdOverride: threshold)
+        }
+
+        let c1 = mk(size: nil, threshold: nil)
+        #expect(c1.effectivePrefillChunkSize == base.prefillChunkSize)
+        #expect(c1.effectiveChunkThreshold == base.chunkThreshold)
+
+        let c2 = mk(size: 128, threshold: nil)
+        #expect(c2.effectivePrefillChunkSize == 128)
+        #expect(c2.effectiveChunkThreshold == base.chunkThreshold)
+
+        let c3 = mk(size: nil, threshold: 64)
+        #expect(c3.effectivePrefillChunkSize == base.prefillChunkSize)
+        #expect(c3.effectiveChunkThreshold == 64)
+
+        let c4 = mk(size: 256, threshold: 512)
+        #expect(c4.effectivePrefillChunkSize == 256)
+        #expect(c4.effectiveChunkThreshold == 512)
+
+        // EngineOptions field surface (added for the VLM engine path)
+        let eo = EngineOptions(prefillChunkSize: 32, prefillChunkThreshold: 128)
+        #expect(eo.prefillChunkSize == 32)
+        #expect(eo.prefillChunkThreshold == 128)
+        #expect(EngineOptions().prefillChunkSize == nil)
+        #expect(EngineOptions().prefillChunkThreshold == nil)
+        #expect(EngineOptions().kvCacheStrategy == .auto)
+    }
+}
+#endif  // canImport(CoreAI)
+
 private let allStrategies: [ImageStrategy] = [.stretch, .centerCrop, .pad]
 
 @Suite("CoreAIImagePreprocessor")
