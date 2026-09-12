@@ -1617,12 +1617,12 @@ extension EnginePool {
                 computeChannel = .gpu
             } else if messages.contains(where: \.hasMediaPart) {
                 logger.info(
-                    "ANE selected but multimodal content present (in-tree CoreAI VLM engine not yet absorbed, upstream CoreAISequentialVLMEngine pending), falling back to GPU for \(modelId)"
+                    "ANE selected but multimodal content present (CoreAISequentialVLMEngine in-tree but ANE-VLM routing not yet wired — needs bundle kind/ComponentKey discovery, no local .aimodel assets), falling back to GPU for \(modelId)"
                 )
                 computeChannel = .gpu
             } else if perceptionMediaPresent {
                 logger.info(
-                    "ANE selected but perception media present (in-tree CoreAI VLM engine not yet absorbed, upstream CoreAISequentialVLMEngine pending), falling back to GPU for \(modelId)"
+                    "ANE selected but perception media present (CoreAISequentialVLMEngine in-tree but ANE-VLM routing not yet wired — needs bundle kind/ComponentKey discovery, no local .aimodel assets), falling back to GPU for \(modelId)"
                 )
                 computeChannel = .gpu
             }
