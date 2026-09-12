@@ -393,7 +393,7 @@ private func nonStreamAnthropicResponse(
                 totalOutputTokens += 1
                 accumulatedText = (accumulatedText ?? "") + text
 
-            case .done(let reason, let doneTokenCount, _, _, _, _, _, _, _):
+            case .done(let reason, let doneTokenCount, _, _, _, _, _, _, _, _):
                 let openaiReason = stopReasonToString(reason) ?? "stop"
                 finishReason = openAIToAnthropicStopReason(openaiReason)
                 // Authoritative token count from the engine — overwrite the
@@ -640,7 +640,7 @@ private func streamAnthropicResponse(
                         let deltaEvent = AnthropicStreamEvent.textDelta(index: 0, text: text)
                         writeSSEEvent(continuation, event: deltaEvent)
 
-                    case .done(_, let doneTokenCount, _, _, _, _, _, _, _):
+                    case .done(_, let doneTokenCount, _, _, _, _, _, _, _, _):
                         // Authoritative token count from the engine — overwrite the
                         // per-event estimate (a `.text`/`.reasoning` case is a text
                         // segment/chunk, not a token). Same pattern as the ChatHandler

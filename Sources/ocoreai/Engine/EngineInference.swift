@@ -3105,6 +3105,10 @@ extension EnginePool {
                     var localGenerationTokPerSec: Double?
                     var localPromptTokPerSec: Double?
                     var localPromptTokenCount: Int?
+                    // Upstream GenerateCompletionInfo.cachedPromptTokenCount (mlx-swift-lm
+                    // pinned 604fae7): prompt tokens served by a reused KV-cache prefix
+                    // instead of being prefilled. nil until a .info arrives (0 = no reuse).
+                    var localCachedPromptTokenCount: Int?
                     var localProposedDraftTokens: Int?
                     var localAcceptedDraftTokens: Int?
                     var localPassthroughReason: String?
@@ -3318,6 +3322,7 @@ extension EnginePool {
                                                     + phase2ReasoningTokenCount,
                                                 actualTokenCount ?? metrics.generatedTokenCount)
                                             : nil,
+                                        cachedPromptTokens: localCachedPromptTokenCount,
                                         proposedDraftTokens: mtpProposedDraftTokens,
                                         acceptedDraftTokens: mtpAcceptedDraftTokens,
                                         passthroughReason: mtpPassthroughReason)))
@@ -3498,6 +3503,7 @@ extension EnginePool {
                                                     actualTokenCount
                                                         ?? metrics.generatedTokenCount)
                                                 : nil,
+                                            cachedPromptTokens: localCachedPromptTokenCount,
                                             proposedDraftTokens: mtpProposedDraftTokens,
                                             acceptedDraftTokens: mtpAcceptedDraftTokens,
                                             passthroughReason: mtpPassthroughReason)))
@@ -3579,6 +3585,10 @@ extension EnginePool {
                                 // Handlers currently use a bytes/3|4 heuristic (tokenize throws on MLX — no real
                                 // tokenizer registered); override with this when present (`.done.promptTokenCount`).
                                 localPromptTokenCount = completionInfo.promptTokenCount
+                                localCachedPromptTokenCount =
+                                    completionInfo.cachedPromptTokenCount > 0
+                                    ? completionInfo.cachedPromptTokenCount
+                                    : 0
                                 // Capture both throughput metrics from upstream GenerateCompletionInfo
                                 localPromptTokPerSec = completionInfo.promptTokensPerSecond
                                 localGenerationTokPerSec = completionInfo.tokensPerSecond
@@ -3666,6 +3676,7 @@ extension EnginePool {
                                                     actualTokenCount
                                                         ?? metrics.generatedTokenCount)
                                                 : nil,
+                                            cachedPromptTokens: localCachedPromptTokenCount,
                                             proposedDraftTokens: mtpProposedDraftTokens,
                                             acceptedDraftTokens: mtpAcceptedDraftTokens,
                                             passthroughReason: mtpPassthroughReason)))
@@ -3760,6 +3771,7 @@ extension EnginePool {
                                                 + phase2ReasoningTokenCount,
                                             actualTokenCount ?? metrics.generatedTokenCount)
                                         : nil,
+                                    cachedPromptTokens: localCachedPromptTokenCount,
                                     proposedDraftTokens: mtpProposedDraftTokens,
                                     acceptedDraftTokens: mtpAcceptedDraftTokens,
                                     passthroughReason: mtpPassthroughReason)))
@@ -3789,6 +3801,10 @@ extension EnginePool {
                     let accumulatedText: String?
                     // True input-token count (upstream GenerateCompletionInfo.promptTokenCount)
                     let promptTokenCount: Int?
+                    // Prompt tokens served by a reused KV-cache prefix (upstream
+                    // GenerateCompletionInfo.cachedPromptTokenCount, pinned 604fae7).
+                    // nil = no .info before termination (e.g. early cancel).
+                    let cachedPromptTokenCount: Int?
                 }
 
                 // SAFETY: [Chat.Message] is non-Sendable — snapshot as Sendable
@@ -3877,6 +3893,10 @@ extension EnginePool {
                             var localStdAcceptedDraftTokens: Int?
                             var localStdPassthroughReason: String?
                             var localPromptTokenCount: Int?
+                            // Upstream GenerateCompletionInfo.cachedPromptTokenCount (mlx-swift-lm
+                            // pinned 604fae7): prompt tokens served by a reused KV-cache prefix
+                            // instead of being prefilled. nil until a .info arrives (0 = no reuse).
+                            var localCachedPromptTokenCount: Int?
 
                             // Std reasoning: generateTokensTask() returns (AsyncStream, Task)
                             // P1 (ThinkingBudget hard-budget): Build GenerationComponents with
@@ -3929,7 +3949,8 @@ extension EnginePool {
                                                 reasoningTokenCount: min(
                                                     localStdReasoningTokenCount,
                                                     localStdTokenCount
-                                                        ?? metrics.generatedTokenCount))))
+                                                        ?? metrics.generatedTokenCount),
+                                                cachedPromptTokens: localCachedPromptTokenCount)))
                                     // G5 fix: cancel the generation task before breaking
                                     // to release GPU kernel references and prevent handle leak
                                     stdTokenTask.cancel()
@@ -3989,6 +4010,10 @@ extension EnginePool {
                                 case .info(let info):
                                     localStdTokenCount = info.generationTokenCount
                                     localPromptTokenCount = info.promptTokenCount
+                                    localCachedPromptTokenCount =
+                                        info.cachedPromptTokenCount > 0
+                                        ? info.cachedPromptTokenCount
+                                        : 0
                                     localStdPromptTokPerSec = info.promptTokensPerSecond
                                     localStdGenTokPerSec = info.tokensPerSecond
                                     localStdStopReason =
@@ -4038,7 +4063,8 @@ extension EnginePool {
                                 passthroughReason: localStdPassthroughReason,
                                 accumulatedText: localStdAccumulated.isEmpty
                                     ? nil : localStdAccumulated,
-                                promptTokenCount: localPromptTokenCount
+                                promptTokenCount: localPromptTokenCount,
+                                cachedPromptTokenCount: localCachedPromptTokenCount
                             )
                         }
                     } catch {
@@ -4090,7 +4116,8 @@ extension EnginePool {
                                     promptTokPerSec: promptTokPerSec,
                                     reasoningTokenCount: min(
                                         stdResult.reasoningTokenCount,
-                                        actualTokenCount ?? metrics.generatedTokenCount))))
+                                        actualTokenCount ?? metrics.generatedTokenCount),
+                                    cachedPromptTokens: stdResult.cachedPromptTokenCount)))
                     }
 
                     // MARK: - Standard ChatSession Path (non-reasoning fallback)
@@ -4107,6 +4134,10 @@ extension EnginePool {
                     // True input-token count (upstream GenerateCompletionInfo.promptTokenCount),
                     // captured from this branch's .info. nil → wire keeps pre-flight estimate.
                     var localPromptTokenCount: Int?
+                    // Upstream GenerateCompletionInfo.cachedPromptTokenCount (mlx-swift-lm
+                    // pinned 604fae7): prompt tokens served by a reused KV-cache prefix
+                    // instead of being prefilled. nil until a .info arrives (0 = no reuse).
+                    var localCachedPromptTokenCount: Int?
 
                     // ChatSession's KV cache already holds context from previous rounds.
                     // newMessages (set above) contains only what's not yet cached:
@@ -4187,6 +4218,10 @@ extension EnginePool {
                                         actualTokenCount = completionInfo.generationTokenCount
                                     }
                                     localPromptTokenCount = completionInfo.promptTokenCount
+                                    localCachedPromptTokenCount =
+                                        completionInfo.cachedPromptTokenCount > 0
+                                        ? completionInfo.cachedPromptTokenCount
+                                        : 0
                                     // Capture both throughput metrics from upstream GenerateCompletionInfo
                                     promptTokPerSec = completionInfo.promptTokensPerSecond
                                     generationTokPerSec = completionInfo.tokensPerSecond
@@ -4231,6 +4266,7 @@ extension EnginePool {
                                             tokPerSec: generationTokPerSec,
                                             promptTokPerSec: promptTokPerSec,
                                             reasoningTokenCount: 0,
+                                            cachedPromptTokens: localCachedPromptTokenCount,
                                             proposedDraftTokens: localStdProposedDraftTokens,
                                             acceptedDraftTokens: localStdAcceptedDraftTokens,
                                             passthroughReason: localStdPassthroughReason)))

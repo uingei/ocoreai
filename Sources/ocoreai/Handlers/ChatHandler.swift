@@ -724,6 +724,10 @@ private func nonStreamWithToolCalling(
     /// surfaced via the engine .done channel. nil → wire keeps the pre-flight
     /// estimate (real tokenizer when available, else the bytes/3|4 heuristic).
     var observedPromptTokens: Int? = nil
+    /// Prompt tokens served by a reused KV-cache prefix (upstream
+    /// GenerateCompletionInfo.cachedPromptTokenCount, engine .done channel).
+    /// nil → omit `prompt_tokens_details` entirely (path without a .info).
+    var observedCachedPromptTokens: Int? = nil
 
     do {
         for try await event in tokenStream {
@@ -734,7 +738,8 @@ private func nonStreamWithToolCalling(
                 accumulatedContent += text
                 totalOutputTokens += 1
             case .done(
-                let reason, let tokenCount, let donePromptTC, _, _, let reasoningTokenCount, _, _, _
+                let reason, let tokenCount, let donePromptTC, _, _, let reasoningTokenCount,
+                let cachedPromptTC, _, _, _
             ):
                 if let tokenCount {
                     totalOutputTokens = tokenCount
@@ -742,6 +747,7 @@ private func nonStreamWithToolCalling(
                 if let donePromptTC {
                     observedPromptTokens = donePromptTC
                 }
+                observedCachedPromptTokens = cachedPromptTC
                 finalReasoningTokens = reasoningTokenCount
                 finishReason =
                     switch reason {
@@ -828,7 +834,7 @@ private func nonStreamWithToolCalling(
                             accTokens.append(id)
                         case .text(let txt):
                             accText = (accText ?? "") + txt
-                        case .done(_, _, _, _, _, _, _, _, _):
+                        case .done(_, _, _, _, _, _, _, _, _, _):
                             break
                         case .error(let msg):
                             logger.warning("Self-correction re-gen error: \(msg)")
@@ -939,6 +945,7 @@ private func nonStreamWithToolCalling(
         usage: Usage(
             input: observedInputTokens,
             output: totalOutputTokens,
+            cachedPromptTokens: observedCachedPromptTokens,
             reasoningTokens: finalReasoningTokens
         ),
     )
@@ -1098,6 +1105,9 @@ private func streamWithToolCalling(
         /// True input-token count via the engine .done channel (upstream
         /// GenerateCompletionInfo.promptTokenCount). nil → keep the pre-flight estimate.
         var observedPromptTokens: Int? = nil
+        // Prompt tokens served by a reused KV-cache prefix (upstream
+        // GenerateCompletionInfo.cachedPromptTokenCount). nil → omit details object.
+        var observedCachedPromptTokens: Int? = nil
         /// Batch decode interval — detokenize every N tokens to avoid O(n²).
         let decodeBatchSize = 8
 
@@ -1174,7 +1184,7 @@ private func streamWithToolCalling(
                 /// .done — flush remaining tokens, detect tool calls, send stop chunk.
                 case .done(
                     let reason, let doneTokenCount, let donePromptTC, _, _, let reasoningTokenCount,
-                    _, _, _):
+                    let doneCachedTC, _, _, _):
                     // Authoritative token count from the engine (both MLX and CoreAI
                     // paths emit it from tokenization truth). Streaming accumulated
                     // per-event estimates — a `.text` chunk is a detokenized batch, a
@@ -1186,6 +1196,7 @@ private func streamWithToolCalling(
                     if let donePromptTC {
                         observedPromptTokens = donePromptTC
                     }
+                    observedCachedPromptTokens = doneCachedTC
                     finalReasoningTokens = reasoningTokenCount
                     /// Final flush: detokenize any remaining tokens not yet emitted.
                     if !accumulatedTokens.isEmpty, accumulatedTokens.count % decodeBatchSize != 0 {
@@ -1342,6 +1353,7 @@ private func streamWithToolCalling(
                             usage: Usage(
                                 input: observedPromptTokens ?? promptTokenCount,
                                 output: totalOutputTokens,
+                                cachedPromptTokens: observedCachedPromptTokens,
                                 reasoningTokens: finalReasoningTokens
                             ),
                         )

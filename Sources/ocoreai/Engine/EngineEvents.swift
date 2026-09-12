@@ -86,6 +86,12 @@ struct InferenceEvent {
         /// sourced from upstream GenerateCompletionInfo — not locally estimated.
         /// MTP/speculative decoding metrics (proposedDraftTokens, acceptedDraftTokens,
         /// passthroughReason) sourced from GenerateCompletionInfo when MTP iterates are active.
+        ///
+        /// `cachedPromptTokens` (when non-nil) = prompt tokens served by a reused KV-cache
+        /// prefix, upstream `GenerateCompletionInfo.cachedPromptTokenCount` (mlx-swift-lm
+        /// pinned 604fae7, Evaluate.swift:2512 — ChatSession attributes it from its cache
+        /// reuse decision). `0` = whole prompt prefilled (no reuse) — a known value, not
+        /// "unknown"; nil = path without a GenerateCompletionInfo (guided/FM/CoreAI).
         case done(
             StopReason,
             tokenCount: Int?,
@@ -93,6 +99,7 @@ struct InferenceEvent {
             tokPerSec: Double? = nil,
             promptTokPerSec: Double? = nil,
             reasoningTokenCount: Int? = nil,
+            cachedPromptTokens: Int? = nil,
             proposedDraftTokens: Int? = nil,
             acceptedDraftTokens: Int? = nil,
             passthroughReason: String? = nil
