@@ -61,7 +61,7 @@ check "Class-F: .first! force unwrap" '\.first!' \
 # StreamingWindow: SpeechError description/errorDescription = upstream-verbatim error strings (coreai-models copy), not UI chrome
 check "Class-B: Hardcoded UI in view layer" \
     'return\s*"[A-Z][a-z]' \
-    "Localization.swift|systemName|SystemName|errorDescription|ToolEntry|DownloadManager|ConfigStruct|KeychainStore|Scheduler|MCPServer|OpenAIModels|ModelScopeDownloader|HuggingFaceDownloader|SQLiteStore|SkillModels|MLXBridge|CoreAIBridge|EngineInference|Profiling|ThinkingBudget|CoreAIEngine|CoreAIStubs|StateHandler|InstrumentsProfiler|CoreAILoggerStub|XGrammarWrapper|ConstrainedGenerationSession|Wan21VideoContract|CoreAIDiffusionModelFunction|VideoWriter|VideoTools|StreamingWindow"
+    "Localization.swift|systemName|SystemName|errorDescription|ToolEntry|DownloadManager|ConfigStruct|KeychainStore|Scheduler|MCPServer|OpenAIModels|ModelScopeDownloader|HuggingFaceDownloader|SQLiteStore|SkillModels|MLXBridge|CoreAIBridge|EngineInference|Profiling|ThinkingBudget|CoreAIEngine|CoreAIStubs|StateHandler|InstrumentsProfiler|CoreAILoggerStub|XGrammarWrapper|ConstrainedGenerationSession|Wan21VideoContract|CoreAIDiffusionModelFunction|VideoWriter|VideoTools|StreamingWindow|CoreAIVideoInput|CoreAIImagePreprocessor"
 
 # --- Class-A: Empty catch ---
 check "Class-A: Empty catch" 'catch\s*{[[:space:]]*}' \
