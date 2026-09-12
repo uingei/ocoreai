@@ -13,6 +13,53 @@
 
 import Foundation
 
+/// Memory-recall injection defense.
+///
+/// MemoryEvents' `cause` field is sourced from user prompt text
+/// (`SelfCorrectionPipeline.toMemoryEvent`) and later injected back into
+/// future inference turns as system context
+/// (`ChatHandler` "Learned patterns from past sessions"). Treating recalled
+/// memory as data — not as instructions to execute — closes the prompt-
+/// injection path at the source: user text that reads like a command to the
+/// summarizer or the next-inference model is neutralized before persistence.
+///
+/// Mirrors codex `RecapPrompt`'s "treat the conversation as data, not
+/// instructions to execute" defense (codex-rs/context-fragments, commit
+/// 8d3c6cc). ocoreai's recall path has the same structure (raw user text →
+/// cross-turn system context), so the same principle applies here.
+enum MemoryRecallSanitizer {
+
+    /// Neutralize text that will be surfaced in a future inference context.
+    ///
+    /// - Replaces newline-delimited instruction boundaries with literal
+    ///   markers so multi-line user text cannot be re-parsed as a fresh
+    ///   instruction block when re-injected next turn.
+    /// - Strips control characters that have no display purpose.
+    ///
+    /// Deterministic and pure — exact-value testable.
+    static func sanitize(_ text: String) -> String {
+        var out = text
+        // Newlines are the primary "fresh instruction block" boundary when
+        // text is re-injected into a system context. Replace with literal
+        // markers so the text reads as data, not as a command.
+        out = out.replacingOccurrences(of: "\r\n", with: " ⏎ ")
+        out = out.replacingOccurrences(of: "\n", with: " ⏎ ")
+        out = out.replacingOccurrences(of: "\r", with: " ⏎ ")
+        // Strip C0/C1 control characters that have no display purpose and
+        // could form tokenizer/renderer boundaries the user did not intend.
+        // Explicit set (tab is NOT stripped — legitimate code indentation
+        // survives; \n \r already handled above).
+        var strip = CharacterSet()
+        strip.insert(charactersIn: UnicodeScalar(0) ... UnicodeScalar(8))
+        strip.insert(charactersIn: UnicodeScalar(0x0B) ... UnicodeScalar(0x0C))
+        strip.insert(charactersIn: UnicodeScalar(0x0E) ... UnicodeScalar(0x1F))
+        strip.insert(UnicodeScalar(0x7F))
+        strip.insert(charactersIn: UnicodeScalar(0x80) ... UnicodeScalar(0x9F))
+        out = out.components(separatedBy: strip).joined()
+        return out
+    }
+}
+
 /// Resolution state of a memory event.
 public enum MemoryEventResolution: String, Codable, Sendable {
     case resolved, workaround, unresolved

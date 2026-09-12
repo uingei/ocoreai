@@ -43,7 +43,7 @@ struct CorrectionTrace: Codable {
             sessionId: sessionId,
             context: "self_correction",
             entities: phasesAttempted.map(\.rawValue),
-            cause: originalPrompt.prefix(100).description,
+            cause: MemoryRecallSanitizer.sanitize(originalPrompt.prefix(100).description),
             process: "Phases: " + phasesAttempted.map(\.rawValue).joined(separator: "->"),
             result: (converged ? "converged in " : "failed after ") + String(iterations)
                 + " iterations",
