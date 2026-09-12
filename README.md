@@ -163,7 +163,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 
 Per-feature status with commit refs lives in `CHANGELOG.md` — a pinned ✅ table here would go stale on every commit. What is stable as of this commit:
 
-- **Authoritative gate**: `make test-ci` (xcodebuild → xctest), CI leg `macos-26` — last full run **1519 tests / 281 suites, all green** (`0db93e6`). The `xcode-27` leg fails in an upstream mlx-swift-lm pin, not ocoreai code.
+- **Authoritative gate**: `make test-ci` (xcodebuild → xctest), CI leg `macos-26` — last full run **1725 tests / 323 suites, all green** (`519fbf9`). The `xcode-27` leg is a known beta/runner-noisy leg (fails in upstream MLX pinning, not ocoreai code); `macos-26` is the delivery gate.
 - **Local builds** compile clean (0 errors; a small number of known source warnings remain — `make test-ci` output).
 - **Default-off surfaces** (deliberate, not missing): perception channels, TTS/speaker, self-correction pipeline — see "Known boundaries" above.
 

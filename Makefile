@@ -8,6 +8,23 @@
 # CI:         ci-local (full local pipeline)
 
 SHELL := /bin/bash
+
+# ── Toolchain ─────────────────────────────────────────
+# swift build/test needs the Metal framework; xcode-select may point at
+# CommandLineTools which doesn't ship it. If the caller already pinned
+# DEVELOPER_DIR we honour it (highest priority); otherwise, when the default
+# toolchain is CommandLineTools, redirect to the known full Xcode.app.
+XCODE_APP := /Users/t/Downloads/Xcode.app
+ifdef DEVELOPER_DIR
+# user-pinned: no override
+else
+  XSELECT := $(strip $(shell xcode-select -p 2>/dev/null))
+  ifneq (,$(findstring CommandLineTools,$(XSELECT)))
+    DEVELOPER_DIR := $(XCODE_APP)/Contents/Developer
+    export DEVELOPER_DIR
+  endif
+endif
+
 .PHONY: all build release test test-verbose test-coverage test-ci format format-check audit clean metallib help ci-local
 
 all: build
