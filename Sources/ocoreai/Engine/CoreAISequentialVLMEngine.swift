@@ -6,6 +6,7 @@
 // TODO: Refactor to re-use common components with CoreAISequentialEngine
 // TODO: Add pipelined engine variant for higher throughput
 
+#if canImport(CoreAI)
 import CoreAI
 import CoreImage
 import Foundation
@@ -1236,3 +1237,5 @@ extension CoreAISequentialVLMEngine.GenerationSequence {
         }
     }
 }
+
+#endif  // canImport(CoreAI)
