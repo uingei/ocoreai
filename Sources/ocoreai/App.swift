@@ -793,6 +793,11 @@ func buildApplication(
     let host = ProcessInfo.processInfo.environment["OCOREAI_HOST"] ?? "127.0.0.1"
     let port = Int(ProcessInfo.processInfo.environment["OCOREAI_PORT"] ?? "8080") ?? 8080
 
+    // Security gate — omlx `09a7c43` pattern: refuse non-loopback binds when
+    // API-key auth is off, because ``AuthMiddleware`` then passes everything
+    // through and the inference API would be open on the network.
+    try ServerAuthGate.checkHost(host, authEnabled: AuthConfig.default.enabled, logger: logger)
+
     return Application(
         router: router,
         server: .http1(),
