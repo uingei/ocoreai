@@ -34,6 +34,53 @@ struct MTPDrafterModelWrapper: @unchecked Sendable {
     let model: any MLXLMCommon.MTPDrafterModel
 }
 
+/// Bounded rejected-tool-call recovery policy on the standard ChatSession path.
+///
+/// Upstream contract (mlx-swift-lm pin 604fae7, `ChatSession.swift:1404`):
+/// a rejected tool call is rolled back and thrown — recovery is the
+/// **caller's** responsibility ("the caller owns recovery"). ocoreai is
+/// that caller. This type is the single source of truth for the policy
+/// (bounded retries + the exact corrective prompt) and is covered by
+/// exact-value tests (`StdToolCallRecoveryTests`) so that the deep retry
+/// loop in `_runInference` cannot drift on its boundaries (3 attempts,
+/// exact message) without tripping a regression line.
+///
+/// Fork-vs-upstream disclosure: upstream retries zero times; the bound here
+/// is ocoreai's caller-level discretion (empirically required — gemma-4e2b
+/// and Qwen3.5-4B both hard-500'd multi-step tasks when rejection
+/// propagated immediately).
+enum StdToolCallRecovery {
+    /// Maximum number of generation passes before the rejection is
+    /// propagated to the caller (500 wire behavior) — unchanged legacy.
+    static let maxAttempts = 3
+
+    /// Corrective prompt replayed on every retry. Exact value is contract —
+    /// changing it changes what the model sees; tests pin it verbatim.
+    static let correctivePrompt =
+        "The previous assistant reply was rejected by the tool-call parser "
+        + "(malformed tool call). Re-issue the tool call with strictly valid "
+        + "JSON arguments and emit no prose before the tool call."
+
+    enum Decision {
+        /// Re-enter the same ChatSession with a fresh corrective turn.
+        case retry
+        /// Attempt budget exhausted — propagate the original rejection.
+        case abort
+    }
+
+    /// `attempt` is 1-based: the attempt that just failed.
+    /// - 1 ..< maxAttempts → `.retry`
+    /// - >= maxAttempts → `.abort`
+    static func decide(attempt: Int, max: Int = maxAttempts) -> Decision {
+        attempt < max ? .retry : .abort
+    }
+
+    /// The corrective turn fed back into the same ChatSession.
+    static var correctiveMessage: MLXLMCommon.Chat.Message {
+        .user(correctivePrompt)
+    }
+}
+
 // MARK: - Guided Generation Helper Types
 
 /// Cached tokenizer biases for guided generation — mirrors upstream
@@ -4160,8 +4207,11 @@ extension EnginePool {
                     // outer `.error` handling (legacy 500 wire behavior) - unchanged.
                     // (Empirical 2026-09-08/09: gemma-4 2B AND Qwen3.5 4B both tripped
                     // this to a hard 500 mid multi-step task.)
-                    let maxStdRejectedAttempts = 3
+                    //
+                    // Boundary + prompt values come from `StdToolCallRecovery`
+                    // (file scope) — pinned by StdToolCallRecoveryTests exact values.
                     var stdRetryMessages: [MLXLMCommon.Chat.Message] = newMessages
+                    let maxStdRejectedAttempts = StdToolCallRecovery.maxAttempts
                     for stdRejectedAttempt in 1 ... maxStdRejectedAttempts {
                         do {
                             guard let chatSession else {
@@ -4282,7 +4332,7 @@ extension EnginePool {
                             logger.warning(
                                 "Standard ChatSession path: rejected tool call — attempt \(stdRejectedAttempt)/\(maxStdRejectedAttempts) reason=\(rejection.rejection.reason.rawValue) tool=\((rejection.rejection.toolName.map { String($0) } ?? "nil"))"
                             )
-                            if stdRejectedAttempt >= maxStdRejectedAttempts {
+                            if StdToolCallRecovery.decide(attempt: stdRejectedAttempt) == .abort {
                                 logger.error(
                                     "Standard ChatSession path: rejected-tool-call retry exhausted after \(maxStdRejectedAttempts) attempts — propagating"
                                 )
@@ -4292,13 +4342,7 @@ extension EnginePool {
                             // the retry's output is not concatenated onto rejected text.
                             localStdAccumulated = ""
                             lastStopReason = nil
-                            stdRetryMessages = [
-                                MLXLMCommon.Chat.Message(
-                                    role: .user,
-                                    content:
-                                        "The previous assistant reply was rejected by the tool-call parser (malformed tool call). Re-issue the tool call with strictly valid JSON arguments and emit no prose before the tool call."
-                                )
-                            ]
+                            stdRetryMessages = [StdToolCallRecovery.correctiveMessage]
                         }
                     }
                 }
