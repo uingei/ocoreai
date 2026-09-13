@@ -357,6 +357,9 @@ extension DirectInferenceClient {
         let handle: EngineHandle
         do {
             handle = try await enginePool.acquire(model: request.modelId)
+        } catch let e as AppError {
+            await scheduler.fail(schedulingRequest.id, with: e.localizedDescription)
+            throw e
         } catch {
             await scheduler.fail(schedulingRequest.id, with: error.localizedDescription)
             throw AppError.engineUnavailable
@@ -723,6 +726,9 @@ extension DirectInferenceClient {
         let handle: EngineHandle
         do {
             handle = try await enginePool.acquire(model: request.modelId)
+        } catch let e as AppError {
+            await scheduler.fail(schedulingRequest.id, with: e.localizedDescription)
+            throw e
         } catch {
             await scheduler.fail(schedulingRequest.id, with: error.localizedDescription)
             throw AppError.engineUnavailable

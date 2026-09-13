@@ -39,6 +39,25 @@ func isHubModelIdentifier(_ modelId: String) -> Bool {
     return !modelId[modelId.index(after: slash)...].contains("/")
 }
 
+/// A model id that is structurally unresolvable: neither a valid hub repo id
+/// (both hubs require org/name — a bare name like "gemma-4e2b" exists on
+/// neither) nor a local model (no ready weights dir, no file at the given
+/// path). Used by ``EnginePool.loadModel`` to throw ``AppError.modelNotFound``
+/// (HTTP 404) before spending config+download attempts whose failure used to
+/// surface as 503 "Engine unavailable" — a transient/retry code that made
+/// clients retry forever on what is a permanent client error.
+func structurallyUnresolvableModelId(_ modelId: String) -> Bool {
+    guard !isHubModelIdentifier(modelId) else { return false }
+    if MLXModelLoader.readyWeightsDir(for: modelId) != nil { return false }
+    let localPath = (modelId as NSString).expandingTildeInPath
+    if localPath.hasPrefix("/"),
+        FileManager.default.fileExists(atPath: localPath)
+    {
+        return false
+    }
+    return true
+}
+
 /// Convert ContentPolymorphic to String for tokenization input.
 /// - Returns: (text to tokenize, count of non-text parts silently dropped)
 func contentToString(_ content: ContentPolymorphic?) -> (String, Int) {
@@ -526,6 +545,15 @@ actor EnginePool {
             } else {
                 modelId
             }
+
+        // Structural 404 guard (live-proven 09-14): a bare name is neither a
+        // valid hub repo id (hubs require org/name) nor a local model when
+        // neither a ready dir nor a file exists. Old behavior burned
+        // config+download attempts and surfaced the failure as 503 "Engine
+        // unavailable" (transient/retry) — callers retried forever.
+        if structurallyUnresolvableModelId(modelId) {
+            throw AppError.modelNotFound(modelId)
+        }
 
         // Fetch remote config — hf: prefix → HF, otherwise defaultHub (modelscope)
         let isHF = modelId.hasPrefix("hf:")

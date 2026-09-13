@@ -173,6 +173,9 @@ func anthropicMessagesHandler(
     let handle: EngineHandle
     do {
         handle = try await enginePool.acquire(model: modelId)
+    } catch let e as AppError {
+        await scheduler.fail(schedulingRequest.id, with: e.localizedDescription)
+        throw e
     } catch {
         await scheduler.fail(schedulingRequest.id, with: error.localizedDescription)
         throw AppError.engineUnavailable
