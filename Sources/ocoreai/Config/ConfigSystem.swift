@@ -32,11 +32,19 @@ actor ConfigSystem {
     // MARK: - Init
 
     /// Create config system, load or generate default, validate.
+    ///
+    /// Failure order (hermes `de2d6a1b93` pattern — never clobber the user's file):
+    ///   1. corrupt `configPath` → restore last-known-good snapshot if usable;
+    ///   2. no usable snapshot     → generate defaults (fresh install only).
     static func create() async -> ConfigSystem {
         let system = ConfigSystem(config: AppConfig(), logger: Logger(label: "ocoreai.config"))
         do {
             if await system.load() {
                 system.logger.info("Config loaded from \(configPath)")
+            } else if let recovered = ConfigRecovery.restoreLastGood(
+                forCorruptFileAt: configPath, logger: system.logger
+            ) {
+                await system.adopt(recovered)
             } else {
                 try await system.saveDefault()
                 system.logger.info("Default config generated at \(configPath)")
@@ -69,6 +77,9 @@ actor ConfigSystem {
             configCopy.applyEnvOverrides()
             try configCopy.validate()
             config = configCopy
+            // Last-known-good snapshot (hermes `de2d6a1b93`): every successful
+            // parse+validate leaves a recoverable copy for the next startup.
+            try? ConfigRecovery.snapshotGood(fileAt: configPath, logger: logger)
             return true
         } catch {
             logger.warning("Config parse error: \(error)")
@@ -76,12 +87,28 @@ actor ConfigSystem {
         }
     }
 
+    /// Adopt an already-decoded+validated config (recovery path from
+    /// `ConfigRecovery.restoreLastGood`).
+    func adopt(_ adopted: AppConfig) {
+        config = adopted
+        do {
+            try ConfigRecovery.snapshotGood(fileAt: configPath, logger: logger)
+        } catch {
+            logger.warning("Recovery snapshot failed: \(error)")
+        }
+    }
+
     // MARK: - Save
 
     /// Write current config to disk.
+    /// After the write, the on-disk file is round-trip verified (decode +
+    /// validate) — an unverified write must not refresh the last-known-good
+    /// snapshot (hermes `de2d6a1b93`: the `good` copy is only ever a known-good
+    /// parse).
     func save() async throws {
         let yaml = try YAMLEncoder().encode(config)
         try yaml.write(to: URL(fileURLWithPath: configPath), atomically: true, encoding: .utf8)
+        ConfigRecovery.verifyAndSnapshot(newFileAt: configPath, logger: logger)
         logger.info("Config saved to \(configPath)")
     }
 

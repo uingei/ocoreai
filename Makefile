@@ -75,6 +75,15 @@ test-ci:
 	  ONLY_ACTIVE_ARCH=YES; \
 	XCB=$$(ls -dt ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/Debug/ocoreaiTests.xctest 2>/dev/null | head -1 || true); \
 	[ -n "$$XCB" ] || { echo "❌ ocoreaiTests.xctest not found in DerivedData"; exit 1; }; \
+	BIN="$$XCB/Contents/MacOS/ocoreaiTests"; \
+	NEWEST=$$(ls -t Tests/ocoreaiTests/*.swift 2>/dev/null | head -1); \
+	if [ -n "$$NEWEST" ] && [ "$$NEWEST" -nt "$$BIN" ]; then \
+	  echo "⚠️  Test bundle binary is STALER than $$NEWEST — incremental relink bug, forcing rebuild"; \
+	  rm -rf "$$XCB"; \
+	  xcodebuild build-for-testing -workspace ocoreai.xcworkspace -scheme ocoreaiTests \
+	    -configuration Debug -destination 'platform=macOS,arch=arm64' \
+	    -skipPackagePluginValidation -skipMacroValidation ONLY_ACTIVE_ARCH=YES || exit 1; \
+	fi; \
 	echo "Running test bundle: $$XCB"; \
 	xcrun xctest "$$XCB"
 
