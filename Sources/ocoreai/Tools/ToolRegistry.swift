@@ -354,7 +354,12 @@ actor ToolRegistry {
             }
             await hookRunner.firePostToolUse(
                 toolName: name, arguments: arguments, result: result, error: nil)
-            return result
+            // Secret redaction (codex main-axis baseline, `secrets/sanitizer.rs`):
+            // a tool result is the agent's highest-traffic secret leak surface —
+            // shell `stdout`, `.env`, and config content reach the model context
+            // and a later turn can echo it out (chat / SSE client / memory).
+            // Best-effort, well-known shapes only; see SecretRedactor for scope.
+            return SecretRedactor.redact(result)
         } catch {
             // Count the attempt even when it FAILS: the loop net (L183 / checkLoop)
             // must see repeated identical calls, and a tool that keeps erroring was
