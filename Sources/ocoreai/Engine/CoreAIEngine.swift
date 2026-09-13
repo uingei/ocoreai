@@ -148,23 +148,55 @@ struct InternalModelConfig: Codable, Sendable, InferenceConfiguration {
     let name: String
     let vocabSize: Int
     let maxContextLength: Int
-    let prefillChunkSize: Int
-    let chunkThreshold: Int
+    var prefillChunkSize: Int
+    var chunkThreshold: Int
     let function: String
     let eosTokenId: Int32
 
     init(
         name: String, vocabSize: Int, maxContextLength: Int, function: String,
-        prefillChunkSize: Int = 512, chunkThreshold: Int = 1024, eosTokenId: Int32 = 0
+        prefillChunkSize: Int? = nil, chunkThreshold: Int? = nil, eosTokenId: Int32 = 0
     ) {
         self.name = name
         self.vocabSize = vocabSize
         self.maxContextLength = maxContextLength
         self.function = function
-        self.prefillChunkSize = prefillChunkSize
-        self.chunkThreshold = chunkThreshold
+        // Layered prefill chunking (coreai-models #240, 0d6c0bf): explicit value
+        // wins; otherwise the memory-based default (threshold = 2× chunk size),
+        // replacing the fixed 512/1024 that made ocoreai fork from upstream
+        // (2048/4096 on a 16-36 GB host).
+        self.prefillChunkSize = prefillChunkSize ?? defaultPrefillChunkSize()
+        self.chunkThreshold = chunkThreshold ?? self.prefillChunkSize * 2
         self.eosTokenId = eosTokenId
     }
+
+    /// Apply runtime chunking overrides (coreai-models #240, 0d6c0bf).
+    /// Mirrors upstream `ModelConfig.applyChunkingOverrides`: a `nil` or
+    /// non-positive value falls through to the model/memory default.
+    mutating func applyChunkingOverrides(
+        prefillChunkSize: Int?,
+        prefillChunkThreshold: Int?
+    ) {
+        if let size = prefillChunkSize, size > 0 {
+            self.prefillChunkSize = size
+        }
+        if let threshold = prefillChunkThreshold, threshold > 0 {
+            self.chunkThreshold = threshold
+        }
+    }
+}
+
+// MARK: - Chunking defaults (coreai-models #240, 0d6c0bf — layered resolution)
+
+/// Memory-based prefill chunk size. Verbatim from coreai-models
+/// `InferenceEngine.swift` (0d6c0bf): the old fixed `min(512, 1024)` default
+/// made a 32K prompt burn ~9.6 GB in one unchunked pass; 2048-token chunks drop
+/// that to ~620 MB.
+func defaultPrefillChunkSize() -> Int {
+    let bytes = ProcessInfo.processInfo.physicalMemory
+    let gb = bytes / (1024 * 1024 * 1024)
+    if gb <= 24 { return 2048 }
+    return 4096
 }
 
 // MARK: - InferenceOutputSequence Protocol
@@ -448,7 +480,16 @@ struct EngineFactory: Sendable {
         options: EngineOptions = EngineOptions()
     ) async throws -> any InferenceEngine {
         // Parse config
-        let parsedConfig = try parseModelConfig(from: config)
+        var parsedConfig = try parseModelConfig(from: config)
+
+        // Apply runtime chunking overrides (coreai-models #240, 0d6c0bf) —
+        // mirrors upstream EngineFactory applying `applyChunkingOverrides`
+        // before engine construction. ocoreai's `InternalModelConfig` is a
+        // value type: the override lands on this copy, all three engines see it.
+        parsedConfig.applyChunkingOverrides(
+            prefillChunkSize: options.prefillChunkSize,
+            prefillChunkThreshold: options.prefillChunkThreshold
+        )
 
         // Resolve model URL
         let coreAIModelURL = PreparedModel.resolveCoreAIModelURL(from: modelURL)
@@ -576,12 +617,18 @@ struct EngineFactory: Sendable {
             let vocabSize: Int?
             let maxContextLength: Int?
             let function: String?
+            /// metadata.json chunking overrides (coreai-models #240, 0d6c0bf —
+            /// second resolution layer: CLI/options > metadata.json > memory default).
+            let prefillChunkSize: Int?
+            let prefillChunkThreshold: Int?
 
             enum CodingKeys: String, CodingKey {
                 case name
                 case vocabSize = "vocab_size"
                 case maxContextLength = "max_context_length"
                 case function
+                case prefillChunkSize = "prefill_chunk_size"
+                case prefillChunkThreshold = "prefill_chunk_threshold"
             }
         }
 
@@ -592,7 +639,9 @@ struct EngineFactory: Sendable {
                 name: raw.name,
                 vocabSize: raw.vocabSize ?? Self.defaultVocabSize,
                 maxContextLength: raw.maxContextLength ?? Self.defaultMaxContextLength,
-                function: raw.function ?? "main"
+                function: raw.function ?? "main",
+                prefillChunkSize: raw.prefillChunkSize,
+                chunkThreshold: raw.prefillChunkThreshold
             )
         } catch {
             log.warning(

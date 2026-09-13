@@ -119,8 +119,9 @@ struct CoreAIVisionConfigTests {
                 imageTokenCount: 280, imageTokenId: 258878))
         let c: any InferenceConfiguration = vlm
         #expect(c.maxContextLength == 8192)
-        #expect(c.prefillChunkSize == 512)
-        #expect(c.chunkThreshold == 1024)
+        // coreai-models #240 (0d6c0bf): memory-based default, not the old fixed 512/1024.
+        #expect(c.prefillChunkSize >= 2048)
+        #expect(c.chunkThreshold == c.prefillChunkSize * 2)
         #expect(vlm.eosTokenId == 0)
         #expect(vlm.visionConfig.imageSize == 896)
     }
@@ -233,6 +234,74 @@ struct VLMModelConfigOverridesTests {
         #expect(EngineOptions().prefillChunkSize == nil)
         #expect(EngineOptions().prefillChunkThreshold == nil)
         #expect(EngineOptions().kvCacheStrategy == .auto)
+    }
+}
+
+// MARK: - coreai-models #240 (0d6c0bf) layered-resolution regression traps
+//
+// Upstream moved chunking off the fixed 512/1024 default to a memory-based
+// default (>= 2048) with threshold = 2× chunk size, and a 3-layer resolution
+// (CLI/options override > metadata.json > memory default) applied via
+// `applyChunkingOverrides`. These exact-value tests pin that contract on
+// ocoreai's `InternalModelConfig` + `defaultPrefillChunkSize()`, mirroring
+// upstream `ChunkingConfigTests`.
+
+@Suite("ChunkingDefaults — coreai-models #240")
+struct ChunkingDefaultsTests {
+    private static func make() -> InternalModelConfig {
+        InternalModelConfig(
+            name: "chunk-test", vocabSize: 32000,
+            maxContextLength: 4096, function: "main")
+    }
+
+    @Test("defaultPrefillChunkSize is a power-of-two >= 2048")
+    func memoryBasedDefault() {
+        let size = defaultPrefillChunkSize()
+        #expect(size >= 2048)
+        #expect(size & (size - 1) == 0)
+    }
+
+    @Test("init default: memory-based chunkSize, threshold = 2× chunkSize")
+    func initDefault() {
+        let c = Self.make()
+        #expect(c.prefillChunkSize >= 2048)
+        #expect(c.chunkThreshold == c.prefillChunkSize * 2)
+    }
+
+    @Test("init: explicit chunking exact")
+    func initExplicit() {
+        let c = InternalModelConfig(
+            name: "chunk-test", vocabSize: 32000,
+            maxContextLength: 4096, function: "main",
+            prefillChunkSize: 128, chunkThreshold: 384)
+        #expect(c.prefillChunkSize == 128)
+        #expect(c.chunkThreshold == 384)
+    }
+
+    @Test("applyChunkingOverrides sets both exactly")
+    func overridesSetBoth() {
+        var c = Self.make()
+        c.applyChunkingOverrides(prefillChunkSize: 64, prefillChunkThreshold: 256)
+        #expect(c.prefillChunkSize == 64)
+        #expect(c.chunkThreshold == 256)
+    }
+
+    @Test("applyChunkingOverrides: 0/negative falls through to memory default")
+    func invalidOverrideFallsThrough() {
+        var c = Self.make()
+        c.applyChunkingOverrides(prefillChunkSize: 0, prefillChunkThreshold: -1)
+        #expect(c.prefillChunkSize >= 2048)
+        #expect(c.chunkThreshold == c.prefillChunkSize * 2)
+    }
+
+    @Test("applyChunkingOverrides: partial (size only) leaves threshold intact")
+    func partialOverride() {
+        let c = Self.make()
+        let baseThreshold = c.chunkThreshold
+        var d = c
+        d.applyChunkingOverrides(prefillChunkSize: 128, prefillChunkThreshold: nil)
+        #expect(d.prefillChunkSize == 128)
+        #expect(d.chunkThreshold == baseThreshold)
     }
 }
 #endif  // canImport(CoreAI)
