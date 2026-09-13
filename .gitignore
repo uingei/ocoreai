@@ -41,3 +41,6 @@ docs/
 
 # swift test profile dumps
 default.profraw
+
+# local quarantine: model-test artifacts, backups (kept out of git status noise)
+.untracked-quarantine/
