@@ -42,6 +42,15 @@ enum TranscriptPart: Codable, Hashable, Sendable {
     /// per-turn badge instead of a TUI banner (no terminal surface here).
     case compactionNote(removedCount: Int)
 
+    /// Output was cut off by the model's token budget before it finished
+    /// (reasoning ran out of budget / max response tokens hit) — the user's
+    /// only signal that this response is INCOMPLETE. Without this badge a
+    /// truncated answer renders as a normal ending.
+    /// Wire: Engine `.guidedGenDiagnostic(incompleteOutput: true)` →
+    /// DirectInferenceClient `capturedTruncatedByBudget` → final
+    /// `DirectChatChunk.truncatedByBudget` → this part (this commit).
+    case truncatedByBudget
+
     /// Image attachment (input or output).
     /// Equivalent to Transcript.ImageAttachment.
     case image(String)  // base64 data URL
@@ -60,6 +69,8 @@ enum TranscriptPart: Codable, Hashable, Sendable {
         case .toolCall(let tc): return "[Tool: \(tc.name) → \(tc.resultSummary ?? "…")]"
         case .compactionNote(let n):
             return "[\(n) earlier message(s) compacted to fit the context window]"
+        case .truncatedByBudget:
+            return "[Output truncated by the token budget — the response may be incomplete]"
         case .image: return "[Image]"
         case .video: return "[Video]"
         }
@@ -73,6 +84,9 @@ enum TranscriptPart: Codable, Hashable, Sendable {
         // their context was pruned; hiding it would recreate the invisibility
         // gap this part exists to close.
         case .compactionNote: return true
+        // truncatedByBudget is ALWAYS visible — same class of invisibility gap:
+        // without it, a budget-truncated answer looks like a finished one.
+        case .truncatedByBudget: return true
         case .reasoning, .toolCall: return false
         }
     }

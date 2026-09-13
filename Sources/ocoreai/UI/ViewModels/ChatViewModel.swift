@@ -109,6 +109,7 @@ private struct TranscriptPartMessage {
             case .reasoning(let r): return r
             case .toolCall(let tc): return "[Tool: \(tc.name): \(tc.resultSummary ?? "")]"
             case .compactionNote(let n): return "[Compacted: \(n) earlier message(s) removed]"
+            case .truncatedByBudget: return "[Truncated by token budget]"
             case .image: return nil
             case .video: return nil
             }
@@ -844,6 +845,13 @@ final class ChatState {
                 // P0: Wire compute channel for badge display
                 if let ch = chunk.channel {
                     currentComputeChannel = ch
+                }
+                // GAP-4 close: wire the budget-truncation signal (Engine
+                // .guidedGenDiagnostic(incompleteOutput:) → final chunk) to the
+                // transcript. Without this hop a truncated answer renders as a
+                // normal ending — the signal was captured but never consumed.
+                if let tbb = chunk.truncatedByBudget, tbb {
+                    partsQueue.append(.truncatedByBudget)
                 }
                 // Consume tool call metadata during streaming — makes tool-use progress visible
                 if let meta = chunk.metadata {

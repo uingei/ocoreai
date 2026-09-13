@@ -47,6 +47,8 @@ struct ChatBubbleMessage: Identifiable, Hashable {
                 case .toolCall(let tc): return "[Tool: \(tc.name)]"
                 case .compactionNote(let n):
                     return "[Compacted: \(n) earlier message(s) removed to fit the context window]"
+                case .truncatedByBudget:
+                    return "[Output truncated — may be incomplete]"
                 case .image: return nil
                 case .video: return nil
                 }
@@ -1045,6 +1047,29 @@ struct TranscriptContentView: View {
                     .padding(.vertical, 6)
                     .background(theme.cardBg, in: RoundedRectangle(cornerRadius: 10))
                     .overlay(RoundedRectangle(cornerRadius: 10).stroke(theme.rowSep, lineWidth: 1))
+
+                case .truncatedByBudget:
+                    // Output hit the token budget before finishing (reasoning
+                    // ran out of budget / max response tokens). The user's only
+                    // signal the answer is INCOMPLETE — without it a truncated
+                    // response renders as a normal ending (GAP-4 close).
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.ocoreaiText(10))
+                            .foregroundStyle(theme.tintRed)
+                            .frame(width: 20, height: 20)
+                            .background(theme.tintRed.opacity(0.15), in: Circle())
+
+                        Text(StringKey.truncatedBadge.l)
+                            .font(.ocoreaiText(11, weight: .medium))
+                            .foregroundStyle(theme.textSecondary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(theme.cardBg, in: RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10).stroke(
+                            theme.tintRed.opacity(0.4), lineWidth: 1))
 
                 case .image(let url):
                     InlineImagePreview(dataURL: url)

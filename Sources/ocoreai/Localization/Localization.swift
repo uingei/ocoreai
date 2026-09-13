@@ -131,6 +131,7 @@ public enum StringKey: String, CaseIterable {
     // — Chat —
     case chatPlaceholder = "Chat.Placeholder"
     case interruptedLabel = "Chat.InterruptedLabel"
+    case truncatedBadge = "Chat.TruncatedBadge"
     // — Chat phases (progress display) —
     case phasePreparing = "Chat.Phase.Preparing"
     case phasePrefilling = "Chat.Phase.Prefilling"
@@ -661,6 +662,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .stop: "Stop",
         .newConversation: "New Conversation",
         .interruptedLabel: "Interrupted",
+        .truncatedBadge: "Output cut off by the token budget — the response may be incomplete",
         .tokPerSec: "Tok/S",
         .phasePreparing: "Preparing model…",
         .phasePrefilling: "Prefilling context…",
@@ -1156,6 +1158,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .stop: "停止",
         .newConversation: "新对话",
         .interruptedLabel: "已中断",
+        .truncatedBadge: "输出因 token 预算被截断，回复可能不完整",
         .tokPerSec: "Token/s",
         .chatTTFT: "首 Token",
         .phasePreparing: "准备模型中…",
