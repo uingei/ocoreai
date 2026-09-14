@@ -139,7 +139,7 @@ struct ConfigRecoveryTests {
     @Test(
         "restore: corrupt main + good snapshot → EXACT restored config, corrupt file NOT clobbered")
     func restoreKeepsCorruptFileAndRecoversExact() throws {
-        let (cfg, good) = try Self.fixture()
+        let (cfg, _) = try Self.fixture()
         defer { Self.cleanup(((cfg as NSString).deletingLastPathComponent)) }
 
         try ConfigRecovery.snapshotGood(fileAt: cfg, logger: Self.logger)
@@ -153,10 +153,10 @@ struct ConfigRecoveryTests {
 
         // Corrupt user file untouched — user can inspect/diff it.
         let onDisk = try Data(contentsOf: URL(fileURLWithPath: cfg))
-        guard let corruptData = corruptBytes.data(using: .utf8) else {
-            #expect(false, "fixture string must be UTF-8 representable")
-            return
-        }
+        // `corruptBytes` is a source literal — UTF-8 representation is guaranteed by
+        // language semantics, so build the expected bytes directly (no optional guard,
+        // no dead `#expect(false)` sentinel branch).
+        let corruptData = Data(corruptBytes.utf8)
         #expect(onDisk == corruptData, "corrupt user file must NOT be overwritten")
     }
 
