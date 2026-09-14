@@ -200,6 +200,9 @@ enum SessionWorkspace {
 
     /// Run a git command, capturing stdout/stderr to temp files (killed children
     /// cannot deadlock us — `ExecTools.runSync` pattern).
+    /// macOS-only: `Foundation.Process` does not exist on iOS (`#if os(macOS)`,
+    /// same gate as `ExecTools` / `ExecSessions` / `MCPStdioClient`).
+    #if os(macOS)
     private static func git(
         _ args: [String], in dir: String
     ) throws -> (exitCode: Int32, stdout: String, stderr: String) {
@@ -232,4 +235,11 @@ enum SessionWorkspace {
             stderr.trimmingCharacters(in: .whitespacesAndNewlines)
         )
     }
+    #else
+    private static func git(
+        _ args: [String], in dir: String
+    ) throws -> (exitCode: Int32, stdout: String, stderr: String) {
+        throw WorktreeError.gitFailed(step: "git", detail: "unsupported on iOS")
+    }
+    #endif
 }

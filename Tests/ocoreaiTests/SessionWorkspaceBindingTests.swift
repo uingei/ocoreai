@@ -32,11 +32,11 @@ struct SessionWorkspaceBindingTests {
         defer { cleanup(p) }
         let store = SQLiteStore(path: p)
         try await store.open()
-        defer { await store.close() }
         let cols = try await sessionsColumns(store)
         #expect(cols.contains("workspace_directory"), "缺列, 实际: \(cols)")
         #expect(cols.contains("model_id"), "既有列 model_id 不应丢失")
         #expect(cols.contains("ttl_days"), "既有列 ttl_days 不应丢失")
+        await store.close()
     }
 
     @Test("已有行旧库 → DROP 去列 → reopen: ensureSchema 就地补列, 旧行不丢, 二次不重加")
@@ -61,7 +61,6 @@ struct SessionWorkspaceBindingTests {
             Issue.record("reopen 旧库应成功, got: \(error)")
             return
         }
-        defer { await s2.close() }
         let cols = try await sessionsColumns(s2)
         #expect(cols.contains("workspace_directory"), "升级后应补列, 实际: \(cols)")
         #expect(cols.contains("model_id"), "迁移不丢既有列")
@@ -77,6 +76,7 @@ struct SessionWorkspaceBindingTests {
             return
         }
         await s3.close()
+        await s2.close()
     }
 
     @Test("bind → getSession/listSessions 精确读回；clear → nil 双源核")
@@ -85,7 +85,6 @@ struct SessionWorkspaceBindingTests {
         defer { cleanup(p) }
         let store = SQLiteStore(path: p)
         try await store.open()
-        defer { await store.close() }
         let comp = SessionCompressor(store: store, fts: FTS5Search(store: store))
 
         let sid = try await comp.createSession(modelId: "bind-probe")
@@ -104,5 +103,6 @@ struct SessionWorkspaceBindingTests {
         let listed2 = try await comp.listSessions(limit: 20)
         #expect(
             listed2.first { $0.id == sid }?.workspaceDirectory == nil, "clear 后 listSessions nil")
+        await store.close()
     }
 }
