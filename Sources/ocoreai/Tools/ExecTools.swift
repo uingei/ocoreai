@@ -140,12 +140,13 @@ enum ExecTools {
         #endif
     }
 
-    /// Effective working directory: explicit `cwd` wins; otherwise the
-    /// configured workspace (codex `turn_environment.cwd()` default). Without a
-    /// workspace the process inherits the server's cwd (pre-callback behavior).
+    /// Effective working directory: explicit `cwd` wins; otherwise the active
+    /// session's working directory (worktree session); otherwise the configured
+    /// workspace (codex `turn_environment.cwd()` default). Without a workspace the
+    /// process inherits the server's cwd (pre-callback behavior).
     static func effectiveCwd(_ cwd: String?) -> String? {
         if let cwd, !cwd.isEmpty { return cwd }
-        return WorkspaceContext.configuredDirectory()
+        return SessionWorkspace.currentDirectory() ?? WorkspaceContext.configuredDirectory()
     }
 
     #if os(macOS)

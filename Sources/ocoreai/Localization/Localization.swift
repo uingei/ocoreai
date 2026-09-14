@@ -152,6 +152,12 @@ public enum StringKey: String, CaseIterable {
     case tokPerSec = "Chat.TokPerSec"
     case chatTTFT = "Chat.TTFT"
     case newConversation = "Chat.NewConversation"
+    // — Worktree session (codex Agent axis) —
+    case worktreeNew = "Chat.WorktreeNew"
+    case worktreeNotRepo = "Chat.WorktreeNotRepo"
+    case worktreeNoBranch = "Chat.WorktreeNoBranch"
+    case worktreeGitFailed = "Chat.WorktreeGitFailed"
+    case worktreeCreateFailed = "Chat.WorktreeCreateFailed"
 
     // — Hub Tokens —
     case hubTokensTitle = "Settings.HubTokensTitle"
@@ -661,6 +667,12 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .send: "Send",
         .stop: "Stop",
         .newConversation: "New Conversation",
+        .worktreeNew: "New Worktree Session",
+        .worktreeNotRepo: "Not a git repository: %s",
+        .worktreeNoBranch:
+            "%s has no resolvable default branch (needs a remote or local main/master)",
+        .worktreeGitFailed: "git step failed at %s: %s",
+        .worktreeCreateFailed: "Failed to create worktree session",
         .interruptedLabel: "Interrupted",
         .truncatedBadge: "Output cut off by the token budget — the response may be incomplete",
         .tokPerSec: "Tok/S",
@@ -1157,6 +1169,11 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .send: "发送",
         .stop: "停止",
         .newConversation: "新对话",
+        .worktreeNew: "新工作树会话",
+        .worktreeNotRepo: "不是 git 仓库: %s",
+        .worktreeNoBranch: "%s 无可解析的默认分支(需 remote 或本地 main/master)",
+        .worktreeGitFailed: "git 步骤失败于 %s: %s",
+        .worktreeCreateFailed: "创建 worktree 会话失败",
         .interruptedLabel: "已中断",
         .truncatedBadge: "输出因 token 预算被截断，回复可能不完整",
         .tokPerSec: "Token/s",

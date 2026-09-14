@@ -60,6 +60,19 @@ struct SessionView: View {
             .padding(8)
             .background(theme.cardBg, in: RoundedRectangle(cornerRadius: 8))
 
+            Button {
+                Task { await viewModel.createWorktreeSession() }
+            } label: {
+                Label(StringKey.worktreeNew.l, systemImage: "folder.badge.gearshape")
+                    .font(.ocoreaiText(13, weight: .medium))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.isLoading)
+            .accessibilityHint(
+                "Create a blank session bound to a git worktree of the configured workspace")
+
             if viewModel.sessions.isEmpty {
                 ContentUnavailableView(
                     StringKey.sessionListEmpty.l,

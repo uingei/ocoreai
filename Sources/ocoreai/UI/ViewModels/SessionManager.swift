@@ -96,6 +96,49 @@ final class SessionManager {
         }
     }
 
+    // MARK: - Worktree session (codex Agent axis)
+
+    /// Create a new blank session bound to a git worktree of the configured
+    /// workspace (codex `new_worktree` / `worktree_startup`: cached default branch,
+    /// no fetch, blank session bound to the new tree; retain the checkout + report
+    /// the path on failure so it can be `git worktree remove`d by hand). On success
+    /// the worktree is bound to the active session, selected, and the chat tab is
+    /// reloaded into the blank session so `exec_command` / file tools land there.
+    func createWorktreeSession() async {
+        guard let compressor else { return }
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        do {
+            // Source repo = configured workspace directory (else the server cwd).
+            let source = WorkspaceContext.configuredDirectory()
+            let created = try await SessionWorkspace.createWorktreeSession(repoRoot: source)
+            // Blank session bound to the new worktree (codex: no initial turn).
+            let modelId =
+                OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? "default"
+            let newId = try await compressor.createSession(modelId: modelId)
+            // Bind the new (blank) session to the worktree; promote + select.
+            if let fresh = try await compressor.getSession(newId) {
+                sessions.removeAll { $0.id == newId }
+                sessions.insert(fresh, at: 0)
+                selectedSession = fresh
+            }
+            SessionWorkspace.setDirectory(created.root)
+            let m = selectedSession
+            Task { @MainActor in
+                if let m { await ChatState.shared.reloadSession(for: m) }
+            }
+        } catch let SessionWorkspace.WorktreeError.notARepository(path) {
+            errorMessage = String(format: StringKey.worktreeNotRepo.l, path)
+        } catch let SessionWorkspace.WorktreeError.noDefaultBranch(path) {
+            errorMessage = String(format: StringKey.worktreeNoBranch.l, path)
+        } catch let SessionWorkspace.WorktreeError.gitFailed(step, detail) {
+            errorMessage = String(format: StringKey.worktreeGitFailed.l, step, detail)
+        } catch {
+            errorMessage = StringKey.worktreeCreateFailed.l
+        }
+    }
+
     // MARK: - Memory
 
     func searchMemory(_ query: String) async {

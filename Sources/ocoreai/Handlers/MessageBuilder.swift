@@ -104,10 +104,14 @@ actor MessageBuilder {
         // Phase 3: Compose final system prompt (priority: user > workspace/project
         // instructions > built base+skills > memory — codex agents_md.rs order:
         // host user instructions before project AGENTS.md docs, both before
-        // internal guidance). Workspace section comes from the configured
-        // working directory (AGENTS.md discovery); empty when unset.
-        let workspaceSection = WorkspaceContext.buildSection(
-            cwd: WorkspaceContext.configuredDirectory() ?? "")
+        // internal guidance). Workspace section comes from the active session's
+        // working directory (worktree session) or the configured working directory
+        // (AGENTS.md discovery); empty when neither is set.
+        let workspaceCwd =
+            SessionWorkspace.currentDirectory()
+            ?? WorkspaceContext.configuredDirectory()
+            ?? ""
+        let workspaceSection = WorkspaceContext.buildSection(cwd: workspaceCwd)
 
         let finalSystem: String =
             if let userSystem = context.userSystemPrompt, !userSystem.isEmpty {

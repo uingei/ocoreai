@@ -239,7 +239,9 @@ enum FileTools {
             return URL(fileURLWithPath: expanded)
         }
         let anchor =
-            WorkspaceContext.configuredDirectory() ?? FileManager.default.currentDirectoryPath
+            SessionWorkspace.currentDirectory()
+            ?? WorkspaceContext.configuredDirectory()
+            ?? FileManager.default.currentDirectoryPath
         return URL(fileURLWithPath: expanded, relativeTo: URL(fileURLWithPath: anchor))
     }
 

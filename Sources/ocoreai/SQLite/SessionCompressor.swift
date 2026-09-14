@@ -168,6 +168,20 @@ actor SessionCompressor {
         }
     }
 
+    /// Fetch a single session by id (for promoting a freshly created session).
+    func getSession(_ sessionId: Int64) async throws -> SessionModel? {
+        do {
+            let sql =
+                "SELECT id, model_id, created_at, updated_at, message_count, token_count, summary, ttl_days FROM sessions WHERE id = ?"
+            let rows = try await store.query(sql, parameters: [sessionId])
+            return rows.first.flatMap { SessionModel(from: $0) }
+        } catch let sqliteErr as SQLiteError {
+            throw sqliteErr
+        } catch {
+            throw SQLiteError.queryFailed(detail: error.localizedDescription)
+        }
+    }
+
     // MARK: - Message CRUD
 
     /// Add a message to a session and track token count.

@@ -1093,6 +1093,9 @@ final class ChatState {
         // FIX: clear session state to prevent DB session bleed
         sessionId = nil
         activeModelId = nil
+        // Worktree session: a reset chat must not keep the previous session's
+        // worktree as its working directory (codex: blank session = fresh binding).
+        SessionWorkspace.clear()
         // 会话终结 = 审批会话终结（codex 语义：批准是 session-scoped）：
         // 挂起裁决全部 `.denied("session-ended")` + 会话级放行清空，防跨会话免审批泄漏；
         // 顺带清 UI banner（否则 reset 后旧审批卡仍可 resolve 复活已死 call）
