@@ -308,4 +308,110 @@ struct ChatStateDisplayTextTests {
         let open = String([lt]) + "think" + String([gt])
         #expect(ChatState.displayText(from: "AB" + open + "partial") == "AB")
     }
+
+    // MARK: - family convergence parity (UI delegates to OutputSanitizer)
+
+    private static let lt = Character(UnicodeScalar(0x3C))
+    private static let gt = Character(UnicodeScalar(0x3E))
+    private static let pip = Character(UnicodeScalar(0x7C))
+    private static let sla = Character(UnicodeScalar(0x2F))
+    private static var gemmaOpen: String {
+        String([lt, pip]) + "channel" + String([gt])
+    }
+    private static var gemmaClose: String {
+        String([lt]) + "channel" + String([pip, gt])
+    }
+    private static var q3Open: String {
+        String([lt, pip]) + "begin_of_thought" + String([pip, gt])
+    }
+    private static var q3End: String {
+        String([lt, pip]) + "end_of_thought" + String([pip, gt])
+    }
+    private static var q3Eot: String {
+        String([lt, pip]) + "eot_id" + String([gt])
+    }
+    private static var tOpen: String { String([lt]) + "think" + String([gt]) }
+    private static var tClose: String { String([lt, sla]) + "think" + String([gt]) }
+    private static var thOpen: String { String([lt]) + "thinking" + String([gt]) }
+    private static var thClose: String {
+        String([lt, sla]) + "thinking" + String([gt])
+    }
+
+    @Test("gemma span is stripped by the UI now (previously leaked into bubbles)")
+    func gemmaSpanStrippedInUI() {
+        let raw = "Pre" + Self.gemmaOpen + "inner thought" + Self.gemmaClose + "After"
+        let out = ChatState.displayText(from: raw)
+        #expect(out == "PreAfter")
+        #expect(out == OutputSanitizer.strip(raw))
+    }
+
+    @Test("thinking/thinking pair still stripped (no regression on the old UI family)")
+    func thinkingPairStripped() {
+        let raw = "A" + Self.thOpen + "reasoning here" + Self.thClose + "B"
+        let out = ChatState.displayText(from: raw)
+        #expect(out == "AB")
+        #expect(out == OutputSanitizer.strip(raw))
+    }
+
+    @Test("Qwen3 legacy end_of_thought closer: thought stripped, outer kept")
+    func qwen3LegacyEndStripped() {
+        let raw = "A" + Self.q3Open + "deep reasoning" + Self.q3End + "B"
+        let out = ChatState.displayText(from: raw)
+        #expect(out == "AB")
+        #expect(out == OutputSanitizer.strip(raw))
+    }
+
+    @Test("Qwen3 legacy eot_id closer: answer AFTER the closer survives (regression lock)")
+    func qwen3LegacyEotIdKeepsAnswer() {
+        let raw = Self.q3Open + "inner" + Self.q3Eot + "  the answer  "
+        let out = ChatState.displayText(from: raw)
+        // UI keeps the original edge whitespace (no trim — it is the live
+        // preview of growing text; trimming is the wire's `strip` job).
+        #expect(out == "  the answer  ")
+        #expect(!out.contains("inner"))
+        #expect(
+            out.trimmingCharacters(in: .whitespacesAndNewlines)
+                == OutputSanitizer.strip(raw))
+    }
+
+    @Test("closer-only demotion: text before the last think-closer is thinking")
+    func closerOnlyDemotion() {
+        let raw = "wandering thought" + Self.tClose + "final reply"
+        let out = ChatState.displayText(from: raw)
+        #expect(out == "final reply")
+        #expect(out == OutputSanitizer.strip(raw))
+    }
+
+    @Test("UI displayText == wire strip on the full family corpus (exact parity)")
+    func fullFamilyParityWithWire() {
+        let corpus: [String] = [
+            "Pre" + Self.gemmaOpen + "th" + Self.gemmaClose + "After",
+            "A" + Self.tOpen + "t" + Self.tClose + "B",
+            "A" + Self.thOpen + "t" + Self.thClose + "B",
+            "A" + Self.q3Open + "t" + Self.q3End + "B",
+            Self.q3Open + "t" + Self.q3Eot + "  ans  ",
+            "head" + Self.tClose + "tail",
+            Self.gemmaOpen + "never closed",
+            "x" + Self.tOpen + "y" + "z",
+        ]
+        for raw in corpus {
+            let display = ChatState.displayText(from: raw)
+            // Semantic parity: identical answer content. The UI keeps the
+            // original edge whitespace of the growing text; the wire trims.
+            #expect(
+                display.trimmingCharacters(in: .whitespacesAndNewlines)
+                    == OutputSanitizer.strip(raw),
+                "UI/wire parity broke for: '\(raw)'")
+            // No marker literal may leak into the displayed text.
+            let markers = [
+                Self.gemmaOpen, Self.gemmaClose, Self.tOpen, Self.tClose,
+                Self.thOpen, Self.thClose, Self.q3Open, Self.q3End, Self.q3Eot,
+            ]
+            for marker in markers {
+                #expect(
+                    !display.contains(marker),
+                    "marker leaked into display: '\(marker)' in '\(display)'")
+            }
+        }
+    }
 }

@@ -218,113 +218,36 @@ final class ChatState {
     }
 
     /// Strip reasoning blocks from the given text.
-    /// Handles multiple delimiter formats:
-    ///   - OpenAI/ChatML-style ``
-    ///   - Qwen3-style `` / `` and ``
-    /// Two-pass per family: complete blocks first, then trailing/incomplete tags.
+    ///
+    /// DELEGATES to `OutputSanitizer.stripThinking` — the wire-path
+    /// sanitizer is the single source of truth for ALL thinking markup
+    /// (gemma spans, ` think/think`, ` thinking/thinking`, Qwen3
+    /// `|begin_of_thought|>` with `|end_of_thought|>` OR `|eot_id|>`).
+    /// The previous inline `stripTagFamily` implementation carried only a
+    /// SUBSET of families (no gemma spans, and it cut the ENTIRE response
+    /// — including the final answer — whenever a `|begin_of_thought|>`
+    /// family opened without the `|end_of_thought|>` closer it knew).
     private nonisolated static func stripThinkingTags(from text: String) -> String {
-        var result = text
-        // 1. Qwen3.5 / Qwen3 short `think`/`think` (the actual model family)
-        result = stripTagFamily(from: result, open: "<think" + ">", close: "</think" + ">")
-        // 2. OpenAI/ChatML-style `thinking` (legacy/other providers)
-        result = stripTagFamily(from: result, open: "<thinking>", close: "</thinking>")
-        // 3. Qwen3 <|begin_of_thought|>...<|end_of_thought|>
-        result = stripTagFamily(
-            from: result, open: "<|begin_of_thought|>", close: "<|end_of_thought|>")
-        // 4. Qwen3 <|begin_of_thought|>...<|eot_id|>
-        result = stripTagFamily(from: result, open: "<|begin_of_thought|>", close: "<|eot_id|>")
-        return result
+        OutputSanitizer.stripThinking(text)
     }
 
-    /// Strip all complete and incomplete occurrences of a tag family.
-    private nonisolated static func stripTagFamily(
-        from text: String, open: String, close: String
-    ) -> String {
-        guard text.contains(open) else { return text }
-        var result = text
-        // Complete blocks — escape regex specials in the literal tag strings
-        let escaped = regexEscape(open) + ".*?" + regexEscape(close)
-        if let regex = try? NSRegularExpression(
-            pattern: escaped,
-            options: .dotMatchesLineSeparators
-        ) {
-            result = regex.stringByReplacingMatches(
-                in: result,
-                range: NSRange(result.startIndex..., in: result),
-                withTemplate: ""
-            )
-        }
-        // Incomplete/trailing open tags
-        if result.contains(open) {
-            if let range = result.range(of: open) {
-                result = String(result[..<range.lowerBound])
-            }
-        }
-        return result
-    }
+    // NOTE: the previous inline `stripTagFamily` + `regexEscape` pair is
+    // gone — span strip/extract now delegates to `OutputSanitizer`
+    // (`stripThinking` / `splitThoughts`), the wire-path single source of
+    // truth. The regex-escape double-backslash corruption that forced every
+    // input through the incomplete-open tail cut is structurally no longer
+    // possible (string scans, no pattern construction).
 
-    /// Escape special regex characters for use in pattern construction.
-    private nonisolated static func regexEscape(_ text: String) -> String {
-        text.replacingOccurrences(of: "[", with: "\\[")
-            .replacingOccurrences(of: "]", with: "\\]")
-            .replacingOccurrences(of: "(", with: "\\(")
-            .replacingOccurrences(of: ")", with: "\\)")
-            .replacingOccurrences(of: "<", with: "\\<")
-            .replacingOccurrences(of: ">", with: "\\>")
-            .replacingOccurrences(of: "{", with: "\\{")
-            .replacingOccurrences(of: "}", with: "\\}")
-            .replacingOccurrences(of: "|", with: "\\|")
-            .replacingOccurrences(of: "^", with: "\\^")
-            .replacingOccurrences(of: "$", with: "\\$")
-            .replacingOccurrences(of: ".", with: "\\.")
-            .replacingOccurrences(of: "*", with: "\\*")
-            .replacingOccurrences(of: "+", with: "\\+")
-            .replacingOccurrences(of: "?", with: "\\?")
-    }
-    // NOTE: no final backslash-doubling pass — it would corrupt the
-    // backslashes added by every replacement above (`\<` → `\\<` = literal
-    // backslash in NSRegularExpression), which silently disabled the
-    // complete-block strip and forced every input through the
-    // incomplete-open tail cut.
-
-    /// Extract reasoning text from `<thinking>` tags and remaining text.
-    /// Returns (reasoning, remainingText). If no tags found, returns (nil, text).
+    /// Extract reasoning text from thought tags and remaining text.
+    /// DELEGATES to `OutputSanitizer.splitThoughts` — every family,
+    /// including gemma spans (previously the UI fallback only knew
+    /// ` think/think` + ` thinking/thinking`, and its unescaped `|` in the
+    /// Qwen legacy pattern matched wrong spans).
     private nonisolated static func splitThinkingTags(from text: String) -> (
         reasoning: String?, remaining: String
     ) {
-        // Handle the model's actual family (Qwen3.5 `think`/`think`) plus the
-        // legacy `thinking`/`thinking` family.
-        let families: [(open: String, close: String)] = [
-            (open: "<think" + ">", close: "</think" + ">"),
-            (open: "<thinking>", close: "</thinking>"),
-        ]
-        var working = text
-        var reasoningPieces: [String] = []
-        for family in families where working.contains(family.open) {
-            // Escape the literal tags — Qwen3 `|begin_of_thought|>` carries
-            // `|`, a regex alternation metacharacter; unescaped, the pattern
-            // silently matches wrong spans.
-            let pattern = regexEscape(family.open) + "(.*?)" + regexEscape(family.close)
-            if let regex = try? NSRegularExpression(
-                pattern: pattern,
-                options: .dotMatchesLineSeparators
-            ) {
-                let matches = regex.matches(
-                    in: working, range: NSRange(working.startIndex..., in: working))
-                for match in matches {
-                    if let range = Range(match.range(at: 1), in: working) {
-                        reasoningPieces.append(String(working[range]))
-                    }
-                }
-                working = regex.stringByReplacingMatches(
-                    in: working,
-                    range: NSRange(working.startIndex..., in: working),
-                    withTemplate: ""
-                )
-            }
-        }
-        let reasoning = reasoningPieces.isEmpty ? nil : reasoningPieces.joined(separator: "\n")
-        return (reasoning, reasoning == nil ? text : working)
+        let split = OutputSanitizer.splitThoughts(text)
+        return (split.thinking, split.prose)
     }
 
     // MARK: - Persistence state

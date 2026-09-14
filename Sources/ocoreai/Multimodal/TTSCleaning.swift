@@ -45,32 +45,12 @@ enum TTSCleaning {
         return out
     }
 
-    /// Strip `<thinking>…</thinking>` blocks (multiline, nested content).
-    ///
-    /// Non-greedy `.*?` with `dotMatchesLineSeparators` so multi-line thinking
-    /// bodies and nested HTML/code fragments inside are all removed. Empty input
-    /// or "no thinking tags" input returns unchanged.
+    /// Strip thought markup — DELEGATES to `OutputSanitizer.stripThinking`,
+    /// the wire-path single source of truth (previously this file carried its
+    /// own two-family regex, so gemma spans and the Qwen3 legacy family
+    /// leaked into spoken text).
     private static func stripThinkingTags(from text: String) -> String {
-        // Strip both the model's actual family (Qwen3.5 `think`/`think`) and
-        // the legacy `thinking`/`thinking` family (multiline bodies).
-        let families: [(open: String, close: String)] = [
-            (open: "<think" + ">", close: "</think" + ">"),
-            (open: "<thinking>", close: "</thinking>"),
-        ]
-        var working = text
-        for family in families where working.contains(family.open) {
-            let pattern = family.open + ".*?" + family.close
-            if let regex = try? NSRegularExpression(
-                pattern: pattern,
-                options: .dotMatchesLineSeparators
-            ) {
-                working = regex.stringByReplacingMatches(
-                    in: working,
-                    range: NSRange(working.startIndex..., in: working),
-                    withTemplate: "")
-            }
-        }
-        return working
+        OutputSanitizer.stripThinking(text)
     }
 
     /// Remove fenced code blocks line-by-line.

@@ -34,34 +34,54 @@ enum OutputSanitizer {
     static let gemmaOpen = String([lt, pipeC]) + "channel" + String([gt])
     /// gemma close: <channel|>
     static let gemmaClose = String([lt]) + "channel" + String([pipeC, gt])
-    /// qwen closer tag: 3C 2F 74 68 69 6E 6B 3E
+    /// qwen closer tag: 3C 2F 74 68 69 6E 6B 3E — also the close of the
+    /// ` think/think` span (Qwen3.5; open marker verified 3C 74 68 69 6E 6B 3E).
     static let qwenClose = String([lt, slashC]) + "think" + String([gt])
+    /// ` think/think` span opener — Qwen3.5 / Qwen3 short-marker family.
+    static let thinkOpen = String([lt]) + "think" + String([gt])
+    /// ` thinking/thinking` — OpenAI/ChatML-style legacy family.
+    static let thinkingOpen = String([lt]) + "thinking" + String([gt])
+    static let thinkingClose = String([lt, slashC]) + "thinking" + String([gt])
+    /// `|begin_of_thought|>…<|end_of_thought|>` / `…<|eot_id|>` — Qwen3 legacy.
+    /// One opener, TWO possible closers → earliest closer wins.
+    static let qwen3Open = String([lt, pipeC]) + "begin_of_thought" + String([pipeC, gt])
+    /// Qwen3 legacy closer #1 (primary).
+    static let qwen3End = String([lt, pipeC]) + "end_of_thought" + String([pipeC, gt])
+    /// Qwen3 legacy closer #2 — some checkpoints end the thought run with
+    /// `|eot_id|>` instead of the end-of-thought marker.
+    static let qwen3Eot = String([lt, pipeC]) + "eot_id" + String([gt])
 
     /// Longest marker, in Characters. `StreamOutputFilter` holds back
     /// `maxMarkerLength - 1` chars of unsettled tail so a tag that completes
     /// exactly at a feed (detokenize-batch) boundary is still found.
     static var maxMarkerLength: Int {
-        max(gemmaOpen.count, gemmaClose.count, qwenClose.count)
+        var m = max(gemmaOpen.count, gemmaClose.count, qwenClose.count)
+        for f in thoughtFamilies {
+            m = max(m, f.open.count, f.closer.count)
+            if let alt = f.altCloser { m = max(m, alt.count) }
+        }
+        return m
     }
+
+    /// Thought-span family table — the single source of truth for ALL
+    /// thinking markup. `altCloser` = a second acceptable close for the
+    /// same opener (earliest close wins, scan order is family order and
+    /// then scan position, so a closer from one family never pairs across
+    /// an unrelated opener).
+    static let thoughtFamilies: [(open: String, closer: String, altCloser: String?)] = [
+        (gemmaOpen, gemmaClose, nil),
+        (thinkOpen, qwenClose, nil),
+        (thinkingOpen, thinkingClose, nil),
+        (qwen3Open, qwen3End, qwen3Eot),
+    ]
 
     // MARK: - public API
 
     /// Strip everything that is not the final user-facing answer.
+    /// Single pass: thought-span removal (all families) → Qwen closer-only
+    /// demotion → stray closer tokens → tool-plan arrays → trim.
     static func strip(_ content: String) -> String {
-        var out = content
-
-        // gemma: remove balanced <open>…<close> spans; a trailing unbalanced
-        // open (stream cut mid-thought) → opener and everything after is
-        // dropped. Then any leftover stray marker token → "".
-        out = removeGemmaSpans(out)
-        out = out.replacingOccurrences(of: gemmaClose, with: "")
-        out = out.replacingOccurrences(of: gemmaOpen, with: "")
-
-        // qwen: keep only the text after the LAST closer tag.
-        if let i = out.range(of: qwenClose, options: [.backwards]) {
-            out = String(out[i.upperBound...])
-        }
-
+        var out = stripThinking(content)
         // A tool-plan array may sit anywhere (thinking or answer region).
         out = removeToolCallArrays(out)
         // NOTE: no whitespace/indent normalization anywhere — legitimate code
@@ -69,18 +89,87 @@ enum OutputSanitizer {
         return out.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Remove every `<gemmaOpen> … <gemmaClose>` span. A `<gemmaOpen>` with
-    /// no `<gemmaClose>` after it: the opener and everything after are cut.
-    private static func removeGemmaSpans(_ input: String) -> String {
-        var out = input
-        while let openRange = out.range(of: gemmaOpen) {
-            let tail = out[openRange.upperBound...]
-            if let closeRange = tail.range(of: gemmaClose) {
-                out = String(out[..<openRange.lowerBound] + tail[closeRange.upperBound...])
-            } else {
-                out = String(out[..<openRange.lowerBound])
-                break
+    /// Shared span scan — the single implementation behind `stripThinking`
+    /// and `splitThoughts`. Returns surviving prose plus the thought
+    /// interiors in stream order (the wire's `reasoning_content`).
+    /// Pairing is leftmost-open / first-closer, exactly like the old
+    /// `removeGemmaSpans` (first open pairs with the FIRST close after it;
+    /// a second open inside the span is literal interior text). An open
+    /// with no close after it cuts the tail — a stream cut mid-thought:
+    /// the interior is unfinished reasoning, not answer prose.
+    private static func scanThoughts(
+        _ input: String
+    ) -> (prose: String, thinkingPieces: [String]) {
+        var prose = input
+        var pieces: [String] = []
+        for family in thoughtFamilies {
+            var guardCt = 0
+            while prose.contains(family.open), guardCt < 128 {
+                guardCt += 1
+                let openRange = prose.range(of: family.open)!
+                let tail = prose[openRange.upperBound...]
+                // Earliest of the family's closers in the tail wins
+                // (Qwen3 legacy has TWO acceptable closers).
+                var closeEnd: String.Index?
+                for closer in [family.closer, family.altCloser] {
+                    guard let closer else { continue }
+                    guard let r = tail.range(of: closer) else { continue }
+                    if closeEnd == nil || r.upperBound < closeEnd! {
+                        closeEnd = r.upperBound
+                    }
+                }
+                if let closeEnd {
+                    pieces.append(String(tail[..<closeEnd]))
+                    prose = String(prose[..<openRange.lowerBound] + tail[closeEnd...])
+                } else {
+                    // Incomplete thought (open, no close): drop opener + tail.
+                    prose = String(prose[..<openRange.lowerBound])
+                    break
+                }
             }
+        }
+        // Closer-only demotion (Qwen E2E shape: reasoning delimited by the
+        // closer alone). Runs AFTER span removal so a closer inside a span
+        // was already consumed with its interior.
+        if let i = prose.range(of: qwenClose, options: [.backwards]) {
+            let before = String(prose[..<i.lowerBound])
+            prose = String(prose[i.upperBound...])
+            if !before.isEmpty { pieces.append(before) }
+        }
+        return (prose, pieces)
+    }
+
+    /// Remove all thinking markup across every family and return the
+    /// surviving prose (no tool-array removal, no trim — compose as needed).
+    static func stripThinking(_ input: String) -> String {
+        let (prose, _) = scanThoughts(input)
+        return stripStrayClosers(prose)
+    }
+
+    /// (thinking, prose) — the `reasoning_content` split for handlers and
+    /// the UI fallback path. Thinking pieces are whitespace-trimmed;
+    /// empty interior pieces are dropped.
+    static func splitThoughts(_ input: String) -> (thinking: String?, prose: String) {
+        let (prose, pieces) = scanThoughts(input)
+        var thinkingPieces = pieces.map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        thinkingPieces.removeAll { $0.isEmpty }
+        return (
+            thinkingPieces.isEmpty ? nil : thinkingPieces.joined(separator: "\n"),
+            stripStrayClosers(prose)
+        )
+    }
+
+    /// Stray CLOSE tokens that survived span removal — they are literal
+    /// marker garbage (a model echoing its own delimiter), not prose.
+    /// Openers can never survive: the span phase pairs or cuts at every
+    /// one. Qwen's closer tag is excluded — the closer-only rule already
+    /// consumed the last one, and an earlier one is the demotion boundary.
+    private static func stripStrayClosers(_ input: String) -> String {
+        var out = input
+        for marker in [gemmaClose, thinkingClose, qwen3End, qwen3Eot] {
+            out = out.replacingOccurrences(of: marker, with: "")
         }
         return out
     }

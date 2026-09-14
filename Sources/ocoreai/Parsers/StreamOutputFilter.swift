@@ -61,9 +61,13 @@ final class StreamOutputFilter: @unchecked Sendable {
     /// Marker chars held back as unsettled tail every feed.
     private let holdBack = OutputSanitizer.maxMarkerLength - 1
 
-    // MARK: - state (strict mirror of strip()'s phase order)
+    // MARK: - state (strict mirror of `OutputSanitizer.scanThoughts`)
 
-    private var spanOpen = false  // between a gemma open and its paired close
+    /// Index into `OutputSanitizer.thoughtFamilies` of the currently
+    /// open span (nil = outside spans). A span closes only on its OWN
+    /// family's closer — the same leftmost-open / first-own-closer
+    /// pairing as the non-stream scan, across ALL families.
+    private var spanFamily: Int? = nil
     private var spanInterior = ""  // settled interior text (thinking)
     private var preCloser = ""  // outside-span text since last demotion (answer candidate)
     private var reasoningAccum = ""  // settled thinking (drained on demand)
@@ -110,9 +114,9 @@ final class StreamOutputFilter: @unchecked Sendable {
         settlePrefix(pendingTail)
         pendingTail = ""
 
-        // Span still open at EOS: non-stream cuts the tail — the answer
-        // is only the pre-open text; the interior is thinking.
-        if spanOpen {
+        // Span still open at EOS: non-stream cuts the tail at the open —
+        // the answer is only the pre-open text; the interior is thinking.
+        if spanFamily != nil {
             reasoningAccum += spanInterior
         }
 
@@ -129,47 +133,55 @@ final class StreamOutputFilter: @unchecked Sendable {
     /// Route a now-settled text prefix per the current scanner state.
     private func settlePrefix(_ text: String) {
         guard !text.isEmpty else { return }
-        if spanOpen {
+        if spanFamily != nil {
             spanInterior += text
         } else {
             preCloser += text
         }
     }
 
-    /// Apply a settled marker event — the exact phase-order semantics.
+    /// Apply a settled marker event. Contract (unchanged from the
+    /// pre-convergence filter — `chunkingInvariance` exact values lock
+    /// it): a marker that is NOT the open of a fresh span / the paired
+    /// closer of the open span / the qwen demotion boundary is CONSUMED
+    /// as an event — it never re-enters either channel. (`scanThoughts`
+    /// keeps such literals verbatim inside thinking pieces instead;
+    /// that is a reasoning-channel-only divergence, pre-existing, and
+    /// the filter form is the cleaner consumer output.)
     private func apply(_ kind: TagKind) {
         switch kind {
-        case .gemmaOpen:
-            if !spanOpen {
-                // A new span begins. (A second open inside a span is
-                // literal interior text — `removeGemmaSpans` pairs the
-                // FIRST open with the FIRST following close, so this one
-                // is dropped with the outer span's interior. Do nothing.)
-                spanOpen = true
+        case .open(let i):
+            if spanFamily == nil {
+                spanFamily = i
                 spanInterior = ""
             }
+        // else: nested opener — consumed (clean reasoning stream).
 
-        case .gemmaClose:
-            if spanOpen {
+        case .close(let i):
+            if spanFamily == i {
                 // Paired close: the interior is thinking.
                 reasoningAccum += spanInterior
                 spanInterior = ""
-                spanOpen = false
-            }
-        // Else: stray close — the non-stream wire removes the literal
-        // and leaves the surrounding text (answer candidate) intact.
-
-        case .qwenClose:
-            if !spanOpen {
-                // A closer that survives span removal demotes the current
-                // answer candidate: non-stream keeps only the text after
-                // the LAST such closer, so everything before it was
-                // thinking.
+                spanFamily = nil
+            } else if spanFamily == nil, i == qwenFamily {
+                // `
+                // ` outside any span: closer-only demotion.
                 reasoningAccum += preCloser
                 preCloser = ""
             }
-        // Else: the closer is inside a span — removed with the span
-        // interior (strip's span phase runs first), no demotion.
+        // Else: inside a span (other family's closer) or stray
+        // non-qwen closer outside — consumed.
+        }
+    }
+
+    /// Index of the `
+    // ` family in `thoughtFamilies` — the sole
+    /// closer-only demotion family. Computed from the table (never
+    /// hardcoded): the family whose open is `thinkOpen` and whose closer
+    /// is `qwenClose`.
+    private var qwenFamily: Int? {
+        OutputSanitizer.thoughtFamilies.firstIndex {
+            $0.open == OutputSanitizer.thinkOpen && $0.closer == OutputSanitizer.qwenClose
         }
     }
 
@@ -190,9 +202,9 @@ final class StreamOutputFilter: @unchecked Sendable {
     // MARK: - marker search
 
     private enum TagKind {
-        case gemmaOpen
-        case gemmaClose
-        case qwenClose
+        /// `i` = index into `OutputSanitizer.thoughtFamilies`.
+        case open(Int)
+        case close(Int)
     }
 
     private struct Found {
@@ -200,19 +212,25 @@ final class StreamOutputFilter: @unchecked Sendable {
         let kind: TagKind
     }
 
-    /// Earliest marker occurrence in `s` (any kind). Markers come from
-    /// `OutputSanitizer` (code-point assembled) — single source of truth.
+    /// Earliest marker occurrence in `s` (any family, open or close).
+    /// Markers come from `OutputSanitizer.thoughtFamilies` (code-point
+    /// assembled) — single source of truth with `scanThoughts`.
     private func earliestTag(in s: String) -> Found? {
-        let candidates: [(String, TagKind)] = [
-            (OutputSanitizer.gemmaOpen, .gemmaOpen),
-            (OutputSanitizer.gemmaClose, .gemmaClose),
-            (OutputSanitizer.qwenClose, .qwenClose),
-        ]
         var best: Found? = nil
-        for (tag, kind) in candidates {
-            guard let r = s.range(of: tag) else { continue }
-            if best == nil || r.lowerBound < best!.range.lowerBound {
-                best = Found(range: r, kind: kind)
+        func consider(_ range: Range<String.Index>, _ kind: TagKind) {
+            if best == nil || range.lowerBound < best!.range.lowerBound {
+                best = Found(range: range, kind: kind)
+            }
+        }
+        for (i, family) in OutputSanitizer.thoughtFamilies.enumerated() {
+            if let r = s.range(of: family.open) {
+                consider(r, .open(i))
+            }
+            for closer in [family.closer, family.altCloser] {
+                guard let closer else { continue }
+                if let r = s.range(of: closer) {
+                    consider(r, .close(i))
+                }
             }
         }
         return best
