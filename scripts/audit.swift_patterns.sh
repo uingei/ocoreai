@@ -59,9 +59,10 @@ check "Class-F: .first! force unwrap" '\.first!' \
 # VideoWriter: VideoWriteError.errorDescription = upstream-verbatim error strings (coreai-models copy), not UI strings
 # VideoTools: formatLabel returns domain labels ("WebP" etc.), not UI chrome strings
 # StreamingWindow: SpeechError description/errorDescription = upstream-verbatim error strings (coreai-models copy), not UI chrome
+# SessionWorkspace: WorktreeError.errorDescription switch cases = LocalizedError diagnostic messages (git worktree failure paths), not UI chrome strings
 check "Class-B: Hardcoded UI in view layer" \
     'return\s*"[A-Z][a-z]' \
-    "Localization.swift|systemName|SystemName|errorDescription|ToolEntry|DownloadManager|ConfigStruct|KeychainStore|Scheduler|MCPServer|OpenAIModels|ModelScopeDownloader|HuggingFaceDownloader|SQLiteStore|SkillModels|MLXBridge|CoreAIBridge|EngineInference|Profiling|ThinkingBudget|CoreAIEngine|CoreAIStubs|StateHandler|InstrumentsProfiler|CoreAILoggerStub|XGrammarWrapper|ConstrainedGenerationSession|Wan21VideoContract|CoreAIDiffusionModelFunction|VideoWriter|VideoTools|StreamingWindow|CoreAIVideoInput|CoreAIImagePreprocessor"
+    "Localization.swift|systemName|SystemName|errorDescription|ToolEntry|DownloadManager|ConfigStruct|KeychainStore|Scheduler|MCPServer|OpenAIModels|ModelScopeDownloader|HuggingFaceDownloader|SQLiteStore|SkillModels|MLXBridge|CoreAIBridge|EngineInference|Profiling|ThinkingBudget|CoreAIEngine|CoreAIStubs|StateHandler|InstrumentsProfiler|CoreAILoggerStub|XGrammarWrapper|ConstrainedGenerationSession|Wan21VideoContract|CoreAIDiffusionModelFunction|VideoWriter|VideoTools|StreamingWindow|CoreAIVideoInput|CoreAIImagePreprocessor|SessionWorkspace"
 
 # --- Class-A: Empty catch ---
 check "Class-A: Empty catch" 'catch\s*{[[:space:]]*}' \
