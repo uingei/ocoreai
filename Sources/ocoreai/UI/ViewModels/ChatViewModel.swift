@@ -155,8 +155,15 @@ final class ChatState {
     var responseText: String = ""
     /// Display version — strips <thinking> tags so the live streaming preview
     /// doesn't render raw reasoning markup. Raw responseText kept for completion-time structured parsing.
+    /// Live-preview text: thinking markup + fake tool-plan array removed.
+    /// Wire parity with the OpenAI path (which runs `removeToolCallArrays` via
+    /// OutputSanitizer) — single implementation, unit-testable.
+    internal nonisolated static func displayText(from raw: String) -> String {
+        OutputSanitizer.removeToolCallArrays(stripThinkingTags(from: raw))
+    }
+
     var responseTextDisplay: String {
-        Self.stripThinkingTags(from: responseText)
+        Self.displayText(from: responseText)
     }
     /// Live reasoning text being accumulated during streaming.
     /// Updated incrementally when </thinking> blocks close mid-stream,
@@ -273,8 +280,12 @@ final class ChatState {
             .replacingOccurrences(of: "*", with: "\\*")
             .replacingOccurrences(of: "+", with: "\\+")
             .replacingOccurrences(of: "?", with: "\\?")
-            .replacingOccurrences(of: "\\", with: "\\\\")
     }
+    // NOTE: no final backslash-doubling pass — it would corrupt the
+    // backslashes added by every replacement above (`\<` → `\\<` = literal
+    // backslash in NSRegularExpression), which silently disabled the
+    // complete-block strip and forced every input through the
+    // incomplete-open tail cut.
 
     /// Extract reasoning text from `<thinking>` tags and remaining text.
     /// Returns (reasoning, remainingText). If no tags found, returns (nil, text).
@@ -290,7 +301,10 @@ final class ChatState {
         var working = text
         var reasoningPieces: [String] = []
         for family in families where working.contains(family.open) {
-            let pattern = family.open + "(.*?)" + family.close
+            // Escape the literal tags — Qwen3 `|begin_of_thought|>` carries
+            // `|`, a regex alternation metacharacter; unescaped, the pattern
+            // silently matches wrong spans.
+            let pattern = regexEscape(family.open) + "(.*?)" + regexEscape(family.close)
             if let regex = try? NSRegularExpression(
                 pattern: pattern,
                 options: .dotMatchesLineSeparators
@@ -380,7 +394,9 @@ final class ChatState {
         // P0-3 UX: Preserve the partial response instead of instantly blanking the screen.
         // The user can still see what was generated before interruption.
         if !responseText.isEmpty {
-            let interruptedContent = responseText + "\n\n...[" + StringKey.interruptedLabel.l + "]"
+            let interruptedContent =
+                Self.displayText(from: responseText) + "\n\n...[" + StringKey.interruptedLabel.l
+                + "]"
             messages.append(
                 ChatMessage(role: "assistant", content: interruptedContent, interrupted: true))
             responseText = ""
@@ -923,13 +939,21 @@ final class ChatState {
                         }
 
                         // Clean text: reuse the split from above (avoid redundant regex pass).
-                        let cleanedText =
+                        let partsSourceText =
                             if let split = splitResult {
                                 // Fallback path — use cleaned text from splitThinkingTags
                                 split.remaining
                             } else {
                                 responseText
                             }
+                        // Wire parity (OutputSanitizer): strip the fake tool-plan
+                        // array before it becomes a text bubble. Without this the
+                        // UI double-prints one tool call — raw JSON text AND the
+                        // [Tool:] chip — and TTS reads the JSON aloud. (The
+                        // fallback `parseToolCalls` below still sees the raw text
+                        // on purpose: the chip for a planned call is signal, the
+                        // raw JSON in the bubble is the extra output.)
+                        let cleanedText = OutputSanitizer.removeToolCallArrays(partsSourceText)
 
                         var parts: [TranscriptPart] = []
 
@@ -1023,7 +1047,8 @@ final class ChatState {
             if !self._cancelledByUI && (Task.isCancelled || cancellation.isCancelled) {
                 if !responseText.isEmpty {
                     let interruptedContent =
-                        responseText + "\n\n...[" + StringKey.interruptedLabel.l + "]"
+                        Self.displayText(from: responseText) + "\n\n...["
+                        + StringKey.interruptedLabel.l + "]"
                     let assistantMsg = ChatMessage(
                         role: "assistant", content: interruptedContent, interrupted: true)
                     messages.append(assistantMsg)

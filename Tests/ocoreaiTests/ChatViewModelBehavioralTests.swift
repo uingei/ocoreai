@@ -246,3 +246,66 @@ struct ChatMessageInitTests {
         #expect(msg.imageURLs.count == 2)
     }
 }
+
+// MARK: - ChatState.displayText — UI/wire parity tests
+// The UI live preview and final bubble must strip the fake tool-plan array
+// the same way the OpenAI wire does (OutputSanitizer). These tests pin that
+// parity to exact-value expectations.
+
+@Suite("ChatState: displayText strips fake tool-plan arrays")
+struct ChatStateDisplayTextTests {
+    @Test("Fake tool-plan array is removed, surrounding prose kept")
+    func toolArrayStripped() {
+        // gemma-4e2b style: prose + fake top-level tool plan + prose
+        let raw =
+            "Running the tool now.\n[{ \"name\": \"exec_command\", \"arguments\": \"command: ls -la\" }]\nDone: 4 files."
+        let out = ChatState.displayText(from: raw)
+        #expect(out == "Running the tool now.\n\nDone: 4 files.")
+        #expect(!out.contains("exec_command"))
+        #expect(!out.contains("{"))
+    }
+
+    @Test("Legitimate JSON array without name is NOT stripped")
+    func legitArrayKept() {
+        // isToolCallArray requires at least one {name} entry
+        let raw = "Result: [1, 2, 3] and [{ \"value\": 42 }]"
+        #expect(ChatState.displayText(from: raw) == raw)
+    }
+
+    @Test("Unsettled/incomplete tool array survives incremental view (no partial strip)")
+    func incompleteArraySurvives() {
+        // While streaming: array not yet closed — must NOT be spliced
+        let raw = "Planning: [{ \"name\": \"exec_command\", \"argumen"
+        #expect(ChatState.displayText(from: raw) == raw)
+    }
+
+    @Test("Multiple tool-plan arrays all stripped")
+    func multipleArraysStripped() {
+        let raw = "a [{ \"name\": \"t1\", \"arguments\": \"x\" }] mid [{ \"name\": \"t2\" }] end"
+        let out = ChatState.displayText(from: raw)
+        #expect(!out.contains("t1") && !out.contains("t2"))
+        #expect(out.contains("a  mid  end") || out.contains("amidend"))
+    }
+
+    // Real thinking family in the strip path is ` think/think` (verified by
+    // hexdump of ChatViewModel source). Tags assembled from code points —
+    // transport-safe, same pattern as OutputSanitizer.
+    @Test("Complete thinking block + tool array both stripped (exact)")
+    func thinkingAndToolArrayExact() {
+        let lt = Character(UnicodeScalar(0x3C))
+        let gt = Character(UnicodeScalar(0x3E))
+        let open = String([lt]) + "think" + String([gt])
+        let close = String([lt]) + "/think" + String([gt])
+        let arr = "[{ \"name\": \"t\", \"arguments\": \"a\" }]"
+        let raw = "Before" + open + "inner" + close + "After" + arr
+        #expect(ChatState.displayText(from: raw) == "BeforeAfter")
+    }
+
+    @Test("Trailing unclosed think tag cuts the tail (live-preview semantics)")
+    func unclosedThinkCutsTail() {
+        let lt = Character(UnicodeScalar(0x3C))
+        let gt = Character(UnicodeScalar(0x3E))
+        let open = String([lt]) + "think" + String([gt])
+        #expect(ChatState.displayText(from: "AB" + open + "partial") == "AB")
+    }
+}
