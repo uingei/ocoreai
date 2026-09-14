@@ -184,10 +184,18 @@ final class CoreAIPipelinedEngine: InferenceEngine, ConstrainedGenerationCapable
 
                 // Implicit prefix caching: resolve input against history
                 var (commonPrefix, resolvedNewTokens) = self.history.resolve(input: input)
-                self.lastPrefixHitCount = commonPrefix
 
                 // Detect TRUE divergence before backup (tokens actually differ)
                 let isDivergence = commonPrefix < input.count && commonPrefix < self.history.count
+
+                // Pipelined decode yields the last token without processing it; cap to KV-valid range.
+                if commonPrefix > self.engine.processedTokenCount {
+                    commonPrefix = self.engine.processedTokenCount
+                    resolvedNewTokens = input[commonPrefix...]
+                    self.history.truncate(to: commonPrefix)
+                }
+
+                self.lastPrefixHitCount = commonPrefix
 
                 // Ensure at least 1 token for prefill (seeds the decode loop).
                 // Back up by 1 if the entire input is cached.

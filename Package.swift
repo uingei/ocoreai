@@ -150,7 +150,7 @@ let package = Package(
         //     (Character→Unicode.Scalar grapheme-cluster bug). ocoreai's CoreAI
         //     path reimplements this function; both sites ported + tested in
         //     StreamingDetokenizerScalarDeltaTests.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "604fae7"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "3e6ea1e"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
