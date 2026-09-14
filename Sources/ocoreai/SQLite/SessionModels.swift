@@ -17,6 +17,9 @@ struct SessionModel: Codable {
     var tokenCount: Int
     var summary: String?
     let ttlDays: Int
+    /// Bound worktree working directory (codex new_worktree), or nil when the
+    /// session uses the global configured workspace.
+    var workspaceDirectory: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -27,6 +30,7 @@ struct SessionModel: Codable {
         case summary
         case ttlDays = "ttl_days"
         case modelId = "model_id"
+        case workspaceDirectory = "workspace_directory"
     }
 
     var expired: Bool {

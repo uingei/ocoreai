@@ -459,6 +459,9 @@ final class ChatState {
                 if let sc = OcoreaiEngine.shared.activeSessionCompressor {
                     do {
                         self.sessionId = try await sc.createSession(modelId: newModelId)
+                        // Blank session carries no worktree binding — drop the
+                        // previous session's pointer so exec/file don't leak in.
+                        SessionWorkspace.clear()
                     } catch {
                         Self.logger.warning(
                             "Model switch: failed to create session: \(error.localizedDescription)")
@@ -518,6 +521,12 @@ final class ChatState {
             do {
                 sessionId = session.id
                 activeModelId = session.modelId
+                // Session-scoped workspace activation: bind the pointer to this
+                // session's worktree directory, or clear it when the session has
+                // none so `exec_command` / file tools / the system prompt all
+                // land on the right cwd (a single shared pointer must never
+                // bleed across sessions).
+                SessionWorkspace.setDirectory(session.workspaceDirectory)
                 let hotWindowLimit = compressor.hotWindow
                 let dbMessages = try await compressor.getMessages(
                     session.id, limit: hotWindowLimit, offset: 0)
@@ -568,6 +577,9 @@ final class ChatState {
             // Clean up old session model association before creating new one
             activeModelId = modelId
             sessionId = try await compressor.createSession(modelId: modelId)
+            // Blank session carries no worktree binding — drop the previous
+            // session's pointer so exec/file tools don't leak into it.
+            SessionWorkspace.clear()
             // P0-fix: Create a stable inference session UUID that persists across
             // multiple chat() calls — ThinkingBudget adaptive calibration requires
             // a consistent key to accumulate quality multipliers.

@@ -144,14 +144,16 @@ actor SessionCompressor {
 
         if let mid = modelId {
             sql = """
-                SELECT id, model_id, created_at, updated_at, message_count, token_count, summary, ttl_days
+                SELECT id, model_id, created_at, updated_at, message_count, token_count, summary,
+                ttl_days, workspace_directory
                 FROM sessions WHERE model_id = ?
                 ORDER BY updated_at DESC LIMIT ?
                 """
             params = [mid, limit]
         } else {
             sql = """
-                SELECT id, model_id, created_at, updated_at, message_count, token_count, summary, ttl_days
+                SELECT id, model_id, created_at, updated_at, message_count, token_count, summary,
+                ttl_days, workspace_directory
                 FROM sessions
                 ORDER BY updated_at DESC LIMIT ?
                 """
@@ -171,14 +173,42 @@ actor SessionCompressor {
     /// Fetch a single session by id (for promoting a freshly created session).
     func getSession(_ sessionId: Int64) async throws -> SessionModel? {
         do {
-            let sql =
-                "SELECT id, model_id, created_at, updated_at, message_count, token_count, summary, ttl_days FROM sessions WHERE id = ?"
+            let sql = """
+                SELECT id, model_id, created_at, updated_at, message_count, token_count,
+                summary, ttl_days, workspace_directory FROM sessions WHERE id = ?
+                """
             let rows = try await store.query(sql, parameters: [sessionId])
             return rows.first.flatMap { SessionModel(from: $0) }
-        } catch let sqliteErr as SQLiteError {
-            throw sqliteErr
         } catch {
-            throw SQLiteError.queryFailed(detail: error.localizedDescription)
+            throw SQLiteError.executionFailed(detail: "getSession failed: \(error)")
+        }
+    }
+
+    // MARK: - Session worktree binding (codex new_worktree parity)
+
+    /// Persist the session's worktree working directory. The bind and clear
+    /// paths use separate statements because the prepared-statement binder has
+    /// no NULL binding path.
+    func bindWorkspace(_ directory: String, for sessionId: Int64) async throws {
+        do {
+            try await store.execute(
+                sql: "UPDATE sessions SET workspace_directory = ?, updated_at = ? WHERE id = ?",
+                parameters: [
+                    directory, Int64(Date().timeIntervalSince1970 * 1_000_000_000), sessionId,
+                ])
+        } catch {
+            throw SQLiteError.executionFailed(detail: "bindWorkspace failed: \(error)")
+        }
+    }
+
+    /// Unbind a session's worktree (it falls back to the global workspace).
+    func clearWorkspace(for sessionId: Int64) async throws {
+        do {
+            try await store.execute(
+                sql: "UPDATE sessions SET workspace_directory = NULL WHERE id = ?",
+                parameters: [sessionId])
+        } catch {
+            throw SQLiteError.executionFailed(detail: "clearWorkspace failed: \(error)")
         }
     }
 
@@ -1101,8 +1131,9 @@ extension SessionModel {
         updatedAt = Date(timeIntervalSince1970: Double(updatedAtTs) / 1_000_000)
         messageCount = Self.getInt(row, "message_count") ?? 0
         tokenCount = Self.getInt(row, "token_count") ?? 0
-        summary = row["summary"]?.asString
-        ttlDays = Self.getInt(row, "ttl_days") ?? 180
+        self.summary = row["summary"]?.asString
+        self.ttlDays = Self.getInt(row, "ttl_days") ?? 180
+        self.workspaceDirectory = row["workspace_directory"]?.asString
     }
 
     private static func getInt(_ row: [String: SendableValue], _ key: String) -> Int? {

@@ -452,6 +452,21 @@ actor SQLiteStore {
             sql: "CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at);",
             db: db)
 
+        // Session worktree binding (codex new_worktree parity): a session's
+        // worktree directory persists across restarts. `CREATE TABLE IF NOT
+        // EXISTS` leaves the column absent in pre-existing DBs, so add it when
+        // missing. Note: the system libsqlite3 on this platform rejects
+        // `ADD COLUMN IF NOT EXISTS` (syntax error), so probe `table_info`
+        // first and issue a plain `ADD COLUMN` conditionally.
+        let sessionsCols = try Self.query(
+            sql: "PRAGMA table_info(sessions);", parameters: nil, db: db)
+        let hasWorkspaceDir =
+            sessionsCols.contains { ($0["name"] as? String) == "workspace_directory" }
+        if !hasWorkspaceDir {
+            try Self.exec(
+                sql: "ALTER TABLE sessions ADD COLUMN workspace_directory TEXT;", db: db)
+        }
+
         // Plan 任务态 checkpoint（Recover 片 1：update_plan 快照持久化，重启可恢复面板态）
         // 多行历史 = 可见的任务推进轨迹；消费面取最近一条（updated_at DESC）。
         try Self.exec(

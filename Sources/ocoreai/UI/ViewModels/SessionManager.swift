@@ -90,6 +90,9 @@ final class SessionManager {
                 if SettingsStore.shared.lastSessionId == session.id {
                     SettingsStore.shared.lastSessionId = nil
                 }
+                // The deleted session supplied the active worktree — drop the
+                // pointer (otherwise exec/file keep reading the orphaned dir).
+                SessionWorkspace.clear()
             }
         } catch {
             errorMessage = StringKey.sessionDeleteFailed.l
@@ -117,6 +120,9 @@ final class SessionManager {
             let modelId =
                 OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? "default"
             let newId = try await compressor.createSession(modelId: modelId)
+            // Persist the session↔worktree binding (survives restart); blank
+            // session is bound before reload so the chat loads into it.
+            try await compressor.bindWorkspace(created.root, for: newId)
             // Bind the new (blank) session to the worktree; promote + select.
             if let fresh = try await compressor.getSession(newId) {
                 sessions.removeAll { $0.id == newId }
