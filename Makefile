@@ -65,6 +65,7 @@ test-coverage:
 test-ci:
 	@echo "🧪 Running the CI-identical full gate (xcodebuild → xctest)..."
 	@export OCOREAI_BUILD=ci; \
+	export SWIFTC_SCAN_FOR_DEPS=0; \
 	xcodebuild build-for-testing \
 	  -workspace ocoreai.xcworkspace \
 	  -scheme ocoreaiTests \
