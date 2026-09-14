@@ -20,6 +20,12 @@ import Testing
 
 @testable import ocoreai
 
+// `TokenHistory` lives in CoreAIEngine.swift, which is `#if canImport(CoreAI)`
+// gated (the floor — macOS 14/15 / the macos-26 Xcode-26.6 SDK tier — has no
+// CoreAI framework). This suite references it, so it must be excluded there
+// too; on the macOS 26/27 tier (CoreAI present) the 5 tests run. Same
+// convention as CoreAIVisionConfigTests (wraps whole @Suite in this gate).
+#if canImport(CoreAI)
 @Suite("Pip5 PrefixClamp — pipelined last-token gap guard (#237/#234)")
 struct Pip5PrefixClampTests {
 
@@ -117,3 +123,4 @@ struct Pip5PrefixClampTests {
         #expect(history.count == 3)
     }
 }
+#endif  // canImport(CoreAI)
