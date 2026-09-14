@@ -2,7 +2,7 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-09-14
+## [Unreleased] — 2026-09-05 → 2026-09-15
 
 **Security hardening** — three commits close real trust-model gaps identified in 09-13 audit:
 
@@ -91,6 +91,8 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 - `7be6f76` **Hygiene:** drop two dead `await` on synchronous `@MainActor` call sites. `4f89cc1` two compile-warning anti-patterns removed from `ConfigRecoveryTests`.
 - `6061278` **Docs:** 6 文件漂移修复 — AGENTS pin/行号/计数+Documentation Map, README/README.zh, CHANGELOG, CONTRIBUTING CLI/PR 模板, ARCHITECTURE LOC 刷新.
 - `2765a83`/`1bf1932`/`06a4e78` **CI:** Static Audit 白名单补齐 (SessionWorkspace `errorDescription` = LocalizedError 先例) + 收 Static Audit 一直掩盖的两处编译断裂 — ① macOS 腿 `defer { await store.close() }` 移至函数尾; ② iOS 腿 `Foundation.Process` 加 `#if os(macOS)` 门控 (同 ExecTools 先例). 26 步全绿.
+- `4dd3582` **Fix (UI/wire):** 对话气泡多余输出双根因 — ① `removeToolCallArrays` 假 tool-plan 数组泄漏进气泡; ② think-tag 正则 `regexEscape` 双重转义 + `splitThinkingTags` `|` 未转义致答案被吞. `OutputSanitizerTests` 全绿.
+- `ce19f98` **Refactor (parsers):** 三份重复 think-tag 清洗栈收敛为单一 `OutputSanitizer`（家族表 + `scanThoughts`/`stripThinking`/`splitThoughts`）— 成为 wire 唯一契约; `ChatViewModel`/`TTSCleaning`/`StreamOutputFilter` 全部委托; 黄金不变量 `StreamOutputFilter.concat(deltas) == OutputSanitizer.strip(raw)` 锁死 + 新增 UI↔wire parity suite. `make test-ci` 1837/1837 全绿 + CI 5 jobs 全绿.
 
 **Also in this window (09-05 → 09-14):**
 
