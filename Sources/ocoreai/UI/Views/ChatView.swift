@@ -447,7 +447,7 @@ struct ChatView: View {
                                         }
                                         if let rtc = chatState.currentReasoningTokenCount {
                                             Divider().frame(height: 12)
-                                            Text("reasoning: \(rtc) tok")
+                                            Text(String(format: StringKey.reasoningTokMeter.l, rtc))
                                                 .font(.system(.caption, design: .monospaced))
                                                 .foregroundStyle(theme.textTertiary)
                                         }
@@ -455,9 +455,13 @@ struct ChatView: View {
                                             let accepted = chatState.currentMTPDraftAccepted
                                         {
                                             Divider().frame(height: 12)
-                                            Text("mtp: \(accepted)/\(proposed)")
-                                                .font(.system(.caption, design: .monospaced))
-                                                .foregroundStyle(theme.textTertiary)
+                                            Text(
+                                                String(
+                                                    format: StringKey.mtpMeter.l, accepted, proposed
+                                                )
+                                            )
+                                            .font(.system(.caption, design: .monospaced))
+                                            .foregroundStyle(theme.textTertiary)
                                         }
                                     }
                                     .transition(.opacity)

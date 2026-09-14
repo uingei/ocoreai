@@ -407,7 +407,7 @@ private struct ReasoningEffortCard: View {
                     .accessibilityHidden(true)
                 // Optional selection: nil = model default; tag type String? must
                 // match the selection type exactly (SwiftUI Picker contract).
-                Picker("Reasoning Effort", selection: $value) {
+                Picker(StringKey.reasoningEffortLabel.l, selection: $value) {
                     Text(StringKey.modelParamDefaults.l).tag(String?.none)
                     ForEach(Self.options, id: \.self) { opt in
                         Text(opt).tag(String?.some(opt))

@@ -41,6 +41,25 @@ struct LocaleAvailabilityTests {
         let counts = Dictionary(grouping: OCALocale.availableLocales, by: { $0 })
         #expect(counts.values.allSatisfy { $0.count == 1 })
     }
+
+    /// The HIG full-table contract for the inference-meter / param-label keys:
+    /// every key must resolve to a non-empty, locale-specific value in BOTH
+    /// delivered locales (no silent fallback to the raw key, no drift).
+    @Test("reasoning-effort label + reasoning/mtp meters resolve in en AND zhHans")
+    func meterAndEffortKeysResolveInBothTables() {
+        #expect(StringKey.reasoningEffortLabel.localized(for: .en) == "Reasoning Effort")
+        #expect(StringKey.reasoningTokMeter.localized(for: .en) == "reasoning: %d tok")
+        #expect(StringKey.mtpMeter.localized(for: .en) == "mtp: %d/%d")
+        #expect(StringKey.reasoningEffortLabel.localized(for: .zhHans) == "推理强度")
+        #expect(StringKey.reasoningTokMeter.localized(for: .zhHans) == "推理: %d tok")
+        #expect(StringKey.mtpMeter.localized(for: .zhHans) == "mtp: %d/%d")
+        // The format placeholders must survive localization so String(format:)
+        // keeps working in both scripts.
+        #expect(StringKey.reasoningTokMeter.localized(for: .en).contains("%d"))
+        #expect(StringKey.reasoningTokMeter.localized(for: .zhHans).contains("%d"))
+        #expect(StringKey.mtpMeter.localized(for: .en).contains("%d/%d"))
+        #expect(StringKey.mtpMeter.localized(for: .zhHans).contains("%d/%d"))
+    }
 }
 
 @Suite("Locale — user choice is honored")

@@ -424,6 +424,11 @@ public enum StringKey: String, CaseIterable {
 
     // — Model param label —
     case paramFieldPlaceholder = "ModelParam.FieldPlaceholder"
+    case reasoningEffortLabel = "ModelParam.ReasoningEffort"
+
+    // — Chat inference meters —
+    case reasoningTokMeter = "Chat.ReasoningTokMeter"  // "reasoning: %d tok"
+    case mtpMeter = "Chat.MTPMeter"  // "mtp: %d/%d"
 
     // — Settings / About —
     case aboutTitle = "About.Title"
@@ -848,6 +853,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .loadingSessions: "Loading Sessions",
         .loadingConfig: "Loading Settings",
         .paramPlaceholder: "Value",
+        .reasoningEffortLabel: "Reasoning Effort",
+        .reasoningTokMeter: "reasoning: %d tok",
+        .mtpMeter: "mtp: %d/%d",
         .modelLoadError: "Load Failed",
         .modelLoadErrorDesc: "The backend server may be unavailable",
         .modelDeleteError: "Delete Failed",
@@ -1189,6 +1197,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .loadingSessions: "加载会话中…",
         .loadingConfig: "加载配置中…",
         .paramPlaceholder: "数值",
+        .reasoningEffortLabel: "推理强度",
+        .reasoningTokMeter: "推理: %d tok",
+        .mtpMeter: "mtp: %d/%d",
         .settingsTitle: "设置",
         .serverAddress: "服务器地址",
         .port: "端口",
