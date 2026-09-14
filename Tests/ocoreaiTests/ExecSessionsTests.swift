@@ -136,16 +136,29 @@ struct ExecSessionsSpawnTests {
         // must all land with their EXACT exit codes inside a hard wall
         // clock — a stall now shows up as a bounded local failure
         // (seconds), not an unbounded CI timeout.
+        //
+        // 09-15 flake fix: the yield contract is best-effort "≤ yieldMs" —
+        // under CI load the reaper can legitimately take >500ms, in which
+        // case `spawn` CORRECTLY returns `completed: false` (codex regime
+        // semantics, `drainBlocking` finalizes only if the child is dead in
+        // window). The old hard `spawn.completed` assertion punished that
+        // correct behavior → CI flake. Finalization is now asserted AFTER a
+        // poll (empty-stdin regime clamps to a 5s finalize window; an
+        // already-finalized session short-circuits at `writeStdin` L344),
+        // which is deterministic once the child is dead. Exact exit codes
+        // 7–11 are still the assertion (weak "count>0" assertions stay
+        // rejected per test-quality ironclad rules).
         let m = ExecSessionManager.shared
         let t0 = Date()
         for i in 0 ..< 5 {
             let status = 7 + i
             let res = try await m.spawn(command: "exit \(status)", yieldMs: 500)
-            #expect(res.completed, "spawn cycle \(i) must complete in-window")
-            #expect(res.report.contains("end of process output"))
-            #expect(res.report.contains("exit code: \(status)"))
+            // Poll finalizes the reaped child; a wedged reaper would keep
+            // returning !completed → the exact-exit assertion below then
+            // fails fast (bounded), exactly the regression this class guards.
             let poll = try await m.poll(sessionId: res.sessionId, yieldMs: 200)
-            #expect(poll.completed)
+            #expect(poll.completed, "cycle \(i) did not finalize via poll")
+            #expect(poll.report.contains("end of process output"))
             #expect(poll.report.contains("exit code: \(status)"), "poll cycle \(i)")
         }
         let dt = Date().timeIntervalSince(t0)
