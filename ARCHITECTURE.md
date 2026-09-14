@@ -1,6 +1,6 @@
 # ocoreai Architecture Review
 
-> **Status**: Complete — based on source-level reading of 137 Swift files (40,355 LOC)
+> **Status**: Complete — based on source-level reading (137 Swift files / 40,355 LOC as of 2026-07-26; the codebase has since grown — 227 files / 75,885 LOC as of 2026-09-14, so per-file line counts below are point-in-time)
 > **Date**: 2026-07-26
 > **Build**: `swift build --target ocoreai` → ✅ exit 0 (1 warning)
 > **Methodology**: architecture-analysis skill + code-audit-methodology three-layer verification

@@ -38,13 +38,13 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 
 **Dual Path reality:**
 - `EnginePool` uses inline `#if canImport(CoreAI)` branches (`BackendProtocol` deleted 2123143, 0 refs remaining)
-- **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (wired, both MLX + CoreAI paths), KVCacheRuntime ✅ (`turboQuant`/`.affine` 双路 `MLXBridge.swift:669 case "affine"` / `:671 case "turbo-quant"`, 映射到 `.affine(:726/:731)` / `.turboQuant(:718)`). Pinned upstream `mlx-swift-lm` at `e3d4a20` (2026-09-03 `d7bd972` ← `5694a2f` #599 ← 37688d2 #572/#573 + #602 Gemma4Text loraLayers + #589 Qwen3.5/3Next + #605 + #471 ParoQuant MoE). **ThinkingBudget** ✅ (two paths wired: std reasoning `L3663 .applyingThinkingBudget` + MTP speculative `L3181 .applyingThinkingBudget` + `components: genComponents`/`mtpGenComponents` `L3678`/`L3204`; `guard mtpReasoningConfig` 非空才接, `catch → .init()` 回退与 std 同语义).
-- **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement. Engine/ contains CoreAI* ×8 + StateHandler ×3 + MPSGraphSamplers + KVCache+CoreAI + TensorStorage+CoreAI (37 .swift total); + Tokenizer/TokenizersMLXTokenizerAdapter.
-- **ANE path:** CoreAI `MPSGraphSamplers` (`MPSGraphSamplers.swift` 1435 行实存, `CoreAIPipelinedEngine.swift:53/601` 消费) wires MPS constrained argmax/composite/sampler — GPU-based constrained decoding path (c4c0a43 CoreAI .pipelined wired + 256e704 penalty/ConstrainedGenerationCapable routing; 前文 031cb54 = unknown revision, 2026-09-04 实证替换)
+- **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (wired, both MLX + CoreAI paths), KVCacheRuntime ✅ (`turboQuant`/`.affine` 双路 `MLXBridge.swift:757 case "affine"` / `:759 case "turbo-quant"`, 映射到 `.affine(:814/:819)` / `.turboQuant(:806)`). Pinned upstream `mlx-swift-lm` at `604fae7` (#584 RotatingKVCache trim wrap-aware, 2026-09-11 ← `bd60995` #613 detok Character→Scalar ← `e3d4a20` 09-03 `d7bd972`/#599/#572/#573/#602/#589/#605/#471). **ThinkingBudget** ✅ (two paths wired: std reasoning `L3964 .applyingThinkingBudget` + MTP speculative `L3467 .applyingThinkingBudget` + `components: genComponents`/`mtpGenComponents` `L3979`/`L3490`; `guard mtpReasoningConfig` 非空才接, `catch → .init()` 回退与 std 同语义).
+- **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement. Engine/ contains CoreAI* ×14 + StateHandler(+ ×3) + MPSGraphSamplers(1511L) + KVCache/TensorStorage(+CoreAI) (Engine/ 44 .swift total); + Tokenizer/TokenizersMLXTokenizerAdapter.
+- **ANE path:** CoreAI `MPSGraphSamplers` (`MPSGraphSamplers.swift` 1511 行实存, `CoreAIPipelinedEngine.swift:53/601` 消费) wires MPS constrained argmax/composite/sampler — GPU-based constrained decoding path (c4c0a43 CoreAI .pipelined wired + 256e704 penalty/ConstrainedGenerationCapable routing; 前文 031cb54 = unknown revision, 2026-09-04 实证替换)
 - **MTP path:** `_runInferenceWithMessages` → `generate(::mtpDrafter:)` — bypasses ChatSession, tool calls collected + dispatched per-iteration (aligned with upstream `MTPSpeculativeTokenIterator`)
 - **SessionPool:** Prefix-level prompt cache reuse via message divergence tracking; HardwareRouter pressure events trigger aggressive eviction; `loadPromptCacheSnapshot` restores LM state + KV cache
 
-**Key:** `#if canImport(CoreAI)` single-layer compile-time gate; token sampling → `argmax`(greedy) / `multinomialSample`(temperature>0) — 真身 `Models/InferenceStubs.swift:194-213 sample(from:)`(temperature/topK/topP/minP filters, 对上游 CompositeSampler 算法); toolDispatch wired in both MLX + CoreAI paths.
+**Key:** `#if canImport(CoreAI)` single-layer compile-time gate; token sampling → `argmax`(greedy) / `multinomialSample`(temperature>0) — 真身 `Models/InferenceStubs.swift:198 sample(from:)`(temperature/topK/topP/minP filters, 对上游 CompositeSampler 算法); toolDispatch wired in both MLX + CoreAI paths.
 
 **Upstream alignment (verified 2026-08-13):**
 - `KVCacheRound` / `TurboFlash` / `TurboQuant`: consumed internally by upstream `generate*()` — no downstream intervention needed
@@ -112,9 +112,9 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 
 - **iOS UI parity** (UI/) — iOS build confirmed Fast-Path-only; parity audit pending (MCP/Security on iOS TBD).
 - **Reasoning `<thinking>` parse** (Engine/) — 字符串协议状态机（`ThinkTagParser`，0 处 regex，#206 后 15/15 绿），无 AST。
-- **`kvCacheRuntimeReport`** — not consumed; upstream `KVCacheRuntime.swift:155` / `ChatSession.swift:1491` / `KVCachePlan.swift:89/94` still present (e3d4a20 实证; d667610).
+- **`kvCacheRuntimeReport`** — not consumed; upstream `KVCacheRuntime.swift:155` / `ChatSession.swift:1491` / `KVCachePlan.swift:89/94` still present (604fae7 实证; d667610).
 - **MLXFoundationModels** — FM path wired; lacks per-token callback on FM `.done`.
-- **Hygiene — do not add new**: `precondition` (structural invariants + upstream-verbatim); scattered `try?` defensive fallbacks (ongoing risk); 2 `empty catch {}` in the EngineInference watchdog.
+- **Hygiene — do not add new**: `precondition` (structural invariants + upstream-verbatim); scattered `try?` defensive fallbacks (~316 in Sources/); 2 bare `empty catch {}` in the EngineInference watchdog.
 - **Coverage report** — Tests/CoverageReport missing (no live data).
 
 **Resolved items** (ThinkingBudget wiring, SyncInputHandler, ChatConventionsRegistry, AgentLoop pruned, KVCache typed config, MTP, TurboFlash, CoreAI grammar, PagedKVCache removed, ReasoningEventEmitter, HardwareRouter/AdmissionGate tests, 0 fatalError): not restated here — source of truth is `CHANGELOG.md` + `~/wiki/concepts/upstream-mlx-swift-lm*.md` + `~/wiki/concepts/upstream-coreai-models.md`.
@@ -124,11 +124,40 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 ### Upstream Audit Dependencies
 
 Three sources for empirical verification:
-1. **mlx-swift-lm** — pinned in `Package.resolved` at `4c3d793` (2026-09-11 `bd60995` absorb #613 detok Character→Scalar + pin bump; 前序 `e3d4a20` 2026-09-03 `d7bd972`)。Upstream origin/main = `4c3d793` (0 drift, 2026-09-11 verified via `git rev-list --count 4c3d793..origin/main` = 0)。
-2. **coreai-models** — reference at `cc81207`（2026-09-11 HEAD）。`b91bb18..cc81207` 8 commit 全核：#227 InputLayout 已吸收（ocoreai `5e45dd0`，`InputLayout.swift:L1-183` + InputLayoutTests 8 例）；#226 纯 pytest marker 零 Swift 面；#228 Muse-Glimmer DFlash drafter 模型 zoo 专属（前次审计 `df81198` 基线）；**新 5 commit（#238 unk-marker / #214 Glimmer VLM / #242 测试 / #239 SD1.5 NaN / #229 helper 收拢）逐条消费面核验 = 0 吸收 0 缺口**（#238 类 token-lookup 探测 ocoreai 0 符号：标记为 config 常量 `EngineInference.swift:L518-519`、EOS 走 `CoreAIEngine.swift:L143 eosTokenId` 直传；#239 SD 面 0 命中仅 Wan 2.1；#214 Glimmer 模型面 0；明细 → ~/.wiki/concepts/upstream-coreai-models.md 末节）。Reference repo, not SPM dependency。#206 ThinkTagParser agentic hardening absorbed 2026-09-04 (`1076948`)；ATEM ToolCallParser format NOT absorbed（zero ocoreai consumers of `Format.agentic`）。
+1. **mlx-swift-lm** — pinned in `Package.resolved` at `604fae7`（2026-09-11 `bd60995` absorb #613 detok Character→Scalar + pin bump 后，#584 RotatingKVCache trim wrap-aware 为 HEAD；前序 `e3d4a20` 2026-09-03 `d7bd972`）。Upstream origin/main = `604fae7` (0 drift, verified via `git rev-list --count 604fae7..origin/main` = 0; references HEAD `604fae7` 2026-09-11)。
+2. **coreai-models** — reference at `e282dbd`（2026-09-13 HEAD）。`cc81207..e282dbd` 7 commit 逐条消费面核验：#244 已吸收（`49c3998` neutral penalty tensor，coreai-models d65a651）· #240 已吸收（`e45d8ee` layered prefill chunking）· #246 Phi-4 RoPE 修复（上游内部，ocoreai 零消费面）· #245 Qwen3-8B preset / #232 OLMo2 / #236 latent preview / #243 SAM3 = 模型 zoo / diffusion 面，ocoreai 0 符号命中（grep Phi4/Qwen3-8B/OLMo2/latentPreview/SAM3 全 0）。Reference repo, not SPM dependency。#206 ThinkTagParser agentic hardening absorbed 2026-09-04 (`1076948`)；ATEM ToolCallParser format NOT absorbed（zero ocoreai consumers of `Format.agentic`）。
 3. **Apple Developer Docs** — developer.apple.com/documentation/CoreAI (requires login)
 
 **Wiki:** `~/wiki/concepts/upstream-mlx-swift-lm-38927f5-intent.md` + `~/wiki/concepts/upstream-coreai-models.md` — consumption matrix with file:line evidence.
+
+---
+
+## Documentation Map — Agent-facing vs Human-facing
+
+**Rule of thumb:** if the text is *injected into the model's context at runtime*, it is **Agent-facing** — changes alter model behaviour and require an inference regression. If it is read by people (humans or future agents) to understand the project, it is **Human-facing**.
+
+| Doc | Audience | Why | When to touch |
+|---|---|---|---|
+| `AGENTS.md` (this file) | **Agent** (Hermes, every session) | Injected as project context on cold start | Conventions / architecture facts drift — keep line-accurate |
+| `Sources/ocoreai/Skills/SystemPromptBuilder.swift` | **Agent** (LLM context) | Builds the base + skills system prompt | Prompt-wording changes = behaviour changes — needs inference regression |
+| `Sources/ocoreai/Tools/ToolEntry.swift` (+ `Tool*.swift`) | **Agent** (LLM context) | `description` / JSON schema are consumed by the model as function-calling contracts | schema/wording changes = tool-call behaviour — test with live model |
+| `Sources/ocoreai/Parsers/*` (`ThinkTagParser` etc.) | **Agent** (implicit) | Defines what the model may emit (marker tags) | marker changes break both parse and parse-back — hexdump-verify parity with upstream |
+| `README.md` / `README.zh.md` | **Human** | Entry point for humans | Feature surface changes |
+| `CHANGELOG.md` | **Human** | Per-feature provenance, commit refs | Every user-visible change (see Workflow) |
+| `CONTRIBUTING.md` | **Human** | How to contribute | Process / tooling changes |
+| `ARCHITECTURE.md` | **Human** (historical) | Point-in-time architecture review (2026-07-26) | Do not edit — superseded by `docs/*` + wiki |
+| `SECURITY.md` | **Human** | Threat model + reporting | Trust-model / network-surface changes |
+| `docs/CONTEXT.md` | **Human** (stale) | v2 context from 2026-06-24 | Do not edit — superseded by `AGENTS.md` + `CHANGELOG.md` |
+| `docs/precise-tasks.md` | **Agent + Human** | Coding-task taxonomy + gates | 09-14 fixed — was using nonexistent `--traits mlx` flag; MLX is a hard dependency, plain `swift build` |
+| `docs/plans/agent-os-dual-mode-architecture.md` | **Human** (plan) | Proposed dual-mode prompt architecture — **not yet implemented** | Promote to implementation plan when adopted |
+| `CHECKPOINT.md` | **Agent (transient)** | Live-work checkpoint, overwritten each round | Not stable — do not cite as source of truth |
+| `~~.status.md~~` | — | Tracked in git (listed in `.gitignore` L37 but committed earlier) — status snapshot | Do not cite — point-in-time |
+
+**Agent-facing change discipline:**
+1. Identify the behaviour that will change (tool schema / prompt wording / marker).
+2. Add or extend a regression test (exact-value `#expect`, not `count > N`).
+3. If it touches `SystemPromptBuilder` or `ToolEntry` description/schema: run `make test-ci` — the model-behaviour tests in `Tests/ocoreaiTests/` pin the contract.
+4. **Never** change a marker literal (e.g. `think`) without hexdump-pairing it against the upstream reference (display layers strip angle brackets — see `ThinkTagParser` audit).
 
 ---
 

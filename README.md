@@ -43,7 +43,7 @@ Known boundaries (as of this commit, not aspirations):
 
 - **Perception & TTS are off by default** — per-channel toggles in Settings; camera/screen/speaker also need OS permissions.
 - **TTS/STT require microphone permission**; screen capture is macOS-only.
-- **i18n**: en + zh-Hans shipped; ja/ko/fr/es defined but untranslated.
+- **i18n**: en + zh-Hans shipped (full tables); ja/ko/fr/es defined in `OCALocale` but not in `availableLocales` (no table yet).
 - **CI**: the macOS-26 leg is the authoritative gate; the xcode-27 leg currently fails in an upstream mlx-swift-lm pin (not ocoreai code).
 - **Status rows that were ✅ by code audit do not guarantee runtime behavior** — treat as "implemented in source", verified where a test exists.
 
@@ -150,7 +150,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 ### Security
 
 - **Network** — Binds `127.0.0.1` only. No external address exposure.
-- **Auth** — env var `OCOREAI_API_KEYS` (comma-separated) enables it; `OCOREAI_ADMIN_KEYS` gates PATCH/DELETE. Empty/absent = auth off. Not a YAML key.
+- **Auth** — env var `OCOREAI_API_KEYS` enables it; `OCOREAI_ADMIN_KEYS` gates PATCH/DELETE. Empty/absent = auth off. **Non-loopback bind without auth is refused** (`ServerAuthGate`). Not a YAML key.
 - **Rate limiting** — Token-bucket rate limiter with configurable burst/window.
 - **ContentGuard** — 3-stage input/output filtering for sensitive content.
 - **StructuredLogger** — Structured audit trail, log file rotation.
@@ -163,8 +163,8 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 
 Per-feature status with commit refs lives in `CHANGELOG.md` — a pinned ✅ table here would go stale on every commit. What is stable as of this commit:
 
-- **Authoritative gate**: `make test-ci` (xcodebuild → xctest), CI leg `macos-26` — last full run **1725 tests / 323 suites, all green** (`519fbf9`). The `xcode-27` leg is a known beta/runner-noisy leg (fails in upstream MLX pinning, not ocoreai code); `macos-26` is the delivery gate.
-- **Local builds** compile clean (0 errors; a small number of known source warnings remain — `make test-ci` output).
+- **Authoritative gate**: `make test-ci` (xcodebuild → xctest), CI leg `macos-26` — last full run **1825 tests / 344 suites, all green** (`066607b`, 2026-09-14). The `xcode-27` leg is a known beta/runner-noisy leg (fails in upstream MLX pinning, not ocoreai code); `macos-26` is the delivery gate.
+- **Local builds** compile clean: ocoreai source 0 warnings (dependency-bundle noise aside).
 - **Default-off surfaces** (deliberate, not missing): perception channels, TTS/speaker, self-correction pipeline — see "Known boundaries" above.
 
 ### Build Info

@@ -2,7 +2,114 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-08-14 → 2026-09-04
+## [Unreleased] — 2026-09-05 → 2026-09-14
+
+**Security hardening** — three commits close real trust-model gaps identified in 09-13 audit:
+
+- `d01d01e` **Security (server):** refuse non-loopback bind without `OCOREAI_API_KEYS` — new `ServerAuthGate` middleware (`Sources/ocoreai/Middleware/ServerAuthGate.swift`) + `App.swift:799` wiring; throws `RefusedToServeError` on non-loopback/auth-off cell (omlx `09a7c43` baseline). README/CONTRIBUTING auth lines updated.
+- `eadd36d` **Security (memory):** SecretRedactor baseline at the tool-result chokepoint — verbatim port of the four regexes from codex `codex-rs/secrets/src/sanitizer.rs` (order + replacement marker kept), openclaw `dcf3baa8535` (#146596) as the independent second reference; closes the shell/.env/config → tool-result → model-context leak (previously zero masking on that path).
+- `a2fe611` **Security (memory):** treat recalled memory as *data*, not instructions — closes prompt-injection-via-memory surface.
+- `2451d15` **Docs:** add `SECURITY.md` (threat model + reporting); fix stale ANE-VLM fallback log wording.
+
+**CoreAI VLM absorb (coreai-models `cc81207`)** — 4 commits bring sequential VLM engine + foundation layer into ocoreai:
+
+- `4517ca3` **Core (VLM foundation):** absorb `VisionConfig` / `ImageStrategy` / `ImagePreprocessor` / `VideoInput` / `InputEmbeddings` + 19 exact-value tests (Foundation layer only, no `.aimodel` floor).
+- `bcc55fb` **Feat (CoreAI):** absorb `CoreAISequentialVLMEngine` from coreai-models HEAD.
+- `979e6aa` **Fix (CoreAI):** gate `CoreAISequentialVLMEngine` behind `#if canImport(CoreAI)` (macOS 27 floor, matches upstream).
+- `3af3227` **Audit:** add `CoreAIVideoInput` / `CoreAIImagePreprocessor` to Class-B vendored-file whitelist.
+
+**09-11 upstream pin audit (mlx-swift-lm / coreai-models / codex)** — `e21bb3d` bump `mlx-swift-lm` pin `4c3d793 → 604fae7` (+4 commits, all fix): `#584` RotatingKVCache trim wrap-aware (correctness), `#597` LoRA config metadata discovery, `#611` generation worker cooperative-scheduling, `#615` Gemma4 VLM float32 softcap fusion. `Package.swift` no new deps; ocoreai does not in-tree override any touched file. `7fb6b67` **Docs:** coreai-models 引用基线刷新 `cc81207` (09-11) — `b91bb18..cc81207` 8 commit 全核, 新 5 个消费面 0 吸收 0 缺口 (`#238/#214/#242/#239/#229`).
+
+**CoreAI absorption (coreai-models #240 / #244)** — two correctness fixes from upstream:
+
+- `e45d8ee` **Core (CoreAI #240):** layered prefill chunking (`0d6c0bf`) — large-prompt prefill no longer OOMs on long-context models.
+- `49c3998` **Fix (sampling, coreai-models #244):** feed neutral penalty tensor on non-penalty paths (previously `RepetitionPenaltyGPUState` saw uninitialized refCounts → sampling drift).
+
+**CoreAI sequential/pipelined engines + guided-gen — 09-07 `5e45dd0` / `f385c2f` + 09-10 `3dd27c4`:**
+
+- `5e45dd0` **CoreAI pipelined (#212):** the old pipelined engine sized `S=1`/`GDN` models on the 256-row static `[1,1,vocab]` logits descriptor → `init` crash (qwen3.5 GDN class triggers immediately). `InputLayout` ported (name-resolution `in_new_token_ids`/`pos_ids` + strategies; static detection pins `chunk(1,1)`) + the 3 pipelined gates read layout; `InputLayoutTests` 8 cases, `make test-ci` 1590/298 全绿.
+- `f385c2f` **CoreAI sequential (#227):** the follow-up absorption (upstream: "All three engines now use it") — name extraction `inputNames[0]/[1]` / `outputNames[0]` → `InputLayout.analyze` (`in_new_token_ids`/`pos_ids` variants no longer position-crash). static-shape verified to have no counterpart (no gap).
+- `3dd27c4` **Guided-gen:** absorb `incompleteOutput → keep emitted partial text` (upstream alignment).
+
+**MCP spec alignment (codex axis, 2025-06-18 spec)** — 09-07 four commits close consumer-side gaps:
+
+- `3ef0aa9` **MCP wire:** align spec `2025-06-18` — `elicitation` capability + `elicitation/create` method name + version negotiation.
+- `f289b15` **MCP (codex `555b82afa9`):** elicitation inbound request response surface — user-verification absorbed.
+- `12b96b1` **MCP `structuredContent`:** 2 decode sites were silently dropping it — unified to `decodeToolCallResult` single-source (codex `models.rs:2258-2297` priority chain `structured > content`, arbitrary JSON `Value` serialization); `JSONValue` type-identity fix for `NSNumber`/`Bool` bridge; local-dispatch protocol-level failure guard (close `.never` safety-bypass regression); 9 exact-value tests, `make test-ci` 1603/300 全绿.
+- `c0f613c` **MCP param-shape fidelity (Red→Green):** `number → .number` (float, not truncated int) / `object` recursive `properties + required` (not flat string) / `array` items / `required` subset pass-through (not all); `MCPSchemaFidelityTests` 5 tests; `make test-ci` 1582/297 全绿.
+
+**Tool-calling surface** — 09-06 4 commits + 09-13 `2fd463f` wire the tool surface end-to-end:
+
+- `bada388` **Tools:** 25/27 tools with real schema through the full pipeline — `DynamicGenerationSchema` path + `toToolSpecs` `items/required/properties` fill + full test-gate.
+- `448b587` **Fix (Tools):** `ToolEntry` missing `description` field (typed side dropped it on receive) + `toToolSpecs` double-backslash escape (source text leaking to model) + MCP external-tool description pass-through; RED→GREEN 3 new tests (10/10); `make test-ci` 1576/295 全绿.
+- `5939fd7` **FM tool-call fixes (3):** `Arguments` `String → GeneratedContent` (correct contract channel).
+- `3fc02fd` **FM `capabilities`:** add `.toolCalling` — missing declaration caused tool-carrying requests to 500/0-token; upstream baseline `MLXLanguageModel.swift:313`.
+- `2fd463f` *(09-13)* **Extract `StdToolCallRecovery` policy** + 6 exact regression-trap tests (previously inline in `EngineInference`).
+
+**Reasoning / think-tag alignment** — 09-11/12 four commits close the think-marker fork:
+
+- `74247c5` **Fix (parsing):** align think-tag markers to the Qwen3.5 model family (upstream-verified; `ThinkTagParser` literal `think` byte-identity with upstream confirmed by hexdump `3c 74 68 6e 6b 3e`; ocoreai's `"\u003cthink" + ">"` concatenation is an ocoreai convention, functionally equivalent).
+- `53965bb` **Fix (wire):** non-stream content fallback when the reasoning channel carries the whole answer.
+- `4b806b7` **Fix (wire):** streaming fallback for the same case.
+- `eb7d1a5` **Fix (reasoning):** separate non-streaming reasoning from content; audit sub-second duration.
+
+**Wire / stream hygiene** — 09-09 6 commits:
+
+- `e00f50b` **Wire:** `OutputSanitizer` non-stream output purge — byte-level marker evidence, strip thinking span + fake tool-array.
+- `4e2535f` **Wire:** streaming purge `StreamOutputFilter` — any-chunk `content ≡ strip(whole)`, thinking flows via `reasoning_content`.
+- `efbddfa` **Wire:** SSE terminator unified on a single source of truth — fix `ChatHandler` lowercase `[done]` drift.
+- `3466cc9` **Wire:** context-exhaustion wall upgraded to typed `400` (hermes-agent `#106260` three-part absorption).
+- `f45bb39` **Fix (http):** structural `model-id 404`, stop masking as `503 engine-unavailable`.
+- `c55d1d3` **Close GAP-4 chain:** budget-truncation badge reaches the user (previously the token budget exhausted silently).
+
+**Agent loop / recovery (codex axis)** — 09-09/09-10 5 commits:
+
+- `df67fda` **Agent-loop:** tool-handler failure → surface to model for recovery (codex semantics; previously the failure aborted the turn).
+- `d5f5b55` **Fix (config):** `models.<id>.enabled` dead field wired to consumption + download log honesty.
+- `8622818` **Fix (FMToolBridge):** tool-handler failure feeds back `[tool_error:]`, eliminate FM/MLX behavior fork.
+- `6071133` **Fix (engine):** silent-failure three fixes — warmup fake-success honest log + late-`markActive` downgrade + tokenizer registration wiring.
+- `d019be2` **Fix (stream):** `.error` event no longer injected into assistant content — SSE diagnostic marker, align non-stream self-correction semantics.
+
+**Video / media** — 09-08 3 commits close the VLM media path:
+
+- `311be24` **VLM wire:** vision silently dropped — root cause `CodingKeys` + direct path with image + wire contract lock.
+- `68a3088` **Media routing gate** extended to video/audio (previously only `image` was routed).
+- `cdd2f34` **Video E2E real:** `VideoURL.maxFrames` non-optional poisons array decode + `makeMLXVideo` `data-URL → temp file` + `real-client-shape` contract tests.
+
+**Model download** — 09-11 3 commits close the HF/MS layout fork:
+
+- `448605a` **Model download (M8):** HF flat layout + local-first short-circuit (`ReadyHubDownloader.flatRoot`).
+- `456ebdc` **Model download (M8 follow-up):** point HF progress poller at the flat dir.
+- `71b2885` **Models:** stop `ensureLayout` pre-creating provider subdirs (`huggingface/modelscope/local`) — single root `models/<org>/<name>/`, omlx-aligned.
+
+**Scheduler / memory** — 09-14 2 commits:
+
+- `1c5628b` **Feat (scheduler):** typed OOM refusal with budget snapshot (previously the OOM was a bare `500`).
+- `361da25` **Test (scheduler):** live-chain coverage for typed OOM refusal (新行为类型无测试 = 未交付).
+- `9c7844f` **Sessions:** session↔worktree binding persists via conditional migration (on top of `a1f81dd` per-session worktree workspace seam, codex `new_worktree` parity).
+- `121d8d9` **i18n:** wire remaining hardcoded UI strings into `StringKey` (en + zhHans full tables); `066607b` the last 3 hardcoded VoiceOver labels (en + zhHans).
+- `7be6f76` **Hygiene:** drop two dead `await` on synchronous `@MainActor` call sites. `4f89cc1` two compile-warning anti-patterns removed from `ConfigRecoveryTests`.
+
+**Also in this window (09-05 → 09-14):**
+
+- `7060acd` **Agent:** coding-agent base prompt 行为契约 (codex 轴对齐).
+- `8f7a511` **P0-2:** `tools` 请求路由回 native tool-dispatch loop + OpenAI wire 蛇形键补全. `fe9b4bd` **P0-3:** 尊重客户端 `tools[]` 白名单语义 (声明则收敛注入面, 零声明则 registry 全量, 本地优先).
+- `d599904` **Fix:** grammar schema JSON 崩溃 — `flattenSchemaJSON` 递归全深度扁平化. `d4b2546` **Fix:** `ContextStatusStore` 并发污染 — `enforceContextWindow` 加 store 注入缝, 测试全套私有化.
+- `4c11b16` **Engine:** bounded rejected-tool-call recovery on std path (500→200). `60460ab` 推理错误面保留原错误语义 (`GuidedGenerationError` 不再被吞).
+- `3ae9f24` **Fast path:** 原生路径对齐 HTTP 工具路由契约 — `hasNativeTools`/`declaredToolNames` 镜像 ChatHandler, UI 接线注册表工具面.
+- `59df1f8` **Workspace:** working-directory + `AGENTS.md` injection (codex `agents_md.rs` baseline).
+- `b5a0c47`/`b5ea073`/`6a8d974` **VLM 根修三连:** `isVlm` 判定从下载前改为下载后重判 (`.vision` 无条件声明); modelURL 幻影目录 (CWD 相对) → 就绪目录解析; `listLocalFiles` 前缀双斜杠致快路径永不命中 → 重下载根修.
+- `1377ea6` **UX:** 347s 冷启动零反馈修复 — 启动后台预热 + state 可见 + 瞬态可重试语义分离.
+- `2765a83` **CI:** defer 内裸 async → `Task` 包裹, 修 macos-26 权威门 defer-await 编译错.
+- `605acbd` **Fix (engine):** FM 路 thinking/response 事件流补齐 — 0-token 根因闭环 + `collect()` 消费. `5d84073` **Fix (Tools):** `checkFn` 注册失败补可见 warning (27 处 `try?` 不再静默吞错).
+- `b22ee53` **Docs:** ANE-VLM gate 措辞纠错 (behavior zero). `33e8735` `EngineVariantRouting.fullCompatibilityTable` 注释修正 (收窄到 LLM 变体并标注 ocoreai 特异分支).
+- `8b2e1ab` **Tooling:** format-check 去 `git checkout` 还原 (CI 对等, 不盲 checkout — 09-06 事故根因修复). `f1832bf` dead `jsonSchemaType` helper 删除 (09-06 code-as-doc audit).
+- `2142d5f` **Docs:** `AGENTS.md` coreai-models 基准 pin 陈旧纠正 (`b91bb18→df81198`). `5a6ad81` 审计落点归位 wiki KB (`~/wiki/audits`), 移出仓内.
+- `a0025e6` **Chore:** 本地隔离目录 git status 忽略.
+
+---
+
+## 2026-08-14 → 2026-09-04
 
 ### Features
 

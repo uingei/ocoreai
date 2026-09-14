@@ -18,8 +18,8 @@ swift build -c release
 swift test --enable-code-coverage
 
 # Run
-swift run ocoreai chat --backend mlx "Hello"
-swift run ocoreai chat --backend coreai "Hello"
+swift run
+# → HTTP gateway + UI; curl http://127.0.0.1:8080/health
 ```
 
 ## Branch Workflow
@@ -135,21 +135,23 @@ Static patterns that CI blocks in `Sources/`:
 
 Pick the lowest level that proves what you need to prove:
 
-| Level | What it tests | Boundary | Test Location |
-|---|---|---|---|
-| **Unit** | Single function/struct | Everything isolated | Co-located `#if TESTING` blocks |
-| **Component** | One subsystem in isolation | Subsystem real, rest mocked | `Tests/<Target>/Component/` |
-| **Integration** | Multiple subsystems wired together | Real internals, external mocked | `Tests/OcoreAI/Integration/` |
-| **System** | Full request→response across boundaries | Only external mocked | `Tests/OcoreAI/System/` |
-| **Live (.enable-live)** | Real inference backends (MLX/CoreAI) | Nothing mocked | `Tests/OcoreAI/Live/` with build flag |
+All tests live flat in `Tests/ocoreaiTests/` (no per-level subdirectories); shared test code goes in `Tests/ocoreaiTestUtilities/`. Pick the lowest level that proves what you need to prove:
+
+| Level | What it tests | Example classes (valid `--filter` targets) |
+|---|---|---|
+| **Unit** | Single function/struct | `InputLayoutTests`, `AgenticThinkTagParserVendoredTests` |
+| **Integration** | Multiple subsystems wired together | `GuidedGenerationIntegrationTests`, `HardwareRouterIntegrationTests` |
+| **System** | Full request → response across boundaries | `ChatPipelineBehavioralTests`, `ServerAuthGateTests` |
+| **Boundaries (live-ish)** | State-machine / boundary logic with real backends simulated | `SystemContextSensorTests`, `ExecSessionsTests` |
 
 **Running tests:**
 ```bash
-swift test                                     # unit + component + integration
-swift test --filter OcoreAITests.System        # system only
-swift test --enable-live                       # live (requires real backends)
-swift test --enable-code-coverage              # with coverage
+swift test                               # full suite
+swift test --filter ServerAuthGateTests  # one class
+swift test --enable-code-coverage        # with coverage
 ```
+
+There is no `--enable-live` flag and no `Tests/OcoreAI/{Component,Integration,System,Live}` tree — the test target is `ocoreaiTests` (see `Package.swift`), and `--filter` takes a test-class name, not a suite prefix.
 
 **Testing discipline:**
 - Exercise the **real path** — a test that swaps the inference backend for a stub is not a test of your feature
@@ -187,7 +189,7 @@ Before marking a PR ready, self-assess the risk:
 fork → branch → commit → push → open PR → review → merge (squash)
 ```
 
-- **PR template is mandatory** — fill every section in `.github/pull_request_template.md`
+- **PR template is mandatory** — fill every section in `.github/PULL_REQUEST_TEMPLATE.md`
 - **Validation evidence is required** — paste actual command output, not "CI will check"
 - **"It works on my machine" is not evidence**
 - **Small PRs first** — prefer `XS/S/M`. Split large work into stacked PRs
@@ -197,9 +199,9 @@ fork → branch → commit → push → open PR → review → merge (squash)
 ## Architecture Context
 
 Before architecture-sensitive changes, read:
-- `CONTEXT.md` — domain vocabulary
+- `docs/CONTEXT.md` — domain vocabulary
 - `.github/REVIEW.md` — review process
-- `Sources/OcoreAI/Routing/HardwareRouter.swift` — routing logic
+- `Sources/ocoreai/Scheduler/HardwareRouter.swift` — routing logic
 
 ## Questions?
 

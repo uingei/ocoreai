@@ -143,13 +143,13 @@ memory:
 | **推理** | `Reasoning/` | ComplexityAnalyzer、ThinkingBudget（自适应推理深度） |
 | **分析** | `Profiling/` | TimingHooks（延迟/TTFB） |
 | **指标** | `Metrics/` | Prometheus 指标采集与导出 |
-| **本地化** | `Localization/` | i18n（en, zh-Hans 已部署；ja, ko, fr, es 已定义） |
+| **本地化** | `Localization/` | i18n（en、zh-Hans 全表；ja、ko、fr、es 已在 `OCALocale` 定义但无翻译表，未进 UI 选择器） |
 
 ---
 
 ### 安全
 
-- **网络** — 仅绑定 `127.0.0.1`。无外部地址暴露。
+- **网络** — 仅绑定 `127.0.0.1`。非回环地址未设 `OCOREAI_API_KEYS` 时**拒绝启动**（`ServerAuthGate`）。无外部地址暴露。
 - **认证** — 环境变量 `OCOREAI_API_KEYS`（逗号分隔）开启，PATCH/DELETE 另需 `OCOREAI_ADMIN_KEYS`；为空则不认证。非 YAML 键。
 - **速率限制** — Token-bucket 令牌桶限流器，可配置 burst/window。
 - **ContentGuard** — 三阶段输入/输出内容过滤。
@@ -163,8 +163,8 @@ memory:
 
 逐特性状态 + commit 引用在 `CHANGELOG.md`。截至本 commit 的稳定事实：
 
-- **权威门**：`make test-ci`（xcodebuild 路径，macOS-26 腿）—— `swift test` 会撞 `.build` metallib 缺失（环境噪声，非真失败），只作增量快筛。
-- **CI**：macOS-26 腿绿；xcode-27 腿红在上游 mlx-swift-lm pin，非本仓代码。
+- **权威门**：`make test-ci`（xcodebuild 路径，macOS-26 腿）—— `swift test` 会撞 `.build` metallib 缺失（环境噪声，非真失败），只作增量快筛。最新全量：**1825 tests / 344 suites 全绿**（`066607b`，2026-09-14）。
+- **CI**：macOS-26 腿绿；xcode-27 腿红在上游 mlx-swift-lm pin，非本仓代码。ocoreai 源码 0 警告（依赖 bundle 噪声除外）。
 
 ---
 
@@ -172,7 +172,7 @@ memory:
 
 - Swift 6.2 · SwiftUI · Hummingbird 2.26
 - macOS 14+ / iOS 17+ · Apple Silicon · 纯 SwiftPM
-- 质量门：`make test-ci`（xcodebuild 路径，macOS-26 腿为权威）；已知现存 5 条源码警告
+- 质量门：`make test-ci`（xcodebuild 路径，macOS-26 腿为权威）；ocoreai 源码 0 警告（依赖 bundle 噪声除外）
 ---
 
 ### License
