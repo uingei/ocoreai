@@ -89,6 +89,8 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 - `9c7844f` **Sessions:** session↔worktree binding persists via conditional migration (on top of `a1f81dd` per-session worktree workspace seam, codex `new_worktree` parity).
 - `121d8d9` **i18n:** wire remaining hardcoded UI strings into `StringKey` (en + zhHans full tables); `066607b` the last 3 hardcoded VoiceOver labels (en + zhHans).
 - `7be6f76` **Hygiene:** drop two dead `await` on synchronous `@MainActor` call sites. `4f89cc1` two compile-warning anti-patterns removed from `ConfigRecoveryTests`.
+- `6061278` **Docs:** 6 文件漂移修复 — AGENTS pin/行号/计数+Documentation Map, README/README.zh, CHANGELOG, CONTRIBUTING CLI/PR 模板, ARCHITECTURE LOC 刷新.
+- `2765a83`/`1bf1932`/`06a4e78` **CI:** Static Audit 白名单补齐 (SessionWorkspace `errorDescription` = LocalizedError 先例) + 收 Static Audit 一直掩盖的两处编译断裂 — ① macOS 腿 `defer { await store.close() }` 移至函数尾; ② iOS 腿 `Foundation.Process` 加 `#if os(macOS)` 门控 (同 ExecTools 先例). 26 步全绿.
 
 **Also in this window (09-05 → 09-14):**
 
