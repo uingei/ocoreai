@@ -92,6 +92,17 @@ actor OOMGuard {
         currentLevel
     }
 
+    /// Budget snapshot for user-facing error messages — how much is used and
+    /// what the budget is, so an OOM refusal can say "currently X of Y"
+    /// instead of a bare "refused" (vllm-metal #756 error-quality bar:
+    /// current state + concrete next step).
+    func budgetSnapshot() -> (usedGB: Double, budgetGB: Double) {
+        (
+            usedGB: Double(budgetBytesUsed) / 1_073_741_824.0,
+            budgetGB: Double(budgetBytes) / 1_073_741_824.0
+        )
+    }
+
     /// Get recent downgrade events.
     /// - Parameter count: Number of events to return (default: 10).
     func recentEvents(count: Int = 10) -> [OOMEvent] {

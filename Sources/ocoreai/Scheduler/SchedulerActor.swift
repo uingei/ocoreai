@@ -181,8 +181,13 @@ actor SchedulerActor {
         // 1. OOMGuard check — system-wide OOM protection
         if let oomg = oomGuard {
             guard await oomg.shouldAcceptRequest() else {
-                logger.warning("Rejecting request: OOMGuard active")
-                throw SchedulerError.oomRefused
+                let snap = await oomg.budgetSnapshot()
+                logger.warning(
+                    "Rejecting request: OOMGuard active (used \(snap.usedGB) GB / budget \(snap.budgetGB) GB)"
+                )
+                throw SchedulerError.oomRefused(
+                    usedGB: Int(snap.usedGB),
+                    budgetGB: Int(snap.budgetGB))
             }
         }
 
@@ -526,7 +531,7 @@ actor SchedulerActor {
 
 public enum SchedulerError: Error, LocalizedError, Sendable, Equatable {
     case queueFull
-    case oomRefused
+    case oomRefused(usedGB: Int, budgetGB: Int)
     case admissionRefused
     case notFound(String)
     case timeout(String)
@@ -534,7 +539,8 @@ public enum SchedulerError: Error, LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case .queueFull: "Scheduler queue is full"
-        case .oomRefused: "Request refused due to OOM protection"
+        case .oomRefused(let used, let budget):
+            "Request refused due to OOM protection — memory \(used) GB used of \(budget) GB budget"
         case .admissionRefused: "Request refused — insufficient admission headroom"
         case .notFound(let id): "Request not found: \(id)"
         case .timeout(let id): "Request timed out: \(id)"

@@ -1620,6 +1620,18 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// Service Unavailable — engine unavailable (load failure)
     case engineUnavailable
 
+    /// Service Unavailable — system memory is under OOM pressure; the OOM guard
+    /// refuses new requests to protect existing ones.
+    ///
+    /// Typed (non-string) so JSON clients can branch on the condition and carry
+    /// the actual numbers: "currently X GB of Y GB budget" + a concrete next step
+    /// (release memory / use a smaller or more quantized model), mirroring the
+    /// error-standard in vllm-metal #756 (`increase --gpu-memory-utilization
+    /// (currently 0.15); use a smaller or more quantized model`). Distinct from
+    /// ``engineUnavailable`` (engine load failure) so JSON clients can separate
+    /// "machine is out of RAM" from "engine not ready" and act differently.
+    case memoryExhausted(usedGB: Int, budgetGB: Int)
+
     /// Service Unavailable — model still loading / prewarming; caller should
     /// retry (poll `state: "loading"` on ``GET /v1/models`` until it flips
     /// to `ready`). Distinct from ``engineUnavailable`` so JSON clients can
@@ -1661,6 +1673,10 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         case .generationError(let msg): "Generation failed: \(msg)"
         case .kvCacheCorruption(let msg): "KV cache corruption: \(msg)"
         case .engineUnavailable: "Engine unavailable"
+        case .memoryExhausted(let used, let budget):
+            "Request refused due to OOM protection — memory \(used) GB used of \(budget) GB budget. "
+                + "Free up memory (close other apps), switch to a smaller or more quantized model, "
+                + "or raise the memory budget, then retry."
         case .modelLoading(let name):
             "Model \(name) is still loading — retry when state == \"ready\""
         case .inferenceFailed(let msg): "Inference failed: \(msg)"
@@ -1688,7 +1704,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
             .badRequest
         case .modelNotFound, .coldStoreNotFound:
             .notFound
-        case .poolExhausted, .queueClosed, .engineUnavailable, .modelLoading,
+        case .poolExhausted, .queueClosed, .engineUnavailable, .memoryExhausted,
+            .modelLoading,
             .sessionLimitExceeded:
             .serviceUnavailable
         case .sessionExpired:
@@ -1720,6 +1737,11 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
             detail["error_code"] = "context_window_exhausted"
             detail["post_tokens"] = postTokens
             detail["cap"] = cap
+        }
+        if case .memoryExhausted(let used, let budget) = self {
+            detail["error_code"] = "memory_exhausted"
+            detail["used_gb"] = used
+            detail["budget_gb"] = budget
         }
         let errorBody = NSDictionary(dictionary: ["error": detail])
         var headers: HTTPFields = [:]

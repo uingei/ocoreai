@@ -247,8 +247,8 @@ func chatCompletionsHandler(
         switch e {
         case .admissionRefused:
             throw AppError.engineUnavailable
-        case .oomRefused:
-            throw AppError.engineUnavailable
+        case .oomRefused(let used, let budget):
+            throw AppError.memoryExhausted(usedGB: used, budgetGB: budget)
         case .queueFull:
             throw AppError.poolExhausted(0)
         default:

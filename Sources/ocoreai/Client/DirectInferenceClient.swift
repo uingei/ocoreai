@@ -344,8 +344,10 @@ extension DirectInferenceClient {
         } catch let e as SchedulerError {
             await scheduler.fail(schedulingRequest.id, with: e.localizedDescription)
             switch e {
-            case .admissionRefused, .oomRefused:
+            case .admissionRefused:
                 throw AppError.engineUnavailable
+            case .oomRefused(let used, let budget):
+                throw AppError.memoryExhausted(usedGB: used, budgetGB: budget)
             case .queueFull:
                 throw AppError.poolExhausted(0)
             default:
@@ -713,8 +715,10 @@ extension DirectInferenceClient {
         } catch let e as SchedulerError {
             await scheduler.fail(schedulingRequest.id, with: e.localizedDescription)
             switch e {
-            case .admissionRefused, .oomRefused:
+            case .admissionRefused:
                 throw AppError.engineUnavailable
+            case .oomRefused(let used, let budget):
+                throw AppError.memoryExhausted(usedGB: used, budgetGB: budget)
             case .queueFull:
                 throw AppError.poolExhausted(0)
             default:
