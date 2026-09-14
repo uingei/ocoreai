@@ -219,7 +219,7 @@ struct CodeBlock: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(theme.cardBorder, lineWidth: 0.5),
         )
-        .accessibilityLabel("Code block: \(code)")
+        .accessibilityLabel("\(StringKey.a11yCodeBlock.l): \(code)")
     }
 }
 

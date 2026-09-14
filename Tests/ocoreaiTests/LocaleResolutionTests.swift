@@ -60,6 +60,27 @@ struct LocaleAvailabilityTests {
         #expect(StringKey.mtpMeter.localized(for: .en).contains("%d/%d"))
         #expect(StringKey.mtpMeter.localized(for: .zhHans).contains("%d/%d"))
     }
+
+    /// VoiceOver label templates: the three previously-hardcoded English
+    /// words (Channel / Code block / Load) were the last unlocalized a11y
+    /// strings. Lock their exact resolution in BOTH tables.
+    @Test("a11y channel / code-block / load labels resolve in en AND zhHans")
+    func a11yLabelTemplatesResolveInBothTables() {
+        #expect(StringKey.a11yComputeChannel.localized(for: .en) == "Channel")
+        #expect(StringKey.a11yCodeBlock.localized(for: .en) == "Code block")
+        #expect(StringKey.a11yLoadModel.localized(for: .en) == "Load")
+        #expect(StringKey.a11yComputeChannel.localized(for: .zhHans) == "通道")
+        #expect(StringKey.a11yCodeBlock.localized(for: .zhHans) == "代码块")
+        #expect(StringKey.a11yLoadModel.localized(for: .zhHans) == "加载")
+        // None may fall back to the raw key or be empty (silent-missing guard).
+        for key in [StringKey.a11yComputeChannel, StringKey.a11yCodeBlock, StringKey.a11yLoadModel]
+        {
+            #expect(!key.localized(for: .en).isEmpty)
+            #expect(!key.localized(for: .zhHans).isEmpty)
+            #expect(key.localized(for: .en) != key.rawValue)
+            #expect(key.localized(for: .zhHans) != key.rawValue)
+        }
+    }
 }
 
 @Suite("Locale — user choice is honored")

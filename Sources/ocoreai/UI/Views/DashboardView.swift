@@ -107,7 +107,7 @@ struct DashboardView: View {
                 .padding(.vertical, 2)
                 .background(ComputeChannelUI_colorFor(channel).opacity(0.12))
                 .clipShape(Capsule())
-                .accessibilityLabel("Compute channel: \(channel.badgeLabel)")
+                .accessibilityLabel("\(StringKey.a11yComputeChannel.l): \(channel.badgeLabel)")
             }
             Spacer()
             if dashboardState.isLive {

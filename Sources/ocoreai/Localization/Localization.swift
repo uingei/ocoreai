@@ -421,6 +421,9 @@ public enum StringKey: String, CaseIterable {
     // — Accessibility label templates —
     case a11yStatus = "A11y.Status"
     case a11yModel = "A11y.Model"
+    case a11yComputeChannel = "A11y.ComputeChannel"
+    case a11yCodeBlock = "A11y.CodeBlock"
+    case a11yLoadModel = "A11y.LoadModel"
 
     // — Model param label —
     case paramFieldPlaceholder = "ModelParam.FieldPlaceholder"
@@ -979,6 +982,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         // A11y templates
         .a11yStatus: "Status",
         .a11yModel: "Model",
+        .a11yComputeChannel: "Channel",
+        .a11yCodeBlock: "Code block",
+        .a11yLoadModel: "Load",
 
         // Settings / About
         .aboutTitle: "ocoreai",
@@ -1483,6 +1489,9 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         // A11y templates
         .a11yStatus: "状态",
         .a11yModel: "模型",
+        .a11yComputeChannel: "通道",
+        .a11yCodeBlock: "代码块",
+        .a11yLoadModel: "加载",
 
         // Settings / About
         .aboutTitle: "ocoreai",
