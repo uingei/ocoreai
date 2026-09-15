@@ -406,6 +406,15 @@ struct InferenceOptions: Codable {
     /// Used by MMLU-style evaluation to compute P(continuation|context).
     /// Aligned with upstream InferenceOptions.forcedContinuation.
     var forcedContinuation: [Int32]? = nil
+    /// Headless / wire-surface flag (external HTTP caller, not GUI / in-process
+    /// client). codex alignment (codex-rs/exec/src/lib.rs:566): headless
+    /// consumers cannot be asked for approval — the `.ask` (`interactive`)
+    /// verdict is coerced to a fail-closed denial instead of parking on the
+    /// broker (who would approve for a foreign process?). GUI and
+    /// DirectInferenceClient keep the park-and-wait broker path unchanged.
+    /// Engine toolDispatch closure reads this and forwards it to
+    /// `ToolRegistry.call(..., headless:)`.
+    var headless: Bool = false
 
     init(
         maxTokens: Int? = nil, includeLogits: Bool = false, useGuidedGeneration: Bool = false,
@@ -413,7 +422,8 @@ struct InferenceOptions: Codable {
         enableReasoning: Bool = false, reasoningLevel: String? = nil,
         reasoningEffort: String? = nil, toolCallingMode: String? = nil,
         declaredToolNames: [String]? = nil,
-        forcedContinuation: [Int32]? = nil
+        forcedContinuation: [Int32]? = nil,
+        headless: Bool = false
     ) {
         self.maxTokens = maxTokens
         self.includeLogits = includeLogits
@@ -426,6 +436,7 @@ struct InferenceOptions: Codable {
         self.toolCallingMode = toolCallingMode
         self.declaredToolNames = declaredToolNames
         self.forcedContinuation = forcedContinuation
+        self.headless = headless
     }
 
     init() {}

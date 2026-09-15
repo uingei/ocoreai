@@ -2,7 +2,14 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-09-15
+## [Unreleased] — 2026-09-05 → 2026-09-16
+
+**Security: headless approval fail-closed (codex `codex-rs/exec/src/lib.rs:566` alignment)** — wire-HTTP consumers are external processes; the `.interactive` (`.ask`) approval verdict can no longer park them on the in-app broker (who would approve for a foreign process?). The gate now coerces `.ask` → fail-closed denial on the headless surface, before any broker routing:
+
+- `InferenceOptions.headless` (default `false`) carries the surface flag from the three wire handlers (Chat/Completions/Anthropic) through `EngineInference` toolDispatch closure + `FMToolProxy.tools` (macOS 27 FoundationModels path) to `ToolRegistry.call(..., headless:)` → `securityGate`.
+- MCP external path (`securityPrecheckExternal` / `securityElicitationAccepts`) keeps its existing broker semantics (`headless: false`) — no behavior change there; local-UI/DirectInferenceClient paths are byte-identical (`headless: false` default).
+- New gate branch tested by 3 exact-value tests in `ApprovalTests` (headless `.ask` → denied with exact reason + no broker row created; `.deny` hook authority survives headless; in-process `.ask` still parks + resolves via GUI broker). `make test-ci` 1842→1845.
+- Live E2E (gemma-4-e2b, loopback wire): external `write_file` request → immediate `denied: interactive approval is not available on this (headless) channel` surfaced as a tool-result, **HTTP 200 in 6.1s** (pre-fix RED: HTTP 000 / 25s client timeout / indefinite broker park). GUI park-and-approve flow unchanged.
 
 **Security hardening** — three commits close real trust-model gaps identified in 09-13 audit:
 

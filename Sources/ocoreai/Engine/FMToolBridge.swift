@@ -74,7 +74,8 @@ struct FMToolProxy: FoundationModels.Tool {
     static func tools(
         from registry: ToolRegistry,
         toolSpecs: [[String: any Sendable]],
-        log logger: Logging.Logger
+        log logger: Logging.Logger,
+        headless: Bool = false
     ) -> [any FoundationModels.Tool] {
         var result: [any FoundationModels.Tool] = []
         for spec in toolSpecs {
@@ -96,7 +97,8 @@ struct FMToolProxy: FoundationModels.Tool {
                 parameters: schema,
                 dispatch: { toolName, args in
                     do {
-                        return try await registry.call(toolName, arguments: args)
+                        return try await registry.call(
+                            toolName, arguments: args, headless: headless)
                     } catch {
                         // Tool-failure recovery (codex semantics, mirrors the
                         // MLX path EngineInference L2683-2690): a handler-level

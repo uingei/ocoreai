@@ -546,7 +546,12 @@ func chatCompletionsHandler(
             reasoningEffort: request.reasoningEffort,
             // P0-3: declared names (OpenAI `tools[]` whitelist); nil when the
             // client declared none → engine keeps the full registry surface.
-            declaredToolNames: request.tools?.map { $0.function.name }
+            declaredToolNames: request.tools?.map { $0.function.name },
+            // Wire HTTP consumer (external process), not the in-app GUI:
+            // `.interactive` approval cannot be asked of a wire consumer →
+            // fail-closed deny at the gate instead of parking on the broker
+            // (codex `codex-rs/exec/src/lib.rs:566` headless → Never).
+            headless: true
         )
 
         /// Log if guided generation is enabled for this request.

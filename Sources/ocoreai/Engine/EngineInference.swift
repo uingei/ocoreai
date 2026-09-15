@@ -2408,7 +2408,8 @@ extension EnginePool {
                         } ?? specs
                     if !surface.isEmpty {
                         let fmToolsArray = FMToolProxy.tools(
-                            from: registry, toolSpecs: surface, log: log)
+                            from: registry, toolSpecs: surface, log: log,
+                            headless: options.headless)
                         fmTools = fmToolsArray
                         let surfaceNote =
                             options.declaredToolNames == nil
@@ -2758,7 +2759,10 @@ extension EnginePool {
                 // Double-serialization fix: removed tracker record + JSON roundtrip.
                 // Previously: MLXLMCommon.JSONValue → JSONSerialization → String → registry.call().
                 // Now: MLXLMCommon.JSONValue → direct registry.call() via .anyValue.
-                toolDispatchClosure = { [registry, logger = self.logger] toolCall in
+                toolDispatchClosure = {
+                    [registry, logger = self.logger, headless = options.headless] toolCall in
+                    // capture headless by value (Bool = Sendable, snapshot of the
+                    // request flag for this inference).
                     // MLXLMCommon.ToolCall carries JSONValue args that need JSON-string
                     // serialization for ToolRegistry.call(arguments: String).
                     // Previously this went through _InterceptedToolCallTracker (JSON roundtrip)
@@ -2796,7 +2800,8 @@ extension EnginePool {
                         toolResult = try await registry.call(
                             toolCall.function.name,
                             arguments: jsonArgs,
-                            caller: "mlx_engine"
+                            caller: "mlx_engine",
+                            headless: headless
                         )
                     } catch let error as ToolError {
                         logger.warning(

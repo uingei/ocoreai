@@ -196,8 +196,13 @@ actor ToolRegistry {
     /// the bootstrap hook in `App.swift` (destructive-tool matcher) is the
     /// approval surface for the 7 built-in local tools.
     /// - Throws: ``ToolError/denied(reason:):`` on `.deny` or user denial.
-    func securityPrecheck(toolName: String, arguments: String) async throws {
-        try await securityGate(toolName: toolName, arguments: arguments, ungated: .allow)
+    func securityPrecheck(
+        toolName: String, arguments: String, headless: Bool = false
+    ) async throws {
+        try await securityGate(
+            toolName: toolName, arguments: arguments,
+            ungated: .allow, headless: headless
+        )
     }
 
     /// Security gate for **external (MCP)** tool calls — codex makes MCP calls
@@ -219,7 +224,8 @@ actor ToolRegistry {
         try await securityGate(
             toolName: toolName, arguments: arguments,
             ungated: .ask(
-                reason: "External MCP tool — operator approval required (no hook claims this call)")
+                reason: "External MCP tool — operator approval required (no hook claims this call)"),
+            headless: false
         )
     }
 
@@ -236,14 +242,15 @@ actor ToolRegistry {
             toolName: "mcp_elicit[\(server)]",
             arguments: message.isEmpty ? "(no message)" : message,
             ungated: .ask(
-                reason: "External MCP server '\(server)' is requesting user confirmation (elicit)")
+                reason: "External MCP server '\(server)' is requesting user confirmation (elicit)"),
+            headless: false
         )
     }
 
     /// Shared gate body. `ungated` = effective verdict when NO hook claims the
     /// call (local: `.allow`; external: `.ask` → policy/broker decides).
     private func securityGate(
-        toolName: String, arguments: String, ungated: HookVerdict
+        toolName: String, arguments: String, ungated: HookVerdict, headless: Bool = false
     ) async throws {
         // PreToolUse hook veto — codex `HookEventName.preToolUse`.
         // A single deny/ask from any matching hook short-circuits here,
@@ -264,7 +271,21 @@ actor ToolRegistry {
             throw ToolError.denied(reason: reason)
         case .ask(let reason):
             // User-approval gate — codex `ExecApprovalRequest` → TUI cell →
-            // `ReviewDecision`. broker 存在 → 挂起等裁决；broker 缺席 → 硬拒
+            // `ReviewDecision`.
+            //
+            // headless surface（wire HTTP 消费者、非 GUI / in-process 客户端）：
+            // codex `codex-rs/exec/src/lib.rs:566` — headless 消费者无法被询问
+            // 审批，`.interactive`（`.ask`）裁决被 coerce 为 fail-closed 拒绝，
+            // 不 park 在 broker（外部进程不能替本机 GUI 的人审批）。
+            if headless {
+                let denyReason =
+                    "denied: interactive approval is not available on this (headless) channel"
+                logger.info(
+                    "Tool '\(toolName)' requires approval but caller is headless — denying fail-closed"
+                )
+                throw ToolError.denied(reason: denyReason)
+            }
+            // GUI / in-process：broker 存在 → 挂起等裁决；broker 缺席 → 硬拒
             // （回归保护：无审批面时绝不静默放行）。
             if let broker = approvalBroker {
                 logger.info("Tool '\(toolName)' requires approval — routing to broker")
@@ -293,8 +314,9 @@ actor ToolRegistry {
     ///   - caller: Optional caller identity for audit trail (default: "unknown")
     /// - Returns: Tool result string
     /// - Throws: ``ToolError`` on validation or execution failure
-    func call(_ name: String, arguments: String, caller: String = "unknown") async throws -> String
-    {
+    func call(
+        _ name: String, arguments: String, caller: String = "unknown", headless: Bool = false
+    ) async throws -> String {
         // 0a. Exec-host state guard (absorbs codex #41454): a blocked exec host
         //      is refused BEFORE any hook/approval — asking the user for a call
         //      we know we will refuse is a wart, and codex blocks the goal
@@ -303,7 +325,7 @@ actor ToolRegistry {
 
         // 0. Security preflight (PreToolUse hooks + approval broker gate) —
         //    shared with the external-MCP path (see `securityPrecheck`).
-        try await securityPrecheck(toolName: name, arguments: arguments)
+        try await securityPrecheck(toolName: name, arguments: arguments, headless: headless)
 
         // 1. Lookup
         guard let entry = tools[name] else {

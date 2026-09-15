@@ -193,6 +193,10 @@ func completionsHandler(
         enableReasoning: false,
         reasoningLevel: nil,
         reasoningEffort: nil,
+        // Wire HTTP consumer — `.interactive` cannot be asked of an external
+        // process: gate `.ask` verdicts fail-closed instead of parking on the
+        // broker (codex `codex-rs/exec/src/lib.rs:566` headless → Never).
+        headless: true
     )
 
     /// Prompt token count (metrics) — tokenize or CJK-heuristic (chat Phase 3).

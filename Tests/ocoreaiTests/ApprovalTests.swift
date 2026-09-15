@@ -519,4 +519,69 @@ struct ReviewSurfaceGateTests {
         }
         return nil
     }
+    // MARK: - headless surface (codex lib.rs:566: headless → Never → Rejected)
+
+    /// The .interactive verdict arrives via a PreToolUse `.ask` hook (the gate's
+    /// `ungated` default only fills calls no hook claims — a deny-hook veto must
+    /// survive headless, same as a broker veto today).
+    private static let headlessAskReason =
+        "denied: interactive approval is not available on this (headless) channel"
+
+    @Test(
+        "headless .ask verdict is denied fail-closed — even with a broker that would otherwise park"
+    )
+    func headlessAskIsDeniedFailClosed() async {
+        let b = ApprovalBroker(policy: .interactive)
+        let registry = ToolRegistry(
+            hooks: [Hook.any { _ in .ask(reason: "confirm destructive op") }],
+            approvalBroker: b,
+        )
+        do {
+            try await registry.securityPrecheck(
+                toolName: "write_file", arguments: "{}", headless: true)
+            #expect(false, "expected ToolError.denied (headless .ask → fail-closed)")
+        } catch let ToolError.denied(reason) {
+            #expect(reason == Self.headlessAskReason, "got: \(reason)")
+        } catch {
+            #expect(false, "expected ToolError.denied, got: \(type(of: error)) \(error)")
+        }
+        #expect(await b.snapshot().isEmpty, "no broker entry must be created on the headless path")
+    }
+
+    @Test("headless .deny hook retains hook-authority (veto precedes the headless coercion)")
+    func headlessDenyHookRetainsAuthority() async {
+        let registry = ToolRegistry(
+            hooks: [Hook.any { _ in .deny(reason: "harness-veto") }],
+            approvalBroker: nil,
+        )
+        do {
+            try await registry.securityPrecheck(
+                toolName: "write_file", arguments: "{}", headless: true)
+            #expect(false, "expected ToolError.denied")
+        } catch let ToolError.denied(reason) {
+            #expect(reason == "harness-veto", "hook veto must survive headless, got: \(reason)")
+        } catch {
+            #expect(false, "expected ToolError.denied, got: \(error)")
+        }
+    }
+
+    @Test("in-process .ask still routes to the broker (GUI path unchanged; headless=false)")
+    func inProcessAskStillRoutesToBroker() async {
+        let b = ApprovalBroker(policy: .interactive)
+        let registry = ToolRegistry(
+            hooks: [Hook.any { _ in .ask(reason: "confirm destructive op") }],
+            approvalBroker: b,
+        )
+        let t = Task {
+            try await registry.securityPrecheck(
+                toolName: "write_file", arguments: "{}", headless: false)
+        }
+        guard let row = await snapshotRow(b) else {
+            #expect(false, "in-process .ask must still park on the broker (GUI path)")
+            return
+        }
+        _ = await b.resolve(id: row.id, decision: .approved)
+        _ = try? await t.value
+        #expect(await b.snapshot().isEmpty)
+    }
 }
