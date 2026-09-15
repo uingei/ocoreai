@@ -1662,6 +1662,23 @@ extension EnginePool {
                     "HardwareRouter → ANE but CoreAI runtime unavailable, falling back to GPU for \(modelId)"
                 )
                 computeChannel = .gpu
+            } else if !{
+                if #available(macOS 27.0, iOS 27.0, *) {
+                    return PreparedModel.hasCoreAIAsset(at: loaded.modelURL)
+                }
+                return false
+            }() {
+                // A Hub/MLX model dir (HF safetensors…) has no `.aimodel`/`.aimodelc`;
+                // the CoreAI lane would fail at `AIModel(contentsOf:)` ("Missing hash
+                // file", observed ×3) and an ANE-selected request would error instead
+                // of running. Same contract as the prewarm asset gate
+                // (LoadedModel prewarm, `59d631b`) and upstream
+                // `ModelStructure.assetExtensions` — ANE is a capability of a model
+                // that ships Core AI assets, not of the accelerator alone.
+                logger.info(
+                    "ANE selected but \(modelId) has no .aimodel/.aimodelc asset, falling back to GPU"
+                )
+                computeChannel = .gpu
             } else if messages.contains(where: \.hasMediaPart) {
                 logger.info(
                     "ANE selected but multimodal content present (CoreAISequentialVLMEngine in-tree but ANE-VLM routing not yet wired — needs bundle kind/ComponentKey discovery, no local .aimodel assets), falling back to GPU for \(modelId)"
