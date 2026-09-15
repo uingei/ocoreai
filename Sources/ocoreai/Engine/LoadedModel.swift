@@ -388,6 +388,10 @@ final class LoadedModel: @unchecked Sendable {
         #if canImport(CoreAI)
         if #available(macOS 27.0, iOS 27.0, *) {
             do {
+                // Track which warmup lane actually ran — a trip with no real
+                // warm (stub env / no CoreAI asset) must stay honest:
+                // ``prewarmFullySucceeded`` = false.
+                var completedRealWarmup = false
                 // Call upstream Executor.prewarm(model:transcript:) — compiles Metal
                 // shaders + pre-builds GrammarTokenizer.
                 // upstream: MLXLanguageModel.swift L920: Executor.prewarm(model:transcript:)
@@ -406,16 +410,35 @@ final class LoadedModel: @unchecked Sendable {
                     ]
                     let transcript = FoundationModels.Transcript(entries: entries)
                     executor.prewarm(model: lm, transcript: transcript)
+                    completedRealWarmup = true
                 }
-                // Also warm CoreAI engine — single engine per model preserves KV cache
-                let engine = try await getCachedEngine()
-                let seq = try await engine.generate(
-                    with: Array(repeating: 0, count: 8),
-                    samplingConfiguration: SamplingConfiguration(),
-                    inferenceOptions: InferenceOptions(maxTokens: warmupTokens),
-                )
-                // Drain stream to complete warmup
-                for try await _ in seq {}
+                // Also warm CoreAI engine — single engine per model preserves KV cache.
+                // Gate on CoreAI asset presence: a Hub/MLX model (HF safetensors, no
+                // `.aimodel`/`.aimodelc`) has nothing to specialize, and calling
+                // AIModel(contentsOf:) on its dir fails "Missing hash file" (09-15
+                // live log ×3). The MLX prewarm above (L395) is the real warm for
+                // those models and is untouched. Mirrors upstream coreai-models
+                // ModelStructure.assetExtensions.
+                if PreparedModel.hasCoreAIAsset(at: modelURL) {
+                    let engine = try await getCachedEngine()
+                    let seq = try await engine.generate(
+                        with: Array(repeating: 0, count: 8),
+                        samplingConfiguration: SamplingConfiguration(),
+                        inferenceOptions: InferenceOptions(maxTokens: warmupTokens),
+                    )
+                    // Drain stream to complete warmup
+                    for try await _ in seq {}
+                    completedRealWarmup = true
+                }
+                if !completedRealWarmup {
+                    // No warmup lane available for this model in this environment.
+                    // Mark degraded so callers cannot claim "first request fast"
+                    // (same honesty contract as the `#else` no-handle branch).
+                    if !wasPrewarmDegraded {
+                        wasPrewarmDegraded = true
+                        logger.warning("Warmup skipped: no MLX handle and no CoreAI asset")
+                    }
+                }
             } catch {
                 if !wasPrewarmDegraded {
                     wasPrewarmDegraded = true

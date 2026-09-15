@@ -440,6 +440,31 @@ struct PreparedModel: Sendable {
         url
     }
 
+    /// Core AI asset extensions — a model is a CoreAI specialization target only if
+    /// it contains one of these. Mirrors upstream coreai-models
+    /// `ModelStructure.assetExtensions` (`.aimodel` / `.aimodelc`).
+    ///
+    /// A Hub/MLX model directory (HF `safetensors`, tokenizer, …) has none —
+    /// `AIModel(contentsOf:)` on it is guaranteed to fail (`Missing hash file`,
+    /// observed 09-15 live log ×3). Callers use this to gate specialization
+    /// attempts instead of catching the runtime error.
+    static func hasCoreAIAsset(at url: URL) -> Bool {
+        let extensions: Set<String> = ["aimodel", "aimodelc"]
+        // A path ending in a known asset extension IS the asset (asset bundles
+        // are themselves directories, so check this before scanning as a dir).
+        if extensions.contains(url.pathExtension) { return true }
+        let entries: [URL]
+        do {
+            entries = try FileManager.default.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: nil
+            )
+        } catch {
+            return false
+        }
+        return entries.contains { extensions.contains($0.pathExtension) }
+    }
+
     /// Detect model structure from descriptor.
     private static func detectStructure(from model: AIModel, functionName: String) -> ModelStructure
     {

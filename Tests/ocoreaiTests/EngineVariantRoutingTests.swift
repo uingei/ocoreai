@@ -145,6 +145,76 @@ struct EngineVariantRoutingTests {
             EngineFactory.checkVariantCompatibility(variant: .staticShape, structure: .unknown)
                 .compatible == false, "upstream: non-LLM structure → no variant is compatible")
     }
+
+    // MARK: CoreAI asset preflight (hasCoreAIAsset — 09-15 "Missing hash file" fix)
+
+    @Test("hasCoreAIAsset: Hub/MLX model dir (safetensors/tokenizer) → false")
+    func hubModelDirReturnsFalse() throws {
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("coreai-asset-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // Exactly the real gemma-4-e2b dir shape (09-15: 0 .aimodel files)
+        for name in ["config.json", "model.safetensors", "tokenizer.json", "processor_config.json"]
+        {
+            FileManager.default.createFile(
+                atPath: dir.appendingPathComponent(name).path, contents: Data(count: 1))
+        }
+        #expect(
+            PreparedModel.hasCoreAIAsset(at: dir) == false,
+            "HF-layout dir must not be specialized — live log 'Missing hash file' ×3 (09-15)")
+    }
+
+    @Test("hasCoreAIAsset: dir containing .aimodel → true")
+    func dirWithAimodelReturnsTrue() throws {
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("coreai-asset-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        FileManager.default.createFile(
+            atPath: dir.appendingPathComponent("Transformer.aimodel").path, contents: Data(count: 1)
+        )
+        FileManager.default.createFile(
+            atPath: dir.appendingPathComponent("tokenizer.json").path, contents: Data(count: 1))
+        #expect(PreparedModel.hasCoreAIAsset(at: dir) == true)
+    }
+
+    @Test("hasCoreAIAsset: dir containing .aimodelc (compiled) → true")
+    func dirWithAimodelcReturnsTrue() throws {
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("coreai-asset-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        FileManager.default.createFile(
+            atPath: dir.appendingPathComponent("compiled.aimodelc").path, contents: Data(count: 1))
+        #expect(PreparedModel.hasCoreAIAsset(at: dir) == true)
+    }
+
+    @Test("hasCoreAIAsset: path itself is an asset (no dir listing needed) → true")
+    func directAssetPathReturnsTrue() {
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        // No filesystem touch — pure extension check (asset bundles are dirs themselves)
+        #expect(
+            PreparedModel.hasCoreAIAsset(at: URL(fileURLWithPath: "/models/Transformer.aimodel"))
+                == true)
+        #expect(
+            PreparedModel.hasCoreAIAsset(at: URL(fileURLWithPath: "/models/Transformer.aimodelc"))
+                == true)
+        #expect(
+            PreparedModel.hasCoreAIAsset(
+                at: URL(fileURLWithPath: "/models/Transformer.aimodel.json")) == false)
+    }
+
+    @Test("hasCoreAIAsset: nonexistent path → false (no throw)")
+    func nonexistentPathReturnsFalse() {
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        #expect(
+            PreparedModel.hasCoreAIAsset(
+                at: URL(fileURLWithPath: "/no/such/dirs/\(UUID().uuidString)")) == false)
+    }
 }
 
 #endif  // canImport(CoreAI)
