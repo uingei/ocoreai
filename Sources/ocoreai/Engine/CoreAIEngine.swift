@@ -425,6 +425,31 @@ enum ModelStructure: Sendable {
         case .unknown: "unknown"
         }
     }
+
+    /// Specialization options derived from the detected structure.
+    /// Mirrors upstream coreai-models `ModelStructure.specializationOptions`
+    /// (ModelStructure.swift L71, macOS 27 SDK):
+    /// - `.dynamic` → prefer `.gpu` + `expectFrequentReshapes`
+    /// - `.chunkedStatic` / `.unknown` → prefer `.neuralEngine`
+    ///
+    /// Loading a dynamic (growing-KV-cache) LM **without** options sends it
+    /// down MPSGraph's default ANE dynamic path, which crashes inside the
+    /// ANE rewrite pass (`ANECRegionCallOpRewritePattern` → null-deref,
+    /// SIGSEGV). Reproduced 09-15 against a qwen3-0.6b dynamic `.aimodel`;
+    /// the upstream runner loading the same asset with structure-derived
+    /// options succeeds (EXIT 0, coherent text). Aligned 09-15 — the vendored
+    /// `prepare` had dropped the options.
+    @available(macOS 27.0, iOS 27.0, *)
+    var specializationOptions: SpecializationOptions {
+        switch self {
+        case .dynamic:
+            var options = SpecializationOptions(preferredComputeUnitKind: .gpu)
+            options.expectFrequentReshapes = true
+            return options
+        case .chunkedStatic, .unknown:
+            return SpecializationOptions(preferredComputeUnitKind: .neuralEngine)
+        }
+    }
 }
 
 // MARK: - PreparedModel
@@ -481,13 +506,55 @@ struct PreparedModel: Sendable {
         return .chunkedStatic
     }
 
-    /// Prepare model asset via CoreAI — loads, detects structure.
+    /// Prepare model asset via CoreAI — probes structure first, then loads
+    /// with structure-derived specialization options.
+    ///
+    /// Aligned to upstream coreai-models `ModelStructure.prepare`
+    /// (CoreAIShared/Runtime/ModelStructure.swift L195-215): probe the asset
+    /// without specializing, pick `SpecializationOptions` from the structure,
+    /// then `AIModel(contentsOf:options:)`. Loading a dynamic (growing-KV-cache)
+    /// LM without options takes MPSGraph's default ANE dynamic path, which
+    /// crashes in the ANE rewrite pass (`ANECRegionCallOpRewritePattern`
+    /// null-deref → SIGSEGV) — reproduced 09-15 against a qwen3-0.6b dynamic
+    /// `.aimodel` (upstream runner, same asset, with options: EXIT 0).
     static func prepare(at modelURL: URL, functionName: String = "default") async throws
         -> PreparedModel
     {
-        let model = try await AIModel(contentsOf: modelURL)
+        let probedStructure = probeStructure(at: modelURL)
+        let options = probedStructure.specializationOptions
+        let model = try await AIModel(contentsOf: modelURL, options: options)
         let structure = detectStructure(from: model, functionName: functionName)
         return PreparedModel(model: model, structure: structure)
+    }
+
+    /// Probe model structure via `AIModelAsset.summary()` without triggering
+    /// specialization. Mirrors upstream `probeStructure` (ModelStructure.swift
+    /// L219-235): a non-empty function list with extend-prefixed static-graph
+    /// markers → `.chunkedStatic`; anything else (or probe failure) defaults
+    /// to `.dynamic` — the safe choice, since `.dynamic` maps to
+    /// `.gpu + expectFrequentReshapes`.
+    @available(macOS 27.0, iOS 27.0, *)
+    private static func probeStructure(at url: URL) -> ModelStructure {
+        do {
+            let asset = try AIModelAsset(contentsOf: url)
+            if let summary = try asset.summary(includingStatistics: false) {
+                let names = summary.functions.map { $0.name }
+                guard !names.isEmpty else { return .dynamic }
+                let extendFunctions = names.filter { $0.hasPrefix("extend") }
+                if !extendFunctions.isEmpty
+                    && names.contains(where: {
+                        $0.hasSuffix("load_embeddings")
+                            || $0 == "load_embeddings"
+                    })
+                {
+                    return .chunkedStatic
+                }
+                return .dynamic
+            }
+            return .dynamic
+        } catch {
+            return .dynamic
+        }
     }
 }
 
