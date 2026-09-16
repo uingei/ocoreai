@@ -33,14 +33,21 @@ struct ToolSpecFullRegistryTests {
         return registry
     }
 
-    @Test("bootstrap registry: 全参 bootstrap 精确 27 工具（真值源）+ 关键面全在")
+    @Test("bootstrap registry: 全参 bootstrap 精确工具集(macOS 33 / iOS 27 真值源)+ 关键面全在")
     func registeredCountExact() async {
         let registry = await Self.fullRegistry()
         let names = Set(await registry.listTools())
         // 真值（BuiltInTools.swift 逐点核）：
-        //   无条件 22 + skills×3（if let skillRegistry）+ plan×2（if updatePlanEnabled，默认 false=codex #41744）
-        //   全参 bootstrap = 27。生产默认口径 = 22；当时 /tmp/fm-attach.log 生产口径 = 25（skills on + plan off）。
-        #expect(names.count == 27, "实际注册: \(names.sorted())")
+        //   无条件 22 + skills×3（if let skillRegistry）+ plan×2（if updatePlanEnabled）= 27 基础口径
+        //   + macOS 6 desktop control（move_mouse/click/drag/scroll/type_text/key_press，#if os(macOS) 门控）= 33
+        //   生产默认口径 = 22；当时 /tmp/fm-attach.log 生产口径 = 25（skills on + plan off）。
+        var expectedCount = 27
+        #if os(macOS)
+        expectedCount += 6
+        #endif
+        #expect(
+            names.count == expectedCount,
+            "实际注册(\(names.count)), 期望 \(expectedCount): \(names.sorted())")
         for required in [
             "info", "echo", "read_file", "write_file", "edit_file", "search_files",
             "exec_shell", "exec_command", "exec_poll", "write_stdin", "view_image",
@@ -51,13 +58,23 @@ struct ToolSpecFullRegistryTests {
         ] {
             #expect(names.contains(required), "missing tool: \(required)")
         }
+        #if os(macOS)
+        for requiredDesktop in ["move_mouse", "click", "drag", "scroll", "type_text", "key_press"] {
+            #expect(
+                names.contains(requiredDesktop), "missing desktop control tool: \(requiredDesktop)")
+        }
+        #endif
     }
 
     @Test("toToolSpecs: 每工具 parameters 形状合法 (type=object + properties)")
     func specShapesWellFormed() async {
         let registry = await Self.fullRegistry()
         let specs = await registry.toToolSpecs()
+        #if os(macOS)
+        #expect(specs.count == 33, "specs \(specs.count) (macOS 基础 27 + desktop 6)")
+        #else
         #expect(specs.count == 27, "specs \(specs.count)")
+        #endif
 
         for spec in specs {
             guard

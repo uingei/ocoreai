@@ -482,6 +482,23 @@ func bootstrapBuiltInTools(
     // 真值源 = PerceptionEngine.shared.buffer(与 UI 注入路径同一环形缓冲), 零 sensor 副作用。
     try? await registry.register(ObserveStateClient.toolEntry())
 
+    #if os(macOS)
+    // ── desktop control axis ────────────────────────────────────────────────
+    // action 半(input 轴): computer use 的驱动面。感知轴(看)既有, 动作轴
+    // (点/键/拖/滚/打字)此前全库为零 —— 本段补齐, 与 codex `computer_use`
+    // (codex-rs/features/src/lib.rs:1468, Stage::Stable, default_enabled: true)
+    // 对齐: 一等轴, 默认可达。
+    // 安全: 6 个全 isDestructive → 串行 + 逐次审批 ask(App.swift destructive
+    // matcher, 每次驱动用户裁决); 无 Accessibility 权限 → 诚实回报(工具面
+    // trustedStatus, 不假装已发出); headless → 既有 fail-closed 拒绝。
+    try? await registry.register(MoveMouseClient.toolEntry())
+    try? await registry.register(ClickClient.toolEntry())
+    try? await registry.register(DragClient.toolEntry())
+    try? await registry.register(ScrollClient.toolEntry())
+    try? await registry.register(TypeTextClient.toolEntry())
+    try? await registry.register(KeyPressClient.toolEntry())
+    #endif
+
     // ── check_tools ────────────────────────────────────────────────────────
     // Verify 段的 agent 自查询面: 读 durable 审计 trace(commit 7676ac5)的工具
     // 执行结果真值 — success/error/timeout 计数 + 失败明细。此前 AuditTrail 全库
