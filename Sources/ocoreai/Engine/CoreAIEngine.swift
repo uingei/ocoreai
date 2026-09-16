@@ -623,6 +623,30 @@ struct EngineFactory: Sendable {
         modelURL: URL,
         options: EngineOptions = EngineOptions()
     ) async throws -> any InferenceEngine {
+        // Lane inference: a VLM bundle (assets.vision + assets.embedding present)
+        // routes to `CoreAISequentialVLMEngine`; everything else falls through to
+        // the LLM structure-detect path unchanged. `VLMBundleDetector.load` is
+        // pure Foundation (no CoreAI import) and returns nil for non-VLM bundles,
+        // so the LLM path costs nothing extra.
+        //
+        // 09-17 ANE-VLM wiring — the in-tree `CoreAISequentialVLMEngine` (1241 L,
+        // absorbed 09-16) previously had NO factory branch: `createEngine` only
+        // knew the three LLM variants, so an ANE-selected VLM request hit the
+        // `EngineInference` gate (L1682) and fell back to GPU. This branch closes
+        // that factory gap. The message → (placeholder tokens + InputEmbeddings)
+        // assembly (`EngineInference` ANE-multimodal branch, upstream llm-runner's
+        // `runVLMGeneration`) is deferred: it needs a live `.aimodelc` VLM bundle
+        // + the `buildVLMPromptFromChatTemplate` equivalent, which is the next
+        // piece once a VLM asset is available.
+        if let vlmMetadata = VLMBundleDetector.load(at: modelURL) {
+            let visionStatus = vlmMetadata.visionConfig == nil ? "absent" : "present"
+            log.info(
+                "ANE-VLM lane: \(vlmMetadata.name) → CoreAISequentialVLMEngine (visionConfig \(visionStatus))"
+            )
+            return try await createVLMEngine(
+                config: config, metadata: vlmMetadata, bundleURL: modelURL, options: options)
+        }
+
         // Parse config
         var parsedConfig = try parseModelConfig(from: config)
 
@@ -680,6 +704,86 @@ struct EngineFactory: Sendable {
                 preparedModel: preparedModel,
                 options: options
             )
+        }
+    }
+
+    /// ANE-VLM engine creation — the factory branch that `VLMBundleDetector.swift`
+    /// (L121-125) documents. Resolves the bundle's three component assets
+    /// (main/vision/embedding) via `VLMBundleMetadata.componentPath`, prepares each
+    /// with `PreparedModel.prepare` (structure probe + specialization options —
+    /// the same ANE-rewrite crash guard as the LLM path, reproduced 09-15), then
+    /// constructs `CoreAISequentialVLMEngine`.
+    ///
+    /// `vision` block contract: mirrors upstream `LanguageBundle` (L52-53) —
+    /// `kind == .vlm && visionConfig == nil → missingField("vision")`. Detection
+    /// is relaxed to the asset keys only (per `VLMBundleMetadata` docs); the
+    /// factory re-enforces the vision-block requirement so a bundle with a
+    /// malformed vision block fails here with a precise error instead of
+    /// producing garbage embeddings with guessed CLIP defaults.
+    static func createVLMEngine(
+        config: Data,
+        metadata: VLMBundleMetadata,
+        bundleURL: URL,
+        options: EngineOptions = EngineOptions()
+    ) async throws -> CoreAISequentialVLMEngine {
+        let baseConfig = try parseModelConfig(from: config)
+
+        // Resolve the three component assets. `componentPath` returns nil for a
+        // missing variant — surface it as a precise error rather than a later
+        // crash inside `AIModel(contentsOf:)`.
+        func requireComponent(_ key: String) throws -> URL {
+            guard let path = metadata.componentPath(key, in: bundleURL) else {
+                throw InferenceRuntimeError.modelNotFound(
+                    "VLM bundle \(metadata.name): no .aimodel/.aimodelc asset for role '\(key)'"
+                )
+            }
+            return path
+        }
+        let mainPath = try requireComponent(VLMBundleMetadata.assetMain)
+        let visionPath = try requireComponent(VLMBundleMetadata.assetVision)
+        let embedPath = try requireComponent(VLMBundleMetadata.assetEmbedding)
+
+        log.info(
+            "ANE-VLM components: main=\(mainPath.lastPathComponent) vision=\(visionPath.lastPathComponent) embed=\(embedPath.lastPathComponent)"
+        )
+
+        guard let visionConfig = metadata.visionConfig else {
+            throw InferenceRuntimeError.invalidArgument(
+                "VLM bundle \(metadata.name): missing 'vision' block in metadata.json. "
+                    + "Required for ANE-VLM routing — mirrors upstream LanguageBundle L52-53."
+            )
+        }
+        let vlmConfig = VLMModelConfig(
+            base: baseConfig,
+            visionConfig: visionConfig,
+            prefillChunkSizeOverride: options.prefillChunkSize,
+            prefillChunkThresholdOverride: options.prefillChunkThreshold
+        )
+
+        // Prepare all three components (the same structure probe +
+        // specialization-options ANE-rewrite crash guard as the LLM path).
+        // Sequential load with per-component precise errors — three small
+        // assets ≈ one LLM bundle, and a failed component must name itself.
+        let mainLoaded = try await prepareComponent(VLMBundleMetadata.assetMain, mainPath)
+        let visionLoaded = try await prepareComponent(VLMBundleMetadata.assetVision, visionPath)
+        let embedLoaded = try await prepareComponent(VLMBundleMetadata.assetEmbedding, embedPath)
+
+        return try await CoreAISequentialVLMEngine(
+            config: vlmConfig,
+            visionModel: visionLoaded,
+            embedModel: embedLoaded,
+            llmModel: mainLoaded,
+            options: options
+        )
+    }
+
+    private static func prepareComponent(_ role: String, _ path: URL) async throws -> PreparedModel
+    {
+        do {
+            return try await PreparedModel.prepare(at: path)
+        } catch {
+            throw InferenceRuntimeError.modelLoadingFailed(
+                "VLM component '\(role)' at \(path.lastPathComponent) failed to prepare: \(error)")
         }
     }
 

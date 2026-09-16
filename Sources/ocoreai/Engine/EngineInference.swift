@@ -1639,55 +1639,67 @@ extension EnginePool {
         // _runInference falls back to MLX GPU via the #available guard below —
         // without this check, downstream (UI/SSE) receives .ane event while actual
         // inference runs on GPU.
-        // X6-fix: Also check multimodal content — the in-tree CoreAI engine family
-        // (CoreAIPipelined/Sequential/StaticShape) has NO VLM engine, and CoreAI
-        // `_runInference` cannot tokenize multimodal content (`contentToString()` in
+        // X6-fix: Also check multimodal content — the ANE branch below
+        // (tokenize → text-only `generate(with: [Int32])`) still has NO
+        // multimodal-message consumption: `contentToString()` in
         // EnginePool.tokenize() silently drops images/videos/audio, producing
-        // text-only output for VLM requests).
-        // b3: Also check captured perception media — the b2 injection delivers image/
-        // audio bytes only via the MLX path. If ANE is selected, a VLM's perception
-        // media would be silently dropped (the CoreAI path has no VLM consumer),
-        // so fall back to GPU exactly like user-attached media.
-        // 09-07 口径校正: 此 gate 的真实边界是 ocoreai in-tree 缺口（上游
-        // coreai-models `CoreAISequentialVLMEngine`(1300L) + VLMModelConfig/VisionConfig
-        // 已交付一等 ANE-VLM 路, 尚未 in-tree 衍生吸收), 不是 CoreAI SDK 能力边界
-        // (SDK 通用运行时 loadFunction+run 对 VLM bundle 可用, macOS 27 SDK 实证).
+        // text-only output for VLM requests.
+        //
+        // 09-17 status: the pure assembly layer now EXISTS —
+        // `VLMTokenAssembly.assembleVLMPrompt`(placeholder expansion +
+        // fallback prompt, upstream llm-runner `buildVLMPromptFromChatTemplate`
+        // 1:1, 8 precise-value tests live and green) — but it is NOT yet wired
+        // into the ANE branch. Wiring would require a live VLM
+        // `.aimodelc` bundle to verify `encodeImage` → `scatterMerge` end-to-end
+        // (placeholder count must match the vision encoder's per-image token
+        // count; no live VLM asset on this host). So with any media present we
+        // still fall back to GPU (the MLX lane does consume media correctly)
+        // rather than risk silently text-only ANE output.
+        // b3: perception media — same consumer gap.
         // Gate both BEFORE badge emit so the badge reflects the actual accelerator.
         #if canImport(CoreAI)
         if computeChannel == .ane {
             let perceptionMediaParts = await PerceptionEngine.shared.mediaContentParts()
             let perceptionMediaPresent = loaded.isVlm && !perceptionMediaParts.isEmpty
+            let hasMedia = messages.contains(where: \.hasMediaPart) || perceptionMediaPresent
+
+            // 09-17: the ANE branch below is text-only (tokenize →
+            // generate(with: [Int32])). It does NOT yet consume media — the
+            // pure assembly layer (`VLMTokenAssembly.assembleVLMPrompt`, 8
+            // precise-value tests green) exists but is not wired into the ANE
+            // branch, and wiring it needs a live VLM `.aimodelc` bundle to
+            // verify `encodeImage` → `scatterMerge` end-to-end (placeholder
+            // count must match the vision encoder's per-image token count).
+            // So any media-carrying ANE request falls back to GPU (the MLX
+            // lane consumes media correctly) instead of risking silently
+            // text-only ANE output.
+            let gate =
+                PlatformHelpers.isCoreAIRuntimeAvailable
+                && (!hasMedia)
+                && ({
+                    if #available(macOS 27.0, iOS 27.0, *) {
+                        return PreparedModel.hasCoreAIAsset(at: loaded.modelURL)
+                    }
+                    return false
+                }())
             if !PlatformHelpers.isCoreAIRuntimeAvailable {
                 logger.warning(
                     "HardwareRouter → ANE but CoreAI runtime unavailable, falling back to GPU for \(modelId)"
                 )
                 computeChannel = .gpu
-            } else if !{
-                if #available(macOS 27.0, iOS 27.0, *) {
-                    return PreparedModel.hasCoreAIAsset(at: loaded.modelURL)
-                }
-                return false
-            }() {
+            } else if !gate {
                 // A Hub/MLX model dir (HF safetensors…) has no `.aimodel`/`.aimodelc`;
-                // the CoreAI lane would fail at `AIModel(contentsOf:)` ("Missing hash
-                // file", observed ×3) and an ANE-selected request would error instead
-                // of running. Same contract as the prewarm asset gate
-                // (LoadedModel prewarm, `59d631b`) and upstream
-                // `ModelStructure.assetExtensions` — ANE is a capability of a model
-                // that ships Core AI assets, not of the accelerator alone.
-                logger.info(
-                    "ANE selected but \(modelId) has no .aimodel/.aimodelc asset, falling back to GPU"
-                )
-                computeChannel = .gpu
-            } else if messages.contains(where: \.hasMediaPart) {
-                logger.info(
-                    "ANE selected but multimodal content present (CoreAISequentialVLMEngine in-tree but ANE-VLM routing not yet wired — needs bundle kind/ComponentKey discovery, no local .aimodel assets), falling back to GPU for \(modelId)"
-                )
-                computeChannel = .gpu
-            } else if perceptionMediaPresent {
-                logger.info(
-                    "ANE selected but perception media present (CoreAISequentialVLMEngine in-tree but ANE-VLM routing not yet wired — needs bundle kind/ComponentKey discovery, no local .aimodel assets), falling back to GPU for \(modelId)"
-                )
+                // the CoreAI lane would fail at `AIModel(contentsOf:)` and an
+                // ANE-selected request would error instead of running.
+                if !hasMedia {
+                    logger.info(
+                        "ANE selected but \(modelId) has no .aimodel/.aimodelc asset, falling back to GPU"
+                    )
+                } else {
+                    logger.info(
+                        "ANE selected but \(modelId) carries media — the ANE branch is text-only (media assembly not yet wired), falling back to GPU"
+                    )
+                }
                 computeChannel = .gpu
             }
         }
@@ -2606,27 +2618,27 @@ extension EnginePool {
                         entries: some Sequence<FoundationModels.Transcript.Entry>
                     ) -> Bool {
                         var hit = false
-                        if #available(macOS 27.0, *) {
-                            for entry in entries {
-                                guard case .reasoning(let r) = entry else { continue }
-                                var reasonText = ""
-                                for seg in r.segments {
-                                    if case .text(let t) = seg {
-                                        reasonText += t.content
-                                    }
+                        // Enclosing scope (L2396) already guarantees macOS 27 / iOS 27 —
+                        // the inner `#available(macOS 27.0, *)` was a redundant check.
+                        for entry in entries {
+                            guard case .reasoning(let r) = entry else { continue }
+                            var reasonText = ""
+                            for seg in r.segments {
+                                if case .text(let t) = seg {
+                                    reasonText += t.content
                                 }
-                                if !reasonText.isEmpty,
-                                    checkStopSequence(
-                                        segment: reasonText,
-                                        accumulated: reasonText,
-                                        eventKind: { .reasoning($0) },
-                                        tokenCount: nil,
-                                        tokenFallback: 0
-                                    ).0
-                                {
-                                    hit = true
-                                    break
-                                }
+                            }
+                            if !reasonText.isEmpty,
+                                checkStopSequence(
+                                    segment: reasonText,
+                                    accumulated: reasonText,
+                                    eventKind: { .reasoning($0) },
+                                    tokenCount: nil,
+                                    tokenFallback: 0
+                                ).0
+                            {
+                                hit = true
+                                break
                             }
                         }
                         if hit || responseText.isEmpty {
