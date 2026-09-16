@@ -498,10 +498,10 @@ public final class OcoreaiEngine {
         _complexityAnalyzer = ComplexityAnalyzer()
         _thinkingBudget = ThinkingBudget()
 
-        // MARK: - ContentGuard (safety filter from config)
+        // MARK: - ContentGuard (optional owner-facing content filter, OFF by default)
 
         _contentGuard = ContentGuard(runtimeConfig: .init(from: _configSnapshot.safety))
-        logger.info("ContentGuard initialized (safety filter active)")
+        logger.info("ContentGuard initialized (enabled: \(_configSnapshot.safety.enabled))")
 
         // MARK: - MessageBuilder (shared by Fast Path + Bridge Path)
 

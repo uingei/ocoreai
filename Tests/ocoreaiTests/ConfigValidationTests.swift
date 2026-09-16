@@ -124,33 +124,30 @@ struct ConfigValidationTests {
 
     // MARK: - Safety Config
 
-    @Test("safetyDefaultValid")
-    func safetyDefaultValid() throws {
+    @Test("safetyDefaultOff")
+    func safetyDefaultOff() throws {
         let config = SafetyConfig()
         try config.validate()
-        #expect(config.enabled == true)
+        #expect(config.enabled == false)
     }
 
-    @Test("safetyNonNegotiableCannotDisable")
-    func safetyNonNegotiableCannotDisable() throws {
+    @Test("safetyOwnerMayDisableAnyCategory")
+    func safetyOwnerMayDisableAnyCategory() throws {
+        // No category is non-negotiable: when the opt-in filter is enabled the
+        // owner has full authority over every category, including disabling any.
         for cat in ["underageSexual", "sexualViolence", "selfHarm"] {
-            var config = SafetyConfig()
+            var config = SafetyConfig(enabled: true)
             config.categoryModes[cat] = "disabled"
-            do {
-                try config.validate()
-                #expect(Bool(false), "\(cat) disabled should fail")
-            } catch {
-                _ = error
-            }
+            try config.validate()
         }
     }
 
-    @Test("safetyNonNegotiableOtherModesOk")
-    func safetyNonNegotiableOtherModesOk() throws {
-        var config = SafetyConfig()
-        config.categoryModes["underageSexual"] = "auto"
-        try config.validate()
+    @Test("safetyCategoryModesValidate")
+    func safetyCategoryModesValidate() throws {
+        var config = SafetyConfig(enabled: true)
         config.categoryModes["underageSexual"] = "strict"
+        try config.validate()
+        config.categoryModes["jailbreak"] = "moderate"
         try config.validate()
     }
 

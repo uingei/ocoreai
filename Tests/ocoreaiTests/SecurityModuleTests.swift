@@ -4,7 +4,7 @@
 ///
 /// Coverage:
 /// - RuntimeSafetyConfig: config conversion, mode resolution
-/// - SafetyConfig: defaults, validation (non-negotiable categories)
+/// - SafetyConfig: defaults (off by default), validation (owner-controlled)
 /// - LogLevel: OTel severity values
 /// - LogEntry: Codable round-trip
 /// - StructuredLogger: child logger field merging
@@ -116,9 +116,9 @@ struct RuntimeSafetyConfigTests {
 @Suite("SafetyConfig")
 struct SafetyConfigTests {
 
-    @Test("Default config has safety enabled")
-    func defaultEnabled() {
-        #expect(SafetyConfig.default.enabled)
+    @Test("Default config has the filter OFF")
+    func defaultOff() {
+        #expect(!SafetyConfig.default.enabled)
         #expect(SafetyConfig.default.minMatchesRequired == 1)
         #expect(SafetyConfig.default.logRedaction)
     }
@@ -143,39 +143,36 @@ struct SafetyConfigTests {
         try config.validate()
     }
 
-    @Test("validate() rejects disabling underageSexual")
-    func validateRejectsUnderageSexualDisabled() throws {
+    @Test("validate() allows owner to disable underageSexual")
+    func validateAllowsUnderageSexualDisabled() throws {
+        // Opt-in filter is fully owner-controlled — no category is non-negotiable.
         let config = SafetyConfig(
+            enabled: true,
             categoryModes: ["underageSexual": "disabled"]
         )
-        #expect(throws: ConfigValidationError.self) {
-            try config.validate()
-        }
+        try config.validate()
     }
 
-    @Test("validate() rejects disabling sexualViolence")
-    func validateRejectsSexualViolenceDisabled() throws {
+    @Test("validate() allows owner to disable sexualViolence")
+    func validateAllowsSexualViolenceDisabled() throws {
         let config = SafetyConfig(
+            enabled: true,
             categoryModes: ["sexualViolence": "disabled"]
         )
-        #expect(throws: ConfigValidationError.self) {
-            try config.validate()
-        }
+        try config.validate()
     }
 
-    @Test("validate() rejects disabling selfHarm")
-    func validateRejectsSelfHarmDisabled() throws {
+    @Test("validate() allows owner to disable any category")
+    func validateAllowsSelfHarmDisabled() throws {
+        // No category is non-negotiable — the opt-in filter is fully owner-controlled.
         let config = SafetyConfig(
             categoryModes: ["selfHarm": "disabled"]
         )
-        #expect(throws: ConfigValidationError.self) {
-            try config.validate()
-        }
+        try config.validate()
     }
 
-    @Test("validate() allows moderate mode on non-negotiable if set")
+    @Test("validate() allows any explicit mode on any category")
     func validateAllowsModerate() throws {
-        // selfHarm can't be set to "disabled" but moderate is fine
         let config = SafetyConfig(
             categoryModes: ["selfHarm": "moderate"]
         )

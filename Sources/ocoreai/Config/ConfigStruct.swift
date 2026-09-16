@@ -47,11 +47,19 @@ public struct AppConfig: Sendable, Codable, Equatable {
 
 // MARK: - Safety Config
 
-/// Content safety configuration — controls pre/post inference filtering.
+/// Content safety configuration — an OPTIONAL owner-facing filter.
 ///
 /// Stored in `~/.ocoreai/config.yaml` under the `safety:` key.
+///
+/// **Principle (owner directive):** the standing safety principle of ocoreai is
+/// 最大求真 + 最大好奇心 + 诚实 (maximum truth-seeking + maximum curiosity +
+/// honesty), NOT human-preference alignment. A keyword wall is a human-preference
+/// filter, so it is **opt-in and OFF by default**: it must never gate legitimate
+/// work (engineering synthesis, security research, etc.). When the owner opts in,
+/// they have full authority over every category — **no category is non-negotiable**.
 public struct SafetyConfig: Sendable, Codable, Equatable {
-    /// Master toggle — disabled means all filters are bypassed.
+    /// Master toggle. Default is **off** — the system defaults to letting requests
+    /// through (maximum truth-seeking) and only filters when the owner opts in.
     public var enabled: Bool
 
     /// Per-category detection mode override (default: auto).
@@ -69,7 +77,7 @@ public struct SafetyConfig: Sendable, Codable, Equatable {
     public static let `default` = SafetyConfig()
 
     public init(
-        enabled: Bool = true,
+        enabled: Bool = false,
         categoryModes: [String: String] = [:],
         additionalKeywords: [String: [String]] = [:],
         minMatchesRequired: Int = 1,
@@ -83,15 +91,10 @@ public struct SafetyConfig: Sendable, Codable, Equatable {
     }
 
     func validate() throws {
-        // Non-negotiable categories cannot be set to "disabled"
-        let nonNegotiable: [String] = ["underageSexual", "sexualViolence", "selfHarm"]
-        for catName in nonNegotiable {
-            if let mode = categoryModes[catName], mode == "disabled" {
-                throw ConfigValidationError(
-                    "safety.categoryModes: cannot disable \(catName) — non-negotiable safety category",
-                )
-            }
-        }
+        // No category is non-negotiable. When the (opt-in) filter is enabled the
+        // owner has full authority over which categories are active — disabling any
+        // is allowed. This encodes the standing principle: default is maximum
+        // truth-seeking/curiosity, not a hardcoded human-preference wall.
     }
 }
 
