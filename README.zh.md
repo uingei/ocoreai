@@ -163,8 +163,8 @@ memory:
 
 逐特性状态 + commit 引用在 `CHANGELOG.md`。截至本 commit 的稳定事实：
 
-- **权威门**：`make test-ci`（xcodebuild 路径，macOS-26 腿）—— `swift test` 会撞 `.build` metallib 缺失（环境噪声，非真失败），只作增量快筛。最新全量：**1825 tests / 344 suites 全绿**（`066607b`，2026-09-14）。
-- **CI**：macOS-26 腿绿；xcode-27 腿红在上游 mlx-swift-lm pin，非本仓代码。ocoreai 源码 0 警告（依赖 bundle 噪声除外）。
+- **权威门**：`make test-ci`（xcodebuild → xctest，macOS-26 腿）—— `swift test` 会撞 `.build` metallib 缺失（环境噪声，非真失败），只作增量快筛。全量测试在 `deee580`（2026-09-15）全绿；具体计数见 `CHANGELOG.md`（该 commit 时 1,852）。
+- **CI**：macOS-26 腿与 xcode-27 腿均绿（最后绿 run `deee580`，2026-09-15）。`macos-26` 是交付门。
 
 ---
 

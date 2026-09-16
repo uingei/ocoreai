@@ -64,7 +64,7 @@ Each finding gets a confidence score (0–100). Only findings ≥ 80 are reporte
 This prevents noisy reviews — only report what you're sure about.
 
 Self-review discipline (7-step with forced self-negation) before marking a PR
-ready. See the `code-review-discipline` skill for the full flow.
+ready.
 
 ## Pre-Commit Verification
 
@@ -78,8 +78,6 @@ Before committing, run the 8-step verification pipeline:
 6. **Spec review** — implementation fidelity to the issue/description
 7. **Auto-fix loop** — fix findings, re-verify (max 2 cycles)
 8. **Commit** — with `[verified]` prefix
-
-See `requesting-code-review` skill for the full pipeline.
 
 ## Secret Management — Merge Gate
 
@@ -131,11 +129,7 @@ Static patterns that CI blocks in `Sources/`:
 
 ## Testing — Five Levels
 
-> Adapted from zeroclaw testing taxonomy (references/zeroclaw/docs/book/src/contributing/testing.md)
-
-Pick the lowest level that proves what you need to prove:
-
-All tests live flat in `Tests/ocoreaiTests/` (no per-level subdirectories); shared test code goes in `Tests/ocoreaiTestUtilities/`. Pick the lowest level that proves what you need to prove:
+All tests live flat in `Tests/ocoreaiTests/` (no per-level subdirectories); shared test code goes in `Tests/ocoreaiTestUtilities/`.
 
 | Level | What it tests | Example classes (valid `--filter` targets) |
 |---|---|---|

@@ -92,7 +92,7 @@ This double-pass catches the "reviewer sees a pattern match but the code is actu
 ### Repo Standards (check first, take precedence)
 
 - `CONTEXT.md` — domain vocabulary (terms must match)
-- `AGENTS.md` / `CODING_STANDARDS.md` — coding conventions
+- `AGENTS.md` — coding conventions
 - ADRs under `docs/adr/` — architecture decisions
 - Apple HIG — navigation, window management, gestures, Dynamic Type, accessibility
 

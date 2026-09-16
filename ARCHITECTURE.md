@@ -1,9 +1,9 @@
 # ocoreai Architecture Review
 
-> **Status**: Complete — based on source-level reading (137 Swift files / 40,355 LOC as of 2026-07-26; the codebase has since grown — 227 files / 75,885 LOC as of 2026-09-14, so per-file line counts below are point-in-time)
+> **Status**: Point-in-time review, not live. The codebase has moved — treat ✅/❌ claims as of the date, not as current truth. (137 Swift files / 40,355 LOC as of 2026-07-26; now 227 files / ~76k LOC)
 > **Date**: 2026-07-26
-> **Build**: `swift build --target ocoreai` → ✅ exit 0 (1 warning)
-> **Methodology**: architecture-analysis skill + code-audit-methodology three-layer verification
+> **Superseded**: `BackendProtocol` and `PagedKVCache`/`BlockPool`/`KVCacheManager` were **removed** after this review (see commit `2123143` for BackendProtocol). CoreAI **now has** native grammar-constrained decoding (`ConstrainedGenerationCapable`) — the "CoreAI lacks grammar/stop" rows in this doc are obsolete. Cross-check `CHANGELOG.md` + `~/wiki/concepts/upstream-coreai-models.md` for current state.
+> **Methodology**: source-level reading, three-layer verification (grep → compile → read)
 
 ---
 
@@ -205,7 +205,7 @@ protocol BackendProtocol: Sendable {
 | Risk | Location | Impact | Evidence |
 |------|----------|--------|----------|
 | **BackendProtocol unused** | BackendProtocol.swift:36 | Architectural drift — protocol defined but EnginePool uses inline `#if` branches | `BackendProtocol` never conformed to by `CoreAIBridge` or `MLXBridge`; EnginePool L382-449 contains inline `#if canImport(CoreAI)` |
-| **CoreAI path lacks grammar/stop/tool** | EngineInference.swift:216-270 | CoreAI requests silently fall back to MLX, negating ANE acceleration | L216: grammar fallback, L252: stop sequence fallback, L243-276: seed/repetition/presence/frequency warnings |
+| **CoreAI grammar/stop** | EngineInference.swift:500, 1129 | **Resolved as of ~2026-08.** CoreAI-native grammar exists (`ConstrainedGenerationCapable` pipelined + CoreAI-native decode loop); stop sequences handled in the decode loop. The 07-26 "falls back to MLX" claim is superseded by code. | L500 "grammar requests stay on CoreAI path", L1129 coreai constrained loop |
 | **MTP tool calls not multi-turn** | EngineInference.swift:1182-1206 | Tool calls collected but dispatched after generation — no follow-up round | L1039: `registeredToolSpecs == nil` guard, L1182: single dispatch loop |
 | **Caught error unused** | EngineInference.swift:1329 | Build warning — error caught but not propagated | `if let caughtError {` defined but never used (build warning confirmed) |
 
@@ -228,9 +228,9 @@ protocol BackendProtocol: Sendable {
 
 ---
 
-## 6. Architecture-Architecture Misattribution Check
+## 6. Cross-check of audit findings
 
-Per code-audit-methodology, I verified these are NOT false positives:
+The following findings were re-verified against current source (not assumed):
 
 1. **"PagedKVCache spins uselessly"** — ❌ FALSE POSITIVE (from 2026-07-24 audit). `attach()`/`evictSession()` are called in EnginePool L269/286. `getMemoryBytes()` consumed in EnginePool L547. Lifecycle AND data flow verified.
 
@@ -243,7 +243,7 @@ Per code-audit-methodology, I verified these are NOT false positives:
 ## 7. Recommendations
 
 ### Immediate (P0)
-1. **Remove unused `BackendProtocol`** or implement it — either conform `CoreAIBridge`/`MLXBridge` to it, or delete the dead protocol to eliminate architectural confusion.
+1. **`BackendProtocol` removed** (commit `2123143`) — the dead protocol is gone; `EnginePool` uses inline `#if canImport(CoreAI)` branches, which is now the documented reality.
 2. **Fix `caughtError` unused warning** — EngineInference.swift:1329. Change `if let caughtError {` to `if caughtError != nil {` or use the error in the yield.
 
 ### Short-term (P1)

@@ -144,10 +144,10 @@ they pass `swift build` but fail in the real inference loop when GPU memory is
 low or ANE model doesn't compile. Real logs, real timing, and verified model
 paths are how we make behavior observable and reviewable, not code reading.
 
-## 7. Integration with Hermes Code Review
+## 7. Evidence-First Review
 
-When using Hermes Agent for code review, the `requesting-code-review` skill
-runs an 8-step verification pipeline:
+Every change runs an 8-step verification pipeline (full checklist in
+`CONTRIBUTING.md` §Pre-Commit Verification):
 
 1. **Diff extraction** — what changed
 2. **Static security scan** — hardcoded keys, injection patterns

@@ -44,7 +44,7 @@ Known boundaries (as of this commit, not aspirations):
 - **Perception & TTS are off by default** — per-channel toggles in Settings; camera/screen/speaker also need OS permissions.
 - **TTS/STT require microphone permission**; screen capture is macOS-only.
 - **i18n**: en + zh-Hans shipped (full tables); ja/ko/fr/es defined in `OCALocale` but not in `availableLocales` (no table yet).
-- **CI**: the macOS-26 leg is the authoritative gate; the xcode-27 leg currently fails in an upstream mlx-swift-lm pin (not ocoreai code).
+- **CI**: both the macOS-26 and xcode-27 legs pass (last green run `deee580`, 2026-09-15). macOS-26 is the delivery gate.
 - **Status rows that were ✅ by code audit do not guarantee runtime behavior** — treat as "implemented in source", verified where a test exists.
 
 **Direction** — first product: a **Coding/Computer Agent** that reliably completes multi-step engineering tasks on-device (**Execute** → **Verify** → **Recover**). Inference stays upstream (MLX / CoreAI); ocoreai is the reliable execution layer above it — follow upstream, don't compete.
@@ -163,7 +163,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 
 Per-feature status with commit refs lives in `CHANGELOG.md` — a pinned ✅ table here would go stale on every commit. What is stable as of this commit:
 
-- **Authoritative gate**: `make test-ci` (xcodebuild → xctest), CI leg `macos-26` — last full run **1825 tests / 344 suites, all green** (`066607b`, 2026-09-14). The `xcode-27` leg is a known beta/runner-noisy leg (fails in upstream MLX pinning, not ocoreai code); `macos-26` is the delivery gate.
+- **Authoritative gate**: `make test-ci` (xcodebuild → xctest), CI leg `macos-26` — full suite green at `deee580` (2026-09-15). See `CHANGELOG.md` for the rolling test count (1,852 at that commit).
 - **Local builds** compile clean: ocoreai source 0 warnings (dependency-bundle noise aside).
 - **Default-off surfaces** (deliberate, not missing): perception channels, TTS/speaker, self-correction pipeline — see "Known boundaries" above.
 

@@ -110,5 +110,5 @@ Make the reviewer's job fast — they should confirm behavior, not read the full
 
 <!--
 Review standard: .github/REVIEW.md (two-axis: Standards + Spec)
-Code review discipline: code-review-discipline skill (7-step + self-negation)
+Code review discipline: 7-step self-review with forced self-negation (see CONTRIBUTING.md)
 -->
