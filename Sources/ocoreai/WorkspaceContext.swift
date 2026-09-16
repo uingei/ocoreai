@@ -139,7 +139,7 @@ enum WorkspaceContext {
         var remaining = maxBytes
         var parts: [String] = ["working_directory: \(trimmed)"]
         for path in files where remaining > 0 {
-            guard let data = try? fm.contents(atPath: path) else { continue }
+            guard let data = fm.contents(atPath: path) else { continue }
             let slice = data.prefix(remaining)
             remaining -= slice.count
             let text = String(decoding: slice, as: UTF8.self)
