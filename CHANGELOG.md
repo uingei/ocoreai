@@ -2,7 +2,13 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-09-16
+## [Unreleased] — 2026-09-05 → 2026-09-17
+
+**09-17 upstream pin audit (11-reference-repo sync)** — 11 仓全量 ff 对齐 origin/main 后核对消费面：
+
+- **mlx-swift-lm `3e6ea1e → c6446cf`（#620，吸收）** — `TokenIterator.next()` 的 buffer-cache 清理改为**首 token 即清**（检查移在 `tokenCount += 1` 之前，对齐 mlx-lm 节律）；此前短生成（<256 token）从不释放 buffer，反复短请求 cache 无界增长。ocoreai 消费面 = ChatSession/generate 内部 `TokenIterator`（无自建迭代器），pin bump 即吸收，零 in-tree 改动。`swift build --target ocoreai` exit 0；`make test-ci` **1880/1880 tests / 350 suites 全绿**（含 CoreAI 活体生成段）。
+- **coreai-models `e282dbd(旧基线) → 7359dbc(新 HEAD)` 4 commit 逐条核验** — `#250`(257008b) llm-server async request queue = 上游工具树(`Tools/llm-server`)，ocoreai 0 消费，consumer-transparent；`#237`(62ff88b) pipelined prefix last-token clamp **已吸收**（`cd9e901` + `Pip5PrefixClampTests` 5 精确值锁）；`#248`(3e172fb) static-shape 引擎 guided-gen support 报表短路（`loadedEngineIsConstrainedCapable` 非 nil 即早退，logits-only fallback 永不跑）—— ocoreai 派生走 capability-first dispatch（`EngineInference.swift:513-514` `grammarSchema != nil || useGuidedGeneration` → `as? ConstrainedGenerationCapable` → 否则 sequential CPU 路），**无该报表 wrapper**，bug 不存在；`#249`(7359dbc) VLM sequential 引擎共享 KV/`GenerationTokenBox`/`runChunkedPrefill` 重构 = 行为等价的内部抽象（ocoreai `CoreAISequentialVLMEngine` 的 hand-rolled KV 语义与上游重构前一致，growth 2x/initial 256 不变）。**结论：0 新增吸收、0 行为分叉。**
+- **其余 8 仓（mlx-swift `2bebe4e` / mlx-swift-examples `378f244` 已 HEAD / vllm `fc8132a5` / vllm-metal `176bad6` / sglang `b02e16a8` / omlx `65c65e3` / codex `fd346b8dba` / openclaw `f9a7f104c22` / hermes-agent `47685348ea`）** — omlx 增量全落 serving 面（MTP cache rebuild / OQ imatrix calibration / admin dashboard / zh-Hans i18n / Qwen tool-call 流恢复 `_NakedFunctionBoundary` 自研路径）；ocoreai Qwen tool-call 走 upstream `ChatSession` 原生 parser，omlx 该恢复器为 omlx 自有 XML 路径的补强，**非 ocoreai 消费缺口**（ocoreai 无同款 naked-function fallback 路径可对齐）。vllm/vllm-metal/sglang 落服务端（ROCm/EPD/router），0 Swift 消费面。codex 增量落 TUI/daemon/Guardian/sandbox 面（`#45987` Guardian action prep 集中化 / `#45820` daemon restart 续做），ocoreai Agent 轴已吸收面（turn/sleep/approval/compaction）不变；Windows/WSL sandbox 面 ocoreai 无对应物（macOS/iOS only）。
 
 **Security: headless approval fail-closed (codex `codex-rs/exec/src/lib.rs:566` alignment)** — wire-HTTP consumers are external processes; the `.interactive` (`.ask`) approval verdict can no longer park them on the in-app broker (who would approve for a foreign process?). The gate now coerces `.ask` → fail-closed denial on the headless surface, before any broker routing:
 

@@ -150,7 +150,12 @@ let package = Package(
         //     (Character→Unicode.Scalar grapheme-cluster bug). ocoreai's CoreAI
         //     path reimplements this function; both sites ported + tested in
         //     StreamingDetokenizerScalarDeltaTests.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "3e6ea1e"),
+        //   - #620 (c6446cf): TokenIterator clears MLX buffer cache on the FIRST
+        //     generated token (check moved before tokenCount increment, matches
+        //     mlx-lm cadence). Short sessions (<256 tokens) no longer leak
+        //     buffers every request — ocoreai's ChatSession loop consumes
+        //     TokenIterator internally, so the fix arrives with the pin.
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "c6446cf"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
