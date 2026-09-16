@@ -163,7 +163,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 
 Per-feature status with commit refs lives in `CHANGELOG.md` — a pinned ✅ table here would go stale on every commit. What is stable as of this commit:
 
-- **Authoritative gate**: `make test-ci` (xcodebuild → xctest), CI leg `macos-26` — full suite green at `deee580` (2026-09-15). See `CHANGELOG.md` for the rolling test count (1,852 at that commit).
+- **Authoritative gate**: `make test-ci` (xcodebuild → xctest), CI leg `macos-26` — full suite green at `deee580` (2026-09-15). Test count 1,852 as of that commit (source: `~/wiki/ocoreai/log.md` — CHANGELOG keeps per-item state, not rolling counts).
 - **Local builds** compile clean: ocoreai source 0 warnings (dependency-bundle noise aside).
 - **Default-off surfaces** (deliberate, not missing): perception channels, TTS/speaker, self-correction pipeline — see "Known boundaries" above.
 
