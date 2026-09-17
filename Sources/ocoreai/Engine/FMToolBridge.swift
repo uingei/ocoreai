@@ -21,8 +21,8 @@ import FoundationModels
 /// SDK swiftinterface 明文: 标量 Arguments(String/Int/Double/Float/Decimal/Bool)
 /// 的 `parameters` 便捷实现全标 unavailable("Use '@Generable' struct instead")。
 /// parse 通道 = Arguments.init(_ content: GeneratedContent) — 模型生成的工具参数
-/// 是结构体 {…}(GeneratedContent.Kind.structure),String 通道拿不到 → 通电实证
-/// "Failed to parse generated content"(SDK 运行期抛,ocoreai/三仓全树零命中)。
+/// 是结构体 {…}(GeneratedContent.Kind.structure),String 通道拿不到 → 运行期
+/// 报 "Failed to parse generated content"(SDK 运行期抛,ocoreai/三仓全树零命中)。
 /// GeneratedContent 自身 conform Generable 且自带 .jsonString — 结构动态工具
 /// (27 内置 + MCP)的 Arguments 唯一恒等类型;@Generable 结构体需编译期定型,
 /// 覆盖不了运行期注册的 MCP 工具面。

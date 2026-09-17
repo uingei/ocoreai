@@ -1,4 +1,4 @@
-// FMSessionErrorSurfaceTests.swift — 09-17 catch-site 回归门
+// FMSessionErrorSurfaceTests.swift — catch-site 错误面分类
 //
 // 契约(FMToolBridge.swift FMErrorClassifier):
 //   LanguageModelSession 抛错 → human/UI 面消息分类。
@@ -8,11 +8,11 @@
 //   ② 其余一切 throw(rateLimited/refusal/timeout/unsupported*/非 FM 错)
 //      = 原样 localizedDescription, 绝不拿到 bespoke "fresh conversation"。
 //
-// 缺陷类(被本门钉死): 任何"把非 context 失败也导向 fresh conversation"
-//   的回归 = 用户可见失真(限流/拒答被误告知开新会话=误导; 或 context
-//   耗尽只回一句无数字的 generic 串=用户空转重试)。两类都靠分类路由错。
+// 被本门钉死的失真: 任何"把非 context 失败也导向 fresh conversation"
+//   的路由(限流/拒答被误告知开新会话=误导; 或 context
+//   耗尽只回一句无数字的 generic 串=用户空转重试)——两类都靠分类路由错。
 //
-// 精确值铁律(拒绝 count 弱断言):
+// 断言纪律(拒绝 count 弱断言):
 //   context 面断言**逐字** == 期望串(带两个真实数字)。
 //   路由/negative 面断言"不含 bespoke 短语" + "== localizedDescription"。
 //

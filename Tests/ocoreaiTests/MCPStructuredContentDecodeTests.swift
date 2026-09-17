@@ -1,5 +1,5 @@
 // Copyright © 2026 uingei@163.com.
-/// MCP tool-result `structuredContent` 解码 — codex 轴铁律缺口.
+/// MCP tool-result `structuredContent` 解码 — codex 轴对齐缺口补齐.
 ///
 /// Baseline: codex `protocol/src/models.rs:2227-2266` 真值链:
 ///   1. `content` 中任一 `EncryptedContent`  → 独占(结构化不生效)
@@ -8,7 +8,7 @@
 ///
 /// ocoreai 缺口: 两处解码点(`MCPStdioClient.parseToolCallResponse` 外部 +
 /// `MCPBridge` local dispatch 内部)**均只取 `result.content` 数组,`structuredContent`
-/// 静默丢弃** — 上游(本地 + 外部)结构化结果面消费为零,违反 codex 轴对齐铁律.
+/// 静默丢弃** — 上游(本地 + 外部)结构化结果面消费为零,违反 codex 轴对齐.
 ///
 /// 修复面:
 ///   - `MCPBridge.parseToolCallJSON`    (纯函数, 可单测)

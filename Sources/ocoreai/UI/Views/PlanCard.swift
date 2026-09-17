@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// PlanCard — `update_plan` 任务态面板（Recover 片 1 的 UI 消费面，UI/UX 铁律）
+/// PlanCard — `update_plan` 任务态面板（Recover 片 1 的 UI 消费面）
 ///
 /// 第一性：plan 事件过去纯内存（生产 publish→nil 静默丢弃）**且无持久化、无面板**——
 /// 模型调了 `update_plan`，用户看不到任务在推进什么。本面板消费 `PlanTaskStore.current`

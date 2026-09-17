@@ -577,7 +577,7 @@ actor ToolRegistry {
                 "type": "function" as any Sendable,
                 "function": [
                     "name": entry.name as any Sendable,
-                    // 通电缺陷修正: 优先用工具自带 description;缺失时回退
+                    // 描述透传: 优先用工具自带 description;缺失时回退
                     // 干净合成行(绝不泄源码文本如 `\(entry.name)` 插值被转义后的字面量).
                     "description":
                         (entry.description.isEmpty
