@@ -70,7 +70,6 @@ struct SamplingConfiguration: Codable, Equatable {
     var presencePenalty: Double?
     var frequencyPenalty: Double?
     var stopSequences: [String]?
-    var logitBias: [String: Double]?
     var combined: Bool = true
 
     // Prefill configuration — structured to match upstream PrefillParameters
@@ -97,7 +96,6 @@ struct SamplingConfiguration: Codable, Equatable {
         presencePenalty: Double? = nil,
         frequencyPenalty: Double? = nil,
         stopSequences: [String]? = nil,
-        logitBias: [String: Double]? = nil,
         combined: Bool = true,
         prefill: PrefillConfig = .default,
         maxKVSize: Int? = nil,
@@ -120,7 +118,6 @@ struct SamplingConfiguration: Codable, Equatable {
         self.presencePenalty = presencePenalty
         self.frequencyPenalty = frequencyPenalty
         self.stopSequences = stopSequences
-        self.logitBias = logitBias
         self.combined = combined
         self.prefill = prefill
         self.maxKVSize = maxKVSize
@@ -155,7 +152,7 @@ struct SamplingConfiguration: Codable, Equatable {
     ///
     /// This is the single cascade used by the Fast Path (native UI stream/
     /// complete) whose `InferenceRequest` surface carries only
-    /// temperature/topP/topK/maxTokens/stop/logitBias — the remaining per-model
+    /// temperature/topP/topK/maxTokens/stopSequences — the remaining per-model
     /// parameters live solely on `ModelSamplingConfig`. Presence/frequency
     /// penalties follow the wire path's `0` = "not set" sentinel: a zero
     /// runtime value is mapped to `nil` so the engine treats it as unset.

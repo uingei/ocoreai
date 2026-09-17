@@ -490,7 +490,6 @@ func chatCompletionsHandler(
             presencePenalty: Double(effectivePresencePenalty),
             frequencyPenalty: Double(effectiveFrequencyPenalty),
             stopSequences: request.stop,
-            logitBias: nil,  // logitBias 暂不暴露（ChatCompletionRequest 无对应字段）
             combined: true,
             prefill: effectivePrefill,
             maxKVSize: effectiveMaxKVSize,

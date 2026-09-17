@@ -231,7 +231,6 @@ func anthropicMessagesHandler(
         topK: effectiveTopK,
         mode: runtimeDefaults.mode,
         stopSequences: request.stopSequences,
-        logitBias: nil,
         combined: true,
     )
     let sampling = rawSampling.normalized()

@@ -101,7 +101,6 @@ actor SummarizerActor {
             topP: 0.9,
             topK: runtimeDefaults.topK,
             stopSequences: nil,
-            logitBias: nil,
             combined: true,
             prefill: .default,
         ).normalized()

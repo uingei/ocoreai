@@ -175,7 +175,6 @@ func completionsHandler(
         presencePenalty: Double(effectivePresencePenalty),
         frequencyPenalty: Double(effectiveFrequencyPenalty),
         stopSequences: request.stop,
-        logitBias: nil,
         combined: true,
         prefill: .init(stepSize: nil, chunking: runtimeDefaults.prefill.chunking),
         maxKVSize: nil,

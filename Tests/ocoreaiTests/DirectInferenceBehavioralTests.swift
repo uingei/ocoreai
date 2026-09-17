@@ -95,7 +95,6 @@ struct InferenceRequestTests {
         #expect(req.maxTokens == nil)
         #expect(req.cancellation == nil)
         #expect(req.stopSequences == nil)
-        #expect(req.logitBias == nil)
     }
 
     @Test("explicit params preserved — no mutation between construct and read")
