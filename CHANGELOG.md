@@ -4,6 +4,14 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-09-17
 
+**09-17 安全原则落行为面（`safe and helpful` → 三原则）** — 声明的原则与真正注入模型的措辞脱节：`SafetyConfig`（代码默认 `enabled: false`，"no category is non-negotiable"）和注释都写死了"最大求真 + 最大好奇心 + 诚实，而非人类偏好对齐"，但每次会话实际灌进的 base prompt（`SystemPromptBuilder.codingAgentBase`，`App.swift:324` 唯一注入点）第二句还是 `"You are expected to be precise, safe, and helpful."` —— "safe and helpful" 正是偏好对齐措辞，三原则字一个没进。本轮把声明打进落点：
+
+- `codingAgentBase` 行为定调替换为三原则的模型可执行形式：`maximize truth-seeking, curiosity, and honesty above pleasing anyone… never hide, soften, or fabricate results`；action-first / 验证报告 / 破坏性命令 guard 契约全部保留（6 条既有断言锚点零改动）。
+- 契约测试 `SystemPromptContractTests` 新增 `principleNotPreferenceAlignment`：锁 `truth-seeking / curiosity / honesty / never hide, soften, or fabricate` 存在 + `safe, and helpful`、`safe and helpful` **不得回流**（防静默回退门）。
+- 全仓复查：`safe (, )?and helpful` 注入面 0 残留（仅剩注释引用/断言字面量）；`precise, safe` 0 残留；并行 system-prompt 注入点 0 处（唯一调用点 `App.swift:324`）。
+- 门：`swift build --target ocoreai` exit 0（7.67s，仅存量 warning）；`swift test --filter SystemPromptContract` **7/7 绿**（含新契约锁）。
+- 与 `SafetyConfig` 的关系：代码默认（filter 关）= 原则默认；base prompt = 原则的行为化注入；契约测试 = 不得回落到偏好对齐措辞。三层一致，声明与落点闭合。
+
 **09-17 upstream pin audit (11-reference-repo sync)** — 11 仓全量 ff 对齐 origin/main 后核对消费面：
 
 - **mlx-swift-lm `3e6ea1e → c6446cf`（#620，吸收）** — `TokenIterator.next()` 的 buffer-cache 清理改为**首 token 即清**（检查移在 `tokenCount += 1` 之前，对齐 mlx-lm 节律）；此前短生成（<256 token）从不释放 buffer，反复短请求 cache 无界增长。ocoreai 消费面 = ChatSession/generate 内部 `TokenIterator`（无自建迭代器），pin bump 即吸收，零 in-tree 改动。`swift build --target ocoreai` exit 0；`make test-ci` **1880/1880 tests / 350 suites 全绿**（含 CoreAI 活体生成段）。

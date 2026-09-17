@@ -23,6 +23,18 @@ struct SystemPromptContractTests {
         #expect(!SystemPromptBuilder.codingAgentBase.contains("intelligent assistant"))
     }
 
+    @Test("truth/curiosity/honesty principle, not preference-alignment wording")
+    func principleNotPreferenceAlignment() {
+        let base = SystemPromptBuilder.codingAgentBase.lowercased()
+        #expect(base.contains("truth-seeking"))
+        #expect(base.contains("curiosity"))
+        #expect(base.contains("honesty"))
+        #expect(base.contains("never hide, soften, or fabricate"))
+        // "safe and helpful" 是人类偏好对齐措辞，不得回流
+        #expect(!base.contains("safe, and helpful"))
+        #expect(!base.contains("safe and helpful"))
+    }
+
     @Test("action-first tool-use command present")
     func actionFirstToolUse() {
         let base = SystemPromptBuilder.codingAgentBase.lowercased()

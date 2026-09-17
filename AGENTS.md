@@ -99,7 +99,7 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 
 ### Naming
 - Target names ≠ module boundaries (e.g., `GuidedGenerationLoop` is peer to `ChatSession`, not nested).
-- Zero TODO/FIXME/HACK/XXX in Sources (verified by grep; a historical FMToolBridge image-path note was removed with refactoring).
+- 3 TODOs in `Sources/` exist — all **verbatim upstream-inherited from coreai-models** (present at upstream HEAD `7359dbc`; grep-verified 09-17), no locally-originated TODO/FIXME/HACK. The VLM pair mirrors upstream's own refactor intent; they track the #249 VLM consolidation, not local debt.
 
 ### Testing Quality
 - Gold standard: `ThinkingBudget`, `ComplexityAnalyzer` — exact value assertions (`#expect == N`), parameterized traversal, boundary assertions. (BlockPool gold-standard test removed with the module at upstream 2b3c965.)
