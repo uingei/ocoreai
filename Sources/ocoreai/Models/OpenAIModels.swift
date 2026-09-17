@@ -1657,6 +1657,10 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// A2 loglikelihood path; upstream coreai-models 501 "Logprobs not supported".
     case logitsUnsupported
 
+    /// Not Implemented — loaded model has no MLX handle (CoreAI-only model).
+    /// KV-cache inspection consumes the upstream MLX `cacheStatus` API.
+    case kvCacheStatusUnsupported
+
     /// Too Many Requests — single-slot engine busy (loglikelihood scoring).
     case engineBusy
 
@@ -1685,6 +1689,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         case .sessionExpired(let id): "Session - \(id) expired"
         case .sessionLimitExceeded: "Session limit exceeded"
         case .logitsUnsupported: "Logprobs not supported by this engine"
+        case .kvCacheStatusUnsupported:
+            "KV cache inspection requires an MLX-backed model"
         case .engineBusy: "Engine is busy — try again shortly"
         }
     }
@@ -1711,6 +1717,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         case .sessionExpired:
             .gone
         case .logitsUnsupported:
+            .notImplemented
+        case .kvCacheStatusUnsupported:
             .notImplemented
         case .engineBusy:
             .tooManyRequests

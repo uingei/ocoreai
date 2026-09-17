@@ -16,6 +16,7 @@
 /// - ``PATCH /v1/models/:model/sampling`` → Runtime sampling config hot-swap
 /// - ``DELETE /v1/models/:model/sampling`` → Reset single model sampling defaults
 /// - ``DELETE /v1/models/sampling`` → Reset all model sampling defaults
+/// - ``GET /v1/models/:model/kv-cache`` → Planned KV cache topology + capacity disposition
 ///
 /// ### Auth Scope:
 /// - ``GET /health``, ``GET /ready``, ``GET /v1/models``, ``GET /v1/stats``, ``GET /metrics`` excluded from ``AuthMiddleware``
@@ -359,6 +360,12 @@ func buildRouter(
     routes.delete("/v1/models/sampling") { _, _ in
         await enginePool.resetAllSamplingConfig()
         let response = ModelSamplingResponse(config: .default)
+        return try Response.json(response)
+    }
+
+    routes.get("/v1/models/:model/kv-cache") { _, context in
+        let modelId = try context.parameters.require("model")
+        let response = try await enginePool.kvCacheStatus(modelId: modelId)
         return try Response.json(response)
     }
 
