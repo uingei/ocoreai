@@ -64,11 +64,44 @@ struct SafetyCategorySeverityTests {
         #expect(SafetyCategory.systemPromptOverride.severity >= 0.9)
     }
 
-    @Test("All categories have non-empty descriptions")
-    func allHaveDescriptions() {
-        for cat in SafetyCategory.allCases {
-            #expect(!cat.description.isEmpty)
-            #expect(cat.description.count > 5)
+    /// Gold standard: the EXACT description string for every category
+    /// (frozen from ContentGuard.swift, 2026-09). Any wording change —
+    /// added words, reworded phrases, punctuation, whitespace — fails.
+    /// A `count > 5` loop here could not catch any of that.
+    private static let exactDescriptions: [(SafetyCategory, String)] = [
+        (.sexuallyExplicit, "Sexually explicit content detected"),
+        (.sexualViolence, "Sexual violence content detected"),
+        (.underageSexual, "Underage sexual content detected"),
+        (.graphicViolence, "Graphic violence detected"),
+        (.selfHarm, "Self-harm content detected"),
+        (.hateSpeech, "Hate speech detected"),
+        (.jailbreak, "Jailbreak attempt detected"),
+        (.systemPromptOverride, "System prompt manipulation detected"),
+        (.toolAbuse, "Dangerous tool use detected"),
+        (.illegalActivity, "Illegal activity facilitation detected"),
+        // NOTE: pinned verbatim including the "Malware/ exploit" spacing —
+        // if this is ever a typo, fix the source AND this table together.
+        (.malwareGeneration, "Malware/ exploit generation detected"),
+        (.piiRequest, "PII extraction attempt detected"),
+    ]
+
+    @Test("Every category's description matches its pinned gold-standard string (12/12)")
+    func allDescriptionsExact() {
+        let table = Self.exactDescriptions
+        let all = SafetyCategory.allCases
+        #expect(
+            all.count == table.count,
+            "allCases=\(all.count) 与 gold table=\(table.count) 不等 — 新增/删除 category 未同步表")
+        for cat in all {
+            let expected = table.first(where: { $0.0 == cat })?.1
+            #expect(
+                expected != nil,
+                "category \(cat.rawValue) 未在 gold table 登记精确串")
+            if let expected {
+                #expect(
+                    cat.description == expected,
+                    "description 失真: \(cat.rawValue) 期望 '\(expected)' 实际 '\(cat.description)'")
+            }
         }
     }
 

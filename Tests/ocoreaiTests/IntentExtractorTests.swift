@@ -122,10 +122,18 @@ struct IntentConfidenceTests {
         #expect(intent.confidence <= 1.0)
     }
 
-    @Test("multiple matches increase keyword count")
+    @Test("multiple matches → exact keyword list (gold standard, not count > N)")
     func multipleMatches() {
         let intent = extractor.extract(from: "Find and search the data quickly")
-        #expect(intent.keywords.count > 1)
+        // Gold standard: pin the exact match set in match order —
+        //  action:search("search"), action:search("find"), urgency:high("quickly").
+        //  Any silent regression (a pattern added/dropped, a stray substring
+        //  match like "is"/"do" leaking in) flips this list and fails here.
+        #expect(
+            intent.keywords == ["search", "find", "quickly"],
+            "keywords 精确序应为 [search, find, quickly], 实际 = \(intent.keywords)")
+        #expect(intent.action == .searchData, "searchScore=2 应主导 action, 实际 = \(intent.action)")
+        #expect(intent.urgency == .high, "'quickly' 应升级至 high, 实际 = \(intent.urgency)")
     }
 
     @Test("target entity extracted from search command")

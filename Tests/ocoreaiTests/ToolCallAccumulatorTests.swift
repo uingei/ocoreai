@@ -54,9 +54,11 @@ struct AccChunkByChunk {
         var acc = ToolCallAccumulator()
         acc.processChunk(" [")
         #expect(acc.buffer == " [")
-        acc.processChunk("{\"name\":\"calc\"")
-        #expect(acc.buffer.contains("calc"))
-        #expect(acc.buffer.count > 2)
+        acc.processChunk(#"{"name":"calc""#)
+        // Gold standard: exact accumulation, not a `count > N` heuristic.
+        #expect(
+            acc.buffer == #" [{"name":"calc""#,
+            "buffer 应为两 chunk 的精确拼接, 实际 = '\(acc.buffer)'")
     }
 
     @Test("Empty chunks accumulated without affecting result")
