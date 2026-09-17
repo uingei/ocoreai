@@ -2748,8 +2748,24 @@ extension EnginePool {
                         return
                     }
                 } catch {
-                    log.error("LanguageModelSession error: \(error.localizedDescription)")
-                    continuation.yield(.init(kind: .error(error.localizedDescription)))
+                    // Typed surface for context exhaustion — parity with the
+                    // non-FM path (AppError.contextWindowExhausted, "start a
+                    // fresh conversation"). The SDK payload carries the real
+                    // `tokenCount` + `contextSize`; surface both instead of a
+                    // bare `localizedDescription` so the UI can direct the
+                    // user to a fresh session rather than retry-looping on a
+                    // generic string.
+                    let msg = FMErrorClassifier.message(for: error)
+                    if let fmError = error as? FoundationModels.LanguageModelError,
+                        case .contextSizeExceeded(let detail) = fmError
+                    {
+                        log.error(
+                            "FM contextSizeExceeded: \(detail.tokenCount) tokens vs contextSize \(detail.contextSize)"
+                        )
+                    } else {
+                        log.error("LanguageModelSession error: \(msg)")
+                    }
+                    continuation.yield(.init(kind: .error(msg)))
                     continuation.finish()
                     return
                 }

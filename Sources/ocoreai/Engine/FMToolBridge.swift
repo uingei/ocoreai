@@ -328,4 +328,34 @@ enum FMTranscriptHelpers {
     }
 }
 
+// MARK: - FM Session Error Classifier
+
+/// Classify a `LanguageModelSession` throw into the human/UI-facing error
+/// message.
+///
+/// Context exhaustion is the ONLY case that gets a bespoke surface —
+/// "start a fresh conversation" — for parity with the non-FM path's
+/// `AppError.contextWindowExhausted(postTokens:cap:)` (OpenAIModels.swift).
+/// The SDK payload (`ContextSizeExceeded { contextSize, tokenCount }`)
+/// carries the real numbers, so both are surfaced instead of a bare
+/// `localizedDescription` that would loop the user into a pointless retry.
+///
+/// Every other throw — `rateLimited`, `refusal`, `timeout`, the
+/// `unsupported*` family, and any non-FM error — surfaces its
+/// `localizedDescription` verbatim. Isolated here (not inlined in the catch
+/// site) so the classification is unit-testable against real
+/// `LanguageModelError` values instead of a `count > N` smoke check.
+@available(macOS 27.0, iOS 27.0, *)
+enum FMErrorClassifier {
+    static func message(for error: Error) -> String {
+        if let fmError = error as? FoundationModels.LanguageModelError,
+            case .contextSizeExceeded(let detail) = fmError
+        {
+            return "Context window exhausted: \(detail.tokenCount) tokens "
+                + "vs context \(detail.contextSize) — start a fresh conversation"
+        }
+        return error.localizedDescription
+    }
+}
+
 #endif  // FoundationModelsIntegration
