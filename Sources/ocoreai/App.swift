@@ -552,12 +552,35 @@ public final class OcoreaiEngine {
 
         // MARK: - Bridge Path: HTTP Server (opt-out via appStore trait)
 
+        // Decision via HttpBridgePolicy (pure, testable across all traits).
+        // appStore: HTTP off by default; explicit OCOREAI_ENABLE_HTTP=1/true
+        // opts back in (documented on start(); default-safe = off).
+        // non-appStore: HTTP always on (dev/bridge delivery surface).
+        let enableHTTPEnv = ProcessInfo.processInfo.environment[HttpBridgePolicy.envVar]
         #if appStore
-        logger.info("App Store build — Bridge Path (HTTP) disabled")
+        let bridgeOn = HttpBridgePolicy.shouldStart(
+            appStoreCompiled: true, enableEnv: enableHTTPEnv)
+        if bridgeOn {
+            logger.info(
+                "App Store build — Bridge Path (HTTP) enabled via \(HttpBridgePolicy.envVar) opt-in"
+            )
+        } else {
+            logger.info(
+                "App Store build — Bridge Path (HTTP) disabled (opt-in: \(HttpBridgePolicy.envVar)=1)"
+            )
+        }
         #else
-        logger.info("Development build — Bridge Path (HTTP) enabled")
-        startHTTPServer()
+        let bridgeOn = HttpBridgePolicy.shouldStart(
+            appStoreCompiled: false, enableEnv: enableHTTPEnv)
+        if bridgeOn {
+            logger.info("Development build — Bridge Path (HTTP) enabled")
+        } else {
+            logger.info("Development build — Bridge Path (HTTP) disabled")
+        }
         #endif
+        if bridgeOn {
+            startHTTPServer()
+        }
     }
 
     // MARK: - HTTP Server (Bridge Path, optional) — macOS only
