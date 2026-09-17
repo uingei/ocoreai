@@ -279,14 +279,14 @@ func anthropicMessagesHandler(
 
 // MARK: - Message Construction
 
-/// CJK-aware prompt-token heuristic — P1-fix mirror of the inline
+/// CJK-aware prompt-token heuristic — mirror of the inline
 /// fallback in `ChatHandler` (bytes/3 for CJK-heavy, bytes/4 for Latin).
 ///
 /// `internal` (not `private`) so the exact-value contract is directly
 /// unit-tested — `AnthropicInputTokenEstimateTests`. Out of the public
 /// API surface deliberately: it is a metrics heuristic, not an API.
 func estimatePromptTokensFallback(_ messages: [Message]) -> Int {
-    /// P1-fix: CJK-aware estimation — UTF-8 bytes/4 overestimates for CJK text.
+    /// CJK-aware estimation — UTF-8 bytes/4 overestimates for CJK text.
     /// Use bytes/3 for CJK-heavy content, bytes/4 for Latin-heavy.
     let totalBytes = messages.reduce(0) { $0 + $1.textContent().utf8.count }
     let totalChars = messages.reduce(0) { $0 + $1.textContent().count }

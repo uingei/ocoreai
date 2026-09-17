@@ -80,7 +80,7 @@ final class PerRequestMetrics: @unchecked Sendable {
 
     /// Start the metrics timer (captures ``ContinuousClock`` snapshot)
     func start() {
-        // P0-fix: guard instead of precondition (profiling must not release-crash in hot path)
+        // guard instead of precondition (profiling must not release-crash in hot path)
         guard overallTimer == nil else {
             return  // Double-start is a bug but we don't crash in release
         }

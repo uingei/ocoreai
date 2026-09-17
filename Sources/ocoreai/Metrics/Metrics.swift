@@ -137,7 +137,7 @@ actor MetricsRegistry {
     ///   - kind: Token kind ("prompt" or "generated")
     ///   - count: Number of tokens to add
     func incrementTokens(kind: String, count: Int) {
-        // P0-fix: guard instead of precondition (observability must not release-crash)
+        // guard instead of precondition (observability must not release-crash)
         guard count >= 0 else { return }
         tokenCounts[kind, default: 0] &+= UInt64(count)
     }
@@ -173,7 +173,7 @@ actor MetricsRegistry {
     ///
     /// - Parameter value: Current active session count
     func updateActiveSessions(_ value: Int) {
-        // P0-fix: guard instead of precondition (observability must not release-crash)
+        // guard instead of precondition (observability must not release-crash)
         guard value >= 0 else { return }
         activeSessions = value
     }
@@ -182,7 +182,7 @@ actor MetricsRegistry {
     ///
     /// - Parameter value: Current loaded model count
     func updateLoadedModels(_ value: Int) {
-        // P0-fix: guard instead of precondition (observability must not release-crash)
+        // guard instead of precondition (observability must not release-crash)
         guard value >= 0 else { return }
         loadedModels = value
     }
@@ -191,7 +191,7 @@ actor MetricsRegistry {
     ///
     /// - Parameter value: Current GPU KV cache size in bytes
     func updateKVGpuBytes(_ value: Int) {
-        // P0-fix: guard instead of precondition (observability must not release-crash)
+        // guard instead of precondition (observability must not release-crash)
         guard value >= 0 else { return }
         kvCacheGpuBytes = value
     }
@@ -204,7 +204,7 @@ actor MetricsRegistry {
     ///
     /// - Parameter seconds: Inference duration in seconds
     func observeInferenceDuration(_ seconds: Double) {
-        // P0-fix: guard instead of precondition (observability must not release-crash)
+        // guard instead of precondition (observability must not release-crash)
         guard seconds >= 0 else { return }
         observeInferenceDuration(
             ms: seconds * 1000, inputTokens: 0, outputTokens: 0, ttfbMs: "0", modelId: "N/A")
@@ -225,7 +225,7 @@ actor MetricsRegistry {
         ms: Double, inputTokens: Int, outputTokens: Int, ttfbMs: String, modelId _: String
     ) {
         let seconds = ms / 1000.0
-        // P0-fix: guard instead of precondition (observability must not release-crash)
+        // guard instead of precondition (observability must not release-crash)
         guard seconds >= 0 else { return }
         inferenceDurationSum += seconds
         inferenceDurationCount &+= 1
@@ -249,7 +249,7 @@ actor MetricsRegistry {
     ///
     /// - Parameter seconds: TTFB duration in seconds
     func observeTTFB(_ seconds: Double) {
-        // P0-fix: guard instead of precondition (observability must not release-crash)
+        // guard instead of precondition (observability must not release-crash)
         guard seconds >= 0 else { return }
         ttfbSum += seconds
         ttfbCount &+= 1

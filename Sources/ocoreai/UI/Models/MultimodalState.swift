@@ -95,7 +95,7 @@ final class MultimodalState {
 
     /// One-shot voice transcript → auto-send to ChatView.
     /// ChatView observes this property, consumes the value, and clears it.
-    /// Replaces NotificationCenter (P0-fix: cross-module @Observable coupling).
+    /// Replaces NotificationCenter (avoids cross-module @Observable coupling).
     var pendingVoiceTranscript: String?
 
     /// Flag to guard didSet during restore — prevents services starting on cold boot.

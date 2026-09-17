@@ -60,7 +60,7 @@ struct FMToolProxy: FoundationModels.Tool {
 
     // MARK: - Tool protocol
 
-    /// P1-fix: Forward to ToolRegistry.call with proper error handling.
+    /// Forward to ToolRegistry.call with proper error handling.
     /// ToolRegistry.call() expects (name, JSON string) signature.
     /// 09-06: arguments 从 String 修正为 GeneratedContent — 经 .jsonString 取
     /// 回模型生成的原始 JSON;structure 参数在 String 通道上必丢(缺陷 3 根因)。

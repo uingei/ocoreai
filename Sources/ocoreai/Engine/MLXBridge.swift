@@ -914,7 +914,7 @@ nonisolated func makeGenerateParameters(
     progressHandler: (@Sendable (Int, Int) -> Void)? = nil,
 ) -> MLXLMCommon.GenerateParameters {
     var params = MLXLMCommon.GenerateParameters()
-    // P1-fix: Pass maxTokens through directly — upstream default is nil (no limit).
+    // Pass maxTokens through directly — upstream default is nil (no limit).
     // Hard-coding 1024 truncated all requests without explicit maxTokens config.
     params.maxTokens = maxTokens
     // Typed KV cache configuration — avoids legacy kvBits/kvScheme/kvGroupSize

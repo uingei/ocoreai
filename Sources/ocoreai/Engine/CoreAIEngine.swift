@@ -388,7 +388,7 @@ struct TokenHistory: Sendable {
     var isEmpty: Bool { tokens.isEmpty }
 
     /// Trim front so the array never exceeds `maxCapacity`.
-    /// P0-fix: bounds TokenHistory growth to O(context_length) not O(total_tokens).
+    /// bounds TokenHistory growth to O(context_length) not O(total_tokens).
     mutating func trim(maxCapacity: Int) {
         guard tokens.count > maxCapacity else { return }
         let keep = maxCapacity
@@ -396,7 +396,7 @@ struct TokenHistory: Sendable {
     }
 
     mutating func truncate(to position: Int) {
-        // P0-fix: guard instead of precondition (engine internals must not release-crash)
+        // guard instead of precondition (engine internals must not release-crash)
         guard position >= 0 else { return }
         guard position < tokens.count else { return }
         tokens.removeSubrange(position...)

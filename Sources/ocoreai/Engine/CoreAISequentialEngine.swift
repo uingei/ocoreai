@@ -484,7 +484,7 @@ final class CoreAISequentialEngine: InferenceEngine, @unchecked Sendable {
     }
 
     public func reset(to tokenIndex: Int) async throws {
-        // P0-fix: throw instead of precondition (engine internals must not release-crash)
+        // throw instead of precondition (engine internals must not release-crash)
         guard tokenIndex >= 0 && tokenIndex <= processedTokenCount else {
             throw InferenceRuntimeError.invalidState(
                 "reset(to: \(tokenIndex)) out of range [0, \(processedTokenCount)]")

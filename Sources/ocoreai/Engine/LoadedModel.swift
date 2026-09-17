@@ -530,7 +530,7 @@ final class LoadedModel: @unchecked Sendable {
 
     /// Decrement session counter — clamped at zero to prevent wrap-around
     /// when release is called more than acquire (early exit, error paths, etc.).
-    /// P0-fix: wrappingDecrement could wrap to Int.max on underflow, causing
+    /// wrappingDecrement could wrap to Int.max on underflow, causing
     /// LRU eviction to see "always active" and never evict.
     func releaseSession() {
         // CAS loop: load → clamp → store atomically without wrapping
@@ -616,17 +616,17 @@ final class LoadedModel: @unchecked Sendable {
     // MARK: - Cleanup
 
     /// Release all session state on shutdown.
-    /// P1-fix: clear CoreAI cached artifacts and MLX model handles to free
+    /// clear CoreAI cached artifacts and MLX model handles to free
     /// Unified Memory held by compiled models, KV cache, and GPU weights.
     func cleanup() {
         sessionCount.store(0, ordering: .relaxed)
 
         #if canImport(CoreAI)
-        // P1-fix: Clear CoreAI engine cache + prepared model to release GPU memory.
+        // Clear CoreAI engine cache + prepared model to release GPU memory.
         // Without this, the cached InferenceFunction + NDArrays + AIModel asset
         // stay resident even after unloadModel() completes, causing Unified Memory
         // accumulation under model-switch workloads.
-        // P0-fix: Only log when CoreAI runtime was actually active — on macOS/iOS < 27
+        // Only log when CoreAI runtime was actually active — on macOS/iOS < 27
         // with canImport(CoreAI) compiled, this block still enters but cachedEngine
         // is always nil, so logging would be misleading.
         let wasActive = cachedEngine != nil || _preparedModel != nil
@@ -637,7 +637,7 @@ final class LoadedModel: @unchecked Sendable {
         }
         #endif
 
-        // P1-fix: Clear MLX model handles + drafter to release GPU weights
+        // Clear MLX model handles + drafter to release GPU weights
         mlxModelHandle = nil
         draftModelHandle = nil
         _mtpDrafterContainer = nil

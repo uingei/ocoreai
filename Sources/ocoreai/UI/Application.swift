@@ -85,7 +85,7 @@ struct OcoreaiApp: App {
 struct OcoreaiShellView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
-    // P1-fix: derive theme directly from colorScheme — eliminates one-frame white flash
+    // derive theme directly from colorScheme — eliminates one-frame white flash
     // where @State initialized from hardcoded .light
     private var theme: OcoreaiTheme {
         OcoreaiTheme.theme(from: colorScheme)
@@ -101,7 +101,7 @@ struct OcoreaiShellView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .environment(\.ocoreaiTheme, theme)
-        // P1-fix: ScenePhase .inactive (command-tab, alert popup) should not throttle
+        // ScenePhase .inactive (command-tab, alert popup) should not throttle
         // polling — only background truly means the user isn't looking.
         .onChange(of: scenePhase) { _, phase in
             appState.isForeground = (phase != .background)

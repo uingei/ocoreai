@@ -93,7 +93,7 @@ struct ChatView: View {
     @State private var currentModel = ""
     @State private var activeTask: Task<Void, Never>? = nil
 
-    // P1-fix: NSEvent monitor handle — disposed on .onDisappear to prevent leak
+    // NSEvent monitor handle — disposed on .onDisappear to prevent leak
     #if os(macOS)
     @State private var _keyboardMonitor: Any? = nil
     #endif
@@ -101,19 +101,19 @@ struct ChatView: View {
     // Multimodal controls panel — collapsed by default
     @State private var showMultimodal = false
 
-    // P2-fix: confirmation dialog for destructive operations (HIG requirement)
+    // confirmation dialog for destructive operations (HIG requirement)
     @State private var showClearConfirmation = false
 
     // Image attachments for multimodal input
     @State private var attachments: [ChatState.AttachedImage] = []
 
     #if os(iOS)
-    // P0-fix: iOS photo picker — PhotosPicker (iOS 16+, HIG-compliant)
+    // iOS photo picker — PhotosPicker (iOS 16+, HIG-compliant)
     @State private var showPhotoPicker = false
     @State private var photoPickerItems: [PhotosUI.PhotosPickerItem] = []
     #endif
 
-    // P2-fix: streaming reasoning block collapse state — default expanded to preserve visibility
+    // streaming reasoning block collapse state — default expanded to preserve visibility
     @State private var showStreamingReasoning = true
 
     init() {
@@ -196,12 +196,12 @@ struct ChatView: View {
                 currentModel = idStrings.first ?? ""
             }
         }
-        // P1-fix: dispose keyboard monitor on disappear to prevent event monitor leak
+        // dispose keyboard monitor on disappear to prevent event monitor leak
         .onDisappear {
             disposeKeyboardMonitor()
             chatState.stop()
         }
-        // P1-fix: dispose-before-register — rapid tab switching spawns duplicate monitors
+        // dispose-before-register — rapid tab switching spawns duplicate monitors
         // that outlive the view because onDisappear never fires for the replaced view
         #if os(macOS)
         .onAppear {
@@ -230,7 +230,7 @@ struct ChatView: View {
             }
         }
         #endif
-        // P1-fix: observe session selection from Session tab — reload chat when user switches
+        // observe session selection from Session tab — reload chat when user switches
         .onChange(of: SessionManager.shared.selectedSession?.id) { _, newSessionId in
             if let newId = newSessionId {
                 if let session = SessionManager.shared.sessions.first(where: { $0.id == newId }) {
@@ -241,7 +241,7 @@ struct ChatView: View {
             }
         }
         // Voice loop: observe MultimodalState.pendingVoiceTranscript via @Observable —
-        // replaces NotificationCenter (P0-fix: cross-module coupling through @Observable singleton)
+        // replaces NotificationCenter (avoids cross-module coupling through @Observable singleton)
         #if os(macOS)
         .onChange(of: MultimodalState.shared.pendingVoiceTranscript) { _, transcript in
             if let transcript, !transcript.isEmpty {
@@ -275,7 +275,7 @@ struct ChatView: View {
                 .disabled(isStreaming)
             }
         }
-        // P2-fix: confirmation dialog for clear conversation (HIG: destructive actions must confirm)
+        // confirmation dialog for clear conversation (HIG: destructive actions must confirm)
         .confirmationDialog(
             StringKey.clearConversationTitle.l,
             isPresented: $showClearConfirmation,
@@ -311,7 +311,7 @@ struct ChatView: View {
             chatState.onModelChanged(newModelId: targetModel)
         }
         .accessibilityLabel(StringKey.chatLabel.l)
-        // P0-fix: iOS photo picker sheet — PhotosPicker (iOS 16+, HIG-compliant)
+        // iOS photo picker sheet — PhotosPicker (iOS 16+, HIG-compliant)
         #if os(iOS)
         .sheet(isPresented: $showPhotoPicker) {
             // `label:` on the `maxSelectionCount:` init expects a `@Sendable () -> some View`
@@ -372,7 +372,7 @@ struct ChatView: View {
                         if !chatState.responseTextDisplay.isEmpty {
                             VStack(spacing: 4) {
                                 ChatHeader(isUser: false, timestamp: Date())
-                                // P2-fix: collapsible streaming reasoning block —
+                                // collapsible streaming reasoning block —
                                 // users can toggle visibility via header button.
                                 if !chatState.currentReasoningText.isEmpty {
                                     VStack(alignment: .leading, spacing: 6) {
@@ -539,7 +539,7 @@ struct ChatView: View {
 
     // MARK: - Streaming Preview
 
-    // P2-fix: streamingPreview dead code removed — messageList renders inline (lines 290–310)
+    // streamingPreview dead code removed — messageList renders inline (lines 290–310)
 
     // MARK: - Empty State
 
@@ -701,12 +701,12 @@ struct ChatView: View {
 
         panel.begin { response in
             guard response == .OK else { return }
-            // P0-fix: capture URLs on main actor before detaching (panel.urls is @MainActor-isolated)
+            // capture URLs on main actor before detaching (panel.urls is @MainActor-isolated)
             // then offload disk I/O + CPU compression to background
             // to keep main-thread response < 100ms per Apple HIG
             let selectedURLs = panel.urls
             Task.detached(priority: .utility) {
-                // P1-fix: check file size before loading — prevents OOM on large files
+                // check file size before loading — prevents OOM on large files
                 // 10 MB limit: after compression this yields ~500KB per image, well within budget
                 let maxFileSize = 10 * 1024 * 1024
                 var attachmentsToAppend: [ChatState.AttachedImage] = []
@@ -728,7 +728,7 @@ struct ChatView: View {
                             continue
                         }
                         let data = try Data(contentsOf: url)
-                        // P1-fix: compress before base64 — keeps per-image memory under 500KB
+                        // compress before base64 — keeps per-image memory under 500KB
                         // (was: raw 20MB file → 27MB base64; now: compressed ~300KB → ~400KB base64)
                         let compressed = compressImage(data)
                         attachmentsToAppend.append(
@@ -747,7 +747,7 @@ struct ChatView: View {
             }
         }
         #else
-        // P0-fix: iOS — present PhotosPicker sheet (iOS 16+, HIG-compliant)
+        // iOS — present PhotosPicker sheet (iOS 16+, HIG-compliant)
         showPhotoPicker = true
         #endif
     }
@@ -905,7 +905,7 @@ struct ChatBubble: View {
         }
     }
 
-    // P2-fix: Create on first access so the initializer runs on @MainActor.
+    // Create on first access so the initializer runs on @MainActor.
     // Non-Sendable static let would fail Swift 6 cross-actor checks.
     private static let sharedTimeFormatter: DateFormatter = {
         let f = DateFormatter()

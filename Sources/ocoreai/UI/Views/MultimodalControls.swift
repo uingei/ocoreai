@@ -210,7 +210,7 @@ struct MultimodalControls: View {
                         set: { MultimodalState.shared.microphoneEnabled = $0 })
                 )
                 .toggleStyle(.switch)
-                // P1-fix MM-03: removed redundant .onChange — MultimodalState.didSet
+                // removed redundant .onChange — MultimodalState.didSet
                 // already calls wireMicrophone → requestMicPermission.
                 // Keeping this causes duplicate permission prompts.
                 .accessibilityLabel(StringKey.enableMicLabel.l)

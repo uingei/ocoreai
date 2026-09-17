@@ -257,7 +257,7 @@ final class ChatState {
     private var sessionId: Int64?
 
     /// Stable UUID string passed to InferenceRequest.sessionId.
-    /// P0-fix: persists across multiple chat() calls within the same conversation,
+    /// persists across multiple chat() calls within the same conversation,
     /// so ThinkingBudget adaptive calibration and ComplexityAnalyzer tracking actually work.
     private var inferenceSessionId: String?
 
@@ -275,7 +275,7 @@ final class ChatState {
     /// When non-nil, a stream is in progress and can be cancelled.
     private var currentCancellation: InferenceCancellation?
 
-    /// P0-fix: Idempotency barrier — `cancelInference()` appends the interrupted message
+    /// Idempotency barrier — `cancelInference()` appends the interrupted message
     /// and clears it; the stream tail check must NOT append again.
     /// internal (not private) so @testable import can reset it for test isolation.
     internal var _cancelledByUI = false
@@ -357,7 +357,7 @@ final class ChatState {
     /// Called when the user switches the model selector.
     /// Unloads the old model from EnginePool to free GPU memory.
     ///
-    /// P1-fix: Serialize unload tasks — rapid model switching spawned orphan Tasks
+    /// Serialize unload tasks — rapid model switching spawned orphan Tasks
     /// that could concurrently modify EnginePool.loadedModels.
     private var pendingUnloadTask: Task<Void, Error>?
 
@@ -379,9 +379,9 @@ final class ChatState {
 
         // Unload the old model if it differs from the new one
         if let oldModel = activeModelId, oldModel != newModelId {
-            // P1-fix: Asynchronous model cleanup — unload old model, reset session
+            // Asynchronous model cleanup — unload old model, reset session
             // for new model, but preserve UI message history for conversation continuity.
-            // P1-fix (rapid switch): version gate prevents stale unload tasks from
+            // version gate prevents stale unload tasks from
             // overwriting a newer activeModelId (A→B→C→A: B's task sees version bump
             // and exits without touching state).
             loading = true
@@ -408,7 +408,7 @@ final class ChatState {
                 }
                 self.activeModelId = newModelId
                 self.inferenceSessionId = "chat-\(UUID().uuidString.prefix(8))"
-                // P1-fix: Clear only the streaming response text — preserve messages
+                // Clear only the streaming response text — preserve messages
                 self.responseText = ""
                 self.currentReasoningText = ""
                 self.loading = false
@@ -493,7 +493,7 @@ final class ChatState {
         guard messages.isEmpty else { return }
         guard let compressor, let sid = sessionId else { return }
         do {
-            // P0-fix: cap at hotWindow to prevent loading entire session into UI memory
+            // cap at hotWindow to prevent loading entire session into UI memory
             let hotWindowLimit = compressor.hotWindow
             let dbMessages = try await compressor.getMessages(sid, limit: hotWindowLimit, offset: 0)
             // Messages come in reverse chronological order from DB — reverse for display
@@ -519,7 +519,7 @@ final class ChatState {
             // Blank session carries no worktree binding — drop the previous
             // session's pointer so exec/file tools don't leak into it.
             SessionWorkspace.clear()
-            // P0-fix: Create a stable inference session UUID that persists across
+            // Create a stable inference session UUID that persists across
             // multiple chat() calls — ThinkingBudget adaptive calibration requires
             // a consistent key to accumulate quality multipliers.
             inferenceSessionId = "chat-\(UUID().uuidString.prefix(8))"
@@ -558,7 +558,7 @@ final class ChatState {
 
     /// Rough token estimate: ~4 chars per token for English, ~2 for CJK.
     /// Internal (not private) so @testable import can exercise the real formula.
-    /// P2-fix: CJK-aware estimation — Chinese/Japanese/Korean chars are 3 bytes in UTF-8
+    /// CJK-aware estimation — Chinese/Japanese/Korean chars are 3 bytes in UTF-8
     /// but represent ~1.5-2 chars per token, not 4 bytes per token like English.
     internal nonisolated func estimateTokens(_ text: String) -> Int {
         let utf16Count = text.utf16.count
@@ -683,7 +683,7 @@ final class ChatState {
         currentReasoningText = ""
         loading = true
         errorMessage = nil
-        // P0-fix: reset idempotency barrier so cancelInference can fire clean this turn
+        // reset idempotency barrier so cancelInference can fire clean this turn
         _cancelledByUI = false
 
         // P0-3: Create cancellable token for mid-stream interrupt
@@ -695,7 +695,7 @@ final class ChatState {
             // cleanMessages delegates to the same predicate exposed for test coverage.
             let cleanMsgs = cleanMessages(messages)
 
-            // P1-fix: Extract system messages from cleanMessages so they reach the engine
+            // Extract system messages from cleanMessages so they reach the engine
             // via the systemPrompt path (MessageBuilderContext.userSystemPrompt).
             let systemMessages = messages.filter { $0.role == "system" }
             var systemPrompt = systemMessages.map { $0.content }.joined(separator: "\n")
@@ -965,7 +965,7 @@ final class ChatState {
                 }
             }
             // If interrupted mid-stream but accumulated text exists, save it.
-            // P0-fix: skip if cancelInference() already ran — it appends the interrupted message
+            // skip if cancelInference() already ran — it appends the interrupted message
             // itself; we only reach here when the stream was cancelled without UI intervention.
             if !self._cancelledByUI && (Task.isCancelled || cancellation.isCancelled) {
                 if !responseText.isEmpty {
@@ -981,7 +981,7 @@ final class ChatState {
             // Finalize cancellation handle
             currentCancellation = nil
         } catch {
-            // P1-fix: Do not surface raw localizedDescription to the user —
+            // Do not surface raw localizedDescription to the user —
             // it leaks technical details and may not match UI language.
             // Instead, show a localized, user-facing error message.
             self.errorMessage = StringKey.generationFailed.l
@@ -1025,7 +1025,7 @@ final class ChatState {
     /// Also resets SQLite session ID to prevent new messages bleeding
     /// into the old session's database record.
     func resetConversation() {
-        // P0-fix (B3): cancel in-flight inference FIRST, before clearing any state.
+        // cancel in-flight inference FIRST, before clearing any state.
         // Before: resetConversation cleared messages/responseText/sessionId but never
         // stopped the running stream — and actively re-opened the `_cancelledByUI` append
         // gate — so the still-running stream tail resumed, re-appended the partial into
@@ -1039,7 +1039,7 @@ final class ChatState {
         // Symmetric with onModelChanged L405-406 / resetForTesting L1057-1058.
         pendingUnloadTask?.cancel()
         pendingUnloadTask = nil
-        // P2-fix: cap undo snapshot to last 50 messages — prevents holding entire
+        // cap undo snapshot to last 50 messages — prevents holding entire
         // conversation in memory when user clears a long-running session
         let maxUndoMessages = 50
         undoSnapshot = Array(messages.suffix(maxUndoMessages))

@@ -10,7 +10,7 @@
 import Foundation
 
 /// Synchronous platform capability queries.
-/// P0-fix: CoreAI runtime check decouples compile-time canImport from
+/// CoreAI runtime check decouples compile-time canImport from
 /// runtime availability so HardwareRouter emit path stays in sync with
 /// _runInference fallback behavior.
 enum PlatformHelpers {

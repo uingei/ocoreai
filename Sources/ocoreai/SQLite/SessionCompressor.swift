@@ -375,7 +375,7 @@ actor SessionCompressor {
     /// and appends it to the session's summary field.
     private func pruneColdMessages(_ sessionId: Int64, tokenCount: Int) async {
         // 1. Fetch cold messages that will be deleted
-        // P1-fix: Include tool_calls so that tool-use context is preserved in the summary.
+        // Include tool_calls so that tool-use context is preserved in the summary.
         // Without this, function call + result pairs are lost during compression,
         // breaking the conversation context for subsequent tool-assisted turns.
         let coldSql = """
@@ -456,7 +456,7 @@ actor SessionCompressor {
 
     /// LLM-driven summary generation from cold messages.
     /// Attempts LLM summarization first; falls back to rule-based extraction on failure.
-    /// P1-fix: toolCalls are included so that tool-use context survives compression.
+    /// toolCalls are included so that tool-use context survives compression.
     private func generateCompressionSummary(
         _ messages: [(role: String, content: String, toolCalls: String?)]
     ) async -> String {
@@ -494,7 +494,7 @@ actor SessionCompressor {
     /// Rule-based summary generation from cold messages.
     /// Extracts conversation topics, questions, tool calls, and key assistant responses.
     /// Used as fallback when LLM summarization is unavailable or fails.
-    /// P1-fix: now accepts toolCalls parameter for tool-use tracking.
+    /// Accepts a toolCalls parameter for tool-use tracking.
     private static func generateRuleBasedSummary(
         coldMessages messages: [(role: String, content: String, toolCalls: String?)]
     ) -> String {

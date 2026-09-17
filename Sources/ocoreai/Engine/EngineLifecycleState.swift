@@ -137,7 +137,7 @@ final class EngineCircuitBreaker {
         maxConsecutiveFailures: Int = 3,
         cooldownSeconds: Int = 60
     ) {
-        // P0-fix: clamp instead of precondition (circuit breaker must not release-crash)
+        // clamp instead of precondition (circuit breaker must not release-crash)
         self.maxFailures = max(maxConsecutiveFailures, 1)
         self.cooldownSeconds = cooldownSeconds
     }

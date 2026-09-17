@@ -276,7 +276,7 @@ private struct AuditStatusPill: View {
         }
     }
 
-    // P2-fix HIG-01: theme text color instead of hardcoded .white
+    // theme text color instead of hardcoded .white (HIG-01)
     private var pillTextColor: Color {
         theme.text
     }

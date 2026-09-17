@@ -874,7 +874,7 @@ extension EnginePool {
         // Check for reasoning control tokens that will be lost in
         // detokenize→retokenize roundtrip. Qwen3: 151645/151646; other families
         // (DeepSeek, Gemma) use different IDs. Text-level fallback catches all.
-        // P0-fix: removed universal ASCII control chars (newline=198, ESC=27) —
+        // removed universal ASCII control chars (newline=198, ESC=27) —
         // they fire on every request and flood the log.
         let hasReasoningMarkers =
             promptText.contains("< thinking>") || promptText.contains("</ thinking>")
@@ -1634,7 +1634,7 @@ extension EnginePool {
             return
         }
 
-        // P0-fix: Validate ANE runtime availability and content compatibility
+        // Validate ANE runtime availability and content compatibility
         // before emitting channel event. On macOS/iOS < 27 with canImport(CoreAI) compiled,
         // _runInference falls back to MLX GPU via the #available guard below —
         // without this check, downstream (UI/SSE) receives .ane event while actual
@@ -1764,7 +1764,7 @@ extension EnginePool {
             }
         } catch {
             /// Fallback: mlx containers have their own tokenizer, use heuristic estimate
-            /// P1-fix: CJK-aware estimation — UTF-8 bytes/4 overestimates for CJK text
+            /// CJK-aware estimation — UTF-8 bytes/4 overestimates for CJK text
             /// (CJK chars are 3 bytes UTF-8 but ~1.5 tokens on average, not 1).
             /// Use bytes/3 for CJK-heavy content, bytes/4 for Latin-heavy.
             /// Character-level detection: if avg bytes per char > 1.5, likely CJK.
@@ -2169,7 +2169,7 @@ extension EnginePool {
                                 finalBufferPresent: diagnosticSink.finalBuffer != nil,
                                 parsedAsToolCall: diagnosticSink.parsedAsToolCall,
                                 parsedName: diagnosticSink.parsedName)
-                            // P1-fix: respect grammar lifecycle — upstream GuidedGenerationLoop.run()
+                            // respect grammar lifecycle — upstream GuidedGenerationLoop.run()
                             // only calls grammar-terminated when the constraint accepted the output.
                             // When grammar didn't terminate (maxTokens exhausted), reporting .eos
                             // misleads downstream (structured parsing, UI, metrics).
@@ -2226,7 +2226,7 @@ extension EnginePool {
                             tokenCount: diagnosticSink.generatedTokenCount,
                             sink: diagnosticSink)
                     } else {
-                        // P1-fix: emit .done before throwing — prevents continuation leak.
+                        // emit .done before throwing — prevents continuation leak.
                         // The outer do-catch (L1259/1283) will propagate the error as
                         // .error event, but downstream also expects a terminal .done.
                         if !doneAlreadyYielded {
@@ -2250,7 +2250,7 @@ extension EnginePool {
             }
         }
 
-        // P1-fix: extract stop-sequence matching into shared helper.
+        // extract stop-sequence matching into shared helper.
         // Previously duplicated 5× inside runInferenceBody (MTP reasoning/response,
         // MTP no-reasoning, standard reasoning/response, standard no-reasoning).
         // Returns (shouldBreak: Bool, updatedAccumulated: String).
@@ -2483,7 +2483,7 @@ extension EnginePool {
                     } else {
                         nil
                     }
-                // P1-fix: toolCalling mode must match actual tool state.
+                // toolCalling mode must match actual tool state.
                 // Using .allowed when no tools exist causes FM SDK to inject tool-calling
                 // template markers into the prompt — triggering spurious tool responses
                 // from models that don't actually know tools. Use .disallowed when empty.
@@ -2569,7 +2569,7 @@ extension EnginePool {
                             root: dynamic, dependencies: [])
                     }()) ?? nil
 
-                // P1-fix: use actual user prompt text instead of empty string.
+                // use actual user prompt text instead of empty string.
                 // streamResponse(to:) forwards to Executor.respond() which calls
                 // TranscriptConverter.mlxMessages(). When the transcript contains
                 // only instructions + empty response pairs (no prompt entry),
@@ -2580,7 +2580,7 @@ extension EnginePool {
                     from: mlxMessages as [MLXLMCommon.Chat.Message])
 
                 do {
-                    // P1-fix: Reasoning routing + stop sequence for FM path.
+                    // Reasoning routing + stop sequence for FM path.
                     // Both guided and regular branches previously emitted .text only,
                     // bypassing ReasoningEventEmitter (no reasoning segmentation) and
                     // not checking requestStopSequences. Wire same patterns as MTP/standard.
@@ -2800,7 +2800,7 @@ extension EnginePool {
                         toolCall.function.arguments
                         .mapValues { $0.anyValue } as? [String: Any] ?? [:]
 
-                    // P0-fix: replace fatalError with graceful error response
+                    // replace fatalError with graceful error response
                     // (tool args should always serialize, but release must not crash)
                     guard
                         let data = try? JSONSerialization.data(
@@ -3164,7 +3164,7 @@ extension EnginePool {
                     // the for-await stream consumption runs outside the lock (L1055).
                     // TokenIterator inside generate() accesses context.model,
                     // context.tokenizer, context.configuration — all immutable.
-                    // P1-fix: thread wiredMemoryTicket through generate().
+                    // thread wiredMemoryTicket through generate().
 
                     // Build initial messages outside lock
                     var mtpMessages: [Chat.Message] = messagePairs.map { pair in
@@ -3374,7 +3374,7 @@ extension EnginePool {
                     }
                     // Tool dispatch loop: iterates until model produces no more
                     // tool calls. Mirrors ChatSession.swift L748 restart-loop.
-                    // P2-fix: hard iteration cap (10) prevents runaway tool loops
+                    // hard iteration cap (10) prevents runaway tool loops
                     var mtpToolLoopCount = 0
                     let maxMtpToolLoop = 10
                     while mtpToolLoopCount < maxMtpToolLoop {
@@ -3450,7 +3450,7 @@ extension EnginePool {
                                 nonSendable: drafterWrapper
                             ) { context, wrapped in
                                 let drafterModel = wrapped.model
-                                // P1-fix: ensure MTP KV cache exists (lazy init inside the
+                                // ensure MTP KV cache exists (lazy init inside the
                                 // perform lock so model reference is available).
                                 // Conversation-aware: each dialog gets its own cache bucket.
                                 try loaded.initializeMTPKVCacheIfNeeded(
@@ -3473,10 +3473,10 @@ extension EnginePool {
                                 )
                                 let mtpInput = try await context.processor.prepare(
                                     input: mtpUserInput)
-                                // P1-fix: thread wiredMemoryTicket through MTP generate().
+                                // thread wiredMemoryTicket through MTP generate().
                                 // Upstream: generate(input:cache:parameters:context:mtpDrafter:blockSize:components:wiredMemoryTicket:)
                                 // Evaluate.swift L2025
-                                // P1-fix: thread cached MTP KV cache to avoid cold-start on each
+                                // thread cached MTP KV cache to avoid cold-start on each
                                 // generation. KVCache objects are reference types — they hold
                                 // pointers to GPU memory, so the array is cheap to pass and the
                                 // objects are updated in-place by upstream during generation.
@@ -3683,7 +3683,7 @@ extension EnginePool {
                                 localProposedDraftTokens = completionInfo.proposedDraftTokens
                                 localAcceptedDraftTokens = completionInfo.acceptedDraftTokens
                                 localPassthroughReason = completionInfo.passthroughReason
-                                // P1-fix: Capture speculativeDecodingTelemetry (upstream Evaluate.swift:L2138)
+                                // Capture speculativeDecodingTelemetry (upstream Evaluate.swift:L2138)
                                 _ = completionInfo.speculativeDecodingTelemetry?.roundCount ?? 0
                                 // D2-fix: Phase 2 reasoning token tracking.
                                 // When inside a reasoning span at end of iteration, attribute
@@ -3911,7 +3911,7 @@ extension EnginePool {
                     // When tools or grammar schema are present, the constrained/tool path handles
                     // thinking internally — entering std reasoning here would double-inject
                     // thinking kwargs and bypass the tool-aware prompt rendering.
-                    // P2-fix: removed early pool release — reasoning needs token-level segmentation
+                    // removed early pool release — reasoning needs token-level segmentation
                     // that ChatSession doesn't provide, but the pooled session should be returned
                     // normally downstream so subsequent std requests can reuse the KV cache.
                     log.info("Routing through reasoning path — upstream generateTokens() alignment")
@@ -4415,7 +4415,7 @@ extension EnginePool {
         if config.wiredMemory.enabled {
             // Estimate ticket size: per-request GPU memory delta (KV cache + activations).
             // Weights are already resident in the LoadedModel's GPU memory — they are NOT
-            // per-request overhead and must not be counted here (P0-fix: prev formula included
+            // per-request overhead and must not be counted here: prev formula included
             // vocabSize*8 which double-counted resident weights, causing admission gate to
             // under-estimate per-request headroom and over-accept requests that could OOM).
             //

@@ -43,7 +43,7 @@ struct AuthConfig: Equatable {
     init() {
         let rawAPI = ProcessInfo.processInfo.environment["OCOREAI_API_KEYS"] ?? ""
         let rawAdmin = ProcessInfo.processInfo.environment["OCOREAI_ADMIN_KEYS"] ?? ""
-        // P0-fix: cap instead of precondition (auth config must not release-crash)
+        // cap instead of precondition (auth config must not release-crash)
         apiKeys = Array(rawAPI.components(separatedBy: ",").filter { !$0.isEmpty }.prefix(1000))
         adminKeys = rawAdmin.components(separatedBy: ",").filter { !$0.isEmpty }
         enabled = !apiKeys.isEmpty
@@ -71,7 +71,7 @@ struct AuthConfig: Equatable {
         }
         let injection = (json?["promptInjectionEnabled"] as? Bool) ?? true
 
-        // P0-fix: cap instead of precondition (auth config must not release-crash)
+        // cap instead of precondition (auth config must not release-crash)
         let cappedKeys = Array(keys.prefix(1000))
         return AuthConfig(apiKeys: cappedKeys, promptInjectionEnabled: injection)
     }

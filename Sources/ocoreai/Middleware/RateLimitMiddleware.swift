@@ -43,7 +43,7 @@ actor TokenBucket {
     ///   - rate: Tokens added per second
     ///   - capacity: Maximum burst size
     init(rate: Double, capacity: Double) {
-        // P0-fix: guard + clamp instead of precondition (rate limiter must not release-crash)
+        // guard + clamp instead of precondition (rate limiter must not release-crash)
         self.rate = rate > 0 ? rate : 1.0
         self.capacity = capacity > 0 ? capacity : 100.0
         available = self.capacity  // Start full
@@ -67,7 +67,7 @@ actor TokenBucket {
     /// - Returns: `true` if all tokens acquired, `false` if insufficient
     @discardableResult
     func tryAcquire(count: Int) -> Bool {
-        // P0-fix: guard instead of precondition (rate limiter must not release-crash)
+        // guard instead of precondition (rate limiter must not release-crash)
         guard count > 0 else { return true }
         refill()
         guard available >= Double(count) else { return false }
@@ -158,7 +158,7 @@ actor RateLimitProvider {
     ///   - config: Rate limiting configuration
     ///   - logger: Logger instance
     init(config: Config = Config(), logger: Logger) {
-        // P0-fix: clamp instead of precondition (rate limiter must not release-crash)
+        // clamp instead of precondition (rate limiter must not release-crash)
         let safeGlobal = config.globalRate > 0 ? config.globalRate : 100
         self.config = config
         globalBucket = TokenBucket(rate: safeGlobal, capacity: Double(config.globalBurst))

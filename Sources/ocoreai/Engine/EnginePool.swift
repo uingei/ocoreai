@@ -109,7 +109,7 @@ actor EnginePool {
     /// Model last-access timestamps for LRU eviction (modelId → Instant)
     private var modelLastAccess: [String: ContinuousClock.Instant] = [:]
 
-    /// Active session registry — sessionId → modelId mapping for P0-fix:
+    /// Active session registry — sessionId → modelId mapping:
     /// markSessionActive needs to find the model by sessionId, and
     /// releaseSession must verify the session actually existed for that model.
     private var sessionRegistry: [String: String] = [:]
@@ -167,7 +167,7 @@ actor EnginePool {
         self.modelScopeToken = modelScopeToken
         self.toolRegistry = toolRegistry
         self.hardwareRouter = hardwareRouter
-        // P0-fix: clamp instead of precondition (engine pool config must not release-crash)
+        // clamp instead of precondition (engine pool config must not release-crash)
         // Config values validated at construction; no precondition on init path
         self.config = config
         self.logger = logger
@@ -326,7 +326,7 @@ actor EnginePool {
 
         let sessionId = UUID().uuidString
 
-        // P0-fix: register sessionId → modelId for validation at release + markActive
+        // register sessionId → modelId for validation at release + markActive
         sessionRegistry[sessionId] = modelId
 
         logger.info(
@@ -342,7 +342,7 @@ actor EnginePool {
     }
 
     func releaseSession(modelId: String, sessionId: String) async {
-        // P0-fix: verify sessionId was actually registered for this model
+        // verify sessionId was actually registered for this model
         guard let registeredModelId = sessionRegistry.removeValue(forKey: sessionId) else {
             logger.warning(
                 "releaseSession: unregistered session \(sessionId) — skipped",
@@ -360,7 +360,7 @@ actor EnginePool {
         loadedModels[registeredModelId]?.releaseSession()
     }
 
-    /// P0-fix: mark session active by touching model last-access timestamp.
+    /// mark session active by touching model last-access timestamp.
     /// Prevents premature LRU eviction while inference tokens are still flowing.
     func markSessionActive(sessionId: String) async {
         guard let modelId = sessionRegistry[sessionId] else {
@@ -1069,7 +1069,7 @@ actor EnginePool {
     /// Unload a single model from the pool, releasing GPU memory.
     /// Waits for active sessions to drain before removing.
     ///
-    /// P0-fix: Keeps model in `loadingModels` during the entire drain + cleanup
+    /// Keeps model in `loadingModels` during the entire drain + cleanup
     /// window so that concurrent `acquire()` calls will wait rather than trigger
     /// a reload of a model being actively cleaned up.
     /// Respects `Task.isCancelled` throughout the drain loop — cancelling
@@ -1084,7 +1084,7 @@ actor EnginePool {
             return false
         }
 
-        // P0-fix: mark as loading so concurrent acquire() won't trigger reload
+        // mark as loading so concurrent acquire() won't trigger reload
         loadingModels.insert(modelId)
         defer { loadingModels.remove(modelId) }
 
