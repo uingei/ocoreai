@@ -205,7 +205,7 @@ protocol BackendProtocol: Sendable {
 | Risk | Location | Impact | Evidence |
 |------|----------|--------|----------|
 | **BackendProtocol unused** | BackendProtocol.swift:36 | Architectural drift — protocol defined but EnginePool uses inline `#if` branches | `BackendProtocol` never conformed to by `CoreAIBridge` or `MLXBridge`; EnginePool L382-449 contains inline `#if canImport(CoreAI)` |
-| **CoreAI grammar/stop** | EngineInference.swift:500, 1129 | **Resolved as of ~2026-08.** CoreAI-native grammar exists (`ConstrainedGenerationCapable` pipelined + CoreAI-native decode loop); stop sequences handled in the decode loop. The 07-26 "falls back to MLX" claim is superseded by code. | L500 "grammar requests stay on CoreAI path", L1129 coreai constrained loop |
+| **CoreAI grammar/stop** | EngineInference.swift:500, 1129 | **Resolved.** CoreAI-native grammar exists (`ConstrainedGenerationCapable` pipelined + CoreAI-native decode loop); stop sequences handled in the decode loop. An earlier "falls back to MLX" claim is superseded by code. | L500 "grammar requests stay on CoreAI path", L1129 coreai constrained loop |
 | **MTP tool calls not multi-turn** | EngineInference.swift:1182-1206 | Tool calls collected but dispatched after generation — no follow-up round | L1039: `registeredToolSpecs == nil` guard, L1182: single dispatch loop |
 | **Caught error unused** | EngineInference.swift:1329 | Build warning — error caught but not propagated | `if let caughtError {` defined but never used (build warning confirmed) |
 

@@ -40,13 +40,13 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 - `EnginePool` uses inline `#if canImport(CoreAI)` branches (`BackendProtocol` deleted 2123143, 0 refs remaining)
 - **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (wired, both MLX + CoreAI paths), KVCacheRuntime ✅ (`turboQuant`/`.affine` 双路 `MLXBridge.swift:757 case "affine"` / `:759 case "turbo-quant"`, 映射到 `.affine(:814/:819)` / `.turboQuant(:806)`). Pinned upstream `mlx-swift-lm` at `c6446cf` (#620 TokenIterator 首 token 即清 buffer cache ← 09-14 `3e6ea1e` ← #613 detok Character→Scalar ← #584 RotatingKVCache trim wrap-aware, 09-17 对齐 origin/main). **ThinkingBudget** ✅ (two paths wired: std reasoning `L3964 .applyingThinkingBudget` + MTP speculative `L3467 .applyingThinkingBudget` + `components: genComponents`/`mtpGenComponents` `L3979`/`L3490`; `guard mtpReasoningConfig` 非空才接, `catch → .init()` 回退与 std 同语义).
 - **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement. Engine/ contains CoreAI* ×14 + StateHandler(+ ×3) + MPSGraphSamplers(1511L) + KVCache/TensorStorage(+CoreAI) (Engine/ 44 .swift total); + Tokenizer/TokenizersMLXTokenizerAdapter.
-- **ANE path:** CoreAI `MPSGraphSamplers` (`MPSGraphSamplers.swift` 1511 行实存, `CoreAIPipelinedEngine.swift:53/601` 消费) wires MPS constrained argmax/composite/sampler — GPU-based constrained decoding path (c4c0a43 CoreAI .pipelined wired + 256e704 penalty/ConstrainedGenerationCapable routing; 前文 031cb54 = unknown revision, 2026-09-04 实证替换)
+- **ANE path:** CoreAI `MPSGraphSamplers` (`MPSGraphSamplers.swift` 1511 行实存, `CoreAIPipelinedEngine.swift:53/601` 消费) wires MPS constrained argmax/composite/sampler — GPU-based constrained decoding path (c4c0a43 CoreAI .pipelined wired + 256e704 penalty/ConstrainedGenerationCapable routing)
 - **MTP path:** `_runInferenceWithMessages` → `generate(::mtpDrafter:)` — bypasses ChatSession, tool calls collected + dispatched per-iteration (aligned with upstream `MTPSpeculativeTokenIterator`)
 - **SessionPool:** Prefix-level prompt cache reuse via message divergence tracking; HardwareRouter pressure events trigger aggressive eviction; `loadPromptCacheSnapshot` restores LM state + KV cache
 
 **Key:** `#if canImport(CoreAI)` single-layer compile-time gate; token sampling → `argmax`(greedy) / `multinomialSample`(temperature>0) — 真身 `Models/InferenceStubs.swift:198 sample(from:)`(temperature/topK/topP/minP filters, 对上游 CompositeSampler 算法); toolDispatch wired in both MLX + CoreAI paths.
 
-**Upstream alignment (verified 2026-08-13):**
+**Upstream alignment:**
 - `KVCacheRound` / `TurboFlash` / `TurboQuant`: consumed internally by upstream `generate*()` — no downstream intervention needed
 - `KVCacheConfiguration`: full `.turboQuant` + `.affine` dual-path via `makeKVCacheConfiguration` (MLXBridge)
 - `toolDispatch`: ocoreai closure → `ToolRegistry.call()` wired through ChatSession restart loop
@@ -79,7 +79,7 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 - `@unchecked Sendable` requires justification comment. Closure `var` declared inside closure scope (not outer).
 
 ### Error Handling
-- Precondition near-free: production code uses precondition/preconditionFailure only for structural invariants and upstream-verbatim numeric/speech surfaces; new code must not add them. **Verified 2026-09-04 (12 sites / 9 files, 2nd full re-scan):**
+- Precondition near-free: production code uses precondition/preconditionFailure only for structural invariants and upstream-verbatim numeric/speech surfaces; new code must not add them. **Full-scan verified (12 sites / 9 files):**
   - Video/DiscreteFlowScheduler (`precondition` ×2)
   - Video/TiledDecode3D (`precondition` ×1)
   - Multimodal/StreamingWindow (`precondition` ×1)
@@ -92,10 +92,10 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 - **Zero `try!`** in production code.
 - **`print()`:** 0 in production code (18→0 at commit 4c231d3).
 - **`fatalError`:** 0.
-- `assert`: **0** (verified 2026-09-04 by grep — no `assert(` outside `precondition*` in Sources/).
+- `assert`: **0** (no `assert(` outside `precondition*` in Sources/).
 - `try?`: used as the defensive-fallback pattern; `try?` stays acceptable where a real fallback follows.
 - `ErrorContext.swift` does not exist (grep = 0).
-- `Profiling/` contains **2 files** (2026-09-04 verified): `TimingHooks.swift` + `PerformanceMetrics.swift`.
+- `Profiling/` contains **2 files**: `TimingHooks.swift` + `PerformanceMetrics.swift`.
 
 ### Naming
 - Target names ≠ module boundaries (e.g., `GuidedGenerationLoop` is peer to `ChatSession`, not nested).
@@ -125,7 +125,7 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 
 Three sources for empirical verification:
 1. **mlx-swift-lm** — pinned in `Package.swift` at `c6446cf`（09-17 对齐 origin/main; #620 TokenIterator 首 token 清 cache 为 HEAD; 前序 `3e6ea1e` #548/#515 ← `604fae7` #584/#613/#615/#611/#597）。0 drift（`git rev-list --count c6446cf..origin/main` = 0, 09-17 核验）。
-2. **coreai-models** — reference at `7359dbc`（09-17 对齐 origin/main）。`e282dbd..7359dbc` 4 commit 逐条核验 09-17: `#237` 已吸收（`cd9e901`）· `#248` ocoreai capability-first dispatch 无该报表 wrapper,bug 不存在 · `#249` 行为等价内部重构,ocoreai hand-rolled VLM KV 语义与上游重构前一致 · `#250` 上游 `Tools/llm-server` 工具树,ocoreai 0 消费。**0 新增吸收、0 行为分叉。** Reference repo, not SPM dependency。#206 ThinkTagParser agentic hardening absorbed 2026-09-04 (`1076948`)；ATEM ToolCallParser format NOT absorbed（zero ocoreai consumers of `Format.agentic`）。
+2. **coreai-models** — reference at `7359dbc`（对齐 origin/main）。`e282dbd..7359dbc` 4 commit 逐条核验: `#237` 已吸收（`cd9e901`）· `#248` ocoreai capability-first dispatch 无该报表 wrapper,bug 不存在 · `#249` 行为等价内部重构,ocoreai hand-rolled VLM KV 语义与上游重构前一致 · `#250` 上游 `Tools/llm-server` 工具树,ocoreai 0 消费。**0 新增吸收、0 行为分叉。** Reference repo, not SPM dependency。#206 ThinkTagParser agentic hardening absorbed (`1076948`)；ATEM ToolCallParser format NOT absorbed（zero ocoreai consumers of `Format.agentic`）。
 3. **Apple Developer Docs** — developer.apple.com/documentation/CoreAI (requires login)
 
 **Wiki:** `~/wiki/concepts/upstream-mlx-swift-lm-38927f5-intent.md` + `~/wiki/concepts/upstream-coreai-models.md` — consumption matrix with file:line evidence.
@@ -198,7 +198,7 @@ This environment runs on **Ollama** (provider: `ollama-launch`, model: `qwen3.8:
 **Skills to load upfront (read once, apply manually):**
 - `single-pass-orchestration` — pipeline entry point
 - `code-review-discipline` — Phase 5a standards scan
-- (Phase 1 intent-alignment + 3-layer verification (grep → compile → read) are folded into `code-review-discipline` body + Agent Execution Rule #1 — no separate skill; the previously listed `engineering-grilling` / `code-audit-methodology` dead pointers removed at 2026-08-30 audit.)
+- (Phase 1 intent-alignment + 3-layer verification (grep → compile → read) are folded into `code-review-discipline` body + Agent Execution Rule #1 — no separate skill; the previously listed `engineering-grilling` / `code-audit-methodology` dead pointers removed.)
 
 **Pre-loaded domain skills (already in context):**
 - `hermes-agent` — CLI commands, toolsets, profiles
