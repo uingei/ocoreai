@@ -1,11 +1,11 @@
-// Provenance: coreai-models (BSD-3-clause, Apple) — absorbed 2026-09-16.
+// Provenance: coreai-models (BSD-3-clause, Apple) — absorbed.
 //   Upstream:
 //     CoreAIShared/Bundle/ModelBundle.swift  — ComponentKey.main/vision/embedding,
 //                                              modelURL(for:), requireModelURL(for:),
 //                                              resolveAssetURL (.aimodel → .aimodelc)
 //     CoreAILanguageModels/Bundle/LanguageBundle.swift — kind == .vlm check (L52-53),
 //                                                        visionConfig guard, componentKeys
-//   Upstream pin: coreai-models 7359dbc (origin/main, 2026-09-11 sync)
+//   Upstream pin: coreai-models 7359dbc
 //
 // ocoreai is NOT a SwiftPM-dependency on coreai-models (in-tree engine).
 //   This file provides the minimal VLM-bundle detection + component-path

@@ -5,7 +5,7 @@
 /// must be delivered as an `audio` ContentPart with the URL intact (not
 /// degraded to a "[Audio recording context]" text placeholder that drops the
 /// bytes). Closes the vision/audio behavior fork: image frames carry bytes,
-/// audio frames did not (fixed 2026-08-24).
+/// audio frames must too.
 
 import Foundation
 import Testing

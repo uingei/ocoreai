@@ -1,19 +1,9 @@
-// InferenceErrorSurfaceTests.swift — 09-10 错误面透传回归门
+// InferenceErrorSurfaceTests.swift — top-level catch 错误面: 原错误语义不得被覆盖
 //
-// 缺陷(活体实证 /tmp/ocoreai-e2e-0910e.log L101 + /tmp/e2e-result-0910q.json):
-//   Qwen3.5-4B 约束解码失败时, 服务端日志有真相
-//     (MLXGuidedGeneration.GuidedGenerationError error 0),
-//   但 wire 只回 `Inference failed: inference failed`
-//   — 原错误类型/语义在 L4305/L4321 top-level catch 被写死的
-//     "inference failed" 覆盖, 客户端无法区分 grammar 耗尽 / OOM / 超时。
-//   对照: L1020 pipelined catch 已经保留 `\(error.localizedDescription)`
-//   — top-level catch 与 pipelined catch 对同一类失败结局不同 = 行为分叉。
-//
-// 红线(修复): inferenceTopLevelFailedMessage(for:) 保留原错误的
-//   localizedDescription, 且保留客户端已解析的 "Inference failed:" 前缀。
-//   纯函数(Error->String), @testable 直测, 无需模型。
-//
-// 测试 = 精确值(用户铁律: #expect==, 拒绝 count 弱断言)。
+// 契约 (inferenceTopLevelFailedMessage, 纯函数 Error->String):
+//   - 保留原错误的 localizedDescription — 客户端据此区分 grammar 耗尽 / OOM / 超时;
+//   - 保留客户端已解析的 "Inference failed: " 前缀。
+// 两处 catch (top-level 与 pipelined) 对同一类失败结局必须一致 — 行为分叉红线。
 
 import Foundation
 import Testing

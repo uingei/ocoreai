@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// PerceptionMediaDeliveryTests.swift — b4 tests for the perception→VLM media
-/// delivery wire (2026-08-25):
+/// delivery wire:
 ///   b1 `PerceptionEngine.mediaContentParts()` — media-only part filtering
 ///      (image/audio bytes in; OCR/text frames out, staying on the
 ///      `contextText()` system path so nothing is double-delivered).

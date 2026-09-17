@@ -1,7 +1,7 @@
 // Copyright 2026 Apple Inc. (BSD-3-Clause upstream)
 //
 // Absorbed from coreai-models 27a66f9 (#227, fix #212) swift/Tests/LanguageModelsTests/
-// InputLayoutTests.swift (2026-09-07, copy-first; ocoreai adaptation: the pure-logic
+// InputLayoutTests.swift (copy-first; ocoreai adaptation: the pure-logic
 // `InputLayout.analyze(inputNames:...)` / `resolveRequired` are @available(macOS 27,
 // iOS 27)-gated (they build the 27-gated struct and throw the 27-gated error), and
 // `@Suite`/`@Test` macros cannot carry `@available`, so each test body opens with a

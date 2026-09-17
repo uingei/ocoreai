@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// reasoning_effort wire + engine-side injection contract (2026-08-23).
+// reasoning_effort wire + engine-side injection contract.
 //
 // Wire-not-brain: ocoreai decodes `reasoning_effort` verbatim and injects
 // the raw value into the jinja chat-template context. The model template is

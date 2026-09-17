@@ -108,7 +108,7 @@ struct ToolEntry {
 /// JSON Schema describing tool parameters
 struct ToolSchema: Codable {
     let parameters: [String: ToolParameter]
-    /// 09-06: 工具级"必填键"子集(JSON Schema inputSchema.required 的忠实透传)。
+    /// 工具级"必填键"子集(JSON Schema inputSchema.required 的忠实透传)。
     /// nil = 未声明 → 下游惯例保持 "所有已声明 = required"(built-in 现有行为)。
     /// 非 nil = 仅这些键 required(可选参数不再被误标必填)。
     let required: [String]?
@@ -129,13 +129,12 @@ final class ToolParameter: Codable, Equatable, @unchecked Sendable {
     /// 数组元素的子 schema（仅 `.array` 有效；对齐 JSON Schema `items`）。
     /// nil = 无 items 声明（向后兼容既有工具）。
     let items: ToolParameter?
-    /// 09-06: number(=JSON Schema "number"/float)参数 shorthand。
+    /// number(=JSON Schema "number"/float)参数 shorthand。
     static let number = ToolParameter(type: .number)
     /// 对象必填键（仅 `.object` 有效；元素级必填，如 plan step 的 `step`）。
     let required: [String]?
-    /// 对象子键 schema（仅 `.object` 有效；对齐 JSON Schema `properties`）。
-    /// 09-05: 补齐 — 此前模型只带 `required` 键名、不带键类型，对象面
-    /// （如 update_plan.plan items 的 step/status）在 wire/FM 层退化空 object。
+    /// 对象子键 schema（仅 `.object` 有效；对齐 JSON Schema `properties`）——
+    /// 对象面如 update_plan.plan items 的 step/status 在 wire/FM 层不退化空 object。
     let properties: [String: ToolParameter]?
 
     init(
@@ -171,8 +170,8 @@ final class ToolParameter: Codable, Equatable, @unchecked Sendable {
 enum ParameterType: String, Codable, CaseIterable {
     case string
     case integer
-    /// 09-06: float 参数档(JSON Schema "number")。此前 MCP number 字段被映射成 .integer,
-    /// wire "integer" — 模型按整型生成, float 字段截断。
+    /// float 参数档(JSON Schema "number")。对齐上游 number 语义,
+    /// 否则 MCP number 字段被映射成 .integer 后 wire 截断。
     case number
     case boolean
     case array
@@ -184,8 +183,8 @@ enum ParameterType: String, Codable, CaseIterable {
 extension ToolEntry {
     /// Convert to OpenAI-format ToolDef — used by Fast Path callers.
     func toToolDef() -> ToolDef {
-        // 09-06: 优先工具自带 description;缺失才回退合成行(name/toolset/参数摘要)。
-        // 此前合成行无条件发送——22 个有真实描述的内置工具也发不出。
+        // 优先工具自带 description;缺失才回退合成行(name/toolset/参数摘要)
+        // — 否则 22 个有真实描述的内置工具也发不出。
         let synth = "Tool: \(name) [\(toolset)]. Parameters: \(parametersDescription)"
         let function = FunctionDef(
             name: name,

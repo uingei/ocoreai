@@ -244,9 +244,9 @@ struct ChatCompletionRequest: Decodable {
         toolChoice = try c.decodeIfPresent(String.self, forKey: .toolChoice)
         parallelToolCalls = try c.decodeIfPresent(Bool.self, forKey: .parallelToolCalls)
         reasoning = try c.decodeIfPresent(Bool.self, forKey: .reasoning)
-        // Wire-contract completeness — these fields were declared with CodingKeys
-        // but silently dropped by decode (standard names, upstream #187 wire
-        // baseline). Filled 2026-08-23.
+        // Wire-contract completeness: these fields were declared with
+        // CodingKeys and must be decoded (standard names, upstream #187
+        // wire baseline).
         minP = try c.decodeIfPresent(Float.self, forKey: .minP)
         seed = try c.decodeIfPresent(Int64.self, forKey: .seed)
         prefillStepSize = try c.decodeIfPresent(Int.self, forKey: .prefillStepSize)
@@ -610,15 +610,12 @@ enum ContentPolymorphic: Codable {
 ///
 /// `CodingKeys` required: OpenAI wire uses **snake_case** (`image_url`,
 /// `video_url`, `audio_url`) but Swift stores them **camelCase**
-/// (`imageUrl`, `videoUrl`, `audioURL`). Without this mapping the bare
+/// `imageUrl`, `videoUrl`, `audioURL`). Without this mapping the bare
 /// `Codable` derives JSON keys from the Swift property names, so a real
 /// OpenAI request `{"type":"image_url","image_url":{"url":"..."}}`
 /// decodes to `imageUrl = nil` — the image is **silently dropped at the
-/// wire layer** before it ever reaches the engine. Live proof (09-08):
-/// 64×64 red square sent to `/v1/chat/completions` → `prompt_tokens:187`
-/// (zero vision tokens), model answered "I need an image… provide a file
-/// path" — confident blind answer, zero error. Root cause was this missing
-/// `CodingKeys`, not any downstream routing.
+/// wire layer** before it ever reaches the engine (confident blind
+/// answer, HTTP 200, zero error). Hence the keys are pinned exactly.
 struct ContentPart: Codable {
     enum CodingKeys: String, CodingKey {
         case type
@@ -665,23 +662,16 @@ struct ContentPart: Codable {
             self.maxFrames = maxFrames
         }
 
-        /// 09-08 E2E root cause (video silent drop): `maxFrames` is a non-optional
-        /// `Int` and the synthesized `init(from:)` decodes it with plain
-        /// `decode(Int.self, ...)`. A real client — our own HTTP probe, any
-        /// OpenAI-compatible caller — sends `{"url": "..."}` WITHOUT `max_frames`,
-        /// so the `VideoURL` decode fails, the whole `[ContentPart]` array
-        /// decode throws, `ContentPolymorphic` falls back to `.text("")` and
-        /// the video (plus the text in the same message) is silently dropped
-        /// end-to-end: red 1-frame mp4 → `prompt_tokens:180` (zero video tokens),
-        /// `DIAG mlxMessages: i:0/v:0/a:0/t:0`, model answered boilerplate
-        /// self-introduction — as if the message never arrived. The 311be24
-        /// contract test passed because its wire fixture carried `max_frames:8`
-        /// (the full optional shape), masking the real-client gap.
-        /// Fix: decode `max_frames` with `decodeIfPresent` → 16 if absent.
-        /// `maxFrames` has 0 read sites in the ocoreai video-consumption path
-        /// (upstream `UserInput.Video` has no maxFrames; frame selection lives
-        /// in `Gemma4ProcessorConfig.max_frames`), so the default is inert, not
-        /// guessed — it only unblocks decoding.
+        /// `maxFrames` is a non-optional `Int`, but real clients (any
+        /// OpenAI-compatible caller) send `{"url": "..."}` WITHOUT `max_frames`.
+        /// Plain `decode(Int.self)` would then make `VideoURL` decode fail, so
+        /// the whole `[ContentPart]` array decode throws and `ContentPolymorphic`
+        /// falls back to `.text("")` — the video (plus its text) silently
+        /// dropped end-to-end. Hence decode with `decodeIfPresent` → 16 if
+        /// absent. `maxFrames` has 0 read sites in the ocoreai video-consumption
+        /// path (upstream `UserInput.Video` has no maxFrames; frame selection
+        /// lives in `Gemma4ProcessorConfig.max_frames`), so the default is
+        /// inert, not guessed — it only unblocks decoding.
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             url = try c.decode(String.self, forKey: .url)
@@ -1378,8 +1368,8 @@ struct ModelSamplingConfig: Codable {
     var frequencyContextSize: Int = 20
 
     /// Model chat-template reasoning effort (e.g. Qwen3.8 `reasoning_effort`).
-    /// Wire-not-brain (08-23): stored verbatim; word table is the model's,
-    /// codex-aligned (low/medium/high/xhigh/max/ultra). nil = model default.
+    /// Wire-not-brain: stored verbatim; word table is the model's (low/medium/
+    /// high/xhigh/max/ultra, codex-aligned). nil = model default.
     var reasoningEffort: String? = nil
 
     /// Response format override ("text" | "json_object")
@@ -1594,9 +1584,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// carry the post-compaction estimate + cap: the transcript is the
     /// authoritative bloated state, and retrying an equally-sized request
     /// fails identically — callers must start a fresh, shorter conversation
-    /// instead of retrying (hermes-agent #106260 `compression_exhausted`
-    /// typed bit, absorbed 2026-09-09; was previously an untyped
-    /// `invalidRequest(String)` with no machine-readable signal).
+    /// instead of retrying (hermes-agent `compression_exhausted` typed bit;
+    /// was previously an untyped `invalidRequest(String)`).
     case contextWindowExhausted(postTokens: Int, cap: Int)
 
     /// Not Found — model does not exist or is not loaded
@@ -1783,11 +1772,9 @@ func buildGrammarSchema(
     from tools: [ToolDef]?,
     responseFormat: ResponseFormat? = nil
 ) -> String? {
-    // Helper: 递归扁平化 AnyCodable 嵌套 → JSON 原生 Any(Bool/Int/Double/String/NSNull/[Any]/[String:Any])。
-    // ⚠️ E2E 实证(09-08):旧版只剥最外层一层 [String: AnyCodable],嵌套值仍是 AnyCodable struct
-    // → JSONSerialization 遇 __SwiftValue → "Invalid type in JSON write" NSException。
-    // ObjC 异常不是 Swift Error —— `try?` 接不住,整个进程死(日志实证:带 tools 请求崩,
-    // 无 tools 请求正常,"coding agent 工具回路"从未活体工作过)。此处全深度递归剥壳。
+    // Helper: 递归扁平化 AnyCodable 嵌套 → JSON 原生 Any。
+    // JSONSerialization 遇 AnyCodable struct (__SwiftValue) → NSException
+    // (ObjC 异常不是 Swift Error,try? 接不住,进程死)。全深度递归剥壳。
     func flatten(_ v: Any) -> Any {
         if let c = v as? AnyCodable {
             return flatten(c.value)

@@ -25,8 +25,8 @@
 /// 旧 `modelscope/<ns>/<name>/<rev>/` 三级、HF 家缓存 `~/.cache/huggingface/hub`、
 /// `Caches/org.ml-explore.mlx-swift-lm`、`Caches/ocoreai/modelscope`。
 ///
-/// 铁律:本文件是"哪个目录算就绪模型"的唯一事实源——下载侧(MS/HF)、加载侧(isModelCached)、
-/// UI 侧(列表/删除)都从本文件取路径,禁止各自拼 Caches 路径。
+/// 铁律:本文件是"哪个目录算就绪模型"的唯一事实源——下载侧(MS/HF)、
+/// 加载侧(isModelCached)、UI 侧(列表/删除)都从本文件取路径,禁止各自拼 Caches 路径。
 
 import Foundation
 import HuggingFace

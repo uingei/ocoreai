@@ -1,5 +1,5 @@
 // Copyright 2026 Apple Inc. (BSD-3-clause upstream)
-// Adapted for ocoreai — aligned with coreai-models CoreAISequentialEngine.swift HEAD 4a3f8e4 (2026-09-01 audit).
+// Adapted for ocoreai — aligned with coreai-models CoreAISequentialEngine.swift HEAD 4a3f8e4.
 //   Absorbed: #176 5660fc6 (repetition penalty, tokenHistory overload).
 //   Absorbed: #204 156cdb6 (prefillFunction / independent prefill graph).
 //   Absorbed: #227 27a66f9 (InputLayout name resolution — in_new_token_ids/pos_ids).

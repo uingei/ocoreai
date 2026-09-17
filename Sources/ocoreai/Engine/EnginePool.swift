@@ -367,9 +367,8 @@ actor EnginePool {
             // Late markActive after a completed release is expected under
             // concurrent summarization (SummarizerActor's delayed summary
             // calls markActive after the underlying session already finished).
-            // demote to debug — the 09-09 live trace showed this warning
-            // masquerading as a real "session dropped" bug when it was a
-            // normal late-signal from a background task.
+            /// demote to debug — a late-signal masquerades as a real "session
+            /// dropped" bug when it is a normal late-signal from a background task.
             logger.debug(
                 "markSessionActive: session \(sessionId) already released (late signal, no-op)")
             return
@@ -546,11 +545,11 @@ actor EnginePool {
                 modelId
             }
 
-        // Structural 404 guard (live-proven 09-14): a bare name is neither a
+        // Structural 404 guard: a bare name is neither a
         // valid hub repo id (hubs require org/name) nor a local model when
-        // neither a ready dir nor a file exists. Old behavior burned
-        // config+download attempts and surfaced the failure as 503 "Engine
-        // unavailable" (transient/retry) — callers retried forever.
+        // neither a ready dir nor a file exists. Without this, config+download
+        // attempts burn and the failure surfaces as 503 "Engine
+        // unavailable" (transient/retry) — callers retry forever.
         if structurallyUnresolvableModelId(modelId) {
             throw AppError.modelNotFound(modelId)
         }
@@ -573,10 +572,10 @@ actor EnginePool {
             chunkThreshold: 8,
             prefillChunkSize: 4096,
         )
-        // 09-08 root cause (live-proven): a bare hub id is a RELATIVE path, and
-        // URL(fileURLWithPath:) absolutizes it against the process CWD — the
-        // phantom dir `file:///Users/t/Projects/ocoreai/mlx-community/gemma-4-
-        // e2b-it-4bit` (visible in the CoreAI warmup warning: "Asset at
+        // A bare hub id is a RELATIVE path, and URL(fileURLWithPath:)
+        // absolutizes it against the process CWD — yielding a phantom
+        // dir `file:///Users/t/Projects/ocoreai/mlx-community/...`
+        // (visible in the CoreAI warmup warning: "Asset at
         // mlx-community/gemma-4-e2b-it-4bit -- file:///Users/t/Projects/ocoreai/
         // is malformed: Missing hash file"). Every isVLMModel(at: modelURL) check
         // (L581 + post-load re-detect) then probed a directory that never holds
@@ -669,9 +668,10 @@ actor EnginePool {
             /// Declare `.toolCalling` + `.reasoning` unconditionally. ocoreai is a generic
             /// runtime — it cannot know a priori whether each loaded model tools or reasons.
             /// The SDK capability gate (Executor.respond()) rejects a session that carries
-            /// tools when `.toolCalling` is not declared: live repro 09-06 — gemma-4-e2b-it
-            /// "Using LanguageModelSession → Injected 25 tools → doesn't have the
-            /// capabilities needed for this operation" (0 tokens, 500 in 6ms).
+            /// tools when `.toolCalling` is not declared: the SDK rejects the
+            /// session with "doesn't have the capabilities needed for this
+            /// operation" (0 tokens, 500 in 6ms). A capability gate, not a
+            /// runtime choice.
             /// Upstream baseline (mlx-swift-lm MLXLanguageModel.swift:313 example
             /// `capabilities: [.guidedGeneration, .toolCalling]`, :558 default
             /// `[.guidedGeneration]`) declares `.guidedGeneration` for every model that

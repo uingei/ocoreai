@@ -3,7 +3,7 @@ import Testing
 
 @testable import ocoreai
 
-@Suite("EnginePoolConfig models.<id> parsing (09-09: enabled gate)")
+@Suite("EnginePoolConfig models.<id> parsing (enabled gate)")
 struct EngineConfigModelsTests {
     private func makeApp(
         modelId: String? = nil,

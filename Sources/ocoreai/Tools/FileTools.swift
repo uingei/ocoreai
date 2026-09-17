@@ -2,10 +2,10 @@
 // Licensed under MIT.
 /// FileTools — real file operations for the agent tool surface.
 ///
-/// Closes the P0 tool-surface gap (direction-audit-2026-08-18, codex borrow
-/// points 2026-08-21): the registry whitelist already reserved read_file /
-/// search_files and the destructive blacklist reserved write_file, but none
-/// were implemented — the surface was placeholder-only (info/skills_*/echo).
+/// Closes the P0 tool-surface gap (codex borrow points): the registry whitelist
+/// already reserved read_file / search_files and the destructive blacklist
+/// reserved write_file, but none were implemented — the surface was
+/// placeholder-only (info/skills_*/echo).
 ///
 /// Apply-before-verify (codex apply-patch discipline): write_file compares
 /// the bytes it writes against what it re-reads from disk — a successful

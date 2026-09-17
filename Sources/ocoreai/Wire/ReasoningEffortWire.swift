@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// Reasoning-effort wire injection (2026-08-23).
+// Reasoning-effort wire injection.
 //
 // Qwen3.8 (and future hybrid models) read a chat-template kwarg called
 // `reasoning_effort` with a codex-aligned word table

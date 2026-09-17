@@ -9,7 +9,7 @@
 //   - componentPath .aimodel → .aimodelc compiled-variant fallback
 //   - isVLMBundle predicate consistency with load()
 //
-// Provenance: coreai-models (BSD-3, Apple) absorbed 2026-09-16.
+// Provenance: coreai-models (BSD-3, Apple), absorbed.
 //   Upstream: CoreAIShared/Bundle/ModelBundle.swift + LanguageBundle.swift
 //   Upstream pin: coreai-models 7359dbc (origin/main)
 

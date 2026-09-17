@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 // `OutputSanitizer` (non-stream wire hygiene) — exact-value assertions on the
-// REAL 2026-09-09 E2E artifact shapes, hex-verified (gemma-4 2B, Qwen3.5 4B):
+// REAL E2E artifact shapes, hex-verified (gemma-4 2B, Qwen3.5 4B):
 //   - tool-call JSON arrays emitted as prose (both models)
 //   - gemma thinking spans: open 3C 7C "channel" 3E / close 3C "channel" 7C 3E (PIPE 0x7C)
 //   - Qwen thinking closer: 3C 2F "think" 3E (FORWARD SLASH 0x2F, NOT a backslash)

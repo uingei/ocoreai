@@ -1,4 +1,4 @@
-// FMToolProxyContractTests.swift — 09-06 代码即文档: SDK Tool 协议契约测试
+// FMToolProxyContractTests.swift — 代码即文档: SDK Tool 协议契约测试
 //
 // 契约真身(macOS 27 SDK swiftinterface, 逐行读):
 //   protocol Tool<Arguments, Output> {

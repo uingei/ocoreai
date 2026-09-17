@@ -418,8 +418,8 @@ actor ExecSessionManager {
             if ownerProc.isRunning() { ownerProc.forceKill() }
             // Bounded reap after SIGKILL (delivery is async): poll the
             // proven non-wedging `isRunning()` primitive with a deadline
-            // instead of an unbounded `waitUntilExit()` — which wedged
-            // the whole CI job on the macOS 26 runner (2026-08-26 hang).
+            // instead of an unbounded `waitUntilExit()` — which can wedge
+            // the whole CI job on the macOS 26 runner.
             let reapDeadline = Date(timeIntervalSinceNow: Self.killGraceSeconds)
             while ownerProc.isRunning() && Date() < reapDeadline {
                 Thread.sleep(forTimeInterval: 0.05)
@@ -521,7 +521,7 @@ actor ExecSessionManager {
                 }
                 if oldestProc.isRunning() { oldestProc.forceKill() }
                 // Bounded reap, same reason as `kill`: the unbounded
-                // `waitUntilExit()` wedged the macOS 26 CI job (2026-08-26).
+                // `waitUntilExit()` can wedge the macOS 26 CI job.
                 let reapDeadline = Date(timeIntervalSinceNow: Self.killGraceSeconds)
                 while oldestProc.isRunning() && Date() < reapDeadline {
                     Thread.sleep(forTimeInterval: 0.05)
@@ -589,9 +589,8 @@ actor ExecSessionManager {
             // Foundation already reaped the child, so `terminationStatus`
             // is cached (probe: exit 0/7/signal all readable straight
             // after — `scripts/proc-status-cache-probe.swift`). The
-            // redundant blocking wait was a SECOND `waitpid` on the
-            // reaped child, and on the macOS 26 CI runner it wedged the
-            // whole 60-min job (2026-08-26 hang, `spawnExit7`).
+            // redundant blocking wait is a SECOND `waitpid` on the
+            // reaped child that wedges the whole CI job on macOS 26.
             exitCode = owner.terminationStatus()
         }
         return (

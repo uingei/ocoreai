@@ -10,7 +10,7 @@
 //       (compression ratios, VAE temporal constants, latent-shape math,
 //        pre-generation validation rules + messages, WanError)
 //
-// ocoreai 2026-08-26: Wan 2.1 consumption CONTRACT surface — the config / preset /
+// ocoreai: Wan 2.1 consumption CONTRACT surface — the config / preset /
 //   validation / latent-shape / error layer, copied value-for-value from the CoreAI
 //   baseline. Pure Foundation (no CoreAI framework, no .aimodel dependency), so it
 //   compiles on the macOS 14 floor with NO @available gate and no platform bump.

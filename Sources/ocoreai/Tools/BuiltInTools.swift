@@ -534,7 +534,7 @@ func bootstrapBuiltInTools(
     // ocoreai 此前 0 注册(agent 想读时间只能靠 info.uptime 间接推;想等只能靠
     // exec sleep 走子进程)→ 本批补一等原语。命名/取值/报告形态逐行对齐 codex。
     // update_plan — 工具面上对齐 codex（#41630：工具名/参数面/输出版式与上游原值一致）；
-    // 默认值对齐 codex `#41744`（2026-08-31）：`tools.update_plan.enabled` 默认 **false**（opt-in，
+    // 默认值对齐 codex `#41744`：`tools.update_plan.enabled` 默认 **false**（opt-in，
     // 显式开启才注册；off-path 无指引，与上游一致）。ocoreai 侧的"开"= Settings
     // `settings.updatePlan.enabled`（见 `Bootstrap/updatePlanEnabled` 参数注入）。
     // get_plan — `update_plan` 的模型侧读面（Recover 片 1 agent 侧闭环）：读回本会话 durable

@@ -1,6 +1,6 @@
 import Foundation
 // GrammarSchemaRegressionTests.swift — locks buildGrammarSchema JSON serializability.
-// Regression: 2026-09-08 E2E — toAny 只剥一层 AnyCodable, 嵌套 schema(深度>=2)
+// Regression: toAny 只剥一层 AnyCodable, 嵌套 schema(深度>=2)
 // 导致 JSONSerialization "Invalid type in JSON write (__SwiftValue)" NSException,
 // ObjC 异常 try? 接不住 → 进程死(带 tools 的 HTTP 请求全崩)。旧实现上 test1 的
 // 嵌套 wire 即复现崩溃形态。

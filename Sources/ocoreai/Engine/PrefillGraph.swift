@@ -1,6 +1,6 @@
 // Copyright 2026 Apple Inc. (BSD-3-Clause upstream)
-// Absorbed from coreai-models 156cdb6 (#204) shared/PrefillGraph.swift (2026-08-29,
-// copy-first; ocoreai adaptation: InferenceRuntimeError is @available-gated here,
+// Absorbed from coreai-models 156cdb6 (#204) shared/PrefillGraph.swift
+// (copy-first; ocoreai adaptation: InferenceRuntimeError is @available-gated here,
 // so every function is gated too).
 //
 /// Shared lookup, validation and planning for the optional `prefill` entrypoint.

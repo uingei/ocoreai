@@ -2,7 +2,7 @@
 // Licensed under MIT.
 /// ServerAuthGate.swift — refuse network exposure without authentication.
 ///
-/// ### Why this exists (upstream pattern, omlx `09a7c43` 2026-09-13):
+/// ### Why this exists (upstream pattern, omlx `09a7c43`):
 /// `OCOREAI_HOST` may name a LAN interface or `0.0.0.0`. Without this gate,
 /// an unset `OCOREAI_API_KEYS` degrades ``AuthMiddleware`` to pass-through
 /// and the entire inference API would be served open — no 401 on any route.

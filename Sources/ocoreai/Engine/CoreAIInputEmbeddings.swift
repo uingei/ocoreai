@@ -1,4 +1,4 @@
-// Provenance: coreai-models (BSD-3-clause, Apple) — verbatim, absorbed 2026-09-12.
+// Provenance: coreai-models (BSD-3-clause, Apple) — verbatim, absorbed.
 //   swift/Sources/CoreAILanguageModels/InferenceEngines/InputEmbeddings.swift @ HEAD 5716935
 // CoreAI dependency (NDArray) — gated.
 

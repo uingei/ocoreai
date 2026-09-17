@@ -1,4 +1,4 @@
-// Provenance: coreai-models (BSD-3-clause, Apple) — verbatim, absorbed 2026-09-12.
+// Provenance: coreai-models (BSD-3-clause, Apple) — verbatim, absorbed.
 //   - VideoInput.swift (VideoFrame/VideoFrameSequence/VideoInput/VideoInputError)
 //   - FrameSamplingStrategy.swift
 //   - VideoFrameExtractor.swift

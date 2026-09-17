@@ -128,7 +128,7 @@ struct ExecSessionsSpawnTests {
 
     @Test("back-to-back reaped children finalize on wall clock (runner wedge regression)")
     func spawnExitCascade() async throws {
-        // Regression guard for the 2026-08-26 CI hang: the finalize path
+        // Regression guard for the macOS 26 CI hang: the finalize path
         // must read `terminationStatus` of an already-reaped child
         // WITHOUT a second blocking `waitUntilExit()`. On the macOS 26
         // runner that redundant wait wedged the whole 60-min job right

@@ -1,17 +1,12 @@
-// MCPSchemaFidelityTests.swift — 09-06 MCP 参数面形状保真(Red→Green)
+/// MCPSchemaFidelityTests.swift — MCP 参数面形状保真
 //
-// 缺陷类(代码即文档): MCP tools/list 的 inputSchema 是 JSON Schema(带
-// number/object/array<items>/required 子集),此前 discoverAndRegisterTools 拍平映射:
-//   "number" → .integer          (float 字段变 int wire, 模型按整型生成)
-//   "object" → .string           (default 兜底, 嵌套结构全丢)
-//   array.items → 丢             (wire 裸 array)
-//   required 子集 → 压平 all     (可选参数被标必填)
-// 与 448b587 "描述静默丢弃" 同一缺陷类 — 注册成功(27 口径可见)但模型拿到的
-// 参数面与上游声明不一致。
+// 契约: MCP inputSchema 是 JSON Schema — register 后参数面必须与上游声明逐位一致:
+//   number→.number (非 .integer)、object→嵌套 properties (非拍平 .string)、
+//   array 保 items、required 保子集 (非压平 all)。
+// 否则模型拿到的参数类型/形状失真 → 生成参数错。
 //
-// 纪律: 用仓内已验证的 Python stdio stub 驱动**生产同路**
-//       MCPBridge.connectEndpoint → discoverAndRegisterTools → ToolRegistry,
-//       不用手写 ToolEntry 样例自证。精确值断言, 禁 count>0 弱断言。
+// 方法: 仓内 Python stdio stub 驱动**生产同路**
+//       (connectEndpoint → discoverAndRegisterTools → ToolRegistry), 不用手写 ToolEntry 样例自证。
 
 import Foundation
 import Logging

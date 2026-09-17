@@ -1,28 +1,16 @@
-// FMToolErrorRecoveryTests.swift — 09-10 行为分叉修复回归门
+// FMToolErrorRecoveryTests.swift — 契约: FM 路径 handler 失败镜像 MLX/codex 回灌
 //
-// 缺陷(活体实证 /tmp/ocoreai-e2e-0910.log + /tmp/e2e-coding-result.json):
-//   两条路径对"工具 handler 失败"结局相反 —
-//   - MLX 路径 (EngineInference.swift L2683-2690): handler 失败 →
-//     回灌模型 `"[tool_error: <msg>]"` 自纠重试 (codex 语义, 注释明写)。
-//   - FM 路径 (FMToolBridge.swift 旧 L97-99): `try await registry.call` 直接传播
-//     → FM SDK 视为致命 → 整轮 500, 零恢复。活体: 4B edit_file 猜错 oldString →
-//     client 收到 `Generation failed: ... FMToolProxy(edit_file) ... refusing
-//     partial edit`。
-//   同一失败、两条路径不同结局 = 行为分叉(最伤用户一类)。
+// 同一失败、两条路径结局必须一致(行为分叉红线):
+//   - MLX 路径 (EngineInference catch-site): 回灌 `"[tool_error: <msg>]"` 给模型自纠
+//   - FM 路径 (本文件钉住):  `proxy.call` 不 throw, 返回 `"[tool_error: …]"` 同型串
+//     (throw 会被 FM SDK 视为致命 → 整轮 500, 零恢复)
+// 成功路径不被吞: 正常返回 payload。
 //
-// 红线基准(修复): FM 路径镜像 MLX/codex — handler 失败返回
-//   `"[tool_error: <localizedDescription>]"` (工具结果错误串), 不 throw,
-//   让模型拿得到自纠机会。
+// 断言精确值: 返回串逐字 == ToolError.executionFailed/invalidParameter 的
+// errorDescription 拼接 (sanitizeError 对 <> 转义 &lt; / &gt;)。
 //
-// 测试 = 精确值 (用户铁律: 精确值 #expect==N, 拒绝 count 弱断言):
-//   断言返回串 == "[tool_error: Tool execution failed: <sanitized msg>]"
-//   (ToolError.executionFailed 的 errorDescription 逐字拼接, 见 ToolEntry.swift
-//   `case .executionFailed: "Tool execution failed: \(error.localizedDescription)"`,
-//   且 sanitizeError 会对 < > 做 &lt; / &gt; 转义)。
-//
-// 门控: 需 FoundationModels SDK (macOS 27) + FMToolProxy 为 @available(27.0)
-// 类型。与 FMToolProxyContractTests 同族 — 低平台/无 SDK runner 整文件编译剔除,
-// macos-27/xcode-27 runner 实际执行 (Verification Claim Gate, 非 green-by-skip)。
+// 门控: 需 FoundationModels SDK (macOS 27) + FMToolProxy @available(27.0)。
+// 低平台/无 SDK runner 整文件编译剔除, macos-27/xcode-27 实际执行 (非 green-by-skip)。
 
 #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
 import Foundation

@@ -1,4 +1,4 @@
-// Provenance: coreai-models (BSD-3-clause, Apple) — verbatim, absorbed 2026-09-12.
+// Provenance: coreai-models (BSD-3-clause, Apple) — verbatim, absorbed.
 //   swift/Sources/CoreAIShared/Image/ImagePreprocessor.swift (L37-290) @ HEAD 5716935
 // Pure Foundation/CoreImage/CoreGraphics/vDSP value types — no CoreAI dependency,
 // always compiled (unit-testable on any Apple OS at the module floor).

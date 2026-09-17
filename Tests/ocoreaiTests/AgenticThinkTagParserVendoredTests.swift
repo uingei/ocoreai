@@ -1,4 +1,4 @@
-// Absorbed 2026-09-04: upstream `coreai-models` #206 `b91bb18`
+// Absorbed: upstream `coreai-models` #206 `b91bb18`
 // (`swift/Tests/LanguageModelsTests/AgenticThinkTagParserTests.swift`).
 // Adapted: ocoreai target (no `CoreAILanguageModels` import needed);
 // internal access via plain ocoreai import.

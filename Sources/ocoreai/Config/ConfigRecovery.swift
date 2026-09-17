@@ -5,11 +5,10 @@
 /// last good config.yaml instead of running on defaults"): every successful
 /// parse leaves a `good` copy under `backups/config/`; a fresh process whose
 /// on-disk config is corrupt restores that copy instead of silently running on
-/// defaults — and, unlike the pre-fix ocoreai path, never clobbers the user's
-/// file.
+/// defaults — and never clobbers the user's file.
 ///
-/// The pre-fix ocoreai flaw: `ConfigSystem.create()` ran `saveDefault()` on
-/// ANY load failure (corrupt YAML, decode error, validation error), overwriting
+/// The flaw this guards against: `ConfigSystem.create()` running `saveDefault()` on
+/// ANY load failure (corrupt YAML, decode error, validation error) overwrites
 /// the user's `~/.ocoreai/config.yaml` — including their `safety:` approval
 /// rules and per-model settings — with `AppConfig()` defaults. Data loss, not
 /// degradation.

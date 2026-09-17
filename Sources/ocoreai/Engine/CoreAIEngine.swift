@@ -8,14 +8,14 @@
 /// - EngineFactory (model structure auto-detection → sequential engine)
 /// - TokenHistory (prefix caching via memcmp fast path)
 ///
-/// Upstream provenance (2026-08-18 audit — ocoreai-native glue, NOT verbatim copies;
+/// Upstream provenance (ocoreai-native glue, NOT verbatim copies;
 /// upstream files it mirrors: InferenceEngines/{InferenceEngine,EngineFactory,TokenHistory,
 /// GenerationToken,InputEmbeddings,KVCacheShared}.swift):
 ///   - TokenHistory / EngineFactory / GenerationToken / InputEmbeddings / KVCacheShared:
 ///     0 commits changed @ a5ece33..21dc8ad — aligned.
 ///   - InferenceEngine.swift: 1 upstream commit in range (protocol addition, #146 0bc7bc3) —
 ///     ocoreai keeps its simplified protocol variant + CoreAISequentialEngine inline;
-///     CoreAISequentialEngine.swift (the engine): 0 commits, anchor 5ba2309 (2026-08-11) current.
+///     CoreAISequentialEngine.swift (the engine): 0 commits, anchor 5ba2309 current.
 ///     Constrained-generation protocol (#146) → tracked as pending on CoreAIPipelinedEngine.
 /// EngineOptions, KVCacheStrategy, InferenceOptions, InferenceOutput redefined here
 /// to avoid importing reference repo (macOS 27 requirement). Types match reference API
@@ -308,8 +308,8 @@ protocol InferenceEngine: Sendable {
 
 /// Multimodal engine: text engine (`InferenceEngine`) plus image/video
 /// encode + embedded-input generate. Mirrors upstream coreai-models
-/// `InferenceEngines/InferenceEngine.swift` L308-331 verbatim (absorbed
-/// 2026-09-12, coreai-models HEAD 5716935).
+/// `InferenceEngines/InferenceEngine.swift` L308-331 verbatim (coreai-models
+/// HEAD 5716935).
 @available(macOS 27.0, iOS 27.0, *)
 protocol MultimodalInferenceEngine: InferenceEngine {
     /// Encode an image into embeddings suitable for injection into the VLM.

@@ -1,7 +1,7 @@
 // Copyright 2026 Apple Inc. (BSD-3-Clause upstream)
 //
 // Absorbed from coreai-models (de31ba5) swift/Tests/SpeechTests/StreamingWindowTests.swift
-// (2026-08-29, copy-first; ocoreai adaptations:
+// (copy-first; ocoreai adaptations:
 //  - `@testable import CoreAISpeech` -> `@testable import ocoreai`
 //  - `#expect(throws: Never.self)` -> do/catch + `Issue.record` (ocoreai convention)
 //  - `gridIdentities` keeps the three `StreamingConfig` identities; the two

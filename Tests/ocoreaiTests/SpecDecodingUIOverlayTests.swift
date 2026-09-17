@@ -1,8 +1,8 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// SpecDecodingConfigTests — exact-value verification of the UI→engine
-/// specDecoding overlay (the fix for the dead specDecoding toggles found in the
-/// 2026-08-28 evidence-first audit: 5 UI knobs wrote UserDefaults with 0 engine
+/// specDecoding overlay (the fix for the dead specDecoding toggles found in
+/// an evidence-first audit: 5 UI knobs wrote UserDefaults with 0 engine
 /// consumers; `backend.specDecoding` is the engine's sole read point).
 ///
 /// The merge rule under test (`pureSpecDecodingUIOverlay` in Config/ConfigStruct.swift):

@@ -1,6 +1,6 @@
 // Copyright 2026 Apple Inc.
 //
-// Absorbed from coreai-models 27a66f9 (#227, fix #212) — 2026-09-07.
+// Absorbed from coreai-models 27a66f9 (#227, fix #212).
 // BSD-3-Clause (Apple Inc.). Upstream: swift/Sources/CoreAILanguageModels/Handlers/InputLayout.swift.
 //
 // Ocoreai adaptation:

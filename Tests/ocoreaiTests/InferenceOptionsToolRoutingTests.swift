@@ -3,7 +3,7 @@
 /// InferenceOptionsToolRoutingTests — the native-side tool-routing contract.
 ///
 /// The HTTP wire (ChatHandler) sets `hasNativeTools` / `declaredToolNames`
-/// from the request's `tools[]`; live E2E 09-08 proved that contract closes
+/// from the request's `tools[]`; that contract closes
 /// the tool loop (emit → dispatch → result → continuation) while the
 /// one-shot FM guided path does NOT (EngineInference L2251 observation:
 /// "tool executes… but no continuation"). The native Fast Path (desktop UI)

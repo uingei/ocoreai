@@ -1,4 +1,4 @@
-// Provenance: coreai-models (BSD-3-clause, Apple) — absorbed 2026-09-12.
+// Provenance: coreai-models (BSD-3-clause, Apple) — absorbed.
 //   - VisionConfig: swift/Sources/CoreAILanguageModels/Bundle/LanguageConfig.swift L184-279
 //   - VLMModelConfig: swift/Sources/CoreAILanguageModels/InferenceEngines/CoreAISequentialVLMEngine.swift L21-38
 //   - upstream pin: coreai-models HEAD 5716935 (#245)

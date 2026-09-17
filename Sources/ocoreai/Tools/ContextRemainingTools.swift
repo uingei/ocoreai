@@ -50,7 +50,7 @@ struct ActiveContext: Sendable {
 // MARK: - store(seam 边界 + 线程安全)
 
 /// 当前活跃上下文的可变持点 — turn 入口写入, 工具调用时读出。
-/// actor 隔离保证跨 actor 访问安全(ocoreai 铁律: 跨 actor 必 await)。
+/// actor 隔离保证跨 actor 访问安全.
 actor ContextStatusStore {
     /// Canonical 唯一实例 — 工具闭包(全局) + ChatHandler(turn 入口) 都引这一份。
     /// 锚到模块全局避免实例穿越(若各自持一份 → 写到的与读到的不是同一对象,真值接不上)。

@@ -52,7 +52,7 @@ struct SystemSleepBackend: SleepBackend, @unchecked Sendable {
 /// `current_time.rs` output schema 描述 `"Current UTC time formatted as YYYY-MM-DD HH:MM:SS UTC."`。
 enum ClockCurrentTime {
     /// 固定 UTC formatter(process 级唯一, 不 per-call alloc; 10 位秒精确值锚点
-    /// `2026-08-27 12:34:56 UTC` 可离线断言)。
+    /// `2026-08-27 12:34:56 UTC` 可离线断言).
     static let formatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")

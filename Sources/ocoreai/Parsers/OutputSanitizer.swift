@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Non-stream final `message.content` only (the agent E2E wire mode is
 /// non-stream). Every marker below was verified by hex-dumping the decoded
-/// 2026-09-09 E2E fixtures (gemma-4 2B, Qwen3.5 4B) — not by visual reading:
+/// E2E fixtures (gemma-4 2B, Qwen3.5 4B) — not by visual reading:
 ///
 ///   * Both models emit a fake top-level `[{ "name", "arguments" }]`
 ///     tool-plan array as prose (a tool call "planned" in text instead of via

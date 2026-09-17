@@ -3,7 +3,7 @@
 //
 // #176 alignment — `RepetitionPenaltyProcessor` + `fallbackSampler(from:tokenHistory:)`.
 // Aligned with upstream coreai-models `Samplers/RepetitionPenaltyProcessor.swift`
-// + `Samplers/SamplingConfiguration.swift` @ 5660fc6 (merged 2026-08-20).
+// + `Samplers/SamplingConfiguration.swift` @ 5660fc6.
 //
 // Upstream test source: `Tests/LanguageModelsTests/RepetitionPenaltyProcessorTests.swift`.
 // Re-written to ocoreai's @testable import + canImport gate (upstream used

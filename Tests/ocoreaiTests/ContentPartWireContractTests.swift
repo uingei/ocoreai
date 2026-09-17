@@ -3,20 +3,14 @@
 /// ContentPartWireContractTests.swift — locks the OpenAI wire JSON contract
 /// for `ContentPart` Codable (snake_case wire keys → camelCase Swift props).
 ///
-/// Regression class (09-08 live bug): the model silently dropped every
-/// image sent over `/v1/chat/completions`. Root cause: `ContentPart` had
-/// no `CodingKeys`, so bare Codable derived the JSON key from the Swift
-/// property name (`imageUrl`) while the OpenAI wire sends `image_url` —
-/// decoded to `nil`, `hasMediaPart == false`, the engine ran text-only and
-/// returned a confident blind answer ("I need an image… provide a file
-/// path"), HTTP 200, `prompt_tokens:187` = zero vision tokens.
+/// Why it matters: a key-name mismatch decodes media parts to `nil` →
+/// `hasMediaPart == false` → the engine runs text-only yet returns HTTP 200
+/// with a confident blind answer. Silent data loss, not an error — so the
+/// wire keys are pinned exactly, not by inference.
 ///
-/// These tests decode REAL wire JSON (not in-process construction) and
-/// assert exact decoded values + exact re-encoded wire keys, so dropping
-/// `CodingKeys` fails loudly here instead of silently losing pixels.
-///
-/// Methodology: exact-value assertions (==), all three media part types,
-/// decode + encode + round-trip — no weak `count > N` asserts.
+/// Coverage: all three media part types + text control, decode + encode +
+/// round-trip on real wire JSON (not in-process construction), including
+/// the minimal real-client shape (video without max_frames).
 
 import Foundation
 import Testing
@@ -55,10 +49,10 @@ struct ContentPartWireDecodeTests {
     }
 
     @Test(
-        "video_url WITHOUT max_frames (real-client shape) decodes — 09-08 E2E"
+        "video_url WITHOUT max_frames (real-client shape) decodes"
     )
     func videoPartDecodesWithoutMaxFrames() throws {
-        // The 09-08 audio/video/video-red probes sent {"url": "data:..."} with
+        // Real clients send {"url": "data:..."} with
         // NO max_frames. The synthesized `init(from:)` required `max_frames`
         // (non-optional Int), so the `[ContentPart]` array decode threw and
         // `ContentPolymorphic` fell back to `.text("")` — the video AND its

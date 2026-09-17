@@ -46,9 +46,9 @@ struct MTPDrafterModelWrapper: @unchecked Sendable {
 /// exact message) without tripping a regression line.
 ///
 /// Fork-vs-upstream disclosure: upstream retries zero times; the bound here
-/// is ocoreai's caller-level discretion (empirically required — gemma-4e2b
-/// and Qwen3.5-4B both hard-500'd multi-step tasks when rejection
-/// propagated immediately).
+/// is ocoreai's caller-level discretion (required — gemma-4e2b
+/// and Qwen3.5-4B both hard-500 multi-step tasks when rejection
+/// propagates immediately).
 enum StdToolCallRecovery {
     /// Maximum number of generation passes before the rejection is
     /// propagated to the caller (500 wire behavior) — unchanged legacy.
@@ -121,9 +121,6 @@ private enum GuidedGenerationDiagnosticResult {
 ///     照常收尾, **不 throw**; prematureEOS 不在吸收清单(上游只 catch incompleteOutput)。
 ///   - `GuidedGenerationError.swift:27` — "Downstream code should catch this case
 ///     to emit partial results if needed."
-///
-/// ocoreai 修复前: catch 全吞 → rethrow → HTTP 500, 已采样文本全丢
-/// (活体: Qwen3.5-4B sampled=2792 finalBuf=nil → 500 硬失败)。
 ///
 /// - Returns: true = 已吸收(incompleteOutput + 有已产出文本) → 调用方改走 `.success` 终态;
 ///            false = 未吸收 → 调用方照抛(保留 60460ab 错误面语义)。
@@ -333,12 +330,12 @@ func makeMLXAudio(from urlString: String) -> (
 /// Mirror of ``makeMLXAudio(from:)`` — same data-URI contract, same (input,
 /// tempURL) shape so callers reuse the same temp-cleanup path (L1635-1638).
 ///
-/// Why this exists (09-08 E2E refuted claim): before this, the extraction at
-/// L1704-1708 did `URL(string: videoUrl)` → `.url(dataURL)` directly. Upstream
+/// Why this exists: before this, the extraction at L1704-1708 did
+/// `URL(string: videoUrl)` → `.url(dataURL)` directly. Upstream
 /// `MediaProcessing.asProcessedSequence` wraps it in `AVAsset(url:)`, which
-/// cannot decode a data: URL — the video was silently dropped (E2E port 8099:
-/// red 1-frame mp4 → pt=180 ≈ text baseline, model answered boilerplate
-/// self-intro, zero video tokens). Decoding to a real temp file makes the
+/// cannot decode a data: URL — the video is silently dropped (zero video
+/// tokens; the model answers boilerplate as if no video is present). Decoding
+/// to a real temp file makes the
 /// bytes reachable by AVFoundation — the same fix the audio path already had.
 func makeMLXVideo(from urlString: String) -> (
     video: MLXLMCommon.UserInput.Video?, tempURL: URL?
@@ -1873,9 +1870,8 @@ extension EnginePool {
                     }
                     if let video = part.videoUrl {
                         // Video URL into VLM — upstream processes frames via Gemma4Processor.
-                        // 09-08: data: URLs must hit makeMLXVideo (temp file) — a raw
-                        // .url(dataURL) is unreadable by AVAsset (E2E: zero video tokens,
-                        // model answered as if no video present).
+                        // data: URLs must hit makeMLXVideo (temp file) — a raw .url(dataURL)
+                        // is unreadable by AVAsset (the video is dropped, zero video tokens).
                         let result = makeMLXVideo(from: video.url)
                         if let videoInput = result.video {
                             videos.append(videoInput)
@@ -2358,7 +2354,7 @@ extension EnginePool {
             // + Think-then-Call + AllowedToolOutputRouter + CompletionReserve
             // All activated by passing full tools/transcript/context options.
             #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
-            // Vision carve-out (09-08, live-verified): a request carrying image
+            // Vision carve-out: a request carrying image
             // content must NOT enter the FM bridge. The bridge rebuilds Chat
             // messages from the FoundationModels Transcript via
             // TranscriptConverter, whose only image route is
@@ -2377,28 +2373,25 @@ extension EnginePool {
             // pipeline in exchange for vision actually working. The silent
             // blind-fallback is the regression being fixed.
             //
-            // 09-08 audio parity (same structural blind spot): the check above
-            // covered images only — an audio request (audios non-empty, images
-            // empty) still entered the FM text path where its audio_url bytes
-            // were silently dropped. Live proof (pre-fix, port 8096): 0.27s and
-            // ~7s say-voices both → prompt_tokens=183 (zero audio tokens),
-            // model answered "provide the file path… transcribe_audio tool" —
-            // blind, like the image case before 311be24. Widen the gate to ALL
-            // media kinds: any message with images/videos/audios routes to the
-            // else-path ChatSession (streamDetails(to: newMessages)), which
-            // carries ChatMessageMedia.audios through upstream respond()
+            // Audio parity (same structural blind spot as image): the check
+            // above covered images only — an audio request (audios non-empty,
+            // images empty) still enters the FM text path where its audio_url
+            // bytes are silently dropped. Widen the gate to ALL media kinds:
+            // any message with images/videos/audios routes to the else-path
+            // ChatSession (streamDetails(to: newMessages)), which carries
+            // ChatMessageMedia.audios through upstream respond()
             // (ChatSession.swift L714/718 → executor) intact.
             let hasMediaContent = mlxMessages.contains {
                 !$0.images.isEmpty || !$0.videos.isEmpty || !$0.audios.isEmpty
             }
-            // 09-08 P0-2: native tool calls (request.tools present) route OUT
+            // Native tool calls (request.tools present) route OUT
             // of the one-shot FM guided path and INTO the ChatSession
             // toolDispatch agent loop. The FM path's
             // `streamResponse(to:schema:).collect()` executes the tool and
-            // records the result in the transcript (DIAG entry[2]) but does
-            // NOT continue — `entry[3]` (the model's answer with the tool
-            // result) is empty, and `full.content` is a THROWing init
-            // (DIAG: `content=<throw>`). The ChatSession path (L2749
+            // records the result in the transcript but does
+            // NOT continue — the final model answer stays empty and
+            // `full.content` is a THROWing
+            // init. The ChatSession path (L2749
             // `chatSession.tools = registeredToolSpecs` +
             // `chatSession.toolDispatch = toolDispatchClosure` →
             // MLXLMCommon "loop can restart on tool calls", L1003) IS the
@@ -2428,8 +2421,8 @@ extension EnginePool {
                 var fmTools: [any FoundationModels.Tool]? = nil
                 if let registry = toolRegistry {
                     // P0-3: same whitelist contract as the MLX path (nil =
-                    // no client tools[] → full surface, live-verified viable
-                    // for a ~1.5B model picking 3-of-25 on a real coding task).
+                    // no client tools[] → full surface, viable for a ~1.5B model
+                    // picking 3-of-25 on a real coding task).
                     let specs = await registry.toToolSpecs()
                     let surface =
                         options.declaredToolNames.map { names in
@@ -2549,7 +2542,7 @@ extension EnginePool {
                 // ResponseStream<GeneratedContent> yields GeneratedContent which
                 // conforms to ConvertibleFromGeneratedContent — use String.init
                 // to extract text from the schema-validated output.
-                // 09-05 根因实证：GenerationSchema 的 Codable 是 canonical 形状
+                // GenerationSchema 的 Codable 是 canonical 形状
                 // （必须带 x-order/title），grammarSchema 是标准 JSON Schema →
                 // 走 DynamicGenerationSchema 树（与 FMToolBridge 同路），不 decode。
                 let fmGuidedSchema: FoundationModels.GenerationSchema? =
@@ -2597,8 +2590,7 @@ extension EnginePool {
                         fmEmitter = ReasoningEventEmitter(config: rc, primedInside: primed)
                     }
                     var fmAccumulated = ""
-                    // 09-05 根因（FM-DIAG 6/6 实证）：ocoreai 传 ContextOptions() 无显式
-                    // level → 上游 thinkingEnabled(nil) 落到模型模板默认（Qwen3.5
+                    // 无显式 level → 上游 thinkingEnabled(nil) 落到模型模板默认（Qwen3.5
                     // enable_thinking 默认 ON）→ thinking-only 输出时 SDK 的 String 投影
                     // content 合法地为空，token 全在 reasoning。上游 MLXLanguageModel
                     // 把 thinking/response 作为独立 channel 事件（destination .reasoning /
@@ -2701,7 +2693,7 @@ extension EnginePool {
 
                     if let guidedSchema = fmGuidedSchema {
                         log.info("FM path: guided generation with schema constraints")
-                        // 09-05 实证：consume via collect()（SDK AsyncIterator 本环境不产出）
+                        // consume via collect()（SDK AsyncIterator 本环境不产出）
                         let full = try await langSession.streamResponse(
                             to: fmPromptText,
                             schema: guidedSchema,
@@ -2724,9 +2716,8 @@ extension EnginePool {
                         }
                         return
                     } else {
-                        // 09-05 实证（FM-DIAG 6/6）：本机 macOS 27 beta 下 SDK 的
-                        // AsyncIterator 不产出 snapshot，collect() 正常返回全量内容。
-                        // 上游 .swiftinterface 将 ResponseStream.collect() 列为公开 API。
+                        // 本机 macOS 27 下 SDK 的 AsyncIterator 不产出 snapshot，
+                        // collect() 正常返回全量内容（上游 .swiftinterface 列为公开 API）。
                         let full = try await langSession.streamResponse(
                             to: fmPromptText,
                             options: genOpts,
@@ -2924,7 +2915,7 @@ extension EnginePool {
             } else {
                 baseReasoningContext = nil
             }
-            // Wire-not-brain reasoning effort (08-23): inject the caller's raw
+            // Wire-not-brain reasoning effort: inject the caller's raw
             // value into the jinja chat-template context. The model template
             // reads it only with thinking enabled and validates it itself
             // (Qwen3.8 raise_exception). No local mapping — the word table is
@@ -4255,8 +4246,6 @@ extension EnginePool {
                     // preserved upstream, so re-entry does not double-feed). Bounded at
                     // 3 attempts; on exhaustion the original error propagates to the
                     // outer `.error` handling (legacy 500 wire behavior) - unchanged.
-                    // (Empirical 2026-09-08/09: gemma-4 2B AND Qwen3.5 4B both tripped
-                    // this to a hard 500 mid multi-step task.)
                     //
                     // Boundary + prompt values come from `StdToolCallRecovery`
                     // (file scope) — pinned by StdToolCallRecoveryTests exact values.

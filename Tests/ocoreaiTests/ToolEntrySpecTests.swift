@@ -152,10 +152,10 @@ struct ToolEntrySpecTests {
         #expect(def.function.parameters == nil)
     }
 
-    // MARK: - tool-level description survival (09-06 live defect)
-    // Power-on repro: toToolSpecs():508 sent the *source text* `\(entry.name)`
+    // MARK: - tool-level description survival
+    // Root cause: toToolSpecs() sent the *source text* `\(entry.name)`
     // (double-escaped) to the model, and ToolEntry.typed() accepted a
-    // `description:` argument and silently dropped it — 22/22 built-in tools
+    // `description:` argument and silently dropped it — built-in tools
     // shipped real descriptions the model never saw.
 
     @Test("typed(description:) survives to entry.description (was silently dropped)")

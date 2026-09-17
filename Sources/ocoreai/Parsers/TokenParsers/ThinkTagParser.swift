@@ -2,15 +2,15 @@
 // Vended to ocoreai for CoreAI path reasoning segmentation.
 // Original: swift/Sources/CoreAILanguageModels/LanguageModel/ThinkTagParser.swift
 //
-// Vended 2026-08-09: Pure Foundation, no heavy deps. Used in CoreAI inference path
+// Vended: Pure Foundation, no heavy deps. Used in CoreAI inference path
 // to segment decoded token deltas into .reasoning vs .text events — aligns with
 // upstream CoreAIExecutor.respondVanilla() pipeline.
 //
-// 2026-08-21 (absorb #182 `637cc63`): merged agentic Format (upstream ahead)
-// WITHOUT dropping ocoreai's ahead `promptEndsInsideReasoning` + `init(primedInside:)`.
-//
-// 2026-09-04 (absorb #206 `b91bb18`): merged upstream #206 agentic-mode hardening —
-//   - `consumeEntryMarker` handles first-turn ` to=<target><|message|>` AND
+// agentic absorb history:
+//   - #182 `637cc63`: agentic Format (upstream ahead), while keeping
+//     ocoreai's ahead `promptEndsInsideReasoning` + `init(primedInside:)`.
+//   - #206 `b91bb18`: agentic-mode hardening:
+//     `consumeEntryMarker` handles first-turn ` to=<target><|message|>` AND
 //     continuation-turn `<|start|>assistant to=<target><|message|>` prefixes
 //     (upstream `ThinkTagParser.swift:118-152`); failure leaves buffer intact.
 //   - `isPartialRoutingHeader` holds back routing headers that arrive across
@@ -42,7 +42,7 @@ import Foundation
 /// `to=self` messages and responses as `to=user` messages, delimited by
 /// message boundary tokens (`#182` upstream; streaming hardening `#206`).
 /// Upstream `#206` agentic hardening (routing-header prefix variants, partial
-/// holdback, `stripReasoning` static) merged 2026-09-04.
+/// holdback, `stripReasoning` static) is absorbed.
 struct ThinkTagParser {
     enum Event {
         case text(String)
@@ -160,7 +160,7 @@ struct ThinkTagParser {
     // MARK: - Tag-pair mode
 
     /// Drives the symmetric open/close drain. Body is byte-for-byte the same
-    /// as the ocoreai 2026-08-09 vendored drain (unchanged; #206 did not touch
+    /// as the ocoreai vendored drain (unchanged; #206 did not touch
     /// tagPair mode).
     @preconcurrency private mutating func drainTagPair(isFinal: Bool) -> [Event] {
         guard case .tagPair = format else { return [] }
@@ -196,7 +196,7 @@ struct ThinkTagParser {
         return ""
     }
 
-    // MARK: - Agentic mode (#182 base; #206 streaming hardening merged 2026-09-04)
+    // MARK: - Agentic mode (#182 base; #206 streaming hardening)
 
     /// Try to consume a routing header at the start of the buffer (#206).
     /// Returns true if a header was consumed, setting `insideThink` accordingly.

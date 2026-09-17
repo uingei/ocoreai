@@ -320,7 +320,7 @@ struct SamplingConfiguration: Codable, Equatable {
 struct InferenceOptions: Codable {
     /// Tool-routing contract shared by every native (non-HTTP) client.
     ///
-    /// Mirrors ChatHandler (the HTTP wire contract, live-E2E-verified 09-08):
+    /// Mirrors ChatHandler (the HTTP wire contract):
     /// `tools` non-empty ⇒ `hasNativeTools = true`, which keeps the engine
     /// OFF the macOS-27 FM `LanguageModelSession` one-shot guided path
     /// (L2261 guard, EngineInference.swift) and ON the ChatSession tool
@@ -356,10 +356,9 @@ struct InferenceOptions: Codable {
     /// dispatch → feed result back → continue answering) via the
     /// ChatSession `toolDispatch` agent loop (MLXLMCommon
     /// `ChatSession.swift` L1003 "loop can restart on tool calls"), NOT the
-    /// one-shot FM `streamResponse(to:schema:).collect()` guided path
-    /// (observed 09-08 E2E: tool executes, result appears in transcript
-    /// `entry[2]`, but no continuation — model never answers with the
-    /// result). Distinct from `useGuidedGeneration`, which covers BOTH
+    /// one-shot FM `streamResponse(to:schema:).collect()` guided path —
+    /// which only records the tool call but does not feed the result back
+    /// for continuation. Distinct from `useGuidedGeneration`, which covers BOTH
     /// tools and json_schema — this field lets the engine route tools to
     /// the loop while keeping json_schema on guided.
     var hasNativeTools: Bool = false
@@ -374,7 +373,7 @@ struct InferenceOptions: Codable {
     /// xhigh|medium|low), word table aligned with codex `ReasoningEffort`.
     /// Nil = model template uses its own default. Unknown values are
     /// rejected by the model template itself (Qwen3.8 raise_exception).
-    /// Wire-not-brain: raw value pass-through, no local mapping (08-23).
+    /// Wire-not-brain: raw value pass-through, no local mapping.
     var reasoningEffort: String? = nil
     /// Tool calling mode — controls whether the model is allowed, required,
     /// or disallowed from calling tools. Aligns with upstream
@@ -389,10 +388,9 @@ struct InferenceOptions: Codable {
     /// Tool-calling whitelist — the *names* the client declared in its
     /// `tools[]`, in declaration order.
     /// - nil = client declared no `tools[]` → ocoreai injects the **full**
-    ///   ToolRegistry surface (local-first convenience; live-verified viable
-    ///   even for a small model: 09-08 zero-declaration coding probe →
-    ///   'Injected 25 tools into FM session' → gemma-4-e2b 4bit picked the
-    ///   3 correct tools of 25 and executed them for real).
+    ///   ToolRegistry surface (local-first convenience; viable even for a
+    ///   small model — a zero-declaration coding probe injected all 25
+    ///   tools and gemma-4-e2b 4bit still picked the correct subset).
     /// - non-nil = OpenAI wire semantics: `tools[]` IS the whitelist →
     ///   engines inject ONLY these names (spec-level filter at the
     ///   injection site; names not registered → naturally absent).

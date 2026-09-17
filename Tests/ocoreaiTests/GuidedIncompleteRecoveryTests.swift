@@ -1,19 +1,13 @@
-// GuidedIncompleteRecoveryTests.swift — 09-10 incompleteOutput 吸收回归门(上游对齐)
+// GuidedIncompleteRecoveryTests.swift — 契约: incompleteOutput 吸收为部分文本
 //
-// 上游 canonical(MLXFoundationModels/MLXLanguageModel.swift L1370/L1704):
-//   `catch GuidedGenerationError.incompleteOutput { incomplete = true }`
-//   → 保留已流式产出的部分文本, 照常收尾, 不 throw。
-// 库真身(GuidedGenerationLoop.swift:466): maxTokens 耗尽语法未终止时
-//   `throw GuidedGenerationError.incompleteOutput`(emit 已发生的文本不丢)。
-// 库 doc(GuidedGenerationError.swift:27): "Downstream code should catch this
-//   case to emit partial results if needed."
+// 对齐上游: MLXFoundationModels/MLXLanguageModel.swift L1370/L1704
+//   `catch .incompleteOutput { incomplete = true }` → 保留已流式产出, 不 throw。
 //
-// ocoreai 修复前: catch 全吞 → `throw error` → HTTP 500, 已采样文本全丢。
-// 活体实证: Qwen3.5-4B guided sampled=2792 finalBuf=nil → 500 硬失败。
-//
-// 铁律「上游已解决 → 必须吸收」: ocoreai 的同型 catch 对齐上游 —
-//   incompleteOutput → 保留已产出文本为部分结果(不 500);
-//   prematureEOS / 其它错误 → 照抛(上游不吸收, 保留 60460ab 错误面语义)。
+// 契约面(本测试钉住):
+//   .incompleteOutput   → absorb, 不 throw (否则客户端 500, 部分文本全丢)
+//   .prematureEOS 照抛, 无关错误 照抛 — 上游不吸收这两类
+//   sink.incompleteOutput 标记: 吸收路径置位, 非吸收路径保持 false
+//   sink.finalBuffer:   吸收路径写入部分文本, 非吸收路径保持 nil
 import Foundation
 import MLXGuidedGeneration
 import Testing

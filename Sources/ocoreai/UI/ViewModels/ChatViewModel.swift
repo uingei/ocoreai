@@ -54,7 +54,7 @@ struct ChatMessage: Identifiable, Hashable {
 
     /// Plain-text representation joining all parts for persistence and fallback.
     /// Uses the same logic as TranscriptPartMessage.flatText so textContent == content
-    /// when only text-only parts are present — the behavioral invariant from 2026-07-13.
+    /// when only text-only parts are present — the behavioral invariant (see git history).
     var textContent: String {
         if let partsParts = parts {
             return TranscriptPartMessage(texts: partsParts).flatText

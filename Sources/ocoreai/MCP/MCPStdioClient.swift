@@ -59,7 +59,7 @@ actor MCPStdioClient {
     private(set) var childExitStatus: Int32?
     /// 入站请求（server→client）应答：返回要写回的响应行，`nil` = 不应答
     /// （notification / 无法应答）。接入后 `waitForResponse` 把带 method 的行
-    /// 全部先路由至此——旧缺陷（09-07）：无路由层，elicit 行被误当
+    /// 全部先路由至此——无此路由层时，elicit 行会被误当
     /// tools/call 响应消费（elicitation server 挂死 / 调用返回错乱垃圾）。
     private let incomingRequestHandler: (@Sendable (String) async -> String?)?
     /// 已应答的入站请求计数（按 method）——精确值测试断言面（elicit→1、ping→1）。

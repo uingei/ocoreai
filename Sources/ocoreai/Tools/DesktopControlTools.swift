@@ -18,7 +18,7 @@
 ///   1. 6 个全 `isDestructive: true` → 串行执行 + 逐次审批 ask(App.swift
 ///      destructive matcher, 每次驱动用户裁决)
 ///   2. 无 Accessibility 权限 → 驱动不生效; 工具面 `trustedStatus()` 诚实回报
-///      权限态与授予引导, 不假装已发出(诚实失败铁律)
+///      权限态与授予引导, 不假装已发出
 ///   3. headless 通道 → 既有 securityGate fail-closed 拒绝(无 GUI 裁决者)
 ///
 /// 基线: codex `computer_use` 一等轴(`codex-rs/features/src/lib.rs:1468`,
@@ -289,7 +289,7 @@ enum DesktopControlDriver {
         e.post(tap: .cghidEventTap)
     }
 
-    /// CGEvent post 要求主线程上下文 — 从 async 调用的唯一收口(跨 actor 必 await, 铁律)。
+    /// CGEvent post 要求主线程上下文 — 从 async 调用的唯一收口.
     static func runOnMain(_ body: @escaping @MainActor () -> Void) async {
         await MainActor.run { body() }
     }

@@ -1,11 +1,11 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 //
-// Wire-contract completeness for `ChatCompletionRequest` (08-23).
-//
-// Root defect fixed: `init(from:)` declared `CodingKeys` for a set of sampling
-// fields (and `reasoningLevel` had none) but never decoded them — they were
-// silently dropped even when present on the wire. Now decoded and asserted
+// Wire-contract completeness for `ChatCompletionRequest` — every declared
+// `CodingKeys` field must decode. Root defect fixed: `init(from:)` declared
+// `CodingKeys` for a set of sampling fields (and `reasoningLevel` had none)
+// but never decoded them — silently dropped even when present on the wire.
+// Now decoded and asserted
 // here with exact values, plus the new standard `max_completion_tokens` field
 // (upstream coreai-models #187 `ServerAPITypes.swift:15/25`).
 //
@@ -42,12 +42,12 @@ private func decodeRequest(_ extra: [String: Any]) throws -> ChatCompletionReque
 @Suite("ChatCompletionRequest wire completeness")
 struct ChatCompletionRequestWireCompletenessTests {
 
-    @Test("minP decodes exactly (was silently dropped before 08-23 fix)")
+    @Test("minP decodes exactly (was silently dropped)")
     func decodesMinP() throws {
         #expect(try decodeRequest(["min_p": 0.05]).minP == 0.05)
     }
 
-    @Test("seed decodes exactly (was silently dropped before 08-23 fix)")
+    @Test("seed decodes exactly (was silently dropped)")
     func decodesSeed() throws {
         #expect(try decodeRequest(["seed": 424242]).seed == 424242)
     }
@@ -74,7 +74,7 @@ struct ChatCompletionRequestWireCompletenessTests {
         #expect(req.frequencyContextSize == 128)
     }
 
-    @Test("self_correction decodes (was silently dropped before 08-23 fix)")
+    @Test("self_correction decodes (was silently dropped)")
     func decodesSelfCorrection() throws {
         #expect(try decodeRequest(["self_correction": true]).selfCorrection == true)
     }
@@ -89,7 +89,7 @@ struct ChatCompletionRequestWireCompletenessTests {
         #expect(req.streamOptions?.includeUsage == true)
     }
 
-    @Test("reasoning_level decodes (CodingKeys case added 08-23; field had no key)")
+    @Test("reasoning_level decodes (CodingKeys case; field had no key)")
     func decodesReasoningLevel() throws {
         let req = try decodeRequest([
             "reasoning": true,

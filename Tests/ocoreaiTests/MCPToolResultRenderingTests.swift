@@ -7,9 +7,10 @@
 /// upstream `MLXLMCommon/ChatSession.swift:318`), so media blocks render as
 /// explicit `[<type>]` placeholders instead of failing the call or vanishing.
 ///
-/// Regression target: pre-fix, a media-only result threw "No text content in
-/// response" (forward path) or returned "(no content)" (registered handler) —
-/// the agent saw a hard failure or dead silence instead of "[image]".
+/// Regression target: a media-only result must render as `[<type>]`,
+/// not throw "No text content in response" (forward path) or return
+/// "(no content)" (registered handler) — the agent must not see a hard
+/// failure or dead silence instead of "[image]".
 
 import Testing
 

@@ -102,7 +102,7 @@ struct ThinkTagParserTagPairTests {
     }
 }
 
-// MARK: - agentic (upstream #182 protocol markers; #206 streaming hardening merged 2026-09-04)
+// MARK: - agentic (upstream #182 protocol markers; #206 streaming hardening)
 
 /// Upstream `AgenticThinkTagParserTests` 用的真 marker 协议（Muse Glimmer / ATEM
 /// 风格）：`to=self<|message|>` / `to=user<|message|>` + eom/eot boundary tokens。

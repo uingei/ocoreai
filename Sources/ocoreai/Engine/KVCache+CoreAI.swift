@@ -2,7 +2,7 @@
 //
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
-// Provenance: aligned with coreai-models InferenceEngines/KVCache+CoreAI.swift @ 78413ae (2026-09-01 audit: 0 commits changed this file 78413ae..HEAD — anchor current).
+// Provenance: aligned with coreai-models InferenceEngines/KVCache+CoreAI.swift @ 78413ae (0 commits changed 78413ae..HEAD — anchor current).
 
 #if canImport(CoreAI)
 import CoreAI

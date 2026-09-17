@@ -3,17 +3,16 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 // Provenance: derived from coreai-models InferenceEngines/CoreAIPipelinedEngine.swift
-//   (introduced 2026-08-13, ocoreai 558afab; upstream file created in #146 0bc7bc3, 2026-08-14).
+//   (upstream file created in #146 0bc7bc3).
 //   Absorbed: #169 413947a (GPU sampler error propagation).
 //   Absorbed: #170 031cb54 pipelined constrained sampling (runConstrainedCompletion,
 //     tokenizeJumpForward, _encodeStepForConstrainedGeneration, maxJumpForwardTokens)
-//     — 2026-08-20 ocoreai main; encode routed via _CoreAIEncodeHelpers.encodeWithStates;
+//     — encode routed via _CoreAIEncodeHelpers.encodeWithStates;
 //     PipelineGate omitted (sequential loop, ≤1 encode in flight).
-//   ocoreai 2026-08-18 audit: no derived-file drift otherwise; see ~/wiki.
 //   Absorbed: #176 5660fc6 (repetition penalty, tokenHistory overload).
 //   Absorbed: #204 156cdb6 (prefillFunction / independent prefill graph).
-//   Absorbed: #217 54e6163 (defer yield until after accept/termination check, ocoreai 25a6686 2026-09-01).
-//   Upstream HEAD anchor: 54e6163 (2026-09-01 audit: all in-range commits absorbed).
+//   Absorbed: #217 54e6163 (defer yield until after accept/termination check).
+//   Upstream HEAD anchor: 54e6163 (all in-range commits absorbed).
 
 #if canImport(CoreAI)
 import CoreAI
@@ -1665,7 +1664,7 @@ private struct EngineImpl: ~Copyable {
         // NOTE: `lastToken` is deliberately NOT yielded here. A sampled token is
         // only emitted after the grammar has accepted it (at the top of the loop)
         // and we've confirmed the acceptance did not terminate the grammar.
-        // (absorbed from coreai-models #217, 2026-08-31)
+        // (absorbed from coreai-models #217)
 
         // Constrained decode loop
         var generated = 0

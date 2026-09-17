@@ -2,7 +2,7 @@
 // Licensed under MIT.
 /// KVQuantUIOverlayTests — exact-value verification of the UI→engine
 /// KV-cache quantization overlay (the fix for the dead `kvQuantization.*`
-/// panel controls found in the 2026-08-28 evidence-first audit).
+/// panel controls found in an evidence-first audit).
 ///
 /// The engine already consumes `backend.kvCacheQuantization` through
 /// `EngineInference.makeGenerateParameters` →

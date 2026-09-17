@@ -3,7 +3,7 @@
 // and stream-end SSE settle) must reduce to this single decision, so the
 // matrix is covered once and both surfaces are pinned to it.
 //
-// Live-verified context (2026-09-12, daemon, Qwen3.5-4B over the FM/SDK
+// Verified context (daemon, Qwen3.5-4B over the FM/SDK
 // path, thinking on): the SDK classifies the entire generation into
 // Transcript.Entry.reasoning — usage reasoning_tokens>0, zero text on the
 // content channel — so consumers reading only `content` must still receive

@@ -238,7 +238,7 @@ struct WarmupTests {
         #expect(model.prewarmFullySucceeded == true)
         // Stub environment: no mlxModelHandle → warmup trip early-returns
         // without running. The trip did NOT complete, so the honest flag
-        // must be false — the exact 09-09 "Missing hash file" case the
+        // must be false — the exact "Missing hash file" case the
         // "first request will be fast" log must not claim for.
         try await model.prewarmIfNeeded(4)
         #expect(model.prewarmFullySucceeded == false)

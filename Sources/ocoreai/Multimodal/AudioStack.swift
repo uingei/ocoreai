@@ -23,8 +23,8 @@
 /// assert the exact set for all eight target versions without depending on
 /// which Mac the test runs on.
 ///
-/// Capability floors are read VERBATIM from the macOS 27.0 SDK (2026-08-26,
-/// first-hand; probe-verified by `swiftc -typecheck`):
+/// Capability floors are read VERBATIM from the macOS 27.0 SDK
+/// (probe-verified by `swiftc -typecheck`):
 ///   Personal Voice TTS : API_AVAILABLE(macos 14.0, ios 17.0)   [AVSpeechSynthesis.h L78/90/153/276/287]
 ///   SpeechAnalyzer file: @available(anyAppleOS 26)             [Speech.swiftinterface L337-342]
 ///   SpeechTranscriber  : @available(anyAppleOS 26)             [Speech.swiftinterface L345]

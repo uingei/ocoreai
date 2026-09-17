@@ -1,8 +1,8 @@
 // Copyright 2026 Apple Inc. (BSD-3-Clause upstream)
 //
 // Absorbed from coreai-models (de31ba5) swift/Sources/CoreAISpeech/StreamingWindow.swift
-// plus EndpointDetector from swift/Sources/CoreAISpeech/StreamingSession.swift (2026-08-29,
-// copy-first; ocoreai adaptation: upstream's `package` helpers are `internal` here since
+// plus EndpointDetector from swift/Sources/CoreAISpeech/StreamingSession.swift
+// (copy-first; ocoreai adaptation: upstream's `package` helpers are `internal` here since
 // ocoreai is a single module. All pure Foundation, no CoreAI dependency — usable on
 // any macOS/iOS floor, so no availability gate).
 //

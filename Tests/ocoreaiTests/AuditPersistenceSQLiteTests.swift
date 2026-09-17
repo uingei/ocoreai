@@ -3,7 +3,7 @@
 /// AuditPersistenceSQLiteTests.swift — Verify 段 P0：audit_traces 持久化面
 ///
 /// 覆盖（精确值断言，零 count>N）：
-/// 1. persist → 重开实例 → 全字段恢复（2026-08-31, Verify 段 P0 闭合）
+/// 1. persist → 重开实例 → 全字段恢复（Verify 段 P0）
 /// 2. retentionDays 真消费：过窗 purge / 窗内保留
 /// 3. INSERT OR IGNORE 幂等（同 id 重复落盘 = 1 行）
 /// 4. clear → durable 面清空
@@ -15,7 +15,7 @@ import Testing
 
 @testable import ocoreai
 
-@Suite("AuditTrail — SQLite persistence (Verify 段 P0, 2026-08-31)")
+@Suite("AuditTrail — SQLite persistence (Verify 段 P0)")
 @MainActor
 final class AuditPersistenceSQLiteTests {
     private func uniqueDB() -> String {

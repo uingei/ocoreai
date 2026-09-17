@@ -17,7 +17,7 @@ import FoundationModels
 
 /// Adapts a ToolRegistry entry → FoundationModels.Tool protocol conformant type.
 ///
-/// 09-06 契约修正(代码即文档): Arguments = GeneratedContent(非 String)。
+/// 契约(代码即文档): Arguments = GeneratedContent(非 String)。
 /// SDK swiftinterface 明文: 标量 Arguments(String/Int/Double/Float/Decimal/Bool)
 /// 的 `parameters` 便捷实现全标 unavailable("Use '@Generable' struct instead")。
 /// parse 通道 = Arguments.init(_ content: GeneratedContent) — 模型生成的工具参数
@@ -62,8 +62,8 @@ struct FMToolProxy: FoundationModels.Tool {
 
     /// Forward to ToolRegistry.call with proper error handling.
     /// ToolRegistry.call() expects (name, JSON string) signature.
-    /// 09-06: arguments 从 String 修正为 GeneratedContent — 经 .jsonString 取
-    /// 回模型生成的原始 JSON;structure 参数在 String 通道上必丢(缺陷 3 根因)。
+    /// arguments 是 GeneratedContent(非 String)— 经 .jsonString 取
+    /// 回模型生成的原始 JSON;structure 参数在 String 通道上必丢。
     @concurrent func call(arguments: FoundationModels.GeneratedContent) async throws -> String {
         try await _dispatch(name, arguments.jsonString)
     }
@@ -127,7 +127,7 @@ struct FMToolProxy: FoundationModels.Tool {
         name: String,
         logger: Logging.Logger
     ) -> FoundationModels.GenerationSchema? {
-        // 09-05 根因实证（/tmp/fm-schema-probe）：GenerationSchema 的 Codable
+        // GenerationSchema 的 Codable
         // 是 canonical 形状（必须带 "x-order"/"title"），OpenAI 风格 JSON
         // （"type":"object","properties":...）直接 decode 必 keyNotFound。
         // 正路 = SDK 公开的 DynamicGenerationSchema 树 → GenerationSchema(root:deps:)。
@@ -160,7 +160,7 @@ struct FMToolProxy: FoundationModels.Tool {
         return nil
     }
 
-    /// 09-05: OpenAI/JSON-Schema 风格 dict → DynamicGenerationSchema 树。
+    /// OpenAI/JSON-Schema 风格 dict → DynamicGenerationSchema 树。
     /// 递归处理 type/properties/required/items/enum，覆盖 ocoreai 21 内置工具的
     /// 全部实际形状（string/integer/number/boolean/array<scalar>/array<object>）。
     static func makeDynamicSchema(

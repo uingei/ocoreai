@@ -65,7 +65,7 @@ struct SafetyCategorySeverityTests {
     }
 
     /// Gold standard: the EXACT description string for every category
-    /// (frozen from ContentGuard.swift, 2026-09). Any wording change —
+    /// (frozen from ContentGuard.swift). Any wording change —
     /// added words, reworded phrases, punctuation, whitespace — fails.
     /// A `count > 5` loop here could not catch any of that.
     private static let exactDescriptions: [(SafetyCategory, String)] = [

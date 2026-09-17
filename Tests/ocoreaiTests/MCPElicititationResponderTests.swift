@@ -1,4 +1,4 @@
-// MCPElicititationResponderTests.swift — 09-07 MCP server 入站请求应答（Red→Green）
+// MCPElicititationResponderTests.swift — MCP server 入站请求应答（Red→Green）
 //
 // 缺陷（代码即文档）：MCP stdio 是**双向** JSON-RPC 通道。旧的
 // `MCPStdioClient.waitForResponse()` 只认第一行 JSON-RPC——外部 elicitation
@@ -11,7 +11,7 @@
 // —— verification 请求路由 approval surface，**不静默 cancel**；
 // response 形状 `{"action":"accept"|"decline", "content":{...}}`。
 //
-// 09-07 wire 对齐（spec 权威实证，modelcontextprotocol.io/specification/2025-06-18/client/elicitation）：
+// wire 对齐（spec 权威实证, modelcontextprotocol.io/specification/2025-06-18/client/elicitation）：
 //   - 方法名 = **`elicitation/create`**（spec 原文两处 wire 示例；codex 权威常量
 //     `MCP_ELICITATION_CREATE_METHOD = "elicitation/create"`）——旧实现监听 `"elicit"`，
 //     规范 server 发的请求被丢弃；
@@ -38,7 +38,7 @@ import Testing
 // MARK: - Stub server（elicit / ping 应答后才回 tools/call 结果）
 
 /// Python stdio stub：
-/// - `initialize` → 2025-06-18 握手（elicitation 基线版本；09-07 前为 2024-11-05）
+/// - `initialize` → 2025-06-18 握手（elicitation 基线版本；此前为 2024-11-05）
 /// - `tools/list` → 单个工具 `elicit_gate`
 /// - `tools/call` → **先**发 `elicitation/create` 入站请求（form 形态，requestedSchema）
 ///   + `ping` 入站请求，**等两条应答都收到**才返回最终 tools/call 结果，
@@ -61,7 +61,7 @@ private func writeElicitationStub() throws -> URL {
             sys.stdout.write(json.dumps(o) + "\n"); sys.stdout.flush()
         replies = {"elicit": None, "ping": None}
         pending = None  # tools/call 的 id + 参数
-        init_version = None    # initialize 请求里 client 声明的 protocolVersion（09-07 wire 断言面）
+        init_version = None    # initialize 请求里 client 声明的 protocolVersion（wire 断言面）
         init_caps = None       # initialize 请求里 client 声明的 capabilities（MUST: elicitation）
         def read_line():
             try:
@@ -218,7 +218,7 @@ struct MCPElicititationResponderTests {
         // ping 应答: {} 空 result（MCP spec 无数据）
         let pingResp = extractField(result, "ping_result")
         #expect(pingResp == "{}", "ping 应答应为空 result {}, 实际: \(pingResp)")
-        // 09-07 wire 断言面（elicitation 2025-06-18 新增 → 握手版本必须 ≥ 该版本，
+        // wire 断言面（elicitation 2025-06-18 新增 → 握手版本必须 ≥ 该版本，
         // 否则规范 server 按协商版本根本不发 elicitation/create）
         #expect(
             extractField(result, "init_version") == "2025-06-18",

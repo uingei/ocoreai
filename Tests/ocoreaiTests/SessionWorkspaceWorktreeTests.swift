@@ -166,7 +166,7 @@ struct SessionWorkspaceWorktreeTests {
         let repo = (base as NSString).appendingPathComponent("nobranch")
         try FileManager.default.createDirectory(atPath: repo, withIntermediateDirectories: true)
         // A `feature`-default repo: no remote, no main/master → no resolvable
-        // default branch (empirically verified: `symbolic-ref origin/HEAD` and
+        // default branch (verified by: `symbolic-ref origin/HEAD` and
         // `rev-parse main|master` both fail on a fresh `feature`-branch clone).
         try GitProbe.sh(
             "git init -q -b feature && git config user.email t@t.local && git config user.name t",

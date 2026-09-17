@@ -108,7 +108,7 @@ enum ObserveStateClient {
 
     struct Args: Codable, Sendable {}
 
-    /// 生产路径: 读 PerceptionEngine 快照(@MainActor — 跨 actor 必 await, 铁律)。
+    /// 生产路径: 读 PerceptionEngine 快照(@MainActor — 跨 actor 必 await).
     static func runForTool() async -> String {
         let frames = await MainActor.run { PerceptionEngine.shared.snapshot() }
         return PerceptionObserve.render(frames: frames, now: Date())

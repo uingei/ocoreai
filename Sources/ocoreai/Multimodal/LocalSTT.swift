@@ -18,7 +18,7 @@
 ///   DetectionOptions(sensitivityLevel:)                       [L288-292]
 ///   results: AsyncSequence<SpeechDetector.Result, any Error>  [L~298]
 ///   Result.speechDetected (range / resultsFinalizationTime)   [L~300-304]
-///   AssetInventory.assetInstallationRequest(supporting:)     [Apple docs, live-verified]
+///   AssetInventory.assetInstallationRequest(supporting:)     [Apple docs]
 ///
 /// Hardware VAD: the 26-gen `SpeechDetector` (hardware speech-activity
 /// detection, anyAppleOS 26) runs inside the SAME `SpeechAnalyzer` as the

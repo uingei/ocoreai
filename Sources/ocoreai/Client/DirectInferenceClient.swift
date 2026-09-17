@@ -313,8 +313,8 @@ extension DirectInferenceClient {
         // Enforce per-model context window cap (omlx max_context_window parity).
         // Wire-path semantics (ChatHandler Phase 3.5): compact FIRST (LLM-free,
         // Pre/PostCompact hooks honored), the identical 400 wall only if the
-        // compacted transcript still exceeds the cap. Pre-fix the Fast Path was
-        // a bare 400 backstop — same prompt survived over HTTP but 400'd here.
+        // compacted transcript still exceeds the cap. The Fast Path must never
+        // be a bare 400 backstop — the same prompt must survive over HTTP.
         let contextCap = await enginePool.getSamplingConfig(modelId: request.modelId)
             .maxContextWindow
         let capResult = try await enforceContextWindow(

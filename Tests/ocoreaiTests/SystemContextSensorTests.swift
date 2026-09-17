@@ -8,7 +8,7 @@
 /// the TOTAL page count, so used-fraction was stuck at 0.0 → `.none`.
 /// The fixed path uses `host_statistics64` free pages.
 ///
-/// 09-03 live-machine evidence: old path => memory=unknown (always);
+/// Live-machine evidence: old path => memory=unknown (always);
 /// fixed path => real used% (1040MB free on 16GB → critical, matching vm_stat).
 
 #if os(macOS)

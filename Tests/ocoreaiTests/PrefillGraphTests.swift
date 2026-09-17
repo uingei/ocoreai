@@ -1,7 +1,7 @@
 // Copyright 2026 Apple Inc. (BSD-3-Clause upstream)
 //
 // Absorbed from coreai-models 156cdb6 (#204) swift/Tests/LanguageModelsTests/
-// PrefillGraphTests.swift (2026-08-29, copy-first; ocoreai adaptation: every called
+// PrefillGraphTests.swift (copy-first; ocoreai adaptation: every called
 // symbol is @available(macOS 27.0, iOS 27.0)-gated, and @Suite/@Test macros can NOT
 // carry @available, so each test body opens with a `guard #available` early-return —
 // same convention as EngineVariantRoutingTests.swift).

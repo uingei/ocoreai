@@ -237,9 +237,9 @@ struct ToolRegistryExecutionTests {
             }
         }
 
-        // Attempt maxHistoryDepth+1 with IDENTICAL args: pre-fix this threw
-        // `executionFailed` again (net was blind to failures); post-fix the
-        // loop gate fires FIRST, before the handler runs.
+        // Attempt maxHistoryDepth+1 with IDENTICAL args: this must fire the
+        // loop gate FIRST (before any handler runs), rather than retrying and
+        // throwing `executionFailed` again.
         do {
             _ = try await registry.call("breaker", arguments: "{}")
             #expect(Bool(false), "Expected loop detection throw on repeated failure")

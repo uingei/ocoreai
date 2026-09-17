@@ -157,7 +157,7 @@ enum CheckToolsClient {
         let limit: Int?
     }
 
-    /// 生产路径: 读 OcoreaiEngine 审计 actor（跨 actor 边界必 await, 铁律）。
+    /// 生产路径: 读 OcoreaiEngine 审计 actor(跨 actor 边界必 await).
     /// 双读内存环 ∪ SQLite persistent, id 去重（in-memory 优先 = `AuditTrail.merge`
     /// 同一语义, 独立纯函数 reduce 不耦合 actor）。
     ///

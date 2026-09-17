@@ -124,7 +124,7 @@ private func buildCorrectedMessages(
 /// - Returns: HTTP Response (SSE stream or JSON completion)
 ///
 /// Wire-content projection with reasoning-channel fallback (file-scope so
-/// the contract is unit-testable). Live-verified 2026-09-12 (Qwen3.5-4B
+/// the contract is unit-testable). Verified (Qwen3.5-4B
 /// over the FM/SDK path, thinking on): the SDK classifies the ENTIRE
 /// generation — answer included — into `Transcript.Entry.reasoning`, so
 /// the text channel arrives empty (non-stream: reasoning_tokens>0 with
@@ -538,7 +538,7 @@ func chatCompletionsHandler(
             // Route native tool calls to the ChatSession toolDispatch agent
             // loop (MLXLMCommon "loop can restart on tool calls"), NOT the
             // one-shot FM guided path. json_schema stays on guided (that is
-            // guided's real job). Observed 09-08: tools on the FM guided path
+            // guided's real job). Observed: tools on the FM guided path
             // execute but never continue — the loop is the intended route.
             hasNativeTools: request.tools?.isEmpty == false,
             enableReasoning: reasoningEnabled,
@@ -1277,7 +1277,7 @@ private func streamWithToolCalling(
                     /// non-stream projection, same shared decision):
                     /// `settle.content` is the settled text-channel answer; if
                     /// it is empty the whole generation landed on
-                    /// `reasoning_content` (live-verified 2026-09-12, FM/SDK
+                    /// `reasoning_content` (FM/SDK
                     /// think-on) and the shared fallback re-exposes that text
                     /// on the content channel so standard consumers receive
                     /// the answer. Suppressed with a tool-calls channel.
@@ -1393,8 +1393,8 @@ private func streamWithToolCalling(
                 /// NOT assistant content: the SSE consumer appends every content
                 /// delta to the transcript, so yielding `[error: ...]` as content
                 /// (prior behavior) poisoned the conversation with a fake
-                /// assistant turn when the engine recovered (live-verified:
-                /// grammar-build transient failed, tools still executed, and
+                /// assistant turn when the engine recovered
+                /// (grammar-build transient failed, tools still executed, and
                 /// the error text landed inside the model's final answer).
                 /// Mirrors the adjacent `incompleteOutput` diagnostic marker
                 /// (L1268) and the non-stream self-correction path (L777),

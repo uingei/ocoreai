@@ -1,6 +1,6 @@
 // ToolSpecFullRegistryTests.swift — 全量真实工具集 × 两条推理路 wire 形状验证
 //
-// 09-05: "21 工具 schema decode failed"(实为 25/27 口径)修复后的全面性门。纪律:
+// "21 工具 schema decode failed"（实为 25/27 口径）后的全面性门。纪律:
 //   1. 不用手写样例 JSON 断言"全过" — 用真实 bootstrapBuiltInTools registry（生产同路）。
 //   2. 两条推理路都验: MLX 路 (toToolSpecs wire 形状) + FM 路 (makeDynamicSchema →
 //      GenerationSchema 构建, macOS 27 gate 内)。
@@ -158,7 +158,7 @@ struct ToolSpecFullRegistryTests {
     @Test("FM path: update_plan makeDynamicSchema 构建成功（items 链由 wire dict 真身保证，wire 断言见 MLX 路）")
     @available(macOS 27.0, iOS 27.0, *)
     func fmSchemaUpdatePlanFullShape() async {
-        // 真值边界（09-05 探针实证）：DynamicGenerationSchema/GenerationSchema 均**不** Encodable
+        // 真值边界（探针验证）：DynamicGenerationSchema/GenerationSchema 均**不** Encodable
         //  → "items 链 encode 检查"此路不通；items 形状真身在 wire dict 侧（已断言于
         //    updatePlanPlanShapeExact）。这里只验 FM 侧构建成功且非 nil。
         let registry = await Self.fullRegistry()

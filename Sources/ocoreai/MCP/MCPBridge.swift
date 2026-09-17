@@ -360,7 +360,7 @@ actor MCPBridge {
 
         // 协议级失败(本地未注册该工具 → result 无 content/structuredContent)必须
         // throw 回 local-miss → 外部路径 + 安全门；`decodeToolCallResult` 的兜底块
-        // 是"解码失败提示"而非"调用成功"，不得让它在此冒充成功返回(09-07 回归:
+        // 是"解码失败提示"而非"调用成功"，不得让它在此冒充成功返回（回归:
         // .never 门因此被绕过, elicit 入站链全断)。
         let hasContent = (result["content"] as? [[String: Any]]) != nil
         let hasStructured =
@@ -724,12 +724,12 @@ actor MCPBridge {
         for toolInfo in tools {
             let toolName = (toolInfo["name"] as? String) ?? ""
             guard !toolName.isEmpty else { continue }
-            // 09-06: MCP 工具级 description 此前静默丢弃——外部工具模型同样看不到"这工具干嘛"。
+            // MCP 工具级 description 必须透传——外部工具模型同样要看到"这工具干嘛"。
             let mcpDescription = (toolInfo["description"] as? String) ?? ""
 
             // Build schema from MCP inputSchema
-            // 09-06: 参数面形状保真(此前 number→.integer float 截断;object→.string 嵌套全丢;
-            // array.items 丢;required 子集压平 all — 与 448b587 描述静默丢弃同缺陷类)。
+            // 参数面形状保真（保 JSON Schema 形状：number 不截整、
+            // object 保嵌套 properties、array 保 items、required 保子集）。
             let inputSchema = toolInfo["inputSchema"] as? [String: Any] ?? [:]
             let inputRequired = inputSchema["required"] as? [String]
             func mapMCPParam(_ dict: [String: Any], name: String) -> ToolParameter {

@@ -2,11 +2,11 @@
 // Vended to ocoreai for CoreAI path tool call detection.
 // Original: swift/Sources/CoreAILanguageModels/ToolCallParser.swift
 //
-// Vended 2026-08-09: Pure Foundation, no heavy deps. Used in CoreAI inference path
+// Vended: Pure Foundation, no heavy deps. Used in CoreAI inference path
 // to detect tool call blocks in decoded token deltas — aligns with upstream
 // CoreAIExecutor.respondVanilla() pipeline.
 //
-// Re-vendored 2026-08-28: tool-call id → `call_<8hex>` (coreai-models #203,
+// Tool-call id → `call_<8hex>` (coreai-models #203,
 // OpenAI-style), consistent with ocoreai's ToolCallAccumulator (OpenAIModels.swift)
 // and the round-trip result message (EngineInference.swift `Chat.Message.tool`).
 

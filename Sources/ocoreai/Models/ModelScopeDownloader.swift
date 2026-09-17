@@ -640,10 +640,10 @@ actor ModelScopeDownloader: Downloader {
             )
         else { return [] }
         var results: [String] = []
-        // 09-08 root cause (live-proven): on macOS 27 Foundation, a directory
-        // URL's path(percentEncoded: false) carries a TRAILING SLASH, so the
-        // original `full.hasPrefix(base + "/")` required a double-slash prefix
-        // (".../gemma-4-e2b-it-4bit//") and filtered EVERY real file out —
+        // On macOS 27 Foundation, a directory URL's path(percentEncoded: false)
+        // carries a TRAILING SLASH, so a `full.hasPrefix(base + "/")` check
+        // would require a double-slash prefix
+        // (".../gemma-4-e2b-it-4bit//") and filter EVERY real file out —
         // listLocalFiles returned [] while contentsOfDirectory saw 11 files.
         // That false "nothing downloaded" verdict defeated download()'s
         // fast-path (L121) and force a 3.5 GiB / 421 s full re-download on

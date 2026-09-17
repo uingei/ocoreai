@@ -116,10 +116,10 @@ actor ToolRegistry {
         // Preflight checkFn
         let check = await entry.checkFn()
         if !check {
-            // 09-05 修复(静默失败 → 可见): 旧行为只 throw,调用方 27 处 `try?` 全部 silent-swallow,
-            // tool 默默消失用户无法察觉("接线闭合 ≠ 通电"在注册阶段的真面)。
-            // 现补 warning 日志(0 cost,不改变 API 签名,try? 调用点零改动),
-            // 失败原因(平台门/权限/依赖缺失)留痕于 audit/日志,可事后审计。
+            // Silent-failure fix: 旧行为只 throw, 调用方 27 处 `try?` 全部
+            // silent-swallow, tool 默默消失用户无法察觉. 现补 warning 日志
+            // (0 cost, 不改变 API 签名, try? 调用点零改动), 失败原因
+            // (平台门/权限/依赖缺失)留痕于 audit/日志, 可事后审计.
             logger.warning(
                 "Tool '\(entry.name)' checkFn failed — not registered (preflight rejected)"
             )
@@ -537,8 +537,8 @@ actor ToolRegistry {
     /// Each parameter includes `["type": ..., "description": ...]` dict — aligns with
     /// upstream ToolParameter.schema behavior (MLXLMCommon/Tool/ToolParameter.swift).
     ///
-    /// 09-05: array 参数带 `items`、object 参数带 `required`（递归）——此前只写 `["type":]`
-    /// 把嵌套结构全丢（update_plan.plan 变裸 array<string>）。对齐上游
+    /// array 参数带 `items`、object 参数带 `required`（递归）——否则嵌套
+    /// 结构全丢（update_plan.plan 变裸 array<string>）。对齐上游
     /// `ToolParameterType.schemaType`（array→items / object→required）+ ocoreai 自有
     /// `buildParametersJSON()`（ToolEntry.swift），三处同形。
     func toToolSpecs() -> [[String: any Sendable]] {
@@ -566,7 +566,7 @@ actor ToolRegistry {
                 properties[paramName] = propSchema(param)
             }
             var params: [String: any Sendable] = ["type": "object", "properties": properties]
-            // 09-06: 有显式 required 子集(MCP inputSchema.required 忠实透传)→ 用子集;
+            // 有显式 required 子集(MCP inputSchema.required 忠实透传)→ 用子集;
             // 无声明(built-in 惯例: 全声明=required)→ 保持原行为。
             if let req = entry.schema.required {
                 params["required"] = req
@@ -577,9 +577,8 @@ actor ToolRegistry {
                 "type": "function" as any Sendable,
                 "function": [
                     "name": entry.name as any Sendable,
-                    // 09-06 通电缺陷: 此前是 `\\(entry.name)` 双反斜杠——插值被转义,
-                    // 模型收到源码文本 `\(entry.name)` 而非真实工具名。现优先用工具
-                    // 自带 description;缺失时回退干净合成行(绝不泄源码文本)。
+                    // 通电缺陷修正: 优先用工具自带 description;缺失时回退
+                    // 干净合成行(绝不泄源码文本如 `\(entry.name)` 插值被转义后的字面量).
                     "description":
                         (entry.description.isEmpty
                         ? "Tool: \(entry.name) [\(entry.toolset)]"
