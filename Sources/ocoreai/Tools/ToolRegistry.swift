@@ -277,29 +277,55 @@ actor ToolRegistry {
             // codex `codex-rs/exec/src/lib.rs:566` — headless 消费者无法被询问
             // 审批，`.interactive`（`.ask`）裁决被 coerce 为 fail-closed 拒绝，
             // 不 park 在 broker（外部进程不能替本机 GUI 的人审批）。
-            if headless {
-                let denyReason =
-                    "denied: interactive approval is not available on this (headless) channel"
-                logger.info(
-                    "Tool '\(toolName)' requires approval but caller is headless — denying fail-closed"
-                )
-                throw ToolError.denied(reason: denyReason)
-            }
-            // GUI / in-process：broker 存在 → 挂起等裁决；broker 缺席 → 硬拒
-            // （回归保护：无审批面时绝不静默放行）。
+            //
+            // 策略分流（App.swift 把 SettingsStore.approvalPolicy 注入 broker
+            // 构造，UI 热切 setPolicy）：
+            //   • `.auto`  — codex 沙箱语义「不问、放行」；headless 与 GUI 同等
+            //     语义（策略显式选择自主），不应被 headless 短路误杀。
+            //   • `.never` — broker 内即拒；headless 同样拒绝（原因串对齐）。
+            //   • `.interactive` — 保留 headless fail-closed 回归（pin 测试
+            //     `headlessAskIsDeniedFailClosed`）。
+            //
+            // 无 broker：所有 `.ask` 均 fail-closed（headless 或非 headless），
+            // 不静默放行。
             if let broker = approvalBroker {
-                logger.info("Tool '\(toolName)' requires approval — routing to broker")
-                let decision = await broker.request(
-                    toolName: toolName, arguments: arguments, reason: reason)
-                switch decision {
-                case .approved, .approvedForSession:
+                let policy = await broker.policy
+                switch policy {
+                case .auto:
+                    logger.info("Tool '\(toolName)' auto-approved (policy: auto)")
                     break
-                case .denied(let denyReason):
-                    logger.info("Tool '\(toolName)' denied by user")
+                case .never:
+                    // Contract alignment: the .never reject reason
+                    // is the broker's canonical "auto-denied" string
+                    // (pinned by ApprovalTests:289). My gate must not
+                    // invent a parallel string or two contracts emerge.
+                    let denyReason = "auto-denied"
+                    logger.info("Tool '\(toolName)' auto-denied (policy: never)")
                     throw ToolError.denied(reason: denyReason)
+                case .interactive:
+                    if headless {
+                        let denyReason =
+                            "denied: interactive approval is not available on this (headless) channel"
+                        logger.info(
+                            "Tool '\(toolName)' requires approval but caller is headless — denying fail-closed"
+                        )
+                        throw ToolError.denied(reason: denyReason)
+                    }
+                    let decision = await broker.request(
+                        toolName: toolName, arguments: arguments, reason: reason)
+                    switch decision {
+                    case .approved, .approvedForSession:
+                        break
+                    case .denied(let denyReason):
+                        logger.info("Tool '\(toolName)' denied by user")
+                        throw ToolError.denied(reason: denyReason)
+                    }
                 }
             } else {
                 logger.info("Tool '\(toolName)' requires approval (no broker) — denying")
+                if headless {
+                    logger.info("Tool '\(toolName)' headless — no broker available — fail-closed")
+                }
                 throw ToolError.denied(reason: reason)
             }
         case .allow:

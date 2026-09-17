@@ -584,4 +584,104 @@ struct ReviewSurfaceGateTests {
         _ = try? await t.value
         #expect(await b.snapshot().isEmpty)
     }
+
+    // MARK: - policy-aware headless gate (auto / never / no-broker)
+
+    /// `.auto` policy: a headless `.ask` is auto-approved — the policy is an
+    /// explicit autonomy choice and must not be killed by the headless
+    /// short-circuit (that path is reserved for `.interactive` only).
+    @Test("headless .ask with .auto policy is auto-approved (autonomy is a policy choice)")
+    func headlessAutoPolicyApproves() async {
+        let b = ApprovalBroker(policy: .auto)
+        let registry = ToolRegistry(
+            hooks: [Hook.any { _ in .ask(reason: "destructive tool call") }],
+            approvalBroker: b,
+        )
+        do {
+            try await registry.securityPrecheck(
+                toolName: "exec_command", arguments: "{}", headless: true)
+        } catch {
+            #expect(false, "auto-policy must approve headless .ask, got: \(error)")
+        }
+        #expect(await b.snapshot().isEmpty, "auto-approve must not park on the broker")
+    }
+
+    /// `.auto` also passes on the in-process (GUI) path — policy gates both
+    /// surfaces uniformly.
+    @Test("in-process .ask with .auto policy is auto-approved (uniform policy surface)")
+    func inProcessAutoPolicyApproves() async {
+        let b = ApprovalBroker(policy: .auto)
+        let registry = ToolRegistry(
+            hooks: [Hook.any { _ in .ask(reason: "destructive tool call") }],
+            approvalBroker: b,
+        )
+        do {
+            try await registry.securityPrecheck(
+                toolName: "exec_command", arguments: "{}", headless: false)
+        } catch {
+            #expect(false, "auto-policy must approve in-process .ask, got: \(error)")
+        }
+        #expect(await b.snapshot().isEmpty)
+    }
+
+    private static let neverDenyReason = "auto-denied"
+
+    /// `.never` policy: auto-deny on BOTH headless and in-process surfaces —
+    /// the exact reason string is the contract (consumers may pattern-match).
+    @Test("headless .ask with .never policy is auto-denied (exact reason)")
+    func headlessNeverPolicyDenies() async {
+        let b = ApprovalBroker(policy: .never)
+        let registry = ToolRegistry(
+            hooks: [Hook.any { _ in .ask(reason: "destructive tool call") }],
+            approvalBroker: b,
+        )
+        do {
+            try await registry.securityPrecheck(
+                toolName: "exec_command", arguments: "{}", headless: true)
+            #expect(false, "expected ToolError.denied (policy .never)")
+        } catch let ToolError.denied(reason) {
+            #expect(reason == Self.neverDenyReason, "got: \(reason)")
+        } catch {
+            #expect(false, "expected ToolError.denied, got: \(type(of: error)) \(error)")
+        }
+        #expect(await b.snapshot().isEmpty, "never must not create a broker entry")
+    }
+
+    @Test("in-process .ask with .never policy is auto-denied (exact reason, both surfaces)")
+    func inProcessNeverPolicyDenies() async {
+        let b = ApprovalBroker(policy: .never)
+        let registry = ToolRegistry(
+            hooks: [Hook.any { _ in .ask(reason: "destructive tool call") }],
+            approvalBroker: b,
+        )
+        do {
+            try await registry.securityPrecheck(
+                toolName: "exec_command", arguments: "{}", headless: false)
+            #expect(false, "expected ToolError.denied (policy .never)")
+        } catch let ToolError.denied(reason) {
+            #expect(reason == Self.neverDenyReason, "got: \(reason)")
+        } catch {
+            #expect(false, "expected ToolError.denied, got: \(type(of: error)) \(error)")
+        }
+    }
+
+    /// No broker at all: every `.ask` fail-closes on both surfaces — the
+    /// regression protection "no approval surface ⇒ never silently allows"
+    /// holds regardless of the new policy branch.
+    @Test("no broker + headless .ask still fail-closes with the hook reason")
+    func noBrokerHeadlessStillFailCloses() async {
+        let registry = ToolRegistry(
+            hooks: [Hook.any { _ in .ask(reason: "confirm destructive op") }],
+            approvalBroker: nil,
+        )
+        do {
+            try await registry.securityPrecheck(
+                toolName: "exec_command", arguments: "{}", headless: true)
+            #expect(false, "expected ToolError.denied (no broker)")
+        } catch let ToolError.denied(reason) {
+            #expect(reason == "confirm destructive op", "got: \(reason)")
+        } catch {
+            #expect(false, "expected ToolError.denied, got: \(type(of: error)) \(error)")
+        }
+    }
 }
