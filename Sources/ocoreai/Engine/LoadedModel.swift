@@ -392,6 +392,7 @@ final class LoadedModel: @unchecked Sendable {
                 // warm (stub env / no CoreAI asset) must stay honest:
                 // ``prewarmFullySucceeded`` = false.
                 var completedRealWarmup = false
+                #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
                 // Call upstream Executor.prewarm(model:transcript:) — compiles Metal
                 // shaders + pre-builds GrammarTokenizer.
                 // upstream: MLXLanguageModel.swift L920: Executor.prewarm(model:transcript:)
@@ -412,6 +413,7 @@ final class LoadedModel: @unchecked Sendable {
                     executor.prewarm(model: lm, transcript: transcript)
                     completedRealWarmup = true
                 }
+                #endif
                 // Also warm CoreAI engine — single engine per model preserves KV cache.
                 // Gate on CoreAI asset presence: a Hub/MLX model (HF safetensors, no
                 // `.aimodel`/`.aimodelc`) has nothing to specialize, and calling
