@@ -230,6 +230,43 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  ## ── App Store trait build gate ───────────────────────────────
+  # `--traits appStore` EXCLUDES the default traits (FoundationModels
+  # Integration off), so every FM-adapter code path must be trait-gated.
+  # A block that only checks `#if canImport(CoreAI)` — but references
+  # trait-gated symbols (MLXLanguageModel / FoundationModels) — compiles
+  # under the default trait set and FAILS under appStore. The
+  # build-and-test legs above compile the default trait set only, which is
+  # why this class of error stayed hidden until build-app.sh was run
+  # locally (2026-09-17). This leg is the compile gate for the appStore
+  # / build-app.sh delivery path.
+  build-appstore:
+    name: "App Store trait compile (macOS 26)"
+    runs-on: macos-26
+    timeout-minutes: 40
+    needs: [audit]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/org.swift.swiftpm/repositories
+            .build/checkouts
+          key: spm-deps-macos-26-appstore-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            spm-deps-macos-26-
+
+      # Same command build-app.sh runs. Compile-only — no metallib needed
+      # at build time (MLX resolves it at runtime, see scripts/build-app.sh).
+      - name: Build (release, --traits appStore)
+        run: |
+          set -euo pipefail
+          export SWIFTC_SCAN_FOR_DEPS=0
+          swift build -c release --traits appStore --target ocoreai
+          echo "✅ appStore trait: release build green"
+
   ## ── iOS compile-validation (independent job — no matrix sharing) ──
   # ocoreai declares .iOS(.v17) first-class; the #if os(iOS) branches had no CI
   # compile gate. Build-only on the macos-26 runner (Mac runners ship the iOS
