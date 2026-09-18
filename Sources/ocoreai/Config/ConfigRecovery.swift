@@ -29,20 +29,31 @@ enum ConfigRecovery {
         return "\(dir)/backups/config/config.yaml.good"
     }
 
-    /// Decode + validate a config file. Throws on read, Yams decode, or
-    /// validation failure.
+    /// Decode + validate a config file. Throws on read, YAML syntax error, a
+    /// document carrying no recognized top-level key, or validation failure.
     static func decode(at path: String) throws -> AppConfig {
         let data = try Data(contentsOf: URL(fileURLWithPath: path))
-        let loaded = try YAMLDecoder().decode(AppConfig.self, from: data)
+        let loaded = try decodeVerifiedConfig(from: data)
         try loaded.validate()
         return loaded
     }
 
     /// Snapshot a config file we just parsed+validated (success path) into the
     /// last-known-good location. Atomic write, file mode 0600, parents 0700.
+    ///
+    /// The good copy is **semantically verified BEFORE it is copied** (not
+    /// just byte-duplicated): `decode(at:)` — decode + `validate()` — must
+    /// succeed, otherwise the corrupt/invalid file is REJECTED and the
+    /// previous good snapshot survives untouched. A plain raw byte copy is not
+    /// a guard: a syntactically-parseable-but-invalid file (or a partially
+    /// parsed corrupt one) becomes "valid" the moment it lands at the good
+    /// path, and `restoreLastGood` would hand it back next startup.
     /// Callers: `ConfigSystem.load()` (startup), `ConfigSystem.save()` (after a
     /// round-trip-verified write), `ConfigSystem.saveDefault()` (first run).
     static func snapshotGood(fileAt path: String, logger: Logger) throws {
+        // Verification gate — decode + validation must both succeed before any
+        // byte of `path` is allowed to replace the last-known-good copy.
+        try decode(at: path)
         let fm = FileManager.default
         let good = goodPath(forConfigPath: path)
         let goodDir = (good as NSString).deletingLastPathComponent

@@ -4,6 +4,16 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-09-18
 
+**09-18 主配置面 12-factor：最小手写 config.yaml 不再被静默丢弃 + known-good 语义门（D10-ext 同类收口到主面）** — D10-ext 只修了审批策略单键；同类病还在主配置面：**13 个结构体全是合成严格 `Codable`**——owner 手写一个只含 `server:`+`agent:` 的部分 config.yaml（12-factor 惯用写法）触发 `DecodingError.keyNotFound('backend'/'models'/…)`，`ConfigSystem.load` 整份失败 → recovery → `saveDefault` 把 owner 文件**覆盖掉**（last-known-good 成了唯一幸存者，而它本身也可能来自一次未经验证的 raw-copy）。修法是行为超集 + 一条新语义门：
+
+- **13 结构体全部改「写下的值生效、未写下的键取文档化默认」的宽容解码**（`AppConfig`/`ServerConfig`/`BackendConfig`/`WiredMemoryConfig`/`SpecDecodingConfig`/`KVCacheQuantizationConfig`/`SafetyConfig`/`AgentConfig`(已)/`ModelConfigEntry`/`SamplingConfig`/`MemoryConfig`/`MetricsConfig`/`PrefillConfig`）：owner 写了 `port: 9100` → 生效、其余键默认；未写的块 → 该块 `.default`。全量哨兵 round-trip 测试保证「宽容 ≠ 丢字段」。
+- **单一解码漏斗 `decodeVerifiedConfig`**（`load` 与 `ConfigRecovery.decode` 共用）：宽容解码 + **识别键探针**——文档至少含一个识别的顶层键（7 键之一）才接受；无识别键的文档（裸标量 `42`、`broken:`、空文件、纯注释）**拒绝而非默认采纳**，堵死「垃圾文件被 default-adopt 成 known-good」的翻转。
+- **`snapshotGood` 补语义验证门**：拷贝进 good 之前先过 `decode + validate`——坏文件（含「语法能 parse 但语义非法」「部分解析的残缺」）不得晋升 known-good；此前 good 只是 raw byte copy，一次坏写就污染恢复基线。
+- `models.<id>` 的 `modelId` 保持必填（它是 entry 身份）——缺失时退化整个 `models` 块到默认并留痕，而不是丢弃用户其他块的配置。
+- 新增守卫 **`ConfigDecodingLeniencyTests`**（6 测试，精确值）：①agent-only 最小 yaml 解码成功且 owner 值生效、未写键=文档化默认；②`server:` 部分块 owner 值生效；③`modelId` 缺失 → `models` 块退化但 agent 块存活；④**全量哨兵 round-trip 精确相等**（无字段被丢）；⑤校验仍是独立步骤（port 999999 宽松 decode 过、`validate()` 必红）；⑥**无识别键文档被漏斗拒绝**（4 种垃圾形态）。
+- 门：`swift build --target ocoreai` exit 0；回归面（recovery/corruption/unified/lentiency）**23/23 绿**；全量 `make test-ci` 见基线。
+- 零行为漂移：任何**完整、合法** config.yaml 的解码结果与逐字节等价（哨兵 round-trip 测试钉死）；`validate()` 拒绝坏值的语义不变；「owner 部分文件不再被 recovery 级联丢弃」是目标行为。
+
 **09-18 审批策略单源真值：GUI / headless 两入口统一（D10）** — 活体实证抓到「同一 owner 意图按入口分裂」：GUI domain 存 `interactive`、bare CLI domain 存 `auto`，`UserDefaults.standard` 按 bundle/executable 域分裂，owner 在 GUI 做的选择在 server/API 模式下被静默丢弃。修：`~/.ocoreai/config.yaml → agent.approvalPolicy` 升为单一真源，`SettingsStore.approvalPolicyUnified` 四档解析（yaml > GUI domain > 本表面 legacy > `interactive`），`AppConfig` 新增 `AgentConfig` + `OCOREAI_APPROVAL_POLICY` env override + `.env.example` 第 22 键。
 
 - `ConfigStruct.swift`：+`AgentConfig`（`Sendable/Codable/Equatable`，`approvalPolicy: String`，默认 `interactive`，`validate()` 白名单 interactive/auto/never），`AppConfig` 集成（`public var agent` + init 默认 + validate + CodingKeys）。

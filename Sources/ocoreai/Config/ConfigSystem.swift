@@ -69,7 +69,7 @@ actor ConfigSystem {
 
         do {
             let data = try Data(contentsOf: URL(fileURLWithPath: configPath))
-            guard let loaded = try? YAMLDecoder().decode(AppConfig.self, from: data) else {
+            guard let loaded = try? decodeVerifiedConfig(from: data) else {
                 logger.warning("YAML did not decode to AppConfig")
                 return false
             }

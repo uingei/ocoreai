@@ -47,6 +47,19 @@ public struct PrefillConfig: Sendable, Codable, Equatable {
         self.chunking = chunking
     }
 
+    // MARK: Codable — lenient (a partial hand-authored `prefill:` sub-block keeps
+    // the keys the owner wrote, defaults `chunking`; `stepSize` stays optional).
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = Self.default
+        self.stepSize = try? c.decode(Int.self, forKey: .stepSize)
+        self.chunking = (try? c.decode(Chunking.self, forKey: .chunking)) ?? d.chunking
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case stepSize, chunking
+    }
+
     /// Map to upstream chunking. Use string equivalence — InferenceStubs has no
     /// backend dependency so we cannot import MLXLMCommon here. Map at the bridge.
 }
