@@ -417,35 +417,62 @@ struct SettingsView: View {
         }
     }
 
-    // P1: Dynamic capability pills based on runtime platform
+    // Capability matrix — single source of truth (``RuntimeCapability.lines``).
+    //
+    // Reads the same 9-surface truth the model sees in the system prompt and
+    // that ships on ``GET /v1/capabilities``: no hand-rolled
+    // `#if canImport(CoreAI)` re-gating here (the previous version lived its
+    // own, and the "MLX always available" comment asserted a fact about tiers,
+    // not about *this* process). Whatever is live on this hardware + OS shows
+    // on; whatever is UNAVAILABLE shows greyed with the reason — exactly as
+    // the model is told to treat it.
     @ViewBuilder
     private var capabilityBadges: some View {
-        // MLX always available
-        HStack(spacing: 4) {
-            Text("MLX")
-                .font(.caption.monospaced())
-                .padding(.horizontal, 6).padding(.vertical, 2)
-                .background(Color.blue.opacity(0.15))
-                .foregroundStyle(Color.blue)
-                .clipShape(Capsule())
-            #if canImport(CoreAI)
-            if #available(macOS 27.0, iOS 27.0, *) {
-                Text("CoreAI")
-                    .font(.caption.monospaced())
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Color.green.opacity(0.15))
-                    .foregroundStyle(Color.green)
-                    .clipShape(Capsule())
-            } else {
-                Text("CoreAI")
-                    .font(.caption.monospaced())
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Color.gray.opacity(0.15))
-                    .foregroundStyle(Color.gray)
-                    .clipShape(Capsule())
+        let all = RuntimeCapability.lines
+        let enabled = all.filter(\.available)
+        let unavailable = all.filter { !$0.available }
+
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                badgePills(for: enabled, color: .green, check: "checkmark.circle.fill")
             }
-            #endif
+            if !unavailable.isEmpty {
+                HStack(alignment: .top, spacing: 4) {
+                    Text(StringKey.capabilityUnavailable.l)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
+                    badgePills(for: unavailable, color: .gray, check: "xmark.circle")
+                }
+            }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(accessibilitySummary)
+    }
+
+    @ViewBuilder
+    private func badgePills(for lines: [RuntimeCapability.Line], color: Color, check: String)
+        -> some View
+    {
+        ForEach(lines, id: \.name) { line in
+            Text("\(line.label)")
+                .font(.caption.monospaced())
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(color.opacity(0.15))
+                .foregroundStyle(color)
+                .clipShape(Capsule())
+                .accessibilityLabel(
+                    "\(line.label): \(line.available ? StringKey.capabilityOn.l : StringKey.capabilityOff.l) — \(line.note)"
+                )
+                .accessibilityHint("SystemImage \(check)")
+        }
+    }
+
+    private var accessibilitySummary: String {
+        let on = RuntimeCapability.lines.filter(\.available).count
+        let off = RuntimeCapability.lines.filter { !$0.available }.count
+        return "\(on) \(StringKey.capabilityA11yOn.l), \(off) \(StringKey.capabilityA11yOff.l)"
     }
 
     // MARK: - Danger Zone

@@ -4,6 +4,15 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-09-19
 
+**09-19 能力矩阵 UI 面闭环：SettingsView 徽标改为读单源（消灭第二份本地真相）** — 第一性审计抓到一个真相分叉：UI 层**零处**消费 `RuntimeCapability`（`grep RuntimeCapability Sources/ocoreai/UI/` = 空），SettingsView About 区却**自造第二份真相**——本地 `#if canImport(CoreAI)` + `#available(27)` 重判（仅显 2/9 个 surface，且 `// MLX always available` 是对**档位**的事实断言、并非对**本机**的观测——macOS 15 / 26 的 4 档里 MLX 也在线，但 CoreAI/FM/video 的真实可用状态被整个遮住）。模型读 9 面真值、用户读一个写死的子集，正是「诚实 / 最大求真」在产品面的洞。修法 = 纯消费既有单源，不造新机制、不新增本地门：
+
+- **`RuntimeCapability.Line.label`（计算属性，非存储）**：9 个 surface 各得稳定显示名（`MLX` / `CoreAI` / `FoundationModels` / `Local STT` / `Speech TTS` / `Video` / `MCP stdio` / `Screenshot` / `Agent Loop`）。**计算属性不进 Encodable wire 形**——`GET /v1/capabilities` 的 JSON 字节面零变化（`{name, available, note}`）。单源同时承载**显示名**，UI / prompt / wire 渲染同一名字，**任何视图内禁止再做第二张 name→label 映射表**。
+- **`SettingsView` About 区**：`capabilityBadges` 改写为读 `RuntimeCapability.lines`，按 `available` 分组两段——ENABLED 行（绿）/ UNAVAILABLE 行（灰，每 pill 的 accessibility label 携带该 surface 的 `note`，向 VoiceOver / 屏幕阅读器讲清「哪面没开、why」）。**不再有任何 `#if canImport(CoreAI)` UI 层重判**（UI 唯一职责 = 渲染单源，门控全在 `RuntimeCapability` 内）。
+- **i18n（en + zhHans 必填）**：5 个新 `StringKey`——`capabilityUnavailable`（"不可用"）/ `capabilityOn`（"启用"）/ `capabilityOff`（"未启用"）+ 两条 VoiceOver 模板 `capabilityA11yOn/Off`（"项已启用 / 项未启用"），渲染句 `"N 项已启用, M 项未启用"`。
+- **新增守卫 2 条（11/11 绿）**：`labelsEverywhere`（label 非空 + 非 snake_case——钉死"显示名 map 丢了 track 的 `default: return name` leak"）、`labelsUnique`（9 个 pill 不可能出现两个相同显示名）。
+- **交付门（含 4 档可交付性）**：`swift build --target ocoreai` exit 0（11.1 s）；**`swift build --triple arm64-apple-ios17.0-simulator --sdk …/iPhoneSimulator27.0.sdk --target ocoreai` exit 0**（10.0 s）——把 4 档阶梯底（iOS 17）的 SwiftPM 交叉编译门**第一次实证**为绿（此前 macOS 侧 CI 绿、iOS 编译从未真正被跑过）。
+- 零行为漂移：`/v1/capabilities` wire JSON 逐字节等价（label 非存储字段）；prompt / info tool / HTTP client / UI 四个消费面现读**同一份** `RuntimeCapability.lines`，UI 无本地 gate、无第二份真相表。
+
 **09-19 能力矩阵单一真源：模型 / UI / 客户端同读一份运行时事实（4 档 OS 阶梯）** — 第一性原理：ocoreai 不是"macOS 应用 + iOS 分支"，而是**一个 agent 运行时横跨四档 capability tier**（macOS 14/iOS 17、15/18、26/26、27/27）。审计前能力真相只活在编译期 `#if` 门里——模型不知道这台设备哪些能力离线、UI 不知道、HTTP 客户端更不知道；且 base prompt 硬编码 `running on macOS`（iOS 上失真，正是"最大求真"所禁止的）。修法是把能力真相从编译期门提升为**运行时单一真源**，三个消费面同读一份：
 
 - **新增 `Sources/ocoreai/Capability/RuntimeCapability.swift`**（能力矩阵单一真源）：9 个 surface（`agent_loop`/`mlx_inference`/`foundationmodels`/`coreai_ane`/`local_stt`/`tts_speech`/`video_generation`/`mcp_stdio`/`screenshot_capture`）逐一标注 `available` + 人读 `note`。判定沿用各 surface 现有真实门（`#if os()` / `#if canImport(FoundationModels,_version:2)` / `#if FoundationModelsIntegration` / `#available(27)` / `#available(26)`），不新造任何可用性逻辑——**矩阵值与运行时门逐一对齐**。

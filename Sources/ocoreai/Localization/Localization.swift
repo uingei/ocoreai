@@ -437,6 +437,11 @@ public enum StringKey: String, CaseIterable {
     case aboutTitle = "About.Title"
     case aboutVersion = "About.Version"
     case capabilityBackend = "About.CapabilityBackend"
+    case capabilityUnavailable = "About.CapabilityUnavailable"
+    case capabilityOn = "About.CapabilityOn"
+    case capabilityOff = "About.CapabilityOff"
+    case capabilityA11yOn = "About.CapabilityA11yOn"
+    case capabilityA11yOff = "About.CapabilityA11yOff"
     // — Model Info —
     case modelInfoContext = "ModelInfo.Context"
     case modelInfoTokenizer = "ModelInfo.Tokenizer"
@@ -990,6 +995,11 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .aboutTitle: "ocoreai",
         .aboutVersion: "v1.0.0 · macOS 15+ / iOS 17+",
         .capabilityBackend: "Backends",
+        .capabilityUnavailable: "Unavailable",
+        .capabilityOn: "On",
+        .capabilityOff: "Off",
+        .capabilityA11yOn: "enabled",
+        .capabilityA11yOff: "disabled",
 
         // Model info
         .modelInfoContext: "Context",
@@ -1497,6 +1507,11 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .aboutTitle: "ocoreai",
         .aboutVersion: "v1.0.0 · macOS 15+ / iOS 17+",
         .capabilityBackend: "推理后端",
+        .capabilityUnavailable: "不可用",
+        .capabilityOn: "启用",
+        .capabilityOff: "未启用",
+        .capabilityA11yOn: "项已启用",
+        .capabilityA11yOff: "项未启用",
 
         // Model info
         .modelInfoContext: "上下文",

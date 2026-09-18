@@ -45,6 +45,27 @@ struct RuntimeCapabilityTests {
         #expect(dupes.isEmpty, "dup: \(dupes)")
     }
 
+    @Test("every surface has a display label (UI never hand-rolls a name→label map)")
+    func labelsEverywhere() {
+        for line in RuntimeCapability.lines {
+            let l = line.label.trimmingCharacters(in: .whitespacesAndNewlines)
+            #expect(!l.isEmpty, "empty label on \(line.name)")
+            // The point of `label` is a *display* form. A snake_case raw name
+            // leaking through means the switch fell to `default: return name`
+            // — i.e. the display map lost track of this surface.
+            #expect(
+                !l.contains("_"),
+                "label '\(line.label)' looks like the raw snake_case id for \(line.name)")
+        }
+    }
+
+    @Test("labels are unique (a UI row of pills can never carry two identical names)")
+    func labelsUnique() {
+        let grouped = Dictionary(grouping: RuntimeCapability.lines.map(\.label)) { $0 }
+        let dupes = grouped.filter { $0.value.count > 1 }.map(\.key)
+        #expect(dupes.isEmpty, "duplicate labels: \(dupes)")
+    }
+
     @Test("every line has a non-whitespace note (wire JSON is self-explanatory)")
     func notesNonEmpty() {
         for line in RuntimeCapability.lines {

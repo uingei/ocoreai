@@ -33,6 +33,27 @@ public enum RuntimeCapability {
         public let name: String  // snake_case, stable ID
         public let available: Bool  // live on this process?
         public let note: String  // one-line reason (English)
+
+        /// Display-form label ("MLX", "CoreAI", "Local STT", …).
+        ///
+        /// Computed (not stored): excluded from the Encodable wire shape by
+        /// Codable synthesis, so `GET /v1/capabilities` output is byte-unchanged.
+        /// Single source for the label too — UI, prompt and wire all render the
+        /// same name, never a second hand-rolled mapping in a view.
+        public var label: String {
+            switch name {
+            case "agent_loop": return "Agent Loop"
+            case "mlx_inference": return "MLX"
+            case "foundationmodels": return "FoundationModels"
+            case "coreai_ane": return "CoreAI"
+            case "local_stt": return "Local STT"
+            case "tts_speech": return "Speech TTS"
+            case "video_generation": return "Video"
+            case "mcp_stdio": return "MCP stdio"
+            case "screenshot_capture": return "Screenshot"
+            default: return name
+            }
+        }
     }
 
     /// Static process facts computed once.
