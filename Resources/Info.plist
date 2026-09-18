@@ -22,7 +22,7 @@
 	<key>CFBundleGetInfoString</key>
 	<string>built by Hermes Agent</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>15.0</string>
+	<string>14.0</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.developer-tools</string>
 

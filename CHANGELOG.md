@@ -4,6 +4,12 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-09-18
 
+**09-18 交付物硬伤修复（App 图标缺失 + 系统版本 floor 自相矛盾）** — 两个「可交付产品」最显性的交付缺陷，逐个核到根因再落地。
+
+- **App 图标缺失**：`.app` 无 Dock/Finder 标识，App Store 直接 Defect 1051 "No icns file" 硬驳回。根因不是没设计，是 `scripts/build-app.sh` 的 `Info.plist` 声明了 `CFBundleIconFile=AppIcon.icns`，却**从未把任何 .icns 放进 bundle**——全仓 0 个 .icns、全 git 史 0 次。落地：新增 `scripts/make_icon.swift`（纯 Apple `CGContext` 自绘产品 mark：深蓝 tile + 同心「执行环」+ 亮核心 + 右上「agent 节点」，零三方依赖、可复现重建）→ `sips` 出 10 尺寸 rep → `iconutil` 成 `resources/AppIcon.icns`（297KB，含 ic12/1024）→ build-app.sh 新增步骤 4 把它拷进 `Contents/Resources/`。
+- **系统版本 floor 自相矛盾**：`Package.swift` 声明 `.macOS(.v14)`、README 徽章「macOS 14+」，但 4 个 `Info.plist`/打包脚本 `LSMinimumSystemVersion` 全写 `15.0`——同一产品对最低系统给两个答案。全库审计：代码本就 14 兼容（唯一 macOS15+ API `AudioIO.swift:126` 已用 `#available(macOS 15, *)` 运行期门控），floor 差异 = 纯配置漂移。4 源全对齐 `14.0`。
+- 门：`swift build --target ocoreai` exit 0（21.85s，纯打包层改动零代码回归）；交付 `.app` `LSMinimumSystemVersion="14.0"` + icon 10 维 rep 在位 + `codesign --deep` 后 `valid on disk` + `satisfies its Designated Requirement`。
+
 **09-18 FM 流式路 delta 语义修复（红→绿，未提交 WIP 收口）** — 上一轮把 `fmEmit` 从单参 `responseText` 改成 `fullText`/`deltaText` 双参（`ReasoningEventEmitter` 是有状态扫描器，喂 fullText 会重复路由；reasoning entry 需在快照间去重），但两个 `collect()` 调用点停在旧签名——会话开始时工作树是红构建（`missing argument for parameter 'deltaText'`），HEAD 本身是绿的。本轮验证 `collect()` 语义 = 一次性全量（无增量快照序列，与 `L2745` 注释"本机 macOS 27 下 SDK 的 AsyncIterator 不产出 snapshot"一致）→ 两处调用点按"全量=full,全量=delta"收口：
 
 - guided 支（`L2735`）：`fmEmit(fullText: text, deltaText: text, entries:)`（`text = (try? String(full.content)) ?? ""`）
