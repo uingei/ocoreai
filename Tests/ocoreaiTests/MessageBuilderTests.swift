@@ -229,6 +229,18 @@ struct EmptyMessageGuardTests {
             #expect(error is AppError)
         }
     }
+
+    @Test(
+        "empty basePrompt → build() returns empty (capability injection must not break empty-guard contract)"
+    )
+    func emptyBasePromptYieldsEmptyOutput() async throws {
+        let spb = SystemPromptBuilder(basePrompt: "")
+        let built = await spb.build()
+        #expect(
+            built.isEmpty,
+            "empty basePrompt must yield empty output (empty-guard contract). Got: '\(built.prefix(120))'"
+        )
+    }
 }
 
 @Suite("MessageBuilder — Phase 7: reasoning scaffold injection")

@@ -35,10 +35,16 @@ func bootstrapBuiltInTools(
             toolset: "system",
             argsType: InfoArgs.self
         ) { args in
+            let capabilitiesSummary = RuntimeCapability.lines
+                .map { "\($0.name)=\($0.available ? "on" : "off")" }
+                .joined(separator: ", ")
             switch args.topic ?? "status" {
             case "status": return "ocoreai runtime v0.7.0 — healthy"
             case "version": return "0.7.0"
             case "uptime": return "uptime: \(ProcessInfo.processInfo.systemUptime)"
+            case "capabilities", "capability":
+                return
+                    "Runtime on \(RuntimeCapability.osName) \(RuntimeCapability.osVersion) (\(RuntimeCapability.arch)); capabilities: \(capabilitiesSummary)"
             default: return "topic '\(args.topic ?? "unknown")' not recognized"
             }
         }

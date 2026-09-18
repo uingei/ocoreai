@@ -249,12 +249,17 @@ struct SkillRegistryTests {
 
 @Suite("SystemPromptBuilder")
 struct SystemPromptBuilderTests {
-    @Test("build with no registry returns base prompt")
+    @Test(
+        "build with no registry returns base prompt (base preserved, capability section appended)")
     @MainActor
     func buildNoRegistry() async {
         let builder = SystemPromptBuilder(basePrompt: "You are helpful.")
         let prompt = await builder.build()
-        #expect(prompt == "You are helpful.")
+        #expect(prompt.hasPrefix("You are helpful."), "base prompt must lead the built prompt")
+        #expect(
+            prompt.contains("capability matrix"), "non-empty base must carry the capability section"
+        )
+        #expect(!prompt.hasSuffix("\n"))
     }
 
     @Test("build with registry includes skill section")
@@ -332,8 +337,10 @@ struct SystemPromptBuilderTests {
     @MainActor
     func cachedAfterBuild() async {
         let builder = SystemPromptBuilder(basePrompt: "cached")
-        _ = await builder.build()
-        #expect(await builder.getCached() == "cached")
+        let built = await builder.build()
+        let cached = await builder.getCached()
+        #expect(cached == built, "cache must return exactly what build() produced")
+        #expect(built.hasPrefix("cached"), "base prompt must lead the built prompt")
     }
 
     @Test("buildSystemPrompt delegates to build")
@@ -341,7 +348,9 @@ struct SystemPromptBuilderTests {
     func buildSystemPrompt() async {
         let builder = SystemPromptBuilder(basePrompt: "test")
         let result = await builder.buildSystemPrompt()
-        #expect(result == "test")
+        let cached = await builder.getCached()
+        #expect(result == cached, "buildSystemPrompt must delegate to build (cache-consistent)")
+        #expect(result.hasPrefix("test"), "base prompt must lead the built prompt")
     }
 
     @Test("listSkills returns skill names via registry")

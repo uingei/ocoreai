@@ -2,7 +2,18 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-09-18
+## [Unreleased] — 2026-09-05 → 2026-09-19
+
+**09-19 能力矩阵单一真源：模型 / UI / 客户端同读一份运行时事实（4 档 OS 阶梯）** — 第一性原理：ocoreai 不是"macOS 应用 + iOS 分支"，而是**一个 agent 运行时横跨四档 capability tier**（macOS 14/iOS 17、15/18、26/26、27/27）。审计前能力真相只活在编译期 `#if` 门里——模型不知道这台设备哪些能力离线、UI 不知道、HTTP 客户端更不知道；且 base prompt 硬编码 `running on macOS`（iOS 上失真，正是"最大求真"所禁止的）。修法是把能力真相从编译期门提升为**运行时单一真源**，三个消费面同读一份：
+
+- **新增 `Sources/ocoreai/Capability/RuntimeCapability.swift`**（能力矩阵单一真源）：9 个 surface（`agent_loop`/`mlx_inference`/`foundationmodels`/`coreai_ane`/`local_stt`/`tts_speech`/`video_generation`/`mcp_stdio`/`screenshot_capture`）逐一标注 `available` + 人读 `note`。判定沿用各 surface 现有真实门（`#if os()` / `#if canImport(FoundationModels,_version:2)` / `#if FoundationModelsIntegration` / `#available(27)` / `#available(26)`），不新造任何可用性逻辑——**矩阵值与运行时门逐一对齐**。
+- **消费面 1（模型）**：`SystemPromptBuilder.build()` 注入 `## This device (capability matrix …)` 段（ENABLED / UNAVAILABLE 两清单 + 4 档阶梯契约），模型据此"不 claim 没有的能力、明说离线能力"。
+- **消费面 2（info 工具）**：`info` 工具 + `capabilities`/`capability` topic，返回 `Runtime on <os> <ver> (<arch>); capabilities: name=on/off…`。
+- **消费面 3（客户端）**：`GET /v1/capabilities`（公开路由，入 `AuthMiddleware.publicPaths`），wire JSON `{os, version, arch, capabilities:[{name,available,note}]}`。
+- **base prompt 诚实化**：`running on macOS` → `running on Apple hardware (macOS or iOS)`（iOS 上不再撒谎；不破坏 `SystemPromptContractTests` 任何断言——其 pin 的是 "coding agent"/"use your tools" 等，非 OS 名）。
+- **OS 事实真值**：`osName` 用 `#if os()`（非字符串 parse——Foundation 的 `operatingSystemVersionString` 形状随 SDK 变化，macOS 27 已返回 "Version 27.0 (…)" 无系统名，字符串匹配会失真）；`osVersion` 归一为 `<osName> <major.minor> (Build …)` 稳定形。
+- **新增守卫 `RuntimeCapabilityTests`（9 测试，精确 contract）**：9 surface 名全在、无重名、note 非空、`agent_loop`/`mlx_inference`/`tts_speech` 恒在（4 档底）、`tierTruthSection` 载明 4 档、prompt 真带该段、os 事实非占位、`info` 工具已注册。
+- 门：`swift build --target ocoreai` exit 0；`RuntimeCapabilityTests` 9/9 绿 + `SystemPromptContractTests` 7/7 绿；全量 `make test-ci` 见基线。零行为漂移：未新增任何推断/运行时逻辑，仅把既有编译期门语义收敛为一份可读真源 + 暴露面。
 
 **09-18 主配置面 12-factor：最小手写 config.yaml 不再被静默丢弃 + known-good 语义门（D10-ext 同类收口到主面）** — D10-ext 只修了审批策略单键；同类病还在主配置面：**13 个结构体全是合成严格 `Codable`**——owner 手写一个只含 `server:`+`agent:` 的部分 config.yaml（12-factor 惯用写法）触发 `DecodingError.keyNotFound('backend'/'models'/…)`，`ConfigSystem.load` 整份失败 → recovery → `saveDefault` 把 owner 文件**覆盖掉**（last-known-good 成了唯一幸存者，而它本身也可能来自一次未经验证的 raw-copy）。修法是行为超集 + 一条新语义门：
 

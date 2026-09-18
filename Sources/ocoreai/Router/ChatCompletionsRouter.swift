@@ -130,6 +130,30 @@ func buildRouter(
         return try Response.json(response)
     }
 
+    /// `GET /v1/capabilities` — runtime capability matrix on *this* hardware + OS version.
+    ///
+    /// Public (bypasses AuthMiddleware, same as `/v1/models`) — read-only observability,
+    /// no sensitive data. This is the wire readout of `RuntimeCapability`:
+    /// the single source of truth that the system prompt and the `info` tool also consume,
+    /// so model/UI/HTTP clients never see three different answers.
+    ///
+    /// - Returns: `{ os, version, arch, capabilities: [{name, available, note}, ...] }`
+    routes.get("/v1/capabilities") { _, _ in
+        struct CAPayload: Encodable {
+            let os: String
+            let version: String
+            let arch: String
+            let capabilities: [RuntimeCapability.Line]
+        }
+        let payload = CAPayload(
+            os: RuntimeCapability.osName,
+            version: RuntimeCapability.osVersion,
+            arch: RuntimeCapability.arch,
+            capabilities: RuntimeCapability.lines,
+        )
+        return try Response.json(payload)
+    }
+
     // MARK: Inference Stats (JSON)
 
     /// Structured inference counters/gauges for JSON consumers (llm-server

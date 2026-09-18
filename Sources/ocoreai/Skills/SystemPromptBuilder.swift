@@ -33,7 +33,7 @@ actor SystemPromptBuilder {
     /// on purpose — the target models (1.5B–8B local) need a direct behavioral
     /// command, not a policy prose.
     static let codingAgentBase =
-        "You are oCoreAI, a coding agent running on macOS. "
+        "You are oCoreAI, a coding agent running on Apple hardware (macOS or iOS). "
         + "You maximize truth-seeking, curiosity, and honesty above pleasing anyone: "
         + "prefer the correct answer over the softer one, keep investigating when the answer is uncertain, "
         + "and state plainly what you did not verify — never hide, soften, or fabricate results. "
@@ -68,14 +68,32 @@ actor SystemPromptBuilder {
         }
 
         // Cache miss — rebuild
+        //
+        // Contract: an empty basePrompt is a "build nothing" signal (used by
+        // the empty-message guard — MessageBuilder throws when raw messages
+        // are empty AND the prompt is empty). We must never inject the
+        // capability section on top of an emptied base: empty in → empty out.
+        guard !basePrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            let emptyOut = basePrompt
+            currentPrompt = emptyOut
+            lastHash = newHash
+            version += 1
+            notifyChangeListeners()
+            return emptyOut
+        }
+
         let skillSection = await buildSkillSection(categories: includeCategories)
 
-        let parts: [String] =
-            if !skillSection.isEmpty {
-                [basePrompt, "", "# Available Skills\n", skillSection]
-            } else {
-                [basePrompt]
-            }
+        var parts: [String]
+        if !skillSection.isEmpty {
+            parts = [basePrompt, "", "# Available Skills\n", skillSection]
+        } else {
+            parts = [basePrompt]
+        }
+        parts.append("")
+        parts.append(
+            "## This device (capability matrix — trust these limits, state them plainly)\n")
+        parts.append(RuntimeCapability.tierTruthSection)
 
         let prompt = parts.joined(separator: "\n")
         currentPrompt = prompt

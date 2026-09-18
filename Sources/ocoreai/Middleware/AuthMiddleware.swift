@@ -155,6 +155,7 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
         "/health",
         "/ready",
         "/v1/models",
+        "/v1/capabilities",
         "/v1/stats",
         "/metrics",
     ]
