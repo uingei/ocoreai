@@ -4,6 +4,15 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-09-18
 
+**09-18 配置面单一真源：21 个环境变量收口 + `.env.example` 回归门（D9）** — 实证取证发现 ocoreai 实际读 **21 个环境变量**（17 个静态 `environment["KEY"]` 字面量 + 4 个 `ConfigSystem` 里 `\(...)HOST/PORT/BACKEND/MAX_SESSIONS/DEFAULT_MODEL/MEMORY_ENABLED` 的 prefix 拼接键），但 README「Configuration」只文档了 YAML + 2 个 auth 键，其余 19 键零文档、磁盘 0 个 `.env.example` —— 全新 clone 根本无从知道运行时配置面。且 `OCRE_SEARCH_BASE_URL` 默认指向作者演示机的局域网地址，他人开箱即失效却无任何标注。
+
+- 新增 **`.env.example`**：21 键全覆盖，按 Server/Auth/Backend/Model-store/HF/ModelScope/web-tools 分组；**每一键的代码实际默认值 + 行号来源**（禁占位符，全部取自代码实测：`OCOREAI_HOST=127.0.0.1`(App.swift:816)、`OCOREAI_PORT=8080`、`OCRE_SEARCH_TIMEOUT=180`(WebSearchTool.swift:270) 等）；优先级链说明（env > `~/.ocoreai/config.yaml` > 内置默认）；`[MUST-OVERRIDE]` 标注 `OCRE_SEARCH_BASE_URL`（代码默认指向他人局域网机）。
+- 新增守卫 **`Tests/ocoreaiTests/EnvKeysDocumentationTests.swift`**（3 测试）：①`.env.example` 键集 == 契约期望键集（**双向**——phantom 键、漏文档键都红）；②每期望键在 `Sources/` 真实被读（**同时接受静态字面量与 envPrefix 拼接两种读法**——4 个 `OCOREAI_*` 动态键源码里没有完整字面量，naive `contains` 会误杀，按行匹配 `envPrefix`+suffix）；③`.env.example` 无重复键行。
+- 守卫真门验证（mutant 双向）：删一个 `.env.example` 键→**确红**（`HF_TOKEN` 报 phantom 缺失）→还原绿；向契约键集塞 `OCRE_FAKE_NEW_KEY`（模拟代码新增未同步文档）→**确红**→还原绿。证明非死门。
+- README「Configuration」补 **完整 env 变量参考指针**（21 键面 + 链到 `.env.example` + 守卫测试说明）。
+- 零行为漂移（纯文档+守卫，不动任何运行时读取逻辑、不动 env 优先级链）。
+- 门：`swift test --filter EnvKeysDocumentationTests` **3/3 绿** + mutant A/B 双向红→还原绿。
+
 **09-18 ModelScope 端点单一真源收口（「两次数据不一致→不信任」硬化为回归门）** — 同一 `MODELSCOPE_ENDPOINT` 语义在三个文件里给了两个不同的默认端点（`ModelScopeSearchClient → modelscope.cn` vs `ModelScopeDownloader`(73/98) + `HubConfigFetcher`(25) → `www.modelscope.cn`），且拼接方式也不一致（`URL.append(path:)"api/v1"` vs `String + "/api/v1"` 字符串拼接）——违反仓库自定的「两次数据不一致→不信任」铁律。根因不是没设计:`HubConfigFetcher.modelScopeEndpoint()` 注释明写 *"Shared with ModelScopeDownloader and ModelScopeSearchClient"*,单一共享解析器**已存在,却没接线**——另两处各自硬编码了自己的默认。
 
 - 真源下沉到 `ModelStore.modelScopeDefaultBaseURL`(该 `enum` 已是 ModelScope 路径的单一真源:`msSubRoot`/`msRoot`,同一 `Models` 命名空间,三文件都同 target 可引用)——值取 `https://modelscope.cn`(与上游 omlx Python SDK `ms_downloader.py` 3:2 占优值一致、与 `HubConfigFetcher` 注释里的根域表述一致;`www.` 是别名根域,两域都可达,选 canonical 更稳)。
