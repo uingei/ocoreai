@@ -1,26 +1,8 @@
 // Copyright © 2026 uingei@163.com.
-/// ConfigDecodingLeniencyTests.swift — partial / hand-authored config.yaml decode
-///
-/// Exact-value guards (test-quality rule — no count>N, no `#expect(false)`
-/// sentinels) for the LENIENT decode of the config surface. The regression
-/// they pin: a hand-authored config.yaml routinely carries ONLY the blocks the
-/// owner wrote (commonly `agent:`, sometimes `server:`+`models:`); the former
-/// synthesized strict decode THREW on that, and `ConfigSystem.load` cascaded
-/// into recovery / defaults-generation / `.good` adoption and silently DROPPED
-/// the user's file (the last-known-good copy became the only survivor).
-///
-///   * minimal hand-authored yaml (agent-only) decodes; owner value honored,
-///     every un-written key resolves to its documented default,
-///   * a partial `server:` block keeps the owner's key, defaults the rest,
-///   * a `models.<id>` entry missing its `modelId` (its IDENTITY) degrades the
-///     `models` block to defaults — NOT the whole file,
-///   * a full-sentinel config round-trips EXACTLY (leniency must not silently
-///     drop any field),
-///   * validation stays a separate step: an out-of-range port still throws in
-///     `validate()` after lenient decode.
-///
-/// Yams is exercised through `YAMLDecoder` directly (unit boundary) — no
-/// `~/.ocoreai`, no global state.
+/// Exact-value guards for lenient config decoding: partial hand-authored
+/// `config.yaml` (12-factor) decodes with owner keys honored and un-written
+/// keys defaulted; no-recognized-key documents are rejected by the single
+/// funnel (`decodeVerifiedConfig`); full config round-trips exactly.
 
 import Foundation
 import Testing

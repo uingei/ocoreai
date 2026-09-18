@@ -82,18 +82,9 @@ public struct AppConfig: Sendable, Codable, Equatable {
         self.agent = agent
     }
 
-    // MARK: Codable — lenient (12-factor / hand-authored configs)
-
-    /// A hand-written `config.yaml` routinely carries ONLY the blocks the owner
-    /// cares about (commonly `agent:`, sometimes `agent:`+`models:`/`server:`);
-    /// the previous synthesized strict decode of a partial file THREW, and
-    /// `ConfigSystem.load` cascaded into recovery / defaults-generation / `.good`
-    /// adoption and silently DROPPED the user's file (`AgentConfig`'s note names
-    /// this exact failure for one key). Decode each block with the block's
-    /// documented `.default` so *what the owner wrote wins* and the rest is
-    /// defaulted — behavior-superset: a full file still decodes to the identical
-    /// values, and `validate()` (a separate step) still rejects bad values, so
-    /// the corruption/recovery tests keep their guarantees.
+    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
+    /// Partial hand-authored files decode with owner keys honored and
+    /// un-written keys defaulted (behavior-superset: full files decode identically).
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.server = (try? c.decode(ServerConfig.self, forKey: .server)) ?? .default
@@ -177,9 +168,7 @@ public struct SafetyConfig: Sendable, Codable, Equatable {
         self.logRedaction = logRedaction
     }
 
-    // MARK: Codable — lenient (a partial hand-authored `safety:` block, e.g.
-    // only `safety: {enabled: true}`, keeps what the owner wrote and defaults
-    // the rest, instead of failing the whole `safety:` block).
+    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -296,8 +285,7 @@ public struct ServerConfig: Sendable, Codable, Equatable {
         self.bindInterface = bindInterface ?? "localhost"
     }
 
-    // MARK: Codable — lenient (a partial hand-authored `server:` block must keep
-    // the keys the owner wrote and default the rest — e.g. `server: {port: 9100}`).
+    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -373,8 +361,7 @@ public struct WiredMemoryConfig: Sendable, Codable, Equatable {
         self.fixedLimit = fixedLimit
     }
 
-    // MARK: Codable — lenient (partial hand-authored `wiredMemory:` keeps the
-    // keys the owner wrote, defaults the rest).
+    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -441,7 +428,7 @@ public struct SpecDecodingConfig: Sendable, Codable, Equatable {
         self.memoryPolicy = memoryPolicy
     }
 
-    // MARK: Codable — lenient (partial hand-authored `specDecoding:` block).
+    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -556,9 +543,7 @@ public struct BackendConfig: Sendable, Codable, Equatable {
         self.vlmImageResizeHeight = max(64, min(vlmImageResizeHeight, 4096))
     }
 
-    // MARK: Codable — lenient (a partial hand-authored `backend:` block keeps the
-    // keys the owner wrote — e.g. only `backend: {preference: [mlx]}` — and
-    // defaults the rest, instead of failing the whole file).
+    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -652,7 +637,7 @@ public struct KVCacheQuantizationConfig: Sendable, Codable, Equatable {
         self.kvScheme = kvScheme
     }
 
-    // MARK: Codable — lenient (partial hand-authored `kvCacheQuantization:`).
+    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -820,11 +805,7 @@ public struct ModelConfigEntry: Sendable, Codable, Equatable {
         self.maxSessionTokens = maxSessionTokens
     }
 
-    // MARK: Codable — lenient (a partial hand-authored `models.<id>:` entry keeps
-    // the keys the owner wrote, defaults the rest). `modelId` is REQUIRED — it
-    // is the entry's identity; an entry without it is malformed and the
-    // `models` block falls back to `defaultModels` (a visible, logged
-    // degradation), never the whole file.
+    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.defaultEntry
@@ -931,9 +912,7 @@ public struct SamplingConfig: Sendable, Codable, Equatable {
         self.stopSequences = stopSequences
     }
 
-    // MARK: Codable — lenient (a partial hand-authored `sampling:` block keeps
-    // the keys the owner wrote, defaults the rest — no key is structurally
-    // required; `stopSequences`/`prefill` are present-by-default).
+    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -1012,7 +991,7 @@ public struct MemoryConfig: Sendable, Codable, Equatable {
         self.vectorDim = vectorDim
     }
 
-    // MARK: Codable — lenient (partial hand-authored `memory:` block).
+    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default
@@ -1070,7 +1049,7 @@ public struct MetricsConfig: Sendable, Codable, Equatable {
         self.retentionDays = retentionDays
     }
 
-    // MARK: Codable — lenient (partial hand-authored `metrics:` block).
+    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default

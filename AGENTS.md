@@ -124,7 +124,7 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 ### Upstream Audit Dependencies
 
 Three sources for empirical verification:
-1. **mlx-swift-lm** — pinned in `Package.swift` at `c6446cf`（09-17 对齐 origin/main; #620 TokenIterator 首 token 清 cache 为 HEAD; 前序 `3e6ea1e` #548/#515 ← `604fae7` #584/#613/#615/#611/#597）。0 drift（`git rev-list --count c6446cf..origin/main` = 0, 09-17 核验）。
+1. **mlx-swift-lm** — pinned in `Package.swift` at `c6446cf`（09-17 对齐 origin/main; #620 TokenIterator 首 token 清 cache 为 HEAD; 前序 `3e6ea1e` #548/#515 ← `604fae7` #584/#613/#615/#611/#597）。0 drift（`git rev-list --count c6446cf..origin/main` = 0, 09-17 核验）。**Bump 协议**：`git log <old>..origin/main` 逐条审计消费面 → bump `.revision` → `swift build` + `make test-ci` 绿 → 审计行记入本节 + CHANGELOG（Package.swift 只留 pin + 指向本节的指针，不写逐 commit 日记）。
 2. **coreai-models** — reference at `7359dbc`（对齐 origin/main）。`e282dbd..7359dbc` 4 commit 逐条核验: `#237` 已吸收（`cd9e901`）· `#248` ocoreai capability-first dispatch 无该报表 wrapper,bug 不存在 · `#249` 行为等价内部重构,ocoreai hand-rolled VLM KV 语义与上游重构前一致 · `#250` 上游 `Tools/llm-server` 工具树,ocoreai 0 消费。**0 新增吸收、0 行为分叉。** Reference repo, not SPM dependency。#206 ThinkTagParser agentic hardening absorbed (`1076948`)；ATEM ToolCallParser format NOT absorbed（zero ocoreai consumers of `Format.agentic`）。
 3. **Apple Developer Docs** — developer.apple.com/documentation/CoreAI (requires login)
 

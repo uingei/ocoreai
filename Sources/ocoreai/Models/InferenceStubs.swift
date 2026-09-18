@@ -47,8 +47,7 @@ public struct PrefillConfig: Sendable, Codable, Equatable {
         self.chunking = chunking
     }
 
-    // MARK: Codable — lenient (a partial hand-authored `prefill:` sub-block keeps
-    // the keys the owner wrote, defaults `chunking`; `stepSize` stays optional).
+    // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Self.default

@@ -39,11 +39,8 @@ struct MTPDrafterModelWrapper: @unchecked Sendable {
 /// Upstream contract (mlx-swift-lm pin 604fae7, `ChatSession.swift:1404`):
 /// a rejected tool call is rolled back and thrown — recovery is the
 /// **caller's** responsibility ("the caller owns recovery"). ocoreai is
-/// that caller. This type is the single source of truth for the policy
-/// (bounded retries + the exact corrective prompt) and is covered by
-/// exact-value tests (`StdToolCallRecoveryTests`) so that the deep retry
-/// loop in `_runInference` cannot drift on its boundaries (3 attempts,
-/// exact message) without tripping a regression line.
+/// that caller. `StdToolCallRecoveryTests` pins the boundaries (3 attempts,
+/// exact corrective prompt).
 ///
 /// Fork-vs-upstream disclosure: upstream retries zero times; the bound here
 /// is ocoreai's caller-level discretion (required — gemma-4e2b
