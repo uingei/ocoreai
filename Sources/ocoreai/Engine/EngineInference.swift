@@ -2601,12 +2601,27 @@ extension EnginePool {
                     // FM 路按同一语义补齐。
                     var fmUsageTotal: Int?
                     var fmUsageReasoning: Int?
+                    // Reasoning entries already emitted across incremental snapshots.
+                    // The same reasoning entry appears in every subsequent snapshot's
+                    // `transcriptEntries` (cumulative transcript); without this dedup
+                    // a thinking block would be yielded once per snapshot.
+                    var fmSeenReasoning: Set<String> = []
 
                     // thinking → .reasoning 事件（SDK 已按 Entry 分段），response → .text
                     // （无推理配置时同），stop-sequence 语义同 MTP/standard 路。
                     // 返回 true 表示命中 stop 序列（checkStopSequence 已 yield .done）。
+                    //
+                    // 参数语义（与 checkStopSequence 对齐）：
+                    //   fullText   — 当前累计 response 文本（`accumulated` 面：用于 hasSuffix 检 stop）
+                    //   deltaText  — 本次新增片段（`segment`   面：emit 给客户端/送 emitter 的增量）
+                    // ReasoningEventEmitter 是有状态扫描器（pendingPrefix / inside /
+                    // hasClosedReasoning，见 mlx-swift-lm ReasoningEventEmitter.swift 头注释
+                    // "feed it each decoded chunk via process(_:)"）；必须喂 delta，重喂 fullText
+                    // 会把已 emit 的片段重复路由 → 丢字 / 重复 reasoning。非 FM 路径
+                    // (L3540 区) 喂 delta 即此语义的既有参照。
                     func fmEmit(
-                        _ responseText: String,
+                        fullText: String,
+                        deltaText: String,
                         entries: some Sequence<FoundationModels.Transcript.Entry>
                     ) -> Bool {
                         var hit = false
@@ -2614,6 +2629,12 @@ extension EnginePool {
                         // the inner `#available(macOS 27.0, *)` was a redundant check.
                         for entry in entries {
                             guard case .reasoning(let r) = entry else { continue }
+                            // Dedup across incremental snapshots: reasoning entry 在快照
+                            // 间复用同一 identity（Equatable → 取 debugDescription 做稳定键，
+                            // 不依赖具体 id 字段）；首次看到才 emit / stop-check。
+                            let key = String(reflecting: r)
+                            if fmSeenReasoning.contains(key) { continue }
+                            fmSeenReasoning.insert(key)
                             var reasonText = ""
                             for seg in r.segments {
                                 if case .text(let t) = seg {
@@ -2623,7 +2644,7 @@ extension EnginePool {
                             if !reasonText.isEmpty,
                                 checkStopSequence(
                                     segment: reasonText,
-                                    accumulated: reasonText,
+                                    accumulated: fullText,
                                     eventKind: { .reasoning($0) },
                                     tokenCount: nil,
                                     tokenFallback: 0
@@ -2633,13 +2654,14 @@ extension EnginePool {
                                 break
                             }
                         }
-                        if hit || responseText.isEmpty {
+                        if hit || deltaText.isEmpty {
+                            if !deltaText.isEmpty { fmAccumulated = fullText }
                             return hit
                         }
-                        fmAccumulated = responseText
+                        fmAccumulated = fullText
                         if let e = fmEmitter {
                             var emitter = e
-                            for segment in emitter.process(responseText) {
+                            for segment in emitter.process(deltaText) {
                                 switch segment {
                                 case .reasoning(let segText):
                                     if checkStopSequence(
@@ -2665,8 +2687,12 @@ extension EnginePool {
                                     }
                                 }
                             }
+                            // Stateful scanner: process(_:) 推进 inside/pendingPrefix/
+                            // hasClosedReasoning，值语义必须写回，否则下个 snapshot 丢失
+                            // 分词状态（跨 chunk 的 <tool_call> 前缀 pending 会重扫/重复路由）。
+                            fmEmitter = .init(emitter)
                         } else if checkStopSequence(
-                            segment: responseText,
+                            segment: deltaText,
                             accumulated: fmAccumulated,
                             eventKind: { .text($0) },
                             tokenCount: nil,
@@ -2705,7 +2731,9 @@ extension EnginePool {
                         }
                         fmUsageReasoning = full.usage.output.reasoningTokenCount
                         let text = (try? String(full.content)) ?? ""
-                        let stopHit = fmEmit(text, entries: full.transcriptEntries)
+                        // collect() 一次性全量：fullText == deltaText（单快照，无增量序列）。
+                        let stopHit = fmEmit(
+                            fullText: text, deltaText: text, entries: full.transcriptEntries)
                         if Task.isCancelled || cancellation.isCancelled {
                             fmFinishFinal(.cancelled)
                         } else if stopHit {
@@ -2727,7 +2755,12 @@ extension EnginePool {
                             fmUsageTotal = full.usage.output.totalTokenCount
                         }
                         fmUsageReasoning = full.usage.output.reasoningTokenCount
-                        let stopHit = fmEmit(full.content, entries: full.transcriptEntries)
+                        // collect() 一次性全量：fullText == deltaText（单快照，无增量序列）。
+                        let stopHit = fmEmit(
+                            fullText: full.content,
+                            deltaText: full.content,
+                            entries: full.transcriptEntries
+                        )
                         if Task.isCancelled || cancellation.isCancelled {
                             fmFinishFinal(.cancelled)
                         } else if stopHit {

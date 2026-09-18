@@ -2,7 +2,14 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-09-17
+## [Unreleased] — 2026-09-05 → 2026-09-18
+
+**09-18 FM 流式路 delta 语义修复（红→绿，未提交 WIP 收口）** — 上一轮把 `fmEmit` 从单参 `responseText` 改成 `fullText`/`deltaText` 双参（`ReasoningEventEmitter` 是有状态扫描器，喂 fullText 会重复路由；reasoning entry 需在快照间去重），但两个 `collect()` 调用点停在旧签名——会话开始时工作树是红构建（`missing argument for parameter 'deltaText'`），HEAD 本身是绿的。本轮验证 `collect()` 语义 = 一次性全量（无增量快照序列，与 `L2745` 注释"本机 macOS 27 下 SDK 的 AsyncIterator 不产出 snapshot"一致）→ 两处调用点按"全量=full,全量=delta"收口：
+
+- guided 支（`L2735`）：`fmEmit(fullText: text, deltaText: text, entries:)`（`text = (try? String(full.content)) ?? ""`）
+- regular 支（`L2758`）：`fmEmit(fullText: deltaText: full.content, entries:)`
+- 零行为变化（单快照 full==delta 是恒等喂入）；红构建归零，交付面恢复"build exit 0"基线。
+- 门：`swift build --target ocoreai` exit 0（6.8s）；`make test-ci` **1914 tests / 355 suites 全绿，MAKE_EXIT=0**（含 CoreAI 活体生成段）。
 
 **09-17 安全原则落行为面（`safe and helpful` → 三原则）** — 声明的原则与真正注入模型的措辞脱节：`SafetyConfig`（代码默认 `enabled: false`，"no category is non-negotiable"）和注释都写死了"最大求真 + 最大好奇心 + 诚实，而非人类偏好对齐"，但每次会话实际灌进的 base prompt（`SystemPromptBuilder.codingAgentBase`，`App.swift:324` 唯一注入点）第二句还是 `"You are expected to be precise, safe, and helpful."` —— "safe and helpful" 正是偏好对齐措辞，三原则字一个没进。本轮把声明打进落点：
 
