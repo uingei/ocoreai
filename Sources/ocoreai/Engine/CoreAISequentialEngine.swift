@@ -591,14 +591,12 @@ extension CoreAISequentialEngine.GenerationSequence {
             self.samplingConfiguration = samplingConfiguration.normalized()
             self.returnsLogits = inferenceOptions.includeLogits
             self.forcedContinuation = inferenceOptions.forcedContinuation
-            if let forced = inferenceOptions.forcedContinuation {
-                self.maxTokens = forced.count
-            } else {
-                self.maxTokens = Swift.min(
-                    inferenceOptions.maxTokens ?? Int.max,
-                    Swift.max(0, engine.config.maxContextLength - input.count)
-                )
-            }
+            self.maxTokens = SequentialIterator.clampMaxTokens(
+                requested: inferenceOptions.maxTokens,
+                forcedCount: inferenceOptions.forcedContinuation?.count,
+                inputCount: input.count,
+                maxContextLength: engine.config.maxContextLength
+            )
             self.stopReasonStore = stopReasonStore
             self.generationToken = generationToken
             self.inputTokens = input
@@ -664,14 +662,13 @@ extension CoreAISequentialEngine.GenerationSequence {
                     return nil
                 }
 
-                let nextToken: Int32
-                if let forced = forcedContinuation {
-                    nextToken = forced[step]
-                } else {
-                    var mutableLogits = logitBuffer
-                    nextToken = samplingConfiguration.fallbackSampler(
-                        from: &mutableLogits, tokenHistory: inputTokens[generationStartOffset...])
-                }
+                let nextToken = SequentialIterator.nextToken(
+                    fromLogits: logitBuffer,
+                    forced: forcedContinuation,
+                    step: step,
+                    sampling: samplingConfiguration,
+                    tokenHistory: inputTokens[generationStartOffset...]
+                )
 
                 // Check for EOS
                 if nextToken == engine.config.eosTokenId {

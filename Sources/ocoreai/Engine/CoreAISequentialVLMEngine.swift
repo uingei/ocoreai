@@ -3,7 +3,6 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
-// TODO: Refactor to re-use common components with CoreAISequentialEngine
 // TODO: Add pipelined engine variant for higher throughput
 
 #if canImport(CoreAI)
@@ -1112,14 +1111,12 @@ extension CoreAISequentialVLMEngine.GenerationSequence {
             self.inputTokens = input
             self.generationStartOffset = input.count
             self.embeddedInput = embeddedInput
-            if let forced = inferenceOptions.forcedContinuation {
-                self.maxTokens = forced.count
-            } else {
-                self.maxTokens = Swift.min(
-                    inferenceOptions.maxTokens ?? Int.max,
-                    Swift.max(0, engine.config.maxContextLength - input.count)
-                )
-            }
+            self.maxTokens = SequentialIterator.clampMaxTokens(
+                requested: inferenceOptions.maxTokens,
+                forcedCount: inferenceOptions.forcedContinuation?.count,
+                inputCount: input.count,
+                maxContextLength: engine.config.maxContextLength
+            )
         }
 
         deinit {
@@ -1194,14 +1191,13 @@ extension CoreAISequentialVLMEngine.GenerationSequence {
                 }
 
                 // Sample next token
-                let nextToken: Int32
-                if let forced = forcedContinuation {
-                    nextToken = forced[step]
-                } else {
-                    var mutableLogits = logitBuffer
-                    nextToken = samplingConfiguration.fallbackSampler(
-                        from: &mutableLogits, tokenHistory: inputTokens[generationStartOffset...])
-                }
+                let nextToken = SequentialIterator.nextToken(
+                    fromLogits: logitBuffer,
+                    forced: forcedContinuation,
+                    step: step,
+                    sampling: samplingConfiguration,
+                    tokenHistory: ArraySlice<Int32>.init(inputTokens[generationStartOffset...])
+                )
 
                 inputTokens.append(nextToken)
                 step += 1
