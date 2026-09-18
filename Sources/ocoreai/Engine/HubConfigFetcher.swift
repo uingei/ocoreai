@@ -20,9 +20,10 @@ import Logging
 enum HubConfigFetcher {
     /// Resolve ModelScope base URL from env or default.
     /// Shared with ModelScopeDownloader and ModelScopeSearchClient.
+    /// Single source for the default domain: `ModelStore.modelScopeDefaultBaseURL`.
     nonisolated static func modelScopeEndpoint() -> String {
         ProcessInfo.processInfo.environment["MODELSCOPE_ENDPOINT"]
-            ?? "https://www.modelscope.cn"
+            ?? ModelStore.modelScopeDefaultBaseURL
     }
 
     // MARK: - TTL Cache (24h, LRU 512)

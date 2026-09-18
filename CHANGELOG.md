@@ -4,6 +4,15 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-09-18
 
+**09-18 ModelScope 端点单一真源收口（「两次数据不一致→不信任」硬化为回归门）** — 同一 `MODELSCOPE_ENDPOINT` 语义在三个文件里给了两个不同的默认端点（`ModelScopeSearchClient → modelscope.cn` vs `ModelScopeDownloader`(73/98) + `HubConfigFetcher`(25) → `www.modelscope.cn`），且拼接方式也不一致（`URL.append(path:)"api/v1"` vs `String + "/api/v1"` 字符串拼接）——违反仓库自定的「两次数据不一致→不信任」铁律。根因不是没设计:`HubConfigFetcher.modelScopeEndpoint()` 注释明写 *"Shared with ModelScopeDownloader and ModelScopeSearchClient"*,单一共享解析器**已存在,却没接线**——另两处各自硬编码了自己的默认。
+
+- 真源下沉到 `ModelStore.modelScopeDefaultBaseURL`(该 `enum` 已是 ModelScope 路径的单一真源:`msSubRoot`/`msRoot`,同一 `Models` 命名空间,三文件都同 target 可引用)——值取 `https://modelscope.cn`(与上游 omlx Python SDK `ms_downloader.py` 3:2 占优值一致、与 `HubConfigFetcher` 注释里的根域表述一致;`www.` 是别名根域,两域都可达,选 canonical 更稳)。
+- 三处消费方 `ModelScopeSearchClient.defaultBaseURL()`、`ModelScopeDownloader.init` + 自定义端点判定(`!=` 比对)、`HubConfigFetcher.modelScopeEndpoint()` 全部改读 `ModelStore.modelScopeDefaultBaseURL`,**不再自带端点字面量**。
+- 新增回归守卫 `Tests/ocoreaiTests/ModelScopeEndpointSourceTests.swift`(3 测试):①真源默认值 = 精确值校验;②`HubConfigFetcher.modelScopeEndpoint()` 与真源**API 级**一致(防未来加一个 `func modelScopeEndpoint()` 又硬编码回去);③**全库字面量守卫**——用 `NSRegularExpression` 扫 `Sources/` 全部 `.swift`,匹配 `"https?://…modelscope\.cn"` **双引号字符串字面量 URL 默认值**,除 `ModelStore.swift`(真源,豁免)外出现即红。正则只咬代码默认值(双引号包裹),不误报注释里的域(如 Downloader:49/58 的反引号 docstring、HubConfigFetcher:6 的路径示例)。
+- 守卫真门验证(mutant 注入法):在 `HubConfigFetcher.swift` 追加一行 `let __mutant_bad_default = "https://modelscope.cn/…"` → 守卫测试**确为红**(`offenders → ["HubConfigFetcher.swift (1)"]`)→ 还原后**确为绿**。证明不是死门,真能锁住"端点默认只允许出自单一真源"。
+- 零行为漂移(两域功能等价,只是字符串归一);`MODELSCOPE_ENDPOINT` env 覆盖路径不变(三处都是 `?? ModelStore.modelScopeDefaultBaseURL`,env 优先级保持)
+- 门:`swift test --filter ModelScopeEndpointSourceTests` **3/3 绿** + mutant 红/还原绿双向证明
+
 **09-18 交付物硬伤修复（App 图标缺失 + 系统版本 floor 自相矛盾）** — 两个「可交付产品」最显性的交付缺陷，逐个核到根因再落地。
 
 - **App 图标缺失**：`.app` 无 Dock/Finder 标识，App Store 直接 Defect 1051 "No icns file" 硬驳回。根因不是没设计，是 `scripts/build-app.sh` 的 `Info.plist` 声明了 `CFBundleIconFile=AppIcon.icns`，却**从未把任何 .icns 放进 bundle**——全仓 0 个 .icns、全 git 史 0 次。落地：新增 `scripts/make_icon.swift`（纯 Apple `CGContext` 自绘产品 mark：深蓝 tile + 同心「执行环」+ 亮核心 + 右上「agent 节点」，零三方依赖、可复现重建）→ `sips` 出 10 尺寸 rep → `iconutil` 成 `resources/AppIcon.icns`（297KB，含 ic12/1024）→ build-app.sh 新增步骤 4 把它拷进 `Contents/Resources/`。

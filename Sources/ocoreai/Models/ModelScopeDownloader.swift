@@ -70,7 +70,7 @@ actor ModelScopeDownloader: Downloader {
         } else {
             resolvedEndpoint =
                 ProcessInfo.processInfo.environment["MODELSCOPE_ENDPOINT"]
-                ?? "https://www.modelscope.cn"
+                ?? ModelStore.modelScopeDefaultBaseURL
         }
         // Strip trailing slash for consistent path appending
         self.baseAPI =
@@ -95,7 +95,7 @@ actor ModelScopeDownloader: Downloader {
 
         // Log if using non-default endpoint
         let endpoint = resolvedEndpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        if endpoint != "https://www.modelscope.cn" {
+        if endpoint != ModelStore.modelScopeDefaultBaseURL {
             Logger(label: "ModelScopeDownloader").info("Using custom endpoint: \(endpoint)")
         }
     }

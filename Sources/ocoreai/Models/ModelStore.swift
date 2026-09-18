@@ -42,6 +42,13 @@ enum ModelStore {
     static let msSubRoot = "modelscope"
     static let localSubRoot = "local"
 
+    /// ModelScope 官方 API 根域(单一真源,三处共享:
+    /// `ModelScopeSearchClient` / `ModelScopeDownloader` / `HubConfigFetcher`)。
+    /// 规范值对齐上游 omlx Python SDK(`ms_downloader.py`)与 `SearchClient`
+    /// 既有默认 `modelscope.cn`(根域,非 www 别名域)。镜像/proxy 仍由
+    /// `MODELSCOPE_ENDPOINT` 环境变量覆盖(见 ModelStore.defaultModelScopeEndpoint)。
+    static let modelScopeDefaultBaseURL = "https://modelscope.cn"
+
     // MARK: - 根目录
 
     /// 就绪模型统一根(omlx `~/.omlx/models` 对齐,settings.py:209):

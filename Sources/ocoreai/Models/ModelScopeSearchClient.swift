@@ -74,14 +74,15 @@ final actor ModelScopeSearchClient {
     private let token: String?
 
     /// Default base URL — reads MODELSCOPE_ENDPOINT env var when set,
-    /// otherwise falls back to modelscope.cn.
+    /// otherwise falls back to the canonical root domain (single source:
+    /// `ModelStore.modelScopeDefaultBaseURL`).
     nonisolated private static func defaultBaseURL() -> URL {
         let endpoint =
             ProcessInfo.processInfo.environment["MODELSCOPE_ENDPOINT"]
-            ?? "https://modelscope.cn"
+            ?? ModelStore.modelScopeDefaultBaseURL
         // Strip trailing slash for consistent path appending
         return URL(string: endpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
-            ?? URL(string: "https://modelscope.cn")
+            ?? URL(string: ModelStore.modelScopeDefaultBaseURL)
             ?? Bundle.main.bundleURL.appendingPathComponent("fallback")
     }
 
