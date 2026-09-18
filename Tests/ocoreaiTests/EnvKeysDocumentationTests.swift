@@ -2,7 +2,7 @@
 //
 // Locks the env-var documentation surface (.env.example) against code drift.
 //
-// ocoreai reads 21 environment variables: 17 static `environment["KEY"]`
+// ocoreai reads 22 environment variables: 18 static `environment["KEY"]`
 // literals + 4 `\(...)HOST/PORT/BACKEND/...` dynamic keys in
 // ConfigSystem.applyEnvOverrides. Before this work the surface was not
 // documented in README and no `.env.example` existed — a fresh clone had no
@@ -22,7 +22,7 @@ import Testing
 
 struct EnvKeysDocumentationTests {
 
-    /// The 21 env-var keys ocoreai reads. This list IS the contract.
+    /// The 22 env-var keys ocoreai reads. This list IS the contract.
     private static let expectedKeys: [String] = [
         // Server
         "OCOREAI_HOST", "OCOREAI_PORT",
@@ -31,6 +31,8 @@ struct EnvKeysDocumentationTests {
         // Backend (ConfigSystem.applyEnvOverrides)
         "OCOREAI_BACKEND", "OCOREAI_MAX_SESSIONS",
         "OCOREAI_DEFAULT_MODEL", "OCOREAI_MEMORY_ENABLED",
+        // Agent (统一审批 — 单源真值,跨 GUI / headless 两入口)
+        "OCOREAI_APPROVAL_POLICY",
         // Model 存储 / 工作树
         "OCOREAI_MODELS_DIR", "OCOREAI_WORKTREE_ROOT", "OCOREAI_PROJECT_DIR",
         // HuggingFace

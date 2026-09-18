@@ -19,6 +19,7 @@ public struct AppConfig: Sendable, Codable, Equatable {
     public var memory: MemoryConfig
     public var metrics: MetricsConfig
     public var safety: SafetyConfig
+    public var agent: AgentConfig
 
     public init(
         server: ServerConfig = .default,
@@ -27,6 +28,7 @@ public struct AppConfig: Sendable, Codable, Equatable {
         memory: MemoryConfig = .default,
         metrics: MetricsConfig = .default,
         safety: SafetyConfig = .default,
+        agent: AgentConfig = .default,
     ) {
         self.server = server
         self.backend = backend
@@ -34,6 +36,7 @@ public struct AppConfig: Sendable, Codable, Equatable {
         self.memory = memory
         self.metrics = metrics
         self.safety = safety
+        self.agent = agent
     }
 
     /// Run validation — throws on invalid config.
@@ -42,6 +45,7 @@ public struct AppConfig: Sendable, Codable, Equatable {
         try backend.validate()
         try memory.validate()
         try safety.validate()
+        try agent.validate()
     }
 }
 
@@ -95,6 +99,64 @@ public struct SafetyConfig: Sendable, Codable, Equatable {
         // owner has full authority over which categories are active — disabling any
         // is allowed. This encodes the standing principle: default is maximum
         // truth-seeking/curiosity, not a hardcoded human-preference wall.
+    }
+}
+
+// MARK: - Agent Config
+
+/// Agent tool-approval configuration (codex `AskForApproval` shape, two
+/// surfaces: GUI app + bare CLI/headless).
+///
+/// Stored in `~/.ocoreai/config.yaml` under the `agent:` key so the policy is
+/// a **single source of truth** across entry points — previously it lived in
+/// `UserDefaults.standard`, which resolves to a DIFFERENT domain per surface
+/// (GUI app bundle vs. bare executable), so a GUI choice silently did not
+/// apply to the CLI/headless path and vice versa (live-verified 2026-09-18:
+/// GUI domain said `interactive` while the CLI domain said `auto`).
+///
+/// `approvalPolicy` values: `interactive` (ask, fail-closed when no UI is
+/// present to answer), `auto` (no ask, proceed), `never` (no ask, deny).
+/// The runtime `ApprovalPolicy` enum is the canonical domain type; the string
+/// here is its YAML-friendly spelling.
+public struct AgentConfig: Sendable, Codable, Equatable {
+    public var approvalPolicy: String
+
+    public static let `default` = AgentConfig()
+
+    public init(
+        approvalPolicy: String = "interactive",
+    ) {
+        self.approvalPolicy = approvalPolicy
+    }
+
+    // MARK: Codable — backward compatible: old config.yaml files lack the
+    // `agent:` key entirely; decode must default, not fail the whole config
+    // (a decode failure in `ConfigSystem.load` falls back to recovery /
+    // defaults generation and silently drops the user's file — the last-known
+    // good copy is the only survivor, so decode robustness matters).
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.approvalPolicy = (try? c.decode(String.self, forKey: .approvalPolicy)) ?? "interactive"
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(approvalPolicy, forKey: .approvalPolicy)
+    }
+
+    private enum CodingKeys: CodingKey { case approvalPolicy }
+
+    /// The enum value, or nil if the string is not a known policy.
+    public var approvalPolicyParsed: ApprovalPolicy? {
+        ApprovalPolicy(rawValue: approvalPolicy)
+    }
+
+    func validate() throws {
+        guard ApprovalPolicy(rawValue: approvalPolicy) != nil else {
+            throw ConfigValidationError(
+                "agent.approvalPolicy must be one of \(ApprovalPolicy.allCases.map(\.rawValue).sorted()), got \(approvalPolicy)"
+            )
+        }
     }
 }
 

@@ -211,6 +211,11 @@ extension AppConfig {
         {
             backend.maxConcurrentSessions = v
         }
+        if let p = ProcessInfo.processInfo.environment["\(envPrefix)APPROVAL_POLICY"],
+            ApprovalPolicy(rawValue: p) != nil
+        {
+            agent.approvalPolicy = p.lowercased()
+        }
         if let dm = ProcessInfo.processInfo.environment["\(envPrefix)DEFAULT_MODEL"],
             var entry = models["default"]
         {

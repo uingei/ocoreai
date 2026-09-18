@@ -118,7 +118,7 @@ memory:
 
 > **Auth** is not a YAML key: set the `OCOREAI_API_KEYS` env var (comma-separated) to enable it; empty = unauthenticated.
 
-> **Full env-var reference**: the runtime surface is **21 environment variables** spread across server/auth/backend/model-store/HF/ModelScope/web tools. See [`.env.example`](.env.example) — every key with its code-source default value (line-cited). A guard test set (`EnvKeysDocumentationTests`) fails the build if the file ever drifts from what the code actually reads.
+> **Full env-var reference**: the runtime surface is **22 environment variables** spread across server/auth/backend/agent-approval/model-store/HF/ModelScope/web tools. See [`.env.example`](.env.example) — every key with its code-source default value (line-cited). A guard test set (`EnvKeysDocumentationTests`) fails the build if the file ever drifts from what the code actually reads.
 
 Memory budget auto-detected from `sysctl hw.memsize`; default guard tier is `balanced` = 55% of physical RAM (tiers: safe 40% / balanced 55% / aggressive 75%, custom 20–85%, floor 4 GB). OOMGuard then enforces the downgrade chain 8-bit → 4-bit → refuse (no CPU tier on UMA) — no disk I/O, the correct approach for Apple Silicon UMA.
 

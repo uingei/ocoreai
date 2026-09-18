@@ -7,6 +7,7 @@
 
 import Observation
 import SwiftUI
+import Yams
 
 // MARK: - Settings Store
 
@@ -271,13 +272,123 @@ final class SettingsStore {
     /// Agent approval policy (codex AskForApproval 形状).
     /// 合法值三档（对齐 codex 三轴：on-request / 沙箱允许面 / Never）；
     /// 非法/缺失 → `.interactive`（默认高危才问，fail-safe 不静默放行）。
+    ///
+    /// **Single source of truth across entry points** (GUI app + bare
+    /// CLI/headless): the legacy store was `UserDefaults.standard`, which
+    /// resolves to a different domain per surface (GUI app bundle
+    /// `com.ocoreai.ocoreai` vs. bare executable `ocoreai`) — live-verified
+    /// 2026-09-18: GUI said `interactive`, CLI said `auto`. Resolution order
+    /// is now: `~/.ocoreai/config.yaml → agent.approvalPolicy` (shared home =
+    /// shared file), then the legacy UserDefaults value, then `interactive`.
     var approvalPolicy: String {
-        get { defaults.string(forKey: Key.approvalPolicy.rawValue) ?? "interactive" }
+        get { Self.approvalPolicyUnified(defaults: defaults) }
         set {
             let val =
                 ["interactive", "auto", "never"].contains(newValue) ? newValue : "interactive"
             defaults.set(val, forKey: Key.approvalPolicy.rawValue)
+            Self.writeApprovalPolicyToYaml(val)
         }
+    }
+
+    // MARK: Unified approval-policy resolution (yaml first, legacy fallback)
+
+    /// Resolve the effective policy, in single-source order:
+    ///   1. `~/.ocoreai/config.yaml → agent.approvalPolicy` — the authored
+    ///      single source (insurable, headless-editable, 12-factor);
+    ///   2. the **GUI bundle domain** legacy value — the owner faces the
+    ///      product through the GUI, so its stored choice is the authority
+    ///      that a headless/CLI surface must adopt (a bare CLI's own domain
+    ///      otherwise wins and the GUI's choice is silently dropped);
+    ///   3. this surface's own legacy value (pure headless install with no
+    ///      GUI ever run);
+    ///   4. `interactive` default (fail-safe: never silently allow).
+    /// Precedence is per-value, not per-domain: a valid value found earlier
+    /// wins even if a later domain also has one.
+    static func approvalPolicyUnified(defaults: UserDefaults) -> String {
+        if let yaml = approvalPolicyFromYaml(),
+            let p = ApprovalPolicy(rawValue: yaml)
+        {
+            return p.rawValue
+        }
+        if let gui = UserDefaults(suiteName: Self.guiDomainName())?.string(
+            forKey: Key.approvalPolicy.rawValue),
+            let p = ApprovalPolicy(rawValue: gui)
+        {
+            return p.rawValue
+        }
+        if let own = defaults.string(forKey: Key.approvalPolicy.rawValue),
+            let p = ApprovalPolicy(rawValue: own)
+        {
+            return p.rawValue
+        }
+        return "interactive"
+    }
+
+    /// The product GUI app's bundle id — read as the authority legacy domain
+    /// for approval policy so a headless/CLI surface adopts the owner's GUI
+    /// choice rather than its own (previously the two diverged, live-verified
+    /// 2026-09-18: GUI domain `interactive`, CLI domain `auto`).
+    static let guiBundleID = "com.ocoreai.ocoreai"
+    private static var testsGuiDomainOverride: String?
+    static func guiDomainName() -> String { testsGuiDomainOverride ?? guiBundleID }
+
+    /// Read `agent.approvalPolicy` from `~/.ocoreai/config.yaml` (decode-based,
+    /// robust to old files lacking the key). Returns nil when the file or key
+    /// is absent. Never throws — a settings read must not cascade into a parse
+    /// failure.
+    private static func approvalPolicyFromYaml() -> String? {
+        let path = resolvedConfigYamlPath()
+        guard FileManager.default.fileExists(atPath: path),
+            let data = try? Data(contentsOf: URL(fileURLWithPath: path))
+        else {
+            return nil
+        }
+        guard
+            let doc = try? YAMLDecoder().decode(AppConfig.self, from: data)
+        else {
+            return nil
+        }
+        return doc.agent.approvalPolicy
+    }
+
+    /// Persist the uniform policy into `~/.ocoreai/config.yaml` (`agent:`
+    /// block, append-only, idempotent). If the `agent:` key already exists on
+    /// disk the file is left untouched: the runtime broker is hot-switched by
+    /// `SettingsViewModel.approvalPolicy.didSet`, so the in-memory policy is
+    /// what matters for the active session; disk convergence happens on the
+    /// first write where yaml lacks the key (e.g. legacy CLI install whose GUI
+    /// policy should now be honored headlessly).
+    private static func writeApprovalPolicyToYaml(_ value: String) {
+        let path = resolvedConfigYamlPath()
+        guard FileManager.default.fileExists(atPath: path),
+            let content = try? String(contentsOfFile: path, encoding: .utf8)
+        else {
+            return  // fresh install: App will save the full config on startup
+        }
+        if content.contains("agent:") || content.contains("agent\n") {
+            return  // already present — do not clobber user's authored block
+        }
+        let block = "\nagent:\n  approvalPolicy: \(value)\n"
+        let out = URL(fileURLWithPath: path)
+        try? FileManager.default.createDirectory(
+            at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? (content + block).write(to: out, atomically: true, encoding: .utf8)
+    }
+
+    // MARK: Test injection
+
+    /// Override the home-directory root used for `~/.ocoreai/config.yaml`
+    /// access. Set by tests to a per-test `TemporaryDirectory`; nil = real
+    /// `NSHomeDirectory()`. Production code never sets this.
+    static var testsHomeOverride: String?
+    static func resolvedConfigYamlPath() -> String {
+        let root = testsHomeOverride ?? NSHomeDirectory()
+        return "\(root)/.ocoreai/config.yaml"
+    }
+
+    /// Clear test injection state (called by tests at setup/teardown).
+    static func resetTestState() {
+        testsHomeOverride = nil
     }
 
     var lastSessionId: Int64? {
