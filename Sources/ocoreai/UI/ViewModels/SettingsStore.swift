@@ -332,10 +332,21 @@ final class SettingsStore {
     private static var testsGuiDomainOverride: String?
     static func guiDomainName() -> String { testsGuiDomainOverride ?? guiBundleID }
 
-    /// Read `agent.approvalPolicy` from `~/.ocoreai/config.yaml` (decode-based,
-    /// robust to old files lacking the key). Returns nil when the file or key
-    /// is absent. Never throws — a settings read must not cascade into a parse
-    /// failure.
+    /// Read `agent.approvalPolicy` from `~/.ocoreai/config.yaml`. Returns nil
+    /// when the file or key is absent. Never throws — a settings read must
+    /// not cascade into a parse failure.
+    ///
+    /// Lenient single-key decode: this tier is the **authored single source**
+    /// for one scalar (`agent.approvalPolicy`), 12-factor style — the owner
+    /// may author a minimal config.yaml containing only that block. Decoding
+    /// the whole `AppConfig` here would be wrong: its sibling sub-structs
+    /// (`server`/`backend`/`memory`/…) use strict synthesized `Codable`, so a
+    /// minimal hand-authored document fails `DecodingError` and this tier
+    /// would silently nil — silently dropping the owner's explicit choice
+    /// (live-verified 2026-09-18: minimal `agent:`-only yaml resolved to the
+    /// GUI-domain `interactive` instead of the authored `auto`). The whole
+    /// config is strictly validated exactly where the whole config matters:
+    /// `ConfigSystem.load` (parse + `validate()` + last-known-good snapshot).
     private static func approvalPolicyFromYaml() -> String? {
         let path = resolvedConfigYamlPath()
         guard FileManager.default.fileExists(atPath: path),
@@ -343,12 +354,18 @@ final class SettingsStore {
         else {
             return nil
         }
+        struct AgentPolicyKey: Decodable {
+            let approvalPolicy: String
+        }
+        struct AgentBlock: Decodable {
+            let agent: AgentPolicyKey
+        }
         guard
-            let doc = try? YAMLDecoder().decode(AppConfig.self, from: data)
+            let block = try? YAMLDecoder().decode(AgentBlock.self, from: data)
         else {
             return nil
         }
-        return doc.agent.approvalPolicy
+        return block.agent.approvalPolicy
     }
 
     /// Persist the uniform policy into `~/.ocoreai/config.yaml` (`agent:`

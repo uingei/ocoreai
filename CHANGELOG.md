@@ -13,6 +13,12 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 - 自主回路活体实证（本轮，磁盘 ground truth）：`auto` 策略下 `write_file` 真执行（文件落地 `LIVE_PROOF_OK`，非模型自报）；`interactive`+headless 下 `write_file` **fail-closed 拒绝 + 诚实回传模型 + 磁盘无假写入**——两条权限路径端到端绿（对齐 codex `codex_delegate.rs:63`「无 UI → AskForApproval::Never」）。
 - 门：`swift test --filter UnifiedApprovalPolicyTests` **5/5 绿** + mutant 红→还原绿；`swift build --target ocoreai` exit 0；全量 `make test-ci` 见基线。
 
+**09-18 审批 tier-1 放宽：12-factor 最小手写 config.yaml 被采纳（D10 扩展）** — D10 交付后的根因审计坐实一处行为与声明不一致：tier-1（yaml 单真源）此前用**整份 `AppConfig` 严格解码**，而 `ServerConfig`/`BackendConfig` 等兄弟子结构是合成严格 `Codable`——owner 手写一个只含 `agent:` 块的最小 config.yaml（12-factor 最常见写法）会触发 `DecodingError.keyNotFound('server')`，**owner 明确写下的 `approvalPolicy` 被静默丢弃**，掉到 GUI domain fail-safe。诊断实证（独立测试）：最小 yaml 严格解码 `FAIL` / 宽松单键解码 `auto` ✓ / 完整 app 生成 yaml 两者皆可——修复是行为超集（凡整份可解码的宽松必能读出），零回归风险。
+- `SettingsStore.approvalPolicyFromYaml()`：整份 `AppConfig` 解码 → **宽松单键解码**（`AgentPolicyKey`/`AgentBlock` 最小结构体），与兄弟键完整性解耦；整份校验留在真正需要它的地方（`ConfigSystem.load`：parse + `validate()` + last-known-good 快照）。
+- 新增第 6 守卫 **`minimal hand-authored agent-only yaml is honored (12-factor)`**：手写最小 `agent:`-only yaml（`never`）必须被采纳。
+- mutation 真门：源码头改回 strict 整份解码 → **test 6 确红**（`resolved == "never"` 断言失败）→ 还原 → 6/6 复绿。非死门成立。
+- 门：`UnifiedApprovalPolicyTests` **6/6 绿** + mutation 红→还原绿；`swift build --target ocoreai` exit 0；全量 `make test-ci` 见基线。
+
 **09-18 配置面单一真源：21 个环境变量收口 + `.env.example` 回归门（D9）** — 实证取证发现 ocoreai 实际读 **21 个环境变量**（17 个静态 `environment["KEY"]` 字面量 + 4 个 `ConfigSystem` 里 `\(...)HOST/PORT/BACKEND/MAX_SESSIONS/DEFAULT_MODEL/MEMORY_ENABLED` 的 prefix 拼接键），但 README「Configuration」只文档了 YAML + 2 个 auth 键，其余 19 键零文档、磁盘 0 个 `.env.example` —— 全新 clone 根本无从知道运行时配置面。且 `OCRE_SEARCH_BASE_URL` 默认指向作者演示机的局域网地址，他人开箱即失效却无任何标注。
 
 - 新增 **`.env.example`**：21 键全覆盖，按 Server/Auth/Backend/Model-store/HF/ModelScope/web-tools 分组；**每一键的代码实际默认值 + 行号来源**（禁占位符，全部取自代码实测：`OCOREAI_HOST=127.0.0.1`(App.swift:816)、`OCOREAI_PORT=8080`、`OCRE_SEARCH_TIMEOUT=180`(WebSearchTool.swift:270) 等）；优先级链说明（env > `~/.ocoreai/config.yaml` > 内置默认）；`[MUST-OVERRIDE]` 标注 `OCRE_SEARCH_BASE_URL`（代码默认指向他人局域网机）。

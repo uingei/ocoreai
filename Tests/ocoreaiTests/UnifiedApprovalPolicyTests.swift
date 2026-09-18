@@ -164,6 +164,39 @@ struct UnifiedApprovalPolicyTests {
         #expect(!after.contains("approvalPolicy: never"), "no clobber of user-authored block")
     }
 
+    // MARK: - 6. minimal hand-authored config.yaml (12-factor) is honored
+
+    // Root cause locked 2026-09-18: decoding the WHOLE
+    // `AppConfig` (sibling sub-structs use strict synthesized `Codable`) makes a
+    // minimal hand-authored `agent:`-only document fail `DecodingError`, which
+    // silently dropped the owner's explicit policy (live B: resolved to the GUI
+    // domain `interactive` instead of the authored `auto`). Tier-1 must read the
+    // single key leniently so a 12-factor minimal config is honored.
+    @Test("minimal hand-authored agent-only yaml is honored (12-factor)")
+    func minimalAgentOnlyYamlIsHonored() {
+        SettingsStore.resetTestState()
+        let home = tempHome()
+        defer {
+            SettingsStore.resetTestState()
+            try? FileManager.default.removeItem(atPath: home)
+        }
+
+        let clean = UserDefaults(suiteName: "test_uni_min")!
+        clean.removePersistentDomain(forName: "test_uni_min")
+
+        // Deliberately minimal: only the `agent:` block, as an owner would hand
+        // author it. This is the exact shape that the strict whole-AppConfig
+        // decode used to reject (and silently drop).
+        let minimal = "agent:\n  approvalPolicy: never\n"
+        writeDoc(minimal, to: home)
+
+        let resolved = SettingsStore.approvalPolicyUnified(defaults: clean)
+        #expect(
+            resolved == "never",
+            "a hand-authored minimal `agent:`-only config.yaml is the owner's explicit choice and must be adopted; got \(resolved)"
+        )
+    }
+
     // MARK: - test file IO helpers (temp-home rooted)
 
     private func writeDoc(_ content: String, to home: String) {
