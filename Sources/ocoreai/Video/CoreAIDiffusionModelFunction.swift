@@ -28,6 +28,13 @@ public actor CoreAIDiffusionModelFunction {
     public func loadResources() async throws {
         guard !isLoaded else { return }
 
+        // Fail fast on a missing asset (coreai-models #252, ebb3e54).
+        // Without this, AIModel(contentsOf:) hangs on a path that does not
+        // exist, shipping an unexplained stall in the denoise pipeline.
+        guard FileManager.default.fileExists(atPath: modelURL.path) else {
+            throw CoreAIDiffusionError.modelFileNotFound(modelURL)
+        }
+
         let options = SpecializationOptions(preferredComputeUnitKind: .gpu)
         let loadedModel = try await AIModel(contentsOf: modelURL, options: options)
         guard let fn = try loadedModel.loadFunction(named: "main") else {
@@ -359,6 +366,7 @@ public actor CoreAIDiffusionModelFunction {
 @available(macOS 27.0, iOS 27.0, *)
 public enum CoreAIDiffusionError: Error, LocalizedError {
     case functionNotFound(String, URL)
+    case modelFileNotFound(URL)
     case notLoaded
     case unsupportedInputScalarType(NDArray.ScalarType)
     case unsupportedOutputScalarType(NDArray.ScalarType)
@@ -370,6 +378,8 @@ public enum CoreAIDiffusionError: Error, LocalizedError {
         switch self {
         case .functionNotFound(let name, let url):
             return "Function '\(name)' not found in \(url.lastPathComponent)"
+        case .modelFileNotFound(let url):
+            return "Model asset not found at \(url.path)"
         case .notLoaded:
             return "Model not loaded. Call loadResources() first."
         case .unsupportedInputScalarType(let type):
