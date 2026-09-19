@@ -85,4 +85,34 @@ struct EnginePoolRoutingTests {
         defer { try? FileManager.default.removeItem(atPath: tmp) }
         #expect(structurallyUnresolvableModelId("~/.ocoreai_struct_tidetest.aimodel") == false)
     }
+
+    // Regression guard (live 09-19): an absolute/~/ weights DIRECTORY used to
+    // pass the structural 404 guard (path exists) but then 503 on the macOS-27
+    // FM load route — EnginePool fetched hub config on a filesystem path
+    // (404/network burn) and the FM load closure only knew loadFromHub.
+    // `localWeightsDirectory` is the shared criterion: non-nil ⇒ disk load.
+    @Test("localWeightsDirectory — existing local dirs resolve; non-dirs / hub ids don't")
+    func localDir() {
+        // Existing dir: resolves (weights live in a directory)
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ocoreai_localdir_\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let hit = localWeightsDirectory(for: dir.path)
+        #expect(hit != nil, "existing weights directory must resolve")
+        #expect(hit?.lastPathComponent == dir.lastPathComponent)
+        // Existing FILE (not a dir): not a weights dir
+        let file = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ocoreai_localfile_\(UUID().uuidString)")
+        FileManager.default.createFile(atPath: file.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(localWeightsDirectory(for: file.path) == nil)
+        // Nonexistent path: nil → caller 404s (structural guard still owns the 404)
+        #expect(localWeightsDirectory(for: "/Users/t/does/not/exist/models/x") == nil)
+        // Hub ids and bare names are never local dirs
+        #expect(localWeightsDirectory(for: "mlx-community/Qwen3.5-4B-MLX-4bit") == nil)
+        #expect(localWeightsDirectory(for: "hf:org/model") == nil)
+        #expect(localWeightsDirectory(for: "gemma-4e2b") == nil)
+        #expect(localWeightsDirectory(for: "") == nil)
+    }
 }

@@ -305,6 +305,16 @@ final class SettingsStore {
     /// Precedence is per-value, not per-domain: a valid value found earlier
     /// wins even if a later domain also has one.
     static func approvalPolicyUnified(defaults: UserDefaults) -> String {
+        // Env override — top of the chain (env > yaml > GUI domain > own domain),
+        // same precedence convention as OCOREAI_PORT / OCOREAI_ENABLE_HTTP.
+        // Lets live/CI testing override policy without touching the owner's
+        // ~/.ocoreai/config.yaml (previously the only knob forced edit+restore).
+        // When unset this returns nil and behavior is byte-identical to before.
+        if let env = ProcessInfo.processInfo.environment["OCOREAI_APPROVAL_POLICY"],
+            let p = ApprovalPolicy(rawValue: env)
+        {
+            return p.rawValue
+        }
         if let yaml = approvalPolicyFromYaml(),
             let p = ApprovalPolicy(rawValue: yaml)
         {

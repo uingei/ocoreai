@@ -58,6 +58,20 @@ func structurallyUnresolvableModelId(_ modelId: String) -> Bool {
     return true
 }
 
+/// The on-disk weights directory for a local model id — an absolute or `~/`
+/// path to an existing directory. A filesystem path is NOT a hub repo id: a
+/// hub config fetch 404s on it, and the macOS-27 FM load route calls
+/// `loadFromHub` directly, so the failure surfaces as 503 "Engine
+/// unavailable" (transient/retry) on a permanent client error. Non-nil ⇒
+/// load from disk; nil ⇒ hub routing.
+func localWeightsDirectory(for modelId: String) -> URL? {
+    let path = (modelId as NSString).expandingTildeInPath
+    guard path.hasPrefix("/") || path.hasPrefix("~"),
+        FileManager.default.fileExists(atPath: path + "/")
+    else { return nil }
+    return URL(fileURLWithPath: path)
+}
+
 /// Convert ContentPolymorphic to String for tokenization input.
 /// - Returns: (text to tokenize, count of non-text parts silently dropped)
 func contentToString(_ content: ContentPolymorphic?) -> (String, Int) {
@@ -556,8 +570,15 @@ actor EnginePool {
 
         // Fetch remote config — hf: prefix → HF, otherwise defaultHub (modelscope)
         let isHF = modelId.hasPrefix("hf:")
+        // Local-directory model (absolute/~/ path to an existing weights dir):
+        // repoId is a filesystem path, NOT a hub repo — a config fetch would
+        // 404/timeout and burn network. Defaults apply; weights come from disk
+        // (the FM-path load closure and the MLXModelLoader.local branch below).
+        let localDir = localWeightsDirectory(for: modelId)
         let resolved: (vocabSize: Int, maxContextLength: Int)?
-        if isHF {
+        if localDir != nil {
+            resolved = nil
+        } else if isHF {
             resolved = await HubConfigFetcher.fetchHuggingFaceConfig(repoId: repoId, logger: logger)
         } else {
             resolved = await HubConfigFetcher.fetchModelScopeConfig(
@@ -709,10 +730,21 @@ actor EnginePool {
                 configurationResolver: DefaultConfigurationResolver(),
                 weightsLocation: { _ in modelURL },
                 load: {
-                    [weak self, logger, providerName = hubProviderStr, rId = repoId, mId = modelId]
+                    [
+                        weak self, logger, providerName = hubProviderStr, rId = repoId,
+                        mId = modelId, localDir
+                    ]
                     cfg, progressHandler in
                     guard let self else {
                         throw AppError.engineUnavailable
+                    }
+                    // Local weights dir (absolute/~/ path): load from disk. The
+                    // hub-only route below 404s on a filesystem path and used to
+                    // surface as 503 "Engine unavailable" (live 09-19: a valid
+                    // local Qwen3.5-4B dir). Disk first, hub never.
+                    if let localDir {
+                        logger.info("FM route: local weights dir \(localDir.path) — disk load")
+                        return try await self.mlxModelLoader.loadContainer(from: localDir)
                     }
                     let actualProvider: MLXModelLoader.HubProvider =
                         providerName == "huggingface" ? .huggingFace : .modelScope
