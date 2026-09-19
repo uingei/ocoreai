@@ -538,9 +538,28 @@ extension EnginePool {
                         )
                         return
                     }
-                    logger.warning(
-                        "Grammar constrained request but engine is \(String(describing: type(of: engine))) — falling back to standard CoreAI, grammar constraints dropped"
+                    // 上游 coreai-models #248 之前，此分支静默降级：一句
+                    // logger.warning + 继续标准 CoreAI 无约束生成。调用方拿到
+                    // 一份冒充"已按 grammar 约束"的无约束输出——harness 层
+                    // 谎报（最大求真洞）。#248 让上游走
+                    // `ConstrainedDecodingStrategy.decode`(引擎无关 base
+                    // `generate(includeLogits)→output.logits→mask→sample`)，
+                    // static-shape 类 supportsLogits 引擎能真跑约束解码；ocoreai
+                    // 侧对应的步进子系统（prefix-reuse 契约）属独立批次吸收，
+                    // 本轮只修**诚实度**：引擎跑不了约束 → 大声报错，不静默返回
+                    // 无约束冒充已约束的输出。能力缺口的真值修另立批次，
+                    // 不在此夹带（InferenceCompactor 前车：夹带 = 造重复轮子）。
+                    let unsupportedVariant = String(describing: type(of: engine))
+                    logger.error(
+                        "Grammar constrained request but engine \(unsupportedVariant) does not support per-step logits for constrained decoding — refusing to silently drop grammar constraints (upstream coreai-models #248 era); request aborted, not degraded to unconstrained generation."
                     )
+                    continuation.yield(.init(kind: .error(
+                        InferenceError.guidedGenerationFailed(
+                            "Engine '\(unsupportedVariant)' cannot apply this grammar constraint (per-step logits unavailable). Refusing to generate without the requested schema. Use a model on a CoreAISequentialEngine or ConstrainedGenerationCapable path, or drop the grammar schema."
+                        ).errorDescription ?? "Grammar constraint not supported by this engine"
+                    )))
+                    continuation.finish()
+                    return
                 }
 
                 // upstream CoreAILanguageModel.Executor.respondVanilla() pipeline:
