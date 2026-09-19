@@ -553,11 +553,14 @@ extension EnginePool {
                     logger.error(
                         "Grammar constrained request but engine \(unsupportedVariant) does not support per-step logits for constrained decoding — refusing to silently drop grammar constraints (upstream coreai-models #248 era); request aborted, not degraded to unconstrained generation."
                     )
-                    continuation.yield(.init(kind: .error(
-                        InferenceError.guidedGenerationFailed(
-                            "Engine '\(unsupportedVariant)' cannot apply this grammar constraint (per-step logits unavailable). Refusing to generate without the requested schema. Use a model on a CoreAISequentialEngine or ConstrainedGenerationCapable path, or drop the grammar schema."
-                        ).errorDescription ?? "Grammar constraint not supported by this engine"
-                    )))
+                    continuation.yield(
+                        .init(
+                            kind: .error(
+                                InferenceError.guidedGenerationFailed(
+                                    "Engine '\(unsupportedVariant)' cannot apply this grammar constraint (per-step logits unavailable). Refusing to generate without the requested schema. Use a model on a CoreAISequentialEngine or ConstrainedGenerationCapable path, or drop the grammar schema."
+                                ).errorDescription
+                                    ?? "Grammar constraint not supported by this engine"
+                            )))
                     continuation.finish()
                     return
                 }
