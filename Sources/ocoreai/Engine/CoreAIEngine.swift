@@ -358,7 +358,9 @@ extension InferenceEngine {
 struct TokenHistory: Sendable {
     private(set) var tokens: [Int32] = []
 
-    mutating func resolve(input: [Int32]) -> (commonPrefix: Int, newTokens: ArraySlice<Int32>) {
+    // Non-mutating: pure query over `tokens` (no mutation of history state),
+    // matching coreai-models upstream `TokenHistory.resolve` semantics.
+    func resolve(input: [Int32]) -> (commonPrefix: Int, newTokens: ArraySlice<Int32>) {
         let limit = min(input.count, tokens.count)
         guard limit > 0 else {
             return (0, input[...])
