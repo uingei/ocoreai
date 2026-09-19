@@ -39,6 +39,17 @@ let package = Package(
         // `swift build` + `swift test` (make test-ci). The per-bump audit trail lives
         // in AGENTS.md ("Upstream Audit Dependencies") + CHANGELOG.md, not in this file.
         .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "c6446cf"),
+        // mlx-swift: pin to upstream main (pre-release, no tag >0.31.6) at the first
+        // commit carrying the air64 Metal-thread-qualifier fix for steel/attn/mma.h
+        // (#450 "update for mlx v0.32.2"): without it, IPHONEOS_DEPLOYMENT_TARGET=27
+        // fails with 15 errors inside Cmlx (frag_at/elems address-space binding),
+        // which is the single red cell in the 4-tier deliverable matrix.
+        // This is a revision pin (not a fork): once mlx-swift tags >=0.31.7 carrying
+        // #450, this line can be deleted and the constraint inherits via
+        // mlx-swift-lm's .upToNextMinor(from:"0.31.6").
+        .package(
+            url: "https://github.com/ml-explore/mlx-swift.git",
+            revision: "ab924c82ead3b970caaa1c0ac11171de23f0305a"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
