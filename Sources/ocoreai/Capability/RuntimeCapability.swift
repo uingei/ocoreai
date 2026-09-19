@@ -237,7 +237,10 @@ public enum RuntimeCapability {
             .init(
                 name: "model_fidelity", available: false,
                 note:
-                    "Default ≤2B model live-verified to misreport values (0919: 24582 vs actual 6746 B) and claim full success. Cross-check every self-reported number against tool output before stating it; larger models give higher fidelity."
+                    "Model-summarized numbers are NOT trustworthy on default small models (live-verified 0919): "
+                    + "1.8B reported 24582 B for a 6746 B file and claimed full success; "
+                    + "4B reported a real value (9917 B, that file exists) but picked the wrong 'largest' file (true max 254974 B) from a mis-sorted sort. "
+                    + "Treat every number you compute or pick out of tool output as unverified: re-derive it with a second independent command and cross-check before stating it; if a check fails, say so rather than reporting success."
             ))
         return result
     }()
