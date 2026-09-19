@@ -39,17 +39,28 @@ let package = Package(
         // `swift build` + `swift test` (make test-ci). The per-bump audit trail lives
         // in AGENTS.md ("Upstream Audit Dependencies") + CHANGELOG.md, not in this file.
         .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "c6446cf"),
-        // mlx-swift: pin to upstream main (pre-release, no tag >0.31.6) at the first
-        // commit carrying the air64 Metal-thread-qualifier fix for steel/attn/mma.h
-        // (#450 "update for mlx v0.32.2"): without it, IPHONEOS_DEPLOYMENT_TARGET=27
-        // fails with 15 errors inside Cmlx (frag_at/elems address-space binding),
-        // which is the single red cell in the 4-tier deliverable matrix.
+        // mlx-swift: pin to upstream main (pre-release, no tag >0.31.6).
+        // #450 "update for mlx v0.32.2" (air64 Metal-thread-qualifier fix for
+        // steel/attn/mma.h) is the floor that unblocks IPHONEOS_DEPLOYMENT_TARGET=27
+        // (15 Cmlx errors at frag_at/elems address-space binding otherwise).
+        // Now bumped to main 90194196 (#477 era) to absorb the runtime hot-path fixes
+        // that matter for long-running agentic inference on Apple Silicon:
+        //   #472 "pool Streams, fix Device inheritance" (mlx#2118) — Streams are finite
+        //         and leak OS/Metal resources; a pool reuses them. Device now Hashable
+        //         and `.gpu(index:)` inheritance works in all cases.
+        //   #471 "Fix wired-memory ticket lifecycle during cancellation" — avoids
+        //         dangling wired-memory tickets when a decode task is cancelled.
+        // Consumer-impact audit: ocoreai has ZERO direct consumers of the changed
+        // public surface (Device.deviceType, withNewDefaultStream, convolve,
+        // Distributed) — all MLX access flows through MLXLM/MLXNN/MLXLMCommon, so
+        // the Device-type change (Optional→non-Optional equipmentType, Hashable) is
+        // transparent. See AGENTS.md "Upstream Audit Dependencies" + CHANGELOG.md.
         // This is a revision pin (not a fork): once mlx-swift tags >=0.31.7 carrying
         // #450, this line can be deleted and the constraint inherits via
         // mlx-swift-lm's .upToNextMinor(from:"0.31.6").
         .package(
             url: "https://github.com/ml-explore/mlx-swift.git",
-            revision: "ab924c82ead3b970caaa1c0ac11171de23f0305a"),
+            revision: "901941965d82e4a216d4d117231d847d194c563d"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
