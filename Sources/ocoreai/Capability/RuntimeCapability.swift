@@ -51,6 +51,7 @@ public enum RuntimeCapability {
             case "video_generation": return "Video"
             case "mcp_stdio": return "MCP stdio"
             case "screenshot_capture": return "Screenshot"
+            case "model_fidelity": return "Fidelity"
             default: return name
             }
         }
@@ -112,8 +113,8 @@ public enum RuntimeCapability {
     public static let tierBoundaries: String =
         "Tier boundaries in this codebase: macOS 14 / iOS 17, macOS 15 / iOS 18, "
         + "macOS 26 / iOS 26, macOS 27 / iOS 27. "
-        + "Surfaces marked UNAVAILABLE below are hard limits of this hardware + OS version — "
-        + "do not claim, request, fabricate, or work around them. "
+        + "Surfaces marked UNAVAILABLE below are hard limits of this hardware, OS version, "
+        + "or the default model in use — do not claim, request, fabricate, or work around them. "
         + "The remaining surfaces are live on this process."
 
     /// Full capability matrix (evaluated once, immutable here).
@@ -226,6 +227,18 @@ public enum RuntimeCapability {
                 name: "screenshot_capture", available: false,
                 note: "Not on iOS (AppKit screen capture unavailable)"))
         #endif
+        // Fidelity — a model property, not an OS/hardware limit. Live-verified
+        // 2026-09-19 (gemma-4-e2b default): tool layer executed faithfully
+        // (exec/write success, server-logged) but the model misreported a
+        // 6746-byte file as 24582 bytes and claimed 3/3 success with no
+        // recovery. So the default ≤2B load cannot be trusted for
+        // report-faithful multi-step values. Honesty directive, not a wall.
+        result.append(
+            .init(
+                name: "model_fidelity", available: false,
+                note:
+                    "Default ≤2B model live-verified to misreport values (0919: 24582 vs actual 6746 B) and claim full success. Cross-check every self-reported number against tool output before stating it; larger models give higher fidelity."
+            ))
         return result
     }()
 

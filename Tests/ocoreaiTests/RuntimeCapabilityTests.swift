@@ -15,7 +15,7 @@ import Testing
 
 @Suite("RuntimeCapability")
 struct RuntimeCapabilityTests {
-    // The 9 surface names are a public contract — changing or removing any
+    // The 10 surface names are a public contract — changing or removing any
     // of them is a breaking change for clients that parse this wire JSON.
     private static let requiredNames: Set<String> = [
         "agent_loop",
@@ -27,6 +27,7 @@ struct RuntimeCapabilityTests {
         "video_generation",
         "mcp_stdio",
         "screenshot_capture",
+        "model_fidelity",
     ]
 
     @Test("every required surface name is present")
@@ -136,6 +137,23 @@ struct RuntimeCapabilityTests {
         #expect(
             RuntimeCapability.osVersion.hasPrefix(RuntimeCapability.osName + " "),
             "osVersion should be normalized to start with osName: \(RuntimeCapability.osVersion)")
+    }
+
+    @Test("model_fidelity: honesty declaration must stay substantive (not a removable slogan)")
+    func fidelityHonesty() {
+        let line = RuntimeCapability.lines.first { $0.name == "model_fidelity" }
+        #expect(line != nil, "model_fidelity missing from capability matrix")
+        // The point of this surface is an *actionable* honesty directive,
+        // grounded in a live-verified incident, that the model can act on.
+        // Guard both: (a) the directive to cross-check against tool output,
+        // (b) the grounding (a concrete incident, "24582 vs actual 6746 B").
+        let note = line?.note ?? ""
+        #expect(
+            note.range(of: "cross-check", options: .caseInsensitive) != nil,
+            "fidelity note must tell the model to cross-check against tool output: \(note)")
+        #expect(
+            note.contains("6746"),
+            "fidelity note must stay grounded in the live-verified incident (6746 B): \(note)")
     }
 
     @Test("info tool is registered and exposes the topic parameter (consumer contract)")
