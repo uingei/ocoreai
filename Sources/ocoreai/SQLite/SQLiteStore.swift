@@ -137,10 +137,23 @@ actor SQLiteStore {
     }
 
     /// Default database path — cross-platform (macOS/iOS/iPadOS).
-    /// macOS: ~/Library/Application Support/ocoreai/data/ocoreai.sqlite
-    /// iOS/iPadOS: sandbox/Library/Application Support/ocoreai/data/ocoreai.sqlite
-    /// Falls back to ~/Library/Caches if .applicationSupportDirectory is unavailable.
-    static let defaultPath: String = {
+    /// `OCOREAI_DATA_DIR` env override (same pattern as `OCOREAI_MODELS_DIR`,
+    /// ModelStore.swift:56) > platform default. The env gate is what lets a
+    /// live-inference regression harness run a real server end-to-end without
+    /// touching the operator's production `ocoreai.sqlite` — without it every
+    /// `sessionID`-routed API request writes into the live DB (R2b lesson:
+    /// manual post-hoc cleanup is error-prone). Empty/unset → platform default.
+    static let defaultPath: String = resolveDefaultPath(ProcessInfo.processInfo.environment)
+
+    /// Pure path resolution (seam for exact-value tests — decoupled from
+    /// process env so tests are deterministic regardless of suite order).
+    static func resolveDefaultPath(_ env: [String: String]) -> String {
+        if let override = env["OCOREAI_DATA_DIR"], !override.isEmpty {
+            let baseDir = (override as NSString).expandingTildeInPath
+            try? FileManager.default.createDirectory(
+                atPath: baseDir, withIntermediateDirectories: true)
+            return (baseDir as NSString).appendingPathComponent("ocoreai.sqlite")
+        }
         let baseDir: String
         if let supportURL = FileManager.default.urls(
             for: .applicationSupportDirectory,
@@ -158,7 +171,7 @@ actor SQLiteStore {
         }
         try? FileManager.default.createDirectory(atPath: baseDir, withIntermediateDirectories: true)
         return (baseDir as NSString).appendingPathComponent("ocoreai.sqlite")
-    }()
+    }
 
     /// Create store at the given path (defaults to ~/.ocoreai/data/ocoreai.sqlite).
     init(path: String = SQLiteStore.defaultPath) {
