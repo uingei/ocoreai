@@ -38,7 +38,6 @@ struct ToolCallRecordRoundTripTests {
 
         let store = SQLiteStore(path: p)
         try await store.open()
-        defer { await store.close() }
 
         let comp = SessionCompressor(store: store, fts: FTS5Search(store: store))
         let sid = try await comp.createSession(modelId: "roundtrip-probe")
@@ -91,6 +90,8 @@ struct ToolCallRecordRoundTripTests {
         #expect(!s0.contains("bytes args"), "real summary must not be a fallback: \(s0)")
         #expect(!s1.contains("bytes args"), "denial text must not be a fallback: \(s1)")
         #expect(s0 != "executed")
+
+        await store.close()
     }
 
     @Test("tool-free message round-trips with NO phantom tool records")
@@ -100,7 +101,6 @@ struct ToolCallRecordRoundTripTests {
 
         let store = SQLiteStore(path: p)
         try await store.open()
-        defer { await store.close() }
 
         let comp = SessionCompressor(store: store, fts: FTS5Search(store: store))
         let sid = try await comp.createSession(modelId: "phantom-probe")
@@ -113,5 +113,7 @@ struct ToolCallRecordRoundTripTests {
         let restored = try await comp.getMessages(sid, limit: 10, offset: 0)
         let latest = restored.first(where: { $0.role == "assistant" })
         #expect(latest?.toolCalls == nil, "a text-only message must not gain tool records")
+
+        await store.close()
     }
 }
