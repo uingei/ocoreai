@@ -89,9 +89,12 @@ struct ChatView: View {
     // Note: ModelManager is accessed via .shared singleton to avoid dual @State binding
     // of the same @Observable instance (SwiftUI observation reader collision → crash)
     @Environment(\.ocoreaiTheme) private var theme
-    @State private var inputText = ""
+    // Note: model selection stays view-local (selection state, not user content)
     @State private var currentModel = ""
     @State private var activeTask: Task<Void, Never>? = nil
+    // NB: composer draft (chatState.inputText / pendingAttachments) lives in `ChatState.shared` —
+    // lifted out of view-local @State so it survives TabDetailView recreation
+    // (codex #46750 "preserve startup drafts"). Do NOT reintroduce @State copies.
 
     // NSEvent monitor handle — disposed on .onDisappear to prevent leak
     #if os(macOS)
@@ -104,9 +107,8 @@ struct ChatView: View {
     // confirmation dialog for destructive operations (HIG requirement)
     @State private var showClearConfirmation = false
 
-    // Image attachments for multimodal input
-    @State private var attachments: [ChatState.AttachedImage] = []
-
+    // Image attachments — lifted to ChatState.shared (codex #46750); binding below
+    // references chatState.pendingAttachments directly.
     #if os(iOS)
     // iOS photo picker — PhotosPicker (iOS 16+, HIG-compliant)
     @State private var showPhotoPicker = false
@@ -213,7 +215,7 @@ struct ChatView: View {
                 // P2 fix: use keyEquivalent instead of hardcoded keyCode (keyCode varies by layout).
                 if cmd && event.characters == "\r" {
                     guard !isStreaming else { return event }
-                    guard inputText.trimmingCharacters(in: .whitespaces).isEmpty else {
+                    guard chatState.inputText.trimmingCharacters(in: .whitespaces).isEmpty else {
                         sendMessage()
                         return NSEvent()
                     }
@@ -257,7 +259,7 @@ struct ChatView: View {
                 return
             }
             ChatState.shared.messages.append(ChatMessage(role: "system", content: obs.text))
-            inputText = obs.draft
+            chatState.inputText = obs.draft
             AppState.shared.proactiveObservation = nil
         }
         .toolbar {
@@ -572,7 +574,7 @@ struct ChatView: View {
 
     private func suggestionChip(_ text: String) -> some View {
         Button {
-            inputText = text
+            chatState.inputText = text
         } label: {
             Text(text)
                 .font(.ocoreaiText(13))
@@ -592,9 +594,9 @@ struct ChatView: View {
     private var inputBar: some View {
         VStack(spacing: 8) {
             // Attachment preview strip — shows thumbnails of attached images
-            if !attachments.isEmpty {
+            if !chatState.pendingAttachments.isEmpty {
                 HStack(spacing: 8) {
-                    ForEach(attachments) { attachment in
+                    ForEach(chatState.pendingAttachments) { attachment in
                         ZStack(alignment: .topTrailing) {
                             InlineImagePreview(dataURL: attachment.dataURL)
                                 .frame(width: 48, height: 48)
@@ -602,7 +604,7 @@ struct ChatView: View {
                                 .background(theme.inputBg)
 
                             Button {
-                                attachments.removeAll { $0.id == attachment.id }
+                                chatState.pendingAttachments.removeAll { $0.id == attachment.id }
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.ocoreaiText(10))
@@ -652,7 +654,7 @@ struct ChatView: View {
                 .accessibilityLabel(StringKey.multimodalToggleLabel.l)
                 .accessibilityHint(StringKey.multimodalToggleHint.l)
 
-                TextField(StringKey.chatPlaceholder.l, text: $inputText, axis: .vertical)
+                TextField(StringKey.chatPlaceholder.l, text: $chatState.inputText, axis: .vertical)
                     .font(.ocoreaiText(15))
                     .textFieldStyle(.plain)
                     .frame(minHeight: 36)
@@ -682,7 +684,7 @@ struct ChatView: View {
                 .accessibilityHint(
                     isStreaming ? StringKey.stopStreamingHint.l : StringKey.sendMessageHint.l
                 )
-                .disabled(isStreaming && inputText.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(isStreaming && chatState.inputText.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
         .padding()
@@ -742,7 +744,7 @@ struct ChatView: View {
                 }
                 // Batch result back to main thread
                 await MainActor.run {
-                    attachments.append(contentsOf: attachmentsToAppend)
+                    chatState.pendingAttachments.append(contentsOf: attachmentsToAppend)
                 }
             }
         }
@@ -777,7 +779,7 @@ struct ChatView: View {
                 }
             }
             await MainActor.run {
-                self.attachments.append(contentsOf: attachmentsToAppend)
+                ChatState.shared.pendingAttachments.append(contentsOf: attachmentsToAppend)
             }
         }
     }
@@ -786,17 +788,17 @@ struct ChatView: View {
     // MARK: - Actions
 
     private func sendMessage() {
-        sendVoiceMessage(inputText.trimmingCharacters(in: .whitespaces))
+        sendVoiceMessage(chatState.inputText.trimmingCharacters(in: .whitespaces))
     }
 
-    // Voice-to-voice: send transcript from STT — skips setting inputText
+    // Voice-to-voice: send transcript from STT — skips setting chatState.inputText
     // so the user can still type while voice loop is active
     private func sendVoiceMessage(_ text: String) {
         let hasText = !text.isEmpty
-        guard (hasText || !attachments.isEmpty) && !isStreaming else { return }
-        inputText = ""
-        let currentAttachments = attachments
-        attachments.removeAll()
+        guard (hasText || !chatState.pendingAttachments.isEmpty) && !isStreaming else { return }
+        chatState.inputText = ""
+        let currentAttachments = chatState.pendingAttachments
+        chatState.pendingAttachments.removeAll()
         let modelID =
             currentModel.isEmpty
             ? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? ""
@@ -847,7 +849,7 @@ struct ChatBubble: View {
             VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
                 ChatHeader(isUser: isUser, timestamp: message.timestamp)
 
-                // Inline image previews (from user attachments)
+                // Inline image previews (from user chatState.pendingAttachments)
                 if !message.imageURLs.isEmpty {
                     imagePreview
                 }
@@ -1085,7 +1087,7 @@ struct TranscriptContentView: View {
 
                 case .video(let videoUrl):
                     // Mirrors upstream MLXChatExample MediaPreviewView: VideoPlayer + AVPlayer
-                    // for displaying video attachments from VLM multimodal input.
+                    // for displaying video chatState.pendingAttachments from VLM multimodal input.
                     InlineVideoPreview(videoURL: videoUrl)
                         .frame(height: 120)
                         .padding(.horizontal, 12)

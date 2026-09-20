@@ -142,6 +142,19 @@ final class ChatState {
     static let shared = ChatState()
     private init() {}
 
+    /// Composer draft (typed text + staged attachments) — lifted out of
+    /// `ChatView`'s `@State` so it survives the `TabDetailView` switch that
+    /// recreates ChatView on every tab change (Application `TabDetailView`
+    /// rebuilds its content branch; a view-local @State is discarded with it).
+    /// Codex `#46750` ("Preserve startup drafts and submit them when the
+    /// session is ready") invariant, applied to the GUI axis: edits are never
+    /// lost when the app is cold, tab-switched, or the engine goes not-ready.
+    /// Failure-path safety is complementary: `retryLastMessage()` below still
+    /// re-submits the last input explicitly — the draft here keeps the CURRENT
+    /// typed text editable in that window instead of leaving the field blank.
+    var inputText: String = ""
+    var pendingAttachments: [AttachedImage] = []
+
     /// Turn-end 停语音 seam:生产绑 `AudioIO.shared.stopSpeaking`（幂等）,
     /// 测试可覆盖为 spy 闭包断言「turn 终结 ⇒ 停 TTS」, 不依赖 AVFoundation。
     internal var turnEndVoiceStopHook: @MainActor () -> Void = { AudioIO.shared.stopSpeaking() }
@@ -559,13 +572,79 @@ final class ChatState {
     /// Rough token estimate: ~4 chars per token for English, ~2 for CJK.
     /// Internal (not private) so @testable import can exercise the real formula.
     /// CJK-aware estimation — Chinese/Japanese/Korean chars are 3 bytes in UTF-8
-    /// but represent ~1.5-2 chars per token, not 4 bytes per token like English.
+    /// but represent ~1.5-2 chars per token vs ~4 bytes/token for English.
     internal nonisolated func estimateTokens(_ text: String) -> Int {
         let utf16Count = text.utf16.count
-        // Swift String indexing uses UTF-16 code units, which maps closely to
-        // grapheme clusters for CJK (1 UTF-16 per CJK char) and handles emoji.
+        // Swift String indexing is UTF-16 code units, which maps closely to
+        // grapheme clusters for CJK (1 UTF-16 unit per CJK char).
         // ~3.5 UTF-16 units per token is a reasonable heuristic across EN/CJK mix
         return max(1, utf16Count / 3)
+    }
+
+    /// Parse a tool call's raw argument JSON into a flat `[String: String]`
+    /// (the shape `ToolCallPart.arguments` + `ToolCallRecord.arguments` store).
+    /// Codex `#46710` parity: values are surfaced, not dropped.
+    ///
+    /// - JSON object → each key's VALUE converted to a string scalar:
+    ///   strings pass through, numbers/bools render with their JSON
+    ///   representation, nested objects/arrays stay as their compact JSON.
+    /// - Anything else (array at top level, scalar, malformed, empty) →
+    ///   `[rawJSON: <original>]` so the information is NEVER silently lost
+    ///   while the flat-map shape is preserved. An empty/nil input stays `[:]`.
+    ///
+    /// Internal (not private) so `@testable` tests can pin the parsing
+    /// semantics exactly without standing up a real tool call.
+    internal nonisolated static func parseToolArguments(_ rawJSON: String?) -> [String: String] {
+        guard let rawJSON else { return [:] }
+        let trimmed = rawJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let data = trimmed.data(using: .utf8),
+              let top = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+        else {
+            return [:]
+        }
+
+        func valueToString(_ v: Any?) -> String {
+            switch v {
+            case let s as String:
+                return s
+            case let n as NSNumber:
+                // NSNumber covers Int/Double/Bool — use its JSON-like form.
+                if CFEqual(n, kCFBooleanTrue) {
+                    return "true"
+                }
+                if CFEqual(n, kCFBooleanFalse) {
+                    return "false"
+                }
+                return n.stringValue
+            default:
+                // Nested object/array → compact JSON so structure survives.
+                if let serialized = try? JSONSerialization.data(withJSONObject: v, options: [.fragmentsAllowed]) {
+                    if let text = String(data: serialized, encoding: .utf8) {
+                        return text
+                    }
+                }
+                return String(describing: v)
+            }
+        }
+
+        if let obj = top as? [String: Any] {
+            var result = [String: String]()
+            for (key, value) in obj {
+                result[key] = valueToString(value)
+            }
+            return result
+        }
+
+        // Top-level array / scalar / unexpected shape: keep the RAW text intact
+        // under a reserved key rather than dropping it.
+        let rawText: String
+        if let serialized = try? JSONSerialization.data(withJSONObject: top, options: [.fragmentsAllowed]) {
+            rawText = String(data: serialized, encoding: .utf8) ?? trimmed
+        } else {
+            rawText = trimmed
+        }
+        return ["rawJSON": rawText]
     }
 
     /// Convert DB MessageModel to our ChatMessage.
@@ -841,10 +920,20 @@ final class ChatState {
                         let cardId =
                             tcMeta.id.isEmpty
                                 ? String(UUID().uuidString.prefix(8)) : tcMeta.id
+                        // Codex `#46710` ("Restore rich tool details in persisted
+                        // TUI transcripts"): the engine's ToolCallMeta carries the
+                        // RAW argument JSON — surface it faithfully into the
+                        // transcript part so it both renders (detailed view) and
+                        // survives persistence into MessageRecords instead of
+                        // being dropped to an empty [:]. JSONSerialization
+                        // (not a bespoke parser) keeps the value faithful;
+                        // non-object / unparseable args fall back to an empty
+                        // map rather than crashing the streaming loop.
+                        let parsedArgs: [String: String] = Self.parseToolArguments(tcMeta.arguments)
                         let toolPart = ToolCallPart(
                             callId: cardId,
                             name: tcMeta.name,
-                            arguments: [:],
+                            arguments: parsedArgs,
                             resultSummary: tcMeta.resultSummary,
                             durationMs: tcMeta.durationMs
                         )
