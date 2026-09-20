@@ -570,7 +570,34 @@ final class ChatState {
 
     /// Convert DB MessageModel to our ChatMessage.
     private nonisolated func fromMessageModel(_ mm: MessageModel) -> ChatMessage {
-        ChatMessage(role: mm.role, content: mm.content, timestamp: mm.createdAt)
+        // SQLite round-trip: rebuild the structured tool-call parts from the
+        // persisted records so a re-opened session renders the same tool badges
+        // (name + real result + measured ms) that the live stream showed —
+        // NOT just a flat content string with the badges silently dropped.
+        if mm.role == "assistant", let calls = mm.toolCalls, !calls.isEmpty {
+            var parts: [TranscriptPart] = []
+            // Keep the persisted assistant text (the model's narration) as the
+            // first part so the restored message renders text + tool badges in
+            // the same order the live stream produced.
+            if !mm.content.trimmingCharacters(in: .whitespaces).isEmpty {
+                parts.append(.text(mm.content))
+            }
+            parts.append(
+                contentsOf:
+                    calls.map { rec in
+                        .toolCall(
+                            ToolCallPart(
+                                callId: rec.callId,
+                                name: rec.toolName,
+                                arguments: rec.arguments,
+                                resultSummary: rec.resultSummary,
+                                durationMs: rec.durationMs
+                            )
+                        )
+                    })
+            return ChatMessage(role: mm.role, parts: parts, timestamp: mm.createdAt)
+        }
+        return ChatMessage(role: mm.role, content: mm.content, timestamp: mm.createdAt)
     }
 
     /// Map Client-layer DirectChatChunk.InferencePhase → UI-layer InferencePhase
@@ -962,21 +989,32 @@ final class ChatState {
                         }
 
                         // Persist cleaned text (without thinking tags) for readability.
-                        // Include structured tool call records when available.
+                        // Include tool call records for SQLite round-trip — sourced from
+                        // the authoritative streaming metadata (real resultSummary +
+                        // durationMs from the engine's .toolResult event), NOT from the
+                        // regex-parsed fallback (which only carries arguments + 0ms).
                         if !cleanedText.trimmingCharacters(in: .whitespaces).isEmpty {
-                            // Convert detected ToolCall → ToolCallRecord for persistence
-                            let persistToolCalls: [ToolCallRecord]? = detectedToolCalls?.compactMap
-                            { tc in
-                                ToolCallRecord(
-                                    callId: tc.id,
-                                    toolName: tc.function.name,
-                                    arguments: [String: String](),
-                                    resultSummary: tc.function.arguments.isEmpty
-                                        ? "executed"
-                                        : "\(tc.function.arguments.utf8.count) bytes args",
-                                    durationMs: nil
-                                )
-                            }
+                            let persistToolCalls: [ToolCallRecord]? = streamingToolCalls.isEmpty
+                                ? detectedToolCalls?.compactMap { tc in
+                                    ToolCallRecord(
+                                        callId: tc.id,
+                                        toolName: tc.function.name,
+                                        arguments: [String: String](),
+                                        resultSummary: tc.function.arguments.isEmpty
+                                            ? "executed"
+                                            : "\(tc.function.arguments.utf8.count) bytes args",
+                                        durationMs: nil
+                                    )
+                                }
+                                : streamingToolCalls.map { tc in
+                                    ToolCallRecord(
+                                        callId: tc.callId,
+                                        toolName: tc.name,
+                                        arguments: tc.arguments,
+                                        resultSummary: tc.resultSummary,
+                                        durationMs: tc.durationMs
+                                    )
+                                }
                             await persistMessage(
                                 role: "assistant", content: cleanedText, toolCalls: persistToolCalls
                             )
