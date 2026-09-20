@@ -2,7 +2,14 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-09-19
+## [Unreleased] — 2026-09-05 → 2026-09-21
+
+**09-21 系统版本 floor 单源对齐（14.0）——闭合 09-19「4 源对齐」遗留漂移** — 09-19 条目（本文件 L75）已审计「系统版本 floor 自相矛盾」并声称「4 源全对齐 14.0」，但 `git log -S"LSMinimumSystemVersion', '14"` 在该修复涉及的活动文件上命中为空——**该对齐从未真实提交到活动路径**。活体复核（`git show HEAD:<file>`）确认三处仍与 `Package.swift: .macOS(.v14)` / README「macOS 14+」/ 本地 `Info.plist: 14.0` 自相矛盾：
+- **`.github/workflows/ci.yml:375`（`release` job 的真·release 产物 Info.plist）**：`LSMinimumSystemVersion` 写 `15.0` —— 每个发布包强制 macOS 14 用户「系统版本过低」，**直接违反 North Star「macOS 14.0+」**；
+- **`Localization.swift:996/1508`（en + zhHans About 对话框，用户可见）**：`.aboutVersion = "v1.0.0 · macOS 15+ / iOS 17+"`；
+- **`Application.swift:3`（产品入口源码注释）**：`/// Application entry point — macOS 15+ / iOS 17+ / iPadOS 17+`。
+
+**代码层本就 14 兼容**：唯一 macOS 15+ API `AudioIO.swift:126`（`AVCaptureDevice.requestAccess(.audio)`）已用 `if #available(macOS 15, *)` 运行期门控；`AudioStack.swift:87` 的「macOS 15+」是**功能能力阶梯描述**（15+ = enhanced mic 档位），非产品 floor，正确保留。→ 纯配置漂移，非运行时依赖。**修法**：三处 `15.0`/`macOS 15+` → `14.0`/`macOS 14+`（ci.yml 1 处、Localization 2 处、Application 1 处），floor 单一真源回归 **14.0**。门：`swift build --target ocoreai` **exit 0**；`make test-ci` **1984/1984 (367 suites) 全绿**；全库 floor sweep（Package/README/README.zh/ci.yml/Localization/Application）现**全 = 14.0/14+**，无测试断言 `15.0`（`grep Tests` 命中为空，安全改）。
 
 **09-19 mlx-swift pin bump `ab924c82`(#450) → `90194196`(origin/main, #477 era)** — 持续跟进 MLX 内核层：`git ls-remote` 发现 mlx-swift 远端 main 前进 9 commit（`ab924c82..90194196`）。逐条审计消费面（`git diff --stat` + Sources grep）：`#472` Stream 池化 + Device 继承修复（mlx#2118：Streams 是有限资源且泄漏 OS/Metal 句柄，池化复用——**长时自主推理的 GPU 资源热路径**）、`#471` 取消时 wired-memory ticket 生命周期修复（长程 decode 被取消不再留悬挂 ticket）、`#466` convolve even-kernel 修复（op 级）、`#477/#482/#479/#484/#473` 测试基建/分布式 API/日志 shim（0 行为面）。**破坏性变更核查**：`Device.deviceType` Optional→non-Optional + `Hashable` 化——grep 实证 ocoreai Sources 对 `Device.deviceType`/`convolve`/`Distributed`/`MLX.Stream` **零直接消费**（唯一 `deviceType` 命中是 `AVCaptureDevice` 无关 API），MLX 访问全经 MLXLM/MLXNN/MLXLMCommon 桥，变更透明。修法 = 纯 pin bump（`Package.swift` 注释同步记录 9 commit 审计 + 零消费面证据），本地自研零。门：`swift build --target ocoreai` **exit 0**；`make test-ci` **1948/1948 tests green（09-19，#472/#471 不炸宿主且全测试回归绿）**；iOS 27 xcodebuild 复验（pin 立足点）同批跑。
 

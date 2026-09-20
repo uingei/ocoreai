@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Application entry point — macOS 15+ / iOS 17+ / iPadOS 17+
+/// Application entry point — macOS 14+ / iOS 17+ / iPadOS 17+
 ///
 /// HIG-compliant structure:
 ///   • macOS: single-instance Window (not WindowGroup), standard title bar

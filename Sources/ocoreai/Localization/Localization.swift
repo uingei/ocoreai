@@ -993,7 +993,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 
         // Settings / About
         .aboutTitle: "ocoreai",
-        .aboutVersion: "v1.0.0 · macOS 15+ / iOS 17+",
+        .aboutVersion: "v1.0.0 · macOS 14+ / iOS 17+",
         .capabilityBackend: "Backends",
         .capabilityUnavailable: "Unavailable",
         .capabilityOn: "On",
@@ -1505,7 +1505,7 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
 
         // Settings / About
         .aboutTitle: "ocoreai",
-        .aboutVersion: "v1.0.0 · macOS 15+ / iOS 17+",
+        .aboutVersion: "v1.0.0 · macOS 14+ / iOS 17+",
         .capabilityBackend: "推理后端",
         .capabilityUnavailable: "不可用",
         .capabilityOn: "启用",

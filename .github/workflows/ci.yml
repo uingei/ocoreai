@@ -372,7 +372,7 @@ jobs:
             ('CFBundleName', 'ocoreai'),
             ('CFBundleShortVersionString', version),
             ('CFBundleVersion', version),
-            ('LSMinimumSystemVersion', '15.0'),
+            ('LSMinimumSystemVersion', '14.0'),
             ('NSHighResolutionCapable', 'true'),
             ('LSRequiresIPhoneOS', 'false'),
             ('NSCameraUsageDescription',
