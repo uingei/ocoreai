@@ -113,6 +113,19 @@ struct InferenceEvent {
         /// the upstream ``MLXLMCommon/ToolCall`` via `InferenceEvent.mlxToolCall(from:)`.
         case toolCall(ToolCall)
 
+        /// A dispatched tool call **finished** — carries the truthful outcome
+        /// (success/failure) + condensed result summary + **measured** wall duration.
+        ///
+        /// Baseline: codex protocol surface treats tool output as a first-class event
+        /// (`function_call_output`). Upstream mlx-swift-lm `Generation` has NO
+        /// completion event (only `.toolCall` / `.rejectedToolCall`), so this is the
+        /// ocoreai-owned surface that closes the GUI tool-card gap (resultSummary /
+        /// durationMs). Emitted once per dispatch from `toolDispatchClosure` after the
+        /// real `ToolRegistry.call` returns; **failure (denied / error) also surfaces**
+        /// so the UI never shows a finished call as still-running, and repeated
+        /// denials become visible to the user instead of a silent retry loop.
+        case toolResult(ToolResultMeta)
+
         /// Structured diagnostic: guided generation metadata.
         /// - grammarTerminated: true if the grammar constraint accepted the output
         ///   (JSON was completed and validated by the grammar).
@@ -142,6 +155,28 @@ struct InferenceEvent {
 
     /// Event payload
     var kind: Kind
+}
+
+/// Truthful outcome of one completed tool dispatch (see `Kind.toolResult`).
+///
+/// `durationMs` is the **measured** wall time around the real
+/// `ToolRegistry.call` (not an estimate); `failure` is non-nil for denial or
+/// handler-level errors so the UI can distinguish "ran and failed" from
+/// "still running" instead of a call with a nil summary.
+struct ToolResultMeta: Sendable, Codable {
+    let id: String
+    let name: String
+    let resultSummary: String
+    let durationMs: Double
+    let failure: String?
+
+    /// Condense a tool result into a UI-safe summary. Long outputs (file
+    /// dumps, logs) are capped so a single card cannot dominate the transcript.
+    static func summary(_ text: String, limit: Int = 200) -> String {
+        let squashed = text.replacingOccurrences(of: "\n", with: " ")
+        if squashed.count <= limit { return squashed }
+        return String(squashed.prefix(limit)) + "…"
+    }
 }
 
 // MARK: - Upstream → ocoreai type bridge

@@ -135,6 +135,9 @@ actor SummarizerActor {
                         userInfo: [NSLocalizedDescriptionKey: msg])
                 case .toolCall:
                     break
+                case .toolResult:
+                    // Tool finished — summarization only needs the final text
+                    break
                 case .reasoning(let r):
                     // Reasoning text from ReasoningEventEmitter — include in summary
                     summary += r

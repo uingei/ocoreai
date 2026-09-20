@@ -573,6 +573,7 @@ extension DirectInferenceClient {
                             isComplete: false,
                             metadata: .toolCall(
                                 .init(
+                                    id: tc.id ?? "",
                                     name: tc.function.name,
                                     arguments: tc.function.arguments.isEmpty
                                         ? nil : tc.function.arguments,
@@ -581,6 +582,12 @@ extension DirectInferenceClient {
                                 )),
                             phase: .toolExecuting(name: tc.function.name)
                         ))
+                case .toolResult(let tr):
+                    // Tool finished — forward the truthful outcome (result +
+                    // measured duration + failure) so the UI upgrades the
+                    // in-flight card in place instead of showing "…/0 ms" forever.
+                    continuation.yield(
+                        .init(text: nil, isComplete: false, metadata: .toolResult(tr)))
                 case .guidedGenDiagnostic(
                     grammarTerminated: _,
                     incompleteOutput: true
@@ -824,11 +831,26 @@ extension DirectInferenceClient {
                         + (tc.function.arguments.count > 60 ? "…" : "")
                 collectedToolCallParts?.append(
                     ToolCallPart(
-                        callId: tc.id,
+                        callId: tc.id ?? "",
                         name: tc.function.name,
                         resultSummary: summary,
                         durationMs: 0
                     ))
+            case .toolResult(let tr):
+                // Tool finished — upgrade the matching in-flight part with the
+                // truthful result + measured duration (or failure) so the
+                // non-streaming transcript is never stuck at "…/0 ms".
+                collectedToolCallParts = collectedToolCallParts ?? []
+                if let idx = collectedToolCallParts?.lastIndex(where: { $0.name == tr.name }) {
+                    let inFlight = collectedToolCallParts![idx]
+                    collectedToolCallParts![idx] = ToolCallPart(
+                        callId: inFlight.callId,
+                        name: tr.name,
+                        arguments: inFlight.arguments,
+                        resultSummary: tr.resultSummary,
+                        durationMs: tr.durationMs
+                    )
+                }
             case .reasoning(let r):
                 outputTok += 1
                 reasoningContent += r
@@ -914,6 +936,10 @@ struct DirectChatChunk {
     /// Metadata for structured inference events beyond plain text deltas.
     enum DirectChunkMetadata: Codable {
         case toolCall(ToolCallMeta)
+        /// A dispatched tool finished — carries truthful outcome + measured
+        /// duration (see `InferenceEvent.Kind.toolResult`). ChatViewModel upgrades
+        /// the matching in-flight tool card in place.
+        case toolResult(ToolResultMeta)
         case reasoningStart
         case reasoningEnd
         /// Context was auto-compacted to fit the per-model window before this
@@ -923,6 +949,7 @@ struct DirectChatChunk {
 
     /// Compact tool call metadata emitted during agent loop iterations.
     struct ToolCallMeta: Codable {
+        let id: String
         let name: String
         let arguments: String?
         let resultSummary: String?

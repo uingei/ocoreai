@@ -2848,13 +2848,40 @@ extension EnginePool {
                 // Previously: MLXLMCommon.JSONValue → JSONSerialization → String → registry.call().
                 // Now: MLXLMCommon.JSONValue → direct registry.call() via .anyValue.
                 toolDispatchClosure = {
-                    [registry, logger = self.logger, headless = options.headless] toolCall in
+                    [registry, logger = self.logger, headless = options.headless, continuation]
+                        toolCall in
                     // capture headless by value (Bool = Sendable, snapshot of the
                     // request flag for this inference).
                     // MLXLMCommon.ToolCall carries JSONValue args that need JSON-string
                     // serialization for ToolRegistry.call(arguments: String).
                     // Previously this went through _InterceptedToolCallTracker (JSON roundtrip)
                     // which added post-hoc delay; now direct inline serialization.
+                    let dispId = toolCall.id ?? ""
+                    let dispName = toolCall.function.name
+                    let dispStart = ContinuousClock.now
+                    // Truthful completion event (codex `function_call_output` baseline):
+                    // measure the real wall duration around `registry.call` and surface
+                    // it — success AND failure — so the GUI tool card shows what actually
+                    // happened (result + ms) instead of arguments + 0ms. The stream
+                    // continuation is Sendable and multi-producer safe (AsyncThrowingStream).
+                    let emitToolResult: (String, String?) -> Void = {
+                        summary, failure in
+                        let elapsed = dispStart.duration(to: .now)
+                        let ms =
+                            Double(elapsed.components.seconds) * 1000
+                            + Double(elapsed.components.attoseconds) / 1e15
+                        continuation.yield(
+                            .init(
+                                kind: .toolResult(
+                                    ToolResultMeta(
+                                        id: dispId, name: dispName,
+                                        resultSummary: summary, durationMs: ms,
+                                        failure: failure
+                                    )
+                                )
+                            )
+                        )
+                    }
                     let argsDict =
                         toolCall.function.arguments
                         .mapValues { $0.anyValue } as? [String: Any] ?? [:]
@@ -2871,6 +2898,7 @@ extension EnginePool {
                         logger.error(
                             "Tool dispatch: args serialization failed for \(toolCall.function.name)"
                         )
+                        emitToolResult("[dispatch_error: 参数序列化失败]", "参数序列化失败")
                         return
                             "[tool_dispatch_error: could not serialize arguments for \(toolCall.function.name)]"
                     }
@@ -2894,10 +2922,16 @@ extension EnginePool {
                     } catch let error as ToolError {
                         logger.warning(
                             "Tool call failed — surfacing to model for recovery: \(error)")
+                        emitToolResult(
+                            ToolResultMeta.summary("[失败] \(error.localizedDescription)"),
+                            error.localizedDescription)
                         return "[tool_error: \(error.localizedDescription)]"
                     } catch {
                         logger.warning(
                             "Tool call failed — surfacing to model for recovery: \(error)")
+                        emitToolResult(
+                            ToolResultMeta.summary("[失败] \(error.localizedDescription)"),
+                            error.localizedDescription)
                         return "[tool_error: \(error.localizedDescription)]"
                     }
                     // P-S2: Append fresh perception context to tool result so the model
@@ -2905,8 +2939,10 @@ extension EnginePool {
                     // Uses MainActor.run to bridge @MainActor PerceptionEngine boundary.
                     let freshContext = await fetchPerceptionContext()
                     if !freshContext.isEmpty {
+                        emitToolResult(ToolResultMeta.summary(toolResult), nil)
                         return toolResult + "\n" + freshContext
                     }
+                    emitToolResult(ToolResultMeta.summary(toolResult), nil)
                     return toolResult
                 }
             }

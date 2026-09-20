@@ -776,6 +776,10 @@ private func nonStreamWithToolCalling(
                 // The old `detectedToolCalls = [tc]` silently dropped every call but the
                 // last, corrupting multi-tool turns into a single-call response.
                 detectedToolCalls = (detectedToolCalls ?? []) + [tc]
+            case .toolResult:
+                // Tool finished — the real result already flows back to the model
+                // through toolDispatch; the wire API needs no extra SSE field.
+                break
             case .reasoning(let r):
                 // Reasoning from ReasoningEventEmitter — SEPARATE channel from
                 // `content`: mirrors the streaming `reasoning_content` path.
@@ -848,6 +852,10 @@ private func nonStreamWithToolCalling(
                         case .error(let msg):
                             logger.warning("Self-correction re-gen error: \(msg)")
                         case .toolCall:
+                            break
+                        case .toolResult:
+                            // Self-correction re-generation — tool outcome is
+                            // invisible to the correction loop; no-op.
                             break
                         case .reasoning(let r):
                             // Keep out of the corrected RESPONSE text — the
@@ -1387,6 +1395,12 @@ private func streamWithToolCalling(
                         ],
                     )
                     _ = yieldSSE(tcChunk, to: continuation)
+
+                /// .toolResult — tool finished. The wire/SSE surface already has the
+                /// `function_call_output` equivalent for wire consumers via the tool
+                /// result message that follows in the loop; no extra SSE field here.
+                case .toolResult:
+                    break
 
                 /// .error — send a raw diagnostic marker and terminate.
                 /// NOT assistant content: the SSE consumer appends every content

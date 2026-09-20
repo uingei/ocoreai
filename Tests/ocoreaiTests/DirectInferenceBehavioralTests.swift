@@ -25,6 +25,7 @@ struct ChunkMetadataTests {
     func toolCallRoundTrip() {
         let meta = DirectChatChunk.DirectChunkMetadata.toolCall(
             DirectChatChunk.ToolCallMeta(
+                id: "call_01",
                 name: "weather",
                 arguments: "{\"location\":\"SF\"}",
                 resultSummary: "19°C, partly cloudy",
@@ -40,10 +41,13 @@ struct ChunkMetadataTests {
 
         switch decoded {
         case .toolCall(let tc):
+            #expect(tc.id == "call_01")
             #expect(tc.name == "weather")
             #expect(tc.arguments == "{\"location\":\"SF\"}")
             #expect(tc.resultSummary == "19°C, partly cloudy")
             #expect(tc.durationMs == 245.0)
+        case .toolResult:
+            Issue.record("toolCall decoded as toolResult")
         case .reasoningStart:
             Issue.record("toolCall decoded as reasoningStart")
         case .reasoningEnd:
@@ -72,6 +76,88 @@ struct ChunkMetadataTests {
         )
         #expect(try! decodedStart.caseName() == "reasoningStart")
         #expect(try! decodedEnd.caseName() == "reasoningEnd")
+    }
+
+    @Test("toolResult metadata survives encode/decode — id, outcome, measured duration preserved")
+    func toolResultRoundTrip() {
+        let meta = DirectChatChunk.DirectChunkMetadata.toolResult(
+            ToolResultMeta(
+                id: "call_42",
+                name: "exec_command",
+                resultSummary: "sum=41452631, max=966898",
+                durationMs: 127.0,
+                failure: nil
+            )
+        )
+
+        let data = try! JSONEncoder().encode(meta)
+        let decoded = try! JSONDecoder().decode(
+            DirectChatChunk.DirectChunkMetadata.self, from: data
+        )
+
+        switch decoded {
+        case .toolResult(let tr):
+            #expect(tr.id == "call_42")
+            #expect(tr.name == "exec_command")
+            #expect(tr.resultSummary == "sum=41452631, max=966898")
+            #expect(tr.durationMs == 127.0)
+            #expect(tr.failure == nil)
+        case .toolCall:
+            Issue.record("toolResult decoded as toolCall")
+        case .reasoningStart, .reasoningEnd, .compactionNote:
+            Issue.record("toolResult decoded as another case")
+        }
+    }
+
+    @Test("toolResult with failure round-trips — denial is never lost in transit")
+    func toolResultFailureRoundTrip() {
+        let meta = DirectChatChunk.DirectChunkMetadata.toolResult(
+            ToolResultMeta(
+                id: "call_43",
+                name: "exec_command",
+                resultSummary: "[失败] 需要审批 — headless 通道不可交互",
+                durationMs: 0.4,
+                failure: "需要审批 — headless 通道不可交互"
+            )
+        )
+
+        let data = try! JSONEncoder().encode(meta)
+        let decoded = try! JSONDecoder().decode(
+            DirectChatChunk.DirectChunkMetadata.self, from: data
+        )
+
+        switch decoded {
+        case .toolResult(let tr):
+            #expect(tr.failure != nil)
+            #expect(tr.failure == "需要审批 — headless 通道不可交互")
+            #expect(tr.durationMs == 0.4)
+        default:
+            Issue.record("toolResult decoded as another case")
+        }
+    }
+
+    @Test("summary() — ≤200 原样 / 201 截到 200+… / 换行折空格(边界精确)")
+    func summaryTruncationExact() {
+        // 199 chars: untouched
+        let short = String(repeating: "a", count: 199)
+        #expect(ToolResultMeta.summary(short) == short)
+        // 200 chars: untouched (boundary)
+        let atLimit = String(repeating: "b", count: 200)
+        #expect(ToolResultMeta.summary(atLimit) == atLimit)
+        // 201 chars: truncated to 200 + "…"
+        let over = String(repeating: "c", count: 201)
+        let s = ToolResultMeta.summary(over)
+        #expect(s.hasSuffix("…"))
+        #expect(String(s.dropLast()).count == 200)
+        // newlines folded to spaces
+        #expect(ToolResultMeta.summary("a\nb\nc") == "a b c")
+        // explicit larger limit honored
+        let big = String(repeating: "d", count: 500)
+        let s500 = ToolResultMeta.summary(big, limit: 500)
+        #expect(s500 == big)
+        let s250 = ToolResultMeta.summary(big, limit: 250)
+        #expect(s250.hasSuffix("…"))
+        #expect(String(s250.dropLast()).count == 250)
     }
 }
 

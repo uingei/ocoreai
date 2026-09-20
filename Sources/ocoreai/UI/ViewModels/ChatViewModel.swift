@@ -809,14 +809,40 @@ final class ChatState {
                 if let meta = chunk.metadata {
                     switch meta {
                     case .toolCall(let tcMeta):
+                        // Preserve the engine's call id (when present) so the
+                        // later .toolResult event can match this exact card.
+                        let cardId =
+                            tcMeta.id.isEmpty
+                                ? String(UUID().uuidString.prefix(8)) : tcMeta.id
                         let toolPart = ToolCallPart(
-                            callId: String(UUID().uuidString.prefix(8)),
+                            callId: cardId,
                             name: tcMeta.name,
                             arguments: [:],
                             resultSummary: tcMeta.resultSummary,
                             durationMs: tcMeta.durationMs
                         )
                         streamingToolCalls.append(toolPart)
+                    case .toolResult(let tr):
+                        // Tool finished — upgrade the matching in-flight card with the
+                        // truthful result + measured duration (success or failure) so
+                        // the UI never shows a finished call as "…/still running".
+                        var hitIdx: Int? = nil
+                        if !tr.id.isEmpty {
+                            hitIdx = streamingToolCalls.lastIndex(where: { $0.callId == tr.id })
+                        }
+                        if hitIdx == nil {
+                            hitIdx = streamingToolCalls.lastIndex(where: { $0.name == tr.name })
+                        }
+                        if let idx = hitIdx {
+                            let inFlight = streamingToolCalls[idx]
+                            streamingToolCalls[idx] = ToolCallPart(
+                                callId: inFlight.callId,
+                                name: tr.name,
+                                arguments: inFlight.arguments,
+                                resultSummary: tr.resultSummary,
+                                durationMs: tr.durationMs
+                            )
+                        }
                     case .reasoningStart, .reasoningEnd:
                         // Signaled by ReasoningEventEmitter — reasoningContent already handled above
                         break

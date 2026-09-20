@@ -415,6 +415,9 @@ private func nonStreamAnthropicResponse(
                 logger.error("Generation error: \(errorMsg)")
             case .toolCall:
                 break
+            case .toolResult:
+                // Tool finished — informational for this handler, model context already has it
+                break
             case .reasoning(let r):
                 // Anthropic non-stream: reasoning text flows into accumulatedText
                 try Task.checkCancellation()
@@ -659,6 +662,9 @@ private func streamAnthropicResponse(
                     case .error(let errorMsg):
                         logger.error("Stream generation error: \(errorMsg)")
                     case .toolCall:
+                        break
+                    case .toolResult:
+                        // Tool finished — informational, model context already carried the result
                         break
                     case .reasoning:
                         // Reasoning text flows into Anthropic text delta as normal content
