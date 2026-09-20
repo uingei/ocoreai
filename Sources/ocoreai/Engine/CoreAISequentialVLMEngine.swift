@@ -3,7 +3,8 @@
 // Use of this source code is governed by a BSD-3-clause license that can
 // be found in the LICENSE file or at https://opensource.org/licenses/BSD-3-Clause
 
-// TODO: Add pipelined engine variant for higher throughput
+// Derived from coreai-models InferenceEngines (sequential variant).
+// Pipelined variant has landed as CoreAIPipelinedEngine.swift in this directory.
 
 #if canImport(CoreAI)
 import CoreAI
