@@ -684,7 +684,8 @@ struct ChatView: View {
                 .accessibilityHint(
                     isStreaming ? StringKey.stopStreamingHint.l : StringKey.sendMessageHint.l
                 )
-                .disabled(isStreaming && chatState.inputText.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(
+                    isStreaming && chatState.inputText.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
         .padding()

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import ocoreai
 
 // Reasoning persistence (codex #46711 parity) — persist → re-open → precise-value round-trip.
@@ -43,7 +44,8 @@ final class ReasoningPersistenceSQLiteTests {
             sessionId: sid, role: "assistant",
             content: "323 files, 47 lines",
             tokenCount: 8,
-            reasoning: "I need to list .txt files under /tmp/agent_test/ and count total lines. Let me use exec_command."
+            reasoning:
+                "I need to list .txt files under /tmp/agent_test/ and count total lines. Let me use exec_command."
         )
         await store1.close()
 
@@ -58,7 +60,10 @@ final class ReasoningPersistenceSQLiteTests {
         let m = msgs[0]
         #expect(m.role == "assistant")
         #expect(m.content == "323 files, 47 lines")
-        #expect(m.reasoning ?? "" == "I need to list .txt files under /tmp/agent_test/ and count total lines. Let me use exec_command.")
+        #expect(
+            m.reasoning ?? ""
+                == "I need to list .txt files under /tmp/agent_test/ and count total lines. Let me use exec_command."
+        )
         #expect(m.reasoning != nil, "reasoning must be non-nil after round-trip")
     }
 
@@ -95,14 +100,23 @@ final class ReasoningPersistenceSQLiteTests {
         // Rebuild via the same path that ChatState restore uses.
         let msg = ChatState.shared.fromMessageModel(m)
         let parts = msg.parts ?? []
-        #expect(parts.count == 3,
-                "parts must be [reasoning, text, toolCall] = 3, got \(parts.count)")
-        #expect(parts.first == .reasoning("The user asked for a directory scan. I should use exec_command with `ls`."))
+        #expect(
+            parts.count == 3,
+            "parts must be [reasoning, text, toolCall] = 3, got \(parts.count)")
+        #expect(
+            parts.first
+                == .reasoning(
+                    "The user asked for a directory scan. I should use exec_command with `ls`."))
         #expect(parts.count > 1 && parts[1] == .text("Found 2 files."))
-        #expect(parts.count == 3 && parts[2] == .toolCall(ToolCallPart(
-            callId: "tool1", name: "exec_command", arguments: ["command": "ls"],
-            resultSummary: "2 files", durationMs: 42
-        )))
+        #expect(
+            parts.count == 3
+                && parts[2]
+                    == .toolCall(
+                        ToolCallPart(
+                            callId: "tool1", name: "exec_command", arguments: ["command": "ls"],
+                            resultSummary: "2 files", durationMs: 42
+                        ))
+        )
     }
 
     // ── 3. Pre-migration row: reasoning column absent → reasoning = nil, no spurious part ──
@@ -117,7 +131,8 @@ final class ReasoningPersistenceSQLiteTests {
         // Simulate a row written BEFORE the migration ran.
         let nowUs = Int64(Date().timeIntervalSince1970 * 1_000_000)
         try await store.execute(
-            sql: "INSERT INTO messages (session_id, role, content, created_at, token_count, tool_calls) VALUES (?, 'assistant', 'legacy answer', ?, 3, '');",
+            sql:
+                "INSERT INTO messages (session_id, role, content, created_at, token_count, tool_calls) VALUES (?, 'assistant', 'legacy answer', ?, 3, '');",
             parameters: [sid, nowUs]
         )
 
@@ -135,8 +150,9 @@ final class ReasoningPersistenceSQLiteTests {
 
         let msg = ChatState.shared.fromMessageModel(mm)
         // No reasoning / toolCalls → no parts rebuild → flat content fallback.
-        #expect((msg.parts ?? []).isEmpty,
-                "pre-migration row with no toolCalls and no reasoning → flat fallback, no parts")
+        #expect(
+            (msg.parts ?? []).isEmpty,
+            "pre-migration row with no toolCalls and no reasoning → flat fallback, no parts")
         #expect(msg.content == "legacy answer")
     }
 }

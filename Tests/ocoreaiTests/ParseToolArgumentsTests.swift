@@ -20,7 +20,8 @@ struct ParseToolArgumentsTests {
 
     @Test("JSON object: string / number / bool / nested value, exact-value per key")
     func objectMappingIsExact() {
-        let args = #"{"command":"find . -name '*.txt' | wc -l","max":42,"verbose":true,"opts":{"flag":1}}"#
+        let args =
+            #"{"command":"find . -name '*.txt' | wc -l","max":42,"verbose":true,"opts":{"flag":1}}"#
         let parsed = ChatState.parseToolArguments(args)
 
         #expect(parsed.count == 4)

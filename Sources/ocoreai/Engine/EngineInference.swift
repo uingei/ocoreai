@@ -2849,7 +2849,7 @@ extension EnginePool {
                 // Now: MLXLMCommon.JSONValue → direct registry.call() via .anyValue.
                 toolDispatchClosure = {
                     [registry, logger = self.logger, headless = options.headless, continuation]
-                        toolCall in
+                    toolCall in
                     // capture headless by value (Bool = Sendable, snapshot of the
                     // request flag for this inference).
                     // MLXLMCommon.ToolCall carries JSONValue args that need JSON-string

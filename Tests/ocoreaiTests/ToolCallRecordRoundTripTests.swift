@@ -68,7 +68,8 @@ struct ToolCallRecordRoundTripTests {
         let latest = restored.first(where: { $0.role == "assistant" })
         #expect(latest != nil, "assistant message must come back")
         let calls = latest?.toolCalls
-        #expect(calls?.count == 2, "both records must survive; got \(String(describing: calls?.count))")
+        #expect(
+            calls?.count == 2, "both records must survive; got \(String(describing: calls?.count))")
 
         // exact-value, field-by-field — no floating tolerance:
         #expect(calls?[0].callId == "call_real_01")

@@ -85,7 +85,7 @@ struct ComposerDraftPlacementTests {
             // send, both surfaces are empty (guard `hasText || !attachments`).
             ChatState.shared.inputText = "will be sent"
             ChatState.shared.pendingAttachments = [
-                ChatState.AttachedImage(dataURL: "data:image/png;base64,CCCC"),
+                ChatState.AttachedImage(dataURL: "data:image/png;base64,CCCC")
             ]
             ChatState.shared.inputText = ""
             ChatState.shared.pendingAttachments.removeAll()
