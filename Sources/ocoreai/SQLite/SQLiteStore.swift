@@ -400,6 +400,7 @@ actor SQLiteStore {
                     created_at INTEGER NOT NULL,
                     token_count INTEGER DEFAULT 0,
                     tool_calls TEXT,
+                    reasoning TEXT,
                     embed_vector BLOB
                 );
                 """, db: db)
@@ -465,6 +466,20 @@ actor SQLiteStore {
         if !hasWorkspaceDir {
             try Self.exec(
                 sql: "ALTER TABLE sessions ADD COLUMN workspace_directory TEXT;", db: db)
+        }
+
+        // Reasoning trace persistence (codex #46711 parity): assistant messages
+        // carry their reasoning/thinking text so a re-opened session shows the
+        // SAME reasoning the live stream rendered instead of silently dropping
+        // it. Same probe-then-ADD pattern as workspace_directory (the system
+        // libsqlite3 on this platform rejects `ADD COLUMN IF NOT EXISTS`).
+        let messagesCols = try Self.query(
+            sql: "PRAGMA table_info(messages);", parameters: nil, db: db)
+        let hasReasoning =
+            messagesCols.contains { ($0["name"] as? String) == "reasoning" }
+        if !hasReasoning {
+            try Self.exec(
+                sql: "ALTER TABLE messages ADD COLUMN reasoning TEXT;", db: db)
         }
 
         // Plan 任务态 checkpoint（Recover 片 1：update_plan 快照持久化，重启可恢复面板态）

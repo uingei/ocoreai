@@ -48,6 +48,10 @@ struct MessageModel: Codable {
     let createdAt: Date
     var tokenCount: Int
     var toolCalls: [ToolCallRecord]?
+    /// Reasoning trace (codex `#46711` parity) — persists the assistant's
+    /// thinking so a re-opened session shows the SAME reasoning the live
+    /// stream rendered. `nil` for pre-migration rows and non-reasoning turns.
+    var reasoning: String?
     var embedVector: Data?
 
     enum CodingKeys: String, CodingKey {
@@ -57,6 +61,7 @@ struct MessageModel: Codable {
         case createdAt = "created_at"
         case tokenCount = "token_count"
         case toolCalls = "tool_calls"
+        case reasoning
         case embedVector = "embed_vector"
     }
 

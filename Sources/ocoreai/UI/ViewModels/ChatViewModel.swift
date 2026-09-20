@@ -552,7 +552,8 @@ final class ChatState {
     private func persistMessage(
         role: String,
         content: String,
-        toolCalls: [ToolCallRecord]? = nil
+        toolCalls: [ToolCallRecord]? = nil,
+        reasoning: String? = nil
     ) async {
         guard let compressor, let sid = sessionId else { return }
         do {
@@ -561,7 +562,8 @@ final class ChatState {
                 role: role,
                 content: content,
                 tokenCount: estimateTokens(content),
-                toolCalls: toolCalls
+                toolCalls: toolCalls,
+                reasoning: reasoning
             )
         } catch {
             // Non-fatal: message still exists in memory
@@ -598,8 +600,8 @@ final class ChatState {
         guard let rawJSON else { return [:] }
         let trimmed = rawJSON.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
-              let data = trimmed.data(using: .utf8),
-              let top = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+            let data = trimmed.data(using: .utf8),
+            let top = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
         else {
             return [:]
         }
@@ -619,7 +621,9 @@ final class ChatState {
                 return n.stringValue
             default:
                 // Nested object/array → compact JSON so structure survives.
-                if let serialized = try? JSONSerialization.data(withJSONObject: v, options: [.fragmentsAllowed]) {
+                if let serialized = try? JSONSerialization.data(
+                    withJSONObject: v, options: [.fragmentsAllowed])
+                {
                     if let text = String(data: serialized, encoding: .utf8) {
                         return text
                     }
@@ -639,7 +643,9 @@ final class ChatState {
         // Top-level array / scalar / unexpected shape: keep the RAW text intact
         // under a reserved key rather than dropping it.
         let rawText: String
-        if let serialized = try? JSONSerialization.data(withJSONObject: top, options: [.fragmentsAllowed]) {
+        if let serialized = try? JSONSerialization.data(
+            withJSONObject: top, options: [.fragmentsAllowed])
+        {
             rawText = String(data: serialized, encoding: .utf8) ?? trimmed
         } else {
             rawText = trimmed
@@ -648,32 +654,51 @@ final class ChatState {
     }
 
     /// Convert DB MessageModel to our ChatMessage.
-    private nonisolated func fromMessageModel(_ mm: MessageModel) -> ChatMessage {
+    // internal (not private) so the parts-rebuild contract (reasoning → text →
+    // toolCall order, codex `#46711` parity) is directly unit-testable without
+    // a live DB.
+    nonisolated func fromMessageModel(_ mm: MessageModel) -> ChatMessage {
         // SQLite round-trip: rebuild the structured tool-call parts from the
         // persisted records so a re-opened session renders the same tool badges
         // (name + real result + measured ms) that the live stream showed —
         // NOT just a flat content string with the badges silently dropped.
-        if mm.role == "assistant", let calls = mm.toolCalls, !calls.isEmpty {
+        //
+        // Codex `#46711` parity: the persisted `reasoning` column is restored
+        // as a `.reasoning` part at the TOP of the parts list (matching the
+        // live order: reasoning → text → tool calls), and a restored assistant
+        // message with ONLY reasoning (no tool calls) still gets its parts
+        // rebuilt so the thinking survives the round-trip instead of being
+        // flattened into the plain text bubble.
+        let hasToolCalls = (mm.toolCalls?.isEmpty == false)
+        let hasReasoning = (mm.reasoning?.isEmpty == false)
+        if mm.role == "assistant", hasToolCalls || hasReasoning {
             var parts: [TranscriptPart] = []
-            // Keep the persisted assistant text (the model's narration) as the
-            // first part so the restored message renders text + tool badges in
+            // Reasoning first (live-stream order: thinking precedes the text
+            // and the tool cards it produced).
+            if let reasoningText = mm.reasoning, !reasoningText.isEmpty {
+                parts.append(.reasoning(reasoningText))
+            }
+            // Keep the persisted assistant text (the model's narration) next
+            // so the restored message renders reasoning + text + tool badges in
             // the same order the live stream produced.
             if !mm.content.trimmingCharacters(in: .whitespaces).isEmpty {
                 parts.append(.text(mm.content))
             }
-            parts.append(
-                contentsOf:
-                    calls.map { rec in
-                        .toolCall(
-                            ToolCallPart(
-                                callId: rec.callId,
-                                name: rec.toolName,
-                                arguments: rec.arguments,
-                                resultSummary: rec.resultSummary,
-                                durationMs: rec.durationMs
+            if let calls = mm.toolCalls, !calls.isEmpty {
+                parts.append(
+                    contentsOf:
+                        calls.map { rec in
+                            .toolCall(
+                                ToolCallPart(
+                                    callId: rec.callId,
+                                    name: rec.toolName,
+                                    arguments: rec.arguments,
+                                    resultSummary: rec.resultSummary,
+                                    durationMs: rec.durationMs
+                                )
                             )
-                        )
-                    })
+                        })
+            }
             return ChatMessage(role: mm.role, parts: parts, timestamp: mm.createdAt)
         }
         return ChatMessage(role: mm.role, content: mm.content, timestamp: mm.createdAt)
@@ -919,7 +944,7 @@ final class ChatState {
                         // later .toolResult event can match this exact card.
                         let cardId =
                             tcMeta.id.isEmpty
-                                ? String(UUID().uuidString.prefix(8)) : tcMeta.id
+                            ? String(UUID().uuidString.prefix(8)) : tcMeta.id
                         // Codex `#46710` ("Restore rich tool details in persisted
                         // TUI transcripts"): the engine's ToolCallMeta carries the
                         // RAW argument JSON — surface it faithfully into the
@@ -1083,7 +1108,8 @@ final class ChatState {
                         // durationMs from the engine's .toolResult event), NOT from the
                         // regex-parsed fallback (which only carries arguments + 0ms).
                         if !cleanedText.trimmingCharacters(in: .whitespaces).isEmpty {
-                            let persistToolCalls: [ToolCallRecord]? = streamingToolCalls.isEmpty
+                            let persistToolCalls: [ToolCallRecord]? =
+                                streamingToolCalls.isEmpty
                                 ? detectedToolCalls?.compactMap { tc in
                                     ToolCallRecord(
                                         callId: tc.id,
@@ -1105,7 +1131,10 @@ final class ChatState {
                                     )
                                 }
                             await persistMessage(
-                                role: "assistant", content: cleanedText, toolCalls: persistToolCalls
+                                role: "assistant", content: cleanedText,
+                                toolCalls: persistToolCalls,
+                                reasoning: reasoningTextFinal?.isEmpty == false
+                                    ? reasoningTextFinal : nil
                             )
                         }
 

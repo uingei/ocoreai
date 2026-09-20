@@ -206,6 +206,12 @@ extension MessageModel {
         createdAt = Date(timeIntervalSince1970: Double(createdAtTs) / 1_000_000)
         tokenCount = Self.getInt(row, "token_count") ?? 0
         toolCalls = Self.deserializeToolCalls(row["tool_calls"]?.asString)
+        // `reasoning` column is added by the #46711 migration; pre-migration
+        // rows surface it as absent/nil (the probe-then-ADD keeps both shapes
+        // selectable). Empty-string values normalize to nil so `parts.append`
+        // logic (non-empty check) stays simple.
+        let reasoningText = row["reasoning"]?.asString
+        reasoning = (reasoningText?.isEmpty == false) ? reasoningText : nil
         embedVector = row["embed_vector"]?.asData
     }
 

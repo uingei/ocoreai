@@ -221,13 +221,15 @@ actor SessionCompressor {
         content: String,
         tokenCount: Int,
         toolCalls: [ToolCallRecord]? = nil,
+        reasoning: String? = nil,
     ) async throws -> Int64 {
         guard ["user", "assistant", "system", "tool"].contains(role) else {
             throw SQLiteError.executionFailed(detail: "Invalid role: \(role)")
         }
         return try await addUnsafe(
             sessionId: sessionId, role: role, content: content,
-            tokenCount: tokenCount, toolCalls: toolCalls)
+            tokenCount: tokenCount, toolCalls: toolCalls,
+            reasoning: reasoning)
     }
 
     private func addUnsafe(
@@ -236,6 +238,7 @@ actor SessionCompressor {
         content: String,
         tokenCount: Int,
         toolCalls: [ToolCallRecord]? = nil,
+        reasoning: String? = nil,
     ) async throws -> Int64 {
         let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
         let toolCallsJson: String?
@@ -248,16 +251,16 @@ actor SessionCompressor {
         }
 
         let sql = """
-            INSERT INTO messages (session_id, role, content, created_at, token_count, tool_calls)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO messages (session_id, role, content, created_at, token_count, tool_calls, reasoning)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """
 
         do {
             let params: [AnyHashable] =
                 if let json = toolCallsJson {
-                    [sessionId, role, content, now, tokenCount, json]
+                    [sessionId, role, content, now, tokenCount, json, (reasoning ?? "")]
                 } else {
-                    [sessionId, role, content, now, tokenCount, ""]
+                    [sessionId, role, content, now, tokenCount, "", (reasoning ?? "")]
                 }
             try await store.execute(sql: sql, parameters: params)
 
@@ -301,7 +304,7 @@ actor SessionCompressor {
     ) async throws -> [MessageModel] {
         let lim = limit ?? hotWindow
         let sql = """
-            SELECT id, session_id, role, content, created_at, token_count, tool_calls
+            SELECT id, session_id, role, content, created_at, token_count, tool_calls, reasoning
             FROM messages
             WHERE session_id = ?
             ORDER BY created_at DESC
@@ -329,11 +332,11 @@ actor SessionCompressor {
     func bookends(_ sessionId: Int64, count: Int = 3) async throws -> [MessageModel] {
         // First N
         let firstSql = """
-            SELECT id, session_id, role, content, created_at, token_count, tool_calls
+            SELECT id, session_id, role, content, created_at, token_count, tool_calls, reasoning
             FROM messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?
             """
         let lastSql = """
-            SELECT id, session_id, role, content, created_at, token_count, tool_calls
+            SELECT id, session_id, role, content, created_at, token_count, tool_calls, reasoning
             FROM messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?
             """
 
