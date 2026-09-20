@@ -4192,7 +4192,19 @@ extension EnginePool {
                             // the retry's output is not concatenated onto rejected text.
                             localStdAccumulated = ""
                             lastStopReason = nil
-                            stdRetryMessages = [StdToolCallRecovery.correctiveMessage]
+                            // Reason-aware corrective (09-21 live-evidence: the pinned
+                            // prompt says "malformed" — blind to undeclared-tool rejections
+                            // where naming the real surface is what converges recovery).
+                            stdRetryMessages = [
+                                StdToolCallRecovery.correctiveMessage(
+                                    reasonCode:
+                                        rejection.rejection.reason.rawValue,
+                                    availableTools: (registeredToolSpecs ?? []).compactMap { spec in
+                                        let f = spec["function"] as? [String: any Sendable]
+                                        return f?["name"] as? String
+                                    },
+                                )
+                            ]
                         }
                     }
                 }

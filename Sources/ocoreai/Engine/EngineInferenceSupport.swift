@@ -72,6 +72,53 @@ enum StdToolCallRecovery {
     static var correctiveMessage: MLXLMCommon.Chat.Message {
         .user(correctivePrompt)
     }
+
+    // reasonCode 取上游 `RejectedToolCall.Reason.rawValue`(pin c6446cf,
+    // Libraries/MLXLMCommon/Tool/RejectedToolCall.swift:13)的原始字符串 —
+    // 与引擎日志同源, 不另造映射。
+
+    /// Context-aware corrective prompt (live-evidence variant).
+    ///
+    /// Why the variant exists (09-21 活体实证): the pinned `correctivePrompt`
+    /// above covers "malformed tool call" only, and `decide()` is reason-blind
+    /// — a model that keeps issuing a *well-formed but undeclared* tool name
+    /// (e.g. `file` × 3) burns its whole retry budget without ever learning
+    /// which tools exist. The corrective below names the actually-registered
+    /// surface, so recovery can converge on the first retry instead of
+    /// aborting with 500s.
+    ///
+    /// `availableTools` = the tool names the client can actually dispatch on
+    /// this request (declared whitelist ∩ registry). Empty → no tools at all
+    /// (still the malformed variant, plus an explicit "no tools" note).
+    static func correctivePrompt(
+        reasonCode: String,
+        availableTools: [String]
+    ) -> String {
+        if reasonCode == "undeclared_tool" && !availableTools.isEmpty {
+            let names = availableTools.joined(separator: ", ")
+            return
+                "The previous tool call was rejected because it referenced a tool "
+                + "that is not registered. The only tool(s) available this turn: "
+                + names
+                + ". Re-issue a tool call using one of those names with strictly "
+                + "valid JSON arguments, or reply in plain text — do not emit "
+                + "prose before the tool call."
+        }
+        if availableTools.isEmpty {
+            return correctivePrompt
+                + " No tools are available for this turn — if you need to act, "
+                + "reply in plain text."
+        }
+        return correctivePrompt
+    }
+
+    /// Context-aware corrective turn fed back into the same ChatSession.
+    static func correctiveMessage(
+        reasonCode: String,
+        availableTools: [String]
+    ) -> MLXLMCommon.Chat.Message {
+        .user(correctivePrompt(reasonCode: reasonCode, availableTools: availableTools))
+    }
 }
 
 // MARK: - Guided Generation Helper Types
