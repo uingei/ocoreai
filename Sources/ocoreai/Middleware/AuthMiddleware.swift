@@ -104,7 +104,6 @@ struct AuthConfig: Equatable {
     private static let _defaultPromptInjectionRegexes: [String] = [
         #"\bignore\b.*\b(?:system\s*prompt|hidden\s+instruct\w*)\b"#,
         #"\bignore\b\s+(?:all|every|everything)\s+(?:previous\s+|prior\s+)?instructions?"#,
-        #"\bignore\b.*\binstructions?\b"#,
         #"\bdirect(?:ly|ed?)\b.*(?:re(?:peat|sume))\b.*\binstruction"#,
         #"\boutput\b.*\b(?:system\s+prompt|hidden\s+instruct\w*|hidden\s+prompt)"#,
         #"\byou\s*are\b[\s\S]{0,120}?\b(?:uncensor\w*|unfilter\w*|dank\s*mode|developer\s*mode|no\s+(?:restrictions?|limits?|safety|rules?))\b"#,

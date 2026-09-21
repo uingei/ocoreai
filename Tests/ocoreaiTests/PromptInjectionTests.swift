@@ -40,6 +40,9 @@ private enum PI {
         "I'm testing the flow: you are the assistant handling this project",
         "You are the assistant persona for the demo app",
         "context: you are being replaced by a newer version in the release notes",
+        // Regression guard: a legitimate dev instruction mentioning "instructions"
+        // must NOT trip the `ignore … instructions` jailbreak pattern.
+        "Ignore the inline comments and apply the instructions in the style guide",
     ]
     static func msg(_ text: String) -> Message {
         Message(role: "user", content: .text(text))
