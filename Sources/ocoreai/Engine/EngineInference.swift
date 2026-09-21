@@ -261,17 +261,34 @@ extension EnginePool {
                         )
                         return
                     }
-                    // 上游 coreai-models #248 之前，此分支静默降级：一句
-                    // logger.warning + 继续标准 CoreAI 无约束生成。调用方拿到
-                    // 一份冒充"已按 grammar 约束"的无约束输出——harness 层
-                    // 谎报（最大求真洞）。#248 让上游走
-                    // `ConstrainedDecodingStrategy.decode`(引擎无关 base
-                    // `generate(includeLogits)→output.logits→mask→sample`)，
-                    // static-shape 类 supportsLogits 引擎能真跑约束解码；ocoreai
-                    // 侧对应的步进子系统（prefix-reuse 契约）属独立批次吸收，
-                    // 本轮只修**诚实度**：引擎跑不了约束 → 大声报错，不静默返回
-                    // 无约束冒充已约束的输出。能力缺口的真值修另立批次，
-                    // 不在此夹带（InferenceCompactor 前车：夹带 = 造重复轮子）。
+                    // #248 (coreai-models 3e172fb) — supportsLogits engines
+                    // (static-shape etc.) that are neither GPU-capable nor
+                    // Sequential get the engine-agnostic strategy:
+                    // `generate(includeLogits:true) → output.logits` per step,
+                    // mask → sample → accept. The in-tree
+                    // `ConstrainedDecodingStrategy` (derived from coreai-models
+                    // `GuidedGeneration/ConstrainedDecodingStrategy.swift`, the
+                    // exact component #248 added) fulfils this on any
+                    // InferenceEngine whose `generate` prefix-reuses KV state —
+                    // StaticShape's `history.resolve` contract.
+                    if engine.supportsLogits {
+                        await _runLegacyConstrainedDecoding(
+                            engine: engine,
+                            modelId: modelId,
+                            messages: messages,
+                            input: input,
+                            sampling: sampling,
+                            options: options,
+                            metrics: metrics,
+                            continuation: continuation,
+                            cancellation: cancellation
+                        )
+                        return
+                    }
+                    // Engine exposes no per-step logits — neither the GPU-
+                    // bitmask path nor the CPU-logit fallback is possible.
+                    // Loud refusal only: never silently drop the grammar and
+                    // present unconstrained output as constrained.
                     let unsupportedVariant = String(describing: type(of: engine))
                     logger.error(
                         "Grammar constrained request but engine \(unsupportedVariant) does not support per-step logits for constrained decoding — refusing to silently drop grammar constraints (upstream coreai-models #248 era); request aborted, not degraded to unconstrained generation."
@@ -860,6 +877,163 @@ extension EnginePool {
                     kind: .error(
                         InferenceError.standardPathFailed(
                             "Pipelined constrained decoding failed: \(error.localizedDescription)"
+                        )
+                        .errorDescription ?? "error")))
+        }
+    }
+
+    /// Engine-agnostic grammar constrained decoding (#248 legacy path).
+    ///
+    /// Capability-selected between the GPU pipelined loop and the Sequential
+    /// CPU-feed loop: a `supportsLogits` engine that is neither
+    /// `ConstrainedGenerationCapable` nor a `CoreAISequentialEngine` (e.g. a
+    /// static-shape engine whose `generate` prefix-reuses KV state) drives the
+    /// in-tree `ConstrainedDecodingStrategy` — `generate(includeLogits:true)`
+    /// per token, xgrammar bitmask applied on the CPU logits, greedy/sample,
+    /// accept. Aligned with upstream coreai-models `3e172fb` (#248), which
+    /// added exactly this `ConstrainedDecodingStrategy` (in-tree derived) to
+    /// route non-GPU `supportsLogits` engines to constrained decoding instead
+    /// of silently dropping the grammar.
+    ///
+    /// Think/tool segmentation + residual flush reuse the pipelined loop's
+    /// helpers (`.text` / `.reasoning` / `.toolCall` event shape).
+    @available(macOS 27.0, iOS 27.0, *)
+    private func _runLegacyConstrainedDecoding(
+        engine: any InferenceEngine,
+        modelId: String,
+        messages: [Message]?,
+        input: [Int32],
+        sampling: SamplingConfiguration,
+        options: InferenceOptions,
+        metrics: PerRequestMetrics,
+        continuation: AsyncThrowingStream<InferenceEvent, Error>.Continuation,
+        cancellation: InferenceCancellation
+    ) async {
+        _ = messages
+        _ = cancellation
+        defer { continuation.finish() }
+
+        guard let provider = await tokenizerManager.getTokenizer(for: modelId) else {
+            continuation.yield(
+                .init(
+                    kind: .error(
+                        InferenceError.standardPathFailed(
+                            "No tokenizer registered for model: \(modelId)"
+                        )
+                        .errorDescription ?? "error")))
+            return
+        }
+        let tokenizer = provider.underlying
+
+        let jsonSchema =
+            options.grammarSchema
+                ?? """
+                {"type":"object","properties":{}}
+                """
+
+        let stopSequences = StopSequences(
+            for: tokenizer,
+            additionalSequences: (sampling.stopSequences ?? []).map {
+                Array(provider.underlying.encode(text: $0).map(Int32.init))
+            },
+            additionalEosTokenIds: [Int32(0)]
+        )
+
+        let maxTokens = options.maxTokens ?? 4096
+
+        let openMarker = "<think" + ">"
+        let closeMarker = "</think" + ">"
+        let primedInside: Bool
+        do {
+            let tailPrompt = try await detokenize(modelId: modelId, tokens: input)
+            primedInside = ThinkTagParser.promptEndsInsideReasoning(
+                renderedPromptTail: tailPrompt,
+                openMarker: openMarker,
+                closeMarker: closeMarker
+            )
+        } catch {
+            primedInside = false
+            logger.warning(
+                "Legacy constrained primedInside detection failed: \(error.localizedDescription)"
+            )
+        }
+        var thinkParser = ThinkTagParser(
+            open: openMarker, close: closeMarker, primedInside: primedInside)
+        var toolParser = ToolCallParser()
+        var accumulatedTokens: [Int32] = []
+        var accumulatedReasoningChars = 0
+
+        do {
+            // Engine-agnostic: any InferenceEngine exposing per-step logits
+            // (StaticShape's `generate` prefix-reuses KV via history.resolve —
+            // the `generate(includeLogits:true)` contract the strategy needs).
+            let sequence: ConstrainedDecodingStrategy.ConstrainedDecodedSequence =
+                try await ConstrainedDecodingStrategy(
+                    jsonSchema: jsonSchema
+                ).decode(
+                    from: .tokens(Array(input.map { Int($0) })),
+                    tokenizer: tokenizer,
+                    inferenceEngine: engine,
+                    samplingConfiguration: sampling,
+                    options: InferenceOptions(maxTokens: maxTokens, includeLogits: true),
+                    stopSequences: stopSequences
+                )
+
+            for try await result in sequence {
+                if Task.isCancelled || cancellation.isCancelled { break }
+
+                metrics.incrementGenerated()
+                if metrics.generatedTokenCount == 1 {
+                    metrics.firstTokenMs = metrics.overallMs
+                }
+                accumulatedTokens.append(result.tokenId)
+
+                let text = result.text
+                guard !text.isEmpty else { continue }
+
+                for thinkEvent in thinkParser.consume(text) {
+                    switch thinkEvent {
+                    case .reasoning(let segText):
+                        accumulatedReasoningChars += segText.utf8.count
+                        continuation.yield(.init(kind: .reasoning(segText)))
+                    case .text(let segText):
+                        for toolEvent in toolParser.consume(segText) {
+                            switch toolEvent {
+                            case .text(let plainText):
+                                continuation.yield(.init(kind: .text(plainText)))
+                            case .toolCall(let id, let name, let argsJSON):
+                                continuation.yield(
+                                    .init(
+                                        kind: .toolCall(
+                                            ToolCall(
+                                                id: id, type: "function",
+                                                function: ToolCallFunction(
+                                                    name: name, arguments: argsJSON))))
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            await self._flushResidualTokensAsync(
+                &accumulatedTokens,
+                modelId: modelId,
+                thinkParser: &thinkParser,
+                toolParser: &toolParser,
+                continuation: continuation,
+                metrics: metrics,
+                logger: self.logger,
+                stopReason: .eos,
+                tokenCount: metrics.generatedTokenCount,
+                reasoningTokenCount: accumulatedReasoningChars
+            )
+        } catch {
+            continuation.yield(
+                .init(
+                    kind: .error(
+                        InferenceError.standardPathFailed(
+                            "Legacy constrained decoding failed: \(error.localizedDescription)"
                         )
                         .errorDescription ?? "error")))
         }
