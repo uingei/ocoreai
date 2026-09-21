@@ -6,7 +6,7 @@
 /// - `codex-rs/protocol/src/protocol.rs:984` `AskForApproval`
 ///   （on-request / untrusted / granular / never）
 ///   → ocoreai 只取两档：`.interactive`（≈ on-request：高危才问）与
-///   `.never`（≈ never：不问、直接硬拒）。
+///   `.never`（≈ never：不问、立即按 `reason:` 拒绝并将理由回传模型供其换路）。
 /// `untrusted` / `granular` 依赖 codex 的 subprocess 沙箱与细粒度策略面，
 /// ocoreai 无此执行面，按「不自己造」不取。
 /// - `codex-rs/protocol/src/protocol.rs:4053` `ReviewDecision`

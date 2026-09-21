@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// `update_plan` — codex plan 工具原语(0.160.0 HEAD, #41630 默认启用, 逐行对齐):
+/// `update_plan` — codex plan 工具原语(codex HEAD 逐行对齐; 默认关、opt-in):
 ///
 ///   update_plan({explanation?: String, plan: [{step: String, status: enum}]})
 ///     → 校验通过后输出 `Plan updated`(codex `PLAN_UPDATED_MESSAGE`)
