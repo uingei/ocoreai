@@ -83,16 +83,33 @@ struct AuthConfig: Equatable {
 
     /// Precompiled prompt injection detection regexes.
     ///
-    /// Patterns are deliberately narrow (regex word-boundary anchored) to avoid
-    /// false positives on legitimate user messages like "You are an assistant
-    /// helping me translate" or "ignore this file path".
+    /// Raw strings `#"..."#` — single backslashes, no Swift escape processing
+    /// (verified end-to-end against NSReg/ICU in prompt-injection contract
+    /// tests before commit).
+    ///
+    /// Design contract (verified by ``PromptInjectionTests``):
+    /// - Catches: `ignore <system prompt | hidden instruction>`; `ignore
+    ///   (all|every|everything) [previous|prior] instructions`; `ignore
+    ///   …instructions`; `directly repeat the instruction`; `output …
+    ///   system prompt / hidden instruction`; `"you are …"` followed (within
+    ///   120 chars) by a jailbreak marker (`uncensored|dank mode|developer
+    ///   mode|no restrictions|no rules|no limits|no safety`); `"pretend
+    ///   (to be|you are|you're) …"` followed by jailbreak marker or model
+    ///   variant (`gpt\d+`); `"context: you are …"` followed by
+    ///   `admin|root|unrestricted|bypass`.
+    /// - Passes (legit): any `"you are the assistant / reviewer / persona …"`
+    ///   role framing without a jailbreak marker.
+    ///
     /// Compiled lazily on first access — no per-request regex compilation overhead.
     private static let _defaultPromptInjectionRegexes: [String] = [
-        #"\bignore\b.*\b(system\s*prompt|all\s*pri(?:or|r)\s*(?:instr|rules))\b"#,
+        #"\bignore\b.*\b(?:system\s*prompt|hidden\s+instruct\w*)\b"#,
+        #"\bignore\b\s+(?:all|every|everything)\s+(?:previous\s+|prior\s+)?instructions?"#,
+        #"\bignore\b.*\binstructions?\b"#,
         #"\bdirect(?:ly|ed?)\b.*(?:re(?:peat|sume))\b.*\binstruction"#,
-        #"\boutput\b.*\b(system\s*?prompt|hidden\s*?instr)\b"#,
-        #"\bcontext:\s*you\s*are\b"#,
-        #"\byou\s*are\s*(?:the\s*?(?:model|AI|assistant|GPT|ChatGPT|Claude))\b"#,
+        #"\boutput\b.*\b(?:system\s+prompt|hidden\s+instruct\w*|hidden\s+prompt)"#,
+        #"\byou\s*are\b[\s\S]{0,120}?\b(?:uncensor\w*|unfilter\w*|dank\s*mode|developer\s*mode|no\s+(?:restrictions?|limits?|safety|rules?))\b"#,
+        #"\bpretend\s+(?:to\s+be|you\s*(?:are|'re))\b.*\b(?:no\s+(?:restrictions?|rules?|safety)|uncensor\w*|gpt[-\w]?\d+|admin|god\s*mode)\b"#,
+        #"\bcontext:\s*you\s*are\b.*\b(admin|root|unrestricted|bypass)\b"#,
     ]
 
     private static let _defaultPromptInjectionRegexesCache: [NSRegularExpression] =
