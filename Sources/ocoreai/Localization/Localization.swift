@@ -145,13 +145,9 @@ public enum StringKey: String, CaseIterable, Sendable {
     // — Attachment —
     case attachFiles = "Attach.Files"
     case attachFilesHint = "Attach.FilesHint"
-    case imageAttachment = "Attach.ImageAttachment"
     case videoPlaceholder = "Attach.VideoPlaceholder"
-    case send = "Chat.Send"
-    case stop = "Chat.Stop"
     case tokPerSec = "Chat.TokPerSec"
     case chatTTFT = "Chat.TTFT"
-    case newConversation = "Chat.NewConversation"
     // — Worktree session (codex Agent axis) —
     case worktreeNew = "Chat.WorktreeNew"
     case worktreeNotRepo = "Chat.WorktreeNotRepo"
@@ -174,8 +170,6 @@ public enum StringKey: String, CaseIterable, Sendable {
     case verifyConnection = "Settings.VerifyConnection"
     case connected = "Settings.Connected"
     case disconnected = "Settings.Disconnected"
-    case connecting = "Settings.Connecting"
-    case connectionFailed = "Settings.ConnectionFailed"
     case serverSection = "Settings.ServerSection"
     case ensureBackend = "Settings.EnsureBackend"
     case performanceSection = "Settings.PerformanceSection"
@@ -187,7 +181,6 @@ public enum StringKey: String, CaseIterable, Sendable {
     case kvQuantToggleHint = "Settings.KVQuantToggleHint"
     case kvQuantBits = "Settings.KVQuantBits"
     case kvBudget = "Settings.KVBudget"
-    case kvBudgetHint = "Settings.KVBudgetHint"
     case specDecodingSection = "Settings.SpecDecodingSection"
     case specDecodingToggle = "Settings.SpecDecodingToggle"
     case specDecodingMode = "Settings.SpecDecodingMode"
@@ -199,7 +192,6 @@ public enum StringKey: String, CaseIterable, Sendable {
     case planToggle = "Settings.PlanToggle"
     case planHint = "Settings.PlanHint"
     case planCardTitle = "PlanCard.Title"
-    case planCardHint = "PlanCard.Hint"
     case logsSection = "Settings.LogsSection"
     case logLevel = "Settings.LogLevel"
     case profileToggle = "Settings.ProfileToggle"
@@ -212,11 +204,8 @@ public enum StringKey: String, CaseIterable, Sendable {
     case themeModeDark = "Settings.ThemeModeDark"
     case aboutSection = "Settings.AboutSection"
     case version = "Settings.Version"
-    case commitHash = "Settings.CommitHash"
-    case license = "Settings.License"
     case resetSettings = "Settings.ResetSettings"
     case resetConfirm = "Settings.ResetConfirm"
-    case allSections = "Settings.AllSections"
     case customSystemPrompt = "Settings.CustomSystemPrompt"
     case customSystemPromptHint = "Settings.CustomSystemPromptHint"
     case customSystemPromptPlaceholder = "Settings.CustomSystemPromptPlaceholder"
@@ -229,17 +218,11 @@ public enum StringKey: String, CaseIterable, Sendable {
     case perceptionToggle = "Settings.PerceptionToggle"
     case perceptionToggleHint = "Settings.PerceptionToggleHint"
     case perceptionFilesystem = "Settings.PerceptionFilesystem"
-    case perceptionFilesystemHint = "Settings.PerceptionFilesystemHint"
     case perceptionInternet = "Settings.PerceptionInternet"
-    case perceptionInternetHint = "Settings.PerceptionInternetHint"
     case perceptionPowerProfile = "Settings.PerceptionPowerProfile"
     case perceptionPowerProfileNormal = "Settings.PerceptionPowerNormal"
     case perceptionPowerProfileReduced = "Settings.PerceptionPowerReduced"
     case perceptionPowerProfileMinimal = "Settings.PerceptionPowerMinimal"
-    case perceptionSystem = "Settings.PerceptionSystem"
-    case perceptionSystemHint = "Settings.PerceptionSystemHint"
-    case perceptionSpeaker = "Settings.PerceptionSpeaker"
-    case perceptionSpeakerHint = "Settings.PerceptionSpeakerHint"
     case perceptionAudio = "Settings.PerceptionAudio"
     case perceptionAudioHint = "Settings.PerceptionAudioHint"
 
@@ -260,7 +243,6 @@ public enum StringKey: String, CaseIterable, Sendable {
     case tabModels = "Navigation.Models"
     case tabStatus = "Navigation.Status"
     case tabSettings = "Navigation.Settings"
-    case selectPanel = "Navigation.SelectPanel"
     case navigationTitle = "Navigation.Title"
     case sidebarNavigation = "Navigation.Sidebar"
 
@@ -269,18 +251,9 @@ public enum StringKey: String, CaseIterable, Sendable {
     case sectionWorkflow = "Sidebar.Section.Workflow"
     case sectionSystem = "Sidebar.Section.System"
     case sectionModels = "Sidebar.Section.Models"
-    case sectionGeneral = "Sidebar.Section.General"
     case readyRootHint = "Models.ReadyRootHint"
 
     // — Quick Metrics —
-    case metricOverview = "Metrics.Overview"
-    case metricOverviewAccessibility = "Metrics.Overview.Descripción"
-    case metricThroughput = "Metrics.Throughput"
-    case metricGPUMemory = "Metrics.GPUMemory"
-    case metricSessions = "Metrics.Sessions"
-    case metricStatus = "Metrics.Status"
-    case metricStatusActive = "Metrics.Status.Active"
-    case metricStatusIdle = "Metrics.Status.Idle"
 
     // — Chat —
     case chatWelcomeTitle = "Chat.WelcomeTitle"
@@ -291,16 +264,10 @@ public enum StringKey: String, CaseIterable, Sendable {
 
     // — Models —
     case noModelsLoaded = "Models.NoModelsLoaded"
-    case loadingModels = "Models.Loading"
     case loadingSessions = "Sessions.Loading"
     case loadingConfig = "Config.Loading"
     case modelLoadError = "Models.LoadError"
-    case modelLoadErrorDesc = "Models.LoadErrorDesc"
     case modelDeleteError = "Models.DeleteError"
-    case modelDeleteTitle = "Models.DeleteTitle"
-    case modelDeleteConfirm = "Models.DeleteConfirm"
-    case modelDeleteSuccess = "Models.DeleteSuccess"
-    case modelUnload = "Models.Unload"
     case modelDeleteButton = "Models.DeleteButton"
     case modelViewDeleteConfirmTitle = "Models.DeleteConfirmTitle"
     case modelViewDeleteConfirmMessage = "Models.DeleteConfirmMessage"
@@ -321,20 +288,14 @@ public enum StringKey: String, CaseIterable, Sendable {
     case multimodalScreenCaptureHint = "Multimodal.ScreenCaptureHint"
     case multimodalScreenLiveFeed = "Multimodal.ScreenLiveFeed"
     case multimodalScreenCaptureActive = "Multimodal.ScreenCaptureActive"
-    case multimodalSTTListening = "Multimodal.STTListening"
-    case multimodalSTTListeningHint = "Multimodal.STTListeningHint"
     case multimodalSTTPartialLabel = "Multimodal.STTPartialLabel"
 
     // — Dashboard —
     case dashboardTitle = "Dashboard.Title"
-    case dashboardPerformance = "Dashboard.Performance"
-    case dashboardSystemInfo = "Dashboard.SystemInfo"
     case dashboardTokenChartDesc = "Dashboard.TokenChartDesc"
     case dashboardMemChartDesc = "Dashboard.MemChartDesc"
 
     // — ViewState —
-    case connectionFailedTitle = "State.ConnectionFailed"
-    case connectionFailedDesc = "State.ConnectionFailedDesc"
 
     // — Status Pill —
     case statusRunning = "Status.Running"
@@ -354,8 +315,6 @@ public enum StringKey: String, CaseIterable, Sendable {
     // — Accessibility Labels —
     case appLabel = "A11y.AppLabel"
     case appTitle = "A11y.AppTitle"
-    case noPanelSelected = "A11y.NoPanelSelected"
-    case selectTab = "A11y.SelectTab"
     case modelSelectorLabel = "A11y.ModelSelectorLabel"
     case modelSelectorValueDefault = "A11y.ModelSelectorValueDefault"
     case clearConversationLabel = "A11y.ClearConversationLabel"
@@ -380,11 +339,6 @@ public enum StringKey: String, CaseIterable, Sendable {
     case areaGraphTokenDesc = "A11y.AreaGraphTokenDesc"
     case areaGraphGpuDesc = "A11y.AreaGraphGpuDesc"
     case kvCacheLineDesc = "A11y.KVCacheLineDesc"
-    case refreshModelLabel = "A11y.RefreshModelLabel"
-    case refreshModelHint = "A11y.RefreshModelHint"
-    case contextKey = "A11y.ContextKey"
-    case tokenizerKey = "A11y.TokenizerKey"
-    case modelRunningLabel = "A11y.ModelRunningLabel"
     case modelStartingLabel = "A11y.ModelStartingLabel"
     case modelServingLabel = "A11y.ModelServingLabel"
     case modelStoppedLabel = "A11y.ModelStoppedLabel"
@@ -407,8 +361,6 @@ public enum StringKey: String, CaseIterable, Sendable {
     case statusIndicatorsLabel = "A11y.StatusIndicatorsLabel"
 
     // — Accessibility —
-    case a11yMLXFormat = "A11y.MLXFormat"
-    case a11yModelScopeSource = "A11y.ModelScopeSource"
     case engineNotAvailable = "Engine.NotAvailable"
 
     // — Status Dot Labels —
@@ -442,16 +394,11 @@ public enum StringKey: String, CaseIterable, Sendable {
     case capabilityA11yOn = "About.CapabilityA11yOn"
     case capabilityA11yOff = "About.CapabilityA11yOff"
     // — Model Info —
-    case modelInfoContext = "ModelInfo.Context"
-    case modelInfoTokenizer = "ModelInfo.Tokenizer"
     // — VLM badge —
     case modelInfoVLM = "ModelInfo.VLM"
     // — Vocab size —
-    case modelInfoVocab = "ModelInfo.Vocab"
 
     // — Chart Axis Labels (macOS Charts) —
-    case chartTime = "Chart.Time"
-    case chartTokPerSec = "Chart.TokPerSec"
     case chartGB = "Chart.GB"
 
     // — Default Model —
@@ -459,7 +406,6 @@ public enum StringKey: String, CaseIterable, Sendable {
     case noModelSelected = "Model.NoModelSelected"
     case clear = "Chat.Clear"
     // — Refresh —
-    case refreshButton = "Action.Refresh"
     // — Retry —
     case tryAgain = "Action.TryAgain"
     // — Copy —
@@ -470,7 +416,6 @@ public enum StringKey: String, CaseIterable, Sendable {
     case regenerateMessage = "Action.RegenerateMessage"
     // — Copy code —
     case copyCode = "Action.CopyCode"
-    case codeCopied = "Action.CodeCopied"
     // — Code language fallback —
     case codeLanguageFallback = "Markdown.CodeLanguageFallback"
     // — Model param placeholder —
@@ -483,7 +428,6 @@ public enum StringKey: String, CaseIterable, Sendable {
     case sessionSearchPlaceholder = "Session.SearchPlaceholder"
     case sessionListEmpty = "Session.ListEmpty"
     case sessionSelectHint = "Session.SelectHint"
-    case sessionCreate = "Session.Create"
     case sessionDelete = "Session.Delete"
     case sessionDeleteConfirm = "Session.DeleteConfirm"
     case sessionSummary = "Session.Summary"
@@ -492,13 +436,11 @@ public enum StringKey: String, CaseIterable, Sendable {
     case sessionMessageCount = "Session.MessageCount"
     case sessionTokenCount = "Session.TokenCount"
     case memoryTitle = "Session.MemoryTitle"
-    case memoryEmpty = "Session.MemoryEmpty"
     case memorySearchPlaceholder = "Session.MemorySearchPlaceholder"
 
     // — Skills —
     case tabSkills = "Tab.Skills"
     case skillListEmpty = "Skill.ListEmpty"
-    case skillSelectHint = "Skill.SelectHint"
     case skillName = "Skill.Name"
     case skillCategory = "Skill.Category"
     case skillDescription = "Skill.Description"
@@ -517,19 +459,12 @@ public enum StringKey: String, CaseIterable, Sendable {
     case systemMCPCommand = "System.MCPCommand"
     case systemToolsSection = "System.ToolsSection"
     case systemToolsEmpty = "System.ToolsEmpty"
-    case systemToolName = "System.ToolName"
-    case systemToolReadOnly = "System.ToolReadOnly"
-    case systemToolDestructive = "System.ToolDestructive"
     case systemAuditSection = "System.AuditSection"
     case systemAuditEmpty = "System.AuditEmpty"
-    case systemAuditTool = "System.AuditTool"
-    case systemAuditCaller = "System.AuditCaller"
-    case systemAuditDuration = "System.AuditDuration"
     case systemAuditStatus = "System.AuditStatus"
     case systemReasoningSection = "System.ReasoningSection"
     case systemComplexityScore = "System.ComplexityScore"
     case systemThinkingBudget = "System.ThinkingBudget"
-    case systemRefresh = "System.Refresh"
     case systemClearAudit = "System.ClearAudit"
     case systemClearAuditConfirm = "System.ClearAuditConfirm"
 
@@ -593,19 +528,11 @@ public enum StringKey: String, CaseIterable, Sendable {
 
     // — Model Search —
     case modelSearchQuickLoad = "ModelSearch.QuickLoad"
-    case modelSearchExample = "ModelSearch.Example"
-    case modelSearchLoad = "ModelSearch.Load"
-    case modelSearchHubSource = "ModelSearch.HubSource"
     case modelSearchSelectHub = "ModelSearch.SelectHub"
     case modelSearchHFHub = "ModelSearch.HFHub"
     case modelSearchModelScope = "ModelSearch.ModelScope"
     case modelSearchSearching = "ModelSearch.Searching"
-    case modelSearchResults = "ModelSearch.Results"
-    case modelSearchLoading = "ModelSearch.Loading"
     case modelSearchDismiss = "ModelSearch.Dismiss"
-    case modelSearchTitle = "ModelSearch.Title"
-    case modelSearchLabel = "ModelSearch.Label"
-    case modelSearchHint = "ModelSearch.Hint"
     case modelSearchNoResults = "ModelSearch.NoResults"
     case modelSearchEmpty = "ModelSearch.Empty"
 
@@ -674,11 +601,7 @@ enum L10nTables {
         .chatPlaceholder: "Type a message...",
         .attachFiles: "Attach Files",
         .attachFilesHint: "Choose an image to attach",
-        .imageAttachment: "Image attachment",
         .videoPlaceholder: "Video",
-        .send: "Send",
-        .stop: "Stop",
-        .newConversation: "New Conversation",
         .worktreeNew: "New Worktree Session",
         .worktreeNotRepo: "Not a git repository: %s",
         .worktreeNoBranch:
@@ -704,8 +627,6 @@ enum L10nTables {
         .verifyConnection: "Verify Connection",
         .connected: "Connected",
         .disconnected: "Disconnected",
-        .connecting: "Connecting...",
-        .connectionFailed: "Connection Failed",
         .serverSection: "Server",
         .ensureBackend: "Ensure the backend is running and reachable",
         .performanceSection: "Performance",
@@ -717,7 +638,6 @@ enum L10nTables {
         .kvQuantToggleHint: "Auto-downgrade KV cache from FP16 → INT4 to save memory",
         .kvQuantBits: "Quantization Bits",
         .kvBudget: "KV Cache Budget (GB)",
-        .kvBudgetHint: "Maximum memory reserved for KV cache",
         .specDecodingSection: "Speculative Decoding",
         .specDecodingToggle: "Enable Speculative Decoding",
         .specDecodingMode: "Decoding Mode",
@@ -730,7 +650,6 @@ enum L10nTables {
         .planHint:
             "Disabled by default (upstream baseline: opt-in). When enabled, the agent maintains a task list (update_plan: add / reorder / complete) visible in chat.",
         .planCardTitle: "Task",
-        .planCardHint: "Live update_plan state — persists across restarts",
         .logsSection: "Logs & Profiling",
         .logLevel: "Log Level",
         .profileToggle: "Enable Performance Profiling",
@@ -743,11 +662,8 @@ enum L10nTables {
         .themeModeDark: "Dark",
         .aboutSection: "About",
         .version: "Version",
-        .commitHash: "Commit",
-        .license: "License",
         .resetSettings: "Reset All Settings",
         .resetConfirm: "Are you sure? This wipes all saved settings.",
-        .allSections: "All Settings",
         .customSystemPrompt: "Custom System Prompt",
         .customSystemPromptHint:
             "Your custom instructions are prepended to the system prompt with highest priority.",
@@ -764,17 +680,11 @@ enum L10nTables {
         .perceptionToggleHint:
             "Monitor camera, screen, network, filesystem, and internet for contextual awareness",
         .perceptionFilesystem: "Filesystem Monitoring",
-        .perceptionFilesystemHint: "Track file changes in watched directories",
         .perceptionInternet: "Internet Awareness",
-        .perceptionInternetHint: "Poll RSS feeds for environmental context",
         .perceptionPowerProfile: "Sampling Rate",
         .perceptionPowerProfileNormal: "Normal",
         .perceptionPowerProfileReduced: "Reduced",
         .perceptionPowerProfileMinimal: "Minimal",
-        .perceptionSystem: "System Context",
-        .perceptionSystemHint: "Thermal state, memory pressure, CPU load, uptime",
-        .perceptionSpeaker: "Speaker Feedback",
-        .perceptionSpeakerHint: "Monitor TTS output for audio loopback awareness",
         .perceptionAudio: "Ambient Audio",
         .perceptionAudioHint:
             "Continuously transcribe ambient speech into agent context (off by default)",
@@ -825,27 +735,17 @@ enum L10nTables {
         .tabModels: "Models",
         .tabStatus: "Status",
         .tabSettings: "Settings",
-        .selectPanel: "Select a panel",
         .navigationTitle: "Navigation",
         .sidebarNavigation: "Navigation",
 
         // Sidebar Sections
         .sectionServer: "Server",
         .sectionModels: "Models",
-        .sectionGeneral: "General",
         .readyRootHint: "Ready models",
         .sectionSystem: "System",
         .sectionWorkflow: "Workflow",
 
         // Quick Metrics
-        .metricOverview: "Overview",
-        .metricOverviewAccessibility: "System Overview",
-        .metricThroughput: "Throughput",
-        .metricGPUMemory: "GPU Memory",
-        .metricSessions: "Sessions",
-        .metricStatus: "Status",
-        .metricStatusActive: "Active",
-        .metricStatusIdle: "Idle",
 
         // Chat
         .chatWelcomeTitle: "Start a conversation",
@@ -856,7 +756,6 @@ enum L10nTables {
 
         // Models
         .noModelsLoaded: "No models loaded",
-        .loadingModels: "Loading Models",
         .loadingSessions: "Loading Sessions",
         .loadingConfig: "Loading Settings",
         .paramPlaceholder: "Value",
@@ -864,12 +763,7 @@ enum L10nTables {
         .reasoningTokMeter: "reasoning: %d tok",
         .mtpMeter: "mtp: %d/%d",
         .modelLoadError: "Load Failed",
-        .modelLoadErrorDesc: "The backend server may be unavailable",
         .modelDeleteError: "Delete Failed",
-        .modelDeleteTitle: "Model Actions",
-        .modelDeleteConfirm: "This will unload the model and remove cached files from disk.",
-        .modelDeleteSuccess: "Model deleted",
-        .modelUnload: "Unload",
         .modelDeleteButton: "Delete",
         .modelViewDeleteConfirmTitle: "Delete Model",
         .modelViewDeleteConfirmMessage:
@@ -891,20 +785,14 @@ enum L10nTables {
         .multimodalScreenCaptureHint: "Take a screenshot of the current display",
         .multimodalScreenLiveFeed: "Screen Feed",
         .multimodalScreenCaptureActive: "Capturing",
-        .multimodalSTTListening: "STT Listening",
-        .multimodalSTTListeningHint: "Speech recognition is active — transcribe to text",
         .multimodalSTTPartialLabel: "Live Transcription",
 
         // Dashboard
         .dashboardTitle: "Dashboard",
-        .dashboardPerformance: "System information",
-        .dashboardSystemInfo: "System information",
         .dashboardTokenChartDesc: "Token throughput chart",
         .dashboardMemChartDesc: "Memory chart: GPU usage and KV cache trends",
 
         // ViewState
-        .connectionFailedTitle: "Connection Failed",
-        .connectionFailedDesc: "The backend server may be unavailable",
 
         // Status Pill
         .statusRunning: "Running",
@@ -924,8 +812,6 @@ enum L10nTables {
         // Accessibility Labels
         .appLabel: "ocoreai",
         .appTitle: "ocoreai",
-        .noPanelSelected: "No panel selected",
-        .selectTab: "Select",
         .modelSelectorLabel: "Model Selector",
         .modelSelectorValueDefault: "No model selected",
         .clearConversationLabel: "Clear Conversation",
@@ -950,11 +836,6 @@ enum L10nTables {
         .areaGraphTokenDesc: "Area graph showing token throughput over time",
         .areaGraphGpuDesc: "Area graph showing GPU memory usage over time",
         .kvCacheLineDesc: "KV cache usage line graph",
-        .refreshModelLabel: "Refresh Model List",
-        .refreshModelHint: "Fetch the latest model list from the backend",
-        .contextKey: "Context",
-        .tokenizerKey: "Tokenizer",
-        .modelRunningLabel: "Model is running",
         .modelStartingLabel: "Model is starting",
         .modelServingLabel: "Model is serving inference",
         .modelStoppedLabel: "Model is stopped",
@@ -1001,14 +882,9 @@ enum L10nTables {
         .capabilityA11yOff: "disabled",
 
         // Model info
-        .modelInfoContext: "Context",
-        .modelInfoTokenizer: "Tokenizer",
         .modelInfoVLM: "Vision",
-        .modelInfoVocab: "Vocab",
 
         // Chart axis labels
-        .chartTime: "Time",
-        .chartTokPerSec: "tok/s",
         .chartGB: "GB",
 
         // Per-model inference params
@@ -1069,13 +945,11 @@ enum L10nTables {
         .memoryLoadFailed: "Failed to load memory",
         .settingsResetToDefaults: "Settings reset to defaults",
         .cancelButton: "Cancel",
-        .refreshButton: "Refresh",
         .tryAgain: "Try Again",
         .copyMessage: "Copy Message",
         .undoAction: "Undo",
         .regenerateMessage: "Regenerate",
         .copyCode: "Copy Code",
-        .codeCopied: "Copied!",
 
         // Markdown fallback
         .codeLanguageFallback: "code",
@@ -1085,7 +959,6 @@ enum L10nTables {
         .sessionSearchPlaceholder: "Search sessions...",
         .sessionListEmpty: "No sessions yet",
         .sessionSelectHint: "Select a session to view details",
-        .sessionCreate: "New Session",
         .sessionDelete: "Delete Session",
         .sessionDeleteConfirm: "Delete this session? All messages will be lost.",
         .sessionSummary: "Session Summary",
@@ -1094,13 +967,11 @@ enum L10nTables {
         .sessionMessageCount: "Messages",
         .sessionTokenCount: "Tokens",
         .memoryTitle: "Memory Events",
-        .memoryEmpty: "No memory events",
         .memorySearchPlaceholder: "Search memory...",
 
         // Skills
         .tabSkills: "Skills",
         .skillListEmpty: "No skills registered",
-        .skillSelectHint: "Select a skill to view details",
         .skillName: "Name",
         .skillCategory: "Category",
         .skillDescription: "Description",
@@ -1122,41 +993,24 @@ enum L10nTables {
         .systemComplexityHigh: "High",
         .systemToolsSection: "Tools",
         .systemToolsEmpty: "No tools registered",
-        .systemToolName: "Tool",
-        .systemToolReadOnly: "Read-only",
-        .systemToolDestructive: "Destructive",
         .systemAuditSection: "Audit Trail",
         .systemAuditEmpty: "No audit entries",
-        .systemAuditTool: "Tool",
-        .systemAuditCaller: "Caller",
-        .systemAuditDuration: "Duration",
         .systemAuditStatus: "Status",
         .systemReasoningSection: "Reasoning Pipeline",
         .systemComplexityScore: "Complexity Score",
         .systemThinkingBudget: "Thinking Budget",
-        .systemRefresh: "Refresh",
         .systemClearAudit: "Clear Audit Log",
         .systemClearAuditConfirm: "Clear all audit trail entries?",
 
         // Model Search
         .modelSearchQuickLoad: "Quick Load",
-        .modelSearchExample: "e.g. Qwen/Qwen2.5-7B-Instruct",
-        .modelSearchLoad: "Load",
-        .modelSearchHubSource: "Hub Source",
         .modelSearchSelectHub: "Select Hub",
         .modelSearchHFHub: "Search HF Hub…",
         .modelSearchModelScope: "Search ModelScope…",
         .modelSearchSearching: "Searching…",
-        .modelSearchResults: "Results",
-        .modelSearchLoading: "Loading",
         .modelSearchDismiss: "Dismiss",
-        .modelSearchTitle: "Load Model",
-        .modelSearchLabel: "Load Model",
-        .modelSearchHint: "Search and load models from HuggingFace or ModelScope",
         .modelSearchNoResults: "No models found for your search",
         .modelSearchEmpty: "No results found",
-        .a11yMLXFormat: "MLX format",
-        .a11yModelScopeSource: "ModelScope",
         .engineNotAvailable: "Engine not available",
 
         // Model search
@@ -1187,11 +1041,7 @@ enum L10nTables {
         .chatPlaceholder: "输入消息…",
         .attachFiles: "附加文件",
         .attachFilesHint: "选择要附加的图片",
-        .imageAttachment: "图片附件",
         .videoPlaceholder: "视频",
-        .send: "发送",
-        .stop: "停止",
-        .newConversation: "新对话",
         .worktreeNew: "新工作树会话",
         .worktreeNotRepo: "不是 git 仓库: %s",
         .worktreeNoBranch: "%s 无可解析的默认分支(需 remote 或本地 main/master)",
@@ -1221,8 +1071,6 @@ enum L10nTables {
         .verifyConnection: "验证连接",
         .connected: "已连接",
         .disconnected: "未连接",
-        .connecting: "连接中...",
-        .connectionFailed: "连接失败",
         .serverSection: "服务器",
         .ensureBackend: "确保推理后端正在运行并可访问",
         .performanceSection: "性能",
@@ -1234,7 +1082,6 @@ enum L10nTables {
         .kvQuantToggleHint: "自动将 KV 缓存从 FP16 降级到 INT4 以节省内存",
         .kvQuantBits: "量化精度",
         .kvBudget: "KV 缓存预算（GB）",
-        .kvBudgetHint: "为 KV 缓存保留的最大内存",
         .specDecodingSection: "推测解码",
         .specDecodingToggle: "启用推测解码",
         .specDecodingMode: "解码模式",
@@ -1246,7 +1093,6 @@ enum L10nTables {
         .planToggle: "启用 update_plan（agent 任务清单）",
         .planHint: "默认关闭（对齐上游 opt-in 基线）。开启后 agent 维护可见的任务清单（update_plan：增 / 改序 / 完成）。",
         .planCardTitle: "任务",
-        .planCardHint: "实时 update_plan 状态 — 重启后仍在",
         .logsSection: "日志与性能分析",
         .logLevel: "日志级别",
         .profileToggle: "启用性能分析",
@@ -1259,11 +1105,8 @@ enum L10nTables {
         .themeModeDark: "深色",
         .aboutSection: "关于",
         .version: "版本",
-        .commitHash: "提交",
-        .license: "许可证",
         .resetSettings: "恢复默认设置",
         .resetConfirm: "确定吗？这将清除所有已保存的设置。",
-        .allSections: "所有设置",
         .customSystemPrompt: "自定义系统提示",
         .customSystemPromptHint: "自定义指令会以最高优先级注入到系统提示中。",
         .customSystemPromptPlaceholder: "例如：保持简洁，使用用户首选语言回答。",
@@ -1276,17 +1119,11 @@ enum L10nTables {
         .perceptionToggle: "启用持续感知",
         .perceptionToggleHint: "监控摄像头、屏幕、网络、文件系统和互联网以获取上下文感知",
         .perceptionFilesystem: "文件系统监控",
-        .perceptionFilesystemHint: "跟踪监控目录中的文件变更",
         .perceptionInternet: "互联网感知",
-        .perceptionInternetHint: "轮询 RSS 订阅以获取环境上下文",
         .perceptionPowerProfile: "采样速率",
         .perceptionPowerProfileNormal: "标准",
         .perceptionPowerProfileReduced: "降低",
         .perceptionPowerProfileMinimal: "最低",
-        .perceptionSystem: "系统上下文",
-        .perceptionSystemHint: "温度状态、内存压力、CPU 负载、运行时间",
-        .perceptionSpeaker: "扬声器反馈",
-        .perceptionSpeakerHint: "监控 TTS 输出用于音频闭环感知",
         .perceptionAudio: "环境语音",
         .perceptionAudioHint: "持续将环境语音转写为 agent 上下文（默认关闭）",
         .voiceFeedbackSection: "语音反馈",
@@ -1323,7 +1160,6 @@ enum L10nTables {
         .tabModels: "模型",
         .tabStatus: "状态",
         .tabSettings: "设置",
-        .selectPanel: "选择面板",
         .navigationTitle: "导航",
 
         // Chat
@@ -1335,14 +1171,8 @@ enum L10nTables {
 
         // Models
         .noModelsLoaded: "未加载模型",
-        .loadingModels: "加载模型中…",
         .modelLoadError: "加载失败",
-        .modelLoadErrorDesc: "推理后端服务器可能不可用",
         .modelDeleteError: "删除失败",
-        .modelDeleteTitle: "模型操作",
-        .modelDeleteConfirm: "此操作将从内存卸载模型并删除磁盘上的缓存文件。",
-        .modelDeleteSuccess: "模型已删除",
-        .modelUnload: "卸载",
         .modelDeleteButton: "删除",
         .modelViewDeleteConfirmTitle: "删除模型",
         .modelViewDeleteConfirmMessage: "此操作将从内存中移除 %@ 并删除所有缓存文件，无法撤销。",
@@ -1363,8 +1193,6 @@ enum L10nTables {
         .multimodalScreenCaptureHint: "截取当前显示器画面",
         .multimodalScreenLiveFeed: "屏幕画面",
         .multimodalScreenCaptureActive: "捕获中",
-        .multimodalSTTListening: "语音识别中",
-        .multimodalSTTListeningHint: "语音识别已激活 — 语音转文字",
         .multimodalSTTPartialLabel: "实时转录",
 
         // Chat i18n gaps (UX-03)
@@ -1389,16 +1217,7 @@ enum L10nTables {
         .hubModelScope: "ModelScope",
         .hubTokensHint: "模型 Hub 访问 Token（HuggingFace、ModelScope）。安全存储在 macOS 钥匙串中。",
         .hubTokensTitle: "Hub Token",
-        .metricGPUMemory: "GPU 显存",
-        .metricOverview: "概览",
-        .metricOverviewAccessibility: "系统概览",
-        .metricSessions: "会话",
-        .metricStatus: "状态",
-        .metricStatusActive: "活跃",
-        .metricStatusIdle: "空闲",
-        .metricThroughput: "吞吐量",
         .notConfigured: "未配置",
-        .sectionGeneral: "通用",
         .sectionModels: "模型",
         .readyRootHint: "就绪模型目录",
         .sectionServer: "服务",
@@ -1409,14 +1228,10 @@ enum L10nTables {
 
         // Dashboard
         .dashboardTitle: "仪表盘",
-        .dashboardPerformance: "系统信息",
-        .dashboardSystemInfo: "系统信息",
         .dashboardTokenChartDesc: "Token 吞吐量图表",
         .dashboardMemChartDesc: "内存图表：GPU 显存与 KV 缓存",
 
         // ViewState
-        .connectionFailedTitle: "连接失败",
-        .connectionFailedDesc: "推理后端服务器可能不可用",
 
         // Status Pill
         .statusRunning: "运行中",
@@ -1436,8 +1251,6 @@ enum L10nTables {
         // Accessibility Labels
         .appLabel: "ocoreai",
         .appTitle: "ocoreai",
-        .noPanelSelected: "未选择面板",
-        .selectTab: "选择",
         .modelSelectorLabel: "模型选择器",
         .modelSelectorValueDefault: "未选择模型",
         .clearConversationLabel: "清空对话",
@@ -1462,11 +1275,6 @@ enum L10nTables {
         .areaGraphTokenDesc: "显示 Token 吞吐量随时间变化的区域图",
         .areaGraphGpuDesc: "显示 GPU 显存使用随时间变化的区域图",
         .kvCacheLineDesc: "KV 缓存使用量折线图",
-        .refreshModelLabel: "刷新模型列表",
-        .refreshModelHint: "从后端获取最新模型列表",
-        .contextKey: "上下文",
-        .tokenizerKey: "分词器",
-        .modelRunningLabel: "模型运行中",
         .modelStartingLabel: "模型加载中",
         .modelServingLabel: "模型推理中",
         .modelStoppedLabel: "模型已停止",
@@ -1513,34 +1321,26 @@ enum L10nTables {
         .capabilityA11yOff: "项未启用",
 
         // Model info
-        .modelInfoContext: "上下文",
-        .modelInfoTokenizer: "分词器",
         .modelInfoVLM: "多模态",
-        .modelInfoVocab: "词表",
 
         // Chart
-        .chartTime: "时间",
-        .chartTokPerSec: "tok/s",
         .chartGB: "GB",
 
         // Models
         .defaultModel: "默认",
         .noModelSelected: "未选择模型",
         .clear: "清空",
-        .refreshButton: "刷新",
         .tryAgain: "重试",
         .copyMessage: "复制消息",
         .undoAction: "撤销",
         .regenerateMessage: "重新生成",
         .copyCode: "复制代码",
-        .codeCopied: "已复制!",
 
         // Sessions
         .tabSessions: "会话",
         .sessionSearchPlaceholder: "搜索会话...",
         .sessionListEmpty: "暂无会话",
         .sessionSelectHint: "选择会话查看详情",
-        .sessionCreate: "新建会话",
         .sessionDelete: "删除会话",
         .sessionDeleteConfirm: "确定删除此会话？所有消息将丢失。",
         .sessionSummary: "会话摘要",
@@ -1549,13 +1349,11 @@ enum L10nTables {
         .sessionMessageCount: "消息",
         .sessionTokenCount: "Token 数",
         .memoryTitle: "记忆事件",
-        .memoryEmpty: "暂无记忆事件",
         .memorySearchPlaceholder: "搜索记忆...",
 
         // Skills
         .tabSkills: "技能",
         .skillListEmpty: "暂无技能",
-        .skillSelectHint: "选择技能查看详情",
         .skillName: "名称",
         .skillCategory: "分类",
         .skillDescription: "描述",
@@ -1573,19 +1371,12 @@ enum L10nTables {
         .systemMCPCommand: "命令",
         .systemToolsSection: "工具",
         .systemToolsEmpty: "暂无工具",
-        .systemToolName: "工具",
-        .systemToolReadOnly: "只读",
-        .systemToolDestructive: "破坏性",
         .systemAuditSection: "审计日志",
         .systemAuditEmpty: "暂无审计记录",
-        .systemAuditTool: "工具",
-        .systemAuditCaller: "调用者",
-        .systemAuditDuration: "耗时",
         .systemAuditStatus: "状态",
         .systemReasoningSection: "推理管线",
         .systemComplexityScore: "复杂度评分",
         .systemThinkingBudget: "思考预算",
-        .systemRefresh: "刷新",
         .systemClearAudit: "清空审计日志",
         .systemClearAuditConfirm: "清空所有审计记录？",
         .systemComplexityLow: "低",
@@ -1633,23 +1424,13 @@ enum L10nTables {
 
         // Model Search
         .modelSearchQuickLoad: "快速加载",
-        .modelSearchExample: "e.g. Qwen/Qwen2.5-7B-Instruct",
-        .modelSearchLoad: "加载",
-        .modelSearchHubSource: "模型源",
         .modelSearchSelectHub: "选择源",
         .modelSearchHFHub: "搜索 HuggingFace Hub…",
         .modelSearchModelScope: "搜索 ModelScope…",
         .modelSearchSearching: "搜索中…",
-        .modelSearchResults: "结果",
-        .modelSearchLoading: "加载中",
         .modelSearchDismiss: "关闭",
-        .modelSearchTitle: "加载模型",
-        .modelSearchLabel: "加载模型",
-        .modelSearchHint: "从 HuggingFace 或 ModelScope 搜索并加载模型",
         .modelSearchNoResults: "未找到匹配的模型",
         .modelSearchEmpty: "未找到结果",
-        .a11yMLXFormat: "MLX 格式",
-        .a11yModelScopeSource: "ModelScope 源",
         .engineNotAvailable: "引擎不可用",
 
         // Model search
