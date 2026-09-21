@@ -415,3 +415,43 @@ struct ChatStateDisplayTextTests {
         }
     }
 }
+
+// MARK: - consumerFacingError: known engine strings mapped to localized output
+
+/// Known engine failure modes must be replaced by a localized phrase (locale-
+/// independent assertions: the raw technical prefix is gone); unknown strings
+/// pass through verbatim so diagnostics are never swallowed.
+@Suite("ChatState: consumerFacingError maps raw engine errors")
+struct ConsumerFacingErrorTests {
+
+    @Test("Model not loaded is replaced by a localized phrase")
+    func modelNotLoaded() {
+        let out = ChatState.consumerFacingError("Model not loaded: gemma-4-e2b")
+        #expect(!out.hasPrefix("Model not loaded"), "raw technical string leaked: \(out)")
+        #expect(!out.isEmpty)
+    }
+
+    @Test("MLX model handle not loaded is replaced by a localized phrase")
+    func mlxHandleNotLoaded() {
+        let out = ChatState.consumerFacingError("MLX model handle not loaded: qwen")
+        #expect(!out.hasPrefix("MLX model handle"), "raw technical string leaked: \(out)")
+    }
+
+    @Test("Engine busy is replaced by a localized phrase")
+    func engineBusy() {
+        let out = ChatState.consumerFacingError("Engine busy")
+        #expect(!out.hasPrefix("Engine busy"), "raw technical string leaked: \(out)")
+    }
+
+    @Test("Detokenization failure is replaced by a localized phrase")
+    func detok() {
+        let out = ChatState.consumerFacingError("Detokenization failed — inference cannot proceed")
+        #expect(!out.contains("Detokenization failed"), "raw technical string leaked: \(out)")
+    }
+
+    @Test("Unknown strings pass through verbatim (diagnostics preserved)")
+    func unknownPassthrough() {
+        let raw = "LanguageModelSession error: unexpected kernel state"
+        #expect(ChatState.consumerFacingError(raw) == raw)
+    }
+}

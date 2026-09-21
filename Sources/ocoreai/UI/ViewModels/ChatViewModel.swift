@@ -175,6 +175,28 @@ final class ChatState {
         OutputSanitizer.removeToolCallArrays(stripThinkingTags(from: raw))
     }
 
+    /// Map a raw engine error string to a consumer-facing, localized phrase.
+    ///
+    /// "Breathe" principle: the error banner should read like a person explaining
+    /// what happened, not a stack trace. Known engine failure modes are mapped
+    /// to their localized counterparts; unknown strings are returned as-is so we
+    /// don't swallow potentially diagnostic detail.
+    internal nonisolated static func consumerFacingError(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("Model not loaded") || trimmed.hasPrefix("MLX model handle not loaded")
+        {
+            return StringKey.modelLoadError.l
+        }
+        if trimmed == "Engine busy" || trimmed.hasPrefix("Engine busy") {
+            return StringKey.errorEngineBusy.l
+        }
+        if trimmed.contains("Detokenization failed") {
+            return StringKey.generationFailed.l
+        }
+        // Fallback — leave the raw string so diagnostics aren't swallowed.
+        return raw
+    }
+
     var responseTextDisplay: String {
         Self.displayText(from: responseText)
     }
@@ -1004,8 +1026,13 @@ final class ChatState {
                         Self.logger.warning(
                             "Inference ended with error after accumulating \(responseText.utf8.count) bytes"
                         )
-                        // D1 fix: surface actual error from inference layer instead of generic placeholder
-                        errorMessage = chunk.error ?? StringKey.generationFailed.l
+                        // D1 fix: surface actual error from inference layer —
+                        // but localized, not raw ("breathe" consumer-facing
+                        // principle; the raw string is preserved for diagnostics
+                        // in the `raw` branch if unknown).
+                        errorMessage =
+                            chunk.error.map { Self.consumerFacingError($0) }
+                            ?? StringKey.generationFailed.l
                         responseText = ""
                     } else {
                         // Conversation complete — build structured parts.

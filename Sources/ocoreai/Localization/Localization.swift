@@ -466,6 +466,7 @@ public enum StringKey: String, CaseIterable, Sendable {
     case systemReasoningSection = "System.ReasoningSection"
     case a11yThinkingExpanded = "A11y.ThinkingExpanded"
     case a11yThinkingCollapsed = "A11y.ThinkingCollapsed"
+    case errorEngineBusy = "Error.EngineBusy"
     case systemComplexityScore = "System.ComplexityScore"
     case systemThinkingBudget = "System.ThinkingBudget"
     case systemClearAudit = "System.ClearAudit"
@@ -1003,6 +1004,7 @@ enum L10nTables {
         .systemReasoningSection: "Reasoning Pipeline",
         .a11yThinkingExpanded: "expanded",
         .a11yThinkingCollapsed: "collapsed",
+        .errorEngineBusy: "A previous reply is still generating. Tap Retry to ask again.",
         .systemComplexityScore: "Complexity Score",
         .systemThinkingBudget: "Thinking Budget",
         .systemClearAudit: "Clear Audit Log",
@@ -1384,6 +1386,7 @@ enum L10nTables {
         .systemReasoningSection: "推理管线",
         .a11yThinkingExpanded: "已展开",
         .a11yThinkingCollapsed: "已折叠",
+        .errorEngineBusy: "上一条回复仍在生成中，可直接重试。",
         .systemComplexityScore: "复杂度评分",
         .systemThinkingBudget: "思考预算",
         .systemClearAudit: "清空审计日志",
