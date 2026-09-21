@@ -79,6 +79,16 @@ final class SettingsStore {
         defaults.object(forKey: Key.kvQuantizationEnabled.rawValue) != nil
     }
 
+    /// Chat per-turn performance telemetry (tok/s, TTFT, reasoning/MTP token
+    /// meters). Consumer-facing default is OFF — the answer is the product,
+    /// "how many liters of air" is an owner knob, not the default screen.
+    /// `Bool` reads default to `false` for an untouched key, which is exactly
+    /// the desired consumer default (no IsSet bookkeeping needed).
+    var showPerformanceMetrics: Bool {
+        get { defaults.bool(forKey: Key.showPerformanceMetrics.rawValue) }
+        set { defaults.set(newValue, forKey: Key.showPerformanceMetrics.rawValue) }
+    }
+
     /// True when the user has explicitly chosen the KV-quantization bits.
     /// Untouched (`integer(forKey:)` → 0, which is not a legal width) must not
     /// be read as a selection; that dimension keeps the authored value.
@@ -537,6 +547,9 @@ final class SettingsStore {
         case kvQuantizationEnabled = "settings.kvCache.quantEnabled"
         case kvQuantizationBits = "settings.kvCache.quantBits"
         case kvCacheBudgetGB = "settings.kvCache.budgetGB"
+
+        // Chat experience
+        case showPerformanceMetrics = "settings.chat.showPerformanceMetrics"
 
         // Logs
         case logLevel = "settings.logs.level"

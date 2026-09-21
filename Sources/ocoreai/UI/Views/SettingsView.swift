@@ -150,6 +150,11 @@ struct SettingsView: View {
 
     private var performanceSection: some View {
         Section {
+            Toggle(
+                StringKey.perfStatsToggle.l,
+                isOn: $settingsState.showPerformanceMetrics
+            )
+            .accessibilityLabel(StringKey.perfStatsToggle.l)
             stepperLabel(
                 StringKey.pollInterval.l, $settingsState.pollIntervalSec, 1 ... 10,
                 desc: StringKey.pollInterval.l)

@@ -48,6 +48,7 @@ final class SettingsState {
         perceptionPowerProfile = SettingsStore.shared.perceptionPowerProfile
         perceptionAudioEnabled = SettingsStore.shared.perceptionAudioEnabled
         approvalPolicy = SettingsStore.shared.approvalPolicy
+        showPerformanceMetrics = SettingsStore.shared.showPerformanceMetrics
         enablePersonalVoice = SettingsStore.shared.enablePersonalVoice
         sttEngine = SettingsStore.shared.sttEngine
     }
@@ -90,6 +91,17 @@ final class SettingsState {
         didSet {
             guard oldValue != chartWindowSec else { return }
             SettingsStore.shared.chartWindowSec = chartWindowSec
+        }
+    }
+
+    // MARK: - Chat Experience Settings
+
+    /// Consumer-facing default OFF (breathable): per-turn tok/s, TTFT, and
+    /// reasoning/MTP token meters are hidden unless the owner opts in.
+    var showPerformanceMetrics: Bool = SettingsStore.shared.showPerformanceMetrics {
+        didSet {
+            guard oldValue != showPerformanceMetrics else { return }
+            SettingsStore.shared.showPerformanceMetrics = showPerformanceMetrics
         }
     }
 

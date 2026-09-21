@@ -148,6 +148,7 @@ public enum StringKey: String, CaseIterable, Sendable {
     case videoPlaceholder = "Attach.VideoPlaceholder"
     case tokPerSec = "Chat.TokPerSec"
     case chatTTFT = "Chat.TTFT"
+    case perfStatsToggle = "Chat.PerfStatsToggle"
     // — Worktree session (codex Agent axis) —
     case worktreeNew = "Chat.WorktreeNew"
     case worktreeNotRepo = "Chat.WorktreeNotRepo"
@@ -463,6 +464,8 @@ public enum StringKey: String, CaseIterable, Sendable {
     case systemAuditEmpty = "System.AuditEmpty"
     case systemAuditStatus = "System.AuditStatus"
     case systemReasoningSection = "System.ReasoningSection"
+    case a11yThinkingExpanded = "A11y.ThinkingExpanded"
+    case a11yThinkingCollapsed = "A11y.ThinkingCollapsed"
     case systemComplexityScore = "System.ComplexityScore"
     case systemThinkingBudget = "System.ThinkingBudget"
     case systemClearAudit = "System.ClearAudit"
@@ -583,6 +586,7 @@ enum L10nTables {
         .throughput: "Throughput",
         .ttft: "TTFT",
         .chatTTFT: "TTFT",
+        .perfStatsToggle: "Show per-turn stats (tok/s, TTFT, token meters)",
         .ttfb: "TTFB",
         .gpuMemory: "GPU Memory",
         .kvCache: "KV Cache",
@@ -997,6 +1001,8 @@ enum L10nTables {
         .systemAuditEmpty: "No audit entries",
         .systemAuditStatus: "Status",
         .systemReasoningSection: "Reasoning Pipeline",
+        .a11yThinkingExpanded: "expanded",
+        .a11yThinkingCollapsed: "collapsed",
         .systemComplexityScore: "Complexity Score",
         .systemThinkingBudget: "Thinking Budget",
         .systemClearAudit: "Clear Audit Log",
@@ -1051,6 +1057,7 @@ enum L10nTables {
         .truncatedBadge: "输出因 token 预算被截断，回复可能不完整",
         .tokPerSec: "Token/s",
         .chatTTFT: "首 Token",
+        .perfStatsToggle: "显示每轮统计（tok/s、TTFT、token 计数）",
         .phasePreparing: "准备模型中…",
         .phasePrefilling: "填充上下文中…",
         .phasePrefillingProgress: "上下文: %d/%d (%d%%)",
@@ -1375,6 +1382,8 @@ enum L10nTables {
         .systemAuditEmpty: "暂无审计记录",
         .systemAuditStatus: "状态",
         .systemReasoningSection: "推理管线",
+        .a11yThinkingExpanded: "已展开",
+        .a11yThinkingCollapsed: "已折叠",
         .systemComplexityScore: "复杂度评分",
         .systemThinkingBudget: "思考预算",
         .systemClearAudit: "清空审计日志",

@@ -115,11 +115,18 @@ struct ChatView: View {
     @State private var photoPickerItems: [PhotosUI.PhotosPickerItem] = []
     #endif
 
-    // streaming reasoning block collapse state — default expanded to preserve visibility
-    @State private var showStreamingReasoning = true
+    // streaming reasoning block collapse state — default COLLAPSED: the answer
+    // is the product, raw thinking is a disclosure, not the first screen
+    // (consumer-facing "breathable" default; owner can still expand inline).
+    @State private var showStreamingReasoning = false
+
+    // Shared settings observation — per-turn telemetry is an owner opt-in
+    // (consumer default OFF), see SettingsState.showPerformanceMetrics.
+    @State private var settingsState: SettingsState
 
     init() {
         _chatState = State(initialValue: ChatState.shared)
+        _settingsState = State(initialValue: SettingsState.shared)
     }
 
     /// Dispose NSEvent monitor handle — cancels DispatchSource to break RC cycle on tab switch
@@ -402,7 +409,19 @@ struct ChatView: View {
                                             .padding(.vertical, 4)
                                         }
                                         .buttonStyle(.plain)
-                                        .accessibilityHidden(true)  // Hidden from accessibility tree; reasoning appears inline
+                                        // Disclose control: it is the ONLY
+                                        // expand/collapse affordance. The body
+                                        // appears inline when expanded, so the
+                                        // button keeps full a11y here; state is
+                                        // exposed via .accessibilityValue. Was
+                                        // `accessibilityHidden(true)` under the
+                                        // "body is always inline" assumption,
+                                        // which held only when it defaulted
+                                        // expanded.
+                                        .accessibilityValue(
+                                            showStreamingReasoning
+                                                ? StringKey.a11yThinkingExpanded.l
+                                                : StringKey.a11yThinkingCollapsed.l)
                                         if showStreamingReasoning {
                                             Text(chatState.currentReasoningText)
                                                 .font(.ocoreaiText(13))
@@ -429,8 +448,12 @@ struct ChatView: View {
                                 MarkdownMessage(content: chatState.responseTextDisplay)
                                     .opacity(0.85)
                                     .transition(.opacity.combined(with: .move(edge: .bottom)))
-                                // Live streaming metrics indicator
-                                if isStreaming {
+                                // Live streaming metrics indicator — owner opt-in only.
+                                // Consumer-facing default: the answer streams clean;
+                                // tok/s / TTFT / token meters ("how many liters of
+                                // air") are surfaced only when the owner enables them
+                                // in Settings → Performance.
+                                if isStreaming && settingsState.showPerformanceMetrics {
                                     HStack(spacing: 8) {
                                         if let tok = chatState.currentTokPerSec {
                                             Text(
