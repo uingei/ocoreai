@@ -168,7 +168,8 @@ struct ChatCompletionRequest: Decodable {
         case presenceContextSize = "presence_context_size"
         case frequencyContextSize = "frequency_context_size"
         case sessionID = "session_id"
-        case tools, toolChoice
+        case tools
+        case toolChoice = "tool_choice"
         case parallelToolCalls = "parallel_tool_calls"
         case selfCorrection = "self_correction"
         case reasoning
