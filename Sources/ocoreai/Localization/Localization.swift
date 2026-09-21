@@ -106,7 +106,7 @@ public enum OCALocale: String, CaseIterable, Sendable {
 
 /// Every UI string gets a typed key. New text = new key + translations.
 /// No runtime string literal lookup — compile-time safe.
-public enum StringKey: String, CaseIterable {
+public enum StringKey: String, CaseIterable, Sendable {
     // — Dashboard —
     case systemOnline = "Dashboard.SystemOnline"
     case backend = "Dashboard.Backend"
@@ -426,7 +426,6 @@ public enum StringKey: String, CaseIterable {
     case a11yLoadModel = "A11y.LoadModel"
 
     // — Model param label —
-    case paramFieldPlaceholder = "ModelParam.FieldPlaceholder"
     case reasoningEffortLabel = "ModelParam.ReasoningEffort"
 
     // — Chat inference meters —
@@ -646,9 +645,9 @@ extension StringKey {
     }
 }
 
-private func resolve(key: StringKey, locale: OCALocale) -> String {
-    // Base translations (en) — fallback for missing
-    let base: [StringKey: String] = [
+enum L10nTables {
+    /// Base translations (en) — fallback for missing.
+    static let base: [StringKey: String] = [
         // Dashboard
         .systemOnline: "System Online",
         .backend: "Backend",
@@ -1164,8 +1163,8 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .modelErrorOccurred: "An error occurred",
     ]
 
-    // Translation overrides per locale
-    let zh: [StringKey: String] = [
+    /// Translation overrides per locale (zh-Hans).
+    static let zh: [StringKey: String] = [
         .systemOnline: "系统在线",
         .backend: "后端服务",
         .systemLoading: "系统加载中",
@@ -1658,16 +1657,11 @@ private func resolve(key: StringKey, locale: OCALocale) -> String {
         .modelErrorOccurred: "发生错误",
     ]
 
-    // Add more locale tables here as needed (ja, ko, fr, es...)
+}
 
-    let tables: [OCALocale: [StringKey: String]] = [
-        .zhHans: zh
-            // .ja: jaTrans,
-            // .ko: koTrans,
-    ]
-
-    if let override = tables[locale]?[key] {
+private func resolve(key: StringKey, locale: OCALocale) -> String {
+    if locale == .zhHans, let override = L10nTables.zh[key] {
         return override
     }
-    return base[key] ?? "⚠️ \(key.rawValue)"
+    return L10nTables.base[key] ?? "\u{26A0}\u{FE0F} \(key.rawValue)"
 }

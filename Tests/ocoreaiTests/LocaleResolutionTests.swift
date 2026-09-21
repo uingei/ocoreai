@@ -21,6 +21,68 @@ import Testing
 
 private let localeDefaultsKey = "settings.app.locale"
 
+@Suite("Locale — every delivered table is complete")
+struct LocaleTableCompletenessTests {
+    /// The invariant that was previously broken and undetected: a `StringKey`
+    /// case can be declared and used in the UI while silently absent from a
+    /// delivered table — then `localized(for:)` falls back to the wrong
+    /// language (or the raw key) silently: no red test, no user-visible error.
+    /// Lock: each delivered table maps EXACTLY the full key set, no extras.
+    @Test("en (base) table covers every StringKey exactly once, no orphans")
+    func baseTableSpansAllKeys() {
+        let all = Set(StringKey.allCases)
+        #expect(!all.isEmpty, "StringKey must not be empty")
+        let covered = Set(L10nTables.base.keys)
+        #expect(
+            all == covered,
+            "en table drift — missing: \(all.subtracting(covered).sorted { $0.rawValue < $1.rawValue }), orphan: \(covered.subtracting(all).sorted { $0.rawValue < $1.rawValue })"
+        )
+    }
+
+    @Test("zhHans table covers every StringKey exactly once, no orphans")
+    func zhTableSpansAllKeys() {
+        let all = Set(StringKey.allCases)
+        let covered = Set(L10nTables.zh.keys)
+        #expect(
+            all == covered,
+            "zh table drift — missing: \(all.subtracting(covered).sorted { $0.rawValue < $1.rawValue }), orphan: \(covered.subtracting(all).sorted { $0.rawValue < $1.rawValue })"
+        )
+    }
+
+    /// A delivered translation must be non-blank text — an empty string
+    /// renders as an invisible UI label, strictly worse than the raw key.
+    @Test("no delivered table contains a blank value")
+    func noBlankValues() {
+        for (key, value) in L10nTables.base {
+            #expect(
+                !value.trimmingCharacters(in: .whitespaces).isEmpty,
+                "blank en value: \(key.rawValue)")
+        }
+        for (key, value) in L10nTables.zh {
+            #expect(
+                !value.trimmingCharacters(in: .whitespaces).isEmpty,
+                "blank zh value: \(key.rawValue)")
+        }
+    }
+
+    /// Parity where it must hold: any key translated to non-English text in
+    /// zh must differ from the en text (a "translation" identical to the
+    /// original en string is a copy, not a localization). Keys that are
+    /// legitimately identical in both scripts (units, brand names) are
+    /// allowed — this only fails keys that LOOK localized but aren't.
+    @Test("zh values that contain CJK differ from their en counterpart")
+    func localizedStringsActuallyLocalize() {
+        for (key, zhValue) in L10nTables.zh {
+            let hasCJK = zhValue.unicodeScalars.contains {
+                $0.value >= 0x4E00 && $0.value <= 0x9FFF
+            }
+            if hasCJK, let enValue = L10nTables.base[key], enValue == zhValue {
+                #expect(false, "zh value identical to en: \(key.rawValue) = \(zhValue)")
+            }
+        }
+    }
+}
+
 @Suite("Locale — picker only lists delivered locales")
 struct LocaleAvailabilityTests {
     @Test("availableLocales is exactly en + zhHans (the two delivered tables)")
