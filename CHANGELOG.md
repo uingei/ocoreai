@@ -4,7 +4,7 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-09-21
 
-**09-21 i18n 死键清除（`c33b45a`）— 437 live → 364 live** — i18n 表长期靠「人眼对数」保完整性，死键（声明了 case、en/zh 两表都有翻译、但 UI/引擎/测试零引用的孤儿键）无声堆积。逐一 `grep StringKey.<name>` + rawValue 字符串跨全库 Sources+Tests 验证引用——首扫误报 74，二次碰撞剔除 `proactiveDraft`（经 `?? .proactiveDraft` 动态存活）后**精确 73**：`send`/`stop` 已被 SwiftUI `.submitLabel(.send)` / `chatState.stop()` 取代，`modelSearch*`/`metric*`/`a11y*`/`perception*`/`system*` 等组随视图重构遗留。三处（enum + en + zh 表）同删，diff = **219 纯删除 / 0 新增**。门：build exit 0；`make test-ci` **1988/1988 (368 suites)**。
+**09-21 i18n 死键清除（`c33b45a`）— 436 live → 363 live** — i18n 表长期靠「人眼对数」保完整性，死键（声明了 case、en/zh 两表都有翻译、但 UI/引擎/测试零引用的孤儿键）无声堆积。逐一 `grep StringKey.<name>` + rawValue 字符串跨全库 Sources+Tests 验证引用——首扫误报 74，二次碰撞剔除 `proactiveDraft`（经 `?? .proactiveDraft` 动态存活）后**精确 73**：`send`/`stop` 已被 SwiftUI `.submitLabel(.send)` / `chatState.stop()` 取代，`modelSearch*`/`metric*`/`a11y*`/`perception*`/`system*` 等组随视图重构遗留。三处（enum + en + zh 表）同删，diff = **219 纯删除 / 0 新增**。门：build exit 0；`make test-ci` **1988/1988 (368 suites)**。
 
 **09-21 i18n 字典提升 + 完整性不变量锁死（`cedadf7`）** — 第一性修复「缺完整性测试」这一类漏洞：`base`/`zh` 两份 ~436 条目字典从 `L10nTables` 函数体内提到**模块级 `enum L10nTables { static let base/zh }`**——每次 `localized(for:)` 不再重建字典（进程期一次构造，O(n)→O(1)），过 Swift 6 并发门。新增 **4 条完整性不变量**（`LocaleTableCompletenessTests`）：en 表 / zh 表各**恰好覆盖 `StringKey.allCases` 全集**（双向：不缺 + 无孤儿）、无空白翻译值、含 CJK 的 zh 值必须 ≠ en 值（抓「zh 直接复制 en」假翻译）。这 4 条把「表完整性」从人眼对数变成**编译期可验证的持续守卫**，后续加/删键若漏改任一处表，测试即红——死键/孤儿键漂移整类堵死。门：build exit 0；4 条测试全绿；**CI `cedadf7` success**（本地绿 ≠ CI 绿，双门都过）。
 
