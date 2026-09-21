@@ -48,10 +48,16 @@ struct SystemPromptContractTests {
         #expect(SystemPromptBuilder.codingAgentBase.contains("verified"))
     }
 
-    @Test("destructive command guard present")
-    func destructiveGuard() {
-        #expect(SystemPromptBuilder.codingAgentBase.contains("NEVER run destructive commands"))
-        #expect(SystemPromptBuilder.codingAgentBase.contains("git reset --hard"))
+    @Test(
+        "destructive-command guard absent from the base prompt — authority comes from ApprovalBroker"
+    )
+    func destructiveGuardAbsent() {
+        // 权限层（ApprovalBroker / approvalPolicy / codex ExecApprovalRequest）是
+        // 操作权威；prompt 不再内置 "NEVER run destructive" 类偏好硬禁
+        // （用户原则：拦权限=边界留，拦内容/价值观=偏好默认关）。
+        let base = SystemPromptBuilder.codingAgentBase
+        #expect(!base.contains("NEVER run destructive commands"))
+        #expect(!base.lowercased().contains("do not run destructive"))
     }
 
     @Test("built prompt (no skills) keeps the full contract")

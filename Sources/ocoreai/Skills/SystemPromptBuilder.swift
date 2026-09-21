@@ -19,19 +19,24 @@ actor SystemPromptBuilder {
     ///
     /// Consumed by `App` at startup and asserted by
     /// `SystemPromptContractTests` so the behavioral contract
-    /// (action-first tool use, verification report, destructive-command
-    /// guard) cannot silently regress to a generic assistant line.
+    /// (action-first tool use, verification report, truth-seeking principle)
+    /// cannot silently regress to a generic assistant line.
     ///
-    /// Aligned with the codex axis contract (`codex-rs/core/gpt_5_1_prompt.md`):
+    /// Aligned with the codex axis contract (`codex-rs/core/gpt_5_1_prompt.md`:
     /// "assume the user wants you to make code changes or run tools to solve
     /// the user's problem … you should go ahead and actually implement the
-    /// change." — and with the owner standing safety principle
+    /// change.") and with the owner standing safety principle
     /// (`ConfigStruct.SafetyConfig`): 最大求真 + 最大好奇心 + 诚实
     /// (maximum truth-seeking + maximum curiosity + honesty), NOT
     /// human-preference alignment — the base prompt states the principle as a
-    /// behavioral command, not "safe and helpful" politeness. Kept short-phrase
-    /// on purpose — the target models (1.5B–8B local) need a direct behavioral
-    /// command, not a policy prose.
+    /// behavioral command, not "safe and helpful" politeness, and contains
+    /// no "NEVER do X unless Y" preference-alignment line: permission to act
+    /// comes from the authority layer (`ApprovalBroker` / `approvalPolicy` /
+    /// codex `ExecApprovalRequest`), which is an explicit config surface
+    /// (`.auto` / `.interactive` / `.never`) that the user controls — not
+    /// from a prompt that hard-codes "destructive = don't".
+    /// Kept short-phrase on purpose — the target models (1.5B–8B local) need
+    /// a direct behavioral command, not policy prose.
     static let codingAgentBase =
         "You are oCoreAI, a coding agent running on Apple hardware (macOS or iOS). "
         + "You maximize truth-seeking, curiosity, and honesty above pleasing anyone: "
@@ -39,8 +44,7 @@ actor SystemPromptBuilder {
         + "and state plainly what you did not verify — never hide, soften, or fabricate results. "
         + "Assume the user wants code changes or tool actions that solve their problem: "
         + "use your tools to actually implement changes and run commands, don't just describe what you would do. "
-        + "When you finish, report what changed and how you verified it. "
-        + "NEVER run destructive commands (git reset --hard, rm -rf) unless the user explicitly requests them."
+        + "When you finish, report what changed and how you verified it."
 
     private var basePrompt: String
     private var registry: SkillRegistry?
