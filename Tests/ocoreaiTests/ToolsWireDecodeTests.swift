@@ -103,4 +103,62 @@ struct ToolsWireDecodeTests {
             schema != nil,
             "the json_schema guided path is independent of the tool surface")
     }
+
+    @Test("tool_choice object form {\"type\":\"function\",\"name\":\"x\"} decodes — NOT a 400")
+    func toolChoiceObjectPinDecodes() throws {
+        let body =
+            #"{"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"get_weather","parameters":{"type":"object","properties":{},"required":[]}}}],"tool_choice":{"type":"function","name":"get_weather"}}"#
+        let req = try JSONDecoder().decode(
+            ChatCompletionRequest.self,
+            from: body.data(using: .utf8)!)
+        // Normalized form: pin prefix + name (distinct from the bare-string namespace).
+        #expect(req.toolChoice == "function:get_weather")
+        #expect(req.tools?.count == 1)
+    }
+
+    @Test("object form with a tool literally named 'none' is NOT the string 'none'")
+    func toolChoiceObjectNamedNoneNoCollusion() throws {
+        let body =
+            #"{"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"none","parameters":{"type":"object","properties":{},"required":[]}}}],"tool_choice":{"type":"function","name":"none"}}"#
+        let req = try JSONDecoder().decode(
+            ChatCompletionRequest.self,
+            from: body.data(using: .utf8)!)
+        #expect(req.toolChoice == "function:none")
+        #expect(
+            effectiveTools(from: req)?.count == 1,
+            "object form is a PIN, not 'none' — surface must stay")
+    }
+
+    @Test("object form + tools[] — pin expressed as whitelist [name] (existing P0-3 mechanism)")
+    func toolChoiceObjectPinsSurface() throws {
+        let body =
+            #"{"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"get_weather","parameters":{"type":"object","properties":{},"required":[]}}}],"tool_choice":{"type":"function","name":"get_weather"}}"#
+        let req = try JSONDecoder().decode(
+            ChatCompletionRequest.self,
+            from: body.data(using: .utf8)!)
+        // The pin must NOT remove the surface (only "none" does).
+        #expect(effectiveTools(from: req)?.count == 1)
+    }
+
+    @Test(
+        "object form with unknown type rejects cleanly (400 on a real decode error, not silent nil)"
+    )
+    func toolChoiceObjectUnknownTypeThrows() {
+        let body =
+            #"{"model":"m","messages":[{"role":"user","content":"hi"}],"tool_choice":{"type":"bogus","name":"x"}}"#
+        #expect(
+            (try? JSONDecoder().decode(ChatCompletionRequest.self, from: body.data(using: .utf8)!))
+                == nil,
+            "unsupported tool_choice type must throw, not decode silently")
+    }
+
+    @Test("object form without name rejects cleanly")
+    func toolChoiceObjectMissingNameThrows() {
+        let body =
+            #"{"model":"m","messages":[{"role":"user","content":"hi"}],"tool_choice":{"type":"function"}}"#
+        #expect(
+            (try? JSONDecoder().decode(ChatCompletionRequest.self, from: body.data(using: .utf8)!))
+                == nil,
+            "tool_choice:{type:function} without name must throw")
+    }
 }

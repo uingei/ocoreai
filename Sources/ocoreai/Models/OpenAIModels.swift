@@ -242,7 +242,13 @@ struct ChatCompletionRequest: Decodable {
         presencePenalty = (try? c.decodeIfPresent(Float.self, forKey: .presencePenalty)) ?? 0
         sessionID = try c.decodeIfPresent(String.self, forKey: .sessionID)
         tools = try c.decodeIfPresent([ToolDef].self, forKey: .tools)
-        toolChoice = try c.decodeIfPresent(String.self, forKey: .toolChoice)
+        // `tool_choice` is a wire union: bare string ("auto" | "none" |
+        // "required") OR object {"type":"function","name":"<tool>"} (pin).
+        // Both normalize into internal vocab; the pin decodes as
+        // "function:<name>" (namespace-disjoint from a tool literally named
+        // "none"). Unknown type / missing name → throw (whole request 400,
+        // never silent nil). See toolChoice(from:forKey:).
+        toolChoice = try toolChoice(from: c, forKey: .toolChoice)
         parallelToolCalls = try c.decodeIfPresent(Bool.self, forKey: .parallelToolCalls)
         reasoning = try c.decodeIfPresent(Bool.self, forKey: .reasoning)
         // Wire-contract completeness: these fields were declared with
@@ -259,6 +265,47 @@ struct ChatCompletionRequest: Decodable {
         streamOptions = try c.decodeIfPresent(StreamOptions.self, forKey: .streamOptions)
         reasoningLevel = try c.decodeIfPresent(String.self, forKey: .reasoningLevel)
         reasoningEffort = try c.decodeIfPresent(String.self, forKey: .reasoningEffort)
+    }
+
+    enum PinWireKeys: String, CodingKey {
+        case type
+        case name
+    }
+
+    /// Decodes the `tool_choice` wire union (string | pin object) into the
+    /// internal vocabulary:
+    /// - `"auto"` / `"none"` / `"required"` — as-is
+    /// - `{"type":"function","name":"<n>"}` — `"function:<n>"` (pin; the
+    ///   `function:` prefix keeps the pin namespace disjoint from the bare
+    ///   values — a tool literally named "none" decodes as `function:none`)
+    /// - unknown `type` / missing `name` — throw (whole request → 400),
+    ///   never silently dropped.
+    private func toolChoice(from c: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys)
+        throws -> String?
+    {
+        guard c.contains(key) else { return nil }
+
+        // Bare-string path first (the common case).
+        if let raw = try? c.decodeIfPresent(String.self, forKey: key) {
+            return raw
+        }
+
+        // Pin object form. Use a nested container — the only Foundation
+        // primitive that reads a sub-object by key (no custom JSON bridge,
+        // no recursion: `nestedContainer` re-decodes the same JSON at that
+        // key, exactly as `init(from:)` for nested types does).
+        let n = try c.nestedContainer(keyedBy: PinWireKeys.self, forKey: key)
+        let type = try n.decodeIfPresent(String.self, forKey: .type)
+        guard type == "function" else {
+            throw DecodingError.dataCorrupted(
+                .init(
+                    codingPath: c.codingPath,
+                    debugDescription:
+                        "unsupported tool_choice type '\(type ?? "<absent>")' (expected 'function')"
+                ))
+        }
+        let name = try n.decode(String.self, forKey: .name)  // missing → throws → 400
+        return "function:\(name)"
     }
 }
 
