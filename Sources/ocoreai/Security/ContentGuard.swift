@@ -597,39 +597,39 @@ public actor ContentGuard {
         // --- Jailbreak patterns ---
         patterns[.jailbreak] = [
             // classic DAN / role play bypass
-            regex("pretend\\\\s+(you )?are", options),
-            regex("act\\\\s+(as )?if", options),
+            regex("pretend\\s+(you )?are", options),
+            regex("act\\s+(as )?if", options),
             regex(
-                "(ignore|disregard|bypass)\\\\s+(all|everything|every)?\\\\s*(rules?|instructions?|restrictions?|guidelines?)",
+                "(ignore|disregard|bypass)\\s+(?:all\\s+|everything\\s+|every\\s+)?(?:the\\s+|your\\s+)?(rules?|instructions?|restrictions?|guidelines?)",
                 options),
             // mode switching
-            regex("(dev(?:eloper)?|developer|dev)\\\\s*mode", options),
-            regex("(uncensored?|unfiltered?|raw|dank)\\\\s*(mode|output)", options),
+            regex("(dev(?:eloper)?|developer|dev)\\s*mode", options),
+            regex("(uncensored?|unfiltered?|raw|dank)\\s*(mode|output)", options),
             // Chinese jailbreak
-            regex("(忽略|无视|绕过|打破)\\\\s*(所有|全部)?\\\\s*(((规则|限制|约束|指引|安全)\\\\s*){1,3})", options),
+            regex("(忽略|无视|绕过|打破)\\s*(所有|全部)?\\s*(((规则|限制|约束|指引|安全)\\s*){1,3})", options),
         ].compactMap(\.self)
 
         // --- System prompt override ---
         patterns[.systemPromptOverride] = [
             regex(
-                "(what\\\\s+is|show me|reveal|display|output|dump|print)\\\\s+(y(our|o)ur )?(system )?(message|prompt|instruction)",
+                "(what\\s+is|show me|reveal|display|output|dump|print)\\s+(y(our|o)ur )?(system )?(message|prompt|instruction)",
                 options),
-            regex("(输出|显示|输出|打印|dump)\\\\s*(你的|系统)?\\\\s*(提示|指令|system prompt)", options),
+            regex("(输出|显示|输出|打印|dump)\\s*(你的|系统)?\\s*(提示|指令|system prompt)", options),
         ].compactMap(\.self)
 
         // --- Self-harm patterns (more specific regex for reduced FP) ---
         patterns[.selfHarm] = [
             regex(
-                "how\\\\s+(to|do|can I)\\\\s+(kill|die|commit suicide|end my life|harm myself)",
+                "how\\s+(to|do|can I)\\s+(kill|die|commit suicide|end my life|harm myself)",
                 options),
-            regex("(方法|方式)\\\\s*(自杀|自残|结束生命)", options),
+            regex("(方法|方式)\\s*(自杀|自残|结束生命)", options),
         ].compactMap(\.self)
 
         // --- Tool abuse patterns ---
         patterns[.toolAbuse] = [
-            regex("run\\\\s+(sudo\\\\s+rm\\\\s+-rf|format\\\\s+[Cc]:|mkfs|dd\\\\s+if=)", options),
+            regex("run\\s+(sudo\\s+rm\\s+-rf|format\\s+[Cc]:|mkfs|dd\\s+if=)", options),
             regex(
-                "(rm\\\\s+-rf\\\\s+/|format\\\\s+[Cc:]\\\\w+|delete\\\\s+all\\\\s+files)", options),
+                "(rm\\s+-rf\\s+/|format\\s+[Cc:]\\w+|delete\\s+all\\s+files)", options),
         ].compactMap(\.self)
 
         return patterns
