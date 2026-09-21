@@ -1757,6 +1757,23 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
 
 // MARK: - Grammar Schema Construction (shared: ChatHandler + DirectInferenceClient)
 
+/// `tool_choice: "none"` (OpenAI wire) = "Model must not call any tools"
+/// (tool_calls empty). It overrides a declared `tools[]`: the declared
+/// schemas stay in the request for template/convenience, but the engine must
+/// expose ZERO tools and must not be routed to the tool-call guided path.
+/// Any other value ("auto"/"required"/specific-function object, or absent)
+/// leaves the declared surface untouched — enforcement semantics
+/// (e.g. retry when "required" produced no tool call) is a separate
+/// decision and stays downstream of this surface decision.
+func effectiveTools(
+    from request: ChatCompletionRequest
+) -> [ToolDef]? {
+    if request.toolChoice == "none" {
+        return nil
+    }
+    return request.tools
+}
+
 /// Build a JSON Schema string for GrammarConstraint from tool definitions.
 /// Returns `nil` when no tools are provided.
 ///

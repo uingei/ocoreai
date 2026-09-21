@@ -509,8 +509,12 @@ func chatCompletionsHandler(
         /// Guided generation enforces grammar-constrained output for:
         /// - Tool calls (structured function_call/tool_calling JSON)
         /// - JSON Schema responses (strict JSON output validation)
+        /// `tool_choice: "none"` removes the tool surface (OpenAI contract:
+        /// "Model must not call any tools") — the json_schema branch below
+        /// is independent and still honored.
+        let effectiveTools = effectiveTools(from: request)
         let useGuidedGeneration: Bool = {
-            let hasTools = request.tools?.isEmpty == false
+            let hasTools = effectiveTools?.isEmpty == false
             let hasJsonSchema =
                 request.responseFormat?.type == "json_schema"
                 || request.responseFormat?.type == "json_object"
@@ -526,7 +530,9 @@ func chatCompletionsHandler(
         }
 
         /// Build grammar schema string for GuidedGeneration constraint.
-        let grammarSchema = useGuidedGeneration ? buildGrammarSchema(from: request) : nil
+        let grammarSchema =
+            useGuidedGeneration
+            ? buildGrammarSchema(from: effectiveTools, responseFormat: request.responseFormat) : nil
 
         /// Build inference options with same fallback chain.
         let inferenceOpts = InferenceOptions(
@@ -539,13 +545,18 @@ func chatCompletionsHandler(
             // one-shot FM guided path. json_schema stays on guided (that is
             // guided's real job). Observed: tools on the FM guided path
             // execute but never continue — the loop is the intended route.
-            hasNativeTools: request.tools?.isEmpty == false,
+            hasNativeTools: effectiveTools?.isEmpty == false,
             enableReasoning: reasoningEnabled,
             reasoningLevel: request.reasoningLevel,
             reasoningEffort: request.reasoningEffort,
             // P0-3: declared names (OpenAI `tools[]` whitelist); nil when the
-            // client declared none → engine keeps the full registry surface.
-            declaredToolNames: request.tools?.map { $0.function.name },
+            // client declared none → engine keeps the FULL registry surface
+            // (L2074/L2168: non-nil → toolSurfaceWhitelist filter, nil → ?? specs).
+            // `tool_choice: "none"` is the OPPOSITE of nil: [] → empty whitelist →
+            // ZERO tools injected (OpenAI: "Model must not call any tools").
+            declaredToolNames: request.toolChoice == "none"
+                ? []
+                : request.tools?.map { $0.function.name },
             // Wire HTTP consumer (external process), not the in-app GUI:
             // `.interactive` approval cannot be asked of a wire consumer →
             // fail-closed deny at the gate instead of parking on the broker

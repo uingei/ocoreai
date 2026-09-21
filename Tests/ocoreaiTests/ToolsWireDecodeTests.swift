@@ -55,4 +55,52 @@ struct ToolsWireDecodeTests {
             from: body.data(using: .utf8)!)
         #expect(req.tools == nil)
     }
+
+    @Test("tool_choice:\"none\" -> effectiveTools is nil even with tools[] declared")
+    func toolChoiceNoneRemovesSurface() throws {
+        let body = #"""
+            {"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"get_weather","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}}],"tool_choice":"none"}
+            """#
+        let req = try JSONDecoder().decode(
+            ChatCompletionRequest.self,
+            from: body.data(using: .utf8)!)
+        #expect(req.tools?.count == 1, "declared tools[] still decoded (client data preserved)")
+        #expect(
+            effectiveTools(from: req) == nil,
+            "tool_choice:\"none\" must remove the tool surface (engine: zero tools)")
+    }
+
+    @Test("tool_choice:\"auto\"/absent -> effectiveTools unchanged")
+    func toolChoiceAutoKeepsSurface() throws {
+        let bodyAuto = #"""
+            {"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"get_weather","parameters":{"type":"object","properties":{},"required":[]}}}],"tool_choice":"auto"}
+            """#
+        let req = try JSONDecoder().decode(
+            ChatCompletionRequest.self,
+            from: bodyAuto.data(using: .utf8)!)
+        #expect(effectiveTools(from: req)?.count == 1)
+
+        let bodyNo = #"{"model":"m","messages":[{"role":"user","content":"hi"}]}"#
+        let reqNone = try JSONDecoder().decode(
+            ChatCompletionRequest.self,
+            from: bodyNo.data(using: .utf8)!)
+        #expect(effectiveTools(from: reqNone) == nil)
+    }
+
+    @Test("tool_choice:\"none\" + responseFormat json_schema -> grammar still constrained")
+    func toolChoiceNoneKeepsJsonSchemaGuided() throws {
+        let body = #"""
+            {"model":"m","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"get_weather","parameters":{"type":"object","properties":{},"required":[]}}}],"tool_choice":"none","response_format":{"type":"json_object"}}
+            """#
+        let req = try JSONDecoder().decode(
+            ChatCompletionRequest.self,
+            from: body.data(using: .utf8)!)
+        #expect(effectiveTools(from: req) == nil, "tool surface removed")
+        let schema = buildGrammarSchema(
+            from: effectiveTools(from: req),
+            responseFormat: req.responseFormat)
+        #expect(
+            schema != nil,
+            "the json_schema guided path is independent of the tool surface")
+    }
 }
