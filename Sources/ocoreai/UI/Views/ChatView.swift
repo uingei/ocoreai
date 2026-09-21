@@ -235,6 +235,13 @@ struct ChatView: View {
                         return NSEvent()
                     }
                 }
+                // Esc — interrupt streaming (keyboard-only work style, HIG inputs;
+                // mirrors codex TUI Esc→interrupt). Guarded on isStreaming so Esc
+                // always falls through to TextField/editing when idle.
+                if event.keyCode == 53 && isStreaming {
+                    stopStreaming()
+                    return NSEvent()
+                }
                 return event
             }
         }
