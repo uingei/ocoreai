@@ -21,7 +21,7 @@ import FoundationModels
 @Suite("Full Registry ToolSpec Pipeline")
 struct ToolSpecFullRegistryTests {
 
-    /// 生产同款 bootstrap：skill 全工具面 + update_plan/get_plan opt-in 全开（全集口径 iOS 30 / macOS 40）。
+    /// 生产同款 bootstrap：skill 全工具面 + update_plan/get_plan opt-in 全开（全集口径 iOS 31 / macOS 41）。
     static func fullRegistry() async -> ToolRegistry {
         let registry = ToolRegistry(log: Logger(label: "test.fullregistry"))
         await bootstrapBuiltInTools(
@@ -33,17 +33,19 @@ struct ToolSpecFullRegistryTests {
         return registry
     }
 
-    @Test("bootstrap registry: 全参 bootstrap 精确工具集(macOS 40 / iOS 30 真值源)+ 关键面全在")
+    @Test("bootstrap registry: 全参 bootstrap 精确工具集(macOS 41 / iOS 31 真值源)+ 关键面全在")
     func registeredCountExact() async {
         let registry = await Self.fullRegistry()
         let names = Set(await registry.listTools())
         // 真值（BuiltInTools.swift 逐点核）：
-        //   无条件 22 + skills×3（if let skillRegistry）+ plan×2（if updatePlanEnabled）+ clipboard×2 + system_info×1
-        //   = 30 基础口径；clipboard + system_info 是 iOS17/macOS14 各平台一等面(非 macOS-only)。
+        //   无条件 22 + skills×3（if let skillRegistry）+ plan×2（if updatePlanEnabled）+ clipboard×2
+        //   + system_info×1 + open_url×1 = 31 基础口径;
+        //   clipboard + system_info + open_url 是 iOS17/macOS14 各平台一等面(非 macOS-only):
+        //     open_url=按 URL 路由到 handler app(macOS NSWorkspace.open(url)/iOS UIApplication.open(url))。
         //   + macOS 10 桌面控制面（move_mouse/click/drag/scroll/type_text/key_press/inspect_ui
-        //     + open_app/activate_app/list_apps，#if os(macOS) 门控）= 40
+        //     + open_app/activate_app/list_apps，#if os(macOS) 门控）= 41
         //   生产默认口径（skills+plan 默认关）= 22+3 = 25。
-        var expectedCount = 30
+        var expectedCount = 31
         #if os(macOS)
         expectedCount += 10
         #endif
@@ -58,7 +60,7 @@ struct ToolSpecFullRegistryTests {
             "skills_list", "skills_lookup", "skills_view",
             "update_plan", "get_plan",
             "read_clipboard", "write_clipboard",
-            "system_info",
+            "system_info", "open_url",
         ] {
             #expect(names.contains(required), "missing tool: \(required)")
         }
@@ -79,10 +81,12 @@ struct ToolSpecFullRegistryTests {
         let specs = await registry.toToolSpecs()
         #if os(macOS)
         #expect(
-            specs.count == 40,
-            "specs \(specs.count) (macOS 基础 30 + desktop 6 + inspect_ui + lifecycle 3)")
+            specs.count == 41,
+            "specs \(specs.count) (macOS 基础 31 + desktop 6 + inspect_ui + lifecycle 3)")
         #else
-        #expect(specs.count == 30, "specs \(specs.count) (基础 27 + clipboard 2 + system_info 1)")
+        #expect(
+            specs.count == 31,
+            "specs \(specs.count) (基础 27 + clipboard 2 + system_info 1 + open_url 1)")
         #endif
 
         for spec in specs {

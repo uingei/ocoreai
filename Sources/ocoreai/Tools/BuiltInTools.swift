@@ -553,6 +553,19 @@ func bootstrapBuiltInTools(
     try? await registry.register(ReadClipboardClient.toolEntry())
     try? await registry.register(WriteClipboardClient.toolEntry())
 
+    // ── open_url: 按 URL 路由到 system handler app ─────────────────────────
+    // 「自主操作计算机」的 URL 路由面 — 与 open_app("按 App 名启动")不同轴:
+    //   open_app = 按名启本地 GUI app (macOS NSWorkspace)
+    //   open_url = 按 URL scheme 路由: http→浏览器, mailto→Mail, tel→Phone,
+    //              custom→已注册 handler app, universal link→handler
+    // iOS 上这是 agent→外部 App 的 **唯一主动通道**(无 NSWorkspace/CGEvent);
+    // macOS 上与 shell `open -a X` 不等价(shell 仅启 app, 不传 URL payload)。
+    // 跨平台 gate 判据(同 clipboard/system_info):
+    //   macOS 14: NSWorkspace.shared.open(url)→Bool (非弃用, 10.15+)
+    //   iOS 17:   UIApplication.shared.open(url) async→Bool (非弃用)
+    // 双平台一等→跨平台注册。有副作用(启外部 app)→isDestructive:true→审批门。
+    try? await registry.register(OpenURLClient.toolEntry())
+
     // ── transcribe_audio ───────────────────────────────────────────────────
     // 听觉感知轴的 agent 可触面: 复用已建的音频基设(而非另造)——
     //   LocalSTT(L3, macOS 26 / iOS 26+ 离线 Speech framework 文件识别)
