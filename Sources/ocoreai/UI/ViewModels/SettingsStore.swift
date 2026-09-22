@@ -514,13 +514,31 @@ final class SettingsStore {
     }
 
     /// Load persisted sampling config for a model, or default.
+    ///
+    /// **Legacy-key fallback**: GUI 早期版本按带来源前缀的 id
+    /// (``mscope:org/name`` / ``hf:org/name``)存 key,canonical 去重后
+    /// 统一读 bare key —— 老用户的自定义参数必须仍可读。
+    /// 命中 legacy key 时**自动重写回 bare key** 并清除旧 key,一次性迁移。
     func loadSamplingConfig(for modelId: String) -> ModelSamplingConfig {
-        let key = modelParamKey(modelId)
-        guard let data = defaults.object(forKey: key) as? Data else {
-            return .default
+        let decoded: (Data) -> ModelSamplingConfig = {
+            (try? JSONDecoder().decode(ModelSamplingConfig.self, from: $0)) ?? .default
         }
-        let decoder = JSONDecoder()
-        return (try? decoder.decode(ModelSamplingConfig.self, from: data)) ?? .default
+        let bareKey = modelParamKey(modelId)
+        if let data = defaults.object(forKey: bareKey) as? Data {
+            return decoded(data)
+        }
+        // 旧版 GUI 写的带前缀 key: 逐个前缀回退
+        let prefixes = ["mscope:", "huggingface:", "hf:"]
+        for p in prefixes {
+            let legacy = modelParamKey(p + modelId)
+            if let data = defaults.object(forKey: legacy) as? Data {
+                let config = decoded(data)
+                defaults.set(data, forKey: bareKey)  // one-shot re-key
+                defaults.removeObject(forKey: legacy)
+                return config
+            }
+        }
+        return .default
     }
 
     /// Reset a model's sampling config to defaults.

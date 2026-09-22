@@ -310,30 +310,57 @@ final class ModelManager {
         }
 
         // M7 (omlx 对齐): merge "ready but not loaded" models from the ready-model
-        // directory — the registry omlx's `discover_models` covers. Loaded entries
-        // win (they carry real max_context/vocab metadata); discovered ones fill
-        // the roster so the user sees everything they have on disk.
-        var seen = Set(models.map(\.id))
-        for ready in ModelStore.discoverReady() {
-            guard !seen.contains(ready.id) else { continue }
-            seen.insert(ready.id)
-            let config = store.loadSamplingConfig(for: ready.id)
-            configBatch[ready.id] = config
-            models.append(
-                ModelID(
-                    id: ready.id,
-                    isVlm: ready.isVlm,
-                    paramsCustomized: !config.isDefault))
-        }
+        // directory. **Canonical dedup** — loaded id is the EnginePool key (bare
+        // `org/repo`, e.g. `mlx-community/Qwen3.5-4B-MLX-4bit`); discoverReady id
+        // may carry `mscope:`/`hf:` prefix — dedup on the canonical (prefix-stripped)
+        // id or the same physical model shows twice and unload/delete no-op.
+        let merged = Self.mergeLocalModels(
+            loaded: models,
+            ready: ModelStore.discoverReady(),
+            samplingConfig: { store.loadSamplingConfig(for: $0) })
+        localModels = merged.0
+        servingModelIds = serving
 
         // Batch-apply all configs in a single actor mailbox round-trip
-        // (after merge, so discovered models' persisted configs ride along)
         if !configBatch.isEmpty {
             await pool.updateSamplingConfigs(configBatch)
         }
+    }
 
-        localModels = models
-        servingModelIds = serving
+    /// Pure merge of loaded models + disk-ready models, dedup by canonical id
+    /// (prefix-stripped). Extracted from `refreshLocalModels` for unit test
+    /// without EnginePool. `nonisolated` — no MainActor state touched, keeps it
+    /// callable from synchronous unit tests.
+    nonisolated static func mergeLocalModels(
+        loaded: [ModelID],
+        ready: [ModelStore.ReadyModel],
+        samplingConfig: (String) -> ModelSamplingConfig
+    ) -> ([ModelID], [String: ModelSamplingConfig]) {
+        func canonical(_ id: String) -> String {
+            if id.hasPrefix("mscope:"), id.count > 7 { return String(id.dropFirst(7)) }
+            if id.hasPrefix("hf:"), id.count > 3 { return String(id.dropFirst(3)) }
+            if id.hasPrefix("huggingface:"), id.count > 12 { return String(id.dropFirst(12)) }
+            return id
+        }
+        var out: [ModelID] = []
+        var configs: [String: ModelSamplingConfig] = [:]
+        var seen = Set<String>()
+        // Loaded entries first — they carry real metadata (max_context/vocab).
+        for m in loaded {
+            let key = canonical(m.id)
+            guard seen.insert(key).inserted else { continue }
+            out.append(m)
+        }
+        // Ready — fill the roster; display id = canonical bare repo path
+        // (same key space EnginePool.acquire/loadModel/sampling configs use).
+        for r in ready {
+            let key = canonical(r.id)
+            guard seen.insert(key).inserted else { continue }
+            let config = samplingConfig(key)
+            configs[key] = config
+            out.append(ModelID(id: key, isVlm: r.isVlm, paramsCustomized: !config.isDefault))
+        }
+        return (out, configs)
     }
 
     /// Load models on view appearance — thin wrapper for .task{} usage.
