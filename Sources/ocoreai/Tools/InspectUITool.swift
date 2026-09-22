@@ -7,18 +7,26 @@
 /// "这是不是一个控件? 现在 value 是什么?" 这道坎, 所以是开环盲打。
 ///
 /// Apple 为"让程序理解并操作 UI"设计的官方接口 = Accessibility API(AX 元素树)。
-/// inspect_ui 读 live AX 树的**语义面**: role / title / description / value + 父子层级。
-/// 一次补"语义理解 + 动作后验证"两块(读 value/state 确认动作生效); 精确定位仍由
-/// 既有 view_screen(像素) + OCR 承担 —— 那条路已通, 不必在此重造。
+/// inspect_ui 读 live AX 树的**语义面**: role / title / description / value + 父子层级,
+/// 每个控件行尾附 ` at:(x,y)` —— 屏幕坐标中心的 click/type 可直接消费的命中点。
+/// 一次闭合"语义理解 + 动作后验证 + 精准定位"三块, "看到按钮 → 点中按钮" 回路闭合。
 ///
 /// 安全: 只读(零副作用), isDestructive: false, 免审批(同一范式于 observe_state)。
 /// 无 Accessibility 权限 → 诚实回报(不假装读到)。macOS 门(AX 是 macOS 语义), 与
 /// desktop control 6 工具同 #if os(macOS) 段。全 Safe API, 无 as!/try!。
+///
+/// AXValue 坐标桥接: kAXPositionAttribute/kAXSizeAttribute 返回 AXValue
+/// (CF_BRIDGED_TYPE(id)), Swift 对其 as?/as 均报 error(见 AXValue.h L119),
+/// 而 as! 违反项目铁律。已用 live 探针实证: @_silgen_name 直调 AXValueGetValue
+/// (参数声明 AnyObject?, C 层自身校验类型) 在 macOS 正确解码真实窗口坐标;
+/// 项目已有同惯用法先例 SQLiteStore.swift:30 (sqlite3_* 同法桥接)。
 import Foundation
 
 #if os(macOS)
 import AppKit
 import ApplicationServices
+import CoreGraphics
+import CoreFoundation
 #endif
 
 // MARK: - Pure(离线可测 — 不触 AX、全平台)
@@ -51,6 +59,16 @@ enum UIInspect {
         if !label.isEmpty { s += " \"\(label)\"" }
         if !value.isEmpty { s += " value:\"\(value)\"" }
         return s
+    }
+
+    /// 元素命中点 = 屏幕坐标系下的 frame 中心(动作层 click/type 直接消费)。纯, 精确可测。
+    static func center(x: Double, y: Double, w: Double, h: Double) -> (x: Int, y: Int) {
+        (Int((x + w / 2).rounded()), Int((y + h / 2).rounded()))
+    }
+
+    /// 行尾坐标后缀 —— "看到 → 点到" 回路里喂给 click 的 (x,y)。纯, 精确可测。
+    static func coord(_ c: (x: Int, y: Int)) -> String {
+        " at:(\(c.x),\(c.y))"
     }
 }
 
@@ -105,8 +123,8 @@ enum UIInspectDriver {
                 let label = UIInspect.displayText(
                     node.title.isEmpty ? node.description : node.title, max: 80)
                 let v = UIInspect.displayText(node.value, max: 120)
-                out.append(
-                    UIInspect.line(depth: layer - 1, role: node.role, label: label, value: v))
+                let row = UIInspect.line(depth: layer - 1, role: node.role, label: label, value: v)
+                out.append(node.center.map { row + UIInspect.coord($0) } ?? row)
             }
             if layer < d {
                 for child in children(el) { queue.append((child, layer + 1)) }
@@ -125,6 +143,38 @@ enum UIInspectDriver {
     }
 
     // ── AX 读原语(全部安全转换, 无 as! / try!) ──────────────────────────
+    //
+    // AXValue 坐标解码: kAXPositionAttribute / kAXSizeAttribute 返回 AXValue
+    // (AXValue.h:119 的 CF_BRIDGED_TYPE(id) 指针), Swift 对其 as?/as 一律报
+    // error, as! 违反项目铁律。桥接惯用法 = 项目先例 SQLiteStore.swift:30
+    // (sqlite3_* 同法 @_silgen_name)。参数按 C ABI 声明为 AnyObject?(对象引用
+    // 即 id, 与 C 侧 AXValueRef = CF_BRIDGED_TYPE(id) 指针同传, 探针实证
+    // macOS 27.0 上正确解码真实窗口坐标)。进入前已用 CFGetTypeID 校验是
+    // AXValue, 非匹配值不会到达 C 解码; 返回 Boolean 失败即 fail-soft 无坐标。
+    @_silgen_name("AXValueGetValue")
+    private static func axValueGetValue(
+        _ value: AnyObject?,
+        _ theType: UInt32,
+        _ valuePtr: UnsafeMutableRawPointer?,
+    ) -> Bool
+
+    static func readAXPoint(_ v: AnyObject?) -> CGPoint? {
+        guard
+            let v = v,
+            CFGetTypeID(v as CFTypeRef) == AXValueGetTypeID()
+        else { return nil }
+        var p = CGPoint.zero
+        return axValueGetValue(v, 1 /* kAXValueTypeCGPoint */, &p) ? p : nil
+    }
+
+    static func readAXSize(_ v: AnyObject?) -> CGSize? {
+        guard
+            let v = v,
+            CFGetTypeID(v as CFTypeRef) == AXValueGetTypeID()
+        else { return nil }
+        var s = CGSize.zero
+        return axValueGetValue(v, 2 /* kAXValueTypeCGSize */, &s) ? s : nil
+    }
 
     static func children(_ el: AXUIElement) -> [AXUIElement] {
         var value: AnyObject?
@@ -140,13 +190,20 @@ enum UIInspectDriver {
         var title: String
         var description: String
         var value: String
+        /// 屏幕坐标系 frame 中心(clamp 到非负)。无坐标(如 AX 未暴露) → nil, 行尾不加坐标。
+        var center: (x: Int, y: Int)?
+    }
+
+    private static func copyAttribute(_ el: AXUIElement, attr: CFString) -> AnyObject? {
+        var value: AnyObject?
+        guard AXUIElementCopyAttributeValue(el, attr, &value) == .success else { return nil }
+        return value
     }
 
     private static func copyString(_ el: AXUIElement, attr: CFString) -> String {
-        var value: AnyObject?
-        guard AXUIElementCopyAttributeValue(el, attr, &value) == .success else { return "" }
-        if let s = value as? String { return s }
-        if let num = value as? NSNumber { return num.stringValue }
+        guard let v = copyAttribute(el, attr: attr) else { return "" }
+        if let s = v as? String { return s }
+        if let num = v as? NSNumber { return num.stringValue }
         return ""
     }
 
@@ -155,11 +212,21 @@ enum UIInspectDriver {
         let title = copyString(el, attr: kAXTitleAttribute as CFString)
         let desc = copyString(el, attr: kAXDescriptionAttribute as CFString)
         let value = copyString(el, attr: kAXValueAttribute as CFString)
+        // 屏幕坐标中心(可选): position + size 皆为 AXValue, 缺一即无坐标(fail-soft, 行仍出)
+        var center: (x: Int, y: Int)?
+        if let pos = readAXPoint(copyAttribute(el, attr: kAXPositionAttribute as CFString)),
+            let sz = readAXSize(copyAttribute(el, attr: kAXSizeAttribute as CFString))
+        {
+            let c = UIInspect.center(
+                x: pos.x, y: pos.y, w: sz.width, h: sz.height)
+            center = (max(c.x, 0), max(c.y, 0))
+        }
         return Node(
             role: role.isEmpty ? "unknown" : role,
             title: title,
             description: desc,
-            value: value)
+            value: value,
+            center: center)
     }
 }
 
@@ -180,12 +247,14 @@ enum InspectUIClient {
             argsType: Args.self,
             description:
                 "Read the macOS accessibility (AX) element tree of an app — semantic roles, "
-                + "titles, descriptions, values, with hierarchy. Use it to UNDERSTAND the UI "
-                + "(what controls exist, what their current value/state is) and to VERIFY state "
-                + "after an action. For precise pixel location of a control, use view_screen + OCR "
-                + "and click the coordinate. Read-only — changes nothing. Params: app (bundle id "
-                + "or name, default frontmost), depth (default 6, cap 32), max_nodes (default 800, "
-                + "cap 4000), role (e.g. button / textfield / menu).",
+                + "titles, descriptions, values, with hierarchy. Every element that exposes a "
+                + "frame is annotated ` at:(x,y)` — the screen-space center to click/type at. "
+                + "Use it to UNDERSTAND the UI (what controls exist, current value/state), to "
+                + "LOCATE a control precisely (instead of guessing pixels), and to VERIFY state "
+                + "after an action. Read-only — changes nothing. Workflow: inspect_ui → act "
+                + "(click/type at the given coords) → inspect_ui again to confirm. Params: app "
+                + "(bundle id or name, default frontmost), depth (default 6, cap 32), max_nodes "
+                + "(default 800, cap 4000), role (e.g. button / textfield / menu).",
             schema: ToolSchema(parameters: [
                 "app": ToolParameter(
                     type: .string,

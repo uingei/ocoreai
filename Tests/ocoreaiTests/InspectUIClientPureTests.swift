@@ -68,4 +68,15 @@ struct InspectUIClientPureTests {
     func lineBare() {
         #expect(UIInspect.line(depth: 2, role: "group", label: "", value: "") == "    - group")
     }
+
+    @Test("center: frame 中心取整(半像素四舍五入)")
+    func centerRounding() {
+        #expect(UIInspect.center(x: 10, y: 20, w: 100, h: 50) == (x: 60, y: 45))
+        #expect(UIInspect.center(x: 0, y: 0, w: 101, h: 101) == (x: 51, y: 51))
+    }
+
+    @Test("coord: 行尾坐标后缀格式")
+    func coordText() {
+        #expect(UIInspect.coord((x: 60, y: 45)) == " at:(60,45)")
+    }
 }
