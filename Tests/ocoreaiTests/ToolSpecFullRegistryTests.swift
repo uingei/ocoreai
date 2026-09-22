@@ -38,11 +38,12 @@ struct ToolSpecFullRegistryTests {
         let registry = await Self.fullRegistry()
         let names = Set(await registry.listTools())
         // 真值（BuiltInTools.swift 逐点核）：
-        //   无条件 22 + skills×3（if let skillRegistry）+ plan×2（if updatePlanEnabled）= 27 基础口径
+        //   无条件 22 + skills×3（if let skillRegistry）+ plan×2（if updatePlanEnabled）+ clipboard×2
+        //   = 29 基础口径；clipboard 是 iOS17/macOS14 各平台一等面(非 macOS-only)。
         //   + macOS 10 桌面控制面（move_mouse/click/drag/scroll/type_text/key_press/inspect_ui
-        //     + open_app/activate_app/list_apps，#if os(macOS) 门控）= 37
-        //   生产默认口径 = 22；当时 /tmp/fm-attach.log 生产口径 = 25（skills on + plan off）。
-        var expectedCount = 27
+        //     + open_app/activate_app/list_apps，#if os(macOS) 门控）= 39
+        //   生产默认口径（skills+plan 默认关）= 22+2 = 24。
+        var expectedCount = 29
         #if os(macOS)
         expectedCount += 10
         #endif
@@ -56,6 +57,7 @@ struct ToolSpecFullRegistryTests {
             "web_fetch", "transcribe_audio", "speak", "generate_video",
             "skills_list", "skills_lookup", "skills_view",
             "update_plan", "get_plan",
+            "read_clipboard", "write_clipboard",
         ] {
             #expect(names.contains(required), "missing tool: \(required)")
         }
@@ -76,10 +78,10 @@ struct ToolSpecFullRegistryTests {
         let specs = await registry.toToolSpecs()
         #if os(macOS)
         #expect(
-            specs.count == 37,
-            "specs \(specs.count) (macOS 基础 27 + desktop 6 + inspect_ui + lifecycle 3)")
+            specs.count == 39,
+            "specs \(specs.count) (macOS 基础 29 + desktop 6 + inspect_ui + lifecycle 3)")
         #else
-        #expect(specs.count == 27, "specs \(specs.count)")
+        #expect(specs.count == 29, "specs \(specs.count) (基础 27 + clipboard 2)")
         #endif
 
         for spec in specs {

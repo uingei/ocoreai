@@ -536,6 +536,14 @@ func bootstrapBuiltInTools(
     // 让模型在宣告任务完成前用审计真值替代自述。只读, 零副作用。
     try? await registry.register(CheckToolsClient.toolEntry())
 
+    // ── clipboard: read_clipboard / write_clipboard ──────────────────────
+    // 跨应用数据通道 — 剪贴板是 iOS 17(UIPasteboard)与 macOS 14(NSPasteboard)
+    // 各自的一等公民, 且本仓 UI 层已消费同一表面(ChatView.swift:914/:925)。
+    // 故不 #if 到 macOS(与桌面控制/AX/App 生命周期那些 macOS 专属语义不同轴),
+    // 跨平台注册, 深度适配「各平台」。读只读免审批; 写改全局态 → 审批门。
+    try? await registry.register(ReadClipboardClient.toolEntry())
+    try? await registry.register(WriteClipboardClient.toolEntry())
+
     // ── transcribe_audio ───────────────────────────────────────────────────
     // 听觉感知轴的 agent 可触面: 复用已建的音频基设(而非另造)——
     //   LocalSTT(L3, macOS 26 / iOS 26+ 离线 Speech framework 文件识别)
