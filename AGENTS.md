@@ -149,6 +149,7 @@ Three sources for empirical verification:
 | `SECURITY.md` | **Human** | Threat model + reporting | Trust-model / network-surface changes |
 | `docs/CONTEXT.md` | **Human** (stale) | v2 context from 2026-06-24 | Do not edit — superseded by `AGENTS.md` + `CHANGELOG.md` |
 | `docs/precise-tasks.md` | **Agent + Human** | Coding-task taxonomy + gates | 09-14 fixed — was using nonexistent `--traits mlx` flag; MLX is a hard dependency, plain `swift build` |
+| `docs/prompt-ocoreai.md` | **Agent** | 自主推进协议（定位/第一性四条/每轮闭环/停止判据，09-22 定稿）| **按需持续维护**（用户授权）：声明与代码脱节、判据失效、损耗点变化时直接改本文件 + commit 尾注说明原因；改完每条须可 grep 实证 |
 | `docs/plans/agent-os-dual-mode-architecture.md` | **Human** (plan) | Proposed dual-mode prompt architecture — **not yet implemented** | Promote to implementation plan when adopted |
 | `CHECKPOINT.md` | **Agent (transient)** | Live-work checkpoint, overwritten each round | Not stable — do not cite as source of truth |
 | `~~.status.md~~` | — | Tracked in git (listed in `.gitignore` L37 but committed earlier) — status snapshot | Do not cite — point-in-time |
