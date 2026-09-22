@@ -503,6 +503,18 @@ func bootstrapBuiltInTools(
     try? await registry.register(ScrollClient.toolEntry())
     try? await registry.register(TypeTextClient.toolEntry())
     try? await registry.register(KeyPressClient.toolEntry())
+
+    // ── inspect_ui ────────────────────────────────────────────────────────
+    // "自主操作计算机" 的结构化 UI 语义层(感知/动作都缺的那块):
+    //   感知轴既有 = 像素(view_screen) + OCR; 动作轴既有 = 盲坐标 CGEvent。
+    //   两半都过不了 "这是按钮? 中心点在哪? 动作后 value 变没变?" 这道坎 → 开环盲打。
+    //   AX(AXUIElement 元素树) = Apple 为"让程序理解并操作 UI"设计的官方接口,
+    //   给 AI 读语义 role/label/value + 可点击中心点, 一次补三块:
+    //     1. 精确定位 — 元素中心点供 click, 替代盲坐标
+    //     2. 动作后验证 — 读 value/state, 闭合 "动作→验证" 环
+    //     3. 语义理解 — role/title 比像素 OCR 高一个维度
+    //   只读(零副作用), isDestructive: false, 免审批(同 observe_state 范式)。
+    try? await registry.register(InspectUIClient.toolEntry())
     #endif
 
     // ── check_tools ────────────────────────────────────────────────────────

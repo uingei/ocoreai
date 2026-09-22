@@ -39,11 +39,11 @@ struct ToolSpecFullRegistryTests {
         let names = Set(await registry.listTools())
         // 真值（BuiltInTools.swift 逐点核）：
         //   无条件 22 + skills×3（if let skillRegistry）+ plan×2（if updatePlanEnabled）= 27 基础口径
-        //   + macOS 6 desktop control（move_mouse/click/drag/scroll/type_text/key_press，#if os(macOS) 门控）= 33
+        //   + macOS 7 桌面控制面（move_mouse/click/drag/scroll/type_text/key_press/inspect_ui，#if os(macOS) 门控）= 34
         //   生产默认口径 = 22；当时 /tmp/fm-attach.log 生产口径 = 25（skills on + plan off）。
         var expectedCount = 27
         #if os(macOS)
-        expectedCount += 6
+        expectedCount += 7
         #endif
         #expect(
             names.count == expectedCount,
@@ -71,7 +71,7 @@ struct ToolSpecFullRegistryTests {
         let registry = await Self.fullRegistry()
         let specs = await registry.toToolSpecs()
         #if os(macOS)
-        #expect(specs.count == 33, "specs \(specs.count) (macOS 基础 27 + desktop 6)")
+        #expect(specs.count == 34, "specs \(specs.count) (macOS 基础 27 + desktop 6 + inspect_ui)")
         #else
         #expect(specs.count == 27, "specs \(specs.count)")
         #endif
