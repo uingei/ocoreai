@@ -187,6 +187,51 @@ struct StreamOutputFilterTests {
         #expect(b == (reasoning: nil, content: nil))
     }
 
+    // MARK: - tool-loop pass shape (T2 stream continuation, 09-22)
+
+    /// The SSE handler settles ONCE at true stream end over the FULL
+    /// accumulated text (pass-1 tool JSON + pass-2 natural-language
+    /// continuation). The settled content must be the continuation and the
+    /// tool array must be stripped — exact, so a regression that loses the
+    /// pass-2 text (or leaks the tool JSON into content) fails loudly.
+    @Test(
+        "tool-loop: finish over full stream yields the pass-2 continuation, tool array stripped (exact)"
+    )
+    func toolLoopFullStreamContinuation() {
+        let pass1ToolArray = "[{\"name\":\"read_file\",\"arguments\":{\"path\":\"/tmp/x.txt\"}}]"
+        let pass2Answer = "the secret code is: FIX-STREAM-7QK9"
+        let raw = pass1ToolArray + pass2Answer
+        let f = StreamOutputFilter()
+        _ = f.feed(pass1ToolArray)
+        _ = f.feed(pass2Answer)
+        let fin = f.finish()
+        #expect(fin.content == pass2Answer)
+        #expect((fin.content ?? "").contains("read_file") == false)
+        // strip-parity (strict invariant holds for the tool-loop shape too)
+        #expect((fin.content ?? "") == OutputSanitizer.strip(raw))
+    }
+
+    /// One-shot latch semantics — the ROOT-CAUSE mechanism of the T2 bug:
+    /// `finish()` latches, and every subsequent `feed`/`finish` returns
+    /// nothing. A per-pass handler that called `finish()` at pass-1's
+    /// `.done` silently discarded pass-2's answer. Nail the latch so the
+    /// handler's "settle only once, at true stream end" design stays
+    /// provably load-bearing.
+    @Test("one-shot latch: feed/finish after finish() is silent (exact)")
+    func oneShotLatch() {
+        let f = StreamOutputFilter()
+        _ = f.feed("pass-one tool json")
+        let first = f.finish()
+        #expect(first.content == "pass-one tool json")
+        // pass-2 arrives after the latch:
+        let feedAfter = f.feed("pass-two natural continuation")
+        #expect(feedAfter == (reasoning: nil, content: nil))
+        let second = f.finish()
+        #expect(second == (reasoning: nil, content: nil))
+        // the pass-2 text is gone from BOTH channels (documented latch)
+        #expect((first.content ?? "") + (second.content ?? "") == "pass-one tool json")
+    }
+
     // MARK: - the golden property: chunking invariance + STRICT strip parity
 
     /// For the whole corpus (incl. pathological mixed-marker interleave —

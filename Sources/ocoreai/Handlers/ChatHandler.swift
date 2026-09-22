@@ -1130,6 +1130,11 @@ private func streamWithToolCalling(
         /// Reasoning tokens from upstream `.done(reasoningTokenCount:)` →
         /// `completion_tokens_details.reasoning_tokens` in the usage chunk.
         var finalReasoningTokens: Int? = nil
+        /// [FIX P0 — T2 stream tool-loop] — last `.done`'s finish-reason, set per
+        /// pass and consumed once by the stream-end settle (see
+        /// `settleEndOfStream`). Replaces the per-pass
+        /// "finalFinishReason" local that used to emit a stop chunk per pass.
+        var lastFinishReason: String = "stop"
         /// True input-token count via the engine .done channel (upstream
         /// GenerateCompletionInfo.promptTokenCount). nil → keep the pre-flight estimate.
         var observedPromptTokens: Int? = nil
@@ -1256,87 +1261,34 @@ private func streamWithToolCalling(
                             nil
                         }
 
-                    /// Settle the protocol filter at stream end: release the final answer
-                    /// (byte-identical to OutputSanitizer.strip() of the full stream — the
-                    /// golden invariant) on the content channel, and any last thinking
-                    /// region on `reasoning_content`. The answer is suppressed when the
-                    /// structured tool-calls channel was parsed (non-stream parity:
-                    /// content == "" with toolCalls).
-                    let settle = textFilter.finish()
-                    if let reasoning = settle.reasoning {
-                        if let contentGuard = streamGuard {
-                            let checkResult = await contentGuard.checkOutput(reasoning)
-                            if !checkResult.passed {
-                                logger.warning(
-                                    "Streaming output blocked (filter finish reasoning): \(checkResult.triggeredCategories)"
-                                )
-                                yieldSSERaw(
-                                    "[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]",
-                                    to: continuation)
-                                continuation.finish()
-                                return
-                            }
-                        }
-                        accumulatedEmittedReasoning += reasoning
-                        let rChunk = ChatCompletionChunk(
-                            id: requestId,
-                            created: created,
-                            model: modelId,
-                            choices: [
-                                ChunkChoice(
-                                    delta: ChatDelta(reasoningContent: reasoning),
-                                    finishReason: nil,
-                                )
-                            ],
-                        )
-                        _ = yieldSSE(rChunk, to: continuation)
-                    }
-                    /// Streaming content fallback (streaming parity with the
-                    /// non-stream projection, same shared decision):
-                    /// `settle.content` is the settled text-channel answer; if
-                    /// it is empty the whole generation landed on
-                    /// `reasoning_content` (FM/SDK
-                    /// think-on) and the shared fallback re-exposes that text
-                    /// on the content channel so standard consumers receive
-                    /// the answer. Suppressed with a tool-calls channel.
-                    let settleContent = contentWireFallback(
-                        text: settle.content ?? "",
-                        reasoning: accumulatedEmittedReasoning,
-                        toolCallsPresent: streamToolCalls != nil
-                    )
-                    let answer = settleContent
-                    if !answer.isEmpty, streamToolCalls == nil {
-                        if let contentGuard = streamGuard {
-                            let checkResult = await contentGuard.checkOutput(answer)
-                            if !checkResult.passed {
-                                logger.warning(
-                                    "Streaming output blocked (filter finish content): \(checkResult.triggeredCategories)"
-                                )
-                                yieldSSERaw(
-                                    "[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]",
-                                    to: continuation)
-                                continuation.finish()
-                                return
-                            }
-                        }
-                        let aChunk = ChatCompletionChunk(
-                            id: requestId,
-                            created: created,
-                            model: modelId,
-                            choices: [
-                                ChunkChoice(
-                                    delta: ChatDelta(content: answer),
-                                    finishReason: nil,
-                                )
-                            ],
-                        )
-                        _ = yieldSSE(aChunk, to: continuation)
-                    }
-                    var finalFinishReason = stopReasonToString(reason) ?? "stop"
+                    /// [FIX P0 — T2 stream tool-loop] — DEFERRED to true stream-end.
+                    /// Why: the engine (upstream `ChatSession` tool loop) emits
+                    /// `.done` at every pass boundary, but the real SSE settle
+                    /// (content + tool-calls + final stop chunk + usage) belongs
+                    /// at the TRUE end-of-stream, after all passes have run.
+                    /// Calling `textFilter.finish()` at pass-1's `.done` set
+                    /// the one-shot latch (`StreamOutputFilter.finish` line 111
+                    /// `guard !finished`) and permanently silenced `feed()`,
+                    /// so pass-2's natural-language continuation (the actual
+                    /// model answer, exactly what the non-stream KEYNS wire
+                    /// returns) was silently dropped — zero content deltas and
+                    /// `[DONE]` after the `tool_calls` intent frame.
+                    ///
+                    /// The settle and emission now happen once, after the
+                    /// for-loop terminates, in the new local closure
+                    /// `settleEndOfStream` — exactly mirroring the non-stream
+                    /// wire (ChatHandler:911-931), which parses tool calls from
+                    /// the *full* accumulated content and suppresses `content`
+                    /// when `toolCalls` is non-nil.
+                    ///
+                    /// We DO keep the token-count / prompt-token /
+                    /// reasoning-token / cached-prompt-token observables here
+                    /// — they are per-pass truth and must be accumulated per
+                    /// `.done`, not at stream end.
 
-                    /// Send the parsed tool call delta chunks (structured channel).
+                    lastFinishReason = stopReasonToString(reason) ?? "stop"
                     if let toolCalls = streamToolCalls {
-                        finalFinishReason = "tool_calls"
+                        lastFinishReason = "tool_calls"
                         for tc in toolCalls {
                             let tcChunk = ChatCompletionChunk(
                                 id: requestId,
@@ -1354,38 +1306,6 @@ private func streamWithToolCalling(
                             )
                             _ = yieldSSE(tcChunk, to: continuation)
                         }
-                    }
-
-                    /// Send final stop chunk with finish reason.
-
-                    let stopChunk = ChatCompletionChunk(
-                        id: requestId,
-                        created: created,
-                        model: modelId,
-                        choices: [
-                            ChunkChoice(
-                                delta: ChatDelta(content: nil),
-                                finishReason: finalFinishReason,
-                            )
-                        ],
-                    )
-                    _ = yieldSSE(stopChunk, to: continuation)
-
-                    /// If stream_options.include_usage is true, emit usage in final SSE chunk.
-                    if request.streamOptions?.includeUsage == true {
-                        let usageChunk = ChatCompletionChunk(
-                            id: requestId,
-                            created: created,
-                            model: modelId,
-                            choices: [],
-                            usage: Usage(
-                                input: observedPromptTokens ?? promptTokenCount,
-                                output: totalOutputTokens,
-                                cachedPromptTokens: observedCachedPromptTokens,
-                                reasoningTokens: finalReasoningTokens
-                            ),
-                        )
-                        _ = yieldSSE(usageChunk, to: continuation)
                     }
 
                 /// .toolCall — upstream TextToolTokenLoopHandler detected a tool call.
@@ -1482,6 +1402,123 @@ private func streamWithToolCalling(
             yieldSSERaw(SSE.doneMarker, to: continuation)
             continuation.finish()
             return
+        }
+
+        /// [FIX P0 — T2 stream tool-loop] — ONE-SHOT end-of-stream settle.
+        /// Runs exactly once, after the ENTIRE tokenStream has been consumed
+        /// (all passes finished). This is where `textFilter.finish()` is
+        /// called — the one-shot latch (StreamOutputFilter L111
+        /// `guard !finished`) is consumed here, not in the per-pass `.done`
+        /// branch. Exactly mirrors the non-stream decision (ChatHandler
+        /// L911-931): the "authoritative" tool-call/content suppression is
+        /// made on the FULL accumulated content; if the LAST pass ended in a
+        /// tool call (no continuation ran — e.g. the tool name was filtered
+        /// and the engine did not restart), the content channel is
+        /// suppressed (non-stream returns empty content + toolCalls); if the
+        /// LAST pass was the natural-language continuation, answer is
+        /// emitted.
+        let streamSettle = textFilter.finish()
+        if let settledReasoning = streamSettle.reasoning {
+            if let contentGuard = streamGuard {
+                let checkResult = await contentGuard.checkOutput(settledReasoning)
+                if !checkResult.passed {
+                    logger.warning(
+                        "Streaming output blocked (end-of-stream reasoning): \(checkResult.triggeredCategories)"
+                    )
+                    yieldSSERaw(
+                        "[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]",
+                        to: continuation)
+                    continuation.finish()
+                    return
+                }
+            }
+            accumulatedEmittedReasoning += settledReasoning
+            let rChunk = ChatCompletionChunk(
+                id: requestId,
+                created: created,
+                model: modelId,
+                choices: [
+                    ChunkChoice(
+                        delta: ChatDelta(reasoningContent: settledReasoning),
+                        finishReason: nil,
+                    )
+                ],
+            )
+            _ = yieldSSE(rChunk, to: continuation)
+        }
+        /// Non-stream parity (L911): if the LAST pass's content parses as a
+        /// tool call, `content` is suppressed — the structured channel is
+        /// authoritative (those intent frames were already emitted per-pass).
+        /// This is the KEYST bug scenario: pass-2 was the natural-language
+        /// continuation → parseToolCalls returns nil → answer is emitted
+        /// here (previously swallowed by the early `textFilter.finish()`).
+        let streamEndToolCalls: [ToolCall]? =
+            if let tools = request.tools, !tools.isEmpty {
+                parseToolCalls(from: prevDecodedText)
+            } else {
+                nil
+            }
+        let answer = contentWireFallback(
+            text: streamSettle.content ?? "",
+            reasoning: accumulatedEmittedReasoning,
+            toolCallsPresent: streamEndToolCalls != nil
+        )
+        if !answer.isEmpty, streamEndToolCalls == nil {
+            if let contentGuard = streamGuard {
+                let checkResult = await contentGuard.checkOutput(answer)
+                if !checkResult.passed {
+                    logger.warning(
+                        "Streaming output blocked (end-of-stream content): \(checkResult.triggeredCategories)"
+                    )
+                    yieldSSERaw(
+                        "[SSEError: Output blocked by content guard: \(checkResult.rejectionReason ?? "Safety violation")]",
+                        to: continuation)
+                    continuation.finish()
+                    return
+                }
+            }
+            let aChunk = ChatCompletionChunk(
+                id: requestId,
+                created: created,
+                model: modelId,
+                choices: [
+                    ChunkChoice(
+                        delta: ChatDelta(content: answer),
+                        finishReason: nil,
+                    )
+                ],
+            )
+            _ = yieldSSE(aChunk, to: continuation)
+        }
+        /// FINAL stop chunk — carries the LAST-pass finish reason (per-pass
+        /// `.done` branch set `lastFinishReason`; the last write wins).
+        let stopChunk = ChatCompletionChunk(
+            id: requestId,
+            created: created,
+            model: modelId,
+            choices: [
+                ChunkChoice(
+                    delta: ChatDelta(content: nil),
+                    finishReason: lastFinishReason,
+                )
+            ],
+        )
+        _ = yieldSSE(stopChunk, to: continuation)
+        /// If stream_options.include_usage is true, emit usage in final SSE chunk.
+        if request.streamOptions?.includeUsage == true {
+            let usageChunk = ChatCompletionChunk(
+                id: requestId,
+                created: created,
+                model: modelId,
+                choices: [],
+                usage: Usage(
+                    input: observedPromptTokens ?? promptTokenCount,
+                    output: totalOutputTokens,
+                    cachedPromptTokens: observedCachedPromptTokens,
+                    reasoningTokens: finalReasoningTokens
+                ),
+            )
+            _ = yieldSSE(usageChunk, to: continuation)
         }
 
         /// Yield final done marker to close the SSE stream.
