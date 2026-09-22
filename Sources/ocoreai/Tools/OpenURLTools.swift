@@ -71,21 +71,24 @@ enum OpenURL {
     }
 }
 
-// MARK: - Driver(平台, 主线程, 收口 MainActor)
+// MARK: - Driver(平台, 收口 MainActor)
 
 enum OpenURLDriver {
-    /// 启动系统 handler 打开指定 URL。
-    /// macOS: NSWorkspace.shared.open(url) -> Bool
-    /// iOS:   UIApplication.shared.open(url) async -> Bool (true 成功路由, false 无 handler)
-    static func open(_ url: URL) async -> Bool {
-        await MainActor.run { () -> Bool in
-            #if canImport(AppKit)
-            return NSWorkspace.shared.open(url)
-            #else
-            return (try? await UIApplication.shared.open(url)) ?? false
-            #endif
-        }
+    #if canImport(AppKit)
+    /// macOS: NSWorkspace.shared.open(url) 同步 (非弃用, 10.15+)
+    @MainActor static func open(_ url: URL) -> Bool {
+        NSWorkspace.shared.open(url)
     }
+    #elseif canImport(UIKit)
+    /// iOS: UIApplication.shared.open(url) async throws (非弃用, 10.0+)
+    @MainActor static func open(_ url: URL) async -> Bool {
+        (try? await UIApplication.shared.open(url)) ?? false
+    }
+    #else
+    @MainActor static func open(_ url: URL) -> Bool {
+        false
+    }
+    #endif
 }
 
 // MARK: - Clients(双平台工具面)
