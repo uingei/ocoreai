@@ -110,9 +110,9 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 
 ### Open (currently unresolved — the only items worth prose)
 
-- **iOS UI parity** (UI/) — iOS build confirmed Fast-Path-only; parity audit pending (MCP/Security on iOS TBD).
+- **iOS UI parity** (UI/) — 09-22 实证：工具层平台门控已核 = 正确（10 个 macOS-only：move/click/drag/scroll/type/key + inspect_ui(AX) + open/activate/list_apps(NSWorkspace)，均 macOS 平台语义）；余 = ChatView/MultimodalControls 的 UI 门控（7/5 处）需 iOS 运行时活验（本机 CI 仅 `macOS 26 · iOS compile-only`=success，非活验证；MCP/Security on iOS TBD）。
 - **Reasoning `<thinking>` parse** (Engine/) — 字符串协议状态机（`ThinkTagParser`，0 处 regex，#206 后 15/15 绿），无 AST。
-- **`kvCacheRuntimeReport`** — not consumed; upstream `KVCacheRuntime.swift:155` / `ChatSession.swift:1491` / `KVCachePlan.swift:89/94` still present (604fae7 实证; d667610).
+- **`kvCacheRuntimeReport`** — ~~not consumed~~ → 09-22 实证：ocoreai 走**自有等价消费面** `Metrics.kvCacheGpuBytes`(`ocoreai_kv_cache_gpu_bytes`, Metrics.swift:79/196)→ `ServerStatsSnapshot.kvCacheBytes` → Dashboard `kvCacheGB`(DashboardViewModel.swift:107)。上游 `KVCacheRuntimeReport`(KVCacheRuntime.swift:155) 是另一套 wrapper，#248 已判 ocoreai 无此 wrapper 的 bug —— 接它 = 本地重复面，不做。
 - **MLXFoundationModels** — FM path wired; lacks per-token callback on FM `.done`.
 - **Hygiene — do not add new**: `precondition` (structural invariants + upstream-verbatim); scattered `try?` defensive fallbacks (~316 in Sources/); 2 bare `empty catch {}` in the EngineInference watchdog.
 - **Coverage report** — Tests/CoverageReport missing (no live data).
