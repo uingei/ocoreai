@@ -202,19 +202,41 @@ enum ModelStore {
     }
 
     /// Readiness gate for "ready model dirs": a non-empty `safetensors` (MLX/Hub weights)
-    /// OR a Core AI asset (`.aimodel` / `.aimodelc`).
+    /// OR — on a platform that can run Core AI — a Core AI asset (`.aimodel` / `.aimodelc`).
     ///
-    /// The Core AI branch reuses the routing layer's single-source-of-truth probe
-    /// (`PreparedModel.hasCoreAIAsset`, `CoreAIEngine` — the same gate that decides
-    /// CoreAI specialization) so the UI model picker and the inference router agree on
-    /// exactly what is loadable. A dir with neither stays invisible (e.g. the orphan
-    /// 09-14 812MB partial download of Qwen2.5-0.5B — metadata only, no weights, no asset).
+    /// A dir with neither stays invisible (e.g. the orphan 09-14 812MB partial download
+    /// of Qwen2.5-0.5B — metadata only, no weights, no asset). On platforms without Core
+    /// AI (< macOS 27 / iOS 27) an asset-only dir is loadable by nobody, so it is invisible.
     private static func isReadyModelDir(_ dir: URL) -> Bool {
         if hasValidSafetensors(in: dir) { return true }
         if #available(macOS 27.0, iOS 27.0, *) {
-            return PreparedModel.hasCoreAIAsset(at: dir)
+            return hasCoreAIAsset(at: dir)
         }
         return false
+    }
+
+    /// Core AI asset extension probe — the single source of truth for "is this a Core AI
+    /// asset (a file or bundle root directory holding `.aimodel` / `.aimodelc`)".
+    ///
+    /// Mirrors upstream coreai-models `ModelStructure.assetExtensions` +
+    /// `ModelBundle.resolveAssetURL` (asset check). Pure `FileManager` — no CoreAI import,
+    /// compiled on every platform, so UI-layer readiness checks can call it from un-gated
+    /// code. `PreparedModel.hasCoreAIAsset` (CoreAIEngine, gated file) delegates here.
+    static func hasCoreAIAsset(at url: URL) -> Bool {
+        let extensions: Set<String> = ["aimodel", "aimodelc"]
+        // A path ending in a known asset extension IS the asset (asset bundles
+        // are themselves directories, so check this before scanning as a dir).
+        if extensions.contains(url.pathExtension) { return true }
+        let entries: [URL]
+        do {
+            entries = try FileManager.default.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: nil
+            )
+        } catch {
+            return false
+        }
+        return entries.contains { extensions.contains($0.pathExtension) }
     }
 
     /// HF 仓库就绪目录 — 按序解析,返回第一个含非空 safetensors 的候选:

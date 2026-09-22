@@ -18,11 +18,32 @@ import Testing
 struct AppLifecycleLiveTests {
     private static let finderBundle = "com.apple.finder"
 
-    @Test("list_apps: 真实运行面 — 头行 + active 标记 + filter 语义")
+    @Test("list_apps: 真实运行面 — 头行 + active 标记与真实 frontmost 双向一致 + filter 语义")
     func liveListApps() async {
+        let before = NSWorkspace.shared.frontmostApplication
         let all = await AppLifecycleDriver.listApps(limit: 50, filter: nil)
+        let after = NSWorkspace.shared.frontmostApplication
         #expect(all.hasPrefix("# apps"))
-        #expect(all.contains("active"), "至少一行 app 在前台(active 标记)")
+
+        // active 标记与真实 frontmost 双向一致(不假设 runner 上有可见 app):
+        // 负向 — 至多一个 active 行, 且该行必是 before/after 快照之一(frontmost 唯一性);
+        // 正向 — frontmost 在两快照间未变且为 .regular(app 名可列) → 该行必有 active 标记。
+        let allRows = Array(all.split(separator: "\n").dropFirst())
+        let activeRows = allRows.filter { $0.hasSuffix("active") }
+        #expect(activeRows.count <= 1, "frontmost 唯一 → 至多一个 active 标记: \(all)")
+        for r in activeRows {
+            let cands = [before, after].compactMap { $0?.bundleIdentifier }
+            #expect(
+                cands.contains(where: { r.contains($0) }),
+                "active 行必为真实 frontmost app (快照 \(cands)): \(r)")
+        }
+        if let b = before, let a = after, b.processIdentifier == a.processIdentifier,
+            b.activationPolicy == .regular, let bid = b.bundleIdentifier
+        {
+            #expect(
+                activeRows.contains(where: { $0.contains(bid) }),
+                "frontmost regular app \(bid) 未变 → 必有 active 标记: \(all)")
+        }
 
         // filter: TextEdit 的 id/名都含 "edit" → 必然命中 Finder? 不, 用恒在的 Finder
         let finder = await AppLifecycleDriver.listApps(limit: 50, filter: "Finder")
