@@ -124,10 +124,59 @@ func buildRouter(
 
     // MARK: Models
 
+    /// `GET /v1/models` — **磁盘就绪 ∪ 内存已加载**(来源无关)。
+    ///
+    /// OpenAI 语义:客户端用本端点**选模型**,故必须列出磁盘上全部就绪模型
+    /// (safetensors / CoreAI .aimodel 完整),不能只报 `loadedModels` — 冷启动
+    /// 未 prewarm 时只报已加载会让用户以为"模型不存在"。
+    ///
+    /// id = `root/<org>/<name>` 相对路径(ModelStore 布局即 flat root),
+    /// **不带** `hf:`/`mscope:` 来源前缀 — 下载来源对模型身份透明;
+    /// local 源(绝对路径)原样保留。加载状态由 `state` 表达:
+    /// `"ready"`(可用) / `"loading"`(prewarm 中);未知 → `"ready"`。
+    /// 客户端按 id 请求 chat 时,Engine 侧 prefix 归一化兜底
+    /// (`loadModel` 剥前缀 + flat root 本地短路)。
     routes.get("/v1/models") { _, _ in
-        let models = await enginePool.listModels()
-        let modelIds = models.map { $0["id"] ?? "unknown" }
-        let response = ModelListResponse(data: modelIds.map { ModelObject(id: $0) })
+        // 1) 内存已加载(EnginePool 内部 id 保留原样 — chat/session 键依赖它)
+        let loaded = await enginePool.listModels()
+        // 2) 磁盘就绪 — 只管 `~/.ocoreai/models`(root),不跨到 .cache 遗留缓存;
+        //    来源无关(ModelStore 已 dedup + 判定有权重才算就绪)
+        let rootP = ModelStore.root.standardizedFileURL.path
+        let ready = ModelStore.discoverReady().filter {
+            $0.weightsDir.standardizedFileURL.path.hasPrefix(rootP + "/")
+        }
+        // id 归一化:剥来源前缀(仅用于 wire id 与 loaded 匹配);
+        // 客户端拿到的 id 即"磁盘相对路径或本地绝对路径",不再带 hf:/mscope: 前缀
+        func normalize(_ raw: String) -> String {
+            if raw.hasPrefix("hf:"), raw != "hf:" { return String(raw.dropFirst(3)) }
+            if raw.hasPrefix("huggingface:") { return String(raw.dropFirst(12)) }
+            if raw.hasPrefix("mscope:"), raw != "mscope:" { return String(raw.dropFirst(7)) }
+            return raw
+        }
+        let loadedState: [String: String] = Dictionary(
+            uniqueKeysWithValues: loaded.map { (normalize($0["id"] ?? ""), $0["state"] ?? "ready") }
+        )
+
+        // 3) 并集:磁盘就绪优先;loaded 独有(磁盘扫描未覆盖)保留原 id
+        var seen = Set<String>()
+        var objects: [ModelObject] = []
+        for r in ready {
+            let id = normalize(r.id)
+            guard seen.insert(id).inserted else { continue }
+            objects.append(
+                ModelObject(
+                    id: id,
+                    state: loadedState[id] ?? "ready",
+                    vlm: r.isVlm,
+                    weightsDir: r.weightsDir.path
+                ))
+        }
+        for m in loaded {
+            let rawId = m["id"] ?? ""
+            guard !rawId.isEmpty, seen.insert(rawId).inserted else { continue }
+            objects.append(ModelObject(id: rawId, state: m["state"] ?? "ready"))
+        }
+        let response = ModelListResponse(data: objects)
         return try Response.json(response)
     }
 
@@ -633,10 +682,17 @@ struct ModelListResponse: Codable {
     var data: [ModelObject]
 }
 
+/// `state` / `vlm` / `weightsDir` 是 ocoreai 扩展字段,OpenAI 兼容客户端忽略即可。
+///
+/// 客户端拿这些 id 直接发 chat:MLX 模型已实证 — `loadModel` → ModelScope
+/// 本地缓存短路在 `~/.ocoreai/models/<org>/<name>/` 平级根命中,秒级加载。
 struct ModelObject: Codable {
     var id: String
     var object: String = "model"
     var ownedBy: String = "ocoreai"
+    var state: String? = nil
+    var vlm: Bool? = nil
+    var weightsDir: String? = nil
 }
 
 // MARK: - Count Tokens Request/Response
