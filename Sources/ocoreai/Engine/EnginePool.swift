@@ -72,6 +72,61 @@ func localWeightsDirectory(for modelId: String) -> URL? {
     return URL(fileURLWithPath: path)
 }
 
+/// Build the CoreAI engine `configData` from a bundle's `metadata.json`
+/// (`language.vocab_size` / `language.max_context_language`), serialized into the
+/// FLAT shape `InternalModelConfig.parseModelConfig` already decodes
+/// (`vocab_size`/`max_context_length`/`name` top-level).
+///
+/// Mirrors upstream coreai-models `llm-runner` L504-508: `ModelConfig(
+/// vocabSize: bundle.vocabSize, maxContextLength: bundle.maxContextLength)`.
+/// The LLM export's `language` section is the source of truth — a hardcoded
+/// default colliding with the asset's real logit dimension is a hard fault in
+/// CoreAIRuntime (observed: `Shape at dimension 2 of 32768 is not a valid
+/// substitution for source shape 151936`), so these two integers must come
+/// from the bundle.
+/// `nil` when no readable `language` section is found on this platform — the
+/// caller keeps its previous fallback.
+///
+/// Pure filesystem/JSON: no CoreAI imports, unit-testable on every build.
+func coreAIConfigData(from directory: URL) -> Data? {
+    let fm = FileManager.default
+    var isDir: ObjCBool = false
+    guard fm.fileExists(atPath: directory.path, isDirectory: &isDir), isDir.boolValue else {
+        return nil
+    }
+    // The bundle ROOT (metadata.json + tokenizer/ + <name>.aimodel/) is the
+    // `coreai.llm.export` surface that carries the `language` section; a
+    // direct-asset path (`<name>.aimodel`) may sit one level deeper — check
+    // both, first hit wins.
+    let candidates: [URL]
+    if directory.pathExtension == "aimodel" || directory.pathExtension == "aimodelc" {
+        candidates = [directory.deletingLastPathComponent(), directory]
+    } else {
+        candidates = [directory]
+    }
+    for dir in candidates {
+        let metaURL = dir.appendingPathComponent("metadata.json")
+        guard let meta = try? Data(contentsOf: metaURL),
+            let obj = try? JSONSerialization.jsonObject(with: meta),
+            let dict = obj as? [String: Any],
+            let language = dict["language"] as? [String: Any],
+            let vocabSize = language["vocab_size"] as? Int,
+            vocabSize > 0
+        else { continue }
+        let maxContextLength = (language["max_context_length"] as? Int) ?? 32_768
+        let name = (dict["name"] as? String) ?? directory.lastPathComponent
+        let flat: [String: Any] = [
+            "name": name,
+            "vocab_size": vocabSize,
+            "max_context_length": maxContextLength,
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: flat) {
+            return data
+        }
+    }
+    return nil
+}
+
 /// Convert ContentPolymorphic to String for tokenization input.
 /// - Returns: (text to tokenize, count of non-text parts silently dropped)
 func contentToString(_ content: ContentPolymorphic?) -> (String, Int) {
@@ -625,17 +680,37 @@ actor EnginePool {
             // load() return a stub LoadedModel (nil mlxModelHandle, no weights)
             // and silently skip the MLX download+load path. Gate on a real
             // local file path so hub ids fall through to the MLX path below.
+            //
+            // The gate accepts BOTH asset shapes (mirrors `PreparedModel.hasCoreAIAsset`,
+            // which is exactly why ModelStore.discoverReady enumerates them):
+            //  1) a direct `.aimodel`/`.aimodelc` asset (file or bundle dir);
+            //  2) a bundle ROOT dir (the `coreai.llm.export` surface: metadata.json
+            //     + tokenizer/ + <name>.aimodel/ inside) — the path-extension
+            //     check in hasCoreAIAsset catches the inner asset entry.
+            // `resolveCoreAIModelURL` normalizes either shape to the loadable
+            // asset before AIModel(contentsOf:), so the dir vs. file distinction
+            // never reaches the runtime.
             let localPath = (modelId as NSString).expandingTildeInPath
             let isLocalFile =
                 !isHubModelIdentifier(modelId)
                 && localPath.hasPrefix("/")
-                && FileManager.default.fileExists(atPath: localPath)
-                && !FileManager.default.fileExists(atPath: localPath + "/")
+                && PreparedModel.hasCoreAIAsset(at: URL(fileURLWithPath: localPath))
             if isLocalFile {
+                let assetURL = PreparedModel.resolveCoreAIModelURL(
+                    from: URL(fileURLWithPath: localPath))
                 let preparedModel = try await loader.load(
-                    modelURL: modelURL,
+                    modelURL: assetURL,
                     modelId: modelId,
                 )
+
+                // Engine config from the bundle's `language` section (upstream
+                // llm-runner parity — never a hardcoded default): the CoreAI
+                // runtime substitutes `config.vocabSize` into the asset's
+                // dynamic logit dimension, so a wrong value is a hard fault
+                // ("32768 is not a valid substitution for source shape 151936").
+                let coreAIConfigData =
+                    coreAIConfigData(from: URL(fileURLWithPath: localPath))
+                    ?? Data("{}".utf8)
 
                 let loadTag =
                     preparedModel.isSpecialized ? "specialized" : "fallback (EngineFactory)"
@@ -646,8 +721,28 @@ actor EnginePool {
                     ],
                 )
 
+                // Register the bundle's chat tokenizer (CoreAI bundles ship a
+                // `tokenizer/` dir with tokenizer.json — same on-disk format the
+                // MLX branch registers at L928). The ANE inference lane calls
+                // tokenize/detokenize via TokenizerManager, so without this
+                // registration every CoreAI request fails with
+                // "No tokenizer registered for model".
+                let tokenizerDir = URL(fileURLWithPath: localPath)
+                    .appendingPathComponent("tokenizer")
+                do {
+                    try await tokenizerManager.registerTokenizer(
+                        for: modelId,
+                        tokenizerPath: tokenizerDir.path
+                    )
+                    logger.info("CoreAI tokenizer registered for \(modelId)")
+                } catch {
+                    logger.warning(
+                        "CoreAI tokenizer registration failed for \(modelId): \(error.localizedDescription)"
+                    )
+                }
+
                 return LoadedModel(
-                    configData: configData,
+                    configData: coreAIConfigData,
                     modelURL: modelURL,
                     modelConfig: modelConfig,
                     preparedModel: preparedModel,

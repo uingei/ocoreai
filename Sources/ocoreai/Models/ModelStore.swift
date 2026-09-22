@@ -201,6 +201,22 @@ enum ModelStore {
         return false
     }
 
+    /// Readiness gate for "ready model dirs": a non-empty `safetensors` (MLX/Hub weights)
+    /// OR a Core AI asset (`.aimodel` / `.aimodelc`).
+    ///
+    /// The Core AI branch reuses the routing layer's single-source-of-truth probe
+    /// (`PreparedModel.hasCoreAIAsset`, `CoreAIEngine` — the same gate that decides
+    /// CoreAI specialization) so the UI model picker and the inference router agree on
+    /// exactly what is loadable. A dir with neither stays invisible (e.g. the orphan
+    /// 09-14 812MB partial download of Qwen2.5-0.5B — metadata only, no weights, no asset).
+    private static func isReadyModelDir(_ dir: URL) -> Bool {
+        if hasValidSafetensors(in: dir) { return true }
+        if #available(macOS 27.0, iOS 27.0, *) {
+            return PreparedModel.hasCoreAIAsset(at: dir)
+        }
+        return false
+    }
+
     /// HF 仓库就绪目录 — 按序解析,返回第一个含非空 safetensors 的候选:
     /// 1) 新根 `root/huggingface/models--<ns>--<name>/snapshots/<rev>/`(HubCache 形态,写入锚点)
     /// 2) 旧默认根同形态(历史 `Application Support/ocoreai/models/huggingface/…`)
@@ -318,7 +334,7 @@ enum ModelStore {
             let repos = try? fm.contentsOfDirectory(at: legacyB, includingPropertiesForKeys: nil)
         {
             for repo in repos {
-                if hasValidSafetensors(in: repo) {
+                if isReadyModelDir(repo) {
                     add(
                         ReadyModel(
                             id: "hf:\(repo.lastPathComponent)",
@@ -343,7 +359,7 @@ enum ModelStore {
                         at: org, includingPropertiesForKeys: nil)
                 else { continue }
                 for name in names {
-                    if hasValidSafetensors(in: name) {
+                    if isReadyModelDir(name) {
                         add(
                             ReadyModel(
                                 id: "mscope:\(org.lastPathComponent)/\(name.lastPathComponent)",
@@ -372,7 +388,7 @@ enum ModelStore {
                         let revs = try? fm.contentsOfDirectory(
                             at: name, includingPropertiesForKeys: nil)
                     else { continue }
-                    if let ready = revs.first(where: { hasValidSafetensors(in: $0) }) {
+                    if let ready = revs.first(where: { isReadyModelDir($0) }) {
                         add(
                             ReadyModel(
                                 id: "mscope:\(ns.lastPathComponent)/\(name.lastPathComponent)",
@@ -389,7 +405,7 @@ enum ModelStore {
         if fm.fileExists(atPath: localRoot.path),
             let names = try? fm.contentsOfDirectory(at: localRoot, includingPropertiesForKeys: nil)
         {
-            for dir in names where hasValidSafetensors(in: dir) {
+            for dir in names where isReadyModelDir(dir) {
                 add(
                     ReadyModel(
                         id: dir.standardizedFileURL.path,

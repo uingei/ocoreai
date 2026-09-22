@@ -45,6 +45,17 @@ final class LoadedModel: @unchecked Sendable {
     /// v15: Specialized Core AI model — compiled once at load time, reused across requests.
     /// Stored as Any? to break @available(27.0) transitive leakage into LoadedModel.
     var _preparedModel: Any?
+    /// True when this model holds a specialized CoreAI asset AND has no MLX handle.
+    /// Used by dispatch to force `.ane` channel — such models can only run the ANE lane.
+    /// (Dual-lane models with both preparedModel AND mlxModelHandle are NOT CoreAI-only.)
+    var isCoreAIAsset: Bool {
+        if #available(macOS 27.0, iOS 27.0, *) {
+            if let m = _preparedModel as? CoreAIPreparedModel {
+                return m.isSpecialized && mlxModelHandle == nil
+            }
+        }
+        return false
+    }
 
     /// Cached inference engine — created once per LoadedModel, reused across requests.
     /// CoreAI 34f0db3: engine preserves KV cache across turns; no per-turn reset needed.

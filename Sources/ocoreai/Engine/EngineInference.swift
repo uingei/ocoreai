@@ -1534,6 +1534,21 @@ extension EnginePool {
             return
         }
 
+        // CoreAI-only assets (specialized ANE model, no MLX handle) can EXCLUSIVELY
+        // run the ANE lane. If HardwareRouter routed them to GPU/CPU, the MLX branch
+        // would hit the nil `mlxModelHandle` at EngineInference:1710 and fail with
+        // "MLX model handle not loaded". Override to ANE unconditionally.
+        // The `mlxModelHandle == nil` guard ensures this doesn't accidentally grab
+        // dual-lane MLX models that DO support GPU/CPU fallback.
+        #if canImport(CoreAI)
+        if PlatformHelpers.isCoreAIRuntimeAvailable,
+            loaded.mlxModelHandle == nil,
+            loaded.isCoreAIAsset
+        {
+            computeChannel = .ane
+        }
+        #endif
+
         // Vision capability guard: reject multimodal input for LLM-only models.
         // Aligns with MLXLanguageModel Executor.respond() L950-965 — the adapter
         // is the only place that can enforce .vision before loading any weights.

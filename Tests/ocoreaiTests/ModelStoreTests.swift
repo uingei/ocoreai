@@ -328,4 +328,88 @@ struct ModelStoreTests {
 
         try? fm.removeItem(at: rootURL)
     }
+
+    // MARK: - CoreAI 资产就绪判定
+
+    @Test(
+        "discoverReady accepts CoreAI asset dirs (no safetensors) under local/ and flat root/org/name/"
+    )
+    func discoverReadyAcceptsCoreAIAssets() throws {
+        let rootURL = Self.tmpRoot.appendingPathComponent("root")
+        let fm = FileManager.default
+
+        // 资产目录: 含 .aimodelc / .aimodel,无 safetensors — 消费层必须识别为 ready
+        _ = try Self.file(at: rootURL.appendingPathComponent("local/qwen25-1.5b/main.aimodelc"))
+        _ = try Self.file(
+            at: rootURL.appendingPathComponent("Qwen/Qwen2.5-1.5B-Instruct/model.aimodel"))
+        // 对照: 空资产目录(无 aimodel)不得漏入列表
+        let emptyDir = rootURL.appendingPathComponent("Qwen/EmptyDir")
+        try fm.createDirectory(at: emptyDir, withIntermediateDirectories: true)
+
+        setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
+        defer { unsetenv("OCOREAI_MODELS_DIR") }
+
+        let found = ModelStore.discoverReady()
+        let ids = Set(found.map(\.id))
+
+        #expect(
+            ids.contains(where: { $0.contains("qwen25-1.5b") }),
+            "local/ CoreAI asset dir must be ready: \(ids)")
+        #expect(
+            ids.contains("mscope:Qwen/Qwen2.5-1.5B-Instruct"),
+            "flat root/<org>/<name>/ CoreAI asset dir must be ready: \(ids)")
+        #expect(
+            !ids.contains("mscope:Qwen/EmptyDir"),
+            "asset-less dir must NOT surface: \(ids)")
+
+        // 资产目录的 weightsDir 必须指向资产目录本身(CoreAI 引擎按目录解析资产)
+        let mscopeHit = found.first { $0.id == "mscope:Qwen/Qwen2.5-1.5B-Instruct" }
+        #expect(
+            mscopeHit?.weightsDir.standardizedFileURL.path
+                == rootURL
+                .appendingPathComponent("Qwen/Qwen2.5-1.5B-Instruct")
+                .standardizedFileURL.path,
+            "weightsDir must be the asset dir itself")
+
+        try? fm.removeItem(at: rootURL)
+    }
+
+    @Test(
+        "discoverReady surfaces the REAL export layout (bundle root: metadata.json + tokenizer/ + <name>.aimodel dir)"
+    )
+    func discoverReadyAcceptsRealExportLayout() throws {
+        let rootURL = Self.tmpRoot.appendingPathComponent("root-real")
+        let fm = FileManager.default
+        let bundle =
+            rootURL
+            .appendingPathComponent("Qwen2.5-1.5B-CoreAI")
+            .appendingPathComponent("qwen2_5_1_5b_instruct_4bit_weights_8bit_kv_cache_dynamic")
+
+        // metadata.json — assets.main declares the .aimodel (mirror of the real export)
+        let meta =
+            #"{"metadata_version":"0.2","kind":"llm","assets":{"main":"qwen2_5_1_5b_instruct_4bit_weights_8bit_kv_cache_dynamic.aimodel"}}"#
+            .data(using: .utf8)!
+        _ = try Self.file(at: bundle.appendingPathComponent("metadata.json"), contents: meta)
+        // tokenizer/ sibling (embedded_tokenizer mirrors the file, harmless)
+        _ = try Self.file(at: bundle.appendingPathComponent("tokenizer/tokenizer.json"))
+        // the .aimodel is a DIRECTORY (bundle) holding the weights — this is the real shape
+        _ = try Self.file(
+            at:
+                bundle
+                .appendingPathComponent(
+                    "qwen2_5_1_5b_instruct_4bit_weights_8bit_kv_cache_dynamic.aimodel/main.mlirb"))
+
+        setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
+        defer { unsetenv("OCOREAI_MODELS_DIR") }
+
+        let expectedId =
+            "mscope:Qwen2.5-1.5B-CoreAI/qwen2_5_1_5b_instruct_4bit_weights_8bit_kv_cache_dynamic"
+        let hit = ModelStore.discoverReady().first { $0.id == expectedId }
+        #expect(hit != nil, "real export layout must surface as ready")
+        #expect(
+            hit?.weightsDir.standardizedFileURL.path == bundle.standardizedFileURL.path,
+            "weightsDir must be the bundle root (engine resolves the .aimodel via assets.main)")
+
+        try? fm.removeItem(at: rootURL)
+    }
 }
