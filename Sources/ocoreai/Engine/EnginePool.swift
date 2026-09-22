@@ -73,7 +73,7 @@ func localWeightsDirectory(for modelId: String) -> URL? {
 }
 
 /// Build the CoreAI engine `configData` from a bundle's `metadata.json`
-/// (`language.vocab_size` / `language.max_context_language`), serialized into the
+/// (`language.vocab_size` / `language.max_context_length`), serialized into the
 /// FLAT shape `InternalModelConfig.parseModelConfig` already decodes
 /// (`vocab_size`/`max_context_length`/`name` top-level).
 ///
