@@ -53,6 +53,7 @@ extension Response {
             headers: headers,
             body: .init { writer in
                 try await writer.write(ByteBuffer(data: data))
+                try await writer.finish(nil)
             },
         )
     }
@@ -202,6 +203,7 @@ func buildRouter(
                 if let data = body.data(using: .utf8) {
                     try await writer.write(ByteBuffer(data: data))
                 }
+                try await writer.finish(nil)
             },
         )
     }

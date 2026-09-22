@@ -181,6 +181,7 @@ extension Response {
             headers: headers,
             body: .init { writer in
                 try await writer.write(ByteBuffer(data: data))
+                try await writer.finish(nil)
             },
         )
     }

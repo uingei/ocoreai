@@ -444,6 +444,7 @@ struct RateLimitMiddleware<Context: RequestContext>: RouterMiddleware {
             status: .tooManyRequests, headers: headers,
             body: .init { writer in
                 try await writer.write(ByteBuffer(data: bodyData))
+                try await writer.finish(nil)
             })
     }
 }

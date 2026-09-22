@@ -94,6 +94,8 @@ func modelDownloadHandler(
                     break
                 }
             }
+            // 终结 chunked 响应（.end）——协议要求，缺它 keep-alive 客户端收不到流结尾
+            try? await writer.finish(nil)
         },
     )
 }
