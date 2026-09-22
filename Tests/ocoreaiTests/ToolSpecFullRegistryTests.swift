@@ -39,11 +39,12 @@ struct ToolSpecFullRegistryTests {
         let names = Set(await registry.listTools())
         // 真值（BuiltInTools.swift 逐点核）：
         //   无条件 22 + skills×3（if let skillRegistry）+ plan×2（if updatePlanEnabled）= 27 基础口径
-        //   + macOS 7 桌面控制面（move_mouse/click/drag/scroll/type_text/key_press/inspect_ui，#if os(macOS) 门控）= 34
+        //   + macOS 10 桌面控制面（move_mouse/click/drag/scroll/type_text/key_press/inspect_ui
+        //     + open_app/activate_app/list_apps，#if os(macOS) 门控）= 37
         //   生产默认口径 = 22；当时 /tmp/fm-attach.log 生产口径 = 25（skills on + plan off）。
         var expectedCount = 27
         #if os(macOS)
-        expectedCount += 7
+        expectedCount += 10
         #endif
         #expect(
             names.count == expectedCount,
@@ -59,7 +60,10 @@ struct ToolSpecFullRegistryTests {
             #expect(names.contains(required), "missing tool: \(required)")
         }
         #if os(macOS)
-        for requiredDesktop in ["move_mouse", "click", "drag", "scroll", "type_text", "key_press"] {
+        for requiredDesktop in [
+            "move_mouse", "click", "drag", "scroll", "type_text", "key_press",
+            "inspect_ui", "open_app", "activate_app", "list_apps",
+        ] {
             #expect(
                 names.contains(requiredDesktop), "missing desktop control tool: \(requiredDesktop)")
         }
@@ -71,7 +75,9 @@ struct ToolSpecFullRegistryTests {
         let registry = await Self.fullRegistry()
         let specs = await registry.toToolSpecs()
         #if os(macOS)
-        #expect(specs.count == 34, "specs \(specs.count) (macOS 基础 27 + desktop 6 + inspect_ui)")
+        #expect(
+            specs.count == 37,
+            "specs \(specs.count) (macOS 基础 27 + desktop 6 + inspect_ui + lifecycle 3)")
         #else
         #expect(specs.count == 27, "specs \(specs.count)")
         #endif

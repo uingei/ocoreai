@@ -515,6 +515,18 @@ func bootstrapBuiltInTools(
     //     3. 语义理解 — role/title 比像素 OCR 高一个维度
     //   只读(零副作用), isDestructive: false, 免审批(同 observe_state 范式)。
     try? await registry.register(InspectUIClient.toolEntry())
+
+    // ── app lifecycle: open_app / activate_app / list_apps ──────────────
+    // desktop 6 原语作用于「当前前台 app」, 但「让目标 app 成为前台」此前只有
+    // shell open 的间接路: 无幂等语义(重复拉起)、无 bundle id 精确寻址、无诚实失败原因。
+    // NSWorkspace(非弃用面): urlForApplication(withBundleIdentifier:) +
+    // openApplication(at:configuration:) (10.15+, launchApplication* 全弃用) +
+    // activate(from:options:) (macOS 14 新签名) — 深度 Apple 平台面, 与 AX(感知)/
+    // CGEvent(动作)/AppKit(生命周期) 三层同域。open/activate 有副作用 → 审批门;
+    // list_apps 只读 → 免审批(同一范式于 inspect_ui)。
+    try? await registry.register(OpenAppClient.toolEntry())
+    try? await registry.register(ActivateAppClient.toolEntry())
+    try? await registry.register(ListAppsClient.toolEntry())
     #endif
 
     // ── check_tools ────────────────────────────────────────────────────────
