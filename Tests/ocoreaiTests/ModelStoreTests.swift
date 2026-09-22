@@ -331,6 +331,13 @@ struct ModelStoreTests {
 
     // MARK: - CoreAI 资产就绪判定
 
+    /// 资产运行时可用性门 — CoreAI 资产(.aimodel/.aimodelc)仅在 macOS 27+/iOS 27+ 可加载;
+    /// macOS 26 runner 上"资产目录不可见"才是正确行为, 资产就绪断言在这些面直接跳过。
+    private static var coreAIAssetRuntimeAvailable: Bool {
+        if #available(macOS 27.0, iOS 27.0, *) { return true }
+        return false
+    }
+
     @Test(
         "discoverReady accepts CoreAI asset dirs (no safetensors) under local/ and flat root/org/name/"
     )
@@ -352,24 +359,36 @@ struct ModelStoreTests {
         let found = ModelStore.discoverReady()
         let ids = Set(found.map(\.id))
 
-        #expect(
-            ids.contains(where: { $0.contains("qwen25-1.5b") }),
-            "local/ CoreAI asset dir must be ready: \(ids)")
-        #expect(
-            ids.contains("mscope:Qwen/Qwen2.5-1.5B-Instruct"),
-            "flat root/<org>/<name>/ CoreAI asset dir must be ready: \(ids)")
+        // 平台无关契约: 无资产目录永远不得漏入
         #expect(
             !ids.contains("mscope:Qwen/EmptyDir"),
             "asset-less dir must NOT surface: \(ids)")
 
-        // 资产目录的 weightsDir 必须指向资产目录本身(CoreAI 引擎按目录解析资产)
-        let mscopeHit = found.first { $0.id == "mscope:Qwen/Qwen2.5-1.5B-Instruct" }
-        #expect(
-            mscopeHit?.weightsDir.standardizedFileURL.path
-                == rootURL
-                .appendingPathComponent("Qwen/Qwen2.5-1.5B-Instruct")
-                .standardizedFileURL.path,
-            "weightsDir must be the asset dir itself")
+        if Self.coreAIAssetRuntimeAvailable {
+            // 27+ 面: 资产目录可加载 → 必须 ready,且 weightsDir 指向资产目录本身
+            #expect(
+                ids.contains(where: { $0.contains("qwen25-1.5b") }),
+                "local/ CoreAI asset dir must be ready: \(ids)")
+            #expect(
+                ids.contains("mscope:Qwen/Qwen2.5-1.5B-Instruct"),
+                "flat root/<org>/<name>/ CoreAI asset dir must be ready: \(ids)")
+            let mscopeHit = found.first { $0.id == "mscope:Qwen/Qwen2.5-1.5B-Instruct" }
+            #expect(
+                mscopeHit?.weightsDir.standardizedFileURL.path
+                    == rootURL
+                    .appendingPathComponent("Qwen/Qwen2.5-1.5B-Instruct")
+                    .standardizedFileURL.path,
+                "weightsDir must be the asset dir itself")
+        } else {
+            // < 27 面(macOS 26 runner 等): 资产目录无人可加载 → 就绪表必须不可见
+            // (isReadyModelDir 文档语义: "asset-only dir is … invisible")
+            #expect(
+                !ids.contains(where: { $0.contains("qwen25-1.5b") }),
+                "asset-only dir must be invisible on non-CoreAI platforms: \(ids)")
+            #expect(
+                !ids.contains("mscope:Qwen/Qwen2.5-1.5B-Instruct"),
+                "asset-only dir must be invisible on non-CoreAI platforms: \(ids)")
+        }
 
         try? fm.removeItem(at: rootURL)
     }
@@ -405,10 +424,15 @@ struct ModelStoreTests {
         let expectedId =
             "mscope:Qwen2.5-1.5B-CoreAI/qwen2_5_1_5b_instruct_4bit_weights_8bit_kv_cache_dynamic"
         let hit = ModelStore.discoverReady().first { $0.id == expectedId }
-        #expect(hit != nil, "real export layout must surface as ready")
-        #expect(
-            hit?.weightsDir.standardizedFileURL.path == bundle.standardizedFileURL.path,
-            "weightsDir must be the bundle root (engine resolves the .aimodel via assets.main)")
+        if Self.coreAIAssetRuntimeAvailable {
+            #expect(hit != nil, "real export layout must surface as ready")
+            #expect(
+                hit?.weightsDir.standardizedFileURL.path == bundle.standardizedFileURL.path,
+                "weightsDir must be the bundle root (engine resolves the .aimodel via assets.main)")
+        } else {
+            // < 27 面: 纯资产 bundle 无人可加载 → 就绪表必须不可见
+            #expect(hit == nil, "asset-only bundle must be invisible on non-CoreAI platforms")
+        }
 
         try? fm.removeItem(at: rootURL)
     }
