@@ -488,6 +488,15 @@ func bootstrapBuiltInTools(
     // 真值源 = PerceptionEngine.shared.buffer(与 UI 注入路径同一环形缓冲), 零 sensor 副作用。
     try? await registry.register(ObserveStateClient.toolEntry())
 
+    // ── system_info ────────────────────────────────────────────────────────
+    // 机型身份 + 资源容量主动查询面(与 observe_state 同属"系统状态", 分轴不抢活):
+    //   observe_state(.system 流) → thermal/mem-pressure/low-power(被动流, 需开 channel)
+    //   system_info              → platform/arch/os/cpu/ram/disk(主动查询, 即时, 无前置态)
+    // ProcessInfo + 编译期 arch + resourceValues 是 iOS17/macOS14 双平台一等面 →
+    // 跨平台注册(不 #if 到 macOS), 深度适配「各平台」。
+    // 只读快照 → isDestructive=false(同 observe_state, 免审批), 不捏造缺失字段。
+    try? await registry.register(SystemInfoClient.toolEntry())
+
     #if os(macOS)
     // ── desktop control axis ────────────────────────────────────────────────
     // action 半(input 轴): computer use 的驱动面。感知轴(看)既有, 动作轴
