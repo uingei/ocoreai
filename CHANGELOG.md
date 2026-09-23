@@ -4,6 +4,8 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-09-24
 
+**09-24 对外定位定版落地（09-23 用户定调）** — 产品一句话定版为「**an agent for open models · natively local · built for creativity, work, and code**」，取代旧「reliable execution layer / first product = Coding/Computer Agent」的排他措辞。语义是**扩展非推翻**：code 仍是第一切片、Execute→Verify→Recover 执行层继承、五要素 / 基准位阶 / 安全原则不变，仅「第一产品」从排他放宽为三域产品面（创作 / 工作 / 代码）。落点 = `README.md` + `README.zh.md`（title + 首句 + Direction/方向 段）。文档型变更，无 Swift 代码；门：`swift build --target ocoreai` **exit 0**（零代码变更，复证工具链绿）。注：`AGENTS.md` Identity 段同向更新被保护文件审批拦截（未获用户同意，未写入）——见该文件 L19。
+
 **09-24 KV cache 增长丢上下文修复（对齐 coreai-models #268）** — `GrowingNDArrayState`（CoreAI 引擎 KV state handler）的 `ensureCapacity` 扩容时分配全新 NDArray **不拷已编码 K/V 行**、`reset()` 依赖分配器零初始化——任何触发 KV 增长的场景（chunked prefill：prompt > ~2×chunk；多轮历史；长 decode）都会**静默丢弃全部上下文**；BFloat16 KV 模型还可能在 typed-view 路径 trap。修：增长时按 `sequenceDim` 轴逐块拷旧行（per-position run = 轴后乘积，不越界、通用布局）+ `reset()` 走显式清零；scalar 分型 f16/bf16 走 raw view（bf16 typed-view trap = #268 修的那一类）。`StateHandlerGrowthTests` 7 精确值用例（f32/f16/bf16 × 增长保持旧行 / 无越界复制 / reset 清零，非零特征值断言——「没拷贝」或「碰巧零初始化」均 fail）。门：build exit 0；**`make test-ci` 2087/386, 0 failed, 37.5s**（基线 2080/385 + 本 7）。
 
 **09-21 i18n 死键清除（`c33b45a`）— 436 live → 363 live** — i18n 表长期靠「人眼对数」保完整性，死键（声明了 case、en/zh 两表都有翻译、但 UI/引擎/测试零引用的孤儿键）无声堆积。逐一 `grep StringKey.<name>` + rawValue 字符串跨全库 Sources+Tests 验证引用——首扫误报 74，二次碰撞剔除 `proactiveDraft`（经 `?? .proactiveDraft` 动态存活）后**精确 73**：`send`/`stop` 已被 SwiftUI `.submitLabel(.send)` / `chatState.stop()` 取代，`modelSearch*`/`metric*`/`a11y*`/`perception*`/`system*` 等组随视图重构遗留。三处（enum + en + zh 表）同删，diff = **219 纯删除 / 0 新增**。门：build exit 0；`make test-ci` **1988/1988 (368 suites)**。

@@ -1,6 +1,6 @@
-# ocoreai — 本地 Agent 可靠执行层
+# ocoreai — 开放模型的 Agent · 原生本地
 
-**macOS/iOS 本地 Agent 的执行层** — 一个 Swift 6.2 二进制：端侧推理（MLX Metal + CoreAI，上游衍生）、Agent 工具循环、会话记忆、Apple 原生多模态 I/O、OpenAI/Anthropic 兼容 HTTP 网关——单进程无 IPC。
+**为创作、工作与代码而生** — macOS/iOS 上的一个 Swift 6.2 二进制：端侧推理（MLX Metal + CoreAI，上游衍生）、Agent 工具循环、会话记忆、Apple 原生多模态 I/O、OpenAI/Anthropic 兼容 HTTP 网关——单进程无 IPC。
 
 [![Swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 14+ | iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
@@ -47,7 +47,7 @@ curl -s http://127.0.0.1:8080/health
 - **CI**：macOS-26 腿为权威门；xcode-27 腿当前红，失败在上游 mlx-swift-lm pin（非 ocoreai 代码）。
 - **代码审计 ✅ ≠ 行为验证** — 只说明"源码已实现"，有测试的才算验证过。
 
-**方向** —— 第一产品：**Coding/Computer Agent**，让 LLM 在端侧可靠完成多步工程任务（**Execute** → **Verify** → **Recover**）。推理归上游（MLX / CoreAI），ocoreai 是其上的可靠执行层 —— 跟齐上游，不与之竞争。
+**方向** —— 开放模型的 Agent，原生本地，为创作、工作与代码而生；**code 是第一切片**：Coding/Computer Agent，让 LLM 在端侧可靠完成多步工程任务（**Execute** → **Verify** → **Recover**）。创作（Apple 原生感知/多模态）与工作（计算机操作 + 会话）是一等产品面，不是附属。推理归上游（MLX / CoreAI），ocoreai 是其上的可靠执行层 —— 跟齐上游，不与之竞争。
 
 ---
 
