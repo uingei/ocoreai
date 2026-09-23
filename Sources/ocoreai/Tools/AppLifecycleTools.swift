@@ -297,7 +297,7 @@ enum ListAppsClient {
                     type: .string,
                     description: "Case-insensitive substring to match name or bundle id"),
                 "limit": ToolParameter(
-                    type: .string, description: "Max rows (default 100, cap 500)"),
+                    type: .integer, description: "Max rows (default 100, cap 500)"),
             ]),
             isDestructive: false
         ) { args in

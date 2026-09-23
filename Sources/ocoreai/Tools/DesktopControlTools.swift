@@ -312,9 +312,9 @@ enum MoveMouseClient {
                 + "Requires Accessibility permission for ocoreai; the result reports the permission state.",
             schema: ToolSchema(parameters: [
                 "x": ToolParameter(
-                    type: .string, description: "Absolute screen X in points (>= 0)"),
+                    type: .integer, description: "Absolute screen X in points (>= 0)"),
                 "y": ToolParameter(
-                    type: .string, description: "Absolute screen Y in points (>= 0)"),
+                    type: .integer, description: "Absolute screen Y in points (>= 0)"),
             ]),
             isDestructive: true
         ) { args in
@@ -341,9 +341,9 @@ enum ClickClient {
                 + "button: left|right|middle (default left); count: 1|2|3 = single/double/triple (default 1).",
             schema: ToolSchema(parameters: [
                 "x": ToolParameter(
-                    type: .string, description: "Absolute screen X in points (>= 0)"),
+                    type: .integer, description: "Absolute screen X in points (>= 0)"),
                 "y": ToolParameter(
-                    type: .string, description: "Absolute screen Y in points (>= 0)"),
+                    type: .integer, description: "Absolute screen Y in points (>= 0)"),
                 "button": ToolParameter(
                     type: .string, description: "left|right|middle (default left)"),
                 "count": ToolParameter(
@@ -378,10 +378,10 @@ enum DragClient {
                 "Drag from (x1, y1) to (x2, y2) — absolute macOS screen points, top-left origin. "
                 + "Press at start, move, release at end. button: left|right|middle (default left).",
             schema: ToolSchema(parameters: [
-                "x1": ToolParameter(type: .string, description: "Start X in points (>= 0)"),
-                "y1": ToolParameter(type: .string, description: "Start Y in points (>= 0)"),
-                "x2": ToolParameter(type: .string, description: "End X in points (>= 0)"),
-                "y2": ToolParameter(type: .string, description: "End Y in points (>= 0)"),
+                "x1": ToolParameter(type: .integer, description: "Start X in points (>= 0)"),
+                "y1": ToolParameter(type: .integer, description: "Start Y in points (>= 0)"),
+                "x2": ToolParameter(type: .integer, description: "End X in points (>= 0)"),
+                "y2": ToolParameter(type: .integer, description: "End Y in points (>= 0)"),
                 "button": ToolParameter(
                     type: .string, description: "left|right|middle (default left)"),
             ]),

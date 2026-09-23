@@ -116,7 +116,7 @@ enum ReadClipboardClient {
                 + "SEE what the user last copied before you overwrite it with write_clipboard.",
             schema: ToolSchema(parameters: [
                 "max_chars": ToolParameter(
-                    type: .string,
+                    type: .integer,
                     description:
                         "Max chars to return (default 2000, cap 20000); larger text is truncated with an honest tail note"
                 )

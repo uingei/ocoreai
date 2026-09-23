@@ -260,9 +260,9 @@ enum InspectUIClient {
                     type: .string,
                     description: "Target app bundle id or name (default: frontmost app)"),
                 "depth": ToolParameter(
-                    type: .string, description: "Max tree depth to traverse (default 6, cap 32)"),
+                    type: .integer, description: "Max tree depth to traverse (default 6, cap 32)"),
                 "max_nodes": ToolParameter(
-                    type: .string, description: "Max nodes to emit (default 800, cap 4000)"),
+                    type: .integer, description: "Max nodes to emit (default 800, cap 4000)"),
                 "role": ToolParameter(
                     type: .string,
                     description:
