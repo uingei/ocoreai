@@ -16,7 +16,7 @@ This project is developed with heavy AI assistance. The rules:
 
 ## Identity
 
-**What it is:** macOS/iOS agent execution layer (reliable Execute → Verify → Recover; first product = Coding/Computer Agent) — dual-channel on-device inference (MLX Metal GPU + CoreAI derived from coreai-models reference), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception pipeline. One binary.
+**What it is:** an agent for open models, natively local — built for creativity, work, and code (09-23 对外定版); code 第一切片 = Coding/Computer Agent (reliable Execute → Verify → Recover). Dual-channel on-device inference (MLX Metal GPU + CoreAI derived from coreai-models reference), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception pipeline. One binary.
 
 **Tech stack:** Swift 6.2 · SwiftPM · Hummingbird 2.26 · SwiftUI · SQLite + FTS5
 
