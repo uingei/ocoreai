@@ -389,19 +389,47 @@ public final class HardwareRouter: Sendable {
         var len = MemoryLayout<UInt64>.size
         sysctlbyname("hw.memsize", &memSize, &len, nil, 0)
 
-        // active + inactive + wire + compressor pages = true physical RAM in use
-        // on Apple UMA. compressor_page_count accounts for 10–20% compressed pages
-        // that the legacy vm_statistics layout cannot represent.
-        let used =
-            UInt64(vmStat.active_count)
-            + UInt64(vmStat.inactive_count)
-            + UInt64(vmStat.wire_count)
-            + UInt64(vmStat.compressor_page_count)
-        guard memSize > 0 else { return 0.5 }
-        return Double(used * pageSize) / Double(memSize)
+        // 仅把「不可回收」的物理页计入压力：active + wire + compressor 占用。
+        //
+        // 关键：inactive_count 是内核可随时回收的文件缓存（磁盘缓存，
+        // demand-paging 可即时换回），不产生真实内存压力。把它计入"已用"会把
+        // 现代 macOS 稳态（inactive 缓存常态数 GB）误判为高压力 —— 实测本机
+        // inactive≈4.0G 时，含它=79% (L3，强制 CPU) vs 剔它=49.5% (L1, 走 GPU)，
+        // 直接把 GPU 优先路由架空成恒定 CPU。真实压力下系统会 purge inactive
+        // 缓存（active 涨 / inactive 跌），所以剔它不掩盖真压力。
+        // compressor_page_count 保留：它是压缩页真实占用的物理 RAM（虽可回收，
+        // 但保守计入压力）。参考 omlx SystemStatsSampler.swift 的 vm_statistics64 用法。
+        return Self.usedFraction(
+            active: UInt64(vmStat.active_count),
+            wire: UInt64(vmStat.wire_count),
+            compressor: UInt64(vmStat.compressor_page_count),
+            pageSize: pageSize,
+            memSize: memSize
+        )
         #else
         return 0.5
         #endif
+    }
+
+    /// Pure memory-occupancy fraction, decoupled from live sysctl reads so it
+    /// is unit-testable without a specific machine.
+    ///
+    /// Counts only high-cost / non-reclaimable physical occupancy:
+    /// - `active`   — anonymous (real RAM) + referenced file pages
+    /// - `wire`     — kernel-pinned, non-reclaimable
+    /// - `compressor` — compressed anonymous, reclaimable but costly
+    ///
+    /// Deliberately EXCLUDES `inactive` (reclaimable file/disk cache) — see
+    /// the caller for the full rationale and the measured L3→L1 impact.
+    static func usedFraction(
+        active: UInt64,
+        wire: UInt64,
+        compressor: UInt64,
+        pageSize: UInt64,
+        memSize: UInt64
+    ) -> Double {
+        guard memSize > 0 else { return 0.5 }
+        return Double((active + wire + compressor) * pageSize) / Double(memSize)
     }
 
     /// Memory usage fraction mapped to 0-3 pressure level
