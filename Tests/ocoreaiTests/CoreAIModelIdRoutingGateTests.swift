@@ -13,7 +13,7 @@ import Testing
 
 @testable import ocoreai
 
-@Suite("CoreAI gate — model id resolution (single-slash canonical shape)")
+@Suite("CoreAI gate — model id resolution (single-slash canonical shape)", .serialized)
 struct CoreAIModelIdRoutingGateTests {
     // Per-run isolated ModelStore.root (ModelStoreTests convention: point
     // OCOREAI_MODELS_DIR at a temp dir, restore on scope exit).
