@@ -127,6 +127,42 @@ func coreAIConfigData(from directory: URL) -> Data? {
     return nil
 }
 
+/// Resolve a model id to the local directory that carries a CoreAI
+/// `.aimodel`/`.aimodelc` asset. Sole owner of the id→dir resolution for the
+/// CoreAI gate AND the load path that consumes its result (gate and load can
+/// never disagree about whether a model is CoreAI-local).
+///
+/// Accepted shapes (all must end in a real asset dir; absence ⇒ `nil`):
+///   1) absolute or `~`-relative local path — any depth;
+///   2) root-relative id (`org/model` …) under `ModelStore.root` — the
+///      `/v1/models` canonical id, the same `org/model` shape as an MLX id.
+///
+/// Rejected: `hf:`/`mscope:` hub prefixes (hub routes are downloads, and the
+/// flat hub layout has no `org/name` dirs — a same-named dir under root is how
+/// the CoreAI model store is laid out), empty ids, and anything without a
+/// resolvable CoreAI asset.
+///
+/// Pure filesystem: no CoreAI imports, unit-testable on every build.
+func localCoreAIModelDir(for modelId: String) -> String? {
+    if modelId.isEmpty { return nil }
+    if modelId.hasPrefix("hf:") || modelId.hasPrefix("mscope:") { return nil }
+    let path = (modelId as NSString).expandingTildeInPath
+    let candidates: [String]
+    if path.hasPrefix("/") {
+        // Shape 1: already a filesystem path (absolute or /-relative from tilde).
+        candidates = [path]
+    } else {
+        // Shape 2: the canonical root-relative id.
+        candidates = [ModelStore.root.appendingPathComponent(path).path]
+    }
+    for candidate in candidates {
+        if ModelStore.hasCoreAIAsset(at: URL(fileURLWithPath: candidate)) {
+            return candidate
+        }
+    }
+    return nil
+}
+
 /// Convert ContentPolymorphic to String for tokenization input.
 /// - Returns: (text to tokenize, count of non-text parts silently dropped)
 func contentToString(_ content: ContentPolymorphic?) -> (String, Int) {
@@ -674,28 +710,22 @@ actor EnginePool {
         if #available(macOS 27.0, iOS 27.0, *),
             let loader = _coreAIPreparedModelLoader as? CoreAIModelLoader
         {
-            // CoreAI specialization targets a local file asset (.aimodel) — not a
-            // hub repo id. A hub model ("hf:…"/"mscope:…"/"org/model") is a
-            // download, not a file: routing it to AIModel(contentsOf:) made
-            // load() return a stub LoadedModel (nil mlxModelHandle, no weights)
-            // and silently skip the MLX download+load path. Gate on a real
-            // local file path so hub ids fall through to the MLX path below.
-            //
-            // The gate accepts BOTH asset shapes (mirrors `PreparedModel.hasCoreAIAsset`,
-            // which is exactly why ModelStore.discoverReady enumerates them):
-            //  1) a direct `.aimodel`/`.aimodelc` asset (file or bundle dir);
-            //  2) a bundle ROOT dir (the `coreai.llm.export` surface: metadata.json
-            //     + tokenizer/ + <name>.aimodel/ inside) — the path-extension
-            //     check in hasCoreAIAsset catches the inner asset entry.
-            // `resolveCoreAIModelURL` normalizes either shape to the loadable
-            // asset before AIModel(contentsOf:), so the dir vs. file distinction
-            // never reaches the runtime.
-            let localPath = (modelId as NSString).expandingTildeInPath
-            let isLocalFile =
-                !isHubModelIdentifier(modelId)
-                && localPath.hasPrefix("/")
-                && PreparedModel.hasCoreAIAsset(at: URL(fileURLWithPath: localPath))
-            if isLocalFile {
+            // CoreAI gate: a model id is eligible when a CoreAI `.aimodel`/
+            // `.aimodelc` asset is resolvable for it. Three shapes (mirrors
+            // `PreparedModel.hasCoreAIAsset`, which is exactly why
+            // ModelStore.discoverReady enumerates them):
+            //   1) a direct `.aimodel`/`.aimodelc` asset (file or bundle dir);
+            //   2) a bundle ROOT dir (the `coreai.llm.export` surface:
+            //      metadata.json + tokenizer/ + <name>.aimodel/ inside);
+            //   3) a `org/model` (or deeper) id relative to ModelStore.root —
+            //      the `/v1/models` canonical shape (source-agnostic, same
+            //      shape as MLX `org/model`).
+            // The old gate required `localPath.hasPrefix("/")`, which
+            // mis-routed shape 3 to the MLX path (the dir holds main.mlirb +
+            // main.hash, not safetensors → load fail → 503). One helper owns
+            // the resolution so the gate and the load path below can never
+            // diverge.
+            if let localPath = localCoreAIModelDir(for: modelId) {
                 let assetURL = PreparedModel.resolveCoreAIModelURL(
                     from: URL(fileURLWithPath: localPath))
                 let preparedModel = try await loader.load(
@@ -741,9 +771,19 @@ actor EnginePool {
                     )
                 }
 
+                // modelURL: MUST be the real bundle root (which carries the
+                // `.aimodel` asset), NOT the `?? URL(fileURLWithPath: modelId)`
+                // relative fallback in the hub branch above (L700). That fallback
+                // is a RELATIVE path (e.g. `Qwen2.5-1.5B-CoreAI/qwen2_5_...`
+                // resolved against CWD) that hasCoreAIAsset=false — the dispatch
+                // ANE gate (EngineInference L1609) and prewarm (LoadedModel L435)
+                // both call PreparedModel.hasCoreAIAsset(at: modelURL) and would
+                // fall back to GPU → "MLX model handle not loaded" for a model
+                // that has no MLX handle. The bundle root is the authoritative.
+                let bundleRoot = URL(fileURLWithPath: localPath)
                 return LoadedModel(
                     configData: coreAIConfigData,
-                    modelURL: modelURL,
+                    modelURL: bundleRoot,
                     modelConfig: modelConfig,
                     preparedModel: preparedModel,
                     logger: logger,
