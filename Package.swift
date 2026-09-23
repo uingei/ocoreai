@@ -38,9 +38,7 @@ let package = Package(
         // `git log <old>..origin/main` -> audit consumer impact -> bump .revision ->
         // `swift build` + `swift test` (make test-ci). The per-bump audit trail lives
         // in AGENTS.md ("Upstream Audit Dependencies") + CHANGELOG.md, not in this file.
-        .package(
-            url: "https://github.com/ml-explore/mlx-swift-lm.git",
-            revision: "ee673d6a71d76e67b532dc7eaf91d92edc3bb8bb"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "ee673d6"),
         // mlx-swift: pin to upstream main (pre-release, no tag >0.31.6).
         // #450 "update for mlx v0.32.2" (air64 Metal-thread-qualifier fix for
         // steel/attn/mma.h) is the floor that unblocks IPHONEOS_DEPLOYMENT_TARGET=27
