@@ -106,6 +106,13 @@ class GrowingNDArrayState: SyncStateHandler, @unchecked Sendable {
     private let keyDescriptor: NDArrayDescriptor
     private let valueDescriptor: NDArrayDescriptor
 
+    /// Index of the dynamic (sequence-length) axis — the negative axis in the
+    /// descriptor's shape. This is the axis that `resolvingDynamicDimensions`
+    /// expands, and the axis along which `copyStateCache` preserves data on
+    /// growth. Derived from the descriptor (upstream `sequenceDimIndex`)
+    /// rather than hardcoded, so it is correct for any rank/axis layout.
+    private let sequenceDimIndex: Int
+
     init(
         keyDescriptor: NDArrayDescriptor,
         valueDescriptor: NDArrayDescriptor,
@@ -119,6 +126,9 @@ class GrowingNDArrayState: SyncStateHandler, @unchecked Sendable {
         self.stateNames = [keyStateName, valueStateName]
         self.maxCapacity = maxCapacity
         self.currentCapacity = initialValue
+        self.sequenceDimIndex =
+            keyDescriptor.shape.firstIndex(where: { $0 < 0 })
+            ?? (keyDescriptor.shape.count - 1)
 
         let keyShape = keyDescriptor.resolvingDynamicDimensions([1, 1, 1, initialValue])
         let valueShape = valueDescriptor.resolvingDynamicDimensions([1, 1, 1, initialValue])
@@ -134,21 +144,25 @@ class GrowingNDArrayState: SyncStateHandler, @unchecked Sendable {
 
         // Resize key cache
         let keyShape = keyDescriptor.resolvingDynamicDimensions([1, 1, 1, newCapacity])
-        keyCache = NDArray(descriptor: keyShape)
+        var newKeyCache = NDArray(descriptor: keyShape)
+        _ = newKeyCache.mutableRawView()
+        copyStateCache(from: keyCache, to: &newKeyCache, sequenceDim: sequenceDimIndex)
+        keyCache = newKeyCache
 
         // Resize value cache
         let valueShape = valueDescriptor.resolvingDynamicDimensions([1, 1, 1, newCapacity])
-        valueCache = NDArray(descriptor: valueShape)
+        var newValueCache = NDArray(descriptor: valueShape)
+        _ = newValueCache.mutableRawView()
+        copyStateCache(from: valueCache, to: &newValueCache, sequenceDim: sequenceDimIndex)
+        valueCache = newValueCache
 
         currentCapacity = newCapacity
         return true
     }
 
     func reset() {
-        let shapeTemplate = keyDescriptor.resolvingDynamicDimensions([1, 1, 1, currentCapacity])
-        keyCache = NDArray(descriptor: shapeTemplate)
-        let valueShape = valueDescriptor.resolvingDynamicDimensions([1, 1, 1, currentCapacity])
-        valueCache = NDArray(descriptor: valueShape)
+        zeroFillNDArray(&keyCache)
+        zeroFillNDArray(&valueCache)
     }
 
     func bind(into views: inout InferenceFunction.MutableViews) {
@@ -449,6 +463,122 @@ enum KVCacheError: Error, LocalizedError {
         case .invalidState(let msg):
             return "KV cache invalid state: \(msg)"
         }
+    }
+}
+
+// MARK: - Shared Utilities
+
+/// Copy the already-encoded rows of a smaller KV-state tensor into a freshly
+/// allocated larger one (used on growth).
+///
+/// The KV-cache state is a tensor with a single dynamic (sequence-length) axis
+/// `sequenceDim`; every other axis is fixed and identical between the source
+/// (old capacity) and the destination (new capacity). Ocoreai's canonical
+/// layout is `[B, H, S, D]` / `[L, B, H, S, D]` (see
+/// `KVCacheFactory.detectSequenceDim`), where `S` grows and `D` (head_dim) is
+/// the fixed trailing axis — but this helper is written for the general case
+/// (any fixed axes after `S`) so the exact layout does not matter, only that
+/// `sequenceDim` points at the growing axis.
+///
+/// For each "block" (the product of the axes before `S`) and each old sequence
+/// position, the fixed per-position run (the product of the axes after `S`) is
+/// copied to the front of the block's new, larger sequence run. This preserves
+/// exactly the `oldSeqLen × run` elements that were already encoded, in the
+/// same relative order — no more, no less (no out-of-bounds read).
+///
+/// Scalar-type-aware, mirroring upstream coreai-models `StateHandler+NDArray`
+/// (copyCache, #268): 16-bit types (Float16 *and* BFloat16) are copied as raw
+/// bytes — both are 16 bits, values move verbatim, and a typed
+/// `view(as: Float16.self)` would trap on a BFloat16 array. Float32 uses the
+/// typed `Float` view.
+///
+/// - Parameters:
+///   - source: The old (smaller) state tensor.
+///   - destination: The new (larger) state tensor to receive the copied rows.
+///   - sequenceDim: Index of the dynamic (sequence-length) axis.
+@available(macOS 27.0, iOS 27.0, *)
+func copyStateCache(from source: NDArray, to destination: inout NDArray, sequenceDim: Int) {
+    let srcShape = source.shape
+    let dstShape = destination.shape
+    guard srcShape.count == dstShape.count,
+        srcShape.count > sequenceDim,
+        srcShape[sequenceDim] <= dstShape[sequenceDim]
+    else { return }
+
+    let numBlocks = srcShape[..<sequenceDim].reduce(1, *)
+    let oldSeqLen = srcShape[sequenceDim]
+    let newSeqLen = dstShape[sequenceDim]
+    let run = srcShape[(sequenceDim + 1)...].reduce(1, *)
+    guard numBlocks > 0, oldSeqLen > 0, run > 0, newSeqLen >= oldSeqLen else { return }
+
+    let srcBlockStride = oldSeqLen * run
+    let dstBlockStride = newSeqLen * run
+
+    switch source.scalarType {
+    case .float16, .bfloat16:
+        // Both are 16-bit; reinterpret as raw bytes and copy them verbatim.
+        // A typed Float16 view traps on BFloat16 (scalar types must match), so
+        // the raw-view path is the only one correct for both (#268).
+        source.rawView().withUnsafeBytes { srcRaw, _, _ in
+            let src = srcRaw.assumingMemoryBound(to: UInt16.self)
+            destination.mutableRawView().withUnsafeMutableBytes { dstRaw, _, _ in
+                let dst = dstRaw.assumingMemoryBound(to: UInt16.self)
+                for block in 0 ..< numBlocks {
+                    let sBase = block * srcBlockStride
+                    let dBase = block * dstBlockStride
+                    for pos in 0 ..< oldSeqLen {
+                        dst.advanced(by: dBase + pos * run)
+                            .update(
+                                from: src.advanced(by: sBase + pos * run),
+                                count: run)
+                    }
+                }
+            }
+        }
+    case .float32:
+        source.view(as: Float.self).withUnsafePointer { src, _, _ in
+            destination.mutableView(as: Float.self).withUnsafeMutablePointer { dst, _, _ in
+                for block in 0 ..< numBlocks {
+                    let sBase = block * srcBlockStride
+                    let dBase = block * dstBlockStride
+                    for pos in 0 ..< oldSeqLen {
+                        dst.advanced(by: dBase + pos * run)
+                            .update(
+                                from: src.advanced(by: sBase + pos * run),
+                                count: run)
+                    }
+                }
+            }
+        }
+    default:
+        // Unsupported scalar type for a KV state — surface rather than silently
+        // corrupt the cache (preconditionFailure would trap in production).
+        assertionFailure("Unsupported scalar type for state copy: \(source.scalarType)")
+        return
+    }
+}
+
+/// Explicitly zero-fill a state tensor (used on `reset()`).
+///
+/// Scalar-type-aware: 16-bit types (Float16 *and* BFloat16) zero to an all-zero
+/// bit pattern, copied via the raw view to avoid the scalar-type trap that a
+/// typed `mutableView(as: Float16.self)` hits on a BFloat16 array. Matches
+/// upstream coreai-models `zeroFillNDArray` (#268).
+@available(macOS 27.0, iOS 27.0, *)
+func zeroFillNDArray(_ array: inout NDArray) {
+    let count = array.shape.reduce(1, *)
+    switch array.scalarType {
+    case .float16, .bfloat16:
+        _ = array.mutableRawView().withUnsafeMutableBytes { ptr, _, _ in
+            memset(ptr, 0, count * MemoryLayout<UInt16>.stride)
+        }
+    case .float32:
+        _ = array.mutableView(as: Float.self).withUnsafeMutablePointer { ptr, _, _ in
+            memset(ptr, 0, count * MemoryLayout<Float>.size)
+        }
+    default:
+        assertionFailure("Unsupported scalar type for state: \(array.scalarType)")
+        return
     }
 }
 
