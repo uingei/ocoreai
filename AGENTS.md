@@ -101,6 +101,12 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 - Target names ≠ module boundaries (e.g., `GuidedGenerationLoop` is peer to `ChatSession`, not nested).
 - TODO 计数 09-22 重核 = **1** (原 3, #206 后 `1bef69b`/`088a0b7` 各清 1): 现存 `CoreAIInputEmbeddings.swift:36` (origin 系 `4517ca3` from coreai-models absorb)。references/ 本地不在, "upstream HEAD present" 无法当场复核, origin 以 git 历史为准。
 
+### General Discipline
+- **术语约束**: 使用项目已有术语, 不推测、不造词。(Use the project's existing terms; do not guess or invent vocabulary.)
+- **精准修改**: 只碰必须碰的, 只清理自己造成的混乱; 不重构没坏的东西; 相邻代码/注释/格式无用户许可不动。(Touch only what must change; do not refactor working code; leave adjacent code/notes/formatting alone without explicit permission.)
+- **代码设计**: 方法内不修改入参字段的值。(A method must not mutate an input parameter's field.)
+- **第一性原理**: 从原始需求与问题出发, 拒绝经验主义与方案盲从; 目标模糊先与用户确认, 目标清晰但路径非最优则直接给出更短/成本更低/更可读/更易维护的方案。(First-principles; stop to confirm when the goal is ambiguous; when the goal is clear but the path is suboptimal, propose the shorter/cheaper/more readable/more maintainable one.)
+
 ### Testing Quality
 - Gold standard: `ThinkingBudget`, `ComplexityAnalyzer` — exact value assertions (`#expect == N`), parameterized traversal, boundary assertions. (BlockPool gold-standard test removed with the module at upstream 2b3c965.)
 - **Reject** `count > N` weak assertions.
