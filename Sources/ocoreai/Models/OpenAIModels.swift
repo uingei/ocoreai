@@ -135,8 +135,14 @@ struct ChatCompletionRequest: Decodable {
     /// Enable post-inference self-correction pipeline
     var selfCorrection: Bool? = false
 
-    /// Enable reasoning mode — true/.deep is equivalent, false/.light for reduced reasoning budget
-    var reasoning: Bool? = false
+    /// Reasoning switch — three-state (aligned with upstream mlx-swift-lm
+    /// `thinkingEnabled: Bool?`):
+    ///   - `nil`/absent → no preference, model template default applies (e.g. Qwen3 ON)
+    ///   - `true`  → force `enable_thinking=true`
+    ///   - `false` → force `enable_thinking=false`
+    /// `reasoningLevel` (light/moderate/deep) and `reasoningEffort` (model-
+    /// template words) take precedence when explicitly set.
+    var reasoning: Bool? = nil
     /// Reasoning level for FM backend (light/moderate/deep) — aligns with SDK ReasoningLevel
     var reasoningLevel: String? = nil
     /// Reasoning effort (codex-aligned words: low/medium/high/xhigh/max/ultra).

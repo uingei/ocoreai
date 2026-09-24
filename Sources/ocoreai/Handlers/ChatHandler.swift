@@ -521,8 +521,9 @@ func chatCompletionsHandler(
             return hasTools || hasJsonSchema
         }()
 
-        /// Reasoning toggle — passed to ChatSession via additionalContext
-        let reasoningEnabled: Bool = request.reasoning == true
+        /// Reasoning switch — three-state (absent=nil → model default,
+        /// true → force on, false → force off). Aligned with upstream
+        /// `thinkingEnabled: Bool?`.
 
         /// Tool choice strategy — log and pass through to Engine
         if let tc = request.toolChoice {
@@ -546,7 +547,7 @@ func chatCompletionsHandler(
             // guided's real job). Observed: tools on the FM guided path
             // execute but never continue — the loop is the intended route.
             hasNativeTools: effectiveTools?.isEmpty == false,
-            enableReasoning: reasoningEnabled,
+            enableReasoning: request.reasoning,
             reasoningLevel: request.reasoningLevel,
             reasoningEffort: request.reasoningEffort,
             // P0-3: declared names (OpenAI `tools[]` whitelist); nil when the

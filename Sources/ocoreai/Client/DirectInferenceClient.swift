@@ -44,8 +44,9 @@ struct InferenceRequest {
     /// When nil (default), the request is non-cancellable.
     let cancellation: InferenceCancellation?
 
-    /// Enable reasoning/chain-of-thought mode.
-    /// When true, passed as additionalContext["enable_thinking"] to ChatSession.
+    /// Enable reasoning/chain-of-thought mode. Three-state:
+    /// `nil` = no preference (model template default), `true` = force on,
+    /// `false` = force off. Aligned with upstream `thinkingEnabled: Bool?`.
     let reasoning: Bool?
 
     /// Reasoning level for FM backend (light/moderate/deep) — nil defaults to reasoning bool.
@@ -404,7 +405,7 @@ extension DirectInferenceClient {
             useGuidedGeneration: request.tools.map { !$0.isEmpty } ?? false,
             grammarSchema: request.tools.map { buildGrammarSchema(from: $0) }.flatMap { $0 },
             hasNativeTools: toolRouting.hasNativeTools,
-            enableReasoning: request.reasoning == true,
+            enableReasoning: request.reasoning,
             reasoningLevel: request.reasoningLevel,
             reasoningEffort: request.reasoningEffort,
             declaredToolNames: toolRouting.declaredToolNames,
@@ -781,7 +782,7 @@ extension DirectInferenceClient {
             useGuidedGeneration: request.tools.map { !$0.isEmpty } ?? false,
             grammarSchema: request.tools.map { buildGrammarSchema(from: $0) }.flatMap { $0 },
             hasNativeTools: toolRouting.hasNativeTools,
-            enableReasoning: request.reasoning == true,
+            enableReasoning: request.reasoning,
             reasoningLevel: request.reasoningLevel,
             reasoningEffort: request.reasoningEffort,
             declaredToolNames: toolRouting.declaredToolNames,

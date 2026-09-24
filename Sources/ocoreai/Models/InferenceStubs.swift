@@ -325,6 +325,45 @@ struct SamplingConfiguration: Codable, Equatable {
     }
 }
 
+/// Reasoning-level → `enable_thinking` resolution (shared by the FM and MTP
+/// engine paths — a single source of truth so the two cannot diverge).
+/// Aligned with upstream mlx-swift-lm `thinkingEnabled: Bool?` (nil = no
+/// preference → model template default; true = force on; false = force off).
+enum ReasoningResolution {
+    /// Resolve a user's explicit reasoning intent to the `enable_thinking`
+    /// preference.
+    ///
+    /// - `reasoningLevel` set (FM path): "light"/"moderate"/"deep" → `true`
+    ///   (explicit ON, case-insensitive); any other non-empty level
+    ///   (e.g. "no_think", unknown or blank words) is a **disabling**
+    ///   signal → `enableReasoning ?? false` — the old
+    ///   `enableReasoning ? true : false` semantics: an explicit `reasoning:`
+    ///   bool can override it, absent → `false` (OFF), never the model default.
+    /// - `reasoningLevel` absent (`nil` or empty): an explicit `reasoning`
+    ///   bool wins (`true` → on, `false` → off); no signal at all → `nil`
+    ///   (model template default applies, e.g. Qwen3 family ON).
+    static func thinkingEnabled(
+        reasoningLevel: String? = nil,
+        enableReasoning: Bool? = nil
+    ) -> Bool? {
+        // A whitespace-only level is malformed-but-empty → treated as "no
+        // signal", so an explicit `reasoning` bool (or nil) decides.
+        guard
+            let level = reasoningLevel?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            !level.isEmpty
+        else {
+            return enableReasoning
+        }
+        switch level.lowercased() {
+        case "light", "moderate", "deep":
+            return true
+        default:
+            return enableReasoning ?? false
+        }
+    }
+}
+
 /// Intermediate inference options — used by both CoreAI and MLX backends.
 struct InferenceOptions: Codable {
     /// Tool-routing contract shared by every native (non-HTTP) client.
@@ -373,7 +412,13 @@ struct InferenceOptions: Codable {
     var hasNativeTools: Bool = false
     /// When true, enable reasoning/chain-of-thought mode.
     /// Passed as additionalContext["enable_thinking"] to ChatSession.
-    var enableReasoning: Bool = false
+    /// Three-state (mirrors upstream mlx-swift-lm `thinkingEnabled: Bool?`):
+    ///   - `nil`     → no preference, model template default applies (e.g. Qwen3 ON);
+    ///   - `true`    → force thinking ON;
+    ///   - `false`   → force thinking OFF.
+    /// `reasoningLevel` (FM backend; light/moderate/deep) and `reasoningEffort`
+    /// (model-template words) take precedence when explicitly set.
+    var enableReasoning: Bool?
     /// Reasoning level for FM backend — aligns with SDK ContextOptions.ReasoningLevel
     /// ("light", "moderate", "deep", or nil for default). ChatSession path uses
     /// enableReasoning only; this field exists for FM path granularity.
@@ -426,7 +471,7 @@ struct InferenceOptions: Codable {
     init(
         maxTokens: Int? = nil, includeLogits: Bool = false, useGuidedGeneration: Bool = false,
         grammarSchema: String? = nil, hasNativeTools: Bool = false,
-        enableReasoning: Bool = false, reasoningLevel: String? = nil,
+        enableReasoning: Bool? = nil, reasoningLevel: String? = nil,
         reasoningEffort: String? = nil, toolCallingMode: String? = nil,
         declaredToolNames: [String]? = nil,
         forcedContinuation: [Int32]? = nil,

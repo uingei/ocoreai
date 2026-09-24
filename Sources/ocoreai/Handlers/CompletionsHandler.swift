@@ -189,7 +189,12 @@ func completionsHandler(
         includeLogits: false,
         useGuidedGeneration: false,
         grammarSchema: nil,
-        enableReasoning: false,
+        // `/v1/completions` (legacy text API) has no reasoning wire field on
+        // this request — `nil` = no preference → model template default.
+        // An explicit `false` here would fabricate user intent (forced OFF),
+        // which is what the old non-optional `enableReasoning: Bool = false`
+        // did silently; `nil` preserves the pre-change engine outcome exactly.
+        enableReasoning: nil,
         reasoningLevel: nil,
         reasoningEffort: nil,
         // Wire HTTP consumer — `.interactive` cannot be asked of an external

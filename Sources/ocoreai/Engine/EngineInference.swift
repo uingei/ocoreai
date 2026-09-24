@@ -2454,13 +2454,13 @@ extension EnginePool {
                         ctxOpts = ContextOptions(reasoningLevel: .deep)
                         log.info("Reasoning level: .deep")
                     default:
-                        if options.enableReasoning {
+                        if options.enableReasoning == true {
                             ctxOpts = ContextOptions(reasoningLevel: .deep)
                         } else {
                             ctxOpts = ContextOptions()
                         }
                     }
-                } else if options.enableReasoning {
+                } else if options.enableReasoning == true {
                     // Legacy boolean path — defaults to .deep for alignment
                     ctxOpts = ContextOptions(reasoningLevel: .deep)
                     log.info("Reasoning enabled via ContextOptions.reasoningLevel=.deep")
@@ -2875,23 +2875,16 @@ extension EnginePool {
             if mayRunReasoning,
                 let rc = reasoningConfig
             {
-                // Mirror upstream thinkingEnabled(for:) reasoning level resolution:
-                //   reasoningLevel set → parse to Bool?
-                //   reasoningLevel nil → pass nil (promptStrategy fallback to defaultOn)
+                // Mirror upstream thinkingEnabled(for:) reasoning-level resolution
+                // (single source of truth: ReasoningResolution.thinkingEnabled,
+                // shared with the MTP path so the two cannot diverge):
+                //   level set → on/off per level (disabling levels → enableReasoning ?? false)
+                //   level nil → explicit `reasoning` bool, else nil (template default)
                 // Upstream L1329-1349 (FM path) does the same for chat session.
-                let thinkingEnabled: Bool? = {
-                    if let level = options.reasoningLevel?.lowercased() {
-                        switch level {
-                        case "light", "moderate", "deep":
-                            return true
-                        default:
-                            // .custom("no_think") or unknown → interpret via enableReasoning flag
-                            return options.enableReasoning ? true : false
-                        }
-                    }
-                    // User didn't specify reasoning level — let promptStrategy use defaultOn
-                    return nil
-                }()
+                let thinkingEnabled = ReasoningResolution.thinkingEnabled(
+                    reasoningLevel: options.reasoningLevel,
+                    enableReasoning: options.enableReasoning
+                )
                 do {
                     baseReasoningContext = try rc.promptStrategy.additionalContext(
                         forThinkingEnabled: thinkingEnabled
@@ -3224,26 +3217,22 @@ extension EnginePool {
                     if let rc = mtpReasoningConfig,
                         case .templateFlag(let key, let defaultOn) = rc.promptStrategy
                     {
-                        // Resolve reasoning level → Bool? (same as FM path L1329-1349)
-                        let resolved: Bool? = { () -> Bool? in
-                            if let level = options.reasoningLevel?.lowercased() {
-                                switch level {
-                                case "light", "moderate", "deep":
-                                    return true
-                                default:
-                                    // .custom("no_think") or unknown → interpret via enableReasoning fallback
-                                    return options.enableReasoning ? true : false
-                                }
-                            }
-                            return nil  // User didn't specify — fall through to defaultOn
-                        }()
+                        // Resolve reasoning level → Bool? (same as FM path) — shared
+                        // ReasoningResolution helper so FM and MTP stay in lockstep.
+                        let resolved = ReasoningResolution.thinkingEnabled(
+                            reasoningLevel: options.reasoningLevel,
+                            enableReasoning: options.enableReasoning
+                        )
                         let enabled = resolved ?? defaultOn
                         mtpThinkingEnabled = enabled
                         mtpToolAwareContext = ReasoningEffortWire.context(
                             [key: enabled], rawValue: options.reasoningEffort)
                     } else {
                         // Non-templateFlag model (alwaysOn or none) — same as upstream L1191-1193
-                        mtpThinkingEnabled = options.enableReasoning
+                        // `enableReasoning` is now Bool?; a nil (no preference) maps to the old
+                        // `false` default, which L3282 renders as `forThinkingEnabled: nil` (no
+                        // explicit injection). Only an explicit `true` forces injection on.
+                        mtpThinkingEnabled = (options.enableReasoning == true)
                         mtpToolAwareContext = nil
                     }
                     /// Upstream L1149-1157: thinkThenCallConfig is computed for ALL tool paths
