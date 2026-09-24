@@ -17,9 +17,10 @@ import Testing
 
 @Suite("SystemPromptContract")
 struct SystemPromptContractTests {
-    @Test("coding agent identity, not generic assistant")
-    func codingAgentIdentity() {
-        #expect(SystemPromptBuilder.codingAgentBase.contains("coding agent"))
+    @Test("agent identity: canonical 09-23 positioning, not a generic assistant")
+    func agentIdentity() {
+        #expect(SystemPromptBuilder.codingAgentBase.contains("agent for open models"))
+        #expect(SystemPromptBuilder.codingAgentBase.contains("creativity, work, and code"))
         #expect(!SystemPromptBuilder.codingAgentBase.contains("intelligent assistant"))
     }
 
@@ -64,7 +65,7 @@ struct SystemPromptContractTests {
     func buildKeepsContract() async {
         let builder = SystemPromptBuilder(basePrompt: SystemPromptBuilder.codingAgentBase)
         let built = await builder.build()
-        #expect(built.contains("coding agent"))
+        #expect(built.contains("agent for open models"))
         #expect(built.contains("use your tools"))
     }
 
