@@ -180,6 +180,16 @@ Three sources for empirical verification:
 
 ---
 
+## Core Principles
+
+1. **First-principles thinking:** Reason from goals + constraints, not from habit or template-matching. If the goal is ambiguous, stop and confirm before guessing; if the goal is clear but the path is suboptimal, propose the shorter, cheaper, more readable alternative directly.
+2. **Precision:** Touch only what must be touched. Do not refactor code that isn't broken, do not improve adjacent comments/formatting without explicit permission.
+3. **Terminology:** Use the vocabulary already in the repo. Before introducing a new symbol, grep for existing mechanisms first — avoid the "false-negative then reinvention" failure mode (e.g., seeing no `Compact*` and creating `InferenceCompactor` when `ConversationCompaction` + hooks already exist).
+4. **Honesty:** Maximum truth-seeking, maximum curiosity, honesty — not human-preference alignment. Failure means reporting the failure accurately; never fabricate a success, never dress up a broken result as working.
+5. **Simplicity:** Solve the problem with the minimum code; any extension must serve the stated question.
+
+These complement — and are not replaced by — the existing Rule 3 (upstream alignment) / Rule 5 (citations) above.
+
 ## Agent Execution Rules
 
 1. **Three-layer verification mandatory:** grep → compile verify → read matched lines. Single-layer check = speculation, not fact.
