@@ -189,6 +189,11 @@ public enum StringKey: String, CaseIterable, Sendable {
     case specDecodingModeTraditional = "Settings.SpecDecodingModeTraditional"
     case specDecodingHint = "Settings.SpecDecodingHint"
     case specDecodingFooter = "Settings.SpecDecodingFooter"
+    case routingPolicySection = "Settings.RoutingPolicySection"
+    case routingPolicyBalanced = "Settings.RoutingPolicyBalanced"
+    case routingPolicyPerformance = "Settings.RoutingPolicyPerformance"
+    case routingPolicyEfficiency = "Settings.RoutingPolicyEfficiency"
+    case routingPolicyFooter = "Settings.RoutingPolicyFooter"
     case planSection = "Settings.PlanSection"
     case planToggle = "Settings.PlanToggle"
     case planHint = "Settings.PlanHint"
@@ -650,6 +655,12 @@ enum L10nTables {
         .specDecodingModeTraditional: "Traditional (Draft Model)",
         .specDecodingHint: "MTP uses the main model's built-in MTP layers for speculation",
         .specDecodingFooter: "Speculative decoding can significantly improve throughput",
+        .routingPolicySection: "Routing Policy",
+        .routingPolicyBalanced: "Balanced",
+        .routingPolicyPerformance: "Performance",
+        .routingPolicyEfficiency: "Efficiency",
+        .routingPolicyFooter:
+            "Balanced shifts to CPU at thermal pressure; Performance stays on GPU longer; Efficiency offloads earlier. Applies on next launch.",
         .planSection: "Planning",
         .planToggle: "Enable update_plan (agent to-do list)",
         .planHint:
@@ -1098,6 +1109,11 @@ enum L10nTables {
         .specDecodingModeTraditional: "传统（草稿模型）",
         .specDecodingHint: "MTP 使用主模型内置 MTP 层进行推测",
         .specDecodingFooter: "推测解码可显著提升生成吞吐量，重启应用后生效",
+        .routingPolicySection: "算力路由策略",
+        .routingPolicyBalanced: "均衡",
+        .routingPolicyPerformance: "性能优先",
+        .routingPolicyEfficiency: "能效优先",
+        .routingPolicyFooter: "均衡：热压力或 GPU 占用偏高时切 CPU；性能：更久保持 GPU；能效：更激进提前卸载。下次启动生效。",
         .planSection: "计划",
         .planToggle: "启用 update_plan（agent 任务清单）",
         .planHint: "默认关闭（对齐上游 opt-in 基线）。开启后 agent 维护可见的任务清单（update_plan：增 / 改序 / 完成）。",

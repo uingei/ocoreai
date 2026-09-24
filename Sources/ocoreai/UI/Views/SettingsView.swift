@@ -31,6 +31,7 @@ struct SettingsView: View {
             performanceSection
             kvCacheSection
             specDecodingSection
+            routingPolicySection
             planSection
             logsSection
             appSection
@@ -213,6 +214,30 @@ struct SettingsView: View {
             Text(StringKey.specDecodingSection.l)
         } footer: {
             Text(StringKey.specDecodingFooter.l)
+        }
+    }
+
+    // MARK: - Hardware Routing Policy
+
+    private var routingPolicySection: some View {
+        Section {
+            Picker(StringKey.routingPolicySection.l, selection: $settingsState.routingPolicy) {
+                ForEach(RoutingPolicy.allCases, id: \.self) { policy in
+                    switch policy {
+                    case .balanced:
+                        Text(StringKey.routingPolicyBalanced.l).tag("balanced")
+                    case .performance:
+                        Text(StringKey.routingPolicyPerformance.l).tag("performance")
+                    case .efficiency:
+                        Text(StringKey.routingPolicyEfficiency.l).tag("efficiency")
+                    }
+                }
+            }
+            .accessibilityLabel(StringKey.routingPolicySection.l)
+        } header: {
+            Text(StringKey.routingPolicySection.l)
+        } footer: {
+            Text(StringKey.routingPolicyFooter.l)
         }
     }
 

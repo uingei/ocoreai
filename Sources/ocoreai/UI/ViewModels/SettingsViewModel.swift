@@ -35,6 +35,7 @@ final class SettingsState {
         kvCacheBudgetGB = SettingsStore.shared.kvCacheBudgetGB
         specDecodingEnabled = SettingsStore.shared.specDecodingEnabled
         specDecodingMode = SettingsStore.shared.specDecodingMode
+        routingPolicy = SettingsStore.shared.routingPolicy
         logLevel = SettingsStore.shared.logLevel
         profileEnabled = SettingsStore.shared.profileEnabled
         appLocale = SettingsStore.shared.appLocale
@@ -141,6 +142,15 @@ final class SettingsState {
         didSet {
             guard oldValue != specDecodingMode else { return }
             SettingsStore.shared.specDecodingMode = specDecodingMode
+        }
+    }
+
+    /// Hardware routing policy raw value ("balanced" | "performance" |
+    /// "efficiency"). Applied at startup before the HardwareRouter is built.
+    var routingPolicy: String = SettingsStore.shared.routingPolicy {
+        didSet {
+            guard oldValue != routingPolicy else { return }
+            SettingsStore.shared.routingPolicy = routingPolicy
         }
     }
 
@@ -422,6 +432,7 @@ final class SettingsState {
         kvCacheBudgetGB = SettingsStore.shared.kvCacheBudgetGB
         specDecodingEnabled = SettingsStore.shared.specDecodingEnabled
         specDecodingMode = SettingsStore.shared.specDecodingMode
+        routingPolicy = SettingsStore.shared.routingPolicy
         logLevel = SettingsStore.shared.logLevel
         profileEnabled = SettingsStore.shared.profileEnabled
         appLocale = SettingsStore.shared.appLocale

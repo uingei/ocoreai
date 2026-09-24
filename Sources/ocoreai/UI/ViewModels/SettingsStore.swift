@@ -122,6 +122,24 @@ final class SettingsStore {
         }
     }
 
+    /// Hardware routing policy ("balanced" | "performance" | "efficiency").
+    /// The setter whitelists against `RoutingPolicy`, so a tampered key can
+    /// never inject an invalid policy. `routingPolicyIsSet` distinguishes
+    /// "user chose" from "never touched" — the startup bridge keeps the
+    /// authored YAML value in the latter case.
+    var routingPolicy: String {
+        get { defaults.string(forKey: Key.routingPolicy.rawValue) ?? "balanced" }
+        set {
+            let val = RoutingPolicy(rawValue: newValue) != nil ? newValue : "balanced"
+            defaults.set(val, forKey: Key.routingPolicy.rawValue)
+        }
+    }
+
+    /// True when the user has explicitly set the routing-policy control.
+    var routingPolicyIsSet: Bool {
+        defaults.object(forKey: Key.routingPolicy.rawValue) != nil
+    }
+
     /// update_plan opt-in（**默认 false**，对齐 codex `#41744`；UserDefaults Bool 未触达 = false）。
     var updatePlanEnabled: Bool {
         get { defaults.bool(forKey: Key.updatePlanEnabled.rawValue) }
@@ -576,6 +594,9 @@ final class SettingsStore {
         // Speculative Decoding
         case specDecodingEnabled = "settings.specDecoding.enabled"
         case specDecodingMode = "settings.specDecoding.mode"
+
+        // Hardware routing policy (balanced | performance | efficiency)
+        case routingPolicy = "settings.backend.routingPolicy"
 
         // Plan（update_plan opt-in，对齐 codex `#41744`）
         case updatePlanEnabled = "settings.updatePlan.enabled"

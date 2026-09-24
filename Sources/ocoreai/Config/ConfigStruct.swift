@@ -481,6 +481,22 @@ func pureSpecDecodingUIOverlay(
     }
 }
 
+/// Pure overlay of the UI routing-policy selection onto the authored
+/// `backend.routingPolicy`. `nil` means the user never touched the control
+/// (UserDefaults key absent) — the authored YAML value is kept. When a value is
+/// present it takes precedence (the operator's explicit intent). Applied once at
+/// startup, before the `HardwareRouter` is constructed (its `policy` is a `let`
+/// — no hot-swap). Kept pure so the merge semantics are exact-value testable
+/// (cf. `pureSpecDecodingUIOverlay`, `pureKVQuantUIOverlay`).
+func pureRoutingPolicyUIOverlay(
+    config: inout BackendConfig,
+    uiPolicy: RoutingPolicy?
+) {
+    if let uiPolicy {
+        config.routingPolicy = uiPolicy
+    }
+}
+
 /// Merge an explicit UI KV-quantization choice into the authored backend
 /// config. A `nil` dimension means the user did not touch that control
 /// (UserDefaults key absent) — that dimension keeps the authored value.

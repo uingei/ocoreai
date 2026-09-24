@@ -405,6 +405,17 @@ public final class OcoreaiEngine {
         let tokenizerManager = TokenizerManager()
 
         // MARK: - Hardware Router + Admission Gate (Runtime compute routing)
+        // UI override of the routing policy wins over the authored YAML value
+        // (same bridge as specDecoding/kvCache). The router's `policy` is a
+        // `let`, so this is applied once, here, before construction — no hot-swap.
+        if SettingsStore.shared.routingPolicyIsSet {
+            var snap = _configSnapshot
+            pureRoutingPolicyUIOverlay(
+                config: &snap.backend,
+                uiPolicy: RoutingPolicy(rawValue: SettingsStore.shared.routingPolicy)
+            )
+            _configSnapshot = snap
+        }
 
         let hwPolicy = _configSnapshot.backend.routingPolicy
         let hardwareRouter = HardwareRouter(
