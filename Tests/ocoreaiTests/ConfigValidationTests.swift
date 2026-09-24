@@ -5,6 +5,7 @@
 
 import Foundation
 import Testing
+import Yams
 
 @testable import ocoreai
 
@@ -70,6 +71,44 @@ struct ConfigValidationTests {
             let desc = (error as? LocalizedError)?.errorDescription ?? ""
             #expect(desc.contains("session") || !desc.isEmpty)
         }
+    }
+
+    // MARK: - Backend routingPolicy (HardwareRouter policy plumbing)
+
+    @Test("routingPolicyDefaultsBalanced")
+    func routingPolicyDefaultsBalanced() {
+        #expect(BackendConfig().routingPolicy == .balanced)
+    }
+
+    @Test("routingPolicyDecodesExplicitValues")
+    func routingPolicyDecodesExplicitValues() throws {
+        for (raw, expected) in [
+            ("balanced", RoutingPolicy.balanced),
+            ("performance", RoutingPolicy.performance),
+            ("efficiency", RoutingPolicy.efficiency),
+        ] {
+            let yaml = "backend:\n  preference: [coreai]\n  routingPolicy: \(raw)\n"
+            let cfg = try YAMLDecoder().decode(AppConfig.self, from: Data(yaml.utf8))
+            #expect(cfg.backend.routingPolicy == expected, "raw=\(raw)")
+        }
+    }
+
+    @Test("routingPolicyUnknownRawFallsBackToBalanced")
+    func routingPolicyUnknownRawFallsBackToBalanced() throws {
+        let yaml =
+            "backend:\n  preference: [coreai]\n  routingPolicy: turbo\n"
+        let cfg = try YAMLDecoder().decode(AppConfig.self, from: Data(yaml.utf8))
+        #expect(cfg.backend.routingPolicy == .balanced)
+        try cfg.backend.validate()
+    }
+
+    @Test("routingPolicyRoundTripsThroughEncode")
+    func routingPolicyRoundTripsThroughEncode() throws {
+        var cfg = BackendConfig()
+        cfg.routingPolicy = .efficiency
+        let data = try YAMLEncoder().encode(cfg)
+        let back = try YAMLDecoder().decode(BackendConfig.self, from: data)
+        #expect(back.routingPolicy == .efficiency)
     }
 
     // MARK: - KV Cache Quantization

@@ -521,6 +521,12 @@ public struct BackendConfig: Sendable, Codable, Equatable {
     public var vlmImageResizeWidth: Int
     public var vlmImageResizeHeight: Int
 
+    /// Hardware routing policy. `balanced` (default) / `performance` (stay on
+    /// GPU longer) / `efficiency` (more aggressive CPU offload). Applied at
+    /// startup when the HardwareRouter is constructed (hot-reload updates the
+    /// config snapshot; the live router reflects the value set at startup).
+    public var routingPolicy: RoutingPolicy
+
     public static let `default` = BackendConfig()
 
     public init(
@@ -532,6 +538,7 @@ public struct BackendConfig: Sendable, Codable, Equatable {
         specDecoding: SpecDecodingConfig? = nil,
         vlmImageResizeWidth: Int = 1024,
         vlmImageResizeHeight: Int = 1024,
+        routingPolicy: RoutingPolicy = .balanced,
     ) {
         self.preference = preference
         self.maxConcurrentSessions = maxConcurrentSessions
@@ -541,6 +548,7 @@ public struct BackendConfig: Sendable, Codable, Equatable {
         self.specDecoding = specDecoding ?? .default
         self.vlmImageResizeWidth = max(64, min(vlmImageResizeWidth, 4096))
         self.vlmImageResizeHeight = max(64, min(vlmImageResizeHeight, 4096))
+        self.routingPolicy = routingPolicy
     }
 
     // MARK: Codable — lenient (12-factor partial yaml: owner keys win, rest default)
@@ -561,6 +569,8 @@ public struct BackendConfig: Sendable, Codable, Equatable {
             (try? c.decode(Int.self, forKey: .vlmImageResizeWidth)) ?? d.vlmImageResizeWidth
         self.vlmImageResizeHeight =
             (try? c.decode(Int.self, forKey: .vlmImageResizeHeight)) ?? d.vlmImageResizeHeight
+        self.routingPolicy =
+            (try? c.decode(RoutingPolicy.self, forKey: .routingPolicy)) ?? d.routingPolicy
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -573,11 +583,12 @@ public struct BackendConfig: Sendable, Codable, Equatable {
         try c.encode(specDecoding, forKey: .specDecoding)
         try c.encode(vlmImageResizeWidth, forKey: .vlmImageResizeWidth)
         try c.encode(vlmImageResizeHeight, forKey: .vlmImageResizeHeight)
+        try c.encode(routingPolicy, forKey: .routingPolicy)
     }
 
     private enum CodingKeys: String, CodingKey {
         case preference, maxConcurrentSessions, kvCacheGB, kvCacheQuantization
-        case wiredMemory, specDecoding, vlmImageResizeWidth, vlmImageResizeHeight
+        case wiredMemory, specDecoding, vlmImageResizeWidth, vlmImageResizeHeight, routingPolicy
     }
 
     func validate() throws {
@@ -586,6 +597,9 @@ public struct BackendConfig: Sendable, Codable, Equatable {
         }
         guard maxConcurrentSessions > 0 else {
             throw ConfigValidationError("backend.maxConcurrentSessions: must be > 0")
+        }
+        guard RoutingPolicy(rawValue: routingPolicy.rawValue) != nil else {
+            throw ConfigValidationError("backend.routingPolicy: unknown policy")
         }
         try kvCacheQuantization.validate()
         if specDecoding.enabled {

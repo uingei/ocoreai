@@ -406,8 +406,9 @@ public final class OcoreaiEngine {
 
         // MARK: - Hardware Router + Admission Gate (Runtime compute routing)
 
+        let hwPolicy = _configSnapshot.backend.routingPolicy
         let hardwareRouter = HardwareRouter(
-            policy: .balanced,
+            policy: hwPolicy,
             log: logger
         )
         _hardwareRouter = hardwareRouter
