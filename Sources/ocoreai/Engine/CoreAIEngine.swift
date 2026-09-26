@@ -186,16 +186,21 @@ struct InternalModelConfig: Codable, Sendable, InferenceConfiguration {
     }
 }
 
-// MARK: - Chunking defaults (coreai-models #240, 0d6c0bf — layered resolution)
+// MARK: - Chunking defaults (coreai-models #274, ed946c8 — layered resolution)
 
 /// Memory-based prefill chunk size. Verbatim from coreai-models
-/// `InferenceEngine.swift` (0d6c0bf): the old fixed `min(512, 1024)` default
-/// made a 32K prompt burn ~9.6 GB in one unchunked pass; 2048-token chunks drop
-/// that to ~620 MB.
+/// `InferenceEngine.swift` (ed946c8): prefill throughput rises with chunk size
+/// and flattens past 4096, while peak wired memory keeps climbing (gpt-oss-120b:
+/// ~87 GB at 4096 vs ~109 GB at 8192 for ~no gain). 4096 is the sweet spot, and
+/// only >=64 GB machines can hold the large models that benefit from it; smaller
+/// Macs and all iOS devices fall to 2048.
+/// Pre-#274 (0d6c0bf) the threshold was `<= 24 GB` — a 32 GB Mac with a large
+/// 4-bit bundle burned peak wired memory past comfortable limits for no
+/// throughput gain.
 func defaultPrefillChunkSize() -> Int {
     let bytes = ProcessInfo.processInfo.physicalMemory
     let gb = bytes / (1024 * 1024 * 1024)
-    if gb <= 24 { return 2048 }
+    if gb < 64 { return 2048 }
     return 4096
 }
 
