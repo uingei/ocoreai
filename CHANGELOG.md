@@ -4,6 +4,12 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-09-27
 
+**09-27 上游 drift 持续跟进机制化（「持续跟进」轮）** — 把三源上游跟踪从**手工审计轮**升级为**可重复机制**，交付物 = 2 个版本化文件 + 1 定时任务，**零 Swift 生产面变更**：
+- **`scripts/upstream-drift.sh`**（check/adopt 双模式）：`check` 拉三源 HEAD 对 `.upstream-baseline.json` 基线，用完整 SHA `compare` 判 ahead/behind（短 SHA 单点解析、compare 用 full SHA——短 base 会 404，本轮实证踩过）；`adopt` 把 HEAD 推为新基线。退出码语义：`0`=0 new / `10`=新窗口待裁决 / `1`=异常（基线新于 HEAD、非线性分叉、gh api 失败）。轴词粗筛**只是提示**，权威裁决仍是 consumer-transparent 双根全扫（`Sources/`+`Tests/` 符号命中，同义词全扫+既有机制先查）——写死在脚本头注释，不发明弱门禁。
+- **`.upstream-baseline.json`**：版本化基线（入库可复现），当前 `mlx ee673d6` / `coreai-models e7b24da` / `codex 6a39914`；post-adopt `check` 三轴 **0 new / EXIT 0** 实证闭环。
+- **Hermes cronjob**：每日只读自检（无 drift 静默，有 drift 回报裁决清单）——「持续跟进」的落地形态。
+**codex `7ed14a27d..6a39914` 5 commit 裁决**（本轮窗，含 adopt 后即时新窗）：`blossom replay` / `table cell source metadata` / `markdown copy` / `math rendering` / `working tips stable during transcript (#48560)`——**全 TUI/onboarding/tips 轴**，ocoreai 无 Rust-TUI 消费面（UI = SwiftUI/AppKit），consumer-transparent by axis（`#48560` 双根 grep `working.?tip|transcript` 唯一命中 ocoreai `TranscriptPart` 消息结构块，非同概念），基线已推至 `6a39914`。诚实边界：AGENTS.md「机制行」因保护审批超时**未落**（待 user 在场补一行指向 `scripts/upstream-drift.sh` + state 文件，非阻塞）。门：`bash scripts/upstream-drift.sh` 三轴 0 new / EXIT 0。
+
 **09-27 上游 drift 审计闭环 + AGENTS.md 审计行对齐（「继续推进 ocoreai」轮）** — 按 `make` 协议做**主动 audit**（非「还有失真吗」轮，而是把上游 HEAD 与 ocoreai pin 的漂移窗口逐条核验）。**上游两源实证**（本机无 references/ clone，`gh api` 是正确通道）：
 - **mlx-swift-lm**：`origin/main` = `ee673d6`（#603 "Extract the model cache"，2026-09-18）——与 `Package.swift` pin `ee673d6` **完全同点，0 drift**。无 bump 必要。
 - **coreai-models**：本地 pin `89ba0d4`（09-18 对齐时的 origin/HEAD），`origin/main` 已推进到 `e7b24da8`（#266 "--replay"，2026-09-26）——**17 commit 漂移窗口** `89ba0d4..e7b24da`。
