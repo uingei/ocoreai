@@ -2,7 +2,22 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-09-24
+## [Unreleased] — 2026-09-05 → 2026-09-27
+
+**09-27 上游 drift 审计闭环 + AGENTS.md 审计行对齐（「继续推进 ocoreai」轮）** — 按 `make` 协议做**主动 audit**（非「还有失真吗」轮，而是把上游 HEAD 与 ocoreai pin 的漂移窗口逐条核验）。**上游两源实证**（本机无 references/ clone，`gh api` 是正确通道）：
+- **mlx-swift-lm**：`origin/main` = `ee673d6`（#603 "Extract the model cache"，2026-09-18）——与 `Package.swift` pin `ee673d6` **完全同点，0 drift**。无 bump 必要。
+- **coreai-models**：本地 pin `89ba0d4`（09-18 对齐时的 origin/HEAD），`origin/main` 已推进到 `e7b24da8`（#266 "--replay"，2026-09-26）——**17 commit 漂移窗口** `89ba0d4..e7b24da`。
+**逐条核验 17 commit**（consumer-transparent 判据：同义词全扫 `Sources/ocoreai` + `Tests/ocoreaiTests` 双根）：
+- **ocoreai 已有 = 3**（本轮不重复吸收）：`#265` seeded sampling (`4cd0d36` 已落)、`#268` KV growth (`e4def0d` 已落)、`#274` prefill threshold (`85a85f5` 已落)——三者都是 `e4def0d` → `85a85f5` 期间已吸收的 commit。
+- **Python / diffusion / SAM3 / noise-source / quantization-recipe 轴 = 8**（ocoreai 无 Swift/Python 消费面，consumer-transparent by axis）：`#259` Sana model、`#260`/`#261`/`#262`/`#264`/`#265`/`#269`/`#272` 的 `python/` 树 commit（部分含 Swift CoreAI 文件——已核对 ocoreai 命中数 0）。
+- **Swift consumer 面 = 6 候选，全部 0 ocoreai 消费面**（grep 实证，非推断）：
+  - `#271` broaden tool-calling for Phi/Qwen3-Coder（`xmlFunction`/`ToolCallDetection`/`injectToolsIntoSystemMessage`/`PhiFamily`）：全 ocoreai 命中数 `#271 ToolCallDetection` 是 test-struct 同名碰撞、非 #271 的 Swift 类型；`injectToolsIntoSystemMessage|PhiFamily` = **0**。Qwen3-Coder 模型不在 ocoreai 已知模型清单（`Tools/RecommendedModels`/`CatalogModelProvider` 无该 surface）。
+  - `#267` honor `reasoningLevel` in CoreAI executor：ocoreai 已有 `ContextOptions.thinkingEnabled?` + `ReasoningResolution.thinkingEnabled(reasoningLevel:enableReasoning:)`（09-24 落地，三态 + FM/MTP 双路统一）——**本地语义等价更强**（显式 `reasoning` 三态 > 仅 level），不吸收。
+  - `#258` make generation idempotent + `IdempotentEngine`/`GenerationSessionState`：ocoreai 已有 `SessionPool` prefix-match + 同会话 id 路由；`IdempotentEngine|GenerationSessionState` = **0**（无对应 consumer）。
+  - `#266` `llm-server --replay`：`Tools/llm-server` Swift 树，ocoreai 非 server（0 ocoreai hits）。
+  - `#290` dead code removal：`ReasoningEffort` / `ModelConfig` 死代码，o-coreai 0 命中。
+  - `#275` `llm-server` streaming（`Tools/llm-server`）：0 ocoreai hits。
+**结论：3 已吸收 + 0 强制缺口 + 0 行为分叉。** 合法 zero-forced-gap 闭环（判缺口纪律：同义词全扫 + 既有机制先查全部跑完，未捏造缺口）。**AGENTS.md `coreai-models` 审计行**升级：从 `89ba0d4` 钉点 → `origin/main HEAD e7b24da`（**17 commit 逐条结论** + 3 已吸收 + 0 行为分叉）；**mlx-swift-lm 行**维持 `ee673d6` 0 drift（本轮无 bump，pin = origin/main）。门：`git status --porcelain` 仅 AGENTS.md 单行 +1/-1；CI 36271762442 success（`f472759` 测试 sweep 轮）。诚实边界：本轮零 Swift 代码变更；「审计无发现」≠「上游无变化」——8 commit 的 `python/` 轴 + 5 commit 的 `Tools/` 树轴 = ocoreai 当前消费面不触达，若未来引入 server / diffusion / 新模型族消费面时需重新过 audit。
 
 **09-24 系统 prompt 身份面对齐 09-23 对外定版（「按需优化 prompt」轮）** — 第一性审计 prompt 认知层时发现**活漂移**：`SystemPromptBuilder.codingAgentBase` 首句仍是 `a coding agent running on Apple hardware`，而 canonical 定版（AGENTS.md「What it is」+ README + 用户 09-23 定调）= **an agent for open models, natively local, built for creativity, work, and code**（code 第一切片）。全源码 grep 实证：定版三域词（creativity/work/open models）在 `Sources/*.swift` **0 命中**，身份面唯一载体就是这条 base prompt —— 其余「coding agent」出现均为源码内部角色引用（描述 code 切片内的角色需求），非漂移。修复：首句对齐定版 + 保留 code 第一切片语义（小模型行为契约要求短祈使、直给命令，不灌政策长文），契约测试 `SystemPromptContractTests` 同步改为锁 09-23 身份面（`agent for open models` + `creativity, work, and code`，保留 `!intelligent assistant` 反漂移锁）；`use your tools` / 求真原则 / 破坏性命令不内置 等既有锁定全部不动。真实现状：模型认知层（prompt）→ 工具面（31 tools 全 isDestructive 审计）→ 回路（ChatHandler 迭代闭环 `416222e`）→ 审批（ApprovalBroker chokepoint 单点）→ 管线，全链实证无缺口；本轮补平的是认知层与定版的措辞漂移。
 
