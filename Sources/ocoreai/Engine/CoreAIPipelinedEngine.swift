@@ -141,6 +141,7 @@ final class CoreAIPipelinedEngine: InferenceEngine, ConstrainedGenerationCapable
                     + "Use a sequential engine for evaluation."
             )
         }
+        try Self.rejectSeedIfUnsupported(samplingConfiguration)
 
         // Serialize: if a prior generation is still winding down (GPU drain),
         // cancel it and wait for the engine slot to be released.
@@ -379,6 +380,7 @@ final class CoreAIPipelinedEngine: InferenceEngine, ConstrainedGenerationCapable
         maxTokens: Int,
         session: ConstrainedSessionHandle
     ) throws -> InferenceTokenSequence {
+        try Self.rejectSeedIfUnsupported(samplingConfiguration)
         if _generationTask.withLock({ $0 }) != nil || engineInUse.load(ordering: .acquiring) {
             throw InferenceRuntimeError.invalidState(
                 "generateConstrained called while a prior generation is still in flight — caller must drain first"
@@ -435,6 +437,22 @@ final class CoreAIPipelinedEngine: InferenceEngine, ConstrainedGenerationCapable
     }
 
     // MARK: - Constrained Session Cache
+
+    /// Reject a seeded request that reaches the GPU pipelined engine.
+    ///
+    /// Sampling runs on-GPU with `Float.random`, so this engine cannot honor
+    /// `SamplingConfiguration.seed`. Fail loudly rather than silently ignoring the seed
+    /// and returning non-reproducible tokens.
+    /// (coreai-models #265, 6441c8c)
+    static func rejectSeedIfUnsupported(_ config: SamplingConfiguration) throws {
+        if config.seed != nil {
+            throw InferenceRuntimeError.invalidArgument(
+                "Seeded/reproducible generation is not supported on the GPU pipelined engine "
+                    + "(sampling runs on-GPU and cannot honor the seed). "
+                    + "Use a sequential or static-shape engine for reproducible generation."
+            )
+        }
+    }
 
     /// Check out a constrained session from the cache, or create a new one.
     /// The cache slot is emptied — concurrent calls get independent sessions.

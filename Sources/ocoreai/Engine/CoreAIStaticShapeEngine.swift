@@ -320,7 +320,8 @@ final class CoreAIStaticShapeEngine: InferenceEngine, @unchecked Sendable {
         inputTokens: [Int32],
         samplingConfig: SamplingConfiguration,
         returnsLogits: Bool,
-        generationStartOffset: Int = 0
+        generationStartOffset: Int = 0,
+        step: Int = 0
     ) async throws -> (logits: [LogitsScalarType]?, token: Int32) {
         let total = inputTokens.count
         guard processedTokenCount < total else {
@@ -383,7 +384,7 @@ final class CoreAIStaticShapeEngine: InferenceEngine, @unchecked Sendable {
         }
 
         let nextToken = samplingConfig.fallbackSampler(
-            from: &logitBuffer, tokenHistory: inputTokens[generationStartOffset...])
+            from: &logitBuffer, tokenHistory: inputTokens[generationStartOffset...], step: step)
         return (logits: returnsLogits ? logitBuffer : nil, token: nextToken)
     }
 
@@ -610,7 +611,8 @@ extension CoreAIStaticShapeEngine.GenerationSequence {
                     inputTokens: inputTokens,
                     samplingConfig: samplingConfig,
                     returnsLogits: returnsLogits || forcedContinuation != nil,
-                    generationStartOffset: generationStartOffset)
+                    generationStartOffset: generationStartOffset,
+                    step: step)
                 let slice = inputTokens[old ..< engine.processedTokenCount]
                 engine.history.append(contentsOf: slice)
                 if generationToken.isCancelled {

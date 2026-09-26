@@ -121,7 +121,8 @@ struct ConstrainedDecodingStrategy: DecodingStrategy {
         session: inout ConstrainedGenerationSession,
         inferenceEngine: any InferenceEngine,
         samplingConfiguration: SamplingConfiguration,
-        constrainedOptions: InferenceOptions
+        constrainedOptions: InferenceOptions,
+        step: Int
     ) async throws -> (Int32?, [LogitsScalarType]?) {
         // Consume the first step through the typed-failure iterator (mirrors
         // VanillaDecodingStrategy). A `for try await` over the
@@ -141,7 +142,9 @@ struct ConstrainedDecodingStrategy: DecodingStrategy {
         var maskedLogits = logits
         _ = session.applyMask(to: &maskedLogits)
 
-        let bestToken = CompositeSampler.sample(from: &maskedLogits, config: samplingConfiguration)
+        // Sample from masked logits, routed through `seed` when set (coreai-models #265),
+        // so constrained decoding is reproducible exactly like the unconstrained path.
+        let bestToken = samplingConfiguration.sampleToken(from: &maskedLogits, step: step)
 
         if !session.acceptToken(bestToken) {
             return (nil, nil)
@@ -318,7 +321,8 @@ extension ConstrainedDecodingStrategy.ConstrainedDecodedSequence {
                         session: &session,
                         inferenceEngine: inferenceEngine,
                         samplingConfiguration: samplingConfiguration,
-                        constrainedOptions: constrainedOptions
+                        constrainedOptions: constrainedOptions,
+                        step: tokenStep
                     )
                 } catch {
                     finished = true

@@ -1211,8 +1211,8 @@ extension EnginePool {
                     }
                 }
 
-                // Sample token from masked logits
-                let tokenId = CompositeSampler.sample(from: &logits, config: sampling)
+                // Sample token from masked logits (routed through `seed` when set — #265)
+                let tokenId = sampling.sampleToken(from: &logits, step: step)
 
                 // Commit token to grammar state (may fast-forward)
                 do {

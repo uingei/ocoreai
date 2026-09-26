@@ -25,14 +25,29 @@ import Foundation
 enum CompositeSampler {
 
     /// Sample one token from the logit distribution using the given configuration.
+    /// Uses the system (non-reproducible) RNG.
     /// Mutates `logits` in-place (temperature scaling step).
     ///
-    /// - Parameter logits: Mutable array of logits (Float16 or Float depending on arch).
-    /// - Parameter config: Sampling parameters.
+    /// - Parameters:
+    ///   - logits: Mutable array of logits (Float16 or Float depending on arch).
+    ///   - config: Sampling parameters.
     /// - Returns: Sampled token ID.
     static func sample(
         from logits: inout [LogitsScalarType],
         config: SamplingConfiguration
+    ) -> Int32 {
+        var rng = SystemRandomNumberGenerator()
+        return sample(from: &logits, config: config, using: &rng)
+    }
+
+    /// Samples from a caller-supplied RNG (coreai-models #265).
+    ///
+    /// `inout` so state advances across calls. Use this for deterministic / reproducible
+    /// sampling (tests, evals). For non-deterministic use, call the no-RNG overload.
+    static func sample(
+        from logits: inout [LogitsScalarType],
+        config: SamplingConfiguration,
+        using rng: inout some RandomNumberGenerator
     ) -> Int32 {
         guard !logits.isEmpty else { return 0 }
 
@@ -68,7 +83,7 @@ enum CompositeSampler {
         logits = filtered
         #endif
 
-        return sampleFromDistribution(filtered)
+        return sampleFromDistribution(filtered, using: &rng)
     }
 
     // MARK: - Internal helpers
@@ -152,8 +167,10 @@ enum CompositeSampler {
         return kept
     }
 
-    static func sampleFromDistribution(_ probs: [Float]) -> Int32 {
-        let r = Float.random(in: 0 ..< 1)
+    static func sampleFromDistribution(
+        _ probs: [Float], using rng: inout some RandomNumberGenerator
+    ) -> Int32 {
+        let r = Float.random(in: 0 ..< 1, using: &rng)
         var cum: Float = 0
         for (i, p) in probs.enumerated() {
             cum += p
@@ -205,14 +222,23 @@ struct RepetitionPenaltyProcessor {
 }
 
 /// Extension to match upstream SamplingConfiguration.fallbackSampler.
-/// The single-arg form samples without repetition penalty (explicit no-penalty);
+/// The two-arg form samples without repetition penalty (explicit no-penalty);
 /// the `(from:tokenHistory:)` overload applies the penalty first when configured.
+///
+/// #265 (6441c8c) — `sampling.seed`, when set, routes the multinomial through a
+/// `SeededRandomNumberGenerator` derived from `(seed, step)`: each generation step
+/// gets its own generator, so reproducibility does not depend on a running stream's
+/// position (survives prefix reuse / reset / cancel). `step` is required while `seed`
+/// is set and ignored otherwise. Greedy (temperature 0) is argmax and ignores both.
 extension SamplingConfiguration {
     /// Samples next token via CPU composite sampler (no repetition penalty).
     /// Mutates logits in-place (temperature scaling).
+    /// - Parameters:
+    ///   - logits: Mutable logits array. May be modified during sampling.
+    ///   - step: Generation step index. Required when `seed` is set; ignored otherwise.
     /// - Returns: Sampled token ID.
-    func fallbackSampler(from logits: inout [LogitsScalarType]) -> Int32 {
-        CompositeSampler.sample(from: &logits, config: self)
+    func fallbackSampler(from logits: inout [LogitsScalarType], step: Int? = nil) -> Int32 {
+        sampleToken(from: &logits, step: step)
     }
 
     /// Samples the next token with repetition penalty applied first.
@@ -223,10 +249,12 @@ extension SamplingConfiguration {
     ///   - logits: Mutable logits array. May be modified during sampling.
     ///   - tokenHistory: Recent generated token IDs for the penalty (prompt
     ///     tokens excluded by the caller — only tokens generated this turn).
+    ///   - step: Generation step index. Required when `seed` is set; ignored otherwise.
     /// - Returns: Sampled token ID.
     func fallbackSampler(
         from logits: inout [LogitsScalarType],
-        tokenHistory: some Collection<Int32>
+        tokenHistory: some Collection<Int32>,
+        step: Int? = nil
     ) -> Int32 {
         if needsRepetitionPenalty, let penalty = repetitionPenalty {
             let window =
@@ -236,7 +264,32 @@ extension SamplingConfiguration {
             RepetitionPenaltyProcessor.apply(
                 to: &logits, recentTokenIds: recentTokens, penalty: Float(penalty))
         }
-        return CompositeSampler.sample(from: &logits, config: self)
+        return sampleToken(from: &logits, step: step)
+    }
+
+    /// Samples a token from already-prepared logits (repetition penalty / masking,
+    /// if any, applied by the caller), routing through `seed` (coreai-models #265).
+    ///
+    /// With `seed` set, each step derives its own `SeededRandomNumberGenerator` from
+    /// `(seed, step)`, so the sampled token is reproducible and independent of any
+    /// running generator's stream position. With `seed` nil, the system generator is
+    /// used. Greedy (temperature 0) is argmax and ignores the generator. Used by both
+    /// `fallbackSampler` overloads and the constrained-decoding path so seeded sampling
+    /// is reproducible everywhere.
+    /// - Parameters:
+    ///   - logits: Mutable logits array. May be modified during sampling.
+    ///   - step: Generation step index. Required when `seed` is set; ignored otherwise.
+    /// - Returns: Sampled token ID.
+    func sampleToken(from logits: inout [LogitsScalarType], step: Int?) -> Int32 {
+        guard let seed else {
+            return CompositeSampler.sample(from: &logits, config: self)
+        }
+        guard let step else {
+            preconditionFailure("A generation step index is required when a sampling seed is set.")
+        }
+        var rng = SeededRandomNumberGenerator(
+            seed: UInt64(bitPattern: seed) &+ UInt64(bitPattern: Int64(step)))
+        return CompositeSampler.sample(from: &logits, config: self, using: &rng)
     }
 }
 

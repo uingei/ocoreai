@@ -45,7 +45,8 @@ enum SequentialIterator {
             return forced[step]
         }
         var mutableLogits = logits
-        return sampling.fallbackSampler(from: &mutableLogits, tokenHistory: tokenHistory)
+        return sampling.fallbackSampler(
+            from: &mutableLogits, tokenHistory: tokenHistory, step: step)
     }
 }
 
