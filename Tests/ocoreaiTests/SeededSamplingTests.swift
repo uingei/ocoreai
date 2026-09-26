@@ -85,7 +85,7 @@ struct SeededSamplingTests {
             var logits = flatLogits(4)
             tokens.insert(config.fallbackSampler(from: &logits, step: 0))
         }
-        #expect(tokens.count > 1)
+        #expect(tokens.count > 1)  // intentional non-degeneracy: not all 128 seeds collapse to one token (seed feeds the sampler); asserting all 4 would over-assert RNG internals
         #expect(tokens.allSatisfy { $0 >= 0 && $0 < 4 })
     }
 
@@ -99,7 +99,7 @@ struct SeededSamplingTests {
             var logits = flatLogits(4)
             tokens.insert(config.fallbackSampler(from: &logits, step: step))
         }
-        #expect(tokens.count > 1)
+        #expect(tokens.count > 1)  // intentional non-degeneracy: advancing the step changes the output (generator advances); not all 64 identical
     }
 
     // MARK: - Greedy ignores the seed

@@ -112,7 +112,10 @@ struct CoreAILiveBundleDirTests {
             in: .whitespacesAndNewlines)
         print("[COREAI-BUNDLE-DIR] prompt=\(promptTokens.count)t generated=\(generated.count)t")
         print("[COREAI-BUNDLE-DIR] output=\(text.prefix(200))")
-        #expect(generated.count > 0, "bundle-directory engine produced no tokens")
+        #expect(
+            generated.count > 0,
+            "bundle-directory engine produced no tokens — intentional non-empty guard for a live model (exact generation length is model-specific)"
+        )
         #expect(
             text.contains("Paris") || text.lowercased().contains("paris"),
             "expected 'Paris' — got '\(text.prefix(80))'")

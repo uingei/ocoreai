@@ -96,7 +96,7 @@ struct RuntimeCapabilityTests {
     @Test("tierTruthSection is non-empty and names the 4-tier contract")
     func tierBoundaries() {
         let s = RuntimeCapability.tierTruthSection
-        #expect(s.count > 50)
+        #expect(!s.isEmpty)  // non-empty section; the 4-tier content itself is pinned by the 3 asserts below
         #expect(s.contains("macOS 14 / iOS 17"))
         #expect(s.contains("macOS 27 / iOS 27"))
         #expect(s.contains("ENABLED"))

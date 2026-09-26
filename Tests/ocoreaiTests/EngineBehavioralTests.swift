@@ -96,7 +96,7 @@ struct OOMGuardBehavioralTests {
         await oomGuard.respond(to: .warning)
         await oomGuard.respond(to: .oom)
         let events = await oomGuard.recentEvents()
-        #expect(events.count >= 2)
+        #expect(events.count == 2)  // exactly the 2 events pushed above (warning + oom)
     }
 
     @Test("critical when already at 4bit stays at 4bit")

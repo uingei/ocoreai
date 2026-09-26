@@ -107,7 +107,7 @@ final class ReasoningPersistenceSQLiteTests {
             parts.first
                 == .reasoning(
                     "The user asked for a directory scan. I should use exec_command with `ls`."))
-        #expect(parts.count > 1 && parts[1] == .text("Found 2 files."))
+        #expect(parts[1] == .text("Found 2 files."))  // count == 3 already pinned above → parts[1] safe
         #expect(
             parts.count == 3
                 && parts[2]

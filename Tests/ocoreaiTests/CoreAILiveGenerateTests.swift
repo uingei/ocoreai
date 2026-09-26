@@ -85,7 +85,10 @@ struct CoreAILiveGenerateTests {
             ]
         ]
         let promptTokens = try tokenizer.applyChatTemplate(messages: messages).map(Int32.init)
-        #expect(promptTokens.count > 4, "prompt should tokenize to several tokens")
+        #expect(
+            promptTokens.count > 4,
+            "prompt should tokenize to several tokens — intentional lower-bound guard: live external tokenizer, exact value is model-specific (chat template applied)"
+        )
         let _ = tokenizer  // keep tokenizer alive till after decode
 
         // 2. Build the engine via ocreai's own factory. Point at the .aimodel
