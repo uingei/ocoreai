@@ -271,13 +271,11 @@ actor MLXModelLoader {
 
             // Report seed bytes immediately so UI can show from the start
             if lastBytes > 0 {
-                await MainActor.run {
-                    OcoreaiDownloadProgress.shared.updateBytes(
-                        completed: lastBytes,
-                        total: max(expectedBytes, lastBytes + 1),
-                        for: modelId
-                    )
-                }
+                OcoreaiDownloadProgress.shared.updateBytes(
+                    completed: lastBytes,
+                    total: max(expectedBytes, lastBytes + 1),
+                    for: modelId
+                )
             }
 
             while !Task.isCancelled {
@@ -290,13 +288,11 @@ actor MLXModelLoader {
                     peakBytes = max(peakBytes, currentBytes)
                     // Refine expected size from growth rate; cap at 4x current to avoid wild overestimates
                     expectedBytes = min(max(expectedBytes, peakBytes * 2), currentBytes * 4)
-                    await MainActor.run {
-                        OcoreaiDownloadProgress.shared.updateBytes(
-                            completed: currentBytes,
-                            total: max(expectedBytes, currentBytes + 1),
-                            for: modelId
-                        )
-                    }
+                    OcoreaiDownloadProgress.shared.updateBytes(
+                        completed: currentBytes,
+                        total: max(expectedBytes, currentBytes + 1),
+                        for: modelId
+                    )
                     lastBytes = currentBytes
                     idleCount = 0
                     lastMtime = newestModificationDate(in: cacheDir)
@@ -468,11 +464,9 @@ actor MLXModelLoader {
         switch provider {
         case .modelScope:
             logger.info("Fetching from ModelScope (local-cache hit possible): \(repoId)")
-            // Notify UI that download started
-            await MainActor.run {
-                OcoreaiDownloadProgress.shared.start(modelId: progressKey)
-            }
-            // ProgressHandler: synchronous Sendable context — fire-and-forget to MainActor
+            // Notify UI that download started — store is thread-safe & synchronous;
+            // no MainActor hop on the hot path (see DownloadProgressStore doc).
+            OcoreaiDownloadProgress.shared.start(modelId: progressKey)
             let msDownloader = ModelScopeDownloader(token: modelScopeToken)
             let directory = try await msDownloader.download(
                 id: repoId, revision: nil, matching: ["*.safetensors", "*.json", "*.jinja"],
@@ -480,23 +474,18 @@ actor MLXModelLoader {
                 progressHandler: { [progressKey] progress in
                     // Forward to upstream progressHandler (e.g. MLXDownloadProgress on macOS 27)
                     progressHandler?(progress)
-                    Task { @MainActor in
-                        OcoreaiDownloadProgress.shared.update(progress, for: progressKey)
-                    }
+                    // Synchronous, thread-safe — no Task spawn on the progress tick.
+                    OcoreaiDownloadProgress.shared.update(progress, for: progressKey)
                 },
             )
             logElapsed("ModelScope download \(repoId) completed", start)
             do {
                 // VLM auto-detection: check for preprocessor_config.json
                 let container = try await loadContainer(from: directory, repoId: repoId)
-                await MainActor.run {
-                    OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
-                }
+                OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
                 return container
             } catch {
-                await MainActor.run {
-                    OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
-                }
+                OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
                 throw error
             }
 
@@ -509,10 +498,8 @@ actor MLXModelLoader {
             // Equivalent to MLXChatExample: factory.loadContainer(from: downloader, ...)
             // VLM: try LLMModelFactory first, fall back to VLMModelFactory on error.
             logger.info("Fetching from HuggingFace (local-cache hit possible): \(repoId)")
-            // Notify UI that download started
-            await MainActor.run {
-                OcoreaiDownloadProgress.shared.start(modelId: progressKey)
-            }
+            // Notify UI — thread-safe store, no MainActor hop.
+            OcoreaiDownloadProgress.shared.start(modelId: progressKey)
 
             // Progress poller watches the SAME directory the downloader writes
             // into (M8 flat layout, root/<org>/<name>) — watching the old
@@ -539,9 +526,7 @@ actor MLXModelLoader {
                     configuration: ModelConfiguration(id: repoId),
                 )
                 pollTask.cancel()
-                await MainActor.run {
-                    OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
-                }
+                OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
                 return container
             } catch {
                 // LLM load failed — try VLM factory (model may have preprocessor_config.json)
@@ -554,15 +539,11 @@ actor MLXModelLoader {
                         configuration: ModelConfiguration(id: repoId),
                     )
                     pollTask.cancel()
-                    await MainActor.run {
-                        OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
-                    }
+                    OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
                     return container
                 } catch {
                     pollTask.cancel()
-                    await MainActor.run {
-                        OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
-                    }
+                    OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
                     throw error
                 }
             }

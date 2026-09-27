@@ -279,6 +279,79 @@ struct DownloadProgressTests {
     }
 }
 
+// MARK: - OcoreaiDownloadProgress — concurrent access (first-launch crash regression)
+
+/// Regression for the 2026-09-28 clean-machine first-launch SIGABRT.
+///
+/// The old `@MainActor` store forced every downloader-callback writer to spawn
+/// `Task { @MainActor in ... }` to hop over, and `finish()` spawned a detached
+/// reaper `Task { @MainActor in sleep(2); removeValue }` that captured the
+/// main-actor `self`. The Swift concurrency runtime hit
+/// "freed pointer was not the last allocation" while deallocating that closure
+/// right after the prewarm finished, killing the process.
+///
+/// The store is now a synchronous `NSLock`-guarded container (no Task, no
+/// main-actor hop), so the same hammering — many threads writing start/update/
+/// while readers race on the main and background paths — must not crash.
+@Suite("OcoreaiDownloadProgress — concurrent access crash regression", .serialized)
+struct DownloadProgressConcurrencyTests {
+
+    @Test("concurrent start/update/finish + reads never crash and leave a consistent store")
+    func concurrentAccessCrashRegression() async {
+        OcoreaiDownloadProgress.shared.clear()
+        let store = OcoreaiDownloadProgress.shared
+        let workers = 8
+        let iterations = 500
+
+        // Hammer from the global concurrent pool — mirrors downloader callbacks
+        // (background threads) racing with main-thread UI readers.
+        await withTaskGroup(of: Void.self) { group in
+            for w in 0 ..< workers {
+                group.addTask {
+                    for i in 0 ..< iterations {
+                        let id = "conc-\((w * iterations + i) % 24)"
+                        switch (w + i) % 4 {
+                        case 0:
+                            store.start(modelId: id)
+                            let p = Progress(totalUnitCount: 1000)
+                            p.completedUnitCount = Int64(i)
+                            store.update(p, for: id)
+                        case 1:
+                            store.updateBytes(completed: Int64(i), total: 1000, for: id)
+                        case 2:
+                            store.finish(modelId: id, success: true)
+                            store.finish(modelId: id, success: false)
+                        default:
+                            // Concurrent reader — the UI's hot read path.
+                            _ = store.progress(for: id)
+                            _ = store.isDownloading(id)
+                        }
+                    }
+                }
+            }
+        }
+        // Reach here without SIGABRT = pass. Old reaper Task / main-actor hop would
+        // have aborted the process inside the group above.
+
+        // The whole point of the regression: get here at all, and leave a clean store.
+        OcoreaiDownloadProgress.shared.clear()
+        #expect(store.progress(for: "none") == nil)
+    }
+
+    @Test("finish(success:true) evicts immediately (no deferred reaper entry)")
+    func finishEvictsSynchronously() {
+        OcoreaiDownloadProgress.shared.clear()
+        let store = OcoreaiDownloadProgress.shared
+        store.start(modelId: "sync-evict")
+        store.finish(modelId: "sync-evict", success: true)
+        // Old impl deferred a 2s "completed flash"; the reaper Task was the crash.
+        // Now the entry is gone synchronously — no residual, no hidden Task.
+        #expect(store.progress(for: "sync-evict") == nil)
+        #expect(!store.isDownloading("sync-evict"))
+        OcoreaiDownloadProgress.shared.clear()
+    }
+}
+
 // MARK: - DownloadSSEEvent
 
 @Suite("DownloadSSEEvent — factory methods")
