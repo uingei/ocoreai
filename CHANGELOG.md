@@ -4,6 +4,8 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-09-27
 
+**09-27 发布链 metallib 根修 — v0.1.1 首个正式 DMG Release 闭环** — 根因: `swift build --traits appStore`（build-app.sh）链过 382/382 但 SwiftPM 不编译 `.metal`（CI 日志 0 metal step），metallib 只有 xcodebuild（Xcode 工程 target `mlx-swift_Cmlx` → `MetalLink default.metallib`）产出；本地能出 DMG 全靠 09-23 xcodebuild 遗留产物。修: Release 腿先 `xcodebuild build -configuration Release` 自产 metallib 置 build-app.sh 候选路径再打包（Metal shader trait 无关，已注释）。验证: tag run `e878575` 全绿 → GitHub Release `ocoreai v0.1.1 (macOS)` + `ocoreai-0.1.1.dmg`（24MB, sha256:86a87650…）→ 实下载 → 挂载终验: metallib 双路在场（2389928B CI 新编 @13:05）、binary 100755 可执行、版本 0.1.1/ad-hoc 签名 → E2E 活体: 引擎 `127.0.0.1:8080` 起、gemma-4-e2b-it-4bit 真推理 HTTP 200/25 tok/stop（9.8s），测后双验清理 0 残留
+
 **09-27 首启断点修复 — 无模型用户「发第一句」不再是死路** — `AppError.modelNotFound` 在 Chat 层识别（同 target 模式匹配，未动引擎），错误条获得「前往模型页」下一步动作（`modelNotReady` 标志 + 2 个新 StringKey，en/zh-Hans 双表）；非 modelNotFound 错误仍走原「生成失败」+ 重试。`swift build --target ocoreai` exit 0（25.13s）
 
 **09-27 开箱即用 (第一性公理: 装-开-模-答-错) — 补「装」这条唯一断点** — 逐条实证后唯一缺口是无安装产物（用户只能 `git clone + swift build`）；本次补齐：
