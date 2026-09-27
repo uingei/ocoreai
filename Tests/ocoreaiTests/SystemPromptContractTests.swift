@@ -17,11 +17,15 @@ import Testing
 
 @Suite("SystemPromptContract")
 struct SystemPromptContractTests {
-    @Test("agent identity: canonical 09-23 positioning, not a generic assistant")
+    @Test("agent identity: canonical 09-27 positioning, not a generic assistant")
     func agentIdentity() {
-        #expect(SystemPromptBuilder.codingAgentBase.contains("agent for open models"))
-        #expect(SystemPromptBuilder.codingAgentBase.contains("creativity, work, and code"))
+        #expect(SystemPromptBuilder.codingAgentBase.contains("complete agentic system"))
+        #expect(SystemPromptBuilder.codingAgentBase.contains("open frontier models"))
+        #expect(SystemPromptBuilder.codingAgentBase.contains("coding and knowledge work"))
         #expect(!SystemPromptBuilder.codingAgentBase.contains("intelligent assistant"))
+        // 09-23 旧定位措辞不得回流（identity 只许一个版本）
+        #expect(!SystemPromptBuilder.codingAgentBase.contains("creativity, work, and code"))
+        #expect(!SystemPromptBuilder.codingAgentBase.contains("code is the first"))
     }
 
     @Test("truth/curiosity/honesty principle, not preference-alignment wording")
@@ -65,7 +69,7 @@ struct SystemPromptContractTests {
     func buildKeepsContract() async {
         let builder = SystemPromptBuilder(basePrompt: SystemPromptBuilder.codingAgentBase)
         let built = await builder.build()
-        #expect(built.contains("agent for open models"))
+        #expect(built.contains("complete agentic system"))
         #expect(built.contains("use your tools"))
     }
 

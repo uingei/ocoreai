@@ -16,7 +16,7 @@ This project is developed with heavy AI assistance. The rules:
 
 ## Identity
 
-**What it is:** an agent for open models, natively local — built for creativity, work, and code (09-23 对外定版); code 第一切片 = Coding/Computer Agent (reliable Execute → Verify → Recover). Dual-channel on-device inference (MLX Metal GPU + CoreAI derived from coreai-models reference), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception pipeline. One binary.
+**What it is:** a complete agentic system for open frontier models, natively local — built for coding and knowledge work (09-27 对外定版，取代 09-23 的 "agent for open models / creativity, work, and code"；旧措辞只存于 CHANGELOG 历史条目与既有 commit 信息，不得回流代码/README/Wiki); coding 最深切片 = Coding/Computer Agent (reliable Execute → Verify → Recover); knowledge work (research/reading/writing + Apple 原生感知/多模态) = 一等产品面. Dual-channel on-device inference (MLX Metal GPU + CoreAI derived from coreai-models reference), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception pipeline. One binary.
 
 **Tech stack:** Swift 6.2 · SwiftPM · Hummingbird 2.26 · SwiftUI · SQLite + FTS5
 

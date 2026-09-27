@@ -4,6 +4,12 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-09-27
 
+**09-27 身份定版「complete agentic system for open frontier models / coding and knowledge work」（用户定调，取代 09-23「agent for open models / creativity, work, and code」）** — 身份面全载体单版本对齐；旧措辞只存本 CHANGELOG 历史条目，代码/README/Wiki 不得回流：
+- ✏️ `SystemPromptBuilder.codingAgentBase`：`You are oCoreAI — a complete agentic system for open frontier models, natively local, built for coding and knowledge work.`（原 `an agent for open models ... creativity, work, and code (code is the first, deepest slice)`）；注释同步 09-27 定位。
+- ✏️ README.md / README.zh.md：标题 + 「为编码与知识工作而生」+ 方向行（knowledge work=一等产品面；coding=最深切片）。
+- ✏️ AGENTS.md Identity：09-27 定版标注 + 回流禁令。
+- ✓ 防漂移网：`SystemPromptContractTests.agentIdentity` 断言新身份 4 词 + 负断言旧措辞（identity 只许单版本）；`buildKeepsContract` 同步。
+- 验证：`swift build --target ocoreai` exit 0（Build complete 8.46s）；`swift test --filter SystemPromptContract` **7/7 绿**；全仓旧身份词 **0 残留**（仅本历史条目）。
 **09-27 drift 裁决闭环：codex `6a39914..985cf47` 5 commit 全窗 + adopt（「自主推进」轮）** — 三轴 `scripts/upstream-drift.sh` 复检：mlx-swift-lm `ee673d6`（= pin，0 new）· coreai-models `e7b24da`（0 new，上轮 17 commit 已逐条核验）· codex **+5**（`6a39914..985cf47`，含 cron 昨日已暂存未提交的 `e8fdbf1` 窗口 + 新增 `#48562`）。**codex 5 commit 逐条裁决（consumer-transparent by axis，0 强制缺口）**：`#48562` TUI borderless session header（TUI 轴，ocoreai UI = SwiftUI/AppKit，0 Rust-TUI 消费面）· `#48565` macOS TLS trust in network-enabled Seatbelt profiles（sandbox 轴——ocoreai exec 面 = local `Process()`（`ExecTools.swift:158`），全仓 `seatbelt|sandbox-exec` = 0 命中，无 sandbox 消费面）· `#48568` exec-server 代理 permitted private IPs（cloud-executor 轴——ocoreai web 面 = 直接 `URLSession` 客户端，无执行代理/上游代理机制）· `#48574` deferred tool namespace 名优先于描述保留（codex `world_state/tools` 渲染预算轴——ocoreai 工具面 = **全量 31 tools 常驻**（用户锁面），无 deferred-tools/namespace 预算机制；`deferred|tools_budget|world_state` 双根全扫 = 0 功能面命中，15 处 `deferred` 均为无关注释）· `#48575` provisioned executor 上线时限（cloud-executor 轴，ocoreai 无 remote/provisioned executor）。**adopt**：codex 基线 `6a39914 → 985cf47`（`.upstream-baseline.json`）。门：`bash scripts/upstream-drift.sh` 三轴 **0 new / EXIT 0**（adopt 后复检实证）。诚实边界：本轮零 Swift 生产面变更；5 commit 全在 codex 自有 TUI/seatbelt/cloud-executor 轴，若 ocoreai 未来引入 sandbox-exec / remote executor / deferred-tools 面，此窗口须重裁。
 
 **09-27 上游 drift 持续跟进机制化（「持续跟进」轮）** — 把三源上游跟踪从**手工审计轮**升级为**可重复机制**，交付物 = 2 个版本化文件 + 1 定时任务，**零 Swift 生产面变更**：
