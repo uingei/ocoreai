@@ -4,6 +4,15 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-09-27
 
+**09-27 身份 canonical 定版（用户三度给出，headline 句为定版）** — 全载体对齐同一身份，headline 位 = 用户原句，09-27「complete agentic system / frontier models / coding and knowledge work」作为兼容完整化表述并列（非互斥、不淘汰）：
+- ✏️ canonical 句（headline 位，用户 09-27 定版）：`ocoreai is an agent for open models. Natively local. Built for creativity, work, and code.`
+- ✏️ `SystemPromptBuilder.codingAgentBase`：`You are oCoreAI — an agent for open models, natively local, built for creativity, work, and code; a complete agentic system designed for coding and knowledge work.` + 求真/好奇/诚实原则 + action-first + 验证汇报。
+- ✏️ README.md / README.zh.md：标题「开放模型的 Agent · 原生本地」+ 方向行（coding 最深切片 + creativity/knowledge work 一等产品面）+ 参照物清单（Apple Dev / mlx-swift-lm / coreai-models / codex / HIG + vLLM/vLLM-Metal/SGLang/omlx/OpenClaw/Hermes）。
+- ✏️ AGENTS.md Identity：canonical 句 + 兼容并存说明。
+- ✓ 契约网：`SystemPromptContractTests.agentIdentity` 正向断言 8 词（an agent for open models / natively local / creativity, work, and code / complete agentic system / coding and knowledge work）+ 负断言「intelligent assistant」泛化；`buildKeepsContract` 同步。
+- 参照物：Apple Developer Documentation / mlx-swift-lm / coreai-models / codex / HIG（一级）+ vLLM / vLLM-Metal / SGLang / omlx / OpenClaw / hermes-agent（二级）—— 遇事回到第一性原理，上游对齐优先不自造。
+- 验证：`swift build --target ocoreai` exit 0（8.14s）；`swift test --filter SystemPromptContract` **7/7 绿**；全仓「frontier」残留 = 0（AGENTS 已对齐）。
+
 **09-27 身份表达「complete agentic system for open frontier models / coding and knowledge work」（用户定调，是 09-23「agent for open models / creativity, work, and code」的更完整表述，两者兼容并存、非互斥——见 09-27 用户纠正：不锁死单一措辞/不淘汰旧表述）** — 身份面各载体改用 09-27 更完整表述；09-23 表述依然有效：
 - ✏️ `SystemPromptBuilder.codingAgentBase`：`You are oCoreAI — a complete agentic system for open frontier models, natively local, built for coding and knowledge work.`（原 `an agent for open models ... creativity, work, and code (code is the first, deepest slice)`）；注释同步 09-27 定位。
 - ✏️ README.md / README.zh.md：标题 + 「为编码与知识工作而生」+ 方向行（knowledge work=一等产品面；coding=最深切片）。

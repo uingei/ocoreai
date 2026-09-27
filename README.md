@@ -1,6 +1,6 @@
-# ocoreai — A Complete Agentic System for Open Frontier Models. Natively Local.
+# ocoreai — An Agent for Open Models. Natively Local.
 
-**Built for creativity, work, and code — coding and knowledge work are its deepest slices** — one Swift 6.2 binary on macOS/iOS: on-device inference (MLX Metal + CoreAI, upstream-derived), agent tool loop, session memory, Apple-native multimodal I/O, and an OpenAI/Anthropic-compatible HTTP gateway — single process, no IPC.
+**Built for creativity, work, and code** — a complete agentic system designed for coding and knowledge work: one Swift 6.2 binary on macOS/iOS: on-device inference (MLX Metal + CoreAI, upstream-derived), agent tool loop, session memory, Apple-native multimodal I/O, and an OpenAI/Anthropic-compatible HTTP gateway — single process, no IPC.
 
 [![swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 14+ / iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
@@ -47,7 +47,9 @@ Known boundaries (as of this commit, not aspirations):
 - **CI**: both the macOS-26 and xcode-27 legs pass (last green run `deee580`). macOS-26 is the delivery gate.
 - **Status rows that were ✅ by code audit do not guarantee runtime behavior** — treat as "implemented in source", verified where a test exists.
 
-**Direction** — a complete agentic system for open frontier models, natively local, built for coding and knowledge work (fuller phrasing of the 09-23 "agent for open models, built for creativity, work, and code" — compatible, coexisting). **Coding** is the deepest slice: a Coding/Computer Agent that reliably completes multi-step engineering tasks on-device (**Execute** → **Verify** → **Recover**). Knowledge work and creativity — Apple-native perception/multimodal, research, reading, writing — are first-class product surfaces, not afterthoughts. Inference stays upstream (MLX / CoreAI); ocoreai is the reliable execution layer above it — follow upstream, don't compete.
+**Direction** — an agent for open models, natively local, built for creativity, work, and code; a complete agentic system designed for coding and knowledge work. **Coding** is the deepest slice: a Coding/Computer Agent that reliably completes multi-step engineering tasks on-device (**Execute** → **Verify** → **Recover**). Creativity (Apple-native perception/multimodal) and knowledge work (research, reading, writing) are first-class product surfaces, not afterthoughts. Inference stays upstream (MLX / CoreAI); ocoreai is the reliable execution layer above it — follow upstream, don't compete.
+
+**References** — [Apple Developer Documentation](https://developer.apple.com/documentation/), [mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm) (inference, SPM pin), [coreai-models](https://github.com/apple/coreai-models) (CoreAI path reference), [codex](https://github.com/openai/codex) (agent semantics), [Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines) — plus [vLLM](https://github.com/vllm-project/vllm) / [vLLM-Metal](https://github.com/vllm-project/vllm-metal) / [SGLang](https://github.com/sgl-project/sglang) as serving-system reference, [omlx](https://github.com/omlx-ai/omlx) as production-grade reference, [OpenClaw](https://github.com/steipete/clawd) and [Hermes Agent](https://github.com/NousResearch/hermes-agent) as agent-platform reference.
 
 ---
 

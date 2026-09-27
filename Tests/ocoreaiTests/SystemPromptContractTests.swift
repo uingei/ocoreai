@@ -17,14 +17,16 @@ import Testing
 
 @Suite("SystemPromptContract")
 struct SystemPromptContractTests {
-    @Test("agent identity: canonical 09-27 positioning, not a generic assistant")
+    @Test("agent identity: canonical owner sentence, not a generic assistant")
     func agentIdentity() {
+        // canonical 身份句（用户 09-27 三度给出，headline 位）
+        #expect(SystemPromptBuilder.codingAgentBase.contains("an agent for open models"))
+        #expect(SystemPromptBuilder.codingAgentBase.contains("natively local"))
+        #expect(SystemPromptBuilder.codingAgentBase.contains("creativity, work, and code"))
+        // 09-27 完整化表述（兼容并存，非互斥）
         #expect(SystemPromptBuilder.codingAgentBase.contains("complete agentic system"))
-        #expect(SystemPromptBuilder.codingAgentBase.contains("open frontier models"))
         #expect(SystemPromptBuilder.codingAgentBase.contains("coding and knowledge work"))
         #expect(!SystemPromptBuilder.codingAgentBase.contains("intelligent assistant"))
-        // 注：09-27 与 09-23 身份表述兼容并存、非互斥（open models ⊂ open frontier models，
-        // creativity/work/code ≈ coding/knowledge work），不锁死单一措辞，故不加旧措辞负断言
     }
 
     @Test("truth/curiosity/honesty principle, not preference-alignment wording")
@@ -68,7 +70,7 @@ struct SystemPromptContractTests {
     func buildKeepsContract() async {
         let builder = SystemPromptBuilder(basePrompt: SystemPromptBuilder.codingAgentBase)
         let built = await builder.build()
-        #expect(built.contains("complete agentic system"))
+        #expect(built.contains("an agent for open models"))
         #expect(built.contains("use your tools"))
     }
 

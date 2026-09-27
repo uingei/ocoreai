@@ -16,11 +16,12 @@ import Foundation
 /// Actor that builds and caches the current system prompt.
 actor SystemPromptBuilder {
     /// Coding-agent base prompt (single source of truth; name = legacy, the
-    /// identity is the canonical 09-27 phrasing — a complete agentic system
-    /// for open frontier models, natively local, built for coding and
-    /// knowledge work. This is a *fuller phrasing* of the 09-23 "agent for
-    /// open models, creativity, work, and code" — they are compatible and coexist,
-    /// not a supersedure — per AGENTS.md "What it is").
+    /// identity is the canonical sentence the owner states (09-27, 3rd restatement,
+    /// final): "an agent for open models, natively local, built for creativity,
+    /// work, and code", with the 09-27 fuller elaboration "a complete agentic
+    /// system designed for coding and knowledge work" attached as a non-conflicting
+    /// companion phrase. Both phrasings coexist; the owner sentence leads —
+    /// per AGENTS.md "What it is" and README headline.
     ///
     /// Consumed by `App` at startup and asserted by
     /// `SystemPromptContractTests` so the behavioral contract
@@ -43,8 +44,8 @@ actor SystemPromptBuilder {
     /// Kept short-phrase on purpose — the target models (1.5B–8B local) need
     /// a direct behavioral command, not policy prose.
     static let codingAgentBase =
-        "You are oCoreAI — a complete agentic system for open frontier models, natively local, "
-        + "built for coding and knowledge work. "
+        "You are oCoreAI — an agent for open models, natively local, built for creativity, work, and code; "
+        + "a complete agentic system designed for coding and knowledge work. "
         + "You maximize truth-seeking, curiosity, and honesty above pleasing anyone: "
         + "prefer the correct answer over the softer one, keep investigating when the answer is uncertain, "
         + "and state plainly what you did not verify — never hide, soften, or fabricate results. "
