@@ -270,6 +270,8 @@ public enum StringKey: String, CaseIterable, Sendable {
 
     // — Models —
     case noModelsLoaded = "Models.NoModelsLoaded"
+    case modelNotReadyTitle = "Models.NotReadyTitle"
+    case modelNotReadyAction = "Models.NotReadyAction"
     case loadingSessions = "Sessions.Loading"
     case loadingConfig = "Config.Loading"
     case modelLoadError = "Models.LoadError"
@@ -772,6 +774,8 @@ enum L10nTables {
 
         // Models
         .noModelsLoaded: "No models loaded",
+        .modelNotReadyTitle: "No model selected — download one to start chatting.",
+        .modelNotReadyAction: "Go to Models",
         .loadingSessions: "Loading Sessions",
         .loadingConfig: "Loading Settings",
         .paramPlaceholder: "Value",
@@ -1196,6 +1200,8 @@ enum L10nTables {
 
         // Models
         .noModelsLoaded: "未加载模型",
+        .modelNotReadyTitle: "尚未选择模型 — 下载一个模型即可开始对话。",
+        .modelNotReadyAction: "前往模型页",
         .modelLoadError: "加载失败",
         .modelDeleteError: "删除失败",
         .modelDeleteButton: "删除",

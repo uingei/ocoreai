@@ -4,6 +4,8 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-09-27
 
+**09-27 首启断点修复 — 无模型用户「发第一句」不再是死路** — `AppError.modelNotFound` 在 Chat 层识别（同 target 模式匹配，未动引擎），错误条获得「前往模型页」下一步动作（`modelNotReady` 标志 + 2 个新 StringKey，en/zh-Hans 双表）；非 modelNotFound 错误仍走原「生成失败」+ 重试。`swift build --target ocoreai` exit 0（25.13s）
+
 **09-27 开箱即用 (第一性公理: 装-开-模-答-错) — 补「装」这条唯一断点** — 逐条实证后唯一缺口是无安装产物（用户只能 `git clone + swift build`）；本次补齐：
 - ➕ `scripts/build-dmg.sh`：`.app` → 拖拽式 DMG（`hdiutil`，零外部依赖），挂载自验可执行位
 - ➕ `Makefile`：`make app` / `make dmg`

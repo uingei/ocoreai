@@ -205,6 +205,11 @@ final class ChatState {
     /// so the UI can render reasoning progressively instead of after completion.
     var currentReasoningText: String = ""
     var errorMessage: String?
+    /// True when the last failure was a missing model (AppError.modelNotFound) —
+    /// the error banner then gains a "Go to Models" next-step action instead of
+    /// only Retry/Dismiss. First-launch users without a model should be routed
+    /// to download, not left at an opaque "Generation failed".
+    var modelNotReady: Bool = false
     var loading: Bool = false
     /// Live streaming throughput — estimated tokens/second. Updated per chunk.
     var currentTokPerSec: Double?
@@ -1193,7 +1198,14 @@ final class ChatState {
             // Do not surface raw localizedDescription to the user —
             // it leaks technical details and may not match UI language.
             // Instead, show a localized, user-facing error message.
-            self.errorMessage = StringKey.generationFailed.l
+            if let appError = error as? AppError, case .modelNotFound = appError {
+                // First-launch without a model: route to download, not a dead end.
+                self.modelNotReady = true
+                self.errorMessage = StringKey.modelNotReadyTitle.l
+            } else {
+                self.modelNotReady = false
+                self.errorMessage = StringKey.generationFailed.l
+            }
             Self.logger.warning("Chat failed: \(error.localizedDescription)")
             // Clear streaming preview on error — the error banner shows the message
             responseText = ""

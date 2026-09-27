@@ -1225,6 +1225,20 @@ struct InferenceErrorOverlay: View {
                     .font(.ocoreaiText(12))
                     .foregroundStyle(theme.redDot)
                     .lineLimit(3)
+                if chatState.modelNotReady {
+                    // First-launch dead-end prevention: a missing model is not a
+                    // retry-able transient — route the user to download it.
+                    Button {
+                        AppState.shared.selectedTab = .models
+                        chatState.errorMessage = nil
+                        chatState.modelNotReady = false
+                    } label: {
+                        Text(StringKey.modelNotReadyAction.l)
+                            .font(.ocoreaiText(12, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint(StringKey.modelNotReadyAction.l)
+                }
                 Spacer()
                 // Retry button — re-attempt inference with the last user input
                 Button {
