@@ -1,6 +1,6 @@
 # ocoreai — A Complete Agentic System for Open Frontier Models. Natively Local.
 
-**Built for coding and knowledge work** — one Swift 6.2 binary on macOS/iOS: on-device inference (MLX Metal + CoreAI, upstream-derived), agent tool loop, session memory, Apple-native multimodal I/O, and an OpenAI/Anthropic-compatible HTTP gateway — single process, no IPC.
+**Built for creativity, work, and code — coding and knowledge work are its deepest slices** — one Swift 6.2 binary on macOS/iOS: on-device inference (MLX Metal + CoreAI, upstream-derived), agent tool loop, session memory, Apple-native multimodal I/O, and an OpenAI/Anthropic-compatible HTTP gateway — single process, no IPC.
 
 [![swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://www.swift.org)
 [![macOS 14+ / iOS 17+](https://img.shields.io/badge/macOS%2014%20%7C%20iOS%2017-blue.svg)](https://www.apple.com)
@@ -47,7 +47,7 @@ Known boundaries (as of this commit, not aspirations):
 - **CI**: both the macOS-26 and xcode-27 legs pass (last green run `deee580`). macOS-26 is the delivery gate.
 - **Status rows that were ✅ by code audit do not guarantee runtime behavior** — treat as "implemented in source", verified where a test exists.
 
-**Direction** — a complete agentic system for open frontier models, natively local, built for coding and knowledge work; **coding** is the deepest slice: a Coding/Computer Agent that reliably completes multi-step engineering tasks on-device (**Execute** → **Verify** → **Recover**). Knowledge work (research, reading, writing, Apple-native perception/multimodal) is a first-class product surface, not an afterthought. Inference stays upstream (MLX / CoreAI); ocoreai is the reliable execution layer above it — follow upstream, don't compete.
+**Direction** — a complete agentic system for open frontier models, natively local, built for coding and knowledge work (fuller phrasing of the 09-23 "agent for open models, built for creativity, work, and code" — compatible, coexisting). **Coding** is the deepest slice: a Coding/Computer Agent that reliably completes multi-step engineering tasks on-device (**Execute** → **Verify** → **Recover**). Knowledge work and creativity — Apple-native perception/multimodal, research, reading, writing — are first-class product surfaces, not afterthoughts. Inference stays upstream (MLX / CoreAI); ocoreai is the reliable execution layer above it — follow upstream, don't compete.
 
 ---
 

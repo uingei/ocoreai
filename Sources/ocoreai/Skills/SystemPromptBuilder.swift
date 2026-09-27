@@ -16,9 +16,11 @@ import Foundation
 /// Actor that builds and caches the current system prompt.
 actor SystemPromptBuilder {
     /// Coding-agent base prompt (single source of truth; name = legacy, the
-    /// identity is the canonical 09-27 positioning — a complete agentic system
+    /// identity is the canonical 09-27 phrasing — a complete agentic system
     /// for open frontier models, natively local, built for coding and
-    /// knowledge work, per AGENTS.md "What it is").
+    /// knowledge work. This is a *fuller phrasing* of the 09-23 "agent for
+    /// open models, creativity, work, and code" — they are compatible and coexist,
+    /// not a supersedure — per AGENTS.md "What it is").
     ///
     /// Consumed by `App` at startup and asserted by
     /// `SystemPromptContractTests` so the behavioral contract

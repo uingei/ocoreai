@@ -23,9 +23,8 @@ struct SystemPromptContractTests {
         #expect(SystemPromptBuilder.codingAgentBase.contains("open frontier models"))
         #expect(SystemPromptBuilder.codingAgentBase.contains("coding and knowledge work"))
         #expect(!SystemPromptBuilder.codingAgentBase.contains("intelligent assistant"))
-        // 09-23 旧定位措辞不得回流（identity 只许一个版本）
-        #expect(!SystemPromptBuilder.codingAgentBase.contains("creativity, work, and code"))
-        #expect(!SystemPromptBuilder.codingAgentBase.contains("code is the first"))
+        // 注：09-27 与 09-23 身份表述兼容并存、非互斥（open models ⊂ open frontier models，
+        // creativity/work/code ≈ coding/knowledge work），不锁死单一措辞，故不加旧措辞负断言
     }
 
     @Test("truth/curiosity/honesty principle, not preference-alignment wording")
