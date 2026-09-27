@@ -123,10 +123,11 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 
 ### Upstream Audit Dependencies
 
-Three sources for empirical verification:
+Four sources for empirical verification:
 1. **mlx-swift-lm** — pinned in `Package.swift` at `ee673d6`（09-23 `790d4df` bump: #603 Extract the model cache — evict 真取消 in-flight load / DownloadProgress 按 model-id 分桶 / GrammarConstraint.clone 窄化; CI 2080/385 绿）。前序链 `3e6ea1e` #548/#515 ← `604fae7` #584/#613/#615/#611/#597。0 drift（`git rev-list --count ee673d6..origin/main` = 0, 09-27 `gh api` 复核 origin/main = `ee673d6`）。**Bump 协议**：`git log <old>..origin/main` 逐条审计消费面 → bump `.revision` → `swift build` + `make test-ci` 绿 → 审计行记入本节 + CHANGELOG（Package.swift 只留 pin + 指向本节的指针，不写逐 commit 日记）。
 2. **coreai-models** — reference at origin/main HEAD `e7b24da`（2026-09-26，09-27 复核）。`e282dbd..89ba0d4` 5 commit 历史: `#237` 已吸收（`cd9e901`）· `#248` 0 ocoreai 消费 · `#249` 行为等价重构 · `#250` Tools/llm-server tree · `#251` 已吸收（`3497ae8`）。**`89ba0d4..e7b24da` 17 commit 逐条核验（09-27 审计）**：已吸收 `#265` seeding (`4cd0d36`) · `#268` KV-state growth (`e4def0d`) · `#274` prefill threshold (`85a85f5`)。Python/diffusion/SAM3/noise-source/INT4-recipe axis 9 commit: consumer-transparent by axis (ocoreai 无 Python/diffusion 消费面)。剩余 Swift engine 面 5 commit: `#271` xmlFunction/ToolCallDetection = 0 生产面 (Qwen3-Coder 不在 ocoreai surface) · `#267` reasoningTemplateContext = ocoreai 已有 `ContextOptions.reasoningLevel` + `ReasoningResolution.thinkingEnabled`(09-24) · `#258` idempotent engine = ocoreai 已有 pool prefix-match · `#266` ReplayRunner = llm-server Tools/ tree (0 ocoreai hits) · `#290` dead-code removal (0 ocoreai hits)。**3 已吸收 + 0 行为分叉 + 0 强制缺口。** Reference repo, not SPM dependency。#206 absorbed (`1076948`)；ATEM `Format.agentic` NOT absorbed（0 consumers）。
-3. **Apple Developer Docs** — developer.apple.com/documentation/CoreAI (requires login)
+3. **codex** — 语义轴参照（非 SPM 依赖、非逐 commit 复制）。基线 `6a39914 → 985cf47`（09-27 drift 轮 adopt）。`6a39914..985cf47` 5 commit 逐条裁决（09-27）：全 TUI/seatbelt/cloud-executor 轴，ocoreai 0 消费面（`#48565` seatbelt：全仓 0 sandbox 命中 · `#48574` deferred-tools namespace：`deferred|tools_budget|world_state` 双根 0 功能面，ocoreai 工具面 = 全量常驻）——0 强制缺口。**持续跟进**：`bash scripts/upstream-drift.sh`（check/adopt）+ `.upstream-baseline.json` 版本化基线 + 每日 cron 只读自检；新窗口 = 裁决清单（consumer-transparent 双根全扫为权威，轴词粗筛仅提示）。
+4. **Apple Developer Docs** — developer.apple.com/documentation/CoreAI (requires login)
 
 **Wiki:** `~/wiki/concepts/upstream-mlx-swift-lm-38927f5-intent.md` + `~/wiki/concepts/upstream-coreai-models.md` — consumption matrix with file:line evidence.
 
