@@ -13,10 +13,16 @@
 
 **macOS 14+ · iOS 17+ · Apple Silicon · Swift 6.2 · Pure SwiftPM**
 
+**用户路径 — 双击即用:**
+下载 [最新 Release](https://github.com/uingei/ocoreai/releases) 的 `ocoreai-<ver>.dmg` → 打开 → 拖 `ocoreai` 到 `Applications` → 启动。模型在 App「模型」页推荐列表中首启下载（推荐列表已内置）。
+
+**开发者路径 — 源码构建 + HTTP 桥:**
+
 ```bash
 git clone https://github.com/uingei/ocoreai.git && cd ocoreai
-swift build -c release
+swift build -c release     # 或 make app
 swift run
+# or: bash scripts/build-dmg.sh   # 本地出 DMG
 ```
 
 ```bash

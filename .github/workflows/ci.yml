@@ -230,6 +230,51 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  ## ── Release — 开箱即用产物 (tag 触发) ─────────────────────────────
+  # 第一性: 用户装 ocoreai 必须 ≤ 双击。v* tag → DMG + GitHub Release。
+  # 本地已实证的脚本链: build-app.sh (release + metallib + icon) → build-dmg.sh
+  # (hdiutil 打包 + 挂载自验)。签名: 提供 OCOREAI_SIGN_IDENTITY 即正式签名,
+  # 否则 ad-hoc (本地可运行, 首启需右键放行 — 文档已注明)。
+  release:
+    name: "Release DMG (${{ github.ref_name }})"
+    runs-on: macos-26
+    timeout-minutes: 90
+    needs: [build-and-test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build DMG (appStore trait — App Store 审核面)
+        run: |
+          set -euo pipefail
+          export OCOREAI_VERSION="$(echo "${GITHUB_REF_NAME#v}")"
+          bash scripts/build-dmg.sh
+
+      - name: Upload DMG to job artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocoreai-dmg
+          path: dist/*.dmg
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VER="${GITHUB_REF_NAME#v}"
+          NOTE="v${VER} — ocoreai: an agent for open models, natively local.
+          双击 DMG → 拖入 Applications。模型在 App 内首启下载 (推荐列表已内置)。"
+          gh release create "v${VER}" \
+            --title "ocoreai v${VER} (macOS)" \
+            --notes "${NOTE}" \
+            --target main \
+            dist/ocoreai-${VER}.dmg
+          gh release view "v${VER}" --json assets -q '.assets[].name'
+
   ## ── App Store trait build gate ───────────────────────────────
   # `--traits appStore` EXCLUDES the default traits (FoundationModels
   # Integration off), so every FM-adapter code path must be trait-gated.

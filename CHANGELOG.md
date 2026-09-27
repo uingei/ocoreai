@@ -4,6 +4,15 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-09-27
 
+**09-27 开箱即用 (第一性公理: 装-开-模-答-错) — 补「装」这条唯一断点** — 逐条实证后唯一缺口是无安装产物（用户只能 `git clone + swift build`）；本次补齐：
+- ➕ `scripts/build-dmg.sh`：`.app` → 拖拽式 DMG（`hdiutil`，零外部依赖），挂载自验可执行位
+- ➕ `Makefile`：`make app` / `make dmg`
+- ➕ `ci.yml`：`v*` tag → `build-and-test` 门后发布 DMG 至 GitHub Release（`OCOREAI_SIGN_IDENTITY` 可选正式签名，默认 ad-hoc）
+- ✏️ README×2：Quick Start 主路径改为「双击 DMG → 拖入 Applications」，源码构建降为开发者路径
+- ✅ 端到端实证（本机）：`bash scripts/build-dmg.sh` → `dist/ocoreai-0.1.0.dmg` (24MB) → `open` → `/Volumes/ocoreai` → 拖入 `/Applications` → 启动 → 中文仪表盘首屏 → 清理
+- 其余公理已实证在位：**开**（App 首屏）、**模**（`defaultModelId` 内置 + `prewarmDefaultModel` 首启预热 + 推荐列表下载入口）、**答**（真模型流式 + 工具回路 T1–T3）、**错**（`OcoreaiErrorBanner` 引导）
+- 澄清（撤回上轮误判）：appStore trait 关 HTTP 桥 = **审核合规设计**（`HttpBridgePolicy`，`OCOREAI_ENABLE_HTTP=1` 可 opt-in），非缺陷；本地化 = **完整**（UI 480 处 `.l` + 1476 行翻译表 + zh-Hans 完整键表）
+
 **09-27 身份 canonical 定版（用户三度给出，headline 句为定版）** — 全载体对齐同一身份，headline 位 = 用户原句，09-27「complete agentic system / frontier models / coding and knowledge work」作为兼容完整化表述并列（非互斥、不淘汰）：
 - ✏️ canonical 句（headline 位，用户 09-27 定版）：`ocoreai is an agent for open models. Natively local. Built for creativity, work, and code.`
 - ✏️ `SystemPromptBuilder.codingAgentBase`：`You are oCoreAI — an agent for open models, natively local, built for creativity, work, and code; a complete agentic system designed for coding and knowledge work.` + 求真/好奇/诚实原则 + action-first + 验证汇报。

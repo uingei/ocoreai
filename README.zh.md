@@ -13,15 +13,15 @@
 
 **macOS 14+ · iOS 17+ · Apple Silicon · Swift 6.2 · 纯 SwiftPM**
 
-```bash
-git clone https://github.com/uingei/ocoreai.git && cd ocoreai
-swift build -c release
-swift run
-```
+**用户路径 — 双击即用:** 下载 [最新 Release](https://github.com/uingei/ocoreai/releases) 的 `ocoreai-<ver>.dmg` → 打开 → 拖到 `应用程序` → 启动。模型在「模型」页推荐列表首启下载；界面跟随系统语言（已内置简体中文）。
+
+**开发者路径 — 源码构建:**
 
 ```bash
-curl -s http://127.0.0.1:8080/health
-# { "status": "ok", "timestamp": 1714800000, "engineSummary": { "loadedModels": 0, "activeSessions": 0, ... } }
+git clone https://github.com/uingei/ocoreai.git && cd ocoreai
+swift build -c release     # 或 make app
+swift run
+# 本地出 DMG: bash scripts/build-dmg.sh
 ```
 
 直接 SwiftPM 构建，无 `.xcodeproj`（测试门经 SPM 生成的 `ocoreai.xcworkspace` → `xcodebuild` → `xctest`）。

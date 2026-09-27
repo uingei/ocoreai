@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release test test-verbose test-coverage test-ci format format-check audit clean metallib help ci-local
+.PHONY: all build release app dmg test test-verbose test-coverage test-ci format format-check audit clean metallib help ci-local
 
 all: build
 
@@ -38,6 +38,13 @@ build:
 release:
 	@echo "🔨 Building release..."
 	swift build -c release
+
+## 开箱即用产物 (first-run ready)
+app:
+	bash scripts/build-app.sh
+
+dmg:
+	bash scripts/build-dmg.sh
 
 ## ── Test ───────────────────────────────────────────────────────────
 
