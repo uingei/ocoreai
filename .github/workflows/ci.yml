@@ -246,6 +246,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Materialize mlx metallib (xcodebuild — SwiftPM does NOT compile .metal)
+        # Root cause of the 09-27 release-leg failure: `swift build --traits appStore`
+        # (build-app.sh) links fine (382/382) but never emits the Metal shader
+        # library — .metal sources are a Xcode-project target (mlx-swift_Cmlx),
+        # and CI logs show 0 metal steps under SwiftPM. Local builds only "worked"
+        # because a stale xcodebuild product (DerivedData/out, 09-23) was present;
+        # a clean runner has none → build-app.sh guard: "default.metallib not found".
+        # Fix: run the proven xcodebuild path (same as build-and-test leg — CI log
+        # 2026-09-27T03:25:28 MetalLink default.metallib, 9 kernels), then place the
+        # metallib at build-app.sh's FIRST candidate path so the guard passes.
+        # The metallib is trait-independent (pure Metal shaders, shared by all
+        # Swift targets), so a default-trait xcodebuild product is valid for the
+        # appStore-trait release binary.
+        run: |
+          set -euo pipefail
+          export SWIFTC_SCAN_FOR_DEPS=0
+          # Resolve first so .build/checkouts is populated (xcodebuild needs it).
+          swift package resolve
+          xcodebuild build \
+            -workspace ocoreai.xcworkspace \
+            -scheme ocoreai \
+            -configuration Release \
+            -destination 'platform=macOS,arch=arm64' \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            ONLY_ACTIVE_ARCH=YES
+          METAL=$(ls -dt ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/*/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib 2>/dev/null | head -1 || true)
+          if [ -z "$METAL" ] || [ ! -f "$METAL" ]; then
+            echo "❌ xcodebuild did not produce default.metallib"; exit 1
+          fi
+          echo "   metallib produced: $METAL ($(du -h "$METAL" | awk '{print $1}'))"
+          MDEST=".build/out/Products/Release/mlx-swift_Cmlx.bundle/Contents/Resources"
+          mkdir -p "$MDEST"
+          cp "$METAL" "$MDEST/default.metallib"
+          echo "✅ Metallib staged at build-app.sh candidate path: $MDEST/default.metallib"
+
       - name: Build DMG (appStore trait — App Store 审核面)
         run: |
           set -euo pipefail
