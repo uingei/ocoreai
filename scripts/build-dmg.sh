@@ -11,7 +11,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DIST="${DIST:-dist}"
-VERSION="${OCOREAI_VERSION:-0.1.1}"
+VERSION="${OCOREAI_VERSION:-0.1.2}"
 DST="$DIST/ocoreai-$VERSION.dmg"
 
 export OCOREAI_VERSION="$VERSION"
