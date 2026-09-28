@@ -12,6 +12,10 @@
 /// write call is corroborated, not assumed.
 import Foundation
 
+#if canImport(PDFKit)
+import PDFKit
+#endif
+
 enum FileTools {
     // Bounds — every traversal is resource-bounded.
     static let maxReadBytes = 2_097_152  // 2MB per read
@@ -48,6 +52,14 @@ enum FileTools {
             throw ToolError.invalidParameter(
                 "read_file: file too large (\(data.count) bytes, max \(maxReadBytes)): \(path)")
         }
+        // PDF — extract the text layer (system framework, no third-party dep → 开箱即用).
+        // Runs before the plain-text decode: a PDF is not a NUL-byte UTF-8 file, and
+        // PDFKit's `page.string` is the honest source of its text.
+        #if canImport(PDFKit)
+        if url.pathExtension.lowercased() == "pdf" || data.prefix(4) == Data("%PDF".utf8) {
+            return try readPDF(data: data, path: path, offset: offset, limit: limit)
+        }
+        #endif
         let text = String(decoding: data, as: UTF8.self)
         guard !text.contains("\0") else {
             throw ToolError.invalidParameter("read_file: not a text file: \(path)")
@@ -71,6 +83,80 @@ enum FileTools {
         var out = ""
         for i in start ... end {
             out += "\(i)|\(lines[i - 1].replacingOccurrences(of: "\r", with: ""))\n"
+        }
+        if end < total {
+            out +=
+                "─── total_lines: \(total) (window \(start)–\(end); continue at offset=\(end + 1)) ───"
+        } else {
+            out += "─── total_lines: \(total) (full) ───"
+        }
+        return out
+    }
+
+    // MARK: - read_file PDF branch
+
+    /// Extract a PDF's text layer via PDFKit (system framework — no third-party
+    /// dep, works on macOS 14+ floor). Output format matches plain-file reads:
+    /// `N|line` numbered lines + footer.
+    ///
+    /// Honesty contract: if the PDF has NO extractable text (scanned / image-only),
+    /// throw a clear error with an actionable hint (attach the file for the VLM / use
+    /// `view_image`) — do NOT fabricate "0 lines" or silently return an empty window.
+    static func readPDF(
+        data: Data,
+        path: String,
+        offset: Int? = 1,
+        limit: Int? = defaultReadLimit
+    ) throws -> String {
+        guard let doc = PDFDocument(data: data) else {
+            throw ToolError.invalidParameter(
+                "read_file: cannot parse PDF: \(path) (file damaged or not a valid PDF)")
+        }
+        guard doc.pageCount > 0 else {
+            throw ToolError.invalidParameter("read_file: PDF has 0 pages: \(path)")
+        }
+        // Extract per-page text, join with page separators.
+        var lines: [String] = []
+        var extractedAnyText = false
+        for pageIndex in 0 ..< doc.pageCount {
+            guard let page = doc.page(at: pageIndex) else { continue }
+            let pageText = (page.string ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !pageText.isEmpty {
+                extractedAnyText = true
+            }
+            // Prepend a `─── page N ───` marker for multi-page files so the model
+            // can ground per-page references. Single-page: no marker.
+            let marker = doc.pageCount > 1 ? ("page \(pageIndex + 1) of \(doc.pageCount)") : ""
+            if marker.isEmpty {
+                lines.append(contentsOf: pageText.components(separatedBy: "\n"))
+            } else {
+                lines.append("─── \(marker) ───")
+                lines.append(contentsOf: pageText.components(separatedBy: "\n"))
+            }
+        }
+        guard extractedAnyText else {
+            throw ToolError.invalidParameter(
+                "read_file: \"\(path)\" is a PDF with no extractable text layer "
+                    + "(scanned or image-only — PDFKit returns 0 characters from all \"\(doc.pageCount)\" page(s)). "
+                    + "Options: (1) use the `view_image` tool on a rendered page, or "
+                    + "(2) attach the file to a multimodal model turn, or "
+                    + "(3) run `pdftotext`/`qpdf` via the shell tools if installed.")
+        }
+        // Window (offset/limit) over the flattened line array, same semantics as plain read.
+        let total = lines.count
+        let start = max(1, offset ?? 1)
+        guard start <= total else {
+            throw ToolError.invalidParameter(
+                "read_file: offset \(start) exceeds PDF text length (\(total) lines): \(path)")
+        }
+        let holdable = total - start + 1
+        let safeLimit = min(max(1, limit ?? defaultReadLimit), holdable)
+        let end = start + safeLimit - 1
+        var out = ""
+        for i in start ... end {
+            let line = lines[i - 1].replacingOccurrences(of: "\r", with: "")
+            out += "\(i)|\(line)\n"
         }
         if end < total {
             out +=
@@ -197,11 +283,26 @@ enum FileTools {
             var scanned = 0
             for candidate in candidates {
                 if matches.count >= maxResults || scanned >= maxSearchFiles { break }
-                guard !isBinary(candidate) else { continue }
                 scanned += 1
                 guard let data = try? Data(contentsOf: candidate, options: .uncached),
                     data.count <= maxSearchFileBytes
                 else { continue }
+                // PDF — extract the text layer (reuse the same extractor as `read`);
+                // skip anything that can't be opened as a PDF (binary / invalid).
+                #if canImport(PDFKit)
+                if candidate.pathExtension.lowercased() == "pdf"
+                    || data.prefix(4) == Data("%PDF".utf8)
+                {
+                    guard let doc = PDFDocument(data: data) else { continue }
+                    var extracted = ""
+                    for i in 0 ..< min(doc.pageCount, 100) {
+                        extracted += (doc.page(at: i)?.string ?? "")
+                    }
+                    if extracted.contains(pattern) { matches.append(candidate.path) }
+                    continue
+                }
+                #endif
+                guard !isBinary(candidate) else { continue }
                 let text = String(decoding: data, as: UTF8.self)
                 guard !text.contains("\0"), text.contains(pattern) else { continue }
                 matches.append(candidate.path)
