@@ -135,6 +135,48 @@ struct ToolSpecFullRegistryTests {
         #expect(Set(required) == ["step", "status"], "required 丢失: \(required)")
     }
 
+    @Test("补全 7 工具 description 后: toToolSpecs wire 不再落薄 fallback(模型看得到用途)")
+    func supplementedToolDescriptionsSurviveToWire() async {
+        let registry = await Self.fullRegistry()
+        let specs = await registry.toToolSpecs()
+        // 钉死补过的 7 个工具(逐点核 BuiltInTools.swift) — 任一回退到
+        // 薄 fallback("Tool: <name> [<toolset>]")即失败: 模型丢失用途信号。
+        let supplemented = [
+            "info", "echo", "read_file", "search_files",
+            "skills_list", "skills_lookup", "skills_view",
+        ]
+        for name in supplemented {
+            let spec = specs.first(where: {
+                ($0["function"] as? [String: any Sendable])?["name"] as? String == name
+            })
+            guard let fn = spec?["function"] as? [String: any Sendable] else {
+                Issue.record("\(name): spec 缺失")
+                continue
+            }
+            guard let desc = fn["description"] as? String else {
+                Issue.record("\(name): wire description 丢失")
+                continue
+            }
+            #expect(!desc.isEmpty, "\(name): wire description 为空")
+            #expect(
+                !desc.hasPrefix("Tool: "),
+                "\(name): 回退薄 fallback — description 补全丢失: \(desc)")
+        }
+        // read_file 能力信号钉死: PDF 原生读取(`a619d59`)必须出现在模型可见契约里,
+        // 否则模型不知道 read_file 能读 PDF → 回退 exec_shell / 回"读不了"。
+        var readSpecFound = false
+        for spec in specs {
+            let fn = spec["function"] as? [String: any Sendable]
+            if fn?["name"] as? String != "read_file" { continue }
+            readSpecFound = true
+            let readDesc = (fn?["description"] as? String) ?? ""
+            #expect(
+                readDesc.contains("PDF"),
+                "read_file 契约须带 PDF 能力信号 — 实际: \(readDesc)")
+        }
+        #expect(readSpecFound, "read_file 未在 registry — 全量口径缺失")
+    }
+
     #if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)
     @Test("FM path: 全量工具 makeDynamicSchema→GenerationSchema 构建成功（0 failures）")
     @available(macOS 27.0, iOS 27.0, *)

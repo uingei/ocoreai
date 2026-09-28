@@ -33,7 +33,9 @@ func bootstrapBuiltInTools(
         ToolEntry.typed(
             name: "info",
             toolset: "system",
-            argsType: InfoArgs.self
+            argsType: InfoArgs.self,
+            description:
+                "Query ocoreai runtime info: status, version, uptime, or capabilities"
         ) { args in
             let capabilitiesSummary = RuntimeCapability.lines
                 .map { "\($0.name)=\($0.available ? "on" : "off")" }
@@ -60,7 +62,8 @@ func bootstrapBuiltInTools(
             ToolEntry.typed(
                 name: "skills_list",
                 toolset: "skills",
-                argsType: SkillsListArgs.self
+                argsType: SkillsListArgs.self,
+                description: "List available skills, optionally filtered by category"
             ) { [sr] args in
                 let names: [String] =
                     if let cat = args.category, !cat.isEmpty {
@@ -86,7 +89,8 @@ func bootstrapBuiltInTools(
             ToolEntry.typed(
                 name: "skills_lookup",
                 toolset: "skills",
-                argsType: SkillsLookupArgs.self
+                argsType: SkillsLookupArgs.self,
+                description: "Get a skill's name, description, and category"
             ) { [sr] args in
                 guard !args.name.isEmpty else { return "error: name required" }
                 guard let skill = await sr.lookup(args.name) else {
@@ -108,7 +112,8 @@ func bootstrapBuiltInTools(
             ToolEntry.typed(
                 name: "skills_view",
                 toolset: "skills",
-                argsType: SkillsViewArgs.self
+                argsType: SkillsViewArgs.self,
+                description: "Read a skill's full content (or a specific file within it)"
             ) { [sr] args in
                 guard !args.name.isEmpty else { return "error: name required" }
                 if let file = args.file {
@@ -135,6 +140,8 @@ func bootstrapBuiltInTools(
             name: "read_file",
             toolset: "files",
             argsType: ReadFileArgs.self,
+            description:
+                "Read a text file line-by-line (1-based offset/limit); PDFs are read natively via their text layer",
             schema: ToolSchema(parameters: [
                 "path": ToolParameter(
                     type: .string, description: "File path (absolute, ~, or cwd-relative)"),
@@ -220,6 +227,8 @@ func bootstrapBuiltInTools(
             name: "search_files",
             toolset: "files",
             argsType: SearchFilesArgs.self,
+            description:
+                "Search by filename glob (files mode) or content substring (content mode)",
             schema: ToolSchema(parameters: [
                 "path": ToolParameter(
                     type: .string, description: "Directory (or file) to search in"),
@@ -454,7 +463,8 @@ func bootstrapBuiltInTools(
         ToolEntry.typed(
             name: "echo",
             toolset: "debug",
-            argsType: EchoArgs.self
+            argsType: EchoArgs.self,
+            description: "Debug: return the given message verbatim"
         ) { args in
             args.message ?? ""
         }
