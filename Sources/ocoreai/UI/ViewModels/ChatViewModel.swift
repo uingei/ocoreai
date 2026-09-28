@@ -140,7 +140,9 @@ final class ChatState {
     /// Accessed as `@State initial: ChatState.shared` in ChatView to hold the
     /// @Observable reference — mutation tracking works through the singleton's identity.
     static let shared = ChatState()
-    private init() {}
+    // internal (was private) so the test target can construct an isolated
+    // instance via `@testable import ocoreai` — same pattern as ContextStatusStore.
+    internal init() {}
 
     /// Composer draft (typed text + staged attachments) — lifted out of
     /// `ChatView`'s `@State` so it survives the `TabDetailView` switch that
@@ -223,6 +225,23 @@ final class ChatState {
     /// MTP speculative decoding telemetry — populated at stream completion.
     var currentMTPDraftProposed: Int?
     var currentMTPDraftAccepted: Int?
+    /// Session context watermark — tokens the current session's prompt holds
+    /// (effective, post-compaction) and the model's window size. Bridged from
+    /// the shared `ContextStatusStore` seam at turn end — the SAME source the
+    /// `get_context_remaining` tool reads, so the UI and the model see one
+    /// number. `nil` window = model has no configured cap (codex `unknown`
+    /// path — never fabricate a budget in UI).
+    var contextUsedTokens: Int?
+    var contextWindowLimit: Int?
+    /// Remaining context tokens for the current session — `nil` when the model
+    /// has no configured window (codex `unknown` path: report nothing rather
+    /// than a fabricated budget). Computed through the codex-aligned pure
+    /// function so the UI and the `get_context_remaining` tool stay on one
+    /// definition (used may exceed limit → clamp 0, never negative).
+    var contextRemainingTokens: Int? {
+        guard let used = contextUsedTokens, let limit = contextWindowLimit else { return nil }
+        return ContextRemaining.tokensRemaining(limit: limit, used: used)
+    }
 
     /// Current inference phase for UI progress display.
     /// Drives contextual progress labels instead of a generic spinner.
@@ -1214,6 +1233,14 @@ final class ChatState {
         // Caller is @MainActor (ChatViewModel); inferenceEnded() is @MainActor sync —
         // no await needed. Fires at the common exit point of chat().
         PerceptionEngine.shared.inferenceEnded()
+        // Session context watermark — bridge the seam (already written at turn
+        // start by ChatHandler / enforceContextWindow on both routes) to the UI.
+        // This is session state, not per-turn telemetry, so it is NOT cleared by
+        // the tok/s·TTFT reset below; it persists for the active conversation.
+        if let ctx = await ContextStatusStore.shared.peek() {
+            contextUsedTokens = ctx.usedTokens
+            contextWindowLimit = ctx.windowLimit
+        }
         loading = false
         currentTokPerSec = nil
         currentTTFTMs = nil

@@ -391,6 +391,7 @@ public enum StringKey: String, CaseIterable, Sendable {
     // — Chat inference meters —
     case reasoningTokMeter = "Chat.ReasoningTokMeter"  // "reasoning: %d tok"
     case mtpMeter = "Chat.MTPMeter"  // "mtp: %d/%d"
+    case contextMeter = "Chat.ContextMeter"  // "ctx: %d/%d (%d left)"
 
     // — Settings / About —
     case aboutTitle = "About.Title"
@@ -782,6 +783,7 @@ enum L10nTables {
         .reasoningEffortLabel: "Reasoning Effort",
         .reasoningTokMeter: "reasoning: %d tok",
         .mtpMeter: "mtp: %d/%d",
+        .contextMeter: "ctx: %d/%d (%d left)",
         .modelLoadError: "Load Failed",
         .modelDeleteError: "Delete Failed",
         .modelDeleteButton: "Delete",
@@ -1089,6 +1091,7 @@ enum L10nTables {
         .reasoningEffortLabel: "推理强度",
         .reasoningTokMeter: "推理: %d tok",
         .mtpMeter: "mtp: %d/%d",
+        .contextMeter: "上下文: %d/%d (余 %d)",
         .settingsTitle: "设置",
         .serverAddress: "服务器地址",
         .port: "端口",

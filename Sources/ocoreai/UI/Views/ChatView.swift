@@ -190,6 +190,11 @@ struct ChatView: View {
                     .padding(.top, 4)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            // Session context watermark (Bionic introspection gap) — one
+            // session-level bar between transcript and input. Shown only when
+            // the model has a configured window (limit unknown → hidden, codex
+            // `unknown` path: never fabricate a budget in UI).
+            contextWatermark
             inputBar
         }
         .background(theme.windowBg)
@@ -617,6 +622,48 @@ struct ChatView: View {
         }
         .accessibilityLabel("\(StringKey.suggestionHint.l): \(text)")
         .accessibilityHint(StringKey.suggestionHint.l)
+    }
+
+    // MARK: - Session Context Watermark
+
+    /// Session-level context window watermark (used / window).
+    /// `nil` window (model has no configured cap) → hidden entirely —
+    /// codex `unknown` path: we report no number rather than a fabricated one.
+    /// Resolved through the codex-aligned `ContextRemaining` pure function so
+    /// UI and the `get_context_remaining` tool stay on one definition.
+    @ViewBuilder private var contextWatermark: some View {
+        if let used = chatState.contextUsedTokens,
+            let remaining = chatState.contextRemainingTokens,
+            let limit = chatState.contextWindowLimit
+        {
+            let fraction = min(1.0, Double(used) / Double(limit))
+            HStack(spacing: 8) {
+                Image(systemName: "circle.circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(theme.textTertiary)
+                    .accessibilityHidden(true)
+                ProgressView(value: fraction)
+                    .progressViewStyle(.linear)
+                    .tint(theme.accent)
+                    .frame(width: 120)
+                    .accessibilityLabel(StringKey.contextMeter.l)
+                    .accessibilityValue(
+                        String(format: StringKey.contextMeter.l, used, limit, remaining))
+                Text(
+                    String(format: StringKey.contextMeter.l, used, limit, remaining)
+                )
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundStyle(theme.textTertiary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 5)
+            .background(theme.cardBg, in: RoundedRectangle(cornerRadius: 8))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 2)
+        }
     }
 
     // MARK: - Input Bar

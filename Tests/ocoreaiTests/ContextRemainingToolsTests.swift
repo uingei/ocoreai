@@ -136,3 +136,47 @@ struct GetContextRemainingClientTests {
         #expect(e.toolset == "context")
     }
 }
+
+// MARK: - UI bridge 面: ChatState.contextRemainingTokens(会话上下文水位 → UI 单一真值)
+
+/// 契约: `ChatState.contextRemainingTokens` 与 `ContextRemaining.tokensRemaining`
+/// 同一定义 — UI 水位条与 `get_context_remaining` 工具读同一个数(codex `unknown` 路径:
+/// 无窗口/无用量 → nil, 诚实隐藏, 绝不伪造预算)。
+@Suite("session context watermark — UI bridge")
+@MainActor
+struct ContextWatermarkBridgeTests {
+
+    @Test
+    func exactRemainingMirrorsCodexCompute() {
+        let s = ChatState()
+        s.contextUsedTokens = 4096
+        s.contextWindowLimit = 8192
+        #expect(s.contextRemainingTokens == 4096)
+    }
+
+    @Test
+    func usedExceedsWindowClampsToZeroNotNegative() {
+        // UI 进度条 fraction=min(1, used/limit) 同 clamp; 剩余不得为负。
+        let s = ChatState()
+        s.contextUsedTokens = 16_384
+        s.contextWindowLimit = 8192
+        #expect(s.contextRemainingTokens == 0)
+    }
+
+    @Test
+    func noWindowLimitIsNilUnknownCodexPath() {
+        // 模型未配窗口 → nil(unknown), UI 走隐藏, 非 0/非编造。
+        let s = ChatState()
+        s.contextUsedTokens = 5_000
+        s.contextWindowLimit = nil
+        #expect(s.contextRemainingTokens == nil)
+    }
+
+    @Test
+    func freshStateHasNoWatermark() {
+        // 新进程/未发生 turn → 两位皆 nil → nil(诚实 unknown)。
+        let s = ChatState()
+        #expect(s.contextRemainingTokens == nil)
+        #expect(s.contextUsedTokens == nil)
+    }
+}
