@@ -25,10 +25,10 @@ struct WebSearchRequestTests {
         let b = try WebSearchRequest.build(
             query: "Swift 6.2 strict concurrency",
             model: "qwen3.8:27b-mtp",
-            baseUrl: "http://192.168.101.146:11434")
+            baseUrl: "http://127.0.0.1:11434")
         #expect(
             b.url.absoluteString
-                == "http://192.168.101.146:11434/v1/responses",
+                == "http://127.0.0.1:11434/v1/responses",
             "base without /v1 must be normalized to /v1/responses")
     }
 
@@ -43,8 +43,8 @@ struct WebSearchRequestTests {
     @Test
     func defaultBaseUrlNormalizesToV1Responses() throws {
         let b = try WebSearchRequest.build(
-            query: "x", model: "m", baseUrl: "http://192.168.101.146:11434")
-        #expect(b.url.absoluteString == "http://192.168.101.146:11434/v1/responses")
+            query: "x", model: "m", baseUrl: "http://127.0.0.1:11434")
+        #expect(b.url.absoluteString == "http://127.0.0.1:11434/v1/responses")
     }
 
     @Test
@@ -53,7 +53,7 @@ struct WebSearchRequestTests {
             query: "What is the capital of Ethiopia?",
             maxOutputTokens: 512,
             model: "qwen3.8:27b-mtp",
-            baseUrl: "http://192.168.101.146:11434/v1")
+            baseUrl: "http://127.0.0.1:11434/v1")
         let obj = try JSONSerialization.jsonObject(with: b.body) as? [String: Any]
         #expect(obj?["model"] as? String == "qwen3.8:27b-mtp")
         #expect(
@@ -199,15 +199,15 @@ struct WebSearchProbeTests {
     @Test
     func stripsV1SuffixForApiVersion() throws {
         let p = try WebSearchProbe.build(
-            baseUrl: "http://192.168.101.146:11434/v1", timeoutS: 5)
-        #expect(p.url.absoluteString == "http://192.168.101.146:11434/api/version")
+            baseUrl: "http://127.0.0.1:11434/v1", timeoutS: 5)
+        #expect(p.url.absoluteString == "http://127.0.0.1:11434/api/version")
         #expect(p.timeoutS == 5)
     }
 
     @Test
     func appendsV1WhenBaseHasNoSuffix() throws {
-        let p = try WebSearchProbe.build(baseUrl: "http://192.168.101.146:11434", timeoutS: 5)
-        #expect(p.url.absoluteString == "http://192.168.101.146:11434/api/version")
+        let p = try WebSearchProbe.build(baseUrl: "http://127.0.0.1:11434", timeoutS: 5)
+        #expect(p.url.absoluteString == "http://127.0.0.1:11434/api/version")
     }
 
     @Test

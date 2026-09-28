@@ -9,7 +9,7 @@
 /// `tools: [{"type":"web_search"}]`(协议与已实跑验证的 ollama-search.py 逐字段一致)。
 ///
 /// 后端配置(env,运行期可注入便于测试):
-///   OCRE_SEARCH_BASE_URL — 默认 `http://192.168.101.146:11434/v1`(可省略 /v1,自动补)
+///   OCRE_SEARCH_BASE_URL — 默认 `http://127.0.0.1:11434/v1`(可省略 /v1,自动补)
 ///   OCRE_SEARCH_MODEL    — 默认 `qwen3.8:27b-mtp`
 ///   OCRE_SEARCH_TIMEOUT  — 默认 180 (秒)
 ///
@@ -265,7 +265,7 @@ enum WebSearchClient {
         maxOutputTokens: Int? = nil,
         environment: [String: String] = ProcessInfo.processInfo.environment,
     ) async throws -> WebSearchResult {
-        let base = environment["OCRE_SEARCH_BASE_URL"] ?? "http://192.168.101.146:11434/v1"
+        let base = environment["OCRE_SEARCH_BASE_URL"] ?? "http://127.0.0.1:11434/v1"
         let model = environment["OCRE_SEARCH_MODEL"] ?? "qwen3.8:27b-mtp"
         let timeoutS = Int(environment["OCRE_SEARCH_TIMEOUT"] ?? "") ?? 180
 
