@@ -1,5 +1,5 @@
 {
-  "originHash" : "5d2bc322db0a6bab3a020d5c37455894395dc636e1767e1b72badd0942dc900b",
+  "originHash" : "12f5146692ae9feee18c392aaf25db160ff943a31976a375d52b36f32a0499f8",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -33,7 +33,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/ml-explore/mlx-swift.git",
       "state" : {
-        "revision" : "901941965d82e4a216d4d117231d847d194c563d"
+        "revision" : "2b5e8775270c2047f51f05cb3d87cdeea9a125e3"
       }
     },
     {
@@ -41,8 +41,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/ml-explore/mlx-swift-lm.git",
       "state" : {
-        "branch" : "ee673d6",
-        "revision" : "ee673d6a71d76e67b532dc7eaf91d92edc3bb8bb"
+        "branch" : "c043fb3",
+        "revision" : "c043fb3b1ccf00f54ef8882a1e8da45c6e32e6f8"
       }
     },
     {
