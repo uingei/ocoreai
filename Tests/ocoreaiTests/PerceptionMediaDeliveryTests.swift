@@ -144,7 +144,7 @@ struct AttachPerceptionMediaTests {
         #expect(msgs[1].images.count == 1)
         #expect(msgs[2].images.isEmpty)
         var isCIImage = false
-        if case .ciImage = msgs[1].images[0] { isCIImage = true }
+        if case .ciImage = msgs[1].images[0].source { isCIImage = true }
         #expect(isCIImage)
     }
 
@@ -187,7 +187,7 @@ struct AttachPerceptionMediaTests {
         #expect(msgs[0].audios.count == 1)
         #expect(temps.count == 1)
         var fileURL: URL?
-        if case .url(let u) = msgs[0].audios[0] { fileURL = u }
+        if case .url(let u) = msgs[0].audios[0].source { fileURL = u }
         #expect(fileURL == temps.first)
         guard let fileURL else {
             Issue.record("attached audio is not a file URL")
@@ -209,7 +209,7 @@ struct MediaDecoderTests {
             return
         }
         var dim = false
-        if case .ciImage(let ci) = img { dim = ci.extent.width > 0 && ci.extent.height > 0 }
+        if case .ciImage(let ci) = img.source { dim = ci.extent.width > 0 && ci.extent.height > 0 }
         #expect(dim)
     }
 
@@ -227,7 +227,7 @@ struct MediaDecoderTests {
     func httpImagePassthrough() {
         var ok = false
         let img = makeMLXImage(from: "https://example.com/x.png")
-        if case .some(.url(let u)) = img { ok = (u.absoluteString == "https://example.com/x.png") }
+        if case .url(let u) = img?.source { ok = (u.absoluteString == "https://example.com/x.png") }
         #expect(ok)
     }
 
@@ -241,7 +241,7 @@ struct MediaDecoderTests {
         let disk = (try? Data(contentsOf: tmp)) ?? Data()
         #expect(disk == Fixtures.wavBytes)
         var attached: URL?
-        if case .url(let u) = result.audio { attached = u }
+        if case .url(let u) = result.audio?.source { attached = u }
         #expect(attached == tmp)
     }
 
@@ -250,7 +250,9 @@ struct MediaDecoderTests {
         let result = makeMLXAudio(from: "file:///tmp/clip.caf")
         #expect(result.tempURL == nil)
         var ok = false
-        if case .url(let u) = result.audio { ok = (u.absoluteString == "file:///tmp/clip.caf") }
+        if case .url(let u) = result.audio?.source {
+            ok = (u.absoluteString == "file:///tmp/clip.caf")
+        }
         #expect(ok)
     }
 

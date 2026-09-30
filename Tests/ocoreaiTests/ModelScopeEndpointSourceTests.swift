@@ -27,7 +27,7 @@ struct ModelScopeEndpointSourceTests {
     @Test("canonical default base URL is the ModelScope root domain")
     func canonicalDefaultsMatchRootDomain() {
         #expect(ModelStore.modelScopeDefaultBaseURL == "https://modelscope.cn")
-        let url = try? URL(string: ModelStore.modelScopeDefaultBaseURL)
+        let url = URL(string: ModelStore.modelScopeDefaultBaseURL)
         #expect(url?.host() == "modelscope.cn")
         #expect((url?.path.isEmpty) == true)  // 根域;`/api/v1` 前缀由消费方追加
     }

@@ -211,7 +211,7 @@ struct MPSGraphCompletionOrderingTests {
                 return
             }
 
-            try sampler.encode(
+            sampler.encode(
                 to: queue,
                 logitsBuffer: logitsBuffer,
                 logitsOffset: 0,

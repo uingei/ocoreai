@@ -469,8 +469,8 @@ final class LoadedModel: @unchecked Sendable {
             // Pre-create GrammarTokenizer so first guided request skips
             // the expensive vocab-extraction step. Mirrors upstream
             // MLXLanguageModel.swift L638-640 warmUp() behavior.
-            let tokenizer = try await handle.modelContainer.tokenizer
-            try self.getOrCreateGrammarTokenizer(from: tokenizer)
+            let tokenizer = await handle.modelContainer.tokenizer
+            _ = try self.getOrCreateGrammarTokenizer(from: tokenizer)
 
             let mlxMessages: [Chat.Message] = [.init(role: .user, content: "warmup")]
             let mlxParams = makeGenerateParameters(
