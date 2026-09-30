@@ -1352,7 +1352,7 @@ final class MPSGraphCompositeSampler: @unchecked Sendable {
         outputOffset: Int,
         completion: @escaping (Int32, Error?) -> Void
     ) {
-        guard penaltyEnabled, let penaltyPlaceholder else {
+        guard penaltyEnabled, penaltyPlaceholder != nil else {
             encode(
                 to: queue, logitsBuffer: logitsBuffer, logitsOffset: logitsOffset,
                 outputBuffer: outputBuffer, outputOffset: outputOffset, completion: completion)

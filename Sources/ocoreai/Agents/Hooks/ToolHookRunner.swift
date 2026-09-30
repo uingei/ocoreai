@@ -364,7 +364,7 @@ public struct ToolHookRunner: Sendable {
         where hook.events.contains(.postCompact)
             && hook.compactApplies()
         {
-            await hook.handler(ctx)
+            _ = await hook.handler(ctx)
         }
     }
 

@@ -805,8 +805,6 @@ private struct EngineImpl: ~Copyable {
             maxContextLength: config.maxContextLength
         )
 
-        let resolvedSize = options.resolvedKVCacheSize(maxContextLength: config.maxContextLength)
-
         // Allocate fixed-size buffers for additional persistent states (sliding caches, hybrid states).
         var additionalStatesLocal: FixedMTLBufferState? = nil
         let allFixedNames = fixedNames + extraGrowingNames  // extra growing get resolved to max size
@@ -918,8 +916,8 @@ private struct EngineImpl: ~Copyable {
         let temperature = config.temperature
 
         if let existingSampler = cachedSampler, let existingTemp = cachedSamplerTemperature {
-            /* temperature is Double? */
-            let existingIsGreedy = (existingTemp ?? 0) == 0
+            // `existingTemp` is unwrapped to a non-optional `Double` here.
+            let existingIsGreedy = existingTemp == 0
             let requestedIsGreedy = temperature == 0
 
             if existingIsGreedy != requestedIsGreedy {
@@ -930,7 +928,7 @@ private struct EngineImpl: ~Copyable {
                 && abs(existingTemp - (temperature ?? 0)) > temperatureTolerance
             {
                 throw InferenceRuntimeError.genericError(
-                    "Temperature changed mid-generation (\(existingTemp) -> \(temperature)). Call reset() first."
+                    "Temperature changed mid-generation (\(existingTemp) -> \(temperature ?? 0)). Call reset() first."
                 )
             }
             return existingSampler
@@ -1485,7 +1483,6 @@ private struct EngineImpl: ~Copyable {
     mutating func performWarmup(queryLength: Int, samplingConfig: SamplingConfiguration?)
         async throws
     {
-        let warmupStart = ContinuousClock.now
         let warmupSpan = InstrumentsProfiler.beginWarmup()
 
         // A single warmup at any shape primes the framework's internal caches
@@ -1611,7 +1608,6 @@ private struct EngineImpl: ~Copyable {
         reset()
 
         warmupSpan.end()
-        let warmupElapsed = milliseconds(since: warmupStart)
     }
 
     // MARK: - Constrained Run Completion
@@ -1639,7 +1635,9 @@ private struct EngineImpl: ~Copyable {
 
         // Pre-grow KV cache
         let totalNeeded = prompt.count + maxTokens
-        try kvCache.ensureCapacity(forContextLength: totalNeeded, queue: pipelineQueue)
+        // Capacity growth failure is non-fatal: the prefill path degrades to the
+        // current capacity (chunked prefill still proceeds); we only surface sync throws here.
+        _ = try kvCache.ensureCapacity(forContextLength: totalNeeded, queue: pipelineQueue)
 
         // Prefill prompt (unconstrained — grammar doesn't constrain the prompt)
         let prefillTokens: [Int32]

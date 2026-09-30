@@ -235,7 +235,7 @@ final class PerceptionEngine: Sendable {
         }
 
         // Start external monitors
-        _ = await NetworkSensor.shared.startMonitoring()
+        _ = NetworkSensor.shared.startMonitoring()
 
         if channels.filesystem {
             FileSystemSensor.shared.start(watching: nil)
@@ -367,7 +367,7 @@ final class PerceptionEngine: Sendable {
 
     private func sampleNetwork(every interval: TimeInterval) async {
         while !Task.isCancelled {
-            let text = await NetworkSensor.shared.contextText()
+            let text = NetworkSensor.shared.contextText()
             let frame = PerceptionFrame(
                 channel: .network,
                 textContext: text,
@@ -388,7 +388,7 @@ final class PerceptionEngine: Sendable {
                 continue
             }
 
-            let text = await FileSystemSensor.shared.contextText()
+            let text = FileSystemSensor.shared.contextText()
             let frame = PerceptionFrame(
                 channel: .environment,
                 textContext: text,
@@ -404,13 +404,13 @@ final class PerceptionEngine: Sendable {
     private func sampleInternet(every interval: TimeInterval) async {
         while !Task.isCancelled {
             // Check connectivity before polling
-            let reachable = await NetworkSensor.shared.isReachable
+            let reachable = NetworkSensor.shared.isReachable
             guard reachable else {
                 try? await Task.sleep(for: .seconds(30))
                 continue
             }
 
-            let text = await InternetSensor.shared.contextText()
+            let text = InternetSensor.shared.contextText()
             let frame = PerceptionFrame(
                 channel: .environment,
                 textContext: text,

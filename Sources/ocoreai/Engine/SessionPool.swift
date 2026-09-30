@@ -383,7 +383,7 @@ actor MLXSessionPool {
             )
             let allEntries = pool.map { ($0.key, $0.value) }
             pool.removeAll()
-            for (key, entry) in allEntries {
+            for (_, entry) in allEntries {
                 if persistFlag {
                     enforceDiskBudget()
                 }

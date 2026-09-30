@@ -624,7 +624,7 @@ extension NDArray.ScalarType {
         case .cfloat32: return .float32
         case .cfloat64: return .float32
         case .int128: return .float16
-        @unknown default:
+        default:
             return .float16
         }
     }

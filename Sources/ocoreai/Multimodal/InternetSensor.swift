@@ -137,7 +137,7 @@ final class InternetSensor: Sendable {
 
     private func pollLoop() async {
         // Check connectivity before polling
-        let reachable = await NetworkSensor.shared.isReachable
+        let reachable = NetworkSensor.shared.isReachable
         guard reachable else {
             let self_ = Self.shared
             internetLogger.notice("[InternetSensor] network unreachable, skipping poll")
@@ -145,7 +145,7 @@ final class InternetSensor: Sendable {
             return
         }
 
-        let quality = await NetworkSensor.shared.quality
+        let quality = NetworkSensor.shared.quality
         guard quality != .poor, quality != .none else {
             let self_ = Self.shared
             internetLogger.notice("[InternetSensor] poor connection, deferring")

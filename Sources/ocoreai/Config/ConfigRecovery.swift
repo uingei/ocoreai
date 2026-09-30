@@ -53,7 +53,8 @@ enum ConfigRecovery {
     static func snapshotGood(fileAt path: String, logger: Logger) throws {
         // Verification gate — decode + validation must both succeed before any
         // byte of `path` is allowed to replace the last-known-good copy.
-        try decode(at: path)
+        // The decoded value is intentionally discarded: only throw-safety matters here.
+        _ = try decode(at: path)
         let fm = FileManager.default
         let good = goodPath(forConfigPath: path)
         let goodDir = (good as NSString).deletingLastPathComponent

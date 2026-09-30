@@ -440,7 +440,7 @@ final class CoreAISequentialVLMEngine: MultimodalInferenceEngine, @unchecked Sen
 
         switch scalarType {
         case .float16, .bfloat16:
-            var destView = concatenated.mutableView(as: Float16.self)
+            let destView = concatenated.mutableView(as: Float16.self)
             destView.withUnsafeMutablePointer { destPtr, _, _ in
                 for (i, embedding) in frameEmbeddings.enumerated() {
                     embedding.view(as: Float16.self).withUnsafePointer { srcPtr, _, _ in
@@ -450,7 +450,7 @@ final class CoreAISequentialVLMEngine: MultimodalInferenceEngine, @unchecked Sen
                 }
             }
         case .float32:
-            var destView = concatenated.mutableView(as: Float.self)
+            let destView = concatenated.mutableView(as: Float.self)
             destView.withUnsafeMutablePointer { destPtr, _, _ in
                 for (i, embedding) in frameEmbeddings.enumerated() {
                     embedding.view(as: Float.self).withUnsafePointer { srcPtr, _, _ in

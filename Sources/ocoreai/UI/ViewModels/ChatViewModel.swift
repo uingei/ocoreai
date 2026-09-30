@@ -667,8 +667,10 @@ final class ChatState {
                 return n.stringValue
             default:
                 // Nested object/array → compact JSON so structure survives.
+                // `v` here is `Any?` (the switch default); `as Any` boxes it explicitly
+                // for `withJSONObject(_:)`. Behavior is identical to the prior implicit coercion.
                 if let serialized = try? JSONSerialization.data(
-                    withJSONObject: v, options: [.fragmentsAllowed])
+                    withJSONObject: v as Any, options: [.fragmentsAllowed])
                 {
                     if let text = String(data: serialized, encoding: .utf8) {
                         return text

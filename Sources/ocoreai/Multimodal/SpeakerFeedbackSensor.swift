@@ -158,8 +158,8 @@ final class SpeakerFeedbackSensor: NSObject, Sendable {
         return SpeakerFeedbackData(
             isSpeaking: speaking,
             queueDepth: 0,  // AVSpeechSynthesizer queue is opaque; 0 = unknown
-            lastSpokenLength: await Self.shared.recentLength,
-            averageSpeechRate: await Self.shared.avgRate
+            lastSpokenLength: Self.shared.recentLength,
+            averageSpeechRate: Self.shared.avgRate
         )
     }
 

@@ -144,7 +144,7 @@ enum ConversationCompaction {
         // the target, or the removable region is exhausted.
         var removed = 0
         while let oldest = region.first {
-            if fixedEst + noteEst + region.reduce(0) { $0 + est[$1] } <= target { break }
+            if fixedEst + noteEst + (region.reduce(0) { $0 + est[$1] }) <= target { break }
             let unit = unitSpanFor(messages, startingAt: oldest).filter { region.contains($0) }
             guard !unit.isEmpty else { break }
             for i in unit { region.removeAll { $0 == i } }

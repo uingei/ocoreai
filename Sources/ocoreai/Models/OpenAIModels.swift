@@ -1776,7 +1776,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         context: some RequestContext
     ) throws -> Response {
         let detail = NSMutableDictionary(dictionary: [
-            "message": errorDescription as Any ?? String(describing: self),
+            "message": errorDescription ?? String(describing: self),
             "type": "app_error",
             "code": status.code,
         ])

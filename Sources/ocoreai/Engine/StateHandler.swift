@@ -304,33 +304,21 @@ enum StateHandlerFactory {
             throw InferenceRuntimeError.invalidState("Cannot get descriptor for '\(valueName)'")
         }
 
-        // Check if KV cache S dimension is dynamic (grows at runtime)
-        // Conservative default: treat KV cache as dynamic if strategy is auto or growing
-        let isDynamicKV = true
-
+        // Conservative default: always treat the KV cache S dimension as dynamic
+        // (grows at runtime) when the strategy is `auto`.
         let resolvedKVCacheSize = options.resolvedKVCacheSize(maxContextLength: maxContextLength)
 
         let kvHandler: any SyncStateHandler
         switch options.kvCacheStrategy {
         case .auto:
-            if isDynamicKV {
-                kvHandler = try GrowingNDArrayState(
-                    keyDescriptor: keyDesc,
-                    valueDescriptor: valueDesc,
-                    keyStateName: keyName,
-                    valueStateName: valueName,
-                    initialValue: resolvedKVCacheSize ?? 256,
-                    maxCapacity: maxContextLength
-                )
-            } else {
-                kvHandler = StaticNDArrayState(
-                    keyDescriptor: keyDesc,
-                    valueDescriptor: valueDesc,
-                    keyStateName: keyName,
-                    valueStateName: valueName,
-                    capacity: maxContextLength
-                )
-            }
+            kvHandler = try GrowingNDArrayState(
+                keyDescriptor: keyDesc,
+                valueDescriptor: valueDesc,
+                keyStateName: keyName,
+                valueStateName: valueName,
+                initialValue: resolvedKVCacheSize ?? 256,
+                maxCapacity: maxContextLength
+            )
         case .fixedSize:
             kvHandler = StaticNDArrayState(
                 keyDescriptor: keyDesc,

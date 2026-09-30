@@ -95,7 +95,7 @@ final class NetworkSensor {
 
         while !Task.isCancelled {
             let reachable = await sensor.checkReachability()
-            await sensor.update(reachable: reachable)
+            sensor.update(reachable: reachable)
             try? await Task.sleep(for: .seconds(15))
         }
     }

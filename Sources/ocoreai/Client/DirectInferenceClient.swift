@@ -320,7 +320,7 @@ extension DirectInferenceClient {
             hookRunner: enginePool.toolRegistry?.hookRunner,
             sessionId: request.sessionId
         )
-        var workingMessages = capResult.messages
+        let workingMessages = capResult.messages
         let compactedRemoved = capResult.removedCount
 
         // Phase 2: Submit to scheduler + dispatch (streaming)
@@ -470,8 +470,6 @@ extension DirectInferenceClient {
         var capturedPassthroughReason: String?
         // GAP-4: track incomplete/budget-truncated signal
         var capturedTruncatedByBudget = false
-        // P0: capture compute channel from .channel event for UI badge
-        var capturedChannel: ComputeChannel?
         // Phase tracking: emit .generating once on the first content delta
         var didEmitGeneratingPhase = false
 
@@ -546,8 +544,8 @@ extension DirectInferenceClient {
                             isComplete: false, reasoningContent: reasoningText,
                             phase: reasoningPhase))
                 case .done(
-                    let reason, let tokenCount, let promptTokenCount, let tokPS, let ptokPs,
-                    let reasoningTC, let cachedTC, let proposed, let accepted, let passthrough):
+                    let reason, let tokenCount, _, let tokPS, let ptokPs,
+                    let reasoningTC, _, let proposed, let accepted, let passthrough):
                     finishReason = stopReasonToString(reason) ?? "stop"
                     // Use actual token count from upstream .info/.done — per-event
                     // counting would severely underestimate when .text spans multiple tokens
@@ -574,7 +572,7 @@ extension DirectInferenceClient {
                             isComplete: false,
                             metadata: .toolCall(
                                 .init(
-                                    id: tc.id ?? "",
+                                    id: tc.id,
                                     name: tc.function.name,
                                     arguments: tc.function.arguments.isEmpty
                                         ? nil : tc.function.arguments,
@@ -604,9 +602,8 @@ extension DirectInferenceClient {
                         capturedTruncatedByBudget = true
                     }
                 case .channel(let ch):
-                    // P0: capture compute channel and yield so ChatViewModel/UI know
-                    // which accelerator (GPU/ANE/CPU) handled the request.
-                    capturedChannel = ch
+                    // P0: yield compute channel so ChatViewModel/UI know which accelerator
+                    // (GPU/ANE/CPU) handled the request.
                     continuation.yield(.init(text: "", isComplete: false, channel: ch))
                 }
             }
@@ -832,7 +829,7 @@ extension DirectInferenceClient {
                         + (tc.function.arguments.count > 60 ? "…" : "")
                 collectedToolCallParts?.append(
                     ToolCallPart(
-                        callId: tc.id ?? "",
+                        callId: tc.id,
                         name: tc.function.name,
                         resultSummary: summary,
                         durationMs: 0

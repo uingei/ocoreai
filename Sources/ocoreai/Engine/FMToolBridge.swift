@@ -131,15 +131,8 @@ struct FMToolProxy: FoundationModels.Tool {
         // 是 canonical 形状（必须带 "x-order"/"title"），OpenAI 风格 JSON
         // （"type":"object","properties":...）直接 decode 必 keyNotFound。
         // 正路 = SDK 公开的 DynamicGenerationSchema 树 → GenerationSchema(root:deps:)。
-        let dict =
-            json as? [String: Any]
-            ?? (try? JSONSerialization.jsonObject(
-                with: (try? JSONSerialization.data(withJSONObject: json))!
-            )) as? [String: Any]
-        guard let dict else {
-            logger.warning("FMToolProxy: cannot normalize params for \(name)")
-            return nil
-        }
+        // `json` is always `[String: any Sendable]`; covariant conversion to `[String: Any]`.
+        let dict: [String: Any] = json
         if let dynamic = Self.makeDynamicSchema(from: dict, name: name) {
             if let schema = try? FoundationModels.GenerationSchema(
                 root: dynamic, dependencies: []

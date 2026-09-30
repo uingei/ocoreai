@@ -162,7 +162,8 @@ struct RealVideoBackend: VideoGenerationBackend, @unchecked Sendable {
         built: GenerateVideo.Built,
         outputURL: URL
     ) async -> VideoGenOutcome {
-        guard #available(macOS 27.0, iOS 27.0, *) else { return .belowFloor }
+        // Enclosing `RealVideoBackend` is already gated by `@available(macOS 27.0, iOS 27.0, *)`
+        // (see type declaration above); an inner `guard #available` cannot make a decision here.
         let wu = Self.defaultWeightsURL()
         guard let wu = wu else { return .weightsMissing("(no default wan2.1 weights)") }
         let outDir = outputURL.deletingLastPathComponent()
@@ -310,7 +311,9 @@ enum GenerateVideoClient {
         let out = outDir.appendingPathComponent(name)
         let outcome = await backend.generate(built: built, outputURL: out)
         switch outcome {
-        case .ok(let url, let frameCount):
+        // `generate` already returns the `.ok` payload via the backend; `url` / `frameCount` are
+        // re-reported through `GenerateVideo.report`, so they are not needed locally here.
+        case .ok:
             return GenerateVideo.report(outcome: outcome)
         case .belowFloor:
             return "generate_video: error: needs macOS 27 / iOS 27 (this OS is below the floor)"
