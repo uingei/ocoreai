@@ -6,7 +6,7 @@
 //   - Non-VLM bundle (single main asset only) → nil
 //   - Missing metadata.json → nil
 //   - VisionConfig parsing (present + absent)
-//   - componentPath .aimodel → .aimodelc compiled-variant fallback
+//   - componentPath: declared asset must be on disk (#303: no .aimodelc fallback)
 //   - isVLMBundle predicate consistency with load()
 //
 // Provenance: coreai-models (BSD-3, Apple), absorbed.
@@ -138,22 +138,27 @@ struct VLMBundleDetectionTests {
 
     // MARK: - componentPath
 
-    @Test("componentPath falls back to .aimodelc compiled variant when .aimodel absent")
-    func componentPathCompiledFallback() {
+    @Test(
+        "componentPath returns nil when metadata names a .aimodel that is not on disk (#303: no .aimodelc fallback)"
+    )
+    func componentPathCompiledFallbackRemoved() {
         let dir = makeTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
 
         writeBundle(assets: Self.vlmAssets, visionJSON: nil, to: dir)
         let metadata = VLMBundleDetector.load(at: dir)!
 
-        // Simulate coreai-build compile: create .aimodelc, remove .aimodel source
+        // Simulate coreai-build compile: create .aimodelc, remove .aimodel source.
+        // CA #303 (coreai-models 3efa838): silent `.aimodel` → `.aimodelc` fallback is
+        // removed — metadata.json must name the file that actually ships, so this
+        // now resolves to `nil` and `createVLMEngine` surfaces a precise load error
+        // ("no .aimodel asset for role 'vision'") instead of guessing a sibling file.
         let visionSrc = dir.appendingPathComponent("model.vision.aimodel")
         let visionCmp = dir.appendingPathComponent("model.vision.aimodelc")
         FileManager.default.createFile(atPath: visionCmp.path, contents: Data())
         try! FileManager.default.removeItem(at: visionSrc)
 
-        let resolved = metadata.componentPath("vision", in: dir)
-        #expect(resolved?.lastPathComponent == "model.vision.aimodelc")
+        #expect(metadata.componentPath("vision", in: dir) == nil)
     }
 
     @Test("componentPath returns nil when no variant of the asset file exists")

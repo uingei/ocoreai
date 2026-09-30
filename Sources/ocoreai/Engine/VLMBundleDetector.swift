@@ -74,22 +74,18 @@ struct VLMBundleMetadata: Sendable {
 
     /// Resolve a component's file path within the bundle directory.
     ///
-    /// Falls back to the compiled (`.aimodelc`) variant if the declared
-    /// `.aimodel` path does not exist on disk (post-`coreai-build compile`).
-    /// Returns `nil` if no variant is found.
+    /// Returns the declared `assets[key]` path verbatim (existence-gated:
+    /// `nil` if the file is not on disk).
     ///
-    /// Mirrors upstream `ModelBundle.modelURL(for:)` (L52-58) +
-    /// `resolveAssetURL` (.aimodel → .aimodelc fallback).
+    /// CA #303 (coreai-models 3efa838, 2026-09-30) align: metadata.json must
+    /// reference the file that actually ships — a compiled `.aimodelc` variant
+    /// needs an explicit metadata update, silent auto-lookup is removed.
+    /// Consumers with a precise "missing" contract (`requireComponent`)
+    /// surface a load error rather than guessing a sibling file.
     func componentPath(_ key: String, in bundleURL: URL) -> URL? {
         guard let assetName = assets[key] else { return nil }
-        let fm = FileManager.default
         let direct = bundleURL.appendingPathComponent(assetName)
-        if fm.fileExists(atPath: direct.path) { return direct }
-        if assetName.hasSuffix(".aimodel") {
-            let compiled = bundleURL.appendingPathComponent(assetName + "c")
-            if fm.fileExists(atPath: compiled.path) { return compiled }
-        }
-        return nil
+        return FileManager.default.fileExists(atPath: direct.path) ? direct : nil
     }
 }
 

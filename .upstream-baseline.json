@@ -3,8 +3,8 @@
   "checked_at_utc": "2026-09-30T01:05:58Z",
   "baselines": {
     "mlx-swift-lm": "0dcfe2f",
-    "coreai-models": "e1df4c8",
-    "codex": "ab84d71f"
+    "coreai-models": "3efa838",
+    "codex": "90abcfac"
   },
   "sources": {
     "mlx-swift-lm": "ml-explore/mlx-swift-lm",

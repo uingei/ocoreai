@@ -89,8 +89,9 @@ struct ANEVLMFactoryRoutingTests {
         #expect(metadata.isVLMBundle)
         #expect(metadata.visionConfig != nil)
         // The three role keys are all declared and their component paths resolve
-        // (with .aimodelc fallback) — the exact precondition `createVLMEngine`
-        // requires before `PreparedModel.prepare` is ever called.
+        // (each named asset file exists on disk — post-CA #303 there is no
+        // `.aimodelc` variant fallback, so the on-disk files must be the ones
+        // metadata.json names).
         #expect(metadata.componentPath(VLMBundleMetadata.assetMain, in: dir) != nil)
         #expect(metadata.componentPath(VLMBundleMetadata.assetVision, in: dir) != nil)
         #expect(metadata.componentPath(VLMBundleMetadata.assetEmbedding, in: dir) != nil)

@@ -469,16 +469,19 @@ struct PreparedModel: Sendable {
 
     /// Resolve the model URL to a loadable Core AI asset.
     ///
-    /// Mirrors upstream coreai-models `ModelBundle.resolveAssetURL`
-    /// (ModelBundle.swift) + `requireModelURL`: the llm-runner feeds
-    /// `prepare` the `assets.<key>` URL resolved from the bundle's
+    /// `prepare` receives the `assets.<key>` URL resolved from the bundle's
     /// metadata.json — NOT the bare bundle directory. A directory that holds
     /// metadata.json + tokenizer + assets (the export pipeline's surface) has
     /// no asset of its own; `AIModel(contentsOf:)` on it fails
     /// `corruptedMetadata: Metadata missing asset version` (observed 09-15).
+    ///
+    /// CA #303 (coreai-models 3efa838, 2026-09-30) align: metadata must name
+    /// the file that actually ships, so the former `.aimodel` → `.aimodelc`
+    /// silent variant fallback is removed — a compiled variant is only loaded
+    /// when metadata.json references it explicitly.
+    ///
     /// Resolution: direct asset → as-is; metadata-declared asset → its path;
-    /// `.aimodel` → `.aimodelc` compiled variant; otherwise the first
-    /// `.aimodel`/`.aimodelc` entry (stable-sorted, as upstream).
+    /// otherwise the first `.aimodel`/`.aimodelc` entry (stable-sorted).
     static func resolveCoreAIModelURL(from url: URL) -> URL {
         let exts: Set<String> = ["aimodel", "aimodelc"]
         if exts.contains(url.pathExtension) { return url }
@@ -498,7 +501,7 @@ struct PreparedModel: Sendable {
 
         // 1) metadata.json `assets.main` (or first declared asset) when it
         //    points at a real file in this directory — the upstream
-        //    `requireModelURL(for: .main)` contract.
+        //    `requireModelURL(for: .main)` contract (post-#303: no variant fallback).
         if let meta = (try? Data(contentsOf: url.appendingPathComponent("metadata.json"))),
             let obj = try? JSONSerialization.jsonObject(with: meta),
             let dict = obj as? [String: Any],
@@ -508,18 +511,11 @@ struct PreparedModel: Sendable {
             if let name = candidates, exts.contains((name as NSString).pathExtension),
                 fm.fileExists(atPath: url.appendingPathComponent(name).path)
             {
-                let declared = url.appendingPathComponent(name)
-                // 2) compiled variant fallback (post-`coreai-build compile`).
-                if name.hasSuffix(".aimodel"),
-                    fm.fileExists(atPath: url.appendingPathComponent(name + "c").path)
-                {
-                    return url.appendingPathComponent(name + "c")
-                }
-                return declared
+                return url.appendingPathComponent(name)
             }
         }
 
-        // 3) First asset in the directory.
+        // 2) First asset in the directory.
         let sorted = entries.filter { exts.contains($0.pathExtension) }.sorted { $0.path < $1.path }
         return sorted.first ?? url
     }
