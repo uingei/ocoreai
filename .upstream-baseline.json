@@ -4,7 +4,7 @@
   "baselines": {
     "mlx-swift-lm": "0dcfe2f",
     "coreai-models": "3efa838",
-    "codex": "90abcfac"
+    "codex": "bcd6d9ab"
   },
   "sources": {
     "mlx-swift-lm": "ml-explore/mlx-swift-lm",
