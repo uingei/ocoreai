@@ -14,7 +14,7 @@ SHELL := /bin/bash
 # CommandLineTools which doesn't ship it. If the caller already pinned
 # DEVELOPER_DIR we honour it (highest priority); otherwise, when the default
 # toolchain is CommandLineTools, redirect to the known full Xcode.app.
-XCODE_APP := /Users/t/Downloads/Xcode.app
+XCODE_APP := /Applications/Xcode.app
 ifdef DEVELOPER_DIR
 # user-pinned: no override
 else

@@ -150,20 +150,8 @@ let package = Package(
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
-                .unsafeFlags(["-F/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]
-                ),
             ],
             linkerSettings: [
-                .unsafeFlags(["-F/Library/Developer/CommandLineTools/Library/Developer/Frameworks"]
-                ),
-                .unsafeFlags([
-                    "-Xlinker", "-rpath", "-Xlinker",
-                    "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
-                ]),
-                .unsafeFlags([
-                    "-Xlinker", "-rpath", "-Xlinker",
-                    "/Library/Developer/CommandLineTools/Library/Developer/usr/lib",
-                ]),
                 .linkedFramework("Testing"),
             ],
         ),
