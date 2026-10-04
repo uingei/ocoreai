@@ -90,8 +90,11 @@ test-coverage:
 		echo "→ Coverage data in .build/"
 
 # Full test gate — CI-identical path (xcodebuild build-for-testing → xcrun xctest).
-# `swift test` cannot resolve metallib at runtime (see AGENTS.md / ci.yml L112-115);
-# the xcodebuild path resolves it natively, so this is the AUTHORITATIVE local gate.
+# NOTE (2026-10-05): on macOS < 27 hosts with Xcode 27 installed (SDK 27 only),
+# the xcodebuild-built binary weak-links CoreAI.framework and xcrun xctest SEGVs
+# in realizeAllClasses() before the first test (Error 139) — TEST BUILD SUCCEEDED
+# is not test execution. Full test EXECUTION = CI until the host runs macOS 27
+# (or an SDK-26 Xcode side-by-side). For the macOS-26-native partial gate: test-clt.
 test-ci:
 	@echo "🧪 Running the CI-identical full gate (xcodebuild → xctest)..."
 	@export OCOREAI_BUILD=ci; \
