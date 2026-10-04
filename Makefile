@@ -48,6 +48,29 @@ dmg:
 
 ## ── Test ───────────────────────────────────────────────────────────
 
+# CLT route — the local gate on macOS < 27 while Xcode 27 is installed.
+# Xcode 27 ships only SDK 27: its binaries weak-link CoreAI.framework, which
+# is absent on macOS 26 → xctest dies in realizeAllClasses() BEFORE any test
+# runs (--filter / #available cannot save it — both are post-realize).
+# The CLT toolchain (SDK 26.5, canImport(CoreAI)=false) is the 26-native path:
+# Testing 1902 + its lib_TestingInterop live under CommandLineTools, so the
+# -F/-rpath must be injected HERE at the call site — Package.swift stays clean
+# (hardcoded CLT paths there poisoned the Xcode route: cdba6a6).
+# Metal shaders are still absent from CLT → --skip the GPU-dependent suites;
+# full hardware coverage = CI (macos-26 SDK26 + xcode-27 matrix).
+CLT_F=/Library/Developer/CommandLineTools/Library/Developer/Frameworks
+CLT_L=/Library/Developer/CommandLineTools/Library/Developer/usr/lib
+test-clt:
+	@echo "🧪 CLT-route test gate (macOS < 27 local; skips Metal/MLX/ANE/CoreAI/GPU suites)..."
+	@DEVELOPER_DIR=/Library/Developer/CommandLineTools swift test \
+	  --scratch-path .build-clt \
+	  -Xswiftc -F$(CLT_F) \
+	  -Xlinker -F$(CLT_F) \
+	  -Xlinker -rpath -Xlinker $(CLT_F) \
+	  -Xlinker -rpath -Xlinker $(CLT_L) \
+	  --skip Metal --skip MLX --skip ANE --skip CoreAI \
+	  --skip Inference --skip Vision --skip Compute
+
 test:
 	@echo "🧪 Running tests..."
 	swift test
