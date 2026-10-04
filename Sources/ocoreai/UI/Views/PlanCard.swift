@@ -86,18 +86,9 @@ struct PlanCard: View {
     }
 }
 
-#Preview("推进中") {
-    PlanCard(
-        snapshot: PlanSnapshot(
-            items: [
-                .init(step: "Sync reference repos", status: "completed"),
-                .init(step: "Audit codex baseline", status: "in_progress"),
-                .init(step: "Implement Recover slice", status: "pending"),
-            ],
-            explanation: "Recover ring closure",
-            updatedAt: 0,
-        )
-    )
-    .frame(maxWidth: 400)
-    .padding()
-}
+// MARK: - Preview
+
+// #Preview("推进中") — #Preview requires Xcode PreviewsMacros plugin — disabled for swift build.
+// For live previews open the project in Xcode instead.
+// Preview content: PlanCard(snapshot: PlanSnapshot(items: [completed/in_progress/pending 3 steps],
+// explanation: "Recover ring closure", updatedAt: 0)).frame(maxWidth: 400).padding()
