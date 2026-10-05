@@ -55,7 +55,7 @@ let package = Package(
         // "Upstream Audit Dependencies" + CHANGELOG.md.
         .package(
             url: "https://github.com/ml-explore/mlx-swift.git",
-            exact: "0.32.2"),
+            exact: "0.32.3"),
         // HuggingFace Hub SDK — native search & download
         .package(url: "https://github.com/huggingface/swift-huggingface.git", from: "0.9.0"),
         // swift-transformers: Tokenizers library (required for @huggingFaceTokenizerLoader)
