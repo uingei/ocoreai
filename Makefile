@@ -56,20 +56,37 @@ dmg:
 # Testing 1902 + its lib_TestingInterop live under CommandLineTools, so the
 # -F/-rpath must be injected HERE at the call site — Package.swift stays clean
 # (hardcoded CLT paths there poisoned the Xcode route: cdba6a6).
-# Metal shaders are still absent from CLT → --skip the GPU-dependent suites;
-# full hardware coverage = CI (macos-26 SDK26 + xcode-27 matrix).
-CLT_F=/Library/Developer/CommandLineTools/Library/Developer/Frameworks
-CLT_L=/Library/Developer/CommandLineTools/Library/Developer/usr/lib
+# CLT cannot compile .metal, but MLX resolves prebuilt shaders at runtime
+# (path ① <binary dir>/mlx.metallib) — staged below from an Xcode-built
+# bundle → FULL suite on this host, no --skip (verified 10-05: 1988 tests).
+CLT_DIR=/Library/Developer/CommandLineTools
+CLT_F=$(CLT_DIR)/Library/Developer/Frameworks
+CLT_L=$(CLT_DIR)/Library/Developer/usr/lib
 test-clt:
-	@echo "🧪 CLT-route test gate (macOS < 27 local; skips Metal/MLX/ANE/CoreAI/GPU suites)..."
+	@echo "🧪 CLT-route test gate (macOS < 27 local; FULL suite, no skips)..."
+	@DEVELOPER_DIR=$(CLT_DIR) swift build --build-tests --scratch-path .build-clt -Xswiftc -F$(CLT_F) -Xlinker -F$(CLT_F) >/dev/null
+	@# Metal staging: CLT cannot compile .metal sources, but MLX resolves shaders
+	@# at <binary dir>/mlx.metallib (path ①, build-app.sh:23). Stage the Xcode-
+	@# built metallib next to the test binary → the wall that killed every local
+	@# run before 10-05 is gone (verified: full run, 0 metallib errors, 1988 tests).
+	@M=$$(ls -dt ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/*/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib 2>/dev/null | head -1); \
+	P=/opt/homebrew/lib/python3.11/site-packages/mlx/lib/mlx.metallib; \
+	for SRC in "$$M" "$$P"; do \
+	  if [ -n "$$SRC" ] && [ -f "$$SRC" ]; then \
+	    cp -f "$$SRC" .build-clt/arm64-apple-macosx/debug/mlx.metallib; \
+	    cp -f "$$SRC" .build-clt/arm64-apple-macosx/debug/ocoreaiPackageTests.xctest/Contents/MacOS/mlx.metallib; \
+	    echo "   metallib staged: $$SRC"; break; \
+	  fi; \
+	done; \
+	[ -f .build-clt/arm64-apple-macosx/debug/ocoreaiPackageTests.xctest/Contents/MacOS/mlx.metallib ] \
+	  || { echo "❌ no metallib source (need Xcode DerivedData product or pip install mlx)"; exit 1; }
 	@DEVELOPER_DIR=/Library/Developer/CommandLineTools swift test \
 	  --scratch-path .build-clt \
+	  --no-parallel \
 	  -Xswiftc -F$(CLT_F) \
 	  -Xlinker -F$(CLT_F) \
 	  -Xlinker -rpath -Xlinker $(CLT_F) \
-	  -Xlinker -rpath -Xlinker $(CLT_L) \
-	  --skip Metal --skip MLX --skip ANE --skip CoreAI \
-	  --skip Inference --skip Vision --skip Compute
+	  -Xlinker -rpath -Xlinker $(CLT_L)
 
 test:
 	@echo "🧪 Running tests..."
