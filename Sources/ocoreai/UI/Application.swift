@@ -11,6 +11,7 @@
 ///
 /// @Observable pattern: AppState is now Observable; accessed as computed property.
 
+import Logging
 import SwiftUI
 
 @main
@@ -241,6 +242,26 @@ private struct SectionHeaderLabel: View {
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_: Notification) {
+        // Single-instance gate BEFORE any UI boots (native double-click
+        // semantics): if another live instance owns the flock, bring ITS
+        // window forward and exit immediately — the user's second click is
+        // a summon, not a spawn. Same lock object as OcoreaiEngine.start()
+        // uses (flock is per-fd; one holder object shared across both
+        // paths keeps acquisition idempotent). Crash-safe: kernel releases.
+        switch OcoreaiEngine.shared.singleInstance.tryAcquire() {
+        case .busy(let pid):
+            Logger(label: "ocoreai").error(
+                "Second instance refused — activating holder pid \(pid.map(String.init) ?? "?")"
+            )
+            if let pid, let holder = NSRunningApplication(processIdentifier: pid) {
+                holder.activate(options: [.activateIgnoringOtherApps])
+            }
+            NSApplication.shared.terminate(nil)
+            return
+        default:
+            break  // acquired / skipped / unavailable — proceed normally
+        }
+
         // Register global crash handlers early — captures inference OOM, segfault, etc.
         registerGlobalCrashHandlers()
 
