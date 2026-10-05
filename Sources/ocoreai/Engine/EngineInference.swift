@@ -1496,11 +1496,17 @@ extension EnginePool {
         // architectural change (separate ModelContainer with CPU device).
         var computeChannel: ComputeChannel
         if let router = hardwareRouter, let tracker = memoryTracker {
-            computeChannel = router.query(
+            // queryWithState: the log must name the TRIGGER tier. A CPU shift
+            // with an idle GPU (gpu: 0.0/x) comes from Tier-1 memory pressure
+            // or Tier-2 thermal, NOT GPU saturation — printing only the GPU
+            // fraction misattributed the cause (observed: cost hours of
+            // chasing a non-existent router bug on a 119/128GB box).
+            let (channel, hwState) = router.queryWithState(
                 gpuActiveBytes: await tracker.gpuActiveMemoryBytes(),
                 gpuBudgetBytes: await tracker.getBudget(),
                 priority: .chat
             )
+            computeChannel = channel
             let gpuGB = String(
                 format: "%.1f", Double(await tracker.gpuActiveMemoryBytes()) / 1_073_741_824.0)
             let budgetGB = String(
@@ -1511,7 +1517,7 @@ extension EnginePool {
                 logger.debug("HardwareRouter → GPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB)")
             case .cpu:
                 logger.warning(
-                    "HardwareRouter → CPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB) — disabling session pool + speculative decoding"
+                    "HardwareRouter → CPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB, \(hwState.description)) — disabling session pool + speculative decoding"
                 )
             case .ane:
                 #if canImport(CoreAI)

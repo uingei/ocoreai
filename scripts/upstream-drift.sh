@@ -26,25 +26,52 @@ DRIFT=0
 baseline_note() { python3 -c 'import json; d=json.load(open("'"$STATE"'")); print("@"+d["checked_at_utc"])' 2>/dev/null || echo "缺失(首次)"; }
 base_sha() { python3 -c 'import json; d=json.load(open("'"$STATE"'")); b=d["baselines"].get("'"$1"'",""); print(b if isinstance(b,str) else "")' 2>/dev/null; }
 
+# gh 优先；无 gh 主机回落 curl+python3（api.github.com 实测可用）。
+# 此前无 gh 时三源全部静默 skip = 覆盖缺口（10-05 实测踩中）。
+# 注意：未认证 api.github.com 限额 60 req/h/IP——一轮全程 ≤15 req，足够。
+api() { # api <endpoint> <mode:head|sha|ahead|behind|messages>
+  local ep="$1" mode="${2:-head}"
+  if command -v gh >/dev/null 2>&1; then
+    case "$mode" in
+      head) gh api "$ep" -q '.[0].sha' ;;
+      sha) gh api "$ep" -q '.sha' ;;
+      ahead) gh api "$ep" -q '.ahead_by+0' ;;
+      behind) gh api "$ep" -q '.behind_by+0' ;;
+      messages) gh api "$ep" -q '.commits[].commit.message | split("\n")[0]' ;;
+    esac
+  else
+    curl -sf --max-time 25 "https://api.github.com/$ep" | python3 -c '
+import json,sys
+d=json.load(sys.stdin); m=sys.argv[1]
+if m=="head": print(d[0]["sha"])
+elif m=="sha": print(d["sha"])
+elif m=="ahead": print(d.get("ahead_by","?"))
+elif m=="behind": print(d.get("behind_by","?"))
+elif m=="messages":
+    [print(c["commit"]["message"].split("\n")[0]) for c in d.get("commits",[])]
+' "$mode"
+  fi
+}
+
 echo "═══ ocoreai upstream drift — baseline $(baseline_note) ═══"
 echo
 
 for pair in $REPOS; do
   name="${pair%%:*}"
   repo="${pair##*:}"
-  head="$(gh api "repos/$repo/commits?per_page=1" -q '.[0].sha' 2>/dev/null)" || { echo "!!  $name: gh api 失败（网络/auth），跳过"; DRIFT=1; continue; }
+  head="$(api "repos/$repo/commits?per_page=1" head 2>/dev/null)" || { echo "!!  $name: api 失败（网络/auth），跳过"; DRIFT=1; continue; }
   short="${head:0:9}"
   base="$(base_sha "$name")"
   if [ -z "$base" ]; then
     printf "%-16s HEAD=%s  base=—(待首轮裁决/adopt)\n" "$name" "$short"
     continue
   fi
-  base_full="$(gh api "repos/$repo/commits/$base" -q '.sha' 2>/dev/null || echo "$base")"
+  base_full="$(api "repos/$repo/commits/$base" sha 2>/dev/null || echo "$base")"
   if [ "$base_full" = "$head" ]; then
     printf "%-16s HEAD=%s  0 new  ✓ 与基线同点\n" "$name" "$short"
   else
-    ahead="$(gh api "repos/$repo/compare/$base_full...$head" -q '.ahead_by+0' 2>/dev/null || echo '?')"
-    behind="$(gh api "repos/$repo/compare/$base_full...$head" -q '.behind_by+0' 2>/dev/null || echo '?')"
+    ahead="$(api "repos/$repo/compare/$base_full...$head" ahead 2>/dev/null || echo '?')"
+    behind="$(api "repos/$repo/compare/$base_full...$head" behind 2>/dev/null || echo '?')"
     if [ "$ahead" != "?" ] && [ "$ahead" -gt 0 ] 2>/dev/null; then
       printf "%-16s HEAD=%s  +%s commits vs base=%s  ⚠ 新窗口待裁决\n" "$name" "$short" "$ahead" "${base:0:9}"
       DRIFT=10
@@ -56,7 +83,7 @@ for pair in $REPOS; do
       DRIFT=1
     fi
     if [ "$DRIFT" -eq 10 ]; then
-      window="$(gh api "repos/$repo/compare/$base_full...$head?per_page=50" -q '.commits[].commit.message | split("\n")[0]' 2>/dev/null | sed 's/\(.\{110\}\).*/\1.../' | head -50)"
+      window="$(api "repos/$repo/compare/$base_full...$head?per_page=50" messages 2>/dev/null | sed 's/\(.\{110\}\).*/\1.../' | head -50)"
       n_commits="$(printf '%s\n' "$window" | grep -c . || true)"
       hits="$(printf '%s\n' "$window" | grep -icE 'approv|update.?plan|plan tool|hook|mcp|reasoning|tool.?call|sampling|kv|chunk|grammar' || true)"
       echo "         轴词粗筛(提示,非权威): $hits / $n_commits 条"
@@ -70,7 +97,7 @@ if [ "$cmd" = "adopt" ]; then
   ADOPT_OK=1
   for pair in $REPOS; do
     name="${pair%%:*}"; repo="${pair##*:}"
-    head="$(gh api "repos/$repo/commits?per_page=1" -q '.[0].sha' 2>/dev/null)" || { ADOPT_OK=0; continue; }
+    head="$(api "repos/$repo/commits?per_page=1" head 2>/dev/null)" || { ADOPT_OK=0; continue; }
     python3 - "$STATE" "$name" "$head" "$NOW_UTC" "$repo" <<'PY'
 import json,sys
 path,name,head,now,repo=sys.argv[1:6]
