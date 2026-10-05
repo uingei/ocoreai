@@ -38,7 +38,7 @@ let package = Package(
         // `git log <old>..origin/main` -> audit consumer impact -> bump .revision ->
         // `swift build` + `swift test` (make test-ci). The per-bump audit trail lives
         // in AGENTS.md ("Upstream Audit Dependencies") + CHANGELOG.md, not in this file.
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "0dcfe2f"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "5e46681b"),
         // mlx-swift: pin to the 0.32.2 tag (main HEAD 2b5e877). Floor follows
         // mlx-swift-lm #646 (c043fb3) which raised its own mlx-swift constraint from
         // .upToNextMinor(0.31.6) → .upToNextMinor(0.32.2): ocoreai's direct pin and
