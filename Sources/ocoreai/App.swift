@@ -53,6 +53,9 @@ public final class OcoreaiEngine {
     var engineReady: Bool { lifecycleState.isHealthy }
 
     private var serverApp: (any ApplicationProtocol)?
+    /// Single-instance flock — held for the engine lifetime, kernel-released
+    /// on process death. See Core/SingleInstanceLock.swift.
+    let singleInstance = SingleInstanceLock()
     private var gaugeTask: Task<Void, Never>?
     private var cleanupTask: Task<Void, Never>?
     /// Background default-model prewarm — cancelled on stop().
@@ -213,6 +216,28 @@ public final class OcoreaiEngine {
     /// Circuit breaker: if 3 consecutive startups fail, the circuit opens for 60s.
     /// Call `resetCircuitBreaker()` to unblock.
     public func start() async {
+        // Single-instance gate (first thing before any engine work) — a
+        // second live instance would re-load full model weights and race the
+        // first on GPU memory, port, and cache. flock is kernel-released on
+        // death (crash-safe); OCOREAI_ALLOW_MULTI_INSTANCE=1 opts out.
+        switch singleInstance.tryAcquire() {
+        case .busy(let pid):
+            logger.error(
+                "Another ocoreai instance is already running (pid \(pid.map(String.init) ?? "?")) — refusing to start a second engine. Kill it or set \(SingleInstanceLock.envAllowMulti)=1 deliberately."
+            )
+            lifecycleState = .error
+            return
+        case .unavailable(let reason):
+            // Fail-open: an unwritable support dir must not brick boot;
+            // the port-conflict degrade below remains as backstop.
+            logger.warning("Single-instance lock unavailable (\(reason)) — continuing unlocked")
+        case .skipped:
+            logger.info(
+                "Single-instance enforcement skipped via \(SingleInstanceLock.envAllowMulti)")
+        case .acquired(let path):
+            logger.debug("Single-instance lock acquired: \(path)")
+        }
+
         // Lifecycle gate — prevent concurrent startup or restart while running/stopping
         guard lifecycleState != .starting && lifecycleState != .stopping else {
             if lifecycleState.isHealthy {
@@ -723,6 +748,10 @@ public final class OcoreaiEngine {
             logger.warning("Engine not running (state: \(lifecycleState))")
             return
         }
+
+        // Release the single-instance flock explicitly (the kernel would do
+        // it at exit anyway; explicit makes orderly-restart intent visible).
+        singleInstance.unlock()
 
         lifecycleState = .stopping
 
