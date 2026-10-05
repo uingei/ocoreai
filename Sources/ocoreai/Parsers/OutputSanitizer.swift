@@ -242,6 +242,30 @@ enum OutputSanitizer {
         return nil
     }
 
+    /// Remove a LEADING tool-call scaffold array whose interior is pure
+    /// whitespace (`[]`, `[\n]`, `[\n\n]`) — the grammar fast-forward tokens
+    /// a constrained decode emits when the tool-call array closes empty
+    /// (live-evidence 10-05, gemma-4-e2b: wire content began `[\n\n]本地…`).
+    /// Callers gate this to the tools path: mid-prose arrays, prose-leading
+    /// non-empty arrays, and ALL content on non-tools requests pass through
+    /// byte-exact untouched.
+    static func stripLeadingToolScaffold(_ input: String) -> String {
+        var out = input
+        var guardCt = 0
+        while guardCt < 16 {
+            guardCt += 1
+            let chars = Array(out)
+            var i = 0
+            while i < chars.count, chars[i].isWhitespace { i += 1 }
+            guard i < chars.count, chars[i] == "[" else { break }
+            guard let a = firstTopLevelArray(in: out, from: i) else { break }
+            let interior = out[out.index(after: a.start)..<out.index(before: a.end)]
+            guard interior.allSatisfy(\.isWhitespace) else { break }
+            out = String(out[a.end...])
+        }
+        return out
+    }
+
     /// A tool-plan array: JSON array of objects where at least one carries a
     /// `name` entry. Legitimate JSON arrays / Swift literals without `name`
     /// are left untouched.

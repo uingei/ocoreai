@@ -62,11 +62,20 @@ struct AppLifecycleLiveTests {
         #expect(out.contains("→ frontmost"), "got: \(out)")
         // 真实语义: activate 被接受后, 前台状态收敛(实测 ~28ms); 给 2s 收敛窗口轮询,
         // 不裸查瞬间(那是 OS 状态机竞态, 不是工具语义)。
+        // 活体证据(10-05 全量门): 窗口全程 frontmost=com.nousresearch.hermes —
+        // macOS WindowServer 对"非前台进程发起的 activate"有 focus-stealing 抑制,
+        // 首次请求可被静默吞掉(hermes 前台活跃时必现, 空闲时通过)。真实 agent 的
+        // 恢复模式 = 窗口中段重申一次 activate 再收敛, 断言本身不放宽。
         var settled = false
-        for _ in 0 ..< 40 {
+        var reasserted = false
+        for tick in 0 ..< 40 {
             if NSWorkspace.shared.frontmostApplication?.bundleIdentifier == id {
                 settled = true
                 break
+            }
+            if tick == 20, !reasserted {
+                reasserted = true
+                _ = await AppLifecycleDriver.activateApp(id)
             }
             try? await Task.sleep(nanoseconds: 50_000_000)
         }

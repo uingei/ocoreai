@@ -140,12 +140,23 @@ private func buildCorrectedMessages(
 func contentWireFallback(
     text: String,
     reasoning: String,
-    toolCallsPresent: Bool
+    toolCallsPresent: Bool,
+    toolsPath: Bool = false
 ) -> String {
     if toolCallsPresent {
         return ""
     }
-    let stripped = OutputSanitizer.strip(text)
+    var stripped = OutputSanitizer.strip(text)
+    // Grammar tool-scaffold leak (live-evidence 10-05, gemma-4-e2b guided
+    // path): pass-1 constrained to the tool-call array emits the empty
+    // scaffold ("" / `[\n\n]`) as fast-forward tokens BEFORE pass-2 prose;
+    // the scaffold is protocol text, not answer prose. `removeToolCallArrays`
+    // deliberately passes empty arrays through (byte-faithful for prose
+    // `arr = []`), so the scoped removal lives HERE — gated on the tools
+    // path, leading position only, never mid-prose.
+    if toolsPath {
+        stripped = OutputSanitizer.stripLeadingToolScaffold(stripped)
+    }
     if stripped.isEmpty, !reasoning.isEmpty {
         return OutputSanitizer.strip(reasoning)
     }
@@ -925,7 +936,8 @@ private func nonStreamWithToolCalling(
             content: contentWireFallback(
                 text: finalContent,
                 reasoning: accumulatedReasoning,
-                toolCallsPresent: toolCalls != nil
+                toolCallsPresent: toolCalls != nil,
+                toolsPath: request.tools?.isEmpty == false
             ),
             reasoningContent: accumulatedReasoning.isEmpty ? nil : accumulatedReasoning,
             toolCalls: toolCalls),
@@ -1462,7 +1474,8 @@ private func streamWithToolCalling(
         let answer = contentWireFallback(
             text: streamSettle.content ?? "",
             reasoning: accumulatedEmittedReasoning,
-            toolCallsPresent: streamEndToolCalls != nil
+            toolCallsPresent: streamEndToolCalls != nil,
+            toolsPath: request.tools?.isEmpty == false
         )
         if !answer.isEmpty, streamEndToolCalls == nil {
             if let contentGuard = streamGuard {
