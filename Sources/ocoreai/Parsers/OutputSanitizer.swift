@@ -259,7 +259,7 @@ enum OutputSanitizer {
             while i < chars.count, chars[i].isWhitespace { i += 1 }
             guard i < chars.count, chars[i] == "[" else { break }
             guard let a = firstTopLevelArray(in: out, from: i) else { break }
-            let interior = out[out.index(after: a.start)..<out.index(before: a.end)]
+            let interior = out[out.index(after: a.start) ..< out.index(before: a.end)]
             guard interior.allSatisfy(\.isWhitespace) else { break }
             out = String(out[a.end...])
         }
