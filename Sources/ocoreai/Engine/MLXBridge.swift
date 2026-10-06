@@ -1232,7 +1232,23 @@ actor EmbeddingService {
         "mlx-community/LFM2.5-Embedding-350M",
     ]
 
-    /// Local snapshot directory of `config.id` if fully cached, else nil.
+    /// Root of the HF hub cache for `name` ("org/model"), or nil when the
+    /// platform has no hub cache at all. `homeDirectoryForCurrentUser` is
+    /// macOS-only (iOS compile error at CI run 37444773107); on iOS the
+    /// shared ~/.cache/huggingface layout doesn't exist inside the app
+    /// sandbox anyway, so the honest answer is nil → `download_required`
+    /// state and the hub-download path stays the default there.
+    private static func hubRepoDir(for name: String) -> URL? {
+        let parts = name.split(separator: "/")
+        guard parts.count == 2 else { return nil }
+        #if os(macOS)
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appending(path: ".cache/huggingface/hub/models--\(parts[0])--\(parts[1])")
+        #else
+        return nil
+        #endif
+    }
+
     /// Cache-first load path (natively local): a hub-id config re-resolves
     /// the revision over the network even when every blob is on disk
     /// (live-observed: ~60s of HF timeouts before serving from cache on a
@@ -1240,11 +1256,8 @@ actor EmbeddingService {
     /// skips the resolution round-trip entirely — the snapshot dir IS the
     /// content (content-addressed by revision sha).
     static func cachedSnapshotDir(for config: ModelConfiguration) -> URL? {
-        let parts = config.name.split(separator: "/")
-        guard parts.count == 2 else { return nil }
+        guard let repoDir = hubRepoDir(for: config.name) else { return nil }
         let fm = FileManager.default
-        let repoDir = fm.homeDirectoryForCurrentUser
-            .appending(path: ".cache/huggingface/hub/models--\(parts[0])--\(parts[1])")
         guard
             let revision = try? String(
                 contentsOf: repoDir.appending(path: "refs/main"), encoding: .utf8
@@ -1272,11 +1285,8 @@ actor EmbeddingService {
     /// Symlink resolution = blob actually downloaded (incomplete files
     /// never produce a resolved pointer).
     static var isLocallyCached: Bool {
-        let parts = canonicalModelId.split(separator: "/")
-        guard parts.count == 2 else { return false }
+        guard let repoDir = hubRepoDir(for: canonicalModelId) else { return false }
         let fm = FileManager.default
-        let repoDir = fm.homeDirectoryForCurrentUser
-            .appending(path: ".cache/huggingface/hub/models--\(parts[0])--\(parts[1])")
         guard
             let revision = try? String(
                 contentsOf: repoDir.appending(path: "refs/main"), encoding: .utf8
