@@ -552,3 +552,10 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 ---
 
 *Last updated: 2026-08-23. Current HEAD: 72bbfbe.*
+
+## Unreleased — /v1/embeddings 上线（本地 embedding 对外可用）
+- **OpenAI 兼容 `POST /v1/embeddings`**：LFM2.5-Embedding-350M（1024d）对任意标准客户端可用（RAG 工具 / 向量库）。
+- **单一事实源**：与 GUI 语义搜索共用 EmbeddingService actor —— 同一个熔断器、同一个 HF endpoint，不产生第二个无节流打手；断网 → 诚实 503，绝不伪造向量。
+- **truthful wire**：响应 model 字段报告实际跑的 embedder，不回显客户端请求名；`usage` 为真实 embed tokenizer 计数。
+- **honest reject**：token-id 数组输入直接 400（异源 tokenizer 的预切 id 只会产生垃圾向量）。
+- 6 条线契约单测（多态 input 解码、空输入、身份真实、float32 round-trip）。CLT 2010/2010 绿。

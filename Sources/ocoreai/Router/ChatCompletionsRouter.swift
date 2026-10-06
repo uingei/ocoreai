@@ -380,6 +380,26 @@ func buildRouter(
         return try Response.json(countResponse)
     }
 
+    // MARK: - Embeddings (OpenAI-compatible wire)
+
+    /// POST /v1/embeddings — the app's local embedding capability
+    /// (LFM2.5-Embedding-350M, 1024-dim) exposed to standard clients
+    /// (RAG tools, vector DBs, langchain). Convergence with the P0
+    /// truth-set principle: the SAME EmbeddingService actor behind both the
+    /// GUI fire-and-forget path and this wire surface — one circuit breaker,
+    /// one HF endpoint, no second unthrottled hammer. Breaker open →
+    /// honest 503 (never a fabricated vector).
+    routes.post("/v1/embeddings") { request, context in
+        let embRequest = try await request.decode(
+            as: EmbeddingsRequest.self, context: context)
+        guard let semanticSearch else {
+            throw AppError.engineUnavailable
+        }
+        let response = try await embeddingsHandler(
+            request: embRequest, semanticSearch: semanticSearch)
+        return try Response.json(response)
+    }
+
     // MARK: - LLM Lifecycle — Train + Evaluate
 
     routes.post("/v1/models/train") { request, context in
@@ -723,4 +743,126 @@ func countTokensHandler(
 
     let count = try await handle.countTokens(text: request.prompt)
     return CountTokensResponse(model: request.model, tokenCount: count)
+}
+
+// MARK: - Embeddings (OpenAI-compatible)
+
+/// OpenAI `POST /v1/embeddings` request. `input` is polymorphic
+/// (string | [string] | [int] | [[int]]) upstream; accepted forms here:
+/// string + string array. Token-array inputs are rejected with a clear 400
+/// rather than silently re-tokenized (pre-token ids from a foreign tokenizer
+/// would produce garbage vectors against the LFM embedding tokenizer —
+/// honest reject beats garbage output).
+struct EmbeddingsRequest: Codable {
+    let model: String?
+    let input: EmbeddingsInput
+    let user: String?
+
+    enum CodingKeys: String, CodingKey {
+        case model, input, user
+    }
+}
+
+/// Polymorphic input field: single string or array of strings. Decodes
+/// raw JSON ([.string, .array]) without requiring clients to normalize.
+enum EmbeddingsInput: Codable {
+    case text(String)
+    case texts([String])
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if let s = try? c.decode(String.self) {
+            self = .text(s)
+        } else if let a = try? c.decode([String].self) {
+            self = .texts(a)
+        } else {
+            throw DecodingError.dataCorruptedError(
+                in: c,
+                debugDescription:
+                    "input must be a string or an array of strings (token-id arrays are not accepted)")
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        switch self {
+        case .text(let s): try c.encode(s)
+        case .texts(let a): try c.encode(a)
+        }
+    }
+
+    var texts: [String] {
+        switch self {
+        case .text(let s): [s]
+        case .texts(let a): a
+        }
+    }
+}
+
+struct EmbeddingDatum: Codable {
+    let object: String  // "embedding"
+    let index: Int
+    let embedding: [Float]
+}
+
+struct EmbeddingsUsage: Codable {
+    let promptTokens: Int
+    let totalTokens: Int
+
+    enum CodingKeys: String, CodingKey {
+        case promptTokens = "prompt_tokens"
+        case totalTokens = "total_tokens"
+    }
+}
+
+struct EmbeddingsResponse: Codable {
+    let object: String  // "list"
+    let data: [EmbeddingDatum]
+    let model: String
+    let usage: EmbeddingsUsage
+}
+
+// MARK: - Embeddings Handler
+
+/// Embed via the shared EmbeddingService actor (one breaker / one endpoint).
+/// The response `model` field reports the ACTUAL embedder that ran
+/// (LFM2.5-Embedding-350M-4bit), not an echo of the request — truthful wire
+/// (a client choosing "text-embedding-ada-002" must not be told it got it).
+func embeddingsHandler(
+    request: EmbeddingsRequest,
+    semanticSearch: SemanticSearch,
+) async throws -> EmbeddingsResponse {
+    let texts = request.input.texts
+    guard !texts.isEmpty else {
+        throw AppError.invalidRequest("input must not be empty")
+    }
+    guard texts.allSatisfy({ !$0.isEmpty }) else {
+        throw AppError.invalidRequest("input entries must not be empty strings")
+    }
+
+    let (datas, tokenCounts): ([Data], [Int])
+    do {
+        (datas, tokenCounts) = try await semanticSearch.embedTextsDetailed(texts)
+    } catch {
+        // Breaker open / load failure: surface as 503 with the underlying
+        // reason logged — the client can distinguish retry-later from never.
+        EmbeddingService.logger.warning(
+            "embeddings wire request failed offline-degraded: \(error.localizedDescription)")
+        throw AppError.engineUnavailable
+    }
+
+    let data = datas.enumerated().map { (i, d) -> EmbeddingDatum in
+        // float32 LE blobs → [Double] JSON (OpenAI wire shape)
+        let floats = d.withUnsafeBytes { buf in
+            [Float](buf.bindMemory(to: Float.self))
+        }
+        return EmbeddingDatum(object: "embedding", index: i, embedding: floats)
+    }
+    let total = tokenCounts.reduce(0, +)
+    return EmbeddingsResponse(
+        object: "list",
+        data: data,
+        model: EmbeddingService.canonicalModelId,
+        usage: EmbeddingsUsage(promptTokens: total, totalTokens: total)
+    )
 }

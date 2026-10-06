@@ -34,6 +34,17 @@ actor SemanticSearch {
 
     // MARK: - Embedding
 
+    /// Public passthrough for the wire surface (`POST /v1/embeddings`) —
+    /// same actor-isolated EmbeddingService, same circuit breaker: the wire
+    /// inherits fail-fast offline degradation instead of becoming a second
+    /// unthrottled HF hammer. Throws when the breaker is open; consumes via
+    /// `try` at the router → honest 503, never a fabricated vector.
+    func embedTextsDetailed(
+        _ texts: [String]
+    ) async throws -> (vectors: [Data], tokenCounts: [Int]) {
+        try await embeddingService.embedTextsDetailed(texts)
+    }
+
     /// Embed a message and store the vector in SQLite.
     @Sendable
     func embedMessage(_ messageId: Int64, text: String) async {

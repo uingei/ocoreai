@@ -1080,12 +1080,21 @@ actor EmbeddingService {
 
     /// Batch-embed strings. Returns `[Data]` (one 1024-float32 vector per input).
     func embedTexts(_ texts: [String]) async throws -> [Data] {
-        guard !texts.isEmpty else { return [] }
+        try await embedTextsDetailed(texts).vectors
+    }
+
+    /// Batch-embed with honest token accounting (for the OpenAI-compatible
+    /// `/v1/embeddings` wire `usage` field — real tokenizer counts from the
+    /// embedding tokenizer, never a chat-model echo).
+    func embedTextsDetailed(
+        _ texts: [String]
+    ) async throws -> (vectors: [Data], tokenCounts: [Int]) {
+        guard !texts.isEmpty else { return ([], []) }
 
         let container = try await ensureContainer()
 
         // Perform embedding inside the container (non-isolated context)
-        let vectors: [[Float]] = await container.perform { context in
+        let (vectors, tokenCounts): ([[Float]], [Int]) = await container.perform { context in
             let tokenizer = context.tokenizer
             let model = context.model
             let pooling = context.pooling
@@ -1117,11 +1126,12 @@ actor EmbeddingService {
             let result = pooling(modelOutput, normalize: true, applyLayerNorm: true)
             result.eval()
 
-            return result.map { $0.asArray(Float.self) }
+            return (result.map { $0.asArray(Float.self) }, encoded.map { $0.count })
         }
 
         // Convert [Float] vectors to Data (float32 little-endian)
-        return vectors.map { Data(bytes: $0, count: $0.count * MemoryLayout<Float>.size) }
+        let datas = vectors.map { Data(bytes: $0, count: $0.count * MemoryLayout<Float>.size) }
+        return (datas, tokenCounts)
     }
 
     /// Cosine similarity between two already-embedded vectors.
@@ -1192,6 +1202,11 @@ actor EmbeddingService {
     }
 
     // MARK: - Errors
+
+    /// Canonical embedder identity reported on the wire (`/v1/embeddings`
+    /// response.model) — the FIRST candidate of `configs`, i.e. what
+    /// actually runs when HF/cache is healthy.
+    static let canonicalModelId = "mlx-community/LFM2.5-Embedding-350M-4bit"
 
     enum EmbeddingError: Error, LocalizedError {
         case modelLoadFailed(String)
