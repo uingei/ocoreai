@@ -1043,6 +1043,30 @@ actor EmbeddingService {
     /// Lazy singleton — loads model on first `embed(_:)` call.
     private var container: EmbedderModelContainer?
 
+    /// Circuit breaker: first total-load failure time (all candidates failed).
+    /// While `Date().timeIntervalSince(this) < reloadCooldown` the service
+    /// refuses new load attempts. Without this, an HF outage makes EVERY
+    /// chat message re-run the full multi-candidate download timeout on the
+    /// message-embed path (observed live 10-06: warning storm every ~3s for
+    /// hours while huggingface.co was unreachable, burning ~6s of network
+    /// wait per message + unbounded log spam). "Natively local" means a
+    /// transient network failure must degrade to fail-fast, never to retry
+    /// storms. Cooldown auto-probes again after the window — self-healing.
+    private var loadFailedAt: Date?
+
+    /// Retry window after a total load failure. 5 min: long enough to damp a
+    /// multi-hour outage into ~1 probe per window, short enough that a
+    /// restored network recovers without an app restart.
+    static let reloadCooldown: TimeInterval = 300
+
+    /// Pure cooldown predicate (unit-testable without network or clock drift).
+    static func shouldThrottleLoad(
+        lastFailure: Date?, now: Date, cooldown: TimeInterval
+    ) -> Bool {
+        guard let lastFailure else { return false }
+        return now.timeIntervalSince(lastFailure) < cooldown
+    }
+
     /// Current embedding dimension (1024 for LFM2.5 models).
     var embeddingDim: Int { 1024 }
 
@@ -1122,6 +1146,17 @@ actor EmbeddingService {
     private func ensureContainer() async throws -> EmbedderModelContainer {
         if let container { return container }
 
+        // Circuit breaker: throttle load attempts after a total failure so an
+        // HF outage degrades to one probe per cooldown window instead of a
+        // per-message retry storm (see `loadFailedAt` doc).
+        if Self.shouldThrottleLoad(
+            lastFailure: loadFailedAt, now: Date(), cooldown: Self.reloadCooldown
+        ) {
+            throw EmbeddingError.loadingThrottled(
+                remaining: Int(
+                    (Self.reloadCooldown - Date().timeIntervalSince(loadFailedAt!)).rounded()))
+        }
+
         // Try 4-bit quantized first (smaller, faster on Apple Silicon)
         let configs: [ModelConfiguration] = [
             EmbedderRegistry.lfm2_embedding_350m_4bit,  // 4-bit quantized
@@ -1140,6 +1175,7 @@ actor EmbeddingService {
                     metadata: ["embeddingDim": .string(String(embeddingDim))]
                 )
                 self.container = container
+                self.loadFailedAt = nil  // breaker closes on success
                 return container
             } catch {
                 Self.logger.warning(
@@ -1148,6 +1184,8 @@ actor EmbeddingService {
             }
         }
 
+        // All candidates failed — open the breaker until the cooldown passes.
+        loadFailedAt = Date()
         throw EmbeddingError.modelLoadFailed(
             "All embedding model candidates failed to load"
         )
@@ -1157,10 +1195,13 @@ actor EmbeddingService {
 
     enum EmbeddingError: Error, LocalizedError {
         case modelLoadFailed(String)
+        case loadingThrottled(remaining: Int)
 
         var errorDescription: String? {
             switch self {
             case .modelLoadFailed(let msg): "Embedding unavailable: \(msg)"
+            case .loadingThrottled(let remaining):
+                "Embedding unavailable: load attempts throttled, retry in \(remaining)s"
             }
         }
     }
