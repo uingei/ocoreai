@@ -1208,6 +1208,49 @@ actor EmbeddingService {
     /// actually runs when HF/cache is healthy.
     static let canonicalModelId = "mlx-community/LFM2.5-Embedding-350M-4bit"
 
+    /// All ids that resolve to embedding-only models (no generation head).
+    /// The chat route rejects these with an actionable 400 instead of
+    /// loading a non-generating container and hanging (live-observed 10-06).
+    static let embedderModelIds: Set<String> = [
+        "mlx-community/LFM2.5-Embedding-350M-4bit",
+        "mlx-community/LFM2.5-Embedding-350M",
+    ]
+
+    /// True when the canonical embedder is resolvable from the local hub
+    /// cache WITHOUT any network — the honest `state` source for its
+    /// `/v1/models` entry ("ready" vs "download_required"). Checks the
+    /// exact path the Hub SDK writes:
+    /// `~/.cache/huggingface/hub/models--<org>--<name>/snapshots/<rev>/config.json`.
+    /// Symlink resolution = blob actually downloaded (incomplete files
+    /// never produce a resolved pointer).
+    static var isLocallyCached: Bool {
+        let parts = canonicalModelId.split(separator: "/")
+        guard parts.count == 2 else { return false }
+        let fm = FileManager.default
+        let repoDir = fm.homeDirectoryForCurrentUser
+            .appending(path: ".cache/huggingface/hub/models--\(parts[0])--\(parts[1])")
+        guard
+            let revision = try? String(
+                contentsOf: repoDir.appending(path: "refs/main"), encoding: .utf8
+            ).trimmingCharacters(in: .whitespacesAndNewlines), !revision.isEmpty
+        else {
+            return false
+        }
+        let config = repoDir.appending(path: "snapshots/\(revision)/config.json")
+        // HF snapshot pointers are symlinks RELATIVE to the snapshot dir
+        // (e.g. `../../blobs/<sha>`) — resolve against the symlink's parent;
+        // a dangling link (blob deleted/incomplete) resolves to nothing.
+        if (try? fm.destinationOfSymbolicLink(atPath: config.path)) != nil {
+            let resolved = config.deletingLastPathComponent()
+            guard let dest = try? fm.destinationOfSymbolicLink(atPath: config.path) else {
+                return false
+            }
+            return fm.fileExists(atPath: resolved.appending(path: dest).path)
+        }
+        // Flat-layout cache (no symlinks): plain existence check
+        return fm.fileExists(atPath: config.path)
+    }
+
     enum EmbeddingError: Error, LocalizedError {
         case modelLoadFailed(String)
         case loadingThrottled(remaining: Int)

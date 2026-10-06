@@ -559,3 +559,8 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 - **truthful wire**：响应 model 字段报告实际跑的 embedder，不回显客户端请求名；`usage` 为真实 embed tokenizer 计数。
 - **honest reject**：token-id 数组输入直接 400（异源 tokenizer 的预切 id 只会产生垃圾向量）。
 - 6 条线契约单测（多态 input 解码、空输入、身份真实、float32 round-trip）。CLT 2010/2010 绿。
+
+## Unreleased — embedding 能力面闭环（可发现 + 可路由 + 不误用）
+- **`GET /v1/models` 列 embedder**：`capabilities:["embed"]` + 诚实 `state`（hub 缓存软链解析 = ready，否则 download_required）——标准客户端能力探测可见。
+- **chat 路由 capability gate**：embed id 打 `/v1/chat/completions` → 即时 400 + 可行动指引（修复 90s 挂起：embed 模型无生成头，CPU 加载后无法产出 token）。
+- 活体：embed→chat=400/1.7ms；embed→embeddings=200/14ms(warm)；chat 回归 200/0.9s；`/v1/models` 双条目正确。CLT 2010/2010 绿（一次 frontmost 干扰按规程复跑裁决）。

@@ -183,6 +183,18 @@ func chatCompletionsHandler(
         )
     }
 
+    /// Capability gate: embedding models have no generation head — a chat
+    /// request on one would load a non-generating container on CPU and hang
+    /// (live-observed 10-06: 90s no-return, tokenization fell back to
+    /// heuristics). /v1/models lists it with `capabilities: ["embed"]`;
+    /// misrouting gets an immediate actionable 400, never a silent hang.
+    if EmbeddingService.embedderModelIds.contains(modelId) {
+        throw AppError.invalidRequest(
+            "'\(modelId)' is an embedding model — it has no generation head. "
+                + "Call POST /v1/embeddings with {\"input\": \"...\"} instead of /v1/chat/completions."
+        )
+    }
+
     /// NOTE: Empty-messages guard is in the router (ChatCompletionsRouter:148).
     /// If this handler is ever called directly, empty messages will still cause
     /// downstream failures — the router guard is the source of truth.

@@ -176,6 +176,17 @@ func buildRouter(
             guard !rawId.isEmpty, seen.insert(rawId).inserted else { continue }
             objects.append(ModelObject(id: rawId, state: m["state"] ?? "ready"))
         }
+        // 3.5) 内嵌 embedder — /v1/embeddings 是常开路由，能力必须可发现：
+        // 标准 OpenAI 客户端通过 /v1/models 探测服务器能力面，看不到 id
+        // 就等于不存在。`capabilities: ["embed"]` 是显式扩展字段；
+        // state 诚实区分缓存命中（离线可服务）与首次需下载。
+        let embedCached = EmbeddingService.isLocallyCached
+        objects.append(
+            ModelObject(
+                id: EmbeddingService.canonicalModelId,
+                state: embedCached ? "ready" : "download_required",
+                capabilities: ["embed"]
+            ))
         let response = ModelListResponse(data: objects)
         return try Response.json(response)
     }
@@ -713,6 +724,10 @@ struct ModelObject: Codable {
     var state: String? = nil
     var vlm: Bool? = nil
     var weightsDir: String? = nil
+    /// ocoreai extension: machine-readable capability tags so standard
+    /// OpenAI clients can route correctly (`["embed"]` → call /v1/embeddings,
+    /// never /v1/chat/completions). Absent = chat model (default).
+    var capabilities: [String]? = nil
 }
 
 // MARK: - Count Tokens Request/Response
