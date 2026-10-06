@@ -279,6 +279,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             setenv("HF_ENDPOINT", mirror, 1)
         }
 
+        // Startup hub-reachability probe (10-06 live evidence: huggingface.co
+        // unreachable for hours while api.github.com was fine — GFW-style
+        // partial blocking). The embedding circuit breaker absorbs the storm
+        // but says nothing ACTIONABLE; a local-first app must tell the user
+        // which network face is down and what the lever is. Deliberately
+        // does NOT auto-switch to a mirror: model provenance trust is a
+        // user decision (hf-mirror.com serves identical blobs but is a
+        // third-party relay — the user opts in via HF_ENDPOINT_MIRROR).
+        Task.detached(priority: .utility) {
+            // When a mirror endpoint is already configured, huggingface.co
+            // unreachability is expected AND irrelevant — don't warn.
+            let endpoint = ProcessInfo.processInfo.environment["HF_ENDPOINT"] ?? ""
+            if !endpoint.isEmpty && !endpoint.contains("huggingface.co") { return }
+            var req = URLRequest(url: URL(string: "https://huggingface.co/api/models")!)
+            req.timeoutInterval = 8
+            let reachable: Bool
+            if let (_, resp) = try? await URLSession.shared.data(for: req),
+                let http = resp as? HTTPURLResponse
+            {
+                reachable = (200..<400).contains(http.statusCode)
+            } else {
+                reachable = false
+            }
+            if !reachable {
+                Logger(label: "ocoreai.network").warning(
+                    "huggingface.co unreachable at startup — semantic embeddings & new-model downloads will stay offline-degraded (breaker throttles retries). Existing cached models unaffected. To use a mirror: relaunch with HF_ENDPOINT_MIRROR=https://hf-mirror.com"
+                )
+            }
+        }
+
         // macOS HIG: activate application so it becomes key window immediately
         // This prevents the terminal/console from stealing keyboard focus
         NSApplication.shared.setActivationPolicy(.regular)
