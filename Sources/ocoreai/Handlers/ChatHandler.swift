@@ -524,8 +524,52 @@ func chatCompletionsHandler(
         /// "Model must not call any tools") — the json_schema branch below
         /// is independent and still honored.
         let effectiveTools = effectiveTools(from: request)
+        /// P0-4 (10-06 live evidence): the executable surface is
+        /// registry ∩ declared — the engine injects exactly this set into
+        /// ChatSession (`toolSurfaceWhitelist`, EngineInference L2270). The
+        /// grammar schema was built from the RAW wire `request.tools`, so a
+        /// client declaring an unregistered name (observed: `shell` when the
+        /// registry ships `terminal`) got: grammar FORCES a tool-call for
+        /// `shell` → session.tools is ∅ → upstream rejects every round with
+        /// `undeclared_tool` → bounded recovery exhausts → prose garbage
+        /// ("I understand. I will await...") where the model had actually
+        /// produced the right call (`terminal`, correct args). Advertising,
+        /// constraining, executing, and judging must share ONE truth set:
+        /// intersect before constraining. Unknown declared names are dropped
+        /// (with a log naming them) exactly as the injection whitelist drops
+        /// them; if nothing survives the intersection, tool-guided generation
+        /// is off (nothing is executable — forcing is a guaranteed dead end).
+        let executableTools: [ToolDef]? = await {
+            guard let tools = effectiveTools, !tools.isEmpty else { return effectiveTools }
+            guard let registry = enginePool.toolRegistry else { return effectiveTools }
+            let registryNames = Set(await registry.listTools())
+            let kept = tools.filter { registryNames.contains($0.function.name) }
+            let dropped = tools.map(\.function.name).filter { !registryNames.contains($0) }
+            if !dropped.isEmpty {
+                logger.warning(
+                    "Tool schema intersect: dropped \(dropped) (not in registry); grammar+injection constrain to \(kept.map(\.function.name))"
+                )
+            }
+            return kept.isEmpty ? nil : kept
+        }()
+        /// P0-4 companion: `declaredToolNames` feeds the engine's
+        /// `toolSurfaceWhitelist`. When EVERY declared name is unregistered,
+        /// keep the raw list (engine injects ∅ — honors the literal
+        /// declaration, grammar is off, plain prose is the honest outcome).
+        /// When SOME survive, send the intersected names so whitelist ==
+        /// grammar == executable surface, one truth set.
+        let declaredToolNames: [String]? = {
+            if request.toolChoice == "none" { return [] }
+            // nil = client declared nothing → full registry surface (nil).
+            // [] = client declared an EMPTY tools[] → zero tools (nil would
+            // wrongly re-open the full surface — OpenAI wire semantics).
+            guard let declared = request.tools?.map({ $0.function.name }) else { return nil }
+            guard !declared.isEmpty else { return [] }
+            guard let exec = executableTools else { return declared }
+            return exec.map(\.function.name)
+        }()
         let useGuidedGeneration: Bool = {
-            let hasTools = effectiveTools?.isEmpty == false
+            let hasTools = executableTools?.isEmpty == false
             let hasJsonSchema =
                 request.responseFormat?.type == "json_schema"
                 || request.responseFormat?.type == "json_object"
@@ -542,9 +586,11 @@ func chatCompletionsHandler(
         }
 
         /// Build grammar schema string for GuidedGeneration constraint.
+        /// P0-4: from `executableTools` (registry ∩ declared), never the raw
+        /// wire list — see the truth-set comment above `executableTools`.
         let grammarSchema =
             useGuidedGeneration
-            ? buildGrammarSchema(from: effectiveTools, responseFormat: request.responseFormat) : nil
+            ? buildGrammarSchema(from: executableTools, responseFormat: request.responseFormat) : nil
 
         /// Build inference options with same fallback chain.
         let inferenceOpts = InferenceOptions(
@@ -557,7 +603,11 @@ func chatCompletionsHandler(
             // one-shot FM guided path. json_schema stays on guided (that is
             // guided's real job). Observed: tools on the FM guided path
             // execute but never continue — the loop is the intended route.
-            hasNativeTools: effectiveTools?.isEmpty == false,
+            // P0-4: gate on the EXECUTABLE surface (registry ∩ declared) —
+            // grammar was built from executableTools above; a hasNativeTools
+            // flag that disagrees with grammar presence re-opens the
+            // force-with-nothing-to-execute dead end.
+            hasNativeTools: executableTools?.isEmpty == false,
             enableReasoning: request.reasoning,
             reasoningLevel: request.reasoningLevel,
             reasoningEffort: request.reasoningEffort,
@@ -566,9 +616,7 @@ func chatCompletionsHandler(
             // (L2074/L2168: non-nil → toolSurfaceWhitelist filter, nil → ?? specs).
             // `tool_choice: "none"` is the OPPOSITE of nil: [] → empty whitelist →
             // ZERO tools injected (OpenAI: "Model must not call any tools").
-            declaredToolNames: request.toolChoice == "none"
-                ? []
-                : request.tools?.map { $0.function.name },
+            declaredToolNames: declaredToolNames,
             // Wire HTTP consumer (external process), not the in-app GUI:
             // `.interactive` approval cannot be asked of a wire consumer →
             // fail-closed deny at the gate instead of parking on the broker
