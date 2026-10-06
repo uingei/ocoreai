@@ -1175,10 +1175,26 @@ actor EmbeddingService {
 
         for config in configs {
             do {
+                // Cache-first (natively local): fully-materialized snapshot
+                // loads from disk with ZERO network; hub-id configs re-resolve
+                // revisions over the wire and eat ~60s of timeouts on partial
+                // outages even when every blob is cached (live-observed 10-06).
+                let loadConfig: ModelConfiguration
+                if let snapshot = Self.cachedSnapshotDir(for: config) {
+                    loadConfig = ModelConfiguration(directory: snapshot)
+                    Self.logger.info(
+                        "Embedding config served from local cache (no network)",
+                        metadata: [
+                            "id": .string(config.name),
+                            "snapshot": .string(snapshot.lastPathComponent),
+                        ])
+                } else {
+                    loadConfig = config
+                }
                 let container = try await EmbedderModelFactory.shared.loadContainer(
                     from: #hubDownloader(),
                     using: #huggingFaceTokenizerLoader(),
-                    configuration: config
+                    configuration: loadConfig
                 )
                 Self.logger.info(
                     "Embedding model loaded: \(config.id)",
@@ -1215,6 +1231,38 @@ actor EmbeddingService {
         "mlx-community/LFM2.5-Embedding-350M-4bit",
         "mlx-community/LFM2.5-Embedding-350M",
     ]
+
+    /// Local snapshot directory of `config.id` if fully cached, else nil.
+    /// Cache-first load path (natively local): a hub-id config re-resolves
+    /// the revision over the network even when every blob is on disk
+    /// (live-observed: ~60s of HF timeouts before serving from cache on a
+    /// GFW-pattern partial outage). Rewriting the id to `.directory()`
+    /// skips the resolution round-trip entirely — the snapshot dir IS the
+    /// content (content-addressed by revision sha).
+    static func cachedSnapshotDir(for config: ModelConfiguration) -> URL? {
+        let parts = config.name.split(separator: "/")
+        guard parts.count == 2 else { return nil }
+        let fm = FileManager.default
+        let repoDir = fm.homeDirectoryForCurrentUser
+            .appending(path: ".cache/huggingface/hub/models--\(parts[0])--\(parts[1])")
+        guard
+            let revision = try? String(
+                contentsOf: repoDir.appending(path: "refs/main"), encoding: .utf8
+            ).trimmingCharacters(in: .whitespacesAndNewlines), !revision.isEmpty
+        else {
+            return nil
+        }
+        let snapshot = repoDir.appending(path: "snapshots/\(revision)")
+        // A fully-materialized snapshot resolves config.json to a real blob;
+        // partial downloads leave dangling links or no refs at all.
+        let configFile = snapshot.appending(path: "config.json")
+        if let dest = try? fm.destinationOfSymbolicLink(atPath: configFile.path) {
+            return fm.fileExists(
+                atPath: snapshot.appending(path: dest).path
+            ) ? snapshot : nil
+        }
+        return fm.fileExists(atPath: configFile.path) ? snapshot : nil
+    }
 
     /// True when the canonical embedder is resolvable from the local hub
     /// cache WITHOUT any network — the honest `state` source for its

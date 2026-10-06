@@ -564,3 +564,4 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 - **`GET /v1/models` 列 embedder**：`capabilities:["embed"]` + 诚实 `state`（hub 缓存软链解析 = ready，否则 download_required）——标准客户端能力探测可见。
 - **chat 路由 capability gate**：embed id 打 `/v1/chat/completions` → 即时 400 + 可行动指引（修复 90s 挂起：embed 模型无生成头，CPU 加载后无法产出 token）。
 - 活体：embed→chat=400/1.7ms；embed→embeddings=200/14ms(warm)；chat 回归 200/0.9s；`/v1/models` 双条目正确。CLT 2010/2010 绿（一次 frontmost 干扰按规程复跑裁决）。
+- **Embedding cache-first load（本轮）**：完全物化的 hub 快照（refs→snapshot→blob 软链全解析）重写为 `ModelConfiguration(directory:)` 直接磁盘加载，零 revision 网络往返 — 冷启动 60.7s→0.58s（GFW 断网日实测，日志 `served from local cache (no network)`）。未缓存机器原样走 hub 下载路径。CLT 2010/2010 绿。
