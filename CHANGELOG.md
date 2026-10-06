@@ -2,7 +2,9 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-10-05
+## [Unreleased] — 2026-09-05 → 2026-10-06
+
+**10-06 工具面单一真值集（P0, `09005a2`）** — wire 客户端声明未注册工具名（`shell`/`terminal`；真名 `exec_command`）触发三层真值分裂：grammar 按 raw wire tools[] **强制**产 tool-call ↔ session.tools=whitelist(registry∩declared)=0/39 注入 ↔ 上游每轮 `undeclared_tool` 拒绝 → recovery 耗尽 → 模型已产出的正确调用被吞、wire 答案变废话（实测 `'I understand. I will await…'`）。修法：intersect-before-constrain——`grammarSchema`/`hasNativeTools`/`declaredToolNames` 全部改由 `executableTools = registry∩declared` 导出；交集空→tool-guided 关闭（无工具可执行时强制=必然死路）；dropped 名进可行动 warning。四面活体验证（实例 E）：`shell`/`terminal`→dropped 无死循环；`exec_command`→1/39 注入真实执行、headless fail-closed 拒、模型如实引用拒绝零编造；`read_file`→**多轮 agentic loop wire 首次闭环**：结果回喂、二次决策逐字复述防幻觉标记 `marker_7391_roundtrip_ok`。CLT 2004/2004 绿。
 
 **10-06 embedding 冷加载熔断（"natively local" 网络失败面首修, `1908488`）** — HF 不可达活体复现（`hf.co=000` vs `api.github=200`）：EmbeddingService 容器 lazy → 每条 GUI 消息 fire-and-forget `embedMessage` 重跑双候选 HF 下载超时（实测每消息 ~6s 网络等待 + warning 风暴 ~3s/条持续数小时, C.log 26+ 条）。修于唯一咽喉 `ensureContainer()`：全候选失败→开闸 300s（窗口后自愈探测），成功→关闸；消费面零影响（`embedMessage` 走 `try?`，消息照常入库仅缺向量，语义检索优雅降级——`SemanticSearch.search()` 调用点全为模型目录/文件工具，不经 EmbeddingService）。+5 exact-value 纯谓词测试（含窗口边界）。**验证**: CLT 全门 `2004 tests/373 suites passed, 0 fail, 214s`（唯一 ✘ 字形 = config-recovery 故意 warning, skill 已记载假阳性）。同轮排除两案:① 89034 凌晨退场 = AppKit 干净 `Termination complete`（终端会话回收, 非 crash/jetsam, 环境物理）② `rejected tool call attempt 1/3 tool=nil` = 上游 by-design（ChatSession.swift:1439 `failOnRejectedToolCall||toolDispatch!=nil` 抛）+ 三角实测 0/9 不可复现 plain-session 污染——bounded recovery 单 pass 代价，wire 答案正确，不追。
 
