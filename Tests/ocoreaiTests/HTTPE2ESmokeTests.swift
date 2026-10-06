@@ -32,8 +32,14 @@ struct HTTPHandlerE2ESmokeTests {
     }
 
     private static func makeEnginePool() -> EnginePool {
-        EnginePool(
-            config: .default,
+        // "no default" fixture — EnginePool seeds config-authored defaults
+        // (EnginePool.swift init); the production default in .default would
+        // otherwise resolve no-model requests to 200 instead of exercising
+        // the 400/503 pipeline paths this smoke suite asserts.
+        var config = EnginePoolConfig.default
+        config.defaultModelId = ""
+        return EnginePool(
+            config: config,
             logger: Logger(label: "test.e2e.http"),
             tokenizerManager: TokenizerManager()
         )

@@ -275,6 +275,17 @@ actor EnginePool {
         // clamp instead of precondition (engine pool config must not release-crash)
         // Config values validated at construction; no precondition on init path
         self.config = config
+        // Config-authored default must SURVIVE restart: `models.default` in
+        // config.yaml is the persistent truth; without this seed,
+        // defaultModelId() sees an empty map after every restart and the
+        // strict PATCH gate (6c95a2c) would 400 every model-less request
+        // ("no default configured") despite a configured default. Live-
+        // reproduced on restart at 6c95a2c: fresh boot → no-model chat 400.
+        if !config.defaultModelId.isEmpty {
+            var seeded = ModelSamplingConfig()
+            seeded.defaultModel = true
+            modelSamplingDefaults[config.defaultModelId] = seeded
+        }
         self.logger = logger
         self.tokenizerManager = tokenizerManager
         self.memoryTracker = memoryTracker

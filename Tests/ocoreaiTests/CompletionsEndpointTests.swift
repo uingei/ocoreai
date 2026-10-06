@@ -241,8 +241,15 @@ struct CompletionsE2ETests {
     private static func makeTestApp(_ dbPath1: String, _ dbPath2: String) async throws
         -> some ApplicationProtocol
     {
+        // "no default configured" fixture: .default carries gemma as the
+        // production default (EngineConfig.swift:61); since EnginePool now
+        // seeds config-authored defaults into modelSamplingDefaults, these
+        // 400-tests must explicitly clear it — the honest fixture shape for
+        // "no default" is an empty defaultModelId, not an unseeded map.
+        var poolConfig = EnginePoolConfig.default
+        poolConfig.defaultModelId = ""
         let enginePool = EnginePool(
-            config: .default,
+            config: poolConfig,
             logger: Logger(label: "test.comple"),
             tokenizerManager: TokenizerManager()
         )
