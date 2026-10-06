@@ -88,6 +88,18 @@ enum ModelStore {
     /// HF hub 根(root/huggingface)——`HubCache(cacheDirectory:)` 的入参。
     static var hubRoot: URL { root.appendingPathComponent(hubSubRoot) }
 
+    /// Strip the store/source prefix from a wire id (`hf:org/name` /
+    /// `huggingface:org/name` / `mscope:org/name` → `org/name`); local
+    /// absolute paths pass through untouched. Shared by `/v1/models`
+    /// listing and the PATCH sampling existence gate so the two can never
+    /// disagree about what an id means.
+    static func normalizeModelId(_ raw: String) -> String {
+        if raw.hasPrefix("hf:"), raw != "hf:" { return String(raw.dropFirst(3)) }
+        if raw.hasPrefix("huggingface:") { return String(raw.dropFirst(12)) }
+        if raw.hasPrefix("mscope:"), raw != "mscope:" { return String(raw.dropFirst(7)) }
+        return raw
+    }
+
     /// 就绪目录锚定的 `HubClient`(认证走 `.environment`,与旧宏路径一致;
     /// 缓存固定到 `hubRoot`)。
     static func readyHubClient() -> HuggingFace.HubClient {

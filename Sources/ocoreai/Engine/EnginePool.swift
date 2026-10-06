@@ -1181,6 +1181,17 @@ actor EnginePool {
         pureDefaultModelId(defaults: modelSamplingDefaults)
     }
 
+    /// Every id a request could resolve to RIGHT NOW (loaded registered +
+    /// on-disk ready). The PATCH sampling gate validates against exactly
+    /// this set — writing config for an unresolvable id would pollute the
+    /// default-model slot (a ghost default 404s every model-less request,
+    /// live-observed 10-06).
+    func resolvableModelIds() async -> Set<String> {
+        var ids = Set(loadedModels.keys)
+        for r in ModelStore.discoverReady() { ids.insert(r.id) }
+        return ids
+    }
+
     /// Reflect the current pin set into the session pool so TTL/LRU
     /// eviction skips pinned models. Called on every config mutation.
     private func syncPinnedModelsToPool() {
@@ -1194,7 +1205,20 @@ actor EnginePool {
     }
 
     /// Per-model sampling config override (lazy, single actor mailbox hop).
+    /// Default-uniqueness invariant: if `config.defaultModel == true`, every
+    /// OTHER entry's `defaultModel` is cleared here — two defaults would
+    /// tie-break by ascending id and silently pick the wrong one (a stale
+    /// ghost default 404s every model-less request; live-observed 10-06).
     func updateSamplingConfig(modelId: String, config: ModelSamplingConfig) {
+        if config.defaultModel {
+            for (otherId, other) in modelSamplingDefaults
+            where otherId != modelId && other.defaultModel {
+                var cleared = other
+                cleared.defaultModel = false
+                modelSamplingDefaults[otherId] = cleared
+                logger.info("Previous default cleared: \(otherId)")
+            }
+        }
         modelSamplingDefaults[modelId] = config
         syncPinnedModelsToPool()
         logger.info("Sampling config updated for model: \(modelId)")

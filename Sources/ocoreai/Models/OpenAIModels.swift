@@ -228,7 +228,13 @@ struct ChatCompletionRequest: Decodable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        model = try c.decode(String.self, forKey: .model)
+        // Optional BY CONTRACT (doc above + handler default-model path):
+        // decodeIfPresent so omission reaches chatCompletionsHandler's
+        // resolveModel → actionable 400 ("Set a default via PATCH…").
+        // `decode` here made `model` silently required, and HB's
+        // keyNotFound mapping leaked "Coding key `model` not found"
+        // (live-observed 10-06) instead of the documented guidance.
+        model = try c.decodeIfPresent(String.self, forKey: .model)
         messages = try c.decode([Message].self, forKey: .messages)
         temperature = try c.decodeIfPresent(Float.self, forKey: .temperature) ?? 0.7
         stream = (try? c.decodeIfPresent(Bool.self, forKey: .stream)) ?? false
@@ -1504,7 +1510,15 @@ struct ModelSamplingPatch: Decodable {
 
     /// Merge partial fields into a full ``ModelSamplingConfig``.
     func toConfig() -> ModelSamplingConfig {
-        var config = ModelSamplingConfig.default
+        merged(onto: .default)
+    }
+
+    /// PATCH semantics: overlay only the fields present in this patch onto
+    /// `base`. `toConfig()` starts from `.default` (full replace) — wrong for
+    /// PATCH: a single-field patch would silently wipe unrelated overrides
+    /// (default_model, penalties, context sizes). PATCH must merge.
+    func merged(onto base: ModelSamplingConfig) -> ModelSamplingConfig {
+        var config = base
         if let t = temperature { config.temperature = t }
         if let p = topP { config.topP = p }
         if let k = topK { config.topK = k }

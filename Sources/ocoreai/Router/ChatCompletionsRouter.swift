@@ -147,12 +147,7 @@ func buildRouter(
         }
         // id 归一化:剥来源前缀(仅用于 wire id 与 loaded 匹配);
         // 客户端拿到的 id 即"磁盘相对路径或本地绝对路径",不再带 hf:/mscope: 前缀
-        func normalize(_ raw: String) -> String {
-            if raw.hasPrefix("hf:"), raw != "hf:" { return String(raw.dropFirst(3)) }
-            if raw.hasPrefix("huggingface:") { return String(raw.dropFirst(12)) }
-            if raw.hasPrefix("mscope:"), raw != "mscope:" { return String(raw.dropFirst(7)) }
-            return raw
-        }
+        func normalize(_ raw: String) -> String { ModelStore.normalizeModelId(raw) }
         let loadedState: [String: String] = Dictionary(
             uniqueKeysWithValues: loaded.map { (normalize($0["id"] ?? ""), $0["state"] ?? "ready") }
         )
@@ -187,6 +182,18 @@ func buildRouter(
                 state: embedCached ? "ready" : "download_required",
                 capabilities: ["embed"]
             ))
+        // Default-model discoverability: clients must not guess who the
+        // server-wide default is via trial requests — flag it directly.
+        // Compare NORMALIZED ids (PATCH stores whatever form the client
+        // used; the list exposes bare ids).
+        if let defaultId = await enginePool.defaultModelId() {
+            let want = ModelStore.normalizeModelId(defaultId)
+            if let idx = objects.firstIndex(where: {
+                ModelStore.normalizeModelId($0.id) == want
+            }) {
+                objects[idx].defaultModel = true
+            }
+        }
         let response = ModelListResponse(data: objects)
         return try Response.json(response)
     }
@@ -447,9 +454,41 @@ func buildRouter(
     }
 
     routes.patch("/v1/models/:model/sampling") { request, context in
-        let modelId = try context.parameters.require("model")
+        let rawModelId = try context.parameters.require("model")
+        // Path-segment percent-decode (`%2F` → `/`): HB hands the raw
+        // segment through; clients URL-encode slashes ids the standard way.
+        guard let modelId = rawModelId.removingPercentEncoding else {
+            throw AppError.invalidRequest("Invalid percent-encoding in model id")
+        }
+        // Existence gate against the ONE resolvable truth source — writing
+        // config for an unresolvable id would pollute the default-model slot
+        // (a ghost `default_model:true` 404s EVERY model-less request —
+        // live-observed 10-06). Accepts prefixed store ids and bare hub
+        // ids alike: the bare form is the one `/v1/models` exposes.
+        let resolvable = await enginePool.resolvableModelIds()
+        let bare = ModelStore.normalizeModelId(modelId)
+        guard
+            resolvable.contains(modelId) || resolvable.contains(bare)
+                || resolvable.contains("hf:\(bare)") || resolvable.contains("mscope:\(bare)")
+                || modelId == EmbeddingService.canonicalModelId
+        else {
+            throw AppError.modelNotFound(modelId)
+        }
         let patch = try await request.decode(as: ModelSamplingPatch.self, context: context)
-        await enginePool.updateSamplingConfig(modelId: modelId, config: patch.toConfig())
+        // default_model must point at a CHAT model — the embedder is
+        // resolvable but never chatable (chat route fast-400s it); making
+        // it default would 400 every model-less request. Same truth source
+        // as the chat gate: EmbeddingService.embedderModelIds.
+        if patch.defaultModel == true, EmbeddingService.embedderModelIds.contains(bare) {
+            throw AppError.invalidRequest(
+                "'\(bare)' is an embedding model and cannot be the default chat model.")
+        }
+        // PATCH semantics: merge onto the existing config — a partial patch
+        // must not silently wipe unrelated fields (full-replace semantics of
+        // `toConfig()` over a fresh default would reset default_model,
+        // penalties, context sizes to defaults on any single-field patch).
+        let merged = patch.merged(onto: await enginePool.getSamplingConfig(modelId: modelId))
+        await enginePool.updateSamplingConfig(modelId: modelId, config: merged)
         let updated = await enginePool.getSamplingConfig(modelId: modelId)
         let response = ModelSamplingResponse(config: updated)
         return try Response.json(response)
@@ -728,6 +767,14 @@ struct ModelObject: Codable {
     /// OpenAI clients can route correctly (`["embed"]` → call /v1/embeddings,
     /// never /v1/chat/completions). Absent = chat model (default).
     var capabilities: [String]? = nil
+    /// ocoreai extension: this model is the server-wide default — a chat
+    /// request that omits `model` resolves here. Exactly one entry is
+    /// flagged at most; absent everywhere means no resolvable default is
+    /// configured. Discoverable so clients don't guess via trial requests.
+    /// camelCase like every other key THIS object emits (`weightsDir` is
+    /// pinned camelCase by ModelsWireShapeTests) — PATCH inputs are a
+    /// different object and use snake_case there; shape is per-object.
+    var defaultModel: Bool? = nil
 }
 
 // MARK: - Count Tokens Request/Response

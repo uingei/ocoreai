@@ -144,3 +144,17 @@ struct ChatCompletionRequestWireCompletenessTests {
         #expect((reqOnlyMax.maxCompletionTokens ?? reqOnlyMax.maxTokens ?? 0) == 55)
     }
 }
+
+// Regression (live 10-06): `model` is optional BY CONTRACT — the router,
+// the field type (`String?`), and the doc comment all say omission is
+// legal (default-model resolution). The hand-written init(from:) used
+// `decode`, making it silently required; HB then leaked
+// "Coding key `model` not found." instead of the handler's actionable
+// default-model 400. Decode must tolerate absence at the struct level.
+@Test("model key absent decodes to nil (default-model path stays reachable)")
+func modelOmissionDecodes() throws {
+    let data = #"{"messages":[{"role":"user","content":"hi"}]}"#.data(using: .utf8)!
+    let req = try JSONDecoder().decode(ChatCompletionRequest.self, from: data)
+    #expect(req.model == nil)
+    #expect(req.messages.count == 1)
+}
