@@ -298,7 +298,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if let (_, resp) = try? await URLSession.shared.data(for: req),
                 let http = resp as? HTTPURLResponse
             {
-                reachable = (200..<400).contains(http.statusCode)
+                reachable = (200 ..< 400).contains(http.statusCode)
             } else {
                 reachable = false
             }

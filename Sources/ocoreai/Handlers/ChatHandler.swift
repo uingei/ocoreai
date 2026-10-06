@@ -590,7 +590,8 @@ func chatCompletionsHandler(
         /// wire list — see the truth-set comment above `executableTools`.
         let grammarSchema =
             useGuidedGeneration
-            ? buildGrammarSchema(from: executableTools, responseFormat: request.responseFormat) : nil
+            ? buildGrammarSchema(from: executableTools, responseFormat: request.responseFormat)
+            : nil
 
         /// Build inference options with same fallback chain.
         let inferenceOpts = InferenceOptions(

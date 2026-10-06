@@ -779,7 +779,8 @@ enum EmbeddingsInput: Codable {
             throw DecodingError.dataCorruptedError(
                 in: c,
                 debugDescription:
-                    "input must be a string or an array of strings (token-id arrays are not accepted)")
+                    "input must be a string or an array of strings (token-id arrays are not accepted)"
+            )
         }
     }
 
