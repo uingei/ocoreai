@@ -446,42 +446,49 @@ func buildRouter(
 
     // MARK: Runtime Parameter Hot-Swap API
 
+    // ONE choke for all three sampling routes (GET/PATCH/DELETE): decode the
+    // percent-encoded path param and resolve it to the CANONICAL storage key
+    // = bare normalized id. Without this, `%2F` ids created ghost keys and
+    // GET answered `nil → .default` while the real entry lived under another
+    // key (live-observed 10-06: DELETE on %2F id 'reset' nothing — the flag
+    // stayed True; GET answered fabricated defaults). Existence validated
+    // against resolvableModelIds() — the same truth source the chat acquire
+    // uses; prefixed forms (hf:/mscope:) are tolerated in, never stored.
+    @Sendable func resolvedSamplingModelId(raw: String) async throws -> String {
+        guard let decoded = raw.removingPercentEncoding else {
+            throw AppError.invalidRequest("Invalid percent-encoding in model id")
+        }
+        let bare = ModelStore.normalizeModelId(decoded)
+        if bare == EmbeddingService.canonicalModelId { return bare }
+        let resolvable = await enginePool.resolvableModelIds()
+        guard
+            resolvable.contains(decoded) || resolvable.contains(bare)
+                || resolvable.contains("hf:\(bare)") || resolvable.contains("mscope:\(bare)")
+        else {
+            throw AppError.modelNotFound(raw)
+        }
+        return bare
+    }
+
     routes.get("/v1/models/:model/sampling") { _, context in
-        let modelId = try context.parameters.require("model")
+        let modelId = try await resolvedSamplingModelId(
+            raw: try context.parameters.require("model"))
         let config = await enginePool.getSamplingConfig(modelId: modelId)
         let response = ModelSamplingResponse(config: config)
         return try Response.json(response)
     }
 
     routes.patch("/v1/models/:model/sampling") { request, context in
-        let rawModelId = try context.parameters.require("model")
-        // Path-segment percent-decode (`%2F` → `/`): HB hands the raw
-        // segment through; clients URL-encode slashes ids the standard way.
-        guard let modelId = rawModelId.removingPercentEncoding else {
-            throw AppError.invalidRequest("Invalid percent-encoding in model id")
-        }
-        // Existence gate against the ONE resolvable truth source — writing
-        // config for an unresolvable id would pollute the default-model slot
-        // (a ghost `default_model:true` 404s EVERY model-less request —
-        // live-observed 10-06). Accepts prefixed store ids and bare hub
-        // ids alike: the bare form is the one `/v1/models` exposes.
-        let resolvable = await enginePool.resolvableModelIds()
-        let bare = ModelStore.normalizeModelId(modelId)
-        guard
-            resolvable.contains(modelId) || resolvable.contains(bare)
-                || resolvable.contains("hf:\(bare)") || resolvable.contains("mscope:\(bare)")
-                || modelId == EmbeddingService.canonicalModelId
-        else {
-            throw AppError.modelNotFound(modelId)
-        }
+        let modelId = try await resolvedSamplingModelId(
+            raw: try context.parameters.require("model"))
         let patch = try await request.decode(as: ModelSamplingPatch.self, context: context)
         // default_model must point at a CHAT model — the embedder is
         // resolvable but never chatable (chat route fast-400s it); making
         // it default would 400 every model-less request. Same truth source
         // as the chat gate: EmbeddingService.embedderModelIds.
-        if patch.defaultModel == true, EmbeddingService.embedderModelIds.contains(bare) {
+        if patch.defaultModel == true, EmbeddingService.embedderModelIds.contains(modelId) {
             throw AppError.invalidRequest(
-                "'\(bare)' is an embedding model and cannot be the default chat model.")
+                "'\(modelId)' is an embedding model and cannot be the default chat model.")
         }
         // PATCH semantics: merge onto the existing config — a partial patch
         // must not silently wipe unrelated fields (full-replace semantics of
@@ -495,7 +502,10 @@ func buildRouter(
     }
 
     routes.delete("/v1/models/:model/sampling") { _, context in
-        let modelId = try context.parameters.require("model")
+        let modelId = try await resolvedSamplingModelId(
+            raw: try context.parameters.require("model"))
+        // Reset drops tuning knobs; the config-authored default re-seeds
+        // inside the actor (reseedConfigDefaultIfNeeded) — single throat.
         await enginePool.resetSamplingConfig(modelId: modelId)
         let config = await enginePool.getSamplingConfig(modelId: modelId)
         let response = ModelSamplingResponse(config: config)

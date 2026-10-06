@@ -284,7 +284,7 @@ actor EnginePool {
         if !config.defaultModelId.isEmpty {
             var seeded = ModelSamplingConfig()
             seeded.defaultModel = true
-            modelSamplingDefaults[config.defaultModelId] = seeded
+            modelSamplingDefaults[ModelStore.normalizeModelId(config.defaultModelId)] = seeded
         }
         self.logger = logger
         self.tokenizerManager = tokenizerManager
@@ -1246,14 +1246,28 @@ actor EnginePool {
 
     func resetSamplingConfig(modelId: String) {
         modelSamplingDefaults.removeValue(forKey: modelId)
+        reseedConfigDefaultIfNeeded()
         syncPinnedModelsToPool()
         logger.info("Sampling config reset to defaults for model: \(modelId)")
     }
 
     func resetAllSamplingConfig() {
         modelSamplingDefaults.removeAll()
+        reseedConfigDefaultIfNeeded()
         syncPinnedModelsToPool()
         logger.info("All sampling configs reset to defaults")
+    }
+
+    /// config.yaml `models.default` is the persistent truth — a sampling
+    /// reset must drop tuning knobs, never the config-authored default
+    /// (a reset that eats the default 400s every model-less request until
+    /// reboot, contradicting the restart-seed in init at 43a59c3).
+    private func reseedConfigDefaultIfNeeded() {
+        guard pureDefaultModelId(defaults: modelSamplingDefaults) == nil else { return }
+        guard !config.defaultModelId.isEmpty else { return }
+        var seeded = ModelSamplingConfig()
+        seeded.defaultModel = true
+        modelSamplingDefaults[ModelStore.normalizeModelId(config.defaultModelId)] = seeded
     }
 
     // MARK: - Tracked Task Management
