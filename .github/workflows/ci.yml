@@ -376,13 +376,23 @@ jobs:
         run: |
           set -euo pipefail
           export SWIFTC_SCAN_FOR_DEPS=0
-          xcodebuild build \
+          # Failures must be VISIBLE without auth: xcodebuild's real error
+          # lines go to $GITHUB_STEP_SUMMARY + ::error:: annotations
+          # (readable via public /check-runs/{id}/annotations).
+          if ! xcodebuild build \
             -workspace ocoreai.xcworkspace \
             -scheme ocoreai \
             -configuration Debug \
             -destination 'generic/platform=iOS' \
             -skipPackagePluginValidation \
-            -skipMacroValidation
+            -skipMacroValidation > ios-build.log 2>&1; then
+            echo "## iOS build errors" >> "$GITHUB_STEP_SUMMARY"
+            grep -E "error:|Could not resolve|fatal" ios-build.log | sort -u | head -30 | tee -a "$GITHUB_STEP_SUMMARY"
+            grep -E "error:" ios-build.log | sort -u | head -8 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit 65
+          fi
         env:
           OCOREAI_BUILD: ci
 
