@@ -11,11 +11,31 @@
 ///
 /// @Observable pattern: AppState is now Observable; accessed as computed property.
 
+import Foundation
 import Logging
 import SwiftUI
 
+/// Real process entry — branches once, then delegates:
+///   • `ocoreai serve` → `HeadlessServer.run()` (windowless AppKit runloop,
+///     engine + HTTP bridge, SIGTERM/stdin-EOF shutdown). This is the fix
+///     for the headless-boot gap: previously the engine only booted via
+///     SwiftUI View instantiation, which never happens without WindowServer.
+///   • anything else → `OcoreaiGUIApp.main()` — the untouched SwiftUI path,
+///     byte-identical to the previous `@main struct OcoreaiApp: App`.
 @main
-struct OcoreaiApp: App {
+struct OcoreaiApp {
+    static func main() {
+        if HeadlessMode.isServeInvocation(CommandLine.arguments) {
+            HeadlessServer.run()
+        } else {
+            OcoreaiGUIApp.main()
+        }
+    }
+}
+
+/// SwiftUI scene graph (formerly `@main struct OcoreaiApp: App`). `@main`
+/// moved to the branching entry above — exactly one process entry allowed.
+struct OcoreaiGUIApp: App {
     #if os(macOS)
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     #endif
