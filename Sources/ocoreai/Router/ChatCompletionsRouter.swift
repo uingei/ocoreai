@@ -89,7 +89,15 @@ func buildRouter(
     msToken: String? = nil,
     toolRegistry: ToolRegistry? = nil,
 ) -> Router<OCoreAIContext> {
-    let routes = Router(context: OCoreAIContext.self)
+    // autoGenerateHeadEndpoints: HEAD is a first-class method — RFC 9110
+    // says GET implies HEAD; without the option `HEAD /health` 404s
+    // (live-observed 10-07), lying about a route that exists.
+    let routes = Router(context: OCoreAIContext.self, options: [.autoGenerateHeadEndpoints])
+    // Registered FIRST so the whole surface — including unmatched paths — is
+    // covered: HB composes the notFound responder through this same
+    // middleware chain (Router.swift:70), so the trie miss picks up the
+    // flat-JSON 404 envelope instead of Hummingbird's bare empty body.
+    routes.add(middleware: NotFoundEnvelopeMiddleware<OCoreAIContext>())
     routes.add(middleware: authMiddleware)
     routes.add(middleware: rateLimitMiddleware)
 
