@@ -230,8 +230,9 @@ extension ToolEntry {
             "type": AnyCodable("object"),
             "properties": AnyCodable(properties),
         ]
-        // Mark all declared parameters as required
-        json["required"] = AnyCodable(Array(schema.parameters.keys))
+        // required = 显式子集优先; 未声明 → 全部已声明键(built-in 旧惯例)。
+        // 与 toToolSpecs() / MCP inputSchema 三处同形。
+        json["required"] = AnyCodable(schema.required ?? Array(schema.parameters.keys))
         return json
     }
 }

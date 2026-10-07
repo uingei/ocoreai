@@ -142,14 +142,15 @@ func bootstrapBuiltInTools(
             argsType: ReadFileArgs.self,
             description:
                 "Read a text file line-by-line (1-based offset/limit); PDFs are read natively via their text layer",
-            schema: ToolSchema(parameters: [
-                "path": ToolParameter(
-                    type: .string, description: "File path (absolute, ~, or cwd-relative)"),
-                "offset": ToolParameter(
-                    type: .integer, description: "1-based first line to read (default 1)"),
-                "limit": ToolParameter(
-                    type: .integer, description: "Max lines to read (default 2000)"),
-            ])
+            schema: ToolSchema(
+                parameters: [
+                    "path": ToolParameter(
+                        type: .string, description: "File path (absolute, ~, or cwd-relative)"),
+                    "offset": ToolParameter(
+                        type: .integer, description: "1-based first line to read (default 1)"),
+                    "limit": ToolParameter(
+                        type: .integer, description: "Max lines to read (default 2000)"),
+                ], required: ["path"])
         ) { args in
             try FileTools.read(path: args.path, offset: args.offset, limit: args.limit)
         }
@@ -167,11 +168,12 @@ func bootstrapBuiltInTools(
             toolset: "files",
             argsType: WriteFileArgs.self,
             description: "Write (create or replace) a text file; verified by read-back",
-            schema: ToolSchema(parameters: [
-                "path": ToolParameter(
-                    type: .string, description: "File path to create or overwrite"),
-                "content": ToolParameter(type: .string, description: "Full new content"),
-            ]),
+            schema: ToolSchema(
+                parameters: [
+                    "path": ToolParameter(
+                        type: .string, description: "File path to create or overwrite"),
+                    "content": ToolParameter(type: .string, description: "Full new content"),
+                ], required: ["path", "content"]),
             isDestructive: true
         ) { args in
             try FileTools.write(path: args.path, content: args.content)
@@ -193,16 +195,17 @@ func bootstrapBuiltInTools(
             argsType: EditFileArgs.self,
             description:
                 "Search-and-replace in one file; requires exact match count, verifies by read-back",
-            schema: ToolSchema(parameters: [
-                "path": ToolParameter(type: .string, description: "File path to edit"),
-                "oldString": ToolParameter(
-                    type: .string,
-                    description: "Exact text to find (must occur exactly `occurrences` times)"),
-                "newString": ToolParameter(
-                    type: .string, description: "Replacement text (empty = delete)"),
-                "occurrences": ToolParameter(
-                    type: .integer, description: "Expected match count (default 1)"),
-            ]),
+            schema: ToolSchema(
+                parameters: [
+                    "path": ToolParameter(type: .string, description: "File path to edit"),
+                    "oldString": ToolParameter(
+                        type: .string,
+                        description: "Exact text to find (must occur exactly `occurrences` times)"),
+                    "newString": ToolParameter(
+                        type: .string, description: "Replacement text (empty = delete)"),
+                    "occurrences": ToolParameter(
+                        type: .integer, description: "Expected match count (default 1)"),
+                ], required: ["path", "oldString", "newString"]),
             isDestructive: true
         ) { args in
             try FileTools.editFile(
@@ -229,16 +232,18 @@ func bootstrapBuiltInTools(
             argsType: SearchFilesArgs.self,
             description:
                 "Search by filename glob (files mode) or content substring (content mode)",
-            schema: ToolSchema(parameters: [
-                "path": ToolParameter(
-                    type: .string, description: "Directory (or file) to search in"),
-                "pattern": ToolParameter(
-                    type: .string,
-                    description:
-                        "Filename glob (* supported) in files mode, substring in content mode"),
-                "target": ToolParameter(type: .string, description: "files (default) or content"),
-                "limit": ToolParameter(type: .integer, description: "Max results (default 50)"),
-            ])
+            schema: ToolSchema(
+                parameters: [
+                    "path": ToolParameter(
+                        type: .string, description: "Directory (or file) to search in"),
+                    "pattern": ToolParameter(
+                        type: .string,
+                        description:
+                            "Filename glob (* supported) in files mode, substring in content mode"),
+                    "target": ToolParameter(
+                        type: .string, description: "files (default) or content"),
+                    "limit": ToolParameter(type: .integer, description: "Max results (default 50)"),
+                ], required: ["path", "pattern"])
         ) { args in
             try FileTools.search(
                 path: args.path, pattern: args.pattern, target: args.target, limit: args.limit)
@@ -262,16 +267,18 @@ func bootstrapBuiltInTools(
             argsType: ExecCommandArgs.self,
             description:
                 "Run a shell command via /bin/zsh -c and return stdout, stderr, and exit code",
-            schema: ToolSchema(parameters: [
-                "command": ToolParameter(
-                    type: .string, description: "Shell command line to execute under zsh"),
-                "cwd": ToolParameter(
-                    type: .string,
-                    description: "Optional working directory (absolute, `~`-expanded, or relative)"),
-                "timeoutSeconds": ToolParameter(
-                    type: .integer,
-                    description: "Optional timeout in seconds (clamped to 1–300, default 60)"),
-            ]),
+            schema: ToolSchema(
+                parameters: [
+                    "command": ToolParameter(
+                        type: .string, description: "Shell command line to execute under zsh"),
+                    "cwd": ToolParameter(
+                        type: .string,
+                        description:
+                            "Optional working directory (absolute, `~`-expanded, or relative)"),
+                    "timeoutSeconds": ToolParameter(
+                        type: .integer,
+                        description: "Optional timeout in seconds (clamped to 1–300, default 60)"),
+                ], required: ["command"]),
             isDestructive: true
         ) { args in
             try await ExecTools.run(
@@ -316,17 +323,18 @@ func bootstrapBuiltInTools(
                 + "then drive the child with `write_stdin` (send stdin, optionally "
                 + "yield) or `exec_poll` (yield without writing). For one-shot "
                 + "commands, prefer `exec_command`.",
-            schema: ToolSchema(parameters: [
-                "command": ToolParameter(
-                    type: .string, description: "Shell command line to run under zsh"),
-                "cwd": ToolParameter(
-                    type: .string,
-                    description: "Optional working directory (absolute, `~`-expanded)"),
-                "yieldMs": ToolParameter(
-                    type: .integer,
-                    description: "How long to wait for output before returning "
-                        + "(ms; clamped to 250–30000, default 10000)"),
-            ]),
+            schema: ToolSchema(
+                parameters: [
+                    "command": ToolParameter(
+                        type: .string, description: "Shell command line to run under zsh"),
+                    "cwd": ToolParameter(
+                        type: .string,
+                        description: "Optional working directory (absolute, `~`-expanded)"),
+                    "yieldMs": ToolParameter(
+                        type: .integer,
+                        description: "How long to wait for output before returning "
+                            + "(ms; clamped to 250–30000, default 10000)"),
+                ], required: ["command"]),
             isDestructive: true
         ) { args in
             let res = try await ExecSessionManager.shared.spawn(
@@ -357,18 +365,19 @@ func bootstrapBuiltInTools(
                 "Write text to a shell session's stdin (no implicit newline), then "
                 + "yield up to `yieldMs` and return the new output. With empty "
                 + "`data` this is a pure poll (the stdin pipe is never touched).",
-            schema: ToolSchema(parameters: [
-                "sessionId": ToolParameter(
-                    type: .integer, description: "Session id returned by `exec_shell`"),
-                "data": ToolParameter(
-                    type: .string,
-                    description: "Text to write to the child's stdin "
-                        + "(default empty = poll only)"),
-                "yieldMs": ToolParameter(
-                    type: .integer,
-                    description: "How long to wait for output after the write "
-                        + "(ms; non-empty write clamped 250–30000, default 250)"),
-            ]),
+            schema: ToolSchema(
+                parameters: [
+                    "sessionId": ToolParameter(
+                        type: .integer, description: "Session id returned by `exec_shell`"),
+                    "data": ToolParameter(
+                        type: .string,
+                        description: "Text to write to the child's stdin "
+                            + "(default empty = poll only)"),
+                    "yieldMs": ToolParameter(
+                        type: .integer,
+                        description: "How long to wait for output after the write "
+                            + "(ms; non-empty write clamped 250–30000, default 250)"),
+                ], required: ["sessionId"]),
             isDestructive: true
         ) { args in
             let res = try await ExecSessionManager.shared.writeStdin(
@@ -397,14 +406,15 @@ func bootstrapBuiltInTools(
             description:
                 "Yield up to `yieldMs` on a shell session and return the new output "
                 + "(no stdin write). A finished session returns its final report.",
-            schema: ToolSchema(parameters: [
-                "sessionId": ToolParameter(
-                    type: .integer, description: "Session id returned by `exec_shell`"),
-                "yieldMs": ToolParameter(
-                    type: .integer,
-                    description: "How long to wait for output "
-                        + "(ms; empty poll clamped 5000–300000, default 5000)"),
-            ]),
+            schema: ToolSchema(
+                parameters: [
+                    "sessionId": ToolParameter(
+                        type: .integer, description: "Session id returned by `exec_shell`"),
+                    "yieldMs": ToolParameter(
+                        type: .integer,
+                        description: "How long to wait for output "
+                            + "(ms; empty poll clamped 5000–300000, default 5000)"),
+                ], required: ["sessionId"]),
             isDestructive: true
         ) { args in
             let res = try await ExecSessionManager.shared.poll(
@@ -438,16 +448,18 @@ func bootstrapBuiltInTools(
             description:
                 "Verify an on-disk image file is a real decodable image and report "
                 + "its path, extension, MIME, byte size, and true pixel dimensions",
-            schema: ToolSchema(parameters: [
-                "path": ToolParameter(
-                    type: .string,
-                    description: "Filesystem path to an image file (absolute, `~`, or relative)"),
-                "detail": ToolParameter(
-                    type: .string,
-                    description:
-                        "Detail level: `high` (default) or `original` (echo of the "
-                        + "codex spec vocabulary; ocoreai does not resize)"),
-            ])
+            schema: ToolSchema(
+                parameters: [
+                    "path": ToolParameter(
+                        type: .string,
+                        description: "Filesystem path to an image file (absolute, `~`, or relative)"
+                    ),
+                    "detail": ToolParameter(
+                        type: .string,
+                        description:
+                            "Detail level: `high` (default) or `original` (echo of the "
+                            + "codex spec vocabulary; ocoreai does not resize)"),
+                ], required: ["path"])
         ) { args in
             let report = try ViewImage.run(path: args.path, detail: args.detail)
             return ViewImage.reportString(report)

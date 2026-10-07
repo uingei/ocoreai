@@ -103,6 +103,28 @@ struct ToolSpecFullRegistryTests {
         }
     }
 
+    @Test("read_file/search_files wire: required = 解码真值子集, 可选旋钮不进 required")
+    func requiredSubsetIsDecodeTruth() async {
+        let registry = await Self.fullRegistry()
+        let specs = await registry.toToolSpecs()
+        func requiredOf(_ tool: String) -> [String]? {
+            for s in specs
+            where (s["function"] as? [String: any Sendable])?["name"] as? String == tool {
+                let params =
+                    (s["function"] as? [String: any Sendable])?["parameters"]
+                    as? [String: any Sendable]
+                return params?["required"] as? [String]
+            }
+            return nil
+        }
+        // 生产真值: read_file 仅 path 必填 —— offset/limit 带 handler 缺省(1/2000)。
+        // wire 强制必填曾逼 grammar 小模型发 limit:1 → read_file 静默读 1 行(10-07 live)。
+        #expect(Set(requiredOf("read_file") ?? []) == Set(["path"]))
+        #expect(Set(requiredOf("search_files") ?? []) == Set(["path", "pattern"]))
+        #expect(Set(requiredOf("exec_shell") ?? []) == Set(["command"]))
+        #expect(Set(requiredOf("write_file") ?? []) == Set(["path", "content"]))
+    }
+
     @Test("update_plan.plan: wire 带 items→object{properties[step/status], required}（非裸 array）")
     func updatePlanPlanShapeExact() async {
         let registry = await Self.fullRegistry()

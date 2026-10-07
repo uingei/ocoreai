@@ -106,7 +106,7 @@ struct ToolEntrySpecTests {
         #expect(props?["content"]?["type"] as? String == "string")
     }
 
-    @Test("parameters.required contains exactly the declared param names")
+    @Test("undeclared required → fallback = all declared names (built-in convention)")
     func requiredContainsAllDeclared() {
         let entry = typedEntry(
             "exec_command", "shell",
@@ -117,6 +117,30 @@ struct ToolEntrySpecTests {
             ])
         let required = unwrap(paramsOf(entry)!["required"]) as? [String]
         #expect(Set(required ?? []) == Set(["command", "workdir", "timeout"]))
+    }
+
+    /// Explicit `required` subset wins over the all-declared fallback —
+    /// a parameter the handler defaults (`Int?`/`String?`) must NOT be
+    /// marked required on the wire, or a grammar-constrained small model
+    /// is forced to emit the shortest legal value (`limit:1` → `read_file`
+    /// silently reads one line; live evidence 10-07).
+    @Test("explicit required subset wins over all-declared fallback")
+    func explicitRequiredSubsetWins() {
+        let entry = ToolEntry(
+            name: "read_file", toolset: "files",
+            schema: ToolSchema(
+                parameters: [
+                    "path": stringParam("file path"),
+                    "offset": ToolParameter(type: .integer, description: "first line"),
+                    "limit": ToolParameter(type: .integer, description: "max lines"),
+                ],
+                required: ["path"]),
+            handler: { _ in "" }
+        )
+        let required = unwrap(paramsOf(entry)!["required"]) as? [String]
+        #expect(
+            Set(required ?? []) == Set(["path"]),
+            "offset/limit carry handler defaults — must not be required: \(required ?? [])")
     }
 
     @Test("array parameter carries items sub-schema (JSON Schema 'items' key)")
