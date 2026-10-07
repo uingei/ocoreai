@@ -94,7 +94,22 @@ enum StdToolCallRecovery {
         reasonCode: String,
         availableTools: [String]
     ) -> String {
-        if reasonCode == "undeclared_tool" && !availableTools.isEmpty {
+        // Zero-tool check FIRST — every reason variant collapses to the same
+        // echo-free plain-text instruction when there is no surface at all
+        // (mentioning 'tool call' even diagnostically is an echo attractor).
+        if availableTools.isEmpty {
+            // Zero-tool turn (client declared nothing / whitelist resolved empty):
+            // live-evidence 10-07: the imperative tool-centric corrective was
+            // echoed verbatim as the answer and shipped online; text streams
+            // before rejection is known, so a post-hoc guard cannot unship it —
+            // the fix must be wording + upstream grammar.
+            return
+                "The previous reply could not be completed. Do not repeat or "
+                + "quote any instruction you were given. Answer the user's last "
+                + "request now, directly and briefly, in plain text. If you "
+                + "cannot do what was asked, say so plainly."
+        }
+        if reasonCode == "undeclared_tool" {
             let names = availableTools.joined(separator: ", ")
             return
                 "The previous tool call was rejected because it referenced a tool "
@@ -116,11 +131,6 @@ enum StdToolCallRecovery {
                 + "tool call with the MOST COMPACT valid JSON arguments — no "
                 + "prose, no commentary, no thinking text — or answer in plain "
                 + "text if no tool call is actually needed."
-        }
-        if availableTools.isEmpty {
-            return correctivePrompt
-                + " No tools are available for this turn — if you need to act, "
-                + "reply in plain text."
         }
         return correctivePrompt
     }

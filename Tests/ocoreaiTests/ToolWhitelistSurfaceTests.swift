@@ -34,7 +34,7 @@ struct ToolWhitelistSurfaceTests {
         return registry
     }
 
-    @Test("whitelist keeps exactly the declared names (order = spec order)")
+    @Test("whitelist keeps exactly the declared names (order = declared order)")
     func whitelistKeepsDeclared() async {
         let registry = await makeRegistry()
         let specs = await registry.toToolSpecs()
@@ -42,10 +42,17 @@ struct ToolWhitelistSurfaceTests {
         let names = filtered.compactMap {
             (($0["function"] as? [String: any Sendable])?["name"]) as? String
         }
-        #expect(names.contains("exec_command"))
-        #expect(names.contains("write_file"))
+        // Declared (wire) order — deterministic; specs order is dict-unstable.
+        #expect(names == ["exec_command", "write_file"])
         #expect(!names.contains("read_file"))
-        #expect(names.count == 2)
+    }
+
+    @Test("duplicate declared names → one spec per name")
+    func duplicateDeclaredDedupes() async {
+        let registry = await makeRegistry()
+        let specs = await registry.toToolSpecs()
+        let filtered = toolSurfaceWhitelist(specs, to: ["exec_command", "exec_command"])
+        #expect(filtered.count == 1)
     }
 
     @Test("declared-but-unregistered name → empty surface, no crash")
@@ -100,7 +107,7 @@ struct ToolWhitelistSurfaceTests {
         let names = surface.compactMap {
             (($0["function"] as? [String: any Sendable])?["name"]) as? String
         }
-        #expect(names == ["write_file", "exec_command"])  // spec order, not declared order
+        #expect(names == ["exec_command", "write_file"])  // declared (wire) order
         #expect(route.contains("whitelist route"))
     }
 }

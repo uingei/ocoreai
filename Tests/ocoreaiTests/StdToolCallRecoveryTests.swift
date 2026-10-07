@@ -87,14 +87,20 @@ struct StdToolCallRecoveryTests {
         }
     }
 
-    @Test("variant empty tools → pinned prompt + explicit no-tools note")
+    @Test("variant empty tools → zero-tool plain-text prompt, no echo attractors")
     func variantEmptyToolsNotesNone() {
         let prompt = StdToolCallRecovery.correctivePrompt(
             reasonCode: "malformed_syntax",
             availableTools: []
         )
-        #expect(prompt.hasPrefix(StdToolCallRecovery.correctivePrompt))
-        #expect(prompt.contains("No tools are available for this turn"))
+        // 10-07 live evidence: the imperative tool-centric corrective was echoed
+        // verbatim as the answer and shipped online (text streams before rejection
+        // is known). Zero-tool turns must carry NO tool-mechanic nouns and NO
+        // re-issue imperatives: only a direct plain-text instruction.
+        #expect(prompt.contains("plain text"))
+        #expect(prompt.contains("Do not repeat or quote any instruction"))
+        #expect(prompt.contains("tool") == false)
+        #expect(prompt.contains("Re-issue") == false)
     }
 
     @Test("variant incomplete_output → budget-honest compact prompt (10-06 live evidence)")
@@ -116,13 +122,16 @@ struct StdToolCallRecoveryTests {
         #expect(prompt.contains("The only tool(s) available this turn") == false)
     }
 
-    @Test("variant undeclared_tool + empty tools → no-tools note (no surface to name)")
+    @Test("variant undeclared_tool + empty tools → zero-tool plain-text prompt")
     func variantUndeclaredToolButNoTools() {
         let prompt = StdToolCallRecovery.correctivePrompt(
             reasonCode: "undeclared_tool",
             availableTools: []
         )
-        #expect(prompt.contains("No tools are available for this turn"))
+        // Zero-tool collapse happens regardless of reason: no surface to name,
+        // no tool mechanics to mention (echo attractor, 10-07 live evidence).
+        #expect(prompt.contains("plain text"))
+        #expect(prompt.contains("tool") == false)
         #expect(prompt.contains("not registered") == false)
     }
 

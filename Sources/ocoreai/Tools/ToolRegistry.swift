@@ -23,13 +23,26 @@ import Logging
 func toolSurfaceWhitelist(_ specs: [[String: any Sendable]], to names: [String]) -> [[String:
     any Sendable]]
 {
-    let allowed = Set(names)
-    return specs.filter { spec in
+    // Order = DECLARED order (wire order), not specs order: `specs` derives
+    // from a [String: ToolEntry] dictionary whose values order is unstable,
+    // so "spec order" is a fiction. Declared order is the only deterministic
+    // order available, and it is also what OpenAI clients expect (grammar
+    // branches and tool_choice:\"required\" first-tool tie-breaks ride order).
+    var byName: [String: [String: any Sendable]] = [:]
+    byName.reserveCapacity(specs.count)
+    for spec in specs {
         guard
             let functionDict = spec["function"] as? [String: any Sendable],
             let name = functionDict["name"] as? String
-        else { return false }
-        return allowed.contains(name)
+        else { continue }
+        byName[name] = spec
+    }
+    // seen-set: duplicate declared names must not duplicate the spec (the old
+    // specs.filter shape was dedup-by-construction; preserve that invariant).
+    var seen: Set<String> = []
+    return names.compactMap { name in
+        guard seen.insert(name).inserted else { return nil }
+        return byName[name]
     }
 }
 
