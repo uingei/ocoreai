@@ -28,6 +28,7 @@ swift run
 
 直接 SwiftPM 构建，无 `.xcodeproj`（测试门经 SPM 生成的 `ocoreai.xcworkspace` → `xcodebuild` → `xctest`）。
 服务监听 `127.0.0.1:8080`。配置位于 `~/.ocoreai/config.yaml`。
+DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显式 opt-in — 终端运行 `OCOREAI_ENABLE_HTTP=1 /Applications/ocoreai.app/Contents/MacOS/ocoreai`（实证：`/health` 200 + `/v1/chat/completions` 推理闭环）。
 
 > ⚠️ **仅本机访问** — HTTP API 默认绑定 `127.0.0.1`。认证默认关（设 `OCOREAI_API_KEYS` 环境变量开启），无 TLS。内置令牌桶限流默认开（全局 200 次/秒）。
 
