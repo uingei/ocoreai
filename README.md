@@ -14,7 +14,9 @@
 **macOS 14+ · iOS 17+ · Apple Silicon · Swift 6.2 · Pure SwiftPM**
 
 **用户路径 — 双击即用:**
-下载 [最新 Release](https://github.com/uingei/ocoreai/releases) 的 `ocoreai-<ver>.dmg` → 打开 → 拖 `ocoreai` 到 `Applications` → 启动。模型在 App「模型」页推荐列表中首启下载（推荐列表已内置）。
+下载 [最新 Release](https://github.com/uingei/ocoreai/releases/latest) 的 `ocoreai-<ver>.dmg` → 打开 → 拖 `ocoreai` 到 `Applications` → 启动。模型在 App「模型」页推荐列表中首启下载（推荐列表已内置）。
+
+> 首次启动: 当前 DMG 为 ad-hoc 签名(未公证)。若 Gatekeeper 提示"无法打开",在 Finder 的 `Applications` 里**右键 ocoreai → 打开 → 打开**即可,仅需一次。
 
 **开发者路径 — 源码构建 + HTTP 桥:**
 
