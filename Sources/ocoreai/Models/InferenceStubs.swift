@@ -441,14 +441,17 @@ struct InferenceOptions: Codable {
     var toolCallingMode: String? = nil
     /// Tool-calling whitelist — the *names* the client declared in its
     /// `tools[]`, in declaration order.
-    /// - nil = client declared no `tools[]` → ocoreai injects the **full**
-    ///   ToolRegistry surface (local-first convenience; viable even for a
-    ///   small model — a zero-declaration coding probe injected all 25
-    ///   tools and gemma-4-e2b 4bit still picked the correct subset).
-    /// - non-nil = OpenAI wire semantics: `tools[]` IS the whitelist →
-    ///   engines inject ONLY these names (spec-level filter at the
-    ///   injection site; names not registered → naturally absent).
-    /// nil default keeps every path that doesn't set it behavior-identical.
+    /// - nil or empty = ZERO tools injected. OpenAI wire semantics
+    ///   (10-06 flip): omitting `tools[]` means "no tools this turn".
+    ///   The pre-flip "full registry convenience" was falsified by live
+    ///   evidence — an implicit full surface makes small models hallucinate
+    ///   tool calls on plain-text requests (rejected → corrective echo →
+    ///   assistant content became the corrective text). Agentic clients
+    ///   (native UI included) declare their surface explicitly.
+    /// - non-empty = OpenAI wire semantics: `tools[]` IS the whitelist →
+    ///   engines inject ONLY these names, intersected with the registry at
+    ///   the injection site (names not registered → naturally absent).
+    /// Resolution is ONE choke: `resolveToolSurface` (Tools/ToolRegistry.swift).
     /// Fills the P0-3 gap the wire-contract audit flagged: `request.tools`
     /// previously only drove the `hasNativeTools` routing boolean while the
     /// advertised surface stayed the full registry (declared whitelist

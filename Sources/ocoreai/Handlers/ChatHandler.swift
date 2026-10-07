@@ -572,9 +572,10 @@ func chatCompletionsHandler(
         /// grammar == executable surface, one truth set.
         let declaredToolNames: [String]? = {
             if request.toolChoice == "none" { return [] }
-            // nil = client declared nothing → full registry surface (nil).
-            // [] = client declared an EMPTY tools[] → zero tools (nil would
-            // wrongly re-open the full surface — OpenAI wire semantics).
+            // 10-06 flip: nil (client declared nothing) reaches the engine as
+            // nil and resolves to ZERO tools there (`resolveToolSurface`) —
+            // never the implicit full surface. [] = declared empty → zero
+            // tools. Both are "no tools this turn" (OpenAI wire semantics).
             guard let declared = request.tools?.map({ $0.function.name }) else { return nil }
             guard !declared.isEmpty else { return [] }
             guard let exec = executableTools else { return declared }
@@ -624,11 +625,10 @@ func chatCompletionsHandler(
             enableReasoning: request.reasoning,
             reasoningLevel: request.reasoningLevel,
             reasoningEffort: request.reasoningEffort,
-            // P0-3: declared names (OpenAI `tools[]` whitelist); nil when the
-            // client declared none → engine keeps the FULL registry surface
-            // (L2074/L2168: non-nil → toolSurfaceWhitelist filter, nil → ?? specs).
-            // `tool_choice: "none"` is the OPPOSITE of nil: [] → empty whitelist →
-            // ZERO tools injected (OpenAI: "Model must not call any tools").
+            // P0-3 + 10-06 flip: declared names (OpenAI `tools[]` whitelist);
+            // nil (client declared none) resolves to ZERO tools at the engine
+            // choke (`resolveToolSurface`) — never the implicit full surface.
+            // `tool_choice: "none"` → [] → same zero surface.
             declaredToolNames: declaredToolNames,
             // Wire HTTP consumer (external process), not the in-app GUI:
             // `.interactive` approval cannot be asked of a wire consumer →

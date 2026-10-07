@@ -104,6 +104,19 @@ enum StdToolCallRecovery {
                 + "valid JSON arguments, or reply in plain text — do not emit "
                 + "prose before the tool call."
         }
+        // `incomplete_output` (upstream RejectedToolCall.Reason, live-evidence
+        // 10-06): the tool-call payload was CUT OFF mid-stream — almost always
+        // a token budget too small for the arguments. "malformed, re-issue"
+        // sends a small model into the same wall again; the actionable
+        // instruction is COMPACT (minimal args, no prose, no thinking).
+        if reasonCode == "incomplete_output" {
+            return
+                "The previous tool call was cut off before its JSON payload was "
+                + "complete (output token budget too small). Re-issue the SAME "
+                + "tool call with the MOST COMPACT valid JSON arguments — no "
+                + "prose, no commentary, no thinking text — or answer in plain "
+                + "text if no tool call is actually needed."
+        }
         if availableTools.isEmpty {
             return correctivePrompt
                 + " No tools are available for this turn — if you need to act, "

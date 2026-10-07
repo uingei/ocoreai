@@ -2262,23 +2262,18 @@ extension EnginePool {
             // treat the tool table as empty regardless of what ToolRegistry provides.
             if let registry = toolRegistry {
                 let specs = await registry.toToolSpecs()
-                // P0-3: declared whitelist (nil = client sent no tools[] →
-                // full registry surface — the local-first convenience, kept
-                // intact). When the client DID declare tools[], the
-                // advertised surface must be exactly those names.
-                let surface =
-                    options.declaredToolNames.map { names in
-                        toolSurfaceWhitelist(specs, to: names)
-                    } ?? specs
-                if let declared = options.declaredToolNames {
-                    log.info(
-                        "Tool surface [whitelist route]: \(surface.count)/\(specs.count) injected, \(declared.count) declared name(s)"
-                    )
-                } else {
-                    log.info(
-                        "Tool surface [full route]: \(surface.count)/\(specs.count) injected, client declared no tools[]"
-                    )
-                }
+                // P0-3 + 10-06 flip: the surface is resolved by ONE choke
+                // (`resolveToolSurface`). nil (client declared nothing) is no
+                // longer "full registry convenience" — it is ZERO tools
+                // (OpenAI wire semantics). Live evidence for the flip: a
+                // no-tools "count to ten" request got the full 39-tool
+                // surface, hallucinated a truncated tool call, and the
+                // corrective echo shipped as the assistant answer.
+                let (surface, route) = resolveToolSurface(
+                    specs: specs,
+                    declaredNames: options.declaredToolNames)
+                log.info(
+                    "Tool surface [\(route)]: \(surface.count)/\(specs.count) injected")
                 if !surface.isEmpty,
                     options.toolCallingMode?.lowercased() != "disallowed"
                 {
@@ -2357,25 +2352,20 @@ extension EnginePool {
                 // Executor.respond()'s entire tool-calling pipeline.
                 var fmTools: [any FoundationModels.Tool]? = nil
                 if let registry = toolRegistry {
-                    // P0-3: same whitelist contract as the MLX path (nil =
-                    // no client tools[] → full surface, viable for a ~1.5B model
-                    // picking 3-of-25 on a real coding task).
+                    // P0-3 + 10-06 flip: same single choke as the MLX path —
+                    // nil (client declared nothing) = ZERO tools, never the
+                    // implicit full surface. Agentic callers declare explicitly.
                     let specs = await registry.toToolSpecs()
-                    let surface =
-                        options.declaredToolNames.map { names in
-                            toolSurfaceWhitelist(specs, to: names)
-                        } ?? specs
+                    let (surface, route) = resolveToolSurface(
+                        specs: specs,
+                        declaredNames: options.declaredToolNames)
                     if !surface.isEmpty {
                         let fmToolsArray = FMToolProxy.tools(
                             from: registry, toolSpecs: surface, log: log,
                             headless: options.headless)
                         fmTools = fmToolsArray
-                        let surfaceNote =
-                            options.declaredToolNames == nil
-                            ? "full surface (client declared no tools[])"
-                            : "whitelisted \(options.declaredToolNames?.count ?? 0) declared name(s)"
                         log.info(
-                            "Injected \(fmToolsArray.count) tools into FM session [\(surfaceNote)]")
+                            "Injected \(fmToolsArray.count) tools into FM session [\(route)]")
                     }
                 }
 

@@ -97,6 +97,25 @@ struct StdToolCallRecoveryTests {
         #expect(prompt.contains("No tools are available for this turn"))
     }
 
+    @Test("variant incomplete_output → budget-honest compact prompt (10-06 live evidence)")
+    func variantIncompleteOutputIsBudgetHonest() {
+        // Live evidence: max_tokens=8 truncated a tool-call payload →
+        // reason=incomplete_output → old prompt said "malformed, re-issue
+        // strictly valid JSON" → model re-issued a full call → cut off again
+        // → 3/3 exhausted. The actionable instruction is COMPACT.
+        let prompt = StdToolCallRecovery.correctivePrompt(
+            reasonCode: "incomplete_output",
+            availableTools: ["terminal"]
+        )
+        #expect(prompt.contains("cut off"))
+        #expect(prompt.contains("MOST COMPACT"))
+        #expect(prompt.contains("plain text"))
+        // Must NOT carry the malformed-only wording (wrong diagnosis).
+        #expect(prompt.contains("malformed tool call") == false)
+        // Even with tools available, an over-budget call must not be forced.
+        #expect(prompt.contains("The only tool(s) available this turn") == false)
+    }
+
     @Test("variant undeclared_tool + empty tools → no-tools note (no surface to name)")
     func variantUndeclaredToolButNoTools() {
         let prompt = StdToolCallRecovery.correctivePrompt(

@@ -33,6 +33,31 @@ func toolSurfaceWhitelist(_ specs: [[String: any Sendable]], to names: [String])
     }
 }
 
+/// The injection surface for one inference request — THE single choke (10-06
+/// live-evidence flip, see `InferenceOptions.declaredToolNames`).
+///
+/// First principles: a model instructed over an advertised tool list will act
+/// on it even when the caller never wanted tools (observed: 39-tool surface
+/// on a no-tools request → hallucinated tool call → corrective echo →
+/// assistant content became the corrective text). The wire default is now
+/// ZERO tools; agentic clients declare their surface explicitly.
+///
+/// `route` mirrors the engine log tags (`full route` / `whitelist route` /
+/// `no-tools route`) so the log line is a testable assertion, not prose.
+func resolveToolSurface(
+    specs: [[String: any Sendable]],
+    declaredNames: [String]?
+) -> (surface: [[String: any Sendable]], route: String) {
+    guard let declared = declaredNames else {
+        return ([], "no-tools route (client declared no tools[])")
+    }
+    if declared.isEmpty {
+        return ([], "no-tools route (declared [])")
+    }
+    let surface = toolSurfaceWhitelist(specs, to: declared)
+    return (surface, "whitelist route (\(surface.count)/\(declared.count) resolved)")
+}
+
 actor ToolRegistry {
     /// Audit trail for tool execution logging (nil = auditing disabled)
     private let auditTrail: AuditTrail?
