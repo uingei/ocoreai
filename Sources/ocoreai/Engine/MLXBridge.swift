@@ -1277,13 +1277,39 @@ actor EmbeddingService {
         return fm.fileExists(atPath: configFile.path) ? snapshot : nil
     }
 
+    /// Canonical embedder's fully-materialized local snapshot dir, or nil
+    /// when nothing complete is cached. Single source for `isLocallyCached`
+    /// and the exposed `contextLength` — both read the SAME config blob, so
+    /// "ready" and the reported capacity can never disagree (unknown ≠
+    /// unreported when the file exists on disk).
+    static var canonicalSnapshotDir: URL? {
+        guard let repoDir = hubRepoDir(for: canonicalModelId) else { return nil }
+        let fm = FileManager.default
+        guard
+            let revision = try? String(
+                contentsOf: repoDir.appending(path: "refs/main"), encoding: .utf8
+            ).trimmingCharacters(in: .whitespacesAndNewlines), !revision.isEmpty
+        else {
+            return nil
+        }
+        let snapshot = repoDir.appending(path: "snapshots/\(revision)")
+        return fm.fileExists(atPath: snapshot.appending(path: "config.json").path)
+            ? snapshot : nil
+    }
+
+    /// Served context window of the canonical embedder, parsed from the same
+    /// snapshot config that gates `isLocallyCached` (LFM2.5: 128000). nil
+    /// only when no complete snapshot exists — never a fabricated default.
+    static var canonicalContextLength: Int? {
+        guard let dir = canonicalSnapshotDir else { return nil }
+        return ModelStore.contextLength(weightsDir: dir)
+    }
+
     /// True when the canonical embedder is resolvable from the local hub
     /// cache WITHOUT any network — the honest `state` source for its
-    /// `/v1/models` entry ("ready" vs "download_required"). Checks the
-    /// exact path the Hub SDK writes:
-    /// `~/.cache/huggingface/hub/models--<org>--<name>/snapshots/<rev>/config.json`.
-    /// Symlink resolution = blob actually downloaded (incomplete files
-    /// never produce a resolved pointer).
+    /// `/v1/models` entry ("ready" vs "download_required"). Symlink
+    /// resolution = blob actually downloaded (incomplete files never
+    /// produce a resolved pointer).
     static var isLocallyCached: Bool {
         guard let repoDir = hubRepoDir(for: canonicalModelId) else { return false }
         let fm = FileManager.default

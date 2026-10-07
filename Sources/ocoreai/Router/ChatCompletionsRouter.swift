@@ -185,7 +185,8 @@ func buildRouter(
             ModelObject(
                 id: EmbeddingService.canonicalModelId,
                 state: embedCached ? "ready" : "download_required",
-                capabilities: ["embed"]
+                capabilities: ["embed"],
+                contextLength: EmbeddingService.canonicalContextLength
             ))
         // Default-model discoverability: clients must not guess who the
         // server-wide default is via trial requests — flag it directly.
