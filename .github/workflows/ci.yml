@@ -303,7 +303,8 @@ jobs:
           set -euo pipefail
           VER="${GITHUB_REF_NAME#v}"
           NOTE="v${VER} — ocoreai: an agent for open models, natively local.
-          双击 DMG → 拖入 Applications。模型在 App 内首启下载 (推荐列表已内置)。"
+          双击 DMG → 拖入 Applications。模型在 App 内首启下载 (推荐列表已内置)。
+          首次启动若 Gatekeeper 提示无法打开: 访达→应用程序→右键 ocoreai→打开 (ad-hoc 签名, 仅需一次)。"
           gh release create "v${VER}" \
             --title "ocoreai v${VER} (macOS)" \
             --notes "${NOTE}" \
