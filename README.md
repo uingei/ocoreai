@@ -23,7 +23,7 @@
 ```bash
 git clone https://github.com/uingei/ocoreai.git && cd ocoreai
 swift build -c release     # 或 make app
-swift run
+swift run ocoreai serve    # headless：引擎 + HTTP 桥，无窗口
 # or: bash scripts/build-dmg.sh   # 本地出 DMG
 ```
 
@@ -33,8 +33,8 @@ curl -s http://127.0.0.1:8080/health
 ```
 
 Direct SwiftPM build, no `.xcodeproj` (the test gate runs through the SPM `ocoreai.xcworkspace` → `xcodebuild` → `xctest`).
-Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
-DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显式 opt-in — 终端运行 `OCOREAI_ENABLE_HTTP=1 /Applications/ocoreai.app/Contents/MacOS/ocoreai`（实证：bridge 日志出现 + `/health` 200 + `/v1/chat/completions` 推理闭环）。
+**Headless HTTP entry: `ocoreai serve`** (`swift run ocoreai serve`, or the built binary directly) — boots the engine + bridge on `127.0.0.1:8080` with no GUI/WindowServer session. Shutdown: `SIGTERM` or closing stdin drains the engine (≤30s) then exits clean; `SIGINT` keeps default terminal behavior. Bare `ocoreai` launches the GUI as before. Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
+DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显式 opt-in — 终端运行 `OCOREAI_ENABLE_HTTP=1 /Applications/ocoreai.app/Contents/MacOS/ocoreai`（实证：bridge 日志出现 + `/health` 200 + `/v1/chat/completions` 推理闭环）。无头启动走 `ocoreai serve`：引擎 + 桥绑定 `127.0.0.1:8080`，无需窗口会话；`SIGTERM` 或关闭 stdin 触发优雅退出（引擎排空 ≤30s），`SIGINT` 保持终端默认行为。
 
 > ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. **Auth is off unless** the `OCOREAI_API_KEYS` env var is set; **no TLS**. Built-in token-bucket rate limiting is on (200 req/s global).
 
