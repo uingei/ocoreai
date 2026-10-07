@@ -358,7 +358,12 @@ final class ModelManager {
             guard seen.insert(key).inserted else { continue }
             let config = samplingConfig(key)
             configs[key] = config
-            out.append(ModelID(id: key, isVlm: r.isVlm, paramsCustomized: !config.isDefault))
+            out.append(
+                ModelID(
+                    id: key,
+                    maxContext: r.contextLength ?? 0,
+                    isVlm: r.isVlm,
+                    paramsCustomized: !config.isDefault))
         }
         return (out, configs)
     }

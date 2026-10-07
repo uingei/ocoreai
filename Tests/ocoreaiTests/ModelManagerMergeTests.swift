@@ -117,4 +117,27 @@ final class ModelManagerMergeTests {
             samplingConfig: { _ in .default })
         #expect(out.0.first?.paramsCustomized == false)
     }
+
+    /// disk-ready 模型的 contextLength 必须透传到 ModelID.maxContext —
+    /// GUI 的 "128K" 徽标对未加载模型同样成立(wire 已报,UI 不得留空);
+    /// nil contextLength → 0 → contextString 空(未知 ≠ 谎报)。
+    @Test
+    @MainActor
+    func readyContextLengthFlowsToModelID() async {
+        let withCtx = ModelStore.ReadyModel(
+            id: "hf:mmg/Foreign-Gemma-3-4b-it-GGUF",
+            weightsDir: URL(fileURLWithPath: "/x"), isVlm: false,
+            contextLength: 131_072)
+        let noCtx = ModelStore.ReadyModel(
+            id: "hf:mlx-community/LFM2.5-Embedding-350M-4bit",
+            weightsDir: URL(fileURLWithPath: "/y"), isVlm: false)
+        let out = ModelManager.mergeLocalModels(
+            loaded: [], ready: [withCtx, noCtx],
+            samplingConfig: { _ in .default })
+        #expect(out.0.first { $0.id == "mmg/Foreign-Gemma-3-4b-it-GGUF" }?.maxContext == 131_072)
+        #expect(out.0.first { $0.id == "mmg/Foreign-Gemma-3-4b-it-GGUF" }?.contextString == "131K")
+        let unknown = out.0.first { $0.id == "mlx-community/LFM2.5-Embedding-350M-4bit" }
+        #expect(unknown?.maxContext == 0, "nil context → 0,不得编造")
+        #expect(unknown?.contextString == "", "0 → 空徽标,UI 不显示假容量")
+    }
 }
