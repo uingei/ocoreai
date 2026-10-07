@@ -391,14 +391,21 @@ actor MetricsRegistry {
         // These are simple aliases consumed by the SwiftUI Dashboard MetricsSnapshot parser.
         // Production dashboards should parse the native histogram/gauge above instead.
 
-        // tokens_per_second: estimated from inference duration histogram (count / sum)
+        // tokens_per_second = generated tokens / total inference seconds.
+        // The old formula was count/sum = REQUESTS per second mislabeled
+        // as tok/s (live proof 10-07: gauge said 0.12 while the same
+        // registry held 17 tokens / 8.458 s ≈ 2.0 tok/s) — the dashboard's
+        // headline number was fabricated by definition. Honest throughput
+        // derives from the token counters that already exist.
+        let generated = tokenCounts["generated"] ?? 0
         let averageThroughput: Double =
-            if inferenceDurationCount > 0, inferenceDurationSum > 0 {
-                Double(inferenceDurationCount) / inferenceDurationSum
+            if inferenceDurationSum > 0, generated > 0 {
+                Double(generated) / inferenceDurationSum
             } else {
                 0
             }
-        lines.append("# HELP ocoreai_tokens_per_second Estimated inference throughput (tok/s).")
+        lines.append(
+            "# HELP ocoreai_tokens_per_second Generated tokens per inference second (tok/s).")
         lines.append("# TYPE ocoreai_tokens_per_second gauge")
         lines.append(String(format: "ocoreai_tokens_per_second %.2f", averageThroughput))
         lines.append("")

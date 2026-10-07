@@ -120,4 +120,26 @@ struct PerRequestMetricsTests {
         #expect(s.contains("gen=5"))
         #expect(s.contains("[metrics]"))
     }
+
+    /// Gauge honesty pin (10-07): ocoreai_tokens_per_second was computed as
+    /// requests/second (count/sum) and labeled tok/s — live proof: gauge 0.12
+    /// while the registry held 17 tokens over 8.458 s (≈2.0 tok/s). Formula is
+    /// now generated/seconds; this fixture distinguishes the two: 100 tok over
+    /// 2.0 s → 50.00 tok/s, whereas count/sum would emit 0.50.
+    @Test("export gauge tok/s = generated tokens / inference seconds, not requests/s")
+    func tokPerSecGaugeIsHonest() async {
+        let registry = MetricsRegistry()
+        await registry.observeInferenceDuration(
+            ms: 2000, inputTokens: 500, outputTokens: 100, ttfbMs: "250", modelId: "m")
+        let text = await registry.export()
+        let gaugeLine =
+            text.split(separator: "\n")
+            .first(where: { $0.hasPrefix("ocoreai_tokens_per_second") }) ?? "MISSING"
+        #expect(
+            text.contains("ocoreai_tokens_per_second 50.00"),
+            "100 tok / 2.0 s must read 50.00; got: \(gaugeLine)")
+        // Zero-state honesty: no observations → gauge is 0, never NaN/garbage.
+        let fresh = MetricsRegistry()
+        #expect(await fresh.export().contains("ocoreai_tokens_per_second 0.00"))
+    }
 }
