@@ -61,6 +61,14 @@ jobs:
       - name: Run static audit
         run: bash scripts/audit.swift_patterns.sh
 
+      # Lockfile drift gate — xcodebuild (all test/release legs) reads the
+      # WORKSPACE Package.resolved; swift build reads the ROOT one. Two
+      # containers drifted 10/34 pins apart unnoticed (2026-10 audit): the
+      # graph CI tested and the graph that compiles into the DMG were
+      # different for weeks. Fail loudly; sync is a one-liner.
+      - name: Resolved lockfiles in sync
+        run: bash scripts/resolved-sync.sh check
+
       # Format gate — mlx-swift-lm pattern (pre-commit run --all, swift-format
       # format hook). Run swift-format in-place then require zero diff: any
       # file that would be reformatted fails the pipeline.
