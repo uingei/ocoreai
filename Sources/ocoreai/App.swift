@@ -721,6 +721,7 @@ public final class OcoreaiEngine {
                     rateLimitMiddleware: rateLimitMiddleware,
                     hfToken: hfToken,
                     msToken: msToken,
+                    toolRegistry: _toolRegistry,
                 )
                 self.serverApp = app
 
@@ -838,6 +839,7 @@ func buildApplication(
     rateLimitMiddleware: RateLimitMiddleware<OCoreAIContext>,
     hfToken: String? = nil,
     msToken: String? = nil,
+    toolRegistry: ToolRegistry? = nil,
 ) async throws -> some ApplicationProtocol {
     let router = buildRouter(
         enginePool: enginePool,
@@ -853,6 +855,7 @@ func buildApplication(
         rateLimitMiddleware: rateLimitMiddleware,
         hfToken: hfToken,
         msToken: msToken,
+        toolRegistry: toolRegistry,
     )
     let host = ProcessInfo.processInfo.environment["OCOREAI_HOST"] ?? "127.0.0.1"
     let port = Int(ProcessInfo.processInfo.environment["OCOREAI_PORT"] ?? "8080") ?? 8080

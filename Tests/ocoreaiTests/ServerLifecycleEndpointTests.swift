@@ -49,7 +49,8 @@ struct ServerLifecycleEndpointTests {
     /// ``MetricsRegistry`` so tests can seed it for exact-value assertions.
     private static func makeApp(
         authKeys: [String],
-        metrics: MetricsRegistry
+        metrics: MetricsRegistry,
+        toolRegistry: ToolRegistry? = nil
     ) async throws -> (some ApplicationProtocol, [String]) {
         let db1 = uuidPath()
         let db2 = uuidPath()
@@ -74,7 +75,8 @@ struct ServerLifecycleEndpointTests {
             sessionCompressor: compressor,
             semanticSearch: nil,
             mcpBridge: MCPBridge(
-                toolRegistry: ToolRegistry(log: log), transport: MCPStdioTransport(log: log)),
+                toolRegistry: ToolRegistry(log: Self.log),
+                transport: MCPStdioTransport(log: Self.log)),
             systemPromptBuilder: SystemPromptBuilder(basePrompt: "t"),
             messageBuilder: mb,
             logger: log,
@@ -88,7 +90,7 @@ struct ServerLifecycleEndpointTests {
                     logger: log),
                 logger: log
             ),
-            hfToken: nil, msToken: nil
+            hfToken: nil, msToken: nil, toolRegistry: toolRegistry
         )
         return (app, [db1, db2])
     }
@@ -162,6 +164,61 @@ struct ServerLifecycleEndpointTests {
         defer { Self.cleanup(dbs[0], dbs[1]) }
         try await app.test(.router) { client in
             try await client.execute(uri: "/v1/stats", method: .get) { r in #expect(r.status == .ok)
+            }
+        }
+    }
+
+    // MARK: - GET /v1/tools (discovery)
+
+    @Test("GET /v1/tools: registered tools → exact OpenAI tools[] shape")
+    func testToolsDiscoveryShape() async throws {
+        let reg = ToolRegistry(log: Self.log)
+        try await reg.register(
+            ToolEntry(
+                name: "clip_paste", toolset: "t", schema: .init(),
+                description: "read clipboard", handler: { _ in "x" }))
+        let (app, dbs) = try await Self.makeApp(
+            authKeys: [], metrics: MetricsRegistry(), toolRegistry: reg)
+        defer { Self.cleanup(dbs[0], dbs[1]) }
+        try await app.test(.router) { client in
+            try await client.execute(uri: "/v1/tools", method: .get) { r in
+                #expect(r.status == .ok)
+                let json =
+                    try JSONSerialization.jsonObject(
+                        with: Data(Self.bodyString(r).utf8)) as? [String: Any]
+                #expect(json?["object"] as? String == "list")
+                let data = json?["data"] as? [[String: Any]]
+                #expect(data?.count == 1)
+                let fn = data?.first?["function"] as? [String: Any]
+                #expect(fn?["name"] as? String == "clip_paste")
+                #expect(fn?["description"] as? String == "read clipboard")
+            }
+        }
+    }
+
+    @Test("GET /v1/tools: no registry → honest empty list, never fabricated")
+    func testToolsDiscoveryEmpty() async throws {
+        let (app, dbs) = try await Self.makeApp(authKeys: [], metrics: MetricsRegistry())
+        defer { Self.cleanup(dbs[0], dbs[1]) }
+        try await app.test(.router) { client in
+            try await client.execute(uri: "/v1/tools", method: .get) { r in
+                #expect(r.status == .ok)
+                let json =
+                    try JSONSerialization.jsonObject(
+                        with: Data(Self.bodyString(r).utf8)) as? [String: Any]
+                #expect(json?["object"] as? String == "list")
+                #expect((json?["data"] as? [Any])?.isEmpty == true)
+            }
+        }
+    }
+
+    @Test("Auth on: GET /v1/tools bypasses (public like /v1/models)")
+    func testToolsDiscoveryBypassesAuth() async throws {
+        let (app, dbs) = try await Self.makeApp(authKeys: ["k1"], metrics: MetricsRegistry())
+        defer { Self.cleanup(dbs[0], dbs[1]) }
+        try await app.test(.router) { client in
+            try await client.execute(uri: "/v1/tools", method: .get) { r in
+                #expect(r.status == .ok)
             }
         }
     }

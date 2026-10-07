@@ -87,6 +87,7 @@ func buildRouter(
     rateLimitMiddleware: RateLimitMiddleware<OCoreAIContext>,
     hfToken: String? = nil,
     msToken: String? = nil,
+    toolRegistry: ToolRegistry? = nil,
 ) -> Router<OCoreAIContext> {
     let routes = Router(context: OCoreAIContext.self)
     routes.add(middleware: authMiddleware)
@@ -196,6 +197,61 @@ func buildRouter(
         }
         let response = ModelListResponse(data: objects)
         return try Response.json(response)
+    }
+
+    // MARK: Tool Surface Discovery (OpenAI-compat `tools[]` echo)
+
+    /// `GET /v1/tools` — discoverable agent-tool surface.
+    ///
+    /// First principles: the chat path only executes tools whose names it can
+    /// resolve, so a client that cannot enumerate the registry is forced to
+    /// guess names (observed live: `get_current_time` for the real `curr_time`
+    /// → whitelist resolves ∅ → honest-but-useless zero-tool answer). Every
+    /// capability the wire gains must be DISCOVERABLE; this closes that
+    /// obligation for the tool surface. Output is the EXACT OpenAI `tools[]`
+    /// shape — literally `registry.toToolSpecs()` — so a client can paste this
+    /// array straight into the next request's `tools:` field (discovery
+    /// output == request input, one truth source, no separate wire model to
+    /// drift). Sorted by name for a stable, diffable surface (specs derive
+    /// from a dictionary whose values order is unstable). Registry unavailable
+    /// → `{"object":"list","data":[]}` — honest empty, never fabricated.
+    ///
+    /// Public (same class as `/v1/models`): tool names + JSON schemas are not
+    /// secrets; execution stays gated downstream by the destructive-hook +
+    /// approval path, so discovery leaks no capability that isn't already
+    /// exercisable with a valid key on /v1/chat/completions.
+    routes.get("/v1/tools") { _, _ in
+        let specs: [[String: any Sendable]]
+        if let registry = toolRegistry {
+            specs = await registry.toToolSpecs().sorted { a, b in
+                func name(_ s: [String: any Sendable]) -> String {
+                    ((s["function"] as? [String: any Sendable])?["name"] as? String) ?? ""
+                }
+                return name(a) < name(b)
+            }
+        } else {
+            specs = []
+        }
+        // specs 已是合法 JSON 对象树(纯 String/字典/数组) — JSONSerialization
+        // 直接序列化, 不另造 Encodable 壳(仓库惯例同 WebSearchTool:124)。
+        var dataObjects: [[String: Any]] = []
+        dataObjects.reserveCapacity(specs.count)
+        for spec in specs {
+            var obj: [String: Any] = [:]
+            for (k, v) in spec { obj[k] = v }
+            dataObjects.append(obj)
+        }
+        let payload: [String: Any] = ["object": "list", "data": dataObjects]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        var headers: HTTPFields = [:]
+        headers[.contentType] = "application/json"
+        return Response(
+            status: .ok,
+            headers: headers,
+            body: .init { writer in
+                try await writer.write(ByteBuffer(data: data))
+                try await writer.finish(nil)
+            })
     }
 
     /// `GET /v1/capabilities` — runtime capability matrix on *this* hardware + OS version.
