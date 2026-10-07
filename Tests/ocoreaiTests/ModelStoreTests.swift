@@ -436,4 +436,36 @@ struct ModelStoreTests {
 
         try? fm.removeItem(at: rootURL)
     }
+
+    // MARK: - context window discovery
+
+    @Test("contextLength reads config truth, never fabricates")
+    func contextLengthFromConfig() throws {
+        let dir = Self.tmpRoot.appendingPathComponent("ctx")
+        // primary key
+        _ = try Self.file(
+            at: dir.appendingPathComponent("config.json"),
+            contents: Data("{\"max_position_embeddings\": 131072}".utf8))
+        #expect(ModelStore.contextLength(weightsDir: dir) == 131072)
+        // explicit max_context_length wins over max_position_embeddings
+        _ = try Self.file(
+            at: dir.appendingPathComponent("config.json"),
+            contents: Data(
+                "{\"max_context_length\": 8192, \"max_position_embeddings\": 131072}".utf8))
+        #expect(ModelStore.contextLength(weightsDir: dir) == 8192)
+        // multimodal: text_config fallback
+        _ = try Self.file(
+            at: dir.appendingPathComponent("config.json"),
+            contents: Data("{\"text_config\": {\"max_position_embeddings\": 32768}}".utf8))
+        #expect(ModelStore.contextLength(weightsDir: dir) == 32768)
+        // zero/negative is not a capability - refuse rather than report
+        _ = try Self.file(
+            at: dir.appendingPathComponent("config.json"),
+            contents: Data("{\"max_position_embeddings\": 0}".utf8))
+        #expect(ModelStore.contextLength(weightsDir: dir) == nil)
+        // missing config -> nil (unknown != fabricated default)
+        let bare = Self.tmpRoot.appendingPathComponent("bare")
+        try FileManager.default.createDirectory(at: bare, withIntermediateDirectories: true)
+        #expect(ModelStore.contextLength(weightsDir: bare) == nil)
+    }
 }

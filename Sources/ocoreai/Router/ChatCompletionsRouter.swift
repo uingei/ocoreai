@@ -164,13 +164,17 @@ func buildRouter(
                     id: id,
                     state: loadedState[id] ?? "ready",
                     vlm: r.isVlm,
-                    weightsDir: r.weightsDir.path
+                    weightsDir: r.weightsDir.path,
+                    contextLength: r.contextLength
                 ))
         }
         for m in loaded {
             let rawId = m["id"] ?? ""
             guard !rawId.isEmpty, seen.insert(rawId).inserted else { continue }
-            objects.append(ModelObject(id: rawId, state: m["state"] ?? "ready"))
+            objects.append(
+                ModelObject(
+                    id: rawId, state: m["state"] ?? "ready",
+                    contextLength: Int(m["max_context_length"] ?? "")))
         }
         // 3.5) 内嵌 embedder — /v1/embeddings 是常开路由，能力必须可发现：
         // 标准 OpenAI 客户端通过 /v1/models 探测服务器能力面，看不到 id
@@ -841,6 +845,13 @@ struct ModelObject: Codable {
     /// pinned camelCase by ModelsWireShapeTests) — PATCH inputs are a
     /// different object and use snake_case there; shape is per-object.
     var defaultModel: Bool? = nil
+    /// ocoreai extension: served context window in tokens — the honest
+    /// ceiling for prompt+completion. Read from the model's own config
+    /// (`max_context_length` → `max_position_embeddings` → `n_ctx`), never
+    /// a server-side guess; absent config → field omitted (unknown ≠ 0).
+    /// Clients size prompts from this instead of trial-request probing
+    /// (same discoverability contract as `capabilities` / `defaultModel`).
+    var contextLength: Int? = nil
 }
 
 // MARK: - Count Tokens Request/Response

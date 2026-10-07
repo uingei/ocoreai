@@ -323,6 +323,38 @@ enum ModelStore {
         /// 权重目录(加载用)。
         let weightsDir: URL
         let isVlm: Bool
+        /// 服务端可服务的 context window(tokens)。从权重目录 `config.json` 的
+        /// `max_position_embeddings`(回退 `n_ctx`,再回退 `text_config` 内同键,
+        /// 与 HubConfigFetcher 同一解析顺序)读取;无 config → nil(未知 ≠ 谎报)。
+        /// 磁盘读一次即得,与加载时 `EnginePool`/`HubConfigFetcher` 解析出的
+        /// `max_context_length` 同源同序,故 wire 上的能力值不是猜测。
+        /// `var` + 默认值:Swift 成员构造器**不**为带默认值的 `let` 生成参数
+        /// (会报 extra argument),`var` 才会成为带默认值的 init 参数。
+        var contextLength: Int? = nil
+    }
+
+    /// Resolve a ready model's served context window from its on-disk config.
+    /// Same key order as ``HubConfigFetcher`` (max_context_length →
+    /// max_position_embeddings → n_ctx, top level then `text_config`), but
+    /// the DEFAULT differs by honesty contract: the fetcher needs *a* value
+    /// to build a ModelConfig, so it defaults 131_072; discovery exposes the
+    /// capability, so absent keys report nil rather than a fabricated bound.
+    static func contextLength(weightsDir: URL) -> Int? {
+        guard
+            let data = try? Data(contentsOf: weightsDir.appendingPathComponent("config.json")),
+            let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        func resolveInt(_ key: String) -> Int? {
+            if let v = config[key] as? NSNumber, v.intValue > 0 { return v.intValue }
+            if let tc = config["text_config"] as? [String: Any],
+                let v = tc[key] as? NSNumber, v.intValue > 0
+            {
+                return v.intValue
+            }
+            return nil
+        }
+        return resolveInt("max_context_length") ?? resolveInt("max_position_embeddings")
+            ?? resolveInt("n_ctx")
     }
 
     /// 扫描新 root + 旧散落位置,返回全部"就绪"模型(有非空 safetensors)。
@@ -356,7 +388,8 @@ enum ModelStore {
                             id: "hf:\(repoId)",
                             weightsDir: dir,
                             isVlm: fm.fileExists(
-                                atPath: dir.appendingPathComponent("preprocessor_config.json").path)
+                                atPath: dir.appendingPathComponent("preprocessor_config.json").path),
+                            contextLength: contextLength(weightsDir: dir)
                         ))
                 }
             }
@@ -375,7 +408,8 @@ enum ModelStore {
                             weightsDir: repo,
                             isVlm: fm.fileExists(
                                 atPath: repo.appendingPathComponent("preprocessor_config.json").path
-                            )))
+                            ),
+                            contextLength: contextLength(weightsDir: repo)))
                 }
             }
         }
@@ -401,7 +435,8 @@ enum ModelStore {
                                 isVlm: fm.fileExists(
                                     atPath: name.appendingPathComponent("preprocessor_config.json")
                                         .path
-                                )))
+                                ),
+                                contextLength: contextLength(weightsDir: name)))
                     }
                 }
             }
@@ -429,7 +464,8 @@ enum ModelStore {
                                 weightsDir: ready,
                                 isVlm: fm.fileExists(
                                     atPath: ready.appendingPathComponent("preprocessor_config.json")
-                                        .path)))
+                                        .path),
+                                contextLength: contextLength(weightsDir: ready)))
                     }
                 }
             }
@@ -445,7 +481,8 @@ enum ModelStore {
                         id: dir.standardizedFileURL.path,
                         weightsDir: dir.standardizedFileURL,
                         isVlm: fm.fileExists(
-                            atPath: dir.appendingPathComponent("preprocessor_config.json").path)))
+                            atPath: dir.appendingPathComponent("preprocessor_config.json").path),
+                        contextLength: contextLength(weightsDir: dir)))
             }
         }
 
