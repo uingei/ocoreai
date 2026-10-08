@@ -98,12 +98,17 @@ final class SettingsStore {
         get { defaults.bool(forKey: Key.useHFMirror.rawValue) }
         set {
             defaults.set(newValue, forKey: Key.useHFMirror.rawValue)
-            // Process-wide lever for the macro/MLX download paths.
-            setenv("HF_ENDPOINT", newValue ? Self.hfMirrorEndpoint : "https://huggingface.co", 1)
+            // Process-wide lever for the macro/MLX download paths — routed
+            // through HFMirrorPolicy so an explicit HF_ENDPOINT env var is NOT
+            // clobbered by the GUI toggle (env wins; the footer says so).
+            // The persisted Bool is what every startup entry re-applies, so the
+            // lever survives relaunch (was a phantom `hfEndpointMirror` String
+            // read → GUI toggle silently died across restart).
+            HFMirrorPolicy.apply(defaults: defaults)
         }
     }
 
-    static let hfMirrorEndpoint = "https://hf-mirror.com"
+    static let hfMirrorEndpoint = HFMirrorPolicy.mirror
 
     /// True when the user has explicitly chosen the KV-quantization bits.
     /// Untouched (`integer(forKey:)` → 0, which is not a legal width) must not

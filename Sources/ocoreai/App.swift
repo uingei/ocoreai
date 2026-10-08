@@ -277,15 +277,12 @@ public final class OcoreaiEngine {
         setenv("HF_HUB_DISABLE_XET", "1", 1)
 
         // HF_ENDPOINT: mirror/proxy override for restricted regions.
-        // #hubDownloader() auto-picks HF_ENDPOINT from ProcessInfo.
-        // Priority: explicit HF_ENDPOINT env var > HF_ENDPOINT_MIRROR > UserDefaults > default
-        if ProcessInfo.processInfo.environment["HF_ENDPOINT"] == nil {
-            if let mirror = ProcessInfo.processInfo.environment["HF_ENDPOINT_MIRROR"]
-                ?? UserDefaults.standard.string(forKey: "settings.hub.hfEndpointMirror")
-            {
-                setenv("HF_ENDPOINT", mirror, 1)
-            }
-        }
+        // Single choke — precedence operator HF_ENDPOINT > HF_ENDPOINT_MIRROR >
+        // persisted GUI toggle > canonical. The toggle's persisted Bool is
+        // re-applied here so a GUI-enabled mirror survives relaunch (the old
+        // phantom `hfEndpointMirror` String key was never written → lever died
+        // across restart).
+        HFMirrorPolicy.apply()
 
         // Read hub tokens early — needed by BOTH Fast Path (UI) and Bridge Path (HTTP)
         // Must happen before EnginePool init so MLXModelLoader has the token for MS downloads

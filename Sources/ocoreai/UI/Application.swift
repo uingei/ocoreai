@@ -292,12 +292,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Disable xet backend to avoid HuggingFace cache corruption on macOS (MLX upstream pattern).
         setenv("HF_HUB_DISABLE_XET", "1", 1)
 
-        // HF_ENDPOINT: allow mirror/proxy override for restricted regions.
-        // If set, #hubDownloader() picks it up automatically.
-        // If HF_ENDPOINT_MIRROR is set, override HF_ENDPOINT.
-        if let mirror = ProcessInfo.processInfo.environment["HF_ENDPOINT_MIRROR"] {
-            setenv("HF_ENDPOINT", mirror, 1)
-        }
+        // HF_ENDPOINT: single choke with the App/HeadlessServer rules —
+        // operator explicit HF_ENDPOINT is never clobbered (the old
+        // unconditional `if let mirror … setenv(_, 1)` overwrote it), and the
+        // persisted GUI toggle survives relaunch.
+        HFMirrorPolicy.apply()
 
         // Startup hub-reachability probe (10-06 live evidence: huggingface.co
         // unreachable for hours while api.github.com was fine — GFW-style

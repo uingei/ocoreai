@@ -125,10 +125,10 @@ enum HeadlessRuntime {
 
         // Mirror the HF Hub environment knobs the GUI delegate sets —
         // xet's swallowed exceptions and mirror opt-in apply headless too.
+        // Single choke: operator HF_ENDPOINT wins, persisted GUI toggle
+        // honoured, identical precedence to the App and Application paths.
         setenv("HF_HUB_DISABLE_XET", "1", 1)
-        if let mirror = ProcessInfo.processInfo.environment["HF_ENDPOINT_MIRROR"] {
-            setenv("HF_ENDPOINT", mirror, 1)
-        }
+        HFMirrorPolicy.apply()
 
         installShutdownSignal()
         installStdinWatcher()
