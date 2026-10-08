@@ -344,15 +344,44 @@ jobs:
         run: |
           set -euo pipefail
           VER="${GITHUB_REF_NAME#v}"
+          SHA=$(shasum -a 256 "dist/ocoreai-${VER}.dmg" | awk '{print $1}')
+          SIZE=$(stat -f%z "dist/ocoreai-${VER}.dmg")
           NOTE="v${VER} — ocoreai: an agent for open models, natively local.
           双击 DMG → 拖入 Applications。模型在 App 内首启下载 (推荐列表已内置)。
-          首次启动若 Gatekeeper 提示无法打开: 访达→应用程序→右键 ocoreai→打开 (ad-hoc 签名, 仅需一次)。"
+          首次启动若 Gatekeeper 提示无法打开: 访达→应用程序→右键 ocoreai→打开 (ad-hoc 签名, 仅需一次)。
+
+          SHA256: ${SHA}
+          Size: ${SIZE} bytes — 校验: shasum -a 256 ocoreai-${VER}.dmg"
           gh release create "v${VER}" \
             --title "ocoreai v${VER} (macOS)" \
             --notes "${NOTE}" \
             --target main \
             dist/ocoreai-${VER}.dmg
           gh release view "v${VER}" --json assets -q '.assets[].name'
+
+      - name: Read-back verify (published asset integrity loop)
+        # First-principles: 'uploaded' ≠ 'downloadable intact'. Fetch the
+        # published asset back from GitHub's CDN and assert sha256 parity
+        # against the local build — truncation or corruption must fail the
+        # release here, not surface as 'image not recognized' on a user's
+        # machine (v0.1.5 audit surfaced the missing loop).
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VER="${GITHUB_REF_NAME#v}"
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VER}/ocoreai-${VER}.dmg"
+          LOCAL_SHA=$(shasum -a 256 "dist/ocoreai-${VER}.dmg" | awk '{print $1}')
+          curl -fL --retry 3 --retry-delay 5 --max-time 600 -o /tmp/readback.dmg "$URL"
+          RB_SHA=$(shasum -a 256 /tmp/readback.dmg | awk '{print $1}')
+          RB_SIZE=$(stat -f%z /tmp/readback.dmg)
+          LB_SIZE=$(stat -f%z "dist/ocoreai-${VER}.dmg")
+          if [ "$RB_SHA" != "$LOCAL_SHA" ] || [ "$RB_SIZE" != "$LB_SIZE" ]; then
+            echo "❌ asset mismatch — readback sha=$RB_SHA size=$RB_SIZE vs local sha=$LOCAL_SHA size=$LB_SIZE"
+            exit 1
+          fi
+          echo "✅ read-back parity — sha256=$RB_SHA size=$RB_SIZE"
+          rm -f /tmp/readback.dmg
 
   ## ── App Store trait build gate ───────────────────────────────
   # `--traits appStore` EXCLUDES the default traits (FoundationModels
