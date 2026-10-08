@@ -22,10 +22,10 @@ import Testing
 
 struct EnvKeysDocumentationTests {
 
-    /// The 22 env-var keys ocoreai reads. This list IS the contract.
+    /// The 23 env-var keys ocoreai reads. This list IS the contract.
     private static let expectedKeys: [String] = [
         // Server
-        "OCOREAI_HOST", "OCOREAI_PORT",
+        "OCOREAI_HOST", "OCOREAI_PORT", "OCOREAI_ENABLE_HTTP",
         // Auth
         "OCOREAI_API_KEYS", "OCOREAI_ADMIN_KEYS",
         // Backend (ConfigSystem.applyEnvOverrides)

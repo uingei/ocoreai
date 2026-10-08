@@ -185,6 +185,40 @@ jobs:
           echo "Running test bundle: $XCB"
           xcrun xctest "$XCB"
 
+      # ── Headless serve smoke — the 10-08 fc28cc8 contract ──
+      # 'serve' must boot the bridge on 127.0.0.1:8080 in a SESSION WITH NO
+      # FOREGROUND GUI (the exact condition that silently never bound before
+      # HeadlessServer existed) and SIGTERM must exit 0 after draining.
+      # Models are lazy — no weights downloaded; full inference E2E is
+      # smoke-tested against the release DMG by the maintainer, not here.
+      - name: Headless serve smoke (macos-26)
+        if: ${{ matrix.os == 'macos-26' }}
+        run: |
+          set -euo pipefail
+          BIN=$(find ~/Library/Developer/Xcode/DerivedData -name ocoreai -type f -path '*Debug*' 2>/dev/null | head -1)
+          [ -n "$BIN" ] || { echo "❌ Debug binary not found in DerivedData"; exit 1; }
+          echo "smoke binary: $BIN"
+          "$BIN" serve >/tmp/serve_smoke.log 2>&1 &
+          SPID=$!
+          trap 'kill -TERM $SPID 2>/dev/null || true' EXIT
+          OK=""
+          for i in $(seq 1 30); do
+            sleep 2
+            if curl -sf -m 3 http://127.0.0.1:8080/health >/tmp/serve_health.json; then OK=1; break; fi
+            kill -0 $SPID 2>/dev/null || { echo "❌ serve process died early"; cat /tmp/serve_smoke.log; exit 1; }
+          done
+          [ -n "$OK" ] || { echo "❌ /health not bound within 60s"; cat /tmp/serve_smoke.log; exit 1; }
+          echo "✅ headless /health:"; head -c 200 /tmp/serve_health.json; echo
+          kill -TERM $SPID
+          for i in $(seq 1 20); do kill -0 $SPID 2>/dev/null || break; sleep 1; done
+          if kill -0 $SPID 2>/dev/null; then echo "❌ SIGTERM ignored (still alive after 20s)"; kill -9 $SPID; exit 1; fi
+          wait $SPID || RC=$?
+          RC=${RC:-0}
+          grep -q "headless serve starting" /tmp/serve_smoke.log || { echo "❌ no 'headless serve starting' marker in log"; exit 1; }
+          grep -q "shut down complete" /tmp/serve_smoke.log || { echo "❌ no 'shut down complete' in log"; exit 1; }
+          [ "$RC" -eq 0 ] || { echo "❌ SIGTERM exit code $RC (expected 0)"; exit 1; }
+          echo "✅ headless serve: bound → SIGTERM → exit 0, drain complete"
+
       # ── Release build via xcodebuild ──
       - name: Build (xcodebuild, Release)
         if: ${{ matrix.build_release == true }}
