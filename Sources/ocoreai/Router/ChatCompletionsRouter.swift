@@ -365,6 +365,49 @@ func buildRouter(
         )
     }
 
+    // MARK: Steering (mid-turn course-correction, in-flight turn control)
+
+    /// Enqueue a mid-turn steer for a conversation. Same-queue contract as the
+    /// GUI composer's steer path — this route adds only the wire, zero new
+    /// queueing logic (single SteerQueue, single drain seam in the engine).
+    ///
+    /// Semantics (deliberately accept-always-on-valid-input): if a turn is
+    /// live for this conversation_id, the engine drains at the next boundary
+    /// mid-turn; if not, the steer survives and merges into the NEXT request
+    /// for the same conversation (the queue is persistent, not turn-scoped).
+    /// This mirrors codex's interjection queue — there is no "turn busy?
+    /// 409" surface because steer-by-definition never fails on availability.
+    /// Auth + rate limit apply (registered before these routes upstream).
+    routes.post("/v1/steer") { request, context -> Response in
+        struct SteerRequestBody: Codable {
+            let sessionId: String
+            let text: String
+            // Explicit wire keys: the request decoder is plain (this server's
+            // contract is snake_case on the wire — `session_id`/`queued_count`
+            // like every other endpoint), same convention as
+            // CountTokensResponse.CodingKeys.
+            enum CodingKeys: String, CodingKey {
+                case sessionId = "session_id"
+                case text
+            }
+        }
+        let body = try await request.decode(
+            as: SteerRequestBody.self, context: context)
+        guard !body.sessionId.isEmpty else {
+            throw AppError.invalidRequest("session_id must not be empty")
+        }
+        let queued = SteerQueue.shared.enqueue(
+            sessionKey: body.sessionId, text: body.text)
+        guard queued else {
+            throw AppError.invalidRequest("text must not be empty")
+        }
+        return try Response.json(
+            SteerResponse(
+                sessionId: body.sessionId,
+                queuedCount: SteerQueue.shared.pendingCount(
+                    sessionKey: body.sessionId)))
+    }
+
     // MARK: Authenticated Routes
 
     routes.post("/v1/chat/completions") { request, context in
@@ -822,6 +865,19 @@ struct MemoryResponse: Codable {
 struct SessionDeleteResponse: Codable {
     let deleted: Bool
     let id: Int64
+}
+
+/// `POST /v1/steer` response — echoes the queue truth after accept.
+/// Wire: `{"session_id": …, "queued_count": N}` (snake_case on the wire,
+/// consistent with the OpenAI-compatible surface; decoder is snake_case).
+struct SteerResponse: Codable {
+    let sessionId: String
+    let queuedCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case sessionId = "session_id"
+        case queuedCount = "queued_count"
+    }
 }
 
 // MARK: - Model List Response (OpenAI-Compatible)
