@@ -2881,11 +2881,31 @@ extension EnginePool {
                     // sees updated environment state on each tool dispatch iteration.
                     // Uses MainActor.run to bridge @MainActor PerceptionEngine boundary.
                     let freshContext = await fetchPerceptionContext()
+                    // Mid-turn steering (non-MTP / native ChatSession path): the
+                    // upstream loop owns generation internally and exposes no message
+                    // seam, so steers ride the tool-result tail — the same proven
+                    // injection channel P-S2 uses for perception context. The model
+                    // reads it as part of this tool's outcome and course-corrects
+                    // on the next iteration. Un-drained steers still reach the model
+                    // via the persisted transcript on the next request (never lost).
+                    let steers = SteerQueue.shared.drain(sessionKey: convKey)
+                    let steerText =
+                        steers.isEmpty ? "" : SteerQueue.renderAsUserText(steers)
+                    if !steerText.isEmpty {
+                        logger.info(
+                            "Steering injected via tool-result tail: \(steers.count) message(s)"
+                        )
+                    }
                     if !freshContext.isEmpty {
                         emitToolResult(ToolResultMeta.summary(toolResult), nil)
-                        return toolResult + "\n" + freshContext
+                        var out = toolResult + "\n" + freshContext
+                        if !steerText.isEmpty { out += "\n" + steerText }
+                        return out
                     }
                     emitToolResult(ToolResultMeta.summary(toolResult), nil)
+                    if !steerText.isEmpty {
+                        return toolResult + "\n" + steerText
+                    }
                     return toolResult
                 }
             }
@@ -3435,6 +3455,25 @@ extension EnginePool {
                                         acceptedDraftTokens: mtpAcceptedDraftTokens,
                                         passthroughReason: mtpPassthroughReason)))
                             break
+                        }
+
+                        // Mid-turn steering (Hermes-style): drain user interjections
+                        // queued while this turn was streaming and append them as
+                        // user-role turns BEFORE the next generation — the model
+                        // sees the course-correction at the next tool boundary
+                        // without the stream being killed. convKey is the same
+                        // session identity the engine uses everywhere above.
+                        let steers = SteerQueue.shared.drain(sessionKey: convKey)
+                        if !steers.isEmpty {
+                            mtpMessages.append(
+                                Chat.Message(
+                                    role: .user,
+                                    content: SteerQueue.renderAsUserText(steers)
+                                )
+                            )
+                            logger.info(
+                                "Steering injected into MTP loop iteration \(mtpToolLoopCount): \(steers.count) message(s)"
+                            )
                         }
 
                         // Reset per-iteration state

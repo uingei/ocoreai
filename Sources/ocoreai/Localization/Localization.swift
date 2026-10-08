@@ -340,6 +340,9 @@ public enum StringKey: String, CaseIterable, Sendable {
     case stopStreamingHint = "A11y.StopStreamingHint"
     case sendMessageLabel = "A11y.SendMessageLabel"
     case sendMessageHint = "A11y.SendMessageHint"
+    case composerSteerLabel = "Composer.SteerLabel"
+    case composerSteerHint = "Composer.SteerHint"
+    case composerSteerQueued = "Composer.SteerQueued"
     case youLabel = "A11y.YouLabel"
     case ocoreaiLabel = "A11y.OcoreaiLabel"
     case suggestionHint = "A11y.SuggestionHint"
@@ -852,6 +855,9 @@ enum L10nTables {
         .messageInputHint: "Type your message and press Enter to send",
         .stopStreamingLabel: "Stop Streaming",
         .stopStreamingHint: "Tap to stop the current response",
+        .composerSteerLabel: "Steer this turn",
+        .composerSteerHint: "Send a course-correction to the running turn without stopping it",
+        .composerSteerQueued: "Steering queued",
         .sendMessageLabel: "Send Message",
         .sendMessageHint: "Tap to send your message",
         .youLabel: "You",
@@ -1306,6 +1312,9 @@ enum L10nTables {
         .messageInputHint: "输入消息后按回车发送",
         .stopStreamingLabel: "停止流式输出",
         .stopStreamingHint: "点击停止当前回复",
+        .composerSteerLabel: "引导本轮",
+        .composerSteerHint: "不打断当前回复，向进行中的一轮发送方向修正",
+        .composerSteerQueued: "待引导",
         .sendMessageLabel: "发送消息",
         .sendMessageHint: "点击发送你的消息",
         .youLabel: "你",

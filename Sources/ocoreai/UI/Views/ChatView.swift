@@ -749,20 +749,71 @@ struct ChatView: View {
                     .accessibilityHint(StringKey.messageInputHint.l)
 
                 Button {
-                    isStreaming ? stopStreaming() : sendMessage()
+                    if isStreaming {
+                        // Streaming + text present → this is a STEER (route it live);
+                        // the stop control remains reachable via the dedicated
+                        // stop affordance once the field is empty, and Esc anywhere.
+                        let trimmed = chatState.inputText.trimmingCharacters(
+                            in: .whitespacesAndNewlines)
+                        if trimmed.isEmpty {
+                            stopStreaming()
+                        } else {
+                            sendVoiceMessage(trimmed)
+                        }
+                    } else {
+                        sendMessage()
+                    }
                 } label: {
-                    Image(systemName: isStreaming ? "stop.circle.fill" : "arrow.up.circle.fill")
+                    if isStreaming {
+                        Image(
+                            systemName:
+                                chatState.inputText.trimmingCharacters(
+                                    in: .whitespacesAndNewlines
+                                ).isEmpty
+                                ? "stop.circle.fill" : "bolt.circle.fill"
+                        )
                         .font(.title2)
-                        .foregroundStyle(isStreaming ? theme.redDot : theme.accent)
+                        .foregroundStyle(
+                            chatState.inputText.trimmingCharacters(
+                                in: .whitespacesAndNewlines
+                            ).isEmpty
+                                ? theme.redDot : theme.accent
+                        )
+                    } else {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(theme.accent)
+                    }
                 }
                 .accessibilityLabel(
-                    isStreaming ? StringKey.stopStreamingLabel.l : StringKey.sendMessageLabel.l
+                    isStreaming
+                        ? (chatState.inputText.trimmingCharacters(
+                            in: .whitespacesAndNewlines
+                        ).isEmpty
+                            ? StringKey.stopStreamingLabel.l : StringKey.composerSteerLabel.l)
+                        : StringKey.sendMessageLabel.l
                 )
                 .accessibilityHint(
-                    isStreaming ? StringKey.stopStreamingHint.l : StringKey.sendMessageHint.l
+                    isStreaming
+                        ? StringKey.composerSteerHint.l : StringKey.sendMessageHint.l
                 )
+                // Stop stays reachable while streaming; plain send needs content.
                 .disabled(
-                    isStreaming && chatState.inputText.trimmingCharacters(in: .whitespaces).isEmpty)
+                    !isStreaming && chatState.inputText.trimmingCharacters(in: .whitespaces).isEmpty
+                        && chatState.pendingAttachments.isEmpty)
+            }
+            // Steering queue chip — truthful badge: engine drains decrement it,
+            // turn-end flush zeroes it. Only ever visible while streaming.
+            if chatState.pendingSteerCount > 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: "bolt.badge.clock")
+                        .font(.ocoreaiText(9))
+                    Text("\(StringKey.composerSteerQueued.l) · \(chatState.pendingSteerCount)")
+                        .font(.ocoreaiText(10, weight: .medium))
+                }
+                .foregroundStyle(theme.accent)
+                .accessibilityLabel(
+                    "\(StringKey.composerSteerQueued.l) \(chatState.pendingSteerCount)")
             }
         }
         .padding()
@@ -873,7 +924,20 @@ struct ChatView: View {
     // so the user can still type while voice loop is active
     private func sendVoiceMessage(_ text: String) {
         let hasText = !text.isEmpty
-        guard (hasText || !chatState.pendingAttachments.isEmpty) && !isStreaming else { return }
+        guard hasText || !chatState.pendingAttachments.isEmpty else { return }
+        // Mid-turn steering: while a stream is active, a send is NOT a new
+        // request — it is a course-correction. Route to the steer path instead
+        // of swallowing it behind the old `!isStreaming` guard (that guard made
+        // the live agent deaf to the user for the whole turn — the chat-shell
+        // failure mode; Hermes-style steering is the fix). Attachments/voice
+        // do not steer (queue-only modalities need a fresh turn) → fall back.
+        if isStreaming {
+            guard hasText, chatState.pendingAttachments.isEmpty else { return }
+            if chatState.submitSteer(text) {
+                chatState.inputText = ""
+            }
+            return
+        }
         chatState.inputText = ""
         let currentAttachments = chatState.pendingAttachments
         chatState.pendingAttachments.removeAll()

@@ -157,6 +157,77 @@ final class ChatState {
     var inputText: String = ""
     var pendingAttachments: [AttachedImage] = []
 
+    // MARK: - Mid-turn steering (Hermes-style)
+    //
+    // While a stream is active, the composer stays LIVE: sending routes here
+    // instead of being disabled. Each steer is (a) persisted as a user message
+    // immediately — transcript truth, survives everything — and (b) enqueued to
+    // SteerQueue keyed by inferenceSessionId, the same convKey the engine
+    // drains at tool-loop boundaries. If the engine drains it this turn, the
+    // model course-corrects mid-flight; if not, it reaches the model via the
+    // persisted history on the next request. Either way: never lost, never
+    // silently swallowed.
+
+    /// Composer text staged as steering while streaming (echoes the send —
+    /// cleared by ChatView after enqueue). Rendered as a user bubble at enqueue
+    /// time, so the transcript already shows it.
+    @ObservationIgnored var steerComposerText: String = ""
+
+    /// Live badge count for the "Queued · N" chip. Engine drain decrements it
+    /// via notifySteerDrained(); turn-end flush zeroes it.
+    private(set) var pendingSteerCount: Int = 0
+
+    /// Visible bubble marker so steering reads distinct from the original ask
+    /// (mirrors SteerQueue.wireMarker on the model side).
+    static let steerBubbleMarker = "⚡"
+
+    /// Current steering session key (nil before the first session exists —
+    /// guard in steerNow keeps the enqueue honest rather than keyless).
+    var steerSessionKey: String? {
+        inferenceSessionId
+    }
+
+    /// Submit a mid-turn steer: persist to transcript + enqueue for this turn.
+    /// Returns false when there is no session key yet (composer stays the
+    /// fallback: caller re-fills inputText).
+    func submitSteer(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let key = steerSessionKey else { return false }
+        let msg = ChatMessage(role: "user", content: "\(Self.steerBubbleMarker) \(trimmed)")
+        messages.append(msg)
+        Task { await persistMessage(role: "user", content: msg.content) }
+        SteerQueue.shared.enqueue(sessionKey: key, text: trimmed)
+        pendingSteerCount = SteerQueue.shared.pendingCount(sessionKey: key)
+        Self.logger.info("Steer queued (session \(key)): \(trimmed.prefix(60))")
+        return true
+    }
+
+    /// Engine drained steers mid-loop (called from DirectInferenceClient's
+    /// chunk consumer via a notification side-channel) — keep badge truthful.
+    func refreshSteerBadge() {
+        guard let key = steerSessionKey else {
+            pendingSteerCount = 0
+            return
+        }
+        pendingSteerCount = SteerQueue.shared.pendingCount(sessionKey: key)
+    }
+
+    /// Turn-end flush: un-drained steers return to the composer (editable,
+    /// visible), never vanish. The transcript bubble remains regardless.
+    func flushPendingSteersToComposer() {
+        guard let key = steerSessionKey else { return }
+        let leftovers = SteerQueue.shared.drain(sessionKey: key)
+        pendingSteerCount = 0
+        guard !leftovers.isEmpty else { return }
+        let joined = leftovers.map(\.text).joined(separator: "\n")
+        if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            inputText = joined
+        } else {
+            inputText += "\n" + joined
+        }
+        Self.logger.info("Steering flush: \(leftovers.count) message(s) back to composer")
+    }
+
     /// Turn-end 停语音 seam:生产绑 `AudioIO.shared.stopSpeaking`（幂等）,
     /// 测试可覆盖为 spy 闭包断言「turn 终结 ⇒ 停 TTS」, 不依赖 AVFoundation。
     internal var turnEndVoiceStopHook: @MainActor () -> Void = { AudioIO.shared.stopSpeaking() }
@@ -941,6 +1012,11 @@ final class ChatState {
             for await chunk in try await DirectInferenceClient.shared.stream(request: request) {
                 // P0-3: respect cancellation from both the token and outer Task
                 guard !cancellation.isCancelled, !Task.isCancelled else { break }
+                // Steering badge refresh: an engine drain happened if the queue
+                // shrank — keep the "Queued · N" chip truthful without polling.
+                if pendingSteerCount > 0 {
+                    refreshSteerBadge()
+                }
                 // Wire live metrics to ChatState so the UI can display them
                 if let ttft = chunk.ttftMs {
                     currentTTFTMs = ttft
@@ -1232,6 +1308,9 @@ final class ChatState {
             responseText = ""
             currentCancellation = nil
         }
+        // Steering turn-end flush: anything the engine loop never drained
+        // returns to the composer (visible, editable) — never silently lost.
+        flushPendingSteersToComposer()
         // Caller is @MainActor (ChatViewModel); inferenceEnded() is @MainActor sync —
         // no await needed. Fires at the common exit point of chat().
         PerceptionEngine.shared.inferenceEnded()
@@ -1286,6 +1365,13 @@ final class ChatState {
         // interrupted message (captured by the undo snapshot below for Cmd+Z), and
         // closes the `_cancelledByUI` gate.
         cancelInference()
+        // Steering leak guard: queued steers belong to THIS conversation —
+        // carrying them across a reset would act on stale intent (same class
+        // as session-approved tools surviving ApprovalBroker.cancelAll()).
+        if let key = inferenceSessionId {
+            SteerQueue.shared.discard(sessionKey: key)
+        }
+        pendingSteerCount = 0
         // Symmetric with onModelChanged L405-406 / resetForTesting L1057-1058.
         pendingUnloadTask?.cancel()
         pendingUnloadTask = nil

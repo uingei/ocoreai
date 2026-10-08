@@ -392,6 +392,15 @@ public final class OcoreaiEngine {
         // 审批 UI 桥：broker pending/resolved → AppState（@MainActor）
         await approvalBroker.setOnPending { row in
             AppState.shared.pendingApprovals.insert(row, at: 0)
+            // Escape channel: the banner lives in the chat tab — if the user is
+            // elsewhere (Models download, Settings), the approval is invisible and
+            // the agent hangs silently. A system notification makes the wait
+            // VISIBLE outside the tab; the click routes back to chat where the
+            // banner holds the only decision buttons (single adjudication surface).
+            #if os(macOS)
+            ApprovalNotifier.notifyPendingApproval(
+                toolName: row.toolName, snippet: row.snippet)
+            #endif
         }
         await approvalBroker.setOnResolved { row, _ in
             AppState.shared.pendingApprovals.removeAll { $0.id == row.id }
