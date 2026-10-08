@@ -5,6 +5,7 @@
 /// Creates a fresh UserDefaults suite per test to avoid cross-test pollution.
 
 import Foundation
+import HuggingFace
 import Testing
 
 @testable import ocoreai
@@ -152,5 +153,69 @@ struct SettingsStoreTests {
         #expect(s.serverHost == "127.0.0.1")
         #expect(s.serverPort == 8080)
         #expect(s.pollIntervalSec >= 1 && s.pollIntervalSec <= 10)
+    }
+}
+
+// MARK: - HF Mirror (live-lever semantics)
+
+@MainActor
+@Suite("SettingsStore HF Mirror")
+struct SettingsStoreHFMirrorTests {
+
+    private func freshDefaults() -> UserDefaults {
+        UserDefaults(suiteName: "test.ocoreai.\(UUID().uuidString)")!
+    }
+
+    /// Snapshot & restore HF_ENDPOINT around each test — setenv is process-wide.
+    private func withEnvRestore(_ body: () async throws -> Void) async rethrows {
+        let saved = ProcessInfo.processInfo.environment["HF_ENDPOINT"]
+        defer {
+            if let saved { setenv("HF_ENDPOINT", saved, 1) } else { unsetenv("HF_ENDPOINT") }
+        }
+        try await body()
+    }
+
+    @Test("useHFMirror defaults OFF (strict provenance default)")
+    func mirrorDefaultOff() async throws {
+        try await withEnvRestore {
+            let s = SettingsStore(defaults: freshDefaults())
+            #expect(s.useHFMirror == false)
+        }
+    }
+
+    @Test("enabling mirror sets HF_ENDPOINT live (per-construction detectHost)")
+    func mirrorToggleEnv() async throws {
+        try await withEnvRestore {
+            let s = SettingsStore(defaults: freshDefaults())
+            s.useHFMirror = true
+            #expect(ProcessInfo.processInfo.environment["HF_ENDPOINT"] == "https://hf-mirror.com")
+            // The SDK re-reads env per HubClient() construction → search +
+            // readyHubClient + macro-less download paths all follow the toggle.
+            let hub = HuggingFace.HubClient()
+            #expect(hub.host.host() == "hf-mirror.com")
+        }
+    }
+
+    @Test("disabling mirror restores official endpoint")
+    func mirrorToggleOff() async throws {
+        try await withEnvRestore {
+            let s = SettingsStore(defaults: freshDefaults())
+            s.useHFMirror = true
+            s.useHFMirror = false
+            #expect(ProcessInfo.processInfo.environment["HF_ENDPOINT"] == "https://huggingface.co")
+            #expect(HuggingFace.HubClient().host.host() == "huggingface.co")
+        }
+    }
+
+    @Test("readyHubClient follows the live toggle")
+    func readyHubClientFollowsToggle() async throws {
+        try await withEnvRestore {
+            let s = SettingsStore(defaults: freshDefaults())
+            s.useHFMirror = true
+            // readyHubClient constructs per-call → detectHost sees the toggle.
+            #expect(ModelStore.readyHubClient().host.host() == "hf-mirror.com")
+            s.useHFMirror = false
+            #expect(ModelStore.readyHubClient().host.host() == "huggingface.co")
+        }
     }
 }

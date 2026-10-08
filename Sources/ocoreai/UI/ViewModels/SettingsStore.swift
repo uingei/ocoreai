@@ -89,6 +89,22 @@ final class SettingsStore {
         set { defaults.set(newValue, forKey: Key.showPerformanceMetrics.rawValue) }
     }
 
+    /// Use hf-mirror.com instead of huggingface.co for hub search, metadata,
+    /// and model downloads. Opt-in relay for networks where huggingface.co
+    /// is unreachable (startup probe: `ocoreai.startup` live evidence).
+    /// Blobs are byte-identical (HF's own mirror) but served by a third
+    /// party — provenance trust stays a user decision, default OFF.
+    var useHFMirror: Bool {
+        get { defaults.bool(forKey: Key.useHFMirror.rawValue) }
+        set {
+            defaults.set(newValue, forKey: Key.useHFMirror.rawValue)
+            // Process-wide lever for the macro/MLX download paths.
+            setenv("HF_ENDPOINT", newValue ? Self.hfMirrorEndpoint : "https://huggingface.co", 1)
+        }
+    }
+
+    static let hfMirrorEndpoint = "https://hf-mirror.com"
+
     /// True when the user has explicitly chosen the KV-quantization bits.
     /// Untouched (`integer(forKey:)` → 0, which is not a legal width) must not
     /// be read as a selection; that dimension keeps the authored value.
@@ -615,6 +631,7 @@ final class SettingsStore {
         // Hub Tokens
         case hfToken = "settings.hub.hfToken"
         case modelScopeToken = "settings.hub.modelScopeToken"
+        case useHFMirror = "settings.hub.useHFMirror"
 
         // Perception
         case perceptionEnabled = "settings.perception.enabled"

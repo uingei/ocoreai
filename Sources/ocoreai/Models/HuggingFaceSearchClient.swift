@@ -84,8 +84,10 @@ actor HuggingFaceSearchClient {
     private let hubClient: HubClient
 
     /// Create with auto-detected token (HF_TOKEN env var, ~/.huggingface/token, etc.)
+    /// Constructed fresh (not `.default`) so HF_ENDPOINT — the live lever
+    /// behind Settings' "use hf-mirror.com" toggle — is re-read per instance.
     init() {
-        hubClient = .default
+        hubClient = HubClient()
     }
 
     /// Search models by query string.

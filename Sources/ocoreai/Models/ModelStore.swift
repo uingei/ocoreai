@@ -101,7 +101,9 @@ enum ModelStore {
     }
 
     /// 就绪目录锚定的 `HubClient`(认证走 `.environment`,与旧宏路径一致;
-    /// 缓存固定到 `hubRoot`)。
+    /// 缓存固定到 `hubRoot`)。host 由 SDK `detectHost()` 读取 HF_ENDPOINT —
+    /// SettingsStore.useHFMirror 的 setenv 即活开关（每次构造生效，默认
+    /// 官方；镜像为第三方中继，用户显 opt-in）。
     static func readyHubClient() -> HuggingFace.HubClient {
         ensureLayout()
         return HuggingFace.HubClient(cache: HuggingFace.HubCache(cacheDirectory: hubRoot))

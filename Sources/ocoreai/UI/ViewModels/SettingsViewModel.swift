@@ -43,6 +43,7 @@ final class SettingsState {
         customSystemPrompt = SettingsStore.shared.customSystemPrompt
         hfToken = SettingsStore.shared.hfToken
         modelScopeToken = SettingsStore.shared.modelScopeToken
+        useHFMirror = SettingsStore.shared.useHFMirror
         perceptionEnabled = SettingsStore.shared.perceptionEnabled
         perceptionFilesystemEnabled = SettingsStore.shared.perceptionFilesystemEnabled
         perceptionInternetEnabled = SettingsStore.shared.perceptionInternetEnabled
@@ -346,6 +347,14 @@ final class SettingsState {
         didSet {
             guard oldValue != hfToken else { return }
             SettingsStore.shared.hfToken = hfToken
+        }
+    }
+
+    /// HF mirror relay toggle (see SettingsStore.useHFMirror).
+    var useHFMirror: Bool = SettingsStore.shared.useHFMirror {
+        didSet {
+            guard oldValue != useHFMirror else { return }
+            SettingsStore.shared.useHFMirror = useHFMirror
         }
     }
 

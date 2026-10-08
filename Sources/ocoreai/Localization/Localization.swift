@@ -161,6 +161,8 @@ public enum StringKey: String, CaseIterable, Sendable {
     case hubTokensHint = "Settings.HubTokensHint"
     case hubHuggingFace = "Settings.HubHuggingFace"
     case hubModelScope = "Settings.HubModelScope"
+    case hfMirrorToggle = "Settings.HFMirrorToggle"
+    case hfMirrorHint = "Settings.HFMirrorHint"
     case notConfigured = "Common.NotConfigured"
     case enterTokenPlaceholder = "Common.EnterTokenPlaceholder"
 
@@ -743,6 +745,9 @@ enum L10nTables {
         .hubTokensTitle: "Hub Tokens",
         .hubTokensHint:
             "Tokens for accessing model hubs (HuggingFace, ModelScope). HF_TOKEN / MODELSCOPE_TOKEN env vars take precedence.",
+        .hfMirrorToggle: "Use hf-mirror.com",
+        .hfMirrorHint:
+            "Downloads and searches route through the hf-mirror.com relay when huggingface.co is unreachable. Blobs are byte-identical; the relay is third-party — turn it off for strict provenance.",
         .notConfigured: "Not configured",
         .enterTokenPlaceholder: "Enter token...",
         .hubHuggingFace: "HuggingFace",
@@ -1250,6 +1255,8 @@ enum L10nTables {
         .hubHuggingFace: "HuggingFace",
         .hubModelScope: "ModelScope",
         .hubTokensHint: "模型 Hub 访问 Token（HuggingFace、ModelScope）。安全存储在 macOS 钥匙串中。",
+        .hfMirrorToggle: "使用 hf-mirror.com 镜像",
+        .hfMirrorHint: "当 huggingface.co 不可达时，下载与搜索改走 hf-mirror.com 中继。文件与其逐字节一致，但中继为第三方托管——需要严格来源可信时请关闭。",
         .hubTokensTitle: "Hub Token",
         .notConfigured: "未配置",
         .sectionModels: "模型",

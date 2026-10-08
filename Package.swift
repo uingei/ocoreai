@@ -147,6 +147,7 @@ let package = Package(
                 "ocoreai",
                 "ocoreaiTestUtilities",
                 .product(name: "HummingbirdTesting", package: "hummingbird"),
+                .product(name: "HuggingFace", package: "swift-huggingface"),
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),

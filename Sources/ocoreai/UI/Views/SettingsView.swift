@@ -142,6 +142,16 @@ struct SettingsView: View {
                         settingsState.modelScopeToken = (newValue.isEmpty ? nil : newValue)
                     }
             }
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle(isOn: $settingsState.useHFMirror) {
+                    Text(StringKey.hfMirrorToggle.l)
+                        .font(.ocoreaiText(15))
+                }
+                .accessibilityLabel(StringKey.hfMirrorToggle.l)
+                Text(StringKey.hfMirrorHint.l)
+                    .font(.ocoreaiText(11))
+                    .foregroundStyle(.secondary)
+            }
         } header: {
             Text(StringKey.hubTokensTitle.l)
         } footer: {
