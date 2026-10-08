@@ -93,6 +93,19 @@ struct SteerQueueTests {
         #expect(SteerQueue.renderAsUserText([]).isEmpty)
     }
 
+    @Test("HTTP wire shape — snake_case keys both directions")
+    func wireKeys() throws {
+        // The /v1/steer contract: request {session_id,text} response
+        // {session_id,queued_count}. Pinned so a renormalization to camelCase
+        // (decoder drift) fails loudly instead of silently 400-ing clients.
+        let resp = SteerResponse(sessionId: "abc", queuedCount: 2)
+        let data = try JSONEncoder().encode(resp)
+        let json = try #require(
+            String(data: data, encoding: .utf8))
+        #expect(json.contains("\"session_id\":\"abc\""))
+        #expect(json.contains("\"queued_count\":2"))
+    }
+
     @Test("concurrent enqueue+drain — Mutex serialization, no dup, ceiling holds")
     func concurrentNoLoss() async {
         let q = SteerQueue()
