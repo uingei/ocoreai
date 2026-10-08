@@ -351,4 +351,117 @@ enum FMErrorClassifier {
     }
 }
 
+// MARK: - FM option resolver
+
+/// Pure option-decision resolvers extracted verbatim from
+/// `runInferenceBody`'s macOS-27 FM bridge, so the giant body keeps only
+/// control flow while the SDK-API mapping decisions live in one named,
+/// reviewable place. Byte-identical behavior: same inputs → same outputs.
+/// Compiled only under the FoundationModelsIntegration trait + SDK ≥27
+/// (same umbrella as FMToolProxy / FMTranscriptHelpers above).
+@available(macOS 27.0, iOS 27.0, *)
+enum FMOptionResolver {
+    /// GenerationOptions.SamplingMode resolution.
+    /// SDK SamplingMode factory methods (static, not init):
+    ///   .greedy, .random(top:seed:), .random(probabilityThreshold:seed:)
+    static func samplingMode(
+        from sampling: SamplingConfiguration
+    ) -> GenerationOptions.SamplingMode? {
+        if sampling.mode == .greedy {
+            .greedy
+        } else if let topK = sampling.topK, sampling.mode != .default {
+            .random(top: topK, seed: sampling.seed.map { UInt64($0) })
+        } else if let topP = sampling.topP, sampling.mode != .default {
+            .random(probabilityThreshold: topP, seed: sampling.seed.map { UInt64($0) })
+        } else {
+            nil
+        }
+    }
+
+    /// Tool-calling mode resolution — mode must match actual tool state.
+    /// Using .allowed when no tools exist causes FM SDK to inject tool-calling
+    /// template markers into the prompt — triggering spurious tool responses
+    /// from models that don't actually know tools. Use .disallowed when empty.
+    /// Upstream ToolCallingModeResolution supports .allowed / .required / .disallowed.
+    /// .required enables think-then-call reasoning phase before tool dispatch.
+    static func toolCallingMode(
+        toolsPresent: Bool,
+        explicitToolChoice: String?
+    ) -> FoundationModels.GenerationOptions.ToolCallingMode {
+        guard toolsPresent else {
+            // No tools — force .disallowed regardless of user preference
+            return .disallowed
+        }
+        // Tools available — resolve mode from explicit option or default to .allowed
+        switch explicitToolChoice?.lowercased() {
+        case "required": return .required
+        case "disallowed": return .disallowed
+        default: return .allowed
+        }
+    }
+
+    /// ContextOptions: reasoning level resolution.
+    /// SDK ReasoningLevel: .light, .moderate, .deep, .custom(String)
+    /// Upstream Executor.respond() routing: thinkingEnabled() maps
+    /// .light/.moderate/.deep → true; .custom("no_think") → false.
+    /// When user provides explicit reasoningLevel, honor it.
+    /// When only boolean reasoning toggle, default to .deep.
+    static func contextOptions(
+        explicitReasoningLevel: String?,
+        enableReasoning: Bool?,
+        log: Logging.Logger
+    ) -> ContextOptions {
+        if let levelStr = explicitReasoningLevel {
+            switch levelStr.lowercased() {
+            case "light":
+                log.info("Reasoning level: .light")
+                return ContextOptions(reasoningLevel: .light)
+            case "moderate":
+                log.info("Reasoning level: .moderate")
+                return ContextOptions(reasoningLevel: .moderate)
+            case "deep":
+                log.info("Reasoning level: .deep")
+                return ContextOptions(reasoningLevel: .deep)
+            default:
+                if enableReasoning == true {
+                    return ContextOptions(reasoningLevel: .deep)
+                } else {
+                    return ContextOptions()
+                }
+            }
+        } else if enableReasoning == true {
+            // Legacy boolean path — defaults to .deep for alignment
+            log.info("Reasoning enabled via ContextOptions.reasoningLevel=.deep")
+            return ContextOptions(reasoningLevel: .deep)
+        } else {
+            return ContextOptions()
+        }
+    }
+
+    /// Guided-generation schema resolution: grammarSchema (standard JSON Schema)
+    /// → FoundationModels.GenerationSchema via the DynamicGenerationSchema tree
+    /// (same route as FMToolProxy — GenerationSchema's Codable is the canonical
+    /// shape with x-order/title, so a plain JSON Schema must NOT be decoded).
+    /// Returns nil when absent or malformed (caller falls back to unguided).
+    static func guidedSchema(
+        from grammarSchema: String?
+    ) -> FoundationModels.GenerationSchema? {
+        (try? {
+            guard
+                let schemaJSON = grammarSchema,
+                let data = schemaJSON.data(using: .utf8),
+                let dict = try JSONSerialization.jsonObject(with: data)
+                    as? [String: Any]
+            else { return nil as FoundationModels.GenerationSchema? }
+            guard
+                let dynamic = FMToolProxy.makeDynamicSchema(
+                    from: dict, name: "guided"
+                )
+            else { return nil }
+            return try FoundationModels.GenerationSchema(
+                root: dynamic, dependencies: [])
+        }()) ?? nil
+    }
+}
+
 #endif  // FoundationModelsIntegration

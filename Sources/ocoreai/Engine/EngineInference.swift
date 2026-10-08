@@ -2418,39 +2418,15 @@ extension EnginePool {
                 )
 
                 // --- GenerationOptions: sampling params ---
-                // SDK SamplingMode factory methods (static, not init):
-                //   .greedy, .random(topK:seed:), .random(probabilityThreshold:seed:)
+                // Resolution extracted to FMOptionResolver (verbatim).
                 let samplingMode: GenerationOptions.SamplingMode? =
-                    if sampling.mode == .greedy {
-                        .greedy
-                    } else if let topK = sampling.topK, sampling.mode != .default {
-                        .random(top: topK, seed: sampling.seed.map { UInt64($0) })
-                    } else if let topP = sampling.topP, sampling.mode != .default {
-                        .random(probabilityThreshold: topP, seed: sampling.seed.map { UInt64($0) })
-                    } else {
-                        nil
-                    }
+                    FMOptionResolver.samplingMode(from: sampling)
                 // toolCalling mode must match actual tool state.
-                // Using .allowed when no tools exist causes FM SDK to inject tool-calling
-                // template markers into the prompt — triggering spurious tool responses
-                // from models that don't actually know tools. Use .disallowed when empty.
-                // Upstream ToolCallingModeResolution supports .allowed / .required / .disallowed.
-                // .required enables think-then-call reasoning phase before tool dispatch.
-                let tcMode: FoundationModels.GenerationOptions.ToolCallingMode
-                if fmTools?.isEmpty == false {
-                    // Tools available — resolve mode from explicit option or default to .allowed
-                    switch options.toolCallingMode?.lowercased() {
-                    case "required":
-                        tcMode = .required
-                    case "disallowed":
-                        tcMode = .disallowed
-                    default:
-                        tcMode = .allowed
-                    }
-                } else {
-                    // No tools — force .disallowed regardless of user preference
-                    tcMode = .disallowed
-                }
+                // Resolution extracted to FMOptionResolver (rationale lives there).
+                let tcMode: FoundationModels.GenerationOptions.ToolCallingMode =
+                    FMOptionResolver.toolCallingMode(
+                        toolsPresent: fmTools?.isEmpty == false,
+                        explicitToolChoice: options.toolCallingMode)
                 let genOpts: GenerationOptions = GenerationOptions(
                     samplingMode: samplingMode,
                     temperature: sampling.temperature,
@@ -2459,37 +2435,11 @@ extension EnginePool {
                 )
 
                 // --- ContextOptions: reasoning level ---
-                // SDK ReasoningLevel: .light, .moderate, .deep, .custom(String)
-                // Upstream Executor.respond() routing: thinkingEnabled() maps
-                // .light/.moderate/.deep → true; .custom("no_think") → false.
-                // When user provides explicit reasoningLevel, honor it.
-                // When only boolean reasoning toggle, default to .deep.
-                let ctxOpts: ContextOptions
-                if let levelStr = options.reasoningLevel {
-                    switch levelStr.lowercased() {
-                    case "light":
-                        ctxOpts = ContextOptions(reasoningLevel: .light)
-                        log.info("Reasoning level: .light")
-                    case "moderate":
-                        ctxOpts = ContextOptions(reasoningLevel: .moderate)
-                        log.info("Reasoning level: .moderate")
-                    case "deep":
-                        ctxOpts = ContextOptions(reasoningLevel: .deep)
-                        log.info("Reasoning level: .deep")
-                    default:
-                        if options.enableReasoning == true {
-                            ctxOpts = ContextOptions(reasoningLevel: .deep)
-                        } else {
-                            ctxOpts = ContextOptions()
-                        }
-                    }
-                } else if options.enableReasoning == true {
-                    // Legacy boolean path — defaults to .deep for alignment
-                    ctxOpts = ContextOptions(reasoningLevel: .deep)
-                    log.info("Reasoning enabled via ContextOptions.reasoningLevel=.deep")
-                } else {
-                    ctxOpts = ContextOptions()
-                }
+                // Resolution extracted to FMOptionResolver (rationale lives there).
+                let ctxOpts: ContextOptions = FMOptionResolver.contextOptions(
+                    explicitReasoningLevel: options.reasoningLevel,
+                    enableReasoning: options.enableReasoning,
+                    log: log)
 
                 // --- Guided generation: when grammarSchema is present,
                 // use FM's schema-constrained streamResponse overload.
@@ -2499,22 +2449,9 @@ extension EnginePool {
                 // GenerationSchema 的 Codable 是 canonical 形状
                 // （必须带 x-order/title），grammarSchema 是标准 JSON Schema →
                 // 走 DynamicGenerationSchema 树（与 FMToolBridge 同路），不 decode。
+                // Resolution extracted to FMOptionResolver (verbatim).
                 let fmGuidedSchema: FoundationModels.GenerationSchema? =
-                    (try? {
-                        guard
-                            let schemaJSON = options.grammarSchema,
-                            let data = schemaJSON.data(using: .utf8),
-                            let dict = try JSONSerialization.jsonObject(with: data)
-                                as? [String: Any]
-                        else { return nil as FoundationModels.GenerationSchema? }
-                        guard
-                            let dynamic = FMToolProxy.makeDynamicSchema(
-                                from: dict, name: "guided"
-                            )
-                        else { return nil }
-                        return try FoundationModels.GenerationSchema(
-                            root: dynamic, dependencies: [])
-                    }()) ?? nil
+                    FMOptionResolver.guidedSchema(from: options.grammarSchema)
 
                 // use actual user prompt text instead of empty string.
                 // streamResponse(to:) forwards to Executor.respond() which calls
