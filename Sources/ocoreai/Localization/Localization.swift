@@ -1256,7 +1256,8 @@ enum L10nTables {
         .hubModelScope: "ModelScope",
         .hubTokensHint: "模型 Hub 访问 Token（HuggingFace、ModelScope）。安全存储在 macOS 钥匙串中。",
         .hfMirrorToggle: "使用 hf-mirror.com 镜像",
-        .hfMirrorHint: "当 huggingface.co 不可达时，下载与搜索改走 hf-mirror.com 中继。文件与其逐字节一致，但中继为第三方托管——需要严格来源可信时请关闭。",
+        .hfMirrorHint:
+            "当 huggingface.co 不可达时，下载与搜索改走 hf-mirror.com 中继。文件与其逐字节一致，但中继为第三方托管——需要严格来源可信时请关闭。",
         .hubTokensTitle: "Hub Token",
         .notConfigured: "未配置",
         .sectionModels: "模型",

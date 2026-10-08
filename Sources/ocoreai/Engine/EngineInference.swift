@@ -82,6 +82,33 @@ private func logGuidedGenError(
 }
 
 extension EnginePool {
+    // MARK: - Denial honesty (tool-result contract)
+
+    /// The text a failed/denied tool call returns to the model. A denial
+    /// means the operation NEVER happened — small models read the
+    /// tool-result block as their only memory of the call and have been
+    /// observed claiming completion over an empty filesystem (observed
+    /// 10-08, gemma-1.5B headless: "已创建文件…遇到 hook denial"). The
+    /// wording is an explicit negative instruction in both languages the
+    /// model may answer in, so recovery narrates reality instead of
+    /// inventing one. Prefix stays `[tool_error:` on every branch — wire
+    /// contract pinned by FMToolErrorRecoveryTests (FM path mirrors it).
+    static func toolRecoveryText(for error: Error) -> String {
+        let denied: Bool
+        if case ToolError.denied = error {
+            denied = true
+        } else {
+            denied = false
+        }
+        let reason = error.localizedDescription
+        if denied {
+            return
+                "[tool_error: \(reason)] Operation was NOT executed — nothing was created, run, or changed. Do NOT claim it succeeded; tell the user it was denied and why, then propose a next step."
+        }
+        return
+            "[tool_error: \(reason)] Operation FAILED — its effects do not exist. Verify before claiming success; retry differently or tell the user what failed."
+    }
+
     // MARK: - Entry Points (TaskGroup dispatch)
 
     /// Start inference, returning an ``AsyncThrowingStream`` the caller consumes.
@@ -2830,17 +2857,25 @@ extension EnginePool {
                     } catch let error as ToolError {
                         logger.warning(
                             "Tool call failed — surfacing to model for recovery: \(error)")
+                        // Denial honesty: a denied tool NEVER executed. Small
+                        // models otherwise hallucinate completion ("已创建文件"
+                        // over an empty directory — observed live 10-08 on
+                        // gemma-1.5B headless). The tool-result text is the
+                        // model's only memory of this call; make the non-event
+                        // unambiguous in it, not just in our logs.
+                        let recoveryText = Self.toolRecoveryText(for: error)
                         emitToolResult(
-                            ToolResultMeta.summary("[失败] \(error.localizedDescription)"),
+                            ToolResultMeta.summary(recoveryText),
                             error.localizedDescription)
-                        return "[tool_error: \(error.localizedDescription)]"
+                        return recoveryText
                     } catch {
                         logger.warning(
                             "Tool call failed — surfacing to model for recovery: \(error)")
+                        let recoveryText = Self.toolRecoveryText(for: error)
                         emitToolResult(
-                            ToolResultMeta.summary("[失败] \(error.localizedDescription)"),
+                            ToolResultMeta.summary(recoveryText),
                             error.localizedDescription)
-                        return "[tool_error: \(error.localizedDescription)]"
+                        return recoveryText
                     }
                     // P-S2: Append fresh perception context to tool result so the model
                     // sees updated environment state on each tool dispatch iteration.
