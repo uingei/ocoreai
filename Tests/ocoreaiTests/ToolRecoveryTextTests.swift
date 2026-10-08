@@ -27,6 +27,7 @@ struct ToolRecoveryTextTests {
             "denial keeps wire prefix + ToolError's own description verbatim")
         #expect(t.contains("NOT executed"))
         #expect(t.contains("Do NOT claim"))
+        #expect(t.contains("nothing exists"))
     }
 
     @Test("auto-denied policy denial also gets honesty wording")

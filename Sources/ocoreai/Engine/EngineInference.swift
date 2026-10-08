@@ -103,10 +103,10 @@ extension EnginePool {
         let reason = error.localizedDescription
         if denied {
             return
-                "[tool_error: \(reason)] Operation was NOT executed — nothing was created, run, or changed. Do NOT claim it succeeded; tell the user it was denied and why, then propose a next step."
+                "[tool_error: \(reason)] NOT executed. NOTHING was created, run, or changed — nothing exists. Do NOT claim you created, wrote, ran, or did anything. Tell the user plainly it was denied, then propose a next step."
         }
         return
-            "[tool_error: \(reason)] Operation FAILED — its effects do not exist. Verify before claiming success; retry differently or tell the user what failed."
+            "[tool_error: \(reason)] FAILED — its effects do not exist. Verify before claiming success; retry differently or tell the user what failed."
     }
 
     // MARK: - Entry Points (TaskGroup dispatch)
