@@ -130,7 +130,7 @@ enum HeadlessRuntime {
             setenv("HF_ENDPOINT", mirror, 1)
         }
 
-        installSignalSources()
+        installShutdownSignal()
         installStdinWatcher()
 
         Task {
@@ -181,7 +181,7 @@ enum HeadlessRuntime {
 
     /// SIGTERM → graceful shutdown (launchd/`kill` semantics). SIGINT is
     /// deliberately left at default disposition (terminal ^C).
-    private static func installSignalSources() {
+    static func installShutdownSignal() {
         signal(SIGTERM, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
         source.setEventHandler {

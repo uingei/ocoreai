@@ -334,6 +334,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.setActivationPolicy(.regular)
         NSApplication.shared.activate(ignoringOtherApps: true)
 
+        // Explicit SIGTERM ownership (macOS GUI apps: default disposition
+        // demonstrably did NOT terminate — live repro 2026-10-09: two
+        // SIGTERMs survived, the port closed but the process lingered,
+        // poisoning the next launch's port + single-instance checks).
+        // Install the SAME source headless uses: beginShutdown drains the
+        // engine (30s bounded) with a 35s force-exit ceiling, then
+        // NSApplication.terminate. Idempotent (shutdownStarted latch).
+        HeadlessRuntime.installShutdownSignal()
+
         // Ensure the main window becomes key & ordered front
         if let mainWindow = NSApp.mainWindow {
             mainWindow.makeKeyAndOrderFront(nil)
@@ -341,6 +350,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // Cmd+Q / Quit path: kick the same bounded drain the SIGTERM path
+        // uses (idempotent via shutdownStarted latch; the terminate(nil)
+        // inside beginShutdown is a harmless re-entry during termination).
+        HeadlessRuntime.beginShutdown(reason: "applicationWillTerminate")
+
         // exec_sessions: terminate any live shell sessions (SIGTERM → 2s
         // grace → SIGKILL, mirrors ExecTools.terminateProc) + drop their
         // temp capture dirs. Bounded wait so a hung child never blocks

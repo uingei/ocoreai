@@ -28,8 +28,14 @@ if [ "$V" != "$TAG" ]; then
 fi
 echo "✅ version parity — bundle $V == tag v$TAG"
 
-# 2. Free the port, then launch the GUI bundle itself (detached via `open`).
-for p in $(lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null); do kill -9 "$p" 2>/dev/null || true; done
+# 2. Free the port AND kill any lingering bundle processes (a zombie that
+#    dropped the socket but lives on makes `open` a no-op activate — the
+#    GUI-SIGTERM bug of 2026-10-09; the app now handles SIGTERM itself,
+#    but the harness must still be deterministic on older binaries).
+for p in $(lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null); do kill -TERM "$p" 2>/dev/null || true; done
+for p in $(pgrep -f "$(cd "$(dirname "$APP")" && pwd)/$(basename "$APP")/Contents/MacOS" 2>/dev/null); do kill -TERM "$p" 2>/dev/null || true; done
+sleep 3
+for p in $(pgrep -f "$(cd "$(dirname "$APP")" && pwd)/$(basename "$APP")/Contents/MacOS" 2>/dev/null); do kill -9 "$p" 2>/dev/null || true; done
 sleep 1
 OCOREAI_ENABLE_HTTP=1 OCOREAI_APPROVAL_POLICY=auto open "$APP"
 echo "launched $APP (pid group via open)"
@@ -71,8 +77,19 @@ case "$REPLY" in
   *) echo "❌ GUI artifact failed the completion round-trip: $REPLY"; exit 1 ;;
 esac
 
-# 5. Graceful shutdown (SIGTERM drain, per the headless-serve contract).
+# 5. Graceful shutdown assertion: SIGTERM must EXIT the process (GUI bug
+#    of 2026-10-09: it survived two SIGTERMs — port gone, process lingered,
+#    poisoning the next launch). Escalate only after asserting the failure.
 kill -TERM "$PID" 2>/dev/null || true
-sleep 3
-kill -0 "$PID" 2>/dev/null && { echo "⚠️ still alive, escalating"; kill -9 "$PID" 2>/dev/null || true; }
+exited=0
+for _ in $(seq 1 45); do
+  kill -0 "$PID" 2>/dev/null || { exited=1; break; }
+  sleep 1
+done
+if [ "$exited" != 1 ]; then
+  echo "❌ SIGTERM did not terminate the GUI app (pid $PID alive after 45s)"
+  kill -9 "$PID" 2>/dev/null || true
+  exit 1
+fi
+echo "✅ SIGTERM graceful exit (drain + terminate)"
 echo "🎉 e2e-gui-app: shipping artifact verified end-to-end"
