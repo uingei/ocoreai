@@ -24,16 +24,16 @@ struct FMOptionResolverTests {
 
     @Test("samplingMode: greedy → .greedy")
     func samplingModeGreedy() {
-guard #available(macOS 27.0, iOS 27.0, *) else { return }
-                var s = SamplingConfiguration()
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        var s = SamplingConfiguration()
         s.mode = .greedy
         #expect(FMOptionResolver.samplingMode(from: s) == .greedy)
     }
 
     @Test("samplingMode: topK carries k + seed")
     func samplingModeTopK() {
-guard #available(macOS 27.0, iOS 27.0, *) else { return }
-                var s = SamplingConfiguration()
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        var s = SamplingConfiguration()
         s.mode = .topK(40)
         s.topK = 40
         s.seed = 123
@@ -43,8 +43,8 @@ guard #available(macOS 27.0, iOS 27.0, *) else { return }
 
     @Test("samplingMode: nucleus → probabilityThreshold")
     func samplingModeNucleus() {
-guard #available(macOS 27.0, iOS 27.0, *) else { return }
-                var s = SamplingConfiguration()
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        var s = SamplingConfiguration()
         s.mode = .nucleus(0.9)
         s.topP = 0.9
         let m = FMOptionResolver.samplingMode(from: s)
@@ -53,8 +53,8 @@ guard #available(macOS 27.0, iOS 27.0, *) else { return }
 
     @Test("samplingMode: nil mode → nil (SDK defaults)")
     func samplingModeDefault() {
-guard #available(macOS 27.0, iOS 27.0, *) else { return }
-                let s = SamplingConfiguration()
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        let s = SamplingConfiguration()
         #expect(FMOptionResolver.samplingMode(from: s) == nil)
     }
 
@@ -62,16 +62,16 @@ guard #available(macOS 27.0, iOS 27.0, *) else { return }
 
     @Test("toolCallingMode: no tools forces .disallowed even if required")
     func tcModeNoTools() {
-guard #available(macOS 27.0, iOS 27.0, *) else { return }
-                #expect(
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        #expect(
             FMOptionResolver.toolCallingMode(toolsPresent: false, explicitToolChoice: "required")
                 == .disallowed)
     }
 
     @Test("toolCallingMode: explicit required/disallowed honored, unknown → .allowed")
     func tcModeExplicit() {
-guard #available(macOS 27.0, iOS 27.0, *) else { return }
-                #expect(
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        #expect(
             FMOptionResolver.toolCallingMode(toolsPresent: true, explicitToolChoice: "required")
                 == .required)
         #expect(
@@ -89,8 +89,8 @@ guard #available(macOS 27.0, iOS 27.0, *) else { return }
 
     @Test("contextOptions: explicit level honored (case-insensitive)")
     func ctxExplicitLevel() {
-guard #available(macOS 27.0, iOS 27.0, *) else { return }
-                #expect(
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        #expect(
             FMOptionResolver.contextOptions(
                 explicitReasoningLevel: "LIGHT", enableReasoning: nil, log: testLog)
                 == ContextOptions(reasoningLevel: .light))
@@ -106,8 +106,8 @@ guard #available(macOS 27.0, iOS 27.0, *) else { return }
 
     @Test("contextOptions: unknown level + boolean fallback")
     func ctxUnknownLevel() {
-guard #available(macOS 27.0, iOS 27.0, *) else { return }
-                #expect(
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        #expect(
             FMOptionResolver.contextOptions(
                 explicitReasoningLevel: "turbo", enableReasoning: true, log: testLog)
                 == ContextOptions(reasoningLevel: .deep))
@@ -119,8 +119,8 @@ guard #available(macOS 27.0, iOS 27.0, *) else { return }
 
     @Test("contextOptions: legacy boolean path → .deep; off → default")
     func ctxLegacyBoolean() {
-guard #available(macOS 27.0, iOS 27.0, *) else { return }
-                #expect(
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        #expect(
             FMOptionResolver.contextOptions(
                 explicitReasoningLevel: nil, enableReasoning: true, log: testLog)
                 == ContextOptions(reasoningLevel: .deep))
@@ -138,8 +138,8 @@ guard #available(macOS 27.0, iOS 27.0, *) else { return }
 
     @Test("guidedSchema: valid JSON Schema → GenerationSchema; junk/nil → nil")
     func guidedSchemaResolution() throws {
-guard #available(macOS 27.0, iOS 27.0, *) else { return }
-                let json =
+        guard #available(macOS 27.0, iOS 27.0, *) else { return }
+        let json =
             #"{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}"#
         let schema = FMOptionResolver.guidedSchema(from: json)
         #expect(schema != nil)
