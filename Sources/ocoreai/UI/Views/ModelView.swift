@@ -181,7 +181,8 @@ private struct HFResultsList: View {
                     .joined(separator: " · ")
                 ModelResultRow(
                     display: model.id, sub: sub, modelId: model.id,
-                    modelManager: modelManager, theme: theme)
+                    modelManager: modelManager, theme: theme,
+                    license: model.licenseSlug)
             }
         }
     }
@@ -215,7 +216,8 @@ private struct MSResultsList: View {
                 ModelResultRow(
                     display: model.path, sub: subParts.joined(separator: " · "),
                     modelId: model.path,
-                    modelManager: modelManager, theme: theme)
+                    modelManager: modelManager, theme: theme,
+                    license: model.license?.lowercased())
             }
         }
     }
@@ -257,6 +259,12 @@ private struct ModelResultRow: View {
     let modelId: String
     let modelManager: ModelManager
     let theme: OcoreaiTheme
+    /// License shown BEFORE the download click — clicking download is
+    /// accepting the terms, and "know what you're accepting" is the
+    /// first-principles duty of a model browser (HF model cards do this;
+    /// a row that hides the license until after the fact fails it).
+    /// nil = source carries no license metadata → show nothing.
+    var license: String? = nil
     /// Bytes safely resumable on disk (temps with identity sidecars).
     /// 0 = nothing partial; queried off-body in `.task` (shallow FS walk).
     @State private var resumableBytes: Int64 = 0
@@ -281,7 +289,22 @@ private struct ModelResultRow: View {
                     .font(.ocoreaiText(10))
                     .foregroundStyle(theme.accent)
                 } else {
-                    Text(sub).font(.ocoreaiText(11)).foregroundStyle(theme.textTertiary)
+                    HStack(spacing: 6) {
+                        Text(sub).font(.ocoreaiText(11)).foregroundStyle(theme.textTertiary).lineLimit(1)
+                        if let license, !license.isEmpty {
+                            // Uppercase-ish chip: licenses are short nouns;
+                            // "apache-2.0" reads as legal text, "Apache-2.0"
+                            // reads as a badge. Capitalize the first letter only.
+                            Text(license.prefix(1).uppercased() + license.dropFirst())
+                                .font(.ocoreaiText(10))
+                                .foregroundStyle(theme.textSecondary)
+                                .padding(.horizontal, 6).padding(.vertical, 1)
+                                .overlay(
+                                    Capsule().stroke(theme.cardBorder, lineWidth: 1)
+                                )
+                                .accessibilityLabel(String(format: StringKey.licenseBadgeA11yFormat.l, license))
+                        }
+                    }
                 }
             }
             Spacer()

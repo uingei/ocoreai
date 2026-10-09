@@ -34,6 +34,18 @@ struct HFHubModel: Identifiable, Hashable {
         tags.contains { $0.lowercased() == "mlx" }
     }
 
+    /// License slug from the HF tag convention (`license:apache-2.0` →
+    /// "apache-2.0"). Multi-license repos (`license:apache-2.0 OR llama3.1`)
+    /// show all, joined — picking one silently would misrepresent the terms.
+    /// nil = no license tag; the row shows nothing (absence is honest, a
+    /// guessed "unknown" badge is noise).
+    var licenseSlug: String? {
+        let hit = tags.first { $0.lowercased().hasPrefix("license:") }
+        guard let raw = hit?.dropFirst("license:".count) else { return nil }
+        let slug = raw.trimmingCharacters(in: .whitespaces)
+        return slug.isEmpty ? nil : slug
+    }
+
     /// Human-readable size string
     var sizeString: String {
         guard let bytes = sizeBytes, bytes > 0 else { return "" }
