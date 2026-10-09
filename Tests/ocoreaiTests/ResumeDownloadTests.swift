@@ -194,6 +194,31 @@ struct ResumableBytesDiscoveryTests {
             .appendingPathComponent("Nope-\(UUID().uuidString)", isDirectory: true)
         #expect(ModelScopeDownloader.resumableBytes(in: dir) == 0)
     }
+
+    @Test("HF axis: only .incomplete watermarks count (SDK resume truth)")
+    func hfAxis() throws {
+        let fm = FileManager.default
+        let blobs = fm.temporaryDirectory
+            .appendingPathComponent("HFBlobs-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: blobs, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: blobs) }
+
+        // .incomplete = SDK resume watermark (etag-keyed Range resume,
+        // HubClient+Files.swift:589) → honest to advertise.
+        fm.createFile(
+            atPath: blobs.appendingPathComponent("abc123.incomplete").path,
+            contents: Data(repeating: 0xA1, count: 2048))
+        // Promoted blob = already complete → NOT resumable-partial state.
+        fm.createFile(
+            atPath: blobs.appendingPathComponent("def456").path,
+            contents: Data(repeating: 0xB2, count: 9999))
+        // URLSession temp naming — dies on cancel, must never be promised.
+        fm.createFile(
+            atPath: blobs.appendingPathComponent("URLSession-temps-xyz.tmp").path,
+            contents: Data(repeating: 0xC3, count: 4096))
+
+        #expect(ModelScopeDownloader.hfIncompleteBytes(inBlobsDir: blobs) == 2048)
+    }
 }
 
 @Suite("Resume — age-gated sweep")

@@ -298,9 +298,20 @@ private struct ModelResultRow: View {
     private static func queryResumableBytes(modelId: String) async -> Int64 {
         await Task.detached(priority: .utility) {
             let identity = ModelIdentity.parse(modelId)
-            guard case .modelScope(let repoId) = identity.source else { return 0 }
-            let dir = ModelStore.msRepoDir(repoId)
-            return ModelScopeDownloader.resumableBytes(in: dir)
+            switch identity.source {
+            case .modelScope(let repoId):
+                return ModelScopeDownloader.resumableBytes(in: ModelStore.msRepoDir(repoId))
+            case .huggingFace(let repoId):
+                // SDK blobs live at hubRoot/models--<org>--<name>/blobs
+                // (HubCache.repoDirectory naming — verified against the pin).
+                let encoded = repoId.replacingOccurrences(of: "/", with: "--")
+                return ModelScopeDownloader.hfIncompleteBytes(
+                    inBlobsDir: ModelStore.hubRoot
+                        .appendingPathComponent("models--\(encoded)")
+                        .appendingPathComponent("blobs"))
+            case .local:
+                return 0
+            }
         }.value
     }
 

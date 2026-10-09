@@ -391,6 +391,22 @@ actor ModelScopeDownloader: Downloader {
         return total
     }
 
+    /// HF-axis counterpart: resumable bytes in a HubCache blobs dir are the
+    /// `*.incomplete` watermarks (swift-huggingface HubCache.swift:292).
+    /// They ARE honestly resumable — the SDK resumes them keyed by etag
+    /// (HubClient+Files.swift:589 Range header). URLSession temps die on
+    /// cancel; only the .incomplete watermark survives → count only that.
+    static func hfIncompleteBytes(inBlobsDir dir: URL) -> Int64 {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(atPath: dir.path) else { return 0 }
+        var total: Int64 = 0
+        for name in entries where name.hasSuffix(".incomplete") {
+            let url = dir.appendingPathComponent(name)
+            total += Int64((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+        }
+        return total
+    }
+
     struct ResumeMeta: Codable, Equatable {
         var revision: String
         var etag: String?
