@@ -188,6 +188,11 @@ struct ResumeFileSystemTests {
         let temp = ModelScopeDownloader.resumeTempURL(for: path, in: cache)
         let meta = ModelScopeDownloader.resumeMetaURL(for: path, in: cache)
         let dest = cache.appendingPathComponent(path)
+        // attemptDownload creates dest.parent at its top (createDirectory
+        // withIntermediateDirectories) — the simulation must too, promotion
+        // into a nested path fails without it.
+        try fm.createDirectory(
+            at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
 
         // Attempt 1 dies at 400 bytes (simulated transient failure):
         // bytes stay on disk (the catch keeps non-cancellation failures).

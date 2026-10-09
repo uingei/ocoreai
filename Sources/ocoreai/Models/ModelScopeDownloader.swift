@@ -143,6 +143,11 @@ actor ModelScopeDownloader: Downloader {
 
         let existingFilenames: Set<String> = Set((try? listLocalFiles(in: cacheDir)) ?? [])
 
+        // Reclaim orphaned temps BEFORE sizing the hole (roadmap line 6):
+        // yesterday's crashed downloads free space today's download needs;
+        // age gate keeps anything still resumable (< 24h).
+        purgeStaleTempFiles(in: cacheRoot)
+
         // Pre-flight disk guard (roadmap line 6): ModelScope sizes are
         // already in hand from listRepoFiles — block BEFORE bytes flow when
         // the volume can't hold the remainder (minus what's cached). Sizes
@@ -353,6 +358,10 @@ actor ModelScopeDownloader: Downloader {
     static func resumeMetaURL(for path: String, in cacheDir: URL) -> URL {
         resumeTempURL(for: path, in: cacheDir).appendingPathExtension("meta")
     }
+    /// Sidecar for an already-computed temp URL (sweep path — no re-hash).
+    static func resumeMetaURL(alongside tempURL: URL) -> URL {
+        tempURL.appendingPathExtension("meta")
+    }
 
     struct ResumeMeta: Codable, Equatable {
         var revision: String
@@ -448,10 +457,12 @@ actor ModelScopeDownloader: Downloader {
     /// whole point of keeping them — so only age decides.
     func purgeStaleTempFiles(in directory: URL, staleAfter: TimeInterval = 24 * 3600) {
         let fm = FileManager.default
+        // NOTE: no .skipsHiddenFiles — every temp we hunt starts with '.'
+        // (macOS hides them), and skipping hidden made this sweep a no-op.
+        // Safety comes from the name-prefix gate below, never from the flag.
         guard
             let enumerator = fm.enumerator(
-                at: directory, includingPropertiesForKeys: [.contentModificationDateKey],
-                options: [.skipsHiddenFiles])
+                at: directory, includingPropertiesForKeys: [.contentModificationDateKey])
         else { return }
         let now = Date()
         var tempURLsToRemove: [URL] = []
@@ -463,7 +474,9 @@ actor ModelScopeDownloader: Downloader {
                 .contentModificationDate.map { now.timeIntervalSince($0) } ?? 0
             guard Self.shouldPurgeTemp(age: age, staleAfter: staleAfter) else { continue }
             tempURLsToRemove.append(url)
-            tempURLsToRemove.append(URL(string: url.absoluteString + ".meta") ?? url)
+            // identity sidecar follows its temp (string concat on the path,
+            // never URL(string:) which nils on incidental characters)
+            tempURLsToRemove.append(Self.resumeMetaURL(alongside: url))
         }
         for url in tempURLsToRemove {
             try? fm.removeItem(at: url)
