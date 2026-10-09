@@ -667,6 +667,16 @@ struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
         }
         // 1:1 with upstream HubBridge (#hubDownloader() macro): revision ?? "main".
         let rev = revision ?? "main"
+        // Pre-flight disk guard (roadmap line 6): sizes come from the same
+        // endpoint the bytes will come from (SDK host honors HF_ENDPOINT).
+        // Unknown sizes or metadata failure → allow-through; the per-file
+        // download guards remain the backstop.
+        try await DiskSpaceGuard.ensureFits(
+            hub: hub,
+            repoId: id,
+            revision: revision,
+            patterns: patterns,
+            cacheDir: flatTarget(for: id) ?? ModelStore.hubRoot)
         if let target = flatTarget(for: id) {
             return try await hub.downloadSnapshot(
                 of: repoID,

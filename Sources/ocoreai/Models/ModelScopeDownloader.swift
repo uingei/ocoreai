@@ -143,6 +143,26 @@ actor ModelScopeDownloader: Downloader {
 
         let existingFilenames: Set<String> = Set((try? listLocalFiles(in: cacheDir)) ?? [])
 
+        // Pre-flight disk guard (roadmap line 6): ModelScope sizes are
+        // already in hand from listRepoFiles — block BEFORE bytes flow when
+        // the volume can't hold the remainder (minus what's cached). Sizes
+        // missing across matched files → allow (existing guards own it).
+        let measured =
+            matchingFiles.allSatisfy { $0.size != nil }
+            ? matchingFiles.reduce(Int64(0)) { $0 + ($1.size ?? 0) }
+            : nil
+        let alreadyCached =
+            matchingFiles
+            .filter { existingFilenames.contains(String($0.path)) }
+            .reduce(Int64(0)) { $0 + ($1.size ?? 0) }
+        let required = DiskSpaceGuard.requiredBytes(
+            remoteTotal: measured, cachedBytes: alreadyCached)
+        let free = DiskSpaceGuard.freeBytes(onVolumeHosting: cacheDir)
+        guard DiskSpaceGuard.decision(freeBytes: free, requiredBytes: required) else {
+            throw DownloaderError.insufficientDiskSpace(
+                repoId: id, requiredBytes: required ?? 0, freeBytes: free ?? 0)
+        }
+
         try await downloadFiles(
             matchingFiles,
             to: cacheDir,
@@ -691,6 +711,7 @@ enum DownloaderError: LocalizedError {
     case downloadBatchStalled(timeout: Int, downloadedFiles: Int, totalFiles: Int)
     case partialDownload(failed: [String], total: Int, succeeded: Int)
     case corruptedDownload(files: [String], reason: String)
+    case insufficientDiskSpace(repoId: String, requiredBytes: Int64, freeBytes: Int64)
     case parseError
     case invalidURL(String)
 
@@ -714,6 +735,8 @@ enum DownloaderError: LocalizedError {
             "Partial download: \(total) files total, \(succeeded) succeeded, \(failed.count) failed: \(failed.prefix(3).joined(separator: ", "))"
         case .corruptedDownload(let files, let reason):
             "Corrupted download (\(files.count) file(s)): \(reason). \(files.prefix(5).joined(separator: ", "))"
+        case .insufficientDiskSpace(let repo, let required, let free):
+            "Not enough disk space for '\(repo)' — needs \(ByteCountFormatter.string(fromByteCount: required, countStyle: .file)), \(ByteCountFormatter.string(fromByteCount: free, countStyle: .file)) free. Free up space or pick a smaller/quantized model."
         case .parseError:
             "Failed to parse ModelScope API response"
         case .invalidURL(let msg):
