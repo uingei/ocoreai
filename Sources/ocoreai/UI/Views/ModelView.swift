@@ -277,12 +277,29 @@ private struct ModelResultRow: View {
     @ViewBuilder
     private var downloadButton: some View {
         if modelManager.downloadingModelId == modelId {
-            // Show download progress with percentage, bytes, and throughput
+            // Progress ring with a tappable Stop center — HIG: every
+            // long-running operation stays cancellable from where its
+            // progress is visible. Bytes survive the stop (resume keeps
+            // the offset), so pausing costs nothing.
             if let progress = OcoreaiDownloadProgress.shared.progress(for: modelId) {
                 VStack(spacing: 2) {
-                    ProgressView(value: progress.fraction)
-                        .progressViewStyle(CircularProgressViewStyle(tint: theme.accent))
-                        .scaleEffect(0.85)
+                    ZStack {
+                        ProgressView(value: progress.fraction)
+                            .progressViewStyle(CircularProgressViewStyle(tint: theme.accent))
+                            .scaleEffect(1.15)
+                        if modelManager.canCancelDownload(for: modelId) {
+                            Button {
+                                modelManager.cancelDownload()
+                            } label: {
+                                Image(systemName: "stop.circle.fill")
+                                    .font(.ocoreaiText(13))
+                                    .foregroundStyle(theme.textSecondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(StringKey.stopDownloadAction.l)
+                            .accessibilityHint(StringKey.stopDownloadHint.l)
+                        }
+                    }
                     Text("\(Int(progress.fraction * 100))%")
                         .font(.ocoreaiMono(8))
                         .foregroundStyle(theme.textTertiary)
@@ -294,9 +311,23 @@ private struct ModelResultRow: View {
                     )
                 }
             } else {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: theme.accent))
-                    .scaleEffect(0.85)
+                ZStack {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: theme.accent))
+                        .scaleEffect(1.15)
+                    if modelManager.canCancelDownload(for: modelId) {
+                        Button {
+                            modelManager.cancelDownload()
+                        } label: {
+                            Image(systemName: "stop.circle.fill")
+                                .font(.ocoreaiText(13))
+                                .foregroundStyle(theme.textSecondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(StringKey.stopDownloadAction.l)
+                        .accessibilityHint(StringKey.stopDownloadHint.l)
+                    }
+                }
             }
         } else {
             Button {
@@ -471,8 +502,26 @@ private struct ModelEmptyState: View {
             Spacer()
 
             if quickLoading == rec.id {
-                ProgressView()
-                    .scaleEffect(0.8)
+                ZStack {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    // Stop lives on the quick row too — HIG: cancellable
+                    // wherever progress shows. Bytes survive; next tap resumes.
+                    if modelManager.isDownloading {
+                        Button {
+                            modelManager.cancelDownload()
+                        } label: {
+                            Image(systemName: "stop.circle.fill")
+                                .font(.ocoreaiText(12))
+                                .foregroundStyle(theme.textSecondary)
+                                .frame(width: 28, height: 28)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(StringKey.stopDownloadAction.l)
+                        .accessibilityHint(StringKey.stopDownloadHint.l)
+                    }
+                }
             } else {
                 Button {
                     Task {

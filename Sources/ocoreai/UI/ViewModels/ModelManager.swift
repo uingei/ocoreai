@@ -112,6 +112,13 @@ final class ModelManager {
 
     var isDownloading: Bool = false
     var downloadingModelId: String = ""
+    /// Live download task — the GUI's Stop button cancels exactly this task.
+    /// Cancellation propagates through EnginePool.acquire into the downloader,
+    /// which KEEPS the temp bytes: next attempt resumes from offset, no
+    /// re-download (user intent is "pause", not "delete").
+    private var downloadTask: Task<Bool, Never>?
+    /// Identity token for downloadTask (Task is a struct — no ===).
+    private var downloadTaskID: UInt?
 
     // MARK: - Local models (single source of truth)
 
@@ -201,13 +208,45 @@ final class ModelManager {
     /// from being routed to HuggingFace due to bare "org/repo" string ambiguity.
     @discardableResult
     func load(_ modelId: String) async -> Bool {
-        await load(modelId, hub: selectedSource)
+        await trackedLoad(modelId, hub: selectedSource)
     }
 
     /// Quick-load a recommended model by its identity.
     @discardableResult
     func quickLoad(_ model: RecommendedQuickModel) async -> Bool {
-        await load(model.id, hub: model.hub)
+        await trackedLoad(model.id, hub: model.hub)
+    }
+
+    /// Wrap the acquire/download in a cancellable task the Stop button can
+    /// reach. Awaiting `task.value` inside the same call keeps the existing
+    /// semantics for every caller while giving cancellation a handle.
+    private func trackedLoad(_ modelId: String, hub: HubSource?) async -> Bool {
+        let task = Task { await self.load(modelId, hub: hub) }
+        let id = UInt.random(in: UInt.min ... UInt.max)
+        downloadTask = task
+        downloadTaskID = id
+        let ok = await task.value
+        if downloadTaskID == id {
+            downloadTask = nil
+            downloadTaskID = nil
+        }
+        return ok
+    }
+
+    /// Cancel the in-flight download (GUI Stop button). The downloader keeps
+    /// its `.download-*` temp bytes on cancellation, so pressing download
+    /// again resumes from the byte offset instead of restarting (HIG:
+    /// long-running operations are cancellable AND resumable; deleting 20
+    /// GB of progress because the user paused would be a data-loss lie).
+    func cancelDownload() {
+        downloadTask?.cancel()
+        downloadTask = nil
+    }
+
+    /// True when the Stop affordance should be live: the task exists AND
+    /// belongs to the model currently shown as downloading.
+    func canCancelDownload(for modelId: String) -> Bool {
+        downloadTask != nil && downloadingModelId == modelId
     }
 
     /// Acquire a model from the EnginePool with an explicit Hub source override.
@@ -273,7 +312,11 @@ final class ModelManager {
             return true
         } catch {
             OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: false)
-            currentError = .loadFailed(error.localizedDescription)
+            // User-initiated cancel is NOT an error to report — no banner.
+            // Temp bytes are kept by the downloader; next tap resumes.
+            if !(error is CancellationError) {
+                currentError = .loadFailed(error.localizedDescription)
+            }
             isDownloading = false
             downloadingModelId = ""
             return false

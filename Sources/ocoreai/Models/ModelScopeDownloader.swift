@@ -194,6 +194,10 @@ actor ModelScopeDownloader: Downloader {
             do {
                 return try await operation()
             } catch {
+                // Cancellation is USER intent — never retryable, never a
+                // "network error". Without this gate a Stop click sits out
+                // the full retryDelay before checkCancellation fires.
+                if error is CancellationError { throw error }
                 // Only retry on transient errors or network failures (no status code available)
                 let retryable: Bool = {
                     if let dErr = error as? DownloaderError {
@@ -412,6 +416,14 @@ actor ModelScopeDownloader: Downloader {
         case failed(statusCode: Int)
     }
 
+    /// Temp-retention policy on attempt exit. KEEP on every error —
+    /// cancellation included: user intent is "pause", and bytes under an
+    /// If-Range/Content-Range guard are a valid resume prefix. Cleanup
+    /// authority is the age-gated launch sweep, never the cancel path.
+    static func keepTempOnError(_ error: Error) -> Bool {
+        true
+    }
+
     static func resumeDisposition(statusCode: Int, tempBytes: Int64, expectedSize: Int64?)
         -> ResumeDisposition
     {
@@ -595,7 +607,10 @@ actor ModelScopeDownloader: Downloader {
         /// One attempt: resume from deterministic temp when possible, stream
         /// the remainder, promote on success. Transient failures KEEP temp
         /// (bytes are valid prefixes; If-Range guards identity on resume);
-        /// explicit cancellation DISCARDS temp (user intent: start over).
+        /// cancellation ALSO KEEPS temp — user intent is "not now", not
+        /// "delete 20 GB and start over"; the age-gated launch sweep owns
+        /// real cleanup, and byte-level resume (Content-Range verified)
+        /// makes the next attempt continue, not restart.
         func attemptDownload() async throws {
             guard let components = URLComponents(url: self.baseAPI, resolvingAgainstBaseURL: false)
             else {
@@ -773,13 +788,10 @@ actor ModelScopeDownloader: Downloader {
                 // Promoted: identity sidecar no longer needed.
                 try? FileManager.default.removeItem(at: metaURL)
             } catch {
-                // Explicit user cancellation → discard (start over next time).
-                // Transient failure / stall → KEEP temp: bytes are a valid
-                // prefix under If-Range guard; retry resumes from `offset`.
-                if error is CancellationError {
-                    try? FileManager.default.removeItem(at: tempURL)
-                    try? FileManager.default.removeItem(at: metaURL)
-                }
+                // KEEP temp on every exit path — cancellation included.
+                // Bytes are a valid prefix under If-Range/Content-Range
+                // guard; resume continues from offset next attempt.
+                // Cleanup authority: age-gated purgeStaleTempFiles at launch.
                 throw error
             }
         }

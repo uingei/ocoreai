@@ -288,6 +288,8 @@ public enum StringKey: String, CaseIterable, Sendable {
     case modelViewDeleteConfirmMessage = "Models.DeleteConfirmMessage"
     case modelViewDeleteConfirmAction = "Models.DeleteConfirmAction"
     case modelViewDeleteCancelAction = "Models.DeleteCancelAction"
+    case stopDownloadAction = "Models.StopDownloadAction"
+    case stopDownloadHint = "A11y.StopDownloadHint"
 
     // — Multimodal —
     case multimodalTitle = "Multimodal.Title"
@@ -810,6 +812,8 @@ enum L10nTables {
             "This will remove %@ from memory and delete all cached files. This cannot be undone.",
         .modelViewDeleteConfirmAction: "Delete",
         .modelViewDeleteCancelAction: "Cancel",
+        .stopDownloadAction: "Stop download",
+        .stopDownloadHint: "Stops now; downloaded bytes are kept and the next attempt resumes",
 
         // Multimodal
         .multimodalTitle: "Multimodal I/O",
@@ -1233,6 +1237,8 @@ enum L10nTables {
         .modelViewDeleteConfirmMessage: "此操作将从内存中移除 %@ 并删除所有缓存文件，无法撤销。",
         .modelViewDeleteConfirmAction: "删除",
         .modelViewDeleteCancelAction: "取消",
+        .stopDownloadAction: "停止下载",
+        .stopDownloadHint: "现在停止；已下载的字节将保留，下次从断点继续",
 
         // Multimodal
         .multimodalTitle: "多模态输入/输出",

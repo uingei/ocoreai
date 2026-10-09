@@ -204,7 +204,7 @@ struct PromoteCompleteTests {
 
 @Suite("Resume — real-FS byte state machine")
 struct ResumeFileSystemTests {
-    @Test("bytes accumulate across attempt boundaries; success promotes; cancel discards")
+    @Test("bytes accumulate across attempt boundaries; success promotes; cancel keeps")
     func stateMachine() throws {
         let fm = FileManager.default
         let cache = FileManager.default.temporaryDirectory
@@ -254,14 +254,22 @@ struct ResumeFileSystemTests {
         #expect(!fm.fileExists(atPath: temp.path))
         #expect(!fm.fileExists(atPath: meta.path))
 
-        // Explicit cancellation discards resumable state (user intent).
+        // Cancellation KEEPS resumable state — user intent is "pause";
+        // attemptDownload's catch no longer deletes temp on cancel (bytes
+        // are a valid prefix; resume continues from offset next attempt).
         fm.createFile(atPath: temp.path, contents: Data(repeating: 0xC3, count: 100))
+        try JSONEncoder().encode(metaVal).write(to: meta)  // new attempt re-recorded it
         let cancelError: Error = CancellationError()
-        if cancelError is CancellationError {  // mirrors attemptDownload's gate
-            try? fm.removeItem(at: temp)
-            try? fm.removeItem(at: meta)
-        }
-        #expect(!fm.fileExists(atPath: temp.path))
+        let keepTemp = ModelScopeDownloader.keepTempOnError(cancelError)
+        #expect(keepTemp, "cancel must preserve bytes, not restart from zero")
+        #expect(fm.fileExists(atPath: temp.path))
+        // Resume gate still true after cancel: next attempt continues at 100.
+        let loaded2 = try JSONDecoder().decode(
+            ModelScopeDownloader.ResumeMeta.self, from: Data(contentsOf: meta))
+        #expect(
+            ModelScopeDownloader.shouldResume(
+                tempBytes: 100, expectedSize: totalSize,
+                meta: loaded2, currentRevision: "main"))
     }
 
     @Test("purgeStaleTempFiles keeps fresh, removes stale + sidecars")
