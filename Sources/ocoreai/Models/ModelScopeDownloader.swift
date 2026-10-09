@@ -423,6 +423,46 @@ actor ModelScopeDownloader: Downloader {
         return .failed(statusCode: statusCode)
     }
 
+    /// Parse the start of a `Content-Range` header ("bytes 50-99/659" → 50).
+    static func contentRangeStart(_ header: String?) -> Int64? {
+        guard let header else { return nil }
+        let parts = header.split(separator: " ")
+        guard parts.count == 2, parts[0].lowercased() == "bytes" else { return nil }
+        let pair = parts[1].split(separator: "/").first ?? ""
+        let start = pair.split(separator: "-").first ?? ""
+        return Int64(start)
+    }
+
+    /// Range-aware disposition. ModelScope's CDN answers a honored
+    /// `Range: bytes=offset-` with **200 + Content-Range** (not 206) —
+    /// status-only logic would truncate a resumable temp and re-download
+    /// every byte (resume never works there, proven live 2026-10-09).
+    /// A partial-with-200 resumes ONLY when the range starts exactly at
+    /// our offset — that byte math is the integrity proof; a missing or
+    /// mismatched header means full body: honest truncate-and-restart.
+    static func resumeDisposition(
+        statusCode: Int,
+        contentRange: String?,
+        tempBytes: Int64,
+        expectedSize: Int64?,
+        requestedOffset: Int64
+    ) -> ResumeDisposition {
+        if statusCode == 206 { return .resume }
+        if statusCode == 416, let expected = expectedSize, tempBytes >= expected {
+            return .complete
+        }
+        if (200 ... 299).contains(statusCode) {
+            if requestedOffset > 0,
+                let start = contentRangeStart(contentRange),
+                start == requestedOffset
+            {
+                return .resume
+            }
+            return .fresh
+        }
+        return .failed(statusCode: statusCode)
+    }
+
     /// Age-gated orphan sweep decision: keep resumable temp files, delete
     /// only stale ones (network drops resume; the user's machine stays
     /// clean overnight).
@@ -625,6 +665,7 @@ actor ModelScopeDownloader: Downloader {
             do {
                 // bytes(for:) returns (AsyncBytes, URLResponse) in Swift 6 —
                 // check response first, then stream body.
+                let requestedOffset = offset
                 let (bytes, response) = try await URLSession.shared.bytes(for: request)
 
                 guard let httpResponse = response as? HTTPURLResponse else {
@@ -633,8 +674,10 @@ actor ModelScopeDownloader: Downloader {
                 let resuming: Bool
                 switch Self.resumeDisposition(
                     statusCode: httpResponse.statusCode,
+                    contentRange: httpResponse.value(forHTTPHeaderField: "Content-Range"),
                     tempBytes: currentTempBytes(tempURL),
-                    expectedSize: expectedSize)
+                    expectedSize: expectedSize,
+                    requestedOffset: requestedOffset)
                 {
                 case .resume: resuming = true
                 case .fresh: resuming = false
@@ -650,9 +693,9 @@ actor ModelScopeDownloader: Downloader {
                 case .failed(let status):
                     throw DownloaderError.downloadFailed(path: path, statusCode: status)
                 }
-                if offset > 0 && !resuming {
-                    // Server ignored Range (or If-Range mismatch → 200 full
-                    // body): our prefix is unverified — truncate and restart.
+                if !resuming && offset > 0 {
+                    // Server ignored Range (or If-Range mismatch → full body):
+                    // our prefix is unverified — truncate and restart.
                     offset = 0
                 }
 

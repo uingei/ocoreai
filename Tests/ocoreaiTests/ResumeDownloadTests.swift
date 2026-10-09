@@ -126,6 +126,35 @@ struct ResumeDispositionTests {
             ModelScopeDownloader.resumeDisposition(
                 statusCode: 0, tempBytes: 400, expectedSize: 1000) == .failed(statusCode: 0))
     }
+
+    @Test("ModelScope CDN: honored Range arrives as 200 + Content-Range")
+    func partialWith200() {
+        // Range: bytes=400- answered 200 "bytes 400-999/1000" → resume.
+        #expect(
+            ModelScopeDownloader.resumeDisposition(
+                statusCode: 200, contentRange: "bytes 400-999/1000",
+                tempBytes: 400, expectedSize: 1000, requestedOffset: 400) == .resume)
+        // Genuine full body (no Content-Range) → truncate & restart.
+        #expect(
+            ModelScopeDownloader.resumeDisposition(
+                statusCode: 200, contentRange: nil,
+                tempBytes: 400, expectedSize: 1000, requestedOffset: 400) == .fresh)
+        // Range silently restarted at 0 → unverified prefix → fresh.
+        #expect(
+            ModelScopeDownloader.resumeDisposition(
+                statusCode: 200, contentRange: "bytes 0-999/1000",
+                tempBytes: 400, expectedSize: 1000, requestedOffset: 400) == .fresh)
+        // First attempt (offset 0) + 200 → fresh even if header exists.
+        #expect(
+            ModelScopeDownloader.resumeDisposition(
+                statusCode: 200, contentRange: "bytes 0-999/1000",
+                tempBytes: 0, expectedSize: 1000, requestedOffset: 0) == .fresh)
+        // Content-Range parsing edge cases.
+        #expect(ModelScopeDownloader.contentRangeStart("bytes 400-999/1000") == 400)
+        #expect(ModelScopeDownloader.contentRangeStart("BYTES 0-9/10") == 0)
+        #expect(ModelScopeDownloader.contentRangeStart("garbage") == nil)
+        #expect(ModelScopeDownloader.contentRangeStart(nil) == nil)
+    }
 }
 
 @Suite("Resume — age-gated sweep")
