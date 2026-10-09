@@ -408,7 +408,7 @@ public enum StringKey: String, CaseIterable, Sendable {
 
     // — Settings / About —
     case aboutTitle = "About.Title"
-    case aboutVersion = "About.Version"
+    case aboutVersionFormat = "About.VersionFormat"
     case capabilityBackend = "About.CapabilityBackend"
     case capabilityUnavailable = "About.CapabilityUnavailable"
     case capabilityOn = "About.CapabilityOn"
@@ -922,7 +922,7 @@ enum L10nTables {
 
         // Settings / About
         .aboutTitle: "ocoreai",
-        .aboutVersion: "v1.0.0 · macOS 14+ / iOS 17+",
+        .aboutVersionFormat: "v%@ · macOS 14+ / iOS 17+",
         .capabilityBackend: "Backends",
         .capabilityUnavailable: "Unavailable",
         .capabilityOn: "On",
@@ -1387,7 +1387,7 @@ enum L10nTables {
 
         // Settings / About
         .aboutTitle: "ocoreai",
-        .aboutVersion: "v1.0.0 · macOS 14+ / iOS 17+",
+        .aboutVersionFormat: "v%@ · macOS 14+ / iOS 17+",
         .capabilityBackend: "推理后端",
         .capabilityUnavailable: "不可用",
         .capabilityOn: "启用",

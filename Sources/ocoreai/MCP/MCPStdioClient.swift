@@ -249,7 +249,9 @@ actor MCPStdioClient {
                 ],
                 "clientInfo": [
                     "name": "ocoreai-mcp-bridge",
-                    "version": "0.7.0",
+                    // The bridge IS the app — peer-visible identity must match
+                    // the artifact on disk, never a frozen literal.
+                    "version": AppInfo.shortVersion,
                 ],
             ])
         // 消费协商结果：server 回选定的 protocolVersion（旧实现直接丢弃）。

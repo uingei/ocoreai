@@ -124,7 +124,7 @@ actor MCPServer {
         ready = true
         return JVal([
             "protocolVersion": "2025-06-18",
-            "serverInfo": ["name": "ocoreai", "version": "0.7.0"],
+            "serverInfo": ["name": "ocoreai", "version": AppInfo.shortVersion],
             "capabilities": ["tools": ["listChanged": true]],
         ])
     }

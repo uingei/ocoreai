@@ -461,8 +461,17 @@ struct SettingsView: View {
                     .font(.title2.bold())
                 Text(StringKey.version.l)
                     .font(.subheadline).foregroundStyle(.secondary)
-                Text(StringKey.aboutVersion.l)
-                    .font(.caption).foregroundStyle(.secondary)
+                // Version is read from the running bundle — the git-tag build
+                // pipeline injects CFBundleShortVersionString (build-app.sh:72).
+                // A hardcoded literal here shipped "v1.0.0" while the app was
+                // v0.1.6: an identity lie users could touch. Never hardcode.
+                Text(
+                    String(
+                        format: StringKey.aboutVersionFormat.l,
+                        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+                            ?? "dev")
+                )
+                .font(.caption).foregroundStyle(.secondary)
                 // P1: Capability badge — shows which inference backends are available
                 HStack(spacing: 6) {
                     Label(StringKey.capabilityBackend.l, systemImage: "cpu")

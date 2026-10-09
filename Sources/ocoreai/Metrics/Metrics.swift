@@ -284,7 +284,10 @@ actor MetricsRegistry {
         var lines: [String] = []
         lines.append("# HELP ocoreai_build Info about ocoreai build.")
         lines.append("# TYPE ocoreai_build gauge")
-        lines.append("ocoreai_build{version=\"1.0.0\"} 1")
+        // Single truth: the bundle version injected by the git-tag pipeline
+        // (build-app.sh:72). A hardcoded literal reported "1.0.0" while the
+        // app shipped v0.1.6 — the metric lied to every dashboard.
+        lines.append("ocoreai_build{version=\"\(AppInfo.shortVersion)\"} 1")
         lines.append("")
 
         // HTTP Requests Counter

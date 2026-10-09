@@ -74,6 +74,14 @@ check "Class-A: Empty catch" 'catch\s*{[[:space:]]*}' \
 check "Class-D: URL(string:)!" 'URL\\(string:.*!' \
     "defaultURL|makeURL|safe|ModelScopeSearchClient"
 
+# --- Class-G: Hardcoded version literal — version truth flows through
+# AppInfo.shortVersion / the git-tag pipeline, never a source literal.
+# (Shipped bug 2026-10: About said v1.0.0, metrics said 1.0.0, MCP said
+# 0.7.0 — three frozen mouths while v0.1.6 was on the wire.)
+# Pattern is unquoted so /// doc-comment mentions are filtered by check().
+check "Class-G: hardcoded version literal" '"v\?[0-9]\+\.[0-9]\+\.[0-9]\+"' \
+    "AppInfo.swift|0.0.4"
+
 echo ""
 echo "=========================================="
 if [ "$FAIL" -eq 0 ]; then

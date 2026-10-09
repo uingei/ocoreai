@@ -923,7 +923,7 @@ actor MCPBridge {
 
         return [
             "server": "ocoreai-mcp",
-            "version": "0.7.0",
+            "version": AppInfo.shortVersion,
             "endpoints": endpointHandles.count,
             "connectedEndpoints": connected,
             "cacheEnabled": config.callCacheEnabled,

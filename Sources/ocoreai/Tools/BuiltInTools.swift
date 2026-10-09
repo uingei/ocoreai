@@ -41,8 +41,8 @@ func bootstrapBuiltInTools(
                 .map { "\($0.name)=\($0.available ? "on" : "off")" }
                 .joined(separator: ", ")
             switch args.topic ?? "status" {
-            case "status": return "ocoreai runtime v0.7.0 — healthy"
-            case "version": return "0.7.0"
+            case "status": return "ocoreai runtime v\(AppInfo.shortVersion) — healthy"
+            case "version": return AppInfo.shortVersion
             case "uptime": return "uptime: \(ProcessInfo.processInfo.systemUptime)"
             case "capabilities", "capability":
                 return
