@@ -257,6 +257,9 @@ private struct ModelResultRow: View {
     let modelId: String
     let modelManager: ModelManager
     let theme: OcoreaiTheme
+    /// Bytes safely resumable on disk (temps with identity sidecars).
+    /// 0 = nothing partial; queried off-body in `.task` (shallow FS walk).
+    @State private var resumableBytes: Int64 = 0
 
     var body: some View {
         HStack(spacing: 10) {
@@ -266,12 +269,47 @@ private struct ModelResultRow: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(display).font(.ocoreaiText(14)).fontWeight(.semibold).lineLimit(1)
-                Text(sub).font(.ocoreaiText(11)).foregroundStyle(theme.textTertiary)
+                if resumableBytes > 0 && modelManager.downloadingModelId != modelId {
+                    // HIG honesty: partial bytes on disk are user-visible state.
+                    // A plain download arrow would imply "from zero"; it won't.
+                    Label(
+                        String(
+                            format: StringKey.resumableBadgeFormat.l,
+                            Self.byteString(resumableBytes)),
+                        systemImage: "arrow.clockwise.circle"
+                    )
+                    .font(.ocoreaiText(10))
+                    .foregroundStyle(theme.accent)
+                } else {
+                    Text(sub).font(.ocoreaiText(11)).foregroundStyle(theme.textTertiary)
+                }
             }
             Spacer()
             downloadButton
         }
         .padding(10).modifier(theme.cardStyle())
+        .task(id: modelManager.downloadingModelId) {
+            // Refresh after every download-state transition (cancel leaves
+            // bytes → badge must appear; success promotes → badge must die).
+            resumableBytes = await Self.queryResumableBytes(modelId: modelId)
+        }
+    }
+
+    private static func queryResumableBytes(modelId: String) async -> Int64 {
+        await Task.detached(priority: .utility) {
+            let identity = ModelIdentity.parse(modelId)
+            guard case .modelScope(let repoId) = identity.source else { return 0 }
+            let dir = ModelStore.msRepoDir(repoId)
+            return ModelScopeDownloader.resumableBytes(in: dir)
+        }.value
+    }
+
+    private static func byteString(_ bytes: Int64) -> String {
+        let gb = Double(bytes) / 1_073_741_824
+        if gb >= 1 { return String(format: "%.1f GB", gb) }
+        let mb = Double(bytes) / 1_048_576
+        if mb >= 1 { return String(format: "%.0f MB", mb) }
+        return String(format: "%.0f KB", Double(bytes) / 1024)
     }
 
     @ViewBuilder

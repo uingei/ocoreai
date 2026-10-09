@@ -157,6 +157,45 @@ struct ResumeDispositionTests {
     }
 }
 
+@Suite("Resume — disk bytes are user-visible (badge truth)")
+struct ResumableBytesDiscoveryTests {
+    @Test("counts only temps WITH identity sidecars; orphans invisible")
+    func counts() throws {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory
+            .appendingPathComponent("ResumableBytes-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+
+        // Resumable: temp + meta sidecar → counted.
+        let t1 = ModelScopeDownloader.resumeTempURL(for: "model-00001.safetensors", in: dir)
+        fm.createFile(atPath: t1.path, contents: Data(repeating: 0xA1, count: 4096))
+        let meta = ModelScopeDownloader.ResumeMeta(
+            revision: "main", etag: nil, lastModified: nil)
+        try JSONEncoder().encode(meta).write(
+            to: ModelScopeDownloader.resumeMetaURL(alongside: t1))
+
+        // Orphan temp: bytes exist but identity unknown → If-Range can't
+        // honestly promise a resume → must NOT be advertised.
+        let t2 = ModelScopeDownloader.resumeTempURL(for: "model-00002.safetensors", in: dir)
+        fm.createFile(atPath: t2.path, contents: Data(repeating: 0xB2, count: 8192))
+
+        // Meta files themselves and non-temp files never count.
+        let t3 = dir.appendingPathComponent("config.json")
+        fm.createFile(atPath: t3.path, contents: Data(repeating: 0xCC, count: 500))
+
+        let total = ModelScopeDownloader.resumableBytes(in: dir)
+        #expect(total == 4096, "only sidecar-guarded bytes are resumable truth")
+    }
+
+    @Test("missing directory → zero, no throw")
+    func missingDir() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Nope-\(UUID().uuidString)", isDirectory: true)
+        #expect(ModelScopeDownloader.resumableBytes(in: dir) == 0)
+    }
+}
+
 @Suite("Resume — age-gated sweep")
 struct ResumeSweepTests {
     @Test("fresh temp is resumable state; stale temp is junk")

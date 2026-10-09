@@ -289,6 +289,7 @@ public enum StringKey: String, CaseIterable, Sendable {
     case modelViewDeleteConfirmAction = "Models.DeleteConfirmAction"
     case modelViewDeleteCancelAction = "Models.DeleteCancelAction"
     case stopDownloadAction = "Models.StopDownloadAction"
+    case resumableBadgeFormat = "Models.ResumableBadge"
     case stopDownloadHint = "A11y.StopDownloadHint"
 
     // — Multimodal —
@@ -813,6 +814,7 @@ enum L10nTables {
         .modelViewDeleteConfirmAction: "Delete",
         .modelViewDeleteCancelAction: "Cancel",
         .stopDownloadAction: "Stop download",
+        .resumableBadgeFormat: "%@ resumable — tap download to resume",
         .stopDownloadHint: "Stops now; downloaded bytes are kept and the next attempt resumes",
 
         // Multimodal
@@ -1238,6 +1240,7 @@ enum L10nTables {
         .modelViewDeleteConfirmAction: "删除",
         .modelViewDeleteCancelAction: "取消",
         .stopDownloadAction: "停止下载",
+        .resumableBadgeFormat: "可续传 %@ — 点击下载从断点继续",
         .stopDownloadHint: "现在停止；已下载的字节将保留，下次从断点继续",
 
         // Multimodal

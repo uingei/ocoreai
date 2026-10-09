@@ -367,6 +367,30 @@ actor ModelScopeDownloader: Downloader {
         tempURL.appendingPathExtension("meta")
     }
 
+    /// Total resumable bytes under `dir`: `.download-*` temps that carry a
+    /// `.meta` sidecar (identity known → resume will fire). Temps WITHOUT a
+    /// sidecar are invisible here — byte-counting them would promise a
+    /// resume the If-Range gate can't honestly make. FS query; call off the
+    /// view body (`.task`), the tree is shallow (one repo dir).
+    static func resumableBytes(in dir: URL) -> Int64 {
+        let fm = FileManager.default
+        guard
+            let en = fm.enumerator(
+                at: dir, includingPropertiesForKeys: [.fileSizeKey],
+                errorHandler: { _, _ in true })
+        else { return 0 }
+        var total: Int64 = 0
+        for case let url as URL in en {
+            let name = url.lastPathComponent
+            guard name.hasPrefix(".download-"), !name.hasSuffix(".meta") else { continue }
+            guard fm.fileExists(atPath: resumeMetaURL(alongside: url).path) else { continue }
+            let size =
+                (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+            total += Int64(size)
+        }
+        return total
+    }
+
     struct ResumeMeta: Codable, Equatable {
         var revision: String
         var etag: String?
