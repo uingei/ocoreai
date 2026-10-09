@@ -49,20 +49,53 @@ enum DiskSpaceGuard {
     }
 
     /// Local bytes already present for this repo (credit toward the ask).
+    /// Two layouts, no double-counting:
+    ///   • Flat (ReadyHubDownloader / ModelScope targets): matched regular
+    ///     files live directly in `dir`.
+    ///   • Legacy HubCache (`ModelStore.hubRoot` → `<org>/<repo>/{blobs,
+    ///     snapshots}`): content-addressed blobs are recursive under repo
+    ///     subdirectories; blobs are named by hash — size patterns over
+    ///     names can't match them, so legacy credit = every regular file
+    ///     under the first-level repo dirs (whole-repo download semantics).
+    /// Empty patterns (SDK "whole repo") → every regular file matches.
     static func cachedBytes(in dir: URL, patterns: [String]) -> Int64 {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(atPath: dir.path) else { return 0 }
         var total: Int64 = 0
-        for name in entries where matchesGlob(name, patterns: patterns) {
-            if let attrs = try? fm.attributesOfItem(atPath: dir.appendingPathComponent(name).path) {
-                total += (attrs[.size] as? NSNumber)?.int64Value ?? 0
+        for name in entries {
+            let url = dir.appendingPathComponent(name)
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: url.path, isDirectory: &isDir) else { continue }
+            if isDir.boolValue {
+                // Legacy HubCache: recurse into <org>/<repo>/… blobs only.
+                guard patterns.isEmpty else { continue }
+                guard
+                    let it = fm.enumerator(
+                        at: url, includingPropertiesForKeys: [.fileSizeKey],
+                        options: [.skipsHiddenFiles])
+                else { continue }
+                while let item = it.nextObject() as? URL {
+                    guard let v = try? item.resourceValues(forKeys: [.fileSizeKey]),
+                        (try? item.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile
+                            == true
+                    else { continue }
+                    total += Int64(v.fileSize ?? 0)
+                }
+            } else if matchesGlob(name, patterns: patterns) {
+                if let attrs = try? fm.attributesOfItem(atPath: url.path) {
+                    total += (attrs[.size] as? NSNumber)?.int64Value ?? 0
+                }
             }
         }
         return total
     }
 
+    /// Empty patterns → every file (SDK `matching: []` semantics — the main
+    /// handler path means "whole repo", so the guard must size the whole repo,
+    /// not silently allow it through a no-match).
     static func matchesGlob(_ name: String, patterns: [String]) -> Bool {
-        patterns.contains { glob in
+        if patterns.isEmpty { return true }
+        return patterns.contains { glob in
             if glob.hasPrefix("*.") { return name.hasSuffix(String(glob.dropFirst(1))) }
             return name == glob
         }

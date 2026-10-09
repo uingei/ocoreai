@@ -169,3 +169,69 @@ private func temporaryDirectory() throws -> URL {
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
 }
+
+@Suite("DiskSpaceGuard — SDK matching:[] = whole repo (no silent hole)")
+struct DiskSpaceGuardWholeRepoTests {
+    @Test("empty patterns matches every file")
+    func emptyPatternsMatchAll() {
+        // ReadyHubDownloader's main handler path passes matching: [] —
+        // "whole repo". The guard MUST size every file, not no-match its
+        // way into a silent allow-through.
+        #expect(DiskSpaceGuard.matchesGlob("anything.bin", patterns: []))
+        #expect(DiskSpaceGuard.matchesGlob("config.json", patterns: []))
+        #expect(DiskSpaceGuard.matchesGlob("no-extension", patterns: []))
+    }
+
+    @Test("non-empty patterns keep exact-glob semantics")
+    func nonEmptyUnchanged() {
+        #expect(DiskSpaceGuard.matchesGlob("x.gguf", patterns: ["*.gguf"]))
+        #expect(!DiskSpaceGuard.matchesGlob("x.safetensors", patterns: ["*.gguf"]))
+    }
+
+    @Test("flat layout: top-level files counted exactly once")
+    func flatNoDoubleCount() throws {
+        let dir = try temporaryDirectory()
+        let fm = FileManager.default
+        try "1234".write(
+            to: dir.appendingPathComponent("a.safetensors"), atomically: true, encoding: .utf8)
+        try "56789".write(
+            to: dir.appendingPathComponent("b.safetensors"), atomically: true, encoding: .utf8)
+
+        // Whole-repo credit = 9 bytes, once.
+        #expect(DiskSpaceGuard.cachedBytes(in: dir, patterns: []) == 9)
+        // Exact-ext pattern flat semantics unchanged.
+        #expect(DiskSpaceGuard.cachedBytes(in: dir, patterns: ["*.safetensors"]) == 9)
+        try? fm.removeItem(at: dir)
+    }
+
+    @Test("legacy HubCache layout: recursive blob credit, whole-repo only")
+    func legacyRecursiveCredit() throws {
+        let dir = try temporaryDirectory()
+        let fm = FileManager.default
+        // hubRoot/<org>/<repo>/blobs/<hash> layout, plus sibling repos.
+        let blobs = dir.appendingPathComponent("org").appendingPathComponent("repo")
+            .appendingPathComponent("blobs")
+        try fm.createDirectory(at: blobs, withIntermediateDirectories: true)
+        try "abcdef".write(
+            to: blobs.appendingPathComponent("deadbeef"), atomically: true, encoding: .utf8)
+        try "xyz".write(
+            to: dir.appendingPathComponent("loose.gguf"), atomically: true, encoding: .utf8)
+
+        // Whole-repo semantics: recursive blob (6) + loose top-level (3).
+        #expect(DiskSpaceGuard.cachedBytes(in: dir, patterns: []) == 9)
+        // Exact-ext pattern → flat semantics only (no recursion into dirs).
+        #expect(DiskSpaceGuard.cachedBytes(in: dir, patterns: ["*.gguf"]) == 3)
+        try? fm.removeItem(at: dir)
+    }
+
+    @Test("whole-repo credit earns zero-ask on fully cached repo")
+    func fullyCachedWholeRepoAsksZero() throws {
+        let dir = try temporaryDirectory()
+        let fm = FileManager.default
+        try "cached".write(
+            to: dir.appendingPathComponent("model.safetensors"), atomically: true, encoding: .utf8)
+        let cached = DiskSpaceGuard.cachedBytes(in: dir, patterns: [])
+        #expect(DiskSpaceGuard.requiredBytes(remoteTotal: 6, cachedBytes: cached) == 0)
+        try? fm.removeItem(at: dir)
+    }
+}
