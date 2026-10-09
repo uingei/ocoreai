@@ -484,12 +484,53 @@ actor ModelScopeDownloader: Downloader {
         pruneEmptyDirectories(directory)
     }
 
+    /// Thread-safe byte funnel for one download batch (parallel tasks,
+    /// per-file absolute cumulative → one monotone batch bar).
+    ///
+    /// Each file reports its OWN cumulative temp bytes (flushes ~1MB);
+    /// the batch total is the sum of per-file contributions. Per-file max
+    /// keeps the bar monotone across retries whose Range was ignored (temp
+    /// truncated, report restarts lower — we hold the high-water mark until
+    /// the real bytes pass it; completion report = manifest size, exact).
+    /// Every accepted flush updates `lastProgressAt` — the batch heartbeat.
+    private final class BatchBytes: @unchecked Sendable {
+        private let lock = NSLock()
+        private let limit: Int64
+        private let onProgress: @Sendable (Int64, Int64) -> Void
+        private var perFile: [String: Int64] = [:]
+        private var reported: Int64 = 0
+        private(set) var lastProgressAt = ContinuousClock.now
+
+        init(total: Int64, onProgress: @escaping @Sendable (Int64, Int64) -> Void) {
+            self.limit = total
+            self.onProgress = onProgress
+        }
+
+        /// Report `cumulativeBytes` = bytes on disk for `file` right now
+        /// (temp included, absolute not delta — retries compute cleanly).
+        func report(file: String, cumulativeBytes: Int64) {
+            lock.lock()
+            let prev = perFile[file] ?? 0
+            guard cumulativeBytes > prev else {
+                lock.unlock()
+                return  // stale/lowered report (truncated retry): hold mark
+            }
+            perFile[file] = cumulativeBytes
+            reported = min(reported + (cumulativeBytes - prev), limit)
+            let done = reported
+            lastProgressAt = ContinuousClock.now
+            lock.unlock()
+            onProgress(done, limit)
+        }
+    }
+
     private func downloadSingleFile(
         path: String,
         to destURL: URL,
         repoId: String,
         revision: String,
         expectedSize: Int64? = nil,
+        reportBytes: @escaping @Sendable (Int64) -> Void = { _ in },
     ) async throws {
 
         /// One attempt: resume from deterministic temp when possible, stream
@@ -646,16 +687,21 @@ actor ModelScopeDownloader: Downloader {
                     }
                     lastActivity = ContinuousClock.now
 
-                    // Flush buffer when full
+                    // Flush buffer when full — and surface the byte count
+                    // (bar + batch heartbeat ride this ~1MB cadence).
                     if writeBuffer.count >= bufferSize {
                         handle.write(writeBuffer)
+                        offset += Int64(writeBuffer.count)
                         writeBuffer = Data()
+                        reportBytes(offset)
                     }
                 }
 
                 // Write any remaining bytes
                 if !writeBuffer.isEmpty {
                     handle.write(writeBuffer)
+                    offset += Int64(writeBuffer.count)
+                    reportBytes(offset)
                 }
 
                 if FileManager.default.fileExists(atPath: destURL.path(percentEncoded: false)) {
@@ -706,7 +752,6 @@ actor ModelScopeDownloader: Downloader {
     ) async throws {
         let totalBytes = files.reduce(Int64(0)) { $0 + ($1.size ?? 0) }
         let total = files.count
-        var downloadedBytes: Int64 = 0
         var downloadedCount = 0
         var failedPaths: [String] = []
         /// Paths that were actually downloaded (not pre-existing) in this session.
@@ -714,9 +759,21 @@ actor ModelScopeDownloader: Downloader {
         /// that existed before this download attempt.
         var newlyDownloaded: Set<String> = []
 
-        // Overall stall detection for the entire batch
-        let stallTimeout: TimeInterval = 600  // 10 min for full batch
-        var lastProgress = ContinuousClock.now
+        // Byte funnel: parallel per-file flushes land here (per-file
+        // absolute cumulative, temp bytes included). The bar advances on
+        // ~1MB flushes instead of file-completion cliffs, resumed bytes
+        // count from frame one, and the flush heartbeat retires the old
+        // file-completion-only stall pulse — which killed healthy
+        // single-file downloads >10 min (batch check only ever beat when
+        // a whole file finished).
+        let batch = BatchBytes(total: max(totalBytes, 1)) { done, limit in
+            let progress = Progress(totalUnitCount: limit)
+            progress.completedUnitCount = done
+            progressHandler(progress)
+        }
+
+        // Overall stall detection: no BYTES (not just no files) for 10 min.
+        let stallTimeout: TimeInterval = 600
 
         // Cancellation: the batch loop throws CancellationError, each
         // downloadSingleFile catch discards its own temp+meta on explicit
@@ -729,7 +786,7 @@ actor ModelScopeDownloader: Downloader {
             if Task.isCancelled { throw CancellationError() }
 
             // Batch-level stall check
-            if lastProgress.duration(to: ContinuousClock.now) > .seconds(stallTimeout) {
+            if batch.lastProgressAt.duration(to: ContinuousClock.now) > .seconds(stallTimeout) {
                 throw DownloaderError.downloadBatchStalled(
                     timeout: Int(stallTimeout),
                     downloadedFiles: downloadedCount,
@@ -738,21 +795,30 @@ actor ModelScopeDownloader: Downloader {
             }
 
             let tasks = chunk.map { fileInfo -> (String, Task<(FileInfo, Bool), Error>) in
-                let filePath = String(fileInfo.path)
+                let filePath = fileInfo.path
                 return (
                     filePath,
                     Task {
-                        // Second Bool = isNewlyDownloaded (false for pre-existing skips)
+                        // Pre-existing: seed full size instantly (same cliff the
+                        // old file-completion accounting had, byte-exact now).
                         if existingFilenames.contains(filePath) {
+                            batch.report(file: filePath, cumulativeBytes: fileInfo.size ?? 0)
                             return (fileInfo, false)
                         }
                         let dest = cacheDir.appendingPathComponent(filePath)
+                        // Byte progress (HIG: bar reflects real bytes): per-file
+                        // flushes (~1MB) report absolute cumulative — resumed
+                        // temp bytes count from the first flush of attempt 2.
+                        let reportBytes: @Sendable (Int64) -> Void = { cumulative in
+                            batch.report(file: filePath, cumulativeBytes: cumulative)
+                        }
                         try await downloadSingleFile(
                             path: filePath,
                             to: dest,
                             repoId: repoId,
                             revision: revision,
                             expectedSize: fileInfo.size,
+                            reportBytes: reportBytes,
                         )
                         return (fileInfo, true)
                     }
@@ -766,13 +832,9 @@ actor ModelScopeDownloader: Downloader {
                         newlyDownloaded.insert(filePath)
                     }
                     downloadedCount += 1
-                    let fileBytes = info.size ?? 0
-                    downloadedBytes += fileBytes
-                    // Byte-level progress — smooth ETA and percentage
-                    let progress = Progress(totalUnitCount: max(totalBytes, 1))
-                    progress.completedUnitCount = Int64(downloadedBytes)
-                    progressHandler(progress)
-                    lastProgress = ContinuousClock.now
+                    // Final byte truth for this file (zero-RTT promotions never
+                    // flushed — this closes their bar; monotone ⇒ no double count).
+                    batch.report(file: filePath, cumulativeBytes: info.size ?? 0)
                 } catch {
                     failedPaths.append(filePath)
                 }
