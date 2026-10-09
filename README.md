@@ -42,6 +42,18 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 
 ---
 
+### Lifecycle
+
+- **Update**: Settings → About → “Check for Updates…” compares the running
+  build against the latest GitHub release and opens the release page — the
+  user decides, never a silent download.
+- **Uninstall**: `scripts/uninstall.sh` (dry run by default) prints the full
+  footprint in tiers — regeneratable caches/logs, user data (sessions/config),
+  model weights, the app itself — and removes only the tiers you select with
+  `--data / --userdata / --models / --app / --all`. Weights are 100s of GB:
+  they are never touched unless you ask. No keychain entries exist by design
+  (env-first tokens, mirroring mlx-swift-lm/coreai-models).
+
 ### What's in here
 
 One process: inference (MLX Metal + CoreAI, upstream-derived) + agent loop (tool calling, skills, session memory via SQLite/FTS5) + HTTP gateway (OpenAI/Anthropic-compatible endpoints, table below) + native multimodal I/O (camera/screen/audio/OCR/STT/TTS, all Apple-native) + MCP bridge (stdio).

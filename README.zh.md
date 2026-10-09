@@ -36,6 +36,11 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 
 ---
 
+### 生命周期
+
+- **更新**：设置 → 关于 → “检查更新…”——对比当前版本与 GitHub 最新 Release，由用户决定下载；绝不静默下载。
+- **卸载**：`scripts/uninstall.sh`（默认 dry run）按层级列出全部足迹——可再生缓存/日志、用户数据（会话/配置）、模型权重、App 本体——只删除你以 `--data / --userdata / --models / --app / --all` 选中的层级。模型权重动辄数百 GB：不点名绝不碰。钥匙串零条目是有意设计（token 走 env-first，对齐 mlx-swift-lm/coreai-models）。
+
 ### 这里有什么
 
 一个进程：推理（MLX Metal + CoreAI，上游衍生）+ Agent 循环（工具调用、技能、SQLite/FTS5 会话记忆）+ HTTP 网关（OpenAI/Anthropic 兼容端点，见下表）+ 原生多模态 I/O（摄像头/屏幕/音频/OCR/STT/TTS，全 Apple 原生）+ MCP 桥接（stdio）。
