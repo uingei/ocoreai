@@ -324,18 +324,165 @@ actor ModelScopeDownloader: Downloader {
     ///
     /// Uses `/api/v1/models/{id}/resolve/{revision}/{path}` which redirects to CDN.
     /// Streams the response into a temp file — never holds the full file in memory.
-    /// Supports task cancellation — caller can cancel and the download cleans up partial files.
+    ///
+    /// **Resume**: deterministic temp + HTTP Range/If-Range continuation —
+    /// transient failures keep partial bytes, the next attempt (or process
+    /// restart) resumes where it stopped. Identity verified via revision +
+    /// ETag/Last-Modified; any doubt restarts fresh (never splices versions).
+    /// **Cancellation**: explicit cancel discards partial bytes (user intent:
+    /// start over).
     ///
     /// **Stall detection**: aborts if no bytes received within `stallTimeout`.
     /// **Retry**: transient network errors are retried with exponential backoff (up to 3 attempts).
+    // MARK: - Resume support (line 2: interrupted downloads survive)
+    //
+    // First-principles gap this closes: a 40 GB download that drops at 99%
+    // used to delete its temp file and restart from zero — the network paid
+    // twice and the user waited twice. Now: deterministic temp names (a new
+    // process finds yesterday's bytes), partial temp kept across transient
+    // failures and cancellations, and HTTP Range continuation with If-Range
+    // identity checks so resumed bytes can never silently splice versions.
+
+    /// Deterministic temp path for a repo file — resume across attempts and
+    /// process restarts. `.download-` prefix keeps it inside the sweep.
+    static func resumeTempURL(for path: String, in cacheDir: URL) -> URL {
+        cacheDir.appendingPathComponent(
+            ".download-\(path.replacingOccurrences(of: "/", with: "__"))")
+    }
+
+    static func resumeMetaURL(for path: String, in cacheDir: URL) -> URL {
+        resumeTempURL(for: path, in: cacheDir).appendingPathExtension("meta")
+    }
+
+    struct ResumeMeta: Codable, Equatable {
+        var revision: String
+        var etag: String?
+        var lastModified: String?
+    }
+
+    /// Can these bytes be resumed? Every unknown/discordant state fails
+    /// closed to a fresh download (never splice on doubt):
+    /// revision changed, temp larger than manifest size, no temp bytes.
+    static func shouldResume(
+        tempBytes: Int64,
+        expectedSize: Int64?,
+        meta: ResumeMeta?,
+        currentRevision: String
+    ) -> Bool {
+        guard tempBytes > 0 else { return false }
+        guard let meta, meta.revision == currentRevision else { return false }
+        if let expected = expectedSize, tempBytes >= expected { return false }
+        return true
+    }
+
+    /// A temp at exactly the manifest size with a matching revision is a
+    /// COMPLETE file the previous process died before promoting — ship it
+    /// without touching the network (the codebase's integrity bar is
+    /// manifest-size verification, same as verifyDownloadedFiles applies to
+    /// promoted files).
+    static func shouldPromoteComplete(
+        tempBytes: Int64,
+        expectedSize: Int64?,
+        meta: ResumeMeta?,
+        currentRevision: String
+    ) -> Bool {
+        guard let expected = expectedSize, tempBytes >= expected else { return false }
+        guard let meta, meta.revision == currentRevision else { return false }
+        return true
+    }
+
+    /// Stream disposition after the response arrives. Range continuation only
+    /// on 206 (server honored Range + If-Range); 200 → start fresh (truncate);
+    /// 416 with temp already at expected size → the file is COMPLETE server-
+    /// side (race: another session finished it) — promote, do not fail;
+    /// anything else → failure with its status code.
+    enum ResumeDisposition: Equatable {
+        case resume
+        case fresh
+        case complete
+        case failed(statusCode: Int)
+    }
+
+    static func resumeDisposition(statusCode: Int, tempBytes: Int64, expectedSize: Int64?)
+        -> ResumeDisposition
+    {
+        if statusCode == 206 { return .resume }
+        if (200 ... 299).contains(statusCode) { return .fresh }
+        if statusCode == 416, let expected = expectedSize, tempBytes >= expected {
+            return .complete
+        }
+        return .failed(statusCode: statusCode)
+    }
+
+    /// Age-gated orphan sweep decision: keep resumable temp files, delete
+    /// only stale ones (network drops resume; the user's machine stays
+    /// clean overnight).
+    static func shouldPurgeTemp(age: TimeInterval, staleAfter: TimeInterval = 24 * 3600) -> Bool {
+        age > staleAfter
+    }
+
+    /// Current byte size of the temp file (0 if absent).
+    private func currentTempBytes(_ tempURL: URL) -> Int64 {
+        guard
+            let attrs = try? FileManager.default.attributesOfItem(
+                atPath: tempURL.path(percentEncoded: false))
+        else { return 0 }
+        return (attrs[.size] as? NSNumber)?.int64Value ?? 0
+    }
+
+    private static let resumeMetaEncoder = JSONEncoder()
+    private static let resumeMetaDecoder = JSONDecoder()
+
+    private func loadResumeMeta(at url: URL) -> ResumeMeta? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? Self.resumeMetaDecoder.decode(ResumeMeta.self, from: data)
+    }
+
+    private func saveResumeMeta(_ meta: ResumeMeta, at url: URL) {
+        guard let data = try? Self.resumeMetaEncoder.encode(meta) else { return }
+        try? data.write(to: url, options: .atomic)
+    }
+
+    /// Remove orphaned `.download-*` temp files older than the stale window
+    /// (and their `.meta` sidecars). Fresh temps are RESUMABLE state — the
+    /// whole point of keeping them — so only age decides.
+    func purgeStaleTempFiles(in directory: URL, staleAfter: TimeInterval = 24 * 3600) {
+        let fm = FileManager.default
+        guard
+            let enumerator = fm.enumerator(
+                at: directory, includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles])
+        else { return }
+        let now = Date()
+        var tempURLsToRemove: [URL] = []
+        for case let url as URL in enumerator {
+            let name = url.lastPathComponent
+            guard name.hasPrefix(".download-") || name.hasPrefix(".____temp") else { continue }
+            let age: TimeInterval =
+                (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
+                .contentModificationDate.map { now.timeIntervalSince($0) } ?? 0
+            guard Self.shouldPurgeTemp(age: age, staleAfter: staleAfter) else { continue }
+            tempURLsToRemove.append(url)
+            tempURLsToRemove.append(URL(string: url.absoluteString + ".meta") ?? url)
+        }
+        for url in tempURLsToRemove {
+            try? fm.removeItem(at: url)
+        }
+        pruneEmptyDirectories(directory)
+    }
+
     private func downloadSingleFile(
         path: String,
         to destURL: URL,
         repoId: String,
         revision: String,
+        expectedSize: Int64? = nil,
     ) async throws {
 
-        /// Download a single attempt (no retry). Cleans up on failure.
+        /// One attempt: resume from deterministic temp when possible, stream
+        /// the remainder, promote on success. Transient failures KEEP temp
+        /// (bytes are valid prefixes; If-Range guards identity on resume);
+        /// explicit cancellation DISCARDS temp (user intent: start over).
         func attemptDownload() async throws {
             guard let components = URLComponents(url: self.baseAPI, resolvingAgainstBaseURL: false)
             else {
@@ -356,23 +503,93 @@ actor ModelScopeDownloader: Downloader {
             let parent = destURL.deletingLastPathComponent()
             try? FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
 
-            let tempURL = parent.appendingPathComponent(".download-\(UUID().uuidString.prefix(8))")
+            // Deterministic temp — a later attempt (or a new process) finds
+            // these bytes again. UUID temps were the resume-killer.
+            let tempURL = Self.resumeTempURL(for: path, in: cacheDirFor(path: path, dest: destURL))
+            let metaURL = Self.resumeMetaURL(for: path, in: cacheDirFor(path: path, dest: destURL))
+            let fm = FileManager.default
+
+            // Resume offset: temp bytes we already own, gated by identity —
+            // revision match + plausible size. Any doubt → offset 0.
+            var offset: Int64 = 0
+            if let attrs = try? fm.attributesOfItem(atPath: tempURL.path(percentEncoded: false)) {
+                let tempBytes = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+                let meta = loadResumeMeta(at: metaURL)
+                if Self.shouldPromoteComplete(
+                    tempBytes: tempBytes, expectedSize: expectedSize,
+                    meta: meta, currentRevision: revision)
+                {
+                    // Previous process died AFTER the last byte, BEFORE
+                    // promotion. Zero-RTT promote (size == manifest).
+                    if fm.fileExists(atPath: destURL.path(percentEncoded: false)) {
+                        try fm.removeItem(at: destURL)
+                    }
+                    try fm.moveItem(at: tempURL, to: destURL)
+                    try? fm.removeItem(at: metaURL)
+                    return
+                }
+                if Self.shouldResume(
+                    tempBytes: tempBytes, expectedSize: expectedSize,
+                    meta: meta, currentRevision: revision)
+                {
+                    offset = tempBytes
+                    request.setValue("bytes=\(offset)-", forHTTPHeaderField: "Range")
+                    // If-Range: server serves 206 only if our bytes still
+                    // match the remote version; otherwise a fresh 200,
+                    // which truncates the temp before streaming.
+                    if let etag = meta?.etag {
+                        request.setValue(etag, forHTTPHeaderField: "If-Range")
+                    } else if let lm = meta?.lastModified {
+                        request.setValue(lm, forHTTPHeaderField: "If-Range")
+                    }
+                } else if tempBytes > 0 {
+                    // Discordant stale temp — drop it before this attempt.
+                    try? fm.removeItem(at: tempURL)
+                    try? fm.removeItem(at: metaURL)
+                }
+            }
+
             do {
                 // bytes(for:) returns (AsyncBytes, URLResponse) in Swift 6 —
                 // check response first, then stream body.
                 let (bytes, response) = try await URLSession.shared.bytes(for: request)
 
-                guard let httpResponse = response as? HTTPURLResponse,
-                    (200 ... 299).contains(httpResponse.statusCode)
-                else {
-                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw DownloaderError.downloadFailed(path: path, statusCode: 0)
+                }
+                let resuming: Bool
+                switch Self.resumeDisposition(
+                    statusCode: httpResponse.statusCode,
+                    tempBytes: currentTempBytes(tempURL),
+                    expectedSize: expectedSize)
+                {
+                case .resume: resuming = true
+                case .fresh: resuming = false
+                case .complete:
+                    // 416 + temp at manifest size → complete server-side;
+                    // promote without streaming.
+                    if fm.fileExists(atPath: destURL.path(percentEncoded: false)) {
+                        try fm.removeItem(at: destURL)
+                    }
+                    try fm.moveItem(at: tempURL, to: destURL)
+                    try? fm.removeItem(at: metaURL)
+                    return
+                case .failed(let status):
                     throw DownloaderError.downloadFailed(path: path, statusCode: status)
                 }
+                if offset > 0 && !resuming {
+                    // Server ignored Range (or If-Range mismatch → 200 full
+                    // body): our prefix is unverified — truncate and restart.
+                    offset = 0
+                }
 
-                // FileHandle(forWritingTo:) requires the file to already exist
-                // (Swift 6 API change — does not create the file implicitly).
-                _ = FileManager.default.createFile(
-                    atPath: tempURL.path(percentEncoded: false), contents: nil)
+                if offset == 0 {
+                    // Fresh download (first byte ever, or fresh 200): create
+                    // the temp from scratch. FileHandle(forWritingTo:) needs
+                    // the file to exist (Swift 6 API semantics).
+                    _ = fm.createFile(
+                        atPath: tempURL.path(percentEncoded: false), contents: nil)
+                }
 
                 // Stream into file — O(1) memory regardless of file size.
                 // Buffered writes: accumulate bytes into a Data buffer, flush at
@@ -380,6 +597,16 @@ actor ModelScopeDownloader: Downloader {
                 // file with per-byte writes would trigger ~10 billion syscalls.
                 let handle = try FileHandle(forWritingTo: tempURL)
                 defer { try? handle.close() }
+                if offset > 0 { try handle.seekToEndOfFile() }
+
+                // Record identity for the next attempt's If-Range, right after
+                // headers arrive (before any byte is appended).
+                saveResumeMeta(
+                    ResumeMeta(
+                        revision: revision,
+                        etag: httpResponse.value(forHTTPHeaderField: "ETag"),
+                        lastModified: httpResponse.value(forHTTPHeaderField: "Last-Modified")),
+                    at: metaURL)
 
                 // Stall detection: track last byte-arrival time
                 // 300s stall timeout (matches omlx convention)
@@ -422,8 +649,16 @@ actor ModelScopeDownloader: Downloader {
                     try FileManager.default.removeItem(at: destURL)
                 }
                 try FileManager.default.moveItem(at: tempURL, to: destURL)
+                // Promoted: identity sidecar no longer needed.
+                try? FileManager.default.removeItem(at: metaURL)
             } catch {
-                try? FileManager.default.removeItem(at: tempURL)
+                // Explicit user cancellation → discard (start over next time).
+                // Transient failure / stall → KEEP temp: bytes are a valid
+                // prefix under If-Range guard; retry resumes from `offset`.
+                if error is CancellationError {
+                    try? FileManager.default.removeItem(at: tempURL)
+                    try? FileManager.default.removeItem(at: metaURL)
+                }
                 throw error
             }
         }
@@ -431,6 +666,13 @@ actor ModelScopeDownloader: Downloader {
         try await withRetry(maxAttempts: 3) {
             try await attemptDownload()
         }
+    }
+
+    /// Directory holding the temp for a repo file: the cache root, since
+    /// temps live beside `destURL`'s parent only within nested repo paths —
+    /// determinism demands ONE canonical location per repo file.
+    private func cacheDirFor(path: String, dest: URL) -> URL {
+        dest.deletingLastPathComponent()
     }
 
     /// Download files in parallel batches of 4.
@@ -463,13 +705,11 @@ actor ModelScopeDownloader: Downloader {
         let stallTimeout: TimeInterval = 600  // 10 min for full batch
         var lastProgress = ContinuousClock.now
 
-        // Cancellation cleanup: ensure `.download-*` temp files are removed even
-        // if the task is cancelled mid-stream. Also prunes empty directories.
-        defer {
-            if Task.isCancelled {
-                cleanupTempFiles(in: cacheDir)
-            }
-        }
+        // Cancellation: the batch loop throws CancellationError, each
+        // downloadSingleFile catch discards its own temp+meta on explicit
+        // cancel (one authority — no sweeping cacheDir here, which would
+        // delete resumable temps the user just chose to interrupt).
+        // Age-gated stale sweep lives at app launch (purgeStaleTempFiles).
 
         for chunk in files.chunked(into: 4) {
             // Task.isCancelled checkpoint — allow user cancellation to take effect
@@ -499,6 +739,7 @@ actor ModelScopeDownloader: Downloader {
                             to: dest,
                             repoId: repoId,
                             revision: revision,
+                            expectedSize: fileInfo.size,
                         )
                         return (fileInfo, true)
                     }
@@ -594,31 +835,6 @@ actor ModelScopeDownloader: Downloader {
 
     /// Remove any `.download-*` or `.____temp` files left by cancelled downloads
     /// and prune the resulting empty downward directories.
-    private func cleanupTempFiles(in directory: URL) {
-        guard
-            let enumerator = FileManager.default.enumerator(
-                at: directory,
-                includingPropertiesForKeys: nil,
-                options: []
-            )
-        else { return }
-
-        var tempURLsToRemove: [URL] = []
-        for case let url as URL in enumerator {
-            let name = url.lastPathComponent
-            if name.hasPrefix(".download-") || name.hasPrefix(".____temp") {
-                tempURLsToRemove.append(url)
-            }
-        }
-
-        // Remove all orphaned temp files first
-        for url in tempURLsToRemove {
-            try? FileManager.default.removeItem(at: url)
-        }
-
-        // Walk bottom-up to prune empty directories left by cleanup
-        pruneEmptyDirectories(directory)
-    }
 
     /// Recursively prune empty directories after temp-file cleanup.
     private func pruneEmptyDirectories(_ directory: URL) {
