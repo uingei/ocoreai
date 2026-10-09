@@ -277,3 +277,90 @@ extension FileManager {
         }
     }
 }
+
+@Suite("Progress — BatchBytes funnel (bar honesty)")
+struct BatchBytesTests {
+    /// Collect onProgress emissions. BatchBytes calls the handler OUTSIDE
+    /// its own lock, so a locked box here is enough (no actor hop needed —
+    /// the sync handler cannot `await`).
+    private actor Recorder {}  // marker: keep actor for Swift 6 isolation checks
+    private final class Sink: @unchecked Sendable {
+        private let lock = NSLock()
+        private var seen: [Int64] = []
+        func emit(_ d: Int64) {
+            lock.lock()
+            seen.append(d)
+            lock.unlock()
+        }
+        var last: Int64? {
+            lock.lock()
+            defer { lock.unlock() }
+            return seen.last
+        }
+        var count: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return seen.count
+        }
+        var isEmpty: Bool { count == 0 }
+    }
+
+    @Test("parallel flushes sum across files; monotone per file")
+    func sumsAndMonotone() {
+        let sink = Sink()
+        let batch = ModelScopeDownloader.BatchBytes(total: 1000) { d, _ in
+            sink.emit(d)
+        }
+        batch.report(file: "a", cumulativeBytes: 100)
+        batch.report(file: "b", cumulativeBytes: 200)
+        batch.report(file: "a", cumulativeBytes: 300)  // a grows +200
+        #expect(sink.last == 500)  // total = a(300) + b(200)
+        // Lowered report for a (Range-ignored retry truncation) → hold mark
+        batch.report(file: "a", cumulativeBytes: 50)
+        #expect(sink.last == 500)
+        // Only growth past the high-water advances the bar
+        batch.report(file: "a", cumulativeBytes: 400)
+        #expect(sink.last == 600)
+    }
+
+    @Test("bar capped; settle lands exact truth downward")
+    func cappedAndSettle() {
+        let sink = Sink()
+        let batch = ModelScopeDownloader.BatchBytes(total: 500) { d, _ in
+            sink.emit(d)
+        }
+        batch.report(file: "a", cumulativeBytes: 400)
+        batch.report(file: "b", cumulativeBytes: 400)  // sum 800
+        #expect(sink.last == 500)  // capped at limit
+        // Promotion truth lands via settle: temp over-ran the manifest —
+        // authoritative downward write, bar recomputes from real sizes.
+        batch.settle(file: "a", exactBytes: 100)
+        batch.settle(file: "b", exactBytes: 100)
+        #expect(sink.last == 200)  // exact books, no inflation
+    }
+
+    @Test("zero-progress reports do not spam the handler")
+    func noSpam() {
+        let sink = Sink()
+        let batch = ModelScopeDownloader.BatchBytes(total: 100) { d, _ in
+            sink.emit(d)
+        }
+        batch.report(file: "a", cumulativeBytes: 0)
+        batch.report(file: "a", cumulativeBytes: 0)
+        #expect(sink.isEmpty)
+        batch.report(file: "a", cumulativeBytes: 10)
+        #expect(sink.count == 1)
+    }
+
+    @Test("accepted flush beats the stall heartbeat")
+    func heartbeat() async throws {
+        let sink = Sink()
+        let batch = ModelScopeDownloader.BatchBytes(total: 100) { d, _ in
+            sink.emit(d)
+        }
+        let t0 = batch.lastProgressAt
+        try await Task.sleep(for: .milliseconds(30))
+        batch.report(file: "a", cumulativeBytes: 5)
+        #expect(batch.lastProgressAt > t0)  // watchdog sees life
+    }
+}

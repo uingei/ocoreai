@@ -493,12 +493,12 @@ actor ModelScopeDownloader: Downloader {
     /// truncated, report restarts lower — we hold the high-water mark until
     /// the real bytes pass it; completion report = manifest size, exact).
     /// Every accepted flush updates `lastProgressAt` — the batch heartbeat.
-    private final class BatchBytes: @unchecked Sendable {
+    internal final class BatchBytes: @unchecked Sendable {
         private let lock = NSLock()
         private let limit: Int64
         private let onProgress: @Sendable (Int64, Int64) -> Void
         private var perFile: [String: Int64] = [:]
-        private var reported: Int64 = 0
+        private var reportedSnapshot: Int64 = 0
         private(set) var lastProgressAt = ContinuousClock.now
 
         init(total: Int64, onProgress: @escaping @Sendable (Int64, Int64) -> Void) {
@@ -516,11 +516,30 @@ actor ModelScopeDownloader: Downloader {
                 return  // stale/lowered report (truncated retry): hold mark
             }
             perFile[file] = cumulativeBytes
-            reported = min(reported + (cumulativeBytes - prev), limit)
-            let done = reported
-            lastProgressAt = ContinuousClock.now
+            settle_locked()
             lock.unlock()
-            onProgress(done, limit)
+            onProgress(reportedSnapshot, limit)
+        }
+
+        /// Authoritative landing at file completion: the REAL size is truth —
+        /// overwrite the high-water mark (a temp that over-ran the manifest
+        /// must not hold the bar inflated forever) and re-emit exactly.
+        func settle(file: String, exactBytes: Int64) {
+            lock.lock()
+            perFile[file] = exactBytes
+            settle_locked()
+            lock.unlock()
+            onProgress(reportedSnapshot, limit)
+        }
+
+        /// Recompute from per-file truths (never delta-on-clamped-total: a
+        /// clamped `reported` loses information and deltas drift). Sum is
+        /// O(files) — hundreds max, flush cadence ≥1MB — negligible cost,
+        /// books always exact. Caller holds lock.
+        private func settle_locked() {
+            let sum = perFile.values.reduce(Int64(0)) { $0 + $1 }
+            reportedSnapshot = min(sum, limit)
+            lastProgressAt = ContinuousClock.now
         }
     }
 
@@ -799,10 +818,10 @@ actor ModelScopeDownloader: Downloader {
                 return (
                     filePath,
                     Task {
-                        // Pre-existing: seed full size instantly (same cliff the
+                        // Pre-existing: settle full size instantly (same cliff the
                         // old file-completion accounting had, byte-exact now).
                         if existingFilenames.contains(filePath) {
-                            batch.report(file: filePath, cumulativeBytes: fileInfo.size ?? 0)
+                            batch.settle(file: filePath, exactBytes: fileInfo.size ?? 0)
                             return (fileInfo, false)
                         }
                         let dest = cacheDir.appendingPathComponent(filePath)
@@ -832,9 +851,9 @@ actor ModelScopeDownloader: Downloader {
                         newlyDownloaded.insert(filePath)
                     }
                     downloadedCount += 1
-                    // Final byte truth for this file (zero-RTT promotions never
-                    // flushed — this closes their bar; monotone ⇒ no double count).
-                    batch.report(file: filePath, cumulativeBytes: info.size ?? 0)
+                    // Authoritative landing (zero-RTT promotions never
+                    // flushed; over-run temps land exact here).
+                    batch.settle(file: filePath, exactBytes: info.size ?? 0)
                 } catch {
                     failedPaths.append(filePath)
                 }
