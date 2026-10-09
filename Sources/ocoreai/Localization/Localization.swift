@@ -409,6 +409,11 @@ public enum StringKey: String, CaseIterable, Sendable {
     // — Settings / About —
     case aboutTitle = "About.Title"
     case aboutVersionFormat = "About.VersionFormat"
+    case checkForUpdates = "About.CheckForUpdates"
+    case checkingForUpdates = "About.CheckingForUpdates"
+    case updatesUpToDate = "About.UpdatesUpToDate"
+    case updateAvailablePrompt = "About.UpdateAvailablePrompt"
+    case updateUnavailable = "About.UpdateUnavailable"
     case capabilityBackend = "About.CapabilityBackend"
     case capabilityUnavailable = "About.CapabilityUnavailable"
     case capabilityOn = "About.CapabilityOn"
@@ -923,6 +928,11 @@ enum L10nTables {
         // Settings / About
         .aboutTitle: "ocoreai",
         .aboutVersionFormat: "v%@ · macOS 14+ / iOS 17+",
+        .checkForUpdates: "Check for Updates…",
+        .checkingForUpdates: "Checking…",
+        .updatesUpToDate: "You're up to date.",
+        .updateAvailablePrompt: "Version %@ is available. Open the release page?",
+        .updateUnavailable: "Update check unavailable — check your connection.",
         .capabilityBackend: "Backends",
         .capabilityUnavailable: "Unavailable",
         .capabilityOn: "On",
@@ -1388,6 +1398,11 @@ enum L10nTables {
         // Settings / About
         .aboutTitle: "ocoreai",
         .aboutVersionFormat: "v%@ · macOS 14+ / iOS 17+",
+        .checkForUpdates: "检查更新…",
+        .checkingForUpdates: "检查中…",
+        .updatesUpToDate: "已是最新版本。",
+        .updateAvailablePrompt: "新版本 %@ 可用。打开发布页下载？",
+        .updateUnavailable: "暂无法检查更新——请检查网络连接。",
         .capabilityBackend: "推理后端",
         .capabilityUnavailable: "不可用",
         .capabilityOn: "启用",

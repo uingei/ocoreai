@@ -468,8 +468,7 @@ struct SettingsView: View {
                 Text(
                     String(
                         format: StringKey.aboutVersionFormat.l,
-                        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-                            ?? "dev")
+                        AppInfo.shortVersion)
                 )
                 .font(.caption).foregroundStyle(.secondary)
                 // P1: Capability badge — shows which inference backends are available
@@ -478,6 +477,51 @@ struct SettingsView: View {
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                     capabilityBadges
+                }
+                // Update check — explicit user action, never a silent nag
+                // (HIG: the user decides when to update). Opens the GitHub
+                // release page; auto-install waits on Developer ID signing.
+                Button {
+                    checkingUpdates = true
+                    updateOutcome = nil
+                    Task {
+                        updateOutcome = await UpdateCheck.check()
+                        checkingUpdates = false
+                    }
+                } label: {
+                    Label(
+                        checkingUpdates
+                            ? StringKey.checkingForUpdates.l : StringKey.checkForUpdates.l,
+                        systemImage: "arrow.triangle.2.circlepath")
+                }
+                .disabled(checkingUpdates)
+                .buttonStyle(.borderless)
+                if let outcome = updateOutcome {
+                    switch outcome {
+                    case .upToDate:
+                        Text(StringKey.updatesUpToDate.l)
+                            .font(.caption).foregroundStyle(.secondary)
+                    case .unavailable:
+                        Text(StringKey.updateUnavailable.l)
+                            .font(.caption).foregroundStyle(.orange)
+                    case .updateAvailable(_, let release):
+                        Button {
+                            Task { @MainActor in
+                                #if canImport(UIKit)
+                                _ = await OpenURLDriver.open(release.url)
+                                #else
+                                _ = OpenURLDriver.open(release.url)
+                                #endif
+                            }
+                        } label: {
+                            Text(
+                                String(
+                                    format: StringKey.updateAvailablePrompt.l, release.version)
+                            )
+                            .foregroundStyle(.tint)
+                        }
+                        .buttonStyle(.borderless)
+                    }
                 }
             }
             .frame(maxWidth: .infinity).padding(.vertical, 4)
@@ -547,6 +591,8 @@ struct SettingsView: View {
     // MARK: - Danger Zone
 
     @State private var showingResetConfirmation = false
+    @State private var updateOutcome: UpdateCheck.Outcome?
+    @State private var checkingUpdates = false
 
     private var dangerSection: some View {
         Section {
