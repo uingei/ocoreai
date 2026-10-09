@@ -163,6 +163,11 @@ public enum StringKey: String, CaseIterable, Sendable {
     case hubModelScope = "Settings.HubModelScope"
     case hfMirrorToggle = "Settings.HFMirrorToggle"
     case hfMirrorHint = "Settings.HFMirrorHint"
+    case hfEndpointStatus = "Settings.HFEndpointStatus"
+    case hfEndpointSourceEnvironment = "Settings.HFEndpointSourceEnvironment"
+    case hfEndpointSourceMirrorEnv = "Settings.HFEndpointSourceMirrorEnv"
+    case hfEndpointSourcePersistedToggle = "Settings.HFEndpointSourcePersistedToggle"
+    case hfEndpointSourceDefault = "Settings.HFEndpointSourceDefault"
     case notConfigured = "Common.NotConfigured"
     case enterTokenPlaceholder = "Common.EnterTokenPlaceholder"
 
@@ -751,6 +756,11 @@ enum L10nTables {
         .hfMirrorToggle: "Use hf-mirror.com",
         .hfMirrorHint:
             "Downloads and searches route through the hf-mirror.com relay when huggingface.co is unreachable. Blobs are byte-identical; the relay is third-party — turn it off for strict provenance.",
+        .hfEndpointStatus: "Endpoint: %@ · %@",
+        .hfEndpointSourceEnvironment: "pinned by HF_ENDPOINT (env wins; toggle is inert)",
+        .hfEndpointSourceMirrorEnv: "selected by HF_ENDPOINT_MIRROR",
+        .hfEndpointSourcePersistedToggle: "selected by this toggle",
+        .hfEndpointSourceDefault: "default",
         .notConfigured: "Not configured",
         .enterTokenPlaceholder: "Enter token...",
         .hubHuggingFace: "HuggingFace",
@@ -1264,6 +1274,11 @@ enum L10nTables {
         .hfMirrorToggle: "使用 hf-mirror.com 镜像",
         .hfMirrorHint:
             "当 huggingface.co 不可达时，下载与搜索改走 hf-mirror.com 中继。文件与其逐字节一致，但中继为第三方托管——需要严格来源可信时请关闭。",
+        .hfEndpointStatus: "当前端点：%@ · %@",
+        .hfEndpointSourceEnvironment: "已被 HF_ENDPOINT 环境变量锁定（env 优先，此开关暂不起作用）",
+        .hfEndpointSourceMirrorEnv: "由 HF_ENDPOINT_MIRROR 选定",
+        .hfEndpointSourcePersistedToggle: "由本开关选定",
+        .hfEndpointSourceDefault: "默认",
         .hubTokensTitle: "Hub Token",
         .notConfigured: "未配置",
         .sectionModels: "模型",

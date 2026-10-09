@@ -69,6 +69,48 @@ struct HFMirrorPolicyTests {
                 == HFMirrorPolicy.canonical)
     }
 
+    // MARK: - source attribution (honest-surface contract, GUI binds to this)
+
+    @Test func resolveDecisionAttributesEnvironmentSource() {
+        let d = HFMirrorPolicy.resolveDecision(
+            explicitEndpoint: "https://proxy.example", mirrorEnv: "1", useMirror: true)
+        #expect(
+            d
+                == HFMirrorPolicy.EndpointDecision(
+                    endpoint: "https://proxy.example", source: .environment))
+        #expect(d.lockedByEnvironment, "env-pinned endpoint must disable the GUI Toggle")
+    }
+
+    @Test func resolveDecisionAttributesMirrorEnvSource() {
+        let d = HFMirrorPolicy.resolveDecision(
+            explicitEndpoint: nil, mirrorEnv: "true", useMirror: false)
+        #expect(
+            d
+                == HFMirrorPolicy.EndpointDecision(
+                    endpoint: HFMirrorPolicy.mirror, source: .mirrorEnv))
+        #expect(d.lockedByEnvironment)
+    }
+
+    @Test func resolveDecisionAttributesPersistedToggleSource() {
+        let d = HFMirrorPolicy.resolveDecision(
+            explicitEndpoint: nil, mirrorEnv: nil, useMirror: true)
+        #expect(
+            d
+                == HFMirrorPolicy.EndpointDecision(
+                    endpoint: HFMirrorPolicy.mirror, source: .persistedToggle))
+        #expect(!d.lockedByEnvironment, "toggle-owned endpoint must keep the Toggle interactive")
+    }
+
+    @Test func resolveDecisionAttributesDefaultSource() {
+        let d = HFMirrorPolicy.resolveDecision(
+            explicitEndpoint: nil, mirrorEnv: nil, useMirror: false)
+        #expect(
+            d
+                == HFMirrorPolicy.EndpointDecision(
+                    endpoint: HFMirrorPolicy.canonical, source: .default))
+        #expect(!d.lockedByEnvironment)
+    }
+
     // MARK: - persisted key contract
 
     @Test func persistedKeyMatchesStoreKey() {
@@ -90,8 +132,9 @@ struct HFMirrorPolicyTests {
         // NOTE: this pollutes the process-global HF_ENDPOINT for the test
         // runner; kept disabled by default, re-run standalone when touching
         // apply()'s precedence logic.
-        let endpoint = HFMirrorPolicy.apply(env: [:], defaults: suite)
-        #expect(endpoint == HFMirrorPolicy.mirror)
+        let decision = HFMirrorPolicy.apply(env: [:], defaults: suite)
+        #expect(decision.endpoint == HFMirrorPolicy.mirror)
+        #expect(decision.source == .persistedToggle)
         #expect(ProcessInfo.processInfo.environment["HF_ENDPOINT"] == HFMirrorPolicy.mirror)
     }
 

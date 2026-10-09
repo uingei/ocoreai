@@ -44,6 +44,7 @@ final class SettingsState {
         hfToken = SettingsStore.shared.hfToken
         modelScopeToken = SettingsStore.shared.modelScopeToken
         useHFMirror = SettingsStore.shared.useHFMirror
+        hfEndpointDecision = SettingsStore.shared.hfEndpointDecision
         perceptionEnabled = SettingsStore.shared.perceptionEnabled
         perceptionFilesystemEnabled = SettingsStore.shared.perceptionFilesystemEnabled
         perceptionInternetEnabled = SettingsStore.shared.perceptionInternetEnabled
@@ -355,8 +356,18 @@ final class SettingsState {
         didSet {
             guard oldValue != useHFMirror else { return }
             SettingsStore.shared.useHFMirror = useHFMirror
+            // Re-read the truth after the policy applied it — if operator env
+            // pins the endpoint, the decision (and the disabled Toggle) must
+            // reflect that immediately, not the value the user just flipped to.
+            hfEndpointDecision = SettingsStore.shared.hfEndpointDecision
         }
     }
+
+    /// Honest-surface binding (HIG visibility-of-status): where downloads
+    /// actually go right now, and whether the Toggle above is live or pinned
+    /// by an operator env var. Refreshed whenever the Toggle flips.
+    var hfEndpointDecision: HFMirrorPolicy.EndpointDecision = SettingsStore.shared
+        .hfEndpointDecision
 
     var modelScopeToken: String? = SettingsStore.shared.modelScopeToken {
         didSet {

@@ -148,9 +148,29 @@ struct SettingsView: View {
                         .font(.ocoreaiText(15))
                 }
                 .accessibilityLabel(StringKey.hfMirrorToggle.l)
+                // Honest surface (HIG visibility-of-status): show the live
+                // endpoint and which lever owns it. When operator env pins it,
+                // the Toggle is disabled — never a glowing control that does
+                // nothing (the exact lie fixed at 4382dc3, now visible).
+                .disabled(settingsState.hfEndpointDecision.lockedByEnvironment)
                 Text(StringKey.hfMirrorHint.l)
                     .font(.ocoreaiText(11))
                     .foregroundStyle(.secondary)
+                Text(
+                    String(
+                        format: StringKey.hfEndpointStatus.l,
+                        settingsState.hfEndpointDecision.endpoint,
+                        settingsState.hfEndpointDecision.source.displayName.l)
+                )
+                .font(.ocoreaiText(11).monospacedDigit())
+                .foregroundStyle(
+                    settingsState.hfEndpointDecision.lockedByEnvironment ? .orange : .secondary
+                )
+                .accessibilityLabel(
+                    String(
+                        format: StringKey.hfEndpointStatus.l,
+                        settingsState.hfEndpointDecision.endpoint,
+                        settingsState.hfEndpointDecision.source.displayName.l))
             }
         } header: {
             Text(StringKey.hubTokensTitle.l)

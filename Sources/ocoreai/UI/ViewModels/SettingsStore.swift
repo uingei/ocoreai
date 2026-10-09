@@ -100,12 +100,22 @@ final class SettingsStore {
             defaults.set(newValue, forKey: Key.useHFMirror.rawValue)
             // Process-wide lever for the macro/MLX download paths — routed
             // through HFMirrorPolicy so an explicit HF_ENDPOINT env var is NOT
-            // clobbered by the GUI toggle (env wins; the footer says so).
+            // clobbered by the GUI toggle (env wins; the live status row says so).
             // The persisted Bool is what every startup entry re-applies, so the
             // lever survives relaunch (was a phantom `hfEndpointMirror` String
             // read → GUI toggle silently died across restart).
             HFMirrorPolicy.apply(defaults: defaults)
         }
+    }
+
+    /// Honest-surface probe (HIG visibility-of-status): the endpoint the
+    /// download paths actually hit RIGHT NOW and which lever owns it. The
+    /// Settings view renders this and disables the mirror Toggle exactly when
+    /// `lockedByEnvironment` — the same single criterion tests pin. Resolves
+    /// against this store's own suite (not `.standard`) so tests and runtime
+    /// share one truth.
+    var hfEndpointDecision: HFMirrorPolicy.EndpointDecision {
+        HFMirrorPolicy.current(defaults: defaults)
     }
 
     static let hfMirrorEndpoint = HFMirrorPolicy.mirror
