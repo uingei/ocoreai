@@ -48,3 +48,4 @@ dist/
 
 # CLT-route scratch path (make test-clt)
 .build-clt/
+tmp/
