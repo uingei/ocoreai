@@ -290,7 +290,8 @@ private struct ModelResultRow: View {
                     .foregroundStyle(theme.accent)
                 } else {
                     HStack(spacing: 6) {
-                        Text(sub).font(.ocoreaiText(11)).foregroundStyle(theme.textTertiary).lineLimit(1)
+                        Text(sub).font(.ocoreaiText(11)).foregroundStyle(theme.textTertiary)
+                            .lineLimit(1)
                         if let license, !license.isEmpty {
                             // Uppercase-ish chip: licenses are short nouns;
                             // "apache-2.0" reads as legal text, "Apache-2.0"
@@ -302,7 +303,8 @@ private struct ModelResultRow: View {
                                 .overlay(
                                     Capsule().stroke(theme.cardBorder, lineWidth: 1)
                                 )
-                                .accessibilityLabel(String(format: StringKey.licenseBadgeA11yFormat.l, license))
+                                .accessibilityLabel(
+                                    String(format: StringKey.licenseBadgeA11yFormat.l, license))
                         }
                     }
                 }

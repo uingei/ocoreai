@@ -1,6 +1,7 @@
+import Foundation
 // Tests for the license-surface (license shown before the download click).
 import Testing
-import Foundation
+
 @testable import ocoreai
 
 @Suite("License badge surface")
