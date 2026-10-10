@@ -43,7 +43,8 @@ enum PerceptionGaugeSnapshot {
             let in_ = hasVote(.perceptionInternetEnabled) ? store.perceptionInternetEnabled : nil
             if fs == nil && in_ == nil { return nil }
             return (fs ?? false) || (in_ ?? false)
-        case .speaker: return hasVote(.perceptionSpeakerEnabled) ? store.perceptionSpeakerEnabled : nil
+        case .speaker:
+            return hasVote(.perceptionSpeakerEnabled) ? store.perceptionSpeakerEnabled : nil
         case .audio: return hasVote(.perceptionAudioEnabled) ? store.perceptionAudioEnabled : nil
         case .camera, .screen: return nil
         }

@@ -9,6 +9,7 @@
 
 import Foundation
 import Testing
+
 @testable import ocoreai
 
 @MainActor
@@ -34,14 +35,16 @@ struct PerceptionGaugeEndpointTests {
     func votedOffNetworkIsFalse() {
         let d = freshDefaults()
         SettingsStore(defaults: d).perceptionNetworkEnabled = false
-        #expect(PerceptionGaugeSnapshot.vote(for: .network, store: SettingsStore(defaults: d)) == false)
+        #expect(
+            PerceptionGaugeSnapshot.vote(for: .network, store: SettingsStore(defaults: d)) == false)
     }
 
     @Test("voted-on network reports true verbatim")
     func votedOnNetworkIsTrue() {
         let d = freshDefaults()
         SettingsStore(defaults: d).perceptionNetworkEnabled = true
-        #expect(PerceptionGaugeSnapshot.vote(for: .network, store: SettingsStore(defaults: d)) == true)
+        #expect(
+            PerceptionGaugeSnapshot.vote(for: .network, store: SettingsStore(defaults: d)) == true)
     }
 
     @Test("ownerless channels (camera/screen) report nil, never silently false")
@@ -61,7 +64,9 @@ struct PerceptionGaugeEndpointTests {
         let d = freshDefaults()
         SettingsStore(defaults: d).perceptionFilesystemEnabled = false
         SettingsStore(defaults: d).perceptionInternetEnabled = true
-        #expect(PerceptionGaugeSnapshot.vote(for: .environment, store: SettingsStore(defaults: d)) == true)
+        #expect(
+            PerceptionGaugeSnapshot.vote(for: .environment, store: SettingsStore(defaults: d))
+                == true)
     }
 
     @Test("environment all-voted-off folds to false")
@@ -69,7 +74,9 @@ struct PerceptionGaugeEndpointTests {
         let d = freshDefaults()
         SettingsStore(defaults: d).perceptionFilesystemEnabled = false
         SettingsStore(defaults: d).perceptionInternetEnabled = false
-        #expect(PerceptionGaugeSnapshot.vote(for: .environment, store: SettingsStore(defaults: d)) == false)
+        #expect(
+            PerceptionGaugeSnapshot.vote(for: .environment, store: SettingsStore(defaults: d))
+                == false)
     }
 
     @Test("environment all-unvoted is nil")
