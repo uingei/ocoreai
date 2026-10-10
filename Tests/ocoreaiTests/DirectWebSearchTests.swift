@@ -118,6 +118,45 @@ struct DirectParserTests {
     }
 }
 
+@Suite("DirectWebSearch — query sanitization (adverb hijack)")
+struct DirectSanitizeTests {
+    @Test("leading adverb stripped, intent-bearing queries untouched")
+    func stripLeading() {
+        // Live-proven hijack shape: 今天… → calendar junk. Stripped → real.
+        let (q1, n1) = DirectWebSearch.sanitize(query: "今天国际现货黄金价格")
+        #expect(q1 == "国际现货黄金价格")
+        #expect(n1?.contains("adverb hijack") ?? false)
+        #expect(n1?.contains("今天国际现货黄金价格") ?? false)
+        // Adverb NOT leading → intent survives, zero rewrite (live-proven:
+        // '黄金价格 今日 美元' returns 9 finance hits unstripped).
+        let (q2, n2) = DirectWebSearch.sanitize(query: "黄金价格 今日 美元")
+        #expect(q2 == "黄金价格 今日 美元")
+        #expect(n2 == nil)
+        // English adverbs.
+        let (q3, n3) = DirectWebSearch.sanitize(query: "current AI news")
+        #expect(q3 == "AI news")
+        #expect(n3 != nil)
+        // Query that is ONLY the adverb → original kept (nothing to search).
+        let (q4, n4) = DirectWebSearch.sanitize(query: "今天")
+        #expect(q4 == "今天")
+        #expect(n4 == nil)
+        // 最新 must not eat 最新技术's head twice or over-strip: single pass.
+        let (q5, n5) = DirectWebSearch.sanitize(query: "最新的 iPhone 发布")
+        #expect(q5 == "iPhone 发布")
+        #expect(n5 != nil)
+    }
+
+    @Test("rewrite is disclosed in report trail — never silent")
+    func disclosure() {
+        let (effective, note) = DirectWebSearch.sanitize(query: "今日金价")
+        let o = DirectSearchOutcome(
+            engine: "bing", query: effective,
+            hits: [DirectSearchHit(title: "t", url: "https://x.com", snippet: "")],
+            trail: [note ?? ""])
+        #expect(o.report.contains("query rewritten '今日金价' → '金价'"))
+    }
+}
+
 @Suite("DirectWebSearch — honesty on failure paths")
 struct DirectHonestyTests {
     @Test("empty query rejected before any network")

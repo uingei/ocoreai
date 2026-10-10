@@ -329,6 +329,31 @@ enum DirectWebSearch {
         return picked.isEmpty ? DirectSearchEngine.all : picked
     }
 
+    /// Deterministic query sanitization. Live-proven pitfall (2026-10-11):
+    /// queries with a leading time-adverb ('今天国际现货黄金价格') make
+    /// cn.bing serve calendar/dictionary pages — organic slots fill with
+    /// 黄历/天气 junk. Stripping the adverb returns real results ('黄金价格'
+    /// with a cookie session → 9 finance hits). Rewrites are recorded in the
+    /// report trail — never silent, and only a leading adverb is stripped so
+    /// intent ("X 今天比分") survives.
+    static func sanitize(query q: String) -> (effective: String, note: String?) {
+        let prefixes = [
+            "今天", "今日", "目前", "现在", "当前", "最新的", "最新", "现在的",
+            "current ", "latest ", "today ",
+        ]
+        let lower = q.lowercased()
+        for p in prefixes where lower.hasPrefix(p) {
+            let stripped = String(q.dropFirst(p.count)).trimmingCharacters(
+                in: .whitespacesAndNewlines)
+            if !stripped.isEmpty {
+                return (stripped, "query rewritten '\(q)' → '\(stripped)' (adverb hijack)")
+            }
+            // Query was ONLY the adverb — keep original, nothing to search.
+            return (q, nil)
+        }
+        return (q, nil)
+    }
+
     /// Run one query across engines in order. First engine with organic hits
     /// wins. Total failure → throws `DirectWebSearchError.blocked` carrying
     /// the honest per-engine trail (never a fake success, never a silent
@@ -343,20 +368,22 @@ enum DirectWebSearch {
         guard !q.isEmpty else {
             throw DirectWebSearchError.emptyQuery
         }
+        let (effective, rewriteNote) = sanitize(query: q)
         var trail: [String] = []
-        var lastError = ""
+        if let rewriteNote { trail.append(rewriteNote) }
         for engine in engines(environment: environment) {
             switch await fetch(
-                engine: engine, query: q, maxHits: maxHits, timeoutS: timeoutS)
+                engine: engine, query: effective, maxHits: maxHits, timeoutS: timeoutS)
             {
             case .hits(let hits):
-                return DirectSearchOutcome(engine: engine.name, query: q, hits: hits, trail: trail)
+                return DirectSearchOutcome(
+                    engine: engine.name, query: effective, hits: hits, trail: trail)
             case .blocked(let why):
-                lastError = why
                 trail.append("\(engine.name): \(why)")
             }
         }
-        throw DirectWebSearchError.blocked(query: q, trail: trail, lastError: lastError)
+        throw DirectWebSearchError.blocked(
+            query: effective, trail: trail, lastError: trail.last ?? "")
     }
 
     enum FetchOutcome {
