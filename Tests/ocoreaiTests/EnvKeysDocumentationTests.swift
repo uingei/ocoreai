@@ -2,13 +2,15 @@
 //
 // Locks the env-var documentation surface (.env.example) against code drift.
 //
-// ocoreai reads 22 environment variables: 18 static `environment["KEY"]`
-// literals + 4 `\(...)HOST/PORT/BACKEND/...` dynamic keys in
-// ConfigSystem.applyEnvOverrides. Before this work the surface was not
-// documented in README and no `.env.example` existed — a fresh clone had no
-// way to know it.
+// ocoreai reads 23 environment variables: 17 static `environment["KEY"]`
+// literals + 6 read through a constant or interpolated prefix
+// (`HttpBridgePolicy.envVar`, `HF_ENDPOINT_MIRROR` via operatorEnvironment,
+// and `\(...)HOST/PORT/BACKEND/...` in ConfigSystem.applyEnvOverrides).
+// Every count here is re-derived by set analysis, not remembered — a stale
+// count in a doc comment is the drift this file was born from (22→23 found
+// live: README said 22, expectedKeys held 23).
 //
-// This test set pins the EXPECTED 21-key set as the single source of truth
+// This test set pins the EXPECTED 23-key set as the single source of truth
 // (no regex re-derivation, which is itself drift-prone) and asserts:
 //   1. no phantom:   no `.env.example` key outside the expected set
 //   2. no omission:  no expected key missing from `.env.example`

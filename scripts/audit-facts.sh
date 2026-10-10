@@ -32,5 +32,5 @@ if [ -n "${1:-}" ]; then
   curl -s --max-time 15 "https://api.github.com/repos/uingei/ocoreai/commits/$1/check-runs" \
     | python3 -c "import json,sys;d=json.load(sys.stdin);[print(x['name'],x.get('conclusion')) for x in d.get('check_runs',[])]"
 else
-  echo "(pass a commit sha as $1 to fetch check-run conclusions; gh may be absent — curl is the fallback)"
+  echo "(pass a commit sha as \$1 to fetch check-run conclusions; gh may be absent — curl is the fallback)"
 fi

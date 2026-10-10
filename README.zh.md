@@ -126,6 +126,8 @@ memory:
 
 > **认证**不是 YAML 键：设环境变量 `OCOREAI_API_KEYS`（逗号分隔）即开启；为空 = 不认证。
 
+> **环境变量全参考**：运行时表面积为 **23 个环境变量**（17 个静态 `environment["KEY"]` 字面量 + 6 个经常量或插值前缀读取，如 `HttpBridgePolicy.envVar`、`ConfigSystem.applyEnvOverrides`），横跨 server/auth/backend/agent-approval/model-store/HF/ModelScope/web tools。见 [`.env.example`](.env.example) — 每个键附代码出处默认值（行号引用）。守卫测试集（`EnvKeysDocumentationTests`）在文件与代码实际读取集漂移时即编译红。
+
 显存预算自 `sysctl hw.memsize` 自动检测；默认保护档 `balanced` = 物理 RAM 的 55%（档位：safe 40% / balanced 55% / aggressive 75%，下限 4 GB）。
 
 支持的推理后端：`coreai`（macOS 27+ SDK，需 `#available` 运行时检查）与 `mlx`（Metal）。默认 `backend.preference` 顺序为 `["coreai", "mlx"]` — 取第一个可用后端（可在 `config.yaml` 覆盖）。
