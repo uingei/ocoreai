@@ -258,7 +258,8 @@ struct PerceptionLeverHonestyTests {
             "boot hook must exist on SettingsState"
         )
         #expect(
-            compactVM.contains("reloadFromStore()") && compactVM.contains("applyPerceptionSettings()"),
+            compactVM.contains("reloadFromStore()")
+                && compactVM.contains("applyPerceptionSettings()"),
             "boot hook must restore persisted truth AND apply it to the engine"
         )
         #expect(
