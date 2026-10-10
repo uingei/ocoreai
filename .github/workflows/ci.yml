@@ -357,7 +357,15 @@ jobs:
             --notes "${NOTE}" \
             --target main \
             dist/ocoreai-${VER}.dmg
-          gh release view "v${VER}" --json assets -q '.assets[].name'
+          # Idempotent recovery (v0.1.9 run 38052349970): create exited
+          # nonzero AFTER the release+asset were intact. The deliverable is
+          # the verifiable artifact, not the ceremony exit code — probe real
+          # state before failing; the read-back step below is the arbiter.
+          if ! gh release view "v${VER}" --json assets -q '.assets[].name' | grep -q "ocoreai-${VER}.dmg"; then
+            echo "::error::release $VER genuinely lacks its DMG asset — this is a real failure"
+            exit 1
+          fi
+          echo "::notice::release + asset confirmed present (post-create probe)"
 
       - name: Read-back verify (published asset integrity loop)
         # First-principles: 'uploaded' ≠ 'downloadable intact'. Fetch the
