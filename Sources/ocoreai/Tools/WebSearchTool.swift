@@ -25,6 +25,11 @@ struct WebSearchResult: Sendable, Equatable {
     let answer: String
     let searchQueries: [String]
     let usage: WebSearchUsage?
+    /// Non-nil when the configured backend model was missing and the client
+    /// self-healed by substituting an installed one. Disclosed in `report`
+    /// so the model (and the audit trail) know the answer came from a
+    /// different model than voted for — never silent.
+    var modelSubstituted: String? = nil
 
     struct WebSearchUsage: Sendable, Equatable {
         let inputTokens: Int
@@ -36,6 +41,9 @@ struct WebSearchResult: Sendable, Equatable {
     var report: String {
         var lines: [String] = []
         lines.append("status: \(status)")
+        if let modelSubstituted {
+            lines.append("NOTE: \(modelSubstituted)")
+        }
         if searchQueries.isEmpty {
             lines.append("search_queries: (none)")
         } else {
@@ -126,6 +134,49 @@ enum WebSearchRequest {
         } catch {
             throw WebSearchError.decode(message: error.localizedDescription, bodyExcerpt: "")
         }
+    }
+}
+
+// MARK: - Model Discovery (self-heal on model-not-found)
+
+enum WebSearchModelDiscovery {
+    /// Parse ollama `/api/tags` into model id list. Pure — offline-testable.
+    /// ollama shape: `{"models":[{"name":"...","model":"...",...}, ...]}`.
+    static func parseTags(_ data: Data) -> [String] {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let models = root["models"] as? [[String: Any]]
+        else { return [] }
+        var ids: [String] = []
+        for m in models {
+            if let n = (m["name"] as? String) ?? (m["model"] as? String), !n.isEmpty {
+                ids.append(n)
+            }
+        }
+        return ids
+    }
+
+    /// Pick a model to (re)try: keep `preferred` if it's actually installed;
+    /// otherwise deterministically choose the first installed id (sorted for
+    /// stability across identical installs). Returns nil if nothing installed.
+    static func pick(preferred: String, installed: [String]) -> String? {
+        if installed.isEmpty { return nil }
+        if installed.contains(preferred) { return preferred }
+        return installed.sorted().first
+    }
+
+    /// GET `/api/tags` (base with `/v1` stripped, like the probe).
+    static func listModels(baseUrl: String, timeoutS: Int = 5) async -> [String] {
+        var base = baseUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        if base.hasSuffix("/") { base.removeLast() }
+        if base.hasSuffix("/v1") { base.removeLast(3) }
+        guard let url = URL(string: base + "/api/tags") else { return [] }
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.timeoutInterval = TimeInterval(max(1, min(timeoutS, 30)))
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+            (resp as? HTTPURLResponse)?.statusCode == 200
+        else { return [] }
+        return parseTags(data)
     }
 }
 
@@ -303,6 +354,37 @@ enum WebSearchClient {
         }
 
         if let http = response as? HTTPURLResponse, !(200 ..< 300).contains(http.statusCode) {
+            // Self-heal once on "model not found": the packaged default model
+            // id is host-dependent (developer tag ≠ user tag). Ask the local
+            // backend what IS installed, pick deterministically, retry once.
+            // The substitution is disclosed in the report — never silent.
+            if http.statusCode == 404 {
+                let installed = await WebSearchModelDiscovery.listModels(baseUrl: base)
+                if let fallback = WebSearchModelDiscovery.pick(
+                    preferred: model, installed: installed)
+                {
+                    var retryRequest = URLRequest(url: built.url)
+                    retryRequest.httpMethod = "POST"
+                    retryRequest.timeoutInterval = TimeInterval(timeoutS)
+                    retryRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    if let rebuilt = try? WebSearchRequest.build(
+                        query: query, maxOutputTokens: maxOutputTokens, model: fallback,
+                        baseUrl: base)
+                    {
+                        retryRequest.httpBody = rebuilt.body
+                        if let (retryData, retryResp) = try? await URLSession.shared.data(
+                            for: retryRequest),
+                            let retryHTTP = retryResp as? HTTPURLResponse,
+                            (200 ..< 300).contains(retryHTTP.statusCode)
+                        {
+                            var result = try WebSearchParser.parse(retryData)
+                            result.modelSubstituted =
+                                "requested '\(model)' not installed; used '\(fallback)'"
+                            return result
+                        }
+                    }
+                }
+            }
             throw WebSearchError.httpStatus(
                 http.statusCode,
                 bodyExcerpt: String(data: data.prefix(300), encoding: .utf8) ?? "(binary)")

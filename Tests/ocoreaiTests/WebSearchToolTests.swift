@@ -250,3 +250,53 @@ struct WebSearchToolSurfaceTests {
         #expect(params["max_output_tokens"]?.type == .integer)
     }
 }
+
+// MARK: - Model discovery (self-heal on model-not-found)
+
+@Suite("web_search model discovery — self-heal, disclosed")
+struct WebSearchModelDiscoveryTests {
+    @Test("parseTags reads ollama /api/tags names")
+    func parseTags() {
+        let json = Data(
+            """
+            {"models":[
+              {"name":"qwen3.8:27b-nvfp4","model":"qwen3.8:27b-nvfp4"},
+              {"name":"llama3.2:latest","model":"llama3.2:latest"},
+              {"digest":"no-name"}
+            ]}
+            """.utf8)
+        #expect(
+            WebSearchModelDiscovery.parseTags(json) == ["qwen3.8:27b-nvfp4", "llama3.2:latest"])
+    }
+
+    @Test("parseTags malformed → empty (honest failure, no crash)")
+    func parseTagsMalformed() {
+        #expect(WebSearchModelDiscovery.parseTags(Data("not json".utf8)) == [])
+        #expect(WebSearchModelDiscovery.parseTags(Data("{}".utf8)) == [])
+    }
+
+    @Test("pick keeps preferred when installed")
+    func pickPreferred() {
+        #expect(WebSearchModelDiscovery.pick(preferred: "b", installed: ["a", "b"]) == "b")
+    }
+
+    @Test("pick falls back deterministically when preferred missing")
+    func pickFallback() {
+        // Sorted first = stable across machines with the same installs.
+        #expect(
+            WebSearchModelDiscovery.pick(preferred: "ghost-model", installed: ["z", "a"]) == "a")
+        #expect(WebSearchModelDiscovery.pick(preferred: "x", installed: []) == nil)
+    }
+
+    @Test("substitution is disclosed in the LLM-facing report")
+    func reportDiscloses() {
+        let r = WebSearchResult(
+            status: "completed", answer: "42", searchQueries: ["q"], usage: nil,
+            modelSubstituted: "requested 'ghost' not installed; used 'real'")
+        #expect(r.report.contains("NOTE: requested 'ghost' not installed; used 'real'"))
+        // No substitution → no NOTE line (no noise when honest path taken).
+        let clean = WebSearchResult(
+            status: "completed", answer: "42", searchQueries: [], usage: nil)
+        #expect(!clean.report.contains("NOTE:"))
+    }
+}
