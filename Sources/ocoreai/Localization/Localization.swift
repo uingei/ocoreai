@@ -232,6 +232,9 @@ public enum StringKey: String, CaseIterable, Sendable {
     case perceptionToggleHint = "Settings.PerceptionToggleHint"
     case perceptionFilesystem = "Settings.PerceptionFilesystem"
     case perceptionInternet = "Settings.PerceptionInternet"
+    case perceptionNetwork = "Settings.PerceptionNetwork"
+    case perceptionSystem = "Settings.PerceptionSystem"
+    case perceptionSpeaker = "Settings.PerceptionSpeaker"
     case perceptionPowerProfile = "Settings.PerceptionPowerProfile"
     case perceptionPowerProfileNormal = "Settings.PerceptionPowerNormal"
     case perceptionPowerProfileReduced = "Settings.PerceptionPowerReduced"
@@ -719,9 +722,12 @@ enum L10nTables {
         .perceptionSection: "Perception",
         .perceptionToggle: "Enable Continuous Perception",
         .perceptionToggleHint:
-            "Monitor camera, screen, network, filesystem, and internet for contextual awareness",
+            "Monitor camera, screen, network, system, speaker, filesystem, and internet for contextual awareness",
         .perceptionFilesystem: "Filesystem Monitoring",
         .perceptionInternet: "Internet Awareness",
+        .perceptionNetwork: "Network Quality",
+        .perceptionSystem: "System Context",
+        .perceptionSpeaker: "Speaker Feedback",
         .perceptionPowerProfile: "Sampling Rate",
         .perceptionPowerProfileNormal: "Normal",
         .perceptionPowerProfileReduced: "Reduced",
@@ -1196,9 +1202,12 @@ enum L10nTables {
         // Perception
         .perceptionSection: "感知",
         .perceptionToggle: "启用持续感知",
-        .perceptionToggleHint: "监控摄像头、屏幕、网络、文件系统和互联网以获取上下文感知",
+        .perceptionToggleHint: "监控摄像头、屏幕、网络、系统状态、扬声器、文件系统和互联网以获取上下文感知",
         .perceptionFilesystem: "文件系统监控",
         .perceptionInternet: "互联网感知",
+        .perceptionNetwork: "网络质量",
+        .perceptionSystem: "系统状态",
+        .perceptionSpeaker: "扬声器反馈",
         .perceptionPowerProfile: "采样速率",
         .perceptionPowerProfileNormal: "标准",
         .perceptionPowerProfileReduced: "降低",

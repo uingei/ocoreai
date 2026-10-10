@@ -95,7 +95,7 @@ public struct ChannelConfig: Codable, Sendable {
 
 // MARK: - Channel state flags
 
-public struct ChannelFlags: Codable, Sendable {
+public struct ChannelFlags: Codable, Sendable, Equatable {
     var camera: Bool = false
     var screen: Bool = false
     var network: Bool = true
@@ -127,6 +127,14 @@ public struct ChannelFlags: Codable, Sendable {
 @MainActor
 final class PerceptionEngine: Sendable {
     static let shared = PerceptionEngine()
+
+    /// Test seam: injectable so flag-persistence invariants (e.g. "a user-set
+    /// flag survives start()'s resync") are testable without driving the
+    /// singleton's live sensor stack. Production uses `.shared`.
+    /// Internal (not private): the suite that pins start()/stop() persistence
+    /// lives in the test target; nothing outside the module should construct
+    /// a second scheduler against the shared sensors.
+    init() {}
 
     // MARK: - Public state
 
@@ -163,13 +171,17 @@ final class PerceptionEngine: Sendable {
         guard !isRunning else { return }
         isRunning = true
 
-        // Sync with MultimodalState
+        // Sync camera/screen with MultimodalState (live permission truth).
+        // network/system/speaker/filesystem/internet/audio stay EXACTLY as
+        // the user's persisted levers set them — the old unconditional
+        // `channels.network = true` here silently overwrote the user's
+        // choice on every restart (a lie: the toggle existed, the flag did
+        // not survive). setChannels is the sole authority for these six.
         let mmState = MultimodalState.shared
         channels.camera = mmState.cameraEnabled
         #if os(macOS)
         channels.screen = mmState.screenCaptureEnabled
         #endif
-        channels.network = true
 
         let config = configForProfile(powerProfile)
 
@@ -234,8 +246,12 @@ final class PerceptionEngine: Sendable {
             }
         }
 
-        // Start external monitors
-        _ = NetworkSensor.shared.startMonitoring()
+        // Start external monitors — each gated by its own honest lever.
+        // NetworkSensor feeds sampleNetwork AND sampleInternet's reachability
+        // probe, so it starts when either lever is on.
+        if channels.network || channels.internet {
+            _ = NetworkSensor.shared.startMonitoring()
+        }
 
         if channels.filesystem {
             FileSystemSensor.shared.start(watching: nil)

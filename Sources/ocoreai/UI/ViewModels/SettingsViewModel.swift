@@ -48,6 +48,9 @@ final class SettingsState {
         perceptionEnabled = SettingsStore.shared.perceptionEnabled
         perceptionFilesystemEnabled = SettingsStore.shared.perceptionFilesystemEnabled
         perceptionInternetEnabled = SettingsStore.shared.perceptionInternetEnabled
+        perceptionNetworkEnabled = SettingsStore.shared.perceptionNetworkEnabled
+        perceptionSystemEnabled = SettingsStore.shared.perceptionSystemEnabled
+        perceptionSpeakerEnabled = SettingsStore.shared.perceptionSpeakerEnabled
         perceptionPowerProfile = SettingsStore.shared.perceptionPowerProfile
         perceptionAudioEnabled = SettingsStore.shared.perceptionAudioEnabled
         approvalPolicy = SettingsStore.shared.approvalPolicy
@@ -241,6 +244,17 @@ final class SettingsState {
         }
     }
 
+    /// Network quality channel lever. Default ON (shipped behavior); once
+    /// voted, the user's value survives engine restarts (see
+    /// PerceptionEngine.start resync contract).
+    var perceptionNetworkEnabled: Bool = SettingsStore.shared.perceptionNetworkEnabled {
+        didSet {
+            guard oldValue != perceptionNetworkEnabled else { return }
+            SettingsStore.shared.perceptionNetworkEnabled = perceptionNetworkEnabled
+            applyPerceptionSettings()
+        }
+    }
+
     var perceptionSystemEnabled: Bool = SettingsStore.shared.perceptionSystemEnabled {
         didSet {
             guard oldValue != perceptionSystemEnabled else { return }
@@ -315,20 +329,28 @@ final class SettingsState {
     }
 
     /// Apply perception settings to the live engine.
+    ///
+    /// Change-guard: `setChannels` restarts the whole scheduler (stop +
+    /// start + every sampling task). Flipping ANY perception property used to
+    /// churn that restart even when the composed flag set was identical
+    /// (e.g. power-profile-only changes). Compare composed flags first:
+    /// identical → nothing to apply.
     private func applyPerceptionSettings() {
         let engine = PerceptionEngine.shared
         if perceptionEnabled {
             let flags = ChannelFlags(
                 camera: MultimodalState.shared.cameraEnabled,
                 screen: MultimodalState.shared.screenCaptureEnabled,
-                network: true,
+                network: perceptionNetworkEnabled,
                 filesystem: perceptionFilesystemEnabled,
                 internet: perceptionInternetEnabled,
                 system: perceptionSystemEnabled,
                 speaker: perceptionSpeakerEnabled,
                 audio: perceptionAudioEnabled
             )
-            engine.setChannels(flags)
+            if engine.channels != flags {
+                engine.setChannels(flags)
+            }
             switch perceptionPowerProfile {
             case "reduced": engine.setPowerProfile(.reduced)
             case "minimal": engine.setPowerProfile(.minimal)

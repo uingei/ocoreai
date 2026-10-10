@@ -279,6 +279,20 @@ final class SettingsStore {
         set { defaults.set(newValue, forKey: Key.perceptionInternetEnabled.rawValue) }
     }
 
+    /// Network quality channel (RTT/quality into every inference context).
+    /// Defaults ON — matching shipped behavior since day one — but now it is
+    /// an honest lever: `PerceptionEngine.start()` no longer overwrites it.
+    /// `object(forKey:) == nil` distinguishes "never asked" (true) from
+    /// "user said no" (false), which bare `bool(forKey:)` cannot.
+    var perceptionNetworkEnabled: Bool {
+        get {
+            defaults.object(forKey: Key.perceptionNetworkEnabled.rawValue) == nil
+                ? true
+                : defaults.bool(forKey: Key.perceptionNetworkEnabled.rawValue)
+        }
+        set { defaults.set(newValue, forKey: Key.perceptionNetworkEnabled.rawValue) }
+    }
+
     /// System context awareness channel (thermal, memory, CPU)
     var perceptionSystemEnabled: Bool {
         get { defaults.bool(forKey: Key.perceptionSystemEnabled.rawValue) }
@@ -652,6 +666,7 @@ final class SettingsStore {
         case perceptionEnabled = "settings.perception.enabled"
         case perceptionFilesystemEnabled = "settings.perception.filesystem"
         case perceptionInternetEnabled = "settings.perception.internet"
+        case perceptionNetworkEnabled = "settings.perception.network"
         case perceptionSystemEnabled = "settings.perception.system"
         case perceptionSpeakerEnabled = "settings.perception.speaker"
         case perceptionAudioEnabled = "settings.perception.audio"

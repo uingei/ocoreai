@@ -290,6 +290,21 @@ struct SettingsView: View {
                 .accessibilityLabel(StringKey.perceptionToggle.l)
             if settingsState.perceptionEnabled {
                 Toggle(
+                    StringKey.perceptionNetwork.l,
+                    isOn: $settingsState.perceptionNetworkEnabled
+                )
+                .accessibilityLabel(StringKey.perceptionNetwork.l)
+                Toggle(
+                    StringKey.perceptionSystem.l,
+                    isOn: $settingsState.perceptionSystemEnabled
+                )
+                .accessibilityLabel(StringKey.perceptionSystem.l)
+                Toggle(
+                    StringKey.perceptionSpeaker.l,
+                    isOn: $settingsState.perceptionSpeakerEnabled
+                )
+                .accessibilityLabel(StringKey.perceptionSpeaker.l)
+                Toggle(
                     StringKey.perceptionFilesystem.l,
                     isOn: $settingsState.perceptionFilesystemEnabled
                 )
