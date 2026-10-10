@@ -187,6 +187,12 @@ final class AppState {
             await OcoreaiEngine.shared.start()
         }
 
+        // Perception boots from persisted truth, not from toggle-touches.
+        // (Cold-boot gap: applyPerceptionSettings was only reachable via
+        // didSet, so persisted perception settings never started the engine
+        // until the user manually flipped a switch. See bootPerceptionFromStore.)
+        SettingsState.shared.bootPerceptionFromStore()
+
         /// Fast Path: poll EnginePool directly (no HTTP, zero serialization)
         /// ScenePhase-gated: 1s in foreground, 10s in background.
         metricsTask = Task.detached { [weak self] in

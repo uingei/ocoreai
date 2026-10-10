@@ -243,6 +243,30 @@ struct PerceptionLeverHonestyTests {
         }
     }
 
+    @Test("cold boot wires persisted perception into the live engine")
+    func coldBootWiresPerception() throws {
+        // Live-observed 10-10: persisted perception=true NEVER started the
+        // engine because applyPerceptionSettings was reachable only from
+        // toggle didSet. The fix is a boot hook; this lock ensures the
+        // hook stays wired at BOTH ends (definition + launch call site).
+        let vmSrc = try Self.source("Sources/ocoreai/UI/ViewModels/SettingsViewModel.swift")
+        let appSrc = try Self.source("Sources/ocoreai/UI/Models/AppState.swift")
+        let compactVM = Self.compact(vmSrc[...])
+        let compactApp = Self.compact(appSrc[...])
+        #expect(
+            compactVM.contains("funcbootPerceptionFromStore()"),
+            "boot hook must exist on SettingsState"
+        )
+        #expect(
+            compactVM.contains("reloadFromStore()") && compactVM.contains("applyPerceptionSettings()"),
+            "boot hook must restore persisted truth AND apply it to the engine"
+        )
+        #expect(
+            compactApp.contains("SettingsState.shared.bootPerceptionFromStore()"),
+            "AppState.initialize() must call the boot hook — persisted settings boot the engine"
+        )
+    }
+
     @Test("SettingsViewModel.load() restores every perception lever")
     func loadRestoresEveryLever() throws {
         let src = try Self.source("Sources/ocoreai/UI/ViewModels/SettingsViewModel.swift")

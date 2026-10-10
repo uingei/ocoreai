@@ -24,6 +24,20 @@ final class SettingsState {
         // calling any method on self.
     }
 
+    /// Cold-boot truth application: restore every persisted lever, then act
+    /// on it. Before this existed, applyPerceptionSettings was reachable ONLY
+    /// from toggle didSet — a cold launch with persisted perception=true never
+    /// started the engine, and a cold launch after `defaults write` (or any
+    /// out-of-process persistence) left the engine state decoupled from the
+    /// store. User-visible symptom (live-observed 10-10): perception enabled
+    /// in Settings, buffer empty forever, observe_state honestly reports
+    /// "no recent frames" — the honest tool exposing that the engine simply
+    /// never booted.
+    func bootPerceptionFromStore() {
+        reloadFromStore()
+        applyPerceptionSettings()
+    }
+
     /// Reload all settings from SettingsStore — safe to call multiple times.
     func reloadFromStore() {
         serverHost = SettingsStore.shared.serverHost
