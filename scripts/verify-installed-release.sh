@@ -38,6 +38,37 @@ fi
 V=$(defaults read "$APP/Contents/Info" CFBundleShortVersionString 2>/dev/null)
 if [ "v$V" = "$TAG" ]; then note PASS "installed version = $V"; else note FAIL "installed=$V expected ${TAG#v}"; FAIL=1; fi
 
+# 2b. wire required = decode truth on the SHIPPED binary (grammar models are
+#     forced to honor required; an "Optional"-described required key is a lie
+#     the model must fabricate a value for — caught live in 0.1.9/0.1.11).
+check_required(){
+  curl -s -m 10 http://127.0.0.1:8080/v1/tools > /tmp/vir_tools.json 2>/dev/null || { note SKIP "required-check: /v1/tools unreachable"; return; }
+  python3 - <<'EOF'
+import json,sys
+tools=json.load(open('/tmp/vir_tools.json'))
+tools=tools.get('data',tools) if isinstance(tools,dict) else tools
+by={t['function']['name']:t['function'].get('parameters',{}) for t in tools}
+expected={'click':['x','y'],'drag':['x1','y1','x2','y2'],'key_press':['key'],
+ 'type_text':['text'],'scroll':['lines'],'web_search':['query'],'web_fetch':['url'],
+ 'update_plan':['plan'],'generate_video':['prompt'],'check_tools':[],'view_screen':[]}
+bad=[]
+for name,req in expected.items():
+    p=by.get(name)
+    if p is None: bad.append(f'{name}:MISSING'); continue
+    got=set(p.get('required') or [])
+    if got!=set(req): bad.append(f'{name}:got={sorted(got)}!={sorted(req)}')
+lies=[]
+for name,p in by.items():
+    props=p.get('properties') or {}
+    for k in (p.get('required') or []):
+        d=(props.get(k) or {}).get('description','')
+        if d.lower().startswith('optional'): lies.append(f'{name}.{k}')
+if bad: print('REQUIRED_DRIFT '+ ' | '.join(bad)); sys.exit(1)
+if lies: print('WIRE_LIE '+ ' | '.join(lies)); sys.exit(1)
+print('required=decode-truth + no-wire-lie across %d tools' % len(by)); sys.exit(0)
+EOF
+}
+
 # helper: relaunch installed app cleanly
 launch(){ 
   for p in $(pgrep -f "$APP/Contents/MacOS" 2>/dev/null); do kill -TERM "$p"; done; sleep 3
@@ -72,6 +103,7 @@ defaults write $DOMAIN settings.perception.filesystem -bool true
 defaults write $DOMAIN settings.perception.network -bool true
 
 if launch && sleep 35; then
+  if R=$(check_required); then note PASS "$R"; else note FAIL "$R"; FAIL=1; fi
   A=$(ask_channels)
   echo "    A(n=ON ) => $A"
   defaults write $DOMAIN settings.perception.network -bool false
