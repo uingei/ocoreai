@@ -329,29 +329,55 @@ enum DirectWebSearch {
         return picked.isEmpty ? DirectSearchEngine.all : picked
     }
 
-    /// Deterministic query sanitization. Live-proven pitfall (2026-10-11):
-    /// queries with a leading time-adverb ('今天国际现货黄金价格') make
-    /// cn.bing serve calendar/dictionary pages — organic slots fill with
-    /// 黄历/天气 junk. Stripping the adverb returns real results ('黄金价格'
-    /// with a cookie session → 9 finance hits). Rewrites are recorded in the
-    /// report trail — never silent, and only a leading adverb is stripped so
-    /// intent ("X 今天比分") survives.
+    /// Deterministic query sanitization. Live-proven pitfalls (2026-10-11),
+    /// both on cn.bing:
+    ///   1. leading time-adverbs ('今天国际现货黄金价格') → calendar/dictionary
+    ///      SERPs;
+    ///   2. even mid-sentence, a word that is also a common dictionary headword
+    ///      ('current international gold price in USD') → the SERP fills with
+    ///      百度百科/剑桥词典 entries for 'current'/'international' — cn.bing
+    ///      aggressively word-lookup-hijacks.
+    /// Rule: strip every hijack-prone token (time adverbs + dictionary-bait
+    /// adjectives), wherever it sits. Content words survive, so intent
+    /// ('X 今天比分' → 'X 比分') and topical queries ('gold price USD')
+    /// are untouched; stripping is recorded in the report trail — never
+    /// silent. Live-verified: stripped forms 'gold price in USD' / '国际现货
+    /// 黄金价格 今日' return 9-10 finance hits (livegold, GoldPrice.org,
+    /// World Gold Council, 东方财富).
     static func sanitize(query q: String) -> (effective: String, note: String?) {
-        let prefixes = [
+        let timeWords = [
             "今天", "今日", "目前", "现在", "当前", "最新的", "最新", "现在的",
-            "current ", "latest ", "today ",
         ]
-        let lower = q.lowercased()
-        for p in prefixes where lower.hasPrefix(p) {
-            let stripped = String(q.dropFirst(p.count)).trimmingCharacters(
-                in: .whitespacesAndNewlines)
-            if !stripped.isEmpty {
-                return (stripped, "query rewritten '\(q)' → '\(stripped)' (adverb hijack)")
+        let dictionaryBait = [
+            "current", "latest", "today", "international", "live", "real-time",
+            "实时", "国际", "今天", "今日", "目前", "现在", "当前", "最新", "最新的",
+        ]
+        var rest = q
+        for p in timeWords where rest.lowercased().hasPrefix(p.lowercased()) {
+            rest = String(rest.dropFirst(p.count))
+        }
+        var strippedWords: [String] = []
+        var tokens = rest.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        tokens = tokens.filter { tok in
+            let base = tok.lowercased().trimmingCharacters(
+                in: CharacterSet(charactersIn: "?!.,;:\"'"))
+            if dictionaryBait.contains(base) {
+                strippedWords.append(base)
+                return false
             }
-            // Query was ONLY the adverb — keep original, nothing to search.
+            return true
+        }
+        let effective = tokens.joined(separator: " ").trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        guard !effective.isEmpty else {
+            // The query was nothing but filler — searching it would be noise
+            // anyway; keep the original and let the engine decide.
             return (q, nil)
         }
-        return (q, nil)
+        if effective == q.trimmingCharacters(in: .whitespacesAndNewlines) {
+            return (q, nil)
+        }
+        return (effective, "query rewritten '\(q)' → '\(effective)' (hijack-prone filler removed)")
     }
 
     /// Run one query across engines in order. First engine with organic hits

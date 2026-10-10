@@ -118,32 +118,49 @@ struct DirectParserTests {
     }
 }
 
-@Suite("DirectWebSearch — query sanitization (adverb hijack)")
+@Suite("DirectWebSearch — query sanitization (hijack-prone filler)")
 struct DirectSanitizeTests {
-    @Test("leading adverb stripped, intent-bearing queries untouched")
-    func stripLeading() {
-        // Live-proven hijack shape: 今天… → calendar junk. Stripped → real.
+    @Test("live-proven query shapes → finance-returning forms")
+    func liveShapes() {
+        // Shape 1: leading adverb hijacks cn.bing → calendar SERP. Stripped
+        // form '国际现货黄金价格' live-returns 9 finance hits.
         let (q1, n1) = DirectWebSearch.sanitize(query: "今天国际现货黄金价格")
         #expect(q1 == "国际现货黄金价格")
-        #expect(n1?.contains("adverb hijack") ?? false)
-        #expect(n1?.contains("今天国际现货黄金价格") ?? false)
-        // Adverb NOT leading → intent survives, zero rewrite (live-proven:
-        // '黄金价格 今日 美元' returns 9 finance hits unstripped).
-        let (q2, n2) = DirectWebSearch.sanitize(query: "黄金价格 今日 美元")
-        #expect(q2 == "黄金价格 今日 美元")
-        #expect(n2 == nil)
-        // English adverbs.
-        let (q3, n3) = DirectWebSearch.sanitize(query: "current AI news")
-        #expect(q3 == "AI news")
+        #expect(n1?.contains("hijack-prone filler removed") ?? false)
+        // Shape 2: model-translated English, dictionary headwords 'current'/
+        // 'international' hijack cn.bing → 百度百科/剑桥 SERP. Stripped form
+        // 'gold price in USD' live-returns 9 finance hits (livegold,
+        // GoldPrice.org, World Gold Council, 东方财富).
+        let (q2, n2) = DirectWebSearch.sanitize(query: "current international gold price in USD")
+        #expect(q2 == "gold price in USD")
+        #expect(n2 != nil)
+        // Shape 3: glued Chinese with mid-sentence time token split by space.
+        let (q3, n3) = DirectWebSearch.sanitize(query: "国际现货黄金价格 今日")
+        #expect(q3 == "国际现货黄金价格")
         #expect(n3 != nil)
-        // Query that is ONLY the adverb → original kept (nothing to search).
-        let (q4, n4) = DirectWebSearch.sanitize(query: "今天")
-        #expect(q4 == "今天")
-        #expect(n4 == nil)
-        // 最新 must not eat 最新技术's head twice or over-strip: single pass.
-        let (q5, n5) = DirectWebSearch.sanitize(query: "最新的 iPhone 发布")
-        #expect(q5 == "iPhone 发布")
-        #expect(n5 != nil)
+    }
+
+    @Test("content-bearing queries survive untouched")
+    func contentSurvives() {
+        // Topical-only query → zero rewrite.
+        let (q1, n1) = DirectWebSearch.sanitize(query: "gold price USD")
+        #expect(q1 == "gold price USD")
+        #expect(n1 == nil)
+        // '国际' glued inside a content word survives (token != bait exactly).
+        let (q2, n2) = DirectWebSearch.sanitize(query: "国际油价走势")
+        #expect(q2 == "国际油价走势")
+        #expect(n2 == nil)
+        // Non-ASCII intent-bearing query keeps its head noun.
+        let (q3, n3) = DirectWebSearch.sanitize(query: "最新的 iPhone 发布")
+        #expect(q3 == "iPhone 发布")
+        #expect(n3 != nil)
+    }
+
+    @Test("all-filler query keeps original — never searches empty")
+    func allFiller() {
+        let (q, n) = DirectWebSearch.sanitize(query: "最新")
+        #expect(q == "最新")
+        #expect(n == nil)
     }
 
     @Test("rewrite is disclosed in report trail — never silent")
