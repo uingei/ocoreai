@@ -48,6 +48,7 @@ import json,sys
 tools=json.load(open('/tmp/vir_tools.json'))
 tools=tools.get('data',tools) if isinstance(tools,dict) else tools
 by={t['function']['name']:t['function'].get('parameters',{}) for t in tools}
+fixed=any((v.get('required')==['x','y'] for k,v in by.items() if k=='click'))
 expected={'click':['x','y'],'drag':['x1','y1','x2','y2'],'key_press':['key'],
  'type_text':['text'],'scroll':['lines'],'web_search':['query'],'web_fetch':['url'],
  'update_plan':['plan'],'generate_video':['prompt'],'check_tools':[],'view_screen':[]}
@@ -56,13 +57,18 @@ for name,req in expected.items():
     p=by.get(name)
     if p is None: bad.append(f'{name}:MISSING'); continue
     got=set(p.get('required') or [])
-    if got!=set(req): bad.append(f'{name}:got={sorted(got)}!={sorted(req)}')
+    if got!=set(req): bad.append(f'{name}:got={sorted(got)}')
 lies=[]
 for name,p in by.items():
     props=p.get('properties') or {}
     for k in (p.get('required') or []):
         d=(props.get(k) or {}).get('description','')
         if d.lower().startswith('optional'): lies.append(f'{name}.{k}')
+if not fixed:
+    # pre-fix binary (<=0.1.10): drift is the KNOWN state — report it loudly
+    # as evidence the check bites, never pass it silently.
+    print('PRE-FIX-BINARY drift=%d lies=%d (check bites; green requires >=0.1.12)' % (len(bad),len(lies)))
+    sys.exit(2)
 if bad: print('REQUIRED_DRIFT '+ ' | '.join(bad)); sys.exit(1)
 if lies: print('WIRE_LIE '+ ' | '.join(lies)); sys.exit(1)
 print('required=decode-truth + no-wire-lie across %d tools' % len(by)); sys.exit(0)
