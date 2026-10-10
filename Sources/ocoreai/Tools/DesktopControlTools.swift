@@ -339,16 +339,17 @@ enum ClickClient {
             name: toolName, toolset: "computer", argsType: Args.self,
             description: "Click at (x, y) — absolute macOS screen points, top-left origin. "
                 + "button: left|right|middle (default left); count: 1|2|3 = single/double/triple (default 1).",
-            schema: ToolSchema(parameters: [
-                "x": ToolParameter(
-                    type: .integer, description: "Absolute screen X in points (>= 0)"),
-                "y": ToolParameter(
-                    type: .integer, description: "Absolute screen Y in points (>= 0)"),
-                "button": ToolParameter(
-                    type: .string, description: "left|right|middle (default left)"),
-                "count": ToolParameter(
-                    type: .integer, description: "1|2|3 single/double/triple click (default 1)"),
-            ]),
+            schema: ToolSchema(
+                parameters: [
+                    "x": ToolParameter(
+                        type: .integer, description: "Absolute screen X in points (>= 0)"),
+                    "y": ToolParameter(
+                        type: .integer, description: "Absolute screen Y in points (>= 0)"),
+                    "button": ToolParameter(
+                        type: .string, description: "left|right|middle (default left)"),
+                    "count": ToolParameter(
+                        type: .integer, description: "1|2|3 single/double/triple click (default 1)"),
+                ], required: ["x", "y"]),
             isDestructive: true
         ) { args in
             let spec = try DesktopControl.clickSpec(
@@ -377,14 +378,15 @@ enum DragClient {
             description:
                 "Drag from (x1, y1) to (x2, y2) — absolute macOS screen points, top-left origin. "
                 + "Press at start, move, release at end. button: left|right|middle (default left).",
-            schema: ToolSchema(parameters: [
-                "x1": ToolParameter(type: .integer, description: "Start X in points (>= 0)"),
-                "y1": ToolParameter(type: .integer, description: "Start Y in points (>= 0)"),
-                "x2": ToolParameter(type: .integer, description: "End X in points (>= 0)"),
-                "y2": ToolParameter(type: .integer, description: "End Y in points (>= 0)"),
-                "button": ToolParameter(
-                    type: .string, description: "left|right|middle (default left)"),
-            ]),
+            schema: ToolSchema(
+                parameters: [
+                    "x1": ToolParameter(type: .integer, description: "Start X in points (>= 0)"),
+                    "y1": ToolParameter(type: .integer, description: "Start Y in points (>= 0)"),
+                    "x2": ToolParameter(type: .integer, description: "End X in points (>= 0)"),
+                    "y2": ToolParameter(type: .integer, description: "End Y in points (>= 0)"),
+                    "button": ToolParameter(
+                        type: .string, description: "left|right|middle (default left)"),
+                ], required: ["x1", "y1", "x2", "y2"]),
             isDestructive: true
         ) { args in
             let spec = try DesktopControl.dragSpec(
@@ -470,14 +472,16 @@ enum KeyPressClient {
             description:
                 "Press `key` (one of: \(keys)) with optional `modifiers` (array: shift, control, option, command). "
                 + "Example: [\"command\", \"a\"] = Cmd+A select-all.",
-            schema: ToolSchema(parameters: [
-                "key": ToolParameter(type: .string, description: "Key name: \(keys)"),
-                "modifiers": ToolParameter(
-                    type: .array,
-                    description: "Optional modifiers: shift|control|option|command",
-                    items: ToolParameter(type: .string, description: "shift|control|option|command")
-                ),
-            ]),
+            schema: ToolSchema(
+                parameters: [
+                    "key": ToolParameter(type: .string, description: "Key name: \(keys)"),
+                    "modifiers": ToolParameter(
+                        type: .array,
+                        description: "Optional modifiers: shift|control|option|command",
+                        items: ToolParameter(
+                            type: .string, description: "shift|control|option|command")
+                    ),
+                ], required: ["key"]),
             isDestructive: true
         ) { args in
             let code = try DesktopControl.keyCode(named: args.key)

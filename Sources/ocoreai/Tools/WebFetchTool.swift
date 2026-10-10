@@ -303,12 +303,13 @@ extension WebFetchClient {
                 + "Use for a specific page (API docs, JS-rendered docs, a search result link). "
                 + "Read-only: no clicking/forms/login; not for bulk crawling. "
                 + "For discovery use web_search first.",
-            schema: ToolSchema(parameters: [
-                "url": ToolParameter(type: .string, description: "Full http(s) URL to fetch."),
-                "timeout": ToolParameter(
-                    type: .integer,
-                    description: "Optional timeout in seconds (1...120, default 30)."),
-            ])
+            schema: ToolSchema(
+                parameters: [
+                    "url": ToolParameter(type: .string, description: "Full http(s) URL to fetch."),
+                    "timeout": ToolParameter(
+                        type: .integer,
+                        description: "Optional timeout in seconds (1...120, default 30)."),
+                ], required: ["url"])
         ) { args in
             await WebFetchClient.runForTool(url: args.url, timeout: args.timeout)
         }

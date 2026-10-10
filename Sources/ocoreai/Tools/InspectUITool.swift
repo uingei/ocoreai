@@ -255,19 +255,21 @@ enum InspectUIClient {
                 + "(click/type at the given coords) → inspect_ui again to confirm. Params: app "
                 + "(bundle id or name, default frontmost), depth (default 6, cap 32), max_nodes "
                 + "(default 800, cap 4000), role (e.g. button / textfield / menu).",
-            schema: ToolSchema(parameters: [
-                "app": ToolParameter(
-                    type: .string,
-                    description: "Target app bundle id or name (default: frontmost app)"),
-                "depth": ToolParameter(
-                    type: .integer, description: "Max tree depth to traverse (default 6, cap 32)"),
-                "max_nodes": ToolParameter(
-                    type: .integer, description: "Max nodes to emit (default 800, cap 4000)"),
-                "role": ToolParameter(
-                    type: .string,
-                    description:
-                        "Only emit elements with this AX role (e.g. button, textfield, menu)"),
-            ]),
+            schema: ToolSchema(
+                parameters: [
+                    "app": ToolParameter(
+                        type: .string,
+                        description: "Target app bundle id or name (default: frontmost app)"),
+                    "depth": ToolParameter(
+                        type: .integer,
+                        description: "Max tree depth to traverse (default 6, cap 32)"),
+                    "max_nodes": ToolParameter(
+                        type: .integer, description: "Max nodes to emit (default 800, cap 4000)"),
+                    "role": ToolParameter(
+                        type: .string,
+                        description:
+                            "Only emit elements with this AX role (e.g. button, textfield, menu)"),
+                ], required: []),
             isDestructive: false
         ) { args in
             return await UIInspectDriver.readTreeAsync(

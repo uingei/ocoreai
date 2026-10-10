@@ -128,20 +128,23 @@ enum CheckToolsClient {
                 + "counts plus per-call duration and result summary within a time window. "
                 + "Use to verify past tool calls before declaring a task complete. "
                 + "Optional `tool` filters to one tool name; `status` to one result status.",
-            schema: ToolSchema(parameters: [
-                "tool": ToolParameter(
-                    type: .string, description: "Optional: filter to one tool name (e.g. \"exec\")."
-                ),
-                "status": ToolParameter(
-                    type: .string,
-                    description: "Optional: filter to one status (success/error/cancelled/timeout)."
-                ),
-                "window_seconds": ToolParameter(
-                    type: .integer,
-                    description: "Optional window in seconds (default 300, clamped 5...3600)."),
-                "limit": ToolParameter(
-                    type: .integer, description: "Optional max entries (default 20, max 200)."),
-            ])
+            schema: ToolSchema(
+                parameters: [
+                    "tool": ToolParameter(
+                        type: .string,
+                        description: "Optional: filter to one tool name (e.g. \"exec\")."
+                    ),
+                    "status": ToolParameter(
+                        type: .string,
+                        description:
+                            "Optional: filter to one status (success/error/cancelled/timeout)."
+                    ),
+                    "window_seconds": ToolParameter(
+                        type: .integer,
+                        description: "Optional window in seconds (default 300, clamped 5...3600)."),
+                    "limit": ToolParameter(
+                        type: .integer, description: "Optional max entries (default 20, max 200)."),
+                ], required: [])
         ) { args in
             await runForTool(
                 tool: args.tool, status: args.status,

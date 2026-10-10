@@ -237,22 +237,23 @@ enum TranscribeAudioClient {
                 + "back to the Speech framework's cloud engine (macOS 10.15+ / iOS 13+). "
                 + "Use to read out what was said in a recorded .caf/.m4a/.mp3/.wav file. "
                 + "On auth/availability failures it reports the honest reason.",
-            schema: ToolSchema(parameters: [
-                "path": ToolParameter(
-                    type: .string,
-                    description: "Filesystem path to the audio file to transcribe."
-                ),
-                "locale": ToolParameter(
-                    type: .string,
-                    description:
-                        "BCP-47 language tag to recognize (default: the app's current locale)."
-                ),
-                "max_chars": ToolParameter(
-                    type: .integer,
-                    description:
-                        "Cap on returned text length (default 2000; clamped 100...8000). Set 0 to get at least the floor."
-                ),
-            ])
+            schema: ToolSchema(
+                parameters: [
+                    "path": ToolParameter(
+                        type: .string,
+                        description: "Filesystem path to the audio file to transcribe."
+                    ),
+                    "locale": ToolParameter(
+                        type: .string,
+                        description:
+                            "BCP-47 language tag to recognize (default: the app's current locale)."
+                    ),
+                    "max_chars": ToolParameter(
+                        type: .integer,
+                        description:
+                            "Cap on returned text length (default 2000; clamped 100...8000). Set 0 to get at least the floor."
+                    ),
+                ], required: ["path"])
         ) { args in
             await runForTool(
                 path: args.path, locale: args.locale, maxChars: args.max_chars, backend: backend)

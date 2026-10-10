@@ -248,43 +248,45 @@ enum GenerateVideoClient {
                 + ".gif/.apng/.webp also supported). Requires macOS 27 / iOS 27 + a "
                 + "Wan 2.1 weight deployment under ~/Library/Application Support/ocoreai/wan2.1; "
                 + "below the floor or without weights it reports the blocker honestly.",
-            schema: ToolSchema(parameters: [
-                "prompt": ToolParameter(
-                    type: .string,
-                    description: "What the video should depict (subject, motion, style). Required."
-                ),
-                "numFrames": ToolParameter(
-                    type: .integer,
-                    description:
-                        "Frame count (default 81; clamped to 5...81, 4k+1 preferred: 17,33,49,65,81)."
-                ),
-                "fps": ToolParameter(
-                    type: .integer,
-                    description: "Playback fps (default 16; clamped 1...60)."
-                ),
-                "width": ToolParameter(
-                    type: .integer,
-                    description: "Pixel width (default 832; clamped 32...1280)."
-                ),
-                "height": ToolParameter(
-                    type: .integer,
-                    description: "Pixel height (default 480; clamped 32...1280)."
-                ),
-                "steps": ToolParameter(
-                    type: .integer,
-                    description:
-                        "Denoising steps (default 50; clamped 1...60). More = higher fidelity, slower."
-                ),
-                "seed": ToolParameter(
-                    type: .integer,
-                    description:
-                        "Deterministic RNG seed (default 42). Same seed + params → same clip."
-                ),
-                "format": ToolParameter(
-                    type: .string,
-                    description: "Output format: mp4 | gif | apng | webp (default mp4)."
-                ),
-            ])
+            schema: ToolSchema(
+                parameters: [
+                    "prompt": ToolParameter(
+                        type: .string,
+                        description:
+                            "What the video should depict (subject, motion, style). Required."
+                    ),
+                    "numFrames": ToolParameter(
+                        type: .integer,
+                        description:
+                            "Frame count (default 81; clamped to 5...81, 4k+1 preferred: 17,33,49,65,81)."
+                    ),
+                    "fps": ToolParameter(
+                        type: .integer,
+                        description: "Playback fps (default 16; clamped 1...60)."
+                    ),
+                    "width": ToolParameter(
+                        type: .integer,
+                        description: "Pixel width (default 832; clamped 32...1280)."
+                    ),
+                    "height": ToolParameter(
+                        type: .integer,
+                        description: "Pixel height (default 480; clamped 32...1280)."
+                    ),
+                    "steps": ToolParameter(
+                        type: .integer,
+                        description:
+                            "Denoising steps (default 50; clamped 1...60). More = higher fidelity, slower."
+                    ),
+                    "seed": ToolParameter(
+                        type: .integer,
+                        description:
+                            "Deterministic RNG seed (default 42). Same seed + params → same clip."
+                    ),
+                    "format": ToolParameter(
+                        type: .string,
+                        description: "Output format: mp4 | gif | apng | webp (default mp4)."
+                    ),
+                ], required: ["prompt"])
         ) { args in
             await runForTool(args: args, backend: backend)
         }

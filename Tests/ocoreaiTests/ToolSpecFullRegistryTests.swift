@@ -123,6 +123,35 @@ struct ToolSpecFullRegistryTests {
         #expect(Set(requiredOf("search_files") ?? []) == Set(["path", "pattern"]))
         #expect(Set(requiredOf("exec_shell") ?? []) == Set(["command"]))
         #expect(Set(requiredOf("write_file") ?? []) == Set(["path", "content"]))
+        // 0.1.9 实锤: 13/39 工具把全部声明键强制必填(7 处 description 明写 Optional),
+        // grammar 小模型被迫填所有旋钮 → 系统性选最短合法值。required = Args 解码真值。
+        #expect(Set(requiredOf("check_tools") ?? []) == Set())
+        #expect(Set(requiredOf("click") ?? []) == Set(["x", "y"]))
+        #expect(Set(requiredOf("drag") ?? []) == Set(["x1", "y1", "x2", "y2"]))
+        #expect(Set(requiredOf("key_press") ?? []) == Set(["key"]))
+        #expect(Set(requiredOf("move_mouse") ?? []) == Set(["x", "y"]))
+        #expect(Set(requiredOf("scroll") ?? []) == Set(["lines"]))
+        #expect(Set(requiredOf("type_text") ?? []) == Set(["text"]))
+        #expect(Set(requiredOf("web_search") ?? []) == Set(["query"]))
+        #expect(Set(requiredOf("web_fetch") ?? []) == Set(["url"]))
+        #expect(Set(requiredOf("transcribe_audio") ?? []) == Set(["path"]))
+        #expect(Set(requiredOf("generate_video") ?? []) == Set(["prompt"]))
+        // 全量不变式: required 里任何键的 description 不得以 "Optional" 开头 ——
+        // wire 上"必填却自称可选"= 谎, 从此 CI 红。
+        for s in specs {
+            guard let f = s["function"] as? [String: any Sendable] else { continue }
+            let params = f["parameters"] as? [String: any Sendable]
+            let required = Set((params?["required"] as? [String]) ?? [])
+            let props = (params?["properties"] as? [String: any Sendable]) ?? [:]
+            for key in required {
+                let p = props[key] as? [String: any Sendable]
+                let desc = (p?["description"] as? String) ?? ""
+                #expect(
+                    !desc.lowercased().hasPrefix("optional"),
+                    "wire lie: \(f["name"] as? String ?? "?").\(key) required but described Optional"
+                )
+            }
+        }
     }
 
     @Test("update_plan.plan: wire 带 items→object{properties[step/status], required}（非裸 array）")

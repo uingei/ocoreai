@@ -372,13 +372,14 @@ enum ListAppsClient {
                 + "one is frontmost. Read-only. Use it to DISCOVER the exact bundle id / name to "
                 + "pass to open_app / activate_app / inspect_ui. Optional substring filter and "
                 + "row limit (capped at 500).",
-            schema: ToolSchema(parameters: [
-                "filter": ToolParameter(
-                    type: .string,
-                    description: "Case-insensitive substring to match name or bundle id"),
-                "limit": ToolParameter(
-                    type: .integer, description: "Max rows (default 100, cap 500)"),
-            ]),
+            schema: ToolSchema(
+                parameters: [
+                    "filter": ToolParameter(
+                        type: .string,
+                        description: "Case-insensitive substring to match name or bundle id"),
+                    "limit": ToolParameter(
+                        type: .integer, description: "Max rows (default 100, cap 500)"),
+                ], required: []),
             isDestructive: false
         ) { args in
             await AppLifecycleDriver.listApps(limit: args.limit ?? 100, filter: args.filter)

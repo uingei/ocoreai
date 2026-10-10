@@ -24,7 +24,21 @@ cmd="${1:-check}"
 DRIFT=0
 
 baseline_note() { python3 -c 'import json; d=json.load(open("'"$STATE"'")); print("@"+d["checked_at_utc"])' 2>/dev/null || echo "缺失(首次)"; }
-base_sha() { python3 -c 'import json; d=json.load(open("'"$STATE"'")); b=d["baselines"].get("'"$1"'",""); print(b if isinstance(b,str) else "")' 2>/dev/null; }
+base_sha() {
+  # mlx-swift-lm 的基线 = Package.resolved 里的 SPM pin（pin 即采纳记录，单一真源）。
+  # json 里的旧值只对 coreai-models/codex 有效——读 json 报 pin 已吸收的漂移是
+  # 监控假警报（10-11 实锤：pin=7eb77ef==HEAD 仍天天报 +12 待裁决，淹没真窗口）。
+  if [ "$1" = "mlx-swift-lm" ]; then
+    python3 - <<'PY'
+import json
+d = json.load(open("Package.resolved"))
+for p in d.get("pins", []):
+    if "mlx-swift-lm" in p.get("identity", ""):
+        print(p["state"]["revision"][:9]); break
+PY
+    return
+  fi
+  python3 -c 'import json; d=json.load(open("'"$STATE"'")); b=d["baselines"].get("'"$1"'",""); print(b if isinstance(b,str) else "")' 2>/dev/null; }
 
 # gh 优先；无 gh 主机回落 curl+python3（api.github.com 实测可用）。
 # 此前无 gh 时三源全部静默 skip = 覆盖缺口（10-05 实测踩中）。

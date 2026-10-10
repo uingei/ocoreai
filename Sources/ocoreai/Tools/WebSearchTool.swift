@@ -494,11 +494,12 @@ extension WebSearchClient {
             argsType: WebSearchArgs.self,
             description:
                 "Search the web for current information (news, docs, facts) via the local ollama web_search backend.",
-            schema: ToolSchema(parameters: [
-                "query": ToolParameter(type: .string, description: "Search query."),
-                "max_output_tokens": ToolParameter(
-                    type: .integer, description: "Optional cap on answer tokens."),
-            ])
+            schema: ToolSchema(
+                parameters: [
+                    "query": ToolParameter(type: .string, description: "Search query."),
+                    "max_output_tokens": ToolParameter(
+                        type: .integer, description: "Optional cap on answer tokens."),
+                ], required: ["query"])
         ) { args in
             await WebSearchClient.runForTool(
                 query: args.query, maxOutputTokens: args.max_output_tokens)

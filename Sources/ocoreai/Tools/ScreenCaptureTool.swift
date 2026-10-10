@@ -148,15 +148,18 @@ enum ScreenCaptureClient {
             description:
                 "See the current screen: capture it and return its true size plus the on-screen text (OCR). "
                 + "Use to inspect the current UI state, an error message, or what an app is showing before acting.",
-            schema: ToolSchema(parameters: [
-                "include_ocr": ToolParameter(
-                    type: .boolean, description: "Run OCR to extract on-screen text (default true)."
-                ),
-                "max_ocr_chars": ToolParameter(
-                    type: .integer,
-                    description:
-                        "Cap on OCR text length (default 4000; 0 = OCR off; clamped 200...8000)."),
-            ])
+            schema: ToolSchema(
+                parameters: [
+                    "include_ocr": ToolParameter(
+                        type: .boolean,
+                        description: "Run OCR to extract on-screen text (default true)."
+                    ),
+                    "max_ocr_chars": ToolParameter(
+                        type: .integer,
+                        description:
+                            "Cap on OCR text length (default 4000; 0 = OCR off; clamped 200...8000)."
+                    ),
+                ], required: [])
         ) { args in
             await runForTool(
                 includeOCR: args.include_ocr, maxOCRChars: args.max_ocr_chars, backend: backend)

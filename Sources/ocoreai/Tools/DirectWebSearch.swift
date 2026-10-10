@@ -508,12 +508,13 @@ extension DirectWebSearch {
             argsType: Args.self,
             description:
                 "Search the web for current information. Returns cited organic results (title/url/snippet) fetched directly — no model or API key involved; answer from the results and cite URLs.",
-            schema: ToolSchema(parameters: [
-                "query": ToolParameter(type: .string, description: "Search query."),
-                "max_output_tokens": ToolParameter(
-                    type: .integer,
-                    description: "Hint: max results context (unused by direct path)."),
-            ])
+            schema: ToolSchema(
+                parameters: [
+                    "query": ToolParameter(type: .string, description: "Search query."),
+                    "max_output_tokens": ToolParameter(
+                        type: .integer,
+                        description: "Hint: max results context (unused by direct path)."),
+                ], required: ["query"])
         ) { args in
             await runForTool(
                 query: args.query, maxOutputTokens: args.max_output_tokens)

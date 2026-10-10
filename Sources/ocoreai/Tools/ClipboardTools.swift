@@ -114,13 +114,14 @@ enum ReadClipboardClient {
                 + "to `max_chars` (default 2000) to protect the context window. Use it to CAPTURE "
                 + "text another app produced (after selecting + copy via the desktop tools) or to "
                 + "SEE what the user last copied before you overwrite it with write_clipboard.",
-            schema: ToolSchema(parameters: [
-                "max_chars": ToolParameter(
-                    type: .integer,
-                    description:
-                        "Max chars to return (default 2000, cap 20000); larger text is truncated with an honest tail note"
-                )
-            ]),
+            schema: ToolSchema(
+                parameters: [
+                    "max_chars": ToolParameter(
+                        type: .integer,
+                        description:
+                            "Max chars to return (default 2000, cap 20000); larger text is truncated with an honest tail note"
+                    )
+                ], required: []),
             isDestructive: false
         ) { args in
             let maxLen = Clipboard.clampMax(args.max_chars)
