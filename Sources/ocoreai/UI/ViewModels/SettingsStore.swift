@@ -680,7 +680,7 @@ final class SettingsStore {
         case approvalPolicy = "settings.agent.approvalPolicy"
     }
 
-    private let defaults: UserDefaults
+    let defaults: UserDefaults
     @MainActor init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
     }

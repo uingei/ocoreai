@@ -25,7 +25,7 @@ enum PerceptionGaugeSnapshot {
         for channel: PerceptionChannel,
         store: SettingsStore
     ) -> Bool? {
-        let raw = UserDefaults.standard
+        let raw = store.defaults
         func hasVote(_ key: SettingsStore.Key) -> Bool {
             raw.object(forKey: key.rawValue) != nil
         }
