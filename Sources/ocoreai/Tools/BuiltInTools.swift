@@ -491,8 +491,9 @@ func bootstrapBuiltInTools(
     let contextStore = ContextStatusStore.shared
     try? await registry.register(GetContextRemainingClient.toolEntry(store: contextStore))
     // 获取信息一等工具。基准: codex ToolSpec::WebSearch (tool_spec.rs:39)。
-    // 本地推理无 provider 代搜 → handler 调 ollama /v1/responses web_search。
-    try? await registry.register(WebSearchClient.toolEntry())
+    // 第一性: 检索本体不需要模型 —— 默认走直搜(HTML SERP, 无密钥无模型,
+    //   cn.bing 实跑验证); OCRE_SEARCH_MODE=backend/auto 回退 ollama 代搜。
+    try? await registry.register(DirectWebSearch.toolEntry())
 
     // ── web_fetch ──────────────────────────────────────────────────────────
     // 读取已知 URL 的渲染内容(WebKit 后端)。与 web_search 正交:
