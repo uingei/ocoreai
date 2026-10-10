@@ -54,6 +54,11 @@ case "$BIN" in
   *) echo "❌ listener is NOT the .app bundle: $BIN"; exit 1 ;;
 esac
 
+# 3b. The user must actually SEE a window — HTTP health alone could be a
+#     windowless zombie serving forever. CGWindowList proves a layer-0
+#     window exists (no Accessibility TCC needed) + captures PNG evidence.
+SHOT=1 bash scripts/verify-gui-window.sh
+
 # 4. One real completion through the GUI bridge (default model from /v1/models).
 if [ -z "$MODEL" ]; then
   MODEL="$(curl -s -m 10 "http://127.0.0.1:${PORT}/v1/models" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["data"][0]["id"] if d.get("data") else "")')"
