@@ -19,18 +19,35 @@ import Observation
 
 enum RepositoryError: LocalizedError {
     case engineUnavailable
-    case searchFailed(String)
+    /// A hub search failed. `hub` names WHICH hub, `reason` carries the
+    /// underlying error verbatim — codex TUI shape: the user reads what
+    /// actually broke, not "An error occurred" (the previous dead-end).
+    case hubSearchFailed(hub: HubSource, reason: String)
     case loadFailed(String)
     case deleteFailed(String)
     case errorOccurred
+    /// Search completed fine; the query just matched nothing. Deliberately
+    /// distinct from .hubSearchFailed — "nothing found" and "couldn't
+    /// search" are different states with different remedies (HIG).
     case noResults
 
     var errorDescription: String? {
         switch self {
         case .engineUnavailable:
             return StringKey.engineNotAvailable.l
-        case .searchFailed(let msg):
-            return "\(StringKey.modelSearchNoResults.l): \(msg)"
+        case .hubSearchFailed(let hub, let reason):
+            var s = String(
+                format: StringKey.modelSearchFailedFormat.l,
+                hub == .huggingFace ? "Hugging Face" : "ModelScope",
+                reason)
+            // Name the lever that fixes this exact failure (the mirror
+            // toggle lives in Settings; env-first users keep HF_ENDPOINT).
+            s +=
+                " "
+                + (hub == .huggingFace
+                    ? StringKey.modelSearchFailedHFHint.l
+                    : StringKey.modelSearchFailedMSHint.l)
+            return s
         case .loadFailed(let msg):
             return "\(StringKey.modelLoadError.l): \(msg)"
         case .deleteFailed(let msg):
@@ -161,13 +178,16 @@ final class ModelManager {
         case .huggingFace:
             let results = await _searchHF(query)
             hfResults = results
-            if results.isEmpty {
+            // Honest split: a failed search already set .hubSearchFailed in
+            // the catch — empty-results-overwrite would bury "couldn't
+            // search" under "nothing found" (two different remedies).
+            if results.isEmpty && currentError == nil {
                 currentError = .noResults
             }
         case .modelScope:
             let results = await _searchMS(query)
             msResults = results
-            if results.isEmpty {
+            if results.isEmpty && currentError == nil {
                 currentError = .noResults
             }
         }
@@ -180,7 +200,7 @@ final class ModelManager {
         do {
             return try await client.search(query: query, limit: 30)
         } catch {
-            currentError = .errorOccurred
+            currentError = .hubSearchFailed(hub: .huggingFace, reason: error.localizedDescription)
             return []
         }
     }
@@ -194,7 +214,7 @@ final class ModelManager {
             let result = try await client.search(keyword: query, pageSize: 30)
             return result.models
         } catch {
-            currentError = .errorOccurred
+            currentError = .hubSearchFailed(hub: .modelScope, reason: error.localizedDescription)
             return []
         }
     }

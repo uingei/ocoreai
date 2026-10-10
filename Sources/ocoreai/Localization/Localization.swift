@@ -565,6 +565,9 @@ public enum StringKey: String, CaseIterable, Sendable {
     case modelSearchSearching = "ModelSearch.Searching"
     case modelSearchDismiss = "ModelSearch.Dismiss"
     case modelSearchNoResults = "ModelSearch.NoResults"
+    case modelSearchFailedFormat = "ModelSearch.FailedFormat"
+    case modelSearchFailedHFHint = "ModelSearch.FailedHFHint"
+    case modelSearchFailedMSHint = "ModelSearch.FailedMSHint"
     case modelSearchEmpty = "ModelSearch.Empty"
 
     // — Agent tool approval (codex AskForApproval 形状) —
@@ -1074,6 +1077,11 @@ enum L10nTables {
         .modelSearchSearching: "Searching…",
         .modelSearchDismiss: "Dismiss",
         .modelSearchNoResults: "No models found for your search",
+        .modelSearchFailedFormat: "%1$@ search failed: %2$@",
+        .modelSearchFailedHFHint:
+            "If your network cannot reach huggingface.co, enable the HF mirror in Settings.",
+        .modelSearchFailedMSHint:
+            "If your network cannot reach modelscope.cn, switch source to Hugging Face.",
         .modelSearchEmpty: "No results found",
         .engineNotAvailable: "Engine not available",
 
@@ -1526,6 +1534,9 @@ enum L10nTables {
         .modelSearchSearching: "搜索中…",
         .modelSearchDismiss: "关闭",
         .modelSearchNoResults: "未找到匹配的模型",
+        .modelSearchFailedFormat: "%1$@ 搜索失败：%2$@",
+        .modelSearchFailedHFHint: "若网络无法访问 huggingface.co，请在「设置」中开启 HF 镜像。",
+        .modelSearchFailedMSHint: "若网络无法访问 modelscope.cn，请切换来源为 Hugging Face。",
         .modelSearchEmpty: "未找到结果",
         .engineNotAvailable: "引擎不可用",
 
