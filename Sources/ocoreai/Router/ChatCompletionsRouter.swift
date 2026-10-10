@@ -326,6 +326,16 @@ func buildRouter(
         return try Response.json(response)
     }
 
+    // MARK: - Perception Honesty Gauge
+
+    /// ``GET /v1/perception`` — public, flags + ages ONLY (never frame
+    /// content). The honest invariant made machine-readable: per channel,
+    /// persisted user vote vs live engine flag vs actual frame flow.
+    routes.get("/v1/perception") { _, _ in
+        let gauge = await PerceptionGaugeSnapshot.build()
+        return try Response.json(gauge)
+    }
+
     // MARK: Prometheus Metrics
 
     routes.get("/metrics") { _, _ in
@@ -805,6 +815,33 @@ struct HealthResponse: Codable {
     let status: String
     let timestamp: Int64
     let engineSummary: EngineSummary
+}
+
+/// ``GET /v1/perception`` response — machine-readable honesty gauge for the
+/// perception subsystem. Before this endpoint, verifying "voted lever ==
+/// runtime behavior" required an LLM round-trip through observe_state; any
+/// script/monitor on this machine now asserts it directly.
+///
+/// `votedEnabled` = persisted user vote (SettingsStore). `liveEnabled` =
+/// the flag the running engine actually acts on (PerceptionEngine.channels).
+/// `honest` is the invariant the whole cold-boot saga was about: the vote
+/// the user cast IS the value in force. `latestFrameAgeSec` proves the
+/// channel isn't just flag-true but actually flowing (nil = no frame yet).
+struct PerceptionGaugeResponse: Codable {
+    struct ChannelGauge: Codable {
+        let votedEnabled: Bool?
+        let liveEnabled: Bool
+        let latestFrameAgeSec: Double?
+        let honest: Bool
+    }
+    let masterVoted: Bool
+    let engineRunning: Bool
+    /// Master-vote vs engine-running honesty: running iff voted (or the
+    /// documented boot path has not yet fired within a cycle).
+    let bootHonest: Bool
+    let powerProfile: String
+    let channels: [String: ChannelGauge]
+    let timestamp: Int64
 }
 
 /// ``GET /ready`` response — readiness state of the inference path.
