@@ -154,30 +154,31 @@ enum UpdatePlanClient {
                 + "Provide an optional explanation and a list of plan items, each with "
                 + "a step (text) and a status (pending | in_progress | completed). "
                 + "At most one step can be in_progress at a time.",
-            schema: ToolSchema(parameters: [
-                "explanation": ToolParameter(
-                    type: .string,
-                    description: "Optional explanation for this plan update."
-                ),
-                "plan": ToolParameter(
-                    type: .array,
-                    description: "The list of steps",
-                    items: ToolParameter(
-                        type: .object,
-                        description: "A plan step with `step` (text) and `status` "
-                            + "(pending | in_progress | completed)",
-                        required: ["step", "status"],
-                        properties: [
-                            "step": ToolParameter(
-                                type: .string,
-                                description: "The step text."),
-                            "status": ToolParameter(
-                                type: .string,
-                                description: "pending | in_progress | completed"),
-                        ]
-                    )
-                ),
-            ])
+            schema: ToolSchema(
+                parameters: [
+                    "explanation": ToolParameter(
+                        type: .string,
+                        description: "Optional explanation for this plan update."
+                    ),
+                    "plan": ToolParameter(
+                        type: .array,
+                        description: "The list of steps",
+                        items: ToolParameter(
+                            type: .object,
+                            description: "A plan step with `step` (text) and `status` "
+                                + "(pending | in_progress | completed)",
+                            required: ["step", "status"],
+                            properties: [
+                                "step": ToolParameter(
+                                    type: .string,
+                                    description: "The step text."),
+                                "status": ToolParameter(
+                                    type: .string,
+                                    description: "pending | in_progress | completed"),
+                            ]
+                        )
+                    ),
+                ], required: ["plan"])
         ) { args in
             let plan = args.plan?.map { (step: $0.step, status: $0.status) }
             switch PlanUpdate.validate(explanation: args.explanation, plan: plan) {

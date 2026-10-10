@@ -458,6 +458,15 @@ final class LoadedModel: @unchecked Sendable {
                     logger.warning("Warmup skipped (non-fatal): \(error)")
                 }
             }
+        } else {
+            // SDK-27 编译 + OS-26 运行(shipped DMG on macOS 26, CI macos-26
+            // runner, 本机): 整条 CoreAI 热车道存在但不可达, 且 MLX 热车道
+            // 在 #else 分支里根本没被编译 — 没有任何 warm 真跑过。诚实标志
+            // 必须落 false, 否则 "first request fast" 是谎(2165-run 实锤)。
+            if !wasPrewarmDegraded {
+                wasPrewarmDegraded = true
+                logger.warning("Warmup skipped: CoreAI runtime requires macOS 27")
+            }
         }
         #else
         do {
