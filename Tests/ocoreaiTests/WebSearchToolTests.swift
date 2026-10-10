@@ -300,3 +300,49 @@ struct WebSearchModelDiscoveryTests {
         #expect(!clean.report.contains("NOTE:"))
     }
 }
+
+// MARK: - Capability-probed fallback (200-with-empty ≠ usable)
+
+@Suite("web_search fallback — probe candidates, disclose trail")
+struct WebSearchFallbackCandidatesTests {
+    @Test("candidates excludes preferred, deterministic order, capped")
+    func candidatesOrder() {
+        let all = ["glm:latest", "qwen-a", "qwen-b", "zeta", "alpha"]
+        let c = WebSearchModelDiscovery.candidates(preferred: "ghost", installed: all, max: 3)
+        // Sorted minus preferred, first 3.
+        #expect(c == ["alpha", "glm:latest", "qwen-a"])
+        // Preferred removed from its own fallback list.
+        #expect(
+            WebSearchModelDiscovery.candidates(
+                preferred: "alpha", installed: all, max: 3) == ["glm:latest", "qwen-a", "qwen-b"])
+        // Cap clamped to sane bounds; empty installed → empty.
+        #expect(WebSearchModelDiscovery.candidates(preferred: "x", installed: [], max: 3).isEmpty)
+        #expect(WebSearchModelDiscovery.candidates(preferred: "x", installed: all, max: 0).isEmpty)
+    }
+
+    @Test("disclosure keeps single-shot wording, appends honest trail")
+    func disclosureTrail() {
+        // No attempts → byte-identical to the original single-shot contract.
+        #expect(
+            WebSearchModelDiscovery.disclosure(
+                original: "m", used: "f", failedAttempts: [])
+                == "requested 'm' not installed; used 'f'")
+        // Trail records WHY each candidate was rejected (proven failure modes).
+        let d = WebSearchModelDiscovery.disclosure(
+            original: "qwen3.8:27b-mtp", used: "qwen3.8:27b-nvfp4",
+            failedAttempts: [
+                ("glm-4.7-flash:latest", "no answer text"),
+                ("gemma:e2b", "HTTP 404"),
+            ])
+        #expect(
+            d == "requested 'qwen3.8:27b-mtp' not installed; "
+                + "tried 'glm-4.7-flash:latest' (no answer text), 'gemma:e2b' (HTTP 404); "
+                + "used 'qwen3.8:27b-nvfp4'")
+        // The disclosure surfaces IN the LLM-facing report.
+        var r = WebSearchResult(
+            status: "completed", answer: "42", searchQueries: ["q"], usage: nil)
+        r.modelSubstituted = d
+        #expect(r.report.contains("NOTE: requested 'qwen3.8:27b-mtp'"))
+        #expect(r.report.contains("no answer text"))
+    }
+}

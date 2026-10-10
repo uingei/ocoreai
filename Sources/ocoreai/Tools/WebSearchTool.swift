@@ -164,6 +164,32 @@ enum WebSearchModelDiscovery {
         return installed.sorted().first
     }
 
+    /// Fallback attempt order after `preferred` 404s: every other installed
+    /// model, sorted (deterministic), capped by `max` so a machine with many
+    /// models can't burn unbounded time. NOT capability-filtered here — the
+    /// caller probes each one for real (acceptance = non-empty answer).
+    static func candidates(preferred: String, installed: [String], max: Int = 3) -> [String] {
+        let rest = installed.filter { $0 != preferred }.sorted()
+        let cap = Swift.max(0, Swift.min(max, 10))
+        return Array(rest.prefix(cap))
+    }
+
+    /// Honest substitution disclosure for the LLM-facing report + audit.
+    /// Pure — testable. Keeps the no-attempts wording byte-identical to the
+    /// single-shot contract; appends the failed-attempt trail when present.
+    static func disclosure(
+        original: String, used: String, failedAttempts: [(model: String, why: String)]
+    ) -> String {
+        if failedAttempts.isEmpty {
+            return "requested '\(original)' not installed; used '\(used)'"
+        }
+        let trail =
+            failedAttempts
+            .map { "'\($0.model)' (\($0.why))" }
+            .joined(separator: ", ")
+        return "requested '\(original)' not installed; tried \(trail); used '\(used)'"
+    }
+
     /// GET `/api/tags` (base with `/v1` stripped, like the probe).
     static func listModels(baseUrl: String, timeoutS: Int = 5) async -> [String] {
         var base = baseUrl.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -354,34 +380,34 @@ enum WebSearchClient {
         }
 
         if let http = response as? HTTPURLResponse, !(200 ..< 300).contains(http.statusCode) {
-            // Self-heal once on "model not found": the packaged default model
-            // id is host-dependent (developer tag ≠ user tag). Ask the local
-            // backend what IS installed, pick deterministically, retry once.
-            // The substitution is disclosed in the report — never silent.
+            // Self-heal on "model not found": the packaged default model id is
+            // host-dependent (developer tag ≠ user tag). Ask the backend what IS
+            // installed, then probe candidates in deterministic order — a
+            // candidate only counts when it returns HTTP 2xx AND a non-empty
+            // parsed answer (200-with-empty is "installed but can't web-search",
+            // proven live: glm-4.7-flash accepts /v1/responses+web_search and
+            // answers nothing). Every attempt + failure reason is disclosed in
+            // the report — never silent.
             if http.statusCode == 404 {
                 let installed = await WebSearchModelDiscovery.listModels(baseUrl: base)
-                if let fallback = WebSearchModelDiscovery.pick(
+                var attempts: [(model: String, why: String)] = []
+                // 120s cap per probe: live-verified real searches complete in
+                // 74-96s; a candidate that can't answer within that window is
+                // not worth the full 180s timeout while others wait.
+                let probeTimeout = Swift.min(timeoutS, 120)
+                for candidate in WebSearchModelDiscovery.candidates(
                     preferred: model, installed: installed)
                 {
-                    var retryRequest = URLRequest(url: built.url)
-                    retryRequest.httpMethod = "POST"
-                    retryRequest.timeoutInterval = TimeInterval(timeoutS)
-                    retryRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    if let rebuilt = try? WebSearchRequest.build(
-                        query: query, maxOutputTokens: maxOutputTokens, model: fallback,
-                        baseUrl: base)
+                    switch await postParse(
+                        query: query, maxOutputTokens: maxOutputTokens,
+                        model: candidate, base: base, timeoutS: probeTimeout)
                     {
-                        retryRequest.httpBody = rebuilt.body
-                        if let (retryData, retryResp) = try? await URLSession.shared.data(
-                            for: retryRequest),
-                            let retryHTTP = retryResp as? HTTPURLResponse,
-                            (200 ..< 300).contains(retryHTTP.statusCode)
-                        {
-                            var result = try WebSearchParser.parse(retryData)
-                            result.modelSubstituted =
-                                "requested '\(model)' not installed; used '\(fallback)'"
-                            return result
-                        }
+                    case .ok(var result):
+                        result.modelSubstituted = WebSearchModelDiscovery.disclosure(
+                            original: model, used: candidate, failedAttempts: attempts)
+                        return result
+                    case .failed(let why):
+                        attempts.append((candidate, why))
                     }
                 }
             }
@@ -390,6 +416,49 @@ enum WebSearchClient {
                 bodyExcerpt: String(data: data.prefix(300), encoding: .utf8) ?? "(binary)")
         }
         return try WebSearchParser.parse(data)
+    }
+
+    /// One POST to `/v1/responses` + parse; acceptance requires a non-empty
+    /// answer. Failure carries a short honest reason for the disclosure trail.
+    private enum ProbeOutcome {
+        case ok(WebSearchResult)
+        case failed(String)
+    }
+
+    private static func postParse(
+        query: String, maxOutputTokens: Int?, model: String, base: String, timeoutS: Int
+    ) async -> ProbeOutcome {
+        guard
+            let rebuilt = try? WebSearchRequest.build(
+                query: query, maxOutputTokens: maxOutputTokens, model: model, baseUrl: base)
+        else { return .failed("request build failed") }
+        var req = URLRequest(url: rebuilt.url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = TimeInterval(timeoutS)
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = rebuilt.body
+        guard let (data, resp) = try? await URLSession.shared.data(for: req) else {
+            return .failed("unreachable")
+        }
+        guard let http = resp as? HTTPURLResponse else { return .failed("no http response") }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            return .failed("HTTP \(http.statusCode)")
+        }
+        do {
+            let parsed = try WebSearchParser.parse(data)
+            // Acceptance gate: a 200 that produced no answer text means the
+            // model accepted web_search but didn't actually search — not a
+            // usable fallback for THIS query. Fail the candidate honestly.
+            guard !parsed.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return .failed("no answer text")
+            }
+            return .ok(parsed)
+        } catch let e as WebSearchError {
+            if case .emptyAnswer = e { return .failed("no answer text") }
+            return .failed("parse error: \(e.errorDescription ?? "?")")
+        } catch {
+            return .failed("parse error: \(error.localizedDescription)")
+        }
     }
 
     /// 面向 tool handler:成功返回报告,失败返回 `error: ...` 文本(诚实,供模型降级)。
