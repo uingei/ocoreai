@@ -160,6 +160,7 @@ private struct TabDetailView: View {
         switch appState.selectedTab {
         case .dashboard: DashboardView()
         case .chat: ChatView()
+        case .projects: ProjectsView()
         case .models: ModelView()
         case .sessions: SessionView()
         case .skills: SkillsView()

@@ -564,6 +564,19 @@ public enum StringKey: String, CaseIterable, Sendable {
     case sessionLoadFailed = "Common.SessionLoadFailed"
     case sessionSummaryLoadFailed = "Common.SessionSummaryLoadFailed"
     case sessionDeleteFailed = "Common.SessionDeleteFailed"
+    case projectNameRequired = "Project.NameRequired"
+    case projectCreateFailed = "Project.CreateFailed"
+    case projectDeleteFailed = "Project.DeleteFailed"
+    case tabProjects = "Project.Tab"
+    case projectNew = "Project.New"
+    case projectAllowCoding = "Project.AllowCoding"
+    case projectChooseFolder = "Project.ChooseFolder"
+    case projectFiles = "Project.Files"
+    case projectSessions = "Project.Sessions"
+    case projectDeleteConfirm = "Project.DeleteConfirm"
+    case projectNoFolder = "Project.NoFolder"
+    case projectEmptyFiles = "Project.EmptyFiles"
+    case projectNamePlaceholder = "Project.NamePlaceholder"
     case memorySearchFailed = "Common.MemorySearchFailed"
     case memoryLoadFailed = "Common.MemoryLoadFailed"
     case settingsResetToDefaults = "Settings.ResetToDefaults"
@@ -1028,6 +1041,19 @@ enum L10nTables {
         .sessionLoadFailed: "Failed to load sessions",
         .sessionSummaryLoadFailed: "Failed to load session summary",
         .sessionDeleteFailed: "Failed to delete session",
+        .projectNameRequired: "Project name is required",
+        .projectCreateFailed: "Failed to create project",
+        .projectDeleteFailed: "Failed to delete project",
+        .tabProjects: "Projects",
+        .projectNew: "New Project",
+        .projectAllowCoding: "Allow coding",
+        .projectChooseFolder: "Choose a folder to work in",
+        .projectFiles: "Project Files",
+        .projectSessions: "Sessions",
+        .projectDeleteConfirm: "Delete this project? Its sessions stay in Sessions.",
+        .projectNoFolder: "No folder bound — chat & docs only",
+                .projectEmptyFiles: "No files in this folder yet",
+        .projectNamePlaceholder: "Project name",
         .memorySearchFailed: "Memory search failed",
         .memoryLoadFailed: "Failed to load memory",
         .settingsResetToDefaults: "Settings reset to defaults",
@@ -1326,6 +1352,19 @@ enum L10nTables {
         .sessionLoadFailed: "加载会话失败",
         .sessionSummaryLoadFailed: "加载会话摘要失败",
         .sessionDeleteFailed: "删除会话失败",
+        .projectNameRequired: "请填写项目名",
+        .projectCreateFailed: "创建项目失败",
+        .projectDeleteFailed: "删除项目失败",
+        .tabProjects: "项目",
+        .projectNew: "新建项目",
+        .projectAllowCoding: "允许编码",
+        .projectChooseFolder: "选择一个工作目录",
+        .projectFiles: "项目文件",
+        .projectSessions: "会话",
+        .projectDeleteConfirm: "删除该项目？其中的会话会保留到「会话」列表。",
+        .projectNoFolder: "未绑定目录 — 仅聊天与文档",
+        .projectEmptyFiles: "该目录暂无文件",
+        .projectNamePlaceholder: "项目名称",
         .memorySearchFailed: "记忆搜索失败",
         .memoryLoadFailed: "加载记忆失败",
         .settingsResetToDefaults: "设置已恢复默认",

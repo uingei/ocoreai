@@ -480,6 +480,32 @@ actor SQLiteStore {
             try Self.exec(
                 sql: "ALTER TABLE sessions ADD COLUMN workspace_directory TEXT;", db: db)
         }
+        // Project container (Bionic IA parity, docs/bionic/quick-start):
+        // "A project keeps related sessions and files together." A project
+        // owns a name, an opt-in coding folder (`Allow coding` toggle) and
+        // many sessions; sessions inherit the folder as workspace_directory
+        // (verified chain into ExecTools.effectiveCwd / FileTools.resolve).
+        // Same probe-then-ADD pattern (system libsqlite3 rejects
+        // `ADD COLUMN IF NOT EXISTS`).
+        let hasProjectId =
+            sessionsCols.contains { ($0["name"] as? String) == "project_id" }
+        if !hasProjectId {
+            try Self.exec(
+                sql: "ALTER TABLE sessions ADD COLUMN project_id INTEGER;", db: db)
+        }
+        try Self.exec(
+            sql: "CREATE TABLE IF NOT EXISTS projects (\n"
+                + "    id INTEGER PRIMARY KEY AUTOINCREMENT,\n"
+                + "    name TEXT NOT NULL,\n"
+                + "    folder_path TEXT,\n"
+                + "    allow_coding INTEGER NOT NULL DEFAULT 0,\n"
+                + "    created_at REAL NOT NULL,\n"
+                + "    updated_at REAL NOT NULL\n"
+                + ");",
+            db: db)
+        try Self.exec(
+            sql: "CREATE INDEX IF NOT EXISTS idx_sessions_project_id ON sessions(project_id);",
+            db: db)
 
         // Reasoning trace persistence (codex #46711 parity): assistant messages
         // carry their reasoning/thinking text so a re-opened session shows the

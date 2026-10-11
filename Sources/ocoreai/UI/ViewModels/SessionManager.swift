@@ -123,6 +123,12 @@ final class SessionManager {
             // Persist the session↔worktree binding (survives restart); blank
             // session is bound before reload so the chat loads into it.
             try await compressor.bindWorkspace(created.root, for: newId)
+            // Project container: a session created while a project is open
+            // files into it (project_id + folder inheritance — the verified
+            // ExecTools.effectiveCwd / FileTools.resolve chain).
+            if let project = ProjectStore.shared.selectedProject {
+                await ProjectStore.shared.addSession(newId, to: project)
+            }
             // Bind the new (blank) session to the worktree; promote + select.
             if let fresh = try await compressor.getSession(newId) {
                 sessions.removeAll { $0.id == newId }

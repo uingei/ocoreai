@@ -332,6 +332,9 @@ public final class OcoreaiEngine {
         // （绑定后 update_plan 每次成功都落 plans 表；未绑定 = 纯内存事件面）。
         await MainActor.run {
             PlanTaskStore.shared.attach(store: store)
+            // Project container (Bionic IA): sessions inherit the project's
+            // bound folder through SessionWorkspace — same attach seam.
+            ProjectStore.shared.attach(store: store)
         }
 
         // MARK: - Config System (YAML + env override + hot-reload)

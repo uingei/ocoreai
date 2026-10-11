@@ -229,7 +229,7 @@ final class AppState {
 // MARK: - Tab enum with sidebar grouping
 
 enum AppTab: String, CaseIterable, Identifiable {
-    case dashboard, chat, models, sessions, skills, system, settings, status
+    case dashboard, chat, projects, models, sessions, skills, system, settings, status
 
     var id: String {
         rawValue
@@ -243,6 +243,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .settings: StringKey.tabSettings.l
         case .status: StringKey.tabStatus.l
         case .sessions: StringKey.tabSessions.l
+        case .projects: StringKey.tabProjects.l
         case .skills: StringKey.tabSkills.l
         case .system: StringKey.tabSystem.l
         }
@@ -256,6 +257,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .settings: "gear"
         case .status: "info.circle"
         case .sessions: "text.page"
+        case .projects: "folder"
         case .skills: "wrench.and.screwdriver"
         case .system: "server.rack"
         }
@@ -267,7 +269,7 @@ enum AppTab: String, CaseIterable, Identifiable {
     }
 
     static var workflowGroup: [AppTab] {
-        [.models, .sessions]
+        [.projects, .models, .sessions]
     }
 
     static var systemGroup: [AppTab] {
