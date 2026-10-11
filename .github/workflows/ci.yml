@@ -331,11 +331,21 @@ jobs:
           bash scripts/build-dmg.sh
 
       - name: Upload DMG to job artifact
+        # NON-BLOCKING by evidence (2026-10-11): v0.1.12 attempts 1+2 BOTH
+        # died exactly here — annotation: "Failed to CreateArtifact: Failed to
+        # make request after 5 attempts: Request timeout:
+        # /twirp/github.actions.results.api.v1.ArtifactService/CreateArtifact"
+        # (GitHub capacity event; the action already retried 5× internally —
+        # retrying the step re-enters the same down backend). This artifact
+        # is a convenience copy; the DELIVERABLE is the Release asset, which
+        # the next step uploads via a different path (uploads.github.com).
+        # Losing the convenience copy must never block the deliverable.
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: ocoreai-dmg
           path: dist/*.dmg
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 90
 
       - name: Publish GitHub Release
@@ -352,20 +362,27 @@ jobs:
 
           SHA256: ${SHA}
           Size: ${SIZE} bytes — 校验: shasum -a 256 ocoreai-${VER}.dmg"
-          gh release create "v${VER}" \
-            --title "ocoreai v${VER} (macOS)" \
-            --notes "${NOTE}" \
-            --target main \
-            dist/ocoreai-${VER}.dmg
-          # Idempotent recovery (v0.1.9 run 38052349970): create exited
-          # nonzero AFTER the release+asset were intact. The deliverable is
-          # the verifiable artifact, not the ceremony exit code — probe real
-          # state before failing; the read-back step below is the arbiter.
+          # Split ceremony: create release (metadata only, cheap/idempotent),
+          # then upload the asset with its own retry loop. Asset upload goes to
+          # uploads.github.com — NOT the ArtifactService twirp API that killed
+          # v0.1.12 attempts 1+2. Failure recovery is state-probed, never
+          # exit-code-trusted (v0.1.9 run 38052349970 lesson).
+          gh release view "v${VER}" >/dev/null 2>&1 \
+            || gh release create "v${VER}" \
+                 --title "ocoreai v${VER} (macOS)" \
+                 --notes "${NOTE}" \
+                 --target main
           if ! gh release view "v${VER}" --json assets -q '.assets[].name' | grep -q "ocoreai-${VER}.dmg"; then
-            echo "::error::release $VER genuinely lacks its DMG asset — this is a real failure"
-            exit 1
+            UPLOADED=""
+            for i in 1 2 3; do
+              if gh release upload "v${VER}" "dist/ocoreai-${VER}.dmg" --clobber; then UPLOADED=1; break; fi
+              echo "asset upload attempt $i failed — retry in $((i*20))s"; sleep $((i*20))
+            done
+            [ -n "$UPLOADED" ] || { echo "::error::asset upload failed after 3 attempts (re-run this job or upload manually: dist/ocoreai-${VER}.dmg)"; exit 1; }
           fi
-          echo "::notice::release + asset confirmed present (post-create probe)"
+          gh release view "v${VER}" --json assets -q '.assets[].name' | grep -q "ocoreai-${VER}.dmg" \
+            || { echo "::error::release $VER genuinely lacks its DMG asset — this is a real failure"; exit 1; }
+          echo "::notice::release + asset confirmed present (state probe, not ceremony)"
 
       - name: Read-back verify (published asset integrity loop)
         # First-principles: 'uploaded' ≠ 'downloadable intact'. Fetch the

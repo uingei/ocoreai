@@ -20,11 +20,17 @@ import SwiftUI
 ///     engine + HTTP bridge, SIGTERM/stdin-EOF shutdown). This is the fix
 ///     for the headless-boot gap: previously the engine only booted via
 ///     SwiftUI View instantiation, which never happens without WindowServer.
+///   • `ocoreai --version` / `-v` → print the bundle version, exit 0.
+///   • `ocoreai --help` / `-h` / `help` → usage, exit 0.
 ///   • anything else → `OcoreaiGUIApp.main()` — the untouched SwiftUI path,
 ///     byte-identical to the previous `@main struct OcoreaiApp: App`.
 @main
 struct OcoreaiApp {
     static func main() {
+        if let report = CLIMode.versionOrHelpReport(for: CommandLine.arguments) {
+            print(report)
+            exit(0)
+        }
         if HeadlessMode.isServeInvocation(CommandLine.arguments) {
             HeadlessServer.run()
         } else {
