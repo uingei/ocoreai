@@ -649,6 +649,15 @@ final class ChatState {
             // Blank session carries no worktree binding — drop the previous
             // session's pointer so exec/file tools don't leak into it.
             SessionWorkspace.clear()
+            // Project container: a chat started while a project is open runs
+            // IN that folder (DB binding + live pointer — the verified
+            // ExecTools.effectiveCwd / FileTools.resolve chain).
+            if let sid = sessionId, let project = ProjectStore.shared.selectedProject,
+                project.allowCoding, let folder = project.folderPath
+            {
+                await ProjectStore.shared.addSession(sid, to: project)
+                SessionWorkspace.setDirectory(folder)
+            }
             // Create a stable inference session UUID that persists across
             // multiple chat() calls — ThinkingBudget adaptive calibration requires
             // a consistent key to accumulate quality multipliers.
