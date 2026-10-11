@@ -637,6 +637,12 @@ struct ChatView: View {
             let limit = chatState.contextWindowLimit
         {
             let fraction = min(1.0, Double(used) / Double(limit))
+            // HIG status visibility: the meter must READ its pressure. An
+            // always-accent bar says nothing at 100%. Tier by fraction like a
+            // disk gauge: calm → amber (compact soon) → red (turn will wall).
+            let meterColor: Color =
+                fraction >= 0.95
+                ? theme.tintRed : fraction >= 0.8 ? theme.tintOrange : theme.accent
             HStack(spacing: 8) {
                 Image(systemName: "circle.circle")
                     .font(.system(size: 11))
@@ -644,7 +650,7 @@ struct ChatView: View {
                     .accessibilityHidden(true)
                 ProgressView(value: fraction)
                     .progressViewStyle(.linear)
-                    .tint(theme.accent)
+                    .tint(meterColor)
                     .frame(width: 120)
                     .accessibilityLabel(StringKey.contextMeter.l)
                     .accessibilityValue(

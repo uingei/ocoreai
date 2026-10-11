@@ -446,10 +446,12 @@ final class ChatState {
 
         // P0-3 UX: Preserve the partial response instead of instantly blanking the screen.
         // The user can still see what was generated before interruption.
-        if !responseText.isEmpty {
+        // Same visible-text guard as the stream-cancel persist path: reasoning-only
+        // or tool-only streams have nothing a bubble can honestly say.
+        let visibleSoFar = Self.displayText(from: responseText)
+        if !visibleSoFar.isEmpty {
             let interruptedContent =
-                Self.displayText(from: responseText) + "\n\n...[" + StringKey.interruptedLabel.l
-                + "]"
+                visibleSoFar + "\n\n...[" + StringKey.interruptedLabel.l + "]"
             messages.append(
                 ChatMessage(role: "assistant", content: interruptedContent, interrupted: true))
             responseText = ""
@@ -1288,10 +1290,14 @@ final class ChatState {
             // skip if cancelInference() already ran — it appends the interrupted message
             // itself; we only reach here when the stream was cancelled without UI intervention.
             if !self._cancelledByUI && (Task.isCancelled || cancellation.isCancelled) {
-                if !responseText.isEmpty {
+                // Only persist an interrupted bubble when there is VISIBLE text.
+                // A stream that emitted only reasoning/tool-call tokens has nothing
+                // to show — persisting "…[已中断]" there would claim a half-spoken
+                // answer that never existed (the tool cards already tell the truth).
+                let visibleSoFar = Self.displayText(from: responseText)
+                if !visibleSoFar.isEmpty {
                     let interruptedContent =
-                        Self.displayText(from: responseText) + "\n\n...["
-                        + StringKey.interruptedLabel.l + "]"
+                        visibleSoFar + "\n\n...[" + StringKey.interruptedLabel.l + "]"
                     let assistantMsg = ChatMessage(
                         role: "assistant", content: interruptedContent, interrupted: true)
                     messages.append(assistantMsg)
