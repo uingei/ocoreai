@@ -132,6 +132,15 @@ public enum StringKey: String, CaseIterable, Sendable {
     case chatPlaceholder = "Chat.Placeholder"
     case interruptedLabel = "Chat.InterruptedLabel"
     case truncatedBadge = "Chat.TruncatedBadge"
+    // — Chat file-change review (inline diffs) —
+    case diffCreated = "Chat.Diff.Created"
+    case diffModified = "Chat.Diff.Modified"
+    case diffAddedLines = "Chat.Diff.AddedLines"
+    case diffRemovedLines = "Chat.Diff.RemovedLines"
+    case diffElidedLines = "Chat.Diff.ElidedLines"
+    case diffExpand = "Chat.Diff.Expand"
+    case diffCollapse = "Chat.Diff.Collapse"
+    case diffNotApplied = "Chat.Diff.NotApplied"
     // — Chat phases (progress display) —
     case phasePreparing = "Chat.Phase.Preparing"
     case phasePrefilling = "Chat.Phase.Prefilling"
@@ -648,6 +657,14 @@ enum L10nTables {
         .worktreeCreateFailed: "Failed to create worktree session",
         .interruptedLabel: "Interrupted",
         .truncatedBadge: "Output cut off by the token budget — the response may be incomplete",
+        .diffCreated: "Created",
+        .diffModified: "Modified",
+        .diffAddedLines: "+%d",
+        .diffRemovedLines: "−%d",
+        .diffElidedLines: "… %d unchanged line(s)",
+        .diffExpand: "Show changes",
+        .diffCollapse: "Hide changes",
+        .diffNotApplied: "Preview — not yet run",
         .tokPerSec: "Tok/S",
         .phasePreparing: "Preparing model…",
         .phasePrefilling: "Prefilling context…",
@@ -1127,6 +1144,14 @@ enum L10nTables {
         .worktreeCreateFailed: "创建 worktree 会话失败",
         .interruptedLabel: "已中断",
         .truncatedBadge: "输出因 token 预算被截断，回复可能不完整",
+        .diffCreated: "新建",
+        .diffModified: "修改",
+        .diffAddedLines: "+%d",
+        .diffRemovedLines: "−%d",
+        .diffElidedLines: "… %d 行未改动",
+        .diffExpand: "查看改动",
+        .diffCollapse: "收起改动",
+        .diffNotApplied: "预览 — 尚未执行",
         .tokPerSec: "Token/s",
         .chatTTFT: "首 Token",
         .perfStatsToggle: "显示每轮统计（tok/s、TTFT、token 计数）",

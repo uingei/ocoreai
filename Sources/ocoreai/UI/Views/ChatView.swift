@@ -1175,7 +1175,13 @@ struct TranscriptContentView: View {
                     reasoningSection(text: text, index: idx)
 
                 case .toolCall(let tc):
-                    toolCallBadge(tc)
+                    // File edits become inline review cards (Bionic parity);
+                    // every other tool keeps the compact badge.
+                    if FileDiffCard.isReviewable(tc) {
+                        FileDiffCard(call: tc)
+                    } else {
+                        toolCallBadge(tc)
+                    }
 
                 case .compactionNote(let removed):
                     // Context auto-compacted before this turn (codex #42319
