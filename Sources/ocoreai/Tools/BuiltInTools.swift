@@ -35,7 +35,17 @@ func bootstrapBuiltInTools(
             toolset: "system",
             argsType: InfoArgs.self,
             description:
-                "Query ocoreai runtime info: status, version, uptime, or capabilities"
+                "Query ocoreai runtime info: status, version, uptime, or capabilities",
+            schema: ToolSchema(
+                parameters: [
+                    "topic": ToolParameter(
+                        type: .string,
+                        description:
+                            "One of: status | version | uptime | capabilities (default: status)"
+                    )
+                ],
+                required: []
+            )
         ) { args in
             let capabilitiesSummary = RuntimeCapability.lines
                 .map { "\($0.name)=\($0.available ? "on" : "off")" }
@@ -63,7 +73,18 @@ func bootstrapBuiltInTools(
                 name: "skills_list",
                 toolset: "skills",
                 argsType: SkillsListArgs.self,
-                description: "List available skills, optionally filtered by category"
+                description: "List available skills, optionally filtered by category",
+                schema: ToolSchema(
+                    parameters: [
+                        "category": ToolParameter(
+                            type: .string,
+                            description:
+                                "Optional category filter (e.g. 'devops', 'web'). "
+                                + "Omit to list every skill."
+                        )
+                    ],
+                    required: []
+                )
             ) { [sr] args in
                 let names: [String] =
                     if let cat = args.category, !cat.isEmpty {
@@ -90,7 +111,15 @@ func bootstrapBuiltInTools(
                 name: "skills_lookup",
                 toolset: "skills",
                 argsType: SkillsLookupArgs.self,
-                description: "Get a skill's name, description, and category"
+                description: "Get a skill's name, description, and category",
+                schema: ToolSchema(
+                    parameters: [
+                        "name": ToolParameter(
+                            type: .string,
+                            description: "Skill name (hyphens/underscores, max 64)"
+                        )
+                    ]
+                )
             ) { [sr] args in
                 guard !args.name.isEmpty else { return "error: name required" }
                 guard let skill = await sr.lookup(args.name) else {
@@ -113,7 +142,22 @@ func bootstrapBuiltInTools(
                 name: "skills_view",
                 toolset: "skills",
                 argsType: SkillsViewArgs.self,
-                description: "Read a skill's full content (or a specific file within it)"
+                description: "Read a skill's full content (or a specific file within it)",
+                schema: ToolSchema(
+                    parameters: [
+                        "name": ToolParameter(
+                            type: .string,
+                            description: "Skill name (hyphens/underscores, max 64)"
+                        ),
+                        "file": ToolParameter(
+                            type: .string,
+                            description:
+                                "Optional file path relative to the skill directory, "
+                                + "e.g. 'references/api.md'. Omit for SKILL.md."
+                        ),
+                    ],
+                    required: ["name"]
+                )
             ) { [sr] args in
                 guard !args.name.isEmpty else { return "error: name required" }
                 if let file = args.file {
@@ -476,7 +520,16 @@ func bootstrapBuiltInTools(
             name: "echo",
             toolset: "debug",
             argsType: EchoArgs.self,
-            description: "Debug: return the given message verbatim"
+            description: "Debug: return the given message verbatim",
+            schema: ToolSchema(
+                parameters: [
+                    "message": ToolParameter(
+                        type: .string,
+                        description: "Text to return verbatim"
+                    )
+                ],
+                required: []
+            )
         ) { args in
             args.message ?? ""
         }

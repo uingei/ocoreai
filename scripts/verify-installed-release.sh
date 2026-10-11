@@ -64,6 +64,15 @@ for name,p in by.items():
     for k in (p.get('required') or []):
         d=(props.get(k) or {}).get('description','')
         if d.lower().startswith('optional'): lies.append(f'{name}.{k}')
+# empty-properties lie: tool advertises NO keys but its handler decodes some.
+# Whitelist = tools proven parameterless in Sources (empty Args struct).
+# Live-proven on the official v0.1.12 DMG: info/skills_list/skills_lookup/
+# skills_view/echo advertised properties:{} while InfoArgs/SkillsListArgs/...
+# carry stored members — the model cannot call them without the key names.
+zero_ok={'curr_time','system_info','observe_state','get_context_remaining','get_plan'}
+for name,p in by.items():
+    if not (p.get('properties') or {}) and name not in zero_ok:
+        lies.append(f'{name}:EMPTY_PROPS')
 if not fixed:
     # pre-fix binary (<=0.1.10): drift is the KNOWN state — report it loudly
     # as evidence the check bites, never pass it silently.
