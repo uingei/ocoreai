@@ -2947,8 +2947,13 @@ extension EnginePool {
             let poolRefForRelease = poolRef
             _ = poolRefForRelease  // used below in guided gen / MTP / std reasoning early-release
 
+            /// This turn's message keys, computed once: they identify the conversation
+            /// the KV cache will represent, for prefix matching at acquire and for the
+            /// snapshot identity if the session is later evicted to disk.
+            let poolPromptKeys: [MessageHistoryKey] = mlxMessages.map(MessageHistoryKey.from)
+
             if let pool = poolRef {
-                let keys = mlxMessages.map(MessageHistoryKey.from)
+                let keys = poolPromptKeys
                 let acquired = await pool.acquire(
                     from: handleRef.modelContainer,
                     modelId: modelId,
@@ -3046,6 +3051,7 @@ extension EnginePool {
                         pooled: pooled,
                         modelId: modelId,
                         conversationId: convKey,
+                        promptMessages: poolPromptKeys,
                         assistantMessage: historyKey
                     )
                 }
@@ -4456,7 +4462,9 @@ extension EnginePool {
             if let acc = stdAccumulated {
                 let assistantKey = MessageHistoryKey(
                     role: "assistant",
-                    contentHash: "\(acc)".hashValue
+                    contentHash: DurableHash.fingerprint(acc),
+                    hasMedia: false,
+                    hasToolTraffic: false
                 )
                 await releasePoolSlotWithAssistant(assistantKey)
             } else {

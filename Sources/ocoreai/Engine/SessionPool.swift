@@ -67,19 +67,55 @@ struct SessionPoolConfig {
     static let `default`: SessionPoolConfig = .init()
 }
 
-// MARK: - Pooled Session Entry
+// MARK: - Durable Identity
 
-// MARK: - Pooled Session Entry
+/// Deterministic 64-bit FNV-1a over UTF-8 bytes.
+///
+/// Anything that identifies cached work *across process launches* has to use this,
+/// not `String.hashValue`: Swift seeds hashing per process, so a `hashValue` written
+/// to disk is meaningless at the next launch — two runs of the same text disagree.
+/// One algorithm here keeps the conversation seed, the message keys and the on-disk
+/// manifest comparable with each other and with older files.
+enum DurableHash {
+    static func fnv1a64(_ text: String) -> UInt64 {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in text.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x1_0000_0001_b3
+        }
+        return hash
+    }
+
+    /// `Int` projection for `Hashable` keys. `Int` is 64-bit across the whole
+    /// supported matrix (macOS 14+ / iOS 17+), so no bits are lost.
+    static func fingerprint(_ text: String) -> Int {
+        Int(truncatingIfNeeded: fnv1a64(text))
+    }
+}
 
 /// Lightweight message identity for prefix match without carrying full text.
-/// (role, content truncated to first 64 chars for hash).
-struct MessageHistoryKey: Hashable, Sendable {
+struct MessageHistoryKey: Hashable, Sendable, Codable {
     let role: String
-    /// Hash of the content prefix — enough to detect content changes without storing
-    /// full text. Full prefix match relies on (role, content_hash) equality.
+    /// Durable fingerprint of the content (see ``DurableHash``) — enough to detect
+    /// content changes without storing full text, and stable across launches so it
+    /// can travel with a persisted snapshot.
     let contentHash: Int
+    /// Media-carrying turns cannot be reconciled with a restored snapshot: a vision
+    /// encoder attends an image beside a cached prefix differently than cold
+    /// (upstream `ChatSession.swift:707-715`), so these turns block disk reuse.
+    var hasMedia: Bool = false
+    /// Tool traffic renders into the prompt as control text that a caller-supplied
+    /// message list does not describe faithfully, so a ledger containing it is not
+    /// something to bank a prefix skip on.
+    var hasToolTraffic: Bool = false
+
     static func from(_ msg: Chat.Message) -> Self {
-        Self(role: msg.role.rawValue, contentHash: "\(msg.content)".hashValue)
+        Self(
+            role: msg.role.rawValue,
+            contentHash: DurableHash.fingerprint("\(msg.content)"),
+            hasMedia: !msg.images.isEmpty || !msg.videos.isEmpty || !msg.audios.isEmpty,
+            hasToolTraffic: msg.role == .tool || msg.tool != nil
+        )
     }
 }
 
@@ -92,12 +128,131 @@ enum ConversationIdentity {
     /// Swift's `hashValue` is seeded per process and would orphan those files.
     static func seed(messages: [Chat.Message]) -> String {
         let leading = messages.first { $0.role == .user }.map { "\($0.content)" } ?? ""
-        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
-        for byte in leading.utf8 {
-            hash ^= UInt64(byte)
-            hash = hash &* 0x1_0000_0001_b3
+        return String(format: "%016llx", DurableHash.fnv1a64(leading))
+    }
+}
+
+/// Sidecar written next to a persisted KV snapshot, stating what that cache holds.
+///
+/// Upstream persists raw KV state only and says the caller owns the transcript:
+/// "A restored raw cache therefore uses fragment-based continuation"
+/// (`ChatSession.swift:1710-1716`) — the session continues from whatever tokens the
+/// file happens to hold and cannot check them against a chat template. Accepting one
+/// without proof re-attaches a previous conversation's context to a new request, so
+/// this manifest is the proof, and no manifest means no reuse.
+struct KVCacheManifest: Codable, Sendable {
+    static let currentVersion = 1
+
+    let version: Int
+    let modelId: String
+    /// Fingerprint of the system instructions the cache was built under. A changed
+    /// system prompt means the cached prefix encodes text this request never sent.
+    let instructionsHash: Int
+    /// The messages the KV cache represents, in render order.
+    let messages: [MessageHistoryKey]
+
+    init(modelId: String, instructionsHash: Int, messages: [MessageHistoryKey]) {
+        self.version = Self.currentVersion
+        self.modelId = modelId
+        self.instructionsHash = instructionsHash
+        self.messages = messages
+    }
+
+    /// Refuse any snapshot we cannot fully account for, including files written by
+    /// an older build (whose hashes came from the per-process seed).
+    var isUsable: Bool {
+        version == Self.currentVersion && !modelId.isEmpty && !messages.isEmpty
+    }
+
+    /// Whether this snapshot may serve the given request, and why not.
+    ///
+    /// Pure - no filesystem, no MLX - so the whole refusal matrix is pinned by
+    /// `SessionIsolationTests` instead of being inferred from a live run.
+    /// A refusal is not "try later": the caller deletes the snapshot.
+    func reuseDecision(
+        modelId requestedModelId: String,
+        instructionsHash requestedInstructionsHash: Int,
+        incomingMessages: [MessageHistoryKey]
+    ) -> SnapshotRefusal? {
+        guard isUsable else { return .unusableManifest }
+        guard modelId == requestedModelId else {
+            return .modelMismatch(snapshot: modelId, requested: requestedModelId)
         }
-        return String(format: "%016llx", hash)
+        guard instructionsHash == requestedInstructionsHash else {
+            return .instructionsChanged
+        }
+        // A vision encoder attends an image beside a cached prefix differently than
+        // cold (upstream `ChatSession.swift:707-715`), and the pixels are not in the
+        // manifest, so a media turn on either side is unverifiable.
+        guard !messages.contains(where: \.hasMedia),
+            !incomingMessages.contains(where: \.hasMedia)
+        else {
+            return .mediaTurn
+        }
+        let common = MessageHistoryKey.longestCommonPrefixCount(
+            history: messages,
+            prefix: incomingMessages
+        )
+        guard
+            MLXSessionPool.canReusePooledSession(
+                cachedMessageCount: messages.count,
+                commonPrefixCount: common
+            )
+        else {
+            return .notAPrefix(cached: messages.count, commonPrefix: common)
+        }
+        return nil
+    }
+}
+
+/// Why a persisted KV snapshot was refused. `nil` means accepted, so every variant
+/// names something a caller cannot repair by waiting.
+enum SnapshotRefusal: Equatable, Sendable {
+    /// No sidecar, unreadable, or written by a build whose hashes came from the
+    /// per-process seed - nothing identifies where the cache came from.
+    case unusableManifest
+    /// The cache was built for a different model: its KV encodes another model's
+    /// embeddings and positions.
+    case modelMismatch(snapshot: String, requested: String)
+    /// The system prompt changed, so the cached prefix contains text this request
+    /// never sent.
+    case instructionsChanged
+    /// Image/video/audio turns are not described by the manifest, so the tokens the
+    /// cache actually holds cannot be checked against it.
+    case mediaTurn
+    /// The cache holds turns the caller never sent - a fork (edit & resend), a
+    /// compacted history, or an identity collision.
+    case notAPrefix(cached: Int, commonPrefix: Int)
+
+    /// One-line reason for the log, so a dropped cache is explainable after the fact.
+    var logText: String {
+        switch self {
+        case .unusableManifest: return "no usable manifest"
+        case .modelMismatch(let snapshot, let requested):
+            return "stamped model \(snapshot), request wants \(requested)"
+        case .instructionsChanged: return "system prompt changed"
+        case .mediaTurn: return "media turn cannot be re-verified"
+        case .notAPrefix(let cached, let commonPrefix):
+            return "cached \(cached) exceeds common prefix \(commonPrefix)"
+        }
+    }
+
+}
+
+extension MessageHistoryKey {
+    /// Longest run of identical messages at the head of both sequences.
+    ///
+    /// A mismatch at position *i* means the cache represents a different context from
+    /// *i* onward, so the caller must prefill from there.
+    static func longestCommonPrefixCount(
+        history: [MessageHistoryKey],
+        prefix: [MessageHistoryKey]
+    ) -> Int {
+        let minCount = Swift.min(history.count, prefix.count)
+        for i in 0 ..< minCount where history[i] != prefix[i] {
+            return i
+        }
+        return minCount
     }
 }
 
@@ -120,6 +275,15 @@ struct PooledChatSession: @unchecked Sendable {
 
     /// On-disk cache file URL for this session (nil if never persisted).
     var cacheFileURL: URL?
+
+    /// Fingerprint of the system instructions this session's cache was built under
+    /// (``DurableHash``). Recorded at acquire so an evicted session can be persisted
+    /// with the identity a later restore has to match.
+    var instructionsHash: Int = 0
+
+    /// Model this session belongs to, kept so a persisted snapshot can state its
+    /// provenance without parsing the pool key.
+    var modelId: String = ""
 
     /// Rendered message history keys for prefix matching.
     /// Each entry corresponds to a role+content pair that contributed tokens to the KV cache.
@@ -250,7 +414,7 @@ actor MLXSessionPool {
         if let pooled = pool[key] {
             let divergence: Int
             if let prefix = prefixMessages {
-                divergence = longestCommonPrefixCount(
+                divergence = MessageHistoryKey.longestCommonPrefixCount(
                     history: pooled.messageHistory,
                     prefix: prefix
                 )
@@ -273,6 +437,10 @@ actor MLXSessionPool {
                 commonPrefixCount: divergence
             ) {
                 pool[key] = nil
+                // A diverged conversation invalidates the snapshot on disk too: leaving
+                // it there would let the next pool miss for this key revive the same
+                // stale context.
+                deleteCachedSession(key: key)
                 logger.debug(
                     "Session pool entry \(key) not reusable: cached history \(pooled.messageHistory.count) exceeds common prefix \(divergence) — building a clean session"
                 )
@@ -281,9 +449,16 @@ actor MLXSessionPool {
                 hitCount += 1
                 totalAcquireAttempts += 1
                 logHitRateIfNeeded()
-                logger.debug(
-                    "Session pool HIT: \(key), divergence=\(divergence)/\(prefixMessages?.count ?? 0)"
-                )
+                if divergence > 0 {
+                    // Visible at default level: this is the turn where the prefix cache
+                    // actually saved a re-prefill, and the only place an owner can tell
+                    // reuse from a cold rebuild.
+                    logger.info(
+                        "Session pool HIT: \(key) — \(divergence)/\(prefixMessages?.count ?? 0) messages already cached, feeding the suffix"
+                    )
+                } else {
+                    logger.debug("Session pool HIT: \(key), divergence=0")
+                }
                 return AcquireResult(
                     pooled: pooled,
                     isHit: divergence > 0,
@@ -292,32 +467,44 @@ actor MLXSessionPool {
             }
         }
 
-        // 4. Pool miss — try restore from disk first (fallback path)
+        // 4. Pool miss — try restore from disk, but only for the conversation the
+        // snapshot provably belongs to. `restoreValidatedSession` refuses (and
+        // deletes) anything it cannot account for.
         let cacheURL = cacheFileURL(key: key)
+        let instructionsFP = DurableHash.fingerprint(instructions ?? "")
         if config.persistCache,
-            let restored = restoreCachedSession(
+            let incoming = prefixMessages,
+            let restored = restoreValidatedSession(
                 from: modelContainer,
                 cacheURL: cacheURL,
                 genParams: genParams,
                 speculativeDecoding: speculativeDecoding,
-                processing: processing
+                processing: processing,
+                modelId: modelId,
+                instructionsHash: instructionsFP,
+                incomingMessages: incoming
             )
         {
+            let (restoredSession, manifest) = restored
+            let reusedCount = manifest.messages.count
             let diskPooled = PooledChatSession(
-                session: restored,
+                session: restoredSession,
                 lastAccessedAt: ContinuousClock.now,
                 cacheFileURL: cacheURL,
-                messageHistory: []
+                instructionsHash: instructionsFP,
+                modelId: modelId,
+                messageHistory: manifest.messages
             )
-            missCount += 1
+            hitCount += 1
             totalAcquireAttempts += 1
             logHitRateIfNeeded()
-            logger.info("Session RESTORED from disk cache: \(key)")
-            // Disk restore loses transcript → no prefix match available
+            logger.info(
+                "Session RESTORED from disk cache: \(key) — \(reusedCount) cached message(s), feeding the suffix"
+            )
             return AcquireResult(
                 pooled: diskPooled,
-                isHit: false,
-                divergenceIndex: 0
+                isHit: true,
+                divergenceIndex: reusedCount
             )
         }
 
@@ -337,6 +524,8 @@ actor MLXSessionPool {
             session: freshSession,
             lastAccessedAt: ContinuousClock.now,
             cacheFileURL: cacheFile,
+            instructionsHash: instructionsFP,
+            modelId: modelId,
             messageHistory: []
         )
         missCount += 1
@@ -364,6 +553,7 @@ actor MLXSessionPool {
         pooled: PooledChatSession,
         modelId: String,
         conversationId: String,
+        promptMessages: [MessageHistoryKey]? = nil,
         assistantMessage: MessageHistoryKey? = nil,
     ) async {
         let key = poolKey(modelId: modelId, conversationId: conversationId)
@@ -378,12 +568,26 @@ actor MLXSessionPool {
         // reused pooled session could serve stale cache state.
         await pooled.session.synchronize()
 
-        // Extend message history with the assistant response for prefix matching
-        // on the next turn. Without the assistant turn, the history would diverge
-        // from the KV cache ledger on every round.
+        // The ledger records what the KV cache provably represents after this turn.
+        // Before this, nothing ever wrote the prompt side into it — only the assistant
+        // key was appended — so a legitimate second turn compared as "cached 1 message
+        // vs common prefix 0", failed the reuse gate, and re-prefilled the whole
+        // conversation (measured 10-13: 4505-token prompt = 1.219s, then 1.247s and
+        // 1.178s on the following turns instead of a warm continuation).
+        //
+        // Trust it only when the turn completed with an answer and the prompt was
+        // plain text. A tool round-trip renders control text into the prompt that this
+        // list cannot name, and a ledger longer than the cache would make the next turn
+        // skip prefill for tokens that were never cached — silent context loss. An
+        // unprovable turn claims nothing: reuse still happens, it just hands the full
+        // history back to ChatSession, which reconciles it against its own transcript.
         var entryToPool = pooled
-        if let assistantMessage {
-            entryToPool.messageHistory.append(assistantMessage)
+        if let promptMessages, let assistantMessage,
+            !promptMessages.contains(where: { $0.hasMedia || $0.hasToolTraffic })
+        {
+            entryToPool.messageHistory = promptMessages + [assistantMessage]
+        } else {
+            entryToPool.messageHistory = []
         }
 
         pool[key] = entryToPool
@@ -421,22 +625,9 @@ actor MLXSessionPool {
             )
             let allEntries = pool.map { ($0.key, $0.value) }
             pool.removeAll()
-            for (_, entry) in allEntries {
+            for (key, entry) in allEntries {
                 if persistFlag {
-                    enforceDiskBudget()
-                }
-                if persistFlag, let cacheURL = entry.cacheFileURL {
-                    let cachePath = cacheURL.lastPathComponent
-                    let log = self.logger
-                    _ = Task.detached(priority: .utility) { [entry, log, cachePath] in
-                        do {
-                            try await entry.session.saveCache(to: cacheURL)
-                            log.debug("Saved KV cache (pressure flush): \(cachePath)")
-                        } catch {
-                            log.warning(
-                                "Failed to save KV cache (pressure): \(error.localizedDescription)")
-                        }
-                    }
+                    persistEntry(entry, key: key, reason: "pressure flush")
                 }
             }
         } else {
@@ -452,20 +643,7 @@ actor MLXSessionPool {
             )
             for (key, entry) in entriesToRemove {
                 if persistFlag {
-                    enforceDiskBudget()
-                }
-                if persistFlag, let cacheURL = entry.cacheFileURL {
-                    let cachePath = cacheURL.lastPathComponent
-                    let log = self.logger
-                    _ = Task.detached(priority: .utility) { [entry, log, cachePath] in
-                        do {
-                            try await entry.session.saveCache(to: cacheURL)
-                            log.debug("Saved KV cache (pressure): \(cachePath)")
-                        } catch {
-                            log.warning(
-                                "Failed to save KV cache (pressure): \(error.localizedDescription)")
-                        }
-                    }
+                    persistEntry(entry, key: key, reason: "pressure")
                 }
                 pool.removeValue(forKey: key)
             }
@@ -495,23 +673,8 @@ actor MLXSessionPool {
         }
 
         for (key, entry) in entriesToRemove {
-            // Enforce disk budget before persisting to prevent unbounded growth
             if persistFlag {
-                enforceDiskBudget()
-            }
-            // Persist to disk in a detached Task so saveCache (which can be slow
-            // for large KV caches) does not block the actor mailbox.
-            if persistFlag, let cacheURL = entry.cacheFileURL {
-                let cachePath = cacheURL.lastPathComponent
-                let log = self.logger
-                _ = Task.detached(priority: .utility) { [entry, log, cachePath] in
-                    do {
-                        try await entry.session.saveCache(to: cacheURL)
-                        log.debug("Saved KV cache: \(cachePath)")
-                    } catch {
-                        log.warning("Failed to save KV cache: \(error.localizedDescription)")
-                    }
-                }
+                persistEntry(entry, key: key, reason: "TTL")
             }
             logger.debug("Evicted expired session: \(key)")
             pool.removeValue(forKey: key)
@@ -540,42 +703,90 @@ actor MLXSessionPool {
         let entry = oldestItem.value
         // Remove from pool first to shrink actor mailbox window
         pool.removeValue(forKey: oldestKey)
-        // Enforce disk budget before persisting to prevent unbounded growth
         if config.persistCache {
-            enforceDiskBudget()
-        }
-        // Persist to disk in a detached Task so saveCache (which can be slow
-        // for large KV caches) does not block the actor mailbox.
-        if config.persistCache, let cacheURL = entry.cacheFileURL {
-            let cachePath = cacheURL.lastPathComponent
-            let log = self.logger
-            _ = Task.detached(priority: .utility) { [entry, log, cachePath] in
-                do {
-                    try await entry.session.saveCache(to: cacheURL)
-                    log.debug("Saved KV cache (LRU): \(cachePath)")
-                } catch {
-                    log.warning("Failed to save KV cache (LRU): \(error.localizedDescription)")
-                }
-            }
+            persistEntry(entry, key: oldestKey, reason: "LRU")
         }
         logger.info("LRU evicted: \(oldestKey) (pool: \(pool.count))")
     }
 
+    /// Persist one evicted session: the raw KV snapshot plus the manifest that states
+    /// what it represents.
+    ///
+    /// Off the actor mailbox because `saveCache` can take seconds for a large cache.
+    /// The manifest is written only after the cache itself succeeded, so an unpaired
+    /// cache file can never present itself as a resumable conversation; a failed
+    /// manifest leaves an orphan that the restore path refuses and deletes.
+    private func persistEntry(_ entry: PooledChatSession, key: String, reason: String) {
+        guard let cacheURL = entry.cacheFileURL else { return }
+        enforceDiskBudget()
+        let manifest = KVCacheManifest(
+            modelId: entry.modelId,
+            instructionsHash: entry.instructionsHash,
+            messages: entry.messageHistory
+        )
+        let log = self.logger
+        _ = Task.detached(priority: .utility) { [entry, log, cacheURL, manifest] in
+            do {
+                try await entry.session.saveCache(to: cacheURL)
+                if manifest.isUsable {
+                    try? self.writeManifest(manifest, for: cacheURL)
+                    log.debug("Saved KV cache (\(reason)): \(cacheURL.lastPathComponent)")
+                } else {
+                    // Nothing to identify it by — save nothing rather than a snapshot
+                    // a later turn could pick up without proof of where it came from.
+                    try? FileManager.default.removeItem(at: cacheURL)
+                    log.debug("Skipped KV cache (\(reason)): unattributed conversation")
+                }
+            } catch {
+                log.warning(
+                    "Failed to save KV cache (\(reason)): \(error.localizedDescription)")
+            }
+        }
+    }
+
     // MARK: - On-disk KV cache I/O
 
-    /// Restore a ChatSession from on-disk KV cache.
-    /// Per upstream L319-322: restore from a pre-built cache that already encodes
-    /// a system prompt — pass `instructions: nil` to avoid duplicate tokenization.
+    /// Restore a ChatSession from on-disk KV cache, but only after proving the
+    /// snapshot belongs to the conversation asking for it.
     ///
-    /// Returns true on success, false if disk cache not found or restore failed.
-    private func restoreCachedSession(
+    /// Upstream persists raw KV state and leaves the transcript to the caller
+    /// (`ChatSession.swift:1710-1716`): a restored session continues from whatever
+    /// tokens the file happens to hold, with no chat template to reconcile against.
+    /// Accepting one without proof grafts a previous conversation's context onto a
+    /// new request, so every refusal here is also a deletion — a snapshot this build
+    /// cannot vouch for never comes back.
+    ///
+    /// Refuses (and removes the files) when the snapshot is absent, unreadable,
+    /// stamped with a different model or system prompt, media-bearing, or not a
+    /// prefix of the incoming conversation.
+    private func restoreValidatedSession(
         from modelContainer: MLXLMCommon.ModelContainer,
         cacheURL: URL,
         genParams: MLXLMCommon.GenerateParameters,
         speculativeDecoding: MLXLMCommon.SpeculativeDecodingConfig?,
         processing: MLXLMCommon.UserInput.Processing?,
-    ) -> ChatSession? {
+        modelId: String,
+        instructionsHash: Int,
+        incomingMessages: [MessageHistoryKey],
+    ) -> (ChatSession, KVCacheManifest)? {
         guard FileManager.default.fileExists(atPath: cacheURL.path) else {
+            return nil
+        }
+        // A cache without a decodable sidecar has no identity: nothing states which
+        // conversation its tokens came from. Delete it rather than leave an orphan
+        // that every later turn has to refuse again.
+        guard let manifest = readManifest(for: cacheURL) else {
+            discardCachedSession(
+                cacheURL: cacheURL, why: SnapshotRefusal.unusableManifest.logText
+            )
+            return nil
+        }
+        if let refusal = manifest.reuseDecision(
+            modelId: modelId,
+            instructionsHash: instructionsHash,
+            incomingMessages: incomingMessages
+        ) {
+            discardCachedSession(cacheURL: cacheURL, why: refusal.logText)
             return nil
         }
         do {
@@ -587,9 +798,9 @@ actor MLXSessionPool {
             guard !snapshot.cache.isEmpty else { return nil }
             let restoredTokenCount = snapshot.cache.first?.offset ?? 0
             logger.info(
-                "Restoring KV cache snapshot: \(cacheURL.lastPathComponent) tokens=\(restoredTokenCount) state=\(snapshot.state != nil)"
+                "Restoring KV cache snapshot: \(cacheURL.lastPathComponent) tokens=\(restoredTokenCount) state=\(snapshot.state != nil) messages=\(manifest.messages.count)"
             )
-            return ChatSession(
+            let session = ChatSession(
                 modelContainer,
                 instructions: nil,  // snapshot cache already encodes system prompt
                 promptCache: snapshot,
@@ -598,12 +809,55 @@ actor MLXSessionPool {
                 components: .init(),
                 processing: processing ?? .init(resize: config.vlmImageResize),
             )
+            return (session, manifest)
         } catch {
             logger.warning(
                 "Cache restore failed (\(cacheURL.lastPathComponent)): \(error.localizedDescription)"
             )
+            deleteCacheFiles(cacheURL: cacheURL)
             return nil
         }
+    }
+
+    // MARK: - Snapshot identity files
+
+    /// Manifest sidecar for a cache file: `x.safetensors` → `x.safetensors.manifest.json`.
+    nonisolated private func manifestURL(for cacheURL: URL) -> URL {
+        URL(fileURLWithPath: cacheURL.path + ".manifest.json")
+    }
+
+    private func readManifest(for cacheURL: URL) -> KVCacheManifest? {
+        guard let data = try? Data(contentsOf: manifestURL(for: cacheURL)) else { return nil }
+        return try? JSONDecoder().decode(KVCacheManifest.self, from: data)
+    }
+
+    /// Write the manifest atomically, so a half-written sidecar can never present
+    /// itself as a valid identity.
+    nonisolated private func writeManifest(
+        _ manifest: KVCacheManifest,
+        for cacheURL: URL
+    ) throws {
+        let target = manifestURL(for: cacheURL)
+        try JSONEncoder().encode(manifest).write(to: target, options: .atomic)
+    }
+
+    nonisolated private func deleteCacheFiles(cacheURL: URL) {
+        for url in [cacheURL, manifestURL(for: cacheURL)] {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    private func discardCachedSession(cacheURL: URL, why: String) {
+        deleteCacheFiles(cacheURL: cacheURL)
+        logger.info(
+            "KV snapshot discarded (\(cacheURL.lastPathComponent)): \(why) — cold build, nothing reused"
+        )
+    }
+
+    /// Drop the on-disk twin of a rejected in-memory session: it is stale by the
+    /// same argument, and leaving it would let a later pool miss revive that context.
+    private func deleteCachedSession(key: String) {
+        deleteCacheFiles(cacheURL: cacheFileURL(key: key))
     }
 
     /// Cache file path for a pool key
@@ -611,7 +865,11 @@ actor MLXSessionPool {
         // Sanitize key to avoid URL-unfriendly chars
         let safeKey = key.replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: ":", with: "_")
-        return cacheDirectory.appendingPathComponent(safeKey + ".mlx")
+        // MLX dispatches its loader on the file extension (`MLX/IO.swift`) and only
+        // recognises `safetensors` here — upstream documents the snapshot as a
+        // `.safetensors` file (`KVCache.swift:1888`). With a `.mlx` suffix every save
+        // failed "Unknown extension mlx", so this persistence never wrote a byte.
+        return cacheDirectory.appendingPathComponent(safeKey + ".safetensors")
     }
 
     // MARK: - Disk Budget
@@ -670,6 +928,20 @@ actor MLXSessionPool {
                 logger.warning("Failed to prune cache file: \(error.localizedDescription)")
             }
         }
+
+        // Orphaned manifests (cache pruned or save failed) are useless on their own;
+        // sweep them so the directory cannot accumulate identity files. The suffix is
+        // two extensions long, so strip it by hand rather than via
+        // `deletingPathExtension()`, which would only remove `.json`.
+        let manifestSuffix = ".manifest.json"
+        let orphans = urls.filter {
+            $0.lastPathComponent.hasSuffix(manifestSuffix)
+                && !FileManager.default.fileExists(
+                    atPath: String($0.path.dropLast(manifestSuffix.count)))
+        }
+        for orphan in orphans {
+            try? FileManager.default.removeItem(at: orphan)
+        }
     }
 
     // MARK: - Inspection
@@ -709,23 +981,6 @@ actor MLXSessionPool {
 
     // MARK: - Helpers
 
-    /// Compute the longest common prefix between the session's message history
-    /// and the incoming prompt messages.
-    ///
-    /// Returns the number of messages that match at the start of both sequences.
-    /// A mismatch at any position means the KV cache represents a different
-    /// context and the caller must prefill from that divergence point.
-    private func longestCommonPrefixCount(
-        history: [MessageHistoryKey],
-        prefix: [MessageHistoryKey]
-    ) -> Int {
-        let minCount = Swift.min(history.count, prefix.count)
-        for i in 0 ..< minCount where history[i] != prefix[i] {
-            return i
-        }
-        return minCount
-    }
-
     private func poolKey(modelId: String, conversationId convId: String) -> String {
         "\(modelId):\(convId)"
     }
@@ -734,6 +989,14 @@ actor MLXSessionPool {
     /// a pooled session may serve a new request only when the incoming conversation
     /// extends everything the session already holds. `commonPrefixCount <
     /// cachedMessageCount` means the session contains turns the caller never sent.
+    ///
+    /// This is not a perf heuristic that can be loosened for a faster hit: the caller
+    /// acts on the returned index by *withholding* `messages[0..<divergenceIndex]`
+    /// from the model (`EngineInference.swift:2982`), so a cache credited with turns
+    /// it was never asked about costs the user their real context — and when the
+    /// credit exceeds the incoming message count, the slice `messages[n...]` traps.
+    /// A bypass here was briefly tried on 10-13 to observe upstream's own transcript
+    /// reconciliation; it turned `SessionIsolationTests.forkRefused` red and is closed.
     nonisolated static func canReusePooledSession(
         cachedMessageCount: Int,
         commonPrefixCount: Int

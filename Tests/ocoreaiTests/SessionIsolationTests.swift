@@ -120,4 +120,197 @@ struct SessionIsolationTests {
             MLXSessionPool.canReusePooledSession(cachedMessageCount: 0, commonPrefixCount: 0)
                 == true)
     }
+
+    // MARK: - Durable fingerprint
+
+    @Test(
+        "DurableHash is FNV-1a-64 — vectors cross-checked against an independent implementation"
+    )
+    func durableHashVectors() {
+        #expect(DurableHash.fnv1a64("") == 0xcbf2_9ce4_8422_2325)
+        #expect(DurableHash.fnv1a64("a") == 0xaf63_dc4c_8601_ec8c)
+        #expect(DurableHash.fnv1a64("hello") == 0xa430_d846_80aa_bd0b)
+        #expect(DurableHash.fnv1a64("foobar") == 0x8594_4171_f739_67e8)
+    }
+
+    @Test("conversation seed, fingerprint and message keys are one algorithm")
+    func identityLayersAgree() {
+        #expect(
+            ConversationIdentity.seed(messages: [user("hello")])
+                == String(format: "%016llx", DurableHash.fnv1a64("hello")))
+        #expect(
+            MessageHistoryKey.from(user("hello")).contentHash == DurableHash.fingerprint("hello"))
+    }
+
+    @Test("media and tool turns are marked as unverifiable; plain text is not")
+    func keyMarksUnverifiableTurns() {
+        let plain = MessageHistoryKey.from(user("hello"))
+        #expect(plain.hasMedia == false)
+        #expect(plain.hasToolTraffic == false)
+
+        let image = Chat.Message(
+            role: .user, content: "look", images: [.url(URL(fileURLWithPath: "/tmp/x.png"))])
+        #expect(MessageHistoryKey.from(image).hasMedia == true)
+        let video = Chat.Message(
+            role: .user, content: "clip",
+            videos: [.init(source: .url(URL(fileURLWithPath: "/tmp/x.mp4")))])
+        #expect(MessageHistoryKey.from(video).hasMedia == true)
+        let audio = Chat.Message(
+            role: .user, content: "clip",
+            audios: [.init(source: .url(URL(fileURLWithPath: "/tmp/x.caf")))])
+        #expect(MessageHistoryKey.from(audio).hasMedia == true)
+        #expect(
+            MessageHistoryKey.from(Chat.Message(role: .tool, content: "exit 0")).hasToolTraffic
+                == true)
+    }
+
+    // MARK: - Prefix arithmetic
+
+    private func ukey(_ text: String) -> MessageHistoryKey { MessageHistoryKey.from(user(text)) }
+
+    private func akey(_ text: String) -> MessageHistoryKey {
+        MessageHistoryKey.from(assistant(text))
+    }
+
+    @Test("longestCommonPrefixCount — boundaries")
+    func prefixCountBoundaries() {
+        let a = ukey("a")
+        let b = ukey("b")
+        let c = ukey("c")
+        #expect(MessageHistoryKey.longestCommonPrefixCount(history: [], prefix: []) == 0)
+        #expect(MessageHistoryKey.longestCommonPrefixCount(history: [], prefix: [a, b]) == 0)
+        #expect(MessageHistoryKey.longestCommonPrefixCount(history: [a, b], prefix: []) == 0)
+        #expect(
+            MessageHistoryKey.longestCommonPrefixCount(history: [a, b], prefix: [a, b, c]) == 2)
+        #expect(
+            MessageHistoryKey.longestCommonPrefixCount(history: [a, b, c], prefix: [a, b]) == 2)
+        #expect(MessageHistoryKey.longestCommonPrefixCount(history: [a, b], prefix: [b, a]) == 0)
+        #expect(
+            MessageHistoryKey.longestCommonPrefixCount(
+                history: [a, b, c], prefix: [a, ukey("x"), c])
+                == 1)
+        // Same text under another role is a different turn.
+        #expect(
+            MessageHistoryKey.longestCommonPrefixCount(
+                history: [akey("a")], prefix: [a]) == 0)
+    }
+
+    // MARK: - Persisted snapshot identity (manifest matrix)
+
+    private func snapshot(
+        _ keys: [MessageHistoryKey],
+        model: String = "gemma-test",
+        instructions: String = "sys prompt"
+    ) -> KVCacheManifest {
+        KVCacheManifest(
+            modelId: model,
+            instructionsHash: DurableHash.fingerprint(instructions),
+            messages: keys)
+    }
+
+    private func decision(
+        _ manifest: KVCacheManifest,
+        model: String = "gemma-test",
+        instructions: String = "sys prompt",
+        incoming: [MessageHistoryKey]
+    ) -> SnapshotRefusal? {
+        manifest.reuseDecision(
+            modelId: model,
+            instructionsHash: DurableHash.fingerprint(instructions),
+            incomingMessages: incoming)
+    }
+
+    @Test("accepts a continuation that replays everything the cache holds")
+    func manifestAcceptsContinuation() {
+        let cached = snapshot([ukey("u1"), akey("a1")])
+        #expect(
+            decision(cached, incoming: [ukey("u1"), akey("a1"), ukey("u2")]) == nil)
+        // Exact replay (a stateless client resending the whole history) is accepted too.
+        #expect(decision(cached, incoming: [ukey("u1"), akey("a1")]) == nil)
+    }
+
+    @Test("refuses an empty ledger — nothing states whose context the KV holds")
+    func emptyLedgerUnusable() {
+        let empty = snapshot([])
+        #expect(empty.isUsable == false)
+        #expect(decision(empty, incoming: [ukey("u1")]) == .unusableManifest)
+    }
+
+    @Test("refuses a manifest written by an older build")
+    func legacyVersionUnusable() throws {
+        let legacy = try #require(
+            try? JSONDecoder().decode(
+                KVCacheManifest.self,
+                from: Data(
+                    #"""
+                    {"version":0,"modelId":"gemma-test","instructionsHash":7,"messages":[]}
+                    """#.utf8))
+        )
+        #expect(legacy.version != KVCacheManifest.currentVersion)
+        #expect(legacy.isUsable == false)
+        #expect(decision(legacy, incoming: [ukey("u1")]) == .unusableManifest)
+    }
+
+    @Test("refuses another model's cache — its KV encodes other embeddings")
+    func modelMismatch() {
+        let cached = snapshot([ukey("u1"), akey("a1")], model: "gemma-test")
+        #expect(
+            decision(cached, model: "qwen-test", incoming: [ukey("u1"), akey("a1")])
+                == .modelMismatch(snapshot: "gemma-test", requested: "qwen-test"))
+    }
+
+    @Test("refuses a changed system prompt — the cached prefix never got sent")
+    func instructionsChanged() {
+        let cached = snapshot([ukey("u1"), akey("a1")], instructions: "sys prompt")
+        #expect(
+            decision(cached, instructions: "sys prompt v2", incoming: [ukey("u1"), akey("a1")])
+                == .instructionsChanged)
+    }
+
+    @Test("refuses a media turn on either side — the pixels are not in the manifest")
+    func mediaTurnRefused() {
+        let imageKey = MessageHistoryKey.from(
+            Chat.Message(
+                role: .user, content: "look", images: [.url(URL(fileURLWithPath: "/tmp/x.png"))]))
+        #expect(
+            decision(snapshot([imageKey, akey("a1")]), incoming: [imageKey, akey("a1")])
+                == .mediaTurn)
+        #expect(
+            decision(snapshot([ukey("u1")]), incoming: [ukey("u1"), imageKey]) == .mediaTurn)
+    }
+
+    @Test("refuses a fork — the cache holds turns the caller never sent")
+    func forkRefusedByManifest() {
+        // Unrelated next conversation: cached [u1, a1] vs incoming [u2]
+        #expect(
+            decision(snapshot([ukey("u1"), akey("a1")]), incoming: [ukey("u2")])
+                == .notAPrefix(cached: 2, commonPrefix: 0))
+        // Edit & resend: cached [u1, a1, u2, a2] vs incoming [u1, a1, u2']
+        #expect(
+            decision(
+                snapshot([ukey("u1"), akey("a1"), ukey("u2"), akey("a2")]),
+                incoming: [ukey("u1"), akey("a1"), ukey("u2 edited")])
+                == .notAPrefix(cached: 4, commonPrefix: 2))
+    }
+
+    @Test("provenance outranks content: model mismatch reports before prefix arithmetic")
+    func refusalPrecedence() {
+        let cached = snapshot([ukey("u1")], model: "gemma-test")
+        #expect(
+            decision(cached, model: "qwen-test", incoming: [])
+                == .modelMismatch(snapshot: "gemma-test", requested: "qwen-test"))
+    }
+
+    @Test("every refusal names a reason the log can carry")
+    func refusalLogText() {
+        #expect(SnapshotRefusal.unusableManifest.logText == "no usable manifest")
+        #expect(SnapshotRefusal.instructionsChanged.logText == "system prompt changed")
+        #expect(SnapshotRefusal.mediaTurn.logText == "media turn cannot be re-verified")
+        #expect(
+            SnapshotRefusal.notAPrefix(cached: 2, commonPrefix: 0).logText
+                == "cached 2 exceeds common prefix 0")
+        #expect(
+            SnapshotRefusal.modelMismatch(snapshot: "a", requested: "b").logText
+                == "stamped model a, request wants b")
+    }
 }
