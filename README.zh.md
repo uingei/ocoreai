@@ -68,11 +68,16 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 | `POST` | `/v1` | 自动路由：按 body 键分发（`prompt`→completions，否则 chat） |
 | `POST` | `/v1/messages` | Anthropic 消息 + 工具使用 |
 | `POST` | `/v1/count-tokens` | Token 计数 |
+| `POST` | `/v1/embeddings` | 本地 embeddings（LFM2.5-Embedding-350M，1024 维） |
+| `GET`  | `/v1/tools` | Agent 工具面（OpenAI `tools[]` 形状，可直接粘回请求） |
+| `GET`  | `/v1/capabilities` | 设备能力矩阵 + 分词后端（`real`/`heuristic`） |
+| `POST` | `/v1/steer` | 向进行中的 turn 插话（无则并入下一次请求） |
 | `GET`  | `/v1/models` | 模型注册表 |
 | `GET`  | `/v1/models/:model/sampling` | 获取采样配置 |
 | `PATCH` | `/v1/models/:model/sampling` | 热替换采样配置 |
 | `DELETE` | `/v1/models/:model/sampling` | 重置单模型采样配置 |
 | `DELETE` | `/v1/models/sampling` | 重置全部采样配置 |
+| `GET`  | `/v1/models/:model/kv-cache` | 已加载模型的 KV cache 报告 |
 | `POST` | `/v1/models/download` | 从 ModelScope / HuggingFace 下载 |
 | `POST` | `/v1/models/train` | LLM 训练 |
 | `POST` | `/v1/models/evaluate` | LLM 评估 |
@@ -90,7 +95,7 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 | `GET`  | `/ready` | 就绪探针（`ready`/`busy`） |
 | `GET`  | `/metrics` | Prometheus 指标（文本格式） |
 
-> 免认证 public 路由：`/health`、`/ready`、`/v1/models`、`/v1/stats`、`/metrics`。所有 `PATCH`/`DELETE` 需 admin key（`OCOREAI_ADMIN_KEYS`）。
+> 免认证 public 路由：`/health`、`/ready`、`/v1/models`、`/v1/tools`、`/v1/capabilities`、`/v1/stats`、`/metrics`（与 `AuthMiddleware.publicPaths` 一致）。所有 `PATCH`/`DELETE` 需 admin key（`OCOREAI_ADMIN_KEYS`）。
 
 ---
 

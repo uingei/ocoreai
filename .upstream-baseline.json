@@ -1,14 +1,15 @@
 {
   "note": "versioned upstream drift baseline \u2014 values are SHAs (full or short, compare tolerant). scripts/upstream-drift.sh",
-  "checked_at_utc": "2026-10-10T23:10:00Z",
+  "checked_at_utc": "2026-10-12T06:57:18Z",
   "baselines": {
-    "mlx-swift-lm": "a1f575d",
+    "mlx-swift-lm": "7eb77ef",
     "coreai-models": "52dbd93cb",
-    "codex": "cc7ba3360"
+    "codex": "a9b081516"
   },
   "sources": {
     "mlx-swift-lm": "ml-explore/mlx-swift-lm",
     "coreai-models": "apple/coreai-models",
     "codex": "openai/codex"
-  }
+  },
+  "adopt_provenance": "10-12 offline round: gh api unreachable, source of truth = local clones under ~/references (ref mtimes 2026-10-12 11:01-11:09 +08); codex cc7ba3360..a9b081516 = 11 commits, all consumer-transparent (verdicts in AGENTS.md Upstream Audit #3)"
 }

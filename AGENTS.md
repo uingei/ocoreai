@@ -1,6 +1,6 @@
 # ocoreai — Project Context for AI Agents
 
-> This file is loaded by Hermes on every session. It anchors the agent to the project's conventions, architecture, and known issues — zero cold-start tax.
+> This file is loaded by the coding agent (Codex — CLI and desktop app) on every session. It anchors the agent to the project's conventions, architecture, and known issues — zero cold-start tax.
 
 ---
 
@@ -38,7 +38,7 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 
 **Dual Path reality:**
 - `EnginePool` uses inline `#if canImport(CoreAI)` branches (`BackendProtocol` deleted 2123143, 0 refs remaining)
-- **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (wired, both MLX + CoreAI paths), KVCacheRuntime ✅ (`turboQuant`/`.affine` 双路 `MLXBridge.swift:757 case "affine"` / `:759 case "turbo-quant"`, 映射到 `.affine(:814/:819)` / `.turboQuant(:806)`). Pinned upstream `mlx-swift-lm` at `ee673d6` (#603 ModelCache 抽出: evict 真取消 in-flight load / DownloadProgress 按 model-id 分桶 / GrammarConstraint.clone 窄化 ← 09-23 `790d4df` CI 2080/385 绿; 前序 `c6446cf` #620 TokenIterator 首 token 即清 buffer cache ← 09-14 `3e6ea1e` ← #613 detok Character→Scalar ← #584 RotatingKVCache trim wrap-aware, 09-17 对齐 origin/main). **ThinkingBudget** ✅ (two paths wired: std reasoning `L4005 .applyingThinkingBudget` + MTP speculative `L3508 .applyingThinkingBudget` + `components: genComponents`/`mtpGenComponents` `L4020`/`L3531`（09-22 实核重钉）; `guard mtpReasoningConfig` 非空才接, `catch → .init()` 回退与 std 同语义).
+- **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (wired, both MLX + CoreAI paths), KVCacheRuntime ✅ (`turboQuant`/`.affine` 双路 `MLXBridge.swift:757 case "affine"` / `:759 case "turbo-quant"`, 映射到 `.affine(:814/:819)` / `.turboQuant(:806)`). Pinned upstream `mlx-swift-lm` at `7eb77ef` (10-11 `80f0c01` round 9; #662 compiled decode Qwen3.5 VLM · #675 Gemma4 softcap fusion · #641 ChatSession cache fork · #679 component-aware checkpoint loading — 逐条裁决见 CHANGELOG round 9 + `4e4fcbc` Xcode resolved 同步; 前刀 #603 ModelCache 抽出: evict 真取消 in-flight load / DownloadProgress 按 model-id 分桶 / GrammarConstraint.clone 窄化 ← 09-23 `790d4df` CI 2080/385 绿; 前序 `c6446cf` #620 TokenIterator 首 token 即清 buffer cache ← 09-14 `3e6ea1e` ← #613 detok Character→Scalar ← #584 RotatingKVCache trim wrap-aware, 09-17 对齐 origin/main). **ThinkingBudget** ✅ (two paths wired: std reasoning `L4005 .applyingThinkingBudget` + MTP speculative `L3508 .applyingThinkingBudget` + `components: genComponents`/`mtpGenComponents` `L4020`/`L3531`（09-22 实核重钉）; `guard mtpReasoningConfig` 非空才接, `catch → .init()` 回退与 std 同语义).
 - **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement. Engine/ contains CoreAI* ×14 + StateHandler(+ ×3) + MPSGraphSamplers(1511L) + KVCache/TensorStorage(+CoreAI) (Engine/ 44 .swift total); + Tokenizer/TokenizersMLXTokenizerAdapter.
 - **ANE path:** CoreAI `MPSGraphSamplers` (`MPSGraphSamplers.swift` 1511 行实存, `CoreAIPipelinedEngine.swift:53/601` 消费) wires MPS constrained argmax/composite/sampler — GPU-based constrained decoding path (c4c0a43 CoreAI .pipelined wired + 256e704 penalty/ConstrainedGenerationCapable routing)
 - **MTP path:** `_runInferenceWithMessages` → `generate(::mtpDrafter:)` — bypasses ChatSession, tool calls collected + dispatched per-iteration (aligned with upstream `MTPSpeculativeTokenIterator`)
@@ -59,10 +59,23 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 ```bash
 swift build -c release                    # production build
 swift build --traits appStore            # App Store build (traits: appStore | FoundationModelsIntegration)
-swift test                               # ⚠️ not the gate (metallib limitation) — real gate: xcodebuild → xcrun xctest (CI 权威门 = macos-26); use `make test-ci`
+swift test                               # full suite — runs locally on macOS 26 IF the process is not sandboxed (Metal needed); CI macos-26 remains the authoritative gate
 swift test --enable-code-coverage        # with coverage
 swift test --filter SystemContextSensor  # one suite (substring match)
 ```
+
+**Local gate reality (corrected 10-12, and it was wrong for weeks):** the full suite
+**does** run on this host — `2277 tests / 428 suites` completed in ~400s on the CLT route
+(`make test-clt`). The blocker was never the platform, metallib, or macOS 26: it was the
+**agent sandbox**. Inside the sandbox MLX reports
+`[metal::load_device] No Metal device available` and the first MLX-touching suite dies;
+unsandboxed, the same binary loads a model and streams tokens. Two consequences that matter
+more than the test count: (a) `ocoreai serve` + live `curl` against `/v1/*` is available
+locally, and (b) that live loop found four defects no static audit in this repo had
+caught — `/v1/count-tokens` 404 on a model `/v1/models` reports ready, `vlm:false` on a
+model that answers images correctly, every grammar-constrained turn returning HTTP 500
+after generating valid output, and fabricated `terminal command:` output on zero-tool
+turns. **Prefer a live check over an inference whenever a claim is about behaviour.**
 
 **Linting:** none — aligned with upstream (mlx-swift-lm / coreai-models ship no swiftlint). swift-format via `.swift-format` (pinned 603.0.0) is the only style gate, enforced in CI and pre-commit. Crash-safe coding (no `try!`/`as!`/`fatalError` in Sources/) is a code convention, not a CI gate.
 
@@ -77,6 +90,11 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 - `EnginePool` is an `actor` with `@unchecked Sendable` mutable state (perform-based isolation). Every `@unchecked Sendable` declaration carries a justification comment.
 - UI layer runs on `@MainActor`. Engine layer is actor-isolated. Cross-actor calls via `await`.
 - `@unchecked Sendable` requires justification comment. Closure `var` declared inside closure scope (not outer).
+
+### Compile-time gates
+- **A `#if canImport(X)` must name the dependency the code inside actually uses.** Gating on a framework the block does not import silently deletes working code on every platform where that framework is missing. Concrete failure this rule comes from (10-12): `Tokenizer/TokenizerManager.swift` was gated `canImport(CoreAI)` while its only dependency is swift-transformers `Tokenizers` (unconditional product, `Package.swift:97`) — CoreAI is macOS 27 only, so on the macOS 26 delivery platform the real tokenizer was compiled out and a same-named no-op stub in `Models/InferenceStubs.swift` took its place (`registerTokenizer` = `{}`, `getTokenizer` = nil), while the log still claimed "context wall on real token counts".
+- **A stub that replaces a real component must be detectable at runtime, not only at compile time.** `TokenizerManager.isRealTokenizerBackend` (true in the real actor, false in the stub) is the pattern: published on `/v1/capabilities` as `tokenizerBackend: real|heuristic`, it decides which wording the engine may log, and a test asserts it — so a silent substitution fails the gate instead of shipping.
+- **Never gate a capability surface on a backend axis.** `canImport(CoreAI)` means "this SDK has CoreAI"; it says nothing about Metal, vision processors, or tokenizers. When a gate is about a capability, gate on that capability's real requirement.
 
 ### Error Handling
 - Precondition near-free: production code uses precondition/preconditionFailure only for structural invariants and upstream-verbatim numeric/speech surfaces; new code must not add them. **Full-scan verified (12 sites / 9 files):**
@@ -124,9 +142,9 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 ### Upstream Audit Dependencies
 
 Four sources for empirical verification:
-1. **mlx-swift-lm** — pinned in `Package.swift` at `ee673d6`（09-23 `790d4df` bump: #603 Extract the model cache — evict 真取消 in-flight load / DownloadProgress 按 model-id 分桶 / GrammarConstraint.clone 窄化; CI 2080/385 绿）。前序链 `3e6ea1e` #548/#515 ← `604fae7` #584/#613/#615/#611/#597。0 drift（`git rev-list --count ee673d6..origin/main` = 0, 09-27 `gh api` 复核 origin/main = `ee673d6`）。**Bump 协议**：`git log <old>..origin/main` 逐条审计消费面 → bump `.revision` → `swift build` + `make test-ci` 绿 → 审计行记入本节 + CHANGELOG（Package.swift 只留 pin + 指向本节的指针，不写逐 commit 日记）。
-2. **coreai-models** — reference at origin/main HEAD `e7b24da`（2026-09-26，09-27 复核）。`e282dbd..89ba0d4` 5 commit 历史: `#237` 已吸收（`cd9e901`）· `#248` 0 ocoreai 消费 · `#249` 行为等价重构 · `#250` Tools/llm-server tree · `#251` 已吸收（`3497ae8`）。**`89ba0d4..e7b24da` 17 commit 逐条核验（09-27 审计）**：已吸收 `#265` seeding (`4cd0d36`) · `#268` KV-state growth (`e4def0d`) · `#274` prefill threshold (`85a85f5`)。Python/diffusion/SAM3/noise-source/INT4-recipe axis 9 commit: consumer-transparent by axis (ocoreai 无 Python/diffusion 消费面)。剩余 Swift engine 面 5 commit: `#271` xmlFunction/ToolCallDetection = 0 生产面 (Qwen3-Coder 不在 ocoreai surface) · `#267` reasoningTemplateContext = ocoreai 已有 `ContextOptions.reasoningLevel` + `ReasoningResolution.thinkingEnabled`(09-24) · `#258` idempotent engine = ocoreai 已有 pool prefix-match · `#266` ReplayRunner = llm-server Tools/ tree (0 ocoreai hits) · `#290` dead-code removal (0 ocoreai hits)。**3 已吸收 + 0 行为分叉 + 0 强制缺口。** Reference repo, not SPM dependency。#206 absorbed (`1076948`)；ATEM `Format.agentic` NOT absorbed（0 consumers）。
-3. **codex** — 语义轴参照（非 SPM 依赖、非逐 commit 复制）。基线 `6a39914 → 99f7758`（09-27 drift 轮 adopt）→ **`→ 1cc7e2361`（09-28 drift 轮 adopt）**。`99f7758..1cc7e2361` 8 commit 逐条裁决（09-28 consumer-transparent 双根全扫，非轴词粗筛）：全落 codex 自有轴——① TUI 渲染/交互（`#48807/#48814` Mermaid 标签标点 · `#48827` Ghostty/Kitty hand pointer · `#48830` TUI interruption notice）——ocoreai = SwiftUI GUI，双根全扫 `mermaid|ghostty|kitty|hand.?pointer|interruptionNotice` = **0**（TUI 轴无消费面；注意 ocoreai 77 处 `prewarm` 全是**模型引擎预热**轴 ≠ codex `#48812` "prewarming for idle threads"（TUI 会话线程轴），同名不同义）；② `#48819` histogram tool/skill context metrics——ocoreai `Metrics/Metrics.swift` 22 处 histogram 是**自有 engine 指标面**，`tool|skill` 相关 = **0**，非同轴；③ `#48824` voice RTP 20ms——ocoreai `AudioIO/RTP` 9 处是**自有实时音频传输面**，非 codex voice-agent 轴；④ `#48828` archive thread before first turn——ocoreai 会话**不**支持"首 turn 前归档"语义（SessionManager SQLite 语义 = turn 落库才成会话），双根 `archive.?thread|archiveSession` = **0 消费**；⑤ `#48829` Windows sandbox provisioning service——ocoreai 无 sandbox 轴（09-27 `#48565` seatbelt 全仓 0 命中同判），双根 `sandbox.?provisioning|provisionService` = **0**。8/8 consumer-transparent，0 强制缺口，0 ocoreai 生产面变更。持续跟进：`bash scripts/upstream-drift.sh`（check/adopt）+ `.upstream-baseline.json` 版本化基线 + 每日 cron 只读自检；新窗口 = 裁决清单（consumer-transparent 双根全扫为权威，轴词粗筛仅提示）。
+1. **mlx-swift-lm** — pinned in `Package.swift` at `7eb77efa4`（L41 `revision:`；10-11 round 9 `80f0c01` adopt `7eb77ef` +12，前刀 09-23 `790d4df` bump: #603 Extract the model cache — evict 真取消 in-flight load / DownloadProgress 按 model-id 分桶 / GrammarConstraint.clone 窄化; CI 2080/385 绿）。前序链 `3e6ea1e` #548/#515 ← `604fae7` #584/#613/#615/#611/#597。0 drift（10-12 离线复核：`references/mlx-swift-lm` origin/main = `7eb77ef` == pin；本机当日 11:01 fetch，无网络故不走 `gh api`）。**Bump 协议**：`git log <old>..origin/main` 逐条审计消费面 → bump `.revision` → `swift build` + `make test-ci` 绿 → 审计行记入本节 + CHANGELOG（Package.swift 只留 pin + 指向本节的指针，不写逐 commit 日记）。
+2. **coreai-models** — reference at origin/main HEAD `52dbd93`（10-12 本地 clone 复核 = `.upstream-baseline.json` 同点 → 0 新 commit；前序 `e7b24da` 之 +5 已由 10-11 `b9c61e7` 裁决吸收）。`e282dbd..89ba0d4` 5 commit 历史: `#237` 已吸收（`cd9e901`）· `#248` 0 ocoreai 消费 · `#249` 行为等价重构 · `#250` Tools/llm-server tree · `#251` 已吸收（`3497ae8`）。**`89ba0d4..e7b24da` 17 commit 逐条核验（09-27 审计）**：已吸收 `#265` seeding (`4cd0d36`) · `#268` KV-state growth (`e4def0d`) · `#274` prefill threshold (`85a85f5`)。Python/diffusion/SAM3/noise-source/INT4-recipe axis 9 commit: consumer-transparent by axis (ocoreai 无 Python/diffusion 消费面)。剩余 Swift engine 面 5 commit: `#271` xmlFunction/ToolCallDetection = 0 生产面 (Qwen3-Coder 不在 ocoreai surface) · `#267` reasoningTemplateContext = ocoreai 已有 `ContextOptions.reasoningLevel` + `ReasoningResolution.thinkingEnabled`(09-24) · `#258` idempotent engine = ocoreai 已有 pool prefix-match · `#266` ReplayRunner = llm-server Tools/ tree (0 ocoreai hits) · `#290` dead-code removal (0 ocoreai hits)。**3 已吸收 + 0 行为分叉 + 0 强制缺口。** Reference repo, not SPM dependency。#206 absorbed (`1076948`)；ATEM `Format.agentic` NOT absorbed（0 consumers）。
+3. **codex** — 语义轴参照（非 SPM 依赖、非逐 commit 复制）。基线 `6a39914 → 99f7758`（09-27 drift 轮 adopt）→ **`→ 1cc7e2361`（09-28 drift 轮 adopt）** → `cc7ba3360`（10-11 `b9c61e7` +160 裁决 adopt——**该轮只落 state 文件，未写本行与 CHANGELOG，本行补记**）→ **`a9b081516`（10-12 drift 轮 adopt）**。`cc7ba3360..a9b081516` 11 commit 逐条裁决（10-12 consumer-transparent 双根全扫；源 = 本地 clone `references/codex` origin/main=`a9b081516`，当日 11:09 fetch，无网络不走 gh api）：① TUI 轴 `#53224` Windows clipboard paste · `#53173` restart managed background servers · `#53156` custom terminal drawing API · `#53153` subagent nav shortcuts · `#53152` select/copy turn tips —— 双根 `background.?server`=0 / `subagent|sub_agent|delegate_task`=0 / `\bvim\b`=0，ocoreai = SwiftUI GUI 无 TUI 消费面；② app-server/remote 轴 `#53155` events deliverable during shutdown · `#53049` connection-bound reply handles · `#53150` thread-owned permissions on cold resume —— `git grep -iE "app.?server" Sources/` = **0**，ocoreai 生命周期自有语义 = `EnginePool.shutdown()` cancel+await（`EnginePool.swift:1412`），无 remote 事件队列面；③ CLI 轴 `#53109` broken pipes in plugin list —— Swift/Darwin 默认 SIGPIPE=ignore（写断链不 trap），真正依赖管道语义的子进程 stdin 已处理（`ExecSessions.swift:125`）；④ `#53148` startup draft recovery for Vim Replace keys —— vim 模式 0 消费，而其**轴**（启动期草稿不丢）早已消费：composer draft 上收 `ChatState.shared`（`ChatViewModel.swift:157`，引 codex `#46750`）。**11/11 consumer-transparent，0 强制缺口，0 ocoreai 生产面变更**。唯一从轴里抽出的**原则**=「可读文本即可选」→ 本地落刀（transcript `textSelection`，见 CHANGELOG 10-12）；唯一**显式不采纳**= `#53150` 授权跨 resume 持久化：ocoreai 审批刻意按 turn 清场（`ChatViewModel.swift:1543` → `ApprovalBroker.cancelAll()`），跨冷重启回填授权 = 信任模型变更，留人拍板、不静默做。`99f7758..1cc7e2361` 8 commit 逐条裁决（09-28 consumer-transparent 双根全扫，非轴词粗筛）：全落 codex 自有轴——① TUI 渲染/交互（`#48807/#48814` Mermaid 标签标点 · `#48827` Ghostty/Kitty hand pointer · `#48830` TUI interruption notice）——ocoreai = SwiftUI GUI，双根全扫 `mermaid|ghostty|kitty|hand.?pointer|interruptionNotice` = **0**（TUI 轴无消费面；注意 ocoreai 77 处 `prewarm` 全是**模型引擎预热**轴 ≠ codex `#48812` "prewarming for idle threads"（TUI 会话线程轴），同名不同义）；② `#48819` histogram tool/skill context metrics——ocoreai `Metrics/Metrics.swift` 22 处 histogram 是**自有 engine 指标面**，`tool|skill` 相关 = **0**，非同轴；③ `#48824` voice RTP 20ms——ocoreai `AudioIO/RTP` 9 处是**自有实时音频传输面**，非 codex voice-agent 轴；④ `#48828` archive thread before first turn——ocoreai 会话**不**支持"首 turn 前归档"语义（SessionManager SQLite 语义 = turn 落库才成会话），双根 `archive.?thread|archiveSession` = **0 消费**；⑤ `#48829` Windows sandbox provisioning service——ocoreai 无 sandbox 轴（09-27 `#48565` seatbelt 全仓 0 命中同判），双根 `sandbox.?provisioning|provisionService` = **0**。8/8 consumer-transparent，0 强制缺口，0 ocoreai 生产面变更。持续跟进：`bash scripts/upstream-drift.sh`（check/adopt）+ `.upstream-baseline.json` 版本化基线 + 每日 cron 只读自检；新窗口 = 裁决清单（consumer-transparent 双根全扫为权威，轴词粗筛仅提示）。
 4. **Apple Developer Docs** — developer.apple.com/documentation/CoreAI (requires login)
 
 **Wiki:** `~/wiki/concepts/upstream-mlx-swift-lm-38927f5-intent.md` + `~/wiki/concepts/upstream-coreai-models.md` — consumption matrix with file:line evidence.
@@ -139,7 +157,7 @@ Four sources for empirical verification:
 
 | Doc | Audience | Why | When to touch |
 |---|---|---|---|
-| `AGENTS.md` (this file) | **Agent** (Hermes, every session) | Injected as project context on cold start | Conventions / architecture facts drift — keep line-accurate |
+| `AGENTS.md` (this file) | **Agent** (Codex, every session) | Injected as project context on cold start | Conventions / architecture facts drift — keep line-accurate |
 | `Sources/ocoreai/Skills/SystemPromptBuilder.swift` | **Agent** (LLM context) | Builds the base + skills system prompt | Prompt-wording changes = behaviour changes — needs inference regression |
 | `Sources/ocoreai/Tools/ToolEntry.swift` (+ `Tool*.swift`) | **Agent** (LLM context) | `description` / JSON schema are consumed by the model as function-calling contracts | schema/wording changes = tool-call behaviour — test with live model |
 | `Sources/ocoreai/Parsers/*` (`ThinkTagParser` etc.) | **Agent** (implicit) | Defines what the model may emit (marker tags) | marker changes break both parse and parse-back — hexdump-verify parity with upstream |
@@ -168,7 +186,7 @@ Four sources for empirical verification:
 - **Location:** `~/wiki` (Obsidian vault)
 - **Known issue:** Time-aging distortion — wiki pins HEAD but repo advances. Concept pages say "implemented" ≠ actually in Engine.
 - **Verification:** `git merge-base --is-ancestor $wiki_head $real_head` + grep for file existence + symbol grep
-- **Audit reports** in `.hermes/audits/` are legitimate historical snapshots
+- **Local scratch dir is not truth:** `.hermes/` is gitignored (`.gitignore` L29) and today holds only `.hermes/plans/2026-10-09_first-principles-roadmap.md`; there is **no** `.hermes/audits/` (10-12 `ls`). Untracked files cannot be shared project evidence — cite `CHANGELOG.md` + `~/wiki/concepts/*` instead, and treat that roadmap as historical wherever it conflicts with this file.
 
 ---
 
@@ -201,17 +219,12 @@ These complement — and are not replaced by — the existing Rule 3 (upstream a
 6. **Upstream API verification:** Before citing an API as available/missing, check all 3 upstream sources.
 7. **All findings verified via tool output** — no speculation, no estimation.
 
-## Ollama Single-Pass Constraint
+## Agent Runtime Reality (Codex)
 
-This environment runs on **Ollama** (provider: `ollama-launch`, model: `qwen3.8:27b-mtp`). Ollama does **not** support concurrent model invocations — `delegate_task` and nested `skill_view` calls fail or produce unreliable results.
+**Who works here:** the coding agent is **Codex** (CLI + desktop app), model family `gpt-6.x`, driving this repo through `exec_command` / `apply_patch` plus the MCP tools the harness lists. It is **not** Hermes and it is **not** served by Ollama. The id this section used to name (`qwen3.8:27b-mtp`) is `OCRE_SEARCH_MODEL` — ocoreai's opt-in web_search backend model (`Sources/ocoreai/Tools/WebSearchTool.swift:346`), reached only from `Sources/ocoreai/Tools/DirectWebSearch.swift:532`/`:540`, i.e. `OCRE_SEARCH_MODE=backend|auto`; the default `native` path (`:529`) needs no local server. It was never the model writing code — that conflation is why the old constraint read as platform physics when it was not.
 
-**Single-pass protocol:** Use the `single-pass-orchestration` skill as the default coding methodology. All 7 phases (grilling → plan → TDD/evals → implement → review → auto-fix → commit) run **sequentially within one response**. Do NOT invoke skills as separate tool calls mid-implementation. Apply their rules in-context.
+**Skills:** the authoritative list is the one the runtime injects into its own system prompt. On disk, `~/.codex/skills/.system` = imagegen, openai-docs, review-agent, skill-creator, skill-installer (10-12 `ls`). All four names previously listed here — `single-pass-orchestration`, `code-review-discipline`, `hermes-agent`, `ocoreai-dev` — are **dead pointers**: `find` over `~/.codex` and this repo returns 0 hits (10-12; same class as the earlier `engineering-grilling` / `code-audit-methodology` cleanup). Nothing was lost by deleting them — their substance is already this file (Build / Test / Lint + Agent Execution Rules).
 
-**Skills to load upfront (read once, apply manually):**
-- `single-pass-orchestration` — pipeline entry point
-- `code-review-discipline` — Phase 5a standards scan
-- (Phase 1 intent-alignment + 3-layer verification (grep → compile → read) are folded into `code-review-discipline` body + Agent Execution Rule #1 — no separate skill; the previously listed `engineering-grilling` / `code-audit-methodology` dead pointers removed.)
+**Sub-agents:** Codex *can* fan out (`spawn_agent`, parallel tool calls). The default stays one-pass — intent → plan → implement → review → verify → commit inside a single response, and no sub-agent unless the owner asks. Two reasons survive the tooling change: the owner reviews every commit, so a fan-out nobody reads adds no assurance; and local verification is serialized regardless — `swift build` / `swift test` share one scratch path (`.build`, `.build-clt`), so parallel jobs contend a lock instead of saving time.
 
-**Pre-loaded domain skills (already in context):**
-- `hermes-agent` — CLI commands, toolsets, profiles
-- `ocoreai-dev` — ocoreai build/test/debug
+**Unchanged gate:** three-layer verification (grep → compile → read the matched lines), `swift build` exit 0 before any completion claim, `make test-ci` as CI authority, and a CHANGELOG ref for every user-visible change.

@@ -83,11 +83,16 @@ Known boundaries (as of this commit, not aspirations):
 | `POST` | `/v1` | Auto-route: dispatches by body key (`prompt`→completions, else chat) |
 | `POST` | `/v1/messages` | Anthropic messages + tool use |
 | `POST` | `/v1/count-tokens` | Token count utility |
+| `POST` | `/v1/embeddings` | Local embeddings (LFM2.5-Embedding-350M, 1024-dim) |
+| `GET`  | `/v1/tools` | Agent tool surface, paste-ready OpenAI `tools[]` shape |
+| `GET`  | `/v1/capabilities` | Device capability matrix + tokenizer backend (`real`/`heuristic`) |
+| `POST` | `/v1/steer` | Interject into a live turn (or queue for the next) |
 | `GET`  | `/v1/models` | Model registry |
 | `GET`  | `/v1/models/:model/sampling` | Get sampling config |
 | `PATCH` | `/v1/models/:model/sampling` | Hot-swap sampling config |
 | `DELETE` | `/v1/models/:model/sampling` | Reset single model sampling |
 | `DELETE` | `/v1/models/sampling` | Reset all sampling |
+| `GET`  | `/v1/models/:model/kv-cache` | KV cache report for a loaded model |
 | `POST` | `/v1/models/download` | Download from ModelScope / HuggingFace |
 | `POST` | `/v1/models/train` | LLM training |
 | `POST` | `/v1/models/evaluate` | LLM evaluation |
@@ -105,7 +110,7 @@ Known boundaries (as of this commit, not aspirations):
 | `GET`  | `/ready` | Readiness probe (`ready`/`busy`) |
 | `GET`  | `/metrics` | Prometheus metrics (text format) |
 
-> Public (no auth): `/health`, `/ready`, `/v1/models`, `/v1/stats`, `/metrics`. Admin key (`OCOREAI_ADMIN_KEYS`) required for all `PATCH`/`DELETE`.
+> Public (no auth): `/health`, `/ready`, `/v1/models`, `/v1/tools`, `/v1/capabilities`, `/v1/stats`, `/metrics` — the discovery surface, matching `AuthMiddleware.publicPaths`. Admin key (`OCOREAI_ADMIN_KEYS`) required for all `PATCH`/`DELETE`.
 
 ---
 
