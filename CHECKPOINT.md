@@ -1,48 +1,45 @@
-# ocoreai checkpoint (10-12 round 13 — 活体回路解锁 + 四条静态审计看不见的缺陷修死)
+# ocoreai checkpoint (10-12/13 round 14 — 把「谁在用内存、谁的会话」这两笔账算清)
 
-## 本轮最大收获：本机活体回路其实一直可用（此前记录是沙箱属性）
-- 沙箱内: `MLX error: [metal::load_device] No Metal device available` ⇒ 全量测试死于首个 MLX 套件、`serve` 起不来
-- **沙箱外（escalate 后同一二进制）**: GPU 可用，`ocoreai serve` 冷启动 6s（模型 3.5s + prewarm 1.1s），`/v1/*` 可 curl，**全量 `swift test` 2277 tests / 428 suites 全绿 / 399s**
-- 沙箱外常驻姿势（`setsid` macOS 无；`nohup &` 会被杀）: 用 tty 会话把 `serve` 放前台，另开会话 curl；`HOME=/private/tmp/ochome DEVELOPER_DIR=/Library/CommandLineTools`，`.build-clt` 需 `-F/-rpath` 四段
-- 结论写回 `AGENTS.md` Build/Test 段:**活体优先于推断**——本轮 4 条缺陷全部只有活体能抓到
+## 本轮定位
+上一轮把活体回路解锁后，本轮全部结论都由**跑出来的数字**驱动，静态审计一条都没参与：
+CI 从红转绿（样式门）、MLX 设备内存上限的两个写主、整机压力替游离进程买单、
+无 `conversationId` 的请求跨会话串味。全量门 **2296 tests / 430 suites 全绿 / 398.5s**（沙箱外）。
 
-## 本轮落刀（4 条，全部先有活体红证再修绿）
-1. **macOS 26 上真分词器被编译掉**（`Tokenizer/TokenizerManager.swift:19` `#if canImport(CoreAI)` 冒充 `Tokenizers`；stub 顶替 ⇒ `register` = `{}`、`get` = nil）
-   - 红证: `/v1/count-tokens` 对 `/v1/models` 自报 ready 的同一 id 返回 404；日志 `Tokenization failed` 6 次；日志却仍打 "context wall on real token counts"
-   - 编译期探针: `canImport(CoreAI)==false` / `canImport(Tokenizers)==TRUE`
-   - 修: 真身改 `canImport(Tokenizers)`；stub 块按依赖拆（tokenizer→`!canImport(Tokenizers)`，CoreAI 类型仍 `!canImport(CoreAI)`）；两侧 `isRealTokenizerBackend`，`/v1/capabilities` 出 `tokenizerBackend`，日志按后端措辞
-   - 绿证: `TokenizerBackendTruthTests` 3 test（含 hermetic WordPiece 精确 `ids==[2,3]`）；活体 count-tokens `{"prompt_tokens":19}`、`Tokenization failed` 6→0、prompt_tokens 708→713
-2. **一个事实两套谓词 ⇒ 图像能力在 wire 上说谎**（discovery 5 处只测 `preprocessor_config.json`，加载侧 `MLXBridge.swift:115` 只测 `processor_config.json`；UI 两处把 `entry["specialized"]` 当 VLM）
-   - 红证: `/v1/models` `vlm:false`，同模型同目录真发图答对 `Red`
-   - 修: `ModelStore.hasVisionProcessor(at:fileManager:)` 唯一谓词（皆收两文件名，镜像上游 `VLMModelFactory.swift:549-556`）；5 处 + `isVLMModel` 全委托；UI 解析读 `"vlm"`
-   - 绿证: `VLMCapabilityTruthTests` 6 test（含"加载器与发现逐目录一致"）；`PipelineCoverageTests.fromList*` 原样钉着旧键 ⇒ 按更正契约改判 + 加"specialized 不得判 VLM"；活体 `/v1/models` `vlm=True`
-3. **语法约束轮跑完不关流 ⇒ 成功轮次统一 500**（guided 分支归还池并把 `chatSession` 置 nil，`handleGuidedGeneration` 全函数 0 处 `finish()`，调用点不 `return`，落到标准路径撞 nil 追加 `.error`）
-   - 红证: `json_schema` → 500 `no active chat session`（文本已生成）；`tools` 空 schema → 同 500；`nil chatSession` 2/2
-   - 修: 谁拥有这轮流谁收尾——函数成功/吸收路径末尾 `finish()`，两处早退补 `finish()`，调用点后 `return`
-   - 绿证: 活体 `json_schema` → `200 {"result": 4\n}`；`curr_time` → `200 finish_reason=tool_calls`；`nil chatSession` 计数 0
-4. **prompt 与工具面分叉 ⇒ 模型编造执行结果**（10-06 把 wire 默认工具面收成 0，prompt 仍命令"用你的工具跑命令"）
-   - 红证: 零工具轮 "Count from 1 to 60" → `terminal\ncommand: "seq 1 60"\nstdout: …`；声明 `web_search` 后无 tool call 却写 "I have searched the web …(Source: https://mlx.studio/)"
-   - 修: `codingAgentIdentity` / `toolActionDirective`（+claim-discipline）/ `noToolsDirective` 三段；`build(hasTools:)` 组装且 **`hasTools` 进 hash**；`MessageBuilder` 用 Phase 5 同字段传真面；`App` 传 identity-only；`codingAgentBase` = `basePrompt(hasTools:true)` 别名
-   - 绿证: `SystemPromptContractTests` +3 test（含"工具面进缓存键"）；活体直答 `1..60`、伪造指纹 False；web_search 两轮均真 `tool_calls`
-- 另: README/README.zh 端点表补 6 条已注册但从未公开的端点（`/v1/tools`、`/v1/capabilities`、`/v1/embeddings`、`/v1/steer`、`kv-cache`），public 名单与 `AuthMiddleware.publicPaths` 对齐；`.codex-tmp/` 补进 `.gitignore`（原先未忽略）
+## 落刀（3 条，每条先红后绿）
+1. `e5f27c1` **MLX 缓冲缓存上限有两个写主，`budget: 70 GB` 从未生效**
+   - 红证: `App.swift` 写 `Memory.cacheLimit = memBudget(70 GB)`，随后 `MLXModelLoader.init` 无条件写 256 MB；临时探针实证 `cacheLimit after loader-init = 256 MB`
+   - 语义错在拿「调度预算」当「可回收缓冲池」上限：`mlx-swift Source/MLX/Memory.swift:37-56` 写明 cache 是已释放但留着复用的设备内存
+   - 实测(M5 Max/128 GB·gemma-4-e2b-it-4bit·greedy 160 tok×3): 256 MB = 43.3/43.3/44.1 tok/s；4 GB = 23.7/23.7/43.5 ⇒ 预算尺寸的缓存**更慢**
+   - 修: 单一写主 = `MLXModelLoader`；App 不再碰；`EnginePool` 初始化后打印**生效值** `buffer cache 256 MB … device ceiling 121 GB`
+   - 门: 新增 `Class-H`（`scripts/audit.swift_patterns.sh`）钉第二写主，负例实测报 `❌ 1 violation(s)`，删后 `✅ All audits passed`
+2. `6b3495d` **整机压力不再替别人买单：降级前必须与自己占用对账**
+   - 红证: 本机游离 `python3.11`(pid 83993) 占 ~79 GB ⇒ `memoryUsageFraction` ~74% ⇒ level 3 ⇒ `route()` 判 `.cpu` ⇒ 每请求 `poolRef=nil`（KV 重建）+ 关投机解码；而 ocoreai 自己 3.5 GB / 70 GB 预算
+   - 关键事实: Apple Silicon `wire_count` 含**所有进程**的 GPU 锁定页；绕过 SessionPool 反而增加分配抖动 ⇒ 这次降级**内存没省、吞吐花了**
+   - 修: `HardwareRouter.pressureIsOurs(gpuFraction:reclaimableBytes:memSizeBytes:)`（≥½ 自有预算 或 可回收 < max(1 GiB, 物理/16)；未知即保护）；`route()` Tier‑1 加 `pressureIsOurs`（默认 true ⇒ 旧语义不变）；`EnginePool` 回调不再无条件 flush；日志不再声称换设备（设备在 `ModelContainer` 装载时绑定）
+   - 绿证: `MemoryPressureCorroborationTests` 11 test；活体同一宿主同一游离进程下 `HardwareRouter → CPU` 3→0，只剩 `lane advisory … (degradation gated on corroborated footprint)` + `ignored: ours 0.0/70.4 GB — prefix caches kept`
+3. `7b5b659` **`/v1/chat/completions` 跨会话串味：无 id 请求共用同一个 ChatSession**
+   - 红证（三条互不相关、各一条消息的 POST）: A `19122`；B `10`；C「我第一个问题是什么？」**原样引用 A 的问题**；`prompt_tokens` 还会随时累积（4019→7152→10285）与实际送入内容不符
+   - 根因两层: `conversationId ?? "<model>:ephemeral"` 折成同一 key；`acquire()` 命中只看 `divergence>0`，从不验证缓存历史是否来话前缀
+   - 修: `ConversationIdentity.seed` = 首条 user 消息 FNV‑1a‑64（跨轮稳定 ⇒ 重放历史的客户端仍享前缀缓存；跨会话互斥；刻意避开按进程播种的 `hashValue`，否则落盘快照换进程找不回名字）+ `MLXSessionPool.canReusePooledSession(cached:commonPrefix:)` 硬闸门（顺带堵 GUI Edit&Resend 分叉）
+   - 绿证: `SessionIsolationTests` 8 test；活体 C 不再知道 A，三条独立请求 `prompt_tokens` 稳定 718/712/710，同一会话第 4 轮仍答出 `PARAPET`
+   - **测试当场抓出我自己的错**: FNV 质数写成 `0x1000_0000_0000_01b3`（多一组 0000）→ 低 32 位巧合相同、高 32 位全错；改 `0x1_0000_0001_b3` 后与标准向量逐位吻合
+- 另: `be4b11e` `make format`/`format-check` 在 Xcode-only 主机上 `swift-format: No such file or directory` ⇒ 样式门 push 前根本跑不了（这正是 5 个文件漂移到 CI 的原因）；改为 `SWIFT_FORMAT ?= command -v … || xcrun swift-format`
 
-## 门
-- `swift build --build-tests`（CLT）exit 0；**全量 `swift test` 2277 tests / 428 suites 全绿（399s，沙箱外）**
-- swift-format（本机 xcrun，version=main）16 个改动文件 format-stable（0 会被重排）
+## 排除项（查过，不是缺口，别再当低垂果实）
+- **MTP 投机解码**: 默认 checkpoint `gemma-4-e2b-it-4bit` 的 index 与 safetensors 头**双双 0 个 mtp 张量**（2511 张量全扫）⇒ 日志 "Speculative decoding disabled" 是实话，没有免费的 1.5× 可捡
+- **`EnginePool.swift:262` 「每请求查 router」**: 读码证真（`EngineInference.queryWithState`），非假声明
+- **AGENTS.md `try!`=0 / `fatalError`=0**: 全仓命中全在注释里（6+5 处注释自称「无 as!/try!/fatalError」）⇒ 声明成立；`audit-facts.sh` 的 hygiene 计数会把注释算进去，看数字前先 `grep -v '^\s*//'`
 
-## 工作树状态（重要）
-- **工作树含两轮**: 上一轮 27 项（Edit&Resend / ComposerIngest / ContextWindowPolicy / 全局 FTS 修复 / env 契约 / `.env.example` / AGENTS 运行段 / drift 基线）+ 本轮 ~18 项；`git status` = 39 M + 10 ??
-- **不可拆提交**: `EnginePool.swift`（本轮也改）引用了未跟踪的 `ContextWindowPolicy.swift` ⇒ 只提我的文件会让 HEAD 编译不过 ⇒ 要么整树提交，要么继续搁置
-- `.git` 在本会话沙箱内只读（permission profile），提交需 escalate；两轮均未提交
+## 待拍板 / 残留（不静默做）
+1. **落盘 KV 快照无 `messageHistory`** ⇒ 复用闸门对它恒判可复用；首条消息逐字节相同、同模型的两条匿名会话仍可能撞 key 并从磁盘带回上下文。彻底堵住需把历史键随快照持久化，而 `MessageHistoryKey.contentHash` 用按进程播种的 `hashValue`（跨进程不可校验）——要换持久哈希，独立一轮。
+2. **UI 四处声称设备切换** ⇒ 已由 `f226780` 关闭：`.cpu` 徽章改 `Guard`（+`exclamationmark.triangle.fill`）、吐司去掉 `GPU → CPU` 迁移图（顺带修掉把 SF Symbol 名 `arrow.right` 当可见文字的 `Text("arrow.right")`）、文案与 a11y 改「护栏启动」（`%@ → %@ — %@` → `%@ — %@`，en/zh 同改，新增 `A11y.MemoryGuard`）、Settings `routingPolicyFooter` 改写；Dashboard 徽章改由 `AppState.onThermalPressureEvent(_:actioned:)` 驱动，未过对账不贴徽章。**残留**：徽章/吐司像素仍未活验（GUI 交互整轮未活验）。
+3. **`Memory.memoryLimit` 121 GB vs 应用预算 70 GB**: 预算目前只是调度记账，没落成设备上限；小内存机型上强设上限会提前拒载大模型 ⇒ 留人拍板。
+4. **RAM clamp of context window**（`Engine/ContextWindowPolicy.swift` "Decision status"）——沿用上一轮，仍是人的决定；本轮起 `prompt_tokens` 已是真值，判断依据比之前硬。
+5. GUI(SwiftUI) 交互与 iOS 门控仍未活验。
+6. 本机那个占 ~79 GB 的游离 `python3.11`(pid 83993) 仍在——**它是** ocoreai 报 critical 压力/（改前）CPU 徽章的直接原因；清理由人决定（未擅自 kill）。
 
-## 未决（留拍板 / 下轮）
-- **本机内存夹逼 context window**: 仍是 owner call（`ContextWindowPolicy.swift` "Decision status" 记明）；注意改后新事实——macOS 26 现在有**真 token 计数**，窗口封顶终于能用真数字而非字节启发式来判断
-- GUI 活体验: SwiftUI 交互（Edit&Resend 编辑器焦点/⌘↵、框选复制、Params sheet 拖拽、iOS 门控）仍未活验；本轮解锁的是 headless serve + HTTP 线级
-- `#53150` 授权跨冷重启持久化 = 信任模型变更，刻意不采纳
-- 可疑但未追: 每次请求前 `HardwareRouter → CPU … Mem: 74.3%` + `ThermalPressureEvent: memory gpu→cpu`（128GB 机器上仅载 1.5B 模型时出现，疑似把 cache/compress 计入 used ⇒ 长期降级 CPU）；`Critical memory pressure (level 3)` 同疑。**下轮值得量化**: 同一 prompt 在 gpu/cpu 两通道 tok/s 对比
-- `/v1/tools` 之外，README「Known boundaries」的 `CI: last green run deee580` 等具体号会过期，未逐条复核
-
-## 下轮方法论提醒（写死）
-- 「grep=0 ⇒ 不存在」之前必须换工具或读原文区间二次确认（上轮 `OCOREAI_` 误打 `OCREAI_` 差点误判死杠杆）
-- 「测试全绿 ⇒ 能力成立」不成立: 本轮 4 条缺陷全在 2277 tests 绿的状态下活着，因为要 Metal + 真模型 + HTTP 才可达；能力类断言优先跑活体
-- `#if canImport(X)` 必须 X = 块内真实依赖（AGENTS.md 新增「Compile-time gates」条）
+## 复现/门命令（沙箱外）
+- build: `env HOME=/private/tmp/ochome DEVELOPER_DIR=/Library/Developer/CommandLineTools swift build --scratch-path .build-clt -Xswiftc -F<CLT_F> -Xlinker -F<CLT_F>`
+- 全量: 同上加 `swift test --scratch-path .build-clt --no-parallel --disable-sandbox -Xlinker -rpath -Xlinker <CLT_F> -Xlinker -rpath -Xlinker <CLT_L>`
+- 活体: `(OCOREAI_ENABLE_HTTP=1 OCOREAI_PORT=8099 OCOREAI_ALLOW_MULTI_INSTANCE=1 ./.build-clt/arm64-apple-macosx/debug/ocoreai serve > /tmp/x.log 2>&1 &)` 于 escalated 会话内可常驻；curl 亦需 escalated
+- 聚焦门: `--filter 'SessionIsolation|MemoryPressureCorroboration|HardwareRouter|EnginePoolRouting'` = 66 tests / 15 suites
