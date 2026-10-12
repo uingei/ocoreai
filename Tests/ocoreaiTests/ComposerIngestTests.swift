@@ -30,8 +30,7 @@ struct ImageRoutingTests {
     /// preserved byte-exact — a re-encoded or renamed handoff breaks parity.
     @Test("every image extension routes to .image, URL preserved")
     func everyImageExtensionRoutes() {
-        for ext in ["png", "jpg", "jpeg", "heic", "heif", "webp", "gif", "bmp", "tiff", "tif"]
-        {
+        for ext in ["png", "jpg", "jpeg", "heic", "heif", "webp", "gif", "bmp", "tiff", "tif"] {
             let url = composerPath("shot.\(ext)")
             #expect(
                 ComposerIngest.classify(url: url, isDirectory: false, byteCount: 1024)
@@ -194,7 +193,8 @@ struct TokenFormatTests {
         let second = ComposerIngest.token(url: composerPath("y.csv"), isDirectory: false)
         #expect(
             ComposerIngest.append(tokens: [token, second], to: "hi")
-                == "hi [Attached file] /Users/tester/Documents/x.py [Attached file] /Users/tester/Documents/y.csv")
+                == "hi [Attached file] /Users/tester/Documents/x.py [Attached file] /Users/tester/Documents/y.csv"
+        )
         #expect(ComposerIngest.append(tokens: [], to: "hi") == "hi")
     }
 }

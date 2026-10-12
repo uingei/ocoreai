@@ -9,8 +9,9 @@
 /// Keyboard shortcuts + VoiceOver labels per Apple HIG; folder enumeration is
 /// offloaded off the main actor (ProjectStore.files).
 import SwiftUI
+
 #if os(macOS)
-    import AppKit
+import AppKit
 #endif
 
 struct ProjectsView: View {
@@ -75,16 +76,18 @@ struct ProjectsView: View {
     // MARK: - Project list
 
     private var projectList: some View {
-        List(selection: Binding(
-            get: { store.selectedProject?.id },
-            set: { id in
-                if let id {
-                    store.select(store.projects.first { $0.id == id })
-                } else {
-                    store.select(nil)
+        List(
+            selection: Binding(
+                get: { store.selectedProject?.id },
+                set: { id in
+                    if let id {
+                        store.select(store.projects.first { $0.id == id })
+                    } else {
+                        store.select(nil)
+                    }
                 }
-            }
-        )) {
+            )
+        ) {
             ForEach(store.projects) { project in
                 HStack(spacing: 8) {
                     Image(systemName: project.allowCoding ? "folder" : "folder.badge.questionmark")
@@ -251,7 +254,9 @@ struct NewProjectSheet: View {
                 .frame(minWidth: 320)
 
             Toggle(isOn: $allowCoding) {
-                Label(StringKey.projectAllowCoding.l, systemImage: "chevron.left.forwardslash.chevron.right")
+                Label(
+                    StringKey.projectAllowCoding.l,
+                    systemImage: "chevron.left.forwardslash.chevron.right")
             }
 
             if allowCoding {

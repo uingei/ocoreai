@@ -27,10 +27,11 @@ struct ProjectStoreTests {
         // projects table must exist after open() even on a brand-new DB,
         // and sessions must carry project_id (probe, don't assume).
         let cols = try await store.query("PRAGMA table_info(sessions);")
-        #expect(cols.contains {
-            if case .text(let n)? = $0["name"] { return n == "project_id" }
-            return false
-        })
+        #expect(
+            cols.contains {
+                if case .text(let n)? = $0["name"] { return n == "project_id" }
+                return false
+            })
         let t = try await store.query(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='projects';")
         #expect(!t.isEmpty)
@@ -82,7 +83,7 @@ struct ProjectStoreTests {
         let p = try await ProjectStore.insert(
             store: store, name: "proj", folderPath: nil, allowCoding: false)
         let compressor = SessionCompressor(store: store, fts: FTS5Search(store: store))
-        _ = try await compressor.createSession(modelId: "m") // no project bind
+        _ = try await compressor.createSession(modelId: "m")  // no project bind
 
         let inProject = try await ProjectStore.sessions(store: store, projectID: p.id)
         #expect(inProject.isEmpty)
@@ -116,7 +117,8 @@ struct ProjectStoreTests {
         let fm = FileManager.default
         try fm.createDirectory(atPath: root + "/src", withIntermediateDirectories: true)
         try fm.createDirectory(atPath: root + "/.git/objects", withIntermediateDirectories: true)
-        try fm.createDirectory(atPath: root + "/node_modules/pkg", withIntermediateDirectories: true)
+        try fm.createDirectory(
+            atPath: root + "/node_modules/pkg", withIntermediateDirectories: true)
         try "hello".write(toFile: root + "/README.md", atomically: true, encoding: .utf8)
         try "code".write(toFile: root + "/src/main.swift", atomically: true, encoding: .utf8)
 

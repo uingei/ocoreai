@@ -14,8 +14,8 @@
 /// Wiring mirrors `PlanTaskStore` (App boot → `attach(store:)`, MainActor
 /// observable UI read surface, static SQLite helpers for offline testing).
 import Foundation
-import Observation
 import Logging
+import Observation
 
 @MainActor
 @Observable
@@ -154,7 +154,7 @@ final class ProjectStore {
                     VALUES (?, ?, ?, ?, ?)
                     """,
                 parameters: [
-                    name as AnyHashable, folderPath as AnyHashable, allowCoding ? 1 : 0
+                    name as AnyHashable, folderPath as AnyHashable, allowCoding ? 1 : 0,
                 ] + [now as AnyHashable, now as AnyHashable])
         } else {
             try await store.execute(
@@ -216,8 +216,9 @@ final class ProjectStore {
             FROM sessions WHERE project_id = ?
             ORDER BY updated_at DESC LIMIT 100
             """,
-            parameters: [projectID as AnyHashable])
-            .compactMap(Self.session(from:))
+            parameters: [projectID as AnyHashable]
+        )
+        .compactMap(Self.session(from:))
     }
 
     nonisolated static func session(from row: [String: SendableValue]) -> SessionModel? {
@@ -287,7 +288,9 @@ final class ProjectStore {
         guard
             let en = fm.enumerator(
                 at: rootURL,
-                includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey],
+                includingPropertiesForKeys: [
+                    .isDirectoryKey, .fileSizeKey, .contentModificationDateKey,
+                ],
                 options: [.skipsHiddenFiles])
         else { return [] }
         // Canonicalize BOTH sides: the enumerator returns /private/var/… while

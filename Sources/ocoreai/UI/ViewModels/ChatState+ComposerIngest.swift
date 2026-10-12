@@ -21,6 +21,7 @@
 
 import Foundation
 import UniformTypeIdentifiers
+
 #if os(macOS)
 import AppKit
 #else
@@ -126,11 +127,10 @@ extension ChatState {
     func ingestPasteboard() -> ComposerIngest.PasteRoute {
         #if os(macOS)
         let pasteboard = NSPasteboard.general
-        let urls = (
-            pasteboard.readObjects(
+        let urls =
+            (pasteboard.readObjects(
                 forClasses: [NSURL.self],
-                options: [.urlReadingFileURLsOnly: true]) as? [NSURL]
-        )?.map { $0 as URL } ?? []
+                options: [.urlReadingFileURLsOnly: true]) as? [NSURL])?.map { $0 as URL } ?? []
         let imageData = pasteboard.data(forType: .png) ?? pasteboard.data(forType: .tiff)
         let hasString = pasteboard.string(forType: .string) != nil
         #else
