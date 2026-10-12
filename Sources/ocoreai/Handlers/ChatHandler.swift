@@ -334,9 +334,17 @@ func chatCompletionsHandler(
         /// pass (LLM-free, oldest-turn-first, tool-call units stay atomic);
         /// the wall below re-evaluates against the compacted transcript and
         /// throws a 400 only if it still exceeds the cap.
-        let modelContextCap = await enginePool.getSamplingConfig(modelId: modelId).maxContextWindow
+        ///
+        /// The cap is the EFFECTIVE window (`effectiveContextWindow`), not the raw
+        /// override: a model that declares `max_position_embeddings = 131072` in its
+        /// own `config.json` now budgets at 131072 with no `PATCH` required. Reading
+        /// the override alone left the cap `nil` for every model that never received
+        /// one, which silently disarmed compaction, this wall, the chat watermark and
+        /// the `get_context_remaining` budget (see `ContextWindowPolicy`).
+        let resolvedWindow = await enginePool.effectiveContextWindow(modelId: modelId)
+        let modelContextCap = resolvedWindow.tokens
         // 写当前活跃上下文供 get_context_remaining 工具读(codex `invocation.session` 真值)。
-        // used = 本轮 prompt 占满上下文的 token 数;limit = 该模型窗口(可能 nil→unknown)。
+        // used = 本轮 prompt 占满上下文的 token 数;limit = 该模型有效窗口(可能 nil→unknown)。
         await ContextStatusStore.shared.set(
             usedTokens: promptTokenCount, windowLimit: modelContextCap)
         // Post-compaction floor, carried to the wall when compaction removed ≥1
@@ -423,11 +431,12 @@ func chatCompletionsHandler(
         {
             let cap = modelContextCap ?? 0
             logger.warning(
-                "Prompt length \(promptTokenCount) tokens exceeds the model's configured context window of \(cap) tokens. Shorten the input or raise `max_context_window` for this model.",
+                "Prompt length \(promptTokenCount) tokens exceeds the \(resolvedWindow.source.rawValue) context window of \(cap) tokens for \(modelId). Shorten the input or set `max_context_window` for this model.",
                 metadata: [
                     "model": .string(modelId),
                     "promptTokens": .string("\(promptTokenCount)"),
                     "cap": .string("\(cap)"),
+                    "windowSource": .string(resolvedWindow.source.rawValue),
                 ])
             // Typed exhaustion (hermes-agent #106260): compaction already removed
             // every removable unit — the client-visible JSON carries

@@ -350,6 +350,12 @@ final class ModelManager {
     func refreshLocalModels() async {
         guard let pool = _enginePool else { return }
 
+        // The model set on disk may have changed since the last refresh (download
+        // completed, model deleted/replaced), so the pool's cache of windows parsed
+        // from each model's config.json must not survive it — a stale digit would
+        // silently budget a re-downloaded model at its predecessor's capacity.
+        await pool.invalidateDeclaredContextWindows()
+
         let entries = await pool.listModels()
         let store = SettingsStore.shared
 
@@ -434,6 +440,20 @@ final class ModelManager {
     /// Load models on view appearance — thin wrapper for .task{} usage.
     func loadModels() async {
         await refreshLocalModels()
+    }
+
+    /// Effective context window for a model — override, else the window the model
+    /// declares, else unknown.
+    ///
+    /// Forwarded to `EnginePool.effectiveContextWindow` rather than re-resolved
+    /// here: the GUI and the engine must read ONE number, or the watermark shows a
+    /// budget the engine is not enforcing. Without a pool (engine not up) the
+    /// answer is unknown, which the callers render as "no number" — never a guess.
+    func resolvedContextWindow(for modelId: String) async -> ResolvedContextWindow {
+        guard let pool = _enginePool, !modelId.isEmpty else {
+            return ResolvedContextWindow(tokens: nil, source: .unknown)
+        }
+        return await pool.effectiveContextWindow(modelId: modelId)
     }
 
     /// Get model IDs as plain strings — for ChatView toolbar picker.

@@ -1966,6 +1966,10 @@ extension EnginePool {
                                 InferenceError.tokenizerBuildFailed(
                                     "Grammar tokenizer build failed"
                                 ).errorDescription ?? "error")))
+                    // Terminal for this turn — the caller returns after the guided
+                    // branch, so the stream must close here (it used to be closed by
+                    // accident, via the fall-through into the standard path).
+                    continuation.finish()
                     return
                 }
 
@@ -1988,6 +1992,7 @@ extension EnginePool {
                             kind: .error(
                                 InferenceError.grammarBuildFailed("Grammar constraint build failed")
                                     .errorDescription ?? "error")))
+                    continuation.finish()
                     return
                 }
 
@@ -2207,6 +2212,20 @@ extension EnginePool {
                         throw error
                     }
                 }
+
+                // The guided branch OWNS this turn's stream, so it closes it here.
+                // Before this, nothing finished the continuation, and control fell
+                // through into the standard ChatSession path below — whose pooled
+                // session had already been released at the top of the guided branch
+                // — which logged "Standard ChatSession path entered with nil
+                // chatSession" and emitted a spurious `.error`. Live consequence
+                // (2026-10-12, macOS 26, gemma-4-e2b-it-4bit): a grammar-constrained
+                // turn that generated successfully still returned
+                // `500 Engine internal error: no active chat session` — every
+                // `response_format: json_schema` request and every tool-declared turn
+                // that took the guided path. `finish()` is idempotent, so the
+                // error paths that already terminated are unaffected.
+                continuation.finish()
             }
         }
 
@@ -3075,6 +3094,17 @@ extension EnginePool {
                         grammarSchema: schema,
                         maxTokens: effectiveMaxTokens,
                     )
+                    // Guided generation served this turn end to end (text + `.done`
+                    // + `finish()`), so the request is over. Returning here is the
+                    // fix for a guaranteed failure: control used to continue into the
+                    // standard ChatSession path below, whose pooled session had been
+                    // released at the top of this branch, so it logged
+                    // "Standard ChatSession path entered with nil chatSession" and
+                    // emitted a spurious `.error` — turning every successful
+                    // grammar-constrained turn (`response_format: json_schema`, and
+                    // tool-declared turns with grammar) into HTTP 500.
+                    // Live-proven 2026-10-12 on macOS 26 before this change.
+                    return
                 } else if options.grammarSchema != nil {
                     // Grammar requested but multimodal content present — guided path cannot handle it.
                     // Fall through to ChatSession below; grammar will be best-effort ignored.

@@ -341,6 +341,34 @@ enum ModelStore {
     /// the DEFAULT differs by honesty contract: the fetcher needs *a* value
     /// to build a ModelConfig, so it defaults 131_072; discovery exposes the
     /// capability, so absent keys report nil rather than a fabricated bound.
+    /// Canonical "does this checkpoint accept images" predicate for the whole app.
+    ///
+    /// ONE truth source, because there were three disagreeing ones (proven
+    /// 2026-10-12): discovery here tested only `preprocessor_config.json`, while
+    /// the loader (`MLXModelLoader.isVLMModel`, MLXBridge) tested only
+    /// `processor_config.json`. Consequence on the installed default model
+    /// (gemma-4-e2b-it-4bit, which ships `processor_config.json` and NOT
+    /// `preprocessor_config.json`): the engine loaded a real VLM container and
+    /// answered an image correctly ("Red"), while `GET /v1/models` published
+    /// `vlm:false` and the GUI hid the vision badge — a capability the product
+    /// has but denies on the wire, so standard clients refuse to attach images.
+    /// The inverse also held: an older checkpoint shipping only
+    /// `preprocessor_config.json` was advertised as a VLM but loaded as a plain
+    /// LLM, which cannot take images at all.
+    ///
+    /// Accepted set mirrors upstream mlx-swift-lm `VLMModelFactory.loadProcessorConfig`
+    /// (Libraries/MLXVLM/VLMModelFactory.swift:549-556), which reads
+    /// `preprocessor_config.json` first and falls back to `processor_config.json`
+    /// — same two filenames, applied one level up (discovery instead of loading).
+    static func hasVisionProcessor(
+        at dir: URL, fileManager fm: FileManager = .default
+    ) -> Bool {
+        for name in ["preprocessor_config.json", "processor_config.json"] {
+            if fm.fileExists(atPath: dir.appendingPathComponent(name).path) { return true }
+        }
+        return false
+    }
+
     static func contextLength(weightsDir: URL) -> Int? {
         guard
             let data = try? Data(contentsOf: weightsDir.appendingPathComponent("config.json")),
@@ -389,8 +417,7 @@ enum ModelStore {
                         ReadyModel(
                             id: "hf:\(repoId)",
                             weightsDir: dir,
-                            isVlm: fm.fileExists(
-                                atPath: dir.appendingPathComponent("preprocessor_config.json").path),
+                            isVlm: hasVisionProcessor(at: dir),
                             contextLength: contextLength(weightsDir: dir)
                         ))
                 }
@@ -408,9 +435,7 @@ enum ModelStore {
                         ReadyModel(
                             id: "hf:\(repo.lastPathComponent)",
                             weightsDir: repo,
-                            isVlm: fm.fileExists(
-                                atPath: repo.appendingPathComponent("preprocessor_config.json").path
-                            ),
+                            isVlm: hasVisionProcessor(at: repo),
                             contextLength: contextLength(weightsDir: repo)))
                 }
             }
@@ -434,10 +459,7 @@ enum ModelStore {
                             ReadyModel(
                                 id: "mscope:\(org.lastPathComponent)/\(name.lastPathComponent)",
                                 weightsDir: name,
-                                isVlm: fm.fileExists(
-                                    atPath: name.appendingPathComponent("preprocessor_config.json")
-                                        .path
-                                ),
+                                isVlm: hasVisionProcessor(at: name),
                                 contextLength: contextLength(weightsDir: name)))
                     }
                 }
@@ -464,9 +486,7 @@ enum ModelStore {
                             ReadyModel(
                                 id: "mscope:\(ns.lastPathComponent)/\(name.lastPathComponent)",
                                 weightsDir: ready,
-                                isVlm: fm.fileExists(
-                                    atPath: ready.appendingPathComponent("preprocessor_config.json")
-                                        .path),
+                                isVlm: hasVisionProcessor(at: ready),
                                 contextLength: contextLength(weightsDir: ready)))
                     }
                 }
@@ -482,8 +502,7 @@ enum ModelStore {
                     ReadyModel(
                         id: dir.standardizedFileURL.path,
                         weightsDir: dir.standardizedFileURL,
-                        isVlm: fm.fileExists(
-                            atPath: dir.appendingPathComponent("preprocessor_config.json").path),
+                        isVlm: hasVisionProcessor(at: dir),
                         contextLength: contextLength(weightsDir: dir)))
             }
         }

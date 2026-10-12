@@ -35,7 +35,11 @@ struct ModelID: Identifiable, Hashable {
             maxContext: Int(entry["max_context_length"] ?? "0") ?? 0,
             vocabSize: Int(entry["vocab_size"] ?? "0") ?? 0,
             tokenizer: entry["tokenizer"] ?? "",
-            isVlm: (entry["specialized"] ?? "false") == "true",
+            // Reads the key the pool actually writes: `"vlm"`
+            // (EnginePool.swift:1115). `"specialized"` means CoreAI ANE
+            // specialization and is absent on macOS 26, so this parser froze the
+            // models list to "not a VLM" for every MLX vision model.
+            isVlm: (entry["vlm"] ?? "false") == "true",
         )
     }
 

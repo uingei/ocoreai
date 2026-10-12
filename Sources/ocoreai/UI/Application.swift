@@ -68,6 +68,15 @@ struct OcoreaiGUIApp: App {
                     AppState.shared.selectedTab = .settings
                 }
             }
+            // Edit ▸ Paste Image or Files — the guaranteed route for a clipboard
+            // screenshot or Finder copy, because the text field's own field editor
+            // claims plain-text ⌘V. ⇧⌘V never collides with it.
+            CommandGroup(after: .pasteboard) {
+                Button(StringKey.pasteAttachment.l) {
+                    _ = ChatState.shared.ingestPasteboard()
+                }
+                .keyboardShortcut("v", modifiers: [.command, .shift])
+            }
             CommandMenu(StringKey.navigationTitle.l) {
                 Button(StringKey.tabDashboard.l) {
                     AppState.shared.selectedTab = .dashboard

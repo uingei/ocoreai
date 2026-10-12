@@ -321,6 +321,67 @@ actor SessionCompressor {
         }
     }
 
+    // MARK: - Transcript Edit (edit-and-resend / regenerate)
+
+    /// Delete the newest `count` persisted messages of a session and report how
+    /// many rows actually went.
+    ///
+    /// Why this exists: the live transcript (`ChatState.messages`) is what the
+    /// next inference reads, while these rows are what a session *reload* renders.
+    /// Edit-and-resend and Regenerate both drop the tail of the transcript, so
+    /// without this mirror the abandoned turn — including the pre-edit wording —
+    /// reappears the next time the session is opened. One primitive for both
+    /// paths so their semantics cannot fork.
+    ///
+    /// Tail-ordered by `id` (AUTOINCREMENT = insertion order, unlike `created_at`,
+    /// which can tie within the same microsecond). `LIMIT` bounds the delete to
+    /// `count`, so a database holding fewer rows than the transcript (a turn that
+    /// never persisted, or a session compressed while the UI was open) drops what
+    /// exists and never reaches further back than asked.
+    ///
+    /// - Returns: rows deleted — the honest number, which can be smaller than
+    ///   `count` and is never larger.
+    @discardableResult
+    func dropTranscriptTail(sessionId: Int64, count: Int) async throws -> Int {
+        guard count > 0 else { return 0 }
+        let before = try await countMessages(sessionId)
+        let sql = """
+            DELETE FROM messages WHERE session_id = ?
+            AND id IN (
+                SELECT id FROM messages WHERE session_id = ?
+                ORDER BY id DESC LIMIT ?
+            )
+            """
+        do {
+            try await store.execute(sql: sql, parameters: [sessionId, sessionId, count])
+        } catch let sqliteErr as SQLiteError {
+            throw sqliteErr
+        } catch {
+            throw SQLiteError.executionFailed(detail: error.localizedDescription)
+        }
+        let after = try await countMessages(sessionId)
+        let dropped = max(0, before - after)
+        logger.info(
+            "Session \(sessionId) transcript tail dropped: \(dropped) of \(count) requested")
+        return dropped
+    }
+
+    /// Persisted message count for a session (0 when it has no rows).
+    func countMessages(_ sessionId: Int64) async throws -> Int {
+        let sql = "SELECT COUNT(*) AS count FROM messages WHERE session_id = ?"
+        do {
+            let rows = try await store.query(sql, parameters: [sessionId])
+            guard let first = rows.first else { return 0 }
+            if case .integer(let n)? = first["count"] { return Int(n) }
+            if case .text(let s)? = first["count"], let n = Int(s) { return n }
+            return 0
+        } catch let sqliteErr as SQLiteError {
+            throw sqliteErr
+        } catch {
+            throw SQLiteError.queryFailed(detail: error.localizedDescription)
+        }
+    }
+
     // MARK: - Layer 1 Hot Window
 
     /// Get the hot window (most recent N messages) for a session.

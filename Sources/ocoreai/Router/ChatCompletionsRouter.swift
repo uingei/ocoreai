@@ -281,12 +281,20 @@ func buildRouter(
             let version: String
             let arch: String
             let capabilities: [RuntimeCapability.Line]
+            /// Tokenizer truth for THIS build: `real` = swift-transformers linked,
+            /// so `/v1/count-tokens` and `usage.prompt_tokens` are true counts;
+            /// `heuristic` = the build has no tokenizer backend and every count is
+            /// a byte estimate. A client must be able to tell, because on
+            /// macOS 26 this was silently the heuristic case while the wire still
+            /// offered the endpoint (proven 10-12: count-tokens 404s on a ready model).
+            let tokenizerBackend: String
         }
         let payload = CAPayload(
             os: RuntimeCapability.osName,
             version: RuntimeCapability.osVersion,
             arch: RuntimeCapability.arch,
             capabilities: RuntimeCapability.lines,
+            tokenizerBackend: TokenizerManager.isRealTokenizerBackend ? "real" : "heuristic",
         )
         return try Response.json(payload)
     }

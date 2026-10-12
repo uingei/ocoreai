@@ -43,15 +43,56 @@ actor SystemPromptBuilder {
     /// from a prompt that hard-codes "destructive = don't".
     /// Kept short-phrase on purpose — the target models (1.5B–8B local) need
     /// a direct behavioral command, not policy prose.
-    static let codingAgentBase =
+    /// Identity + honesty — valid on EVERY turn, tools present or not.
+    static let codingAgentIdentity =
         "You are oCoreAI — an agent for open models, natively local, built for creativity, work, and code; "
         + "a complete agentic system designed for coding and knowledge work. "
         + "You maximize truth-seeking, curiosity, and honesty above pleasing anyone: "
         + "prefer the correct answer over the softer one, keep investigating when the answer is uncertain, "
-        + "and state plainly what you did not verify — never hide, soften, or fabricate results. "
-        + "Assume the user wants code changes or tool actions that solve their problem: "
+        + "and state plainly what you did not verify — never hide, soften, or fabricate results."
+
+    /// Action-first directive — valid ONLY when this turn actually has tools.
+    ///
+    /// The claim-discipline sentence is not decoration. Live on 2026-10-12 with
+    /// `web_search` declared, gemma-4-e2b-it-4bit answered "I have searched the
+    /// web for the latest MLX release notes… (Source: https://mlx.studio/)" with
+    /// NO tool call dispatched — a narrated action plus invented citations. A
+    /// narrative that sounds like a completed action is the most expensive failure
+    /// mode for an agent product, so the rule is stated operationally rather than
+    /// as a value: claiming an action requires having called the tool and seen the
+    /// result. (Paired with ``noToolsDirective`` for the zero-tool case.)
+    static let toolActionDirective =
+        "Assume the user wants code changes or tool actions that solve their problem: "
         + "use your tools to actually implement changes and run commands, don't just describe what you would do. "
-        + "When you finish, report what changed and how you verified it."
+        + "When you finish, report what changed and how you verified it. "
+        + "Claiming an action requires having called the tool and seen its result: never say you "
+        + "searched, fetched, ran, read, or changed anything unless a tool result in this "
+        + "conversation says so — narration that sounds like a completed action is not one."
+
+    /// Zero-tool directive — what to do instead, plus an explicit ban on
+    /// simulating tools. Required, not decorative: with the action-first line
+    /// still present and no tools bound, a live gemma-4-e2b-it-4bit turn
+    /// (2026-10-12, `tools` absent → engine resolved a zero surface) answered
+    /// "count from 1 to 60" with a fabricated transcript —
+    /// `terminal\ncommand: "seq 1 60"\nstdout: "1 2 3 …"` — i.e. invented
+    /// command output presented as fact, the exact failure the identity line
+    /// forbids. A model told to "run commands" will simulate them when it can't.
+    static let noToolsDirective =
+        "This conversation gives you no tools: answer directly from your own knowledge and reasoning. "
+        + "Never pretend to run a command, never invent tool output, terminal transcripts, diffs, or file "
+        + "contents — text that reads like an executed command is a fabrication, not a result."
+
+    /// Base prompt for a turn whose tool surface is known.
+    static func basePrompt(hasTools: Bool) -> String {
+        hasTools
+            ? codingAgentIdentity + " " + toolActionDirective
+            : codingAgentIdentity + " " + noToolsDirective
+    }
+
+    /// Legacy alias: the with-tools composition. Kept as the named source of
+    /// truth for the action-first contract (`SystemPromptContractTests`); the
+    /// per-turn text comes from ``basePrompt(hasTools:)``.
+    static let codingAgentBase = basePrompt(hasTools: true)
 
     private var basePrompt: String
     private var registry: SkillRegistry?
@@ -69,9 +110,9 @@ actor SystemPromptBuilder {
     }
 
     /// Build the full system prompt — returns cached result if content unchanged.
-    func build(includeCategories: [String]? = nil) async -> String {
+    func build(includeCategories: [String]? = nil, hasTools: Bool = true) async -> String {
         // Compute content hash
-        let newHash = await computeHash(categories: includeCategories)
+        let newHash = await computeHash(categories: includeCategories, hasTools: hasTools)
 
         // Cache hit — content unchanged
         if newHash == lastHash, let cached = currentPrompt {
@@ -96,10 +137,16 @@ actor SystemPromptBuilder {
         let skillSection = await buildSkillSection(categories: includeCategories)
 
         var parts: [String]
+        // Division of labour: `basePrompt` carries IDENTITY only; the tool
+        // directive is chosen here, per turn, from the surface the turn actually
+        // has. Default `hasTools: true` keeps the pre-existing wording for
+        // callers that state nothing about tools; the production path
+        // (`MessageBuilder`) always passes the real surface.
+        let base = basePrompt + " " + (hasTools ? Self.toolActionDirective : Self.noToolsDirective)
         if !skillSection.isEmpty {
-            parts = [basePrompt, "", "# Available Skills\n", skillSection]
+            parts = [base, "", "# Available Skills\n", skillSection]
         } else {
-            parts = [basePrompt]
+            parts = [base]
         }
         parts.append("")
         parts.append(
@@ -118,9 +165,13 @@ actor SystemPromptBuilder {
     }
 
     /// Compute a hash of the current prompt content without building the string.
-    private func computeHash(categories: [String]?) async -> String {
+    private func computeHash(categories: [String]?, hasTools: Bool) async -> String {
         var hasher = Hasher()
         hasher.combine(basePrompt)
+        // The tool surface changes the prompt text, so it must be part of the
+        // cache key or an agentic turn could serve a cached no-tools prompt
+        // (and vice versa) on the very next request to the same builder.
+        hasher.combine(hasTools)
         if let registry {
             let skills: [Skill]
             if let categories, !categories.isEmpty {
@@ -229,7 +280,11 @@ actor SystemPromptBuilder {
     }
 
     /// Build system prompt for a given model — injected into inference pipeline.
-    func buildSystemPrompt() async -> String {
-        await build()
+    ///
+    /// `hasTools` must reflect the tool surface this turn can actually execute:
+    /// it decides whether the model is told to act with tools or to answer
+    /// without them (see ``noToolsDirective``).
+    func buildSystemPrompt(hasTools: Bool = true) async -> String {
+        await build(hasTools: hasTools)
     }
 }

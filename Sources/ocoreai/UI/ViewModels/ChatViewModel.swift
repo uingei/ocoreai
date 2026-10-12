@@ -157,6 +157,16 @@ final class ChatState {
     var inputText: String = ""
     var pendingAttachments: [AttachedImage] = []
 
+    // MARK: - Edit-and-resend (in-place instruction correction)
+    //
+    // Which user message is currently open in an inline editor, and the text
+    // being edited. Living on the shared state (not @State inside the row view)
+    // so a row recreation — tab switch, streaming re-render, new message —
+    // cannot silently discard a half-typed correction, which is exactly the
+    // failure this feature exists to remove.
+    var editingMessageID: UUID?
+    var editingText: String = ""
+
     // MARK: - Mid-turn steering (Hermes-style)
     //
     // While a stream is active, the composer stays LIVE: sending routes here
@@ -460,8 +470,59 @@ final class ChatState {
 
     // MARK: - P7: Resend / Regenerate
 
-    /// Resend from a given user message — truncates all messages after it
-    /// (including interrupted assistant reply) and re-infers with the same model.
+    /// Model a rerun should use: the current selection, else the pool default.
+    private func rerunModelId() -> String {
+        let modelID = activeModelId ?? ""
+        return modelID.isEmpty
+            ? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? "" : modelID
+    }
+
+    /// Drop the tail of the live transcript and mirror the same removal to
+    /// SQLite; return the data URLs the anchor message carried.
+    ///
+    /// includingMessage: false keeps the anchor (Regenerate semantics — rerun the
+    /// same instruction); true removes it too (Edit-and-Resend — the old wording
+    /// must not survive, because chat() re-appends the corrected text).
+    ///
+    /// Before this helper, truncation touched memory only. Inference reads memory,
+    /// so the rerun behaved correctly at the time — and the abandoned turn came
+    /// back on the next session open, because SQLite still had it. Mirroring is
+    /// what makes "I fixed the instruction and reran" durable.
+    ///
+    /// A SQLite miss never blocks the rerun: the UI would otherwise freeze behind
+    /// a storage error while the in-memory answer is perfectly re-runnable, so the
+    /// failure is logged with the count that failed to drop, not swallowed.
+    @discardableResult
+    private func truncateTranscript(
+        from index: Int, includingMessage: Bool
+    ) async -> [String] {
+        let keep = includingMessage ? index : index + 1
+        let drop = max(0, messages.count - keep)
+        let images = (0 ..< messages.count).contains(index) ? messages[index].imageURLs : []
+        if keep < messages.count {
+            messages.removeSubrange(keep ..< messages.endIndex)
+        }
+        if TranscriptEdit.shouldMirrorToStore(sessionId: sessionId, dropCount: drop),
+            let compressor, let sid = sessionId
+        {
+            do {
+                let dropped = try await compressor.dropTranscriptTail(sessionId: sid, count: drop)
+                if dropped < drop {
+                    Self.logger.warning(
+                        "Transcript mirror short: dropped \(dropped) of \(drop) (fewer persisted rows than transcript items)"
+                    )
+                }
+            } catch {
+                Self.logger.warning(
+                    "Transcript mirror failed (\(error.localizedDescription)) — rerun proceeds in memory"
+                )
+            }
+        }
+        return images
+    }
+
+    /// Resend from a given user message — truncates everything after it and
+    /// re-infers with the same text, the same attachments, and the same model.
     func resendFromMessage(with uuid: UUID) {
         // Cancel any in-flight stream
         cancelInference()
@@ -470,18 +531,69 @@ final class ChatState {
             return
         }
         let userMsg = messages[idx]
-        // Truncate: keep the user message as the last one, discard everything after
-        messages.removeSubrange(idx + 1 ..< messages.endIndex)
-        // Kick off inference with the same text and current model
-        let modelID = activeModelId ?? ""
+        let modelID = rerunModelId()
         Task { @MainActor [weak self] in
             guard let self else { return }
+            let images = await self.truncateTranscript(from: idx, includingMessage: false)
             await self.chat(
-                userMsg.content,
-                model: modelID.isEmpty
-                    ? OcoreaiEngine.shared.activeEnginePool?.config.defaultModelId ?? "" : modelID,
-                attachments: [])
+                userMsg.content, model: modelID,
+                attachments: images.map { AttachedImage(dataURL: $0) })
         }
+    }
+
+    // MARK: - P7b: Edit-and-Resend
+
+    /// Open a user message for in-place editing. Assistant messages are never
+    /// editable — the model's words are not the user's to rewrite. Takes
+    /// (id, text) rather than a `ChatMessage` so the row view, which renders a
+    /// `ChatBubbleMessage`, drives the same entry point as any other caller.
+    func beginEdit(id: UUID, text: String) {
+        guard messages.first(where: { $0.id == id })?.role == "user" else { return }
+        editingMessageID = id
+        editingText = text
+    }
+
+    /// Close the inline editor without touching the transcript.
+    func cancelEdit() {
+        editingMessageID = nil
+        editingText = ""
+    }
+
+    /// Commit the inline edit: drop the abandoned branch (memory + SQLite) and
+    /// rerun with the corrected instruction, original attachments included.
+    ///
+    /// The rules live in the pure TranscriptEdit.plan so they are asserted by
+    /// exact value rather than by reading this method: an unknown or non-user
+    /// target closes the editor silently (nothing was destroyed), and an empty
+    /// edit reports why nothing happened instead of firing a blank turn.
+    func commitEdit(of uuid: UUID) async {
+        let plan: TranscriptEdit.Plan
+        switch TranscriptEdit.plan(
+            roles: messages.map(\.role),
+            editing: messages.firstIndex(where: { $0.id == uuid }),
+            rawText: editingText
+        ) {
+        case .failure(.emptyText):
+            errorMessage = StringKey.editNothingToSend.l
+            return
+        case .failure(.notFound), .failure(.notUser):
+            cancelEdit()
+            return
+        case .success(let resolved):
+            plan = resolved
+        }
+        errorMessage = nil
+
+        cancelInference()
+        let images =
+            (0 ..< messages.count).contains(plan.index)
+            ? messages[plan.index].imageURLs : []
+        cancelEdit()
+        let modelID = rerunModelId()
+        _ = await truncateTranscript(from: plan.index, includingMessage: true)
+        await chat(
+            plan.newText, model: modelID,
+            attachments: images.map { AttachedImage(dataURL: $0) })
     }
 
     // MARK: - Model lifecycle (P0-2: hot-switch)
@@ -588,6 +700,9 @@ final class ChatState {
         messages = []
         responseText = ""
         errorMessage = nil
+        // An open inline editor points at a message of the PREVIOUS session —
+        // keeping it would let ⌘↵ resend stale text into the newly opened chat.
+        cancelEdit()
         if let compressor {
             do {
                 sessionId = session.id
@@ -1405,6 +1520,8 @@ final class ChatState {
         // FIX: clear session state to prevent DB session bleed
         sessionId = nil
         activeModelId = nil
+        // The edited message no longer exists in this conversation.
+        cancelEdit()
         // Worktree session: a reset chat must not keep the previous session's
         // worktree as its working directory (codex: blank session = fresh binding).
         SessionWorkspace.clear()
@@ -1440,6 +1557,9 @@ final class ChatState {
         undoResponseText = nil
         undoErrorMessage = nil
         undoSessionId = nil
+        // Inline editor state
+        editingMessageID = nil
+        editingText = ""
         undoActiveModelId = nil
     }
 
@@ -1459,6 +1579,10 @@ final class ChatState {
         // Persistence state
         sessionId = nil
         activeModelId = nil
+        // Inline editor state — an editor open against a wiped transcript has
+        // nothing to commit to.
+        editingMessageID = nil
+        editingText = ""
         // Undo state
         undoSnapshot = nil
         undoResponseText = nil

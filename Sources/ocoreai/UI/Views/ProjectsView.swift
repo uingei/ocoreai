@@ -1,6 +1,6 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// ProjectsView — Bionic-parity project container (docs/bionic/quick-start).
+/// ProjectsView — Bionic-parity project container (CHANGELOG 4c1b4ad).
 ///
 /// Mirrors the reference flow 1:1: name → "Allow coding" toggle → choose a
 /// folder → Create; the open project shows its sessions (left) and a

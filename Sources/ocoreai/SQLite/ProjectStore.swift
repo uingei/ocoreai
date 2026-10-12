@@ -2,7 +2,8 @@
 // Licensed under MIT.
 /// ProjectStore — the Bionic-parity project container store.
 ///
-/// Bionic IA (docs/bionic/quick-start, verified 2026-10-11): "A project keeps
+/// Bionic IA (observed on the reference app 2026-10-11, landed in 4c1b4ad):
+/// "A project keeps
 /// related sessions and files together" — projects own an opt-in coding
 /// folder; sessions inherit it as their working directory (the verified
 /// `SessionWorkspace.currentDirectory()` → `ExecTools.effectiveCwd` /

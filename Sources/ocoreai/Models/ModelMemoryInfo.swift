@@ -84,7 +84,12 @@ struct ModelMemoryInfo: Identifiable, Hashable, Sendable {
             maxContext: Int(entry["max_context_length"] ?? "0") ?? 0,
             vocabSize: Int(entry["vocab_size"] ?? "0") ?? 0,
             tokenizer: entry["tokenizer"] ?? "",
-            isVlm: (entry["specialized"] ?? "false") == "true",
+            // `EnginePool.listModels()` publishes VLM-ness under `"vlm"`
+            // (EnginePool.swift:1115). `"specialized"` is a DIFFERENT fact — the
+            // CoreAI ANE specialization flag, present only under canImport(CoreAI)
+            // — so reading it here reported every MLX VLM as text-only on the
+            // macOS 26 delivery build, where the key is always absent.
+            isVlm: (entry["vlm"] ?? "false") == "true",
             paramsCustomized: (entry["params_customized"] ?? "false") == "true"
         )
     }

@@ -14,6 +14,10 @@ import SwiftUI
 import AppKit
 #endif
 
+#if os(macOS)
+import UniformTypeIdentifiers
+#endif
+
 #if os(iOS)
 import PhotosUI
 #endif
@@ -100,6 +104,16 @@ struct ChatView: View {
     #if os(macOS)
     @State private var _keyboardMonitor: Any? = nil
     #endif
+
+    // Drag-and-drop feedback — HIG: a drop target must LOOK like one while a
+    // drag hovers it. Ingest policy itself lives in ComposerIngest/ChatState.
+    @State private var isDropTargeted = false
+
+    /// This model's context window plus its provenance, resolved by the pool.
+    /// Refreshed when the picked model changes, so the watermark can say whether
+    /// the cap it is metering against came from the model or from the user.
+    @State private var windowReport: ResolvedContextWindow =
+        ResolvedContextWindow(tokens: nil, source: .unknown)
 
     // Multimodal controls panel — collapsed by default
     @State private var showMultimodal = false
@@ -209,6 +223,12 @@ struct ChatView: View {
             } else {
                 currentModel = idStrings.first ?? ""
             }
+        }
+        // Provenance rides the model picker: switching models re-reads that model's
+        // window (override -> declared -> unknown) from the SAME resolver the engine
+        // budgets with.
+        .task(id: currentModel) {
+            windowReport = await ModelManager.shared.resolvedContextWindow(for: currentModel)
         }
         // dispose keyboard monitor on disappear to prevent event monitor leak
         .onDisappear {
@@ -662,6 +682,18 @@ struct ChatView: View {
                 .foregroundStyle(theme.textTertiary)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                // Where this limit came from. Labelled only when the number the pool
+                // reports is the number being metered: a caption that describes a
+                // different window than the bar is measuring would be a worse lie
+                // than no caption at all.
+                if windowReport.tokens == limit,
+                    let provenance = ContextWindowPolicy.provenanceLabel(for: windowReport)
+                {
+                    Text(provenance)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(theme.textTertiary)
+                        .fixedSize()
+                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 5)
@@ -823,6 +855,54 @@ struct ChatView: View {
             }
         }
         .padding()
+        // MARK: - Front door: what the user holds in their hand reaches the agent
+        // Policy = ComposerIngest, funnel = ChatState.ingestFileURLs — the same
+        // door the picker now uses, so drop / paste / pick can never disagree.
+        .dropDestination(for: URL.self) { urls, _ in
+            chatState.ingestFileURLs(urls).landed > 0
+        } isTargeted: { targeted in
+            // HIG: a drop target must LOOK like one while a drag hovers it.
+            isDropTargeted = targeted
+        }
+        // Selected text dragged in is content, not a refusal.
+        .dropDestination(for: String.self) { strings, _ in
+            let dropped = strings.joined()
+            guard !dropped.isEmpty else { return false }
+            chatState.inputText += dropped
+            return true
+        }
+        .overlay {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 14)
+                    .strokeBorder(
+                        theme.accent, style: StrokeStyle(lineWidth: 1.5, dash: [6, 3])
+                    )
+                    .background(
+                        theme.accent.opacity(0.06), in: RoundedRectangle(cornerRadius: 14)
+                    )
+                    .overlay {
+                        Label(StringKey.dropFilesHint.l, systemImage: "tray.and.arrow.down.fill")
+                            .font(.ocoreaiText(12, weight: .semibold))
+                            .foregroundStyle(theme.accent)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(theme.cardBg, in: Capsule())
+                            .overlay(
+                                Capsule().strokeBorder(theme.accent.opacity(0.4), lineWidth: 0.5))
+                    }
+                    .allowsHitTesting(false)
+            }
+        }
+        #if os(macOS)
+        // ⌘V on a screenshot or a Finder copy. The field editor sometimes keeps
+        // ⌘V for itself, which is why Edit ▸ Paste Image or Files (⇧⌘V) exists
+        // as the guaranteed route — this is the one people actually reach for.
+        .onPasteCommand(of: [.fileURL, .image, .png, .jpeg, .tiff, .heic]) { providers in
+            Task { @MainActor in
+                await chatState.ingest(itemProviders: providers)
+            }
+        }
+        #endif
     }
 
     // MARK: - Image Picker
@@ -832,56 +912,18 @@ struct ChatView: View {
     private func pickImages() {
         #if os(macOS)
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.png, .jpeg, .heic, .webP]
+        // The button has always been labelled "Attach Files", so the panel must
+        // offer FILES: allowed types DERIVE from the ingest policy, so "what the
+        // panel offers" and "what the engine accepts" can never drift apart again.
+        panel.allowedContentTypes = ComposerIngest.allowedContentTypes
         panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
+        panel.canChooseDirectories = true
 
         panel.begin { response in
             guard response == .OK else { return }
-            // capture URLs on main actor before detaching (panel.urls is @MainActor-isolated)
-            // then offload disk I/O + CPU compression to background
-            // to keep main-thread response < 100ms per Apple HIG
-            let selectedURLs = panel.urls
-            Task.detached(priority: .utility) {
-                // check file size before loading — prevents OOM on large files
-                // 10 MB limit: after compression this yields ~500KB per image, well within budget
-                let maxFileSize = 10 * 1024 * 1024
-                var attachmentsToAppend: [ChatState.AttachedImage] = []
-                for url in selectedURLs {
-                    do {
-                        // Pre-check size without loading into memory
-                        guard
-                            let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-                            let size = attrs[.size] as? Int,
-                            size <= maxFileSize
-                        else {
-                            // Report oversized files back on main thread
-                            await MainActor.run {
-                                chatState.errorMessage = String(
-                                    format: StringKey.fileTooLarge.l,
-                                    url.lastPathComponent
-                                )
-                            }
-                            continue
-                        }
-                        let data = try Data(contentsOf: url)
-                        // compress before base64 — keeps per-image memory under 500KB
-                        // (was: raw 20MB file → 27MB base64; now: compressed ~300KB → ~400KB base64)
-                        let compressed = compressImage(data)
-                        attachmentsToAppend.append(
-                            ChatState.AttachedImage(
-                                dataURL:
-                                    "data:image/jpeg;base64,\(compressed.base64EncodedString())"
-                            ))
-                    } catch {
-                        // Skip files that fail to read
-                    }
-                }
-                // Batch result back to main thread
-                await MainActor.run {
-                    chatState.pendingAttachments.append(contentsOf: attachmentsToAppend)
-                }
-            }
+            // One funnel for every door (drop / paste / picker): size caps,
+            // compression, and honest per-file refusals live in the funnel.
+            chatState.ingestFileURLs(panel.urls)
         }
         #else
         // iOS — present PhotosPicker sheet (iOS 16+, HIG-compliant)
@@ -978,8 +1020,22 @@ struct ChatBubble: View {
 
     @Environment(\.ocoreaiTheme) private var theme
 
+    // Edit-and-resend lives on the shared state so a row recreation cannot
+    // discard a half-typed correction; same singleton pattern as ChatView.
+    @State private var chatState: ChatState = .shared
+    @State private var hovering = false
+    @FocusState private var editorFocused: Bool
+
     private var isUser: Bool {
         message.role == "user"
+    }
+
+    private var messageUUID: UUID? {
+        UUID(uuidString: message.id)
+    }
+
+    private var isEditing: Bool {
+        isUser && messageUUID != nil && chatState.editingMessageID == messageUUID
     }
 
     var body: some View {
@@ -1002,8 +1058,12 @@ struct ChatBubble: View {
                     imagePreview
                 }
 
-                // Structured content takes precedence over flat content
-                if let parts = message.parts, !parts.isEmpty, !isUser {
+                // Edit mode replaces the bubble in place (HIG: keep the user
+                // where they are — a sheet would move the thing they are fixing).
+                if isEditing {
+                    editEditor
+                } else if let parts = message.parts, !parts.isEmpty, !isUser {
+                    // Structured content takes precedence over flat content
                     TranscriptContentView(parts: parts, isUser: isUser)
                 } else {
                     // Fallback: flat content (legacy messages + user input)
@@ -1019,6 +1079,26 @@ struct ChatBubble: View {
                     }
                     .foregroundStyle(.tertiary)
                 }
+
+                // Recoverability affordance: correct the instruction in place
+                // instead of appending a correction underneath the wrong answer.
+                // Always present at low opacity (a hidden affordance is not an
+                // affordance), brighter on hover.
+                if isUser, !isEditing {
+                    Button {
+                        guard let uuid = messageUUID else { return }
+                        chatState.beginEdit(id: uuid, text: message.content)
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "pencil")
+                            Text(StringKey.editMessage.l)
+                        }
+                        .font(.ocoreaiText(10))
+                        .foregroundStyle(hovering ? theme.accent : theme.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(StringKey.editAndResend.l)
+                }
             }
             .accessibilityLabel("\(isUser ? StringKey.youLabel.l : StringKey.ocoreaiLabel.l)")
             .accessibilityValue(
@@ -1032,6 +1112,10 @@ struct ChatBubble: View {
                 }
                 if message.role == "user" {
                     Divider()
+                    Button(StringKey.editAndResend.l) {
+                        guard let uuid = UUID(uuidString: message.id) else { return }
+                        chatState.beginEdit(id: uuid, text: message.content)
+                    }
                     Button(StringKey.regenerateMessage.l) {
                         guard let uuid = UUID(uuidString: message.id) else { return }
                         ChatState.shared.resendFromMessage(with: uuid)
@@ -1043,6 +1127,10 @@ struct ChatBubble: View {
                 }
                 if message.role == "user" {
                     Divider()
+                    Button(StringKey.editAndResend.l) {
+                        guard let uuid = UUID(uuidString: message.id) else { return }
+                        chatState.beginEdit(id: uuid, text: message.content)
+                    }
                     Button(StringKey.regenerateMessage.l) {
                         guard let uuid = UUID(uuidString: message.id) else { return }
                         ChatState.shared.resendFromMessage(with: uuid)
@@ -1050,9 +1138,62 @@ struct ChatBubble: View {
                 }
                 #endif
             }
+            .onHover { hovering = $0 }
 
             if isUser { Spacer(minLength: 16) }
         }
+    }
+
+    // MARK: Edit-and-resend editor
+
+    private var editorText: Binding<String> {
+        Binding(
+            get: { chatState.editingText },
+            set: { chatState.editingText = $0 }
+        )
+    }
+
+    private func submitEdit() {
+        guard let uuid = messageUUID else { return }
+        Task { @MainActor in
+            await chatState.commitEdit(of: uuid)
+        }
+    }
+
+    private var editEditor: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            TextEditor(text: editorText)
+                .font(.ocoreaiText(13))
+                .foregroundStyle(theme.text)
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .frame(minHeight: 64, maxHeight: 220)
+                .background(theme.inputBg)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(theme.accent, lineWidth: 1)
+                )
+                .focused($editorFocused)
+                .onAppear { editorFocused = true }
+            HStack(spacing: 8) {
+                Text(StringKey.editShortcutHint.l)
+                    .font(.ocoreaiText(10))
+                    .foregroundStyle(theme.textTertiary)
+                Button(StringKey.cancelButton.l) {
+                    chatState.cancelEdit()
+                }
+                .keyboardShortcut(.cancelAction)
+                Button(StringKey.editSendAction.l) {
+                    submitEdit()
+                }
+                // ⌘↵ resends. Deliberately NOT .defaultAction: a default button
+                // claims plain ↵ for the whole window, which would make it
+                // impossible to type a newline in this very editor.
+                .keyboardShortcut(.return, modifiers: .command)
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .accessibilityElement(children: .contain)
     }
 
     // Create on first access so the initializer runs on @MainActor.

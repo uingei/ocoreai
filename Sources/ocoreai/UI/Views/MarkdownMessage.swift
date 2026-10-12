@@ -82,6 +82,10 @@ struct ContentRouter: View {
                     Text(content)
                         .font(.ocoreaiText(15))
                         .lineSpacing(3)
+                        // The decoded branch is selectable; this fallback is what
+                        // every message with undecodable markdown renders as — left
+                        // unselectable, selection silently vanished on those.
+                        .textSelection(.enabled)
                 }
             }
         }

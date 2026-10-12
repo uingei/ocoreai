@@ -418,6 +418,9 @@ public enum StringKey: String, CaseIterable, Sendable {
     case reasoningTokMeter = "Chat.ReasoningTokMeter"  // "reasoning: %d tok"
     case mtpMeter = "Chat.MTPMeter"  // "mtp: %d/%d"
     case contextMeter = "Chat.ContextMeter"  // "ctx: %d/%d (%d left)"
+    // — Context-window provenance (who decided this number) —
+    case contextWindowFromModel = "Chat.ContextWindowFromModel"
+    case contextWindowSetManually = "Chat.ContextWindowSetManually"
 
     // — Settings / About —
     case aboutTitle = "About.Title"
@@ -454,6 +457,12 @@ public enum StringKey: String, CaseIterable, Sendable {
     case undoAction = "Action.Undo"
     // — Regenerate —
     case regenerateMessage = "Action.RegenerateMessage"
+    // — Edit-and-resend (in-place instruction correction) —
+    case editMessage = "Action.Edit"
+    case editAndResend = "Action.EditAndResend"
+    case editSendAction = "Action.Resend"
+    case editShortcutHint = "Chat.EditShortcutHint"
+    case editNothingToSend = "Chat.EditNothingToSend"
     // — Copy code —
     case copyCode = "Action.CopyCode"
     // — Code language fallback —
@@ -534,6 +543,9 @@ public enum StringKey: String, CaseIterable, Sendable {
     case modelParamSeedHint = "Models.ParamSeedHint"
     case modelParamMaxKV = "Models.ParamMaxKV"
     case modelParamMaxKVHint = "Models.ParamMaxKVHint"
+    case modelParamContextWindow = "Models.ParamContextWindow"
+    case modelParamContextWindowHint = "Models.ParamContextWindowHint"
+    case modelParamContextWindowUnknown = "Models.ParamContextWindowUnknown"
     case modelParamRepeatWindow = "Models.ParamRepeatWindow"
     case modelParamRepeatWindowHint = "Models.ParamRepeatWindowHint"
     case modelParamRepeatCtx = "Models.ParamRepeatCtx"
@@ -557,6 +569,12 @@ public enum StringKey: String, CaseIterable, Sendable {
     case clearConversationMessage = "Chat.ClearConversationMessage"
     case fileTooLarge = "Chat.FileTooLarge"
     case generationFailed = "Chat.GenerationFailed"
+    // — Composer front door: drop / paste / non-image attachments —
+    case attachUnsupportedType = "Chat.AttachUnsupportedType"
+    case attachTooLarge = "Chat.AttachTooLarge"
+    case attachUnreadable = "Chat.AttachUnreadable"
+    case pasteAttachment = "Chat.PasteAttachment"
+    case dropFilesHint = "Chat.DropFilesHint"
     // — Context compaction visibility (codex #42319 parity) —
     case contextCompactedBadge = "Chat.ContextCompacted"
     case skillRegistryUnavailable = "Common.SkillRegistryUnavailable"
@@ -660,7 +678,14 @@ enum L10nTables {
         // Chat
         .chatPlaceholder: "Type a message...",
         .attachFiles: "Attach Files",
-        .attachFilesHint: "Choose an image to attach",
+        .attachFilesHint: "Choose images, documents, code, or PDFs to attach",
+        .attachUnsupportedType:
+            "%@ can't be attached — unsupported type (.%@). Drop text, code, PDF, or images instead.",
+        .attachTooLarge: "%@ is %@ MB — attachments are capped at %@ MB.",
+        .attachUnreadable:
+            "Can't read %@ — it may have moved, or this app lacks permission to open it.",
+        .pasteAttachment: "Paste Image or Files",
+        .dropFilesHint: "Drop images, documents, or code",
         .videoPlaceholder: "Video",
         .worktreeNew: "New Worktree Session",
         .worktreeNotRepo: "Not a git repository: %s",
@@ -850,6 +875,8 @@ enum L10nTables {
         .reasoningTokMeter: "reasoning: %d tok",
         .mtpMeter: "mtp: %d/%d",
         .contextMeter: "ctx: %d/%d (%d left)",
+        .contextWindowFromModel: "from model",
+        .contextWindowSetManually: "set by you",
         .modelLoadError: "Load Failed",
         .modelDeleteError: "Delete Failed",
         .modelDeleteButton: "Delete",
@@ -1010,6 +1037,9 @@ enum L10nTables {
         .modelParamSeedHint: "Deterministic sampling seed",
         .modelParamMaxKV: "Max KV Cache",
         .modelParamMaxKVHint: "Max KV cache size (enables rotating cache)",
+        .modelParamContextWindow: "Context Window",
+        .modelParamContextWindowHint: "Model declares %@ — empty inherits, smaller caps budgets.",
+        .modelParamContextWindowUnknown: "No window declared — set one to arm budgets.",
         .modelParamRepeatWindow: "Repeat Pen. Window",
         .modelParamRepeatWindowHint: "Recent-token window for repeat penalty",
         .modelParamRepeatCtx: "Repeat Ctx Size",
@@ -1052,7 +1082,7 @@ enum L10nTables {
         .projectSessions: "Sessions",
         .projectDeleteConfirm: "Delete this project? Its sessions stay in Sessions.",
         .projectNoFolder: "No folder bound — chat & docs only",
-                .projectEmptyFiles: "No files in this folder yet",
+        .projectEmptyFiles: "No files in this folder yet",
         .projectNamePlaceholder: "Project name",
         .memorySearchFailed: "Memory search failed",
         .memoryLoadFailed: "Failed to load memory",
@@ -1062,6 +1092,11 @@ enum L10nTables {
         .copyMessage: "Copy Message",
         .undoAction: "Undo",
         .regenerateMessage: "Regenerate",
+        .editMessage: "Edit",
+        .editAndResend: "Edit & Resend",
+        .editSendAction: "Resend",
+        .editShortcutHint: "⌘↵ resend · Esc cancel",
+        .editNothingToSend: "Nothing to resend — the message is empty.",
         .copyCode: "Copy Code",
 
         // Markdown fallback
@@ -1161,7 +1196,12 @@ enum L10nTables {
         .loadingMetrics: "加载指标中...",
         .chatPlaceholder: "输入消息…",
         .attachFiles: "附加文件",
-        .attachFilesHint: "选择要附加的图片",
+        .attachFilesHint: "选择要附加的图片、文档、代码或 PDF",
+        .attachUnsupportedType: "无法附加 %@：不支持的类型（.%@）。请拖入文本、代码、PDF 或图片。",
+        .attachTooLarge: "%@ 为 %@ MB——附件上限为 %@ MB。",
+        .attachUnreadable: "无法读取 %@——文件可能已移动，或本应用没有打开它的权限。",
+        .pasteAttachment: "粘贴图片或文件",
+        .dropFilesHint: "可拖入图片、文档或代码",
         .videoPlaceholder: "视频",
         .worktreeNew: "新工作树会话",
         .worktreeNotRepo: "不是 git 仓库: %s",
@@ -1196,6 +1236,8 @@ enum L10nTables {
         .reasoningTokMeter: "推理: %d tok",
         .mtpMeter: "mtp: %d/%d",
         .contextMeter: "上下文: %d/%d (余 %d)",
+        .contextWindowFromModel: "模型声明",
+        .contextWindowSetManually: "你已设置",
         .settingsTitle: "设置",
         .serverAddress: "服务器地址",
         .port: "端口",
@@ -1508,6 +1550,11 @@ enum L10nTables {
         .copyMessage: "复制消息",
         .undoAction: "撤销",
         .regenerateMessage: "重新生成",
+        .editMessage: "编辑",
+        .editAndResend: "编辑并重发",
+        .editSendAction: "重新发送",
+        .editShortcutHint: "⌘↵ 重发 · Esc 取消",
+        .editNothingToSend: "没有可重发的内容——消息为空。",
         .copyCode: "复制代码",
 
         // Sessions
@@ -1586,6 +1633,9 @@ enum L10nTables {
         .modelParamSeedHint: "确定性采样种子",
         .modelParamMaxKV: "最大 KV 缓存",
         .modelParamMaxKVHint: "最大 KV 缓存大小（启用轮转缓存）",
+        .modelParamContextWindow: "上下文窗口",
+        .modelParamContextWindowHint: "模型声明 %@，留空即继承，更小值收紧各处预算。",
+        .modelParamContextWindowUnknown: "未声明窗口，设置后才启用预算。",
         .modelParamRepeatWindow: "重复惩罚窗口",
         .modelParamRepeatWindowHint: "重复惩罚的近期 token 窗口",
         .modelParamRepeatCtx: "重复上下文大小",

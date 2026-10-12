@@ -16,7 +16,24 @@
 /// - ``DirectTokenizer``: wraps swift-transformers ``Tokenizer`` + prewarm
 /// - ``StreamingDetokenizer``: streaming detokenization with prefix preservation
 
-#if canImport(CoreAI)
+// GATE: this file needs swift-transformers (`Tokenizers` + `Hub`) and nothing
+// else, so the gate is `canImport(Tokenizers)` — the dependency it actually has.
+// It used to be `canImport(CoreAI)`, which is a DIFFERENT axis (Apple CoreAI,
+// macOS 27 SDK only). `Tokenizers` is an unconditional SPM product of this
+// target (Package.swift:97) while `CoreAI` is absent on the macOS 26 delivery
+// platform, so the old gate compiled this file OUT on every shipping machine and
+// silently substituted the no-op stub in `Models/InferenceStubs.swift`
+// (`registerTokenizer` = `{}`, `getTokenizer` = nil).
+// Live consequence (proven 2026-10-12 on macOS 26, default model loaded and
+// ready): `POST /v1/count-tokens` answered 404 "Model ... not found" for the
+// exact id `GET /v1/models` lists as ready; chat fell back to the bytes/3-4
+// heuristic, so `usage.prompt_tokens` and the context-window wall ran on
+// estimated counts; and EnginePool still logged "Tokenizer registered ...
+// context wall on real token counts" after the no-op register — a success claim
+// with no substrate. 20 test files are `#if canImport(CoreAI)`-gated, which is
+// why the CLT gate never caught it: two gates that mean different things were
+// conflated.
+#if canImport(Tokenizers)
 
 import Foundation
 import Hub
@@ -95,6 +112,12 @@ actor TokenizerManager {
     private var tokenizers: [String: DirectTokenizer] = [:]
 
     init() {}
+
+    /// Honest capability flag: this build links swift-transformers, so a model
+    /// that registers successfully gets REAL token counts. The stub variant in
+    /// `Models/InferenceStubs.swift` answers `false`; consumers (log line,
+    /// `/v1/capabilities`, tests) read this instead of inferring from silence.
+    static var isRealTokenizerBackend: Bool { true }
 
     /// Register a tokenizer loaded from a local directory path.
     func registerTokenizer(for modelId: String, tokenizerPath: String) async throws {

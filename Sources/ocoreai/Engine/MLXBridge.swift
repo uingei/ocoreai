@@ -14,7 +14,9 @@
 //   3. HuggingFace Hub: `hf:mlx-community/Qwen3.5-4B`
 //
 // ### MLX Stack (mlx-swift-lm):
-//   Auto-detect VLM via `preprocessor_config.json`:
+//   Auto-detect VLM via the processor config the checkpoint ships
+//   (`preprocessor_config.json` or `processor_config.json` — see
+//   `ModelStore.hasVisionProcessor`, the canonical predicate):
 //    - VLM → VLMModelFactory.loadContainer(...) — supports images/video/audio
 //    - LLM → LLMModelFactory.loadContainer(...) — text only
 //
@@ -78,8 +80,9 @@ final class MLXModelHandleImpl: MLXModelHandle {
 
 /// Load an MLX model from local filesystem, ModelScope Hub, or HuggingFace.
 ///
-/// VLM auto-detection: if model directory has `preprocessor_config.json`,
-/// it uses `VLMModelFactory` instead of `LLMModelFactory`.
+/// VLM auto-detection: if the model directory declares a vision processor
+/// (`preprocessor_config.json` or `processor_config.json`), it uses
+/// `VLMModelFactory` instead of `LLMModelFactory`.
 ///
 /// HF path: native `#hubDownloader()` + `#huggingFaceTokenizerLoader()` (zero handwritten code)
 /// MS path:  custom `ModelScopeDownloader` (upstream has no ModelScope support)
@@ -111,10 +114,21 @@ actor MLXModelLoader {
 
     // MARK: - VLM Detection
 
-    /// VLM models have `processor_config.json` (processor_class).
+    /// VLM detection for the loader — delegates to ``ModelStore/hasVisionProcessor(at:fileManager:)``,
+    /// the app's single canonical predicate.
+    ///
+    /// It used to test `processor_config.json` ALONE, while discovery
+    /// (`ModelStore.discoverReady`) tested `preprocessor_config.json` alone. Two
+    /// partial predicates on one fact meant loader and discovery could disagree in
+    /// either direction: a Gemma 4 / Qwen3.5-style checkpoint (only
+    /// `processor_config.json`) loaded as a real VLM but was advertised `vlm:false`,
+    /// and a Gemma 3 / Qwen2.5-VL-style checkpoint (only
+    /// `preprocessor_config.json`) was advertised as a VLM but loaded as a
+    /// text-only LLM that cannot take images. Accepted set mirrors upstream
+    /// `VLMModelFactory.loadProcessorConfig`
+    /// (Libraries/MLXVLM/VLMModelFactory.swift:549-556).
     nonisolated static func isVLMModel(at directory: URL) -> Bool {
-        let processorPath = directory.appendingPathComponent("processor_config.json")
-        return FileManager.default.fileExists(atPath: processorPath.path)
+        ModelStore.hasVisionProcessor(at: directory)
     }
 
     /// Load container auto-detecting VLM vs LLM from directory.
@@ -480,7 +494,7 @@ actor MLXModelLoader {
             )
             logElapsed("ModelScope download \(repoId) completed", start)
             do {
-                // VLM auto-detection: check for preprocessor_config.json
+                // VLM auto-detection: loadContainer() probes the processor config
                 let container = try await loadContainer(from: directory, repoId: repoId)
                 OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
                 return container
@@ -529,7 +543,7 @@ actor MLXModelLoader {
                 OcoreaiDownloadProgress.shared.finish(modelId: progressKey, success: true)
                 return container
             } catch {
-                // LLM load failed — try VLM factory (model may have preprocessor_config.json)
+                // LLM load failed — try VLM factory (model may declare a processor config)
                 logger.info(
                     "LLM load failed for \(repoId), trying VLM: \(error.localizedDescription)")
                 do {

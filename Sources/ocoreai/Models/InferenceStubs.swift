@@ -516,11 +516,18 @@ enum StopReason: Int, Codable, Error {
     static let errorCase: StopReason = .error
 }
 
-// MARK: - Fallback stubs (when CoreAI is unavailable)
+// MARK: - Tokenizer stubs (only when swift-transformers is unavailable)
 
-#if !canImport(CoreAI)
-
-// MARK: - MLX-only tokenizer stubs (CoreAI path uses TokenizerManager.swift)
+// GATE NOTE (2026-10-12): this block used to share the `!canImport(CoreAI)` gate
+// that hides the real `Tokenizer/TokenizerManager.swift`. That conflated two
+// different axes — the real registry depends on swift-transformers, not on Apple
+// CoreAI. On the macOS 26 delivery build CoreAI is absent while `Tokenizers` is
+// present, so this stub silently replaced the real registry: `registerTokenizer`
+// became a no-op and `getTokenizer` returned nil for every model, which made
+// `/v1/count-tokens` 404 on a model `/v1/models` reports ready and pushed every
+// token count onto the bytes heuristic. Each stub is now gated on the dependency
+// it actually substitutes.
+#if !canImport(Tokenizers)
 
 /// Empty StreamingDetokenizer for MLX-only builds — MLXLLM containers have
 /// built-in tokenizers.
@@ -545,7 +552,16 @@ actor TokenizerManager {
     @discardableResult
     func removeTokenizer(for _: String) -> Bool { false }
     func shutdown() {}
+
+    /// Honest capability flag: this build has NO real tokenizer backend, so every
+    /// token count is an estimate. Read by `/v1/capabilities` and by the log line
+    /// that used to claim "context wall on real token counts" unconditionally.
+    static var isRealTokenizerBackend: Bool { false }
 }
+
+#endif  // !Tokenizers
+
+#if !canImport(CoreAI)
 
 // MARK: - CoreAI type stubs
 

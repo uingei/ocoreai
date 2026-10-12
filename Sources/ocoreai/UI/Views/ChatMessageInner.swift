@@ -25,6 +25,14 @@ struct ChatMessageInner: View {
             }
         }
         .multilineTextAlignment(isUser ? .trailing : .leading)
+        // HIG: text the user can read is text they can select. Before this, the
+        // only selection in the transcript lived in MarkdownMessage's decoded
+        // branch and FileDiffCard — so user bubbles (a path or an error string you
+        // typed yourself) and every assistant message whose markdown failed to
+        // decode were silently unselectable, recoverable only by re-typing. The
+        // whole-message Copy action does not help when you want three words out of
+        // six lines. Applied on the container so both branches inherit it.
+        .textSelection(.enabled)
         .padding(12)
         .background(
             isUser ? theme.accentSoft : theme.cardBg,

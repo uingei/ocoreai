@@ -480,7 +480,7 @@ actor SQLiteStore {
             try Self.exec(
                 sql: "ALTER TABLE sessions ADD COLUMN workspace_directory TEXT;", db: db)
         }
-        // Project container (Bionic IA parity, docs/bionic/quick-start):
+        // Project container (Bionic IA parity, CHANGELOG 4c1b4ad):
         // "A project keeps related sessions and files together." A project
         // owns a name, an opt-in coding folder (`Allow coding` toggle) and
         // many sessions; sessions inherit the folder as workspace_directory

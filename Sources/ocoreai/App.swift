@@ -346,7 +346,11 @@ public final class OcoreaiEngine {
 
         _skillRegistry = SkillRegistry(log: logger)
         _systemPromptBuilder = SystemPromptBuilder(
-            basePrompt: SystemPromptBuilder.codingAgentBase,
+            // Identity only — the tool directive is chosen per turn by
+            // `SystemPromptBuilder.build(hasTools:)`, because a turn with a zero
+            // tool surface must not be told to "use your tools / run commands"
+            // (live 2026-10-12: it fabricated a `terminal command:` transcript).
+            basePrompt: SystemPromptBuilder.codingAgentIdentity,
         )
         // _systemPromptBuilder is guaranteed non-nil after direct init above
         guard let spb = _systemPromptBuilder else {

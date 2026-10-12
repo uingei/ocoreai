@@ -2,7 +2,8 @@
 // Licensed under MIT.
 /// ProjectModel / ProjectFileEntry — the Bionic-parity project container DTOs.
 ///
-/// Bionic IA (docs/bionic/quick-start, verified 2026-10-11): "A project keeps
+/// Bionic IA (observed on the reference app 2026-10-11, landed in 4c1b4ad):
+/// "A project keeps
 /// related sessions and files together. Create one project for work that
 /// should share the same goal, source files, or codebase." ocoreai mirrors
 /// that container exactly: project = name + bound folder (optional, opt-in

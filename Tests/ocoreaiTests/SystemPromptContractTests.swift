@@ -68,10 +68,70 @@ struct SystemPromptContractTests {
 
     @Test("built prompt (no skills) keeps the full contract")
     func buildKeepsContract() async {
-        let builder = SystemPromptBuilder(basePrompt: SystemPromptBuilder.codingAgentBase)
+        let builder = SystemPromptBuilder(basePrompt: SystemPromptBuilder.codingAgentIdentity)
         let built = await builder.build()
         #expect(built.contains("an agent for open models"))
         #expect(built.contains("use your tools"))
+    }
+
+    @Test(
+        "zero-tool turn must NOT be told to use tools — and MUST be told not to simulate them"
+    )
+    func noToolsTurnDropsActionDirective() async {
+        // Live failure pinned (2026-10-12): client sent no `tools[]`, the engine
+        // resolved a zero surface (0/39 injected), yet the prompt still commanded
+        // "use your tools … run commands". gemma-4-e2b-it-4bit complied by
+        // inventing a transcript: `terminal\ncommand: "seq 1 60"\nstdout: "…`.
+        let builder = SystemPromptBuilder(basePrompt: SystemPromptBuilder.codingAgentIdentity)
+        let built = await builder.build(hasTools: false)
+        let lower = built.lowercased()
+        #expect(!lower.contains("use your tools"))
+        #expect(!lower.contains("run commands"))
+        #expect(lower.contains("no tools"))
+        #expect(lower.contains("never pretend to run a command"))
+        #expect(lower.contains("fabrication"))
+        // Identity/honesty survives on both branches.
+        #expect(built.contains("an agent for open models"))
+        #expect(lower.contains("never hide, soften, or fabricate"))
+    }
+
+    @Test("with-tools turn keeps the action-first directive")
+    func toolsTurnKeepsActionDirective() async {
+        let builder = SystemPromptBuilder(basePrompt: SystemPromptBuilder.codingAgentIdentity)
+        let built = await builder.build(hasTools: true)
+        #expect(built.contains(SystemPromptBuilder.toolActionDirective))
+        #expect(!built.contains(SystemPromptBuilder.noToolsDirective))
+    }
+
+    @Test(
+        "with-tools turn bans claiming an action it did not take"
+    )
+    func toolsTurnBansNarratedActions() async {
+        // Live 2026-10-12: `web_search` declared, no tool dispatched, and the model
+        // still wrote "I have searched the web … (Source: https://mlx.studio/)".
+        let built = SystemPromptBuilder.basePrompt(hasTools: true).lowercased()
+        #expect(built.contains("claiming an action requires having called the tool"))
+        #expect(built.contains("narration that sounds like a completed action is not one"))
+        // The ban must exist on BOTH surfaces — a turn with tools and a turn
+        // without both fabricate; only the wording differs.
+        let noTools = SystemPromptBuilder.basePrompt(hasTools: false).lowercased()
+        #expect(noTools.contains("never pretend to run a command"))
+    }
+
+    @Test("tool surface is part of the prompt cache key")
+    func toolSurfaceSeparatesCache() async {
+        // One builder serves many turns. If `hasTools` were outside the hash, an
+        // agentic turn would serve the cached no-tools prompt next time — the
+        // model silently losing (or gaining) its marching orders.
+        let builder = SystemPromptBuilder(basePrompt: SystemPromptBuilder.codingAgentIdentity)
+        let withTools = await builder.build(hasTools: true)
+        let without = await builder.build(hasTools: false)
+        #expect(withTools != without)
+        // Repeat in the other order: both must still be correct, not sticky.
+        let withoutAgain = await builder.build(hasTools: false)
+        let withToolsAgain = await builder.build(hasTools: true)
+        #expect(withoutAgain == without)
+        #expect(withToolsAgain == withTools)
     }
 
     @Test("contract survives user system-prompt append, never gets dropped")

@@ -79,7 +79,15 @@ actor MessageBuilder {
         var messages = context.rawMessages
 
         // Phase 1: Build system prompt from skills
-        let builtSystemPrompt = await systemPromptBuilder.buildSystemPrompt()
+        // The tool surface for THIS turn, taken from the same field Phase 5 uses
+        // to inject tool definitions: `nil` (client declared nothing) and `[]`
+        // (declared empty) both mean zero executable tools, which is how the
+        // engine resolves them (`resolveToolSurface`). Telling the model to run
+        // commands on such a turn produced fabricated `terminal command:` output
+        // (live, 2026-10-12).
+        let hasToolsThisTurn = context.tools?.isEmpty == false
+        let builtSystemPrompt = await systemPromptBuilder.buildSystemPrompt(
+            hasTools: hasToolsThisTurn)
 
         // Phase 2: Recall permanent memory (non-fatal)
         var memoryContext = ""

@@ -312,8 +312,11 @@ extension DirectInferenceClient {
         // Pre/PostCompact hooks honored), the identical 400 wall only if the
         // compacted transcript still exceeds the cap. The Fast Path must never
         // be a bare 400 backstop — the same prompt must survive over HTTP.
-        let contextCap = await enginePool.getSamplingConfig(modelId: request.modelId)
-            .maxContextWindow
+        // Cap = EFFECTIVE window (human override → model-declared → unknown), so a
+        // model that declares its own window budgets without any manual configuration
+        // — parity with the wire path, which resolves the same way.
+        let contextCap = await enginePool.effectiveContextWindow(modelId: request.modelId)
+            .tokens
         let capResult = try await enforceContextWindow(
             cap: contextCap,
             messages: fullMessages,
@@ -688,8 +691,11 @@ extension DirectInferenceClient {
         // Enforce per-model context window cap — same compact-first wire
         // semantics as the stream path (parity: no behavioral branch between
         // the two Fast Path routes).
-        let contextCap = await enginePool.getSamplingConfig(modelId: request.modelId)
-            .maxContextWindow
+        // Cap = EFFECTIVE window (human override → model-declared → unknown), the
+        // same resolution the wire path and the streaming route use, so a model that
+        // declares its own window budgets on both Fast Path routes unconfigured.
+        let contextCap = await enginePool.effectiveContextWindow(modelId: request.modelId)
+            .tokens
         let capResult = try await enforceContextWindow(
             cap: contextCap,
             messages: fullMessages,

@@ -29,10 +29,18 @@ actor FTS5Search {
         let params: [AnyHashable]
 
         if let sid = sessionId {
-            whereClause = "WHERE session_id = ? AND content MATCH ?"
+            // In this JOIN both messages_fts and messages expose session_id and
+            // content, so EVERY predicate column has to name its table: any
+            // unqualified reference makes SQLite fail prepare with "ambiguous
+            // column name", which surfaced as Search failed: on GET
+            // /sessions/search. Filtering and matching on the FTS side keeps the
+            // MATCH against the index. Both branches are pinned by
+            // FTS5SearchTests - the unscoped branch was the same bug, and it is
+            // the documented default call (GET /sessions/search?q=).
+            whereClause = "WHERE fts.session_id = ? AND fts.content MATCH ?"
             params = [sid, query]
         } else {
-            whereClause = "WHERE content MATCH ?"
+            whereClause = "WHERE fts.content MATCH ?"
             params = [query]
         }
 

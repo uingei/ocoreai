@@ -505,7 +505,11 @@ struct ModelIDTests {
             "max_context_length": "8192",
             "vocab_size": "49152",
             "tokenizer": "lstm",
-            "specialized": "true",
+            // `EnginePool.listModels()` publishes VLM-ness as "vlm"
+            // (EnginePool.swift:1115). This fixture used "specialized", which is
+            // the CoreAI ANE flag — the parser that read it reported every MLX
+            // vision model as text-only on macOS 26, and this test pinned that.
+            "vlm": "true",
         ]
         let m = ModelID.fromListModels(entry)
         #expect(m.id == "test/model")
@@ -514,17 +518,33 @@ struct ModelIDTests {
         #expect(m.isVlm == true)
     }
 
-    @Test("fromListModels with specialized=false")
+    @Test("fromListModels with vlm=false, and specialized never implies VLM")
     func fromListVlmFalse() {
         let entry: [String: String] = [
             "id": "basic",
             "max_context_length": "2048",
             "vocab_size": "256",
             "tokenizer": "",
-            "specialized": "false",
+            "vlm": "false",
         ]
         let m = ModelID.fromListModels(entry)
         #expect(m.isVlm == false)
+
+        // CoreAI "specialized" is a different fact; it must not leak into VLM-ness.
+        let specializedOnly = ["id": "ane/model", "specialized": "true"]
+        #expect(ModelID.fromListModels(specializedOnly).isVlm == false)
+
+        // When both keys are present, "vlm" decides VLM-ness; "specialized"
+        // stays what it means (ANE specialization) and cannot veto it.
+        let vlmEntry: [String: String] = [
+            "id": "basic",
+            "max_context_length": "2048",
+            "vocab_size": "256",
+            "tokenizer": "",
+            "vlm": "true",
+            "specialized": "false",
+        ]
+        #expect(ModelID.fromListModels(vlmEntry).isVlm == true)
     }
 
     @Test("fromListModels missing fields default to 0/empty")

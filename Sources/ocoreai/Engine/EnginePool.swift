@@ -244,6 +244,14 @@ actor EnginePool {
 
     private var modelSamplingDefaults: [String: ModelSamplingConfig] = [:]
 
+    /// Declared context windows read from each ready model's own `config.json`
+    /// (`ModelStore.contextLength`), keyed by BOTH the discovery id (`hf:org/repo`)
+    /// and its canonical bare form so a request resolves whichever spelling it
+    /// arrives with. Positive values only — a model that declares nothing stays
+    /// absent, so the next lookup rescans and a later download is picked up without
+    /// needing an invalidation event. Backs `effectiveContextWindow(modelId:)`.
+    private var declaredContextWindows: [String: Int] = [:]
+
     /// Tracked inference tasks — used by ``shutdown()`` to cancel + await all running inferences
     private var trackedTasks: [Task<Void, Never>] = []
 
@@ -998,7 +1006,18 @@ actor EnginePool {
         do {
             try await tokenizerManager
                 .registerTokenizer(for: modelId, tokenizerPath: modelURL.path)
-            logger.info("Tokenizer registered for \(modelId) — context wall on real token counts")
+            // Honest claim only: on builds where `TokenizerManager` is the stub
+            // (swift-transformers not linked), registering is a no-op and every
+            // count downstream is a byte heuristic — saying "real token counts"
+            // there is what let the stubbed tokenizer hide on macOS 26 (10-12).
+            logger.info(
+                TokenizerManager.isRealTokenizerBackend
+                    ? "Tokenizer registered for \(modelId) — context wall on real token counts"
+                    : """
+                    Tokenizer backend unavailable for \(modelId) — token counts are \
+                    byte-heuristic estimates, not real counts (swift-transformers not linked)
+                    """
+            )
         } catch {
             logger.warning(
                 "Tokenizer registration failed for \(modelId) (\(error.localizedDescription)) — falling back to heuristic token estimates"
@@ -1184,6 +1203,61 @@ actor EnginePool {
 
     func getSamplingConfig(modelId: String) -> ModelSamplingConfig {
         modelSamplingDefaults[modelId] ?? .default
+    }
+
+    /// The context window this model ACTUALLY gets: a human override if one was
+    /// set, otherwise the window the model declares in its own `config.json`,
+    /// otherwise unknown (`nil` — never a fabricated budget).
+    ///
+    /// Before this existed, every budget surface — the chat watermark, the
+    /// `get_context_remaining` tool, auto-compaction, the 400 wall — read
+    /// `getSamplingConfig(modelId:).maxContextWindow`, i.e. `nil` unless a human
+    /// sent an HTTP `PATCH` (no UI sets that field). A 131072-token model therefore
+    /// behaved as if its capacity were unknowable: meter hidden, agent told
+    /// "unknown tokens left", compaction inert, oversized prompts walking into the
+    /// engine — while the truth sat on disk and on `/v1/models`.
+    ///
+    /// Callers that enforce a cap use THIS rather than the raw override, so the
+    /// wire path and the Fast Path budget identically. Provenance travels with the
+    /// number so UI and logs distinguish "auto from model" vs "set by hand".
+    func effectiveContextWindow(modelId: String) -> ResolvedContextWindow {
+        ContextWindowPolicy.resolve(
+            override: overrideContextWindow(for: modelId),
+            declared: declaredContextWindow(for: modelId))
+    }
+
+    /// Drop cached declared windows — called when the model set changes on disk
+    /// (delete / replace) so a re-downloaded model with a different window cannot be
+    /// shadowed by a stale cached digit.
+    func invalidateDeclaredContextWindows() {
+        declaredContextWindows.removeAll()
+    }
+
+    /// User override for a model, tolerating both id spellings (bare canonical vs
+    /// `hf:`/`mscope:` prefixed) via the pure `ContextWindowPolicy` helper.
+    private func overrideContextWindow(for modelId: String) -> Int? {
+        ContextWindowPolicy.overrideTokens(
+            in: modelSamplingDefaults, for: modelId
+        ) { $0.maxContextWindow }
+    }
+
+    /// Declared window for a model, taken from the ready-model discovery scan.
+    /// Cached on a positive hit; a miss rescans, so a model downloaded after the
+    /// first lookup resolves on its next turn without an event. The scan lists
+    /// already-materialized config directories — the same work `resolvableModelIds()`
+    /// performs on every `PATCH`.
+    private func declaredContextWindow(for modelId: String) -> Int? {
+        let canonical = ModelStore.normalizeModelId(modelId)
+        if let hit = declaredContextWindows[modelId] ?? declaredContextWindows[canonical] {
+            return hit
+        }
+        for ready in ModelStore.discoverReady() {
+            guard let tokens = ready.contextLength, tokens > 0 else { continue }
+            declaredContextWindows[ready.id] = tokens
+            let readyCanonical = ModelStore.normalizeModelId(ready.id)
+            if readyCanonical != ready.id { declaredContextWindows[readyCanonical] = tokens }
+        }
+        return declaredContextWindows[modelId] ?? declaredContextWindows[canonical]
     }
 
     /// Resolve the default model (first with `defaultModel == true`).

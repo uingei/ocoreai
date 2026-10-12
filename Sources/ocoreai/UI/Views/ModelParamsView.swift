@@ -16,6 +16,12 @@ struct ModelParamsView: View {
     @State private var seedText: String = ""
     @State private var maxKVText: String = ""
     @State private var repeatWindowText: String = ""
+    @State private var contextWindowText: String = ""
+    /// What this model's window actually is, resolved by the pool — carries the
+    /// declared number and its provenance so the card can distinguish "inherited
+    /// from the model" (the default) from "cap you set by hand".
+    @State private var windowReport: ResolvedContextWindow =
+        ResolvedContextWindow(tokens: nil, source: .unknown)
     @Environment(\.ocoreaiTheme) private var theme
 
     init(modelId: String, onCancel: @escaping () -> Void = {}) {
@@ -29,6 +35,7 @@ struct ModelParamsView: View {
         _seedText = State(initialValue: cfg.seed.map(String.init) ?? "")
         _maxKVText = State(initialValue: cfg.maxKVSize.map(String.init) ?? "")
         _repeatWindowText = State(initialValue: cfg.repetitionPenaltyWindow.map(String.init) ?? "")
+        _contextWindowText = State(initialValue: cfg.maxContextWindow.map(String.init) ?? "")
     }
 
     var body: some View {
@@ -38,6 +45,9 @@ struct ModelParamsView: View {
         }
         .background(theme.windowBg)
         .accessibilityLabel(StringKey.modelParamsTitle.l)
+        .task {
+            windowReport = await ModelManager.shared.resolvedContextWindow(for: modelId)
+        }
     }
 
     private var innerBody: some View {
@@ -47,6 +57,7 @@ struct ModelParamsView: View {
             topPCard
             topKCard
             maxTokensCard
+            contextWindowCard
             frequencyPenaltyCard
             presencePenaltyCard
             repetitionPenaltyCard
@@ -277,6 +288,63 @@ struct ModelParamsView: View {
                 autoSave()
             },
         )
+    }
+
+    // MARK: - Context window (capacity knob — model-declared unless overridden)
+
+    /// The window the app actually budgets with, editable.
+    ///
+    /// Until now `max_context_window` was reachable only through
+    /// `PATCH /v1/models/:model/sampling`: a GUI user could see a "131K" badge on
+    /// the models page but had no way to read where it came from or lower it, while
+    /// the watermark, compaction, and the oversize wall all keyed off that number.
+    /// "Defaults" here means *inherit what the model declares* — not "no cap".
+    private var contextWindowCard: some View {
+        TextFieldParamView(
+            label: StringKey.modelParamContextWindow.l,
+            hint: contextWindowHint,
+            valueText: contextWindowValueText,
+            textBinding: $contextWindowText,
+            onDone: {
+                config.maxContextWindow = ContextWindowPolicy.parseOverride(contextWindowText)
+                contextWindowText = ""
+                autoSave()
+                Task {
+                    windowReport = await ModelManager.shared.resolvedContextWindow(for: modelId)
+                }
+            },
+            resetAction: {
+                config.maxContextWindow = nil
+                contextWindowText = ""
+                autoSave()
+                Task {
+                    windowReport = await ModelManager.shared.resolvedContextWindow(for: modelId)
+                }
+            },
+        )
+    }
+
+    /// Current value plus who decided it: "131072 (from model)" vs "32768 (set by
+    /// you)". Unknown stays a caption with no number.
+    private var contextWindowValueText: String {
+        guard let tokens = windowReport.tokens else {
+            return StringKey.modelParamDefaults.l
+        }
+        guard let provenance = ContextWindowPolicy.provenanceLabel(for: windowReport) else {
+            return ContextWindowPolicy.shortTokens(tokens)
+        }
+        return "\(ContextWindowPolicy.shortTokens(tokens)) · \(provenance)"
+    }
+
+    /// Names the model's own declaration so "inherit" is a concrete number, not a
+    /// vague promise — and says plainly when nothing was declared.
+    private var contextWindowHint: String {
+        guard let declared = windowReport.declared, declared > 0 else {
+            return StringKey.modelParamContextWindowUnknown.l
+        }
+        return String(
+            format: StringKey.modelParamContextWindowHint.l,
+            ContextWindowPolicy.shortTokens(declared))
     }
 
     // MARK: - Context-window group (non-optional, default 20)
