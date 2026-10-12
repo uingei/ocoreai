@@ -156,17 +156,22 @@ format:
 
 format-check:
 	@echo "🔍 Checking Swift format..."
-	@$(SWIFT_FORMAT) format --in-place --recursive --parallel --configuration .swift-format Sources/ Tests/
-	@CHANGED=$$(git diff --name-only -- Sources/ Tests/ | wc -l | tr -d ' '); \
-	if [ "$$CHANGED" -eq 0 ]; then \
+	@# Judge formatting by what the formatter itself changes, not by `git diff`:
+	@# the git-diff version counted every uncommitted feature edit as "unformatted",
+	@# so this gate could never pass while work was in progress — and a gate that
+	@# always fails locally is a gate nobody runs (that is how 5 unformatted files
+	@# reached CI before bfcfb4b). Snapshot content hashes, format, compare.
+	@BEFORE=$$(mktemp); AFTER=$$(mktemp); \
+	find Sources Tests -name '*.swift' -type f -exec shasum {} + | sort -k2 > "$$BEFORE"; \
+	$(SWIFT_FORMAT) format --in-place --recursive --parallel --configuration .swift-format Sources/ Tests/; \
+	find Sources Tests -name '*.swift' -type f -exec shasum {} + | sort -k2 > "$$AFTER"; \
+	BAD=$$(join -j 2 -o 0,1.1,2.1 "$$BEFORE" "$$AFTER" | awk '$$2 != $$3 {print "  " $$1}'); \
+	rm -f "$$BEFORE" "$$AFTER"; \
+	if [ -z "$$BAD" ]; then \
 	  echo "✅ swift-format: zero files reformatted"; \
 	else \
-	  echo "❌ swift-format would reformat $$CHANGED file(s):"; \
-	  git --no-pager diff --name-status -- Sources/ Tests/; \
-	  echo; \
-	  echo "Working tree KEEPS both your uncommitted changes and the reformat (CI-parity: no blind checkout)."; \
-	  echo "Accept reformat:  make format   →  git add -A"; \
-	  echo "Or inspect:       git diff -- Sources/ Tests/  (format lines vs. your feature lines)"; \
+	  echo "❌ swift-format reformatted:"; printf '%s\n' "$$BAD"; echo; \
+	  echo "Working tree KEEPS the reformat (CI-parity: no blind checkout). Accept: make format"; \
 	  exit 1; \
 	fi
 
