@@ -101,10 +101,19 @@ actor MLXModelLoader {
         modelScopeToken: String? = nil,
         hfToken _: String? = nil,
     ) {
-        // Set GPU cache limit to prevent OOM on constrained hardware.
-        // Matches MLXLanguageModel.configureGPUCacheOnce (256 MB).
-        // macOS 27 path: MLXLanguageModel also sets this lazily via configureGPUCacheOnce.
-        // macOS <27 fallback + CoreAI path: no MLXLanguageModel wrapper, so this is the only guard.
+        // Single owner of MLX's recyclable buffer-cache limit for the whole process.
+        //
+        // App boot used to write its scheduler budget here too (70 GB on a 128 GB
+        // host) and this line silently overwrote it — see App.swift. The value is
+        // measured, not guessed: on M5 Max / 128 GB with
+        // mlx-community/gemma-4-e2b-it-4bit, greedy 160-token completions ran
+        // 42-46 tok/s at 256 MB versus 23.7 tok/s at 4 GB, because a larger cache
+        // keeps freed device buffers resident instead of handing them back.
+        //
+        // Same value as upstream `MLXLanguageModel.configureGPUCacheOnce`
+        // (mlx-swift-lm Libraries/MLXFoundationModels/MLXLanguageModel.swift:130),
+        // applied here for the paths that have no MLXLanguageModel wrapper
+        // (macOS <27 MLX lane + CoreAI lane).
         MLX.Memory.cacheLimit = 256 * 1024 * 1024
         self.logger = logger
         self.defaultHub = defaultHub

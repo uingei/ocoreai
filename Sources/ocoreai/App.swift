@@ -265,8 +265,19 @@ public final class OcoreaiEngine {
             "Hardware: \(physicalMem / 1_073_741_824) GB RAM, budget: \(memBudget / 1_073_741_824) GB"
         )
 
-        // Set MLX memory cache limit early — prevents unbounded GPU memory growth
-        Memory.cacheLimit = Int(memBudget)
+        // The startup budget is this app's *admission accounting* (what the
+        // scheduler lets itself reserve), not an MLX buffer-cache size, so it is
+        // no longer written into `Memory.cacheLimit` here.
+        //
+        // It used to be — and that write never took effect: `MLXModelLoader.init`
+        // (EnginePool init below) sets the cache limit to 256 MB afterwards, so a
+        // 70 GB cache ceiling was logged while 256 MB was in force. Measured here
+        // (M5 Max / 128 GB, gemma-4-e2b-it-4bit, greedy 160 tokens): cache 256 MB
+        // = 42-46 tok/s, cache 4 GB = 23.7 tok/s — a budget-sized *cache* is not
+        // merely dead code, it is actively slower, because MLX then retains freed
+        // device buffers instead of returning them. `Memory.cacheLimit` now has
+        // exactly one owner (Engine/MLXBridge.swift), pinned by Class-H in
+        // scripts/audit.swift_patterns.sh.
 
         // MARK: - HF Hub Environment Configuration
 
@@ -522,6 +533,12 @@ public final class OcoreaiEngine {
             toolRegistry: toolRegistry,
         )
         logger.info("EnginePool initialized with HardwareRouter integration")
+
+        // Report the limits that are actually in force after the owner has run —
+        // "budget: N GB" above is scheduler accounting, not a device ceiling.
+        logger.info(
+            "MLX memory — buffer cache \(Memory.cacheLimit / 1_048_576) MB (single owner: MLXModelLoader), device ceiling \(Memory.memoryLimit / 1_073_741_824) GB (Metal recommended max working set)"
+        )
 
         // Background default-model prewarm — removes the lazy-load cost from
         // the user's first request (historically ~5 minutes of silent waiting;

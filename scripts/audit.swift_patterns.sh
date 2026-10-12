@@ -82,6 +82,17 @@ check "Class-D: URL(string:)!" 'URL\\(string:.*!' \
 check "Class-G: hardcoded version literal" '"v\?[0-9]\+\.[0-9]\+\.[0-9]\+"' \
     "AppInfo.swift|0.0.4"
 
+
+# --- Class-H: MLX buffer-cache limit must have exactly one owner ---
+# App boot also used to write its scheduler budget (70 GB on a 128 GB host) into
+# Memory.cacheLimit; the loader's later 256 MB write won, so the log claimed a
+# 70 GB cache ceiling that never applied — and a budget-sized cache measured
+# ~2x slower (23.7 vs 42-46 tok/s, M5 Max, gemma-4-e2b-it-4bit), because MLX
+# then keeps freed device buffers resident instead of handing them back.
+# Owner = MLXModelLoader (Engine/MLXBridge.swift); any second writer fails here.
+check "Class-H: Memory.cacheLimit written outside its owner" 'Memory\.cacheLimit[[:space:]]*=' \
+    "MLXBridge.swift"
+
 echo ""
 echo "=========================================="
 if [ "$FAIL" -eq 0 ]; then
