@@ -1543,8 +1543,12 @@ extension EnginePool {
             case .gpu:
                 logger.debug("HardwareRouter → GPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB)")
             case .cpu:
+                // Honest label: the compute device does not change here — the Metal
+                // device is bound when the ModelContainer loads (note above this
+                // switch). What this lane actually costs is prefix-cache reuse and
+                // speculation, so say that instead of naming a device.
                 logger.warning(
-                    "HardwareRouter → CPU for \(modelId) (gpu: \(gpuGB)/\(budgetGB) GB, \(hwState.description)) — disabling session pool + speculative decoding"
+                    "Memory guard for \(modelId): prefix-cache reuse + speculation disabled (device unchanged — Metal GPU; ours \(gpuGB)/\(budgetGB) GB, \(hwState.description))"
                 )
             case .ane:
                 #if canImport(CoreAI)

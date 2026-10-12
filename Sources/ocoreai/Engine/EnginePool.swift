@@ -329,9 +329,22 @@ actor EnginePool {
             if let router = hardwareRouter {
                 router.setThermalCallback({ [weak self] event in
                     guard let self else { return }
-                    // Determine pressure level from channel transition
-                    let pressureLevel = event.to == .cpu ? 3 : 2
                     Task {
+                        // Corroborate before spending anything: the poller's verdict
+                        // is machine-wide, and on Apple Silicon `wire_count` includes
+                        // every process's GPU-wired pages. Measured 10-12: a stray
+                        // python/MLX process holding ~79 GB on a 128 GB host read as
+                        // level-3 pressure here while this app sat at 3.5 GB of a
+                        // 70 GB budget — flushing the prefix cache for that cost
+                        // re-prefill on every following request and freed nothing
+                        // that mattered. Only our own utilisation may flush it.
+                        let (ours, ownGB, budgetGB) = await self.pressureCorroboration()
+                        let pressureLevel = ours ? (event.to == .cpu ? 3 : 2) : 0
+                        if pressureLevel < 2 {
+                            self.logger.info(
+                                "Memory pressure (\(event.trigger)) ignored: ours \(ownGB)/\(budgetGB) GB of budget — prefix caches kept"
+                            )
+                        }
                         await self.sessionPool?.onMemoryPressure(
                             level: pressureLevel,
                             trigger: event.trigger
@@ -1498,4 +1511,30 @@ internal func pureMTPDrafterSelection(
         drafter = "mlx-community/gemma-4-26B-A4B-it-assistant-bf16"
     }
     return (true, drafter)
+}
+
+// MARK: - Pressure corroboration
+
+extension EnginePool {
+    /// Is a machine-level pressure reading actually attributable to this app?
+    ///
+    /// Returns the verdict plus the numbers for the log line so the operator can
+    /// see why a pressure event did or did not cost anything. No tracker means we
+    /// cannot tell, and "cannot tell" protects memory: assume it is ours.
+    func pressureCorroboration() async -> (ours: Bool, ownGB: String, budgetGB: String) {
+        guard let tracker = memoryTracker else { return (true, "unknown", "unknown") }
+        let own = await tracker.gpuActiveMemoryBytes()
+        let budget = await tracker.getBudget()
+        let fraction = budget > 0 ? Double(own) / Double(budget) : 0
+        let ours = HardwareRouter.pressureIsOurs(
+            gpuFraction: fraction,
+            reclaimableBytes: HardwareRouter.reclaimableMemoryBytes(),
+            memSizeBytes: HardwareRouter.physicalMemoryBytes()
+        )
+        return (ours, Self.gigabytesText(own), Self.gigabytesText(budget))
+    }
+
+    private static func gigabytesText(_ bytes: UInt64) -> String {
+        String(format: "%.1f", Double(bytes) / 1_073_741_824)
+    }
 }

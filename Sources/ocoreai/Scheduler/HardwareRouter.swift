@@ -179,7 +179,13 @@ actor RouterPoller {
                 timestamp: Date()
             )
 
-            self.logger.warning("ThermalPressureEvent: \(event.trigger) — \(event)")
+            // Advisory only: this is a machine-level transition. What it costs is
+            // decided by the consumer, which corroborates against its own
+            // footprint (EnginePool) — the reading can come entirely from other
+            // processes' wired GPU pages.
+            self.logger.warning(
+                "Pressure watch (\(event.trigger)): lane advisory \(event.from.rawValue) → \(event.to.rawValue) (degradation gated on corroborated footprint)"
+            )
             if let cb = self.callback {
                 await cb(event)
             }
@@ -263,12 +269,21 @@ public final class HardwareRouter: Sendable {
         // Interrupt requests bypass ANE (avoid specialization latency)
         let urgentBypass = priority == .interrupt
 
+        // Corroborate machine-wide pressure against our own footprint before
+        // degrading the request (see pressureIsOurs).
+        let ours = Self.pressureIsOurs(
+            gpuFraction: gpuFraction,
+            reclaimableBytes: Self.reclaimableMemoryBytes(),
+            memSizeBytes: Self.physicalMemoryBytes()
+        )
+
         return Self.route(
             thermal: thermal,
             memoryPressure: memoryPressure,
             gpuFraction: gpuFraction,
             policy: policy,
-            urgentBypass: urgentBypass
+            urgentBypass: urgentBypass,
+            pressureIsOurs: ours
         )
     }
 
@@ -314,11 +329,16 @@ public final class HardwareRouter: Sendable {
         memoryPressure: Int,
         gpuFraction: Double,
         policy: RoutingPolicy,
-        urgentBypass: Bool
+        urgentBypass: Bool,
+        pressureIsOurs: Bool = true
     ) -> ComputeChannel {
-        // Tier 1: Memory pressure — force CPU if severe
+        // Tier 1: Memory pressure — force the degraded lane if severe AND ours.
+        // Uncorroborated machine pressure must not cost this request its prefix
+        // cache: bypassing the session pool re-creates KV per request (more
+        // allocation churn, slower first token) without releasing the foreign
+        // memory that caused the reading.
         let memShiftLevel = policy.memoryShiftLevel
-        if memoryPressure >= memShiftLevel {
+        if memoryPressure >= memShiftLevel, pressureIsOurs {
             return .cpu
         }
 
@@ -361,8 +381,22 @@ public final class HardwareRouter: Sendable {
         Self.memoryUsageFractionLevel()
     }
 
-    @inline(__always)
-    static func memoryUsageFraction() -> Double {
+    /// One `host_statistics64` read, shared by every memory signal here so the
+    /// router never mixes counts sampled at different instants.
+    struct VMPageCounts: Sendable {
+        let free: UInt64
+        let inactive: UInt64
+        let speculative: UInt64
+        let active: UInt64
+        let wire: UInt64
+        let compressor: UInt64
+        let pageSize: UInt64
+        let memSize: UInt64
+    }
+
+    /// nil when the kernel query fails — callers must treat unknown as unknown,
+    /// never as zero pressure.
+    static func vmPageCounts() -> VMPageCounts? {
         #if os(macOS) || os(iOS)
         var pageSize: UInt64 = 4096
         var size1 = MemoryLayout<Int>.size
@@ -382,13 +416,30 @@ public final class HardwareRouter: Sendable {
                 host_statistics64(mach_host_self(), HOST_VM_INFO64, intPtr, &count)
             }
         }
-
-        guard kr == KERN_SUCCESS else { return 0.5 }
+        guard kr == KERN_SUCCESS else { return nil }
 
         var memSize: UInt64 = 0
         var len = MemoryLayout<UInt64>.size
         sysctlbyname("hw.memsize", &memSize, &len, nil, 0)
 
+        return VMPageCounts(
+            free: UInt64(vmStat.free_count),
+            inactive: UInt64(vmStat.inactive_count),
+            speculative: UInt64(vmStat.speculative_count),
+            active: UInt64(vmStat.active_count),
+            wire: UInt64(vmStat.wire_count),
+            compressor: UInt64(vmStat.compressor_page_count),
+            pageSize: pageSize,
+            memSize: memSize
+        )
+        #else
+        return nil
+        #endif
+    }
+
+    @inline(__always)
+    static func memoryUsageFraction() -> Double {
+        guard let c = Self.vmPageCounts() else { return 0.5 }
         // 仅把「不可回收」的物理页计入压力：active + wire + compressor 占用。
         //
         // 关键：inactive_count 是内核可随时回收的文件缓存（磁盘缓存，
@@ -400,15 +451,56 @@ public final class HardwareRouter: Sendable {
         // compressor_page_count 保留：它是压缩页真实占用的物理 RAM（虽可回收，
         // 但保守计入压力）。参考 omlx SystemStatsSampler.swift 的 vm_statistics64 用法。
         return Self.usedFraction(
-            active: UInt64(vmStat.active_count),
-            wire: UInt64(vmStat.wire_count),
-            compressor: UInt64(vmStat.compressor_page_count),
-            pageSize: pageSize,
-            memSize: memSize
+            active: c.active,
+            wire: c.wire,
+            compressor: c.compressor,
+            pageSize: c.pageSize,
+            memSize: c.memSize
         )
-        #else
-        return 0.5
-        #endif
+    }
+
+    /// Physical RAM the process could still be handed: free + inactive +
+    /// speculative pages, i.e. everything the kernel can reclaim without paging
+    /// out live anonymous memory. `purgeable_count` is deliberately NOT added —
+    /// purgeable pages already live in the inactive queue, so adding it here
+    /// would double-count them.
+    ///
+    /// nil when the kernel query fails (caller decides the conservative default).
+    static func reclaimableMemoryBytes() -> UInt64? {
+        guard let c = Self.vmPageCounts() else { return nil }
+        return (c.free + c.inactive + c.speculative) * c.pageSize
+    }
+
+    /// Total physical RAM, 0 when unavailable.
+    static func physicalMemoryBytes() -> UInt64 {
+        Self.vmPageCounts()?.memSize ?? 0
+    }
+
+    /// Is whole-machine memory pressure actually ours to relieve?
+    ///
+    /// The system "used" fraction counts `wire_count`, and on Apple Silicon that
+    /// includes GPU-wired pages belonging to EVERY process. One foreign process
+    /// holding RAM therefore reads as critical pressure here while ocoreai's own
+    /// footprint sits comfortably inside its budget. Observed 10-12 on a 128 GB
+    /// host: a stray python/MLX process holding ~79 GB put the machine at ~74 %
+    /// used (level 3) while this app used 3.5 GB of a 70 GB budget — and the
+    /// uncorroborated verdict cost prefix-cache reuse plus speculation on every
+    /// request, spending throughput without giving back the memory that mattered.
+    ///
+    /// Corroborate with our own numbers instead:
+    /// - we hold ≥ half of our own budget (`gpuFraction` here is
+    ///   our-active-bytes ÷ our-budget, not a machine ratio), or
+    /// - the machine genuinely cannot hand us memory: reclaimable bytes below
+    ///   max(1 GiB, physical/16).
+    /// Unknown inputs count as ours — when we cannot tell, protect memory.
+    static func pressureIsOurs(
+        gpuFraction: Double,
+        reclaimableBytes: UInt64?,
+        memSizeBytes: UInt64
+    ) -> Bool {
+        if gpuFraction >= 0.5 { return true }
+        guard let reclaimable = reclaimableBytes, memSizeBytes > 0 else { return true }
+        return reclaimable < max(1024 * 1024 * 1024, memSizeBytes / 16)
     }
 
     /// Pure memory-occupancy fraction, decoupled from live sysctl reads so it
