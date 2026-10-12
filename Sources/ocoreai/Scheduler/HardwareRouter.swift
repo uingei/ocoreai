@@ -70,16 +70,25 @@ extension ComputeChannel {
         switch self {
         case .gpu: "bolt.fill"
         case .ane: "brain.fill"
-        case .cpu: "cpu"
+        case .cpu: "exclamationmark.triangle.fill"
         }
     }
 
-    /// Human-readable label for the badge.
+    /// Human-readable label for the badge — honest lane naming, not device claims.
+    ///
+    /// `.gpu` and `.ane` are the two lanes a request can actually take (Metal via
+    /// MLX; CoreAI via Neural Engine, and only where CoreAI exists — the engine
+    /// normalizes `.ane` to `.gpu` when the runtime or a `.aimodel` asset is
+    /// missing). `.cpu` is NOT a device claim: the Metal device is bound when the
+    /// ModelContainer loads and is never switched per request, so labelling that
+    /// lane "CPU" told users their answer came from a chip that never touched it.
+    /// What that lane really means is the memory/thermal guard is on — prefix-cache
+    /// reuse and speculative decoding were dropped for the request.
     public var badgeLabel: String {
         switch self {
         case .gpu: "GPU"
         case .ane: "ANE"
-        case .cpu: "CPU"
+        case .cpu: "Guard"
         }
     }
 }

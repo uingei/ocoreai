@@ -349,9 +349,11 @@ actor EnginePool {
                             level: pressureLevel,
                             trigger: event.trigger
                         )
+                        // The badge/toast may only claim a lane change when the
+                        // engine really degraded something — see AppState.
+                        await AppState.shared.onThermalPressureEvent(
+                            event, actioned: pressureLevel >= 2)
                     }
-                    // P1: forward to AppState for transient UI toast bridge
-                    await AppState.shared.onThermalPressureEvent(event)
                 })
                 router.startPolling()
                 logger.info("HardwareRouter pressure callback wired to SessionPool")

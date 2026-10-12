@@ -408,6 +408,7 @@ public enum StringKey: String, CaseIterable, Sendable {
     case a11yStatus = "A11y.Status"
     case a11yModel = "A11y.Model"
     case a11yComputeChannel = "A11y.ComputeChannel"
+    case a11yMemoryGuard = "A11y.MemoryGuard"
     case a11yCodeBlock = "A11y.CodeBlock"
     case a11yLoadModel = "A11y.LoadModel"
 
@@ -709,9 +710,9 @@ enum L10nTables {
         .phasePrefillingProgress: "Context: %d/%d (%d%%)",
         .phaseGenerating: "Generating…",
         .phaseToolExecuting: "Running tool: %s",
-        .channelShiftThermal: "Thermal shift",
-        .channelShiftMemory: "Memory shift",
-        .channelShiftA11y: "%@ → %@ — %@",
+        .channelShiftThermal: "Heat guard on",
+        .channelShiftMemory: "Memory guard on",
+        .channelShiftA11y: "%@ — %@",
 
         // Settings
         .settingsTitle: "Settings",
@@ -743,7 +744,7 @@ enum L10nTables {
         .routingPolicyPerformance: "Performance",
         .routingPolicyEfficiency: "Efficiency",
         .routingPolicyFooter:
-            "Balanced shifts to CPU at thermal pressure; Performance stays on GPU longer; Efficiency offloads earlier. Applies on next launch.",
+            "How eagerly ocoreai guards memory and heat. Tighter policies trim the session prefix cache and background sampling sooner; the compute device itself never changes. Applies on next launch.",
         .planSection: "Planning",
         .planToggle: "Enable update_plan (agent to-do list)",
         .planHint:
@@ -990,6 +991,7 @@ enum L10nTables {
         .a11yStatus: "Status",
         .a11yModel: "Model",
         .a11yComputeChannel: "Channel",
+        .a11yMemoryGuard: "Memory guard active",
         .a11yCodeBlock: "Code block",
         .a11yLoadModel: "Load",
 
@@ -1226,9 +1228,9 @@ enum L10nTables {
         .phasePrefillingProgress: "上下文: %d/%d (%d%%)",
         .phaseGenerating: "正在生成…",
         .phaseToolExecuting: "运行工具: %s",
-        .channelShiftThermal: "热力切换",
-        .channelShiftMemory: "内存切换",
-        .channelShiftA11y: "%@ → %@ — %@",
+        .channelShiftThermal: "热力护栏启动",
+        .channelShiftMemory: "内存护栏启动",
+        .channelShiftA11y: "%@ — %@",
         .loadingSessions: "加载会话中…",
         .loadingConfig: "加载配置中…",
         .paramPlaceholder: "数值",
@@ -1266,7 +1268,7 @@ enum L10nTables {
         .routingPolicyBalanced: "均衡",
         .routingPolicyPerformance: "性能优先",
         .routingPolicyEfficiency: "能效优先",
-        .routingPolicyFooter: "均衡：热压力或 GPU 占用偏高时切 CPU；性能：更久保持 GPU；能效：更激进提前卸载。下次启动生效。",
+        .routingPolicyFooter: "设置 ocoreai 对内存与热力压力的反应速度：越激进就越早收紧会话前缀缓存与后台采样；计算设备本身不会切换。下次启动生效。",
         .planSection: "计划",
         .planToggle: "启用 update_plan（agent 任务清单）",
         .planHint: "默认关闭（对齐上游 opt-in 基线）。开启后 agent 维护可见的任务清单（update_plan：增 / 改序 / 完成）。",
@@ -1518,6 +1520,7 @@ enum L10nTables {
         .a11yStatus: "状态",
         .a11yModel: "模型",
         .a11yComputeChannel: "通道",
+        .a11yMemoryGuard: "内存护栏已启动",
         .a11yCodeBlock: "代码块",
         .a11yLoadModel: "加载",
 

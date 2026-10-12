@@ -542,7 +542,11 @@ struct ChatView: View {
                                             .lineLimit(1)
                                             .accessibilityHidden(true)
                                     }
-                                    // P0: Channel badge — user sees which accelerator handled the request
+                                    // P0: Lane badge — which pipeline served this turn:
+                                    // Metal (GPU), CoreAI (ANE, where available), or the
+                                    // guard lane (caches/speculation dropped). It is not a
+                                    // claim that the compute device was switched: the Metal
+                                    // device is fixed when the ModelContainer loads.
                                     if let ch = chatState.currentComputeChannel {
                                         HStack(spacing: 4) {
                                             Image(systemName: ch.badgeIcon)
@@ -1543,15 +1547,14 @@ struct ChannelShiftToastOverlay: View {
     var body: some View {
         if let toast {
             HStack(spacing: 6) {
-                HStack(spacing: 4) {
-                    Image(systemName: toast.from.badgeIcon)
-                        .foregroundStyle(ComputeChannelUI.colorFor(toast.from))
-                    Text("arrow.right")
-                        .font(.system(.caption))
-                        .foregroundStyle(theme.textTertiary)
-                    Image(systemName: toast.to.badgeIcon)
-                        .foregroundStyle(ComputeChannelUI.colorFor(toast.to))
-                }
+                // One mark, not an A→B device diagram: nothing migrates between
+                // accelerators at runtime (the device is bound at ModelContainer load),
+                // so "GPU → CPU" depicted a switch that never happened. This block
+                // also used to render the literal text "arrow.right" — the symbol NAME
+                // — because it was a Text, not an Image.
+                Image(systemName: toast.to.badgeIcon)
+                    .font(.system(.caption))
+                    .foregroundStyle(ComputeChannelUI.colorFor(toast.to))
                 Text(
                     toast.trigger == "thermal"
                         ? StringKey.channelShiftThermal.l
@@ -1572,12 +1575,11 @@ struct ChannelShiftToastOverlay: View {
     }
 }
 
-/// P1: Accessibility label for channel shift toast.
+/// P1: Accessibility label for the pressure toast.
 extension ChannelShiftToast {
     var accessibilityLabel: String {
         String(
             format: StringKey.channelShiftA11y.l,
-            from.badgeLabel,
             to.badgeLabel,
             trigger == "thermal"
                 ? StringKey.channelShiftThermal.l

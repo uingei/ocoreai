@@ -30,12 +30,18 @@ final class AppState {
 
     /// Receive ThermalPressureEvent from HardwareRouter poller.
     /// Called on callback thread (non-MainActor), bridges to @Observable state.
-    func onThermalPressureEvent(_ event: ThermalPressureEvent) async {
+    ///
+    /// `actioned` says whether the engine actually degraded anything after
+    /// corroborating the reading against its own footprint (`EnginePool`). The
+    /// poller's verdict is machine-wide — `wire_count` includes every process's
+    /// GPU-wired pages — so an uncorroborated event must not stamp a
+    /// "your accelerator changed" badge and toast onto the user's screen.
+    func onThermalPressureEvent(_ event: ThermalPressureEvent, actioned: Bool = true) async {
         await MainActor.run { [self] in
-            self.currentBaselineChannel = event.to
-            self.channelShiftToast = .init(event: event)
             // X1-fix: thermal/inference channel shift → adjust perception sampling rate
             // so PerceptionEngine doesn't compete with the active accelerator.
+            // Background sampling is a reaction to machine-wide pressure and stays
+            // appropriate whatever the cause.
             switch event.to {
             case .cpu:
                 PerceptionEngine.shared.setPowerProfile(.minimal)
@@ -44,6 +50,10 @@ final class AppState {
             case .gpu:
                 PerceptionEngine.shared.setPowerProfile(.normal)
             }
+
+            guard actioned else { return }
+            self.currentBaselineChannel = event.to
+            self.channelShiftToast = .init(event: event)
         }
         // Auto-dismiss after 3s
         try? await Task.sleep(nanoseconds: 3_000_000_000)

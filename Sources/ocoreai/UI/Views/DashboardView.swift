@@ -107,7 +107,10 @@ struct DashboardView: View {
                 .padding(.vertical, 2)
                 .background(ComputeChannelUI_colorFor(channel).opacity(0.12))
                 .clipShape(Capsule())
-                .accessibilityLabel("\(StringKey.a11yComputeChannel.l): \(channel.badgeLabel)")
+                .accessibilityLabel(
+                    channel == .cpu
+                        ? StringKey.a11yMemoryGuard.l
+                        : "\(StringKey.a11yComputeChannel.l): \(channel.badgeLabel)")
             }
             Spacer()
             if dashboardState.isLive {
