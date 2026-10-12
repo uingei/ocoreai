@@ -2286,6 +2286,23 @@ extension EnginePool {
         /// This activates the ChatSession's built-in tool-dispatch agent loop (L748 restart)
         /// instead of relying solely on the local AgentLoop coordinator.
         func runInferenceBody(wiredMemoryTicket: MLX.WiredMemoryTicket?) async throws {
+            // Phase timing for the stretch a client waits before generation even
+            // starts. Live probe (10-13) measured the first request of every fresh
+            // process at ~120s while the model, tokenizer, grammar and prewarm were
+            // all ready within 7s, with nothing in the log to attribute it. Two
+            // numbers separate the suspects: time spent inside pool.acquire (engine /
+            // session side) versus everything before it (prompt build, perception,
+            // tool surface, memory). Only logged when it actually hurts.
+            let preAcquireStart = ContinuousClock.now
+            func elapsedMs(_ d: Duration) -> Int {
+                let c = d.components
+                // 1 ms = 10^15 attoseconds. Both components are required, and the
+                // remainder must be scaled to milliseconds — dividing it by 10^9
+                // (as this line first did) reports nanoseconds beside a seconds term,
+                // which is how the probe printed values like "421375ms" for what
+                // took 0.42 ms. Matches TimingHooks.overallMs (Profiling).
+                return Int(c.seconds) * 1_000 + Int(c.attoseconds / 1_000_000_000_000_000)
+            }
             // P-S2: Fetch perception context via MainActor to bridge @MainActor
             // PerceptionEngine into the nonisolated inference body.
             // String result is trivially Sendable — safe to capture in @Sendable closures.
@@ -2954,6 +2971,7 @@ extension EnginePool {
 
             if let pool = poolRef {
                 let keys = poolPromptKeys
+                let acquireStart = ContinuousClock.now
                 let acquired = await pool.acquire(
                     from: handleRef.modelContainer,
                     modelId: modelId,
@@ -2964,6 +2982,19 @@ extension EnginePool {
                     processing: sessionProcessing,
                     prefixMessages: keys
                 )
+                let readyAt = ContinuousClock.now
+                let acquireMs = elapsedMs(acquireStart.duration(to: readyAt))
+                let totalMs = elapsedMs(preAcquireStart.duration(to: readyAt))
+                // ``TimingHooks.overallMs`` starts at request entry, so the difference
+                // between it and totalMs is queueing plus handler work that ran before
+                // this body — the stretch no existing log covered, and where the
+                // measured ~120s first-request stall actually lands.
+                let sinceRequestMs = Int(metrics.overallMs)
+                if totalMs > 1_000 || sinceRequestMs > 1_000 {
+                    log.info(
+                        "Ready to generate \(sinceRequestMs)ms after request start for \(convKey) — \(acquireMs)ms in session-pool acquire, \(totalMs)ms inside the inference body before it, \(max(0, sinceRequestMs - totalMs))ms before the body (queue + handler prep)"
+                    )
+                }
                 chatSession = acquired.pooled.session
                 pooledSession = acquired.pooled
                 divergenceIndex = acquired.divergenceIndex
