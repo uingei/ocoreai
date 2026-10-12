@@ -130,6 +130,8 @@ turns. **Prefer a live check over an inference whenever a claim is about behavio
 
 ### Open (currently unresolved — the only items worth prose)
 
+- **首条 chat 请求固定等 ~120s**(Handlers/ — 10-13 活体实测,5 个独立进程 120.5/120.7/120.5/120.6/121.1s)。已排除:模型装载(3.3s)、预热(1s,日志自称 "first request will be fast")、`/v1/capabilities`(7ms)、推理体与 session 池(`a792a66` 的分段计时修正单位后不足 1s 不触发)。未覆盖段 = chat handler 进入引擎之前的准备(会话/压缩器/系统提示装配/记忆召回),全程零日志。定长 120s 更像网络或权限等待而非计算。**待定位后定修法**——先在 handler 入口取时间戳打到调用引擎之后,再按候选旁路。
+
 - **iOS UI parity** (UI/) — 09-22 实证：工具层平台门控已核 = 正确（10 个 macOS-only：move/click/drag/scroll/type/key + inspect_ui(AX) + open/activate/list_apps(NSWorkspace)，均 macOS 平台语义）。10-13 落三处编译门，逐条以 iPhoneOS 27 SDK 一手证据核对（不凭印象）：`HSplitView` = `@available(iOS, unavailable)`；`navigationSubtitle` = `@available(iOS 26.0, macCatalyst 14.0, macOS 11.0, *)` 而 target 是 `.iOS(.v17)`；`UIPasteboard` 只有 `dataForPasteboardType:`（`UIPasteboard.h:79`；`dataForType:` 是 AppKit 拼法）。复扫排除的误报：`keyboardShortcut`/`.help` = `@available(iOS 14.0, …)`、`UTType`、`AVCaptureDevice.requestAccess` 均可用。仍开 = iOS **运行时**零验证（沙箱内 `xcodebuild` 起不来，编译面由 CI job `build-ios` 把关），MCP/Security on iOS TBD，ChatView/MultimodalControls 的 UI 门控仍需活验。
 - **Reasoning `<thinking>` parse** (Engine/) — 字符串协议状态机（`ThinkTagParser`，0 处 regex，#206 后 15/15 绿），无 AST。
 - **`kvCacheRuntimeReport`** — ~~not consumed~~ → 09-22 实证：ocoreai 走**自有等价消费面** `Metrics.kvCacheGpuBytes`(`ocoreai_kv_cache_gpu_bytes`, Metrics.swift:79/196)→ `ServerStatsSnapshot.kvCacheBytes` → Dashboard `kvCacheGB`(DashboardViewModel.swift:107)。上游 `KVCacheRuntimeReport`(KVCacheRuntime.swift:155) 是另一套 wrapper，#248 已判 ocoreai 无此 wrapper 的 bug —— 接它 = 本地重复面，不做。
