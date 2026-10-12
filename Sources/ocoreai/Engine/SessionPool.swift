@@ -83,6 +83,24 @@ struct MessageHistoryKey: Hashable, Sendable {
     }
 }
 
+/// Identity for a conversation that arrived without an explicit id.
+enum ConversationIdentity {
+    /// FNV-1a-64 (hex) over the leading user message.
+    ///
+    /// Deterministic on purpose: the pool names its on-disk KV snapshots after the
+    /// key, so the identity has to resolve to the same name after a restart —
+    /// Swift's `hashValue` is seeded per process and would orphan those files.
+    static func seed(messages: [Chat.Message]) -> String {
+        let leading = messages.first { $0.role == .user }.map { "\($0.content)" } ?? ""
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in leading.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x1_0000_0001_b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
 /// Metadata wrapper around a ChatSession with LRU tracking and message history
 /// for prompt prefix-level cache reuse decisions.
 ///
@@ -230,11 +248,6 @@ actor MLXSessionPool {
 
         // 3. Try hit — with prefix match
         if let pooled = pool[key] {
-            pool[key] = nil
-            hitCount += 1
-            totalAcquireAttempts += 1
-            logHitRateIfNeeded()
-
             let divergence: Int
             if let prefix = prefixMessages {
                 divergence = longestCommonPrefixCount(
@@ -245,13 +258,38 @@ actor MLXSessionPool {
                 divergence = 0
             }
 
-            logger.debug(
-                "Session pool HIT: \(key), divergence=\(divergence)/\(prefixMessages?.count ?? 0)")
-            return AcquireResult(
-                pooled: pooled,
-                isHit: divergence > 0,
-                divergenceIndex: divergence
-            )
+            // A pooled ChatSession is stateful — its KV already contains
+            // `messageHistory`. Reuse is sound ONLY while the incoming conversation
+            // still extends that exact history. When the common prefix is shorter,
+            // the session holds turns this caller never sent, and answering from it
+            // leaks another conversation's context: observed 10-12, three
+            // independent one-message /v1/chat/completions calls, where the third
+            // quoted the first question verbatim. Same rule covers an edited
+            // resend — the old KV describes the pre-edit conversation.
+            // Discard rather than hand back: a forked conversation's cache is stale
+            // anyway, and the fall-through below builds a clean session.
+            if !Self.canReusePooledSession(
+                cachedMessageCount: pooled.messageHistory.count,
+                commonPrefixCount: divergence
+            ) {
+                pool[key] = nil
+                logger.debug(
+                    "Session pool entry \(key) not reusable: cached history \(pooled.messageHistory.count) exceeds common prefix \(divergence) — building a clean session"
+                )
+            } else {
+                pool[key] = nil
+                hitCount += 1
+                totalAcquireAttempts += 1
+                logHitRateIfNeeded()
+                logger.debug(
+                    "Session pool HIT: \(key), divergence=\(divergence)/\(prefixMessages?.count ?? 0)"
+                )
+                return AcquireResult(
+                    pooled: pooled,
+                    isHit: divergence > 0,
+                    divergenceIndex: divergence
+                )
+            }
         }
 
         // 4. Pool miss — try restore from disk first (fallback path)
@@ -690,6 +728,17 @@ actor MLXSessionPool {
 
     private func poolKey(modelId: String, conversationId convId: String) -> String {
         "\(modelId):\(convId)"
+    }
+
+    /// Reuse rule, kept pure so it can be pinned without an MLX container:
+    /// a pooled session may serve a new request only when the incoming conversation
+    /// extends everything the session already holds. `commonPrefixCount <
+    /// cachedMessageCount` means the session contains turns the caller never sent.
+    nonisolated static func canReusePooledSession(
+        cachedMessageCount: Int,
+        commonPrefixCount: Int
+    ) -> Bool {
+        commonPrefixCount >= cachedMessageCount
     }
 
     /// Update the set of model IDs whose sessions are exempt from TTL/LRU eviction.

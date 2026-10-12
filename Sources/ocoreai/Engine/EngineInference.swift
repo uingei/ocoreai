@@ -2295,7 +2295,16 @@ extension EnginePool {
                     PerceptionEngine.shared.contextText()
                 }
             }
-            let convKey: String = conversationId ?? "\(modelId):ephemeral"
+            // A caller that sends no conversation id (any OpenAI-compatible client)
+            // must not collapse onto one shared session: a ChatSession carries its KV
+            // and transcript, so a single "ephemeral" key made independent requests
+            // answer from each other's context. Derive the identity from the
+            // conversation's own leading user message instead — stable across the
+            // turns a stateless client resends (prefix reuse keeps working) and
+            // distinct across conversations (no shared session, no shared snapshot).
+            let convKey: String =
+                conversationId
+                ?? "\(modelId):anon:\(ConversationIdentity.seed(messages: mlxMessages))"
             var chatSession: ChatSession?
             /// Full pooled session wrapper (carries message history for prefix matching).
             /// Used by releasePoolSlot to return the session with its history intact.
