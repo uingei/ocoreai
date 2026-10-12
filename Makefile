@@ -62,6 +62,12 @@ dmg:
 CLT_DIR=/Library/Developer/CommandLineTools
 CLT_F=$(CLT_DIR)/Library/Developer/Frameworks
 CLT_L=$(CLT_DIR)/Library/Developer/usr/lib
+
+## swift-format resolution — CI installs it on PATH via brew; an Xcode/CLT-only
+## host ships it only under `xcrun`, so `make format`/`format-check` died with
+## "swift-format: No such file or directory". The style gate reached CI unseen
+## because it could not be run locally. Resolve once; the args stay identical.
+SWIFT_FORMAT ?= $(shell command -v swift-format >/dev/null 2>&1 && echo swift-format || echo "xcrun swift-format")
 test-clt:
 	@echo "🧪 CLT-route test gate (macOS < 27 local; FULL suite, no skips)..."
 	@DEVELOPER_DIR=$(CLT_DIR) swift build --build-tests --scratch-path .build-clt -Xswiftc -F$(CLT_F) -Xlinker -F$(CLT_F) >/dev/null
@@ -145,12 +151,12 @@ test-ci:
 
 format:
 	@echo "✨ Formatting Swift files..."
-	swift-format format --in-place --recursive --parallel --configuration .swift-format Sources/ Tests/
+	$(SWIFT_FORMAT) format --in-place --recursive --parallel --configuration .swift-format Sources/ Tests/
 	@echo "Done. Reverted files by hand if you disagree: git diff / git checkout -- <path>"
 
 format-check:
 	@echo "🔍 Checking Swift format..."
-	@swift-format format --in-place --recursive --parallel --configuration .swift-format Sources/ Tests/
+	@$(SWIFT_FORMAT) format --in-place --recursive --parallel --configuration .swift-format Sources/ Tests/
 	@CHANGED=$$(git diff --name-only -- Sources/ Tests/ | wc -l | tr -d ' '); \
 	if [ "$$CHANGED" -eq 0 ]; then \
 	  echo "✅ swift-format: zero files reformatted"; \
