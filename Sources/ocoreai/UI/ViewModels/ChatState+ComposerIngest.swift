@@ -136,9 +136,12 @@ extension ChatState {
         #else
         let pasteboard = UIPasteboard.general
         let urls = pasteboard.urls ?? []
+        // UIKit spells this `forPasteboardType:`; `forType:` is the AppKit label and
+        // does not compile for an iOS destination (it silently passed here because
+        // this branch only builds on iOS, and the iOS leg had been skipped).
         let imageData =
-            pasteboard.data(forType: UTType.png.identifier)
-            ?? pasteboard.data(forType: UTType.tiff.identifier)
+            pasteboard.data(forPasteboardType: UTType.png.identifier)
+            ?? pasteboard.data(forPasteboardType: UTType.tiff.identifier)
         let hasString = pasteboard.hasStrings
         #endif
         let route = ComposerIngest.route(

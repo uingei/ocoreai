@@ -24,53 +24,48 @@ struct ProjectsView: View {
     @Environment(\.ocoreaiTheme) private var theme
 
     var body: some View {
-        HSplitView {
-            projectList
-                .frame(minWidth: 220, idealWidth: 260, maxWidth: 340)
-            detailPane
-                .frame(minWidth: 320, maxWidth: .infinity)
-        }
-        .navigationTitle(StringKey.tabProjects.l)
-        .task {
-            await store.load()
-        }
-        .sheet(isPresented: $showingNewProject) {
-            NewProjectSheet(store: store)
-        }
-        .alert(StringKey.tabProjects.l, isPresented: .constant(projectToDelete != nil)) {
-            Button(StringKey.cancelButton.l, role: .cancel) { projectToDelete = nil }
-            Button(StringKey.modelDeleteButton.l, role: .destructive) {
-                if let project = projectToDelete {
-                    Task {
-                        await store.delete(project)
-                        await refreshDetail()
+        columns
+            .navigationTitle(StringKey.tabProjects.l)
+            .task {
+                await store.load()
+            }
+            .sheet(isPresented: $showingNewProject) {
+                NewProjectSheet(store: store)
+            }
+            .alert(StringKey.tabProjects.l, isPresented: .constant(projectToDelete != nil)) {
+                Button(StringKey.cancelButton.l, role: .cancel) { projectToDelete = nil }
+                Button(StringKey.modelDeleteButton.l, role: .destructive) {
+                    if let project = projectToDelete {
+                        Task {
+                            await store.delete(project)
+                            await refreshDetail()
+                        }
                     }
+                    projectToDelete = nil
                 }
-                projectToDelete = nil
+            } message: {
+                Text(StringKey.projectDeleteConfirm.l)
             }
-        } message: {
-            Text(StringKey.projectDeleteConfirm.l)
-        }
-        // Refresh files/sessions whenever the open project changes.
-        .onChange(of: store.selectedProject?.id) { _, _ in
-            Task { await refreshDetail() }
-        }
-        .toolbar {
-            ToolbarItem {
-                Button {
-                    showingNewProject = true
-                } label: {
-                    Label(StringKey.projectNew.l, systemImage: "plus")
+            // Refresh files/sessions whenever the open project changes.
+            .onChange(of: store.selectedProject?.id) { _, _ in
+                Task { await refreshDetail() }
+            }
+            .toolbar {
+                ToolbarItem {
+                    Button {
+                        showingNewProject = true
+                    } label: {
+                        Label(StringKey.projectNew.l, systemImage: "plus")
+                    }
+                    .keyboardShortcut("n", modifiers: [.command, .shift])
+                    .accessibilityHint(StringKey.projectNew.l)
                 }
-                .keyboardShortcut("n", modifiers: [.command, .shift])
-                .accessibilityHint(StringKey.projectNew.l)
             }
-        }
-        .overlay {
-            if store.isLoading && store.projects.isEmpty {
-                ProgressView(StringKey.loadingSessions.l)
+            .overlay {
+                if store.isLoading && store.projects.isEmpty {
+                    ProgressView(StringKey.loadingSessions.l)
+                }
             }
-        }
     }
 
     // MARK: - Project list
@@ -131,8 +126,39 @@ struct ProjectsView: View {
                 }
             }
         }
+        #if os(macOS)
+        // Navigation subtitles are an AppKit/ iPadOS-26 surface; the package
+        // targets iOS 17, where there is no subtitle API. The count stays visible
+        // per project (sessionCount) and in the list itself.
         .navigationSubtitle("\(store.projects.count) \(StringKey.tabProjects.l)")
+        #endif
     }
+
+    // MARK: - Columns
+
+    #if os(macOS)
+    /// Resizable two-column split (Bionic parity).
+    private var columns: some View {
+        HSplitView {
+            projectList
+                .frame(minWidth: 220, idealWidth: 260, maxWidth: 340)
+            detailPane
+                .frame(minWidth: 320, maxWidth: .infinity)
+        }
+    }
+    #else
+    /// `HSplitView` is AppKit-only, and this view is already the detail column of
+    /// the root `NavigationSplitView` — nesting a second split view is not an
+    /// option on iOS, so stack the project list above the open project.
+    private var columns: some View {
+        VStack(spacing: 0) {
+            projectList
+                .frame(minHeight: 140, maxHeight: 220)
+            Divider()
+            detailPane
+        }
+    }
+    #endif
 
     // MARK: - Detail: sessions + Project Files (Bionic right sidebar)
 
