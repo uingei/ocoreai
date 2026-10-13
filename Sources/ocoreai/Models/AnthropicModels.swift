@@ -56,8 +56,14 @@ struct AnthropicMessageRequest: Decodable {
     /// Tool choice strategy
     var toolChoice: AnthropicToolChoice? = nil
 
-    /// Enable streaming
-    var stream: Bool = false
+    /// Enable streaming — optional per the Anthropic Messages spec (absent means
+    /// false), so it is `Bool?` here. The synthesized decoder in this target
+    /// requires every non-Optional key, which rejected spec-legal clients: live
+    /// 10-13 `POST /v1/messages` with `{model, max_tokens, messages}` answered
+    /// 400 "Coding key `stream` not found." `ChatCompletionRequest` avoids this
+    /// by hand-decoding the field (`OpenAIModels.swift:240`). Consumers already
+    /// read it as tri-state (`AnthropicMessagesHandler.swift:250` == true).
+    var stream: Bool? = nil
 
     /// Response format (for structured output)
     var responseFormat: AnthropicResponseFormat? = nil
@@ -388,7 +394,7 @@ func toChatCompletionRequest(_ req: AnthropicMessageRequest) -> ChatCompletionRe
         topK: req.topK,
         maxTokens: effectiveMaxTokens,
         responseFormat: nil,
-        stream: req.stream,
+        stream: req.stream ?? false,
         stop: req.stopSequences,
         frequencyPenalty: 0,
         // #176 alignment — Anthropic API has no repetition-penalty param; default
