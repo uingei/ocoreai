@@ -450,11 +450,16 @@ actor MLXSessionPool {
                 totalAcquireAttempts += 1
                 logHitRateIfNeeded()
                 if divergence > 0 {
-                    // Visible at default level: this is the turn where the prefix cache
-                    // actually saved a re-prefill, and the only place an owner can tell
-                    // reuse from a cold rebuild.
+                    // What this line can honestly claim is about the *feed*: the
+                    // caller withholds `divergence` messages this session's transcript
+                    // already holds. Whether the KV cache skipped a prefill is not
+                    // knowable here — upstream decides it and reports it on
+                    // GenerateCompletionInfo.cachedPromptTokenCount. Measured 10-14
+                    // (gemma-4-e2b-it-4bit, 3-turn same-session): prefilled == full
+                    // prompt, cached == 0, so claiming a saved re-prefill here would
+                    // be false. EngineInference logs the accounting per turn.
                     logger.info(
-                        "Session pool HIT: \(key) — \(divergence)/\(prefixMessages?.count ?? 0) messages already cached, feeding the suffix"
+                        "Session pool HIT: \(key) — \(divergence)/\(prefixMessages?.count ?? 0) messages already in this session's transcript, withholding them from this feed"
                     )
                 } else {
                     logger.debug("Session pool HIT: \(key), divergence=0")

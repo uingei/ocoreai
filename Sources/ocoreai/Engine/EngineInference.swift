@@ -4418,6 +4418,19 @@ extension EnginePool {
                                         completionInfo.cachedPromptTokenCount > 0
                                         ? completionInfo.cachedPromptTokenCount
                                         : 0
+                                    // Honest cache accounting: the pool deduped the feed,
+                                    // but upstream is the only party that knows whether the
+                                    // KV cache kept the prefix. When it reports no reuse,
+                                    // this turn paid the whole prefill — the case the HIT
+                                    // log cannot see, and the reason a 900-token turn
+                                    // measured 0.12-0.29 s of prompt time on 10-14.
+                                    if divergenceIndex > 0,
+                                        completionInfo.cachedPromptTokenCount == 0
+                                    {
+                                        logger.warning(
+                                            "Prefix cache reused no tokens for \(convKey): withheld \(divergenceIndex) message(s) from the feed, upstream prefilled all \(completionInfo.promptTokenCount) prompt tokens (cached=0, promptTime=\(Int(completionInfo.promptTime * 1000))ms)"
+                                        )
+                                    }
                                     // Capture both throughput metrics from upstream GenerateCompletionInfo
                                     promptTokPerSec = completionInfo.promptTokensPerSecond
                                     generationTokPerSec = completionInfo.tokensPerSecond
