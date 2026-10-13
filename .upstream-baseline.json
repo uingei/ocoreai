@@ -1,20 +1,20 @@
 {
-  "note": "versioned upstream drift baseline \u2014 values are SHAs (full or short, compare tolerant). scripts/upstream-drift.sh",
-  "checked_at_utc": "2026-10-13T12:19:59Z",
+  "note": "versioned upstream drift baseline — values are SHAs (full or short, compare tolerant). scripts/upstream-drift.sh",
+  "checked_at_utc": "2026-10-13T18:09:35Z",
   "baselines": {
     "mlx-swift-lm": "4cc5504",
-    "coreai-models": "be11f01",
-    "codex": "b043762"
+    "coreai-models": "bd61eb1",
+    "codex": "efa159f7aa"
   },
   "sources": {
     "mlx-swift-lm": "ml-explore/mlx-swift-lm",
     "coreai-models": "apple/coreai-models",
     "codex": "openai/codex"
   },
-  "adopt_provenance": "10-13 offline round: gh api unreachable, source of truth = local clones under ~/references (fetch mtimes 2026-10-12..13). mlx-swift-lm 7eb77ef..4cc5504 = 7 commits absorbed via SPM pin 18e6fe9 (verdicts AGENTS.md Upstream Audit #1, CHANGELOG 10-13); coreai-models 52dbd93cb..be11f01 = 1 commit (#346, python export only) consumer-transparent; codex a9b081516..b043762f9e = 31 commits, all consumer-transparent or explicitly declined, 2 principles landed locally (ed6ad1d terminal-honesty, 905492e steer delivery) - see AGENTS.md Upstream Audit #3.",
+  "adopt_provenance": "10-14 round 11 (api channel reachable again — resolved_via=api for all three axes; the 10-13 offline round used ~/references clones). mlx-swift-lm: api HEAD == pin 4cc5504, 0 new. coreai-models: be11f01..bd61eb1 = +2 (#347 PR template, #348 CODEOWNERS) — .github metadata only, consumer-transparent. codex: b043762f9e..efa159f7aa = 25 commits, adjudicated one by one, 25/25 consumer-transparent, 0 forced gap (verdicts: AGENTS.md Upstream Audit #3, CHANGELOG 10-14). The codex baseline is deliberately stamped at efa159f7aa = the last SHA read line by line, NOT at api HEAD 4d82d36cc (codex main advanced again between the check and the adopt calls); stamping ahead of adjudication would hide the unread tail, which is the time-aging distortion this repo warns about — the next `check` surfaces it instead.",
   "resolved_via": {
-    "mlx-swift-lm": "clone",
-    "coreai-models": "clone",
-    "codex": "clone"
+    "mlx-swift-lm": "api",
+    "coreai-models": "api",
+    "codex": "api"
   }
 }
