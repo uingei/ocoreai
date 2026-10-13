@@ -23,6 +23,23 @@ REPOS="mlx-swift-lm:ml-explore/mlx-swift-lm coreai-models:apple/coreai-models co
 cmd="${1:-check}"
 DRIFT=0
 
+# 本地镜像回落：无 DNS 的机器上 api() 必失败，三源会静默 skip（10-13 实测
+# `scripts/upstream-drift.sh check` = 三行 "api 失败，跳过"，每日自检空转）。
+# ~/references/<repo> 下的 clone 是同一 origin 的镜像，足以算 HEAD 与 base..head
+# 窗口；输出标 src=clone，避免把镜像 HEAD 误当成 GitHub 权威。
+REFS="${OCOREAI_REFERENCES_DIR:-$HOME/references}"
+local_dir()  { [ -d "$REFS/$1/.git" ] && printf '%s' "$REFS/$1"; }
+local_head() { local d; d="$(local_dir "$1")" || return 1
+  git -C "$d" rev-parse --verify -q origin/HEAD \
+    || git -C "$d" rev-parse --verify -q origin/main \
+    || git -C "$d" rev-parse --verify -q origin/master; }
+local_sha()  { local d; d="$(local_dir "$1")" || return 1
+  git -C "$d" rev-parse --verify -q "$2^{commit}" 2>/dev/null; }
+local_count() { local d; d="$(local_dir "$1")" || return 1
+  git -C "$d" rev-list --count "$2..$3" 2>/dev/null || echo '?'; }
+local_msgs() { local d; d="$(local_dir "$1")" || return 1
+  git -C "$d" log --format=%s "$2..$3" 2>/dev/null; }
+
 baseline_note() { python3 -c 'import json; d=json.load(open("'"$STATE"'")); print("@"+d["checked_at_utc"])' 2>/dev/null || echo "缺失(首次)"; }
 base_sha() {
   # mlx-swift-lm 的基线 = Package.resolved 里的 SPM pin（pin 即采纳记录，单一真源）。
@@ -73,19 +90,39 @@ echo
 for pair in $REPOS; do
   name="${pair%%:*}"
   repo="${pair##*:}"
-  head="$(api "repos/$repo/commits?per_page=1" head 2>/dev/null)" || { echo "!!  $name: api 失败（网络/auth），跳过"; DRIFT=1; continue; }
+  src=api
+  head="$(api "repos/$repo/commits?per_page=1" head 2>/dev/null)" || true
+  if [ -z "$head" ]; then
+    head="$(local_head "$name" 2>/dev/null)" || true
+    [ -n "$head" ] && src=clone
+  fi
+  if [ -z "$head" ]; then
+    echo "!!  $name: api 失败且无本地 clone（$REFS/${name}），跳过"
+    DRIFT=1
+    continue
+  fi
+  [ "$src" = clone ] && echo "     · $name src=local clone（$REFS/${name}，非 GitHub 权威；HEAD 截至该 clone 的 fetch 时刻）"
   short="${head:0:9}"
   base="$(base_sha "$name")"
   if [ -z "$base" ]; then
     printf "%-16s HEAD=%s  base=—(待首轮裁决/adopt)\n" "$name" "$short"
     continue
   fi
-  base_full="$(api "repos/$repo/commits/$base" sha 2>/dev/null || echo "$base")"
+  if [ "$src" = clone ]; then
+    base_full="$(local_sha "$name" "$base" 2>/dev/null || echo "$base")"
+  else
+    base_full="$(api "repos/$repo/commits/$base" sha 2>/dev/null || echo "$base")"
+  fi
   if [ "$base_full" = "$head" ]; then
     printf "%-16s HEAD=%s  0 new  ✓ 与基线同点\n" "$name" "$short"
   else
-    ahead="$(api "repos/$repo/compare/$base_full...$head" ahead 2>/dev/null || echo '?')"
-    behind="$(api "repos/$repo/compare/$base_full...$head" behind 2>/dev/null || echo '?')"
+    if [ "$src" = clone ]; then
+      ahead="$(local_count "$name" "$base_full" "$head")"
+      behind="$(local_count "$name" "$head" "$base_full")"
+    else
+      ahead="$(api "repos/$repo/compare/$base_full...$head" ahead 2>/dev/null || echo '?')"
+      behind="$(api "repos/$repo/compare/$base_full...$head" behind 2>/dev/null || echo '?')"
+    fi
     if [ "$ahead" != "?" ] && [ "$ahead" -gt 0 ] 2>/dev/null; then
       printf "%-16s HEAD=%s  +%s commits vs base=%s  ⚠ 新窗口待裁决\n" "$name" "$short" "$ahead" "${base:0:9}"
       DRIFT=10
@@ -97,7 +134,11 @@ for pair in $REPOS; do
       DRIFT=1
     fi
     if [ "$DRIFT" -eq 10 ]; then
-      window="$(api "repos/$repo/compare/$base_full...$head?per_page=50" messages 2>/dev/null | sed 's/\(.\{110\}\).*/\1.../' | head -50)"
+      if [ "$src" = clone ]; then
+        window="$(local_msgs "$name" "$base_full" "$head" | head -50)"
+      else
+        window="$(api "repos/$repo/compare/$base_full...$head?per_page=50" messages 2>/dev/null | sed 's/\(.\{110\}\).*/\1.../' | head -50)"
+      fi
       n_commits="$(printf '%s\n' "$window" | grep -c . || true)"
       hits="$(printf '%s\n' "$window" | grep -icE 'approv|update.?plan|plan tool|hook|mcp|reasoning|tool.?call|sampling|kv|chunk|grammar' || true)"
       echo "         轴词粗筛(提示,非权威): $hits / $n_commits 条"
@@ -111,14 +152,22 @@ if [ "$cmd" = "adopt" ]; then
   ADOPT_OK=1
   for pair in $REPOS; do
     name="${pair%%:*}"; repo="${pair##*:}"
-    head="$(api "repos/$repo/commits?per_page=1" head 2>/dev/null)" || { ADOPT_OK=0; continue; }
-    python3 - "$STATE" "$name" "$head" "$NOW_UTC" "$repo" <<'PY'
+    src=api
+    head="$(api "repos/$repo/commits?per_page=1" head 2>/dev/null)" || true
+    if [ -z "$head" ]; then
+      head="$(local_head "$name" 2>/dev/null)" || true
+      [ -n "$head" ] && src=clone
+    fi
+    [ -n "$head" ] || { ADOPT_OK=0; continue; }
+    [ "$src" = clone ] && echo "     · $name adopted from local clone ($REFS/$name) — 记录于 resolved_via"
+    python3 - "$STATE" "$name" "$head" "$NOW_UTC" "$repo" "$src" <<'PY'
 import json,sys
-path,name,head,now,repo=sys.argv[1:6]
+path,name,head,now,repo,src=sys.argv[1:7]
 try: d=json.load(open(path))
 except Exception: d={"baselines":{},"note":"versioned upstream drift baseline — scripts/upstream-drift.sh"}
 d["baselines"][name]=head[:7]   # 短 SHA：gh api 单点解析容忍度最高（7 位唯一即可）
 d["sources"]={**d.get("sources",{}),name:repo}
+d.setdefault("resolved_via",{})[name]=src
 d["checked_at_utc"]=now
 json.dump(d,open(path,"w"),indent=2); open(path,"a").write("\n")
 PY
