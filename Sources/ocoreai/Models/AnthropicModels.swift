@@ -210,7 +210,9 @@ struct AnthropicStreamEvent: Encodable {
     static func textDelta(index: Int, text: String) -> AnthropicStreamEvent {
         AnthropicStreamEvent(
             type: "content_block_delta", index: index, message: nil,
-            delta: AnthropicStreamDelta(type: "content_block_delta", partialJson: nil, text: text),
+            delta: AnthropicStreamDelta(
+                type: "content_block_delta", partialJson: nil, text: text,
+                stopReason: nil, stopSequence: nil),
             usage: nil)
     }
 
@@ -218,6 +220,19 @@ struct AnthropicStreamEvent: Encodable {
     static func contentBlockStop(index: Int) -> AnthropicStreamEvent {
         AnthropicStreamEvent(
             type: "content_block_stop", index: index, message: nil, delta: nil, usage: nil)
+    }
+
+    /// Message delta event — the only place the Anthropic protocol carries the
+    /// terminal `stop_reason`. Live 10-13: the SSE path went
+    /// `content_block_stop → message_stop`, so clients read no stop_reason at all
+    /// (`stream()` ends without the field the SDKs key on).
+    static func messageDelta(stopReason: String, outputTokens: Int) -> AnthropicStreamEvent {
+        AnthropicStreamEvent(
+            type: "message_delta", index: nil, message: nil,
+            delta: AnthropicStreamDelta(
+                type: "message_delta", partialJson: nil, text: nil,
+                stopReason: stopReason, stopSequence: nil),
+            usage: AnthropicStreamUsage(outputTokens: outputTokens, inputTokens: nil))
     }
 
     /// Message stop event (with final usage)
@@ -233,18 +248,25 @@ struct AnthropicStreamDelta: Encodable {
     let type: String
     let partialJson: String?
     let text: String?
+    /// Terminal reason, present only on `message_delta`.
+    let stopReason: String?
+    /// Matched stop sequence, present only on `message_delta`.
+    let stopSequence: String?
 
     enum CodingKeys: String, CodingKey {
         case type
         case partialJson = "partial_json"
         case text
+        case stopReason = "stop_reason"
+        case stopSequence = "stop_sequence"
     }
 }
 
 /// Usage in the final stream event
 struct AnthropicStreamUsage: Encodable {
     let outputTokens: Int
-    let inputTokens: Int
+    /// Optional: Anthropic's `message_delta` carries output_tokens only.
+    let inputTokens: Int?
 
     enum CodingKeys: String, CodingKey {
         case inputTokens = "input_tokens"

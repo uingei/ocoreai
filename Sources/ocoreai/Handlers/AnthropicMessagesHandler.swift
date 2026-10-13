@@ -561,6 +561,7 @@ private func streamAnthropicResponse(
             var totalOutputTokens = 0
             var accumulatedTokens: [Int32] = []
             var prevDecodedText = ""
+            var finishReason = "stop"
 
             // Emit message_start event
             let startResponse = AnthropicMessageResponse(
@@ -651,7 +652,9 @@ private func streamAnthropicResponse(
                         let deltaEvent = AnthropicStreamEvent.textDelta(index: 0, text: text)
                         writeSSEEvent(continuation, event: deltaEvent)
 
-                    case .done(_, let doneTokenCount, _, _, _, _, _, _, _, _):
+                    case .done(let reason, let doneTokenCount, _, _, _, _, _, _, _, _):
+                        finishReason = stopReasonToString(reason) ?? "stop"
+
                         // Authoritative token count from the engine — overwrite the
                         // per-event estimate (a `.text`/`.reasoning` case is a text
                         // segment/chunk, not a token). Same pattern as the ChatHandler
@@ -696,6 +699,14 @@ private func streamAnthropicResponse(
             // Emit content_block_stop
             let blockStop = AnthropicStreamEvent.contentBlockStop(index: 0)
             writeSSEEvent(continuation, event: blockStop)
+
+            // Emit message_delta — Anthropic carries stop_reason here, and SDKs key
+            // on it; message_stop alone leaves the turn without a terminal reason.
+            let deltaEvent = AnthropicStreamEvent.messageDelta(
+                stopReason: openAIToAnthropicStopReason(finishReason),
+                outputTokens: totalOutputTokens,
+            )
+            writeSSEEvent(continuation, event: deltaEvent)
 
             // Emit message_stop with final usage
             let finalEvent = AnthropicStreamEvent.messageStop(
