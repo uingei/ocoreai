@@ -222,6 +222,11 @@ actor EnginePool {
     /// Maximum models to keep in memory before LRU eviction kicks in
     let maxLoadedModels: Int
 
+    /// How often ``waitForLoading`` re-checks a load that another caller owns.
+    /// A model load is seconds-long, so a 100 ms tick is imperceptible to the
+    /// waiting request while keeping the actor mailbox free of busy polling.
+    static let loadingPollInterval: Duration = .milliseconds(100)
+
     /// Memory tracker — reports GPU memory allocations to MemoryTracker.
     let memoryTracker: MemoryTracker?
 
@@ -522,14 +527,15 @@ actor EnginePool {
     /// Errors are logged, never propagated — a failed prewarm simply means the
     /// first request pays the load cost itself, exactly as before.
     ///
-    /// A model under prewarm is NOT registered in ``loadingModels``, so a
-    /// concurrent real request (``acquire`` → ``waitForLoading``) proceeds
-    /// independently instead of blocking behind the background prewarm:
-    /// whichever finishes its load first wins the ``loadedModels`` slot. The
-    /// prewarm's follow-up warmup trip (``prewarmIfNeeded``) is always
-    /// idempotent and session-safe — it never registers a session — so even if
-    /// it observes a model already in ``loadedModels`` (won by a real request)
-    /// the extra warmup is harmless and the loser simply keeps its bookkeeping.
+    /// A model under prewarm IS registered in ``loadingModels`` (the slot held
+    /// below), so a concurrent real request waits on ``waitForLoading`` instead
+    /// of starting a second heavy load of the same weights. The wait releases as
+    /// soon as the slot is free: the prewarm registers the model in
+    /// ``loadedModels`` before running its warmup trip, so a request arriving
+    /// mid-prewarm pays the load, not the warmup. The warmup trip
+    /// (``prewarmIfNeeded``) is idempotent and session-safe — it never
+    /// registers a session — so the racing paths cannot double-warm or leak a
+    /// session.
     func prewarmDefaultModel(_ modelId: String) async {
         guard !loadedModels.keys.contains(modelId) else { return }
         guard !prewarmingModels.contains(modelId) else { return }
@@ -606,20 +612,43 @@ actor EnginePool {
 
     /// Wait for another caller to finish loading ``modelId``.
     ///
-    /// Uses a ``ContinuousClock`` deadline instead of busy-spinning.
-    /// Each tick: check cancellation, check deadline, check if model is now loaded,
-    /// then suspend for 1 s.  The actor mailbox is NOT blocked during the sleep —
-    /// Swift actors yield at each suspend point.
-    private func waitForLoading(modelId: String, timeoutSeconds: Int) async throws {
+    /// Each tick: check cancellation, check the deadline, then sleep
+    /// ``loadingPollInterval``. The actor mailbox is NOT blocked during the
+    /// sleep — Swift actors yield at each suspend point.
+    ///
+    /// A tick sleeps one poll interval, capped at the deadline — never the
+    /// deadline itself. Sleeping to the deadline (the previous revision) parked
+    /// every request that arrived while a load was in flight for the entire
+    /// window, so a model ready after 3 s still cost the first chat request the
+    /// full ``timeoutSeconds``: 120 s, measured 5/5 cold processes on 10-13
+    /// (dispatch → "Session acquired" landed exactly at +120 s).
+    ///
+    /// Internal rather than private so the gate's release timing is testable
+    /// without a Metal device or a model download.
+    func waitForLoading(modelId: String, timeoutSeconds: Int) async throws {
         let deadline = ContinuousClock.now + .seconds(timeoutSeconds)
         while loadingModels.contains(modelId) {
             try Task.checkCancellation()
-            guard ContinuousClock.now < deadline else {
+            let now = ContinuousClock.now
+            guard now < deadline else {
                 // Still loading past the wait window → transient: the load is
                 // in flight, not dead. Tell the client to poll, not to give up.
                 throw AppError.modelLoading(modelId)
             }
-            try await Task.sleep(until: deadline, clock: .continuous)
+            let nextTick = min(deadline, now + Self.loadingPollInterval)
+            try await Task.sleep(until: nextTick, clock: .continuous)
+        }
+    }
+
+    /// Test seam: enter / leave the "load in flight" state for ``modelId``
+    /// without loading anything, so the acquire-side wait gate can be exercised
+    /// off-device. Production reaches this state through ``acquire(model:)``
+    /// and ``prewarmDefaultModel(_:)``.
+    func setLoadingForTesting(_ modelId: String, loading: Bool) {
+        if loading {
+            loadingModels.insert(modelId)
+        } else {
+            loadingModels.remove(modelId)
         }
     }
 
