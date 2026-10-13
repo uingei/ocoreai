@@ -187,6 +187,37 @@ func absorbGuidedGenerationPartialOutput(
     return true
 }
 
+// MARK: - Guided Gen Completion Reserves
+
+/// Completion-zone reserves for `GuidedGenerationLoop`, clamped to the request
+/// budget.
+///
+/// Upstream recipe (`MLXLanguageModel.swift:1411-1415`): soft nudge starts
+/// `max(structural×3, maxTokens÷4)` tokens before the budget, hard force starts
+/// `structural×8` before it. With a modest `max_tokens` that formula pushes
+/// `hardReserve` to or past the whole budget, so *every* sampled step runs in the
+/// force-closing zone — the opposite of what the zones are for (upstream
+/// `GuidedGenerationLoop.swift:231-245`: hard = the last `hardReserve` tokens,
+/// i.e. hard < completion).
+///
+/// Live, 10-13, gemma-4-e2b-it-4bit, `json_schema` `{"answer": integer}`:
+/// `max_tokens` 24 and 32 → `{"answer"\n  \n:1111…` until the budget, never
+/// closed, `GuidedGenerationError.incompleteOutput`; 48 / 64 / 128 / unset →
+/// valid `{\n  "answer": 7\n}`.
+///
+/// So: the hard zone may only cover the tail — `structuralReserve` tokens is
+/// exactly what closing the structure needs — and neither zone may exceed the
+/// budget. Large budgets keep the upstream numbers untouched (4096 → 1024 / 7).
+func guidedCompletionReserves(
+    maxTokens: Int, structuralReserve: Int
+) -> (completion: Int, hard: Int) {
+    let budget = Swift.max(maxTokens, 0)
+    let structural = Swift.max(structuralReserve, 0)
+    let completion = Swift.min(Swift.max(structural * 3, budget / 4), budget)
+    let hard = Swift.min(structural, completion)
+    return (completion, hard)
+}
+
 // MARK: - Top-Level Inference Error Surface
 
 /// Wire-facing error message for the top-level `runInferenceBody` catch.

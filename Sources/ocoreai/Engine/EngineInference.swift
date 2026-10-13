@@ -2035,8 +2035,13 @@ extension EnginePool {
                     schemaJSON: grammarSchema,
                     tokenizer: context.tokenizer
                 )
-                let completionReserve = Swift.max(structuralReserve * 3, maxTokens / 4)
-                let hardReserve = structuralReserve * 8
+                // Clamped to the budget — a reserve that meets or exceeds maxTokens
+                // puts every step in the force-closing zone and corrupts small-budget
+                // structured calls (see `guidedCompletionReserves`).
+                let reserves = guidedCompletionReserves(
+                    maxTokens: maxTokens, structuralReserve: structuralReserve)
+                let completionReserve = reserves.completion
+                let hardReserve = reserves.hard
 
                 // Extract KV quantization params from typed config for GuidedGenerationLoop
                 // (which still consumes legacy scalar kvBits/kvGroupSize/quantizedKVStart).
@@ -2194,6 +2199,32 @@ extension EnginePool {
                         diagnosticResult = .success(
                             tokenCount: diagnosticSink.generatedTokenCount,
                             sink: diagnosticSink)
+                        // The `.success` block above sits before this catch, so once the
+                        // loop throws it is skipped: absorbing the partial output left the
+                        // stream without any `.done`, and ChatHandler kept its default
+                        // `finish_reason: "stop"` for a turn whose grammar never
+                        // terminated (live 10-13: `json_schema` + max_tokens=24 returned
+                        // corrupt partial text as a completed turn). Emit the same two
+                        // events, in the same order, as the success path.
+                        continuation.yield(
+                            .init(
+                                kind: .guidedGenDiagnostic(
+                                    grammarTerminated: diagnosticSink.grammarTerminated,
+                                    incompleteOutput: diagnosticSink.incompleteOutput)))
+                        let absorbedTokens = diagnosticSink.generatedTokenCount
+                        let absorbedTokPerSec =
+                            absorbedTokens > 0
+                            ? Double(absorbedTokens) / (Double(metrics.overallMs) / 1000.0)
+                            : nil
+                        continuation.yield(
+                            .init(
+                                kind: .done(
+                                    diagnosticSink.grammarTerminated ? .eos : .maxTokens,
+                                    tokenCount: absorbedTokens,
+                                    tokPerSec: absorbedTokPerSec,
+                                    promptTokPerSec: nil,
+                                    reasoningTokenCount: 0)))
+                        doneAlreadyYielded = true
                     } else {
                         // emit .done before throwing — prevents continuation leak.
                         // The outer do-catch (L1259/1283) will propagate the error as
