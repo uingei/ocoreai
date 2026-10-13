@@ -29,7 +29,8 @@ struct AnthropicSSEWireShapeTests {
         #expect(d["stop_reason"] as? String == "end_turn")
         let u = e["usage"] as? [String: Any]
         #expect(u?["output_tokens"] as? Int == 7)
-        #expect(u?.keys.contains("input_tokens") == false, "message_delta carries output_tokens only")
+        #expect(
+            u?.keys.contains("input_tokens") == false, "message_delta carries output_tokens only")
     }
 
     /// `content_block_delta` must not start emitting the new keys.
@@ -46,7 +47,8 @@ struct AnthropicSSEWireShapeTests {
     /// message_stop keeps reporting both counters, as before.
     @Test("message_stop still reports input and output tokens")
     func messageStopShape() {
-        let u = json(AnthropicStreamEvent.messageStop(inputTokens: 19, outputTokens: 5))["usage"]
+        let u =
+            json(AnthropicStreamEvent.messageStop(inputTokens: 19, outputTokens: 5))["usage"]
             as? [String: Any]
         #expect(u?["input_tokens"] as? Int == 19)
         #expect(u?["output_tokens"] as? Int == 5)
