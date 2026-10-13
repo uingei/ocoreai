@@ -65,7 +65,7 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 ```
 
 **Local gate reality (corrected 10-12, and it was wrong for weeks):** the full suite
-**does** run on this host — `2277 tests / 428 suites` completed in ~400s on the CLT route
+**does** run on this host — `2324 tests / 434 suites` completed in ~400s on the CLT route (re-measured 10-13; the count moves with each added suite)
 (`make test-clt`). The blocker was never the platform, metallib, or macOS 26: it was the
 **agent sandbox**. Inside the sandbox MLX reports
 `[metal::load_device] No Metal device available` and the first MLX-touching suite dies;
@@ -99,6 +99,9 @@ turns. **Prefer a live check over an inference whenever a claim is about behavio
 - **A stub that replaces a real component must be detectable at runtime, not only at compile time.** `TokenizerManager.isRealTokenizerBackend` (true in the real actor, false in the stub) is the pattern: published on `/v1/capabilities` as `tokenizerBackend: real|heuristic`, it decides which wording the engine may log, and a test asserts it — so a silent substitution fails the gate instead of shipping.
 - **Never gate a capability surface on a backend axis.** `canImport(CoreAI)` means "this SDK has CoreAI"; it says nothing about Metal, vision processors, or tokenizers. When a gate is about a capability, gate on that capability's real requirement.
 
+### Wire DTOs
+- **A field the spec calls optional must be Optional in the DTO** (or hand-decoded with `decodeIfPresent(…) ?? default`). The synthesized `Decodable` in this target requires every non-Optional key, so a default on a non-Optional property does not make the key optional on the wire. Concrete failure (10-13): `AnthropicMessageRequest.stream: Bool = false` still answered `400 Coding key `stream` not found.` for spec-legal clients, while `ChatCompletionRequest` survived only because it hand-decodes (`OpenAIModels.swift:240`). Pin every such field with a decode test that omits the key.
+
 ### Error Handling
 - Precondition near-free: production code uses precondition/preconditionFailure only for structural invariants and upstream-verbatim numeric/speech surfaces; new code must not add them. **Full-scan verified (12 sites / 9 files):**
   - Video/DiscreteFlowScheduler (`precondition` ×2)
@@ -131,6 +134,9 @@ turns. **Prefer a live check over an inference whenever a claim is about behavio
 
 ### Open (currently unresolved — the only items worth prose)
 
+
+- **HTTP token-count 面窄**(Router/ — 10-13 活体实测,未修,属新增 API 面留人拍板):`POST /v1/count-tokens` 只认 `{model,prompt}`,`input`/`messages` 均 `400 Coding key `prompt` not found.`(OpenAI/Anthropic 客户端惯例字段拿不到计数);`POST /v1/messages/count_tokens` = **404**,而 `AnthropicMessageRequest` 已可用 ⇒ Anthropic SDK 的预算前置调用仍会失败。另:`/v1/count-tokens` 的 404 提示语自称「endpoints via GET /v1/capabilities」,但 `CAPayload`(`ChatCompletionsRouter.swift:278-302`)只公示能力行与 `tokenizerBackend`,不含端点索引。
+- **CoreAI 约束路的掩码常数**(`EngineInference.swift:1385`,**本机 macOS 26 不可运行验证**)— `_applyBitmask` 自己的文档写「disallowed tokens → -inf」,代码却是 `Float.leastNormalMagnitude * -1` ≈ −1.18e-38(加法掩码下几乎等于 0 ⇒ 等于没掩);且循环内 `guard tokenIdx < vocabSize, tokenIdx < logits.count else { return }` 会在首个越界索引处**整个函数返回**,跳过后续掩码字。唯一调用点在 `@available(macOS 27.0,*)` 的 `_runConstrainedDecoding`(L1080/L1223)。改法显然(`-Float.infinity` + `continue`),但在 macOS 27 上跑通前不臆修、不宣称已修。
 
 - **iOS UI parity** (UI/) — 09-22 实证：工具层平台门控已核 = 正确（10 个 macOS-only：move/click/drag/scroll/type/key + inspect_ui(AX) + open/activate/list_apps(NSWorkspace)，均 macOS 平台语义）。10-13 落三处编译门，逐条以 iPhoneOS 27 SDK 一手证据核对（不凭印象）：`HSplitView` = `@available(iOS, unavailable)`；`navigationSubtitle` = `@available(iOS 26.0, macCatalyst 14.0, macOS 11.0, *)` 而 target 是 `.iOS(.v17)`；`UIPasteboard` 只有 `dataForPasteboardType:`（`UIPasteboard.h:79`；`dataForType:` 是 AppKit 拼法）。复扫排除的误报：`keyboardShortcut`/`.help` = `@available(iOS 14.0, …)`、`UTType`、`AVCaptureDevice.requestAccess` 均可用。仍开 = iOS **运行时**零验证（沙箱内 `xcodebuild` 起不来，编译面由 CI job `build-ios` 把关），MCP/Security on iOS TBD，ChatView/MultimodalControls 的 UI 门控仍需活验。
 - **Reasoning `<thinking>` parse** (Engine/) — 字符串协议状态机（`ThinkTagParser`，0 处 regex，#206 后 15/15 绿），无 AST。
