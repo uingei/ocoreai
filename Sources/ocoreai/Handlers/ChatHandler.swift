@@ -294,6 +294,11 @@ func chatCompletionsHandler(
         throw AppError.engineUnavailable
     }
 
+    /// Steering pending for this conversation, drained at the head of the turn
+    /// (see the merge below) so the failure path can hand it back untouched.
+    let steeringKey: String? = request.sessionID
+    var pendingSteers: [SteerMessage] = []
+
     var result: Response?
     do {
         /// Phase 2: Build complete message list including system prompt + tool info injection.
@@ -306,6 +311,26 @@ func chatCompletionsHandler(
                 tools: request.tools,
                 sessionId: request.sessionID ?? UUID().uuidString,
             ))
+
+        /// Mid-turn steering enters the model here. `POST /v1/steer` documents
+        /// accept-always semantics: a steer no live turn drained "survives and
+        /// merges into the NEXT request for the same conversation". The engine
+        /// drains the queue only at tool-dispatch boundaries inside a turn, so
+        /// a steer that arrives while no turn runs — or during a turn that
+        /// never dispatches a tool — would stay queued, invisible to the model
+        /// and never returned to a wire client (the GUI has a composer flush;
+        /// the HTTP path had nothing). Draining before the prompt is built
+        /// delivers it on this request, and `prompt_tokens` counts it honestly.
+        if let key = steeringKey {
+            pendingSteers = SteerQueue.shared.drain(sessionKey: key)
+            if !pendingSteers.isEmpty {
+                fullMessages = mergingSteeredTurn(
+                    fullMessages, SteerQueue.renderAsUserText(pendingSteers))
+                logger.info(
+                    "Steering merged at request head (\(key)): \(pendingSteers.count) message(s)"
+                )
+            }
+        }
 
         /// Phase 3: Tokenize messages for prompt token count.
         /// (Token count needed for metrics; actual inference passes messages directly on MLX path.)
@@ -702,6 +727,14 @@ func chatCompletionsHandler(
         /// Cleanup on error path
         await handle.release()
         await scheduler.complete(schedulingRequest.id)
+        /// The steers above entered this turn's prompt; if the turn failed
+        /// before the model read them, re-queue so the next request for the
+        /// same conversation still gets them (never swallow on an error path).
+        if let key = steeringKey {
+            for steer in pendingSteers {
+                SteerQueue.shared.enqueue(sessionKey: key, text: steer.text)
+            }
+        }
         throw error
     }
 
@@ -1772,6 +1805,25 @@ private func persistConversation(
         // Non-fatal — response already sent to client
         logger.error("Persist failed: \(error)")
     }
+}
+
+/// Append steering text accepted by `POST /v1/steer` as one user-role turn.
+///
+/// `messages` comes back unchanged when `steerText` is empty, and when the
+/// trailing user turn already carries the same text — a client that sends the
+/// text both normally and through the steering route must not be heard twice.
+/// The marker-stripped comparison covers a client that echoes only the body.
+func mergingSteeredTurn(_ messages: [Message], _ steerText: String) -> [Message] {
+    guard !steerText.isEmpty else { return messages }
+    if let last = messages.last, last.role == "user" {
+        let trailing = last.textContent()
+        if trailing == steerText { return messages }
+        if steerText.hasPrefix(SteerQueue.wireMarker) {
+            let body = steerText.dropFirst(SteerQueue.wireMarker.count + 1)
+            if trailing == body { return messages }
+        }
+    }
+    return messages + [Message(role: "user", content: steerText)]
 }
 
 /// Extract plain text from Message.content

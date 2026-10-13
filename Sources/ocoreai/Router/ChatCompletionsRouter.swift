@@ -387,14 +387,27 @@ func buildRouter(
 
     /// Enqueue a mid-turn steer for a conversation. Same-queue contract as the
     /// GUI composer's steer path — this route adds only the wire, zero new
-    /// queueing logic (single SteerQueue, single drain seam in the engine).
+    /// queueing logic (one `SteerQueue`; where it gets delivered is spelled out
+    /// in Semantics below, pinned by `SteerRequestHeadTests`).
     ///
-    /// Semantics (deliberately accept-always-on-valid-input): if a turn is
-    /// live for this conversation_id, the engine drains at the next boundary
-    /// mid-turn; if not, the steer survives and merges into the NEXT request
-    /// for the same conversation (the queue is persistent, not turn-scoped).
+    /// Semantics (deliberately accept-always-on-valid-input): the queue is
+    /// persistent, not turn-scoped, and every accepted steer has exactly one
+    /// of three delivery points —
+    ///   1. a live turn that dispatches a tool: injected at that boundary, so
+    ///      the model course-corrects inside the turn in flight;
+    ///   2. otherwise: drained at the head of the NEXT `/v1/chat/completions`
+    ///      or `/v1/messages` request carrying the same `session_id`, appended
+    ///      as a user-role turn (`mergingSteeredTurn`, ChatHandler) — a turn
+    ///      that never dispatches a tool cannot take the steer mid-flight, so
+    ///      it lands at the next prompt instead of dying in the queue.
+    ///      `/v1/completions` has no `session_id` field, so it never carries
+    ///      steering; send steered conversations to the chat endpoints.
+    ///   3. the in-app composer additionally returns leftovers to the input
+    ///      box at turn end, where the user can edit and resubmit.
     /// This mirrors codex's interjection queue — there is no "turn busy?
     /// 409" surface because steer-by-definition never fails on availability.
+    /// Clients that want the steer as an ordinary turn should just send it in
+    /// `messages`: a trailing user turn with the same text is not duplicated.
     /// Auth + rate limit apply (registered before these routes upstream).
     routes.post("/v1/steer") { request, context -> Response in
         struct SteerRequestBody: Codable {
