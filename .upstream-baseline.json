@@ -1,15 +1,20 @@
 {
   "note": "versioned upstream drift baseline \u2014 values are SHAs (full or short, compare tolerant). scripts/upstream-drift.sh",
-  "checked_at_utc": "2026-10-12T06:57:18Z",
+  "checked_at_utc": "2026-10-13T12:19:59Z",
   "baselines": {
-    "mlx-swift-lm": "7eb77ef",
-    "coreai-models": "52dbd93cb",
-    "codex": "a9b081516"
+    "mlx-swift-lm": "4cc5504",
+    "coreai-models": "be11f01",
+    "codex": "b043762"
   },
   "sources": {
     "mlx-swift-lm": "ml-explore/mlx-swift-lm",
     "coreai-models": "apple/coreai-models",
     "codex": "openai/codex"
   },
-  "adopt_provenance": "10-12 offline round: gh api unreachable, source of truth = local clones under ~/references (ref mtimes 2026-10-12 11:01-11:09 +08); codex cc7ba3360..a9b081516 = 11 commits, all consumer-transparent (verdicts in AGENTS.md Upstream Audit #3)"
+  "adopt_provenance": "10-13 offline round: gh api unreachable, source of truth = local clones under ~/references (fetch mtimes 2026-10-12..13). mlx-swift-lm 7eb77ef..4cc5504 = 7 commits absorbed via SPM pin 18e6fe9 (verdicts AGENTS.md Upstream Audit #1, CHANGELOG 10-13); coreai-models 52dbd93cb..be11f01 = 1 commit (#346, python export only) consumer-transparent; codex a9b081516..b043762f9e = 31 commits, all consumer-transparent or explicitly declined, 2 principles landed locally (ed6ad1d terminal-honesty, 905492e steer delivery) - see AGENTS.md Upstream Audit #3.",
+  "resolved_via": {
+    "mlx-swift-lm": "clone",
+    "coreai-models": "clone",
+    "codex": "clone"
+  }
 }
