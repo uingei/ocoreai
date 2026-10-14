@@ -7,6 +7,9 @@ cd "$(git rev-parse --show-toplevel)" || exit 1
 echo "HEAD=$(git rev-parse --short HEAD) origin/main=$(git rev-parse --short origin/main) dirty=$(git status --short | wc -l | tr -d ' ')"
 [ -f .upstream-baseline.json ] && echo "--- upstream baseline ---" && cat .upstream-baseline.json
 echo "--- pins (Package.swift) ---"; grep -nE "revision:|exact:" Package.swift
+echo "--- toolchain contract (the platform premise the gates assume) ---"
+bash scripts/toolchain-contract.sh report
+[ -n "${OCOREAI_AUDIT_STRICT:-}" ] && bash scripts/toolchain-contract.sh check
 echo "--- gates (Makefile) ---"; grep -n "test-ci\|build-for-testing\|workspace\|scheme" Makefile | head -8
 echo "--- test targets ---"; grep -c testTarget Package.swift
 echo "--- release surface ---"

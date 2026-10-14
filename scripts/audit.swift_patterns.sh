@@ -93,6 +93,47 @@ check "Class-G: hardcoded version literal" '"v\?[0-9]\+\.[0-9]\+\.[0-9]\+"' \
 check "Class-H: Memory.cacheLimit written outside its owner" 'Memory\.cacheLimit[[:space:]]*=' \
     "MLXBridge.swift"
 
+# --- Class-I: redistribution notices must stay accurate ---
+# BSD-3 cl.1 / Apache-2.0 4 attach to the notice itself, and THIRD-PARTY-LICENSES/
+# is the only place the shipped product states them. Three failure modes this pins:
+# a mojibake or misspelled rightsholder (a notice that names nobody correct), and a
+# vendored header whose holder appears nowhere in the notices (an unattributed grant).
+echo ""
+echo "[Class-I: redistribution notice integrity]"
+NOTICES="$ROOT/THIRD-PARTY-LICENSES/NOTICES.md"
+I_FAIL=0
+if [ ! -f "$NOTICES" ]; then
+    echo "  ❌ $NOTICES missing — run scripts/collect-third-party-licenses.sh"
+    I_FAIL=1
+fi
+broken=$(grep -rn "Copyright ?\|uigei@\|Copyright @[[:space:]]*$" "$SRC" \
+    --include='*.swift' --include='*.h' --include='*.cpp' 2>/dev/null || true)
+if [ -n "$broken" ]; then
+    echo "  ❌ malformed rightsholder line:"
+    echo "$broken" | sed 's/^/     /'
+    I_FAIL=1
+fi
+LIBDIR="$ROOT/Sources/lib"
+if [ -d "$LIBDIR" ] && [ -f "$NOTICES" ]; then
+    for f in $(grep -rl "Copyright" "$LIBDIR" --include='*.h' --include='*.hpp' \
+            --include='*.c' --include='*.cpp' --include='*.mm' 2>/dev/null || true); do
+        if grep -q "Apple Inc.\|uingei" "$f"; then continue; fi
+        case "$f" in
+            *"$ROOT"*) rel="${f#$ROOT/}" ;;
+            *) rel="$f" ;;
+        esac
+        if ! grep -qF "$rel" "$NOTICES"; then
+            echo "  ❌ vendored third-party file not attributed in NOTICES.md: $rel"
+            I_FAIL=1
+        fi
+    done
+fi
+if [ "$I_FAIL" -eq 0 ]; then
+    echo "  ✅ Clean"
+    grep -c "^| " "$NOTICES" 2>/dev/null | sed 's/^/     notices table rows: /'
+fi
+FAIL=$((FAIL + I_FAIL))
+
 echo ""
 echo "=========================================="
 if [ "$FAIL" -eq 0 ]; then

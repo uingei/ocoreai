@@ -49,6 +49,7 @@ dist/
 # CLT-route scratch path (make test-clt)
 .build-clt/
 .build-ios/
+.build-*/
 tmp/
 
 # agent sandbox scratch (clang module caches) — never a source of truth

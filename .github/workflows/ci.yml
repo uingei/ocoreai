@@ -61,6 +61,27 @@ jobs:
       - name: Run static audit
         run: bash scripts/audit.swift_patterns.sh
 
+      # AGENTS.md contract — the injected context layer is code: budget it (shrink-only), resolve
+      # every path/`file:line` it names, re-run every `<!-- claim:… -->` number, and check that its
+      # routing table matches the guides on disk. Its first run here caught three counts that had
+      # drifted and four map rows pointing at files the repo never had — invisible to every other
+      # job because nothing greps the docs.
+      - name: AGENTS.md contract
+        run: bash scripts/agents-md-contract.sh check
+
+      # Toolchain contract — assert this runner's SDK/toolchain is the shape the build
+      # claims. A runner-image bump can repoint MacOSX.sdk to a newer SDK that ships
+      # CoreAI.framework, which flips `canImport(CoreAI)` true and compiles the
+      # macOS-27-only blocks into what we call the delivery build. Same family as the
+      # swift-format version lock above: the environment is part of what we test, so
+      # pin it and fail loudly rather than infer it from a symlink. (Observed on a dev
+      # host 10-14: CLT 26.5 → 27.0 mid-session + Metal Toolchain component gone, and
+      # `swift build` became undiagnosable.)
+      - name: Toolchain contract
+        # --probe-metal: judge R2 by compiling a kernel, not by `metal --version`
+        # (whose answer tracks whether cryptexd has the asset mounted right now).
+        run: bash scripts/toolchain-contract.sh check --probe-metal
+
       # Lockfile drift gate — xcodebuild (all test/release legs) reads the
       # WORKSPACE Package.resolved; swift build reads the ROOT one. Two
       # containers drifted 10/34 pins apart unnoticed (2026-10 audit): the
