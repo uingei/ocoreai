@@ -431,6 +431,15 @@ public enum StringKey: String, CaseIterable, Sendable {
     case updatesUpToDate = "About.UpdatesUpToDate"
     case updateAvailablePrompt = "About.UpdateAvailablePrompt"
     case updateUnavailable = "About.UpdateUnavailable"
+    case thirdPartyNotices = "About.ThirdPartyNotices"
+    case thirdPartyNoticesIntro = "About.ThirdPartyNoticesIntro"
+    case thirdPartyNoticesUnavailable = "About.ThirdPartyNoticesUnavailable"
+    case thirdPartyNoticesApple = "About.ThirdPartyNoticesApple"
+    case thirdPartyNoticesAppleDetail = "About.ThirdPartyNoticesAppleDetail"
+    case thirdPartyNoticesDependencies = "About.ThirdPartyNoticesDependencies"
+    case thirdPartyNoticesDependenciesDetail = "About.ThirdPartyNoticesDependenciesDetail"
+    case thirdPartyNoticesCodex = "About.ThirdPartyNoticesCodex"
+    case thirdPartyNoticesFrameworks = "About.ThirdPartyNoticesFrameworks"
     case capabilityBackend = "About.CapabilityBackend"
     case capabilityUnavailable = "About.CapabilityUnavailable"
     case capabilityOn = "About.CapabilityOn"
@@ -1003,6 +1012,21 @@ enum L10nTables {
         .updatesUpToDate: "You're up to date.",
         .updateAvailablePrompt: "Version %@ is available. Open the release page?",
         .updateUnavailable: "Update check unavailable — check your connection.",
+        .thirdPartyNotices: "Third-Party Notices…",
+        .thirdPartyNoticesIntro:
+            "ocoreai's own code is MIT. Everything it links or derives from keeps its own terms, reproduced in full below.",
+        .thirdPartyNoticesUnavailable:
+            "This build carries no third-party license texts — run scripts/bundle-licenses.sh when packaging.",
+        .thirdPartyNoticesApple: "Derived from Apple",
+        .thirdPartyNoticesAppleDetail:
+            "Files derived from apple/coreai-models keep Apple's copyright header. The BSD-3 text below is the upstream LICENSE, byte-verified during packaging.",
+        .thirdPartyNoticesDependencies: "Linked dependencies",
+        .thirdPartyNoticesDependenciesDetail:
+            "BSD-3 and Apache-2.0 require the license text to travel with the product, so each one ships inside the app.",
+        .thirdPartyNoticesCodex:
+            "openai/codex is a semantic reference only: it is Rust, it is not linked, and no codex source is redistributed here.",
+        .thirdPartyNoticesFrameworks:
+            "Apple system frameworks are linked by macOS at runtime and are not redistributed; they stay subject to Apple's platform terms.",
         .capabilityBackend: "Backends",
         .capabilityUnavailable: "Unavailable",
         .capabilityOn: "On",
@@ -1532,6 +1556,21 @@ enum L10nTables {
         .updatesUpToDate: "已是最新版本。",
         .updateAvailablePrompt: "新版本 %@ 可用。打开发布页下载？",
         .updateUnavailable: "暂无法检查更新——请检查网络连接。",
+        .thirdPartyNotices: "第三方许可…",
+        .thirdPartyNoticesIntro:
+            "ocoreai 自身代码采用 MIT。它链接或派生的每个组件各自保留其条款，全文列于下方。",
+        .thirdPartyNoticesUnavailable:
+            "此构建未包含第三方许可文本——打包时请执行 scripts/bundle-licenses.sh。",
+        .thirdPartyNoticesApple: "源自 Apple",
+        .thirdPartyNoticesAppleDetail:
+            "派生自 apple/coreai-models 的文件保留 Apple 版权头。下方 BSD-3 全文即上游 LICENSE，打包时已逐字节校验。",
+        .thirdPartyNoticesDependencies: "链接的依赖",
+        .thirdPartyNoticesDependenciesDetail:
+            "BSD-3 与 Apache-2.0 要求许可文本随产品一同分发，因此每个依赖的全文都打进应用内。",
+        .thirdPartyNoticesCodex:
+            "openai/codex 仅作语义参照：它是 Rust，未被链接，本应用不重分发其源码。",
+        .thirdPartyNoticesFrameworks:
+            "Apple 系统框架由 macOS 在运行时链接，不随本应用重分发，仍受 Apple 平台条款约束。",
         .capabilityBackend: "推理后端",
         .capabilityUnavailable: "不可用",
         .capabilityOn: "启用",

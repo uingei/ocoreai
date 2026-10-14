@@ -43,6 +43,9 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .navigationTitle(StringKey.settingsTitle.l)
         .accessibilityLabel(StringKey.settingsTitle.l)
+        .sheet(isPresented: $showingThirdPartyNotices) {
+            ThirdPartyNoticesView()
+        }
         .task {
             // Non-blocking: listModels() no longer runs on MainActor, so this yields control back to UI
             await settingsState.load()
@@ -511,6 +514,15 @@ struct SettingsView: View {
                 }
                 .disabled(checkingUpdates)
                 .buttonStyle(.borderless)
+                // Licenses that travel with this build, readable without opening
+                // the .app package (BSD-3 cl.2 / Apache-2.0 §4 are user-facing
+                // obligations, not packaging trivia).
+                Button {
+                    showingThirdPartyNotices = true
+                } label: {
+                    Label(StringKey.thirdPartyNotices.l, systemImage: "doc.plaintext")
+                }
+                .buttonStyle(.borderless)
                 if let outcome = updateOutcome {
                     switch outcome {
                     case .upToDate:
@@ -606,6 +618,7 @@ struct SettingsView: View {
     // MARK: - Danger Zone
 
     @State private var showingResetConfirmation = false
+    @State private var showingThirdPartyNotices = false
     @State private var updateOutcome: UpdateCheck.Outcome?
     @State private var checkingUpdates = false
 

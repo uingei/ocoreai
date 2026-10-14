@@ -56,6 +56,13 @@ mkdir -p "$APP_DIR/Contents/Resources/${METALLIB_BUNDLE}/Contents/Resources"
 cp "$METALLIB_SRC" "$APP_DIR/Contents/Resources/${METALLIB_BUNDLE}/Contents/Resources/default.metallib"
 echo "✅ MLX metallib shipped (Contents/MacOS + Resources/${METALLIB_BUNDLE})"
 
+# 3c. Third-party license texts (BSD-3 clause 2 / Apache-2.0 4 require the text
+#     to travel with the distribution; ocoreai also carries source derived from
+#     apple/coreai-models, whose header points at "the LICENSE file" while this
+#     repo's LICENSE is MIT). Fails the build if any dependency text is missing.
+echo "📜 Bundling third-party licenses..."
+bash scripts/bundle-licenses.sh "$APP_DIR"
+
 # 4. Generate Info.plist
 cat > "$APP_DIR/Contents/Info.plist" << PLEOF
 <?xml version="1.0" encoding="UTF-8"?>

@@ -1,0 +1,248 @@
+{
+  "apple": {
+    "license": "BSD-3-Clause",
+    "licenseFile": "Apple-coreai-models.txt",
+    "upstream": "apple/coreai-models"
+  },
+  "dependencies": [
+    {
+      "license": "Apache-2.0",
+      "name": "async-http-client",
+      "pin": "1.36.0",
+      "repository": "https://github.com/swift-server/async-http-client.git",
+      "textFile": "async-http-client.txt"
+    },
+    {
+      "license": "MIT",
+      "name": "eventsource",
+      "pin": "1.4.2",
+      "repository": "https://github.com/mattt/EventSource.git",
+      "textFile": "eventsource.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "hummingbird",
+      "pin": "2.26.0",
+      "repository": "https://github.com/hummingbird-project/hummingbird.git",
+      "textFile": "hummingbird.txt"
+    },
+    {
+      "license": "MIT",
+      "name": "mlx-swift",
+      "pin": "0.32.3",
+      "repository": "https://github.com/ml-explore/mlx-swift.git",
+      "textFile": "mlx-swift.txt"
+    },
+    {
+      "license": "MIT",
+      "name": "mlx-swift-lm",
+      "pin": "rev 4cc550451253",
+      "repository": "https://github.com/ml-explore/mlx-swift-lm.git",
+      "textFile": "mlx-swift-lm.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-algorithms",
+      "pin": "1.2.1",
+      "repository": "https://github.com/apple/swift-algorithms.git",
+      "textFile": "swift-algorithms.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-asn1",
+      "pin": "1.7.1",
+      "repository": "https://github.com/apple/swift-asn1.git",
+      "textFile": "swift-asn1.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-async-algorithms",
+      "pin": "1.1.5",
+      "repository": "https://github.com/apple/swift-async-algorithms.git",
+      "textFile": "swift-async-algorithms.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-atomics",
+      "pin": "1.3.1",
+      "repository": "https://github.com/apple/swift-atomics.git",
+      "textFile": "swift-atomics.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-certificates",
+      "pin": "1.19.4",
+      "repository": "https://github.com/apple/swift-certificates.git",
+      "textFile": "swift-certificates.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-collections",
+      "pin": "1.6.0",
+      "repository": "https://github.com/apple/swift-collections.git",
+      "textFile": "swift-collections.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-configuration",
+      "pin": "1.2.0",
+      "repository": "https://github.com/apple/swift-configuration.git",
+      "textFile": "swift-configuration.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-crypto",
+      "pin": "4.5.1",
+      "repository": "https://github.com/apple/swift-crypto.git",
+      "textFile": "swift-crypto.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-distributed-tracing",
+      "pin": "1.4.1",
+      "repository": "https://github.com/apple/swift-distributed-tracing.git",
+      "textFile": "swift-distributed-tracing.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-http-structured-headers",
+      "pin": "1.7.0",
+      "repository": "https://github.com/apple/swift-http-structured-headers.git",
+      "textFile": "swift-http-structured-headers.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-http-types",
+      "pin": "1.6.0",
+      "repository": "https://github.com/apple/swift-http-types.git",
+      "textFile": "swift-http-types.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-huggingface",
+      "pin": "0.9.0",
+      "repository": "https://github.com/huggingface/swift-huggingface.git",
+      "textFile": "swift-huggingface.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-jinja",
+      "pin": "2.4.2",
+      "repository": "https://github.com/huggingface/swift-jinja.git",
+      "textFile": "swift-jinja.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-log",
+      "pin": "1.15.0",
+      "repository": "https://github.com/apple/swift-log.git",
+      "textFile": "swift-log.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-metrics",
+      "pin": "2.11.0",
+      "repository": "https://github.com/apple/swift-metrics.git",
+      "textFile": "swift-metrics.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-nio",
+      "pin": "2.101.3",
+      "repository": "https://github.com/apple/swift-nio.git",
+      "textFile": "swift-nio.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-nio-extras",
+      "pin": "1.34.3",
+      "repository": "https://github.com/apple/swift-nio-extras.git",
+      "textFile": "swift-nio-extras.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-nio-http2",
+      "pin": "1.45.0",
+      "repository": "https://github.com/apple/swift-nio-http2.git",
+      "textFile": "swift-nio-http2.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-nio-ssl",
+      "pin": "2.37.2",
+      "repository": "https://github.com/apple/swift-nio-ssl.git",
+      "textFile": "swift-nio-ssl.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-nio-transport-services",
+      "pin": "1.28.0",
+      "repository": "https://github.com/apple/swift-nio-transport-services.git",
+      "textFile": "swift-nio-transport-services.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-numerics",
+      "pin": "1.1.1",
+      "repository": "https://github.com/apple/swift-numerics",
+      "textFile": "swift-numerics.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-service-context",
+      "pin": "1.3.0",
+      "repository": "https://github.com/apple/swift-service-context.git",
+      "textFile": "swift-service-context.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-service-lifecycle",
+      "pin": "2.11.0",
+      "repository": "https://github.com/swift-server/swift-service-lifecycle.git",
+      "textFile": "swift-service-lifecycle.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-syntax",
+      "pin": "603.0.2",
+      "repository": "https://github.com/swiftlang/swift-syntax.git",
+      "textFile": "swift-syntax.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-system",
+      "pin": "1.8.0",
+      "repository": "https://github.com/apple/swift-system",
+      "textFile": "swift-system.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "swift-transformers",
+      "pin": "1.3.3",
+      "repository": "https://github.com/huggingface/swift-transformers.git",
+      "textFile": "swift-transformers.txt"
+    },
+    {
+      "license": "Apache-2.0",
+      "name": "xgrammar",
+      "pin": "0.2.2",
+      "repository": "https://github.com/mlc-ai/xgrammar",
+      "textFile": "xgrammar.txt"
+    },
+    {
+      "license": "MIT",
+      "name": "yams",
+      "pin": "5.4.0",
+      "repository": "https://github.com/jpsim/Yams.git",
+      "textFile": "yams.txt"
+    },
+    {
+      "license": "MIT",
+      "name": "yyjson",
+      "pin": "0.12.0",
+      "repository": "https://github.com/ibireme/yyjson.git",
+      "textFile": "yyjson.txt"
+    }
+  ],
+  "schemaVersion": 1
+}
