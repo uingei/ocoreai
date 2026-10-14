@@ -11,7 +11,8 @@
 /// - ``POST /v1`` → Auto-route (prompt → completions, else chat)
 /// - ``POST /v1/chat/completions`` → Chat completion (streaming / non-streaming)
 /// - ``POST /v1/completions`` → Text completion (streaming / non-streaming)
-/// - ``POST /v1/count-tokens`` → Token count utility
+/// - ``POST /v1/count-tokens`` → Token count (prompt | input | messages)
+/// - ``POST /v1/messages/count_tokens`` → Anthropic token pre-flight
 /// - ``GET /v1/models/:model/sampling`` → Runtime sampling config inspection
 /// - ``PATCH /v1/models/:model/sampling`` → Runtime sampling config hot-swap
 /// - ``DELETE /v1/models/:model/sampling`` → Reset single model sampling defaults
@@ -288,6 +289,14 @@ func buildRouter(
             /// macOS 26 this was silently the heuristic case while the wire still
             /// offered the endpoint (proven 10-12: count-tokens 404s on a ready model).
             let tokenizerBackend: String
+            /// Machine-readable index of this server's HTTP surface. The 404
+            /// envelope has pointed clients here for weeks
+            /// (`NotFoundEnvelopeMiddleware.swift:53` — "endpoints via
+            /// GET /v1/capabilities") while nothing here enumerated endpoints,
+            /// so the discovery promise had no delivery seam behind it.
+            /// ``V1EndpointCatalog`` is the index, and `V1EndpointCatalogTests`
+            /// fails the build when router and index disagree.
+            let endpoints: [EndpointLine]
         }
         let payload = CAPayload(
             os: RuntimeCapability.osName,
@@ -295,6 +304,7 @@ func buildRouter(
             arch: RuntimeCapability.arch,
             capabilities: RuntimeCapability.lines,
             tokenizerBackend: TokenizerManager.isRealTokenizerBackend ? "real" : "heuristic",
+            endpoints: V1EndpointCatalog.lines,
         )
         return try Response.json(payload)
     }
@@ -380,6 +390,38 @@ func buildRouter(
             semanticSearch: semanticSearch,
             systemPromptBuilder: systemPromptBuilder,
             logger: logger,
+        )
+    }
+
+    /// `POST /v1/messages/count_tokens` — Anthropic's context-budget pre-flight.
+    ///
+    /// Anthropic SDKs call this before sending a conversation. Live 10-13 it
+    /// answered 404 while `/v1/messages` worked: the compat surface claimed the
+    /// Messages API but not its counting half, so a budget check failed on a
+    /// server that would have served the conversation fine.
+    ///
+    /// The list counted is ``buildAnthropicMessageList`` — the same builder
+    /// `/v1/messages` feeds the model — so the system prompt and tool
+    /// definitions are included exactly as they will cost.
+    routes.post("/v1/messages/count_tokens") { request, context in
+        let countRequest = try await request.decode(
+            as: AnthropicMessageRequest.self, context: context)
+        let messages = try buildAnthropicMessageList(request: countRequest)
+        guard messages.contains(where: { !$0.textContent().isEmpty }) else {
+            throw AppError.invalidRequest(
+                "Nothing to count: `messages`/`system` carry no text "
+                    + "(media-only parts are not countable)")
+        }
+        let counted = try await countPromptTokens(
+            messages,
+            modelId: countRequest.model,
+            enginePool: enginePool,
+            logger: logger,
+        )
+        return try Response.json(
+            AnthropicCountTokensResponse(
+                inputTokens: counted.count,
+                tokenizerBackend: counted.backend)
         )
     }
 
@@ -529,14 +571,30 @@ func buildRouter(
         )
     }
 
+    /// `POST /v1/count-tokens` — how big is this request, on this model.
+    ///
+    /// Bodies accepted (see ``CountTokensRequest``): `prompt` (this server's
+    /// original shape), `input` (OpenAI: string | `[String]` | `[{role,content}]`),
+    /// `messages` + optional `system` (Anthropic). Live 10-13: only
+    /// `{model, prompt}` decoded, so every OpenAI/Anthropic-style client got
+    /// `400 Coding key `prompt` not found.` from the one endpoint whose job is
+    /// to tell a client how big its request is.
+    ///
+    /// The count comes from the model's own chat template over the whole message
+    /// list — a multi-turn conversation pays per-turn control tokens, which
+    /// flattening every message into one user turn would under-count.
     routes.post("/v1/count-tokens") { request, context in
-        let countRequest = try await request.decode(as: CountTokensRequest.self, context: context)
-        guard !countRequest.prompt.isEmpty else {
-            throw AppError.invalidRequest("Prompt must not be empty")
+        let countRequest = try await request.decode(
+            as: CountTokensRequest.self, context: context)
+        guard countRequest.hasTextToCount else {
+            throw AppError.invalidRequest(
+                "Nothing to count: one of `messages`, `input`, or `prompt` must "
+                    + "carry non-empty text (media-only parts are not countable)")
         }
         let countResponse = try await countTokensHandler(
             request: countRequest,
             enginePool: enginePool,
+            logger: logger,
         )
         return try Response.json(countResponse)
     }
@@ -589,7 +647,8 @@ func buildRouter(
 
     // MARK: Runtime Parameter Hot-Swap API
 
-    // ONE choke for all three sampling routes (GET/PATCH/DELETE): decode the
+    // ONE choke for every route that takes a model id in the path (GET/PATCH/DELETE
+    // sampling, GET kv-cache): decode the
     // percent-encoded path param and resolve it to the CANONICAL storage key
     // = bare normalized id. Without this, `%2F` ids created ghost keys and
     // GET answered `nil → .default` while the real entry lived under another
@@ -597,7 +656,7 @@ func buildRouter(
     // stayed True; GET answered fabricated defaults). Existence validated
     // against resolvableModelIds() — the same truth source the chat acquire
     // uses; prefixed forms (hf:/mscope:) are tolerated in, never stored.
-    @Sendable func resolvedSamplingModelId(raw: String) async throws -> String {
+    @Sendable func resolvedPathModelId(raw: String) async throws -> String {
         guard let decoded = raw.removingPercentEncoding else {
             throw AppError.invalidRequest("Invalid percent-encoding in model id")
         }
@@ -614,7 +673,7 @@ func buildRouter(
     }
 
     routes.get("/v1/models/:model/sampling") { _, context in
-        let modelId = try await resolvedSamplingModelId(
+        let modelId = try await resolvedPathModelId(
             raw: try context.parameters.require("model"))
         let config = await enginePool.getSamplingConfig(modelId: modelId)
         let response = ModelSamplingResponse(config: config)
@@ -622,7 +681,7 @@ func buildRouter(
     }
 
     routes.patch("/v1/models/:model/sampling") { request, context in
-        let modelId = try await resolvedSamplingModelId(
+        let modelId = try await resolvedPathModelId(
             raw: try context.parameters.require("model"))
         let patch = try await request.decode(as: ModelSamplingPatch.self, context: context)
         // default_model must point at a CHAT model — the embedder is
@@ -645,7 +704,7 @@ func buildRouter(
     }
 
     routes.delete("/v1/models/:model/sampling") { _, context in
-        let modelId = try await resolvedSamplingModelId(
+        let modelId = try await resolvedPathModelId(
             raw: try context.parameters.require("model"))
         // Reset drops tuning knobs; the config-authored default re-seeds
         // inside the actor (reseedConfigDefaultIfNeeded) — single throat.
@@ -662,7 +721,8 @@ func buildRouter(
     }
 
     routes.get("/v1/models/:model/kv-cache") { _, context in
-        let modelId = try context.parameters.require("model")
+        let modelId = try await resolvedPathModelId(
+            raw: try context.parameters.require("model"))
         let response = try await enginePool.kvCacheStatus(modelId: modelId)
         return try Response.json(response)
     }
@@ -979,18 +1039,119 @@ struct ModelObject: Codable {
 
 // MARK: - Count Tokens Request/Response
 
-struct CountTokensRequest: Codable {
+/// `POST /v1/count-tokens` request — `model` plus ONE of the three
+/// spec-legal ways to say "this prompt":
+///
+/// | shape | client convention |
+/// |---|---|
+/// | `{model, prompt}` | this server's original shape (plain string) |
+/// | `{model, input}` | OpenAI — string, `[String]`, or `[{role,content}]` |
+/// | `{model, messages, system?}` | Anthropic — message list, system beside it |
+///
+/// Precedence when a body carries more than one: `messages` → `input` → `prompt`
+/// (the most specific description of the prompt wins).
+///
+/// Hand-decoded on purpose: `{model, prompt}` alone answered
+/// `400 Coding key `prompt` not found.` for spec-legal `messages`/`input`
+/// bodies (live 10-13), and an unrecognizable `input` shape should name what it
+/// expected rather than fall through to "missing prompt".
+struct CountTokensRequest: Decodable {
     let model: String
-    let prompt: String
+
+    /// The prompt as a message list, normalized from whichever field arrived.
+    /// A bare string becomes one user turn — the pre-existing contract, so
+    /// clients already calling this endpoint see identical counts.
+    let messages: [Message]
+
+    /// Whether anything here is countable at all (media-only ≠ countable).
+    var hasTextToCount: Bool {
+        messages.contains { !$0.textContent().isEmpty }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case model, prompt, input, messages, system
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        model = try container.decode(String.self, forKey: .model)
+
+        var list: [Message] = []
+        if let chatMessages = try? container.decode([Message].self, forKey: .messages),
+            !chatMessages.isEmpty
+        {
+            // Anthropic keeps the system prompt outside `messages`; the model
+            // still reads it, so it counts as part of the prompt.
+            let systemText =
+                (try? container.decodeIfPresent(AnthropicSystemContent.self, forKey: .system))?
+                .text ?? ""
+            list =
+                systemText.isEmpty
+                ? chatMessages
+                : [Message(role: "system", content: .text(systemText))] + chatMessages
+        } else if let input = try? container.decode(CountTokensInput.self, forKey: .input) {
+            switch input {
+            case .text(let text):
+                list = [Message(role: "user", content: .text(text))]
+            case .texts(let parts):
+                list = [Message(role: "user", content: .text(parts.joined(separator: "\n")))]
+            case .messages(let inputMessages):
+                list = inputMessages
+            }
+        } else if let prompt = try? container.decode(String.self, forKey: .prompt) {
+            list = [Message(role: "user", content: .text(prompt))]
+        }
+        messages = list
+    }
+}
+
+/// Polymorphic OpenAI `input`: string | `[String]` | `[{role, content}]`.
+///
+/// Order matters: `[{role,content}]` fails to decode as `[String]`, and
+/// `["a","b"]` fails as `[Message]` (`role` is required), so the two array
+/// forms cannot be confused — and anything else throws with the shapes named.
+enum CountTokensInput: Decodable {
+    case text(String)
+    case texts([String])
+    case messages([Message])
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let text = try? container.decode(String.self) {
+            self = .text(text)
+        } else if let messages = try? container.decode([Message].self) {
+            self = .messages(messages)
+        } else if let texts = try? container.decode([String].self) {
+            self = .texts(texts)
+        } else {
+            throw DecodingError.dataCorrupted(
+                .init(
+                    codingPath: container.codingPath,
+                    debugDescription:
+                        "`input` must be a string, an array of strings, "
+                        + "or an array of {role, content} messages",
+                ))
+        }
+    }
 }
 
 struct CountTokensResponse: Codable {
     let model: String
     let tokenCount: Int
 
+    /// Where the number came from: `real` = the model's own tokenizer (chat
+    /// template included), `heuristic` = the CJK-aware byte estimate used by
+    /// `usage.prompt_tokens` when no tokenizer is registered for this model.
+    /// Same vocabulary as `GET /v1/capabilities` → `tokenizerBackend`, so a
+    /// client can tell an estimate from a token-exact count without guessing —
+    /// the rule this repo learned when a stubbed tokenizer reported real counts
+    /// (AGENTS.md → "A stub that replaces a real component must be detectable").
+    let tokenizerBackend: String
+
     enum CodingKeys: String, CodingKey {
         case model
         case tokenCount = "prompt_tokens"
+        case tokenizerBackend = "tokenizer_backend"
     }
 }
 
@@ -999,12 +1160,46 @@ struct CountTokensResponse: Codable {
 func countTokensHandler(
     request: CountTokensRequest,
     enginePool: EnginePool,
+    logger: Logger,
 ) async throws -> CountTokensResponse {
-    let handle = try await enginePool.acquire(model: request.model)
+    let counted = try await countPromptTokens(
+        request.messages,
+        modelId: request.model,
+        enginePool: enginePool,
+        logger: logger,
+    )
+    return CountTokensResponse(
+        model: request.model,
+        tokenCount: counted.count,
+        tokenizerBackend: counted.backend,
+    )
+}
+
+/// Count a prompt against a model, and say honestly where the number came from.
+///
+/// `EnginePool.tokenize` throws `modelNotFound` when the model has no tokenizer
+/// registered — a *tokenizer* miss wearing a *model* error, which is exactly
+/// what made `/v1/count-tokens` deny models that `GET /v1/models` listed as
+/// ready (10-12). Counting is a budget utility, so an estimate answers here
+/// instead of a 404, and `backend` labels it.
+func countPromptTokens(
+    _ messages: [Message],
+    modelId: String,
+    enginePool: EnginePool,
+    logger: Logger,
+) async throws -> (count: Int, backend: String) {
+    let handle = try await enginePool.acquire(model: modelId)
     defer { Task { await handle.release() } }
 
-    let count = try await handle.countTokens(text: request.prompt)
-    return CountTokensResponse(model: request.model, tokenCount: count)
+    do {
+        let tokens = try await handle.tokenize(messages: messages)
+        return (tokens.count, "real")
+    } catch {
+        logger.warning(
+            "Token count for \(modelId) fell back to the byte heuristic — \(error.localizedDescription)"
+        )
+        return (estimatePromptTokensFallback(messages), "heuristic")
+    }
 }
 
 // MARK: - Embeddings (OpenAI-compatible)

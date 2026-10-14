@@ -193,7 +193,7 @@ func anthropicMessagesHandler(
 
     // Phase 2: Build messages + input token count
     // ═══════════════════════════════════════════════════════
-    let fullMessages = try buildAnthropicMessageList(request: request, handle: handle)
+    let fullMessages = try buildAnthropicMessageList(request: request)
 
     /// Input token count (metrics) — tokenize or CJK-heuristic (chat Phase 3).
     /// On the MLX axis the tokenizer registry is empty (real tokenizer lives in
@@ -298,10 +298,12 @@ func estimatePromptTokensFallback(_ messages: [Message]) -> Int {
 /// Build the inference message list from an Anthropic request:
 /// - system prompt injected as the leading system message
 /// - tool definitions prepended if present
-private func buildAnthropicMessageList(
-    request: AnthropicMessageRequest,
-    handle _: EngineHandle,
-) throws -> [Message] {
+///
+/// `internal`, not `private`: `POST /v1/messages/count_tokens` counts *this*
+/// list, so the pre-flight answer is what `/v1/messages` would actually feed the
+/// model (system prompt and tool definitions included) instead of a second,
+/// subtly cheaper approximation of it — one builder, one truth.
+func buildAnthropicMessageList(request: AnthropicMessageRequest) throws -> [Message] {
     var messages: [Message] = request.messages.map { msg in
         switch msg.content {
         case .some(.text(let s)):
@@ -319,8 +321,8 @@ private func buildAnthropicMessageList(
         }
     }
 
-    // Inject system prompt
-    if let system = request.system, !system.isEmpty {
+    // Inject system prompt (string or text-block form — see AnthropicSystemContent)
+    if let system = request.system?.text, !system.isEmpty {
         messages.insert(Message(role: "system", content: .text(system)), at: 0)
     }
 

@@ -149,6 +149,39 @@ struct AuthConfig: Equatable {
     static let `default`: AuthConfig = .init()
 }
 
+// MARK: - Route Auth Policy
+
+/// Which routes skip auth, and which methods need an admin key.
+///
+/// One non-generic home for the two sets, read by BOTH the enforcer
+/// (``AuthMiddleware.handle``) and the index published at
+/// `GET /v1/capabilities` (``V1EndpointCatalog``). Before this, the sets were
+/// private instance properties of a generic middleware, so the only way to
+/// publish an `auth` column was to hand-copy them — a second source of truth
+/// that could (and eventually would) call a route public while the middleware
+/// still 401s it.
+enum AuthRoutePolicy {
+    /// Route paths that bypass authentication entirely (read-only observability).
+    static let publicPaths: Set<String> = [
+        "/health",
+        "/ready",
+        "/v1/models",
+        "/v1/tools",
+        "/v1/capabilities",
+        "/v1/stats",
+        "/metrics",
+    ]
+
+    /// HTTP methods that require admin-level API keys.
+    static let adminMethods: Set<HTTPRequest.Method> = [.patch, .delete]
+
+    /// Whether a method (raw name, any casing) needs an admin key — the string
+    /// form the endpoint index works with.
+    static func requiresAdmin(method rawMethod: String) -> Bool {
+        adminMethods.contains { $0.rawValue == rawMethod.uppercased() }
+    }
+}
+
 // MARK: - Auth Middleware
 
 /// Hummingbird middleware that enforces API key authentication on routed requests.
@@ -166,19 +199,12 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
     /// Observability logger
     private let logger: Logger
 
-    /// Public route paths that bypass authentication entirely
-    private let publicPaths: Set<String> = [
-        "/health",
-        "/ready",
-        "/v1/models",
-        "/v1/tools",
-        "/v1/capabilities",
-        "/v1/stats",
-        "/metrics",
-    ]
-
-    /// HTTP methods that require admin-level API keys
-    private let adminMethods: Set<HTTPRequest.Method> = [.patch, .delete]
+    // Route policy lives in ``AuthRoutePolicy`` (file scope), not here: this type
+    // is generic over `Context`, and a generic type cannot hold static stored
+    // properties. The point of moving it out rather than copying it is that the
+    // endpoint index published at `GET /v1/capabilities` reads these same sets —
+    // a hand-copied second list could call a route public while this middleware
+    // still 401s it.
 
     /// Initialize with config provider and logger.
     ///
@@ -216,7 +242,7 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
         }
         // 2. Public routes — no auth required
         let path = String(request.uri.path.prefix { $0 != "?" })
-        guard !publicPaths.contains(path) else {
+        guard !AuthRoutePolicy.publicPaths.contains(path) else {
             return try await next(request, context)
         }
 
@@ -229,7 +255,7 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
         }
 
         // 5. Admin method check — only after key is validated
-        if adminMethods.contains(request.method) {
+        if AuthRoutePolicy.adminMethods.contains(request.method) {
             guard config.adminKeys.contains(apiKey) else {
                 throw AuthError.adminKeyRequired
             }

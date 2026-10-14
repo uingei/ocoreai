@@ -30,7 +30,11 @@ struct AnthropicMessageRequest: Decodable {
     let model: String
 
     /// System prompt (separate from messages — Anthropic convention)
-    let system: String?
+    ///
+    /// Spec-legal as a plain string OR an array of text blocks (the block form
+    /// is what SDKs emit when a system block carries `cache_control`), so the
+    /// field carries both: see ``AnthropicSystemContent``.
+    let system: AnthropicSystemContent?
 
     /// Message array (no system role — system goes in top-level field)
     let messages: [AnthropicMessage]
@@ -117,6 +121,45 @@ enum AnthropicContent: Decodable {
     }
 }
 
+/// Anthropic `system` field — string | array of text blocks.
+///
+/// The synthesized decoder for `let system: String?` accepted only the string
+/// form, so a spec-legal block array (`[{"type":"text","text":"…"}]` — what the
+/// SDKs emit when a system block carries `cache_control`) made the whole
+/// `/v1/messages` body fail to decode. Same family as this repo's `stream` and
+/// `max_frames` findings: a field the spec calls polymorphic must decode both
+/// shapes. Pinned by `AnthropicRequestDecodeTests`.
+///
+/// Same non-throwing fallback discipline as ``AnthropicContent``: an
+/// unrecognizable value becomes empty text, so the caller reports "nothing to
+/// count" instead of producing a count out of garbage.
+enum AnthropicSystemContent: Decodable {
+    case text(String)
+    case blocks([AnthropicContentBlock])
+
+    /// Flattened text of the field (text blocks joined by newlines).
+    var text: String {
+        switch self {
+        case .text(let s): return s
+        case .blocks(let blocks):
+            return blocks.compactMap { block in
+                block.type == .text ? block.text : nil
+            }.joined(separator: "\n")
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let s = try? container.decode(String.self) {
+            self = .text(s)
+        } else if let blocks = try? container.decode([AnthropicContentBlock].self) {
+            self = .blocks(blocks)
+        } else {
+            self = .text("")
+        }
+    }
+}
+
 /// Single content block inside an assistant message
 struct AnthropicContentBlock: Decodable {
     enum BlockType: String, Decodable {
@@ -181,6 +224,23 @@ struct AnthropicUsage: Encodable {
         case outputTokens = "output_tokens"
         case cacheCreationInputTokens = "cache_creation_input_tokens"
         case cacheReadInputTokens = "cache_read_input_tokens"
+    }
+}
+
+/// Response for ``POST /v1/messages/count_tokens`` — Anthropic's budget
+/// pre-flight.
+///
+/// `tokenizer_backend` is an ocoreai extension (`real` | `heuristic`): SDKs
+/// ignore unknown keys, and when the count came from the byte heuristic it must
+/// not read as a token-exact number. Same marker and vocabulary as
+/// `CountTokensResponse.tokenizerBackend` and `GET /v1/capabilities`.
+struct AnthropicCountTokensResponse: Encodable {
+    let inputTokens: Int
+    let tokenizerBackend: String
+
+    enum CodingKeys: String, CodingKey {
+        case inputTokens = "input_tokens"
+        case tokenizerBackend = "tokenizer_backend"
     }
 }
 
@@ -425,7 +485,7 @@ func toChatCompletionRequest(_ req: AnthropicMessageRequest) -> ChatCompletionRe
         repetitionPenaltyWindow: nil,
         presencePenalty: 0,
         sessionID: req.metadata?.sessionId,
-        system: req.system,
+        system: req.system?.text,
         tools: tools,
         toolChoice: nil,
         parallelToolCalls: true,
