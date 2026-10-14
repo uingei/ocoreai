@@ -202,6 +202,12 @@ actor EnginePool {
     /// Loaded model instances keyed by model ID
     var loadedModels: [String: LoadedModel] = [:]
 
+    /// Measured prefix-reuse accounting, per model (PrefixReuseLedger.swift).
+    /// Recorded from upstream's own `cachedPromptTokenCount` on completed turns and
+    /// published on `GET /v1/models/:model/kv-cache`, so a client can read whether reuse
+    /// happens on this model instead of guessing from per-response usage fields.
+    var prefixReuse = PrefixReuseLedger()
+
     /// Models currently being loaded — prevents concurrent duplicate loads.
     private var loadingModels: Set<String> = []
 
@@ -282,6 +288,10 @@ actor EnginePool {
         hardwareRouter: HardwareRouter? = nil,
         toolRegistry: ToolRegistry? = nil,
     ) {
+        // Resolve the shader library before anything can touch Metal: a SwiftPM test/dev
+        // layout leaves the payload outside the signed .xctest bundle, where MLX's own
+        // path search cannot reach it (MetalShaderLibrary). Cheap, once per process.
+        MetalShaderLibrary.ensureResolved(logger: logger)
         self.modelScopeToken = modelScopeToken
         self.toolRegistry = toolRegistry
         self.hardwareRouter = hardwareRouter
@@ -1458,6 +1468,11 @@ actor EnginePool {
 
         // Clear LRU access timestamp
         modelLastAccess.removeValue(forKey: modelId)
+
+        // Observations made under this model's previous cache topology no longer describe
+        // it — a reload can land on different quantization/capacity, so the published
+        // `prefixReuse` must go back to `not_observed` rather than keep the old claim.
+        prefixReuse.forget(modelId: modelId)
 
         logger.info("Model unloaded: \(modelId)")
         return true

@@ -3784,6 +3784,12 @@ extension EnginePool {
                                     completionInfo.cachedPromptTokenCount > 0
                                     ? completionInfo.cachedPromptTokenCount
                                     : 0
+                                prefixReuse.record(
+                                    modelId: modelId,
+                                    warm: divergenceIndex > 0,
+                                    prefilled: completionInfo.promptTokenCount,
+                                    cached: completionInfo.cachedPromptTokenCount,
+                                    promptSeconds: completionInfo.promptTime)
                                 // Capture both throughput metrics from upstream GenerateCompletionInfo
                                 localPromptTokPerSec = completionInfo.promptTokensPerSecond
                                 localGenerationTokPerSec = completionInfo.tokensPerSecond
@@ -4431,6 +4437,16 @@ extension EnginePool {
                                             "Prefix cache reused no tokens for \(convKey): withheld \(divergenceIndex) message(s) from the feed, upstream prefilled all \(completionInfo.promptTokenCount) prompt tokens (cached=0, promptTime=\(Int(completionInfo.promptTime * 1000))ms)"
                                         )
                                     }
+                                    // Same fact, kept per model instead of per turn, so the
+                                    // surface a client reads can say whether prefix reuse
+                                    // happens on this model (GET /v1/models/:model/kv-cache).
+                                    // Upstream's number only — never inferred here.
+                                    prefixReuse.record(
+                                        modelId: modelId,
+                                        warm: divergenceIndex > 0,
+                                        prefilled: completionInfo.promptTokenCount,
+                                        cached: completionInfo.cachedPromptTokenCount,
+                                        promptSeconds: completionInfo.promptTime)
                                     // Capture both throughput metrics from upstream GenerateCompletionInfo
                                     promptTokPerSec = completionInfo.promptTokensPerSecond
                                     generationTokPerSec = completionInfo.tokensPerSecond

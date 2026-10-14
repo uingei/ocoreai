@@ -51,7 +51,13 @@ struct KVCacheStatusResponse: Encodable {
         let preservedPrefixTokens: Int
     }
 
-    init(status: KVCacheStatus) {
+    /// What the engine has *measured* about KV prefix reuse on this model, from
+    /// upstream's own `cachedPromptTokenCount` on completed turns. `not_observed`
+    /// before any warm turn completes — never a guessed "supported".
+    let prefixReuse: PrefixReuseObservation
+
+    init(status: KVCacheStatus, prefixReuse: PrefixReuseObservation = .notObserved) {
+        self.prefixReuse = prefixReuse
         let layers = status.layers.map { KVCacheLayerWire(layer: $0) }
         let requestedCapacity = status.requestedConfiguration?.capacity.map {
             KVCapacityWire(
@@ -172,8 +178,14 @@ extension KVCacheStatusResponse {
 // MARK: - Pure mapping entry (test seam)
 
 /// Pure mapping — upstream ``KVCacheStatus`` → wire encodable.
-nonisolated func makeKVCacheStatusResponse(_ status: KVCacheStatus) -> KVCacheStatusResponse {
-    KVCacheStatusResponse(status: status)
+///
+/// `prefixReuse` is carried through unchanged: it is measured by the engine elsewhere,
+/// never derived from this plan, so the two sources cannot disagree about a capability.
+nonisolated func makeKVCacheStatusResponse(
+    _ status: KVCacheStatus,
+    prefixReuse: PrefixReuseObservation = .notObserved
+) -> KVCacheStatusResponse {
+    KVCacheStatusResponse(status: status, prefixReuse: prefixReuse)
 }
 
 // MARK: - EnginePool consumption
@@ -203,7 +215,8 @@ extension EnginePool {
 
         do {
             let status = try await handle.modelContainer.cacheStatus(parameters: params)
-            return makeKVCacheStatusResponse(status)
+            return makeKVCacheStatusResponse(
+                status, prefixReuse: prefixReuse.observation(modelId: modelId))
         } catch {
             throw AppError.inferenceFailed("KV cache status: \(error)")
         }
