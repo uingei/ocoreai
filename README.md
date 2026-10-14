@@ -82,10 +82,11 @@ Known boundaries (as of this commit, not aspirations):
 | `POST` | `/v1/completions` | OpenAI legacy completions endpoint (prompt in) |
 | `POST` | `/v1` | Auto-route: dispatches by body key (`prompt`→completions, else chat) |
 | `POST` | `/v1/messages` | Anthropic messages + tool use |
-| `POST` | `/v1/count-tokens` | Token count utility |
+| `POST` | `/v1/messages/count_tokens` | Anthropic token pre-flight (same message list) |
+| `POST` | `/v1/count-tokens` | Token count (`prompt` / `input` / `messages`) |
 | `POST` | `/v1/embeddings` | Local embeddings (LFM2.5-Embedding-350M, 1024-dim) |
 | `GET`  | `/v1/tools` | Agent tool surface, paste-ready OpenAI `tools[]` shape |
-| `GET`  | `/v1/capabilities` | Device capability matrix + tokenizer backend (`real`/`heuristic`) |
+| `GET`  | `/v1/capabilities` | Device capability matrix + tokenizer backend (`real`/`heuristic`) + endpoint index |
 | `POST` | `/v1/steer` | Interject into a live turn (or queue for the next) |
 | `GET`  | `/v1/models` | Model registry |
 | `GET`  | `/v1/models/:model/sampling` | Get sampling config |
@@ -97,9 +98,9 @@ Known boundaries (as of this commit, not aspirations):
 | `POST` | `/v1/models/train` | LLM training |
 | `POST` | `/v1/models/evaluate` | LLM evaluation |
 | `GET`  | `/v1/stats` | Ops statistics (requests/tokens/duration/TTFB) |
-| `POST` | `/v1/multimodal/capture` | Capture camera frame or audio sample |
-| `POST` | `/v1/multimodal/speak` | TTS output |
-| `POST` | `/v1/multimodal/status` | Multimodal pipeline status |
+| `POST` | `/v1/multimodal/capture` | Capture camera / microphone / screen (`success:true` only with bytes) |
+| `POST` | `/v1/multimodal/speak` | TTS output (needs speaker enabled + an installed voice) |
+| `POST` | `/v1/multimodal/status` | Toggles + measured permissions, device/voice counts, per-channel verdicts |
 | `GET`  | `/sessions` | List sessions |
 | `GET`  | `/sessions/:id/memory` | Get session memory events |
 | `DELETE` | `/sessions/:id` | Delete session |
@@ -208,3 +209,13 @@ Per-feature status with commit refs lives in `CHANGELOG.md` — a pinned ✅ tab
 ### License
 
 MIT — Copyright © 2026 uingei@163.com
+
+MIT covers ocoreai's own code. The product also carries third-party code under its own terms, and those texts travel inside the artifact (`ocoreai.app/Contents/Resources/THIRD-PARTY-LICENSES/`), readable in the GUI under **Settings → About → Third-Party Notices**:
+
+- **Apple-derived source** — BSD-3-Clause. 44 files under `Sources/` retain Apple's copyright notice plus its verbatim BSD-3 header (`git grep -l "Copyright 2026 Apple Inc" -- Sources`; 29 of them name `coreai-models`, the rest are Apple-authored files from other Apple trees), and the verbatim upstream LICENSE ships as `Apple-coreai-models.txt` — byte-compared against upstream at collection time.
+- **34 SwiftPM dependencies** — 29 Apache-2.0 + 5 MIT, full text each; index in `NOTICES.md` / `manifest.json`.
+- **Vendored header** — `Sources/lib/CXGrammar/include/dlpack/dlpack.h`, from dmlc/dlpack (Apache-2.0); text ships as `Vendored-dlpack-Apache-2.0.txt`. Any header under `Sources/lib/` with another holder must be added to that table — CI Class-I fails otherwise.
+- **openai/codex** — semantic reference only: Rust, never linked, no source redistributed, so no codex license text ships.
+- **Apple system frameworks** — linked by macOS at runtime, not redistributed.
+
+Refresh before a release: `bash scripts/collect-third-party-licenses.sh` (packaging fails if any dependency has no text; `ThirdPartyNoticesTests` pins the same rule in CI).

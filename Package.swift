@@ -38,6 +38,8 @@ let package = Package(
         // `git log <old>..origin/main` -> audit consumer impact -> bump .revision ->
         // `swift build` + `swift test` (make test-ci). The per-bump audit trail lives
         // in AGENTS.md ("Upstream Audit Dependencies") + CHANGELOG.md, not in this file.
+        // (docs/agent/upstream-audit-log.md was written once and deleted the same session:
+        //  CHANGELOG.md already carries the round-by-round verdicts — one diary, one home.)
         .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "4cc550451"),
         // mlx-swift: pin to the 0.32.2 tag (main HEAD 2b5e877). Floor follows
         // mlx-swift-lm #646 (c043fb3) which raised its own mlx-swift constraint from

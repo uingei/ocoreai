@@ -41,6 +41,39 @@ git rebase origin/main
 
 The binding shipping standard is [`.github/PR_EVIDENCE.md`](.github/PR_EVIDENCE.md).
 
+### The three questions (applies to every important change, not just PRs)
+
+A change earns its place only if it can answer all three, in that order:
+
+1. **What improved?** Name the behaviour, not the code — "grammar-constrained turns
+   stopped returning 500 after valid output", not "refactored the sampler".
+2. **What makes you think it improved?** Point at command output from the *same*
+   session as the claim (build/test/live probe/grep), and prefer a behaviour-level
+   check over a code-level one. An inference is labelled as an inference.
+3. **How does it stop regressing?** Name the gate that goes red if the improvement
+   disappears: a test, an audit check, a CI step. "I was careful" is not a gate.
+
+If question 3 has no answer, the change is a *claim* — write it down as an open item
+with the instrument that would settle it, and leave the behaviour alone. This repo has
+repeatedly paid for improvements that were only ever asserted (see CHANGELOG's
+retractions: the prefix-reuse reading, `cached_tokens` "liar", the 8.36s→0.25s
+attribution), and for fixes whose gate could not run locally so the failure surfaced in
+CI or in a shipped DMG.
+
+The gate must also assert **its own premises**. A check that infers the platform from
+its environment (`DEVELOPER_DIR`, a `MacOSX.sdk` symlink, "CLT means no CoreAI") rots
+silently the day the toolchain updates — `make toolchain-check`
+(`scripts/toolchain-contract.sh`) exists because exactly that happened on 10-14.
+
+The docs layer is held to the same standard, because `AGENTS.md` is injected into the model's
+context on every session: a stale number there is not a typo, it is a wrong instruction.
+`make docs-check` (`scripts/agents-md-contract.sh`) budgets the injected files (shrink-only),
+resolves every path and `file:line` anchor they name, re-runs every
+`<!-- claim:id OP N :: command -->` marker, and fails when a scan's own hit count drops below its
+floor. Write a claim together with its instrument, on the same line: `>=` for a floor that must not
+shrink (attribution, endpoint rows), `<=` for a ceiling that must not grow (`print`, `try!`, `TODO`),
+and `=` only for facts that move when the doc itself is edited (a pin, a budget).
+
 > A reviewer must be able to confirm the change works **by watching it happen
 > and inspecting the artifacts you attached.**
 

@@ -67,10 +67,11 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 | `POST` | `/v1/completions` | OpenAI 旧版 completions（prompt 输入） |
 | `POST` | `/v1` | 自动路由：按 body 键分发（`prompt`→completions，否则 chat） |
 | `POST` | `/v1/messages` | Anthropic 消息 + 工具使用 |
-| `POST` | `/v1/count-tokens` | Token 计数 |
+| `POST` | `/v1/messages/count_tokens` | Anthropic token 预算预检（同一消息列表） |
+| `POST` | `/v1/count-tokens` | Token 计数（`prompt` / `input` / `messages`） |
 | `POST` | `/v1/embeddings` | 本地 embeddings（LFM2.5-Embedding-350M，1024 维） |
 | `GET`  | `/v1/tools` | Agent 工具面（OpenAI `tools[]` 形状，可直接粘回请求） |
-| `GET`  | `/v1/capabilities` | 设备能力矩阵 + 分词后端（`real`/`heuristic`） |
+| `GET`  | `/v1/capabilities` | 设备能力矩阵 + 分词后端（`real`/`heuristic`）+ 端点索引 |
 | `POST` | `/v1/steer` | 向进行中的 turn 插话（无则并入下一次请求） |
 | `GET`  | `/v1/models` | 模型注册表 |
 | `GET`  | `/v1/models/:model/sampling` | 获取采样配置 |
@@ -82,9 +83,9 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 | `POST` | `/v1/models/train` | LLM 训练 |
 | `POST` | `/v1/models/evaluate` | LLM 评估 |
 | `GET`  | `/v1/stats` | 运行统计（请求/Token/耗时/TTFB） |
-| `POST` | `/v1/multimodal/capture` | 摄像头或音频捕获 |
-| `POST` | `/v1/multimodal/speak` | TTS 输出 |
-| `POST` | `/v1/multimodal/status` | 多模态管线状态 |
+| `POST` | `/v1/multimodal/capture` | 摄像头 / 麦克风 / 录屏捕获（`success:true` 必带数据） |
+| `POST` | `/v1/multimodal/speak` | TTS 输出（需开启喇叭且有已装语音） |
+| `POST` | `/v1/multimodal/status` | 开关 + 实测权限、设备/语音数、逐通道裁决 |
 | `GET`  | `/sessions` | 会话列表 |
 | `GET`  | `/sessions/:id/memory` | 获取会话记忆事件 |
 | `DELETE` | `/sessions/:id` | 删除会话 |
@@ -193,3 +194,13 @@ memory:
 ### License
 
 MIT — Copyright © 2026 uingei@163.com
+
+MIT 只覆盖 ocoreai 自身代码。产品中携带的第三方代码各自保留其条款，许可全文随产物一同分发（`ocoreai.app/Contents/Resources/THIRD-PARTY-LICENSES/`），并在 GUI 内可直接查看：**设置 → 关于 → 第三方许可**。
+
+- **源自 Apple 的代码** — BSD-3-Clause。`Sources/` 下 44 个文件保留 Apple 版权头及其 BSD-3 声明原文（`git grep -l "Copyright 2026 Apple Inc" -- Sources`；其中 29 个注明 `coreai-models`，其余为来自其他 Apple 代码树的 Apple 原创文件），上游 LICENSE 原文以 `Apple-coreai-models.txt` 打包，收集时已与上游逐字节比对。
+- **34 个 SwiftPM 依赖** — 29 个 Apache-2.0 + 5 个 MIT，逐个附全文；索引见 `NOTICES.md` / `manifest.json`。
+- **随库头文件** — `Sources/lib/CXGrammar/include/dlpack/dlpack.h`，来自 dmlc/dlpack（Apache-2.0），全文以 `Vendored-dlpack-Apache-2.0.txt` 打包。`Sources/lib/` 下任何属于其他权利人的头文件都必须登记进该表，否则 CI 的 Class-I 直接失败。
+- **openai/codex** — 仅作语义参照：Rust 实现、未被链接、不重分发源码，因此不打包其许可文本。
+- **Apple 系统框架** — 由 macOS 运行时链接，不随本应用重分发。
+
+发布前刷新：`bash scripts/collect-third-party-licenses.sh`（任一依赖缺文本时打包直接失败；CI 里 `ThirdPartyNoticesTests` 锁住同一条规则）。

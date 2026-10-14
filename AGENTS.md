@@ -1,6 +1,11 @@
 # ocoreai — Project Context for AI Agents
 
 > This file is loaded by the coding agent (Codex — CLI and desktop app) on every session. It anchors the agent to the project's conventions, architecture, and known issues — zero cold-start tax.
+>
+> **It is not free.** Every byte here is paid for on every session: 64,591 B was read as 16,148
+> tokens (measured 10-14). So this file carries judgment, invariants and verdicts, and pushes
+> long-form evidence one hop away (§ Read on demand, § Routing table). `make docs-check` enforces a
+> shrink-only cap and re-runs every number claimed here.
 
 ---
 
@@ -11,6 +16,7 @@ This project is developed with heavy AI assistance. The rules:
 1. **Every line in git is reviewable** — AI-generated or not, the owner approves each commit. "It came from the model" is never an exception to a rule in this file.
 2. **No claim without a check** — "verified", "fixed", "aligned" in a commit message or doc must be immediately backed by command output (build/test/grep) in the same session.
 3. **When in doubt, point outward** — if an upstream repo (mlx-swift-lm / coreai-models / codex) already has an answer, consume/reference it instead of authoring a local variant; cite the upstream file:line.
+4. **An improvement answers three questions** — *what* behaviour improved, *what output* makes you think so (same-session command output; label inferences as inferences), and *which gate goes red* if it regresses. No answer to the third ⇒ it is a claim, not a change: record it as an open item plus the instrument that would settle it. Full text: `CONTRIBUTING.md` → "The three questions". The gate must assert its own premises too (`make toolchain-check`), because a check that infers the platform from its environment rots silently when the toolchain updates.
 
 ---
 
@@ -21,6 +27,15 @@ This project is developed with heavy AI assistance. The rules:
 **Tech stack:** Swift 6.2 · SwiftPM · Hummingbird 2.26 · SwiftUI · SQLite + FTS5
 
 **Key modules:** subdirectories under `Sources/ocoreai/`: Engine, Agents, Client, Scheduler, MCP, Tools, UI, SQLite, Config, Multimodal, Reasoning, Profiling, Tokenizer, Security, Skills, Video, etc. (the full set is the directory listing itself — not counted here).
+
+---
+
+## Two invariants
+
+Almost every rule below is a corollary of these two. When a shortcut and an invariant collide, the invariant wins.
+
+1. **A claim is worth exactly the gate that goes red when it breaks.** A fix with no gate is a claim; a gate that infers its own premises from the environment rots the day the toolchain moves (SDK 26.5 → 27.0 flipped `canImport(CoreAI)` mid-session); a scan that stopped matching passes vacuously unless it floors its own hit count; and a doc whose numbers nobody re-greps drifts — three "verified" numbers here had already moved when `make docs-check` was written. Corollaries: policy 2 + 4, `make toolchain-check`, `V1EndpointCatalogTests`' floors, § Docs Contract.
+2. **The surface never claims more than the engine delivered.** ocoreai's product is a GUI that sees, hears, speaks and codes, so every capability statement a user can read (`/v1/models`, `/v1/capabilities`, the dashboard, a tool result, the composer, a localization string) must be *measured*, and must degrade honestly where the backend is absent. Corollaries: `tokenizerBackend: real|heuristic`, `vlm:` from the manifest, the endpoint index behind the 404 hint, `/v1/steer` delivering on the next request, no fabricated `terminal command:` output on zero-tool turns. When authority is unclear: run it and read what came back.
 
 ---
 
@@ -40,11 +55,11 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 - `EnginePool` uses inline `#if canImport(CoreAI)` branches (`BackendProtocol` deleted 2123143, 0 refs remaining)
 - **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (wired, both MLX + CoreAI paths), KVCacheRuntime ✅ (`turboQuant`/`.affine` 双路 `MLXBridge.swift:757 case "affine"` / `:759 case "turbo-quant"`, 映射到 `.affine(:814/:819)` / `.turboQuant(:806)`). Pinned upstream `mlx-swift-lm` at `7eb77ef` (10-11 `80f0c01` round 9; #662 compiled decode Qwen3.5 VLM · #675 Gemma4 softcap fusion · #641 ChatSession cache fork · #679 component-aware checkpoint loading — 逐条裁决见 CHANGELOG round 9 + `4e4fcbc` Xcode resolved 同步; 前刀 #603 ModelCache 抽出: evict 真取消 in-flight load / DownloadProgress 按 model-id 分桶 / GrammarConstraint.clone 窄化 ← 09-23 `790d4df` CI 2080/385 绿; 前序 `c6446cf` #620 TokenIterator 首 token 即清 buffer cache ← 09-14 `3e6ea1e` ← #613 detok Character→Scalar ← #584 RotatingKVCache trim wrap-aware, 09-17 对齐 origin/main). **ThinkingBudget** ✅ (two paths wired: std reasoning `L4005 .applyingThinkingBudget` + MTP speculative `L3508 .applyingThinkingBudget` + `components: genComponents`/`mtpGenComponents` `L4020`/`L3531`（09-22 实核重钉）; `guard mtpReasoningConfig` 非空才接, `catch → .init()` 回退与 std 同语义).
 - **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement. Engine/ contains CoreAI* ×14 + StateHandler(+ ×3) + MPSGraphSamplers(1511L) + KVCache/TensorStorage(+CoreAI) (Engine/ 44 .swift total); + Tokenizer/TokenizersMLXTokenizerAdapter.
-- **ANE path:** CoreAI `MPSGraphSamplers` (`MPSGraphSamplers.swift` 1511 行实存, `CoreAIPipelinedEngine.swift:53/601` 消费) wires MPS constrained argmax/composite/sampler — GPU-based constrained decoding path (c4c0a43 CoreAI .pipelined wired + 256e704 penalty/ConstrainedGenerationCapable routing)
+- **ANE path:** CoreAI `MPSGraphSamplers` (`MPSGraphSamplers.swift` 1511 行实存, `CoreAIPipelinedEngine.swift:53/601` 消费) wires MPS constrained argmax/composite/sampler — the GPU-based constrained decoding path
 - **MTP path:** `_runInferenceWithMessages` → `generate(::mtpDrafter:)` — bypasses ChatSession, tool calls collected + dispatched per-iteration (aligned with upstream `MTPSpeculativeTokenIterator`)
 - **SessionPool:** message-level *feed* dedupe (divergence tracking) — **not** a measured prefill saving: 10-14 live read of upstream `GenerateCompletionInfo` on the default model shows `prefilled` == full prompt with `cachedPromptTokenCount == 0` on HIT turns (see CHANGELOG 10-14). Whether the KV cache kept its prefix is upstream's decision, reported only via `.info.cachedPromptTokenCount`; the engine now logs the accounting per turn. HardwareRouter pressure events still trigger aggressive eviction; `loadPromptCacheSnapshot` restores LM state + KV cache (disk identity/refusal semantics: CHANGELOG 10-13)
 
-**Key:** `#if canImport(CoreAI)` single-layer compile-time gate; token sampling → `argmax`(greedy) / `multinomialSample`(temperature>0) — 真身 `Models/InferenceStubs.swift:198 sample(from:)`(temperature/topK/topP/minP filters, 对上游 CompositeSampler 算法); toolDispatch wired in both MLX + CoreAI paths.
+**Key:** `#if canImport(CoreAI)` single-layer compile-time gate; token sampling → `argmax`(greedy) / `multinomialSample`(temperature>0) — 真身 `Models/InferenceStubs.swift:198 sample(from:)`(temperature/topK/topP/minP filters, 对上游 CompositeSampler 算法).
 
 **Upstream alignment:**
 - `KVCacheRound` / `TurboFlash` / `TurboQuant`: consumed internally by upstream `generate*()` — no downstream intervention needed
@@ -65,21 +80,30 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 ```
 
 **Local gate reality (corrected 10-12, and it was wrong for weeks):** the full suite
-**does** run on this host — `2324 tests / 434 suites` completed in ~400s on the CLT route (re-measured 10-13; the count moves with each added suite)
-(`make test-clt`). The blocker was never the platform, metallib, or macOS 26: it was the
-**agent sandbox**. Inside the sandbox MLX reports
+**does** run on this host — `2378 tests / 442 suites` in ~45 s on the CLT route
+(`make test-clt`; the count moves with each added suite). The blocker was never the
+platform, the metallib, or macOS 26 but the **agent sandbox**: inside it MLX logs
 `[metal::load_device] No Metal device available` and the first MLX-touching suite dies;
-unsandboxed, the same binary loads a model and streams tokens. Two consequences that matter
-more than the test count: (a) `ocoreai serve` + live `curl` against `/v1/*` is available
-locally, and (b) that live loop found four defects no static audit in this repo had
-caught — `/v1/count-tokens` 404 on a model `/v1/models` reports ready, `vlm:false` on a
-model that answers images correctly, every grammar-constrained turn returning HTTP 500
-after generating valid output, and fabricated `terminal command:` output on zero-tool
-turns. **Prefer a live check over an inference whenever a claim is about behaviour.**
+unsandboxed the same binary loads a model and streams tokens. The consequence that
+matters more than the count: `ocoreai serve` + live `curl` on `/v1/*` is available
+locally, and that loop caught four defects no static audit here had (the four, each with
+its fix: `docs/agent/build-gate-reality.md`). **Prefer a live check over an inference
+whenever a claim is about behaviour.**
 
-**Sandboxed route = compile + non-Metal tests, no approval needed (verified 10-13):** a compile gate does *not* require escalation. `HOME=<writable-dir> DEVELOPER_DIR=/Library/Developer/CommandLineTools swift build --scratch-path .build-clt --disable-sandbox` goes green inside the agent sandbox. `--disable-sandbox` drops only SwiftPM's *own* nested sandbox for the package-manifest compile (nesting is impossible here: `sandbox-exec: sandbox_apply: Operation not permitted`); the outer harness sandbox still applies — the same run is denied writing `~/.cache/clang`, which is exactly why `HOME` must point somewhere writable. `make test-clt`'s `-F`/`-rpath` flags are still required for the Testing library, and `DEVELOPER_DIR` keeps it on the macOS-26 (no-CoreAI) route. Inside the sandbox pure-logic suites really run — `--filter 'SessionIsolation|MemoryPressureCorroboration|HardwareRouter|EnginePoolRouting'` = **79 tests / 15 suites green** — while Metal suites self-skip (`.enabled(if: MTLCreateSystemDefaultDevice() != nil)`) and `xcodebuild` cannot run at all (`xcodebuild: error: 'ocoreai.xcworkspace' is not a workspace file`), so the `test-ci` and `build-ios` legs stay CI's job. Tiering: sandbox → build + non-Metal suites; escalation → full suite + live `serve`/`curl`; `xcodebuild` legs → CI.
+**Gate tiering — the decision. Full host forensics (the `default.metallib` layout archaeology, the module-cache/`TMPDIR` shape, the toolchain bump that flipped `canImport(CoreAI)` mid-session): `docs/agent/build-gate-reality.md`.**
+- **sandbox** → app-target build + non-Metal suites: `HOME=<canonical writable path> DEVELOPER_DIR=/Library/Developer/CommandLineTools SDKROOT=<latest SDK without CoreAI> swift build --scratch-path .build-clt --disable-sandbox`. `--disable-sandbox` drops only SwiftPM's own nested sandbox; the harness sandbox still denies `~/.cache/clang`, which is why `HOME` must move — and it must be the canonical path (`/tmp` vs `/private/tmp` yields two same-named `.pcm` and swift-frontend SIGSEGVs).
+- **escalation** → `make test-clt` (full suite) + `make probes` (live `/v1/*`, `scripts/probes/`).
+- **CI only** → the `xcodebuild` legs (`test-ci`, `build-ios`).
+- If the sandbox route suddenly dies on `CompileMetalFile`: stale Metal node + unwritable module cache, **not** a code regression. One unsandboxed build fixes it — do not revert code to "fix" it.
+- `make toolchain-check` evaluates **both** candidate routes (Xcode and CLT) rather than the ambient `DEVELOPER_DIR`, and settles Metal by *compiling a kernel*, never by `metal --version` (whose answer tracks whether cryptexd has the asset mounted this second). A warning that fires every run is a warning nobody reads when it becomes true.
+- **CLT SDK 27 no longer matches the CLT compiler (measured 10-14):** leave `SDKROOT` unpinned and even the *manifest* compile dies — `could not build Objective-C module 'SwiftShims'`, because `MacOSX.sdk` → 27.0 (swiftinterface built by swiftlang 6.4.0.31.4) while CLT's compiler is 6.4.0.34.1. clang also resolves its module cache to the real user home whatever `HOME` exports. The sandbox recipe that actually completes: `SDKROOT=<CLT SDK without CoreAI>` **plus** `CLANG_MODULE_CACHE_PATH=<writable>` (`swift package dump-package --disable-sandbox` → exit 0, verified).
+- **Shader payload:** `Sources/ocoreai/Engine/MetalShaderLibrary.swift` resolves `default.metallib` down an ordered candidate ladder (SwiftPM's own freshly compiled bundle → Xcode DerivedData → pip wheel, last) and hands it to MLX through `MLX.GPU.metallib`; `$OCOREAI_METALLIB` overrides. Never stage it *into* a signed bundle — a `.metallib` under `Contents/MacOS` is a nested code object and CodeSign dies. Gate: `MetalShaderLibraryTests`, which pins the candidate order against a synthetic SwiftPM 6.4 layout, so the day the layout moves again is a red build.
 
 **Linting:** none — aligned with upstream (mlx-swift-lm / coreai-models ship no swiftlint). swift-format via `.swift-format` (pinned 603.0.0) is the only style gate, enforced in CI and pre-commit. Crash-safe coding (no `try!`/`as!`/`fatalError` in Sources/) is a code convention, not a CI gate.
+
+**Distribution licenses (CI-gated):** the artifact is MIT **plus** third-party code under its own terms; BSD-3 cl.1/cl.2 and Apache-2.0 §4 attach to the notice, so those texts travel with the binary. The invariant: **adding a dependency or vendoring a header ⇒ re-run `scripts/collect-third-party-licenses.sh` and commit its output**; `scripts/bundle-licenses.sh <app>` copies `THIRD-PARTY-LICENSES/` into `Contents/Resources/` and re-reads it *from inside* the bundle. Two gates keep it true: `ThirdPartyNoticesTests` (needs no checkouts ⇒ runs on every CI leg; pins `Package.resolved` ↔ manifest set equality, with scan floors so a narrowed scan cannot pass vacuously) and `scripts/audit.swift_patterns.sh` **Class-I**. GUI: Settings → About → Third-Party Notices — absent texts are stated, never blank. Composition, the Apple-vs-`coreai-models` metric warning and the vendored-header table: `docs/agent/third-party-notices.md`.
+<!-- claim:apple_derived_files>=44 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
+<!-- claim:notice_files>=38 :: ls THIRD-PARTY-LICENSES | wc -l -->
 
 **Build verification is MANDATORY** before claiming completion. `swift build` exit code 0 = done.
 
@@ -92,6 +116,7 @@ turns. **Prefer a live check over an inference whenever a claim is about behavio
 - `EnginePool` is an `actor` with `@unchecked Sendable` mutable state (perform-based isolation). Every `@unchecked Sendable` declaration carries a justification comment.
 - UI layer runs on `@MainActor`. Engine layer is actor-isolated. Cross-actor calls via `await`.
 - `@unchecked Sendable` requires justification comment. Closure `var` declared inside closure scope (not outer).
+- **A continuation wrapped around an SDK callback needs a deadline, and the caller owns the callback object's lifetime.** `AVCapturePhotoOutput.capturePhoto(with:delegate:)` documents no retention of its delegate, so an inline temporary can leave nothing to call back — the continuation never resumes and the request hangs. Measured 10-15: `POST /v1/multimodal/capture {"type":"camera"}` parked ≥45 s *with the camera authorized*; retained delegate + exactly-once `fire()` + an 8 s deadline ⇒ a frame in 1.1 s. Without the deadline, "stalled" is indistinguishable from "still working".
 - **A polling loop sleeps one poll interval, never the deadline.** `Task.sleep(until: deadline)` inside `while <still pending>` parks the waiter for the whole window regardless of when the condition clears. `EnginePool.waitForLoading` did exactly this (10-13: the first chat request cost 120 s for a model ready in 8 s; fixed to `min(deadline, now + 100 ms)`, release timing pinned by `EnginePoolLoadingGateTests`). Sleeping to the deadline is correct only in a single-shot watchdog — see `EngineInference.swift:149`.
 
 ### Compile-time gates
@@ -101,70 +126,107 @@ turns. **Prefer a live check over an inference whenever a claim is about behavio
 
 ### Wire DTOs
 - **A field the spec calls optional must be Optional in the DTO** (or hand-decoded with `decodeIfPresent(…) ?? default`). The synthesized `Decodable` in this target requires every non-Optional key, so a default on a non-Optional property does not make the key optional on the wire. Concrete failure (10-13): `AnthropicMessageRequest.stream: Bool = false` still answered `400 Coding key `stream` not found.` for spec-legal clients, while `ChatCompletionRequest` survived only because it hand-decodes (`OpenAIModels.swift:240`). Pin every such field with a decode test that omits the key.
+- **A field the spec calls polymorphic must decode every shape the spec names.** One shape typed in the DTO is a 400 for the clients that sent the other. Concrete failures (10-14): `AnthropicMessageRequest.system: String?` rejected `[{"type":"text","text":…}]` (the form Anthropic's own SDK emits once a system block carries `cache_control`), and `CountTokensRequest{model,prompt}` rejected `messages`/`input`, so the endpoint that exists to size a request was the one OpenAI/Anthropic clients could not call. Fixes: `AnthropicSystemContent` (string | text blocks) and a hand-decoded `CountTokensRequest` (`prompt` | `input` | `messages`, precedence `messages`→`input`→`prompt`), each pinned by a decode test that sends the shape which used to fail.
 
 ### Endpoint Promises
+- **A hint that names a discovery route needs an index behind it, and the index must be checked against the router.** A 404 that says "enumerate endpoints via GET /v1/capabilities" while that payload has no endpoint list is a dead end dressed as guidance. `V1EndpointCatalog` is the list; `V1EndpointCatalogTests` scans `ChatCompletionsRouter.swift` for `routes.<method>("<path>")` and asserts set equality *plus* a floor on the scan's own hit count, so a regex that stopped matching cannot pass the equality vacuously. The `auth` column comes from `AuthRoutePolicy` (the sets `AuthMiddleware` enforces with), never from a hand-copied list.
 - **A surface that documents where its input goes needs an executable delivery seam, a test that pins it, and a live probe that proves it.** A docstring describing delivery is not delivery. Concrete failure (10-13): `POST /v1/steer` promised "if no turn is live, the steer survives and merges into the NEXT request", but every `SteerQueue.drain` site sat inside a tool-dispatch loop (`EngineInference.swift:2908`/`:3514`) or the GUI composer flush (`ChatViewModel.swift:229`) — a wire client's steer on a no-tool turn reached neither the model nor the client. Fixed at the seam the contract names (`mergingSteeredTurn`, head of `chatCompletionsHandler`, `905492e`) + `SteerRequestHeadTests` + live probe (steer a code word, then ask for it). Ask of any accept-then-deliver surface: which line delivers this on the next request? If none, the contract is fiction.
 
 ### Error Handling
-- Precondition near-free: production code uses precondition/preconditionFailure only for structural invariants and upstream-verbatim numeric/speech surfaces; new code must not add them. **Full-scan verified (12 sites / 9 files):**
-  - Video/DiscreteFlowScheduler (`precondition` ×2)
-  - Video/TiledDecode3D (`precondition` ×1)
-  - Multimodal/StreamingWindow (`precondition` ×1)
-  - Engine/CoreAIPipelinedEngine (`precondition` ×1)
-  - Engine/KVCache+CoreAI (`precondition` ×1)
-  - Engine/CoreAIStubs (`precondition` ×2)
-  - Engine/GuidedGeneration/PipelinedConstrainedDecodingStrategy (`preconditionFailure` ×1)
-  - Engine/GuidedGeneration/XGrammarWrapper (`preconditionFailure` ×2)
-  - Engine/GuidedGeneration/TokenizerInfo (`preconditionFailure` ×1)
-- **Zero `try!`** in production code.
-- **`print()`:** 0 in production code (18→0 at commit 4c231d3).
-- **`fatalError`:** 0.
-- `assert`: **0** (no `assert(` outside `precondition*` in Sources/).
+- Precondition near-free: production code uses precondition/preconditionFailure only for structural invariants and upstream-verbatim numeric/speech surfaces; new code must not add them. **Full-scan: 14 sites / 11 files** — the "12 sites / 9 files" ledger this file carried had silently gained `CoreAISequentialVLMEngine` and `CompositeSampler`; `make docs-check` re-measures it on every docs edit, which is the only reason a stale ledger can no longer survive:
+  - Engine/GuidedGeneration — `XGrammarWrapper` ×2, `TokenizerInfo` ×1, `PipelinedConstrainedDecodingStrategy` ×1
+  - Engine — `CoreAIStubs` ×2, `CoreAIPipelinedEngine` ×1, `CoreAISequentialVLMEngine` ×1, `CompositeSampler` ×1, `KVCache+CoreAI` ×1
+  - Video — `DiscreteFlowScheduler` ×2, `TiledDecode3D` ×1
+  - Multimodal — `StreamingWindow` ×1
+<!-- claim:precondition_sites<=14 :: git grep -nE 'precondition(Failure)?\(' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
+<!-- claim:precondition_files<=11 :: git grep -nE 'precondition(Failure)?\(' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | cut -d: -f1 | sort -u | wc -l -->
+- **Zero `try!`, `as!`, `fatalError`, `assert` outside comments.** Counted excluding comment lines: six `try!` occurrences are prose *inside* doc comments ("全 Safe API, 无 as!/try!"), so the naive grep is not the instrument.
+<!-- claim:try_excl_comments<=0 :: git grep -n 'try!' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
+<!-- claim:fatalerror_as<=0 :: git grep -nE 'fatalError\(| as! ' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
+- **`print()` — 2 sites, both CLI/stdout product surface**, not debug logging: `Sources/ocoreai/UI/Application.swift:31` (`--version`/`--help` report) and `Sources/ocoreai/Headless/HeadlessServer.swift:141` (headless `serve` banner). Its old instrument was wrong too (`git grep 'print('` matches `fingerprint(`). Ceiling is 2 until the owner rules whether either belongs on the logger — then take it to 0.
+<!-- claim:print_sites<=2 :: git grep -nE '(^|[^A-Za-z0-9_.])print\(' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
 - `try?`: used as the defensive-fallback pattern; `try?` stays acceptable where a real fallback follows.
 - `ErrorContext.swift` does not exist (grep = 0).
 - `Profiling/` contains **2 files**: `TimingHooks.swift` + `PerformanceMetrics.swift`.
 
 ### Naming
 - Target names ≠ module boundaries (e.g., `GuidedGenerationLoop` is peer to `ChatSession`, not nested).
-- TODO 计数 09-22 重核 = **1** (原 3, #206 后 `1bef69b`/`088a0b7` 各清 1): 现存 `CoreAIInputEmbeddings.swift:36` (origin 系 `4517ca3` from coreai-models absorb)。references/ 本地不在, "upstream HEAD present" 无法当场复核, origin 以 git 历史为准。
+- TODO 计数 = **1**: `CoreAIInputEmbeddings.swift:36` (origin 系 `4517ca3` from coreai-models absorb)。原 3 → #206 后 `1bef69b`/`088a0b7` 各清 1（09-22 定版；10-14 起由 `make docs-check` 复测，不再靠手感）。
+<!-- claim:todo_sites<=1 :: git grep -n TODO -- Sources | wc -l -->
 
 ### Testing Quality
-- Gold standard: `ThinkingBudget`, `ComplexityAnalyzer` — exact value assertions (`#expect == N`), parameterized traversal, boundary assertions. (BlockPool gold-standard test removed with the module at upstream 2b3c965.)
+- Gold standard: `ThinkingBudget`, `ComplexityAnalyzer` — exact value assertions (`#expect == N`), parameterized traversal, boundary assertions.
 - **Reject** `count > N` weak assertions.
 - Test modules: Scheduler lifecycle + concurrency, OOMGuard (full), MemoryTracker (partial gaps), AdmissionGate (partial gaps), HardwareRouter (Mirror + Integration — see table below).
+- **A scan-based test asserts its own premises:** find the repo root by searching, never by fixed `deletingLastPathComponent()` hops (three "passing" assertions here were really ENOENT), and floor the scan's own hit count so a regex that stopped matching fails instead of passing vacuously. `V1EndpointCatalogTests` is the pattern.
+- **Commit the probe.** Anything that proves behaviour against a live server ships as a script — cf. `scripts/proc-status-cache-probe.swift`, mlx-serve's `tests/test_*.sh` — so the claim outlives the session that made it.
 
 ---
 
 ### Open (currently unresolved — the only items worth prose)
 
+- **`/v1/models/:model/…` 不收原样模型 id**（Handlers/）— `:model` 只匹配一段，而 `/v1/models` 发布的 id 是 `org/name`（两段）⇒ verbatim 一律 router-404；`%2F` 形态下 sampling 200，而 kv-cache 曾连 `%2F` 也 404——它漏了 router 里统一的 id 解析 choke，把编码串原样丢给 pool。已修：kv-cache 改走 `resolvedPathModelId`（四条 `:model` 路由同一个 choke），并在 `V1EndpointCatalog` 四条 note 写明须 percent-encode，探针 03 逐条 suffix 钉住可达性、探针 01 钉 kv-cache 真出数据。未决：是否直收带斜杠 id——Hummingbird `**` 会连 `/v1/models/download` 一起吞，代价是再造一层路由真值，留人拍板。
 
-- **HTTP token-count 面窄**(Router/ — 10-13 活体实测,未修,属新增 API 面留人拍板):`POST /v1/count-tokens` 只认 `{model,prompt}`,`input`/`messages` 均 `400 Coding key `prompt` not found.`(OpenAI/Anthropic 客户端惯例字段拿不到计数);`POST /v1/messages/count_tokens` = **404**,而 `AnthropicMessageRequest` 已可用 ⇒ Anthropic SDK 的预算前置调用仍会失败。另:`/v1/count-tokens` 的 404 提示语自称「endpoints via GET /v1/capabilities」,但 `CAPayload`(`ChatCompletionsRouter.swift:278-302`)只公示能力行与 `tokenizerBackend`,不含端点索引。
 - **CoreAI 约束路的掩码常数**(`EngineInference.swift:1385`,**本机 macOS 26 不可运行验证**)— `_applyBitmask` 自己的文档写「disallowed tokens → -inf」,代码却是 `Float.leastNormalMagnitude * -1` ≈ −1.18e-38(加法掩码下几乎等于 0 ⇒ 等于没掩);且循环内 `guard tokenIdx < vocabSize, tokenIdx < logits.count else { return }` 会在首个越界索引处**整个函数返回**,跳过后续掩码字。唯一调用点在 `@available(macOS 27.0,*)` 的 `_runConstrainedDecoding`(L1080/L1223)。改法显然(`-Float.infinity` + `continue`),但在 macOS 27 上跑通前不臆修、不宣称已修。
 
-- **iOS UI parity** (UI/) — 09-22 实证：工具层平台门控已核 = 正确（10 个 macOS-only：move/click/drag/scroll/type/key + inspect_ui(AX) + open/activate/list_apps(NSWorkspace)，均 macOS 平台语义）。10-13 落三处编译门，逐条以 iPhoneOS 27 SDK 一手证据核对（不凭印象）：`HSplitView` = `@available(iOS, unavailable)`；`navigationSubtitle` = `@available(iOS 26.0, macCatalyst 14.0, macOS 11.0, *)` 而 target 是 `.iOS(.v17)`；`UIPasteboard` 只有 `dataForPasteboardType:`（`UIPasteboard.h:79`；`dataForType:` 是 AppKit 拼法）。复扫排除的误报：`keyboardShortcut`/`.help` = `@available(iOS 14.0, …)`、`UTType`、`AVCaptureDevice.requestAccess` 均可用。仍开 = iOS **运行时**零验证（沙箱内 `xcodebuild` 起不来，编译面由 CI job `build-ios` 把关），MCP/Security on iOS TBD，ChatView/MultimodalControls 的 UI 门控仍需活验。
+- **iOS UI parity** (UI/) — 09-22 实证：工具层平台门控已核 = 正确（10 个 macOS-only：move/click/drag/scroll/type/key + inspect_ui(AX) + open/activate/list_apps(NSWorkspace)，均 macOS 平台语义）。10-13 落三处编译门，逐条以 iPhoneOS 27 SDK 一手证据核对（不凭印象）：`HSplitView` = `@available(iOS, unavailable)`；`navigationSubtitle` = `@available(iOS 26.0, macCatalyst 14.0, macOS 11.0, *)` 而 target 是 `.iOS(.v17)`；`UIPasteboard` 只有 `dataForPasteboardType:`（`UIPasteboard.h:79`；`dataForType:` 是 AppKit 拼法）。复扫排除的误报（`keyboardShortcut`/`.help`/`UTType`/`requestAccess` 均可用）见 CHANGELOG 10-13。仍开 = iOS **运行时**零验证（沙箱内 `xcodebuild` 起不来，编译面由 CI job `build-ios` 把关），MCP/Security on iOS TBD，ChatView/MultimodalControls 的 UI 门控仍需活验。
 - **Reasoning `<thinking>` parse** (Engine/) — 字符串协议状态机（`ThinkTagParser`，0 处 regex，#206 后 15/15 绿），无 AST。
-- **`kvCacheRuntimeReport`** — ~~not consumed~~ → 09-22 实证：ocoreai 走**自有等价消费面** `Metrics.kvCacheGpuBytes`(`ocoreai_kv_cache_gpu_bytes`, Metrics.swift:79/196)→ `ServerStatsSnapshot.kvCacheBytes` → Dashboard `kvCacheGB`(DashboardViewModel.swift:107)。上游 `KVCacheRuntimeReport`(KVCacheRuntime.swift:155) 是另一套 wrapper，#248 已判 ocoreai 无此 wrapper 的 bug —— 接它 = 本地重复面，不做。
-- **MLXFoundationModels** — FM 路 wired（`#if FoundationModelsIntegration && canImport(FoundationModels, _version: 2)` + Package.swift L26 默认开）。 ~~lacks per-token callback on FM `.done`~~ → 09-22 实证假缺口：per-token 走 `yieldParserEvents → continuation.yield` AsyncStream（EngineInference.swift L430-470 等，与 std MLX 路同构），不依赖 `.done` 回调（`.done` 只是收尾信号）。上游 0 处 onStreamChunk 概念——此条 phantom gap 撤回。
 - **Hygiene — do not add new**: `precondition` (structural invariants + upstream-verbatim); scattered `try?` defensive fallbacks (~316 in Sources/); 2 bare `empty catch {}` in the EngineInference watchdog.
 - **轮内即时转向需要 tool 调用**（Engine/）— 10-13 实证：`SteerQueue` 的轮内排空点只有 `EngineInference.swift:2908`（tool-result 尾巴）与 `:3514`（MTP 轮内）。上游 `ChatSession` 的标准生成循环**不暴露 message 注入缝** ⇒ 「一轮之内、无 tool 调用」时无法把转向语塞进正在生成的上下文。`905492e` 已把这类 steer 改为下一次请求头部并入（活体 `PARAPET`/`KESTREL` 实证）= **最坏延迟一轮，不再丢失**。要做到真·即时打断，需上游给 ChatSession 一个注入缝、或本地弃用 ChatSession 自建循环 —— 后者=重复造上游已有的会话层，留人拍板。
-- **P1 — 每轮都付全量 prefill（KV 前缀复用未生效）**（Engine/）— 10-14 活体直读上游 `GenerateCompletionInfo`（默认 `gemma-4-e2b-it-4bit`，port 8147/8149/8151，同会话 3 轮，`max_tokens=1` 与 `40` 各一组，附「冷会话·同长度」对照组）：`prefilled=918 / 939 / 928`、`cached=0`、`promptTime=0.12–0.29s`，与对照组（0.145–0.175s）同量级 ⇒ **命中轮仍整段 prefill**；此前据 8.36s→0.25s 判定的「前缀复用成立」是误读（落差来自模型装载/预热，日志 `Model … prewarmed in 8s`）。**推论：`cached_tokens=0` 与引擎实态一致，不是 wire 谎报**（10-13 那条待修项据此撤销）。影响按同速外推：30k 上下文 ≈ 3–4s/轮，是长会话里用户最先感知的卡顿。**根因未钉死**，两条候选代价不同、不可拍脑袋：`ChatSession.swift:1052`（`plan` 或 realized layer kinds 变化 ⇒ `restored.cachedTokens.removeAll()` 重建）vs `:1212`（`promptCachePolicy.decide` 直接 `.prefillAll`）；区分二者需在依赖 checkout 内打印 `decision`（该 checkout 只读，`PermissionError` 已证）。**下一步**：先钉归因，再决定 ocoreai 是否改为喂全量、把复用交给上游自管（上游本就为此设计 `cachedPromptTokenCount` 与 `.trimToCommonPrefix`）。已落地的只是诚实与可见性：HIT 日志不再宣称省下 prefill，且扣了消息却零复用时每轮打 WARN。
+- **P1 — 每轮都付全量 prefill（根因已钉死：该模型缓存不可 trim，非 ocoreai 喂法问题）**（Engine/）— 10-14 插桩直读上游裁决（原始日志见 CHANGELOG 同日）：命中轮公共前缀 710/730 完好、plan 与 transcript 俱在，上游仍判 `.rebuild`，因为 `PromptCacheReusePolicy.swift` 的 `canRewind` 要求 `cache.isTrimmable`，而 `BaseKVCache.isTrimmable=false`（仅 `KVCacheSimple`/`QuantizedKVCache`/部分 `RotatingKVCache` 覆写 true）⇒ 此前列的两条候选**双双排除**。实测 5,632–6,186 tok/s ⇒ 30k ≈ **4.8–5.3s/轮**（旧记「3–4s」偏乐观，已按实测改）。**已落**：`/v1/models/:model/kv-cache` 公布 `prefixReuse`（三态 `not_observed`/`no_reuse_observed`/`reuse_observed` + `warmTurns`/`turnsWithReuse`，只取上游 `cachedPromptTokenCount`、unload 即清空；探针 01 用自己测到的轮次对照它）。**未决**：多轮会话是否改选可 trim 的缓存类型（旋转窗有取舍）；此模型下喂全量与喂后缀无差别 ⇒ 不改喂法。`OCOREAI_REQUIRE_PREFIX_REUSE=1` 是复用落地那天的回归门。
+- **屏幕抓取起不来流（Multimodal/）** — 10-15 实测：`screenPermission=authorized` 且有显示器，`SCScreenshotManager.captureImage` 仍回 `音频/视频捕捉失败，无法开始流播放`；同机同进程相机已能出帧（1102ms）⇒ 不是 TCC，是 SCStream 在无 GUI 会话里起不了流。错误原文现已随响应上线（`ScreenshotService.lastError`），不再只落在 unified log。未决：headless `serve` 能否用 SC 抓屏；`screenStatus` 现按权限判 `ready`，说的是「已授权」而非「这一轮会成功」。
 - **Coverage report** — Tests/CoverageReport missing (no live data).
 
-**Resolved items** (ThinkingBudget wiring, SyncInputHandler, ChatConventionsRegistry, AgentLoop pruned, KVCache typed config, MTP, TurboFlash, CoreAI grammar, PagedKVCache removed, ReasoningEventEmitter, HardwareRouter/AdmissionGate tests, 0 fatalError): not restated here — source of truth is `CHANGELOG.md` + `~/wiki/concepts/upstream-mlx-swift-lm*.md` + `~/wiki/concepts/upstream-coreai-models.md`.
+**Resolved items**: not restated here (the names live in `CHANGELOG.md`, and a list maintained in two places is a second truth that drifts).
 
 ---
 
 ### Upstream Audit Dependencies
 
-Four sources for empirical verification:
-1. **mlx-swift-lm** — pinned in `Package.swift` at `4cc550451`（L41 `revision:`；**10-13 round 10 `18e6fe9` adopt `7eb77ef → 4cc5504` +7**：`#412` suppress_tokens + 屏蔽多模态占位 token ⇒ 给 Gemma4 家族种抑制集 = ocoreai 默认模型 `mlx-community/gemma-4-e2b-it-4bit`，**纯消费受益、本地 0 引用**；`#644` `PrefillParameters.prefix`（回调可选 ⇒ 不破坏编译面）**已尝试消费并回退**：上一轮把它记成「GUI 早期上报复用 N token」的下一步，本轮实测否证（见本条末段），不要再当机会；`#301` VLM processor TODOs · `#580` 组件按需加载 · `#684` EmbeddingGemma2（ocoreai 默认 LFM2.5-Embedding）· `#545` Qwen3.8 text/VLM/MTP（ocoreai MTP 注册表在本地，不自动获得）· `#690` 修测试 ⇒ transparent。区间上游自身 `Package.swift` 0 变更；区间公开名 ocoreai 0 消费（逐条 `git grep -c -w` = 0：`Gemma4Unified`/`Gemma4VisionConfiguration`/`eosTokenIds`/`stopStrings`/`aspectPreservingTargetSize`/`GenerationConfigFile`/`SuppressedTokensProviding`/`EmbeddingGemma2`/`MuseGlimmer`/`FastVLM`/`SmolVLM2`/`Qwen38`/`Qwen3VL`/`suppress_tokens`）。门 = `swift build` 57.09s 绿 · `make test-clt` **2335 tests / 436 suites** 绿 · 活体（Anthropic `end_turn`、json_schema 24/32/48/64 合法、HIT 2/3·4/5·6/7、`PARAPET` 召回、后续轮 225–290ms）。前刀 10-11 round 9 `80f0c01` adopt `7eb77ef` +12，前刀 09-23 `790d4df` bump: #603 Extract the model cache — evict 真取消 in-flight load / DownloadProgress 按 model-id 分桶 / GrammarConstraint.clone 窄化; CI 2080/385 绿）。前序链 `3e6ea1e` #548/#515 ← `604fae7` #584/#613/#615/#611/#597。0 drift（10-13 离线复核：`references/mlx-swift-lm` origin/main = `4cc5504` == pin）。**离线通道（10-13 记，重要）**：沙箱内取不到网络 ⇒（**10-14 更正**：整机有网且 DNS 正常——`developer.apple.com`、`api.github.com` 实测均回 200；真正的拦阻是 **agent 沙箱**，与 10-12 那条「全量门跑不动是沙箱不是平台」同型。沙箱内的 mirror 通道仍然必要，但别再把上游记成「本机取不到」；`git push` / `gh api` / drift 的 api 通道要在沙箱外跑） 构建/测试走 `swift package config set-mirror --original https://github.com/ml-explore/mlx-swift-lm.git --mirror file:///Users/uingei/references/mlx-swift-lm`（写 `.swiftpm/configuration/mirrors.json`，**已 gitignore，勿提交**）+ `--disable-automatic-resolution --force-resolved-versions`（否则 SwiftPM 会去更新全部远端而失败）；含义 = **本地能验证的 pin 必须 ≤ 本地 clone HEAD**，CI 仍从 GitHub 取 pin（`4cc5504` 是该 clone 的 origin/main，10-12 fetch）。**`#644` 复用数在 ocoreai 不可消费（10-13 活体实锤）**：探针 `live24.py`（port 8124 · 默认 `gemma-4-e2b-it-4bit` · 同会话 3 轮）= T1 `prompt_tokens=918`/8.36s → T2 939/**0.25s** → T3 961/**0.35s**，引擎日志两条 `Session pool HIT … already cached, feeding the suffix` （⇒ 当时判「前缀复用确实在跑」——**10-14 已否证**：落差是模型装载/预热，上游 `prefilled` 报的是整段 prompt、`cached=0`，见本文件 Open 区 P1 与 CHANGELOG 10-14）；但 `prefill.prefix?(cacheStorage.processedTokenCount)`（上游 `Evaluate.swift:1064`，`TokenIterator.prepare` 内）三轮**全部报 0** —— 为区分「没被调用」与「调用报 0」，把日志改成无条件打印复验 = `PROBE prefix positions=0` ×3。结构原因：iterator 读的是「被传进来的 cache」，而 ocoreai 的复用发生在 `ChatSession` 私有 KV 层（`ChatSession.swift` 内 `kvCache` 非 public），`generateTokensTask` 每次只见新 cache。⇒ 任何基于 `#644` 的「复用 N token」显示在此路永远不亮。
-**Bump 协议**：`git log <old>..origin/main` 逐条审计消费面 → bump `.revision` → `swift build` + `make test-ci` 绿 → 审计行记入本节 + CHANGELOG（Package.swift 只留 pin + 指向本节的指针，不写逐 commit 日记）。
-   **Layout + mirror caveat (verified 10-14 at `4cc5504`):** upstream moved its sources from `Sources/` to `Libraries/` — the file `references/mlx-swift-lm/Sources` does not exist, so `grep -r … Sources` against the clone returns nothing and reads as "API missing" (cost this repo a wasted audit round on 10-13/14; e.g. `saveCache` is at `Libraries/MLXLMCommon/ChatSession.swift:1724`, `loadPromptCacheSnapshot` at `Libraries/MLXLMCommon/KVCache.swift:1970`). Grep `Libraries/`. Also: this clone *is* the build source — `.swiftpm/configuration/mirrors.json` (gitignored) maps the GitHub URL to `file:///Users/uingei/references/mlx-swift-lm`, and clone HEAD `4cc5504` == the pin == `.build-clt/checkouts/mlx-swift-lm`, so upstream reading here is byte-identical to what we compile and run; the constraint it imposes is **local-verifiable pin ≤ clone HEAD**, while CI still resolves from GitHub.
-2. **coreai-models** — reference at origin/main HEAD `bd61eb1`（**10-14 round 11 `be11f01 → bd61eb1` +2**：`#347` Add pull request template + `#348` Add CODEOWNERS，两条改动文件都是 `.github/` 元数据 ⇒ consumer-transparent，0 Swift / 0 资产 / 0 recipe 消费面）（**10-13 本地 clone 复核 = 基线 `52dbd93cb` +1**：`#346` "add export_backend param" 只改 `python/src/coreai_models/export/compression.py` ⇒ **consumer-transparent**（ocoreai 无 Python/export 消费面，`Engine/CoreAI*` 是本地派生面）；10-12 复核时 `52dbd93` 与基线同点 = 0 新 commit；前序 `e7b24da` 之 +5 已由 10-11 `b9c61e7` 裁决吸收）。`e282dbd..89ba0d4` 5 commit 历史: `#237` 已吸收（`cd9e901`）· `#248` 0 ocoreai 消费 · `#249` 行为等价重构 · `#250` Tools/llm-server tree · `#251` 已吸收（`3497ae8`）。**`89ba0d4..e7b24da` 17 commit 逐条核验（09-27 审计）**：已吸收 `#265` seeding (`4cd0d36`) · `#268` KV-state growth (`e4def0d`) · `#274` prefill threshold (`85a85f5`)。Python/diffusion/SAM3/noise-source/INT4-recipe axis 9 commit: consumer-transparent by axis (ocoreai 无 Python/diffusion 消费面)。剩余 Swift engine 面 5 commit: `#271` xmlFunction/ToolCallDetection = 0 生产面 (Qwen3-Coder 不在 ocoreai surface) · `#267` reasoningTemplateContext = ocoreai 已有 `ContextOptions.reasoningLevel` + `ReasoningResolution.thinkingEnabled`(09-24) · `#258` idempotent engine = ocoreai 已有 pool prefix-match · `#266` ReplayRunner = llm-server Tools/ tree (0 ocoreai hits) · `#290` dead-code removal (0 ocoreai hits)。**3 已吸收 + 0 行为分叉 + 0 强制缺口。** Reference repo, not SPM dependency。#206 absorbed (`1076948`)；ATEM `Format.agentic` NOT absorbed（0 consumers）。
-3. **codex** — 语义轴参照（非 SPM 依赖、非逐 commit 复制）。**10-14 round 11 `b043762f9e → efa159f7aa` 25 commit 逐轴裁决 = 25/25 consumer-transparent，0 强制缺口，0 ocoreai 生产面变更**：双根实测计数（`git grep -icE` over `Sources/`）`guardian`=0 / `exec.?server|app.?server`=0 / `background.?turn`=0 / `replay.?cache`=0 / `daybreak|cyber`=0 ⇒ `#53628`/`#53633`/`#53699`（Guardian 分类器）、`#53723`（exec-server RPC 能力发现）、`#53701`（CLI Daybreak + background-turn 资格）、`#53717`/`#53689`（API-key access programs）、`#53672`/`#53673`/`#53631`/`#53632`/`#53668`（其 CI 与测试场景）无消费面；`subagent|sub_agent|delegate_task`=3（既有未实现的钩子名枚举，非本轮引入）⇒ `#53654`/`#53657`/`#53660` 是其多 agent/hook 的内部 Rust 重构；`#53725`/`#53693`/`#53728` 属 TUI/Rex 轴（ocoreai = SwiftUI GUI）。**唯一同轴候选 `#53670`「Account for token usage from incomplete responses」实读 diff 后判「原则已在本地」**：ocoreai 取消路 `.done(cancelled)` 传真实 `tokenCount`（`EngineInference.swift:4386`），prompt/cached 未知即**省略**而非编造（`OpenAIModels.swift:918` 的 `cachedPromptTokens.map`），而硬编码 `reasoningTokenCount: 0` 只出现在「本路本就不分离 reasoning」的两处（`:2088` guided、`:4389` plain std），不是谎报。**基线纪律**：`.upstream-baseline.json` 的 codex 只钉到**最后逐条读过**的 `efa159f7aa`，不跟 api HEAD `4d82d36cc`（adopt 当时主分支又前进了）——钉到未读点会把尾段藏进「已裁决」，正是本仓警告的时龄失真；下次 `check` 顶出 +1。另记：大仓 `git fetch` 在当前链路不稳（`Error in the HTTP2 framing layer`，同会话复现 1 次），api 通道稳定 ⇒ HEAD 用 api、读 diff 仍用本地 clone。基线 `6a39914 → 99f7758`（09-27 drift 轮 adopt）→ **`→ 1cc7e2361`（09-28 drift 轮 adopt）** → `cc7ba3360`（10-11 `b9c61e7` +160 裁决 adopt——**该轮只落 state 文件，未写本行与 CHANGELOG，本行补记**）→ **`a9b081516`（10-12 drift 轮 adopt）** → **`b043762f9e`（10-13 drift 轮 adopt）**。`a9b081516..b043762f9e` **31 commit** 逐条裁决（10-13 双根全扫 + 高计数命中行逐条消歧；源 = 本地 clone `references/codex` origin/main=`b043762f9e`，无网络不走 gh api）：**① TUI/终端轴** `#53556` modifier 去重+终端色缓存 · `#53440` 16 色终端保状态线重音 · `#53438` 不再以 `TERM_SESSION_ID` 认 Apple Terminal · `#53436` TUI 请求回复回原连接/线程 · `#53496`+`#53429` 配置面板 pending toggle 与设置导航 · `#53444` `codex exec` 抑制重复 turn diff · `#53453` WSL 优先 Windows 剪贴板并限制拷贝重试次数 ⇒ 双根 `TERM_SESSION_ID|TERM_PROGRAM`=**0**、`crossterm|custom_terminal`=**0**；ocoreai = SwiftUI GUI 无终端渲染面，自有 `Tools/ClipboardTools.swift` 是 `NSPasteboard` 原生两工具（无 WSL / 重试次数轴）。**② remote exec 轴** `#53622`「输出在被取走前保留」· `#53331`/`#53339`「输出流仍开着也要完成收尾」⇒ ocoreai `ExecSessions` 是**文件捕获 + offset 读**（`dir/out`·`dir/err`·`readTail(after:)`），输出天然跨进程退出存活，且不存在「等管道 EOF」的挂死面；reap 已用有界轮询取代 `waitUntilExit`（`ExecSessions.swift:421`/`:524`/`:588` 三处注释自陈 CI wedging 教训）——**同轴早已换形本地实现**，29 处 `unified.?exec` 命中全是指向 codex 文件:行 的引用注释。**③ compaction 轴** `#53614`/`#53620`/`#53606`/`#53595` remote-V2 + async 压缩配置 ⇒ 128 处 `compact(ion|ing)` 全属自有 `ConversationCompaction` 面，0 remote-V2 / feature-flag 消费面。**④ multi-agent V2 · message board · guardian 轴** `#53617`/`#53400`/`#53369`/`#53393`/`#53389` ⇒ `message.?board`=0、`guardian`=1（仅 `ApprovalTests.swift:453` 引用 `#41846` 的注释）、`subagent`=3（`ToolHookRunner` 钩子名枚举，注释自陈 delegation 未实现）——**按产品定位明确不采纳**（ocoreai 不扩成通用 Agent 框架）。**⑤ app-server / 网络代理轴** `#53506` 拒重复 Host 头 · `#53419`+`#53424` 冷 resume 恢复线程授权 ⇒ `app.?server`=0、`host.?header|"Host"`=**0**（Hummingbird 侧不以 Host 作判定，无 request-smuggling 面；授权按 turn 清场的既有裁决维持不变）。**⑥ Windows / 构建 / 依赖轴** `#53443` MSVC-Bazel · `#53412` arg0 helper 目录按 OS 隔离 · `#53426` Windows 运行时注册诊断 · `#53382` libyaml advisory · `#53485` quinn-proto · `#53358` 删测试 ⇒ Swift/Darwin 侧 0 消费面。**⑦ 从轴里抽出原则并落刀 2 条**：`#53451`「incomplete response 是终态错误，不重试、不换模型」= 本轮 `ed6ad1d` 的终态诚实（截断不得报成 `finish_reason:"stop"`）同原则；`#53452`「轮次收尾期关闭输入准入，迟到的注入不得丢、也不得抢序」= 本轮 `905492e` 的 `/v1/steer` 请求头投递缝同原则。**结论：31/31 consumer-transparent 或明确不采纳，0 强制缺口；0 处照抄上游实现，2 条原则已在本地以 Swift 形态落地。**`cc7ba3360..a9b081516` 11 commit 逐条裁决（10-12 consumer-transparent 双根全扫；源 = 本地 clone `references/codex` origin/main=`a9b081516`，当日 11:09 fetch，无网络不走 gh api）：① TUI 轴 `#53224` Windows clipboard paste · `#53173` restart managed background servers · `#53156` custom terminal drawing API · `#53153` subagent nav shortcuts · `#53152` select/copy turn tips —— 双根 `background.?server`=0 / `subagent|sub_agent|delegate_task`=0 / `\bvim\b`=0，ocoreai = SwiftUI GUI 无 TUI 消费面；② app-server/remote 轴 `#53155` events deliverable during shutdown · `#53049` connection-bound reply handles · `#53150` thread-owned permissions on cold resume —— `git grep -iE "app.?server" Sources/` = **0**，ocoreai 生命周期自有语义 = `EnginePool.shutdown()` cancel+await（`EnginePool.swift:1412`），无 remote 事件队列面；③ CLI 轴 `#53109` broken pipes in plugin list —— Swift/Darwin 默认 SIGPIPE=ignore（写断链不 trap），真正依赖管道语义的子进程 stdin 已处理（`ExecSessions.swift:125`）；④ `#53148` startup draft recovery for Vim Replace keys —— vim 模式 0 消费，而其**轴**（启动期草稿不丢）早已消费：composer draft 上收 `ChatState.shared`（`ChatViewModel.swift:157`，引 codex `#46750`）。**11/11 consumer-transparent，0 强制缺口，0 ocoreai 生产面变更**。唯一从轴里抽出的**原则**=「可读文本即可选」→ 本地落刀（transcript `textSelection`，见 CHANGELOG 10-12）；唯一**显式不采纳**= `#53150` 授权跨 resume 持久化：ocoreai 审批刻意按 turn 清场（`ChatViewModel.swift:1543` → `ApprovalBroker.cancelAll()`），跨冷重启回填授权 = 信任模型变更，留人拍板、不静默做。`99f7758..1cc7e2361` 8 commit 逐条裁决（09-28 consumer-transparent 双根全扫，非轴词粗筛）：全落 codex 自有轴——① TUI 渲染/交互（`#48807/#48814` Mermaid 标签标点 · `#48827` Ghostty/Kitty hand pointer · `#48830` TUI interruption notice）——ocoreai = SwiftUI GUI，双根全扫 `mermaid|ghostty|kitty|hand.?pointer|interruptionNotice` = **0**（TUI 轴无消费面；注意 ocoreai 77 处 `prewarm` 全是**模型引擎预热**轴 ≠ codex `#48812` "prewarming for idle threads"（TUI 会话线程轴），同名不同义）；② `#48819` histogram tool/skill context metrics——ocoreai `Metrics/Metrics.swift` 22 处 histogram 是**自有 engine 指标面**，`tool|skill` 相关 = **0**，非同轴；③ `#48824` voice RTP 20ms——ocoreai `AudioIO/RTP` 9 处是**自有实时音频传输面**，非 codex voice-agent 轴；④ `#48828` archive thread before first turn——ocoreai 会话**不**支持"首 turn 前归档"语义（SessionManager SQLite 语义 = turn 落库才成会话），双根 `archive.?thread|archiveSession` = **0 消费**；⑤ `#48829` Windows sandbox provisioning service——ocoreai 无 sandbox 轴（09-27 `#48565` seatbelt 全仓 0 命中同判），双根 `sandbox.?provisioning|provisionService` = **0**。8/8 consumer-transparent，0 强制缺口，0 ocoreai 生产面变更。持续跟进：`bash scripts/upstream-drift.sh`（check/adopt）+ `.upstream-baseline.json` 版本化基线 + 每日 cron 只读自检；**离线通道（10-13 起自带）**：脚本原先只走 `gh api`/curl，沙箱内取不到网络 ⇒（**10-14 更正**：整机有网且 DNS 正常——`developer.apple.com`、`api.github.com` 实测均回 200；真正的拦阻是 **agent 沙箱**，与 10-12 那条「全量门跑不动是沙箱不是平台」同型。沙箱内的 mirror 通道仍然必要，但别再把上游记成「本机取不到」；`git push` / `gh api` / drift 的 api 通道要在沙箱外跑） 三源全部 `api 失败，跳过` + `exit 1`（实测），每日 cron 实际空转。现回落 `~/references/<repo>`（`OCOREAI_REFERENCES_DIR` 可覆盖）的 clone：HEAD/base..head/messages 全部本地算出，输出行标 `src=local clone`，`adopt` 把来源写进 state 的 `resolved_via`。**限制**：clone HEAD ≠ GitHub 权威，只反映该 clone 最后一次 fetch 的时刻 ⇒ 联网后须再跑一次 api 通道确认；本地可验证的 pin 必须 ≤ clone HEAD；新窗口 = 裁决清单（consumer-transparent 双根全扫为权威，轴词粗筛仅提示）。
-4. **Apple Developer Documentation** — **public, no login** (corrected 10-14; the old "requires login" note was an unverified carry-over that quietly cost us a primary source). Verified from this host the same day: `https://developer.apple.com/documentation/coreai` → HTTP 200, no redirect, and the DocC JSON is machine-readable at `https://developer.apple.com/tutorials/data/documentation/coreai.json` (19,684 bytes; title `Core AI`; abstract "Run AI models in your app on Apple silicon."; topicSections = Essentials / Inference / Multidimensional arrays / Configuration / Debugging and performance / Errors). Division of labour: docs for intent and semantics; `MacOSX27.sdk` `.swiftinterface` for exact signatures and `@available` gates (CoreAI's own interface is a 9-line `@_exported public import CoreAIDelegates`; the real surface is `System/Library/SubFrameworks/` — `CoreAIRuntime` 1428 lines / 27 public types, `CoreAIAsset` 247 / 10, `CoreAIDelegates` 122 / 5); and **live execution** for behaviour — the CLT SDK (`MacOSX26.5.sdk`) has no CoreAI, so CLT-route builds compile every `canImport(CoreAI)` branch out and this host (macOS 26) can never run them. Fetch pattern: `curl -sS https://developer.apple.com/tutorials/data/documentation/<topic>.json`.
+**Five empirical sources** (the owner's first-principles reference set, reaffirmed 10-14). Round-by-round verdicts per upstream commit live in `CHANGELOG.md` (rounds 9–12) — one diary, one home; this section keeps only the current pin and the rules that transfer.
+1. **mlx-swift-lm** — the pin in `Package.swift:41` (`revision:`) is the contract; `Package.swift` keeps pin + pointer, never a per-commit diary.
+**Bump 协议**：`git log <old>..origin/main` 逐条审计消费面 → bump `.revision` → `swift build` + `make test-ci` 绿 → 逐轮裁决写进 `CHANGELOG.md`（唯一落点，不在本节重复），本节只留当前 pin 与可迁移规则；`Package.swift` 只留 pin + 指针。
+   **Layout + mirror caveat (verified 10-14 at `4cc5504`):** upstream moved its sources from `Sources/` to `Libraries/`, so `grep -r … Sources` against the clone returns nothing and reads as "API missing" (it cost a wasted audit round; `saveCache` is at `Libraries/MLXLMCommon/ChatSession.swift:1724`). Grep `Libraries/`. And this clone *is* the build source — `.swiftpm/configuration/mirrors.json` (gitignored), consulted per revision rather than per file — so reading the clone equals reading what we compile only while clone, pin and checkout agree, which on 10-14 they did not (all three differed; CHANGELOG same day). What actually holds is **pin is an ancestor of clone HEAD** (`git merge-base --is-ancestor`); pin + cleanliness of the checkout a binary was built from is asserted by `scripts/probes/_lib.sh`, not by prose.
+2. **coreai-models** — Apple's reference tree, consumed here as the local `Engine/CoreAI*` derivation (BSD-3; types redefined locally to dodge the macOS 27 requirement). Python/export-side commits are consumer-transparent: ocoreai has no Python or export surface.
+3. **codex** — semantic axis reference (Rust, not linked, nothing redistributed, no per-commit copying).
+4. **Apple Developer Documentation** — **public, no login** (corrected 10-14; the old "requires login" note was an unverified carry-over that quietly cost us a primary source). Verified from this host the same day: `https://developer.apple.com/documentation/coreai` → HTTP 200, no redirect, and the DocC JSON is machine-readable at `https://developer.apple.com/tutorials/data/documentation/coreai.json` (19,684 bytes; title `Core AI`; abstract "Run AI models in your app on Apple silicon."; topicSections = Essentials / Inference / Multidimensional arrays / Configuration / Debugging and performance / Errors). Division of labour: DocC for intent and semantics, the SDK's `.swiftinterface` for exact signatures and `@available` gates, and **live execution** for behaviour — the CLT SDK has no CoreAI, so CLT-route builds compile every `canImport(CoreAI)` branch out and macOS 26 can never run them (SDK-level numbers: `docs/agent/build-gate-reality.md`). Fetch pattern: `curl -sS https://developer.apple.com/tutorials/data/documentation/<topic>.json`.
 
-**Wiki:** `~/wiki/concepts/upstream-mlx-swift-lm-38927f5-intent.md` + `~/wiki/concepts/upstream-coreai-models.md` — consumption matrix with file:line evidence.
+5. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: the only one of the five that judges **the GUI itself** rather than the engine, so on anything user-visible HIG is the authority — not upstream codex. It is **not DocC**: the page returns HTTP 200 (17,663 B, verified 10-14) while every `/tutorials/data/documentation/design/human-interface-guidelines*.json` variant returns 404 ⇒ cite the specific section, there is no machine index to grep. What it judges here: ⌘ coverage + focus order, Settings hierarchy (`Cmd+,`, grouped), `textSelection` on anything readable, a11y labels, dark mode + Dynamic Type, destructive-confirmation wording, replying in the medium the user used. Measured thinness on this axis (grep, 10-14): `keyboardShortcut` in 3 files and `accessibilityLabel` in 15, across 264 Swift files — that gap is a HIG defect, whatever upstream does.
+6. **Auxiliary references (owner-designated 10-15)** — vllm / vllm-metal / sglang / omlx / hermes-agent: serving/agent-loop comparators, not pins: nothing is linked or redistributed, and a verdict borrowed from one stays an inference until a file:line in our own build says otherwise.
+
+**Mirror ≠ HEAD:** a clone under `~/references/` proves *content*, never HEAD — `api.github.com` is authoritative for HEAD and compare windows (the local clones lag the baselines here). A mirror *is* valid for byte-checking Apple's BSD-3 `LICENSE`, and that is what it is used for.
+**Host-local ≠ project truth:** `~/wiki/concepts/*` (the upstream consumption matrices) lives outside this repo and is absent on some hosts, this one included — cite it as host-local colour, never as project evidence (§ Wiki).
+<!-- claim:doc_pin_is_the_pin>=1 :: grep -c 'revision: "4cc550451"' Package.swift -->
+
+**Wiki:** `~/wiki/concepts/` — host-local (absent on this host today) per-pin consumption matrices; the verdicts that bind the repo are in `CHANGELOG.md`, not here.
+
+---
+
+## Read on demand — detail one hop away
+
+- `docs/agent/build-gate-reality.md` — why the local gate is tiered: sandbox / Metal / metallib / module-cache / toolchain-bump forensics.
+- `docs/agent/third-party-notices.md` — license composition, the `coreai-models` metric warning, the vendored-header table.
+- `docs/agent/closed-items-log.md` — verdicts § Open used to carry prose for (resolved / retracted / phantom).
+- `~/references/*`, `~/wiki/*` — host-local clones / notes; absent on some hosts (§ Upstream, § Wiki).
+
+## Routing table — working in X → read this first
+
+| Area | Read | Covers |
+|---|---|---|
+| `Sources/ocoreai/Engine/**` | `Sources/ocoreai/Engine/AGENTS.md` | backend gates, metallib, KV/prefix accounting, steer seam, constrained decoding |
+| `Sources/ocoreai/UI/**` | `Sources/ocoreai/UI/AGENTS.md` | SwiftUI state authority, HIG duties, iOS-parity reality, focus discipline |
+| `Sources/ocoreai/Handlers/**`, `Router/`, `Models/` | § Wire DTOs + § Endpoint Promises below | wire shapes, discovery contract |
+| `Tests/**` | § Testing Quality below | exact-value assertions, scan floors, self-premise checks |
+| this file, `docs/**` | `scripts/agents-md-contract.sh` (`make docs-check`) | budgets, dead pointers, claim reproduction |
+
+Areas without a guide (Scheduler, MCP, Tools, Skills, Multimodal, Video, Security): start from § Code Conventions plus the code. When an area accumulates three dated notes, give it an `AGENTS.md` and a row here — a guide costs context only inside its subtree, which is the whole point.
+
+## Docs Contract — how this file stays true
+
+`make docs-check` (`scripts/agents-md-contract.sh`; CI: the `audit` job) asserts, sub-second and with no build:
+**B1** root byte budget, shrink-only — adding text means removing text, and `make docs-budget` only ever lowers the cap · **B2** root + guide chain budget · **P1** the scan's own floors, so a regex that stopped matching fails loudly instead of passing vacuously · **P2** every file named here resolves — in this repo, by basename in git, in a local upstream clone, or is declared absent on the same line · **P3** every `file:line` anchor points at a line that exists · **P4** every `<!-- claim:id OP N :: command -->` runs and holds · **P5/P6** every `make` target and every test-suite name is real · **P7** every area guide on disk has a routing row.
+
+A claim sits on the same line as its instrument, and the operator is part of the meaning: `>=` a floor that must not shrink, `<=` a ceiling that must not grow, `=` only for facts that move when this file is edited. Pinning equality to an inventory count is a churn generator — name the command instead. Long form: `CONTRIBUTING.md` → *The three questions*.
 
 ---
 
@@ -175,18 +237,20 @@ Four sources for empirical verification:
 | Doc | Audience | Why | When to touch |
 |---|---|---|---|
 | `AGENTS.md` (this file) | **Agent** (Codex, every session) | Injected as project context on cold start | Conventions / architecture facts drift — keep line-accurate |
+| `Sources/ocoreai/Engine/AGENTS.md`, `Sources/ocoreai/UI/AGENTS.md` | **Agent** (auto-loaded inside that subtree) | area contracts: backend compile gates, metallib, KV/prefix accounting / GUI state authority + HIG duties + iOS-parity reality | a rule that only bites inside one subtree belongs there — that is what keeps this file short |
+| `docs/agent/*.md` | **Human + Agent** (one hop away) | the long form this file used to carry: build-gate forensics, upstream audit log, license composition, closed items | when a verdict needs more than 3 lines, move it there and leave a pointer here |
 | `Sources/ocoreai/Skills/SystemPromptBuilder.swift` | **Agent** (LLM context) | Builds the base + skills system prompt | Prompt-wording changes = behaviour changes — needs inference regression |
 | `Sources/ocoreai/Tools/ToolEntry.swift` (+ `Tool*.swift`) | **Agent** (LLM context) | `description` / JSON schema are consumed by the model as function-calling contracts | schema/wording changes = tool-call behaviour — test with live model |
 | `Sources/ocoreai/Parsers/*` (`ThinkTagParser` etc.) | **Agent** (implicit) | Defines what the model may emit (marker tags) | marker changes break both parse and parse-back — hexdump-verify parity with upstream |
 | `README.md` / `README.zh.md` | **Human** | Entry point for humans | Feature surface changes |
 | `CHANGELOG.md` | **Human** | Per-feature provenance, commit refs | Every user-visible change (see Workflow) |
 | `CONTRIBUTING.md` | **Human** | How to contribute | Process / tooling changes |
-| `ARCHITECTURE.md` | **Human** (historical) | Point-in-time architecture review (2026-07-26) | Do not edit — superseded by `docs/*` + wiki |
+| `ARCHITECTURE.md` | **Human** (historical) | Point-in-time architecture review (2026-07-26) | Do not edit — superseded by `AGENTS.md` + `CHANGELOG.md` |
 | `SECURITY.md` | **Human** | Threat model + reporting | Trust-model / network-surface changes |
-| `docs/CONTEXT.md` | **Human** (stale) | v2 context from 2026-06-24 | Do not edit — superseded by `AGENTS.md` + `CHANGELOG.md` |
-| `docs/precise-tasks.md` | **Agent + Human** | Coding-task taxonomy + gates | 09-14 fixed — was using nonexistent `--traits mlx` flag; MLX is a hard dependency, plain `swift build` |
-| `docs/prompt-ocoreai.md` | **Agent** | 自主推进协议（定位/第一性四条/每轮闭环/停止判据，09-22 定稿）| **按需持续维护**（用户授权）：声明与代码脱节、判据失效、损耗点变化时直接改本文件 + commit 尾注说明原因；改完每条须可 grep 实证 |
-| `docs/plans/agent-os-dual-mode-architecture.md` | **Human** (plan) | Proposed dual-mode prompt architecture — **not yet implemented** | Promote to implementation plan when adopted |
+| ~~`docs/CONTEXT.md`~~ | — | v2 context from 2026-06-24; **removed from the repo at `11dd586`** and still cited by this map for weeks | do not cite |
+| ~~`docs/precise-tasks.md`~~ | — | **never tracked**: `git log --all -- docs/` returns exactly one commit (`11dd586`, which deleted `CONTEXT.md`) — the map cited a file the repo never had | re-create deliberately, or leave the row struck |
+| ~~`docs/prompt-ocoreai.md`~~ | — | the 自主推进协议 this file told agents to maintain **does not exist in git** (same check as above); its substance is now § Core Principles + § Rules that apply everywhere | restore it only as a real file, with its own gate |
+| ~~`docs/plans/agent-os-dual-mode-architecture.md`~~ | — | never tracked; a plan that exists nowhere cannot gate anything | write it as a file or drop it |
 | `CHECKPOINT.md` | **Agent (transient)** | Live-work checkpoint, overwritten each round | Not stable — do not cite as source of truth |
 | `~~.status.md~~` | — | Tracked in git (listed in `.gitignore` L37 but committed earlier) — status snapshot | Do not cite — point-in-time |
 
@@ -200,7 +264,7 @@ Four sources for empirical verification:
 
 ## Wiki / Knowledge Base
 
-- **Location:** `~/wiki` (Obsidian vault)
+- **Location:** `~/wiki` (Obsidian vault) — **host-local, and absent on this host today** (`ls ~/wiki` → *No such file or directory*, 10-14). It is not in this repo, cannot be checked out on CI, and is therefore never project evidence: cite `CHANGELOG.md` + the code. `make docs-check` reports `~`-rooted refs separately from failures so the distinction is mechanical, not rhetorical.
 - **Known issue:** Time-aging distortion — wiki pins HEAD but repo advances. Concept pages say "implemented" ≠ actually in Engine.
 - **Verification:** `git merge-base --is-ancestor $wiki_head $real_head` + grep for file existence + symbol grep
 - **Local scratch dir is not truth:** `.hermes/` is gitignored (`.gitignore` L29) and today holds only `.hermes/plans/2026-10-09_first-principles-roadmap.md`; there is **no** `.hermes/audits/` (10-12 `ls`). Untracked files cannot be shared project evidence — cite `CHANGELOG.md` + `~/wiki/concepts/*` instead, and treat that roadmap as historical wherever it conflicts with this file.
@@ -213,6 +277,25 @@ Four sources for empirical verification:
 - Every commit message: what changed + verification evidence (test count / command output)
 - One logical change per commit
 - `CHANGELOG.md` updated with every user-visible change (commit reference mandatory)
+- Editing `AGENTS.md`, `docs/**` or an area guide ⇒ `make docs-check` green before push (sub-second, no build)
+
+---
+
+## Rules that apply everywhere
+
+Distilled 10-14 from `~/references` (hermes-agent, mlx-serve, mlx-swift-lm, codex); each kept because it changes a decision here.
+
+- **When this file and the code disagree, trust the code** — then fix whichever is wrong. Never break an invariant to make a change easier.
+- **Before you call it a bug, verify the claim *and* the intent** (`git log -p -S "<symbol>"`). Isolation and absence are often the design, and this repo has produced three phantom findings (`kvCacheRuntimeReport`, MLXFoundationModels per-token, the `docs/*` rows above).
+- **Footprint ladder — take the highest rung that solves it:** consume upstream → extend an existing seam → opt-in flag/trait → tool or skill → new module → new core or agent-facing surface. A new surface needs a consumer that exists today, not one imagined for tomorrow.
+- **Decide state by authority, and put the scope in the key.** Engine actors own engine/model truth; `SessionManager` + SQLite own durable sessions; SwiftUI owns this window's presentation; a wire client owns its own view. Persisted keys declare their scope (global | session | model | window) — a wrong scope is how one session's setting bleeds into another.
+- **Respect the person using it.** Never navigate, refocus, open a pane or announce because something *happened* in the background — offer, don't hijack. Empty / loading / reconnecting / degraded-stale / exhausted-recovery are five different experiences, each needing honest copy and a way out. On anything user-visible the HIG is the authority, not codex.
+- **One resolver, one ladder.** Prefer an ordered candidate list — precedence as data, a candidate trusted only once probed, a failed *read* falling to the next rung, a failed *authoritative write* surfacing or rolling back, bounded retries that end in a recovery affordance — over an if-ladder of booleans. `MetalShaderLibrary` is the pattern.
+- **Not a diary.** A root rule is ≤3 lines: what + the one-line evidence + the gate. Dates, round-by-round verdicts, measurements and host forensics go to `CHANGELOG.md` / `docs/agent/` next to the claim they came from — the same rule this file already imposes on `Package.swift`.
+- **A cited artifact travels with the claim.** A probe, patch or log named in a doc must be committed, or the claim decays into faith in a deleted file — hence `scripts/probes/`.
+- **Comments say the WHY the code cannot, in 1–3 lines.** No bug history, PR numbers, dates or audit trails inside source comments — that is the commit message. Upstream standard with a Good/Bad example: `~/references/mlx-swift-lm/AGENTS.md` → *Code standards*.
+- **Diffs are read by a human. Keep them small.** One logical change per commit; grow `AGENTS.md` only by shrinking it (B1 of `make docs-check` is a ratchet, not a suggestion).
+- **No new defensive clutter:** no wrapper or `try?` around code that cannot fail, no flag nobody sets, no capability wired before its consumer exists. `try?` needs a real fallback on the next line.
 
 ---
 
@@ -247,3 +330,18 @@ These complement — and are not replaced by — the existing Rule 3 (upstream a
 **Unchanged gate:** three-layer verification (grep → compile → read the matched lines), `swift build` exit 0 before any completion claim, `make test-ci` as CI authority, and a CHANGELOG ref for every user-visible change.
 
 **Escalation review is broken on this host (10-13):** `approvals_reviewer = auto_review` asks the configured provider (`~/.codex/config.toml` → `model_provider = omlx`, `base_url = http://127.0.0.1:8000/v1`) for a model named `codex-auto-review`, which that server does not serve → `404 … Model 'codex-auto-review' not found`, and the escalated command never runs (two calls rejected this way; a review-service failure, not a safety verdict). Consequence for this repo: anything needing Metal or `xcodebuild` currently cannot be verified locally at all — use the sandboxed route above and leave the Metal-heavy full suite and the `xcodebuild` legs to CI. The fix is host config outside this repo (serve/alias that model on the provider, or repoint the reviewer): owner's call, not something to route around.
+
+---
+
+## Taste test before you hand off
+
+- Does every piece of state live with its authority, at the narrowest scope that can still be right?
+- Can any sentence a user can read promise more than the engine measured?
+- Would a background event steal focus, navigate, or announce?
+- Does each resolver/fallback have one home, a validated ladder, and a bounded, recoverable end?
+- Does async failure leave a usable UI and a way forward?
+- Do the numbers in this file still reproduce (`make docs-check`), and does every new claim carry a gate (policy 4)?
+- Is the hot path still cheap under *realistic* content — long transcript, warm KV, a real model — not the empty demo?
+- Did `swift build` exit 0, and does `CHANGELOG.md` name the commit?
+
+If any answer is "not sure", that is the part to go verify.
