@@ -61,6 +61,13 @@ final class ScreenshotService {
 
     // MARK: - One-shot capture
 
+    /// Why the last capture failed, in one line, taken from the ScreenCaptureKit error
+    /// itself. `os.log` output lands in the unified log, which an HTTP client — or a probe —
+    /// cannot read, so the reason has to travel with the response or the refusal stays
+    /// unexplained (measured 10-14: `screen` refused in 194ms with only
+    /// "No screen frame captured" while `screenPermission` said authorized).
+    private(set) var lastError: String?
+
     @discardableResult
     func captureScreen() async -> String? {
         // Reuse cached frame when continuous capture is active.
@@ -68,10 +75,14 @@ final class ScreenshotService {
             return cached
         }
 
-        guard let url = await Self.captureOnce() else {
-            screenshotLogger.warning("[ScreenshotService] One-shot capture failed")
+        let (url, failure) = await Self.captureOnce()
+        guard let url else {
+            self.lastError = failure ?? "one-shot capture failed for an unreported reason"
+            screenshotLogger.warning(
+                "[ScreenshotService] One-shot capture failed: \(self.lastError ?? "")")
             return nil
         }
+        self.lastError = nil
         self.latestFrameDataURL = url
         screenshotLogger.info("[ScreenshotService] One-shot frame: \(url.prefix(20))...")
         return url
@@ -79,20 +90,27 @@ final class ScreenshotService {
 
     // MARK: - Internal capture implementation
 
-    nonisolated static func captureOnce() async -> String? {
-        guard
-            let content = try? await SCShareableContent.excludingDesktopWindows(
+    /// The frame, plus — when there is no frame — the reason, so it can reach the wire.
+    nonisolated static func captureOnce() async -> (frame: String?, failure: String?) {
+        let content: SCShareableContent
+        do {
+            content = try await SCShareableContent.excludingDesktopWindows(
                 false,
                 onScreenWindowsOnly: true
             )
-        else {
-            screenshotLogger.error("[ScreenshotService] Failed to get shareable content")
-            return nil
+        } catch {
+            screenshotLogger.error(
+                "[ScreenshotService] Failed to get shareable content: \(error.localizedDescription)"
+            )
+            return (
+                nil,
+                "ScreenCaptureKit could not enumerate shareable content: \(error.localizedDescription)",
+            )
         }
 
         guard let screen = content.displays.first else {
             screenshotLogger.error("[ScreenshotService] No screens/displays available")
-            return nil
+            return (nil, "no display is available to ScreenCaptureKit")
         }
 
         let filter = SCContentFilter(display: screen, including: [])
@@ -109,18 +127,19 @@ final class ScreenshotService {
                     screenshotLogger.error(
                         "[ScreenshotService] SCScreenshotManager error: \(err.localizedDescription)"
                     )
-                    cont.resume(returning: nil)
+                    cont.resume(
+                        returning: (nil, "SCScreenshotManager: \(err.localizedDescription)"))
                     return
                 }
 
                 guard let cgImage = cgImageRef else {
                     screenshotLogger.error(
                         "[ScreenshotService] SCScreenshotManager returned nil image")
-                    cont.resume(returning: nil)
+                    cont.resume(returning: (nil, "SCScreenshotManager returned no image"))
                     return
                 }
 
-                cont.resume(returning: Self.encodeFrame(cgImage))
+                cont.resume(returning: (Self.encodeFrame(cgImage), nil))
             }
         }
     }

@@ -188,7 +188,9 @@ public enum RuntimeCapability {
         result.append(
             .init(
                 name: "tts_speech", available: true,
-                note: "AVSpeechSynthesizer speech output, all tiers"))
+                note:
+                    "AVSpeechSynthesizer output is tier-live here; whether this box can talk (installed-voice count) is measured on POST /v1/multimodal/status"
+            ))
         // Video generation (Wan pipeline) — 27 only.
         #if !os(watchOS)
         if #available(macOS 27.0, iOS 27.0, *) {
@@ -220,7 +222,7 @@ public enum RuntimeCapability {
         result.append(
             .init(
                 name: "screenshot_capture", available: true,
-                note: "Screen capture via AppKit (macOS only)"))
+                note: "Screen capture via ScreenCaptureKit SCStream (macOS only)"))
         #else
         result.append(
             .init(
