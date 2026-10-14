@@ -1,4 +1,4 @@
-// Copyright ? 2026 uingei@163.com.
+// Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// PerceptionFrame — a timestamped snapshot from any perception channel.
 ///

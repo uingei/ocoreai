@@ -1,4 +1,4 @@
-// Copyright © 2026 uigei@163.com.
+// Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// GlobalCrashHandler — Uncaught exception + POSIX signal handler + crash log persistence
 ///
