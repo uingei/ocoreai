@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release app dmg test test-verbose test-coverage test-ci format format-check audit clean metallib help ci-local
+.PHONY: all build release app dmg test test-verbose test-coverage test-ci probes format format-check audit clean metallib help ci-local
 
 all: build
 
@@ -63,6 +63,51 @@ CLT_DIR=/Library/Developer/CommandLineTools
 CLT_F=$(CLT_DIR)/Library/Developer/Frameworks
 CLT_L=$(CLT_DIR)/Library/Developer/usr/lib
 
+## SDK pin — never trust `MacOSX.sdk`. It is a symlink, and a toolchain update can
+## repoint it under us: on 10-14 an Xcode/CLT update moved the CLT symlink from
+## 26.5 to 27.0, and SDK 27 ships CoreAI.framework — so `DEVELOPER_DIR=$(CLT_DIR)`
+## stopped selecting the macOS-26 shape this target is named after, and every
+## `#if canImport(CoreAI)` block started compiling into the build. Resolve the newest
+## CoreAI-free SDK once and pass it explicitly. scripts/toolchain-contract.sh asserts
+## this and the shader-compiler requirement (strict in CI, advisory for local build).
+CLT_SDK ?= $(shell DEVELOPER_DIR=$(CLT_DIR) bash scripts/toolchain-contract.sh print-sdk-root 2>/dev/null)
+SDKROOT_CLT = $(if $(CLT_SDK),SDKROOT=$(CLT_SDK),)
+
+# Metal injection — when the DEVELOPER_DIR stub says "missing Metal Toolchain" but
+# the component is in fact installed, the real compiler sits on a cryptexd mount
+# (suffix is session-specific; scripts/toolchain-contract.sh discovers it and
+# `metal --version` answers ok from there — verified 10-14, swift build completed
+# in 149s with this dir prepended). SwiftPM spawns `metal` by PATH lookup, so the
+# prefix below is the difference between "unbuildable" and a green build.
+CLT_METAL_BIN ?= $(shell bash scripts/toolchain-contract.sh print-metal-bin 2>/dev/null)
+METAL_PATH_EXPORT = $(if $(CLT_METAL_BIN),export PATH="$(CLT_METAL_BIN):$$PATH";,)
+
+.PHONY: toolchain-check
+## ── Toolchain contract ─────────────────────────────────────────────
+# Assert the platform premise the gates rest on (delivery SDK without CoreAI, metal
+# reachable) instead of documenting it. Fails with the exact remedy.
+#
+# Both candidate routes are evaluated, because "this host cannot produce the delivery
+# shape" was reported as fact on 10-14 by a check that only looked at the ambient
+# DEVELOPER_DIR (Xcode, SDK 27 only) while the CLT route on the same host still had
+# a CoreAI-free SDK 26.5. A gate that asks one route about a decision the build makes
+# between two routes reports a premise it never verified. R2 is decided by compiling a
+# kernel (--probe-metal), not by `metal --version`, whose answer follows whether
+# cryptexd happens to have the asset mounted.
+toolchain-check:
+	@PASS=0; \
+	for RT in "$${DEVELOPER_DIR:-$(XCODE_APP)/Contents/Developer}" "$(CLT_DIR)"; do \
+	  SDK="$$(DEVELOPER_DIR=$$RT bash scripts/toolchain-contract.sh print-sdk-root 2>/dev/null)"; \
+	  echo "── route: DEVELOPER_DIR=$$RT$${SDK:+ SDKROOT=$$SDK}"; \
+	  if env DEVELOPER_DIR=$$RT $${SDK:+SDKROOT=$$SDK} bash scripts/toolchain-contract.sh check --require-metal --probe-metal; then \
+	    PASS=1; \
+	  else \
+	    echo "   ↑ this route cannot produce the delivery shape"; \
+	  fi; \
+	done; \
+	[ "$$PASS" -eq 1 ] || { echo "❌ no route on this host gives a CoreAI-free SDK AND a working shader compiler"; exit 1; }; \
+	echo "✅ contract holds on at least one route — the build/test targets pin it explicitly"
+
 ## swift-format resolution — CI installs it on PATH via brew; an Xcode/CLT-only
 ## host ships it only under `xcrun`, so `make format`/`format-check` died with
 ## "swift-format: No such file or directory". The style gate reached CI unseen
@@ -70,23 +115,63 @@ CLT_L=$(CLT_DIR)/Library/Developer/usr/lib
 SWIFT_FORMAT ?= $(shell command -v swift-format >/dev/null 2>&1 && echo swift-format || echo "xcrun swift-format")
 test-clt:
 	@echo "🧪 CLT-route test gate (macOS < 27 local; FULL suite, no skips)..."
-	@DEVELOPER_DIR=$(CLT_DIR) swift build --build-tests --scratch-path .build-clt -Xswiftc -F$(CLT_F) -Xlinker -F$(CLT_F) >/dev/null
-	@# Metal staging: CLT cannot compile .metal sources, but MLX resolves shaders
-	@# at <binary dir>/mlx.metallib (path ①, build-app.sh:23). Stage the Xcode-
-	@# built metallib next to the test binary → the wall that killed every local
-	@# run before 10-05 is gone (verified: full run, 0 metallib errors, 1988 tests).
-	@M=$$(ls -dt ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/*/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib 2>/dev/null | head -1); \
+	@# Check the route this target actually builds (CLT + pinned SDK), not the ambient
+	@# DEVELOPER_DIR: reporting R1 against Xcode's SDK 27 while the build passes
+	@# SDKROOT=…26.5 cries wolf every run, and a warning that always fires is a warning
+	@# nobody reads when it becomes true.
+	@DEVELOPER_DIR=$(CLT_DIR) $(SDKROOT_CLT) bash scripts/toolchain-contract.sh check --probe-metal || echo "⚠️  toolchain contract violated — see remedies above (CI is strict; local run proceeds)"
+	@echo "   pinning SDK: $(or $(CLT_SDK),<none CoreAI-free — do not trust this route's shape>)"
+	@echo "   metal: $(or $(CLT_METAL_BIN),as-resolved-by-toolchain-check)"
+	@$(METAL_PATH_EXPORT)DEVELOPER_DIR=$(CLT_DIR) $(SDKROOT_CLT) swift build --build-tests --scratch-path .build-clt -Xswiftc -F$(CLT_F) -Xlinker -F$(CLT_F) >/dev/null
+	@# Metal staging: CLT cannot compile .metal sources, so hand MLX a prebuilt payload.
+	@#
+	@# Stage OUTSIDE the bundle. The build signs the .xctest, and a .metallib under
+	@# Contents/MacOS is a nested code object by the signing rules — the sign task then
+	@# dies with "code object is not signed at all … mlx.metallib" (measured 10-14, after
+	@# this target started writing into the bundle SwiftPM 6.4 actually produces:
+	@# out/Products/Debug/ocoreaiTests.xctest, where the old hardcoded
+	@# arm64-apple-macosx/debug/ocoreaiPackageTests.xctest was an Oct-11 symlink to a
+	@# stale tree). The staged copy therefore lands in the PRODUCTS dir, and the test
+	@# process points MLX at it via $$OCOREAI_METALLIB → MLX.GPU.metallib
+	@# (MetalShaderLibrary.swift: MLX's own search is path-shaped and reaches neither
+	@# location from inside a signed bundle).
+	@# Payload preference = what the pinned mlx actually compiled, in provenance order:
+	@#   1. this scratch's own SwiftPM product (mlx-swift_Cmlx.bundle/…/default.metallib —
+	@#      SwiftPM 6.4 compiles .metal itself once the Metal Toolchain component is
+	@#      installed, which is the whole upstream approach: mlx-swift-lm
+	@#      .github/workflows/pull_request.yml:216-237 asserts `Status: installed` and
+	@#      downloads the component otherwise, then lets the build emit the shaders; it
+	@#      stages no metallib at all);
+	@#   2. an Xcode DerivedData product for this project (same repo, maybe older revision);
+	@#   3. the pip mlx wheel's lib (different release entirely — last resort).
+	@# The scratch keeps stale trees from earlier layouts (a 10-08 `test/out/Products`
+	@# survived alongside today's `out/Products`), so pick the FRESHEST bundle and record
+	@# an ABSOLUTE path: the runner's cwd is not the repo root, and a relative
+	@# $OCOREAI_METALLIB would resolve against wherever the runner happened to start.
+	@S=$$(ls -t .build-clt/out/Products/*/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib .build-clt/*/Products/*/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib 2>/dev/null | head -1); \
+	M=$$(ls -dt ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/*/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib 2>/dev/null | head -1); \
 	P=/opt/homebrew/lib/python3.11/site-packages/mlx/lib/mlx.metallib; \
-	for SRC in "$$M" "$$P"; do \
-	  if [ -n "$$SRC" ] && [ -f "$$SRC" ]; then \
-	    cp -f "$$SRC" .build-clt/arm64-apple-macosx/debug/mlx.metallib; \
-	    cp -f "$$SRC" .build-clt/arm64-apple-macosx/debug/ocoreaiPackageTests.xctest/Contents/MacOS/mlx.metallib; \
-	    echo "   metallib staged: $$SRC"; break; \
-	  fi; \
-	done; \
-	[ -f .build-clt/arm64-apple-macosx/debug/ocoreaiPackageTests.xctest/Contents/MacOS/mlx.metallib ] \
-	  || { echo "❌ no metallib source (need Xcode DerivedData product or pip install mlx)"; exit 1; }
-	@DEVELOPER_DIR=/Library/Developer/CommandLineTools swift test \
+	SRC=""; for CAND in "$$S" "$$M" "$$P"; do if [ -n "$$CAND" ] && [ -f "$$CAND" ]; then SRC="$$CAND"; break; fi; done; \
+	[ -n "$$SRC" ] || { echo "❌ no metallib payload anywhere (SwiftPM product, Xcode DerivedData, or pip mlx)."; \
+	  echo "   The SwiftPM product is missing because .metal did not compile here —"; \
+	  echo "   xcodebuild -showComponent MetalToolchain, and if Status is not installed:"; \
+	  echo "   xcodebuild -downloadComponent MetalToolchain (the upstream remedy, mlx-swift-lm PR CI)."; exit 1; }; \
+	BUNDLES=$$(find .build-clt -path '*/Products/*' -name '*.xctest' -type d 2>/dev/null); \
+	[ -n "$$BUNDLES" ] || { echo "❌ no .xctest under .build-clt — the test build produced nothing to stage beside"; exit 1; }; \
+	for B in $$BUNDLES; do cp -f "$$SRC" "$$(dirname "$$B")/mlx.metallib" || true; done; \
+	NEWEST_BUNDLE=$$(ls -dt $$BUNDLES 2>/dev/null | head -1); \
+	[ -n "$$NEWEST_BUNDLE" ] || { echo "❌ could not resolve the freshest test bundle"; exit 1; }; \
+	STAGED=$$(cd "$$(dirname "$$NEWEST_BUNDLE")" && pwd)/mlx.metallib; \
+	[ -f "$$STAGED" ] || { echo "❌ staged payload missing at $$STAGED"; exit 1; }; \
+	printf '%s' "$$STAGED" > .build-clt/.metallib-path; \
+	echo "   metallib staged: $$SRC → $$STAGED (exported as \$$OCOREAI_METALLIB)"; \
+	NEWEST_METAL=$$(ls -t .build-clt/checkouts/mlx-swift/Source/Cmlx/mlx-generated/metal/*.metal 2>/dev/null | head -1); \
+	if [ -n "$$NEWEST_METAL" ] && [ "$$NEWEST_METAL" -nt "$$SRC" ]; then \
+	  echo "⚠️  staged metallib predates $$NEWEST_METAL — it may lack kernels added by the"; \
+	  echo "   pinned mlx bump. If a suite fails on a missing kernel, rebuild shaders here" ; \
+	  echo "   (xcodebuild -downloadComponent MetalToolchain, or build in Xcode) before reading it as a code regression."; \
+	fi
+	@$(METAL_PATH_EXPORT)DEVELOPER_DIR=$(CLT_DIR) $(SDKROOT_CLT) OCOREAI_METALLIB=$$(cat .build-clt/.metallib-path 2>/dev/null) swift test \
 	  --scratch-path .build-clt \
 	  --no-parallel \
 	  -Xswiftc -F$(CLT_F) \
@@ -145,6 +230,20 @@ test-ci:
 	xcrun xctest "$$XCB"
 
 ## ── Code Quality ───────────────────────────────────────────────────
+# ── Live probes ──────────────────────────────────────────────────────
+# Behavioural evidence for the claims this repo publishes about its HTTP surface: what a
+# session-pool HIT actually saves, whether OpenAI *and* Anthropic clients can size a
+# request, and whether the endpoint index the 404 envelope points at actually answers.
+# Compile-time tests pin the router; only a running server can show a route that is
+# registered and still 404s.
+#
+# Needs a real Metal device AND a model in ~/.ocoreai/models, so this is deliberately an
+# explicit step rather than part of ci-local: inside the agent sandbox MLX reports
+# "No Metal device available" and every probe fails at boot (docs/agent/build-gate-reality.md).
+probes:
+	@echo "🔬 Live probes against a freshly booted ocoreai serve..."
+	bash scripts/probes/run.sh
+
 # swift-format is the only style gate — aligned with upstream
 # (mlx-swift-lm / coreai-models ship no swiftlint; .swift-format is
 # the shared config surface).
@@ -179,6 +278,21 @@ audit:
 	@echo "🔍 Running static audit..."
 	bash scripts/audit.swift_patterns.sh
 
+## ── Docs Contract ──────────────────────────────────────────────────
+
+# AGENTS.md (and the area guides) are injected into the model's context on every session, so they
+# are code, not notes: budget them, resolve every path they name, and re-run every number they
+# claim. Sub-second, needs no build, runs inside the agent sandbox — so there is no excuse to skip
+# it. Its first run here failed on three stale counts and four dead map rows: nothing else greps
+# the docs.
+docs-check:
+	bash scripts/agents-md-contract.sh check
+
+# Shrink-only ratchet: re-pin the root cap to the file's current size. Refuses to raise it —
+# text goes in only when text comes out.
+docs-budget:
+	bash scripts/agents-md-contract.sh budget
+
 ## ── Dev Tools ──────────────────────────────────────────────────────
 
 clean:
@@ -193,7 +307,7 @@ metallib:
 
 ## ── CI Pipeline (Local) ───────────────────────────────────────────
 
-ci-local: clean format-check audit build test-ci
+ci-local: clean format-check audit docs-check build test-ci
 	@echo ""
 	@echo "✅ Full CI pipeline passed locally"
 
@@ -213,6 +327,8 @@ help:
 	@echo ""
 	@echo "Quality:"
 	@echo "  make format         Format all Swift files"
+	@echo "  make docs-check     AGENTS.md budget + refs + claims + routing (no build needed)"
+	@echo "  make docs-budget    Lower the AGENTS.md size cap (shrink-only)"
 	@echo "  make format-check   Check format compliance (exit 1 if dirty)"
 	@echo "  make audit          Run static audit (failure pattern check)"
 	@echo ""
