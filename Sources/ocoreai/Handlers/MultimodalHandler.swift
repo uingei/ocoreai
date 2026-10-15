@@ -93,6 +93,11 @@ struct StatusResponse: Codable {
     let screenStatus: ChannelReadiness
     let transcriptionStatus: ChannelReadiness
 
+    /// The measured hearing axis (`HearingReadiness`): permission + locale resolution +
+    /// out-of-process engine probe, with the verdict derived from those. Omitted when the
+    /// caller asked before it was measured — absence is "not measured", never "fine".
+    let hearing: HearingReadiness?
+
     /// One line per channel that is not `ready`. Empty means every channel measured ready —
     /// never "empty because nothing was checked".
     let limitations: [String]
@@ -103,8 +108,17 @@ struct StatusResponse: Codable {
 func makeMultimodalStatusResponse(
     toggles: (camera: Bool, microphone: Bool, speaker: Bool, screen: Bool),
     facts: MultimodalDeviceFacts,
+    hearing: HearingReadiness? = nil,
 ) -> StatusResponse {
-    StatusResponse(
+    var limitations = facts.limitations
+    if let hearing {
+        // The hearing seam measures more than the device-facts snapshot (it adds locale
+        // resolution and the engine probe), so its line replaces the snapshot's rather than
+        // sitting next to it as a second opinion on the same channel.
+        limitations.removeAll { $0.hasPrefix("transcription:") }
+        if let line = hearing.limitation { limitations.append(line) }
+    }
+    return StatusResponse(
         cameraEnabled: toggles.camera,
         microphoneEnabled: toggles.microphone,
         speakerEnabled: toggles.speaker,
@@ -120,8 +134,10 @@ func makeMultimodalStatusResponse(
         microphoneStatus: facts.microphoneStatus,
         speakerStatus: facts.speakerStatus,
         screenStatus: facts.screenStatus,
-        transcriptionStatus: facts.transcriptionStatus,
-        limitations: facts.limitations,
+        // Prefer the verdict that rests on more measurement when both exist (see `hearing`).
+        transcriptionStatus: hearing?.verdict ?? facts.transcriptionStatus,
+        hearing: hearing,
+        limitations: limitations,
     )
 }
 
@@ -337,24 +353,37 @@ func multimodalStatusHandler(
     request: StatusRequest?,
     logger _: Logger,
 ) async throws -> Response {
-    let result: StatusResponse = await MainActor.run { () -> StatusResponse in
-        let state = MultimodalState.shared
-        if let req = request {
-            if let camera = req.cameraEnabled { state.cameraEnabled = camera }
-            if let mic = req.microphoneEnabled { state.microphoneEnabled = mic }
-            if let spk = req.speakerEnabled { state.speakerEnabled = spk }
-            if let screen = req.screenCaptureEnabled { state.screenCaptureEnabled = screen }
+    let togglesAndFacts:
+        (
+            toggles: (camera: Bool, microphone: Bool, speaker: Bool, screen: Bool),
+            facts: MultimodalDeviceFacts,
+        ) = await MainActor.run {
+            let state = MultimodalState.shared
+            if let req = request {
+                if let camera = req.cameraEnabled { state.cameraEnabled = camera }
+                if let mic = req.microphoneEnabled { state.microphoneEnabled = mic }
+                if let spk = req.speakerEnabled { state.speakerEnabled = spk }
+                if let screen = req.screenCaptureEnabled { state.screenCaptureEnabled = screen }
+            }
+            return (
+                (
+                    camera: state.cameraEnabled,
+                    microphone: state.microphoneEnabled,
+                    speaker: state.speakerEnabled,
+                    screen: state.screenCaptureEnabled,
+                ),
+                MultimodalDeviceFacts.gather(),
+            )
         }
-        return makeMultimodalStatusResponse(
-            toggles: (
-                camera: state.cameraEnabled,
-                microphone: state.microphoneEnabled,
-                speaker: state.speakerEnabled,
-                screen: state.screenCaptureEnabled,
-            ),
-            facts: MultimodalDeviceFacts.gather(),
-        )
-    }
+    // `probeEngine: false` — a status query answers from the cached probe outcome. The probe
+    // runs in front of the first real transcription attempt instead, where the wait is
+    // already expected and the answer is about to matter.
+    let hearing = await Hearing.measure(probeEngine: false)
+    let result = makeMultimodalStatusResponse(
+        toggles: togglesAndFacts.toggles,
+        facts: togglesAndFacts.facts,
+        hearing: hearing,
+    )
     return try await Response.json(result)
 }
 

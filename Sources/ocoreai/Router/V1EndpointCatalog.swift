@@ -134,6 +134,11 @@ enum V1EndpointCatalog {
         RouteSpec(
             method: "POST", path: "/v1/models/download", note: "Fetch a model into the local cache"),
         RouteSpec(
+            method: "POST", path: "/v1/audio/transcriptions",
+            note:
+                "Speech to text, on-device (multipart `file`, or JSON `audio` base64 / `url` file://; `model` and `prompt` accepted and not used by the engine; `verbose_json` and timestamps refused — refusals name the axis: permission, locale, or engine)"
+        ),
+        RouteSpec(
             method: "POST", path: "/v1/multimodal/capture",
             note:
                 "Camera / microphone / screen capture (`success: true` only when bytes came back; the mic is two-phase — first call starts, second returns the sample)"

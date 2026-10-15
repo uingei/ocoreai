@@ -1721,6 +1721,17 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// Too Many Requests — single-slot engine busy (loglikelihood scoring).
     case engineBusy
 
+    /// Service Unavailable — on-device transcription is measured-unavailable: permission not
+    /// granted, no local model for the locale, or the Speech engine probe faulted
+    /// (`HearingReadiness`). Typed with `error_code` + the remedy so a client branches on the
+    /// condition instead of string-parsing, and so "we could not hear" is never a bare 500.
+    case transcriptionUnavailable(errorCode: String, reason: String)
+
+    /// Bad Request — the audio in the request could not be used (no `file`/`audio` part,
+    /// undecodable bytes, over the size cap, a remote URL, or a field this engine does not
+    /// provide such as `response_format: verbose_json`).
+    case invalidAudio(reason: String)
+
     /// ``CustomStringConvertible`` description (used in logs)
     var description: String {
         switch self {
@@ -1749,6 +1760,10 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         case .kvCacheStatusUnsupported:
             "KV cache inspection requires an MLX-backed model"
         case .engineBusy: "Engine is busy — try again shortly"
+        case .transcriptionUnavailable(_, let reason):
+            "Transcription unavailable: \(reason)"
+        case .invalidAudio(let reason):
+            "Invalid audio: \(reason)"
         }
     }
 
@@ -1779,6 +1794,10 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
             .notImplemented
         case .engineBusy:
             .tooManyRequests
+        case .transcriptionUnavailable:
+            .serviceUnavailable
+        case .invalidAudio:
+            .badRequest
         case .generationError, .kvCacheCorruption, .inferenceFailed, .tokenizationFailed:
             .internalServerError
         }
@@ -1807,6 +1826,16 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
             detail["error_code"] = "memory_exhausted"
             detail["used_gb"] = used
             detail["budget_gb"] = budget
+        }
+        // Hearing refusals carry the measured reason + the fix (System Settings pane, retry
+        // guidance), because "transcription unavailable" without the axis is unactionable.
+        if case .transcriptionUnavailable(let errorCode, let reason) = self {
+            detail["error_code"] = errorCode
+            detail["remediation"] = reason
+        }
+        if case .invalidAudio(let reason) = self {
+            detail["error_code"] = "invalid_audio"
+            detail["remediation"] = reason
         }
         let errorBody = NSDictionary(dictionary: ["error": detail])
         var headers: HTTPFields = [:]

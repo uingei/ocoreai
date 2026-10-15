@@ -36,6 +36,8 @@ model load.
 | `02-count-tokens-shapes.sh` | Can OpenAI *and* Anthropic clients size a request here? | any spec-legal shape 400/404s, an unlabelled count, shapes disagreeing past tolerance, or a malformed body answering 200/500 |
 | `03-capabilities-models-consistency.sh` | Does the discovery surface answer when a client follows it? | the endpoint index is thin or lists a route the live server 404s, a "ready" model rejects `/v1/count-tokens`, or a model/capability row omits `vlm`/`contextLength`/`available` |
 | `04-multimodal-honesty.sh` | Does "can see / can hear / can speak" survive contact with the OS? | the status payload publishes verdicts without the permission/device facts behind them, a capture leg returns `success:true` with no bytes, a capture request blocks on a TCC dialog, empty text reports a successful speak, or a `vlm:true` model fails to answer an inline PNG |
+| `05-hearing.sh` | Does 能听 survive contact with the OS, over the wire? — and does the server hold its own `ready` verdict to its word? |
+  any refusal for speech arrives as a 500 or without `error_code`/`remediation`, the status payload claims `transcriptionStatus` without the `hearing` block behind it, `transcriptionStatus` and `hearing.verdict` disagree, a `ready` verdict is not backed by `probe: ok`, the two accepted body shapes answer differently for the same bytes, `response_format: text` answers as JSON, a remote `url` is fetched instead of refused, the endpoint index omits the route, or `--probe-hearing` claims success it did not measure |
 | `_lib.sh` | shared harness | — |
 
 ## Rules for adding a probe

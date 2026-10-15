@@ -27,6 +27,13 @@ import SwiftUI
 @main
 struct OcoreaiApp {
     static func main() {
+        // Hearing engine self-probe (internal transport — see HearingReadiness): the parent
+        // re-execs this binary in probe mode so a SIGTRAP inside Apple's Speech framework
+        // kills a throwaway child instead of the app. Checked before every other branch, so
+        // probe mode can never boot the GUI or bind a port.
+        if HearingSelfProbe.isRequested(arguments: CommandLine.arguments) {
+            HearingSelfProbe.run(arguments: CommandLine.arguments)
+        }
         if let report = CLIMode.versionOrHelpReport(for: CommandLine.arguments) {
             print(report)
             exit(0)

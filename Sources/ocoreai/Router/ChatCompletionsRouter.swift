@@ -773,6 +773,29 @@ func buildRouter(
         )
     }
 
+    // MARK: Audio transcription (speech -> text)
+
+    /// OpenAI-compatible speech-to-text. Raw body (not `request.decode`) because the
+    /// accepted shapes differ by Content-Type: multipart/form-data (OpenAI's shape) and
+    /// JSON with base64 (extension). See `AudioTranscriptionHandler.swift`.
+    routes.post("/v1/audio/transcriptions") { request, context in
+        let contentType = request.headers[.contentType]
+        let localeHint = request.headers[.acceptLanguage]
+        let bodyBuffer: ByteBuffer
+        do {
+            bodyBuffer = try await request.body.collect(upTo: 25 * 1024 * 1024)
+        } catch {
+            throw AppError.invalidAudio(
+                reason: "Request body is missing or exceeds the 25 MB audio cap")
+        }
+        return try await audioTranscriptionsHandler(
+            contentType: contentType,
+            body: Data(bodyBuffer.readableBytesView),
+            localeHint: localeHint,
+            logger: logger
+        )
+    }
+
     // MARK: MCP JSON-RPC Endpoint
 
     routes.post("/mcp") { request, _ in

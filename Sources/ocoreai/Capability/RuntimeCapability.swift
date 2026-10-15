@@ -174,7 +174,9 @@ public enum RuntimeCapability {
             result.append(
                 .init(
                     name: "local_stt", available: true,
-                    note: "On-device Speech framework transcription (26+)"))
+                    note:
+                        "26+ tier floor only — whether THIS box transcribes is measured (permission + locale + out-of-process engine probe) in `hearing` on POST /v1/multimodal/status; speech enters HTTP at POST /v1/audio/transcriptions. Measured here: supportsOnDeviceRecognition can report true while the engine traps, so no ASR call is made without that measurement"
+                ))
         } else {
             result.append(
                 .init(

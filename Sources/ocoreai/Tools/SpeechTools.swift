@@ -111,17 +111,21 @@ struct PlatformSTTTranscriber: STTTranscriber, @unchecked Sendable {
     // 无共享可变状态(纯转发 LocalSTT/SFSpeechRecognizer + 纯裁决),故 @unchecked Sendable 安全。
     nonisolated func transcribe(url: URL, locale: Locale) async -> STTOutcome {
         guard FileManager.default.fileExists(atPath: url.path) else { return .fileMissing }
-        if #available(macOS 26.0, iOS 26.0, *) {
-            do {
-                let result = try await LocalSTT.transcribe(url: url, locale: locale)
-                let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    return .success(text: trimmed)
-                }
+        if Hearing.tierAvailable {
+            // 走 `Hearing` 而非直调 LocalSTT:权限静默读取 + 引擎在子进程探活之后才允许
+            // 进程内调用 —— `SpeechAnalyzer.analyzeSequence` 在部分主机上是 trap(SIGTRAP)
+            // 而非 throw,`catch` 拦不住(见 HearingReadiness.swift 的崩溃报告)。
+            switch await Hearing.transcribe(file: url, locale: locale) {
+            case .success(let transcript):
+                return .success(text: transcript.text)
+            case .failure(.noSpeechDetected):
                 return STTDecision.decide(
-                    trimmedText: "", osDetected: result.detected, osOutcome: .noSpeech)
-            } catch {
-                // LocalSTT 失败(如 locale 不在本地模型)→ cloud 降级
+                    trimmedText: "", osDetected: false, osOutcome: .noSpeech)
+            case .failure(.emptyTranscript):
+                return STTDecision.decide(
+                    trimmedText: "", osDetected: true, osOutcome: .noSpeech)
+            case .failure:
+                // 引擎/权限/locale 不可用 → cloud 降级(四档全可用的 SFSpeechURL 路径)。
                 return await transcribeCloud(url: url, locale: locale)
             }
         }

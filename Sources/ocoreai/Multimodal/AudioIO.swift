@@ -209,24 +209,25 @@ final class AudioIO: NSObject {
             let url = recordedURL,
             FileManager.default.fileExists(atPath: url.path)
         {
-            do {
-                let result = try await LocalSTT.transcribe(
-                    url: url, locale: Locale(identifier: OCALocale.userSelected().bcp47Tag))
+            // Every ASR attempt goes through `Hearing`, not the framework directly: it reads
+            // Speech recognition permission without prompting and keeps the analysis behind an
+            // out-of-process probe, because `SpeechAnalyzer.analyzeSequence` traps (SIGTRAP)
+            // rather than throws on some hosts — a `catch` here would not have caught it.
+            switch await Hearing.transcribe(
+                file: url, locale: Locale(identifier: OCALocale.userSelected().bcp47Tag))
+            {
+            case .success(let transcript):
                 try? FileManager.default.removeItem(at: url)
-                let text = result.text
-                if !text.isEmpty {
-                    recognizedText = text
-                    audioLogger.info("[AudioIO] LocalSTT OK — \(text.count) chars (offline)")
-                    return text
-                }
-                // Empty text — distinguish with the OS speech-detector truth:
-                // detector fired → speech present, engine produced no words;
-                // never fired → honest "no speech" (same outcome here: fallback).
+                recognizedText = transcript.text
                 audioLogger.info(
-                    "[AudioIO] LocalSTT empty (detected=\(result.detected)) — live-mic fallback")
-            } catch {
-                audioLogger.error(
-                    "[AudioIO] LocalSTT failed: \(error.localizedDescription) — live-mic fallback")
+                    "[AudioIO] LocalSTT OK — \(transcript.text.count) chars (offline)")
+                return transcript.text
+            case .failure(let failure):
+                // Empty text keeps the OS speech-detector truth in the reason: detector fired
+                // → speech present, no words; never fired → honest "no speech". Either way the
+                // ladder falls back to live-mic dictation.
+                audioLogger.info(
+                    "[AudioIO] LocalSTT \(failure.rawValue) — live-mic fallback")
             }
             try? FileManager.default.removeItem(at: url)
         } else if preference == "local" {
