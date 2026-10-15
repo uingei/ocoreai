@@ -1,5 +1,10 @@
 # ocoreai audit whitelist — one excluded path per line
 # Format: file or pattern that the audit grep will skip via -F match
+# Read by check() in scripts/audit.swift_patterns.sh, for every class. The 3rd argument
+# to a check call stays for line-shape exclusions local to one class (e.g. `defaultURL`
+# in Class-D); this file is for path-level exemptions, which need the rationale that
+# wouldn't fit inline. An entry here with no comment above it is not a whitelist, it is
+# a cover-up: say what the pattern is matching and why that is not the defect.
 
 # EngineInference: Task.sleep catch {} is intentional — sleep only throws
 # cancellation, which the surrounding while loop handles via checkCancellation.

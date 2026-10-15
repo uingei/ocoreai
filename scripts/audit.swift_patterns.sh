@@ -16,7 +16,7 @@ check() {
     local count
     # Step 1: grep pattern in Swift source
     # Step 2: exclude doc-comment lines (///)
-    # Step 3: exclude whitelist patterns (pipe-separated fixed strings)
+    # Step 3: exclude whitelist patterns (inline pipe-separated + the whitelist file)
     local first_pass
     first_pass=$(grep -rEn "$pattern" "$SRC" --include='*.swift' 2>/dev/null \
         | grep -v '///')
@@ -24,20 +24,34 @@ check() {
         echo "  ✅ Clean"
         return
     fi
-    # Filter out whitelist entries — each is a fixed-string pattern to exclude
-    if [ -n "$whitelist" ]; then
-        local cleaned="$first_pass"
-        IFS='|' read -ra WL_PARTS <<< "$whitelist"
-        for part in "${WL_PARTS[@]}"; do
-            cleaned=$(echo "$cleaned" | grep -vF "$part" || true)
-        done
-        # Count non-empty lines — avoids "echo '' | wc -l" returning 1
-        count=$(echo "$cleaned" | grep -c . || true)
-    else
-        count=$(echo "$first_pass" | grep -c . || true)
-    fi
+    # Exclusions come from two places, and every run prints how much it removed: the
+    # inline list (3rd arg, pipe-separated) and scripts/audit_whitelist.txt, whose own
+    # header promises "one excluded path per line … that the audit grep will skip via
+    # -F match". That file was declared and touched but never read, so an entry added
+    # there bought silence that was not real. Printing raw → remaining is what keeps a
+    # Clean honest: without it, "nothing matches the pattern" and "15 hits, all 15
+    # whitelisted" render identically, and only the first means the code is free of it.
+    local raw cleaned entry
+    raw=$(echo "$first_pass" | grep -c . || true)
+    cleaned="$first_pass"
+    while IFS= read -r entry; do
+        [ -n "$entry" ] || continue
+        cleaned=$(echo "$cleaned" | grep -vF "$entry" || true)
+    done <<EOF
+$(printf '%s\n' "$whitelist" | tr '|' '\n')
+$(sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$WHITELIST" 2>/dev/null | grep -v '^[[:space:]]*$' || true)
+EOF
+    # Count non-empty lines — avoids "echo '' | wc -l" returning 1
+    count=$(echo "$cleaned" | grep -c . || true)
+    echo "  scan: $raw hit(s), $((raw - count)) whitelisted → $count violation(s)"
     if [ "$count" -gt 0 ]; then
         echo "  ❌ $count violation(s)"
+        # Show what is left, capped — a gate that reports only a number cannot be
+        # triaged without re-running the grep by hand.
+        echo "$cleaned" | head -20 | sed 's/^/     /'
+        if [ "$count" -gt 20 ]; then
+            echo "     … $((count - 20)) more (re-run the grep in check() for the full list)"
+        fi
         FAIL=1
     else
         echo "  ✅ Clean"
@@ -52,19 +66,45 @@ touch "$WHITELIST" 2>/dev/null || true
 check "Class-F: .first! force unwrap" '\.first!' \
     "test|Test"
 
-# --- Class-B: Hardcoded UI in view layer ---
-# Only flag lines from: AppState.swift, StatusPill.swift, StatusView.swift, SettingsStore.swift, AppTabs, Views/
-# CoreAIEngine: errorDescription switch cases are LocalizedError implementations, not UI strings
-# Wan21VideoContract: WanError.errorDescription switch cases are LocalizedError implementations (upstream verbatim messages), not UI strings
-# VideoWriter: VideoWriteError.errorDescription = upstream-verbatim error strings (coreai-models copy), not UI strings
-# VideoTools: formatLabel returns domain labels ("WebP" etc.), not UI chrome strings
-# StreamingWindow: SpeechError description/errorDescription = upstream-verbatim error strings (coreai-models copy), not UI chrome
-# SessionWorkspace: WorktreeError.errorDescription switch cases = LocalizedError diagnostic messages (git worktree failure paths), not UI chrome strings
-# FMToolBridge: FMErrorClassifier.message(for:) = FoundationModels path error-surface strings (parity host for AppError.contextWindowExhausted's FM half — contextSizeExceeded payload surfacing), not UI chrome
-# RuntimeCapability: Line.label (name→label, e.g. "agent_loop"→"Agent Loop") and osName = capability single-source display mapping — UI, prompt and wire all render the same name by design (see Line.label doc, "never a second hand-rolled mapping in a view"), not view-layer hardcoded chrome
-check "Class-B: Hardcoded UI in view layer" \
-    'return\s*"[A-Z][a-z]' \
-    "Localization.swift|systemName|SystemName|errorDescription|ToolEntry|DownloadManager|ConfigStruct|KeychainStore|Scheduler|MCPServer|OpenAIModels|ModelScopeDownloader|HuggingFaceDownloader|SQLiteStore|SkillModels|MLXBridge|CoreAIBridge|EngineInference|Profiling|ThinkingBudget|CoreAIEngine|CoreAIStubs|StateHandler|InstrumentsProfiler|CoreAILoggerStub|XGrammarWrapper|ConstrainedGenerationSession|Wan21VideoContract|CoreAIDiffusionModelFunction|VideoWriter|VideoTools|StreamingWindow|CoreAIVideoInput|CoreAIImagePreprocessor|SessionWorkspace|FMToolBridge|RuntimeCapability"
+# --- Class-B: hardcoded UI strings in the view layer ---
+# The class is named for the view layer, so it scans the view layer. Scanning all of
+# Sources/ instead made it a gate in name only: measured 10-15, 97 hits, 97 whitelisted,
+# 0 of them in a view. Every line it ever flagged was an enum's errorDescription or a
+# domain label in Engine/, Video/, Multimodal/ or Capability/ — a 100% exemption rate,
+# which means the whitelist had become the scan and the pattern could only ever catch
+# what it was then told to excuse. Scoping to the module boundary keeps the promise the
+# label makes: a view that returns a display-string literal instead of a StringKey fails
+# here, and an engine error enum never has to be excused again.
+# Views localize through StringKey (`.l`): String(localized:) appears 0 times under UI/,
+# so `.l` is the live convention this gate protects.
+# The floor is the premise check (AGENTS.md invariant 1) — a scan over a moved or pruned
+# view layer finds nothing, so the number of files it scanned is printed and floored.
+echo ""
+echo "[Class-B: hardcoded UI string in the view layer]"
+VIEW_ROOT="$ROOT/Sources/ocoreai/UI"
+MIN_UI_FILES=40
+if [ ! -d "$VIEW_ROOT" ]; then
+    echo "  ❌ view layer missing: $VIEW_ROOT"
+    FAIL=1
+else
+    ui_files=$(find "$VIEW_ROOT" -name '*.swift' | sort)
+    ui_count=$(echo "$ui_files" | grep -c . || true)
+    if [ "$ui_count" -lt "$MIN_UI_FILES" ]; then
+        echo "  ❌ only $ui_count .swift under $VIEW_ROOT (floor $MIN_UI_FILES)"
+        echo "     the view layer moved or was pruned — an empty scan proves nothing"
+        FAIL=1
+    else
+        b_hits=$(echo "$ui_files" | xargs grep -nE 'return[[:space:]]+"[A-Z][a-z]' 2>/dev/null \
+            | grep -vE ':[0-9]+: *(//|/\*|\*)' || true)
+        if [ -n "$b_hits" ]; then
+            echo "  ❌ $(echo "$b_hits" | grep -c . || true) violation(s) — return a StringKey, not a literal"
+            echo "$b_hits" | sed 's/^/     /'
+            FAIL=1
+        else
+            echo "  ✅ Clean ($ui_count view files scanned, 0 hardcoded display returns)"
+        fi
+    fi
+fi
 
 # --- Class-A: Empty catch ---
 check "Class-A: Empty catch" 'catch\s*{[[:space:]]*}' \
