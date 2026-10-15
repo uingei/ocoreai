@@ -96,7 +96,9 @@ enum V1EndpointCatalog {
             note: "Mid-turn steer: tool boundary of the live turn, else head of the next"),
         RouteSpec(
             method: "POST", path: "/v1/chat/completions",
-            note: "Chat completion (stream + non-stream, tools, structured output)"),
+            note:
+                "Chat completion (stream + non-stream, tools, structured output; audio_url is heard to text or refused, never dropped)"
+        ),
         RouteSpec(method: "POST", path: "/v1/completions", note: "Legacy text completion"),
         RouteSpec(
             method: "POST", path: "/v1", note: "Auto-route: prompt -> completions, messages -> chat"

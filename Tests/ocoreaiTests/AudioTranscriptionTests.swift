@@ -460,6 +460,43 @@ func failureStatusCoversVocabulary() {
     #expect(codes[200]?.count == 2)
 }
 
+@Test("the AppError thrown for a failure carries the status the table assigns it")
+func appErrorAgreesWithTheStatusTable() {
+    // The defect this closes (measured 10-15): `.undecodableAudio` is a 400 in the table
+    // above, but the throw site had only `.transcriptionUnavailable`, whose status is 503 —
+    // so the wire contradicted the endpoint's own classification and told a client to retry
+    // the service over bytes that will never decode. Both routes that hear audio now throw
+    // through `AudioTranscription.appError(for:)`, and that agreement is the claim pinned
+    // here: table and wire cannot drift apart again without a red test.
+    for failure in TranscriptFailure.allCases {
+        let tableCode = AudioTranscription.status(for: failure).code
+        // The two silence outcomes are never thrown (they answer 200 as a result), so the
+        // only failures this axis governs are the ones that become an error response.
+        guard tableCode != 200 else { continue }
+        #expect(
+            AudioTranscription.appError(for: failure).status.code == tableCode,
+            "\(failure.rawValue): table \(tableCode) vs thrown \(AudioTranscription.appError(for: failure).status.code)"
+        )
+    }
+
+    // The payload fault is the case that used to disagree, and it stays a 400 with the
+    // machine-readable code that names it.
+    #expect(AudioTranscription.appError(for: .undecodableAudio).status.code == 400)
+    if case .transcriptionRejected(let errorCode, let reason) =
+        AudioTranscription.appError(for: .undecodableAudio)
+    {
+        #expect(errorCode == "undecodable_audio")
+        #expect(!reason.isEmpty)
+    } else {
+        Issue.record("a fault in the client's bytes must not surface as the service-state 503")
+    }
+
+    // Permission and engine state stay service-level: granting access makes a retry succeed,
+    // which is exactly what 503 means and what a 400 would misreport.
+    #expect(AudioTranscription.appError(for: .speechDenied).status.code == 503)
+    #expect(AudioTranscription.appError(for: .engineFault).status.code == 503)
+}
+
 // MARK: - response bodies
 
 @Test("a success body carries what the engine measured, not what was configured")

@@ -805,6 +805,24 @@ struct ChatCompletion: Encodable {
 
     /// Token usage statistics
     let usage: Usage
+
+    /// What happened to audio the request attached: the on-device analyzer turned it into
+    /// text before the model saw the turn (``ChatAudioIngestion``), because no model in
+    /// this build can take waveform. Absent when the request carried no audio — absence is
+    /// "no audio here", not "audio delivered".
+    var audioInput: ChatAudioInput?
+
+    /// The body is OpenAI-shaped, so the extension keeps the snake_case convention of the
+    /// fields around it (`prompt_tokens`, `finish_reason`).
+    enum CodingKeys: String, CodingKey {
+        case id
+        case object
+        case created
+        case model
+        case choices
+        case usage
+        case audioInput = "audio_input"
+    }
 }
 
 /// Single choice inside ``ChatCompletion``.
@@ -1727,6 +1745,15 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// condition instead of string-parsing, and so "we could not hear" is never a bare 500.
     case transcriptionUnavailable(errorCode: String, reason: String)
 
+    /// Bad Request — the speech failure is a fault in the bytes the client sent, measured by
+    /// the decoder (`TranscriptFailure.undecodableAudio`), not by the service. This case
+    /// exists because `AudioTranscription.status(for:)` already classifies that failure as a
+    /// client error while its throw site had only `.transcriptionUnavailable`, whose status is
+    /// 503: one failure was answered 400 by the table and 503 by the wire, and 503 tells a
+    /// client "retry the service" when retrying the same bytes can never work. One typed
+    /// failure, one status, on every route that hears audio.
+    case transcriptionRejected(errorCode: String, reason: String)
+
     /// Bad Request — the audio in the request could not be used (no `file`/`audio` part,
     /// undecodable bytes, over the size cap, a remote URL, or a field this engine does not
     /// provide such as `response_format: verbose_json`).
@@ -1762,6 +1789,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         case .engineBusy: "Engine is busy — try again shortly"
         case .transcriptionUnavailable(_, let reason):
             "Transcription unavailable: \(reason)"
+        case .transcriptionRejected(_, let reason):
+            "Audio rejected: \(reason)"
         case .invalidAudio(let reason):
             "Invalid audio: \(reason)"
         }
@@ -1796,6 +1825,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
             .tooManyRequests
         case .transcriptionUnavailable:
             .serviceUnavailable
+        case .transcriptionRejected:
+            .badRequest
         case .invalidAudio:
             .badRequest
         case .generationError, .kvCacheCorruption, .inferenceFailed, .tokenizationFailed:
@@ -1830,6 +1861,13 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         // Hearing refusals carry the measured reason + the fix (System Settings pane, retry
         // guidance), because "transcription unavailable" without the axis is unactionable.
         if case .transcriptionUnavailable(let errorCode, let reason) = self {
+            detail["error_code"] = errorCode
+            detail["remediation"] = reason
+        }
+        // Same typed payload as the 503 sibling: clients branch on `error_code`, and the
+        // status is the only thing that should differ between "fix your bytes" and
+        // "fix the machine".
+        if case .transcriptionRejected(let errorCode, let reason) = self {
             detail["error_code"] = errorCode
             detail["remediation"] = reason
         }

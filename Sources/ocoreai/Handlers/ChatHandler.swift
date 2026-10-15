@@ -199,6 +199,28 @@ func chatCompletionsHandler(
     /// If this handler is ever called directly, empty messages will still cause
     /// downstream failures — the router guard is the source of truth.
 
+    /// Audio attached to a chat turn cannot reach a model as waveform in this build —
+    /// `ChatAudioIngestion` carries the measurement (no `UserInputProcessor` at the pinned
+    /// revision consumes `input.audios`) and the two honest routes that remain: hear it
+    /// into text, or refuse with a typed code. What is no longer possible is a 200 with
+    /// the audio silently gone.
+    ///
+    /// Positioned here deliberately: before the safety guards, so a transcript is scanned
+    /// like any other user input, and before the scheduler/engine handle, so a request this
+    /// box cannot hear never reserves resources it will not use.
+    var request = request
+    let audioInput: ChatAudioInput?
+    switch await ChatAudio.ingest(in: request.messages) {
+    case .success(let ingested):
+        request.messages = ingested.messages
+        audioInput = ingested.audioInput
+    case .failure(let failure):
+        logger.warning(
+            "Chat audio refused: \(failure.rawValue) — \(failure.remediation)",
+            metadata: ["error_code": .string(failure.errorCode)])
+        throw AudioTranscription.appError(for: failure)
+    }
+
     /// Safety check: filter harmful input before scheduling
     if let contentGuard = await OcoreaiEngine.shared.activeContentGuard {
         let messageText = request.messages.map { $0.textContent() }.joined(separator: " ")
@@ -695,6 +717,21 @@ func chatCompletionsHandler(
         /// Use ``generateFromMessages`` — MLX path passes messages directly to ChatSession,
         /// eliminating the tokenize→detokenize→re-tokenize loop.
         if request.stream == true {
+            // The stream cannot carry `audio_input` without inventing an SSE field clients
+            // do not expect, so the same fact is recorded where logs are queryable —
+            // `ChatAudioIngestion`'s header claims the streamed route discloses it too, and
+            // this is the line that makes that claim true. The refusal, which is the part
+            // that protects a client from a blind answer, already stops both modes: it
+            // happens before any token is produced.
+            if let audioInput {
+                logger.info(
+                    "Chat audio delivered as text (stream): \(audioInput.transcribed)/\(audioInput.parts) part(s) heard",
+                    metadata: [
+                        "engine": .string(audioInput.engine),
+                        "locales": .string(audioInput.locales.joined(separator: ",")),
+                        "characters": .string(String(audioInput.characters)),
+                    ])
+            }
             result = try await streamWithToolCalling(
                 handle: handle,
                 promptTokenCount: promptTokenCount,
@@ -721,6 +758,7 @@ func chatCompletionsHandler(
                 semanticSearch: semanticSearch,
                 logger: logger,
                 metrics: metrics,
+                audioInput: audioInput,
             )
         }
     } catch {
@@ -780,6 +818,10 @@ private func nonStreamWithToolCalling(
     semanticSearch: SemanticSearch?,
     logger: Logger,
     metrics: MetricsRegistry,
+    /// What the handler did with audio the request carried (`ChatAudioIngestion`). Only
+    /// the non-stream response can disclose it without inventing an SSE field; the stream
+    /// path logs the same fact, and a refusal stops both modes before any token.
+    audioInput: ChatAudioInput? = nil,
 ) async throws -> Response {
     /// Resolve conversation ID for session pooling / KV cache reuse.
     let conversationId: String? = request.sessionID
@@ -1092,6 +1134,7 @@ private func nonStreamWithToolCalling(
             cachedPromptTokens: observedCachedPromptTokens,
             reasoningTokens: finalReasoningTokens
         ),
+        audioInput: audioInput,
     )
 
     /// Persist conversation to SQLite (fire-and-forget, non-blocking).

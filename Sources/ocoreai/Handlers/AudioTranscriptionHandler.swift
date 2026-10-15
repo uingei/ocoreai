@@ -439,6 +439,23 @@ enum AudioTranscription {
         }
     }
 
+    /// The `AppError` for a failure, at the status this table assigns it.
+    ///
+    /// One factory, so every route that hears audio answers one failure with one status.
+    /// Before it existed the throw site had only `.transcriptionUnavailable` (503) available,
+    /// so `.undecodableAudio` — which this very function classifies as the client's 400 —
+    /// left the process as 503 "service unavailable, retry", advice that is wrong for bytes
+    /// that will never decode. The chat route (`ChatAudioIngestion`) throws through here for
+    /// the same reason.
+    static func appError(for failure: TranscriptFailure) -> AppError {
+        if status(for: failure) == .badRequest {
+            return .transcriptionRejected(
+                errorCode: failure.errorCode, reason: failure.remediation)
+        }
+        return .transcriptionUnavailable(
+            errorCode: failure.errorCode, reason: failure.remediation)
+    }
+
     /// Silence for the `text` response format: the transcript itself, UTF-8.
     static func plainText(_ text: String) -> Data { Data(text.utf8) }
 }
@@ -583,8 +600,7 @@ func audioTranscriptionsHandler(
             return try transcriptionJSON(
                 AudioTranscription.failureBody(failure), status: .ok)
         }
-        throw AppError.transcriptionUnavailable(
-            errorCode: failure.errorCode, reason: failure.remediation)
+        throw AudioTranscription.appError(for: failure)
     }
 }
 
