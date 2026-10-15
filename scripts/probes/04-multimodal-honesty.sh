@@ -23,6 +23,10 @@
 #     authorized + device/voice count ≥ 1), every non-ready channel states why in
 #     `limitations`, and an unmeasurable count is omitted rather than sent as `0` or
 #     `null` ("none found" and "cannot tell" are different claims);
+#   • screen `ready` additionally requires `screenDelivery=captured`, and a failed
+#     delivery surfaces as `blocked` carrying the framework's own words — measured 10-15,
+#     the grant was on and a display enumerated while `SCScreenshotManager` refused, yet
+#     `screenStatus` said `ready`;
 #   • no capture leg (camera / microphone / screen) returns `success: true` with a null
 #     `dataURL`;
 #   • `/v1/multimodal/speak` refuses whitespace-only text instead of reporting success for
@@ -104,6 +108,7 @@ EVIDENCE = {
     "transcriptionStatus": ("speechRecognitionPermission", None),
 }
 
+
 out = []
 try:
     doc = json.loads(sys.argv[1])
@@ -142,6 +147,34 @@ for field, (perm_field, count_field) in EVIDENCE.items():
     if count_field is not None:
         evidence.append("%s=%s" % (count_field, doc.get(count_field)))
     out.append("OK|%s=ready, backed by %s" % (field, " + ".join(evidence) or "no stated evidence"))
+
+# Screen carries a second, stronger requirement than the other channels: the grant says the
+# user allowed it, only a frame says it works. Measured 10-15 on the shipping host —
+# authorized + a display enumerated + SCScreenshotManager refusing — so `ready` without
+# `screenDelivery=captured` is the surface outrunning the engine, which is what this probe
+# exists to catch.
+DELIVERY = {"notAttempted", "captured", "failed"}
+screen_delivery = doc.get("screenDelivery", "<absent>")
+if screen_delivery not in DELIVERY:
+    out.append("FAIL|screenDelivery=%r is outside the documented delivery vocabulary"
+               % screen_delivery)
+if doc.get("screenStatus") == "ready":
+    if screen_delivery != "captured":
+        out.append("FAIL|screenStatus=ready while screenDelivery=%r — a permission is not a "
+                   "captured frame" % screen_delivery)
+    else:
+        out.append("OK|screenStatus=ready, backed by a delivered frame in %sms"
+                   % doc.get("screenDeliveryLatencyMs"))
+if screen_delivery == "failed":
+    if doc.get("screenStatus") != "blocked":
+        out.append("FAIL|screenDelivery=failed but screenStatus=%r — a measured capture "
+                   "failure must not leave the verdict at `ready` or `unknown`"
+                   % doc.get("screenStatus"))
+    if not doc.get("screenDeliveryError"):
+        out.append("FAIL|screenDelivery=failed with no screenDeliveryError — a refusal that "
+                   "names no reason is the pattern this probe was written against")
+    else:
+        out.append("OK|screen refusal carries its reason: %s" % doc.get("screenDeliveryError"))
 
 # Unknown is not zero: an unmeasurable count must be absent, never 0 or null.
 for f in ["cameraDeviceCount", "microphoneDeviceCount", "speechVoiceCount"]:
@@ -233,6 +266,9 @@ probe_section "POST /v1/multimodal/capture — success:true only when bytes came
 CAPTURE_CEILING_MS="${OCOREAI_PROBE_CAPTURE_CEILING_MS:-15000}"
 export OCOREAI_PROBE_CURL_TIMEOUT="${OCOREAI_PROBE_CAPTURE_TIMEOUT:-45}"
 CAPTURE_VERDICTS=""
+SCREEN_LEG_VERDICT="no-answer"
+SCREEN_LEG_MS=0
+SCREEN_LEG_MSG=""
 for kind in camera microphone screen; do
   leg_start="$(now_ms)"
   probe_api POST /v1/multimodal/capture "{\"type\":\"${kind}\"}"
@@ -249,6 +285,15 @@ for kind in camera microphone screen; do
   dataURL="$(probe_json "$PROBE_BODY" 'dataURL')"
   success="$(probe_json "$PROBE_BODY" 'success')"
   message="$(probe_json "$PROBE_BODY" 'message')"
+  if [ "$kind" = "screen" ]; then
+    SCREEN_LEG_MS=$(( $(now_ms) - leg_start ))
+    SCREEN_LEG_MSG="$message"
+    if [ -n "$dataURL" ]; then
+      SCREEN_LEG_VERDICT="delivered"
+    else
+      SCREEN_LEG_VERDICT="refused"
+    fi
+  fi
   if [ "$success" = "true" ] && [ -z "$dataURL" ]; then
     push CAPTURE_VERDICTS "FAIL|${kind} reported success:true with dataURL null — \"it worked, here are no bytes\" (${message})"
   elif [ "$leg_ms" -ge "$CAPTURE_CEILING_MS" ]; then
@@ -262,6 +307,63 @@ done
 emit "$CAPTURE_VERDICTS"
 tally "$CAPTURE_VERDICTS"
 unset OCOREAI_PROBE_CURL_TIMEOUT
+
+# ── 3b. the verdict must agree with the capture it just watched ───────────────
+probe_section "POST /v1/multimodal/status again — screen verdict agrees with the leg above"
+# This is the pair no unit test can make: the same process, seconds apart, answering
+# "is the screen ready?" and then actually trying to capture it. Before the delivery axis
+# existed these two disagreed by construction on this host — status published `ready` from
+# CGPreflightScreenCaptureAccess while the leg below returned no frame.
+probe_api POST /v1/multimodal/status '{}'
+AGREE_VERDICTS="$(python3 - "$PROBE_BODY" "$SCREEN_LEG_VERDICT" "$SCREEN_LEG_MS" <<'PY'
+import json, sys
+
+doc = json.loads(sys.argv[1])
+leg, leg_ms = sys.argv[2], sys.argv[3]
+verdict = doc.get("screenStatus")
+delivery = doc.get("screenDelivery")
+error = doc.get("screenDeliveryError")
+limits = doc.get("limitations") or []
+screen_lines = [str(x) for x in limits if str(x).startswith("screen: ")]
+
+out = ["INFO|screen leg was %s in %sms" % (leg, leg_ms)]
+if leg == "delivered":
+    if delivery == "captured":
+        out.append("OK|a delivered leg is recorded as screenDelivery=captured")
+    else:
+        out.append("FAIL|the screen leg returned bytes but screenDelivery=%r — the success "
+                   "was not recorded, so the next status call will under-report" % delivery)
+elif leg == "refused":
+    if verdict == "ready":
+        out.append("FAIL|screenStatus=ready immediately after a refused capture — the exact "
+                   "claim this probe was written to catch")
+    elif verdict == "blocked":
+        out.append("OK|the refusal moved the verdict: screenStatus=blocked")
+    else:
+        out.append("FAIL|screenStatus=%r after a refused capture — a measured failure must "
+                   "surface as blocked, not %s" % (verdict, verdict))
+    if delivery == "failed":
+        out.append("OK|screenDelivery=failed recorded by the leg itself")
+    else:
+        out.append("FAIL|screenDelivery=%r after a refused leg — nothing recorded the failure"
+                   % delivery)
+    if error:
+        out.append("OK|reason carried to the verdict: %s" % error)
+    else:
+        out.append("FAIL|no screenDeliveryError after a refused leg")
+    if screen_lines:
+        out.append("OK|limitations explains it: %s" % screen_lines[0])
+    else:
+        out.append("FAIL|screen is not ready but limitations has no 'screen: ' line")
+else:
+    out.append("NOTE|screen leg never answered — nothing to cross-check the verdict against")
+
+for line in out:
+    print(line)
+PY
+)"
+emit "$AGREE_VERDICTS"
+tally "$AGREE_VERDICTS"
 
 # ── 4. speak refuses nothing-to-say ───────────────────────────────────────────
 probe_section "POST /v1/multimodal/speak — no success for a turn that says nothing"
@@ -388,13 +490,14 @@ fi
 
 # ── 6. premise floor ──────────────────────────────────────────────────────────
 # Status shape (4 toggles + 4 permissions + 5 verdicts + counts + limitations) plus the
-# index notes plus three capture legs plus three speak refusals is ~30 verdicts. 18 is far
-# under that and far above zero: a payload that stopped carrying facts, or an analysis that
-# stopped matching, fails instead of passing vacuously.
-if [ "$CHECKS" -ge 18 ]; then
+# index notes plus three capture legs plus three speak refusals plus the screen delivery
+# evidence and its post-capture cross-check is ~32 verdicts. 22 is far under that and far
+# above zero: a payload that stopped carrying facts, or an analysis that stopped matching,
+# fails instead of passing vacuously.
+if [ "$CHECKS" -ge 22 ]; then
   probe_ok "premise floor: ${CHECKS} verdicts issued by this run"
 else
-  probe_fail "only ${CHECKS} verdicts issued (< 18) — the payload shape or this probe's scan broke, so the run proves nothing"
+  probe_fail "only ${CHECKS} verdicts issued (< 22) — the payload shape or this probe's scan broke, so the run proves nothing"
 fi
 
 probe_summary "$PROBE_NAME"

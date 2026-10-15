@@ -149,7 +149,7 @@ enum V1EndpointCatalog {
         RouteSpec(
             method: "POST", path: "/v1/multimodal/status",
             note:
-                "Multimodal toggles + measured permissions, device/voice counts, per-channel ready|blocked|unknown|unsupported verdicts and reasons"
+                "Multimodal toggles + measured permissions, device/voice counts, screen delivery evidence (ready needs a captured frame), per-channel ready|blocked|unknown|unsupported verdicts and reasons"
         ),
         RouteSpec(method: "POST", path: "/mcp", note: "MCP JSON-RPC (single message per request)"),
         RouteSpec(method: "GET", path: "/sessions", note: "List stored sessions"),

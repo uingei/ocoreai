@@ -80,6 +80,69 @@ enum ChannelReadiness: String, Codable, CaseIterable, Sendable {
     static var vocabulary: [String] { allCases.map(\.rawValue) }
 }
 
+/// What the screen channel has actually produced in this process — the delivery axis that
+/// no permission API can supply.
+///
+/// `CGPreflightScreenCaptureAccess()` answers "did the user allow it", and on this box that
+/// answer is true while capture fails: measured 10-15, `screenPermission=authorized` with a
+/// display enumerated, and `SCScreenshotManager.captureImage` still returned
+/// "could not start stream". Publishing `ready` from the grant alone is the same error the
+/// hearing seam spends a child process avoiding — an OS answer standing in for a delivered
+/// result (AGENTS.md invariant 2) — except here the OS answer is not even the last word:
+/// it is the *first* of two, and only a frame answers the second.
+enum ScreenDelivery: String, Codable, CaseIterable, Sendable {
+    /// Nothing has been attempted in this process: no evidence in either direction.
+    case notAttempted
+    /// A capture pass produced a frame (one-shot, or a frame arrived on the stream).
+    case captured
+    /// A capture pass ran and produced no frame; `MultimodalDeviceFacts.screenDeliveryError`
+    /// carries what the framework said.
+    case failed
+
+    /// The closed set a probe can assert published values against.
+    static var vocabulary: [String] { allCases.map(\.rawValue) }
+}
+
+/// Per-process memory of the screen channel's delivery, so the verdict can rest on a frame
+/// rather than on a grant.
+///
+/// It lives beside the vocabulary rather than on `ScreenshotService` because the facts type
+/// is the single source the verdict computes from, and `ScreenshotService` is macOS-only
+/// while `screenStatus` has to compute on every target. MainActor-isolated by choice:
+/// capture (`@MainActor ScreenshotService`) and `MultimodalDeviceFacts.gather()` both run
+/// there, so recording costs no lock and the status path gains no `await`.
+///
+/// The record is deliberately *not* sticky-with-history: it reports the last attempt, so a
+/// failure does not become a permanent verdict and a grant fix does not need a restart —
+/// the next attempt overwrites it. What it never does is guess the outcome of an attempt
+/// that has not happened.
+@MainActor
+enum ScreenDeliveryRecord {
+    private(set) static var outcome: ScreenDelivery = .notAttempted
+    private(set) static var failure: String?
+    private(set) static var latencyMs: Int?
+
+    static func captured(latencyMs elapsed: Int?) {
+        outcome = .captured
+        failure = nil
+        latencyMs = elapsed
+    }
+
+    static func failed(reason: String, latencyMs elapsed: Int?) {
+        outcome = .failed
+        failure = reason
+        latencyMs = elapsed
+    }
+
+    /// Test seam: back to "nothing attempted", so a unit test never depends on whether
+    /// something in the same process captured a screen earlier.
+    static func resetForTesting() {
+        outcome = .notAttempted
+        failure = nil
+        latencyMs = nil
+    }
+}
+
 /// Whether a wire-initiated capture may be attempted at all.
 ///
 /// Why this exists (measured 10-14 by `scripts/probes/04-multimodal-honesty.sh`):
@@ -157,6 +220,16 @@ struct MultimodalDeviceFacts: Codable, Equatable, Sendable {
     /// `nil` = AVFoundation unavailable; `0` = no installed speech voices.
     var speechVoiceCount: Int?
 
+    /// The screen channel's delivery axis: what the last capture pass in this process
+    /// produced. Defaults to `.notAttempted` — the absence of evidence, not a verdict.
+    var screenDelivery: ScreenDelivery = .notAttempted
+    /// What the framework said when the last attempt produced no frame; `nil` unless the
+    /// delivery is `.failed`.
+    var screenDeliveryError: String?
+    /// How long that attempt took, in ms — a refusal that took 190 ms and one that timed
+    /// out are different diagnoses, and the number is what distinguishes them.
+    var screenDeliveryLatencyMs: Int?
+
     /// The permission axis behind a channel name (`camera` / `microphone` / `screen` /
     /// `transcription`) — the lookup the capture gate and the limitation lines share.
     func permission(forChannel channel: String) -> DevicePermission {
@@ -180,14 +253,28 @@ struct MultimodalDeviceFacts: Codable, Equatable, Sendable {
     /// TTS needs no permission and no enumeration — only an installed voice to speak with.
     var speakerStatus: ChannelReadiness { Self.speakerReadiness(speechVoiceCount) }
 
-    /// Screen capture has no device axis here (there is always a display); the gate is
-    /// purely the screen-recording grant.
+    /// Permission says the user allowed it; only a frame says it works.
+    ///
+    /// Both axes, then, in the same precedence the other channels use: a refusal is
+    /// decisive, a measured delivery failure is decisive, and an axis with no evidence
+    /// stays `unknown` rather than inheriting `ready` from the grant. The delivery axis is
+    /// not a device count — display enumeration passes on the box where capture fails
+    /// (measured 10-15), so counting displays would rebuild the same false positive with
+    /// extra steps.
     var screenStatus: ChannelReadiness {
         switch screenPermission {
-        case .authorized: return .ready
-        case .denied, .restricted: return .blocked
-        case .unsupported: return .unsupported
-        case .notGranted, .notDetermined, .unknown: return .unknown
+        case .denied, .restricted:
+            return .blocked
+        case .unsupported:
+            return .unsupported
+        case .notGranted, .notDetermined, .unknown:
+            return .unknown
+        case .authorized:
+            switch screenDelivery {
+            case .captured: return .ready
+            case .failed: return .blocked
+            case .notAttempted: return .unknown
+            }
         }
     }
 
@@ -217,7 +304,12 @@ struct MultimodalDeviceFacts: Codable, Equatable, Sendable {
             &out, channel: "microphone", status: microphoneStatus, permission: microphonePermission,
             count: microphoneDeviceCount)
         Self.appendVoiceLimit(&out, status: speakerStatus, voiceCount: speechVoiceCount)
-        Self.appendScreenLimit(&out, status: screenStatus, permission: screenPermission)
+        Self.appendScreenLimit(
+            &out,
+            status: screenStatus,
+            permission: screenPermission,
+            delivery: screenDelivery,
+            deliveryError: screenDeliveryError)
         Self.appendTranscriptionLimit(
             &out, status: transcriptionStatus, permission: speechRecognitionPermission)
         return out
@@ -311,18 +403,34 @@ struct MultimodalDeviceFacts: Codable, Equatable, Sendable {
         _ out: inout [String],
         status: ChannelReadiness,
         permission: DevicePermission,
+        delivery: ScreenDelivery = .notAttempted,
+        deliveryError: String? = nil,
     ) {
         switch status {
         case .ready:
             return
         case .blocked:
-            out.append(
-                "screen: screen-recording permission denied — System Settings ▸ Privacy & Security ▸ Screen Recording"
-            )
+            if permission == .authorized {
+                // Granted *and* failing: the pane is not the problem, so pointing at the
+                // pane would send the reader to a toggle that is already on.
+                out.append(
+                    "screen: permission granted but capture failed — \(deliveryError ?? "no frame produced")"
+                )
+            } else {
+                out.append(
+                    "screen: screen-recording permission denied — System Settings ▸ Privacy & Security ▸ Screen Recording"
+                )
+            }
         case .unknown:
-            out.append(
-                "screen: screen-recording permission not granted (macOS reports permitted vs not only — here: \(permission.rawValue))"
-            )
+            if permission == .authorized {
+                out.append(
+                    "screen: permission granted but no frame captured in this process yet — `ready` waits for a delivered frame"
+                )
+            } else {
+                out.append(
+                    "screen: screen-recording permission not granted (macOS reports permitted vs not only — here: \(permission.rawValue))"
+                )
+            }
         case .unsupported:
             out.append("screen: screen capture unavailable on this platform")
         }
@@ -395,6 +503,12 @@ extension MultimodalDeviceFacts {
         #endif
         #if os(macOS)
         facts.screenPermission = CGPreflightScreenCaptureAccess() ? .authorized : .notGranted
+        // The delivery axis costs nothing to read — it is a memory of what already happened,
+        // not a capture. Read here rather than in `gather()` so both fact paths answer the
+        // same question with the same evidence.
+        facts.screenDelivery = ScreenDeliveryRecord.outcome
+        facts.screenDeliveryError = ScreenDeliveryRecord.failure
+        facts.screenDeliveryLatencyMs = ScreenDeliveryRecord.latencyMs
         #endif
         return facts
     }

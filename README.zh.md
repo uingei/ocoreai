@@ -85,7 +85,7 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 | `GET`  | `/v1/stats` | 运行统计（请求/Token/耗时/TTFB） |
 | `POST` | `/v1/multimodal/capture` | 摄像头 / 麦克风 / 录屏捕获（`success:true` 必带数据） |
 | `POST` | `/v1/multimodal/speak` | TTS 输出（需开启喇叭且有已装语音） |
-| `POST` | `/v1/multimodal/status` | 开关 + 实测权限、设备/语音数、逐通道裁决 |
+| `POST` | `/v1/multimodal/status` | 开关 + 实测权限、设备/语音数、屏幕出帧证据、逐通道裁决 |
 | `GET`  | `/sessions` | 会话列表 |
 | `GET`  | `/sessions/:id/memory` | 获取会话记忆事件 |
 | `DELETE` | `/sessions/:id` | 删除会话 |

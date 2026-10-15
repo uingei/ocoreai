@@ -75,15 +75,23 @@ final class ScreenshotService {
             return cached
         }
 
+        // Every real attempt lands in ScreenDeliveryRecord, pass or fail: the verdict on
+        // `/v1/multimodal/status` is allowed to claim `ready` only from a frame, so a
+        // silent success and an unreported failure would each leave the surface quoting a
+        // permission instead of what this process just measured.
+        let started = DispatchTime.now().uptimeNanoseconds
         let (url, failure) = await Self.captureOnce()
+        let elapsedMs = Int((DispatchTime.now().uptimeNanoseconds - started) / 1_000_000)
         guard let url else {
-            self.lastError = failure ?? "one-shot capture failed for an unreported reason"
-            screenshotLogger.warning(
-                "[ScreenshotService] One-shot capture failed: \(self.lastError ?? "")")
+            let reason = failure ?? "one-shot capture failed for an unreported reason"
+            self.lastError = reason
+            ScreenDeliveryRecord.failed(reason: reason, latencyMs: elapsedMs)
+            screenshotLogger.warning("[ScreenshotService] One-shot capture failed: \(reason)")
             return nil
         }
         self.lastError = nil
         self.latestFrameDataURL = url
+        ScreenDeliveryRecord.captured(latencyMs: elapsedMs)
         screenshotLogger.info("[ScreenshotService] One-shot frame: \(url.prefix(20))...")
         return url
     }
@@ -289,6 +297,10 @@ final class ScreenshotService {
     /// Update latest frame data URL on MainActor for @Observable reactivity.
     private func updateFrameURL(_ url: String) {
         self.latestFrameDataURL = url
+        // A frame off the SCStream is delivery evidence too — and the only kind the
+        // continuous path produces, so the verdict does not stay stuck on the one-shot
+        // result after streaming started working.
+        ScreenDeliveryRecord.captured(latencyMs: nil)
         screenshotLogger.info("[ScreenshotService] Frame updated: \(url.prefix(20))...")
     }
 

@@ -93,6 +93,19 @@ struct StatusResponse: Codable {
     let screenStatus: ChannelReadiness
     let transcriptionStatus: ChannelReadiness
 
+    /// What the screen channel has actually delivered in this process
+    /// (`notAttempted` / `captured` / `failed`). This is the evidence behind
+    /// `screenStatus == ready`: the grant alone is not enough, because on the box this
+    /// ships from capture fails while the grant is on. Absent `screenDeliveryError` means
+    /// nothing measured failed, not that nothing could.
+    let screenDelivery: ScreenDelivery
+    /// What ScreenCaptureKit said on the attempt that produced no frame. Omitted unless
+    /// `screenDelivery == failed` — the convention is to omit, never to null.
+    let screenDeliveryError: String?
+    /// Duration of that last attempt in ms: a 190 ms refusal and a timeout are different
+    /// failures, and the number is what tells them apart.
+    let screenDeliveryLatencyMs: Int?
+
     /// The measured hearing axis (`HearingReadiness`): permission + locale resolution +
     /// out-of-process engine probe, with the verdict derived from those. Omitted when the
     /// caller asked before it was measured — absence is "not measured", never "fine".
@@ -136,6 +149,9 @@ func makeMultimodalStatusResponse(
         screenStatus: facts.screenStatus,
         // Prefer the verdict that rests on more measurement when both exist (see `hearing`).
         transcriptionStatus: hearing?.verdict ?? facts.transcriptionStatus,
+        screenDelivery: facts.screenDelivery,
+        screenDeliveryError: facts.screenDeliveryError,
+        screenDeliveryLatencyMs: facts.screenDeliveryLatencyMs,
         hearing: hearing,
         limitations: limitations,
     )

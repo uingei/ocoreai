@@ -77,7 +77,8 @@ struct MultimodalStatusHonestyTests {
         screen: DevicePermission = .authorized,
         cameras: Int? = 1,
         microphones: Int? = 1,
-        voices: Int? = 12
+        voices: Int? = 12,
+        screenDelivery: ScreenDelivery = .captured
     ) -> MultimodalDeviceFacts {
         MultimodalDeviceFacts(
             cameraPermission: camera,
@@ -87,6 +88,7 @@ struct MultimodalStatusHonestyTests {
             cameraDeviceCount: cameras,
             microphoneDeviceCount: microphones,
             speechVoiceCount: voices,
+            screenDelivery: screenDelivery,
         )
     }
 
@@ -133,9 +135,17 @@ struct MultimodalStatusHonestyTests {
         #expect(facts(speech: .unsupported).transcriptionStatus == .unsupported)
     }
 
-    @Test("screen verdict does not invent a device axis")
+    @Test("screen `ready` needs a delivered frame, not just the grant")
     func screenStatus() {
+        // This is the assertion that used to read `facts(screen: .authorized) == .ready`,
+        // i.e. "the user allowed it, therefore it works". Measured 10-15 on the shipping
+        // host: the grant is on, a display enumerates, and SCScreenshotManager still
+        // refuses — so the grant answers only the first of two questions.
         #expect(facts(screen: .authorized).screenStatus == .ready)
+        #expect(
+            facts(screen: .authorized, screenDelivery: .notAttempted).screenStatus == .unknown)
+        #expect(
+            facts(screen: .authorized, screenDelivery: .failed).screenStatus == .blocked)
         #expect(facts(screen: .denied).screenStatus == .blocked)
         #expect(facts(screen: .restricted).screenStatus == .blocked)
         // CGPreflightScreenCaptureAccess reports permitted vs not only — not a verdict.
@@ -196,6 +206,7 @@ struct MultimodalStatusHonestyTests {
         #expect(response.cameraDeviceCount == nil)
         #expect(response.microphoneDeviceCount == nil)
         #expect(response.speechVoiceCount == nil)
+        #expect(response.screenDelivery == .notAttempted)
         #expect(response.limitations.count == 5)
 
         let json =
@@ -206,6 +217,11 @@ struct MultimodalStatusHonestyTests {
         #expect(json?["cameraDeviceCount"] == nil)
         #expect(json?["microphoneDeviceCount"] == nil)
         #expect(json?["speechVoiceCount"] == nil)
+        // The delivery axis says "nothing attempted" rather than going quiet on the field
+        // that tells a reader it was never exercised — and keeps its error absent, not null.
+        #expect(json?["screenDelivery"] as? String == "notAttempted")
+        #expect(json?["screenDeliveryError"] == nil)
+        #expect(json?["screenDeliveryLatencyMs"] == nil)
         // No published verdict may say `ready` when nothing was measured.
         let verdicts: [String] = [
             "cameraStatus", "microphoneStatus", "speakerStatus",

@@ -100,7 +100,7 @@ Known boundaries (as of this commit, not aspirations):
 | `GET`  | `/v1/stats` | Ops statistics (requests/tokens/duration/TTFB) |
 | `POST` | `/v1/multimodal/capture` | Capture camera / microphone / screen (`success:true` only with bytes) |
 | `POST` | `/v1/multimodal/speak` | TTS output (needs speaker enabled + an installed voice) |
-| `POST` | `/v1/multimodal/status` | Toggles + measured permissions, device/voice counts, per-channel verdicts |
+| `POST` | `/v1/multimodal/status` | Toggles + measured permissions, device/voice counts, screen delivery evidence, per-channel verdicts |
 | `GET`  | `/sessions` | List sessions |
 | `GET`  | `/sessions/:id/memory` | Get session memory events |
 | `DELETE` | `/sessions/:id` | Delete session |
