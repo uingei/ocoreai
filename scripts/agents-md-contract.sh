@@ -19,6 +19,10 @@
 #   P5 gates         every `make <target>` and scripts/*.sh named is real
 #   P6 suites        every XxxTests named is declared under Tests/
 #   P7 routing       every area guide on disk is listed in the root routing table
+#   P8 pin agreement the upstream revision AGENTS.md quotes is the revision
+#                    Package.swift actually pins — the pin is the contract (§ Upstream),
+#                    and a stale SHA in the injected context sends every future session
+#                    to audit the wrong commit
 #
 # Why (measured 10-14, same session as this file): three "verified" counts had already
 # drifted — Engine/*.swift 44 -> 53, precondition 12 sites/9 files -> 14/11 — and the
@@ -245,6 +249,25 @@ listed = {r for _, r in routing}
 unrouted = sorted(p for p in guides if p not in listed)
 if unrouted:
     fail.append("P7 area guide(s) exist but no routing row in AGENTS.md: %s" % ", ".join(unrouted))
+
+# ── P8 the pin the doc quotes is the pin the manifest sets ─────────────────
+# Measured 10-15: Package.swift pinned mlx-swift-lm at 4cc550451 (and .build-clt
+# resolves exactly that) while AGENTS.md still said "Pinned … at 7eb77ef" — one bump
+# behind, in the one file every session reads first. The audit protocol keys off that
+# sentence, so a stale pin does not merely read badly: it aims the next audit at the
+# wrong commit.
+pkg = read("Package.swift")
+m = re.search(r'mlx-swift-lm\.git",\s*revision:\s*"([0-9a-f]{7,})"', pkg)
+if not m:
+    fail.append("P8 no mlx-swift-lm `revision:` found in Package.swift — the pin contract is unreadable")
+else:
+    pin = m.group(1)
+    quoted = set(re.findall(r"Pinned upstream `mlx-swift-lm` at `([0-9a-f]{7,})`", read("AGENTS.md")))
+    if not quoted:
+        fail.append("P8 AGENTS.md no longer states the mlx-swift-lm pin in the form the gate reads")
+    elif not any(q == pin or pin.startswith(q) or q.startswith(pin) for q in quoted):
+        fail.append("P8 AGENTS.md quotes pin %s but Package.swift pins %s — the injected context "
+                    "names a stale upstream contract" % ("/".join(sorted(quoted)), pin))
 
 # ── report ───────────────────────────────────────────────────────────────────
 print("AGENTS.md contract (%s)" % mode)
