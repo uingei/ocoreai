@@ -454,10 +454,15 @@ actor MLXSessionPool {
                     // caller withholds `divergence` messages this session's transcript
                     // already holds. Whether the KV cache skipped a prefill is not
                     // knowable here — upstream decides it and reports it on
-                    // GenerateCompletionInfo.cachedPromptTokenCount. Measured 10-14
-                    // (gemma-4-e2b-it-4bit, 3-turn same-session): prefilled == full
-                    // prompt, cached == 0, so claiming a saved re-prefill here would
-                    // be false. EngineInference logs the accounting per turn.
+                    // GenerateCompletionInfo.cachedPromptTokenCount, and this call site
+                    // deliberately does not restate that verdict: a second hand-written
+                    // copy of the number is exactly the drift this repo keeps naming.
+                    // EngineInference.accountPrefixReuse logs it per turn and
+                    // PrefixReuseLedger publishes it per model. Measured 10-16 at pin
+                    // 6e338e5 (gemma-4-e2b-it-4bit, 3-turn same-session, probe 01):
+                    // 710/730 and 733/749 tokens reused — but that is upstream's answer
+                    // for that day's revision, read from the wire, not a promise this
+                    // line may make.
                     logger.info(
                         "Session pool HIT: \(key) — \(divergence)/\(prefixMessages?.count ?? 0) messages already in this session's transcript, withholding them from this feed"
                     )

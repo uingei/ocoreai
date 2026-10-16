@@ -8,12 +8,19 @@
 // has to guess from 400 requests. Meanwhile the engine has known the answer since def1964
 // and only shouted it into a per-turn log line.
 //
-// Measured 10-14 (scripts/probes/01-prefix-accounting.sh, default gemma model): every
-// warm turn reports `cached=0` with the whole prompt re-prefilled. The upstream reason is
-// pinned — `PromptCacheReusePolicy.canRewind` requires `cache.isTrimmable`, and
-// `BaseKVCache.isTrimmable` is false for this model's cache kind. So the honest public
-// answer today is "no reuse observed", and this file makes that answer readable instead
-// of inferred.
+// Measured 10-14 (scripts/probes/01-prefix-accounting.sh, default gemma model): every warm
+// turn reported `cached=0`, the whole prompt re-prefilled. The reason recorded here at the
+// time — `canRewind` requiring `cache.isTrimmable` — was read off the wrong rule, and the
+// correction is the lesson: a transcript that only *grows* is decided by
+// `ExtendCachedPrefixRule`, which never consults trimmability and was bailing on
+// `carriesAttentionMask` (Gemma 4's processor paired every text prompt with an all-ones
+// mask). Upstream #700 dropped that mask, and the same script on the same model at pin
+// 6e338e5 measured 710/730 and 733/749 tokens reused. Trimmability belongs to the
+// *divergent* path (`RewindToCommonPrefixRule`), which upstream #622 made rewinds possible
+// on for rotating caches via an opt-in reserve this engine does not yet request.
+//
+// What this file does is unchanged and stays the point: publish whichever answer upstream
+// reported, and nothing else.
 //
 // ### What this deliberately is NOT
 // Not a prediction. ocoreai does not re-derive trimmability from cache kinds here — that
