@@ -60,15 +60,9 @@ func anthropicMessagesHandler(
 
     // Safety check: filter harmful input before scheduling
     if let contentGuard = streamGuard {
-        let messageText: String =
-            if let first = request.messages.first, let content = first.content {
-                switch content {
-                case .text(let s): s
-                case .blocks(let blocks): blocks.compactMap(\.text).joined(separator: "\n")
-                }
-            } else {
-                ""
-            }
+        // One reader of "what text did the client send", shared with the prompt the model
+        // gets (`AnthropicMessage.plainText`) — the guard and the prompt must not disagree.
+        let messageText: String = request.messages.first?.plainText ?? ""
         if !messageText.isEmpty {
             let result = await contentGuard.checkInput(messageText)
             if result.isBlocked {
@@ -95,7 +89,7 @@ func anthropicMessagesHandler(
     // Prompt injection detection — uses precompiled regex from AuthConfig
     if AuthConfig.default.promptInjectionEnabled {
         // Convert Anthropic messages to internal Message for detection
-        let chatReq = toChatCompletionRequest(request)
+        let chatReq = try toChatCompletionRequest(request)
         if AuthConfig.detectPromptInjection(
             in: chatReq.messages,
             patterns: AuthConfig.defaultPromptInjectionRegexes,
@@ -121,23 +115,12 @@ func anthropicMessagesHandler(
     // ═══════════════════════════════════════════════════════
     // Convert Anthropic → internal ChatCompletionRequest
     // ═══════════════════════════════════════════════════════
-    let chatRequest = toChatCompletionRequest(request)
+    let chatRequest = try toChatCompletionRequest(request)
 
     // ═══════════════════════════════════════════════════════
     // Phase 1: Submit to scheduler (OOMGuard + priority queue)
     // ═══════════════════════════════════════════════════════
-    // Helper: extract prompt text from first Anthropic message
-    let promptText: String
-    if let first = request.messages.first, let content = first.content {
-        switch content {
-        case .text(let s): promptText = s
-        case .blocks(let blocks):
-            let texts = blocks.compactMap(\.text).joined(separator: "\n")
-            promptText = texts.isEmpty ? "" : texts
-        }
-    } else {
-        promptText = ""
-    }
+    let promptText: String = request.messages.first?.plainText ?? ""
 
     let schedulingRequest = SchedulingRequest(
         id: "msg-\(UUID().uuidString.prefix(8))",
@@ -304,22 +287,9 @@ func estimatePromptTokensFallback(_ messages: [Message]) -> Int {
 /// model (system prompt and tool definitions included) instead of a second,
 /// subtly cheaper approximation of it — one builder, one truth.
 func buildAnthropicMessageList(request: AnthropicMessageRequest) throws -> [Message] {
-    var messages: [Message] = request.messages.map { msg in
-        switch msg.content {
-        case .some(.text(let s)):
-            return Message(role: msg.role, content: .text(s))
-        case .some(.blocks(let blocks)):
-            let texts = blocks.compactMap { b -> String? in
-                switch b.type {
-                case .text: return b.text
-                case .toolUse: return nil
-                }
-            }.joined(separator: "\n")
-            return Message(role: msg.role, content: texts.isEmpty ? nil : .text(texts))
-        case .none:
-            return Message(role: msg.role, content: nil)
-        }
-    }
+    // `toInternalMessage` is where block types get honoured or refused by name; this
+    // function only adds the Anthropic-specific injections (system field, tool defs).
+    var messages: [Message] = try request.messages.map { try $0.toInternalMessage() }
 
     // Inject system prompt (string or text-block form — see AnthropicSystemContent)
     if let system = request.system?.text, !system.isEmpty {

@@ -104,7 +104,14 @@ struct AnthropicMessage: Decodable {
     }
 }
 
-/// Anthropic content — text, tool_use, or tool_result
+/// Anthropic content — a plain string, or an array of blocks.
+///
+/// The array branch decodes *every* block type (see ``AnthropicContentBlock``): the closed
+/// element enum it used to have made one unrecognised block fail the whole array, and the
+/// fallback below then blanked the message. The fallback stays for shapes that are neither
+/// string nor array, but with a total element decoder it can no longer be reached by a
+/// spec-legal block, and ``AnthropicMessage/toInternalMessage()`` turns anything left
+/// unreadable into a refusal rather than an empty turn.
 enum AnthropicContent: Decodable {
     case text(String)
     case blocks([AnthropicContentBlock])
@@ -143,7 +150,7 @@ enum AnthropicSystemContent: Decodable {
         case .text(let s): return s
         case .blocks(let blocks):
             return blocks.compactMap { block in
-                block.type == .text ? block.text : nil
+                block.type == "text" ? block.text : nil
             }.joined(separator: "\n")
         }
     }
@@ -160,21 +167,219 @@ enum AnthropicSystemContent: Decodable {
     }
 }
 
-/// Single content block inside an assistant message
+/// One content block inside a message's `content` array.
+///
+/// `type` is deliberately a raw `String`, not a closed enum. With `type` typed as
+/// `enum BlockType { case text, toolUse }`, any other spec-legal block — `image`,
+/// `document`, `tool_result`, or a type invented after this build — failed to decode, and
+/// array decoding is all-or-nothing, so ``AnthropicContent``'s fallback turned the WHOLE
+/// message into `.text("")`. Measured 10-15 (`scripts/probes/07-anthropic-blocks.sh`): a
+/// `[text, image]` message reached the model as an empty turn — HTTP 200,
+/// `usage.input_tokens` 10 against 22 for the same instruction sent as a plain string, and
+/// the answer "Please provide the input you would like me to process." A client cannot
+/// distinguish that from a model with nothing to say, and `tool_result` — the shape
+/// Anthropic's own SDK requires to continue a tool loop — went down the same path.
+///
+/// So every block decodes, and the decision lives in exactly one place
+/// (``AnthropicMessage/toInternalMessage()``): carry what the engine can carry, refuse by
+/// name what it cannot. An unknown type is then *representable* instead of destructive,
+/// which is also what stops a future Anthropic block type from blanking a working request.
 struct AnthropicContentBlock: Decodable {
-    enum BlockType: String, Decodable {
-        case text
-        case toolUse = "tool_use"
-    }
+    /// Block type exactly as the client wrote it.
+    let type: String
 
-    let type: BlockType
+    /// `text` payload.
     let text: String?
+
+    /// `tool_use` identifier and function name.
     let id: String?
     let name: String?
+
+    /// `tool_use` arguments.
     let input: [String: AnyCodable]?
 
+    /// `tool_result`: the call this block answers.
+    let toolUseId: String?
+
+    /// `tool_result` payload: a bare string or an array of blocks.
+    let content: AnthropicToolResultContent?
+
+    /// `image` / `document` source.
+    let source: AnthropicBlockSource?
+
     enum CodingKeys: String, CodingKey {
-        case type, text, id, name, input
+        case type, text, id, name, input, content, source
+        case toolUseId = "tool_use_id"
+    }
+
+    /// The text this block contributes to the prompt — the ONE rendering rule, used both by
+    /// the content guard's read (``AnthropicMessage/plainText``) and by the prompt a model
+    /// actually gets (``AnthropicMessage/toInternalMessage()``). Two renderings of the same
+    /// message is how a guard and a prompt start disagreeing about what the client sent.
+    ///
+    /// Nil means "no text": media (carried as its own part) or a type this route refuses.
+    var promptTextContribution: String? {
+        switch type {
+        case "text":
+            return (text?.isEmpty == false) ? text : nil
+        case "tool_result":
+            let tag = toolUseId.map { "tool_result · \($0)" } ?? "tool_result"
+            let body = content?.text ?? ""
+            return "[\(tag)] \(body.isEmpty ? "no output" : body)"
+        case "tool_use":
+            let idTag = id.map { " · \($0)" } ?? ""
+            return "[tool_call · \(name ?? "unknown")\(idTag)] \(Self.jsonText(input) ?? "{}")"
+        case "thinking", "redacted_thinking":
+            // No extended-thinking support here, so an opaque echo of a prior chain of
+            // thought is not replayed — but the turn says so, rather than leaving the model
+            // (or a reader of the transcript) to guess why the assistant skipped a step.
+            return "[prior thinking omitted by this server]"
+        default:
+            return nil
+        }
+    }
+
+    /// `tool_use.arguments` in the shape the OpenAI-side DTO carries it: compact JSON text.
+    static func jsonText(_ value: [String: AnyCodable]?) -> String? {
+        guard let value, !value.isEmpty else { return nil }
+        guard let data = try? JSONEncoder().encode(value) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+}
+
+/// `tool_result.content` — the spec allows a bare string or an array of blocks, so both
+/// decode; a value that is neither yields empty text and the mapper decides what that means.
+enum AnthropicToolResultContent: Decodable {
+    case text(String)
+    case blocks([AnthropicContentBlock])
+
+    /// Text the result contributes (non-text blocks contribute none).
+    var text: String {
+        switch self {
+        case .text(let s): return s
+        case .blocks(let blocks):
+            return blocks.compactMap { $0.type == "text" ? $0.text : nil }
+                .joined(separator: "\n")
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let s = try? container.decode(String.self) {
+            self = .text(s)
+        } else if let blocks = try? container.decode([AnthropicContentBlock].self) {
+            self = .blocks(blocks)
+        } else {
+            self = .text("")
+        }
+    }
+}
+
+/// `image` / `document` source: `{type: "base64" | "url" | "text", media_type, data | url}`.
+struct AnthropicBlockSource: Decodable {
+    let type: String?
+    let mediaType: String?
+    let url: String?
+    let data: String?
+
+    enum CodingKeys: String, CodingKey {
+        case type, url, data
+        case mediaType = "media_type"
+    }
+
+    /// The form the engine's inline-media path takes: a `data:` URL for inline bytes, the
+    /// URL as given for `source.url`. Nil only when the source carries nothing at all,
+    /// which the mapper turns into a refusal naming the block rather than a blind turn.
+    var mediaURL: String? {
+        if let data, !data.isEmpty {
+            return data.hasPrefix("data:")
+                ? data : "data:\(mediaType ?? "application/octet-stream");base64,\(data)"
+        }
+        if let url, !url.isEmpty { return url }
+        return nil
+    }
+}
+
+extension AnthropicMessage {
+    /// Best-effort text of this message — the content-safety guard, prompt-injection
+    /// detection and the metrics token count read this. A block the route cannot carry
+    /// contributes nothing here, which is not a silent drop: the same request is refused by
+    /// name at ``toInternalMessage()`` before any token is produced.
+    var plainText: String {
+        switch content {
+        case .some(.text(let s)): return s
+        case .some(.blocks(let blocks)):
+            return blocks.compactMap(\.promptTextContribution).joined(separator: "\n")
+        case .none:
+            return ""
+        }
+    }
+
+    /// The internal ``Message`` for this Anthropic message: text in the order the client
+    /// wrote it, `image` blocks carried to the engine's inline-vision path, and tool
+    /// history rendered as tagged text — this route injects tool *definitions* as text too,
+    /// so text is the honest medium for their calls and results. (Handing history back as
+    /// live `toolCalls` would invite the engine to dispatch calls that already ran.)
+    ///
+    /// - Throws: `AppError.invalidRequest` naming a block type the engine cannot carry
+    ///   (`document`, `search_result`, or any type this build does not know), an `image`
+    ///   block with no source, or a user message whose array holds nothing readable.
+    ///   Naming the shape is the alternative to a 200 that answered a turn the client
+    ///   believes it sent — the rule `AudioTranscription.unsupportedField` applies to fields.
+    func toInternalMessage() throws -> Message {
+        switch content {
+        case .some(.text(let s)):
+            return Message(role: role, content: .text(s))
+        case .none:
+            return Message(role: role, content: nil)
+        case .some(.blocks(let blocks)):
+            var texts: [String] = []
+            var media: [ContentPart] = []
+            for block in blocks {
+                switch block.type {
+                case "image":
+                    guard let url = block.source?.mediaURL else {
+                        throw AppError.invalidRequest(
+                            "Anthropic image block carries no usable source (expected source.data base64 or source.url)"
+                        )
+                    }
+                    media.append(
+                        ContentPart(
+                            type: "image_url", text: nil,
+                            imageUrl: ContentPart.ImageURL(url: url)))
+                case "text":
+                    if let contribution = block.promptTextContribution {
+                        texts.append(contribution)
+                    }
+                default:
+                    guard let contribution = block.promptTextContribution else {
+                        throw AppError.invalidRequest(
+                            "Unsupported Anthropic content block type '\(block.type)' — this route carries text, image, tool_result and tool_use, and refuses the rest by name rather than dropping it"
+                        )
+                    }
+                    texts.append(contribution)
+                }
+            }
+            if !media.isEmpty {
+                if !texts.isEmpty {
+                    media.insert(
+                        ContentPart(
+                            type: "text", text: texts.joined(separator: "\n"), imageUrl: nil),
+                        at: 0)
+                }
+                return Message(role: role, content: .parts(media))
+            }
+            guard !texts.isEmpty else {
+                // An assistant turn may legitimately carry nothing (a tool call with no
+                // prose); a user turn that says nothing is a client error, not a prompt.
+                if role == "user" {
+                    throw AppError.invalidRequest(
+                        "Message content is a block array carrying nothing this route can read")
+                }
+                return Message(role: role, content: nil)
+            }
+            return Message(role: role, content: .text(texts.joined(separator: "\n")))
+        }
     }
 }
 
@@ -433,26 +638,12 @@ struct AnthropicMetadata: Decodable {
 // MARK: - Conversion Helpers
 
 /// Convert Anthropic request to internal ChatCompletionRequest
-func toChatCompletionRequest(_ req: AnthropicMessageRequest) -> ChatCompletionRequest {
+func toChatCompletionRequest(_ req: AnthropicMessageRequest) throws -> ChatCompletionRequest {
     // Convert messages
-    let messages: [Message] = req.messages.map { msg in
-        let content: ContentPolymorphic?
-        switch msg.content {
-        case .some(.text(let s)):
-            content = .text(s)
-        case .some(.blocks(let blocks)):
-            let texts = blocks.compactMap {
-                switch $0.type {
-                case .text: $0.text
-                case .toolUse: nil  // Skip tool_use blocks from user
-                }
-            }.joined(separator: "\n")
-            content = texts.isEmpty ? nil : .text(texts)
-        case .none:
-            content = nil
-        }
-        return Message(role: msg.role, content: content)
-    }
+    // One mapping for every caller: the same `toInternalMessage` the messages route uses,
+    // so detection/metrics and the prompt the model sees cannot disagree about what the
+    // client sent.
+    let messages: [Message] = try req.messages.map { try $0.toInternalMessage() }
 
     // Convert tools
     let tools: [ToolDef]? = req.tools?.map { $0.toOpenAITool() }

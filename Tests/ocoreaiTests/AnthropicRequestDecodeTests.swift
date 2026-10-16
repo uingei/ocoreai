@@ -21,7 +21,7 @@ struct AnthropicRequestDecodeTests {
         #expect(req.model == "m")
         #expect(req.maxTokens == 16)
         #expect(req.stream == nil, "absent `stream` must not be a decode error")
-        #expect(toChatCompletionRequest(req).stream == false)
+        #expect(try toChatCompletionRequest(req).stream == false)
     }
 
     @Test("stream true and false decode as sent")
@@ -31,7 +31,7 @@ struct AnthropicRequestDecodeTests {
                 "{\"model\":\"m\",\"stream\":\(flag),\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
             let req = try JSONDecoder().decode(AnthropicMessageRequest.self, from: Data(json.utf8))
             #expect(req.stream == expected)
-            #expect(toChatCompletionRequest(req).stream == expected)
+            #expect(try toChatCompletionRequest(req).stream == expected)
         }
     }
 
@@ -49,7 +49,7 @@ struct AnthropicRequestDecodeTests {
             """
         let req = try JSONDecoder().decode(AnthropicMessageRequest.self, from: Data(json.utf8))
         #expect(req.system?.text == "be terse\nin English")
-        #expect(toChatCompletionRequest(req).system == "be terse\nin English")
+        #expect(try toChatCompletionRequest(req).system == "be terse\nin English")
     }
 
     @Test("system as a plain string keeps working, and absent stays absent")
@@ -59,13 +59,13 @@ struct AnthropicRequestDecodeTests {
         let req = try JSONDecoder().decode(
             AnthropicMessageRequest.self, from: Data(stringSystem.utf8))
         #expect(req.system?.text == "be terse")
-        #expect(toChatCompletionRequest(req).system == "be terse")
+        #expect(try toChatCompletionRequest(req).system == "be terse")
 
         let absent = #"{"model":"m","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}"#
         let bare = try JSONDecoder().decode(
             AnthropicMessageRequest.self, from: Data(absent.utf8))
         #expect(bare.system == nil, "absent `system` must not be a decode error")
-        #expect(toChatCompletionRequest(bare).system == nil)
+        #expect(try toChatCompletionRequest(bare).system == nil)
     }
 
     /// `/v1/messages` and `/v1/messages/count_tokens` must count exactly what the

@@ -40,6 +40,8 @@ model load.
   any refusal for speech arrives as a 500 or without `error_code`/`remediation`, the status payload claims `transcriptionStatus` without the `hearing` block behind it, `transcriptionStatus` and `hearing.verdict` disagree, a `ready` verdict is not backed by `probe: ok`, the two accepted body shapes answer differently for the same bytes, `response_format: text` answers as JSON, a remote `url` is fetched instead of refused, the endpoint index omits the route, or `--probe-hearing` claims success it did not measure |
 | `06-chat-audio.sh` | Does `/v1/chat/completions` hear the `audio_url` it accepts, or drop it? |
   HTTP 200 without `audio_input` on a request that carried audio (the silent drop), a refusal without `error_code`/`remediation`, a payload fault answered 503 instead of the 400 the shared status table assigns it, a refusal costing model work, stream and non-stream answering the same audio turn differently, the answer not echoing an utterance the disclosure claims was transcribed, or the endpoint index being silent about what happens to `audio_url` |
+| `07-anthropic-blocks.sh` | Does `/v1/messages` honour, or blank, the content blocks a real SDK sends? |
+  a spec-legal block array answering 200 while `usage.input_tokens` sits at or under the plain-string baseline (the turn was blanked), a refusal that does not name the block type, `[{type:text}]` itself failing, a 200 with empty content next to an image, or a run whose baseline is unusable (it aborts instead of issuing verdicts built on a missing premise) |
 | `_lib.sh` | shared harness | — |
 
 ## Rules for adding a probe

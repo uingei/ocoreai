@@ -87,7 +87,9 @@ enum V1EndpointCatalog {
         RouteSpec(method: "GET", path: "/metrics", note: "Prometheus text exposition"),
         RouteSpec(
             method: "POST", path: "/v1/messages",
-            note: "Anthropic Messages API (stream + non-stream)"),
+            note:
+                "Anthropic Messages API (stream + non-stream; text/image/tool_result blocks carried, any other block type refused by name)"
+        ),
         RouteSpec(
             method: "POST", path: "/v1/messages/count_tokens",
             note: "Anthropic token pre-flight for a message list"),
