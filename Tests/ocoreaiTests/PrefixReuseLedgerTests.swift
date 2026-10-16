@@ -109,4 +109,69 @@ struct PrefixReuseLedgerTests {
         #expect(observed.turnsWithReuse == 0)
         #expect(observed.warmTurns >= 1)
     }
+
+    // MARK: - Per-turn statement (PrefixReuseStatement)
+
+    @Test(
+        "a turn speaks only when the pool withheld something",
+        arguments: [
+            (withheld: 0, cached: 0, speaks: false),
+            // Cold turn where upstream still reused (e.g. a cache restored from disk):
+            // nothing was withheld, so there is no warm-turn promise to account for.
+            (withheld: 0, cached: 400, speaks: false),
+            (withheld: 1, cached: 0, speaks: true),
+            (withheld: 4, cached: 710, speaks: true),
+        ])
+    func speaksExactlyOnWarmTurns(withheld: Int, cached: Int, speaks: Bool) {
+        let statement = PrefixReuseStatement.decide(
+            convKey: "conv-1", withheld: withheld, prefilled: 20, cached: cached, promptMs: 987)
+        switch statement {
+        case .nothing:
+            #expect(!speaks, "withheld=\(withheld) cached=\(cached) must stay silent")
+        case .reused, .noReuse:
+            #expect(speaks, "withheld=\(withheld) cached=\(cached) must write a line")
+        }
+    }
+
+    @Test("the no-reuse line says exactly what it did, in the form probe 01 parses")
+    func noReuseLineExactWording() {
+        let statement = PrefixReuseStatement.decide(
+            convKey: "m:PROBE-PREFIX-1", withheld: 2, prefilled: 730, cached: 0, promptMs: 107)
+        guard case .noReuse(let message) = statement else {
+            Issue.record("expected .noReuse, got \(statement)")
+            return
+        }
+        #expect(
+            message
+                == "Prefix cache reused no tokens for m:PROBE-PREFIX-1: withheld 2 message(s) "
+                + "from the feed, upstream prefilled all 730 prompt tokens (cached=0, promptTime=107ms)"
+        )
+        // scripts/probes/01-prefix-accounting.sh counts these lines with this regex.
+        #expect(
+            message.range(
+                of: #"prefilled all (\d+) prompt tokens \(cached=0, promptTime=(\d+)ms\)"#,
+                options: .regularExpression) != nil)
+    }
+
+    @Test("the reuse line names the saving and the total, in the form probe 01 parses")
+    func reuseLineExactWording() {
+        let statement = PrefixReuseStatement.decide(
+            convKey: "m:PROBE-PREFIX-1", withheld: 2, prefilled: 20, cached: 710, promptMs: 987)
+        guard case .reused(let message) = statement else {
+            Issue.record("expected .reused, got \(statement)")
+            return
+        }
+        // The total is what the turn's prompt actually was — paid plus reused, never the
+        // paid count alone, or a reader would divide the saving by the wrong denominator.
+        #expect(
+            message
+                == "Prefix cache reused 710 of 730 prompt tokens for m:PROBE-PREFIX-1: "
+                + "withheld 2 message(s) from the feed, upstream prefilled 20 "
+                + "(cached=710, promptTime=987ms)"
+        )
+        #expect(
+            message.range(
+                of: #"Prefix cache reused (\d+) of (\d+) prompt tokens for "#,
+                options: .regularExpression) != nil)
+    }
 }

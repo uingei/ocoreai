@@ -124,3 +124,51 @@ struct PrefixReuseLedger: Sendable {
         entries[modelId] = nil
     }
 }
+
+// MARK: - Per-turn statement
+
+/// What one completed turn owes the log about the prefix cache.
+///
+/// The pool's `Session pool HIT` line says history was withheld; only upstream knows whether
+/// the KV cache actually kept the prefix. Both outcomes need saying: a warm turn that quietly
+/// paid the whole prefill is the defect this repo already named (invariant 2), and a warm turn
+/// that quietly *saved* hundreds of tokens is equally invisible — silence cannot distinguish
+/// "nothing happened" from "nobody looked", which is why the live probe counts these lines
+/// per turn and demands they add up.
+///
+/// Pure, so the wording and the silence are both pinnable without Metal or a loaded model.
+enum PrefixReuseStatement: Equatable, Sendable {
+    /// Upstream kept `cached` prompt tokens and prefilled the remaining `prefilled`.
+    case reused(message: String)
+    /// Upstream re-prefilled the whole prompt although the pool withheld messages.
+    case noReuse(message: String)
+    /// Nothing was withheld from the feed, so there is nothing to account for.
+    case nothing
+
+    /// Decide from upstream's own numbers — never from a cache kind, and never a guess.
+    ///
+    /// - Parameters:
+    ///   - withheld: messages the pool withheld from this feed (`divergenceIndex`).
+    ///   - prefilled: upstream `GenerateCompletionInfo.promptTokenCount` — what this turn paid.
+    ///   - cached: upstream `GenerateCompletionInfo.cachedPromptTokenCount` — what it kept.
+    ///   - promptMs: upstream `promptTime`, already in whole milliseconds.
+    static func decide(
+        convKey: String,
+        withheld: Int,
+        prefilled: Int,
+        cached: Int,
+        promptMs: Int
+    ) -> PrefixReuseStatement {
+        guard withheld > 0 else { return .nothing }
+        if cached > 0 {
+            return .reused(
+                message:
+                    "Prefix cache reused \(cached) of \(cached + prefilled) prompt tokens for \(convKey): withheld \(withheld) message(s) from the feed, upstream prefilled \(prefilled) (cached=\(cached), promptTime=\(promptMs)ms)"
+            )
+        }
+        return .noReuse(
+            message:
+                "Prefix cache reused no tokens for \(convKey): withheld \(withheld) message(s) from the feed, upstream prefilled all \(prefilled) prompt tokens (cached=0, promptTime=\(promptMs)ms)"
+        )
+    }
+}

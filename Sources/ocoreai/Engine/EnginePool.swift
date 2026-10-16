@@ -1478,6 +1478,52 @@ actor EnginePool {
         return true
     }
 
+    // MARK: - Prefix reuse accounting
+
+    /// Account one completed turn against the prefix cache: fold it into the per-model ledger
+    /// the surface publishes, and say out loud which way it went.
+    ///
+    /// Both halves read the same upstream `GenerateCompletionInfo` pair
+    /// (`promptTokenCount` / `cachedPromptTokenCount`), so the log line and
+    /// `GET /v1/models/:model/kv-cache` cannot disagree about a turn. Taking the pair in one
+    /// call is also what keeps the two generation paths from drifting: the MTP speculative
+    /// path recorded into the ledger while the standard path alone warned about a full
+    /// re-prefill, so a warm MTP turn was silent either way.
+    ///
+    /// Wording rules and why both outcomes must be spoken: `PrefixReuseStatement`
+    /// (PrefixReuseLedger.swift). Gate: `PrefixReuseLedgerTests` + probe 01, which counts
+    /// these lines and requires them to add up against the wire per turn.
+    func accountPrefixReuse(
+        convKey: String,
+        modelId: String,
+        withheldMessages: Int,
+        prefilled: Int,
+        cached: Int,
+        promptSeconds: Double
+    ) {
+        prefixReuse.record(
+            modelId: modelId,
+            warm: withheldMessages > 0,
+            prefilled: prefilled,
+            cached: cached,
+            promptSeconds: promptSeconds)
+
+        switch PrefixReuseStatement.decide(
+            convKey: convKey,
+            withheld: withheldMessages,
+            prefilled: prefilled,
+            cached: cached,
+            promptMs: Int(promptSeconds * 1000)
+        ) {
+        case .nothing:
+            break
+        case .reused(let message):
+            logger.notice("\(message)")
+        case .noReuse(let message):
+            logger.warning("\(message)")
+        }
+    }
+
     // MARK: - Graceful Shutdown
 
     func shutdown() async {

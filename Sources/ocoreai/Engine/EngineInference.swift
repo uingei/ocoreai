@@ -3784,9 +3784,10 @@ extension EnginePool {
                                     completionInfo.cachedPromptTokenCount > 0
                                     ? completionInfo.cachedPromptTokenCount
                                     : 0
-                                prefixReuse.record(
+                                accountPrefixReuse(
+                                    convKey: convKey,
                                     modelId: modelId,
-                                    warm: divergenceIndex > 0,
+                                    withheldMessages: divergenceIndex,
                                     prefilled: completionInfo.promptTokenCount,
                                     cached: completionInfo.cachedPromptTokenCount,
                                     promptSeconds: completionInfo.promptTime)
@@ -4424,26 +4425,16 @@ extension EnginePool {
                                         completionInfo.cachedPromptTokenCount > 0
                                         ? completionInfo.cachedPromptTokenCount
                                         : 0
-                                    // Honest cache accounting: the pool deduped the feed,
-                                    // but upstream is the only party that knows whether the
-                                    // KV cache kept the prefix. When it reports no reuse,
-                                    // this turn paid the whole prefill — the case the HIT
-                                    // log cannot see, and the reason a 900-token turn
-                                    // measured 0.12-0.29 s of prompt time on 10-14.
-                                    if divergenceIndex > 0,
-                                        completionInfo.cachedPromptTokenCount == 0
-                                    {
-                                        logger.warning(
-                                            "Prefix cache reused no tokens for \(convKey): withheld \(divergenceIndex) message(s) from the feed, upstream prefilled all \(completionInfo.promptTokenCount) prompt tokens (cached=0, promptTime=\(Int(completionInfo.promptTime * 1000))ms)"
-                                        )
-                                    }
-                                    // Same fact, kept per model instead of per turn, so the
-                                    // surface a client reads can say whether prefix reuse
-                                    // happens on this model (GET /v1/models/:model/kv-cache).
-                                    // Upstream's number only — never inferred here.
-                                    prefixReuse.record(
+                                    // Honest cache accounting: the pool deduped the feed, but
+                                    // upstream is the only party that knows whether the KV cache
+                                    // kept the prefix. One line per warm turn either way, and the
+                                    // same pair folded into the per-model ledger behind
+                                    // GET /v1/models/:model/kv-cache. Upstream's numbers only —
+                                    // never inferred here.
+                                    accountPrefixReuse(
+                                        convKey: convKey,
                                         modelId: modelId,
-                                        warm: divergenceIndex > 0,
+                                        withheldMessages: divergenceIndex,
                                         prefilled: completionInfo.promptTokenCount,
                                         cached: completionInfo.cachedPromptTokenCount,
                                         promptSeconds: completionInfo.promptTime)
