@@ -39,9 +39,23 @@ private func partsMessage(_ parts: [ContentPart], role: String = "user") -> Mess
 /// `Message` deliberately has no `Equatable` conformance (it is a wire DTO; adding it would
 /// ripple through `ContentPart`/`ContentPolymorphic`/`ToolCall` just to satisfy an
 /// assertion). What these tests claim is that the *request a client sent* came out
-/// unchanged, which is precisely what the encoded bytes say — so compare those.
+/// unchanged, which is precisely what the encoded bytes say — so compare those, with
+/// `.sortedKeys`.
+///
+/// Why the formatter is not optional (measured 10-16, `make test-clt`): Foundation's JSON
+/// writer does not guarantee key order across `JSONEncoder` instances, so encoding the same
+/// value twice answered
+///   `{"content":[…],"role":"user"}` vs `{"role":"user","content":[…]}`
+/// and
+///   `{"type":"audio_url","audio_url":{…}}` vs `{"audio_url":{…},"type":"audio_url"}`.
+/// A byte comparison without sorted keys therefore asserts a property the encoder never
+/// promised: "splicing nothing leaves the conversation byte-identical" failed while the two
+/// documents were structurally identical. Same lesson as AGENTS.md invariant 1 — a check
+/// that infers its premises from its environment rots; here the premise was key ordering.
 private func sameWire(_ lhs: [Message], _ rhs: [Message]) throws -> Bool {
-    try JSONEncoder().encode(lhs) == JSONEncoder().encode(rhs)
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    return try encoder.encode(lhs) == encoder.encode(rhs)
 }
 
 @Suite("Chat audio — two honest routes, and the silent 200 is not one of them")
