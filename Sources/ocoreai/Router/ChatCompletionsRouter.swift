@@ -209,6 +209,25 @@ func buildRouter(
                 objects[idx].defaultModel = true
             }
         }
+        // Video disclosure: per model, from measurement only. Looked up under both the
+        // raw engine id and the normalized wire id, because the ledger keys are the
+        // engine's and this list strips source prefixes.
+        let videoLedger = await enginePool.videoDeliverySnapshot()
+        for i in objects.indices {
+            let key = [objects[i].id, "hf:" + objects[i].id, "mscope:" + objects[i].id]
+                .first { videoLedger[$0] != nil }
+            if let record = key.flatMap({ videoLedger[$0] }), record.turns > 0 {
+                objects[i].videoInput = VideoDeliveryLedger.statusDelivered
+                // The sentence lives on the record, so this surface cannot word the
+                // claim differently from whoever else publishes it.
+                objects[i].videoEvidence = record.evidenceLine
+            } else {
+                // The negative is published too: "absent" cannot be told apart from a
+                // server that never thought about video.
+                objects[i].videoInput = VideoDeliveryLedger.statusNotObserved
+            }
+        }
+
         let response = ModelListResponse(data: objects)
         return try Response.json(response)
     }
@@ -1058,6 +1077,17 @@ struct ModelObject: Codable {
     /// Clients size prompts from this instead of trial-request probing
     /// (same discoverability contract as `capabilities` / `defaultModel`).
     var contextLength: Int? = nil
+    /// ocoreai extension: what THIS server has measured with video, in a closed
+    /// vocabulary — `delivered` (a turn carrying video parts completed against this
+    /// model in this process) or `not_observed` (nothing has yet, which is NOT a
+    /// statement that the model cannot see video). Never inferred from a config key:
+    /// video support is per-checkpoint (`Gemma4Processor` reads `input.videos`,
+    /// `Gemma4UnifiedProcessor` does not), and only a completed turn settles it.
+    /// See `VideoDeliveryLedger` and probe 08 §4.
+    var videoInput: String? = nil
+    /// Evidence behind `videoInput` when it is `delivered`: turns, parts and the last
+    /// prompt size, so the claim ships with how it was earned.
+    var videoEvidence: String? = nil
 }
 
 // MARK: - Count Tokens Request/Response

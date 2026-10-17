@@ -185,11 +185,18 @@ for src in SOURCES:
             notes.append("OK   %s:%d-%d %s@%s [%s]"
                         % (path, start, end, token_norm[:40], rev[:9], how))
             continue
-        actual = next((i for i, l in enumerate(body, 1)
-                      if token_norm.lower() in " ".join(l.split()).lower()), None)
+        matches = [i for i, l in enumerate(body, 1)
+                   if token_norm.lower() in " ".join(l.split()).lower()]
         drift += 1
-        where = ("really line %d of %d" % (actual, len(body))) if actual \
-            else ("token absent in a %d-line file" % len(body))
+        if not matches:
+            where = "token absent in a %d-line file" % len(body)
+        elif len(matches) == 1:
+            where = "really line %d of %d" % (matches[0], len(body))
+        else:
+            shown = ", ".join(str(m) for m in matches[:4])
+            where = ("token appears at line(s) %s%s of %d \u2014 the cite names none of them, "
+                     "or the range needs tightening"
+                     % (shown, ",+%d more" % (len(matches) - 4) if len(matches) > 4 else "", len(body)))
         notes.append("DRIFT %s:%d %s -> %s:%s %s" % (src, start, token_norm[:40], path,
                                                      ("(%s in %s)" % (name, tree.split("/")[-1])) if name != "." else "", where))
 

@@ -226,9 +226,94 @@ else
 fi
 
 probe_section "4. what the surface publishes about video"
-ENC_MODEL="$(python3 -c 'import sys;print(sys.argv[1].replace("/", "%2F"))' "$PROBE_MODEL")"
-probe_api GET "/v1/models/${ENC_MODEL}"
-MODEL_VIDEO="$(probe_json "$PROBE_BODY" 'video_input')"
+# Read the list (there is no GET /v1/models/:model — only /sampling and /kv-cache hang
+# off :model), and pick this run's model out of it by id.
+probe_api GET /v1/models
+read_video_fields() {
+  python3 - "$PROBE_BODY" "$1" <<'PY'
+import json, sys
+try:
+    d = json.loads(sys.argv[1])
+except Exception:
+    print("|")
+    sys.exit(0)
+for m in d.get("data", []):
+    if m.get("id") == sys.argv[2]:
+        print("%s|%s" % (m.get("videoInput", ""), m.get("videoEvidence", "")))
+        break
+else:
+    print("|")
+PY
+}
+IFS='|' read -r MODEL_VIDEO MODEL_EVIDENCE <<EOF
+$(read_video_fields "$PROBE_MODEL")
+EOF
+printf '        %s: videoInput=%s ; evidence=%s\n' "$PROBE_MODEL" "${MODEL_VIDEO:-<absent>}" "${MODEL_EVIDENCE:-<absent>}"
+
+case "$MODEL_VIDEO" in
+  delivered | not_observed)
+    probe_ok "videoInput is inside the closed vocabulary (value: $MODEL_VIDEO)"
+    ;;
+  *)
+    probe_fail "videoInput=${MODEL_VIDEO:-<absent>} is outside the published vocabulary {delivered, not_observed} — a client cannot reason about it"
+    ;;
+esac
+
+if [ "$VIDEO_DELIVERED" = "1" ]; then
+  # Measured above: red clip -> "Red", blue clip -> "Blue", prompt +144 for the frames.
+  # Staying silent here is not caution, it is withholding a fact the engine earned —
+  # this is the assertion that used to be a NOTE.
+  if [ "$MODEL_VIDEO" = "delivered" ]; then
+    probe_ok "videoInput=delivered is published for the model this run made see video"
+  else
+    probe_fail "video was MEASURED delivered (colour words + token expansion above) yet videoInput=${MODEL_VIDEO:-<absent>} — the surface under-claims what the engine delivered"
+  fi
+  case "$MODEL_EVIDENCE" in
+    *turn*part*)
+      probe_ok "the claim carries its evidence: $MODEL_EVIDENCE"
+      ;;
+    *)
+      probe_fail "videoInput=delivered with no evidence naming turns and parts — an unexplained capability statement"
+      ;;
+  esac
+else
+  probe_note "no video delivered this run, so videoInput must not claim delivery — it reads ${MODEL_VIDEO:-<absent>}"
+fi
+
+# Control: a model that was handed no video in this process must not inherit the claim.
+OTHER_MODEL="$(python3 - "$PROBE_BODY" "$PROBE_MODEL" <<'PY'
+import json, sys
+try:
+    d = json.loads(sys.argv[1])
+except Exception:
+    print("")
+    sys.exit(0)
+for m in d.get("data", []):
+    mid = m.get("id")
+    if mid and mid != sys.argv[2] and m.get("state") in (None, "ready"):
+        print(mid)
+        break
+else:
+    print("")
+PY
+)"
+if [ -n "$OTHER_MODEL" ]; then
+  IFS='|' read -r OTHER_VIDEO OTHER_EVIDENCE <<EOF
+$(read_video_fields "$OTHER_MODEL")
+EOF
+  printf '        control %s: videoInput=%s\n' "$OTHER_MODEL" "${OTHER_VIDEO:-<absent>}"
+  if [ "$OTHER_VIDEO" = "not_observed" ]; then
+    probe_ok "the negative is per-model and explicit: $OTHER_MODEL reads not_observed — no inheritance, no silence"
+  else
+    probe_fail "control model $OTHER_MODEL reports videoInput=${OTHER_VIDEO:-<absent>} after a run that only ever sent video to $PROBE_MODEL — the claim leaked across models"
+  fi
+  if [ -n "$OTHER_EVIDENCE" ]; then
+    probe_fail "$OTHER_MODEL carries videoEvidence ($OTHER_EVIDENCE) without ever being given video — evidence invented"
+  fi
+else
+  probe_note "no second ready model for the per-model control (raise OCOREAI_PROBE_MODEL_LIMIT)"
+fi
+
 probe_api GET /v1/capabilities
 CAPS_VIDEO="$(python3 - "$PROBE_BODY" <<'PY'
 import json, sys
@@ -241,20 +326,10 @@ hits = {k: v for k, v in d.items() if "video" in k.lower()}
 print(json.dumps(hits, separators=(",", ":")) if hits else "")
 PY
 )"
-printf '        model object video_input=%s ; capabilities video fields=%s\n' "${MODEL_VIDEO:-<absent>}" "${CAPS_VIDEO:-<none>}"
-if [ -z "$MODEL_VIDEO" ] && [ -z "$CAPS_VIDEO" ]; then
-  if [ "$VIDEO_DELIVERED" = "1" ]; then
-    probe_note "video was MEASURED-DELIVERED for $PROBE_MODEL yet neither surface publishes it: nothing is overclaimed, but a client cannot learn from the discovery surface that this model sees video"
-  else
-    probe_note "video not published on either surface, and not delivered this run — consistent"
-  fi
+if [ -n "$CAPS_VIDEO" ]; then
+  probe_ok "/v1/capabilities carries a video field: $CAPS_VIDEO"
 else
-  probe_ok "a video capability is published: $MODEL_VIDEO$CAPS_VIDEO"
-  if [ "$VIDEO_DELIVERED" = "1" ]; then
-    probe_ok "published video capability agrees with the measurement (delivered this run)"
-  else
-    probe_fail "a video capability is published ($MODEL_VIDEO$CAPS_VIDEO) but this run did not see the clip it accepted — the surface outruns the engine"
-  fi
+  probe_note "/v1/capabilities still has no aggregate video line (per-model measurement lives on /v1/models; the aggregate line is the remaining gap, deliberately not asserted here)"
 fi
 
 probe_section "cleanup"

@@ -32,9 +32,19 @@ signed bundle (nested code object ⇒ CodeSign dies). Gate: `MetalShaderLibraryT
 
 ## Steering is delivered at the request seam
 `mergingSteeredTurn` (`Sources/ocoreai/Handlers/ChatHandler.swift`) folds a queued steer into the head
-of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:2933`,
-`:3541`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
+of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:2944`,
+`:3563`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
 delivers on the next request, or its contract is fiction (root § Endpoint Promises).
+
+## Video is disclosed where a turn completes, not where bytes arrive
+`/v1/models` may say `video_input=delivered` only once a turn that carried frames has *completed*:
+the record site is `releasePoolSlotWithAssistant` (`EngineInference.swift:3163`), and the prompt size
+in its evidence line is upstream's `completionInfo.promptTokenCount` — never a bytes/4 heuristic.
+Counting at the media hand-off instead would claim video for turns that never produced an answer;
+reading `processor_class` would claim it for checkpoints whose processor ignores `input.videos`
+(`Gemma4UnifiedProcessor`), which is exactly the per-checkpoint trap this disclosure avoids.
+Gate: `VideoDeliveryDisclosureTests` + probe 08 §4.
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3163 items: videoInputCount, promptTokens -->
 
 ## Known defect, deliberately unfixed — do not "fix" it blind
 `_applyBitmask` (`EngineInference.swift:1385`) multiplies by `-Float.leastNormalMagnitude`
@@ -50,10 +60,10 @@ AGENTS.md moved off their targets with no gate going red; these markers are the 
 `make anchor-check` to name the cite that drifted.
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:149 Task.sleep(until: deadline -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1385 Float.leastNormalMagnitude -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:2933 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3541 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4146 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3642 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:2944 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3563 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4168 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3664 .applyingThinkingBudget -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:771 case "affine" -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1724 func saveCache -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1110 templateMessages = leadingMessages -->

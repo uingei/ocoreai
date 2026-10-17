@@ -1780,6 +1780,10 @@ extension EnginePool {
         // follow-up. Ownership passes to the session pool at release; ``MediaSpool``
         // collects what no live session cites.
         var spooledMedia: [URL] = []
+        // Video parts this turn actually handed to the model. Counted here, at the
+        // seam that decides whether the model gets frames, because that is the fact
+        // `/v1/models` is allowed to publish (see VideoDeliveryLedger).
+        var videoInputCount = 0
         // Nothing may collect these bytes while this request is handing them to the
         // model — an eviction or sweep on another request's thread that deleted one would
         // kill this turn over a file it wrote itself. The defer reads `spooledMedia` when
@@ -1854,6 +1858,9 @@ extension EnginePool {
                         let result = makeMLXVideo(from: video.url)
                         if let videoInput = result.video {
                             videos.append(videoInput)
+                        }
+                        if result.video != nil {
+                            videoInputCount += 1
                         }
                         if let spoolFile = result.spooledURL {
                             spooledMedia.append(spoolFile)
@@ -2385,6 +2392,10 @@ extension EnginePool {
             /// Collected assistant text from Standard reasoning/ChatSession path.
             /// Used to build MessageHistoryKey for pool message history before final release.
             var stdAccumulated: String?
+            /// Upstream's input-token count for this turn, kept until release so the
+            /// video claim published on `/v1/models` can carry the prompt size it was
+            /// earned with (nil when upstream reported no `.info`).
+            var stdPromptTokenCount: Int?
             var registeredToolSpecs: [ToolSpec]?
 
             // Bridge ToolRegistry → ChatSession tools + toolDispatch
@@ -3129,7 +3140,9 @@ extension EnginePool {
             // Override: release pool slot with the assistant response for message
             // history extension. Called only after standard path completes.
             // Same Swift 6 pattern: clear locals before await.
-            func releasePoolSlotWithAssistant(_ historyKey: MessageHistoryKey?) async {
+            func releasePoolSlotWithAssistant(
+                _ historyKey: MessageHistoryKey?, promptTokens: Int? = nil
+            ) async {
                 if let pool = poolRefForRelease,
                     let pooled = pooledSession
                 {
@@ -3143,6 +3156,15 @@ extension EnginePool {
                         assistantMessage: historyKey,
                         mediaFiles: spooledMedia
                     )
+                    // A turn that carried frames and produced an assistant message: the
+                    // model saw video. Record it so the discovery surface can say so.
+                    if videoInputCount > 0 {
+                        videoDeliveries.record(
+                            modelId: modelId, items: videoInputCount, promptTokens: promptTokens)
+                        log.info(
+                            "Video delivered for \(modelId): \(videoInputCount) part(s) in a completed turn; /v1/models now reports video_input=delivered"
+                        )
+                    }
                 }
             }
 
@@ -4448,6 +4470,7 @@ extension EnginePool {
                                         actualTokenCount = completionInfo.generationTokenCount
                                     }
                                     localPromptTokenCount = completionInfo.promptTokenCount
+                                    stdPromptTokenCount = completionInfo.promptTokenCount
                                     localCachedPromptTokenCount =
                                         completionInfo.cachedPromptTokenCount > 0
                                         ? completionInfo.cachedPromptTokenCount
@@ -4575,7 +4598,7 @@ extension EnginePool {
                     hasMedia: false,
                     hasToolTraffic: false
                 )
-                await releasePoolSlotWithAssistant(assistantKey)
+                await releasePoolSlotWithAssistant(assistantKey, promptTokens: stdPromptTokenCount)
             } else {
                 await releasePoolSlot()
             }

@@ -208,6 +208,16 @@ actor EnginePool {
     /// happens on this model instead of guessing from per-response usage fields.
     var prefixReuse = PrefixReuseLedger()
 
+    /// Video turns this process has completed, per model — the only basis on which
+    /// `/v1/models` may say anything about video input (see ``VideoDeliveryLedger``).
+    var videoDeliveries = VideoDeliveryLedger()
+
+    /// Snapshot for the wire layer: which models this process has completed a video turn
+    /// with, and the evidence line each claim carries (`/v1/models` publishes from this).
+    func videoDeliverySnapshot() -> [String: VideoDeliveryRecord] {
+        videoDeliveries.deliveries
+    }
+
     /// Models currently being loaded — prevents concurrent duplicate loads.
     private var loadingModels: Set<String> = []
 
@@ -1473,6 +1483,9 @@ actor EnginePool {
         // it — a reload can land on different quantization/capacity, so the published
         // `prefixReuse` must go back to `not_observed` rather than keep the old claim.
         prefixReuse.forget(modelId: modelId)
+        // Same rule for video: the weights that earned the claim are gone, so the
+        // claim goes back to `not_observed` rather than outlive them.
+        videoDeliveries.forget(modelId: modelId)
 
         logger.info("Model unloaded: \(modelId)")
         return true
