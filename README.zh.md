@@ -71,7 +71,7 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 | `POST` | `/v1/count-tokens` | Token 计数（`prompt` / `input` / `messages`） |
 | `POST` | `/v1/embeddings` | 本地 embeddings（LFM2.5-Embedding-350M，1024 维） |
 | `GET`  | `/v1/tools` | Agent 工具面（OpenAI `tools[]` 形状，可直接粘回请求） |
-| `GET`  | `/v1/capabilities` | 设备能力矩阵 + 分词后端（`real`/`heuristic`）+ 端点索引 |
+| `GET`  | `/v1/capabilities` | 设备能力矩阵（按实测说话，不止看编译进去了什么）+ 分词后端（`real`/`heuristic`）+ 端点索引 |
 | `POST` | `/v1/steer` | 向进行中的 turn 插话（无则并入下一次请求） |
 | `GET`  | `/v1/models` | 模型注册表 |
 | `GET`  | `/v1/models/:model/sampling` | 获取采样配置 |

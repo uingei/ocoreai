@@ -86,7 +86,7 @@ Known boundaries (as of this commit, not aspirations):
 | `POST` | `/v1/count-tokens` | Token count (`prompt` / `input` / `messages`) |
 | `POST` | `/v1/embeddings` | Local embeddings (LFM2.5-Embedding-350M, 1024-dim) |
 | `GET`  | `/v1/tools` | Agent tool surface, paste-ready OpenAI `tools[]` shape |
-| `GET`  | `/v1/capabilities` | Device capability matrix + tokenizer backend (`real`/`heuristic`) + endpoint index |
+| `GET`  | `/v1/capabilities` | Device capability matrix (measured, not merely compiled) + tokenizer backend (`real`/`heuristic`) + endpoint index |
 | `POST` | `/v1/steer` | Interject into a live turn (or queue for the next) |
 | `GET`  | `/v1/models` | Model registry |
 | `GET`  | `/v1/models/:model/sampling` | Get sampling config |
