@@ -315,21 +315,50 @@ else
 fi
 
 probe_api GET /v1/capabilities
-CAPS_VIDEO="$(python3 - "$PROBE_BODY" <<'PY'
+# The server-wide row must agree with the per-model rows measured above: `available` is
+# true only if some model here completed a turn carrying a clip, and the sentence has to
+# be the ledger wording (models + turns + parts) rather than a paraphrase of it.
+# This used to be a NOTE about a missing line; the line exists now, so it is a verdict.
+CAPS_VIDEO="$(python3 - "$PROBE_BODY" "${VIDEO_DELIVERED:-0}" <<'PY'
 import json, sys
 try:
     d = json.loads(sys.argv[1])
 except Exception:
-    print("")
+    print("FAIL|/v1/capabilities body unparseable")
     sys.exit(0)
-hits = {k: v for k, v in d.items() if "video" in k.lower()}
-print(json.dumps(hits, separators=(",", ":")) if hits else "")
+row = next((r for r in d.get("capabilities", [])
+            if isinstance(r, dict) and r.get("name") == "video_input"), None)
+if row is None:
+    print("FAIL|no video_input row on /v1/capabilities — the discovery surface is silent about taking video in")
+    sys.exit(0)
+avail, note = row.get("available"), str(row.get("note", ""))
+if sys.argv[2] == "1":
+    if avail is not True:
+        print("FAIL|video was measured delivered above (colour words + token expansion) yet video_input.available=%r" % avail)
+    elif "delivered across" not in note:
+        print("FAIL|aggregate claim with no evidence naming models, turns and parts: %s" % note[:180])
+    else:
+        print("OK|video_input=%s — %s" % (avail, note[:150]))
+else:
+    if avail:
+        print("FAIL|video_input.available=true with no completed video turn in this process")
+    elif "not_observed" not in note:
+        print("FAIL|the negative must be explicit, not blank: %s" % note[:180])
+    else:
+        print("OK|video_input=not_observed, stated as such")
 PY
 )"
-if [ -n "$CAPS_VIDEO" ]; then
-  probe_ok "/v1/capabilities carries a video field: $CAPS_VIDEO"
-else
-  probe_note "/v1/capabilities still has no aggregate video line (per-model measurement lives on /v1/models; the aggregate line is the remaining gap, deliberately not asserted here)"
+CAPS_VERDICTS=0
+while IFS='|' read -r lvl msg; do
+  [ -n "${lvl:-}" ] || continue
+  CAPS_VERDICTS=$(( CAPS_VERDICTS + 1 ))
+  case "$lvl" in
+    OK) probe_ok "$msg" ;;
+    *)  probe_fail "${msg#FAIL|}" ;;
+  esac
+done <<< "$CAPS_VIDEO"
+if [ "$CAPS_VERDICTS" -lt 1 ]; then
+  probe_fail "the aggregate video comparison issued no verdict — it did not run"
 fi
 
 probe_section "cleanup"

@@ -49,6 +49,7 @@ public enum RuntimeCapability {
             case "local_stt": return "Local STT"
             case "tts_speech": return "Speech TTS"
             case "video_generation": return "Video"
+            case "video_input": return "Video input"
             case "mcp_stdio": return "MCP stdio"
             case "screenshot_capture": return "Screenshot"
             case "model_fidelity": return "Fidelity"
@@ -219,17 +220,28 @@ public enum RuntimeCapability {
                 name: "mcp_stdio", available: false,
                 note: "Not on iOS (Foundation.Process unavailable on iOS)"))
         #endif
-        // Screenshot perception — macOS only (AppKit screen capture).
+        // Screenshot perception — macOS tier (ScreenCaptureKit; iOS has no screen capture).
+        //
+        // `available` here is the tier floor, not a delivery promise. `CGPreflight…`
+        // answers "did the user allow it", and on the box this ships from that answer was
+        // true while every capture failed (measured 10-15: authorized, a display
+        // enumerated, SCStream still returned "could not start stream"). So the note names
+        // where the measured verdict lives — the same split of duties `local_stt` above
+        // uses — and `GET /v1/capabilities` degrades this row from the record itself
+        // (``measured(_:)``). No row in this matrix may read as "it works" on the
+        // strength of an OS answer alone.
         #if os(macOS)
         result.append(
             .init(
                 name: "screenshot_capture", available: true,
-                note: "Screen capture via ScreenCaptureKit SCStream (macOS only)"))
+                note:
+                    "macOS tier floor only — whether THIS box has produced a frame is measured as screenStatus/screenDelivery on POST /v1/multimodal/status, and GET /v1/capabilities degrades this row from that record (a ScreenCaptureKit grant is not a frame: measured 10-15 authorized + display present, capture still failed to start)"
+            ))
         #else
         result.append(
             .init(
                 name: "screenshot_capture", available: false,
-                note: "Not on iOS (AppKit screen capture unavailable)"))
+                note: "Not on iOS (ScreenCaptureKit unavailable on iOS)"))
         #endif
         // Fidelity — a model property, not an OS/hardware limit. Live-verified
         // 2026-09-19 (gemma-4-e2b default): tool layer executed faithfully
@@ -270,6 +282,76 @@ public enum RuntimeCapability {
             + "  UNAVAILABLE (hard limits — do not claim or pretend to have these):\n" + disabled
     }
 
-    /// Wire-facing JSON payload for `GET /v1/capabilities`.
-    public static let wirePayload: [Line] = lines
+    // MARK: - Measured overlay
+
+    /// What this process has *done*, as opposed to what its SDK permits.
+    ///
+    /// Every field defaults to "no evidence", which is what a server that has never
+    /// attempted either surface must report — the overlay adds claims only when a real
+    /// attempt earned them.
+    struct Measurement: Sendable {
+        /// Screen channel: has a capture pass produced a frame here? Same closed
+        /// vocabulary the per-channel status uses, so both surfaces answer in one language.
+        var screenshot: ScreenDelivery = .notAttempted
+        /// What the framework said when `screenshot == .failed` — quoted, not paraphrased.
+        var screenshotError: String? = nil
+        /// Latency of the frame that earned `.captured`, when it was timed.
+        var screenshotLatencyMs: Int? = nil
+        /// Cross-model video evidence, counted by the ledger that answers `/v1/models`.
+        var video: VideoDeliveryAggregate = VideoDeliveryAggregate()
+
+        /// Nothing measured yet.
+        static let unmeasured = Measurement()
+    }
+
+    /// The matrix as a discovery surface may publish it: ``lines`` (tier truth, fixed for
+    /// the life of the process) plus whatever this process has since *done*.
+    ///
+    /// Why an overlay rather than reading the records inside ``lines``: `lines` is a
+    /// `static let`, and the system prompt, the `info` tool and Settings all read that one
+    /// immutable truth. A row whose value depended on whether something had been attempted
+    /// *before the first read* would make the prompt and the wire disagree by accident of
+    /// ordering. So tier truth stays fixed, and the surface where a client decides where to
+    /// send its traffic asks for the overlay explicitly.
+    ///
+    /// Two things change, and both change in the honest direction:
+    ///
+    /// - `screenshot_capture` degrades to `available: false` on a measured failure and
+    ///   quotes what the framework said. Not sticky: the next attempt overwrites the
+    ///   record, so a fixed permission or a restarted window server is not punished by a
+    ///   stale "no" until restart.
+    /// - `video_input` is appended. `video_generation` describes *output*, and until now
+    ///   nothing on this surface said whether the server can take a clip in at all —
+    ///   probe 08 measured a model answering questions about frames while the discovery
+    ///   surface was silent about video in either direction. Measured only: `not_observed`
+    ///   until a turn carrying video completes here (AGENTS.md invariant 2).
+    static func measured(_ measurement: Measurement) -> [Line] {
+        var result = lines.map { line -> Line in
+            guard line.name == "screenshot_capture" else { return line }
+            switch measurement.screenshot {
+            case .notAttempted:
+                return line
+            case .failed:
+                let reason = measurement.screenshotError ?? "the capture pass produced no frame"
+                return Line(
+                    name: line.name, available: false,
+                    note: "Measured on this box: capture failed — \(reason). " + line.note)
+            case .captured:
+                let timing = measurement.screenshotLatencyMs.map { " in \($0) ms" } ?? ""
+                return Line(
+                    name: line.name, available: line.available,
+                    note: "Measured on this box: a frame was delivered\(timing). " + line.note)
+            }
+        }
+        let videoDelivered = !measurement.video.isEmpty
+        result.append(
+            Line(
+                name: "video_input", available: videoDelivered,
+                note: videoDelivered
+                    ? measurement.video.evidenceLine
+                        + " — per-model verdicts on GET /v1/models (`video_input`)"
+                    : "not_observed — no completed turn carrying video has run here yet, so this says nothing about whether the models can see video; per-model verdicts on GET /v1/models (`video_input`)"
+            ))
+        return result
+    }
 }

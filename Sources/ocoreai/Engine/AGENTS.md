@@ -44,6 +44,12 @@ Counting at the media hand-off instead would claim video for turns that never pr
 reading `processor_class` would claim it for checkpoints whose processor ignores `input.videos`
 (`Gemma4UnifiedProcessor`), which is exactly the per-checkpoint trap this disclosure avoids.
 Gate: `VideoDeliveryDisclosureTests` + probe 08 §4.
+
+The server-wide row (`/v1/capabilities` → `video_input`) is the *same* measurement aggregated:
+`VideoDeliveryLedger.aggregate` counts models separately from turns/parts, and the sentence lives on
+`VideoDeliveryAggregate.evidenceLine`, so no publisher re-words it (a router that assembles its own
+evidence sentence is a second truth). Both are measured-only: `not_observed` is a fact about this
+process, never a claim about the checkpoint. Gate: `CapabilityMeasurementHonestyTests`.
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3163 items: videoInputCount, promptTokens -->
 
 ## Known defect, deliberately unfixed — do not "fix" it blind

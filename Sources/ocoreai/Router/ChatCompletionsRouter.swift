@@ -294,6 +294,13 @@ func buildRouter(
     /// the single source of truth that the system prompt and the `info` tool also consume,
     /// so model/UI/HTTP clients never see three different answers.
     ///
+    /// It carries one thing the prompt does not: ``RuntimeCapability/measured(_:)``, the
+    /// overlay of what this process has *done* (a screen frame delivered or failed, any
+    /// model that completed a video-carrying turn). Tier truth stays identical across all
+    /// three consumers; only the surface a client routes by gets the extra rows, because a
+    /// `screenshot_capture: true` read as "this box captures screens" is the exact defect
+    /// `tokenizerBackend` and `screenStatus` were introduced to kill.
+    ///
     /// - Returns: `{ os, version, arch, capabilities: [{name, available, note}, ...] }`
     routes.get("/v1/capabilities") { _, _ in
         struct CAPayload: Encodable {
@@ -317,11 +324,26 @@ func buildRouter(
             /// fails the build when router and index disagree.
             let endpoints: [EndpointLine]
         }
+        // Measured overlay: this is the surface a client routes by, so it states what the
+        // process has *done*, not only what its SDK permits. Two rows are affected — the
+        // screen degrades on a measured capture failure, and `video_input` reports whether
+        // any model here has completed a turn carrying a clip. Both read the same records
+        // as `/v1/models` and `/v1/multimodal/status`; nothing here re-derives a verdict.
+        let screen = await MainActor.run {
+            (
+                delivery: ScreenDeliveryRecord.outcome, error: ScreenDeliveryRecord.failure,
+                latencyMs: ScreenDeliveryRecord.latencyMs,
+            )
+        }
+        let video = VideoDeliveryLedger.aggregate(await enginePool.videoDeliverySnapshot())
         let payload = CAPayload(
             os: RuntimeCapability.osName,
             version: RuntimeCapability.osVersion,
             arch: RuntimeCapability.arch,
-            capabilities: RuntimeCapability.lines,
+            capabilities: RuntimeCapability.measured(
+                .init(
+                    screenshot: screen.delivery, screenshotError: screen.error,
+                    screenshotLatencyMs: screen.latencyMs, video: video)),
             tokenizerBackend: TokenizerManager.isRealTokenizerBackend ? "real" : "heuristic",
             endpoints: V1EndpointCatalog.lines,
         )

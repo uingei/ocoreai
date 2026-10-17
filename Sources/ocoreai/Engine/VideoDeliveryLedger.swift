@@ -92,4 +92,47 @@ struct VideoDeliveryLedger: Sendable {
     mutating func removeAll() {
         deliveries.removeAll()
     }
+
+    /// Server-wide summary across every model this process has seen deliver video — the
+    /// shape a surface that is not per-model (`GET /v1/capabilities`) has to publish.
+    ///
+    /// The wording lives here, on the ledger, for the same reason `evidence(modelId:)`
+    /// does: two publishers that each assemble their own sentence drift into two truths.
+    /// The aggregate counts *models* separately from turns and parts, because "one model
+    /// saw three clips" and "three models saw one clip each" are different facts for a
+    /// client choosing where to send a video.
+    func aggregate() -> VideoDeliveryAggregate {
+        Self.aggregate(deliveries)
+    }
+
+    /// Aggregate over a snapshot, so a publisher that already took one (the router took
+    /// one for `/v1/models`) reuses this wording instead of recounting somewhere else.
+    static func aggregate(_ deliveries: [String: VideoDeliveryRecord]) -> VideoDeliveryAggregate {
+        var summary = VideoDeliveryAggregate()
+        for entry in deliveries.values where entry.turns > 0 {
+            summary.models += 1
+            summary.turns += entry.turns
+            summary.items += entry.items
+        }
+        return summary
+    }
+}
+
+/// Cross-model video evidence for a server-wide surface.
+struct VideoDeliveryAggregate: Equatable, Sendable {
+    /// How many distinct models delivered video here.
+    var models: Int = 0
+    /// Completed video-carrying turns across those models.
+    var turns: Int = 0
+    /// Video parts across those turns.
+    var items: Int = 0
+
+    /// Nothing observed yet — the honest negative, not a claim of inability.
+    var isEmpty: Bool { models == 0 }
+
+    /// The sentence the aggregate publishes beside a `delivered` claim.
+    var evidenceLine: String {
+        "delivered across \(models) model(s) in \(turns) completed turn(s), \(items) video part(s)"
+            + " on this server"
+    }
 }

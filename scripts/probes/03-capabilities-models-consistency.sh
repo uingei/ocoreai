@@ -20,6 +20,9 @@
 #   • every ready model accepts /v1/count-tokens;
 #   • every model row states `vlm` explicitly, and every capability row states
 #     `available` + a reason, so nothing user-visible is an unstated guess.
+#   • the two capability rows that carry a measured overlay agree with the surfaces that
+#     hold the evidence — `screenshot_capture` vs /v1/multimodal/status, `video_input` vs
+#     the per-model `videoInput` on /v1/models (see the section near the end).
 #
 # Wire-shape notes learned the hard way by running this probe (10-14): the two count
 # endpoints publish the same vocabulary under different casings — `/v1/capabilities` uses
@@ -227,6 +230,7 @@ done
 
 probe_section "models surface must not promise what count-tokens denies"
 probe_api GET /v1/models
+MODELS_BODY="$PROBE_BODY"   # reused below: the capability rows have to agree with these rows
 LIMIT="${OCOREAI_PROBE_MODEL_LIMIT:-2}"
 READY_LIST="$(python3 - "$PROBE_BODY" "$LIMIT" <<'PY'
 import json, sys
@@ -273,6 +277,115 @@ while IFS='|' read -r mid vlm ctx caps; do
 done <<< "$READY_LIST"
 if [ "$ROWS" -gt 0 ]; then
   probe_note "cross-checked $ROWS ready model(s) (raise with OCOREAI_PROBE_MODEL_LIMIT)"
+fi
+
+probe_section "capability rows must agree with the surfaces that measured them"
+# /v1/capabilities is the surface a client routes by, so it carries the measured overlay
+# (RuntimeCapability.measured): the screen row degrades on a capture that actually failed,
+# and `video_input` says whether any model here completed a turn carrying a clip. Both
+# halves were missing until now — round 14 shipped the per-model row and said so, and this
+# section is what keeps the server-wide half from drifting back into either direction:
+# claiming delivery no model earned, or staying silent where one was.
+probe_api POST /v1/multimodal/status '{}'
+if [ "${PROBE_STATUS:-}" != "200" ]; then
+  probe_note "POST /v1/multimodal/status -> ${PROBE_STATUS:-no response}: screen row cannot be cross-checked live"
+  SCREEN_BODY='{}'
+fi
+SCREEN_BODY="$PROBE_BODY"
+CROSS="$(python3 - "$CAPS" "$MODELS_BODY" "$SCREEN_BODY" <<'PY'
+import json, sys
+
+caps_raw, models_raw, screen_raw = sys.argv[1:4]
+
+
+def emit(level, msg):
+    print("%s|%s" % (level, msg))
+
+
+try:
+    caps = json.loads(caps_raw)
+except Exception:
+    emit("fail", "capabilities array unparseable — the measured rows cannot be cross-checked")
+    sys.exit(0)
+by_name = {r.get("name"): r for r in caps if isinstance(r, dict)}
+# Floor the premises of this check: 10 tier rows + video_input. A truncated array makes
+# every "agree" below true by having nothing to agree with.
+if len(caps) < 11:
+    emit("fail", "capability array has %d rows (< 11) — this check would pass vacuously" % len(caps))
+
+try:
+    models = json.loads(models_raw).get("data", [])
+except Exception:
+    models = []
+    emit("fail", "/v1/models body unparseable — video_input has no per-model control")
+delivered = [str(m.get("id", "?")) for m in models if m.get("videoInput") == "delivered"]
+
+vid = by_name.get("video_input")
+if vid is None:
+    emit("fail", "no video_input row on /v1/capabilities — the discovery surface is silent about taking video in")
+else:
+    avail, note = vid.get("available"), str(vid.get("note", ""))
+    if delivered and not avail:
+        emit("fail", "/v1/models reports delivered video for %s but video_input.available=false" % ", ".join(delivered))
+    elif delivered:
+        emit("ok", "video_input.available=true, agreed by %d model row(s)" % len(delivered))
+        if "delivered across" not in note:
+            emit("fail", "video_input claims delivery without the aggregate evidence sentence: %s" % note[:180])
+    elif avail:
+        emit("fail", "video_input.available=true while no model row reports delivered video — the aggregate claims more than the per-model rows")
+    else:
+        emit("ok", "video_input=not_observed, agreed by all %d model row(s)" % len(models))
+        if "not_observed" not in note:
+            emit("fail", "the negative must be explicit, not blank: %s" % note[:180])
+
+try:
+    screen = json.loads(screen_raw)
+except Exception:
+    screen = {}
+    emit("fail", "/v1/multimodal/status body unparseable — screenshot_capture has no control")
+delivery = screen.get("screenDelivery", "<absent>")
+shot = by_name.get("screenshot_capture")
+if shot is None:
+    emit("fail", "no screenshot_capture row on /v1/capabilities")
+else:
+    avail, note = shot.get("available"), str(shot.get("note", ""))
+    if delivery == "failed":
+        if avail:
+            emit("fail", "capture failed here (screenStatus=%s) yet screenshot_capture.available=true — the surface outruns the engine" % screen.get("screenStatus", "<absent>"))
+        elif "capture failed" not in note:
+            emit("fail", "the measured failure is not stated on the capability row: %s" % note[:180])
+        else:
+            emit("ok", "screenshot_capture degraded from the measured capture failure")
+    elif delivery == "captured":
+        if not avail:
+            emit("fail", "a frame was delivered yet screenshot_capture.available=false")
+        elif "a frame was delivered" not in note:
+            emit("fail", "the delivered frame is not stated on the capability row: %s" % note[:180])
+        else:
+            emit("ok", "screenshot_capture carries the measured delivery evidence")
+    else:
+        if note.startswith("Measured on this box"):
+            emit("fail", "the row reports a measurement no attempt produced (screenDelivery=%s): %s" % (delivery, note[:180]))
+        else:
+            emit("ok", "no capture attempted here (screenDelivery=%s) — the row states the tier floor, available=%s" % (delivery, avail))
+    # Whatever the delivery, a row this server leaves switched on must say where a
+    # client can read the measurement instead of trusting the tier.
+    if avail and "/v1/multimodal/status" not in note:
+        emit("fail", "screenshot_capture available=true without naming where delivery is measured: %s" % note[:200])
+PY
+)"
+CROSS_CHECKS=0
+while IFS='|' read -r level msg; do
+  [ -n "${level:-}" ] || continue
+  CROSS_CHECKS=$(( CROSS_CHECKS + 1 ))
+  case "$level" in
+    ok)   probe_ok "$msg" ;;
+    note) probe_note "$msg" ;;
+    *)    probe_fail "$msg" ;;
+  esac
+done <<< "$CROSS"
+if [ "$CROSS_CHECKS" -lt 2 ]; then
+  probe_fail "only $CROSS_CHECKS cross-surface verdict(s) issued — the comparison did not run"
 fi
 
 probe_section "the 404 envelope itself"
