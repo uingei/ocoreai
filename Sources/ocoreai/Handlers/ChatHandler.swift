@@ -221,6 +221,30 @@ func chatCompletionsHandler(
         throw AudioTranscription.appError(for: failure)
     }
 
+    /// Media referenced by path gets the same treatment as audio: checked before the
+    /// safety guards, the scheduler and any engine handle, and refused with the part type
+    /// and the path named. Until this existed the condition surfaced from inside
+    /// AVFoundation as `500 … The operation could not be completed` — a status that
+    /// blames the service, for a message that names nothing the client can act on.
+    /// See `ChatMediaResolution` for what counts (paths) and what deliberately does not
+    /// (`data:` inline, `http(s)://` — upstream's to fetch).
+    let unresolvableMedia = ChatMedia.unresolvable(in: request.messages)
+    if !unresolvableMedia.isEmpty {
+        let remediation = ChatMedia.remediation(for: unresolvableMedia)
+        // Bytes this server spooled itself are ours to lose; a path the caller named is
+        // theirs to fix. Different status, different error_code, same sentence.
+        let ours = unresolvableMedia.contains { $0.origin == .spool }
+        logger.warning(
+            "Chat media \(ours ? "lost" : "unresolvable"): \(unresolvableMedia.count) part(s), first = \(unresolvableMedia[0].kind.rawValue) — \(remediation)",
+            metadata: [
+                "error_code": .string(ours ? "media_lost" : "media_unresolvable"),
+                "parts": .string(String(unresolvableMedia.count)),
+            ])
+        throw ours
+            ? AppError.mediaLost(reason: remediation)
+            : AppError.mediaUnresolvable(reason: remediation)
+    }
+
     /// Safety check: filter harmful input before scheduling
     if let contentGuard = await OcoreaiEngine.shared.activeContentGuard {
         let messageText = request.messages.map { $0.textContent() }.joined(separator: " ")

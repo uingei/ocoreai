@@ -231,24 +231,32 @@ struct MediaDecoderTests {
         #expect(ok)
     }
 
-    @Test("audio data-URL → temp .caf with exact bytes; tempURL == attachment URL")
+    @Test("audio data-URL → spooled .caf with exact bytes; the attachment cites that file")
     func decodesRealAudio() {
         let result = makeMLXAudio(from: Fixtures.wavDataURL)
         #expect(result.audio != nil)
-        #expect(result.tempURL != nil)
-        guard let tmp = result.tempURL else { return }
-        defer { try? FileManager.default.removeItem(at: tmp) }
-        let disk = (try? Data(contentsOf: tmp)) ?? Data()
+        guard let spool = result.spooledURL else {
+            Issue.record(
+                "audio data-URL produced no spool file — the payload cannot reach AVAssetReader")
+            return
+        }
+        // Where it lands is the point: the spool is owned by the conversation, and a file
+        // written to the temp root used to be deleted when the request ended — which
+        // poisoned every later turn of the transcript that cited it (measured 10-16).
+        #expect(MediaSpool.isInside(spool, MediaSpool.directory()))
+        #expect(spool.pathExtension == "caf")
+        let disk = (try? Data(contentsOf: spool)) ?? Data()
         #expect(disk == Fixtures.wavBytes)
         var attached: URL?
         if case .url(let u) = result.audio?.source { attached = u }
-        #expect(attached == tmp)
+        #expect(attached == spool)
+        MediaSpool.discard([spool], keeping: [])
     }
 
     @Test("ordinary file URL passes through; no temp file created")
     func fileAudioPassthrough() {
         let result = makeMLXAudio(from: "file:///tmp/clip.caf")
-        #expect(result.tempURL == nil)
+        #expect(result.spooledURL == nil)
         var ok = false
         if case .url(let u) = result.audio?.source {
             ok = (u.absoluteString == "file:///tmp/clip.caf")
@@ -260,6 +268,6 @@ struct MediaDecoderTests {
     func badBase64AudioNil() {
         let result = makeMLXAudio(from: "data:audio/wav;base64,%%%")
         #expect(result.audio == nil)
-        #expect(result.tempURL == nil)
+        #expect(result.spooledURL == nil)
     }
 }

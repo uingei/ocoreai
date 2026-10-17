@@ -1759,6 +1759,19 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// provide such as `response_format: verbose_json`).
     case invalidAudio(reason: String)
 
+    /// Bad Request — a media part named a file this process cannot open (`file://…` or a
+    /// filesystem path that is not there). Typed and 4xx because the client can fix it:
+    /// without this case the failure surfaced from AVFoundation as
+    /// `500 … The operation could not be completed`, naming neither the axis nor the part
+    /// (`ChatMediaResolution`, measured 10-16).
+    case mediaUnresolvable(reason: String)
+
+    /// Internal Server Error — bytes this server spooled into its own ``MediaSpool`` are
+    /// gone while a conversation still cites them. Ours to report, not the client's to fix,
+    /// which is why it is not folded into ``mediaUnresolvable``: the remediation differs,
+    /// and so does the blame.
+    case mediaLost(reason: String)
+
     /// ``CustomStringConvertible`` description (used in logs)
     var description: String {
         switch self {
@@ -1793,6 +1806,10 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
             "Audio rejected: \(reason)"
         case .invalidAudio(let reason):
             "Invalid audio: \(reason)"
+        case .mediaUnresolvable(let reason):
+            "Media unresolvable: \(reason)"
+        case .mediaLost(let reason):
+            "Media lost: \(reason)"
         }
     }
 
@@ -1829,6 +1846,10 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
             .badRequest
         case .invalidAudio:
             .badRequest
+        case .mediaUnresolvable:
+            .badRequest
+        case .mediaLost:
+            .internalServerError
         case .generationError, .kvCacheCorruption, .inferenceFailed, .tokenizationFailed:
             .internalServerError
         }
@@ -1873,6 +1894,15 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         }
         if case .invalidAudio(let reason) = self {
             detail["error_code"] = "invalid_audio"
+            detail["remediation"] = reason
+        }
+        // Media-by-reference gets the same treatment as audio: name the axis, name the fix.
+        if case .mediaUnresolvable(let reason) = self {
+            detail["error_code"] = "media_unresolvable"
+            detail["remediation"] = reason
+        }
+        if case .mediaLost(let reason) = self {
+            detail["error_code"] = "media_lost"
             detail["remediation"] = reason
         }
         let errorBody = NSDictionary(dictionary: ["error": detail])

@@ -42,6 +42,8 @@ model load.
   HTTP 200 without `audio_input` on a request that carried audio (the silent drop), a refusal without `error_code`/`remediation`, a payload fault answered 503 instead of the 400 the shared status table assigns it, a refusal costing model work, stream and non-stream answering the same audio turn differently, the answer not echoing an utterance the disclosure claims was transcribed, or the endpoint index being silent about what happens to `audio_url` |
 | `07-anthropic-blocks.sh` | Does `/v1/messages` honour, or blank, the content blocks a real SDK sends? |
   a spec-legal block array answering 200 while `usage.input_tokens` sits at or under the plain-string baseline (the turn was blanked), a refusal that does not name the block type, `[{type:text}]` itself failing, a 200 with empty content next to an image, or a run whose baseline is unusable (it aborts instead of issuing verdicts built on a missing premise) |
+| `08-video-honesty.sh` | Does `/v1/chat/completions` see the video it accepts, keep the bytes its transcript cites, and name what it cannot open? |
+  a clip answered 200 without naming its colour or without a prompt-token jump (accepted but never seen), the first plain-text turn after a video turn failing (the transcript cites bytes that were deleted at request end), the spool empty while a live conversation still cites the clip, or a media part naming a missing file answered 200 or 5xx instead of 4xx with `error_code` + `remediation`. A 5xx is never counted as an honest refusal — the first version of this file did exactly that and reported PASS on a broken server |
 | `_lib.sh` | shared harness | — |
 
 ## Rules for adding a probe

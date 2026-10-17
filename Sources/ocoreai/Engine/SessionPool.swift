@@ -55,6 +55,24 @@ struct SessionPoolConfig {
     /// Directory for on-disk KV cache files (nil = auto-derive)
     var cacheDirectory: URL?
 
+    /// Idle seconds before an inline-media spool file may be collected (see ``MediaSpool``).
+    /// Must exceed ``sessionTTLSeconds``: a conversation that has come back within its
+    /// session TTL still cites the media its transcript names, and a sweep that deletes
+    /// it resurrects the defect ``MediaSpool`` exists to close.
+    var mediaIdleTTLSeconds: Int = 3600
+
+    /// Byte budget for the inline-media spool. 0 disables the cap (not recommended:
+    /// frame payloads are not small). Over budget, least-recently-cited files go first.
+    var mediaMaxBytes: UInt64 = 512 * 1024 * 1024
+
+    /// Policy handed to ``MediaSpool`` for its sweeps.
+    var mediaPolicy: MediaSpool.Policy {
+        MediaSpool.Policy(
+            idleTTL: .seconds(Int64(max(mediaIdleTTLSeconds, sessionTTLSeconds + 60))),
+            maxBytes: mediaMaxBytes
+        )
+    }
+
     /// Static fallback for cold-miss when caller passes nil processing (defensive;
     /// EngineInference always provides processing so this path is unreachable in practice).
     static let defaultResize: CGSize = .init(width: 1024, height: 1024)
@@ -289,6 +307,13 @@ struct PooledChatSession: @unchecked Sendable {
     /// Each entry corresponds to a role+content pair that contributed tokens to the KV cache.
     /// On acquire, we compare new messages against this to find the longest common prefix.
     var messageHistory: [MessageHistoryKey] = []
+
+    /// Inline media files this conversation's transcript cites (see ``MediaSpool``).
+    ///
+    /// The pool owns these bytes because the pool owns the transcript that names them:
+    /// upstream re-reads that transcript on every later turn, so they must survive the
+    /// request that wrote them and die with the session that cites them.
+    var mediaFiles: [URL] = []
 }
 
 /// Result of acquiring a session, with prefix match details.
@@ -321,6 +346,10 @@ actor MLXSessionPool {
 
     // On-disk KV cache storage
     private let cacheDirectory: URL
+
+    /// Where inline media (data-URL audio/video) cited by this pool's conversations is
+    /// kept. Follows ``cacheDirectory`` so a caller that redirects one redirects both.
+    private let mediaDirectory: URL
 
     // Hit-rate metrics
     private var hitCount = 0
@@ -356,6 +385,14 @@ actor MLXSessionPool {
         // Ensure directory exists
         try? FileManager.default.createDirectory(
             at: cacheDirectory, withIntermediateDirectories: true,
+        )
+
+        // Inline media lives next to the KV cache and follows whatever the caller
+        // redirected it to; $OCOREAI_MEDIA_SPOOL still wins (see MediaSpool.directory).
+        mediaDirectory = MediaSpool.directory(
+            fallback: cacheDirectory.deletingLastPathComponent().appendingPathComponent("media"))
+        try? FileManager.default.createDirectory(
+            at: mediaDirectory, withIntermediateDirectories: true,
         )
 
         logger.info(
@@ -407,6 +444,17 @@ actor MLXSessionPool {
         // 1. Expire stale sessions
         await evictExpired()
 
+        // 1b. Collect inline media no live conversation cites any more. This is the
+        // backstop for what the pool's own map cannot see: files orphaned when a process
+        // died before releasing them, plus the byte budget. One directory listing per
+        // acquire, scoped to the files MediaSpool wrote.
+        let mediaSweep = MediaSpool.sweep(policy: config.mediaPolicy, in: mediaDirectory)
+        if mediaSweep.removedTotal > 0 {
+            logger.info(
+                "Media spool collected \(mediaSweep.removedTotal) file(s) (\(mediaSweep.bytesFreed) bytes: \(mediaSweep.removedIdle) idle, \(mediaSweep.removedOverBudget) over budget); \(MediaSpool.totalBytes(in: mediaDirectory)) remain"
+            )
+        }
+
         // 2. Build pool key
         let key = poolKey(modelId: modelId, conversationId: conversationId)
 
@@ -437,6 +485,9 @@ actor MLXSessionPool {
                 commonPrefixCount: divergence
             ) {
                 pool[key] = nil
+                // A discarded conversation no longer needs the bytes its transcript
+                // named. Anything a still-live session also cites is left alone.
+                releaseMedia(of: [pooled])
                 // A diverged conversation invalidates the snapshot on disk too: leaving
                 // it there would let the next pool miss for this key revive the same
                 // stale context.
@@ -565,6 +616,7 @@ actor MLXSessionPool {
         conversationId: String,
         promptMessages: [MessageHistoryKey]? = nil,
         assistantMessage: MessageHistoryKey? = nil,
+        mediaFiles: [URL] = [],
     ) async {
         let key = poolKey(modelId: modelId, conversationId: conversationId)
         // Clear tools + toolDispatch + additionalContext to prevent cross-session leakage.
@@ -599,6 +651,17 @@ actor MLXSessionPool {
         } else {
             entryToPool.messageHistory = []
         }
+
+        // This turn's inline media joins what the conversation cites, and every cited
+        // file is re-touched: the conversation is alive, so everything its transcript
+        // reads must stay. Idle-ness is therefore session activity, not upload time —
+        // which is what keeps the sweep's TTL honest (see MediaSpool).
+        if !mediaFiles.isEmpty {
+            var owned = entryToPool.mediaFiles
+            for url in mediaFiles where !owned.contains(url) { owned.append(url) }
+            entryToPool.mediaFiles = owned
+        }
+        MediaSpool.touch(entryToPool.mediaFiles, in: mediaDirectory)
 
         pool[key] = entryToPool
 
@@ -635,6 +698,7 @@ actor MLXSessionPool {
             )
             let allEntries = pool.map { ($0.key, $0.value) }
             pool.removeAll()
+            releaseMedia(of: allEntries.map(\.1))
             for (key, entry) in allEntries {
                 if persistFlag {
                     persistEntry(entry, key: key, reason: "pressure flush")
@@ -657,6 +721,7 @@ actor MLXSessionPool {
                 }
                 pool.removeValue(forKey: key)
             }
+            releaseMedia(of: entriesToRemove.map(\.entry))
         }
         let removed = before - pool.count
         if removed > 0 {
@@ -689,6 +754,7 @@ actor MLXSessionPool {
             logger.debug("Evicted expired session: \(key)")
             pool.removeValue(forKey: key)
         }
+        releaseMedia(of: entriesToRemove.map(\.entry))
         let removed = before - pool.count
         if removed > 0 {
             logger.info("Expired \(removed) session(s) from pool (\(pool.count) remain)")
@@ -713,6 +779,7 @@ actor MLXSessionPool {
         let entry = oldestItem.value
         // Remove from pool first to shrink actor mailbox window
         pool.removeValue(forKey: oldestKey)
+        releaseMedia(of: [entry])
         if config.persistCache {
             persistEntry(entry, key: oldestKey, reason: "LRU")
         }
@@ -972,6 +1039,7 @@ actor MLXSessionPool {
     /// Does NOT delete on-disk cache files.
     func clear() {
         let count = pool.count
+        releaseMedia(of: Array(pool.values))
         pool.removeAll()
         hitCount = 0
         missCount = 0
@@ -984,6 +1052,7 @@ actor MLXSessionPool {
         let keysToRemove: [String] = pool.compactMap { key, _ in
             key.hasPrefix("\(modelId):") ? key : nil
         }
+        releaseMedia(of: keysToRemove.compactMap { pool[$0] })
         for key in keysToRemove {
             pool.removeValue(forKey: key)
         }
@@ -993,6 +1062,18 @@ actor MLXSessionPool {
 
     private func poolKey(modelId: String, conversationId convId: String) -> String {
         "\(modelId):\(convId)"
+    }
+
+    /// Release the inline media that conversations leaving the pool cited.
+    ///
+    /// Call this *after* the entries are out of ``pool``: what remains in the pool is the
+    /// keep-set, because content-addressed files can be cited by more than one live
+    /// conversation and a file another session still reads must not be deleted.
+    private func releaseMedia(of entries: [PooledChatSession]) {
+        let leaving = entries.flatMap(\.mediaFiles)
+        guard !leaving.isEmpty else { return }
+        let keeping = Set(pool.values.flatMap(\.mediaFiles))
+        MediaSpool.discard(leaving, keeping: keeping, in: mediaDirectory)
     }
 
     /// Reuse rule, kept pure so it can be pinned without an MLX container:

@@ -246,18 +246,21 @@ func inferenceTopLevelFailedMessage(for error: Error) -> String {
 /// EXIF / temp `.caf`). This keeps the attach logic independently testable
 /// without constructing a full inference actor.
 ///
-/// Returns temp audio file URLs the caller must clean up after inference.
+/// Returns the media-spool files this turn handed to the model. They are NOT the
+/// caller's to delete: the transcript the model received cites them, and upstream
+/// re-reads that transcript on every later turn of the conversation. The session pool
+/// releases them when the session that cites them dies — see ``MediaSpool``.
 /// Chat.Message is a Sendable struct with `var images`/`var audios`, so
 /// post-map mutation of the last user message is safe.
 func attachPerceptionMedia(
     _ messages: inout [Chat.Message],
     mediaParts: [ContentPart],
     makeImage: (String) -> MLXLMCommon.UserInput.Image?,
-    makeAudio: (String) -> (audio: MLXLMCommon.UserInput.Audio?, tempURL: URL?)
+    makeAudio: (String) -> (audio: MLXLMCommon.UserInput.Audio?, spooledURL: URL?)
 ) -> [URL] {
     var images: [MLXLMCommon.UserInput.Image] = []
     var audios: [MLXLMCommon.UserInput.Audio] = []
-    var tempURLs: [URL] = []
+    var spooled: [URL] = []
     for part in mediaParts {
         if let img = part.imageUrl, let image = makeImage(img.url) {
             images.append(image)
@@ -267,17 +270,17 @@ func attachPerceptionMedia(
             if let audioInput = result.audio {
                 audios.append(audioInput)
             }
-            if let tempFile = result.tempURL {
-                tempURLs.append(tempFile)
+            if let spoolFile = result.spooledURL {
+                spooled.append(spoolFile)
             }
         }
     }
     guard !images.isEmpty || !audios.isEmpty,
         let lastUser = messages.lastIndex(where: { $0.role == .user })
-    else { return tempURLs }
+    else { return spooled }
     messages[lastUser].images.append(contentsOf: images)
     messages[lastUser].audios.append(contentsOf: audios)
-    return tempURLs
+    return spooled
 }
 
 // MARK: - MLX Media Decoders (free functions)
@@ -321,11 +324,15 @@ func makeMLXImage(from urlString: String) -> MLXLMCommon.UserInput.Image? {
 
 /// Convert a string that may be a data URL (`data:audio/…;base64,…`) or a
 /// regular URL into an ``MLXLMCommon/UserInput/Audio``.
-/// Data URLs are decoded to a temp `.caf` file; remote/local URLs are passed through.
-/// Free function — returns (audio, tempURL) so callers can clean up the temp file
-/// after inference. Independently testable (b4).
+/// Data URLs are written to the media spool as `.caf`; remote/local URLs are passed
+/// through unchanged.
+///
+/// Free function — returns `(audio, spooledURL)`. The spool URL is *not* a temp file:
+/// the conversation transcript cites it, and upstream re-reads that transcript on every
+/// later turn, so deleting it at request end poisoned the session (measured 10-16, see
+/// ``MediaSpool``). The caller hands it to the session pool, which owns its lifetime.
 func makeMLXAudio(from urlString: String) -> (
-    audio: MLXLMCommon.UserInput.Audio?, tempURL: URL?
+    audio: MLXLMCommon.UserInput.Audio?, spooledURL: URL?
 ) {
     // Handle data: URIs (recordings come as base64 data URLs)
     if urlString.hasPrefix("data:") {
@@ -333,15 +340,13 @@ func makeMLXAudio(from urlString: String) -> (
         guard let lastComma = urlString.lastIndex(of: ",") else { return (nil, nil) }
         let base64Data = String(urlString[urlString.index(after: lastComma)...])
         guard let data = Data(base64Encoded: base64Data) else { return (nil, nil) }
-        // Write to temp file so AVAssetReader can decode it
-        let tmpName = "ocoreai_audio_\(UUID().uuidString.prefix(8)).caf"
-        let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(tmpName)
-        do {
-            try data.write(to: tmpURL)
-            return (.url(tmpURL), tmpURL)
-        } catch {
+        // AVAssetReader needs a real file; the spool keeps it alive as long as any
+        // session cites it. A failed write means the model will not hear this payload,
+        // so it is reported as no-audio rather than handed over as a dead path.
+        guard let spoolURL = MediaSpool.spool(data, fileExtension: "caf") else {
             return (nil, nil)
         }
+        return (.url(spoolURL), spoolURL)
     }
 
     // Fallback: regular URL (http, file, etc.) — no temp file created
@@ -354,33 +359,32 @@ func makeMLXAudio(from urlString: String) -> (
 
 /// Convert a string that may be a data URL (`data:video/…;base64,…`) or a
 /// regular URL into an ``MLXLMCommon/UserInput/Video``.
-/// Data URLs are decoded to a temp `.mp4` file (AVAsset cannot read data:
-/// URLs); remote/local URLs are passed through unchanged.
-/// Mirror of ``makeMLXAudio(from:)`` — same data-URI contract, same (input,
-/// tempURL) shape so callers reuse the same temp-cleanup path (L1635-1638).
+/// Data URLs are written to the media spool as `.mp4` (AVAsset cannot read a data:
+/// URL); remote/local URLs are passed through unchanged.
+/// Mirror of ``makeMLXAudio(from:)`` — same data-URI contract, same
+/// `(input, spooledURL)` shape, and the same lifetime rule: the spool file belongs to
+/// the conversation, not to this request.
 ///
 /// Why this exists: before this, the extraction at L1704-1708 did
 /// `URL(string: videoUrl)` → `.url(dataURL)` directly. Upstream
 /// `MediaProcessing.asProcessedSequence` wraps it in `AVAsset(url:)`, which
 /// cannot decode a data: URL — the video is silently dropped (zero video
 /// tokens; the model answers boilerplate as if no video is present). Decoding
-/// to a real temp file makes the
-/// bytes reachable by AVFoundation — the same fix the audio path already had.
+/// to a real file makes the bytes reachable by AVFoundation — the same fix the audio
+/// path already had. Deleting that file when the request ended was the *next* defect in
+/// this same seam: the transcript outlived the bytes, and every later turn of the
+/// conversation failed to read it (measured 10-16; ``MediaSpool`` is the fix).
 func makeMLXVideo(from urlString: String) -> (
-    video: MLXLMCommon.UserInput.Video?, tempURL: URL?
+    video: MLXLMCommon.UserInput.Video?, spooledURL: URL?
 ) {
     if urlString.hasPrefix("data:") {
         guard let lastComma = urlString.lastIndex(of: ",") else { return (nil, nil) }
         let base64Data = String(urlString[urlString.index(after: lastComma)...])
         guard let data = Data(base64Encoded: base64Data) else { return (nil, nil) }
-        let tmpName = "ocoreai_video_\(UUID().uuidString.prefix(8)).mp4"
-        let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(tmpName)
-        do {
-            try data.write(to: tmpURL)
-            return (.url(tmpURL), tmpURL)
-        } catch {
+        guard let spoolURL = MediaSpool.spool(data, fileExtension: "mp4") else {
             return (nil, nil)
         }
+        return (.url(spoolURL), spoolURL)
     }
 
     if let url = URL(string: urlString) {

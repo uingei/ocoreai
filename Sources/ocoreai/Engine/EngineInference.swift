@@ -1765,15 +1765,26 @@ extension EnginePool {
             return
         }
 
-        // Convert messages to MLX format, collecting temp audio file URLs for later cleanup.
-        // Data: audio URLs are decoded to /tmp .caf files — we must delete them after
-        // inference completes (success or failure) to prevent disk leaks.
-        var tempAudioURLs: [URL] = []
-        defer {
-            for url in tempAudioURLs {
-                try? FileManager.default.removeItem(at: url)
-            }
-        }
+        // Convert messages to MLX format, collecting the media-spool files this turn hands
+        // to the model — audio and video that arrived as `data:` URLs.
+        //
+        // These are deliberately NOT deleted when the request ends. Upstream ChatSession
+        // keeps the message it was given, with the resolved media URL inside it, and
+        // re-feeds that whole transcript to `processor.prepare` on every later turn of the
+        // conversation (ChatSession.swift:1110 — `templateMessages = leadingMessages +
+        // currentConversation.messages`; gated by `make anchor-check`). Bytes deleted here therefore cost the
+        // conversation its own history: measured 10-16, a clip posted as a data URL was
+        // answered correctly on turn 1 ("Red", +79 prompt tokens) and every turn after it
+        // failed with `500 … The operation could not be completed`, permanently, while the
+        // identical clip posted as a `file://` URL kept working and was recalled on the
+        // follow-up. Ownership passes to the session pool at release; ``MediaSpool``
+        // collects what no live session cites.
+        var spooledMedia: [URL] = []
+        // Nothing may collect these bytes while this request is handing them to the
+        // model — an eviction or sweep on another request's thread that deleted one would
+        // kill this turn over a file it wrote itself. The defer reads `spooledMedia` when
+        // the scope exits, so parts appended below are covered too.
+        defer { MediaSpool.unpin(spooledMedia) }
 
         // Extract system prompt for ChatSession's instructions: channel.
         // Upstream L186/L219: instructions are prepended as .system messages
@@ -1844,8 +1855,8 @@ extension EnginePool {
                         if let videoInput = result.video {
                             videos.append(videoInput)
                         }
-                        if let tempFile = result.tempURL {
-                            tempAudioURLs.append(tempFile)
+                        if let spoolFile = result.spooledURL {
+                            spooledMedia.append(spoolFile)
                         }
                     }
                     if let audio = part.audioURL {
@@ -1854,8 +1865,8 @@ extension EnginePool {
                         if let audioInput = result.audio {
                             audios.append(audioInput)
                         }
-                        if let tempFile = result.tempURL {
-                            tempAudioURLs.append(tempFile)
+                        if let spoolFile = result.spooledURL {
+                            spooledMedia.append(spoolFile)
                         }
                     }
                 }
@@ -1882,15 +1893,20 @@ extension EnginePool {
                 PerceptionEngine.shared.mediaContentParts()
             }
             if !perceptionMedia.isEmpty {
-                let mediaTempURLs = attachPerceptionMedia(
+                let perceptionSpooled = attachPerceptionMedia(
                     &mlxMessages,
                     mediaParts: perceptionMedia,
                     makeImage: makeMLXImage,
                     makeAudio: makeMLXAudio
                 )
-                tempAudioURLs.append(contentsOf: mediaTempURLs)
+                spooledMedia.append(contentsOf: perceptionSpooled)
             }
         }
+
+        // Pin what this turn cites before anything can go looking for files to collect
+        // (the session pool sweeps at acquire, and eviction can arrive from another
+        // request's thread at any point up to the release below).
+        MediaSpool.pin(spooledMedia)
 
         let genParams = makeGenerateParameters(
             from: sampling,
@@ -2353,6 +2369,15 @@ extension EnginePool {
             let convKey: String =
                 conversationId
                 ?? "\(modelId):anon:\(ConversationIdentity.seed(messages: mlxMessages))"
+            // Say out loud who owns the bytes this turn cited. If this turn never reaches
+            // the pool (CPU channel, guided/MTP paths that close their own session), the
+            // idle sweep is what eventually collects them — a fact worth naming in the log
+            // rather than leaving to a disk walk.
+            if !spooledMedia.isEmpty {
+                log.info(
+                    "Turn cites \(spooledMedia.count) spooled media file(s) for \(convKey) — kept while this session holds its pool slot, swept once no live session cites them"
+                )
+            }
             var chatSession: ChatSession?
             /// Full pooled session wrapper (carries message history for prefix matching).
             /// Used by releasePoolSlot to return the session with its history intact.
@@ -3095,7 +3120,8 @@ extension EnginePool {
                         pooled: pooled,
                         modelId: modelId,
                         conversationId: convKey,
-                        assistantMessage: nil
+                        assistantMessage: nil,
+                        mediaFiles: spooledMedia
                     )
                 }
             }
@@ -3114,7 +3140,8 @@ extension EnginePool {
                         modelId: modelId,
                         conversationId: convKey,
                         promptMessages: poolPromptKeys,
-                        assistantMessage: historyKey
+                        assistantMessage: historyKey,
+                        mediaFiles: spooledMedia
                     )
                 }
             }
