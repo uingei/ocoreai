@@ -364,38 +364,69 @@ probe_boot() {
   fi
   probe_require_clean_dependency_checkout "$(probe_scratch_for_binary "$bin")"
   probe_reap_stale_instances
-  PROBE_PORT="${OCOREAI_PROBE_PORT:-$(probe_free_port)}"
-  PROBE_BASE="http://127.0.0.1:${PROBE_PORT}"
-  PROBE_LOG="$(mktemp -t ocoreai-probe-XXXXXX).log"
   probe_note "binary $bin"
-  probe_note "bridge $PROBE_BASE · log ${PROBE_LOG}"
 
-  # stdin must be /dev/null: HeadlessServer installs a stdin-EOF shutdown watcher for
-  # pipes and TTYs (agent-harness semantics). A background probe launched from a
-  # script would otherwise be killed by its own closed pipe at t=0.
-  OCOREAI_ENABLE_HTTP=1 \
-  OCOREAI_HOST=127.0.0.1 \
-  OCOREAI_PORT="$PROBE_PORT" \
-    "$bin" serve < /dev/null > "$PROBE_LOG" 2>&1 &
-  PROBE_PID=$!
+  # A free port that stops being free is a different failure than a stuck model load, and
+  # it used to be reported as one. Measured 10-18: probe 04 got 50255 from the OS, lost
+  # the bind race, logged "Port 50255 already in use — Bridge Path (HTTP) skipped", and
+  # then burned the full 240 s readiness timeout before reporting "Metal unavailable or
+  # model load stuck" — the wrong remedy, at four minutes. Detect the collision, say so,
+  # and retry on a fresh port.
+  local attempt port_requested="${OCOREAI_PROBE_PORT:-}" port_collision
+  for attempt in 1 2 3; do
+    port_collision=0
+    PROBE_PORT="$port_requested"
+    [ -n "$PROBE_PORT" ] || PROBE_PORT="$(probe_free_port)"
+    PROBE_BASE="http://127.0.0.1:${PROBE_PORT}"
+    PROBE_LOG="$(mktemp -t ocoreai-probe-XXXXXX).log"
+    probe_note "bridge $PROBE_BASE · log ${PROBE_LOG} (boot attempt $attempt)"
 
-  local waited=0 timeout="${OCOREAI_READY_TIMEOUT:-240}"
-  while [ "$waited" -lt "$timeout" ]; do
-    if ! kill -0 "$PROBE_PID" 2>/dev/null; then
-      probe_fail "server exited during boot (waited ${waited}s) — last lines:"
-      tail -20 "$PROBE_LOG" | sed 's/^/        /'
-      probe_summary "${PROBE_NAME:-probe}"
+    # stdin must be /dev/null: HeadlessServer installs a stdin-EOF shutdown watcher for
+    # pipes and TTYs (agent-harness semantics). A background probe launched from a
+    # script would otherwise be killed by its own closed pipe at t=0.
+    OCOREAI_ENABLE_HTTP=1 \
+    OCOREAI_HOST=127.0.0.1 \
+    OCOREAI_PORT="$PROBE_PORT" \
+      "$bin" serve < /dev/null > "$PROBE_LOG" 2>&1 &
+    PROBE_PID=$!
+
+    local waited=0 timeout="${OCOREAI_READY_TIMEOUT:-240}"
+    while [ "$waited" -lt "$timeout" ]; do
+      if ! kill -0 "$PROBE_PID" 2>/dev/null; then
+        probe_fail "server exited during boot (waited ${waited}s) — last lines:"
+        tail -20 "$PROBE_LOG" | sed 's/^/        /'
+        probe_summary "${PROBE_NAME:-probe}"
+      fi
+      if grep -q "already in use" "$PROBE_LOG" 2>/dev/null; then
+        port_collision=1
+        break
+      fi
+      local code
+      code="$(curl -sS -m 3 -o /dev/null -w '%{http_code}' "$PROBE_BASE/health" 2>/dev/null || echo 000)"
+      if [ "$code" = "200" ]; then
+        probe_ok "/health 200 after ${waited}s"
+        return 0
+      fi
+      sleep 1
+      waited=$(( waited + 1 ))
+    done
+
+    if [ "$port_collision" = "1" ]; then
+      probe_note "port $PROBE_PORT was taken before the bind (attempt $attempt of 3) — retrying on a fresh port"
+      kill -TERM "$PROBE_PID" 2>/dev/null || true
+      for _ in $(seq 1 40); do
+        kill -0 "$PROBE_PID" 2>/dev/null || break
+        sleep 0.25
+      done
+      PROBE_PID=""
+      continue
     fi
-    local code
-    code="$(curl -sS -m 3 -o /dev/null -w '%{http_code}' "$PROBE_BASE/health" 2>/dev/null || echo 000)"
-    if [ "$code" = "200" ]; then
-      probe_ok "/health 200 after ${waited}s"
-      return 0
-    fi
-    sleep 1
-    waited=$(( waited + 1 ))
+    # Out of the attempt loop without a ready server and without a port race: the model
+    # load is what failed, and the remedy below is the right one to print.
+    break
   done
-  probe_fail "/health never answered 200 within ${timeout}s — Metal unavailable or model load stuck. Last lines:"
+
+probe_fail "/health never answered 200 within ${timeout}s — Metal unavailable or model load stuck. Last lines:"
   tail -20 "$PROBE_LOG" | sed 's/^/        /'
   echo "        If this host reports \"No Metal device available\", run this probe outside the agent sandbox"
   echo "        (make test-clt is the same route) — inside it MLX cannot load a device."
