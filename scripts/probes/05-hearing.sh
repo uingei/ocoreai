@@ -173,7 +173,9 @@ fi
 # ── 3. the utterance: say it, then hear it ────────────────────────────────────
 probe_section "the utterance round trip (say -> POST -> text)"
 AIFF="$(mktemp -t ocoreai-hearing-XXXXXX).aiff"
-trap 'rm -f "$AIFF"' EXIT INT TERM
+# probe_atexit, not `trap`: a bare EXIT trap here would replace _lib.sh's probes_cleanup
+# and leak the engine (that is what poisoned 06/07/08 on 10-17 — see _lib.sh).
+probe_atexit 'rm -f "$AIFF"'
 SAY_OK=0
 if command -v say >/dev/null 2>&1; then
   # Default AIFF. `--data-format=LEI16@22050` was tried and refused here with

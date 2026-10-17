@@ -80,8 +80,32 @@ probe_summary() {
 # ── cleanup ────────────────────────────────────────────────────────────────────
 PROBE_PID=""
 PROBE_LOG=""
+PROBE_EXIT_HOOKS=""
+
+# Register a cleanup action *without* replacing the trap.
+#
+# Bash keeps one handler per signal, so a probe that writes its own `trap '…' EXIT`
+# silently replaces probes_cleanup. That is exactly how 10-17 lost three probes:
+# 05-hearing.sh installed `trap 'rm -f "$AIFF"' EXIT INT TERM`, its server never got
+# TERM'd, the flock in Core/SingleInstanceLock.swift stayed held, and 06/07/08 each
+# burned the full 240 s ready-timeout on "Another ocoreai instance is already running" —
+# a leak reported three times as "Metal unavailable or model load stuck", which is the
+# wrong diagnosis, at 12 minutes a run.
+probe_atexit() {
+  if [ -n "$PROBE_EXIT_HOOKS" ]; then
+    PROBE_EXIT_HOOKS="$PROBE_EXIT_HOOKS
+$1"
+  else
+    PROBE_EXIT_HOOKS="$1"
+  fi
+}
 
 probes_cleanup() {
+  local hooks="$PROBE_EXIT_HOOKS"
+  PROBE_EXIT_HOOKS=""
+  if [ -n "$hooks" ]; then
+    eval "$hooks" || true
+  fi
   [ -n "$PROBE_PID" ] || return 0
   kill -TERM "$PROBE_PID" 2>/dev/null || true
   for _ in $(seq 1 80); do
@@ -96,6 +120,45 @@ probes_cleanup() {
 }
 trap probes_cleanup EXIT INT TERM
 
+# Reap a stale engine before booting ours.
+#
+# Scope is deliberately narrow: only an `ocoreai` whose executable lives under this repo's
+# build dirs can be ours to clean up. Anything else (the GUI app, a server started by hand)
+# is reported with its pid and the remedy, never killed.
+probe_reap_stale_instances() {
+  local pid exe foreign
+  foreign=""
+  for pid in $(pgrep -x ocoreai 2>/dev/null || true); do
+    [ "$pid" = "$PROBE_PID" ] && continue
+    exe="$(ps -p "$pid" -o comm= 2>/dev/null | sed 's/[[:space:]]*$//')"
+    case "$exe" in
+      "$PROBE_REPO_ROOT/.build-clt/"* | "$PROBE_REPO_ROOT/.build/"*)
+        probe_note "reaping stale probe-built ocoreai pid $pid — it holds the single-instance lock and would kill this server at boot"
+        kill -TERM "$pid" 2>/dev/null || true
+        ;;
+      *)
+        foreign="$foreign $pid($exe)"
+        ;;
+    esac
+  done
+  for _ in $(seq 1 40); do
+    pgrep -x ocoreai >/dev/null 2>&1 || break
+    sleep 0.5
+  done
+  for pid in $(pgrep -x ocoreai 2>/dev/null || true); do
+    [ "$pid" = "$PROBE_PID" ] && continue
+    exe="$(ps -p "$pid" -o comm= 2>/dev/null | sed 's/[[:space:]]*$//')"
+    case "$exe" in
+      "$PROBE_REPO_ROOT/.build-clt/"* | "$PROBE_REPO_ROOT/.build/"*)
+        kill -KILL "$pid" 2>/dev/null || true
+        ;;
+    esac
+  done
+  if [ -n "$foreign" ]; then
+    probe_note "instance(s) outside this repo hold the single-instance lock:$foreign — not touched; kill them or set OCOREAI_ALLOW_MULTI_INSTANCE=1"
+  fi
+}
+
 # ── helpers ────────────────────────────────────────────────────────────────────
 probe_free_port() {
   python3 - <<'PY'
@@ -107,25 +170,102 @@ s.close()
 PY
 }
 
-# Newest existing binary — a stale debug tree must not silently be the thing probed.
+# Which binary to probe: the one built from the pinned, clean dependency tree; the newest
+# when nothing distinguishes them.
+#
+# What this replaces promised "newest" in a comment and delivered "first existing".
+# SwiftPM 6.4 emits products at <scratch>/out/Products/<config>/ocoreai, so
+# `.build-clt/debug/ocoreai` has not existed on this host since the toolchain moved, and
+# the loop fell through to `.build/debug/ocoreai` — measured 10-17: five days stale and
+# built from mlx-swift-lm 7eb77efa while the pin says 6e338e5df. Every number such a run
+# reports describes code this repo does not ship. The pin guard further down does catch
+# it, but only because it derives the scratch path *from the chosen binary*; resolution
+# itself was the defect, and it picked wrong by default.
+#
+# Score, highest wins: 2 = built from a dependency checkout that is clean and at the pin,
+# 1 = not verifiable (no checkout / no .git), 0 = dirty or off-pin. Ties break on
+# mtime, so a verifiable tree beats an unverifiable one, and among verifiable trees the
+# freshest build wins.
+probe_scratch_for_binary() {
+  # Walk up from the binary until the SwiftPM scratch dir itself, because the product
+  # depth is a toolchain property: SwiftPM 6.1 put it at <scratch>/<config>/ocoreai, 6.4
+  # at <scratch>/out/Products/<config>/ocoreai. Deriving it by a fixed number of hops
+  # (the old `dirname/../`) silently pointed at `.build-clt/out/Products`, so the pin and
+  # cleanliness premise of every measurement printed "not verifiable" instead of holding.
+  local p
+  p="$(cd "$(dirname "$1")" && pwd)" || return 1
+  while [ "$p" != "/" ]; do
+    case "${p##*/}" in
+      .build|.build-*) printf '%s\n' "$p"; return 0 ;;
+    esac
+    p="${p%/*}"
+  done
+  printf '\n'
+}
+
+probe_dependency_score() {
+  local bin="$1" scratch c pin head dirty
+  scratch="$(probe_scratch_for_binary "$bin")"
+  if [ -z "$scratch" ]; then
+    printf '1\n'
+    return 0
+  fi
+  c="$scratch/checkouts/mlx-swift-lm"
+  if [ ! -d "$c/.git" ]; then
+    printf '1\n'
+    return 0
+  fi
+  dirty="$(git -C "$c" status --porcelain 2>/dev/null | grep -c . || true)"
+  if [ "${dirty:-0}" -gt 0 ]; then
+    printf '0\n'
+    return 0
+  fi
+  pin="$(sed -nE 's/.*mlx-swift-lm\.git", *revision: "([0-9a-f]+)".*/\1/p' \
+    "$PROBE_REPO_ROOT/Package.swift" | head -1)"
+  head="$(git -C "$c" rev-parse HEAD 2>/dev/null || echo unknown)"
+  if [ -n "$pin" ] && [ "${head#"$pin"}" = "$head" ]; then
+    printf '0\n'
+    return 0
+  fi
+  printf '2\n'
+}
+
 probe_resolve_binary() {
   if [ -n "${OCOREAI_BIN:-}" ]; then
-    [ -x "${OCOREAI_BIN}" ] || return 1
+    if [ ! -x "${OCOREAI_BIN}" ]; then
+      printf 'OCOREAI_BIN=%s is not an executable file\n' "$OCOREAI_BIN" >&2
+      return 1
+    fi
     printf '%s\n' "$OCOREAI_BIN"
     return 0
   fi
-  local candidate
+  local candidate mtime score
+  local best="" best_score=-1 best_mtime=-1
   for candidate in \
+    "$PROBE_REPO_ROOT/.build-clt/out/Products/Debug/ocoreai" \
+    "$PROBE_REPO_ROOT/.build-clt/out/Products/Release/ocoreai" \
     "$PROBE_REPO_ROOT/.build-clt/debug/ocoreai" \
+    "$PROBE_REPO_ROOT/.build-clt/release/ocoreai" \
+    "$PROBE_REPO_ROOT/.build/out/Products/Debug/ocoreai" \
+    "$PROBE_REPO_ROOT/.build/out/Products/Release/ocoreai" \
     "$PROBE_REPO_ROOT/.build/debug/ocoreai" \
     "$PROBE_REPO_ROOT/.build/release/ocoreai"
   do
-    if [ -x "$candidate" ]; then
-      printf '%s\n' "$candidate"
-      return 0
+    [ -x "$candidate" ] || continue
+    mtime="$(stat -f %m "$candidate" 2>/dev/null || echo 0)"
+    score="$(probe_dependency_score "$candidate")"
+    if [ "$score" -gt "$best_score" ] \
+      || { [ "$score" -eq "$best_score" ] && [ "$mtime" -gt "$best_mtime" ]; }; then
+      best="$candidate"
+      best_score="$score"
+      best_mtime="$mtime"
     fi
   done
-  return 1
+  [ -n "$best" ] || return 1
+  # stderr, because the path is the function's stdout contract and a caller captures it.
+  printf 'resolved %s (dependency score %s)\n' "$best" "$best_score" >&2
+  printf '%s\n' "$best"
+  return 0
 }
 
 # Extract one value from a JSON document by dotted path (list indices as digits).
@@ -222,7 +362,8 @@ probe_boot() {
     probe_fail "no ocoreai binary found — build first (swift build, or the CLT route in Makefile)"
     probe_summary "${PROBE_NAME:-probe}"
   fi
-  probe_require_clean_dependency_checkout "$(cd "$(dirname "$bin")/../" && pwd)"
+  probe_require_clean_dependency_checkout "$(probe_scratch_for_binary "$bin")"
+  probe_reap_stale_instances
   PROBE_PORT="${OCOREAI_PROBE_PORT:-$(probe_free_port)}"
   PROBE_BASE="http://127.0.0.1:${PROBE_PORT}"
   PROBE_LOG="$(mktemp -t ocoreai-probe-XXXXXX).log"
