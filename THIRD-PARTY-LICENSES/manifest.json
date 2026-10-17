@@ -36,7 +36,7 @@
     {
       "license": "MIT",
       "name": "mlx-swift-lm",
-      "pin": "rev 6e338e5df494",
+      "pin": "rev 48114eedf3c3",
       "repository": "https://github.com/ml-explore/mlx-swift-lm.git",
       "textFile": "mlx-swift-lm.txt"
     },
