@@ -32,8 +32,8 @@ signed bundle (nested code object ⇒ CodeSign dies). Gate: `MetalShaderLibraryT
 
 ## Steering is delivered at the request seam
 `mergingSteeredTurn` (`Sources/ocoreai/Handlers/ChatHandler.swift`) folds a queued steer into the head
-of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:2908`,
-`:3514`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
+of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:2933`,
+`:3541`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
 delivers on the next request, or its contract is fiction (root § Endpoint Promises).
 
 ## Known defect, deliberately unfixed — do not "fix" it blind
@@ -42,6 +42,21 @@ delivers on the next request, or its contract is fiction (root § Endpoint Promi
 index instead of `continue`ing. Its only caller is `@available(macOS 27.0, *)`
 `_runConstrainedDecoding`, so no host here can execute it. Land the fix on macOS 27 with a run, or
 leave it as the open item it is; a blind edit is a claim, not a fix.
+
+## Line cites are gated, not trusted
+Every `file:line` this area leans on is asserted below against the working tree (or the pinned
+upstream revision). Round 14 inserted ~27 lines above the ThinkingBudget call and 15 cites across
+AGENTS.md moved off their targets with no gate going red; these markers are the red. Move code, get
+`make anchor-check` to name the cite that drifted.
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:149 Task.sleep(until: deadline -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1385 Float.leastNormalMagnitude -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:2933 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3541 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4146 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3642 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:771 case "affine" -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1724 func saveCache -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1110 templateMessages = leadingMessages -->
 
 ## Verification in this subtree
 - Sandbox route compiles it without escalation; Metal suites self-skip on

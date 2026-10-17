@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release app dmg test test-verbose test-coverage test-ci probes format format-check audit clean metallib help ci-local
+.PHONY: all build release app dmg test test-verbose test-coverage test-ci probes format format-check audit docs-check anchor-check clean metallib help ci-local
 
 all: build
 
@@ -278,6 +278,15 @@ audit:
 	@echo "🔍 Running static audit..."
 	bash scripts/audit.swift_patterns.sh
 
+## Verifies every file:line cite in AGENTS.md / area guides / docs and the upstream cites in
+## code comments against the file it names (working tree, or the pinned upstream revision).
+## Line numbers are how the agent navigates, and they move under every edit and bump: 15 of
+## them were wrong on 10-17 with `make docs-check` green, because a cite inside a file is not
+## the same claim as a cite pointing at the code.
+anchor-check:
+	@echo "🎯 Verifying line cites in docs and code comments..."
+	bash scripts/anchor-check.sh
+
 ## ── Docs Contract ──────────────────────────────────────────────────
 
 # AGENTS.md (and the area guides) are injected into the model's context on every session, so they
@@ -307,7 +316,7 @@ metallib:
 
 ## ── CI Pipeline (Local) ───────────────────────────────────────────
 
-ci-local: clean format-check audit docs-check build test-ci
+ci-local: clean format-check audit docs-check anchor-check build test-ci
 	@echo ""
 	@echo "✅ Full CI pipeline passed locally"
 
@@ -328,6 +337,7 @@ help:
 	@echo "Quality:"
 	@echo "  make format         Format all Swift files"
 	@echo "  make docs-check     AGENTS.md budget + refs + claims + routing (no build needed)"
+	@echo "  make anchor-check   every file:line cite points at the code it claims (no build)"
 	@echo "  make docs-budget    Lower the AGENTS.md size cap (shrink-only)"
 	@echo "  make format-check   Check format compliance (exit 1 if dirty)"
 	@echo "  make audit          Run static audit (failure pattern check)"

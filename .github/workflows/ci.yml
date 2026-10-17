@@ -69,6 +69,15 @@ jobs:
       - name: AGENTS.md contract
         run: bash scripts/agents-md-contract.sh check
 
+      # Line-cite anchors — docs-check can only ask whether `file:line` is inside the file;
+      # this asks whether the line is the code the doc claims. 15 cites were wrong on 10-17
+      # with docs-check green (round 14 inserted lines above ThinkingBudget and the numbers
+      # moved). Local anchors are enforced on every leg (floor 6); upstream anchors verify
+      # wherever a dependency tree exists and are reported as skipped otherwise, so a
+      # runner with no ~/references neither false-fails nor passes silently.
+      - name: Line-cite anchors
+        run: bash scripts/anchor-check.sh
+
       # Toolchain contract — assert this runner's SDK/toolchain is the shape the build
       # claims. A runner-image bump can repoint MacOSX.sdk to a newer SDK that ships
       # CoreAI.framework, which flips `canImport(CoreAI)` true and compiles the

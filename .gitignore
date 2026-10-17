@@ -33,7 +33,14 @@ reference/
 
 ## Reference repos (synced from local mirrors)
 references/
-docs/
+# `docs/` was added here for a mirrored reference tree, and it silently swallowed the
+# project's own evidence layer: AGENTS.md routes its long-form proof into docs/agent/*.md,
+# `make docs-check` budgets those guides, and `make anchor-check` verifies cites inside
+# them — none of which exists in a fresh clone while the directory is ignored. Keep
+# mirroring out, keep the routing targets in.
+docs/*
+!docs/agent/
+!docs/agent/**
 .status.md
 
 # Local scrapling venv (tooling, not project code)

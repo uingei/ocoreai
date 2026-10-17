@@ -131,7 +131,28 @@ for t in sorted(tracked | on_disk):
 # the doc really did cite an outside tree.
 SYSTEM_REFS = ("UIPasteboard.h", "arg_reduce.metal", "device.cpp", "GPU+Metal.swift",
                "CoreAIRuntime.swiftinterface", "coreai.json", ".swiftinterface")
-clones = sorted(glob.glob(os.path.expanduser("~/references/*")))
+# Two home candidate sources, because $HOME is not a stable fact here: the documented
+# CLT/sandbox recipe exports HOME=/private/tmp/codexhome, and a resolver that asks $HOME
+# where the reference trees live then reports every upstream cite as unresolved. A gate
+# that cries wolf for the wrong reason is a gate people learn to ignore — so the passwd
+# entry is consulted too, and the run says how many trees it actually searched.
+def _homes():
+    out = [os.environ["HOME"]] if os.environ.get("HOME") else []
+    try:
+        import pwd
+        out.append(pwd.getpwuid(os.getuid()).pw_dir)
+    except Exception:  # noqa: BLE001 - pwd is a nicety, not a premise
+        pass
+    return sorted({os.path.expanduser(h) for h in out})
+
+
+HOMES = _homes()
+clones = sorted({p for h in HOMES for p in glob.glob(os.path.join(h, "references/*"))})
+# The dependency checkouts this repo actually compiles: on CI there is no ~/references, but
+# a leg that resolved the pin can still resolve an upstream basename against real code.
+for _base in (".build-clt/checkouts", ".build/checkouts"):
+    clones += sorted(glob.glob(os.path.join(repo, _base, "*")))
+clones = sorted(set(clones))
 clone_index = {}
 for c in clones:
     out = subprocess.run(["git", "-C", c, "ls-files"], capture_output=True, text=True).stdout.split() \
@@ -177,7 +198,10 @@ if len(routing) < env_int("OCOREAI_AGENTS_FLOOR_ROUTING"):
 unresolved, upstream = [], []
 for r in hard_refs:
     if r.startswith("~/") or r.startswith("/"):
-        if not os.path.exists(os.path.expanduser(r)):
+        targets = [os.path.expanduser(r)]
+        if r.startswith("~/"):
+            targets += [os.path.join(h, r[2:]) for h in HOMES]
+        if not any(os.path.exists(t2) for t2 in targets):
             warn.append("P2 host-local path not on this host: %s (must be declared host-local, not project truth)" % r)
         continue
     if (r in tracked or r in on_disk or os.path.exists(r)
@@ -187,7 +211,9 @@ for r in hard_refs:
     if base in by_base:
         continue
     if base in clone_index:
-        upstream.append("%s (%s)" % (r, ",".join(sorted(set(clone_index[base])))))
+        trees = sorted(set(clone_index[base]))
+        shown = ",".join(trees[:3]) + (",+%d more" % (len(trees) - 3) if len(trees) > 3 else "")
+        upstream.append("%s (%s)" % (r, shown))
         continue
     unresolved.append(r)
 if unresolved:
@@ -250,6 +276,24 @@ unrouted = sorted(p for p in guides if p not in listed)
 if unrouted:
     fail.append("P7 area guide(s) exist but no routing row in AGENTS.md: %s" % ", ".join(unrouted))
 
+# ── P9 routing targets are TRACKED, not merely present ──────────────────────
+# A routing row is a promise that a fresh clone contains the file. Measured 10-17: `docs/`
+# sat in .gitignore (under "Reference repos") while AGENTS.md routed its long-form proof
+# into docs/agent/*.md — three guides, ~19 KB of the evidence layer that every session is
+# told to read, present on this host and absent in every clone and CI leg. P7 could not see
+# it because P7 compares the routing table against the *disk*, which is exactly the
+# environment the claim must not be inferred from (invariant 1).
+untracked = []
+for r in sorted(listed):
+    if not (r.startswith("docs/") or r.startswith("Sources/")):
+        continue
+    if subprocess.run(["git", "ls-files", "--error-unmatch", r],
+                      capture_output=True).returncode != 0:
+        untracked.append(r)
+if untracked:
+    fail.append("P9 routing target(s) not tracked in git — the root promises an evidence hop "
+                "that a fresh clone does not contain: %s" % ", ".join(untracked))
+
 # ── P8 the pin the doc quotes is the pin the manifest sets ─────────────────
 # Measured 10-15: Package.swift pinned mlx-swift-lm at 4cc550451 (and .build-clt
 # resolves exactly that) while AGENTS.md still said "Pinned … at 7eb77ef" — one bump
@@ -273,11 +317,12 @@ else:
 print("AGENTS.md contract (%s)" % mode)
 print("  budgets   root=%d/%d chars  guides=%d  chain-cap=%d"
       % (root_size, env_int("OCOREAI_AGENTS_MAX_ROOT"), len(guides), env_int("OCOREAI_AGENTS_MAX_CHAIN")))
-print("  scan      gateable-refs=%d (floor %d)  claims=%d/%d ok (floor %d)  suites=%d  routing=%d"
+print("  scan      gateable-refs=%d (floor %d)  claims=%d/%d ok (floor %d)  suites=%d  routing=%d  upstream-trees=%d"
       % (len(hard_refs), env_int("OCOREAI_AGENTS_FLOOR_REFS"), ok_claims, len(claims),
-         env_int("OCOREAI_AGENTS_FLOOR_CLAIMS"), len(suites), len(routing)))
+         env_int("OCOREAI_AGENTS_FLOOR_CLAIMS"), len(suites), len(routing), len(clones)))
 if upstream:
-    print("  upstream  %d ref(s) resolved in a local clone (not verifiable on a CI runner): %s"
+    print("  upstream  %d ref(s) resolved in a dependency checkout or ~/references "
+          "(line numbers inside them are what `make anchor-check` verifies): %s"
           % (len(upstream), ", ".join(sorted(set(upstream))[:6])))
 for w in warn:
     print("  ⚠ %s" % w)
