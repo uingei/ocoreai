@@ -58,9 +58,8 @@ public struct AdmissionResult: Sendable, Codable {
 actor AdmissionGate {
     // MARK: - Configuration
 
-    /// KB per token in KV cache + activations with 4-bit quantization.
-    /// Aligned with SchedulerActor.KBPerToken — 1KB/token for bits4 q4_0.
-    private static let KBPerToken = 1024  // 1KB/token (bits4 q4_0)
+    // The 1KB/token baseline (bits4 q4_0) lives in ``KVCacheBudget``, shared with
+    // SchedulerActor — see that file for why the conversion must not trap.
 
     /// Abort margin: percentage of remaining budget to always reserve
     /// Production: 0.15. Tuning knob — increase if OOM still occurs, decrease if
@@ -123,8 +122,9 @@ actor AdmissionGate {
     ///   - maxOutputTokens: Maximum number of generated tokens.
     /// - Returns: Estimated bytes needed.
     func estimatedCost(inputTokens: Int, maxOutputTokens: Int) -> UInt64 {
-        let totalTokens = inputTokens + maxOutputTokens
-        return UInt64(totalTokens) * UInt64(Self.KBPerToken)
+        // Each term is floored separately: a negative output budget must not buy the request
+        // a discount on the tokens it really does need (input) — and must not trap.
+        KVCacheBudget.bytes(inputTokens) + KVCacheBudget.bytes(maxOutputTokens)
     }
 
     /// Query available headroom from the budget + our own reservations.

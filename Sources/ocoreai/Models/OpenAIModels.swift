@@ -64,6 +64,13 @@ struct ChatCompletionRequest: Decodable {
     /// in the ChatHandler cascade when both are present.
     var maxCompletionTokens: Int? = nil
 
+    /// Number of choices requested (OpenAI `n`). Decoded so it can be answered honestly:
+    /// this server produces exactly one choice per request, so `n > 1` is refused by name
+    /// rather than accepted and answered with a single choice (AGENTS.md invariant 2 — the
+    /// surface may not silently under-deliver what the client asked for). `n == 1` and an
+    /// absent `n` are the same thing.
+    var n: Int? = nil
+
     /// JSON schema for response format override
     var responseFormat: ResponseFormat? = nil
 
@@ -161,6 +168,7 @@ struct ChatCompletionRequest: Decodable {
         case topK = "top_k"
         case maxTokens = "max_tokens"
         case maxCompletionTokens = "max_completion_tokens"
+        case n
         case responseFormat = "response_format"
         case frequencyPenalty = "frequency_penalty"
         case repetitionPenalty = "repetition_penalty"
@@ -244,6 +252,7 @@ struct ChatCompletionRequest: Decodable {
         topK = try c.decodeIfPresent(Int.self, forKey: .topK)
         maxTokens = try c.decodeIfPresent(Int.self, forKey: .maxTokens)
         maxCompletionTokens = try c.decodeIfPresent(Int.self, forKey: .maxCompletionTokens)
+        n = try c.decodeIfPresent(Int.self, forKey: .n)
         responseFormat = try c.decodeIfPresent(ResponseFormat.self, forKey: .responseFormat)
         frequencyPenalty = (try? c.decodeIfPresent(Float.self, forKey: .frequencyPenalty)) ?? 0
         // #176 alignment — repetition penalty is Double? (nil = not set); decoded
@@ -277,6 +286,52 @@ struct ChatCompletionRequest: Decodable {
         streamOptions = try c.decodeIfPresent(StreamOptions.self, forKey: .streamOptions)
         reasoningLevel = try c.decodeIfPresent(String.self, forKey: .reasoningLevel)
         reasoningEffort = try c.decodeIfPresent(String.self, forKey: .reasoningEffort)
+    }
+
+    /// The first numeric spec violation in this request, or nil when every knob is in domain.
+    ///
+    /// Measured 10-17: `{"max_tokens":-5}` was accepted, reached ``SchedulerActor``, and
+    /// `UInt64(tokenBudget)` trapped — the process died over one malformed body. The rules
+    /// themselves live in ``SamplingDomain`` (shared with the sibling wires); this forwarder
+    /// states only what is specific to the chat wire: OpenAI's `temperature` 0–2, and `n`
+    /// pinned to 1 because one chat request returns exactly one choice here.
+    func numericDomainError() -> AppError? {
+        guard
+            let violation = SamplingDomain.firstViolation(
+                SamplingKnobs(
+                    maxTokens: maxCompletionTokens ?? maxTokens,
+                    maxTokensField: maxCompletionTokens != nil
+                        ? "max_completion_tokens" : "max_tokens",
+                    n: n,
+                    nMaximum: 1,
+                    temperature: Double(temperature),
+                    topP: topP.map(Double.init),
+                    topK: topK,
+                    minP: minP.map(Double.init),
+                    frequencyPenalty: Double(frequencyPenalty),
+                    presencePenalty: Double(presencePenalty),
+                    repetitionPenalty: repetitionPenalty,
+                    seed: seed,
+                    counts: [
+                        SamplingKnobs.Count(
+                            field: "prefill_step_size", value: prefillStepSize ?? 1),
+                        SamplingKnobs.Count(field: "max_kv_size", value: maxKVSize ?? 1),
+                        SamplingKnobs.Count(
+                            field: "repetition_penalty_window", value: repetitionPenaltyWindow ?? 1),
+                        SamplingKnobs.Count(
+                            field: "repetition_context_size", value: repetitionContextSize ?? 1),
+                        SamplingKnobs.Count(
+                            field: "presence_context_size", value: presenceContextSize ?? 1),
+                        SamplingKnobs.Count(
+                            field: "frequency_context_size", value: frequencyContextSize ?? 1),
+                    ]
+                )
+            )
+        else {
+            return nil
+        }
+        return .invalidParameter(
+            param: violation.param, message: violation.message, value: violation.value)
     }
 
     enum PinWireKeys: String, CodingKey {
@@ -1123,6 +1178,43 @@ struct CompletionRequest: Decodable {
         minTokens = try c.decodeIfPresent(Int.self, forKey: .minTokens) ?? 0
         skipSpecialTokens = try c.decodeIfPresent(Bool.self, forKey: .skipSpecialTokens) ?? true
     }
+
+    /// The first numeric spec violation in this request, or nil when every knob is in domain.
+    ///
+    /// Same reason as ``ChatCompletionRequest/numericDomainError()`` — a negative
+    /// `max_tokens` here becomes ``SchedulingRequest/tokenBudget`` and reaches the scheduler,
+    /// where the token-to-byte conversion used to trap. Rules live in ``SamplingDomain``;
+    /// this wire differs in one place: `n > 1` is honoured (`n` passes generated
+    /// sequentially), so only `n < 1` is out of domain.
+    func numericDomainError() -> AppError? {
+        guard
+            let violation = SamplingDomain.firstViolation(
+                SamplingKnobs(
+                    maxTokens: maxTokens,
+                    n: n,
+                    temperature: Double(temperature),
+                    topP: topP.map(Double.init),
+                    topK: topK,
+                    minP: minP.map(Double.init),
+                    frequencyPenalty: Double(frequencyPenalty),
+                    presencePenalty: Double(presencePenalty),
+                    repetitionPenalty: repetitionPenalty,
+                    seed: seed,
+                    counts: [
+                        SamplingKnobs.Count(
+                            field: "repetition_penalty_window", value: repetitionPenaltyWindow ?? 1),
+                        SamplingKnobs.Count(
+                            field: "repetition_context_size", value: repetitionContextSize ?? 1),
+                    ]
+                )
+            )
+        else {
+            return nil
+        }
+        return .invalidParameter(
+            param: violation.param, message: violation.message, value: violation.value)
+    }
+
 }
 
 /// Single choice inside ``TextCompletionResponse`` (text-gen: `text`, not `message`).
@@ -1662,6 +1754,17 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// Bad Request — client sent malformed data
     case invalidRequest(String)
 
+    /// Bad Request — one named field carries a value outside the range its spec publishes.
+    ///
+    /// ``invalidRequest(String)`` says what went wrong; this says *which knob*, because a
+    /// 400 on a 20-field body is only actionable if the client learns which field to fix.
+    /// `param` is the wire path (dotted for nested: `thinking.budget_tokens`), `value` the
+    /// value as sent. Both are published in the JSON body, which is the shape vllm's
+    /// validation handler emits for every 400 (`param`,
+    /// vllm/entrypoints/serve/exception_handling/handlers/validation.py:171-186) and the
+    /// shape OpenAI/Anthropic SDKs branch on alongside `type`.
+    case invalidParameter(param: String, message: String, value: String? = nil)
+
     /// Bad Request — prompt exceeds the model's `max_context_window` **after**
     /// a full compaction pass removed every removable unit (protected prefix +
     /// suffix + the compaction note alone already exceed the cap).
@@ -1776,6 +1879,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     var description: String {
         switch self {
         case .invalidRequest(let msg): "Invalid request: \(msg)"
+        case .invalidParameter(_, let message, _): "Invalid request: \(message)"
         case .contextWindowExhausted(let postTokens, let cap):
             "Context window exhausted: \(postTokens) tokens after compaction (cap \(cap)) — start a fresh conversation"
         case .modelNotFound(let name): "Model \(name) not found"
@@ -1824,7 +1928,7 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// even when the error is a client error (4xx).
     var status: HTTPResponse.Status {
         switch self {
-        case .invalidRequest, .toolCallFailed, .contextWindowExhausted:
+        case .invalidRequest, .invalidParameter, .toolCallFailed, .contextWindowExhausted:
             .badRequest
         case .modelNotFound, .coldStoreNotFound:
             .notFound
@@ -1904,6 +2008,23 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         if case .mediaLost(let reason) = self {
             detail["error_code"] = "media_lost"
             detail["remediation"] = reason
+        }
+        // Request-shape refusals speak the clients' own error type. Both specs name
+        // `invalid_request_error` for a 400 (OpenAI Errors, Anthropic Errors), and vllm —
+        // the reference stack for both wires here — puts the offending field next to it.
+        // `app_error` is what an SDK sees for everything it has no name for, so leaving a
+        // 400 there costs clients a string-parse.
+        switch self {
+        case .invalidRequest:
+            detail["type"] = "invalid_request_error"
+        case .invalidParameter(let param, _, let value):
+            detail["type"] = "invalid_request_error"
+            detail["param"] = param
+            if let value {
+                detail["value"] = value
+            }
+        default:
+            break
         }
         let errorBody = NSDictionary(dictionary: ["error": detail])
         var headers: HTTPFields = [:]

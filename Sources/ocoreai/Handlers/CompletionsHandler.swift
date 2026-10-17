@@ -50,6 +50,14 @@ func completionsHandler(
     metrics: MetricsRegistry,
     logger: Logger,
 ) async throws -> Response {
+    /// Numeric domain gate, first line — the completions sibling of the ones in
+    /// ``chatCompletionsHandler`` and ``anthropicMessagesHandler``. `max_tokens` becomes
+    /// ``SchedulingRequest/tokenBudget`` below, and a negative there used to trap the
+    /// scheduler and take the process with it (measured 10-17).
+    if let error = request.numericDomainError() {
+        throw error
+    }
+
     /// Normalize prompts; reject empty / all-blank.
     let prompts = request.prompt.filter {
         !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

@@ -131,9 +131,10 @@ actor SchedulerActor {
     private var oomGuard: OOMGuard?
     private var admissionGate: AdmissionGate?
 
-    /// KB per token in KV cache (4-bit quant, 2-layer FIM + attention).
-    /// ~1KB/token for bits4 q4_0. AdmissionGate uses the same baseline.
-    private static let KBPerToken = 1024
+    // The token→byte baseline lives in ``KVCacheBudget`` — the admission gate used to carry
+    // its own copy "aligned by comment", and its `UInt64(tokenCount)` conversion trapped on a
+    // negative budget (measured 10-17: `{"max_tokens":-5}` took the process down with a
+    // SIGTRAP from `dispatch()`). One home, and a floor that cannot trap.
 
     /// Per-request estimated memory for accurate deallocation tracking.
     private var requestMemoryMap: [String: UInt64] = [:]
@@ -321,7 +322,7 @@ actor SchedulerActor {
             requestStates[requestId] = .inferring
 
             // Estimate and allocate memory for KV cache
-            let estBytes = UInt64(request.tokenBudget) * UInt64(Self.KBPerToken)
+            let estBytes = KVCacheBudget.bytes(request.tokenBudget)
             requestMemoryMap[requestId] = estBytes
             if let tracker = memoryTracker {
                 await tracker.allocation(estBytes)
@@ -341,7 +342,8 @@ actor SchedulerActor {
     /// - Returns: Array of dispatched requests.
     func dispatchBatch(_ count: Int) async -> [SchedulingRequest] {
         var requests: [SchedulingRequest] = []
-        for _ in 0 ..< count {
+        // `0 ..< count` traps when count is negative — a caller bug must not cost the process.
+        for _ in 0 ..< Swift.max(0, count) {
             if let request = await dispatch() {
                 requests.append(request)
             } else {

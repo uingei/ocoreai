@@ -173,6 +173,22 @@ func chatCompletionsHandler(
     messageBuilder: MessageBuilder,
     logger: Logger,
 ) async throws -> Response {
+    /// Numeric domain gate — first line, before model resolution, before the safety guards,
+    /// before the scheduler reserves anything.
+    ///
+    /// Measured 10-17: `{"max_tokens":-5}` was accepted, reached
+    /// ``SchedulerActor/dispatch()``, and `UInt64(tokenBudget)` trapped there —
+    /// `EXC_BREAKPOINT (SIGTRAP)`, process gone, client got an empty reply, and every other
+    /// conversation on the box died with it. A trap is not a refusal: no status, no
+    /// `error_code`, no remediation, nothing left to serve the next request. Every bounded
+    /// numeric knob is checked here, where a wire value first becomes an internal count, and
+    /// comes back 400 naming the field, the accepted range, and what was sent.
+    /// Gate: `RequestNumericDomainTests` + live probe 09 (which asserts the server is still
+    /// alive and answering 200 on the request *after* the malformed one).
+    if let error = request.numericDomainError() {
+        throw error
+    }
+
     /// Extract model identifier from the request payload.
     /// When `model` is omitted, resolve to the default model (omlx is_default).
     let fallbackModel = await enginePool.defaultModelId()

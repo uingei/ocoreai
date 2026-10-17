@@ -53,6 +53,14 @@ func anthropicMessagesHandler(
     systemPromptBuilder _: SystemPromptBuilder,
     logger: Logger,
 ) async throws -> Response {
+    /// Numeric domain gate, first line — the Anthropic sibling of the one in
+    /// ``chatCompletionsHandler``. Before this, a negative `max_tokens` on this wire reached
+    /// the scheduler and trapped the process (measured 10-17); a spec-invalid value now comes
+    /// back 400 naming the field and Anthropic's own range (`temperature` is [0, 1] here).
+    if let error = request.numericDomainError() {
+        throw error
+    }
+
     let modelId = request.model
 
     // Capture content guard early — used for both input and output safety

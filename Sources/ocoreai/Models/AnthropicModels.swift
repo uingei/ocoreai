@@ -89,6 +89,40 @@ struct AnthropicMessageRequest: Decodable {
         case responseFormat = "response_format"
         case thinking, metadata
     }
+
+    /// The first numeric spec violation on this wire, or nil. The Anthropic sibling of
+    /// ``ChatCompletionRequest/numericDomainError()`` — rules in ``SamplingDomain``, this
+    /// forwarder carries only Anthropic's own bounds: `temperature` is [0, 1] here (not
+    /// OpenAI's [0, 2]) and `top_k = 0` means "disabled" rather than being out of domain.
+    ///
+    /// Before this check a negative `max_tokens` reached the scheduler, where the
+    /// token-to-byte conversion trapped and the whole server died on one malformed request.
+    /// A spec-invalid value now comes back 400 naming the field and the range, and nothing
+    /// downstream is allowed to depend on the caller having been sane.
+    func numericDomainError() -> AppError? {
+        guard
+            let violation = SamplingDomain.firstViolation(
+                SamplingKnobs(
+                    maxTokens: maxTokens,
+                    temperature: temperature.map(Double.init),
+                    temperatureRange: 0 ... 1,
+                    topP: topP.map(Double.init),
+                    topK: topK,
+                    counts: [
+                        // `thinking.budget_tokens` is consumed as an output cap
+                        // (`toChatCompletionRequest` takes `min(max_tokens, budget_tokens)`),
+                        // so a non-positive budget would ask the engine for nothing.
+                        SamplingKnobs.Count(
+                            field: "thinking.budget_tokens", value: thinking?.budgetTokens ?? 1)
+                    ]
+                )
+            )
+        else {
+            return nil
+        }
+        return .invalidParameter(
+            param: violation.param, message: violation.message, value: violation.value)
+    }
 }
 
 /// Anthropic message — no `system` role, system prompt is top-level.
