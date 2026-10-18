@@ -113,6 +113,8 @@ Known boundaries (as of this commit, not aspirations):
 
 > Public (no auth): `/health`, `/ready`, `/v1/models`, `/v1/tools`, `/v1/capabilities`, `/v1/stats`, `/metrics` — the discovery surface, matching `AuthMiddleware.publicPaths`. Admin key (`OCOREAI_ADMIN_KEYS`) required for all `PATCH`/`DELETE`.
 
+> **Measured, never inferred.** `GET /v1/models` carries per-model disclosure keys — `vlm`, `contextLength`, `capabilities`, `videoInput`/`videoEvidence`, `toolCallDelivery`/`toolCallEvidence` (`parsed` | `prose_only` | `not_observed`) — and `GET /v1/capabilities` publishes the same measurements aggregated, plus `tokenizerBackend` (`real`/`heuristic`) and the endpoint index. Nothing is inferred from an architecture name or a linked framework: an unmeasured capability is an explicit `not_observed`/`unknown`, never a silent absence, and unloading a model resets its claims. Model ids contain `/`, so percent-encode them in `/v1/models/:model/…` paths.
+
 ---
 
 ### Architecture
