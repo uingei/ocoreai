@@ -7,8 +7,11 @@
 //      implicit full registry surface — live evidence: implicit full surface
 //      made small models hallucinate tool calls on plain-text requests.
 //   2. Whitelist contract: declared names → only those specs survive, in
-//      registry spec order.
-//   3. Declared-but-unregistered names → no crash, no phantom spec.
+//      declared (wire) order — spec order is dict-unstable.
+//   3. Declared-but-unregistered names → no crash, and no phantom spec from
+//      the registry. Supplying the caller's own specs declares them verbatim
+//      instead (10-18, `resolveToolSurface(declaredSpecsJSON:)`:
+//      ToolDeclarationSurfaceTests covers that half of the contract).
 //   4. Empty whitelist → empty surface (disallowed-like).
 //   5. Malformed spec (missing function/name) → dropped, never leaks.
 
@@ -84,7 +87,7 @@ struct ToolWhitelistSurfaceTests {
     func nilDeclaredYieldsZeroSurface() async {
         let registry = await makeRegistry()
         let specs = await registry.toToolSpecs()
-        let (surface, route) = resolveToolSurface(specs: specs, declaredNames: nil)
+        let (surface, _, route) = resolveToolSurface(specs: specs, declaredNames: nil)
         #expect(surface.isEmpty, "nil must NOT re-open the full registry surface")
         #expect(route.contains("no-tools route"))
     }
@@ -93,7 +96,7 @@ struct ToolWhitelistSurfaceTests {
     func emptyDeclaredYieldsZeroSurface() async {
         let registry = await makeRegistry()
         let specs = await registry.toToolSpecs()
-        let (surface, route) = resolveToolSurface(specs: specs, declaredNames: [])
+        let (surface, _, route) = resolveToolSurface(specs: specs, declaredNames: [])
         #expect(surface.isEmpty)
         #expect(route.contains("no-tools route"))
     }
@@ -102,12 +105,14 @@ struct ToolWhitelistSurfaceTests {
     func declaredYieldsWhitelistRoute() async {
         let registry = await makeRegistry()
         let specs = await registry.toToolSpecs()
-        let (surface, route) = resolveToolSurface(
+        let (surface, localNames, route) = resolveToolSurface(
             specs: specs, declaredNames: ["exec_command", "write_file"])
         let names = surface.compactMap {
             (($0["function"] as? [String: any Sendable])?["name"]) as? String
         }
         #expect(names == ["exec_command", "write_file"])  // declared (wire) order
         #expect(route.contains("whitelist route"))
+        // Both are registry names here: nothing on this surface is caller-owned.
+        #expect(localNames == ["exec_command", "write_file"] as Set<String>)
     }
 }

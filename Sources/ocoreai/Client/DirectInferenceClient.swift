@@ -412,6 +412,7 @@ extension DirectInferenceClient {
             reasoningLevel: request.reasoningLevel,
             reasoningEffort: request.reasoningEffort,
             declaredToolNames: toolRouting.declaredToolNames,
+            declaredToolSpecsJSON: toolRouting.declaredToolSpecsJSON,
         )
 
         // Phase 5: Dispatch inference
@@ -789,6 +790,7 @@ extension DirectInferenceClient {
             reasoningLevel: request.reasoningLevel,
             reasoningEffort: request.reasoningEffort,
             declaredToolNames: toolRouting.declaredToolNames,
+            declaredToolSpecsJSON: toolRouting.declaredToolSpecsJSON,
         )
 
         // Phase 5: Dispatch inference — direct stream via generateFromMessages

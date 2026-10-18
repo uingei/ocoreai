@@ -1956,6 +1956,7 @@ extension EnginePool {
             messagePairs: [(role: String, content: String)],
             grammarSchema: String,
             maxTokens: Int,
+            toolSpecs: [ToolSpec]? = nil,
         ) async throws {
             try await handleRef.modelContainer.perform { context in
                 // Rebuild Chat.Message inside the @Sendable closure to avoid
@@ -1976,7 +1977,14 @@ extension EnginePool {
                 // MLXChatExample: UserInput.Processing(resize: CGSize(width:1024, height:1024))
                 // Value read from config so users can tune per-image token overhead.
                 let uiProcessing = UserInput.Processing(resize: config.vlmImageResize)
-                let userInput = UserInput(prompt: .chat(messages), processing: uiProcessing)
+                // Declare the tools this grammar constrains. Without `tools:` the
+                // chat template renders no tool block, so the model was forced into
+                // a call shape it had never been shown — the schema said what a call
+                // looks like while nothing said which tools exist, what they do, or
+                // what their arguments mean (10-18: the guided path built
+                // `UserInput(prompt:.chat(...))` with no tools at all).
+                let userInput = UserInput(
+                    prompt: .chat(messages), processing: uiProcessing, tools: toolSpecs)
                 let lmInput = try await context.processor.prepare(input: userInput)
 
                 // Build GrammarTokenizer — cached per-model via LoadedModel mirror of
@@ -2408,30 +2416,48 @@ extension EnginePool {
             /// earned with (nil when upstream reported no `.info`).
             var stdPromptTokenCount: Int?
             var registeredToolSpecs: [ToolSpec]?
+            /// Names inside the surface that THIS server can execute. Every other
+            /// declared name belongs to the caller: a call for it goes back on the
+            /// wire as `tool_calls` instead of reaching `registry.call` (10-18,
+            /// see `resolveToolSurface`).
+            var locallyExecutableToolNames: Set<String> = []
 
             // Bridge ToolRegistry → ChatSession tools + toolDispatch
             // Upstream ToolCallingModeResolution.resolve("disallowed") →
             // enabledToolDefinitions = [] → !isEmpty check fails → skip tool path.
             // We must honor the same contract: when user explicitly sets "disallowed",
             // treat the tool table as empty regardless of what ToolRegistry provides.
+            // Registry specs are an input to the surface, not its precondition:
+            // with no registry (or none matching) the caller's own declarations
+            // still describe this turn (`options.declaredToolSpecs`).
+            let registrySpecs: [ToolSpec]
             if let registry = toolRegistry {
-                let specs = await registry.toToolSpecs()
-                // P0-3 + 10-06 flip: the surface is resolved by ONE choke
-                // (`resolveToolSurface`). nil (client declared nothing) is no
-                // longer "full registry convenience" — it is ZERO tools
-                // (OpenAI wire semantics). Live evidence for the flip: a
-                // no-tools "count to ten" request got the full 39-tool
-                // surface, hallucinated a truncated tool call, and the
-                // corrective echo shipped as the assistant answer.
-                let (surface, route) = resolveToolSurface(
-                    specs: specs,
-                    declaredNames: options.declaredToolNames)
-                log.info(
-                    "Tool surface [\(route)]: \(surface.count)/\(specs.count) injected")
-                if !surface.isEmpty,
-                    options.toolCallingMode?.lowercased() != "disallowed"
-                {
-                    registeredToolSpecs = surface
+                registrySpecs = await registry.toToolSpecs()
+            } else {
+                registrySpecs = []
+            }
+            // P0-3 + 10-06 flip: the surface is resolved by ONE choke
+            // (`resolveToolSurface`). nil (client declared nothing) is no
+            // longer "full registry convenience" — it is ZERO tools
+            // (OpenAI wire semantics). Live evidence for the flip: a
+            // no-tools "count to ten" request got the full 39-tool
+            // surface, hallucinated a truncated tool call, and the
+            // corrective echo shipped as the assistant answer.
+            let (surface, localToolNames, route) = resolveToolSurface(
+                specs: registrySpecs,
+                declaredNames: options.declaredToolNames,
+                declaredSpecsJSON: options.declaredToolSpecsJSON)
+            log.info(
+                "Tool surface [\(route)]: \(surface.count)/\(registrySpecs.count) injected")
+            if !surface.isEmpty,
+                options.toolCallingMode?.lowercased() != "disallowed"
+            {
+                registeredToolSpecs = surface
+                locallyExecutableToolNames = localToolNames
+                if localToolNames.isEmpty {
+                    log.info(
+                        "Declared tools are caller-owned — any call returns as tool_calls (no local dispatch)"
+                    )
                 }
             }
 
@@ -2510,7 +2536,12 @@ extension EnginePool {
                     // nil (client declared nothing) = ZERO tools, never the
                     // implicit full surface. Agentic callers declare explicitly.
                     let specs = await registry.toToolSpecs()
-                    let (surface, route) = resolveToolSurface(
+                    // FM proxies wrap registry entries, so this path asks the
+                    // choke for the registry-resolved set and keeps only the
+                    // names it can back with a proxy: a caller-owned tool has no
+                    // FoundationModels.Tool to build, and inventing one would be
+                    // an unverified promise on a macOS 27-only path.
+                    let (surface, _, route) = resolveToolSurface(
                         specs: specs,
                         declaredNames: options.declaredToolNames)
                     if !surface.isEmpty {
@@ -2842,7 +2873,18 @@ extension EnginePool {
             // actor, no JSON encode/decode of MLXLMCommon.JSONValue.
             var toolDispatchClosure: (@Sendable (MLXLMCommon.ToolCall) async throws -> String)? =
                 nil
-            if let registry = toolRegistry {
+            /// Immutable snapshot for the `@Sendable` closure below (a captured `var`
+            /// cannot cross that boundary).
+            let executableHere = locallyExecutableToolNames
+            /// Installing a dispatcher tells upstream "execute every call and keep
+            /// generating" — true only for names this server owns. When the whole
+            /// declared surface is caller-owned, no dispatcher is installed, so
+            /// upstream hands each call back to us (`ChatSession.swift`: "if no
+            /// toolDispatch the caller handles them via the transform") and the wire
+            /// answers with `tool_calls` + `finish_reason: tool_calls`, which is the
+            /// OpenAI contract: the caller executes what the caller declared.
+            let dispatchesOwnedTools = registeredToolSpecs == nil || !executableHere.isEmpty
+            if let registry = toolRegistry, dispatchesOwnedTools {
                 // Double-serialization fix: removed tracker record + JSON roundtrip.
                 // Previously: MLXLMCommon.JSONValue → JSONSerialization → String → registry.call().
                 // Now: MLXLMCommon.JSONValue → direct registry.call() via .anyValue.
@@ -2857,6 +2899,20 @@ extension EnginePool {
                     // which added post-hoc delay; now direct inline serialization.
                     let dispId = toolCall.id ?? ""
                     let dispName = toolCall.function.name
+                    // Caller-owned tool: declared by the client, not registered
+                    // here, so the CLIENT executes it. Hand the call back on the
+                    // wire. Running `registry.call` on it could only ever yield a
+                    // not-found string, which let the model narrate around a call
+                    // nobody ran while the client waited for a call it never got.
+                    guard executableHere.contains(dispName) else {
+                        logger.info(
+                            "Tool call returned to caller (declared here, owned by the client): \(dispName)"
+                        )
+                        continuation.yield(
+                            .init(kind: .toolCall(InferenceEvent.mlxToolCall(from: toolCall))))
+                        return
+                            "[tool_handoff: \(dispName) is the caller's tool — the caller executes it and sends back the result]"
+                    }
                     let dispStart = ContinuousClock.now
                     // Truthful completion event (codex `function_call_output` baseline):
                     // measure the real wall duration around `registry.call` and surface
@@ -3234,6 +3290,7 @@ extension EnginePool {
                         },
                         grammarSchema: schema,
                         maxTokens: effectiveMaxTokens,
+                        toolSpecs: registeredToolSpecs,
                     )
                     // Guided generation served this turn end to end (text + `.done`
                     // + `finish()`), so the request is over. Returning here is the

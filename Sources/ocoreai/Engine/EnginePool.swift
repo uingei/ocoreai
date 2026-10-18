@@ -212,10 +212,29 @@ actor EnginePool {
     /// `/v1/models` may say anything about video input (see ``VideoDeliveryLedger``).
     var videoDeliveries = VideoDeliveryLedger()
 
+    /// Tool-declaring turns this process has completed, per model — the only basis on
+    /// which `/v1/models` may say anything about function calling (see
+    /// ``ToolCallDeliveryLedger``). Recorded at the wire edge, where delivered means
+    /// the client actually received `tool_calls`.
+    var toolCallDeliveries = ToolCallDeliveryLedger()
+
     /// Snapshot for the wire layer: which models this process has completed a video turn
     /// with, and the evidence line each claim carries (`/v1/models` publishes from this).
     func videoDeliverySnapshot() -> [String: VideoDeliveryRecord] {
         videoDeliveries.deliveries
+    }
+
+    /// Snapshot for the wire layer: per-model tool-call delivery and its evidence line.
+    func toolCallDeliverySnapshot() -> [String: ToolCallDeliveryRecord] {
+        toolCallDeliveries.deliveries
+    }
+
+    /// The wire edge records one completed tool-declaring turn here. Kept on the pool
+    /// (not a global) so an unload drops the claim together with the weights.
+    func recordToolCallDelivery(
+        modelId: String, outcome: ToolCallTurnOutcome, calledNames: [String] = []
+    ) {
+        toolCallDeliveries.record(modelId: modelId, outcome: outcome, calledNames: calledNames)
     }
 
     /// Models currently being loaded — prevents concurrent duplicate loads.
@@ -1486,6 +1505,8 @@ actor EnginePool {
         // Same rule for video: the weights that earned the claim are gone, so the
         // claim goes back to `not_observed` rather than outlive them.
         videoDeliveries.forget(modelId: modelId)
+        // And for function calling: `tool_call_delivery` goes back to `not_observed`.
+        toolCallDeliveries.forget(modelId: modelId)
 
         logger.info("Model unloaded: \(modelId)")
         return true

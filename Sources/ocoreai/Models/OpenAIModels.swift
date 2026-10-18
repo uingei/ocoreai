@@ -2069,6 +2069,23 @@ func effectiveTools(
     return request.tools
 }
 
+/// Does this turn DEMAND a tool call?
+///
+/// OpenAI carries that instruction in `tool_choice`, never in the presence of
+/// `tools[]`: absent/"auto" = the model may answer instead of calling; "required"
+/// and the pinned `{"type":"function",…}` (normalized to `function:<name>` when
+/// decoded) = it must. Guided generation's grammar is a oneOf
+/// over call objects with no answer-directly branch, so it is the enforcement
+/// mechanism and may switch on THIS predicate only. Gating it on the declaration
+/// instead is what cost a declaring request its answer (measured 10-18:
+/// `tools:[get_weather]` + "What is 2 + 2?" → `content:""`, `finish_reason:"stop"`,
+/// while the no-tools control answered `4`). vllm/sglang keep the same split —
+/// they parse whatever the model emitted and only force when told to.
+func toolChoiceDemandsCall(_ toolChoice: String?) -> Bool {
+    guard let toolChoice else { return false }
+    return toolChoice == "required" || toolChoice.hasPrefix("function:")
+}
+
 /// Build a JSON Schema string for GrammarConstraint from tool definitions.
 /// Returns `nil` when no tools are provided.
 ///
@@ -2081,28 +2098,61 @@ func effectiveTools(
 /// root with per-tool namespaced keys (<tool>__<def>) and $refs are rewritten
 /// to match — preventing dangling pointers that cause xgrammar compilation failure.
 /// (Mirrors upstream commit 1032402)
+/// 递归扁平化 AnyCodable 嵌套 → JSON 原生 Any。
+/// JSONSerialization 遇 AnyCodable struct (__SwiftValue) → NSException
+/// (ObjC 异常不是 Swift Error,try? 接不住,进程死)。全深度递归剥壳。
+func flattenJSONValue(_ v: Any) -> Any {
+    if let c = v as? AnyCodable {
+        return flattenJSONValue(c.value)
+    }
+    if let a = v as? [Any] {
+        return a.map { flattenJSONValue($0) }
+    }
+    if let o = v as? [String: Any] {
+        return o.mapValues { flattenJSONValue($0) }
+    }
+    return v
+}
+
+/// `tools[]` → JSON text in the shape templates and upstream `ToolSpec` consume:
+/// `[{"type":"function","function":{name,description,parameters}}, …]`.
+///
+/// This is the caller's declaration verbatim (its description, its parameter
+/// schema), so a tool this server does not register is still declarable to the
+/// model instead of vanishing — see `InferenceOptions.declaredToolSpecsJSON`.
+/// Values are flattened to JSON-native `Any` first (`AnyCodable` would reach
+/// JSONSerialization as a `__SwiftValue` and raise an uncatchable ObjC exception).
+/// nil/empty in → nil out: "no tools declared" is not an empty surface.
+func openAIToolSpecsJSON(from defs: [ToolDef]?) -> String? {
+    guard let defs, !defs.isEmpty else { return nil }
+    let specs: [[String: Any]] = defs.map { def in
+        var function: [String: Any] = ["name": def.function.name]
+        if let description = def.function.description {
+            function["description"] = description
+        }
+        if let parameters = def.function.parameters {
+            function["parameters"] = flattenJSONValue(parameters)
+        }
+        return ["type": def.type, "function": function]
+    }
+    guard
+        let data = try? JSONSerialization.data(withJSONObject: specs, options: []),
+        let json = String(data: data, encoding: .utf8)
+    else {
+        return nil
+    }
+    return json
+}
+
 func buildGrammarSchema(
     from tools: [ToolDef]?,
     responseFormat: ResponseFormat? = nil
 ) -> String? {
-    // Helper: 递归扁平化 AnyCodable 嵌套 → JSON 原生 Any。
-    // JSONSerialization 遇 AnyCodable struct (__SwiftValue) → NSException
-    // (ObjC 异常不是 Swift Error,try? 接不住,进程死)。全深度递归剥壳。
-    func flatten(_ v: Any) -> Any {
-        if let c = v as? AnyCodable {
-            return flatten(c.value)
-        }
-        if let a = v as? [Any] {
-            return a.map { flatten($0) }
-        }
-        if let o = v as? [String: Any] {
-            return o.mapValues { flatten($0) }
-        }
-        return v
-    }
+    // 递归剥壳见 `flattenJSONValue`(共享: grammar 与 tool-spec 两条路都必须
+    // 把 AnyCodable 换成 JSON 原生 Any, 两处各写一份迟早漂移)。
 
     let toAny: ([String: AnyCodable]) -> [String: Any] = { dict in
-        (flatten(dict) as? [String: Any]) ?? [:]
+        (flattenJSONValue(dict) as? [String: Any]) ?? [:]
     }
 
     // Tools path: build function_call-style schema with $defs hoisting

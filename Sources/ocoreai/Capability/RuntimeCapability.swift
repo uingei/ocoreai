@@ -50,6 +50,7 @@ public enum RuntimeCapability {
             case "tts_speech": return "Speech TTS"
             case "video_generation": return "Video"
             case "video_input": return "Video input"
+            case "tool_call_delivery": return "Tool calls"
             case "mcp_stdio": return "MCP stdio"
             case "screenshot_capture": return "Screenshot"
             case "model_fidelity": return "Fidelity"
@@ -300,6 +301,10 @@ public enum RuntimeCapability {
         /// Cross-model video evidence, counted by the ledger that answers `/v1/models`.
         var video: VideoDeliveryAggregate = VideoDeliveryAggregate()
 
+        /// Cross-model tool-call evidence, counted by the ledger that answers
+        /// `/v1/models` (`tool_call_delivery`).
+        var tool: ToolCallDeliveryAggregate = ToolCallDeliveryAggregate()
+
         /// Nothing measured yet.
         static let unmeasured = Measurement()
     }
@@ -320,6 +325,9 @@ public enum RuntimeCapability {
     ///   quotes what the framework said. Not sticky: the next attempt overwrites the
     ///   record, so a fixed permission or a restarted window server is not punished by a
     ///   stale "no" until restart.
+    /// - `tool_call_delivery` is appended: whether a tool-declaring turn ever came
+    ///   back as `tool_calls` here. `agent_loop: true` is a tier statement about the
+    ///   loop's wiring, not evidence that a call reached a client.
     /// - `video_input` is appended. `video_generation` describes *output*, and until now
     ///   nothing on this surface said whether the server can take a clip in at all —
     ///   probe 08 measured a model answering questions about frames while the discovery
@@ -343,6 +351,28 @@ public enum RuntimeCapability {
                     note: "Measured on this box: a frame was delivered\(timing). " + line.note)
             }
         }
+        // Function calling is the capability an agent client routes on, and
+        // `agent_loop: true` above says nothing about whether a call ever reaches
+        // the client. Measured only: `not_observed` until a declaring turn has
+        // completed here, which is not a verdict on the models (AGENTS.md inv. 2).
+        // `available` follows the delivery, not the traffic: declaring tools and
+        // getting prose back is evidence AGAINST, and must never read as available.
+        let toolDelivered = measurement.tool.parsedTurns > 0
+        let toolNote: String
+        if measurement.tool.isEmpty {
+            toolNote =
+                "not_observed — no tool-declaring turn has completed here yet, so this says "
+                + "nothing about whether the models can call functions; per-model verdicts "
+                + "on GET /v1/models (`tool_call_delivery`)"
+        } else {
+            toolNote =
+                measurement.tool.evidenceLine
+                + " — per-model verdicts on GET /v1/models (`tool_call_delivery`)"
+        }
+        result.append(
+            Line(
+                name: "tool_call_delivery", available: toolDelivered,
+                note: toolNote))
         let videoDelivered = !measurement.video.isEmpty
         result.append(
             Line(

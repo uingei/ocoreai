@@ -46,6 +46,63 @@ func toolSurfaceWhitelist(_ specs: [[String: any Sendable]], to names: [String])
     }
 }
 
+/// JSON value → the `any Sendable` shape a `ToolSpec` slot holds.
+///
+/// Built structurally instead of casting a `[String: Any]` to
+/// `[String: any Sendable]`: that implicit bridge is a runtime conformance check
+/// which traps or silently drops the value depending on what the caller sent, and
+/// a tool declaration must not half-arrive. Anything unrecognizable becomes
+/// `NSNull` rather than disappearing with no trace.
+func sendableJSONValue(_ value: Any) -> any Sendable {
+    if let o = value as? [String: Any] {
+        var out: [String: any Sendable] = [:]
+        out.reserveCapacity(o.count)
+        for (key, nested) in o { out[key] = sendableJSONValue(nested) }
+        return out
+    }
+    if let a = value as? [Any] {
+        return a.map { sendableJSONValue($0) }
+    }
+    if let s = value as? String { return s }
+    if let n = value as? NSNumber {
+        // NSNumber bridges Bool and numeric types through the same class on
+        // Darwin: test the ObjC type encoding before falling back to intValue.
+        if CFGetTypeID(n) == CFBooleanGetTypeID() { return n.boolValue }
+        if n.objCType.pointee == 0x64 /* 'd' double */ { return n.doubleValue }
+        return n.intValue
+    }
+    if value is NSNull { return NSNull() }
+    return NSNull()
+}
+
+/// `InferenceOptions.declaredToolSpecsJSON` → the spec dictionaries the surface is
+/// built from. Malformed JSON or a non-array body yields `[]`: a declaration the
+/// engine cannot read must not become a partial declaration.
+func declaredToolSpecs(fromJSON json: String?) -> [[String: any Sendable]] {
+    guard let json, let data = json.data(using: .utf8) else { return [] }
+    guard
+        let decoded = try? JSONSerialization.jsonObject(with: data),
+        let array = decoded as? [Any]
+    else { return [] }
+    return array.compactMap { element in
+        (sendableJSONValue(element) as? [String: any Sendable])
+    }
+}
+
+/// The names carried by a spec list, in list order (`function.name` slots).
+///
+/// Zero forced casts: the `function`/`name` slots are read with `as?` guards,
+/// so a malformed spec contributes no name rather than trapping.
+func toolSpecNames(_ specs: [[String: any Sendable]]) -> [String] {
+    specs.compactMap { spec in
+        guard
+            let functionDict = spec["function"] as? [String: any Sendable],
+            let name = functionDict["name"] as? String
+        else { return nil }
+        return name
+    }
+}
+
 /// The injection surface for one inference request — THE single choke (10-06
 /// live-evidence flip, see `InferenceOptions.declaredToolNames`).
 ///
@@ -55,20 +112,77 @@ func toolSurfaceWhitelist(_ specs: [[String: any Sendable]], to names: [String])
 /// assistant content became the corrective text). The wire default is now
 /// ZERO tools; agentic clients declare their surface explicitly.
 ///
+/// A declared name this server cannot execute is still **declared to the model**,
+/// using the caller's own schema (`declaredSpecs`). Dropping it — what this
+/// choke did until 10-18 — meant a client declaring `get_weather` got a prompt
+/// with no tool block at all, so no call was possible and the answer came back
+/// as prose with `finish_reason: stop` (measured that day on
+/// `mlx-community/gemma-4-e2b-it-4bit`, zero signal anywhere). OpenAI wire
+/// semantics put the caller in charge of executing what the caller declared
+/// (vllm/sglang never execute at all), so the surface is the declaration and
+/// `localNames` — the subset this server can run — is what decides dispatch.
+/// Declaration, grammar and validation keep to one truth set; execution
+/// ownership is a separate axis, not a reason to hide the declaration.
+///
+/// A registered name keeps the registry's schema (it is the schema this server
+/// actually enforces at dispatch); a caller-only name carries the caller's.
+///
 /// `route` mirrors the engine log tags (`full route` / `whitelist route` /
-/// `no-tools route`) so the log line is a testable assertion, not prose.
+/// `no-tools route`) so the log line is a testable assertion, not prose, and
+/// reports the local/caller-only split rather than a count that hides it.
 func resolveToolSurface(
     specs: [[String: any Sendable]],
-    declaredNames: [String]?
-) -> (surface: [[String: any Sendable]], route: String) {
+    declaredNames: [String]?,
+    declaredSpecsJSON: String? = nil
+) -> (surface: [[String: any Sendable]], localNames: Set<String>, route: String) {
+    let declaredSpecs = declaredToolSpecs(fromJSON: declaredSpecsJSON)
     guard let declared = declaredNames else {
-        return ([], "no-tools route (client declared no tools[])")
+        return ([], [], "no-tools route (client declared no tools[])")
     }
     if declared.isEmpty {
-        return ([], "no-tools route (declared [])")
+        return ([], [], "no-tools route (declared [])")
     }
-    let surface = toolSurfaceWhitelist(specs, to: declared)
-    return (surface, "whitelist route (\(surface.count)/\(declared.count) resolved)")
+    var registryByName: [String: [String: any Sendable]] = [:]
+    registryByName.reserveCapacity(specs.count)
+    for spec in specs {
+        guard
+            let functionDict = spec["function"] as? [String: any Sendable],
+            let name = functionDict["name"] as? String
+        else { continue }
+        registryByName[name] = spec
+    }
+    var callerByName: [String: [String: any Sendable]] = [:]
+    if !declaredSpecs.isEmpty {
+        callerByName.reserveCapacity(declaredSpecs.count)
+        for spec in declaredSpecs {
+            guard
+                let functionDict = spec["function"] as? [String: any Sendable],
+                let name = functionDict["name"] as? String
+            else { continue }
+            callerByName[name] = spec
+        }
+    }
+    // DECLARED order (wire order), deduped by name — same invariants as
+    // `toolSurfaceWhitelist`, which this now supersets with the caller's specs.
+    var seen: Set<String> = []
+    var surface: [[String: any Sendable]] = []
+    var localNames: Set<String> = []
+    var callerOnly = 0
+    for name in declared {
+        guard seen.insert(name).inserted else { continue }
+        if let spec = registryByName[name] {
+            surface.append(spec)
+            localNames.insert(name)
+        } else if let spec = callerByName[name] {
+            surface.append(spec)
+            callerOnly += 1
+        }
+    }
+    return (
+        surface,
+        localNames,
+        "whitelist route (\(localNames.count) local + \(callerOnly) caller-only of \(declared.count))"
+    )
 }
 
 actor ToolRegistry {

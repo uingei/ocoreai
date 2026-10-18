@@ -213,6 +213,7 @@ func buildRouter(
         // raw engine id and the normalized wire id, because the ledger keys are the
         // engine's and this list strips source prefixes.
         let videoLedger = await enginePool.videoDeliverySnapshot()
+        let toolLedger = await enginePool.toolCallDeliverySnapshot()
         for i in objects.indices {
             let key = [objects[i].id, "hf:" + objects[i].id, "mscope:" + objects[i].id]
                 .first { videoLedger[$0] != nil }
@@ -226,6 +227,14 @@ func buildRouter(
                 // server that never thought about video.
                 objects[i].videoInput = VideoDeliveryLedger.statusNotObserved
             }
+            // Function-calling disclosure, measured the same way: what a declaring
+            // turn against THIS model produced in THIS process. `not_observed` is
+            // published rather than omitted, so silence cannot be read as capability.
+            let toolKey = [objects[i].id, "hf:" + objects[i].id, "mscope:" + objects[i].id]
+                .first { toolLedger[$0] != nil }
+            objects[i].toolCallDelivery = ToolCallDeliveryLedger.status(
+                of: toolKey.flatMap { toolLedger[$0] })
+            objects[i].toolCallEvidence = toolKey.flatMap { toolLedger[$0]?.evidenceLine }
         }
 
         let response = ModelListResponse(data: objects)
@@ -336,6 +345,7 @@ func buildRouter(
             )
         }
         let video = VideoDeliveryLedger.aggregate(await enginePool.videoDeliverySnapshot())
+        let tool = ToolCallDeliveryLedger.aggregate(await enginePool.toolCallDeliverySnapshot())
         let payload = CAPayload(
             os: RuntimeCapability.osName,
             version: RuntimeCapability.osVersion,
@@ -343,7 +353,7 @@ func buildRouter(
             capabilities: RuntimeCapability.measured(
                 .init(
                     screenshot: screen.delivery, screenshotError: screen.error,
-                    screenshotLatencyMs: screen.latencyMs, video: video)),
+                    screenshotLatencyMs: screen.latencyMs, video: video, tool: tool)),
             tokenizerBackend: TokenizerManager.isRealTokenizerBackend ? "real" : "heuristic",
             endpoints: V1EndpointCatalog.lines,
         )
@@ -1110,6 +1120,15 @@ struct ModelObject: Codable {
     /// Evidence behind `videoInput` when it is `delivered`: turns, parts and the last
     /// prompt size, so the claim ships with how it was earned.
     var videoEvidence: String? = nil
+    /// ocoreai extension: whether a `tools`-declaring request against this model ever
+    /// came back as structured `tool_calls` here — `parsed`, `prose_only` (the call
+    /// stayed in the answer text), or `not_observed` (no declaring turn yet, which is
+    /// NOT a statement that this model cannot call functions). Measured, never inferred
+    /// from an architecture name; see `ToolCallDeliveryLedger` and probe 11.
+    var toolCallDelivery: String? = nil
+    /// Evidence behind `toolCallDelivery`: declaring turns, delivered calls, and the
+    /// names that actually came back.
+    var toolCallEvidence: String? = nil
 }
 
 // MARK: - Count Tokens Request/Response

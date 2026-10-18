@@ -36,11 +36,13 @@ struct CapabilityMeasurementHonestyTests {
 
     // MARK: - The overlay never invents a claim
 
-    @Test("nothing measured ⇒ no availability changes, exactly one row added")
+    @Test("nothing measured ⇒ no availability changes, exactly the two measured rows added")
     func unmeasuredKeepsTierTruth() throws {
         let base = RuntimeCapability.lines
         let out = RuntimeCapability.measured(.unmeasured)
-        #expect(out.count == base.count + 1)
+        // The overlay appends exactly what it has always appended plus function-calling
+        // delivery (10-18): if a third measured row appears, this floor is the notice.
+        #expect(out.count == base.count + 2)
         // Everything the tier matrix says is unchanged, in the same order.
         for (index, tierLine) in base.enumerated() {
             #expect(out[index].name == tierLine.name, "row order moved at \(index)")
@@ -52,6 +54,45 @@ struct CapabilityMeasurementHonestyTests {
         let video = try Self.row(out, "video_input")
         #expect(video.available == false, "video_input claimed delivered with no turn behind it")
         #expect(video.note.contains("not_observed"), "negative must be explicit: \(video.note)")
+        let tool = try Self.row(out, "tool_call_delivery")
+        #expect(
+            tool.available == false,
+            "tool_call_delivery claimed available with no declaring turn behind it")
+        #expect(tool.note.contains("not_observed"), "negative must be explicit: \(tool.note)")
+    }
+
+    @Test("tool_call_delivery follows the delivery, not the traffic")
+    func toolRowFollowsDelivery() throws {
+        var ledger = ToolCallDeliveryLedger()
+        ledger.record(modelId: "hf:a", outcome: .proseOnly)
+        let prose = try Self.row(
+            RuntimeCapability.measured(
+                .init(tool: ToolCallDeliveryLedger.aggregate(ledger.deliveries))),
+            "tool_call_delivery")
+        #expect(
+            prose.available == false,
+            "declaring tools and getting prose back must not read as available")
+        #expect(prose.note.contains("prose"), "the note must say what happened: \(prose.note)")
+        ledger.record(modelId: "hf:a", outcome: .parsed, calledNames: ["get_weather"])
+        let parsed = try Self.row(
+            RuntimeCapability.measured(
+                .init(tool: ToolCallDeliveryLedger.aggregate(ledger.deliveries))),
+            "tool_call_delivery")
+        #expect(parsed.available == true)
+        // The server-wide line counts; the tool NAMES live on the per-model evidence
+        // line (`/v1/models`), which is where a client picks a model from.
+        #expect(
+            parsed.note.contains("1 structured tool_call")
+                && parsed.note.contains("2 tool-declaring turn(s)")
+                && parsed.note.contains("1 left in prose"),
+            "the claim ships its counts: \(parsed.note)")
+        ledger.forget(modelId: "hf:a")
+        let gone = try Self.row(
+            RuntimeCapability.measured(
+                .init(tool: ToolCallDeliveryLedger.aggregate(ledger.deliveries))),
+            "tool_call_delivery")
+        #expect(gone.available == false, "the model left; the claim stays")
+        #expect(gone.note.contains("not_observed"))
     }
 
     @Test("video_input is the only name the overlay adds, and never duplicates")
@@ -232,6 +273,7 @@ struct CapabilityMeasurementHonestyTests {
         #expect(labels.allSatisfy { !$0.isEmpty && !$0.contains("_") }, "labels: \(labels)")
         #expect(Set(labels).count == labels.count, "duplicate labels: \(labels)")
         #expect(labels.contains("Video input"))
+        #expect(labels.contains("Tool calls"), "new overlay row lacks a display label")
     }
 
     @Test("the capabilities route reads the records instead of the bare tier matrix")

@@ -383,11 +383,11 @@ struct InferenceOptions: Codable {
     /// could close it.
     static func toolRouting(
         from tools: [ToolDef]?
-    ) -> (hasNativeTools: Bool, declaredToolNames: [String]?) {
+    ) -> (hasNativeTools: Bool, declaredToolNames: [String]?, declaredToolSpecsJSON: String?) {
         guard let tools, !tools.isEmpty else {
-            return (false, nil)
+            return (false, nil, nil)
         }
-        return (true, tools.map { $0.function.name })
+        return (true, tools.map { $0.function.name }, openAIToolSpecsJSON(from: tools))
     }
 
     var maxTokens: Int?
@@ -449,14 +449,44 @@ struct InferenceOptions: Codable {
     ///   assistant content became the corrective text). Agentic clients
     ///   (native UI included) declare their surface explicitly.
     /// - non-empty = OpenAI wire semantics: `tools[]` IS the whitelist →
-    ///   engines inject ONLY these names, intersected with the registry at
-    ///   the injection site (names not registered → naturally absent).
+    ///   engines inject exactly these names. A name this server also registers
+    ///   uses the registry schema; a name it does not is still declared to the
+    ///   model from the caller's own spec (see `declaredToolSpecsJSON`) — the
+    ///   caller executes what the caller declared.
     /// Resolution is ONE choke: `resolveToolSurface` (Tools/ToolRegistry.swift).
     /// Fills the P0-3 gap the wire-contract audit flagged: `request.tools`
     /// previously only drove the `hasNativeTools` routing boolean while the
     /// advertised surface stayed the full registry (declared whitelist
     /// ignored — double source of truth).
     var declaredToolNames: [String]? = nil
+    /// The caller's own `tools[]` entries, flattened into the `ToolSpec`
+    /// dictionary shape (`{"type":"function","function":{…}}`) that chat
+    /// templates consume, in declaration order.
+    ///
+    /// This is what makes a *foreign* declaration declarable at all: names the
+    /// local registry does not have previously vanished at the injection site,
+    /// so the model was prompted with no tool block and could not call anything
+    /// (measured 10-18: `tools:[get_weather]` → prose answer, `finish_reason:
+    /// stop`, zero signal). The registry stays the authority for the names it
+    /// owns; the caller is the authority for the names it declares.
+    /// The caller's `tools[]` entries as JSON text, in declaration order, in the
+    /// `{"type":"function","function":{name,description,parameters}}` shape chat
+    /// templates consume.
+    ///
+    /// This is what makes a *foreign* declaration declarable at all: names the
+    /// local registry does not have previously vanished at the injection site, so
+    /// the model was prompted with no tool block and could not call anything
+    /// (measured 10-18: `tools:[get_weather]` → prose answer, `finish_reason:
+    /// stop`, zero signal). The registry stays the authority for the names it
+    /// owns; the caller is the authority for the names it declares.
+    ///
+    /// A JSON string rather than `[[String: any Sendable]]` for two structural
+    /// reasons: `InferenceOptions` is `Codable` (an `any Sendable` dictionary
+    /// cannot synthesize it), and an `Any`→`any Sendable` bridge is a runtime check
+    /// that can trap, which this wire path does not do. Same carrier convention as
+    /// `grammarSchema` two fields above. Decoded once at the injection site by
+    /// `declaredToolSpecs(fromJSON:)`.
+    var declaredToolSpecsJSON: String? = nil
     /// When set, engines use these token IDs instead of sampling.
     /// Used by MMLU-style evaluation to compute P(continuation|context).
     /// Aligned with upstream InferenceOptions.forcedContinuation.
@@ -477,6 +507,7 @@ struct InferenceOptions: Codable {
         enableReasoning: Bool? = nil, reasoningLevel: String? = nil,
         reasoningEffort: String? = nil, toolCallingMode: String? = nil,
         declaredToolNames: [String]? = nil,
+        declaredToolSpecsJSON: String? = nil,
         forcedContinuation: [Int32]? = nil,
         headless: Bool = false
     ) {
@@ -490,6 +521,7 @@ struct InferenceOptions: Codable {
         self.reasoningEffort = reasoningEffort
         self.toolCallingMode = toolCallingMode
         self.declaredToolNames = declaredToolNames
+        self.declaredToolSpecsJSON = declaredToolSpecsJSON
         self.forcedContinuation = forcedContinuation
         self.headless = headless
     }

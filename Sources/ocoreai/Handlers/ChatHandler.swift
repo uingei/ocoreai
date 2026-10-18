@@ -632,57 +632,64 @@ func chatCompletionsHandler(
         /// "Model must not call any tools") — the json_schema branch below
         /// is independent and still honored.
         let effectiveTools = effectiveTools(from: request)
-        /// P0-4 (10-06 live evidence): the executable surface is
-        /// registry ∩ declared — the engine injects exactly this set into
-        /// ChatSession (`toolSurfaceWhitelist`, EngineInference L2270). The
-        /// grammar schema was built from the RAW wire `request.tools`, so a
-        /// client declaring an unregistered name (observed: `shell` when the
-        /// registry ships `terminal`) got: grammar FORCES a tool-call for
-        /// `shell` → session.tools is ∅ → upstream rejects every round with
-        /// `undeclared_tool` → bounded recovery exhausts → prose garbage
-        /// ("I understand. I will await...") where the model had actually
-        /// produced the right call (`terminal`, correct args). Advertising,
-        /// constraining, executing, and judging must share ONE truth set:
-        /// intersect before constraining. Unknown declared names are dropped
-        /// (with a log naming them) exactly as the injection whitelist drops
-        /// them; if nothing survives the intersection, tool-guided generation
-        /// is off (nothing is executable — forcing is a guaranteed dead end).
-        let executableTools: [ToolDef]? = await {
-            guard let tools = effectiveTools, !tools.isEmpty else { return effectiveTools }
-            guard let registry = enginePool.toolRegistry else { return effectiveTools }
-            let registryNames = Set(await registry.listTools())
-            let kept = tools.filter { registryNames.contains($0.function.name) }
-            let dropped = tools.map(\.function.name).filter { !registryNames.contains($0) }
-            if !dropped.isEmpty {
-                logger.warning(
-                    "Tool schema intersect: dropped \(dropped) (not in registry); grammar+injection constrain to \(kept.map(\.function.name))"
-                )
-            }
-            return kept.isEmpty ? nil : kept
-        }()
-        /// P0-4 companion: `declaredToolNames` feeds the engine's
-        /// `toolSurfaceWhitelist`. When EVERY declared name is unregistered,
-        /// keep the raw list (engine injects ∅ — honors the literal
-        /// declaration, grammar is off, plain prose is the honest outcome).
-        /// When SOME survive, send the intersected names so whitelist ==
-        /// grammar == executable surface, one truth set.
+        /// The truth set for a tool turn is the DECLARATION, not the registry.
+        ///
+        /// P0-4 (10-06 live evidence) established that advertising, constraining,
+        /// executing and judging must share ONE truth set, and it fixed a real dead
+        /// end by intersecting everything down to registry ∩ declared: a client
+        /// declaring `shell` while the registry ships `terminal` got grammar that
+        /// FORCED a call for a name upstream then rejected as `undeclared_tool`,
+        /// recovery exhausted, and prose garbage replaced a correct call.
+        ///
+        /// What the same policy also did — unnoticed until 10-18 — is delete the
+        /// contract for every tool this server does not own. `tools:[get_weather]`
+        /// left the handler with nothing, so grammar switched off, `hasNativeTools`
+        /// went false, and the engine's surface resolved to ∅: the model was
+        /// prompted with NO tool block at all. Measured that day on
+        /// `mlx-community/gemma-4-e2b-it-4bit`: the answer came back as a fenced
+        /// JSON block naming the tool with `finish_reason: stop`, and no surface
+        /// said a word. A client cannot execute a call it never received, so its
+        /// agent loop dies on the first turn — the most expensive failure shape a
+        /// tool API has, delivered as a 200 OK.
+        ///
+        /// OpenAI wire semantics put the caller in charge of the tools the caller
+        /// declares; vllm and sglang never execute a tool at all — they parse the
+        /// model's output against the declaration and hand the call back. So the
+        /// surface, the grammar and upstream validation all get the caller's FULL
+        /// `tools[]` (that is P0-4's one truth set), while execution ownership is a
+        /// separate axis: `locallyExecutableToolNames` names what this server runs
+        /// itself (engine dispatches, loop continues); every other call is delivered
+        /// to the client as `tool_calls`. Forcing stays legal, because a call we
+        /// cannot run is still a call the caller can.
         let declaredToolNames: [String]? = {
             if request.toolChoice == "none" { return [] }
             // 10-06 flip: nil (client declared nothing) reaches the engine as
             // nil and resolves to ZERO tools there (`resolveToolSurface`) —
             // never the implicit full surface. [] = declared empty → zero
             // tools. Both are "no tools this turn" (OpenAI wire semantics).
-            guard let declared = request.tools?.map({ $0.function.name }) else { return nil }
-            guard !declared.isEmpty else { return [] }
-            guard let exec = executableTools else { return declared }
-            return exec.map(\.function.name)
+            return request.tools?.map({ $0.function.name })
+        }()
+        /// Names in this turn's declaration that the local registry can execute.
+        /// Everything else is still declared to the model — the caller executes it.
+        let locallyExecutableToolNames: Set<String> = await {
+            guard let tools = effectiveTools, !tools.isEmpty else { return [] }
+            guard let registry = enginePool.toolRegistry else { return [] }
+            let registryNames = Set(await registry.listTools())
+            return Set(
+                tools.compactMap { def in
+                    registryNames.contains(def.function.name) ? def.function.name : nil
+                })
         }()
         let useGuidedGeneration: Bool = {
-            let hasTools = executableTools?.isEmpty == false
+            let hasTools = effectiveTools?.isEmpty == false
             let hasJsonSchema =
                 request.responseFormat?.type == "json_schema"
                 || request.responseFormat?.type == "json_object"
-            return hasTools || hasJsonSchema
+            // Forcing belongs to `tool_choice`, not to the presence of `tools[]`:
+            // with auto/absent the model must stay free to answer (see
+            // `toolChoiceDemandsCall` — measured 10-18, forcing on declaration
+            // returned `content:""` for "What is 2 + 2?").
+            return (hasTools && toolChoiceDemandsCall(request.toolChoice)) || hasJsonSchema
         }()
 
         /// Reasoning switch — three-state (absent=nil → model default,
@@ -693,13 +700,25 @@ func chatCompletionsHandler(
         if let tc = request.toolChoice {
             logger.info("Tool choice: \(tc)")
         }
+        /// Who owns the tools this turn. Logged on every declaring request so
+        /// "the model answered in prose" is diagnosable from the log instead of
+        /// by re-deriving this intersection by hand.
+        if let declared = declaredToolNames, !declared.isEmpty {
+            let handedOff = declared.filter { !locallyExecutableToolNames.contains($0) }
+            let handoffNote =
+                handedOff.isEmpty ? "" : " [\(handedOff.joined(separator: ", "))]"
+            let localCount = locallyExecutableToolNames.count
+            logger.info(
+                "Tool declaration: \(declared.count) declared, \(localCount) local, \(handedOff.count) caller-handoff\(handoffNote)"
+            )
+        }
 
-        /// Build grammar schema string for GuidedGeneration constraint.
-        /// P0-4: from `executableTools` (registry ∩ declared), never the raw
-        /// wire list — see the truth-set comment above `executableTools`.
+        /// Build grammar schema string for GuidedGeneration constraint — built from
+        /// the DECLARATION, never a narrowed subset, so grammar == surface ==
+        /// `tools[]` as the client sent it.
         let grammarSchema =
             useGuidedGeneration
-            ? buildGrammarSchema(from: executableTools, responseFormat: request.responseFormat)
+            ? buildGrammarSchema(from: effectiveTools, responseFormat: request.responseFormat)
             : nil
 
         /// Build inference options with same fallback chain.
@@ -713,11 +732,10 @@ func chatCompletionsHandler(
             // one-shot FM guided path. json_schema stays on guided (that is
             // guided's real job). Observed: tools on the FM guided path
             // execute but never continue — the loop is the intended route.
-            // P0-4: gate on the EXECUTABLE surface (registry ∩ declared) —
-            // grammar was built from executableTools above; a hasNativeTools
-            // flag that disagrees with grammar presence re-opens the
-            // force-with-nothing-to-execute dead end.
-            hasNativeTools: executableTools?.isEmpty == false,
+            // 10-18: gate on the DECLARATION, the same set the grammar was
+            // built from — flag and grammar agreeing is what P0-4 asked for, and
+            // the engine decides per name whether it dispatches or hands back.
+            hasNativeTools: effectiveTools?.isEmpty == false,
             enableReasoning: request.reasoning,
             reasoningLevel: request.reasoningLevel,
             reasoningEffort: request.reasoningEffort,
@@ -726,6 +744,9 @@ func chatCompletionsHandler(
             // choke (`resolveToolSurface`) — never the implicit full surface.
             // `tool_choice: "none"` → [] → same zero surface.
             declaredToolNames: declaredToolNames,
+            // The caller's own schemas, so a name this server does not register
+            // is still declared to the model instead of vanishing (10-18).
+            declaredToolSpecsJSON: openAIToolSpecsJSON(from: effectiveTools),
             // Wire HTTP consumer (external process), not the in-app GUI:
             // `.interactive` approval cannot be asked of a wire consumer →
             // fail-closed deny at the gate instead of parking on the broker
@@ -774,6 +795,7 @@ func chatCompletionsHandler(
             }
             result = try await streamWithToolCalling(
                 handle: handle,
+                enginePool: enginePool,
                 promptTokenCount: promptTokenCount,
                 messages: fullMessages,
                 sampling: sampling,
@@ -788,6 +810,7 @@ func chatCompletionsHandler(
         } else {
             result = try await nonStreamWithToolCalling(
                 handle: handle,
+                enginePool: enginePool,
                 promptTokenCount: promptTokenCount,
                 messages: fullMessages,
                 sampling: sampling,
@@ -848,6 +871,7 @@ func chatCompletionsHandler(
 /// - Returns: JSON ``Response`` with ``ChatCompletion`` payload
 private func nonStreamWithToolCalling(
     handle: EngineHandle,
+    enginePool: EnginePool,
     promptTokenCount: Int,
     messages: [Message],
     sampling: SamplingConfiguration,
@@ -1104,9 +1128,25 @@ private func nonStreamWithToolCalling(
         }
     }
 
-    /// Detect tool calls if the request included tool definitions.
+    /// What the client receives as `tool_calls`: the structured calls the engine
+    /// already emitted for this turn, and only as a fallback a dialect parsed out of
+    /// the answer text.
+    ///
+    /// This used to be `parseToolCalls(from: finalContent)` alone, and that lost
+    /// every call the engine had recognised: upstream consumes the native dialect
+    /// (`<|tool_call>call:NAME{…}<tool_call|>` on gemma-4) and strips it from the
+    /// text it hands back, so `finalContent` was empty, nothing parsed, and
+    /// `detectedToolCalls` — collected from `.toolCall` events a hundred lines up and
+    /// used for nothing but a metric — went nowhere. Measured 10-18 on
+    /// `mlx-community/gemma-4-e2b-it-4bit`: the model called, and the client got
+    /// `content:""`, `finish_reason:"stop"`, no `tool_calls` — neither an answer nor
+    /// a call, delivered as a 200 OK. The SSE path (line ~1556) already emitted
+    /// these same events; a wire client that flipped `stream:true` saw the call and
+    /// flipped back to see nothing. Two surfaces, one truth: take the events.
     let toolCalls: [ToolCall]? =
-        if let tools = request.tools, !tools.isEmpty {
+        if let detected = detectedToolCalls, !detected.isEmpty {
+            detected
+        } else if let tools = request.tools, !tools.isEmpty {
             parseToolCalls(from: finalContent)
         } else {
             nil
@@ -1114,6 +1154,37 @@ private func nonStreamWithToolCalling(
 
     /// Override finish reason if tool calls were detected.
     let finishReasonFinal = toolCalls != nil ? "tool_calls" : finishReason
+
+    /// A client that DEMANDED a call and got none must not leave reading a normal
+    /// empty answer, and the server must not invent a call to fill the gap. Measured
+    /// 10-18: with `tool_choice:"required"` on a question the checkpoint resists
+    /// ("What is 2 + 2?"), constrained decoding yielded zero tokens — `content:""`,
+    /// `finish_reason:"stop"`. Whether a checkpoint can honor the demand is its fact
+    /// (probe 11 §3c records it per model); what this server owns is that the gap is
+    /// loud in the log instead of a silent 200.
+    if toolCalls == nil, toolChoiceDemandsCall(request.toolChoice) {
+        let demandedBy = request.toolChoice ?? "required"
+        let contentState = finalContent.isEmpty ? "empty" : "text only"
+        logger.warning(
+            "tool_choice=\(demandedBy) demanded a tool call and none was produced — no call fabricated (finish=\(finishReasonFinal), content \(contentState))"
+        )
+    }
+
+    /// Per-model delivery fact for `tool_call_delivery` on `/v1/models`
+    /// (`ToolCallDeliveryLedger`): what a tool-declaring turn actually produced,
+    /// measured here at the wire edge — `parsed` only when the client really
+    /// received `tool_calls`.
+    let declaredNamesForDelivery = request.tools?.map { $0.function.name } ?? []
+    if !declaredNamesForDelivery.isEmpty {
+        await enginePool.recordToolCallDelivery(
+            modelId: modelId,
+            outcome: toolCalls != nil
+                ? .parsed
+                : ToolCallDeliveryLedger.classifyTurn(
+                    text: finalContent, declaredNames: declaredNamesForDelivery),
+            calledNames: toolCalls?.map { $0.function.name } ?? []
+        )
+    }
 
     /// Build response choice with assistant message + tool calls.
     let choice = CompletionChoice(
@@ -1221,6 +1292,7 @@ private func nonStreamWithToolCalling(
 /// - Returns: SSE ``Response`` with NDJSON ``ChatCompletionChunk`` payloads
 private func streamWithToolCalling(
     handle: EngineHandle,
+    enginePool: EnginePool,
     promptTokenCount: Int,
     messages: [Message],
     sampling: SamplingConfiguration,
@@ -1326,6 +1398,9 @@ private func streamWithToolCalling(
         var totalOutputTokens = 0
         var accumulatedTokens: [Int32] = []
         var prevDecodedText = ""
+        /// `tool_calls` actually emitted on this stream — the delivery fact recorded
+        /// once at stream end for `tool_call_delivery` (``ToolCallDeliveryLedger``).
+        var deliveredToolCalls: [ToolCall] = []
         /// Reasoning tokens from upstream `.done(reasoningTokenCount:)` →
         /// `completion_tokens_details.reasoning_tokens` in the usage chunk.
         var finalReasoningTokens: Int? = nil
@@ -1488,6 +1563,7 @@ private func streamWithToolCalling(
                     lastFinishReason = stopReasonToString(reason) ?? "stop"
                     if let toolCalls = streamToolCalls {
                         lastFinishReason = "tool_calls"
+                        deliveredToolCalls += toolCalls
                         for tc in toolCalls {
                             let tcChunk = ChatCompletionChunk(
                                 id: requestId,
@@ -1510,6 +1586,7 @@ private func streamWithToolCalling(
                 /// .toolCall — upstream TextToolTokenLoopHandler detected a tool call.
                 /// Emit as SSE delta chunk with tool_calls in the delta.
                 case .toolCall(let tc):
+                    deliveredToolCalls.append(tc)
                     let tcChunk = ChatCompletionChunk(
                         id: requestId,
                         created: created,
@@ -1690,6 +1767,20 @@ private func streamWithToolCalling(
             )
             _ = yieldSSE(aChunk, to: continuation)
         }
+        /// Per-model delivery fact for `tool_call_delivery`, same rule as the
+        /// non-stream path: `parsed` only counts a call the client received.
+        let declaredNamesForDelivery = request.tools?.map { $0.function.name } ?? []
+        if !declaredNamesForDelivery.isEmpty {
+            await enginePool.recordToolCallDelivery(
+                modelId: modelId,
+                outcome: !deliveredToolCalls.isEmpty
+                    ? .parsed
+                    : ToolCallDeliveryLedger.classifyTurn(
+                        text: prevDecodedText, declaredNames: declaredNamesForDelivery),
+                calledNames: deliveredToolCalls.map { $0.function.name }
+            )
+        }
+
         /// FINAL stop chunk — carries the LAST-pass finish reason (per-pass
         /// `.done` branch set `lastFinishReason`; the last write wins).
         let stopChunk = ChatCompletionChunk(
