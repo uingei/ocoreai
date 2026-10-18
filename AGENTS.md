@@ -141,14 +141,14 @@ metric warning, the vendored-header table and the 10-16 red-until-re-collected s
 - **A knob the wire accepts must reach the engine — behaviour ends, and the word is right.** Measured 10-18: penalties gated `> 0`, but the pin applies each when merely non-zero (`Evaluate.swift:345/:355/:365`) ⇒ a negative `presence_penalty` ran a whole generation, ignored; and `stop:["2"]` came back as the full answer with `finish_reason:"stop"` while our engine log said it had matched — all 9 call sites did `break` from inside a `switch` nested in the generation loop (leaves the switch, not the loop), and `hasSuffix` was blind to a stop arriving mid-chunk. One home per decision (`upstreamPenalty`, `EnginePool.firstStopOccurrence`); exit with a labeled break, and OpenAI's word for stop-string termination is `stop` (its enum has no `stop_sequence`; we map that word→`stop` inbound at `AnthropicModels.swift:726`). Gate: `PenaltySignDeliveryTests` + `StopSequenceDeliveryTests` + probe 10.
 
 ### Error Handling
-- Precondition near-free: production code uses precondition/preconditionFailure only for structural invariants and upstream-verbatim numeric/speech surfaces; new code must not add them. **Full-scan: 14 sites / 11 files**（此文件曾带着过期的 12/9 账本而无人察觉）— `make docs-check` 每次改文档都复测，这就是过期账本再也活不下去的原因:
+- Precondition near-free: production code uses precondition/preconditionFailure only for structural invariants and upstream-verbatim numeric/speech surfaces; new code must not add them. **Full-scan: 14 sites / 11 files**, re-measured by `make docs-check`:
   - 逐个位置 = 下面两条 claim 用的同一条 `git grep`，不在这里手抄第二份地图（手抄的那份上一版就过期了）。
 <!-- claim:precondition_sites<=14 :: git grep -nE 'precondition(Failure)?\(' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
 <!-- claim:precondition_files<=11 :: git grep -nE 'precondition(Failure)?\(' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | cut -d: -f1 | sort -u | wc -l -->
 - **Zero `try!`, `as!`, `fatalError`, `assert` outside comments.** Counted excluding comment lines: six `try!` occurrences are prose *inside* doc comments ("全 Safe API, 无 as!/try!"), so the naive grep is not the instrument.
 <!-- claim:try_excl_comments<=0 :: git grep -n 'try!' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
 <!-- claim:fatalerror_as<=0 :: git grep -nE 'fatalError\(| as! ' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
-- **`print()` — 2 sites, both CLI/stdout product surface**, not debug logging: `Sources/ocoreai/UI/Application.swift:38` (`--version`/`--help` report) and `Sources/ocoreai/Headless/HeadlessServer.swift:141` (headless `serve` banner). Its old instrument was wrong too (`git grep 'print('` matches `fingerprint(`). Ceiling is 2 until the owner rules whether either belongs on the logger — then take it to 0.
+- **`print()` — 2 sites, both CLI/stdout product surface**, not debug logging: `Sources/ocoreai/UI/Application.swift:38` (`--version`/`--help` report) and `Sources/ocoreai/Headless/HeadlessServer.swift:141` (headless `serve` banner). ; `print(` alone would match `fingerprint(`. Ceiling is 2 until the owner rules whether either belongs on the logger — then take it to 0.
 <!-- claim:print_sites<=2 :: git grep -nE '(^|[^A-Za-z0-9_.])print\(' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
 - `try?`: used as the defensive-fallback pattern; `try?` stays acceptable where a real fallback follows.
 - `ErrorContext.swift` does not exist (grep = 0).
@@ -156,7 +156,7 @@ metric warning, the vendored-header table and the 10-16 red-until-re-collected s
 
 ### Naming
 - Target names ≠ module boundaries (e.g., `GuidedGenerationLoop` is peer to `ChatSession`, not nested).
-- TODO 计数 = **1**: `CoreAIInputEmbeddings.swift:36` (origin `4517ca3`, coreai-models absorb)。`make docs-check` 复测该数，不再靠手感；清理过程 = git log。
+- TODO 计数 = **1**: `CoreAIInputEmbeddings.swift:36` (origin `4517ca3`, coreai-models absorb); re-measured by the claim below, cleanup trail = git log.
 <!-- claim:todo_sites<=1 :: git grep -n TODO -- Sources | wc -l -->
 
 ### Testing Quality
@@ -181,7 +181,7 @@ metric warning, the vendored-header table and the 10-16 red-until-re-collected s
 - **改历史的那一轮仍付全量（rewind 储备未接）**（Engine/）— 只增长的会话已复用（#700）；**发散**会话仍由 `SessionPool.canReusePooledSession` 丢缓存重建（正确：旧 KV 描述的是改前的会话），代价 = `RewindToCommonPrefixRule` 在我们这里轮不到。机制上游 #622 已给（`KVCacheConfiguration.rewind(maxTokens:)`）；**未接的理由**= 无「用户改历史」的实测频次，默认吃这份内存即未经测量的承诺。改一次历史的实测代价与每层公式：CHANGELOG 10-16 + 探针 01 第四轮。
 - **视频轮次的漏报面（Multimodal/）** — 视频是 per-checkpoint 事实（`Gemma4Processor` 读 `input.videos`、`Gemma4UnifiedProcessor` 不读），不许按架构推断；公布已按实测落地（per-model + 聚合，见 § Endpoint Promises）。未决 = guided-gen / MTP 提前 release 的轮次不记 video ⇒ 那两条路上仍漏报（诚实方向，写死在 `VideoDeliveryLedger.swift` 头部）。
 - **屏幕抓取起不来流（Multimodal/）** — 10-15 实测：授权且有显示器，`SCScreenshotManager.captureImage` 仍回 `无法开始流播放`；同机相机 1102ms 出帧 ⇒ 不是 TCC，是 SCStream 在无 GUI 会话起不了流。`screenStatus` 只在出过帧时才 `ready`（未试=unknown、失败=blocked 带原话；门=`ScreenDeliveryHonestyTests`+探针 04，能力面见 § Endpoint Promises）。未决：headless `serve` 能否抓屏。
-- **`tools[]` 的真相集是声明，强制只属 `tool_choice`**（Handlers/Engine/）— 10-18 三处各自吞掉客户端的调用（推翻前一日「模型自造方言」推断）：①声明与注册表求交、未注册名丢弃 ⇒ 工具从未进 prompt；②引擎已认出的 `.toolCall` 只喂了指标，非流式出口重解析文本（上游已剥方言 ⇒ 空串）⇒ `content:""` + `finish_reason:"stop"` 零信号；③声明即上 calls-only grammar，把「2+2」挤成空。已修：声明即投喂面（本地名才装 `toolDispatch`，其余交回 `tool_calls`）、非流式优先取结构化事件、强制跟 `toolChoiceDemandsCall`；公布只按实测（`ToolCallDeliveryLedger` → `/v1/models` `toolCallDelivery` + 聚合行，unload 归零）+ 探针 11。未决：GUI 快路是同两条缝的未修版（`DirectInferenceClient` 仍是「有 tools 就上 grammar」，`ChatViewModel` 仍以解析文本认调用），本机起不了 GUI ⇒ 不臆改、留人拍板；另 `required` 的强制力受 checkpoint 限制（抗拒题实测出空 ⇒ 告警、不伪造），交回后上游 restart 仍续写一轮。逐条 = CHANGELOG 10-18(续3)。
+- **`tools[]` 的真相集是声明；强制只跟需求，只许一个家**（Handlers/Engine/Client）— 声明即投喂面（本地名装 `toolDispatch`，余者交回 `tool_calls`），非流式优先取已认出的 `.toolCall`，grammar 只跟 `tool_choice`/JSON `response_format` 的需求、绝不跟「有没有声明」；该判断唯一落 `shouldConstrainOutput`（`Models/OpenAIModels.swift`），`InferenceOptions` 两个组装面（wire=`ChatHandler`／GUI 快路=`DirectInferenceClient`）同调——后者曾按声明上 grammar，而 GUI 每轮无条件声明全注册表又无法表达需求 ⇒ 白话必落成一个调用（强制语法任选注册表工具，GUI 会真执行）。公布只按实测（`ToolCallDeliveryLedger`，unload 归零）。门=`ToolDeclarationSurfaceTests`（规则表＋两面同调、旧式必红）＋探针 11 §7（`/v1/tools` 贴回：不出调用、答复非空、prompt_tokens 必涨证 schema 进模型）。未决：GUI 端到端零验证（`DirectInferenceClient` 不经 HTTP 可达 ⇒ 只有静态门）；GUI 无条件声明全 39 工具实测 +8.3k tokens/轮、把「2+2」答成「2 + 2」截断——收窄工具选择属产品拍板（vllm/sglang）；`required` 强制力受 checkpoint 限制（抗拒题出空 ⇒ 告警不伪造）。逐条=CHANGELOG 10-18(续3)(续4)。
 - **Coverage report** — Tests/CoverageReport missing (no live data).
 
 **Resolved items**: not restated here (the names live in `CHANGELOG.md`, and a list maintained in two places is a second truth that drifts).
