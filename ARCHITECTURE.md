@@ -209,6 +209,11 @@ protocol BackendProtocol: Sendable {
 | **MTP tool calls not multi-turn** | EngineInference.swift:1171-1195 | Tool calls collected but dispatched after generation — no follow-up round | L1039: `registeredToolSpecs == nil` guard, L1182: single dispatch loop |
 | **Caught error unused** | EngineInference.swift:4726 | Build warning — error caught but not propagated | `let caughtError: (any Error)?` defined but never used (build warning confirmed) |
 
+<!-- Cites above are pinned: `make anchor-check` verifies each against the working tree, so a line that moves is a red build rather than a quiet lie. Rows whose mechanism no longer exists say so instead of keeping precision they never had. -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1118 CoreAI-side swift-transformers -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1171 toolParser -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4726 caughtError -->
+
 ### 🟡 Medium Priority
 
 | Risk | Location | Impact | Evidence |

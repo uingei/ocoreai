@@ -47,7 +47,7 @@ MARKER = re.compile(
 # The docs the agent reads, plus the source comments that cite upstream while being edited
 # (that is where the wrong 1131 lived).
 SOURCES = (
-    ["AGENTS.md"]
+    ["AGENTS.md", "ARCHITECTURE.md", "README.md", "README.zh.md"]
     + sorted(glob.glob("docs/agent/*.md"))
     + sorted(glob.glob("Sources/**/AGENTS.md", recursive=True))
     + sorted(glob.glob("Sources/**/*.swift", recursive=True))
