@@ -2291,8 +2291,12 @@ extension EnginePool {
         // Previously duplicated 5× inside runInferenceBody (MTP reasoning/response,
         // MTP no-reasoning, standard reasoning/response, standard no-reasoning).
         // Returns (shouldBreak: Bool, updatedAccumulated: String).
-        // `segment` = current chunk to yield on normal path.
-        // `accumulated` = running text checked for stop-sequence suffix.
+        // `segment` = the chunk arriving now; `accumulated` = the whole reply INCLUDING it
+        // (every caller appends before calling), so what the client already holds is
+        // `accumulated.count - segment.count`.
+        // Contract (OpenAI/vllm: the stop text is NOT part of the returned content):
+        // cut at the EARLIEST occurrence anywhere in the reply, hand over only the text
+        // that is both new and precedes the cut, then report `.stopSequence`.
         // Extra .done fields (promptTokPerSec, reasoningTokenCount, draft metrics) propagated
         // with nil defaults so callers that don't track them still compile.
         @Sendable func checkStopSequence(
@@ -2308,26 +2312,33 @@ extension EnginePool {
                 continuation.yield(.init(kind: eventKind(segment)))
                 return (false, accumulated)
             }
-            if let match = requestStopSequences.first(where: { accumulated.hasSuffix($0) }) {
-                let trimmed = String(accumulated.prefix(accumulated.count - match.count))
-                if !trimmed.isEmpty {
-                    continuation.yield(.init(kind: eventKind(segment)))
-                }
-                let tc = tokenCount ?? tokenFallback
-                let tokPerSec: Double? =
-                    tc > 0 ? Double(tc) / (Double(metrics.overallMs) / 1000.0) : nil
-                continuation.yield(
-                    .init(
-                        kind: .done(
-                            StopReason.stopSequence,
-                            tokenCount: tc,
-                            tokPerSec: tokPerSec,
-                            promptTokPerSec: promptTokPerSec,
-                            reasoningTokenCount: reasoningTokenCount)))
-                return (true, accumulated)
+            let alreadyEmitted = max(0, accumulated.count - segment.count)
+            guard
+                let hit = Self.firstStopOccurrence(
+                    in: accumulated, sequences: requestStopSequences)
+            else {
+                continuation.yield(.init(kind: eventKind(segment)))
+                return (false, accumulated)
             }
-            continuation.yield(.init(kind: eventKind(segment)))
-            return (false, accumulated)
+            let kept = String(accumulated[..<hit.range.lowerBound])
+            if kept.count > alreadyEmitted {
+                let fresh = String(kept.dropFirst(alreadyEmitted))
+                if !fresh.isEmpty {
+                    continuation.yield(.init(kind: eventKind(fresh)))
+                }
+            }
+            let tc = tokenCount ?? tokenFallback
+            let tokPerSec: Double? =
+                tc > 0 ? Double(tc) / (Double(metrics.overallMs) / 1000.0) : nil
+            continuation.yield(
+                .init(
+                    kind: .done(
+                        StopReason.stopSequence,
+                        tokenCount: tc,
+                        tokPerSec: tokPerSec,
+                        promptTokPerSec: promptTokPerSec,
+                        reasoningTokenCount: reasoningTokenCount)))
+            return (true, kept)
         }
 
         // runInferenceBody: session acquisition → generation → pool release
@@ -3717,7 +3728,7 @@ extension EnginePool {
                                 config: rc, primedInside: primed)
                         }
 
-                        for try await generation in iterResult.stream {
+                        mtpGenerationLoop: for try await generation in iterResult.stream {
                             if Task.isCancelled || cancellation.isCancelled {
                                 // Inline emit .done(.cancelled) — same as std cancel path (L2379).
                                 // Outer .done (L2234) is blocked by localStoppedBySeq=true,
@@ -3782,7 +3793,7 @@ extension EnginePool {
                                             if shouldBreak2 {
                                                 localAccumulatedText = newText2
                                                 localStoppedBySeq = true
-                                                break
+                                                break mtpGenerationLoop
                                             }
                                         case .response(let segmentText):
                                             localAccumulatedText += segmentText
@@ -3799,7 +3810,7 @@ extension EnginePool {
                                             if shouldBreak {
                                                 localAccumulatedText = newText
                                                 localStoppedBySeq = true
-                                                break
+                                                break mtpGenerationLoop
                                             }
                                         }
                                     }
@@ -3819,7 +3830,7 @@ extension EnginePool {
                                     if shouldBreak3 {
                                         localAccumulatedText = newText3
                                         localStoppedBySeq = true
-                                        break
+                                        break mtpGenerationLoop
                                     }
                                 }
                             case .info(let completionInfo):
@@ -4184,7 +4195,7 @@ extension EnginePool {
                                 wiredMemoryTicket: wiredMemoryTicket
                             )
 
-                            for await generation in stdTokenStream {
+                            stdTokenGenerationLoop: for await generation in stdTokenStream {
                                 if Task.isCancelled || cancellation.isCancelled {
                                     localStdStoppedBySeq = true
                                     localStdStopReason = .cancelled
@@ -4239,6 +4250,7 @@ extension EnginePool {
                                                 localStdAccumulated = newText
                                                 localStdStoppedBySeq = true
                                                 localStdStopReason = .stopSequence
+                                                break stdTokenGenerationLoop
                                             }
                                         case .response(let segmentText):
                                             localStdAccumulated += segmentText
@@ -4255,6 +4267,7 @@ extension EnginePool {
                                                 localStdAccumulated = newText2
                                                 localStdStoppedBySeq = true
                                                 localStdStopReason = .stopSequence
+                                                break stdTokenGenerationLoop
                                             }
                                         }
                                     }
@@ -4426,9 +4439,11 @@ extension EnginePool {
                                 continuation.finish()
                                 return
                             }
-                            for try await generation in chatSession.streamDetails(
-                                to: stdRetryMessages
-                            ) {
+                            streamDetailsLoop: for try await generation
+                                in chatSession.streamDetails(
+                                    to: stdRetryMessages
+                                )
+                            {
                                 if Task.isCancelled || cancellation.isCancelled {
                                     let cancelTokPerSec =
                                         (actualTokenCount ?? 0) > 0
@@ -4463,7 +4478,7 @@ extension EnginePool {
                                     if shouldBreakS3 {
                                         localStdAccumulated = newText3
                                         lastStopReason = .stopSequence
-                                        break
+                                        break streamDetailsLoop
                                     }
                                 case .info(let completionInfo):
                                     if actualTokenCount == nil {
@@ -4706,6 +4721,32 @@ extension EnginePool {
 
     /// Check decoded text for any stop sequence. Returns the earliest match offset.
     /// Aligned with upstream `StopSequences.matches` but at text level.
+    /// Earliest occurrence of any stop sequence in `text`, plus the sequence that matched.
+    ///
+    /// Searches the WHOLE reply, not just its end. A stop sequence that arrives in the
+    /// middle of a decoded chunk is still a stop. The suffix-only test this replaces
+    /// (measured 10-18, live) missed those and also dropped a whole chunk when the match
+    /// landed at offset 0: `stop:["2"]` returned the full count 1…20, and
+    /// `stop:["banana"]` returned four bananas where the same prompt with no stop returned
+    /// five — the surface delivered text the client had asked to be cut, and lost a token it
+    /// should have kept. Gate: `StopSequenceDeliveryTests`.
+    nonisolated static func firstStopOccurrence(
+        in text: String, sequences: [String]
+    ) -> (range: Range<String.Index>, sequence: String)? {
+        var best: (range: Range<String.Index>, sequence: String)?
+        for seq in sequences where !seq.isEmpty {
+            guard let found = text.range(of: seq) else { continue }
+            if let current = best {
+                if found.lowerBound < current.range.lowerBound {
+                    best = (found, seq)
+                }
+            } else {
+                best = (found, seq)
+            }
+        }
+        return best
+    }
+
     private struct StopMatch { let offset: String.Index }
     private static func firstMatchStopSequence(in text: String, sequences: [String]) -> StopMatch? {
         var bestEarly: StopMatch? = nil

@@ -920,6 +920,27 @@ private func parseSchemeBits(_ scheme: String) -> Int? {
     return Int(suffix)
 }
 
+/// One penalty knob as upstream expects it: keep the sign, and treat 0 as "not set".
+///
+/// The processor at the pin applies each penalty when it is merely non-zero
+/// (mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:345/:355/:365) and *subtracts* it
+/// from the selected logits (Evaluate.swift:614), so a NEGATIVE presence/frequency penalty
+/// means "encourage what is already there" — a legal OpenAI value in [-2, 2] that some
+/// clients (and one whole family of anti-repetition tuning guides) use on purpose.
+///
+/// Until 10-18 this file gated all three on `> 0`, which accepted those requests and
+/// dropped them on the floor: the client asked for one behaviour, paid for a full
+/// generation, and got a different one with no signal (AGENTS.md invariant 2). The
+/// decision lives here rather than inline in three `if let`s so the sign cannot be dropped
+/// again by editing one of them. Gate: `PenaltySignDeliveryTests` pins the mapping and the
+/// context sizes upstream requires; probe 10 records what a ±2.0 penalty measurably did (or
+/// did not) change on a real model, which is a fact, not proof — a uniform penalty on tokens
+/// that all appear in the context leaves their relative order, and so greedy output, alone.
+nonisolated func upstreamPenalty(_ value: Double?) -> Float? {
+    guard let value, value != 0 else { return nil }
+    return Float(value)
+}
+
 /// Convert ``SamplingConfiguration`` to mlx-swift-lm ``GenerateParameters``.
 nonisolated func makeGenerateParameters(
     from sampling: SamplingConfiguration,
@@ -1004,15 +1025,11 @@ nonisolated func makeGenerateParameters(
         params.minP = Float(minP)
     }
     #endif
-    if let repPen = sampling.repetitionPenalty, repPen > 0 {
-        params.repetitionPenalty = Float(repPen)
-    }
-    if let pPen = sampling.presencePenalty, pPen > 0 {
-        params.presencePenalty = Float(pPen)
-    }
-    if let fPen = sampling.frequencyPenalty, fPen > 0 {
-        params.frequencyPenalty = Float(fPen)
-    }
+    // Sign-aware, one decision, three penalties. See ``upstreamPenalty`` for why the
+    // test is `!= 0` and not `> 0`.
+    params.repetitionPenalty = upstreamPenalty(sampling.repetitionPenalty)
+    params.presencePenalty = upstreamPenalty(sampling.presencePenalty)
+    params.frequencyPenalty = upstreamPenalty(sampling.frequencyPenalty)
     // Seed → reproducible sampling (upstream PR #377)
     if let s = sampling.seed {
         params.seed = UInt64(s)

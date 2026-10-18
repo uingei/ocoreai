@@ -970,7 +970,7 @@ private func nonStreamWithToolCalling(
                     switch reason {
                     case .maxTokens: "length"
                     case .eos: "stop"
-                    case .stopSequence: "stop_sequence"
+                    case .stopSequence: "stop"  // OpenAI enum has no stop_sequence (vllm/sglang: "stop")
                     case .cancelled: "cancelled"
                     case .error: "error"
                     }

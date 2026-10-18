@@ -19,7 +19,11 @@ TOTAL=0
 FAILED=0
 FAILED_NAMES=""
 
-for probe in 0*.sh; do
+# Every NN-*.sh in this directory. The glob used to be `0*.sh`, which silently stopped
+# enumerating at 09 — probe 10 existed, ran never, and "8/8 passed" stayed green while
+# describing a surface the suite no longer covered (invariant 1: a scan must floor its
+# own premises, and here it could not even see its own members).
+for probe in [0-9]*.sh; do
   if [ "${#FILTERS[@]}" -gt 0 ]; then
     match=0
     for f in "${FILTERS[@]}"; do

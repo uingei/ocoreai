@@ -1374,13 +1374,18 @@ typealias Choice = CompletionChoice
 /// Convert ``CoreAILanguageModels/StopReason`` to OpenAI-compatible finish_reason string.
 ///
 /// - Parameter reason: Stop reason from inference engine
-/// - Returns: "stop", "length", "stop_sequence", "cancelled", "error", or nil
+/// - Returns: "stop", "length", "cancelled", "error", or nil — the word for
+///   "ended on a stop sequence" is `"stop"`: OpenAI's `finish_reason` enum is
+///   `stop | length | tool_calls | content_filter`, and vllm/sglang report `stop` for
+///   stop-string termination. `stop_sequence` is Anthropic's word — this repo already
+///   translates it to `"stop"` on the way IN (`AnthropicModels.swift:726`), so emitting
+///   it on the OpenAI wire was the same fact spelled two ways.
 func stopReasonToString(_ reason: StopReason?) -> String? {
     guard let reason else { return nil }
     switch reason {
     case .maxTokens: return "length"
     case .eos: return "stop"
-    case .stopSequence: return "stop_sequence"
+    case .stopSequence: return "stop"
     case .cancelled: return "cancelled"
     case .error: return "error"
     }
@@ -1389,7 +1394,12 @@ func stopReasonToString(_ reason: StopReason?) -> String? {
 /// Convert ``StopReason`` to OpenAI-compatible finish_reason string.
 ///\n
 /// - Parameter reason: Stop reason from inference engine
-/// - Returns: "stop", "length", "stop_sequence", "cancelled", "error", or nil
+/// - Returns: "stop", "length", "cancelled", "error", or nil — the word for
+///   "ended on a stop sequence" is `"stop"`: OpenAI's `finish_reason` enum is
+///   `stop | length | tool_calls | content_filter`, and vllm/sglang report `stop` for
+///   stop-string termination. `stop_sequence` is Anthropic's word — this repo already
+///   translates it to `"stop"` on the way IN (`AnthropicModels.swift:726`), so emitting
+///   it on the OpenAI wire was the same fact spelled two ways.
 ///\n
 /// P1-1 fix: The previous stub always returned "stop", which lost semantic
 /// distinction between eos, max_tokens, cancellation, and error terminations.
@@ -1400,7 +1410,7 @@ func stopReasonToString(_ reason: StopReason?) -> String? {
     switch reason {
     case .maxTokens: return "length"
     case .eos: return "stop"
-    case .stopSequence: return "stop_sequence"
+    case .stopSequence: return "stop"
     case .cancelled: return "cancelled"
     case .error: return "error"
     }
