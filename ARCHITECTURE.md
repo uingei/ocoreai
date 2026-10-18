@@ -205,9 +205,9 @@ protocol BackendProtocol: Sendable {
 | Risk | Location | Impact | Evidence |
 |------|----------|--------|----------|
 | **BackendProtocol unused** | BackendProtocol.swift:36 | Architectural drift — protocol defined but EnginePool uses inline `#if` branches | `BackendProtocol` never conformed to by `CoreAIBridge` or `MLXBridge`; EnginePool L382-449 contains inline `#if canImport(CoreAI)` |
-| **CoreAI grammar/stop** | EngineInference.swift:500, 1129 | **Resolved.** CoreAI-native grammar exists (`ConstrainedGenerationCapable` pipelined + CoreAI-native decode loop); stop sequences handled in the decode loop. An earlier "falls back to MLX" claim is superseded by code. | L500 "grammar requests stay on CoreAI path", L1129 coreai constrained loop |
-| **MTP tool calls not multi-turn** | EngineInference.swift:1182-1206 | Tool calls collected but dispatched after generation — no follow-up round | L1039: `registeredToolSpecs == nil` guard, L1182: single dispatch loop |
-| **Caught error unused** | EngineInference.swift:1329 | Build warning — error caught but not propagated | `if let caughtError {` defined but never used (build warning confirmed) |
+| **CoreAI grammar/stop** | EngineInference.swift:500, 1118 | **Resolved.** CoreAI-native grammar exists (`ConstrainedGenerationCapable` pipelined + CoreAI-native decode loop); stop sequences handled in the decode loop. An earlier "falls back to MLX" claim is superseded by code. | L500 "grammar requests stay on CoreAI path", L1129 coreai constrained loop |
+| **MTP tool calls not multi-turn** | EngineInference.swift:1171-1195 | Tool calls collected but dispatched after generation — no follow-up round | L1039: `registeredToolSpecs == nil` guard, L1182: single dispatch loop |
+| **Caught error unused** | EngineInference.swift:4726 | Build warning — error caught but not propagated | `let caughtError: (any Error)?` defined but never used (build warning confirmed) |
 
 ### 🟡 Medium Priority
 
@@ -215,8 +215,8 @@ protocol BackendProtocol: Sendable {
 |------|----------|--------|----------|
 | **Progressive rendering gap** | ChatViewModel.swift:627 | User sees blank bubble during reasoning phase | `splitThinkingTags()` only runs when `chunk.isComplete == true` |
 | **Reasoning delimiters hardcoded** | ChatViewModel.swift:159 | DeepSeek-R1 `<thinking>` tags not extracted | Regex only matches `` `` tags |
-| **stopReason not exposed to UI** | EngineInference.swift:874-878 | `.maxTokens` stop reason silently truncated | Guided path distinguishes `.eos` vs `.maxTokens` but UI has no rendering for `.maxTokens` |
-| **Session restore data loss** | EngineInference.swift:1230-1231 | Pool miss path may lose message history | `deltaOffset` tracks message count but pool miss resets to 0; relies on `sliceStart = min(deltaOffset, mlxMessages.count)` |
+| **stopReason not exposed to UI** | stale cite — re-audit | `.maxTokens` stop reason silently truncated | Guided path distinguishes `.eos` vs `.maxTokens` but UI has no rendering for `.maxTokens` |
+| **Session restore data loss** | stale cite — re-audit (`deltaOffset` no longer exists) | Pool miss path may lose message history | `deltaOffset` tracks message count but pool miss resets to 0; relies on `sliceStart = min(deltaOffset, mlxMessages.count)` |
 
 ### 🟢 Low Priority / Mitigated
 
@@ -244,7 +244,7 @@ The following findings were re-verified against current source (not assumed):
 
 ### Immediate (P0)
 1. **`BackendProtocol` removed** (commit `2123143`) — the dead protocol is gone; `EnginePool` uses inline `#if canImport(CoreAI)` branches, which is now the documented reality.
-2. **Fix `caughtError` unused warning** — EngineInference.swift:1329. Change `if let caughtError {` to `if caughtError != nil {` or use the error in the yield.
+2. **Fix `caughtError` unused warning** — EngineInference.swift:4726. Change `if let caughtError {` to `if caughtError != nil {` or use the error in the yield.
 
 ### Short-term (P1)
 3. **Document CoreAI path limitations** — add a `BackendDescriptor.coreai` capability matrix (supportsGrammar: false, supportsStopSequences: false, supportsTools: false) so callers can make informed backend choices.

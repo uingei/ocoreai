@@ -1083,7 +1083,7 @@ actor MLXSessionPool {
     ///
     /// This is not a perf heuristic that can be loosened for a faster hit: the caller
     /// acts on the returned index by *withholding* `messages[0..<divergenceIndex]`
-    /// from the model (`EngineInference.swift:2982`), so a cache credited with turns
+    /// from the model (`EngineInference.swift:3135`), so a cache credited with turns
     /// it was never asked about costs the user their real context — and when the
     /// credit exceeds the incoming message count, the slice `messages[n...]` traps.
     /// A bypass here was briefly tried on 10-13 to observe upstream's own transcript

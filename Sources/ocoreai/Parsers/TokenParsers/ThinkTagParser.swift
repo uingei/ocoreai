@@ -75,7 +75,7 @@ struct ThinkTagParser {
     /// `primedInside` is preserved for `Qwen3-thinking` / `DeepSeek-R1` prefill
     /// where the opening delimiter is pre-rendered into the prompt and the
     /// first generated token is already reasoning content — see
-    /// `EngineInference.swift:299/797`.
+    /// `EngineInference.swift:356/809`.
     /// Default markers match the upstream coreai-models short `think`/`think`
     /// tags (byte-verified against the Qwen3.5 chat template + tokenizer,
     /// and the omlx/coreai-models/mlx-swift-lm reference implementations).
