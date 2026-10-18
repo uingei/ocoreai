@@ -402,11 +402,21 @@ extension DirectInferenceClient {
         .normalized()
 
         let toolRouting = InferenceOptions.toolRouting(from: request.tools)
+        // The GUI cannot express a demand, so this face must not install a calls-only
+        // grammar: keying it off `tools` presence made every plain message resolve into
+        // a tool call. One rule, one home — `shouldConstrainOutput`, shared with the
+        // wire path (see `ChatHandler`).
+        let constrainOutput = shouldConstrainOutput(
+            declaredTools: request.tools,
+            responseFormat: nil,
+            toolChoice: nil)
         let inferenceOpts = InferenceOptions(
             maxTokens: effectiveMaxTokens,
             includeLogits: false,
-            useGuidedGeneration: request.tools.map { !$0.isEmpty } ?? false,
-            grammarSchema: request.tools.map { buildGrammarSchema(from: $0) }.flatMap { $0 },
+            useGuidedGeneration: constrainOutput,
+            grammarSchema: constrainOutput
+                ? request.tools.flatMap { buildGrammarSchema(from: $0) }
+                : nil,
             hasNativeTools: toolRouting.hasNativeTools,
             enableReasoning: request.reasoning,
             reasoningLevel: request.reasoningLevel,
@@ -780,11 +790,18 @@ extension DirectInferenceClient {
         .normalized()
 
         let toolRouting = InferenceOptions.toolRouting(from: request.tools)
+        // See the stream path: constraining follows a demand, not a declaration.
+        let constrainOutput = shouldConstrainOutput(
+            declaredTools: request.tools,
+            responseFormat: nil,
+            toolChoice: nil)
         let infOpts = InferenceOptions(
             maxTokens: effectiveMaxTokens,
             includeLogits: false,
-            useGuidedGeneration: request.tools.map { !$0.isEmpty } ?? false,
-            grammarSchema: request.tools.map { buildGrammarSchema(from: $0) }.flatMap { $0 },
+            useGuidedGeneration: constrainOutput,
+            grammarSchema: constrainOutput
+                ? request.tools.flatMap { buildGrammarSchema(from: $0) }
+                : nil,
             hasNativeTools: toolRouting.hasNativeTools,
             enableReasoning: request.reasoning,
             reasoningLevel: request.reasoningLevel,

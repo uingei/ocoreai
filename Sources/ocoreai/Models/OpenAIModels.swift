@@ -2086,6 +2086,31 @@ func toolChoiceDemandsCall(_ toolChoice: String?) -> Bool {
     return toolChoice == "required" || toolChoice.hasPrefix("function:")
 }
 
+/// The one home for "must this turn's output be grammar-constrained?".
+///
+/// Two faces assemble `InferenceOptions` themselves — the HTTP wire (`ChatHandler`) and
+/// the SwiftUI fast path (`DirectInferenceClient`) — so the rule may not live in both.
+/// Keyed to "tools present", a plain message arriving on a face that declares the whole
+/// registry but cannot express a demand gets a calls-only grammar, and a question with no
+/// sensible tool for it must still resolve into a call — to whichever registry tool the
+/// grammar happens to prefer, twice running it was two different ones (CHANGELOG 10-18 续4).
+///
+/// So constraining follows a DEMAND, never the presence of a declaration: `tool_choice`
+/// = `required`/pinned function (the client asked for a call), or a JSON
+/// `response_format` (the client asked for JSON). Anything else — absent, `auto`, `none`,
+/// and any face with no `tool_choice` surface yet, like the GUI — leaves the model free
+/// to answer, with calls arriving through the parser/events path.
+func shouldConstrainOutput(
+    declaredTools: [ToolDef]?,
+    responseFormat: ResponseFormat?,
+    toolChoice: String?
+) -> Bool {
+    let hasJsonShape =
+        responseFormat?.type == "json_schema" || responseFormat?.type == "json_object"
+    return (declaredTools?.isEmpty == false && toolChoiceDemandsCall(toolChoice))
+        || hasJsonShape
+}
+
 /// Build a JSON Schema string for GrammarConstraint from tool definitions.
 /// Returns `nil` when no tools are provided.
 ///

@@ -680,17 +680,12 @@ func chatCompletionsHandler(
                     registryNames.contains(def.function.name) ? def.function.name : nil
                 })
         }()
-        let useGuidedGeneration: Bool = {
-            let hasTools = effectiveTools?.isEmpty == false
-            let hasJsonSchema =
-                request.responseFormat?.type == "json_schema"
-                || request.responseFormat?.type == "json_object"
-            // Forcing belongs to `tool_choice`, not to the presence of `tools[]`:
-            // with auto/absent the model must stay free to answer (see
-            // `toolChoiceDemandsCall` — measured 10-18, forcing on declaration
-            // returned `content:""` for "What is 2 + 2?").
-            return (hasTools && toolChoiceDemandsCall(request.toolChoice)) || hasJsonSchema
-        }()
+        // One rule for both faces of the product; forcing belongs to `tool_choice`,
+        // never to the presence of `tools[]` (see `shouldConstrainOutput`).
+        let useGuidedGeneration = shouldConstrainOutput(
+            declaredTools: effectiveTools,
+            responseFormat: request.responseFormat,
+            toolChoice: request.toolChoice)
 
         /// Reasoning switch — three-state (absent=nil → model default,
         /// true → force on, false → force off). Aligned with upstream

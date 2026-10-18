@@ -203,16 +203,36 @@ struct ToolDeclarationSurfaceTests {
             "tool_choice=\(choice ?? "<absent>") → \(expectsCall ? "forced" : "optional")")
     }
 
-    @Test("guided forcing reads tool_choice, not the presence of tools[]")
-    func handlerGatesForcingOnToolChoice() throws {
-        let src = try repoFile("Sources/ocoreai/Handlers/ChatHandler.swift")
-        #expect(src.count > 20_000, "handler read looks truncated (\(src.count) chars)")
+    @Test(arguments: constrainCases)
+    func constrainingFollowsTheDemand(
+        tools: Int?, jsonShape: String?, choice: String?, expected: Bool
+    ) {
+        let defs = tools.map(toolDefs(count:))
+        let format = jsonShape.map { ResponseFormat(type: $0) }
         #expect(
-            src.contains("hasTools && toolChoiceDemandsCall(request.toolChoice)"),
-            "guidance no longer follows tool_choice — declaring a tool would force a call again")
+            shouldConstrainOutput(declaredTools: defs, responseFormat: format, toolChoice: choice)
+                == expected,
+            "tools=\(tools.map(String.init) ?? "nil") format=\(jsonShape ?? "nil") choice=\(choice ?? "nil")"
+        )
+    }
+
+    /// Both faces of the product (HTTP wire + SwiftUI fast path) must route the
+    /// forcing decision through the one home. The native path keeping its own copy is
+    /// how the GUI ended up forcing a call on every message (`exec_poll` for "2+2").
+    @Test(arguments: [
+        "Sources/ocoreai/Handlers/ChatHandler.swift",
+        "Sources/ocoreai/Client/DirectInferenceClient.swift",
+    ])
+    func bothFacesUseTheOneForcingRule(_ path: String) throws {
+        let src = try repoFile(path)
+        #expect(src.count > 20_000, "\(path) read looks truncated (\(src.count) chars)")
         #expect(
-            !src.contains("return hasTools || hasJsonSchema"),
-            "the old declaration-forces-grammar line is back: an auto turn loses its answer")
+            src.contains("shouldConstrainOutput("),
+            "\(path) no longer routes the forcing decision through the shared rule")
+        #expect(
+            !src.contains("request.tools.map { !$0.isEmpty } ?? false")
+                && !src.contains("return hasTools || hasJsonSchema"),
+            "\(path) is back to keying grammar off the presence of tools[]")
     }
 
     @Test("the non-stream wire takes the engine's calls, not only a re-parse of text")
@@ -231,6 +251,26 @@ private let forcingCases: [(choice: String?, expectsCall: Bool)] = [
     (nil, false), ("auto", false), ("none", false), ("required", true),
     ("function:get_weather", true), ("REQUIRED", false),
 ]
+
+/// (toolCount, responseFormat, toolChoice, mustConstrain) — the whole rule table for
+/// the shared decision. A declared surface alone never constrains; the GUI (no
+/// `tool_choice`, nil tools count = its full registry) never constrains either.
+private let constrainCases: [(tools: Int?, jsonShape: String?, choice: String?, expected: Bool)] = [
+    (1, nil, nil, false), (39, nil, nil, false), (1, nil, "auto", false),
+    (1, nil, "none", false), (1, nil, "required", true),
+    (1, nil, "function:t0", true), (0, nil, "required", false), (nil, nil, "required", false),
+    (nil, "json_object", nil, true), (nil, "json_schema", nil, true),
+    (nil, "text", nil, false), (1, "text", "auto", false),
+]
+
+/// A declared surface of `count` tools, same shape as what `GET /v1/tools` publishes.
+private func toolDefs(count: Int) -> [ToolDef] {
+    (0 ..< count).map { index in
+        ToolDef(
+            function: FunctionDef(
+                name: "t\(index)", description: "tool \(index)", parameters: nil))
+    }
+}
 
 /// Find the repo by searching for `Package.swift`, never by fixed parent hops — a fixed
 /// hop lands outside the tree and an ENOENT reads as a pass.

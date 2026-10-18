@@ -29,6 +29,8 @@
 #       the question — a declaration may not cost the reply.
 #   3c. tool_choice:"required" plus a request to call must deliver a call.
 #   3d. forcing a call the checkpoint resists is recorded, and never fabricated.
+#   7. The GUI's own declaration shape (`GET /v1/tools` pasted back, the whole
+#      registry) must still answer a plain question instead of calling something.
 #   4. Streaming agrees with non-streaming (an SSE tool_calls delta + the word).
 #   5. The measurement moved: after step 2 the same /v1/models must say parsed and
 #      carry the evidence line that earned it.
@@ -299,6 +301,70 @@ else
     probe_fail "/v1/capabilities says $CAP_TOOL while /v1/models says parsed — two surfaces, two truths"
   else
     probe_ok "capabilities publishes the measured delivery (available=true)"
+  fi
+fi
+
+# ── 7. the GUI's own input shape, replayed over the wire ────────────────────
+# `ChatViewModel` hands the engine the WHOLE registry on every message, and `/v1/tools`
+# publishes exactly that array, so pasting it back replays what the app's users hit.
+# Three things this section owns, and each one can go red:
+#   a) a declaration is not a demand — nothing may be called;
+#   b) a declaring turn may never hand back an empty reply;
+#   c) declaring tools must actually reach the prompt (prompt_tokens must grow over the
+#      same request with no tools declared) — a schema array silently dropped on the way
+#      to the model is exactly the defect 10-18 found, and an equality on content alone
+#      would not see it.
+# What this server does NOT own is how well a checkpoint answers once 8.3k tokens of
+# schemas crowd its prompt, so that is recorded as a measured NOTE, never asserted.
+# Measured 10-18 (temp 0, cold caches, same request shape): no tools = 774 prompt
+# tokens, answer "4"; all 39 declared = 9103 prompt tokens, answer "2 + 2" and stop.
+probe_section "7 — the full registry pasted back must still answer a plain question"
+
+probe_api GET /v1/tools
+REG_TOOLS="$(printf '%s' "$PROBE_BODY" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(0)
+data = d.get("data") or d.get("tools") or []
+if data:
+    sys.stdout.write(json.dumps(data, ensure_ascii=False))')"
+if [ -z "$REG_TOOLS" ]; then
+  probe_fail "GET /v1/tools published no tools[] — the GUI's declaration shape cannot be replayed"
+else
+  REG_N="$(printf '%s' "$REG_TOOLS" | python3 -c 'import json,sys; print(len(json.loads(sys.stdin.read())))')"
+  Q="What is 2 + 2? Answer with the number only."
+
+  # Baseline: the identical request with nothing declared, its own fresh session.
+  base_s="$(fresh_session)"
+  probe_chat "$base_s" '{"model":"'"$PROBE_MODEL"'","session_id":"'"$base_s"'","temperature":0,"max_tokens":32,"messages":[{"role":"user","content":"'"$Q"'"}]}' || true
+  BASE_CONTENT="$(probe_json "$PROBE_BODY" 'choices.0.message.content')"
+  BASE_PROMPT="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens')"
+
+  s="$(fresh_session)"
+  probe_chat "$s" '{"model":"'"$PROBE_MODEL"'","session_id":"'"$s"'","temperature":0,"max_tokens":64,"messages":[{"role":"user","content":"'"$Q"'"}],"tools":'"$REG_TOOLS"'}' || true
+  REG_CALL="$(probe_json "$PROBE_BODY" 'choices.0.message.tool_calls')"
+  REG_CONTENT="$(probe_json "$PROBE_BODY" 'choices.0.message.content')"
+  REG_PROMPT="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens')"
+
+  if [ -n "$REG_CALL" ]; then
+    probe_fail "declaring the registry's $REG_N tools forced a call ('$REG_CALL') for an arithmetic question — a declaration is not tool_choice:\"required\""
+  elif [ -z "$REG_CONTENT" ]; then
+    probe_fail "declaring the registry's $REG_N tools returned an empty reply (finish=$(probe_json "$PROBE_BODY" 'choices.0.finish_reason')) — a declaring turn must never hand back nothing"
+  else
+    probe_ok "the GUI's full $REG_N-tool surface calls nothing and still answers (content='$(printf %.24s "$REG_CONTENT")')"
+    if [ -n "$REG_PROMPT" ] && [ -n "$BASE_PROMPT" ]; then
+      MARGINAL=$(( REG_PROMPT - BASE_PROMPT ))
+      if [ "$MARGINAL" -ge 1000 ]; then
+        probe_ok "the declared schemas reached the model: prompt_tokens $BASE_PROMPT -> $REG_PROMPT (+$MARGINAL for $REG_N tools)"
+      else
+        probe_fail "declaring $REG_N tools moved prompt_tokens only $BASE_PROMPT -> $REG_PROMPT (+$MARGINAL) — the schemas are not reaching the prompt, so the declaration is decorative"
+      fi
+    else
+      probe_fail "usage.prompt_tokens missing from a declaring turn (baseline=${BASE_PROMPT:-?} declared=${REG_PROMPT:-?}) — the feeding claim cannot be measured on this server"
+    fi
+    probe_note "declaring all $REG_N registry tools costs ${MARGINAL:-?} prompt tokens on a one-line question (no-tools answer was '$BASE_CONTENT'), and this checkpoint answered '$REG_CONTENT' then stopped — the unconditional full-surface declaration the GUI ships is a measured context AND answer-quality cost, not yet a policy; narrowing per-turn tool selection is the vllm/sglang/codex practice (CHANGELOG 10-18 续4)"
   fi
 fi
 
