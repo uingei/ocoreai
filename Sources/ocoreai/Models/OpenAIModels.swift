@@ -2169,6 +2169,21 @@ func openAIToolSpecsJSON(from defs: [ToolDef]?) -> String? {
     return json
 }
 
+/// The schema for "give me JSON, but no shape is specified" — OpenAI's
+/// `response_format: {"type":"json_object"}`, and any constrained turn that arrives
+/// without a schema.
+///
+/// It must be `{"type":"object"}`, not `{"type":"object","properties":{}}`: naming
+/// zero properties tells the grammar that no key is legal, so the only thing the model
+/// may emit is the empty object. Measured on this host, same prompt, temperature 0 —
+/// `json_object` returned `'{}'` in 2 completion tokens, while a `json_schema` turn
+/// carrying `{"type":"object"}` returned `{"answer": 8, "unit": "planets"}` in 20,
+/// and a schema with `"properties":{}` reproduced the empty reply exactly. A client
+/// got valid JSON and no information, delivered as 200 OK with `finish_reason:"stop"`.
+/// vllm and sglang both map this mode to `{"type":"object"}`
+/// (`vllm/parser/abstract_parser.py:277`, `sglang/srt/entrypoints/openai/protocol.py:1191`).
+let jsonObjectSchema = #"{"type":"object"}"#
+
 func buildGrammarSchema(
     from tools: [ToolDef]?,
     responseFormat: ResponseFormat? = nil
@@ -2236,8 +2251,9 @@ func buildGrammarSchema(
         {
             return s
         }
-        // Generic JSON object fallback
-        return "{\"type\":\"object\",\"properties\":{}}"
+        // Schema-less JSON mode: an OPEN object. See `jsonObjectSchema` — naming zero
+        // properties here is what used to make every `json_object` reply `{}`.
+        return jsonObjectSchema
     }
     return nil
 }

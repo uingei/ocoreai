@@ -785,11 +785,7 @@ extension EnginePool {
         }
         let tokenizer = provider.underlying
 
-        let jsonSchema =
-            options.grammarSchema
-                ?? """
-                {"type":"object","properties":{}}
-                """
+        let jsonSchema = options.grammarSchema ?? jsonObjectSchema
 
         let stopSequences = StopSequences(
             for: tokenizer,
@@ -952,11 +948,7 @@ extension EnginePool {
         }
         let tokenizer = provider.underlying
 
-        let jsonSchema =
-            options.grammarSchema
-                ?? """
-                {"type":"object","properties":{}}
-                """
+        let jsonSchema = options.grammarSchema ?? jsonObjectSchema
 
         let stopSequences = StopSequences(
             for: tokenizer,
@@ -1146,10 +1138,7 @@ extension EnginePool {
             let constraint = try loaded.getOrCreateConstraint(
                 grammarTokenizer: grammarTokenizer,
                 hostTokenizer: host,
-                jsonSchema: options.grammarSchema
-                    ?? """
-                    {"type":"object","properties":{}}
-                    """,
+                jsonSchema: options.grammarSchema ?? jsonObjectSchema,
                 fastForward: false
             )
 
