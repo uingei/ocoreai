@@ -125,6 +125,17 @@ func anthropicMessagesHandler(
     // ═══════════════════════════════════════════════════════
     let chatRequest = try toChatCompletionRequest(request)
 
+    /// `tool_choice` with no `tools` is refused by the same rule the OpenAI face applies
+    /// (`ToolCallWire.toolChoiceWithoutToolsError`; vllm
+    /// `chat_completion/protocol.py:976-981`) — checked on the mapped request, so the two
+    /// faces cannot drift into different answers for the same contradiction.
+    if let error = ToolCallWire.toolChoiceWithoutToolsError(
+        toolChoice: chatRequest.toolChoice, toolCount: chatRequest.tools?.count,
+        echo: request.toolChoice?.type
+    ) {
+        throw error
+    }
+
     // ═══════════════════════════════════════════════════════
     // Phase 1: Submit to scheduler (OOMGuard + priority queue)
     // ═══════════════════════════════════════════════════════
@@ -490,6 +501,10 @@ private func nonStreamAnthropicResponse(
     var accumulatedReasoning = ""
     var totalOutputTokens = 0
     var finishReason = "end_turn"
+    /// The engine's reason in OpenAI's vocabulary, kept beside ``finishReason`` so the
+    /// terminal word is resolved by the one rule (``ToolCallWire.resolveFinishReason``)
+    /// before it is translated — the resolution must not be a per-face folk variant.
+    var openAIFinishReason = "stop"
     var detectedToolCalls: [ToolCall]? = nil
     /// The engine's own measurement of the prompt it prefilled, when it reports one.
     /// Preferred over the handler's tokenize-ahead estimate for `usage.input_tokens`,
@@ -518,6 +533,7 @@ private func nonStreamAnthropicResponse(
                 let openaiReason = stopReasonToString(reason) ?? "stop"
                 observedPromptTokens = donePromptTokenCount
                 finishReason = openAIToAnthropicStopReason(openaiReason)
+                openAIFinishReason = openaiReason
                 // Authoritative token count from the engine — overwrite the
                 // per-event estimate (fallback when the engine reports none).
                 if let doneTokenCount {
@@ -526,6 +542,7 @@ private func nonStreamAnthropicResponse(
 
             case .error(let errorMsg):
                 finishReason = "error"
+                openAIFinishReason = "error"
                 logger.error("Generation error: \(errorMsg)")
             case .toolCall(let tc):
                 // The engine already recognised this call. Collect every one (a turn may
@@ -640,7 +657,7 @@ private func nonStreamAnthropicResponse(
     /// as a fallback a dialect parsed out of the answer text (same precedence as
     /// ChatHandler L1141 — upstream consumes the native dialect and strips it from the
     /// text, so text alone sees nothing).
-    let toolCalls: [ToolCall]? =
+    let emittedToolCalls: [ToolCall]? =
         if let detected = detectedToolCalls, !detected.isEmpty {
             detected
         } else if request.tools?.isEmpty == false {
@@ -648,6 +665,12 @@ private func nonStreamAnthropicResponse(
         } else {
             nil
         }
+    /// `tool_choice.disable_parallel_tool_use:true` means one call, not a list;
+    /// ``toChatCompletionRequest`` carries that flag onto the internal request, and the
+    /// limit itself is the one the OpenAI face applies — so "one at a time" lands the
+    /// same single `tool_use` block on both wires.
+    let toolCalls: [ToolCall]? = ToolCallWire.limitedToolCalls(
+        emittedToolCalls, parallelToolCalls: request.parallelToolCalls)
 
     /// `content` = a `thinking` block when the turn thought, then a text block, then one
     /// `tool_use` block per delivered call (`{"type":"tool_use","id","name","input":{…}}`,
@@ -716,7 +739,14 @@ private func nonStreamAnthropicResponse(
     let usage = AnthropicUsage(
         inputTokens: observedPromptTokens ?? inputTokenCount,
         outputTokens: totalOutputTokens)
-    let stopReason = deliveredCalls.isEmpty ? finishReason : "tool_use"
+    /// The terminal word, resolved in OpenAI's vocabulary by the shared rule and then
+    /// translated: `tool_use` only when a block actually reached this client **and** the
+    /// engine stopped on its own. An unconditional `tool_use` hid the cut (measured 10-19:
+    /// `max_tokens:18` → two `tool_use` blocks and `stop_reason:"tool_use"`, while the
+    /// no-tools control on the same host correctly said `max_tokens`).
+    let stopReason = openAIToAnthropicStopReason(
+        ToolCallWire.resolveFinishReason(
+            engineReason: openAIFinishReason, toolCallsMade: !deliveredCalls.isEmpty))
 
     let response = AnthropicMessageResponse(
         id: requestId,
@@ -791,6 +821,11 @@ private func streamAnthropicResponse(
             var observedPromptTokens: Int? = nil
             var deliveredToolCalls: [ToolCall] = []
             var emitter = AnthropicStreamEmitter()
+            /// `tool_choice.disable_parallel_tool_use:true` → the client takes one call,
+            /// not a list. Checked against what has already been emitted, so it holds
+            /// across tool-loop passes (same rule as the OpenAI face, one home).
+            let singleCallOnly = ToolCallWire.limitsToSingleCall(
+                parallelToolCalls: request.parallelToolCalls)
             /// Everything the engine produced this turn, for the stream-end parse and the
             /// delivery ledger (`parseToolCalls` is all-or-nothing on the whole answer).
             var answerText = ""
@@ -905,6 +940,11 @@ private func streamAnthropicResponse(
                         // its arguments as `input_json_delta` (sglang serving.py:1194-1220,
                         // vllm serving.py:970-980). Each call closes the previous block and
                         // takes the next index, so a multi-call turn stays addressable.
+                        if singleCallOnly, !deliveredToolCalls.isEmpty {
+                            // `break` leaves this switch case (the stream continues); the
+                            // extra call is never shown, which is what the client asked for.
+                            break
+                        }
                         deliveredToolCalls.append(tc)
                         for event in emitter.emitToolCall(
                             id: tc.id.isEmpty ? "toolu_\(UUID().uuidString.prefix(8))" : tc.id,
@@ -989,6 +1029,7 @@ private func streamAnthropicResponse(
                 emitter.discardPendingText()
             }
             for call in streamToolCalls {
+                if singleCallOnly, !deliveredToolCalls.isEmpty { break }
                 deliveredToolCalls.append(call)
                 for event in emitter.emitToolCall(
                     id:
@@ -1029,8 +1070,13 @@ private func streamAnthropicResponse(
 
             // Emit message_delta — Anthropic carries stop_reason here, and SDKs key
             // on it; message_stop alone leaves the turn without a terminal reason.
+            // Same rule as the non-stream path on this face and both faces of the OpenAI
+            // wire: `tool_calls`→`tool_use` only for a turn that called and stopped on its
+            // own, and `length`→`max_tokens` when the budget cut it.
             let streamStopReason = openAIToAnthropicStopReason(
-                deliveredToolCalls.isEmpty ? finishReason : "tool_calls")
+                ToolCallWire.resolveFinishReason(
+                    engineReason: finishReason,
+                    toolCallsMade: !deliveredToolCalls.isEmpty))
             let deltaEvent = AnthropicStreamEvent.messageDelta(
                 stopReason: streamStopReason,
                 outputTokens: totalOutputTokens,

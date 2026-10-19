@@ -62,11 +62,43 @@ probe_note() {
   printf '  NOTE  %s\n' "$*"
 }
 
+# probe_xfail VERDICT MESSAGE — a defect that is open, reproduced here, and already
+# recorded in AGENTS.md §Open.
+#
+# VERDICT is `open` (the defect still reproduces: the line prints XFAIL, exits 0, and the
+# numbers stay in the log so the open item keeps its evidence) or `fixed` (it no longer
+# reproduces: the line prints XPASS and is counted as a FAILURE, because a probe that
+# carries an obsolete xfail is a probe that quietly stopped checking. Delete the xfail and
+# close the §Open item when that line goes red.)
+#
+# This exists so a real, unresolved P0 can hold its evidence in the suite without either
+# silencing it or turning every run red.
+PROBE_XFAIL=0
+probe_xfail() {
+  local verdict="$1"
+  shift
+  case "$verdict" in
+    open)
+      PROBE_XFAIL=$(( PROBE_XFAIL + 1 ))
+      printf '  XFAIL %s\n' "$*"
+      ;;
+    fixed)
+      PROBE_FAIL=$(( PROBE_FAIL + 1 ))
+      printf '  XPASS %s\n' "$*"
+      ;;
+    *)
+      PROBE_FAIL=$(( PROBE_FAIL + 1 ))
+      printf '  FAIL  probe_xfail: verdict must be "open" or "fixed", got "%s"\n' "$verdict"
+      ;;
+  esac
+}
+
 # Verdict. Fails when nothing was asserted: a probe whose checks never ran must not
 # report success (the vacuous-pass family).
 probe_summary() {
   local name="$1"
-  printf '\n%s: %d passed, %d failed, %d measured\n' "$name" "$PROBE_PASS" "$PROBE_FAIL" "$PROBE_INFO"
+  printf '\n%s: %d passed, %d failed, %d measured, %d known-open\n' \
+    "$name" "$PROBE_PASS" "$PROBE_FAIL" "$PROBE_INFO" "$PROBE_XFAIL"
   if [ "$PROBE_FAIL" -gt 0 ]; then
     exit 1
   fi
@@ -125,21 +157,43 @@ trap probes_cleanup EXIT INT TERM
 # Scope is deliberately narrow: only an `ocoreai` whose executable lives under this repo's
 # build dirs can be ours to clean up. Anything else (the GUI app, a server started by hand)
 # is reported with its pid and the remedy, never killed.
+
+# The executable path of a pid, resolved against the repo root when it was launched with a
+# relative path. `ps -o comm=` reports what was exec'd, so `./.build-clt/…/ocoreai` starts
+# with `.` and matched neither build-dir pattern: measured 10-19, a hand-started server
+# (`./.build-clt/out/Products/Debug/ocoreai`) was reported as foreign, never reaped, and
+# the probe burned its full 240 s ready-timeout on "Another ocoreai instance is already
+# running" — the same misdiagnosis the trap-chain fix of 10-17 was about.
+probe_exe_of() {
+  local pid exe
+  exe="$(ps -p "$1" -o comm= 2>/dev/null | sed 's/[[:space:]]*$//')"
+  case "$exe" in
+    /*) ;;
+    *) [ -x "$PROBE_REPO_ROOT/$exe" ] && exe="$PROBE_REPO_ROOT/$exe" ;;
+  esac
+  printf '%s' "$exe"
+}
+
+# Is this pid an ocoreai built by this repo?
+probe_exe_is_ours() {
+  case "$1" in
+    "$PROBE_REPO_ROOT/.build-clt/"* | "$PROBE_REPO_ROOT/.build/"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 probe_reap_stale_instances() {
   local pid exe foreign
   foreign=""
   for pid in $(pgrep -x ocoreai 2>/dev/null || true); do
     [ "$pid" = "$PROBE_PID" ] && continue
-    exe="$(ps -p "$pid" -o comm= 2>/dev/null | sed 's/[[:space:]]*$//')"
-    case "$exe" in
-      "$PROBE_REPO_ROOT/.build-clt/"* | "$PROBE_REPO_ROOT/.build/"*)
+    exe="$(probe_exe_of "$pid")"
+    if probe_exe_is_ours "$exe"; then
         probe_note "reaping stale probe-built ocoreai pid $pid — it holds the single-instance lock and would kill this server at boot"
         kill -TERM "$pid" 2>/dev/null || true
-        ;;
-      *)
+    else
         foreign="$foreign $pid($exe)"
-        ;;
-    esac
+    fi
   done
   for _ in $(seq 1 40); do
     pgrep -x ocoreai >/dev/null 2>&1 || break
@@ -147,12 +201,9 @@ probe_reap_stale_instances() {
   done
   for pid in $(pgrep -x ocoreai 2>/dev/null || true); do
     [ "$pid" = "$PROBE_PID" ] && continue
-    exe="$(ps -p "$pid" -o comm= 2>/dev/null | sed 's/[[:space:]]*$//')"
-    case "$exe" in
-      "$PROBE_REPO_ROOT/.build-clt/"* | "$PROBE_REPO_ROOT/.build/"*)
+    if probe_exe_is_ours "$(probe_exe_of "$pid")"; then
         kill -KILL "$pid" 2>/dev/null || true
-        ;;
-    esac
+    fi
   done
   if [ -n "$foreign" ]; then
     probe_note "instance(s) outside this repo hold the single-instance lock:$foreign — not touched; kill them or set OCOREAI_ALLOW_MULTI_INSTANCE=1"

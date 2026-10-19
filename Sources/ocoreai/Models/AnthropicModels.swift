@@ -917,6 +917,14 @@ struct AnthropicToolChoice: Decodable {
     /// Pinned tool name for `{"type":"tool","name":…}`; absent on the other variants.
     var name: String? = nil
 
+    /// `{"disable_parallel_tool_use":true}` — Anthropic's way of saying "one call at a
+    /// time". It was decoded into nothing at all (this face mapped `parallelToolCalls` to
+    /// the constant `true`), so a client that asked for one call got two: measured 10-19,
+    /// `tool_choice:{"type":"auto","disable_parallel_tool_use":true}` → two `tool_use`
+    /// blocks. vllm reads it as the negation of OpenAI's flag
+    /// (`entrypoints/anthropic/serving.py:698-700`).
+    var disableParallelToolUse: Bool? = nil
+
     /// This request's demand in the repo's own `tool_choice` vocabulary, so the single
     /// forcing rule (`toolChoiceDemandsCall` / `shouldConstrainOutput`) means the same
     /// thing on both wires: Anthropic's `any` is OpenAI's `required`, and a pinned
@@ -931,8 +939,14 @@ struct AnthropicToolChoice: Decodable {
         }
     }
 
+    /// OpenAI's top-level `parallel_tool_calls`, read off Anthropic's flag. One
+    /// translation, here, so both faces hand ``ToolCallWire`` the same three-state value
+    /// (vllm `entrypoints/anthropic/serving.py:698-700` — `not disable_parallel_tool_use`).
+    var parallelToolCalls: Bool { !(disableParallelToolUse ?? false) }
+
     enum CodingKeys: String, CodingKey {
         case type, name
+        case disableParallelToolUse = "disable_parallel_tool_use"
     }
 }
 
@@ -1046,7 +1060,10 @@ func toChatCompletionRequest(_ req: AnthropicMessageRequest) throws -> ChatCompl
         // so `shouldConstrainOutput`/`toolChoiceDemandsCall` mean the same thing on both
         // wires. sglang maps the same four variants (serving.py:685-720).
         toolChoice: req.toolChoice?.openAIVocabulary,
-        parallelToolCalls: true,
+        // Anthropic puts the parallelism flag inside `tool_choice`; OpenAI has it at the
+        // top level, so this face maps it rather than hardcoding `true` (which silently
+        // answered a client's `disable_parallel_tool_use:true` with two calls).
+        parallelToolCalls: req.toolChoice?.parallelToolCalls ?? true,
         reasoning: reasoningEnabled,
     )
 }

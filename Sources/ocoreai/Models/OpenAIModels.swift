@@ -263,12 +263,13 @@ struct ChatCompletionRequest: Decodable {
         presencePenalty = (try? c.decodeIfPresent(Float.self, forKey: .presencePenalty)) ?? 0
         sessionID = try c.decodeIfPresent(String.self, forKey: .sessionID)
         tools = try c.decodeIfPresent([ToolDef].self, forKey: .tools)
-        // `tool_choice` is a wire union: bare string ("auto" | "none" |
-        // "required") OR object {"type":"function","name":"<tool>"} (pin).
-        // Both normalize into internal vocab; the pin decodes as
-        // "function:<name>" (namespace-disjoint from a tool literally named
-        // "none"). Unknown type / missing name → throw (whole request 400,
-        // never silent nil). See toolChoice(from:forKey:).
+        // `tool_choice` is a wire union: a bare keyword ("auto" | "none" |
+        // "required") OR a named-tool object. OpenAI nests the name
+        // ({"type":"function","function":{"name":"<tool>"}}); this server also
+        // tolerates the flat {"type":"function","name":"<tool>"} it accepted
+        // first. Both normalize to "function:<name>", which keeps the pin
+        // namespace disjoint from a tool literally named "none". Vocabulary and
+        // rejections live in ToolCallWire — see toolChoice(from:forKey:).
         toolChoice = try toolChoice(from: c, forKey: .toolChoice)
         parallelToolCalls = try c.decodeIfPresent(Bool.self, forKey: .parallelToolCalls)
         reasoning = try c.decodeIfPresent(Bool.self, forKey: .reasoning)
@@ -334,19 +335,20 @@ struct ChatCompletionRequest: Decodable {
             param: violation.param, message: violation.message, value: violation.value)
     }
 
-    enum PinWireKeys: String, CodingKey {
-        case type
-        case name
-    }
-
-    /// Decodes the `tool_choice` wire union (string | pin object) into the
-    /// internal vocabulary:
-    /// - `"auto"` / `"none"` / `"required"` — as-is
-    /// - `{"type":"function","name":"<n>"}` — `"function:<n>"` (pin; the
-    ///   `function:` prefix keeps the pin namespace disjoint from the bare
-    ///   values — a tool literally named "none" decodes as `function:none`)
-    /// - unknown `type` / missing `name` — throw (whole request → 400),
-    ///   never silently dropped.
+    /// Decodes the `tool_choice` wire union (bare keyword | named-tool object) into the
+    /// internal vocabulary. The rules — which keywords exist, which object shapes carry a
+    /// name, what a rejection says — live in ``ToolCallWire``; this is container plumbing.
+    ///
+    /// Measured before this: OpenAI's own shape
+    /// `{"type":"function","function":{"name":"get_weather"}}` answered
+    /// `400 {"error":{"message":"Coding key \`name\` not found."}}` — Hummingbird's leak of
+    /// a `DecodingError`, naming neither the field nor the accepted shape, for the one form
+    /// the spec defines (vllm `chat_completion/protocol.py:220-224`,
+    /// sglang `protocol.py:829-833`). Only this server's flat alias worked.
+    ///
+    /// Every rejection is an ``AppError/invalidParameter(param:message:value:)``: 400,
+    /// `type:"invalid_request_error"`, `param:"tool_choice"`, and the spec shape in the
+    /// message, so a client learns which knob to fix without parsing prose.
     private func toolChoice(from c: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys)
         throws -> String?
     {
@@ -354,25 +356,30 @@ struct ChatCompletionRequest: Decodable {
 
         // Bare-string path first (the common case).
         if let raw = try? c.decodeIfPresent(String.self, forKey: key) {
-            return raw
+            return try ToolCallWire.normalizedToolChoiceWord(raw)
         }
 
-        // Pin object form. Use a nested container — the only Foundation
-        // primitive that reads a sub-object by key (no custom JSON bridge,
-        // no recursion: `nestedContainer` re-decodes the same JSON at that
-        // key, exactly as `init(from:)` for nested types does).
-        let n = try c.nestedContainer(keyedBy: PinWireKeys.self, forKey: key)
-        let type = try n.decodeIfPresent(String.self, forKey: .type)
-        guard type == "function" else {
-            throw DecodingError.dataCorrupted(
-                .init(
-                    codingPath: c.codingPath,
-                    debugDescription:
-                        "unsupported tool_choice type '\(type ?? "<absent>")' (expected 'function')"
-                ))
+        // Object form. A value that is not an object at all (`tool_choice:["auto"]`,
+        // `{"type":5}`) must not leave as a leaked typeMismatch either.
+        guard let n = try? c.nestedContainer(keyedBy: ToolChoicePinKeys.self, forKey: key)
+        else {
+            throw AppError.invalidParameter(
+                param: "tool_choice",
+                message:
+                    "tool_choice must be a string (\"none\", \"auto\", \"required\") or a "
+                    + "named-tool object {\"type\":\"function\",\"function\":{\"name\":\"<tool>\"}}"
+            )
         }
-        let name = try n.decode(String.self, forKey: .name)  // missing → throws → 400
-        return "function:\(name)"
+        let type = try? n.decodeIfPresent(String.self, forKey: .type)
+        let flatName = try? n.decodeIfPresent(String.self, forKey: .name)
+        var nestedName: String? = nil
+        if n.contains(.function),
+            let f = try? n.nestedContainer(keyedBy: ToolChoiceFunctionKeys.self, forKey: .function)
+        {
+            nestedName = try? f.decodeIfPresent(String.self, forKey: .name)
+        }
+        return try ToolCallWire.normalizedNamedToolChoice(
+            type: type, flatName: flatName, nestedName: nestedName)
     }
 }
 

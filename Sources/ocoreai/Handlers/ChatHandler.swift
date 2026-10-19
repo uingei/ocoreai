@@ -189,6 +189,18 @@ func chatCompletionsHandler(
         throw error
     }
 
+    /// `tool_choice` naming a choice from a set the client never declared is a
+    /// contradiction, not a preference: both reference stacks refuse it
+    /// (vllm `chat_completion/protocol.py:976-981` — *"When using `tool_choice`,
+    /// `tools` must be set"*; sglang `protocol.py:1020-1027`), with `"none"` exempt
+    /// because it demands nothing. Same seat as the numeric gate: before model
+    /// resolution, before the safety guards, before the scheduler reserves anything.
+    if let error = ToolCallWire.toolChoiceWithoutToolsError(
+        toolChoice: request.toolChoice, toolCount: request.tools?.count
+    ) {
+        throw error
+    }
+
     /// Extract model identifier from the request payload.
     /// When `model` is omitted, resolve to the default model (omlx is_default).
     let fallbackModel = await enginePool.defaultModelId()
@@ -1146,7 +1158,7 @@ private func nonStreamWithToolCalling(
     /// a call, delivered as a 200 OK. The SSE path (line ~1556) already emitted
     /// these same events; a wire client that flipped `stream:true` saw the call and
     /// flipped back to see nothing. Two surfaces, one truth: take the events.
-    let toolCalls: [ToolCall]? =
+    let emittedToolCalls: [ToolCall]? =
         if let detected = detectedToolCalls, !detected.isEmpty {
             detected
         } else if let tools = request.tools, !tools.isEmpty {
@@ -1155,8 +1167,23 @@ private func nonStreamWithToolCalling(
             nil
         }
 
-    /// Override finish reason if tool calls were detected.
-    let finishReasonFinal = toolCalls != nil ? "tool_calls" : finishReason
+    /// What this client receives: the calls the engine emitted, minus the ones the client
+    /// forbade. `parallel_tool_calls:false` asked for one call at a time and got two
+    /// (measured 10-19: `get_weather` Paris + London on the same request, both faces);
+    /// the limit is applied here, so a forbidden call is neither shown nor counted as
+    /// delivered — the delivery ledger below records what the client actually got.
+    let toolCalls: [ToolCall]? = ToolCallWire.limitedToolCalls(
+        emittedToolCalls, parallelToolCalls: request.parallelToolCalls)
+
+    /// The terminal word. `tool_calls` only when the turn called **and** stopped on its
+    /// own: an unconditional override reported `tool_calls` for a generation the budget cut
+    /// at `max_tokens` (measured 10-19: `completion_tokens == max_tokens == 18`, one call
+    /// delivered, `finish_reason:"tool_calls"`), which leaves a client executing a call
+    /// list it cannot know was chopped. `length` stays visible — vllm
+    /// `resolve_finish_reason` (`tool_calls_utils.py:47-65`) and sglang
+    /// (`serving_chat.py:2149-2152`, "had tool calls **and stopped naturally**").
+    let finishReasonFinal = ToolCallWire.resolveFinishReason(
+        engineReason: finishReason, toolCallsMade: toolCalls != nil)
 
     /// A client that DEMANDED a call and got none must not leave reading a normal
     /// empty answer, and the server must not invent a call to fill the gap. Measured
@@ -1412,6 +1439,11 @@ private func streamWithToolCalling(
         /// `settleEndOfStream`). Replaces the per-pass
         /// "finalFinishReason" local that used to emit a stop chunk per pass.
         var lastFinishReason: String = "stop"
+        /// `parallel_tool_calls:false` = "one call at a time" (three-state: absent/true
+        /// cost nothing). Checked at each emit site against what has already gone out, so
+        /// across tool-loop passes the client still sees at most one call.
+        let singleCallOnly = ToolCallWire.limitsToSingleCall(
+            parallelToolCalls: request.parallelToolCalls)
         /// True input-token count via the engine .done channel (upstream
         /// GenerateCompletionInfo.promptTokenCount). nil → keep the pre-flight estimate.
         var observedPromptTokens: Int? = nil
@@ -1565,9 +1597,9 @@ private func streamWithToolCalling(
 
                     lastFinishReason = stopReasonToString(reason) ?? "stop"
                     if let toolCalls = streamToolCalls {
-                        lastFinishReason = "tool_calls"
-                        deliveredToolCalls += toolCalls
                         for tc in toolCalls {
+                            if singleCallOnly, !deliveredToolCalls.isEmpty { break }
+                            deliveredToolCalls.append(tc)
                             let tcChunk = ChatCompletionChunk(
                                 id: requestId,
                                 created: created,
@@ -1578,7 +1610,12 @@ private func streamWithToolCalling(
                                             role: "assistant",
                                             toolCalls: [tc],
                                         ),
-                                        finishReason: "tool_calls",
+                                        // Mid-stream delta: `finish_reason` is null. OpenAI
+                                        // puts a non-null reason on the LAST chunk only, and
+                                        // a client that ends the stream on the first
+                                        // non-null one would drop the answer that follows.
+                                        // The terminal chunk below resolves the word.
+                                        finishReason: nil,
                                     )
                                 ],
                             )
@@ -1589,6 +1626,13 @@ private func streamWithToolCalling(
                 /// .toolCall — upstream TextToolTokenLoopHandler detected a tool call.
                 /// Emit as SSE delta chunk with tool_calls in the delta.
                 case .toolCall(let tc):
+                    if singleCallOnly, !deliveredToolCalls.isEmpty {
+                        // Forbidden by the client's own `parallel_tool_calls:false`. This
+                        // `break` leaves the switch case only — the turn keeps running,
+                        // the extra call is simply never shown (vllm filters at the emit
+                        // site the same way, `tool_calls_utils.py:38-42`).
+                        break
+                    }
                     deliveredToolCalls.append(tc)
                     let tcChunk = ChatCompletionChunk(
                         id: requestId,
@@ -1600,7 +1644,7 @@ private func streamWithToolCalling(
                                     role: "assistant",
                                     toolCalls: [tc],
                                 ),
-                                finishReason: "tool_calls",
+                                finishReason: nil,  // see the pass-boundary emit above
                             )
                         ],
                     )
@@ -1784,8 +1828,12 @@ private func streamWithToolCalling(
             )
         }
 
-        /// FINAL stop chunk — carries the LAST-pass finish reason (per-pass
-        /// `.done` branch set `lastFinishReason`; the last write wins).
+        /// FINAL stop chunk — the only chunk on this stream allowed a non-null
+        /// `finish_reason`, and the word it carries is resolved by the same rule the
+        /// non-stream wire uses: `tool_calls` when a call reached this client and the
+        /// engine stopped on its own, `length` when the budget cut the turn. (Before: the
+        /// tool-call delta said `tool_calls` and this chunk said `stop`, so the same turn
+        /// told a streaming client "no calls" and a non-streaming client "calls".)
         let stopChunk = ChatCompletionChunk(
             id: requestId,
             created: created,
@@ -1793,7 +1841,9 @@ private func streamWithToolCalling(
             choices: [
                 ChunkChoice(
                     delta: ChatDelta(content: nil),
-                    finishReason: lastFinishReason,
+                    finishReason: ToolCallWire.resolveFinishReason(
+                        engineReason: lastFinishReason,
+                        toolCallsMade: !deliveredToolCalls.isEmpty),
                 )
             ],
         )
