@@ -207,12 +207,12 @@ protocol BackendProtocol: Sendable {
 | **BackendProtocol unused** | BackendProtocol.swift:36 | Architectural drift — protocol defined but EnginePool uses inline `#if` branches | `BackendProtocol` never conformed to by `CoreAIBridge` or `MLXBridge`; EnginePool L382-449 contains inline `#if canImport(CoreAI)` |
 | **CoreAI grammar/stop** | EngineInference.swift:500, 1118 | **Resolved.** CoreAI-native grammar exists (`ConstrainedGenerationCapable` pipelined + CoreAI-native decode loop); stop sequences handled in the decode loop. An earlier "falls back to MLX" claim is superseded by code. | L500 "grammar requests stay on CoreAI path", L1129 coreai constrained loop |
 | **MTP tool calls not multi-turn** | EngineInference.swift:1171-1195 | Tool calls collected but dispatched after generation — no follow-up round | L1039: `registeredToolSpecs == nil` guard, L1182: single dispatch loop |
-| **Caught error unused** | EngineInference.swift:4726 | Build warning — error caught but not propagated | `let caughtError: (any Error)?` defined but never used (build warning confirmed) |
+| **Caught error unused** | EngineInference.swift:4739 | Build warning — error caught but not propagated | `let caughtError: (any Error)?` defined but never used (build warning confirmed) |
 
 <!-- Cites above are pinned: `make anchor-check` verifies each against the working tree, so a line that moves is a red build rather than a quiet lie. Rows whose mechanism no longer exists say so instead of keeping precision they never had. -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1118 CoreAI-side swift-transformers -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1171 toolParser -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4726 caughtError -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4739 caughtError -->
 
 ### 🟡 Medium Priority
 
@@ -249,7 +249,7 @@ The following findings were re-verified against current source (not assumed):
 
 ### Immediate (P0)
 1. **`BackendProtocol` removed** (commit `2123143`) — the dead protocol is gone; `EnginePool` uses inline `#if canImport(CoreAI)` branches, which is now the documented reality.
-2. **Fix `caughtError` unused warning** — EngineInference.swift:4726. Change `if let caughtError {` to `if caughtError != nil {` or use the error in the yield.
+2. **Fix `caughtError` unused warning** — EngineInference.swift:4739. Change `if let caughtError {` to `if caughtError != nil {` or use the error in the yield.
 
 ### Short-term (P1)
 3. **Document CoreAI path limitations** — add a `BackendDescriptor.coreai` capability matrix (supportsGrammar: false, supportsStopSequences: false, supportsTools: false) so callers can make informed backend choices.

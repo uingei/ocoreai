@@ -49,7 +49,7 @@ let package = Package(
         // that unblocks IPHONEOS_DEPLOYMENT_TARGET=27, plus cd36d17 (mlx-c custom-io:
         // I/O callbacks now return bytes read/written to signal success/failure).
         // Consumer-impact audit: ocoreai's only direct MLX surface = Stream.gpu.synchronize()
-        // (EngineInference.swift:3331) + result.eval() (MLXBridge.swift:1094) — both
+        // (EngineInference.swift:3344) + result.eval() (MLXBridge.swift:1094) — both
         // stable across 0.31→0.32. ZERO consumers of the changed public surface
         // (Device/withNewDefaultStream/convolve/Distributed); all MLX inference flows
         // through MLXLM/MLXNN/MLXLMCommon. The lm #646 `Stream()→Stream.defaultStream()`
