@@ -1378,7 +1378,7 @@ typealias Choice = CompletionChoice
 ///   "ended on a stop sequence" is `"stop"`: OpenAI's `finish_reason` enum is
 ///   `stop | length | tool_calls | content_filter`, and vllm/sglang report `stop` for
 ///   stop-string termination. `stop_sequence` is Anthropic's word — this repo already
-///   translates it to `"stop"` on the way IN (`AnthropicModels.swift:726`), so emitting
+///   translates it to `"stop"` on the way IN (`AnthropicModels.swift:850`), so emitting
 ///   it on the OpenAI wire was the same fact spelled two ways.
 func stopReasonToString(_ reason: StopReason?) -> String? {
     guard let reason else { return nil }
@@ -1398,7 +1398,7 @@ func stopReasonToString(_ reason: StopReason?) -> String? {
 ///   "ended on a stop sequence" is `"stop"`: OpenAI's `finish_reason` enum is
 ///   `stop | length | tool_calls | content_filter`, and vllm/sglang report `stop` for
 ///   stop-string termination. `stop_sequence` is Anthropic's word — this repo already
-///   translates it to `"stop"` on the way IN (`AnthropicModels.swift:726`), so emitting
+///   translates it to `"stop"` on the way IN (`AnthropicModels.swift:850`), so emitting
 ///   it on the OpenAI wire was the same fact spelled two ways.
 ///\n
 /// P1-1 fix: The previous stub always returned "stop", which lost semantic

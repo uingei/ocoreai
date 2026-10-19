@@ -33,11 +33,16 @@ struct AnthropicSSEWireShapeTests {
             u?.keys.contains("input_tokens") == false, "message_delta carries output_tokens only")
     }
 
-    /// `content_block_delta` must not start emitting the new keys.
-    @Test("content_block_delta wire shape is unchanged")
+    /// The delta inside a `content_block_delta` event is discriminated by its own
+    /// `type`, and the text member of that union is `text_delta` (sglang
+    /// `srt/entrypoints/anthropic/protocol.py:402-426`). This assertion used to pin
+    /// `content_block_delta` there — the event name repeated in the discriminator slot —
+    /// which is exactly what a pinned-but-wrong gate looks like: it held the deviation in
+    /// place and every SDK dispatching on `delta.type` read the turn as having no text.
+    @Test("content_block_delta carries a text_delta discriminator")
     func textDeltaShape() {
         let d = delta(AnthropicStreamEvent.textDelta(index: 0, text: "hi"))
-        #expect(d["type"] as? String == "content_block_delta")
+        #expect(d["type"] as? String == "text_delta")
         #expect(d["text"] as? String == "hi")
         #expect(d.keys.contains("stop_reason") == false)
         #expect(d.keys.contains("stop_sequence") == false)

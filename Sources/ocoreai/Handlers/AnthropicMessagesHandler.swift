@@ -226,9 +226,60 @@ func anthropicMessagesHandler(
     )
     let sampling = rawSampling.normalized()
 
+    // ═══════════════════════════════════════════════════════
+    // Phase 3b: Tool surface — assembled from the same helpers as the OpenAI face
+    // (`ChatHandler` Phase 3), so "this request declared tools" means one thing on
+    // both wires. Before this, `tools[]` on `/v1/messages` reached the model only as
+    // system-prompt text (no `declaredToolNames`, no specs, no grammar): the engine's
+    // tool path never ran, so a call the model made had nothing to be recognised by and
+    // nothing to be constrained by — and the `.toolCall` event was dropped at both consuming sites.
+    // ═══════════════════════════════════════════════════════
+    let declaredTools: [ToolDef]? = chatRequest.tools
+    /// Anthropic's demand, translated once (`any`→required, `tool`→function:<name>).
+    let toolChoice: String? = request.toolChoice?.openAIVocabulary
+    /// `tool_choice:{"type":"none"}` = zero tools this turn; declaring nothing is also
+    /// zero (the engine's `resolveToolSurface` choke). Same shape as ChatHandler's.
+    let declaredToolNames: [String]? = {
+        if toolChoice == "none" { return [] }
+        return declaredTools?.map { $0.function.name }
+    }()
+    /// Forcing follows the DEMAND, never the presence of a declaration — one rule for
+    /// every face of the product (`shouldConstrainOutput`, Models/OpenAIModels.swift).
+    let useGuidedGeneration = shouldConstrainOutput(
+        declaredTools: declaredTools,
+        responseFormat: nil,
+        toolChoice: toolChoice
+    )
+    /// Grammar built from the DECLARATION, never a narrowed subset: grammar == surface
+    /// == what the client sent.
+    let grammarSchema: String? =
+        useGuidedGeneration
+        ? buildGrammarSchema(from: declaredTools, responseFormat: nil)
+        : nil
+    if let toolChoice {
+        logger.info(
+            "Anthropic tool_choice \(request.toolChoice?.type ?? "?") → \(toolChoice)")
+    }
+    if let declaredToolNames, !declaredToolNames.isEmpty {
+        logger.info(
+            "Anthropic tool declaration: \(declaredToolNames.count) declared [\(declaredToolNames.joined(separator: ", "))]"
+        )
+    }
+
     let inferenceOpts = InferenceOptions(
         maxTokens: effectiveMaxTokens,
         includeLogits: false,
+        useGuidedGeneration: useGuidedGeneration,
+        grammarSchema: grammarSchema,
+        // Native calls run the ChatSession toolDispatch loop, not the one-shot guided
+        // path — same routing decision as the OpenAI face, keyed on the declaration.
+        hasNativeTools: declaredTools?.isEmpty == false,
+        // The whitelist, in the caller's order: what the model may call, and the only
+        // names the engine will inject.
+        declaredToolNames: declaredToolNames,
+        // The caller's own parameter schemas, so a tool this server does not register is
+        // still declarable (and its call still deliverable to the caller).
+        declaredToolSpecsJSON: openAIToolSpecsJSON(from: declaredTools),
         // Wire HTTP consumer — `.interactive` cannot be asked of an external
         // process: gate `.ask` verdicts fail-closed instead of parking on the
         // broker (codex `codex-rs/exec/src/lib.rs:566` headless → Never).
@@ -246,6 +297,7 @@ func anthropicMessagesHandler(
             sampling: sampling,
             options: inferenceOpts,
             request: chatRequest,
+            enginePool: enginePool,
             modelId: modelId,
             logger: logger,
             metrics: metrics,
@@ -259,6 +311,7 @@ func anthropicMessagesHandler(
             sampling: sampling,
             options: inferenceOpts,
             request: chatRequest,
+            enginePool: enginePool,
             modelId: modelId,
             logger: logger,
             metrics: metrics,
@@ -286,48 +339,28 @@ func estimatePromptTokensFallback(_ messages: [Message]) -> Int {
     return max(1, Int(Double(totalBytes) / Double(divisor)))
 }
 
-/// Build the inference message list from an Anthropic request:
-/// - system prompt injected as the leading system message
-/// - tool definitions prepended if present
+/// Build the inference message list from an Anthropic request: the conversation
+/// turns plus the leading `system` message (string or text-block form).
 ///
-/// `internal`, not `private`: `POST /v1/messages/count_tokens` counts *this*
-/// list, so the pre-flight answer is what `/v1/messages` would actually feed the
-/// model (system prompt and tool definitions included) instead of a second,
-/// subtly cheaper approximation of it — one builder, one truth.
+/// `tools[]` deliberately does NOT appear here. It travels as a structured surface
+/// (`InferenceOptions.declaredToolNames`/`declaredToolSpecsJSON` → `resolveToolSurface`
+/// → the chat template's tool block), which is the only place the engine reads tools
+/// from — the same route that makes a tool-declaring `/v1/chat/completions` turn call
+/// at all. Rendering them into system text as well was a second, schema-less copy of
+/// the same declaration: the model saw the tool name twice and its parameters never.
+///
+/// `internal`, not `private`: `POST /v1/messages/count_tokens` counts *this* list, so
+/// the pre-flight answer is the message half of what `/v1/messages` feeds the model,
+/// from one builder — one truth for both routes (the tool block is template-side on
+/// this server and on `/v1/chat/completions` alike, so neither counts it).
 func buildAnthropicMessageList(request: AnthropicMessageRequest) throws -> [Message] {
     // `toInternalMessage` is where block types get honoured or refused by name; this
-    // function only adds the Anthropic-specific injections (system field, tool defs).
+    // function only adds the Anthropic-specific injection (the `system` field).
     var messages: [Message] = try request.messages.map { try $0.toInternalMessage() }
 
     // Inject system prompt (string or text-block form — see AnthropicSystemContent)
     if let system = request.system?.text, !system.isEmpty {
         messages.insert(Message(role: "system", content: .text(system)), at: 0)
-    }
-
-    // Inject tool definitions
-    if let tools = request.tools, !tools.isEmpty {
-        let toolDefs = tools.compactMap { tool -> String? in
-            let desc = tool.description ?? ""
-            return "## Tool: \(tool.name)\nDescription: \(desc)"
-        }.joined(separator: "\n\n")
-
-        if !toolDefs.isEmpty {
-            if let idx = messages.firstIndex(where: { $0.role == "system" }) {
-                if case .text(var existing) = messages[idx].content {
-                    existing += "\n\nAvailable tools:\n\(toolDefs)"
-                    messages[idx].content = .text(existing)
-                }
-            } else {
-                messages.insert(
-                    Message(
-                        role: "system",
-                        content: .text(
-                            "You have access to the following tools:\n\n\(toolDefs)",
-                        )),
-                    at: 0,
-                )
-            }
-        }
     }
 
     guard !messages.isEmpty else {
@@ -346,7 +379,8 @@ private func nonStreamAnthropicResponse(
     messages: [Message],
     sampling: SamplingConfiguration,
     options: InferenceOptions,
-    request _: ChatCompletionRequest,
+    request: ChatCompletionRequest,
+    enginePool: EnginePool,
     modelId: String,
     logger: Logger,
     metrics: MetricsRegistry,
@@ -367,6 +401,7 @@ private func nonStreamAnthropicResponse(
     var accumulatedText: String? = nil
     var totalOutputTokens = 0
     var finishReason = "end_turn"
+    var detectedToolCalls: [ToolCall]? = nil
 
     do {
         for try await event in tokenStream {
@@ -393,8 +428,11 @@ private func nonStreamAnthropicResponse(
             case .error(let errorMsg):
                 finishReason = "error"
                 logger.error("Generation error: \(errorMsg)")
-            case .toolCall:
-                break
+            case .toolCall(let tc):
+                // The engine already recognised this call. Collect every one (a turn may
+                // emit several) — dropping them here is what made the Anthropic face
+                // answer `end_turn` to a request whose model had called.
+                detectedToolCalls = (detectedToolCalls ?? []) + [tc]
             case .toolResult:
                 // Tool finished — informational for this handler, model context already has it
                 break
@@ -472,15 +510,84 @@ private func nonStreamAnthropicResponse(
     await metrics.incrementTokens(kind: "generated", count: totalOutputTokens)
     await metrics.incrementTokens(kind: "prompt", count: inputTokenCount)
 
+    /// The calls this turn produced: the structured ones the engine emitted, and only
+    /// as a fallback a dialect parsed out of the answer text (same precedence as
+    /// ChatHandler L1141 — upstream consumes the native dialect and strips it from the
+    /// text, so text alone sees nothing).
+    let toolCalls: [ToolCall]? =
+        if let detected = detectedToolCalls, !detected.isEmpty {
+            detected
+        } else if request.tools?.isEmpty == false {
+            parseToolCalls(from: content)
+        } else {
+            nil
+        }
+
+    /// `content` = text block, then one `tool_use` block per delivered call
+    /// (`{"type":"tool_use","id","name","input":{…}}`, vllm serving.py:870-877).
+    /// `input` is a JSON object here, unlike OpenAI's `arguments` string; a payload
+    /// that is not an object is dropped and logged rather than laundered into `{}`,
+    /// because a client would execute a call with arguments the model never sent.
+    var contentBlocks: [AnthropicAssistantContent] = []
+    if !content.isEmpty {
+        contentBlocks.append(AnthropicAssistantContent(text: content))
+    }
+    var deliveredCalls: [ToolCall] = []
+    for call in toolCalls ?? [] {
+        let rawArguments = call.function.arguments
+        guard let input = anthropicToolInput(fromJSON: rawArguments) else {
+            logger.warning(
+                "Anthropic tool_use dropped: arguments for \(call.function.name) are not a JSON object — no call delivered rather than one with invented arguments"
+            )
+            continue
+        }
+        contentBlocks.append(
+            AnthropicAssistantContent(
+                toolUseId:
+                    call.id.isEmpty ? "toolu_\(UUID().uuidString.prefix(8))" : call.id,
+                name: call.function.name,
+                input: input
+            )
+        )
+        deliveredCalls.append(call)
+    }
+    /// Anthropic's canonical empty completion is a single empty text block, not `[]`
+    /// — strict clients index `content[0]` (same reasoning as vllm serving.py:879-883).
+    if contentBlocks.isEmpty {
+        contentBlocks.append(AnthropicAssistantContent(text: ""))
+    }
+
+    if deliveredCalls.isEmpty, toolChoiceDemandsCall(request.toolChoice) {
+        let demandedBy = request.toolChoice ?? "any"
+        logger.warning(
+            "tool_choice=\(demandedBy) demanded a tool call and none was produced — no call fabricated (finish=\(finishReason), content \(content.isEmpty ? "empty" : "text only"))"
+        )
+    }
+
+    /// Per-model delivery fact for `tool_call_delivery` on `/v1/models`: measured at
+    /// this wire edge, so the Anthropic face's traffic counts too, and `parsed` means
+    /// the client actually received a `tool_use` block.
+    let declaredNamesForDelivery = request.tools?.map { $0.function.name } ?? []
+    if !declaredNamesForDelivery.isEmpty {
+        await enginePool.recordToolCallDelivery(
+            modelId: modelId,
+            outcome: deliveredCalls.isEmpty
+                ? ToolCallDeliveryLedger.classifyTurn(
+                    text: content, declaredNames: declaredNamesForDelivery)
+                : .parsed,
+            calledNames: deliveredCalls.map { $0.function.name }
+        )
+    }
+
     // Build Anthropic response
-    let assistantContent = AnthropicAssistantContent(text: content)
     let usage = AnthropicUsage(inputTokens: inputTokenCount, outputTokens: totalOutputTokens)
+    let stopReason = deliveredCalls.isEmpty ? finishReason : "tool_use"
 
     let response = AnthropicMessageResponse(
         id: requestId,
-        content: [assistantContent],
+        content: contentBlocks,
         model: modelId,
-        stopReason: finishReason.isEmpty ? nil : finishReason,
+        stopReason: stopReason.isEmpty ? nil : stopReason,
         usage: usage,
     )
 
@@ -502,7 +609,8 @@ private func streamAnthropicResponse(
     messages: [Message],
     sampling: SamplingConfiguration,
     options: InferenceOptions,
-    request _: ChatCompletionRequest,
+    request: ChatCompletionRequest,
+    enginePool: EnginePool,
     modelId: String,
     logger: Logger,
     metrics: MetricsRegistry,
@@ -542,6 +650,11 @@ private func streamAnthropicResponse(
             var accumulatedTokens: [Int32] = []
             var prevDecodedText = ""
             var finishReason = "stop"
+            var deliveredToolCalls: [ToolCall] = []
+            var emitter = AnthropicStreamEmitter()
+            /// Everything the engine produced this turn, for the stream-end parse and the
+            /// delivery ledger (`parseToolCalls` is all-or-nothing on the whole answer).
+            var answerText = ""
 
             // Emit message_start event
             let startResponse = AnthropicMessageResponse(
@@ -553,10 +666,6 @@ private func streamAnthropicResponse(
             )
             let messageStart = AnthropicStreamEvent.messageStart(message: startResponse)
             writeSSEEvent(continuation, event: messageStart)
-
-            // Emit content_block_start
-            let blockStart = AnthropicStreamEvent.contentBlockStart(index: 0)
-            writeSSEEvent(continuation, event: blockStart)
 
             // Consume tokens and stream deltas
             do {
@@ -602,9 +711,11 @@ private func streamAnthropicResponse(
                             }
                         }
 
-                        // Emit delta event
-                        let deltaEvent = AnthropicStreamEvent.textDelta(index: 0, text: deltaText)
-                        writeSSEEvent(continuation, event: deltaEvent)
+                        // Answer text goes through the emitter, which may hold it
+                        answerText += deltaText
+                        for event in emitter.feedText(deltaText) {
+                            writeSSEEvent(continuation, event: event)
+                        }
 
                     case .text(let text):
                         try Task.checkCancellation()
@@ -629,8 +740,10 @@ private func streamAnthropicResponse(
                             }
                         }
 
-                        let deltaEvent = AnthropicStreamEvent.textDelta(index: 0, text: text)
-                        writeSSEEvent(continuation, event: deltaEvent)
+                        answerText += text
+                        for event in emitter.feedText(text) {
+                            writeSSEEvent(continuation, event: event)
+                        }
 
                     case .done(let reason, let doneTokenCount, _, _, _, _, _, _, _, _):
                         finishReason = stopReasonToString(reason) ?? "stop"
@@ -644,8 +757,19 @@ private func streamAnthropicResponse(
                         }
                     case .error(let errorMsg):
                         logger.error("Stream generation error: \(errorMsg)")
-                    case .toolCall:
-                        break
+                    case .toolCall(let tc):
+                        // Deliver it: `content_block_start` naming a `tool_use` block, then
+                        // its arguments as `input_json_delta` (sglang serving.py:1194-1220,
+                        // vllm serving.py:970-980). Each call closes the previous block and
+                        // takes the next index, so a multi-call turn stays addressable.
+                        deliveredToolCalls.append(tc)
+                        for event in emitter.emitToolCall(
+                            id: tc.id.isEmpty ? "toolu_\(UUID().uuidString.prefix(8))" : tc.id,
+                            name: tc.function.name,
+                            arguments: tc.function.arguments
+                        ) {
+                            writeSSEEvent(continuation, event: event)
+                        }
                     case .toolResult:
                         // Tool finished — informational, model context already carried the result
                         break
@@ -676,14 +800,71 @@ private func streamAnthropicResponse(
                 throw AppError.inferenceFailed(error.localizedDescription)
             }
 
-            // Emit content_block_stop
-            let blockStop = AnthropicStreamEvent.contentBlockStop(index: 0)
-            writeSSEEvent(continuation, event: blockStop)
+            /// The calls this stream delivers: the ones the engine emitted as events, and
+            /// as a fallback the dialect parsed out of the settled answer. The fallback is
+            /// not optional on this face: a calls-only grammar makes the model *write* the
+            /// call in plain JSON (measured 10-19 — 35 text deltas spelling
+            /// `"name": "get_weather"`, then `end_turn`, and no `.toolCall` at all), and
+            /// `/v1/chat/completions` already recovers exactly this with the same
+            /// `parseToolCalls` at its own stream end (ChatHandler L1727).
+            let streamToolCalls: [ToolCall] =
+                if !deliveredToolCalls.isEmpty {
+                    []
+                } else if request.tools?.isEmpty == false {
+                    parseToolCalls(from: answerText) ?? []
+                } else {
+                    []
+                }
+            if !streamToolCalls.isEmpty {
+                /// The held-back text IS the payload — ship it as blocks, not as prose
+                /// sitting next to the structured call the client will execute.
+                emitter.discardPendingText()
+            }
+            for call in streamToolCalls {
+                deliveredToolCalls.append(call)
+                for event in emitter.emitToolCall(
+                    id:
+                        call.id.isEmpty ? "toolu_\(UUID().uuidString.prefix(8))" : call.id,
+                    name: call.function.name,
+                    arguments: call.function.arguments
+                ) {
+                    writeSSEEvent(continuation, event: event)
+                }
+            }
+            /// Prose that never resolved into a call is released here, at the last moment.
+            for event in emitter.flushText() { writeSSEEvent(continuation, event: event) }
+            /// A turn that produced nothing still gets one empty text block: strict SDKs
+            /// index `content[0]` after opening the stream (vllm serving.py:879-883).
+            for event in emitter.ensureSomeBlock() { writeSSEEvent(continuation, event: event) }
+            for event in emitter.close() { writeSSEEvent(continuation, event: event) }
+
+            if deliveredToolCalls.isEmpty, toolChoiceDemandsCall(request.toolChoice) {
+                let demandedBy = request.toolChoice ?? "any"
+                logger.warning(
+                    "SSE tool_choice=\(demandedBy) demanded a tool call and none was produced — no call fabricated (finish=\(finishReason))"
+                )
+            }
+
+            /// `tool_call_delivery` for `/v1/models`, measured on this face too
+            /// (`ToolCallDeliveryLedger`); `parsed` = a `tool_use` block reached the client.
+            let declaredNamesForDelivery = request.tools?.map { $0.function.name } ?? []
+            if !declaredNamesForDelivery.isEmpty {
+                await enginePool.recordToolCallDelivery(
+                    modelId: modelId,
+                    outcome: deliveredToolCalls.isEmpty
+                        ? ToolCallDeliveryLedger.classifyTurn(
+                            text: answerText, declaredNames: declaredNamesForDelivery)
+                        : .parsed,
+                    calledNames: deliveredToolCalls.map { $0.function.name }
+                )
+            }
 
             // Emit message_delta — Anthropic carries stop_reason here, and SDKs key
             // on it; message_stop alone leaves the turn without a terminal reason.
+            let streamStopReason = openAIToAnthropicStopReason(
+                deliveredToolCalls.isEmpty ? finishReason : "tool_calls")
             let deltaEvent = AnthropicStreamEvent.messageDelta(
-                stopReason: openAIToAnthropicStopReason(finishReason),
+                stopReason: streamStopReason,
                 outputTokens: totalOutputTokens,
             )
             writeSSEEvent(continuation, event: deltaEvent)
@@ -722,6 +903,109 @@ private func streamAnthropicResponse(
 }
 
 // MARK: - SSE Helpers
+
+/// Owns what the Anthropic SSE client sees: which content block is open and at which
+/// index, plus answer text held back until it is known not to be a tool-call payload.
+///
+/// Two protocol facts shape it. Blocks are numbered, not deltas: text and every
+/// `tool_use` need their own `content_block_start`/`stop` pair at their own index, or a
+/// client accumulating two calls cannot tell them apart (sglang serves this with the same
+/// ensure/close pair, serving.py:880-935). And a call must not arrive as prose: our
+/// calls-only grammar makes the model *write* `[{…}]`, so text whose first character is
+/// `[`/`{` is undecided until the answer settles — shipping it live would show the
+/// client a JSON blob and then, or instead, the structured block. Prose releases at the
+/// first character that cannot begin a call object; `parseToolCalls` at stream end
+/// applies the same all-or-nothing rule the non-stream path and `ChatHandler` use.
+/// `internal`, not `private`: the hold/flush rule is an exact-value contract (what a
+/// client sees, and in which order), and `estimatePromptTokensFallback` above sets the
+/// precedent for testing a handler helper directly.
+struct AnthropicStreamEmitter {
+    private var index = 0
+    private var openKind: String? = nil
+    private var pending = ""
+    private var isStreamingText = false
+    /// Whether any block was ever opened — the "nothing to show" fallback's premise.
+    private(set) var hasEmittedAnyBlock = false
+
+    /// The open block's index; every call site opens on the line above.
+    var currentIndex: Int { index }
+
+    /// One piece of answer text as the engine produced it. Empty when the piece is still
+    /// undecided (held) — the content then leaves through ``flushText()``.
+    mutating func feedText(_ piece: String) -> [AnthropicStreamEvent] {
+        guard !piece.isEmpty else { return [] }
+        if isStreamingText {
+            return [AnthropicStreamEvent.textDelta(index: index, text: piece)]
+        }
+        pending += piece
+        guard !Self.couldBeToolCallPayload(pending) else { return [] }
+        return flushText()
+    }
+
+    /// Releases whatever text is held, as prose.
+    mutating func flushText() -> [AnthropicStreamEvent] {
+        guard !pending.isEmpty else { return [] }
+        let text = pending
+        pending = ""
+        return openTextBlock()
+            + [AnthropicStreamEvent.textDelta(index: index, text: text)]
+    }
+
+    /// A recognised call: flush prose buffered ahead of it (vllm flushes its
+    /// `pending_content` before opening a block, serving.py:985-997), then give the call
+    /// its own block, with arguments as `input_json_delta`.
+    mutating func emitToolCall(id: String, name: String, arguments: String)
+        -> [AnthropicStreamEvent]
+    {
+        var events = flushText()
+        events += close()
+        openKind = "tool_use"
+        hasEmittedAnyBlock = true
+        events.append(AnthropicStreamEvent.toolUseBlockStart(index: index, id: id, name: name))
+        if !arguments.isEmpty {
+            events.append(
+                AnthropicStreamEvent.inputJsonDelta(index: index, partialJson: arguments))
+        }
+        return events
+    }
+
+    /// The held text turned out to be the call payload: drop it rather than ship both.
+    mutating func discardPendingText() {
+        pending = ""
+    }
+
+    /// Closes the open block, if any.
+    mutating func close() -> [AnthropicStreamEvent] {
+        guard openKind != nil else { return [] }
+        openKind = nil
+        isStreamingText = false
+        let event = AnthropicStreamEvent.contentBlockStop(index: index)
+        index += 1
+        return [event]
+    }
+
+    /// One empty text block for a turn that produced nothing at all.
+    mutating func ensureSomeBlock() -> [AnthropicStreamEvent] {
+        guard !hasEmittedAnyBlock else { return [] }
+        return openTextBlock()
+    }
+
+    private mutating func openTextBlock() -> [AnthropicStreamEvent] {
+        if openKind == "text" { return [] }
+        let closing = close()
+        openKind = "text"
+        isStreamingText = true
+        hasEmittedAnyBlock = true
+        return closing + [AnthropicStreamEvent.contentBlockStart(index: index)]
+    }
+
+    /// Could this still turn out to be a tool-call payload? Both shapes our grammar can
+    /// force start with `[` (an array of call objects) or `{`.
+    static func couldBeToolCallPayload(_ text: String) -> Bool {
+        let trimmed = text.drop(while: { $0 == " " || $0 == "\t" || $0 == "\n" || $0 == "\r" })
+        return trimmed.isEmpty || trimmed.hasPrefix("[") || trimmed.hasPrefix("{")
+    }
+}
 
 /// Write a single SSE event to the async stream continuation
 private func writeSSEEvent(

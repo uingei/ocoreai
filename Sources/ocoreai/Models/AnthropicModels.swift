@@ -66,7 +66,7 @@ struct AnthropicMessageRequest: Decodable {
     /// 10-13 `POST /v1/messages` with `{model, max_tokens, messages}` answered
     /// 400 "Coding key `stream` not found." `ChatCompletionRequest` avoids this
     /// by hand-decoding the field (`OpenAIModels.swift:240`). Consumers already
-    /// read it as tri-state (`AnthropicMessagesHandler.swift:250` == true).
+    /// read it as tri-state (`AnthropicMessagesHandler.swift:292` == true).
     var stream: Bool? = nil
 
     /// Response format (for structured output)
@@ -436,15 +436,48 @@ struct AnthropicMessageResponse: Encodable {
     }
 }
 
-/// Assistant message content block
+/// Assistant message content block — `text` or `tool_use`.
+///
+/// Anthropic types a call as a content block (`{"type":"tool_use","id","name","input"}`)
+/// where OpenAI types it as a sibling `tool_calls` array, and `input` is a JSON *object*
+/// (OpenAI's `arguments` is a string). Synthesized encoding omits nil keys, so a text
+/// block still serializes as `{"type":"text","text":…}` with no stray fields.
 struct AnthropicAssistantContent: Encodable {
     let type: String
     let text: String?
+    let id: String?
+    let name: String?
+    let input: [String: AnyCodable]?
 
     init(text: String) {
         type = "text"
         self.text = text
+        id = nil
+        name = nil
+        input = nil
     }
+
+    init(toolUseId: String, name: String, input: [String: AnyCodable]) {
+        type = "tool_use"
+        text = nil
+        id = toolUseId
+        self.name = name
+        self.input = input
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case type, text, id, name, input
+    }
+}
+
+/// Anthropic's `input` object from the engine's argument payload (a JSON string).
+///
+/// Returns nil when the payload is not a JSON object — the caller must not turn a
+/// malformed blob into `input:{}`, because a client would execute a call with arguments
+/// the model never asked for. Nil means "no call delivered", and the caller logs it.
+func anthropicToolInput(fromJSON raw: String) -> [String: AnyCodable]? {
+    guard let data = raw.data(using: .utf8) else { return nil }
+    return try? JSONDecoder().decode([String: AnyCodable].self, from: data)
 }
 
 /// Anthropic-specific token usage tracking
@@ -492,6 +525,16 @@ struct AnthropicStreamEvent: Encodable {
     let message: AnthropicMessageResponse?
     let delta: AnthropicStreamDelta?
     let usage: AnthropicStreamUsage?
+    /// Carried by `content_block_start` only. Anthropic's spec names the block here
+    /// (`content_block:{"type":"text","text":""}` / `{"type":"tool_use","id","name",
+    /// "input":{}}`) and SDKs open their accumulator from `content_block.type`, so an
+    /// event that omits it is not a stream a spec client can start a block in.
+    var contentBlock: AnthropicAssistantContent? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case type, index, message, delta, usage
+        case contentBlock = "content_block"
+    }
 
     /// Stream start event
     static func messageStart(message: AnthropicMessageResponse) -> AnthropicStreamEvent {
@@ -499,18 +542,48 @@ struct AnthropicStreamEvent: Encodable {
             type: "message_start", index: nil, message: message, delta: nil, usage: nil)
     }
 
-    /// Content block start event
+    /// Content block start for a text block, naming the block as the spec requires.
     static func contentBlockStart(index: Int) -> AnthropicStreamEvent {
         AnthropicStreamEvent(
-            type: "content_block_start", index: index, message: nil, delta: nil, usage: nil)
+            type: "content_block_start", index: index, message: nil, delta: nil, usage: nil,
+            contentBlock: AnthropicAssistantContent(text: ""))
     }
 
-    /// Delta event (incremental text)
+    /// Content block start for a `tool_use` block: id + name + empty input, with the
+    /// arguments following as `input_json_delta` — the shape Anthropic clients and
+    /// vllm's adapter emit.
+    static func toolUseBlockStart(index: Int, id: String, name: String) -> AnthropicStreamEvent {
+        AnthropicStreamEvent(
+            type: "content_block_start", index: index, message: nil, delta: nil, usage: nil,
+            contentBlock: AnthropicAssistantContent(toolUseId: id, name: name, input: [:]))
+    }
+
+    /// `input_json_delta` — Anthropic's carrier for tool arguments (OpenAI uses
+    /// `function.arguments` for the same bytes).
+    static func inputJsonDelta(index: Int, partialJson: String) -> AnthropicStreamEvent {
+        AnthropicStreamEvent(
+            type: "content_block_delta", index: index, message: nil,
+            delta: AnthropicStreamDelta(
+                type: "input_json_delta", partialJson: partialJson, text: nil,
+                stopReason: nil, stopSequence: nil),
+            usage: nil)
+    }
+
+    /// Delta event (incremental text).
+    ///
+    /// The **event** is `content_block_delta`; the **delta** inside it is discriminated
+    /// by its own `type`, whose text member is `text_delta` (`AnthropicContentDelta` is
+    /// a union keyed on `type`: `text_delta`/`input_json_delta`/`thinking_delta`/
+    /// `signature_delta`, sglang `srt/entrypoints/anthropic/protocol.py:402-426`).
+    /// This one said `content_block_delta` in both slots — measured 10-19, the wire came
+    /// back `{"delta":{"type":"content_block_delta","text":"4"}}` — which is outside
+    /// that union, so a client that dispatches on `delta.type` (as the SDKs do) sees no
+    /// text at all on a turn that answered fine.
     static func textDelta(index: Int, text: String) -> AnthropicStreamEvent {
         AnthropicStreamEvent(
             type: "content_block_delta", index: index, message: nil,
             delta: AnthropicStreamDelta(
-                type: "content_block_delta", partialJson: nil, text: text,
+                type: "text_delta", partialJson: nil, text: text,
                 stopReason: nil, stopSequence: nil),
             usage: nil)
     }
@@ -613,13 +686,44 @@ struct AnthropicToolInputSchema: Decodable {
             let dict = try container.decode([String: AnyCodable].self)
             type = dict["type"]?.value as? String ?? "object"
             properties = (dict["properties"]?.value as? [String: AnyCodable])
-            required = dict["required"]?.value as? [String]
+            // `required` arrives as `[AnyCodable]` — AnyCodable decodes an array of
+            // strings into an array of boxes, so `as? [String]` fails and the key
+            // vanished here even before `toOpenAIParameters()` dropped it. A schema
+            // that lost its required list tells the grammar no key is mandatory, and
+            // a constrained call then answers with an object missing every argument.
+            required = Self.stringArray(dict["required"]?.value)
         }
     }
 
+    /// An array of JSON strings, out of whatever `AnyCodable` boxed it as.
+    private static func stringArray(_ value: Any?) -> [String]? {
+        if let strings = value as? [String] { return strings }
+        if let boxes = value as? [AnyCodable] {
+            let strings = boxes.compactMap { $0.value as? String }
+            return strings.isEmpty ? nil : strings
+        }
+        return nil
+    }
+
+    /// The caller's declared JSON Schema, whole: `type`, `properties`, `required`.
+    ///
+    /// Bare `properties` is not a schema — it names no object and requires nothing, so
+    /// the engine's constrained path had nothing to fill and a `tool_choice:"any"`
+    /// request could not be satisfied. vllm and sglang forward `input_schema` verbatim
+    /// for exactly this reason (`vllm/entrypoints/anthropic/serving.py:779`,
+    /// `sglang/srt/entrypoints/anthropic/serving.py:672`).
+    ///
+    /// A schema that names no keys stays `{"type":"object"}`: an open object, never
+    /// `properties:{}`, which would pin zero keys (round 19's `jsonObjectSchema`).
     func toOpenAIParameters() -> [String: AnyCodable]? {
-        guard let properties else { return nil }
-        return properties
+        var schema: [String: AnyCodable] = ["type": AnyCodable(type)]
+        if let properties {
+            schema["properties"] = AnyCodable.wrap(properties)
+        }
+        if let required {
+            schema["required"] = AnyCodable.wrap(required)
+        }
+        return schema
     }
 }
 
@@ -627,8 +731,25 @@ struct AnthropicToolInputSchema: Decodable {
 struct AnthropicToolChoice: Decodable {
     let type: String  // "auto" | "any" | "none" | "tool"
 
+    /// Pinned tool name for `{"type":"tool","name":…}`; absent on the other variants.
+    var name: String? = nil
+
+    /// This request's demand in the repo's own `tool_choice` vocabulary, so the single
+    /// forcing rule (`toolChoiceDemandsCall` / `shouldConstrainOutput`) means the same
+    /// thing on both wires: Anthropic's `any` is OpenAI's `required`, and a pinned
+    /// `tool` is `function:<name>`.
+    var openAIVocabulary: String? {
+        switch type {
+        case "auto": "auto"
+        case "none": "none"
+        case "any": "required"
+        case "tool": name.map { "function:\($0)" } ?? "required"
+        default: nil
+        }
+    }
+
     enum CodingKeys: String, CodingKey {
-        case type
+        case type, name
     }
 }
 
@@ -712,7 +833,10 @@ func toChatCompletionRequest(_ req: AnthropicMessageRequest) throws -> ChatCompl
         sessionID: req.metadata?.sessionId,
         system: req.system?.text,
         tools: tools,
-        toolChoice: nil,
+        // Anthropic's demand in our own vocabulary (`any`→required, `tool`→function:<name>),
+        // so `shouldConstrainOutput`/`toolChoiceDemandsCall` mean the same thing on both
+        // wires. sglang maps the same four variants (serving.py:685-720).
+        toolChoice: req.toolChoice?.openAIVocabulary,
         parallelToolCalls: true,
         reasoning: reasoningEnabled,
     )

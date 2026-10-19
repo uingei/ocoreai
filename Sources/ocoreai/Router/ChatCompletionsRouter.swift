@@ -452,8 +452,10 @@ func buildRouter(
     /// server that would have served the conversation fine.
     ///
     /// The list counted is ``buildAnthropicMessageList`` — the same builder
-    /// `/v1/messages` feeds the model — so the system prompt and tool
-    /// definitions are included exactly as they will cost.
+    /// `/v1/messages` feeds the model, so the system prompt and conversation are
+    /// included exactly as they will cost. `tools[]` is not message text on this
+    /// server (it reaches the engine as a structured surface), which is also why
+    /// `/v1/chat/completions` does not count it either.
     routes.post("/v1/messages/count_tokens") { request, context in
         let countRequest = try await request.decode(
             as: AnthropicMessageRequest.self, context: context)

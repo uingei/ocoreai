@@ -68,11 +68,17 @@ struct AnthropicRequestDecodeTests {
         #expect(try toChatCompletionRequest(bare).system == nil)
     }
 
-    /// `/v1/messages` and `/v1/messages/count_tokens` must count exactly what the
-    /// inference path feeds the model — one builder, so the pre-flight cannot
-    /// quietly cost less than the request it is budgeting.
-    @Test("the shared builder puts system and tool definitions in the counted list")
-    func sharedBuilderIncludesSystemAndTools() throws {
+    /// `/v1/messages` and `/v1/messages/count_tokens` count one list, built once — the
+    /// pre-flight cannot quietly budget less than the request it precedes.
+    ///
+    /// `tools[]` is deliberately NOT in that list: declarations reach the model as a
+    /// structured surface (`declaredToolNames`/`declaredToolSpecsJSON` → `resolveToolSurface`
+    /// → the chat template's tool block), which is the only place the engine reads tools
+    /// from and the same route `/v1/chat/completions` uses. Rendering them into system
+    /// text as well put a second, schema-less copy of every tool in front of the model —
+    /// the model saw a name with no parameters twice and its real schema nowhere.
+    @Test("the shared builder counts system + conversation; tools are declared structurally")
+    func sharedBuilderCountsMessagesNotToolText() throws {
         let json = """
             {"model":"m","max_tokens":16,"system":"be terse",\
             "tools":[{"name":"run_shell","description":"Run a shell command"}],\
@@ -83,8 +89,13 @@ struct AnthropicRequestDecodeTests {
         #expect(built.first?.role == "system")
         let systemText = built.first?.textContent() ?? ""
         #expect(systemText.contains("be terse"), "system prompt must be counted")
-        #expect(systemText.contains("run_shell"), "tool definitions must be counted")
+        #expect(
+            systemText.contains("run_shell") == false,
+            "tools go to the engine as specs, not as system prose")
         #expect(built.last?.role == "user")
         #expect(built.last?.textContent() == "ls")
+        // …and the declaration is not lost on the way: it is on the internal request.
+        #expect(
+            try toChatCompletionRequest(req).tools?.map { $0.function.name } == ["run_shell"])
     }
 }

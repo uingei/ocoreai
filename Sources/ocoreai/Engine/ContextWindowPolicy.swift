@@ -40,7 +40,7 @@
 ///    `EnginePool.effectiveContextWindow`, so GUI and engine read ONE parser) and
 ///    the chat watermark carries the same label (`ChatView.swift:690`).
 ///    STILL open: `/v1/models` publishes only the bare declared number
-///    (`contextLength`, `ChatCompletionsRouter.swift:176`), so an HTTP client
+///    (`contextLength`, `ChatCompletionsRouter.swift:177`), so an HTTP client
 ///    cannot tell auto-detected from hand-configured — stated as open rather than
 ///    claimed as done.
 /// 3. Unknown stays unknown. A model with no parsable window reports `nil`, never a
