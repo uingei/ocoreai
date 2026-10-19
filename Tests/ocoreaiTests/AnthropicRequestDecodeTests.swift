@@ -68,34 +68,37 @@ struct AnthropicRequestDecodeTests {
         #expect(try toChatCompletionRequest(bare).system == nil)
     }
 
-    /// `/v1/messages` and `/v1/messages/count_tokens` count one list, built once — the
-    /// pre-flight cannot quietly budget less than the request it precedes.
+    /// What the Anthropic mapping owns, decided offline: the conversation, with the agent
+    /// context left for the shared assembly.
     ///
-    /// `tools[]` is deliberately NOT in that list: declarations reach the model as a
-    /// structured surface (`declaredToolNames`/`declaredToolSpecsJSON` → `resolveToolSurface`
-    /// → the chat template's tool block), which is the only place the engine reads tools
-    /// from and the same route `/v1/chat/completions` uses. Rendering them into system
-    /// text as well put a second, schema-less copy of every tool in front of the model —
-    /// the model saw a name with no parameters twice and its real schema nowhere.
-    @Test("the shared builder counts system + conversation; tools are declared structurally")
-    func sharedBuilderCountsMessagesNotToolText() throws {
+    /// `/v1/messages` and `/v1/messages/count_tokens` count ONE list — both routes call
+    /// `buildAnthropicMessageList`, so a pre-flight cannot budget less than the request it
+    /// precedes. That equality is structural (one builder, two callers; the call sites are
+    /// pinned by the source scan in `AnthropicToolDeliveryTests`) and measured live by
+    /// probe 13 §8, which asserts `count_tokens` equals the same request's own
+    /// `usage.input_tokens`.
+    ///
+    /// `system` is NOT inserted here: it is the caller's system prompt, and the shared
+    /// assembly composes it with the agent's own context in codex's precedence order
+    /// (user instructions, then workspace/skills/memory) — the same field
+    /// `/v1/chat/completions` uses, so both faces give the model the same product context.
+    /// `tools[]` is not message text here either: it travels as the structured declaration.
+    @Test("the mapping carries the conversation and hands system + tools to the shared assembly")
+    func conversationMappingKeepsSystemAndToolsForTheSharedAssembly() throws {
         let json = """
             {"model":"m","max_tokens":16,"system":"be terse",\
             "tools":[{"name":"run_shell","description":"Run a shell command"}],\
             "messages":[{"role":"user","content":"ls"}]}
             """
         let req = try JSONDecoder().decode(AnthropicMessageRequest.self, from: Data(json.utf8))
-        let built = try buildAnthropicMessageList(request: req)
-        #expect(built.first?.role == "system")
-        let systemText = built.first?.textContent() ?? ""
-        #expect(systemText.contains("be terse"), "system prompt must be counted")
-        #expect(
-            systemText.contains("run_shell") == false,
-            "tools go to the engine as specs, not as system prose")
-        #expect(built.last?.role == "user")
+        let built = try anthropicConversationMessages(request: req)
+        #expect(built.map(\.role) == ["user"], "the mapping adds no system turn of its own")
         #expect(built.last?.textContent() == "ls")
-        // …and the declaration is not lost on the way: it is on the internal request.
+        // …and neither declaration is lost on the way to the internal request.
+        let internalRequest = try toChatCompletionRequest(req)
+        #expect(internalRequest.system == "be terse", "the caller's system prompt is carried")
         #expect(
-            try toChatCompletionRequest(req).tools?.map { $0.function.name } == ["run_shell"])
+            internalRequest.tools?.map { $0.function.name } == ["run_shell"],
+            "tools reach the engine as specs")
     }
 }

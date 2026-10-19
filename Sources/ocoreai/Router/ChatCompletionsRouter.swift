@@ -439,7 +439,7 @@ func buildRouter(
             metrics: metrics,
             sessionCompressor: sessionCompressor,
             semanticSearch: semanticSearch,
-            systemPromptBuilder: systemPromptBuilder,
+            messageBuilder: messageBuilder,
             logger: logger,
         )
     }
@@ -452,14 +452,23 @@ func buildRouter(
     /// server that would have served the conversation fine.
     ///
     /// The list counted is ``buildAnthropicMessageList`` — the same builder
-    /// `/v1/messages` feeds the model, so the system prompt and conversation are
-    /// included exactly as they will cost. `tools[]` is not message text on this
-    /// server (it reaches the engine as a structured surface), which is also why
-    /// `/v1/chat/completions` does not count it either.
+    /// `/v1/messages` feeds the model: the agent context this server injects (skills,
+    /// workspace, recalled memory, reasoning scaffold), the caller's `system`, the
+    /// conversation, and the tool declarations the shared assembly renders into the system
+    /// message. Counting only the client's own messages would under-report the request by
+    /// hundreds of tokens on this server (measured 10-19: 24 against the 774 the same
+    /// request actually cost).
+    ///
+    /// What it cannot know is the chat template's per-message framing: the count comes from
+    /// the message tokenizer, while `usage.input_tokens` reports the engine's own measured
+    /// prefill. That difference is a constant of a few tokens per turn (measured 769
+    /// counted against 774 charged, a 2-message turn), so treat the pre-flight as a floor
+    /// for budgeting, not an exact figure.
     routes.post("/v1/messages/count_tokens") { request, context in
         let countRequest = try await request.decode(
             as: AnthropicMessageRequest.self, context: context)
-        let messages = try buildAnthropicMessageList(request: countRequest)
+        let messages = try await buildAnthropicMessageList(
+            request: countRequest, messageBuilder: messageBuilder)
         guard messages.contains(where: { !$0.textContent().isEmpty }) else {
             throw AppError.invalidRequest(
                 "Nothing to count: `messages`/`system` carry no text "

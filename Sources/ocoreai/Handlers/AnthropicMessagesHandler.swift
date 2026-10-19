@@ -39,8 +39,8 @@ import CoreAI
 ///   - request: Anthropic message request
 ///   - enginePool: Engine pool for inference
 ///   - metrics: Shared metrics registry
-///   - sessionCompressor: Session persistence layer
-///   - systemPromptBuilder: System prompt assembly (skills injection)
+///   - messageBuilder: The SAME message assembly the OpenAI face and the GUI Fast Path
+///     run (system prompt + skills + workspace + memory + reasoning scaffold)
 ///   - logger: Observability logger
 /// - Returns: HTTP Response (SSE stream or JSON)
 func anthropicMessagesHandler(
@@ -50,7 +50,7 @@ func anthropicMessagesHandler(
     metrics: MetricsRegistry,
     sessionCompressor _: SessionCompressor,
     semanticSearch _: SemanticSearch?,
-    systemPromptBuilder _: SystemPromptBuilder,
+    messageBuilder: MessageBuilder,
     logger: Logger,
 ) async throws -> Response {
     /// Numeric domain gate, first line — the Anthropic sibling of the one in
@@ -184,7 +184,29 @@ func anthropicMessagesHandler(
 
     // Phase 2: Build messages + input token count
     // ═══════════════════════════════════════════════════════
-    let fullMessages = try buildAnthropicMessageList(request: request)
+    let assembledMessages = try await buildAnthropicMessageList(
+        request: request, messageBuilder: messageBuilder)
+
+    /// Steering for this conversation enters at the head of the turn — the same seam and
+    /// the same rule as `ChatHandler`, because `/v1/steer` promises that a steer no live
+    /// turn drained "survives and merges into the NEXT request" carrying the session, and
+    /// this face names its session (`metadata.session_id`). It had no drain site.
+    /// Measured 10-19: `/v1/steer {"session_id":"r21sess2","text":"…codeword is FINCH."}`
+    /// then `/v1/messages` on that session answered "Please provide more context"
+    /// (19 input tokens — the steer was never read), while the identical sequence on
+    /// `/v1/chat/completions` answered "The secret codeword is ORIOLE."
+    let steeringKey: String? = chatRequest.sessionID
+    var pendingSteers: [SteerMessage] = []
+    var fullMessages = assembledMessages
+    if let key = steeringKey {
+        pendingSteers = SteerQueue.shared.drain(sessionKey: key)
+        if !pendingSteers.isEmpty {
+            fullMessages = mergingSteeredTurn(
+                assembledMessages, SteerQueue.renderAsUserText(pendingSteers))
+            logger.info(
+                "Steering merged at request head (\(key)): \(pendingSteers.count) message(s)")
+        }
+    }
 
     /// Input token count (metrics) — tokenize or CJK-heuristic (chat Phase 3).
     /// On the MLX axis the tokenizer registry is empty (real tokenizer lives in
@@ -274,6 +296,13 @@ func anthropicMessagesHandler(
         // Native calls run the ChatSession toolDispatch loop, not the one-shot guided
         // path — same routing decision as the OpenAI face, keyed on the declaration.
         hasNativeTools: declaredTools?.isEmpty == false,
+        // `thinking` opens the reasoning channel, which is the one thing that field
+        // exists to do. This is the line that connects it: `toChatCompletionRequest`
+        // already resolved `thinking.type` to a three-state preference, and until 10-19
+        // nothing here read it — so `/v1/messages` accepted `thinking` and the engine ran
+        // the request without thinking (38 output tokens against 335 for the same model
+        // and prompt with `/v1/chat/completions` `reasoning:true`).
+        enableReasoning: chatRequest.reasoning,
         // The whitelist, in the caller's order: what the model may call, and the only
         // names the engine will inject.
         declaredToolNames: declaredToolNames,
@@ -286,37 +315,59 @@ func anthropicMessagesHandler(
         headless: true
     )
 
+    /// The same disclosure line the OpenAI face emits, so a divergence between the two
+    /// wires is a lookup in one log rather than a diff of two probe outputs.
+    logAssembledPrompt(
+        logger,
+        face: "messages",
+        messages: fullMessages,
+        promptTokens: inputTokenCount,
+        enableReasoning: inferenceOpts.enableReasoning,
+        declaredToolCount: declaredTools?.count ?? 0)
+
     // ═══════════════════════════════════════════════════════
     // Phase 4: Dispatch to stream OR non-stream
     // ═══════════════════════════════════════════════════════
-    if request.stream == true {
-        return try await streamAnthropicResponse(
-            handle: handle,
-            inputTokenCount: inputTokenCount,
-            messages: fullMessages,
-            sampling: sampling,
-            options: inferenceOpts,
-            request: chatRequest,
-            enginePool: enginePool,
-            modelId: modelId,
-            logger: logger,
-            metrics: metrics,
-            contentGuard: streamGuard,
-        )
-    } else {
-        return try await nonStreamAnthropicResponse(
-            handle: handle,
-            inputTokenCount: inputTokenCount,
-            messages: fullMessages,
-            sampling: sampling,
-            options: inferenceOpts,
-            request: chatRequest,
-            enginePool: enginePool,
-            modelId: modelId,
-            logger: logger,
-            metrics: metrics,
-            contentGuard: streamGuard,
-        )
+    do {
+        if request.stream == true {
+            return try await streamAnthropicResponse(
+                handle: handle,
+                inputTokenCount: inputTokenCount,
+                messages: fullMessages,
+                sampling: sampling,
+                options: inferenceOpts,
+                request: chatRequest,
+                enginePool: enginePool,
+                modelId: modelId,
+                logger: logger,
+                metrics: metrics,
+                contentGuard: streamGuard,
+            )
+        } else {
+            return try await nonStreamAnthropicResponse(
+                handle: handle,
+                inputTokenCount: inputTokenCount,
+                messages: fullMessages,
+                sampling: sampling,
+                options: inferenceOpts,
+                request: chatRequest,
+                enginePool: enginePool,
+                modelId: modelId,
+                logger: logger,
+                metrics: metrics,
+                contentGuard: streamGuard,
+            )
+        }
+    } catch {
+        /// A steer that entered a turn which never reached the model goes back on the
+        /// queue, so the promise "delivered on the next request for this conversation"
+        /// survives a failed turn rather than being consumed by it (`ChatHandler` L826-833).
+        if let key = steeringKey {
+            for steer in pendingSteers {
+                SteerQueue.shared.enqueue(sessionKey: key, text: steer.text)
+            }
+        }
+        throw error
     }
 }
 
@@ -349,25 +400,57 @@ func estimatePromptTokensFallback(_ messages: [Message]) -> Int {
 /// at all. Rendering them into system text as well was a second, schema-less copy of
 /// the same declaration: the model saw the tool name twice and its parameters never.
 ///
-/// `internal`, not `private`: `POST /v1/messages/count_tokens` counts *this* list, so
-/// the pre-flight answer is the message half of what `/v1/messages` feeds the model,
-/// from one builder — one truth for both routes (the tool block is template-side on
-/// this server and on `/v1/chat/completions` alike, so neither counts it).
-func buildAnthropicMessageList(request: AnthropicMessageRequest) throws -> [Message] {
-    // `toInternalMessage` is where block types get honoured or refused by name; this
-    // function only adds the Anthropic-specific injection (the `system` field).
-    var messages: [Message] = try request.messages.map { try $0.toInternalMessage() }
+/// The same assembly, both entrances: this is `MessageBuilder.buildMessages` — the one
+/// the OpenAI face (`ChatHandler` Phase 2) and the GUI Fast Path run — fed the Anthropic
+/// message list, so what the model learns about this product does not depend on which
+/// wire the client speaks.
+///
+/// Until now this face built its own list (client messages + the `system` field) and never
+/// called the shared builder, so the agent context the shared builder injects — the skills
+/// catalogue, the workspace section, recalled memory, the reasoning scaffold — was absent
+/// here. Measured 10-19, same host, same model, temperature 0:
+///   • identical one-turn request → 774 `prompt_tokens` on `/v1/chat/completions`,
+///     24 `input_tokens` on `/v1/messages`;
+///   • "List the skills you have available" → "terminal / file / search / memory" on the
+///     OpenAI face, a generic "Processing and understanding natural language…" here.
+/// That second line is the visible symptom of invariant 2: the face that omitted the
+/// context did not merely cost fewer tokens, it answered as a different product.
+///
+/// The tool *definitions* come along with that assembly too (shared Phase 5), which makes
+/// the token count here match what the OpenAI face charges for the same declaration.
+///
+/// `internal`, not `private`: `POST /v1/messages/count_tokens` counts *this* list, so the
+/// pre-flight answer is the message half of what `/v1/messages` feeds the model, from one
+/// builder — one truth for both routes.
+/// The Anthropic half of that assembly on its own: every turn mapped by
+/// ``AnthropicMessage/toInternalMessages()``, with no agent context added.
+///
+/// Split out because `MessageBuilder` is an actor over three more actors, and the block
+/// mapping (carried / refused by name / mapped onto the tool channel) is an exact-value
+/// contract that must be testable without an engine. The `system` field is deliberately
+/// absent here — it is the caller's system prompt, which the shared assembly composes with
+/// the agent's own (user instructions first, then skills/workspace/memory), exactly as it
+/// does for `userSystemPrompt` on `/v1/chat/completions`.
+func anthropicConversationMessages(request: AnthropicMessageRequest) throws -> [Message] {
+    try request.messages.flatMap { try $0.toInternalMessages() }
+}
 
-    // Inject system prompt (string or text-block form — see AnthropicSystemContent)
-    if let system = request.system?.text, !system.isEmpty {
-        messages.insert(Message(role: "system", content: .text(system)), at: 0)
-    }
+func buildAnthropicMessageList(
+    request: AnthropicMessageRequest,
+    messageBuilder: MessageBuilder,
+) async throws -> [Message] {
+    let rawMessages = try anthropicConversationMessages(request: request)
 
-    guard !messages.isEmpty else {
-        throw AppError.invalidRequest("Message list is empty for model '\(request.model)'")
-    }
-
-    return messages
+    return try await messageBuilder.buildMessages(
+        context: MessageBuilderContext(
+            modelId: request.model,
+            rawMessages: rawMessages,
+            // Anthropic has no `system` role: the top-level `system` field is the caller's
+            // system prompt, in string or text-block form (see AnthropicSystemContent).
+            userSystemPrompt: request.system?.text,
+            tools: request.tools?.map { $0.toOpenAITool() },
+            sessionId: request.metadata?.sessionId ?? UUID().uuidString,
+        ))
 }
 
 // MARK: - Non-stream Response
@@ -399,9 +482,21 @@ private func nonStreamAnthropicResponse(
 
     var accumulatedTokens: [Int32] = []
     var accumulatedText: String? = nil
+    /// Reasoning this turn produced, kept out of `accumulatedText`: it leaves as its own
+    /// `thinking` block. Merging the two (what this face did until 10-19) put the chain of
+    /// thought into `content[0].text`, which is the field a client displays and replays as
+    /// the assistant's answer. `ChatHandler` separates the same events into
+    /// `reasoning_content` for the same reason (its L1010 branch).
+    var accumulatedReasoning = ""
     var totalOutputTokens = 0
     var finishReason = "end_turn"
     var detectedToolCalls: [ToolCall]? = nil
+    /// The engine's own measurement of the prompt it prefilled, when it reports one.
+    /// Preferred over the handler's tokenize-ahead estimate for `usage.input_tokens`,
+    /// because that is what `ChatHandler` reports as `prompt_tokens` — two faces of one
+    /// engine must not hand a client two different numbers for the same prompt (measured
+    /// 10-19: 774 measured against 769 estimated, on identical assembled messages).
+    var observedPromptTokens: Int? = nil
 
     do {
         for try await event in tokenStream {
@@ -416,8 +511,12 @@ private func nonStreamAnthropicResponse(
                 totalOutputTokens += 1
                 accumulatedText = (accumulatedText ?? "") + text
 
-            case .done(let reason, let doneTokenCount, _, _, _, _, _, _, _, _):
+            case .done(
+                let reason, let doneTokenCount, let donePromptTokenCount,
+                _, _, _, _, _, _, _
+            ):
                 let openaiReason = stopReasonToString(reason) ?? "stop"
+                observedPromptTokens = donePromptTokenCount
                 finishReason = openAIToAnthropicStopReason(openaiReason)
                 // Authoritative token count from the engine — overwrite the
                 // per-event estimate (fallback when the engine reports none).
@@ -437,10 +536,9 @@ private func nonStreamAnthropicResponse(
                 // Tool finished — informational for this handler, model context already has it
                 break
             case .reasoning(let r):
-                // Anthropic non-stream: reasoning text flows into accumulatedText
                 try Task.checkCancellation()
                 totalOutputTokens += 1
-                accumulatedText = (accumulatedText ?? "") + r
+                accumulatedReasoning += r
             case .guidedGenDiagnostic(
                 grammarTerminated: _,
                 incompleteOutput: true
@@ -475,6 +573,34 @@ private func nonStreamAnthropicResponse(
         } catch {
             logger.info("Detokenization failed, returning placeholder")
             content = "<decode failed>"
+        }
+    }
+
+    // Reasoning is user-visible output on this face (a `thinking` block), so it goes
+    // through the output guard too — the same rule `ChatHandler` applies to
+    // `reasoning_content` at end-of-stream. Checking only the answer would let a
+    // violating chain of thought out while refusing the answer.
+    if let contentGuard, !accumulatedReasoning.isEmpty {
+        let reasoningResult = await contentGuard.checkOutput(accumulatedReasoning)
+        if !reasoningResult.passed {
+            logger.warning(
+                "Anthropic non-stream reasoning blocked: \(reasoningResult.triggeredCategories)")
+            let detail = NSDictionary(dictionary: [
+                "message": reasoningResult.rejectionReason ?? "Content safety violation",
+                "type": "content_policy_violation",
+                "code": 400,
+                "categories": reasoningResult.triggeredCategories.map(\.rawValue),
+            ])
+            let errorBody = NSDictionary(dictionary: ["error": detail])
+            guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: [])
+            else {
+                return Response(status: .badRequest)
+            }
+            var headers: HTTPFields = [:]
+            headers[.contentType] = "application/json"
+            return Response(
+                status: .badRequest, headers: headers,
+                body: .init(contentsOf: [ByteBuffer(data: data)]))
         }
     }
 
@@ -523,12 +649,19 @@ private func nonStreamAnthropicResponse(
             nil
         }
 
-    /// `content` = text block, then one `tool_use` block per delivered call
-    /// (`{"type":"tool_use","id","name","input":{…}}`, vllm serving.py:870-877).
+    /// `content` = a `thinking` block when the turn thought, then a text block, then one
+    /// `tool_use` block per delivered call (`{"type":"tool_use","id","name","input":{…}}`,
+    /// vllm serving.py:870-877). That order is Anthropic's own: reasoning precedes the
+    /// answer, and the answer precedes the calls it may have produced.
     /// `input` is a JSON object here, unlike OpenAI's `arguments` string; a payload
     /// that is not an object is dropped and logged rather than laundered into `{}`,
     /// because a client would execute a call with arguments the model never sent.
     var contentBlocks: [AnthropicAssistantContent] = []
+    if !accumulatedReasoning.isEmpty {
+        contentBlocks.append(
+            AnthropicAssistantContent(
+                thinking: accumulatedReasoning, signature: anthropicThinkingSignature()))
+    }
     if !content.isEmpty {
         contentBlocks.append(AnthropicAssistantContent(text: content))
     }
@@ -579,8 +712,10 @@ private func nonStreamAnthropicResponse(
         )
     }
 
-    // Build Anthropic response
-    let usage = AnthropicUsage(inputTokens: inputTokenCount, outputTokens: totalOutputTokens)
+    // Build Anthropic response — the measured prompt count where the engine has one.
+    let usage = AnthropicUsage(
+        inputTokens: observedPromptTokens ?? inputTokenCount,
+        outputTokens: totalOutputTokens)
     let stopReason = deliveredCalls.isEmpty ? finishReason : "tool_use"
 
     let response = AnthropicMessageResponse(
@@ -650,6 +785,10 @@ private func streamAnthropicResponse(
             var accumulatedTokens: [Int32] = []
             var prevDecodedText = ""
             var finishReason = "stop"
+            /// Engine-measured prompt tokens — see the non-stream declaration of the same
+            /// name: `message_start`/`message_stop` must carry the number the OpenAI face
+            /// carries for the same prompt.
+            var observedPromptTokens: Int? = nil
             var deliveredToolCalls: [ToolCall] = []
             var emitter = AnthropicStreamEmitter()
             /// Everything the engine produced this turn, for the stream-end parse and the
@@ -745,8 +884,12 @@ private func streamAnthropicResponse(
                             writeSSEEvent(continuation, event: event)
                         }
 
-                    case .done(let reason, let doneTokenCount, _, _, _, _, _, _, _, _):
+                    case .done(
+                        let reason, let doneTokenCount, let donePromptTokenCount,
+                        _, _, _, _, _, _, _
+                    ):
                         finishReason = stopReasonToString(reason) ?? "stop"
+                        observedPromptTokens = donePromptTokenCount
 
                         // Authoritative token count from the engine — overwrite the
                         // per-event estimate (a `.text`/`.reasoning` case is a text
@@ -773,9 +916,34 @@ private func streamAnthropicResponse(
                     case .toolResult:
                         // Tool finished — informational, model context already carried the result
                         break
-                    case .reasoning:
-                        // Reasoning text flows into Anthropic text delta as normal content
-                        break
+                    case .reasoning(let r):
+                        // Reasoning gets its own `thinking` block, streamed live as
+                        // `thinking_delta` (vllm serving.py:1061-1083). The comment here
+                        // used to read "flows into Anthropic text delta as normal content"
+                        // while the line under it dropped the text on the floor — so a turn
+                        // that thought said nothing about it on this wire.
+                        try Task.checkCancellation()
+                        totalOutputTokens += 1
+                        if let contentGuard = streamGuard {
+                            let checkResult = await contentGuard.checkOutput(r)
+                            if !checkResult.passed {
+                                logger.warning(
+                                    "Anthropic streaming output blocked (.reasoning): \(checkResult.triggeredCategories)"
+                                )
+                                let errorEvent = AnthropicStreamEvent(
+                                    type: "error", index: nil, message: nil, delta: nil,
+                                    usage: AnthropicStreamUsage(
+                                        outputTokens: totalOutputTokens,
+                                        inputTokens: inputTokenCount),
+                                )
+                                writeSSEEvent(continuation, event: errorEvent)
+                                continuation.finish()
+                                return
+                            }
+                        }
+                        for event in emitter.feedReasoning(r) {
+                            writeSSEEvent(continuation, event: event)
+                        }
                     case .guidedGenDiagnostic(
                         grammarTerminated: _,
                         incompleteOutput: true
@@ -869,9 +1037,12 @@ private func streamAnthropicResponse(
             )
             writeSSEEvent(continuation, event: deltaEvent)
 
-            // Emit message_stop with final usage
+            // Emit message_stop with final usage. `message_start` had to carry the
+            // handler's estimate (nothing had been prefilled yet); the terminal event
+            // carries what the engine measured, which is the number a client budgets on
+            // and the one `/v1/chat/completions` reports as `prompt_tokens`.
             let finalEvent = AnthropicStreamEvent.messageStop(
-                inputTokens: inputTokenCount,
+                inputTokens: observedPromptTokens ?? inputTokenCount,
                 outputTokens: totalOutputTokens,
             )
             writeSSEEvent(continuation, event: finalEvent)
@@ -926,9 +1097,28 @@ struct AnthropicStreamEmitter {
     private var isStreamingText = false
     /// Whether any block was ever opened — the "nothing to show" fallback's premise.
     private(set) var hasEmittedAnyBlock = false
+    /// The open thinking block's opaque id, emitted as `signature_delta` when the block
+    /// closes. Generated, not cryptographic — see ``AnthropicAssistantContent/signature``.
+    private var thinkingSignature: String? = nil
 
     /// The open block's index; every call site opens on the line above.
     var currentIndex: Int { index }
+
+    /// One piece of reasoning as the engine produced it — its own `thinking` block, opened
+    /// on first use. Reasoning never enters the text block: `text` is the answer.
+    mutating func feedReasoning(_ piece: String) -> [AnthropicStreamEvent] {
+        guard !piece.isEmpty else { return [] }
+        if openKind == "thinking" {
+            return [AnthropicStreamEvent.thinkingDelta(index: index, thinking: piece)]
+        }
+        var events = close()
+        openKind = "thinking"
+        hasEmittedAnyBlock = true
+        thinkingSignature = anthropicThinkingSignature()
+        events.append(AnthropicStreamEvent.thinkingBlockStart(index: index))
+        events.append(AnthropicStreamEvent.thinkingDelta(index: index, thinking: piece))
+        return events
+    }
 
     /// One piece of answer text as the engine produced it. Empty when the piece is still
     /// undecided (held) — the content then leaves through ``flushText()``.
@@ -974,14 +1164,23 @@ struct AnthropicStreamEmitter {
         pending = ""
     }
 
-    /// Closes the open block, if any.
+    /// Closes the open block, if any. A `thinking` block gets its `signature_delta` first —
+    /// the spec orders the signature inside the block, before `content_block_stop`
+    /// (vllm serving.py:945-961), and a client accumulating a thinking block expects the
+    /// field to be there before the block ends.
     mutating func close() -> [AnthropicStreamEvent] {
-        guard openKind != nil else { return [] }
+        guard let kind = openKind else { return [] }
         openKind = nil
         isStreamingText = false
-        let event = AnthropicStreamEvent.contentBlockStop(index: index)
+        var events: [AnthropicStreamEvent] = []
+        if kind == "thinking", let signature = thinkingSignature {
+            thinkingSignature = nil
+            events.append(AnthropicStreamEvent.signatureDelta(index: index, signature: signature))
+        }
+        thinkingSignature = nil
+        events.append(AnthropicStreamEvent.contentBlockStop(index: index))
         index += 1
-        return [event]
+        return events
     }
 
     /// One empty text block for a turn that produced nothing at all.

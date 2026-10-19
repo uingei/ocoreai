@@ -29,6 +29,24 @@ private func request(_ json: String) throws -> AnthropicMessageRequest {
     try JSONDecoder().decode(AnthropicMessageRequest.self, from: Data(json.utf8))
 }
 
+/// The single engine turn these mapping tests describe.
+///
+/// One Anthropic message can now become several engine turns (N `tool_result` blocks are
+/// N `role:"tool"` turns, because that channel carries one `tool_call_id` per turn), so a
+/// test that reasons about "the" converted message has to say it expected exactly one —
+/// otherwise a mapping that split the turn would still pass its text assertions and the
+/// test would stop meaning what it claims (AGENTS.md: a check asserts its own premises).
+extension AnthropicMessage {
+    fileprivate func toInternalMessage() throws -> Message {
+        let turns = try toInternalMessages()
+        let roles = turns.map(\.role).joined(separator: ", ")
+        try #require(
+            turns.count == 1,
+            "this fixture is a single engine turn, got \(turns.count): \(roles)")
+        return turns[0]
+    }
+}
+
 /// Text of an internal message, however it is shaped.
 private func textOf(_ message: Message) -> String {
     switch message.content {
@@ -140,48 +158,149 @@ struct AnthropicBlockHonestyTests {
         expectRefusal(result, containing: "image")
     }
 
+    /// A `tool_result` reaches the model on the engine's tool channel: its own
+    /// `role:"tool"` turn with the `tool_call_id` it answers, not prose inside the user turn.
+    /// (The prose it used to be is quoted below — the answer stayed correct on this
+    /// checkpoint even so, which is why no probe caught it: the deviation is structural.)
     @Test(
-        "tool_result content reaches the prompt, as a string or as blocks",
+        "tool_result reaches the prompt as a tool turn carrying its call id",
         arguments: [
             (
                 "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"The value is 42.\"}",
-                "[tool_result · toolu_1] The value is 42."
+                "The value is 42."
             ),
             (
                 "{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_2\",\"content\":[{\"type\":\"text\",\"text\":\"sunny, 30C\"}]}",
-                "[tool_result · toolu_2] sunny, 30C"
+                "sunny, 30C"
             ),
         ] as [(String, String)])
     func toolResultDelivers(blockJSON: String, expected: String) throws {
-        let converted = try message(
+        let turns = try message(
             "{\"role\":\"user\",\"content\":[\(blockJSON),{\"type\":\"text\",\"text\":\"so what is the weather?\"}]}"
-        ).toInternalMessage()
-        #expect(textOf(converted) == expected + "\nso what is the weather?")
+        ).toInternalMessages()
+        // Result first, commentary after: a tool turn has to sit where the template expects
+        // a result, and `[user, tool]` renders as a result with no call before it.
+        #expect(turns.map(\.role) == ["tool", "user"])
+        #expect(turns[0].toolCallID != nil, "a result without its call id is not a result")
+        #expect(textOf(turns[0]) == expected)
+        #expect(textOf(turns[1]) == "so what is the weather?")
+    }
+
+    @Test("the tool turn carries the id the client used, so the pair still lines up")
+    func toolResultKeepsCallId() throws {
+        let turns = try message(
+            #"""
+            {"role":"user","content":[
+              {"type":"tool_result","tool_use_id":"toolu_77","content":"ok"},
+              {"type":"tool_result","tool_use_id":"toolu_78","content":"also ok"}]}
+            """#
+        ).toInternalMessages()
+        #expect(turns.map(\.role) == ["tool", "tool"])
+        #expect(turns.map(\.toolCallID) == ["toolu_77", "toolu_78"])
+        #expect(turns.map { textOf($0) } == ["ok", "also ok"])
     }
 
     @Test("an empty tool_result says it was empty instead of contributing silence")
     func emptyToolResultIsExplicit() throws {
-        let converted = try message(
+        let turns = try message(
             #"{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":""}]}"#
-        ).toInternalMessage()
-        #expect(textOf(converted) == "[tool_result · t1] no output")
+        ).toInternalMessages()
+        #expect(turns.count == 1)
+        #expect(textOf(turns[0]) == "no output")
+        #expect(turns[0].toolCallID == "t1")
     }
 
-    @Test("a prior tool_use becomes tagged text — never a live call the engine would re-dispatch")
-    func toolUseRendersAsText() throws {
-        let converted = try message(
+    /// `is_error:true` means the call FAILED. The engine's tool turn has no error bit
+    /// (`Chat.Message.tool(_:id:)` takes content and id), so the flag travels as text —
+    /// the alternative is a model told, in effect, that the call succeeded.
+    @Test("a failed tool_result says it failed")
+    func failedToolResultIsMarked() throws {
+        let turns = try message(
+            """
+            {"role":"user","content":[
+              {"type":"tool_result","tool_use_id":"t9","content":"permission denied","is_error":true}]}
+            """
+        ).toInternalMessages()
+        #expect(turns.count == 1)
+        let text = textOf(turns[0])
+        #expect(text.contains("permission denied"), "the failure detail belongs in the prompt")
+        #expect(text.lowercased().contains("error"), "a failure must read as a failure: \(text)")
+    }
+
+    /// A result with no `tool_use_id` cannot be paired with a call, so it stays text —
+    /// text is the fallback medium, not the primary one. Content the client sent is never
+    /// dropped on the way to the prompt because its id was missing.
+    @Test("a tool_result with no id falls back to text instead of vanishing")
+    func unpairedToolResultFallsBackToText() throws {
+        let turns = try message(
+            #"{"role":"user","content":[{"type":"tool_result","content":"42"}]}"#
+        ).toInternalMessages()
+        #expect(turns.count == 1)
+        #expect(turns[0].role == "user", "no id, no tool channel")
+        let text = textOf(turns[0])
+        #expect(text.contains("[tool_result]"), "the tag says what this text is: \(text)")
+        #expect(text.contains("42"))
+    }
+
+    /// The assistant's own `tool_use` block becomes the structured call the engine matches
+    /// generated calls against — the same shape `/v1/chat/completions` hands over as
+    /// `assistant.tool_calls`, and what `EngineInference` renders through the chat
+    /// template's tool channel (`Chat.Message.assistant(_:toolCalls:)`).
+    ///
+    /// Structured history does not make the engine run anything: it dispatches the calls it
+    /// parses out of *generation*, never out of the messages it was handed. That premise is
+    /// what the old test asserted by requiring `toolCalls == nil`, and it is now gated
+    /// behaviourally instead — probe 13 §7 continues a loop and requires the turn to answer
+    /// with the supplied result (`17C`), stop at `end_turn`, and emit no new call.
+    @Test("a prior tool_use becomes the structured call the engine keys on")
+    func toolUseBecomesStructuredCall() throws {
+        let turns = try message(
             """
             {"role":"assistant","content":[
               {"type":"text","text":"checking"},
               {"type":"tool_use","id":"toolu_9","name":"get_weather","input":{"city":"Singapore"}}]}
             """
-        ).toInternalMessage()
-        let text = textOf(converted)
-        #expect(text.contains("checking"))
-        #expect(text.contains("[tool_call · get_weather · toolu_9]"))
-        #expect(text.contains("Singapore"), "the arguments belong in the prompt: \(text)")
-        // Fabricating dispatchable tool calls would make the engine re-run finished work.
-        #expect(converted.toolCalls == nil)
+        ).toInternalMessages()
+        #expect(turns.count == 1)
+        let converted = turns[0]
+        #expect(converted.role == "assistant")
+        #expect(textOf(converted) == "checking")
+        let calls = converted.toolCalls ?? []
+        #expect(calls.count == 1, "the call must be structured, not prose")
+        #expect(calls[0].id == "toolu_9")
+        #expect(calls[0].function.name == "get_weather")
+        #expect(
+            calls[0].function.arguments.contains("Singapore"),
+            "the arguments belong to the call: \(calls[0].function.arguments)")
+    }
+
+    /// An assistant call with no id would be unanswerable on the tool channel (the result
+    /// pairs by id), so it gets one rather than a dangling call.
+    @Test("a tool_use with no id still becomes a call, with an id generated")
+    func toolUseWithoutIdStillStructures() throws {
+        let turns = try message(
+            #"""
+            {"role":"assistant","content":[{"type":"tool_use","name":"get_weather","input":{}}]}
+            """#
+        ).toInternalMessages()
+        let calls = turns[0].toolCalls ?? []
+        #expect(calls.count == 1)
+        #expect(calls[0].id.isEmpty == false, "a call needs an id so a result can answer it")
+        #expect(calls[0].function.arguments == "{}", "no arguments is an empty object, not nil")
+    }
+
+    /// `tool_use` in a user turn is not a call the assistant made. It stays tagged text:
+    /// structuring it would put words in the assistant's mouth on the tool channel.
+    @Test("tool_use outside an assistant turn stays tagged text")
+    func misplacedToolUseStaysText() throws {
+        let turns = try message(
+            #"""
+            {"role":"user","content":[{"type":"tool_use","id":"x1","name":"get_weather","input":{"city":"Rome"}}]}
+            """#
+        ).toInternalMessages()
+        #expect(turns.count == 1)
+        #expect(turns[0].toolCalls == nil)
+        #expect(textOf(turns[0]).contains("[tool_call · get_weather · x1]"))
     }
 
     @Test("thinking is disclosed as omitted, not silently erased from the turn")

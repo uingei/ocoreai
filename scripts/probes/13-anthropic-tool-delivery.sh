@@ -33,6 +33,28 @@
 #   5. `content_block_start` carries `content_block` even on a plain-text turn.
 #   6. A delivered call on THIS face moves the shared `tool_call_delivery` gauge on
 #      `/v1/models` to `parsed`, with evidence naming the tool.
+#   7. `tool_result` continues the loop: the turn after a supplied result reads the result
+#      ("17C, light rain" → the answer says 17), and structured history does NOT re-dispatch
+#      the call (no new `tool_use`, `stop_reason` is not `tool_use`).
+#   8. `thinking` reaches the engine: the assembly line the server logs reads
+#      `enableReasoning=on|off|default` for `enabled`/`disabled`/absent (a behavioural
+#      difference needs a checkpoint with a thinking channel — this host's ready model has
+#      none, measured identical on BOTH faces, so the log line is the delivery proof here),
+#      the answer is byte-identical at temp 0 whether the knob is on or off (nothing about
+#      it may cost the answer), and `budget_tokens >= max_tokens` comes back 400 naming
+#      the field.
+#   9. One assembly, both wires: the two faces log the same assembled shape
+#      (`systemChars`/`promptTokens`/roles) for the identical request, and report the same
+#      `usage` number for it (before: 774 there against 24 here — this face built its own
+#      message list and skipped the agent context the OpenAI face injects, then reported its
+#      own estimate instead of the engine's measurement). `count_tokens` is checked as a
+#      floor within template-framing range of what the request actually charged.
+#  10. `POST /v1/steer` for a session reaches the next `/v1/messages` turn carrying that
+#      `metadata.session_id`, as `/v1/steer` documents (measured 10-19: swallowed here —
+#      "Please provide more context" — while `/v1/chat/completions` delivered the codeword).
+#  11. one declared tool vs the prompt it produces: the assembly's schema-less `## Tool:`
+#      text is measured against the no-tools baseline and recorded (two copies reach the
+#      model — structured spec + name/description prose), because removal needs an A/B.
 #
 # Needs a real Metal device: run unsandboxed (`bash scripts/probes/run.sh 13`).
 PROBE_NAME="13-anthropic-tool-delivery"
@@ -224,15 +246,20 @@ print("" if node is None else (json.dumps(node) if not isinstance(node, str) els
 PY
 }
 
+# text_block_text [limit] — the answer text this face returned, previewed to `limit`
+# characters (default 240) so verdict lines stay readable. Pass a big limit when the
+# assertion needs the WHOLE answer: the preview cut a 512-token turn at 240 chars and
+# reported "the answer broke" on a turn byte-identical to its control (measured 10-19).
 text_block_text() {
-  PROBE_MSG_BODY="$PROBE_BODY" python3 - <<'PY'
-import json, os
+  PROBE_MSG_BODY="$PROBE_BODY" python3 - "${1:-240}" <<'PY'
+import json, os, sys
+limit = int(sys.argv[1])
 try:
     data = json.loads(os.environ["PROBE_MSG_BODY"])
 except Exception:
     print(""); raise SystemExit(0)
 print(" ".join(b.get("text", "") for b in (data.get("content") or [])
-          if isinstance(b, dict) and b.get("type") == "text")[:240])
+          if isinstance(b, dict) and b.get("type") == "text")[:limit])
 PY
 }
 
@@ -370,6 +397,314 @@ if printf '%s' "$EVIDENCE" | grep -q 'get_weather'; then
   probe_ok "evidence names the tool that came back: $EVIDENCE"
 else
   probe_fail "parsed without naming the called tool: '$EVIDENCE'"
+fi
+
+# ── 7. the loop closes: a tool_result continues the turn ────────────────────
+probe_section "7 — tool_result continues the loop (no re-dispatch, answer uses the result)"
+
+msg_send "$ASK_CALL" false 1 any
+CALL_ID="$(tool_block id)"
+CALL_INPUT="$(tool_block input)"
+if [ -z "$CALL_ID" ]; then
+  probe_fail "§7 cannot run: §1-style turn produced no tool_use id (stop=$(msg_field stop_reason))"
+else
+  probe_ok "turn 1 called $CALL_ID with $CALL_INPUT"
+  T1_IN="$(msg_field usage.input_tokens)"
+  BODY7="$(PROBE_MODEL="$PROBE_MODEL" PROBE_CALL_ID="$CALL_ID" PROBE_CALL_INPUT="$CALL_INPUT" python3 <<'PY'
+import json, os
+body = {
+    "model": os.environ["PROBE_MODEL"],
+    "max_tokens": 64,
+    "temperature": 0.0,
+    "messages": [
+        {"role": "user", "content": "Use the get_weather tool to check the weather in Paris."},
+        {"role": "assistant", "content": [
+            {"type": "tool_use",
+             "id": os.environ["PROBE_CALL_ID"],
+             "name": "get_weather",
+             "input": json.loads(os.environ["PROBE_CALL_INPUT"])}]},
+        {"role": "user", "content": [
+            {"type": "tool_result",
+             "tool_use_id": os.environ["PROBE_CALL_ID"],
+             "content": "17C, light rain"}]},
+        {"role": "user", "content": "What did the tool say? Answer in one short sentence."},
+    ],
+    "tools": [{
+        "name": "get_weather",
+        "description": "Get the current weather for a city.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"city": {"type": "string", "description": "City name"}},
+            "required": ["city"],
+        },
+    }],
+}
+print(json.dumps(body))
+PY
+)"
+  probe_api POST /v1/messages "$BODY7"
+  T7_IN="$(msg_field usage.input_tokens)"
+  T7_TEXT="$(text_block_text)"
+  T7_STOP="$(msg_field stop_reason)"
+  if [ "$PROBE_STATUS" != "200" ]; then
+    probe_fail "tool_result continuation -> $PROBE_STATUS: $(printf %.240s "$PROBE_BODY")"
+  else
+    probe_ok "continuation answered 200"
+    if printf '%s' "$T7_TEXT" | grep -q '17'; then
+      probe_ok "the turn reads the supplied result: $T7_TEXT"
+    else
+      probe_fail "the result never reached the model: '$T7_TEXT'"
+    fi
+    if [ "$T7_STOP" = "tool_use" ] || [ -n "$(tool_block type)" ]; then
+      probe_fail "structured history re-triggered a call (stop=$T7_STOP) — history must not dispatch"
+    else
+      probe_ok "history carried the call without re-dispatching it (stop=$T7_STOP)"
+    fi
+  fi
+  probe_note "continuation input_tokens=$T7_IN, turn 1 was $T1_IN — the loop history is in the prompt, not dropped"
+fi
+
+# ── 8. thinking must reach the engine ──────────────────────────────────────
+#
+# The live proof is the assembly line, not the answer length. Whether a *behavioural*
+# difference is even observable is a per-checkpoint fact: this host's ready chat model
+# (gemma-4-e2b-it-4bit) has no reasoning channel — thinking ON and OFF measured identical
+# (209 tokens each, both answers starting "This is a logic puzzle"), and the OpenAI face
+# shows the same pair (`reasoning:true` / `false` both 777 prompt tokens). So the probe
+# asserts what this host can prove: the preference arrives at the options the engine runs
+# with, and the knob never costs the answer. A checkpoint with a thinking channel turns the
+# same two greps into a behavioural gate for free.
+probe_section "8 — thinking.type reaches the engine options, and never costs the answer"
+
+ASK_RIDDLE="A farmer has 17 sheep. All but 9 die. How many are left? Think carefully."
+# ant_think_body <mode: enabled|disabled|overbudget> <max_tokens>
+ant_think_body() {
+  python3 - "$PROBE_MODEL" "$ASK_RIDDLE" "$1" "$2" <<'PY'
+import json, sys
+model, prompt, mode, max_tokens = sys.argv[1:5]
+body = {"model": model, "max_tokens": int(max_tokens), "temperature": 0.0,
+        "messages": [{"role": "user", "content": prompt}]}
+if mode == "enabled" or mode == "overbudget":
+    body["thinking"] = {"type": "enabled", "budget_tokens": 300}
+elif mode == "disabled":
+    body["thinking"] = {"type": "disabled"}
+print(json.dumps(body))
+PY
+}
+
+# asm FACE — the last assembly disclosure line this face emitted.
+asm() {
+  grep "Assembled prompt \[$1\]" "$PROBE_LOG" 2>/dev/null | tail -1
+}
+
+probe_api POST /v1/messages "$(ant_think_body absent 512)"
+ABSENT_ANSWER="$(text_block_text)"
+ABSENT_ASM="$(asm messages)"
+if printf '%s' "$ABSENT_ASM" | grep -q 'enableReasoning=default'; then
+  probe_ok "no thinking field states no preference (engine template decides)"
+else
+  probe_fail "absent thinking should leave the preference unset: $ABSENT_ASM"
+fi
+
+probe_api POST /v1/messages "$(ant_think_body enabled 512)"
+ON_STATUS="$PROBE_STATUS"
+ON_OUT="$(msg_field usage.output_tokens)"
+ON_STOP="$(msg_field stop_reason)"
+ON_ANSWER="$(text_block_text)"
+ON_FULL="$(text_block_text 1000000)"
+ON_ASM="$(asm messages)"
+ON_BLOCKS="$(msg_field content.0.type)"
+if printf '%s' "$ON_ASM" | grep -q 'enableReasoning=on'; then
+  probe_ok "thinking.type=enabled reaches InferenceOptions (enableReasoning=on)"
+else
+  probe_fail "thinking declared but the option stayed closed: $ON_ASM"
+fi
+
+probe_api POST /v1/messages "$(ant_think_body disabled 512)"
+OFF_STATUS="$PROBE_STATUS"
+OFF_OUT="$(msg_field usage.output_tokens)"
+OFF_STOP="$(msg_field stop_reason)"
+OFF_ANSWER="$(text_block_text)"
+OFF_FULL="$(text_block_text 1000000)"
+OFF_ASM="$(asm messages)"
+if printf '%s' "$OFF_ASM" | grep -q 'enableReasoning=off'; then
+  probe_ok "thinking.type=disabled means OFF — it no longer resolves to ON"
+else
+  probe_fail "disabled did not reach the options as off: $OFF_ASM"
+fi
+
+# The knob must never cost the answer, and at temp 0 that is an exact claim: `enabled`
+# and `disabled` must return the same bytes over the FULL answer, with the same
+# output-token count. Two regressions move those bytes — the budget capping the output
+# (what `min(max_tokens, budget_tokens)` used to do) and `disabled` resolving to ON
+# (what this build used to do) — and neither slips past an equality check.
+#
+# NOT asserted: "the turn concludes with 9". Where this checkpoint puts the conclusion
+# moves between boots — measured 10-19 on the same prompt/temp: end_turn at 209 tokens in
+# one run, max_tokens at 512 (and still no conclusion at 1024) in another. A conclusion
+# check would therefore fail on the checkpoint, not on our code, and a substring test for
+# the digit passes on the riddle's own "9" regardless. Both are recorded, not claimed.
+if [ "$ON_STATUS" = "200" ] && [ "$OFF_STATUS" = "200" ] && [ -n "$ON_FULL" ] \
+   && [ "$ON_FULL" = "$OFF_FULL" ] && [ "$ON_OUT" = "$OFF_OUT" ]; then
+  probe_ok "the knob never costs the answer (identical ${#ON_FULL}-char output, ${ON_OUT} tokens both ways)"
+else
+  probe_fail "thinking A/B changed the answer: enabled=[$ON_STATUS/${ON_OUT}tok/$ON_STOP] disabled=[$OFF_STATUS/${OFF_OUT}tok/$OFF_STOP] enabled='$(printf %.160s "$ON_ANSWER")' disabled='$(printf %.160s "$OFF_ANSWER")'"
+fi
+probe_note "stop_reason enabled=$ON_STOP disabled=$OFF_STOP at max_tokens=512 — the conclusion position on this checkpoint moves between boots, so the verdict above compares the two turns rather than reading for a number"
+if [ "$ON_BLOCKS" = "thinking" ]; then
+  probe_ok "reasoning arrived as a thinking block"
+else
+  probe_note "no thinking block on this checkpoint (content[0].type='${ON_BLOCKS:-none}'): its template has no reasoning channel, so thinking text stays in the answer here"
+fi
+probe_note "output_tokens enabled=${ON_OUT:-?} disabled=${OFF_OUT:-?} — identical here, and identical on /v1/chat/completions (reasoning:true/false), which is a checkpoint fact, not the knob being unwired: the two greps above are the delivery proof"
+
+probe_api POST /v1/messages "$(ant_think_body overbudget 100)"
+if [ "$PROBE_STATUS" = "400" ] && printf '%s' "$PROBE_BODY" | grep -q 'budget_tokens'; then
+  probe_ok "budget >= max_tokens refused 400 naming thinking.budget_tokens"
+else
+  probe_fail "budget 300 with max_tokens 100 returned $PROBE_STATUS: $(printf %.200s "$PROBE_BODY")"
+fi
+
+# ── 9. one assembly: the two faces feed the model the same prompt ──────────
+#
+# Two readings, because there are two claims. The assembly line says what the handlers put
+# in front of the engine (roles + system chars + token estimate). `usage` says what each
+# face then reports for that prompt — and those must agree too, or a client budgeting on
+# one wire mis-reads the other (measured 10-19: the OpenAI face reported the engine's
+# measured 774 while this face reported its own 769 estimate for identical messages).
+probe_section "9 — identical request, identical prompt on both wires"
+
+ASK_PLAIN="What is 2 plus 2? Answer with the number only."
+# One session id on both faces: the assembly has session-scoped parts (the complexity-tiered
+# reasoning scaffold is keyed by session), so pinning the session is what makes "the same
+# request" mean the same thing on both wires.
+SESSION9="probe13-parity-$$"
+BODY9_ANT="$(python3 - "$PROBE_MODEL" "$ASK_PLAIN" "$SESSION9" <<'PY'
+import json, sys
+print(json.dumps({"model": sys.argv[1], "max_tokens": 16, "temperature": 0.0,
+  "metadata": {"session_id": sys.argv[3]},
+  "messages": [{"role": "user", "content": sys.argv[2]}]}))
+PY
+)"
+BODY9_OAI="$(python3 - "$PROBE_MODEL" "$ASK_PLAIN" "$SESSION9" <<'PY'
+import json, sys
+print(json.dumps({"model": sys.argv[1], "max_tokens": 16, "temperature": 0.0,
+  "session_id": sys.argv[3],
+  "messages": [{"role": "user", "content": sys.argv[2]}]}))
+PY
+)"
+probe_api POST /v1/chat/completions "$BODY9_OAI"
+OAI_IN="$(msg_field usage.prompt_tokens)"
+OAI_ASM="$(asm chat)"
+probe_api POST /v1/messages "$BODY9_ANT"
+ANT_IN="$(msg_field usage.input_tokens)"
+ANT_ASM="$(asm messages)"
+probe_note "assembly [chat]     $OAI_ASM"
+probe_note "assembly [messages] $ANT_ASM"
+SYS9="$(printf '%s' "$OAI_ASM" | sed -nE 's/.*systemChars=([0-9]+).*/\1/p')"
+OAI_SHAPE="$(printf '%s' "$OAI_ASM" | sed -nE 's/.*(systemChars=[0-9]+ promptTokens=[0-9]+).*/\1/p')"
+ANT_SHAPE="$(printf '%s' "$ANT_ASM" | sed -nE 's/.*(systemChars=[0-9]+ promptTokens=[0-9]+).*/\1/p')"
+if [ -n "$OAI_SHAPE" ] && [ "$OAI_SHAPE" = "$ANT_SHAPE" ]; then
+  probe_ok "both faces assembled the same prompt ($ANT_SHAPE)"
+else
+  probe_fail "the two faces assembled different prompts: chat='$OAI_SHAPE' messages='$ANT_SHAPE'"
+fi
+probe_note "reported usage: /v1/chat/completions prompt_tokens=$OAI_IN, /v1/messages input_tokens=$ANT_IN"
+if [ -n "$OAI_IN" ] && [ "$OAI_IN" = "$ANT_IN" ]; then
+  probe_ok "both faces report the same prompt cost for the same prompt"
+else
+  probe_fail "one engine, two numbers for one prompt: $OAI_IN vs $ANT_IN"
+fi
+# A match at a small number would prove nothing: the point is that BOTH carry the agent
+# context (skills catalogue + workspace + memory + scaffold), hundreds of tokens over a
+# one-line request. Measured before the fix: 24 here against 774 there.
+if [ -n "$ANT_IN" ] && [ "$ANT_IN" -ge 400 ]; then
+  probe_ok "this face carries the agent context too ($ANT_IN tokens for a one-line request)"
+else
+  probe_fail "input_tokens=$ANT_IN — the agent context is missing on this face again"
+fi
+
+probe_api POST /v1/messages/count_tokens "$BODY9_ANT"
+COUNTED="$(msg_field input_tokens)"
+probe_note "count_tokens=$COUNTED vs the same request's usage.input_tokens=$ANT_IN"
+if [ -z "$COUNTED" ] || [ -z "$ANT_IN" ]; then
+  probe_fail "count_tokens or usage reported nothing (count=$COUNTED usage=$ANT_IN)"
+else
+  # The pre-flight measures the message list with the message tokenizer; usage reports the
+  # engine's measured prefill, which includes the chat template's per-message framing. The
+  # gap is a constant of a few tokens per turn — recorded, not hidden — and a gross
+  # mismatch (the old 24-vs-774) still fails here.
+  GAP=$(( COUNTED > ANT_IN ? COUNTED - ANT_IN : ANT_IN - COUNTED ))
+  if [ "$GAP" -le 16 ]; then
+    probe_ok "count_tokens pre-flights the same prompt (|gap|=$GAP tokens = template framing)"
+  else
+    probe_fail "count_tokens said $COUNTED, the request cost $ANT_IN — the pre-flight budgets a different prompt"
+  fi
+fi
+
+# ── 10. /v1/steer delivers on this face too ────────────────────────────────
+probe_section "10 — a steer queued for a session reaches /v1/messages"
+
+probe_api POST /v1/steer '{"session_id":"probe13-steer","text":"The secret codeword is ORIOLE."}'
+if [ "$PROBE_STATUS" != "200" ]; then
+  probe_fail "POST /v1/steer -> $PROBE_STATUS: $(printf %.200s "$PROBE_BODY")"
+else
+  BODY10="$(python3 - "$PROBE_MODEL" <<'PY'
+import json, sys
+print(json.dumps({"model": sys.argv[1], "max_tokens": 32, "temperature": 0.0,
+  "metadata": {"session_id": "probe13-steer"},
+  "messages": [{"role": "user", "content": "What is the secret codeword? Answer with one word."}]}))
+PY
+)"
+  probe_api POST /v1/messages "$BODY10"
+  if printf '%s' "$(text_block_text)" | grep -q 'ORIOLE'; then
+    probe_ok "the steer arrived on the next /v1/messages turn: $(text_block_text)"
+  else
+    probe_fail "the steer was swallowed on this face: '$(text_block_text)' (the route documents delivery on /v1/messages)"
+  fi
+fi
+
+# ── 11. how many copies of a declared tool does the model get? ──────────────
+#
+# First-principles question the answer to which upstream does not leave open: vllm and
+# sglang hand the model ONE structured `tools` array (`entrypoints/anthropic/serving.py:
+# 762-791`, `srt/entrypoints/anthropic/serving.py:646-678`) and never also write the tool
+# into the system prompt. Here the shared assembly's Phase 5 appends
+# `## Tool: <name>\nDescription: …` — a copy WITHOUT the parameter schema — while the same
+# spec simultaneously reaches the engine as a structured declaration
+# (`EngineInference.swift:3143 chatSession?.tools = registeredToolSpecs`). Measured here,
+# recorded as a number so the open item in AGENTS.md § Open has an instrument: the day the
+# injection is removed (or the schema joins it) this line moves, and the A/B that settles
+# removal has a before/after to point at. Deliberately a NOTE, not a PASS — pinning the
+# duplication would make the correct fix fail the probe.
+probe_section "11 — one declared tool: how many copies reach the prompt"
+
+BODY11="$(python3 - "$PROBE_MODEL" <<'PY'
+import json, sys
+print(json.dumps({"model": sys.argv[1], "max_tokens": 8, "temperature": 0.0,
+  "messages": [{"role": "user", "content": "What is 2 plus 2? Answer with the number only."}],
+  "tools": [{"type": "function", "function": {
+      "name": "get_weather",
+      "description": "Get current weather for a city.",
+      "parameters": {"type": "object",
+                     "properties": {"city": {"type": "string", "description": "City name"}},
+                     "required": ["city"]}}}],
+  "tool_choice": "none"}))
+PY
+)"
+probe_api POST /v1/chat/completions "$BODY11"
+ASM11="$(asm chat)"
+SYS11="$(printf '%s' "$ASM11" | sed -nE 's/.*systemChars=([0-9]+).*/\1/p')"
+DECL11="$(printf '%s' "$ASM11" | sed -nE 's/.*declaredTools=([0-9]+).*/\1/p')"
+if [ "$DECL11" = "1" ]; then
+  probe_ok "the declaration reached the assembly for this turn (declaredTools=1)"
+else
+  probe_fail "a declared tool did not reach the assembly: $ASM11"
+fi
+if [ -n "$SYS11" ] && [ -n "$SYS9" ]; then
+  probe_note "one declared tool grows the system message $SYS9 -> $SYS11 chars (+$(( SYS11 - SYS9 )) of schema-less ## Tool: prose, while the same spec also goes to the engine structured — the model gets two copies, one of them without parameters)"
+else
+  probe_fail "assembly line missing systemChars (§11 cannot measure the duplication): $ASM11"
 fi
 
 probe_summary "$PROBE_NAME"

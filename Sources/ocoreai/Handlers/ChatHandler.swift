@@ -415,6 +415,14 @@ func chatCompletionsHandler(
             promptTokenCount = max(1, Int(Double(totalBytes) / Double(divisor)))
         }
 
+        logAssembledPrompt(
+            logger,
+            face: "chat",
+            messages: fullMessages,
+            promptTokens: promptTokenCount,
+            enableReasoning: request.reasoning,
+            declaredToolCount: request.tools?.count ?? 0)
+
         /// Phase 3.5: Enforce per-model context window cap (omlx max_context_window).
         /// When a per-model `max_context_window` is configured and the estimated
         /// prompt token count exceeds it, first attempt a rule-based compaction

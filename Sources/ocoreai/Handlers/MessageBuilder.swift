@@ -19,6 +19,7 @@
 /// MessageBuilder holds unowned references and serializes accesses.
 
 import Foundation
+import Logging
 
 // MARK: - Message Builder Context
 
@@ -39,6 +40,44 @@ struct MessageBuilderContext {
 
     /// Session identifier (for memory + complexity tracking)
     let sessionId: String
+}
+
+// MARK: - Assembly disclosure
+
+/// What a handler is about to feed the model, in one line.
+///
+/// The two HTTP faces of this engine now share one assembly, and "shared" is a claim that
+/// needs a reading, not a comment: the first version of this round's parity check measured
+/// 774 tokens on `/v1/chat/completions` against 769 on `/v1/messages` for the identical
+/// request, and nothing in either response said which half of the prompt differed. One
+/// symmetric line per request makes that a lookup.
+///
+/// `enableReasoning` is on the line because it is the field a capability knob terminates
+/// at: `thinking.type` on the Anthropic wire and `reasoning` on the OpenAI wire both resolve
+/// here, and a knob that reaches the handler but not the options is the defect this round
+/// fixed (probe 13 §8 greps this line as its live delivery proof).
+///
+/// `Logger.Message` takes a single interpolated string, so the pieces are built first.
+func logAssembledPrompt(
+    _ logger: Logger,
+    face: String,
+    messages: [Message],
+    promptTokens: Int,
+    enableReasoning: Bool?,
+    declaredToolCount: Int,
+) {
+    let systemChars =
+        messages.first?.role == "system" ? messages[0].textContent().utf8.count : 0
+    let roles = messages.map(\.role).joined(separator: ",")
+    let reasoning =
+        switch enableReasoning {
+        case .some(true): "on"
+        case .some(false): "off"
+        case .none: "default"
+        }
+    logger.info(
+        "Assembled prompt [\(face)]: \(messages.count) message(s) [\(roles)] systemChars=\(systemChars) promptTokens=\(promptTokens) enableReasoning=\(reasoning) declaredTools=\(declaredToolCount)"
+    )
 }
 
 // MARK: - Message Builder (Async Actor-Backed)
