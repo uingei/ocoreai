@@ -81,9 +81,9 @@ Known boundaries (as of this commit, not aspirations):
 | `POST` | `/v1/chat/completions` | OpenAI chat (streaming + non-streaming, tool calls) |
 | `POST` | `/v1/completions` | OpenAI legacy completions endpoint (prompt in) |
 | `POST` | `/v1` | Auto-route: dispatches by body key (`prompt`→completions, else chat) |
-| `POST` | `/v1/messages` | Anthropic messages + tool use |
-| `POST` | `/v1/messages/count_tokens` | Anthropic token pre-flight (same message list) |
-| `POST` | `/v1/count-tokens` | Token count (`prompt` / `input` / `messages`) |
+| `POST` | `/v1/messages` | Anthropic messages + tool use + thinking |
+| `POST` | `/v1/messages/count_tokens` | Anthropic pre-flight: sizes the request `/v1/messages` will send (a floor) |
+| `POST` | `/v1/count-tokens` | Token count of the text you send (`prompt` / `input` / `messages`) |
 | `POST` | `/v1/embeddings` | Local embeddings (LFM2.5-Embedding-350M, 1024-dim) |
 | `GET`  | `/v1/tools` | Agent tool surface, paste-ready OpenAI `tools[]` shape |
 | `GET`  | `/v1/capabilities` | Device capability matrix (measured, not merely compiled) + tokenizer backend (`real`/`heuristic`) + endpoint index |

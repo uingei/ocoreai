@@ -66,9 +66,9 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 | `POST` | `/v1/chat/completions` | OpenAI 聊天（流式 + 非流式，工具调用） |
 | `POST` | `/v1/completions` | OpenAI 旧版 completions（prompt 输入） |
 | `POST` | `/v1` | 自动路由：按 body 键分发（`prompt`→completions，否则 chat） |
-| `POST` | `/v1/messages` | Anthropic 消息 + 工具使用 |
-| `POST` | `/v1/messages/count_tokens` | Anthropic token 预算预检（同一消息列表） |
-| `POST` | `/v1/count-tokens` | Token 计数（`prompt` / `input` / `messages`） |
+| `POST` | `/v1/messages` | Anthropic 消息 + 工具使用 + thinking |
+| `POST` | `/v1/messages/count_tokens` | Anthropic 预检：数 `/v1/messages` 实际要送出的那次请求（下界） |
+| `POST` | `/v1/count-tokens` | 数你送出的那段文本（`prompt` / `input` / `messages`） |
 | `POST` | `/v1/embeddings` | 本地 embeddings（LFM2.5-Embedding-350M，1024 维） |
 | `GET`  | `/v1/tools` | Agent 工具面（OpenAI `tools[]` 形状，可直接粘回请求） |
 | `GET`  | `/v1/capabilities` | 设备能力矩阵（按实测说话，不止看编译进去了什么）+ 分词后端（`real`/`heuristic`）+ 端点索引 |
