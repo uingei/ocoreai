@@ -95,10 +95,12 @@ struct SessionIsolationTests {
     @Test("continuation: incoming extends the whole cached history ⇒ reusable")
     func continuationReuses() {
         #expect(
-            MLXSessionPool.canReusePooledSession(cachedMessageCount: 2, commonPrefixCount: 2)
+            MLXSessionPool.canReusePooledSession(
+                cachedMessageCount: 2, commonPrefixCount: 2, instructionsMatch: true)
                 == true)
         #expect(
-            MLXSessionPool.canReusePooledSession(cachedMessageCount: 4, commonPrefixCount: 5)
+            MLXSessionPool.canReusePooledSession(
+                cachedMessageCount: 4, commonPrefixCount: 5, instructionsMatch: true)
                 == true)
     }
 
@@ -106,19 +108,52 @@ struct SessionIsolationTests {
     func forkRefused() {
         // 10-12 live case: cached [u1, a1], incoming [u2] → common prefix 0 < 2
         #expect(
-            MLXSessionPool.canReusePooledSession(cachedMessageCount: 2, commonPrefixCount: 0)
+            MLXSessionPool.canReusePooledSession(
+                cachedMessageCount: 2, commonPrefixCount: 0, instructionsMatch: true)
                 == false)
         // Edited resend: cached [u1, a1, u2, a2], incoming [u1, a1, u2'] → 2 < 4
         #expect(
-            MLXSessionPool.canReusePooledSession(cachedMessageCount: 4, commonPrefixCount: 2)
+            MLXSessionPool.canReusePooledSession(
+                cachedMessageCount: 4, commonPrefixCount: 2, instructionsMatch: true)
                 == false)
     }
 
     @Test("empty cached history is always safe to serve")
     func emptyHistoryReusable() {
         #expect(
-            MLXSessionPool.canReusePooledSession(cachedMessageCount: 0, commonPrefixCount: 0)
+            MLXSessionPool.canReusePooledSession(
+                cachedMessageCount: 0, commonPrefixCount: 0, instructionsMatch: true)
                 == true)
+    }
+
+    @Test("different instructions ⇒ refuse, even with an empty transcript")
+    func changedInstructionsRefused() {
+        // The shape a guided/tool turn leaves behind: it parks the session with an empty
+        // transcript, so the prefix premise passes for anything — the identity of the
+        // instruction set is the only thing standing between this turn and the previous
+        // turn's system prompt.
+        #expect(
+            MLXSessionPool.canReusePooledSession(
+                cachedMessageCount: 0, commonPrefixCount: 0, instructionsMatch: false)
+                == false)
+        // A perfect continuation is still a different conversation's instruction list.
+        #expect(
+            MLXSessionPool.canReusePooledSession(
+                cachedMessageCount: 4, commonPrefixCount: 5, instructionsMatch: false)
+                == false)
+        // And the snapshot path reports which premise it failed.
+        let manifest = KVCacheManifest(
+            modelId: "m",
+            instructionsHash: 1,
+            messages: [
+                MessageHistoryKey.from(user("hello")), MessageHistoryKey.from(assistant("hi")),
+            ],
+        )
+        #expect(
+            manifest.reuseDecision(
+                modelId: "m", instructionsHash: 2,
+                incomingMessages: [MessageHistoryKey.from(user("hello"))])
+                == .instructionsChanged)
     }
 
     // MARK: - Durable fingerprint

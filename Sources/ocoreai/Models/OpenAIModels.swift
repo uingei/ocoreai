@@ -79,7 +79,9 @@ struct ChatCompletionRequest: Decodable {
     /// Enable Server-Sent Events streaming
     var stream: Bool = false
 
-    /// Stop sequences (generation halts when matched)
+    /// Stop sequences (generation halts when matched).
+    ///
+    /// The wire accepts a bare string too — see ``decodeStopUnion(from:forKey:)``.
     var stop: [String]? = nil
 
     /// Frequency penalty (penalize repeated tokens)
@@ -246,7 +248,7 @@ struct ChatCompletionRequest: Decodable {
         messages = try c.decode([Message].self, forKey: .messages)
         temperature = try c.decodeIfPresent(Float.self, forKey: .temperature) ?? 0.7
         stream = (try? c.decodeIfPresent(Bool.self, forKey: .stream)) ?? false
-        stop = try c.decodeIfPresent([String].self, forKey: .stop)
+        stop = try decodeStopUnion(from: c, forKey: .stop)
         system = try c.decodeIfPresent(String.self, forKey: .system)
         topP = try c.decodeIfPresent(Float.self, forKey: .topP)
         topK = try c.decodeIfPresent(Int.self, forKey: .topK)
@@ -1058,6 +1060,9 @@ struct CompletionRequest: Decodable {
     /// Enable Server-Sent Events streaming.
     var stream: Bool = false
     /// Stop sequences (generation halts when matched).
+    ///
+    /// Same union as chat — the spec types it `string | array[string] | null`, so this face
+    /// decodes it through ``decodeStopUnion`` rather than re-declaring the shape.
     var stop: [String]? = nil
     /// Stream options (usage inclusion) — mirrors chat.
     var streamOptions: StreamOptions? = nil
@@ -1175,7 +1180,7 @@ struct CompletionRequest: Decodable {
         repetitionPenalty = try c.decodeIfPresent(Double.self, forKey: .repetitionPenalty)
         repetitionPenaltyWindow = try c.decodeIfPresent(Int.self, forKey: .repetitionPenaltyWindow)
         stream = try c.decodeIfPresent(Bool.self, forKey: .stream) ?? false
-        stop = try c.decodeIfPresent([String].self, forKey: .stop)
+        stop = try decodeStopUnion(from: c, forKey: .stop)
         streamOptions = try c.decodeIfPresent(StreamOptions.self, forKey: .streamOptions)
         echo = try c.decodeIfPresent(Bool.self, forKey: .echo) ?? false
         suffix = try c.decodeIfPresent(String.self, forKey: .suffix)
@@ -1369,6 +1374,37 @@ struct StreamOptions: Decodable {
     enum CodingKeys: String, CodingKey {
         case includeUsage = "include_usage"
     }
+}
+
+// MARK: - Wire unions
+
+/// Decode OpenAI’s `stop`: the spec types it `string | array[string] | null`, and the
+/// canonical SDKs send whichever the caller wrote.
+///
+/// Why this is a function and not inline: both OpenAI faces declare `stop`, and a rule
+/// implemented twice is a rule that drifts. The repo already had the union pattern for
+/// `prompt` (``CompletionRequest/init(from:)`` decodes `string | [string] | [int]`) but
+/// decoded `stop` as `[String]`-only, so the same request body was honoured on one field
+/// and rejected on its neighbour.
+///
+/// What it deliberately does NOT do: swallow wrong types. Absent and `null` mean
+/// no-stop-sequences; a number or object still throws, so a malformed body stays the
+/// 4xx-with-field-name that `RequestNumericDomainTests` and probe 09 pin, rather than
+/// becoming a silent no-op (the failure shape AGENTS.md invariant 2 is about).
+///
+/// Comparators on this axis: vllm types it `str | list[str] | None`
+/// (`entrypoints/generate/base/protocol.py:26` `StopParam`), sglang
+/// `Optional[Union[str, List[str]]]` (`srt/entrypoints/openai/protocol.py:368`, `:894`).
+/// - Parameters:
+///   - c: The keyed container the request is being decoded from.
+///   - key: This request type’s CodingKey for `stop`.
+/// - Returns: The sequences to honour, or `nil` when the field is absent or `null`.
+func decodeStopUnion<K: CodingKey>(
+    from c: KeyedDecodingContainer<K>, forKey key: K
+) throws -> [String]? {
+    guard c.contains(key), !(try c.decodeNil(forKey: key)) else { return nil }
+    if let single = try? c.decode(String.self, forKey: key) { return [single] }
+    return try c.decode([String].self, forKey: key)
 }
 
 /// Backward compatibility aliases.

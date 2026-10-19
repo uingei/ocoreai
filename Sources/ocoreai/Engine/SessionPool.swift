@@ -196,9 +196,10 @@ struct KVCacheManifest: Codable, Sendable {
         guard modelId == requestedModelId else {
             return .modelMismatch(snapshot: modelId, requested: requestedModelId)
         }
-        guard instructionsHash == requestedInstructionsHash else {
-            return .instructionsChanged
-        }
+        // Recorded here, decided once — by ``MLXSessionPool/canReusePooledSession(cachedMessageCount:commonPrefixCount:instructionsMatch:)``
+        // below, the same gate the in-memory pool consults. Two copies of the rule is how
+        // one of them drifts.
+        let instructionsMatch = instructionsHash == requestedInstructionsHash
         // A vision encoder attends an image beside a cached prefix differently than
         // cold (upstream `ChatSession.swift:707-715`), and the pixels are not in the
         // manifest, so a media turn on either side is unverifiable.
@@ -214,10 +215,14 @@ struct KVCacheManifest: Codable, Sendable {
         guard
             MLXSessionPool.canReusePooledSession(
                 cachedMessageCount: messages.count,
-                commonPrefixCount: common
+                commonPrefixCount: common,
+                instructionsMatch: instructionsMatch
             )
         else {
-            return .notAPrefix(cached: messages.count, commonPrefix: common)
+            // The gate decides; this reports which of its premises the snapshot failed.
+            return instructionsMatch
+                ? .notAPrefix(cached: messages.count, commonPrefix: common)
+                : .instructionsChanged
         }
         return nil
     }
@@ -458,6 +463,15 @@ actor MLXSessionPool {
         // 2. Build pool key
         let key = poolKey(modelId: modelId, conversationId: conversationId)
 
+        // Identity of the instruction set this turn will render under. Computed before the
+        // hit check because a reused session carries the instructions it was *created* with:
+        // `ChatSession.instructions` is a stored property the processor prepends at prefill,
+        // so a session that survives into a turn with different instructions answers under
+        // the old ones. The disk path already refused on exactly this (``reuseDecision`` →
+        // `.instructionsChanged`); the in-memory path is the same conversation and owes the
+        // same rule.
+        let instructionsFP = DurableHash.fingerprint(instructions ?? "")
+
         // 3. Try hit — with prefix match
         if let pooled = pool[key] {
             let divergence: Int
@@ -480,9 +494,11 @@ actor MLXSessionPool {
             // resend — the old KV describes the pre-edit conversation.
             // Discard rather than hand back: a forked conversation's cache is stale
             // anyway, and the fall-through below builds a clean session.
+            let instructionsMatch = pooled.instructionsHash == instructionsFP
             if !Self.canReusePooledSession(
                 cachedMessageCount: pooled.messageHistory.count,
-                commonPrefixCount: divergence
+                commonPrefixCount: divergence,
+                instructionsMatch: instructionsMatch
             ) {
                 pool[key] = nil
                 // A discarded conversation no longer needs the bytes its transcript
@@ -492,8 +508,20 @@ actor MLXSessionPool {
                 // it there would let the next pool miss for this key revive the same
                 // stale context.
                 deleteCachedSession(key: key)
-                logger.debug(
-                    "Session pool entry \(key) not reusable: cached history \(pooled.messageHistory.count) exceeds common prefix \(divergence) — building a clean session"
+                var refusalReasons: [String] = []
+                if !instructionsMatch {
+                    refusalReasons.append("instructions changed")
+                }
+                if divergence < pooled.messageHistory.count {
+                    refusalReasons.append(
+                        "cached history \(pooled.messageHistory.count) exceeds common prefix \(divergence)"
+                    )
+                }
+                // info, not debug: the HIT counterpart is info, and a refusal is the reason a
+                // turn costs a full prefill. A refusal whose cause only shows up when somebody
+                // raises the log level is an explanation nobody gets at the moment it matters.
+                logger.info(
+                    "Session pool entry \(key) not reusable: \(refusalReasons.joined(separator: "; ")) — building a clean session"
                 )
             } else {
                 pool[key] = nil
@@ -550,7 +578,6 @@ actor MLXSessionPool {
         // snapshot provably belongs to. `restoreValidatedSession` refuses (and
         // deletes) anything it cannot account for.
         let cacheURL = cacheFileURL(key: key)
-        let instructionsFP = DurableHash.fingerprint(instructions ?? "")
         if config.persistCache,
             let incoming = prefixMessages,
             let restored = restoreValidatedSession(
@@ -1106,11 +1133,20 @@ actor MLXSessionPool {
     /// credit exceeds the incoming message count, the slice `messages[n...]` traps.
     /// A bypass here was briefly tried on 10-13 to observe upstream's own transcript
     /// reconciliation; it turned `SessionIsolationTests.forkRefused` red and is closed.
+    ///
+    /// `instructionsMatch` is the second premise, and it is not a perf nicety: the session
+    /// renders its stored `instructions` at prefill, so a session whose instruction set has
+    /// since changed (the client rewrote its system message; this server advertises tools on
+    /// one turn and not the next; perception context arrived) would answer this turn under an
+    /// instruction list the caller never sent. The disk path has refused on this identity
+    /// since it was written (``SnapshotRefusal/instructionsChanged``); the in-memory path
+    /// consults the same gate now, so one rule has one home.
     nonisolated static func canReusePooledSession(
         cachedMessageCount: Int,
-        commonPrefixCount: Int
+        commonPrefixCount: Int,
+        instructionsMatch: Bool
     ) -> Bool {
-        commonPrefixCount >= cachedMessageCount
+        instructionsMatch && commonPrefixCount >= cachedMessageCount
     }
 
     /// Which per-turn generation knobs differ between what a pooled session currently

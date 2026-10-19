@@ -42,6 +42,55 @@ struct MessageBuilderContext {
     let sessionId: String
 }
 
+// MARK: - Instruction-role extraction
+
+/// Roles that carry the caller's standing instructions rather than conversation turns.
+///
+/// vllm routes both to the developer channel (`entrypoints/openai/responses/harmony.py:128`,
+/// `entrypoints/openai/parser/harmony_utils.py:436`) and sglang admits both as generic
+/// message roles (`srt/entrypoints/openai/protocol.py:727-729`). `developer` is the role
+/// OpenAI's current spec uses in place of `system`.
+nonisolated let instructionMessageRoles: Set<String> = ["system", "developer"]
+
+/// Split instruction-role messages out of a conversation.
+///
+/// Why this exists, measured 10-20 on this host (`mlx-community/gemma-4-e2b-it-4bit`,
+/// temp 0): a request whose `messages[0]` was a ~1000-character `system` message delivered
+/// the *same* `usage.prompt_tokens` (705) as the identical request with no system message —
+/// a differential of zero, i.e. the client's instructions never reached the model — while
+/// this server's own estimate line counted them (`promptTokens=838` against 705). The
+/// Anthropic face, whose spec puts `system` in a top-level field, delivered the same text
+/// (+182 input tokens), so one face honoured the most-used instruction channel in the
+/// OpenAI wire and the other silently dropped it.
+///
+/// The drop was structural: the engine delivers instructions through exactly one channel —
+/// the first `system` message it finds (`EngineInference.swift:1791`) — and filters every
+/// `system` role out of the feed it renders, because mlx-swift-lm's `Chat.Message.Role`
+/// (Chat.swift:120-124) has no `developer` case either. `buildMessages` then inserted this
+/// server's own prompt at index 0 and left the client's message in the list, so the client's
+/// text sat at index 1: counted, never delivered, and mis-attributed as a user turn for
+/// `developer`.
+///
+/// So instruction-role messages leave the conversation here and go into the single
+/// instructions channel that generation actually reads, in the order the caller wrote them.
+/// Empty ones are dropped rather than turned into blank turns.
+nonisolated func splitInstructionMessages(
+    _ messages: [Message]
+) -> (instructionText: String?, conversation: [Message]) {
+    var texts: [String] = []
+    var conversation: [Message] = []
+    for message in messages {
+        if instructionMessageRoles.contains(message.role.lowercased()) {
+            let text = message.textContent()
+            if !text.isEmpty { texts.append(text) }
+        } else {
+            conversation.append(message)
+        }
+    }
+    guard !texts.isEmpty else { return (nil, conversation) }
+    return (texts.joined(separator: "\n\n"), conversation)
+}
+
 // MARK: - Assembly disclosure
 
 /// What a handler is about to feed the model, in one line.
@@ -125,7 +174,13 @@ actor MessageBuilder {
     /// - Returns: Ordered ``Message`` array ready for inference
     /// - Throws: ``AppError.invalidRequest`` if validation fails
     func buildMessages(context: MessageBuilderContext) async throws -> [Message] {
-        var messages = context.rawMessages
+        // Instruction-role messages (`system`, `developer`) are the caller's standing
+        // instructions, not conversation turns: the engine reads them from one channel and
+        // filters them out of the rendered feed, so leaving one in the list means counting it
+        // here and dropping it there. See ``splitInstructionMessages`` for the measurement.
+        let (inlineInstructions, conversationMessages) = splitInstructionMessages(
+            context.rawMessages)
+        var messages = conversationMessages
 
         // Phase 1: Build system prompt from skills
         // The tool surface for THIS turn, taken from the same field Phase 5 uses
@@ -170,9 +225,18 @@ actor MessageBuilder {
             ?? ""
         let workspaceSection = WorkspaceContext.buildSection(cwd: workspaceCwd)
 
+        // One client-instructions channel, both spellings: the non-spec top-level `system`
+        // field some SDKs send, plus whatever the request wrote as `system`/`developer`
+        // messages, in the caller's own order.
+        let clientInstructions =
+            [context.userSystemPrompt, inlineInstructions]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n\n")
+
         let finalSystem: String =
-            if let userSystem = context.userSystemPrompt, !userSystem.isEmpty {
-                userSystem
+            if !clientInstructions.isEmpty {
+                clientInstructions
                     + (workspaceSection.isEmpty ? "" : "\n\n" + workspaceSection)
                     + "\n\n" + builtSystemPrompt + memoryContext
             } else if !builtSystemPrompt.isEmpty {
@@ -222,7 +286,7 @@ actor MessageBuilder {
         // Phase 7: Inject adaptive reasoning scaffold (三思而后行)
         let userMessage =
             messages.first(where: { $0.role == "user" })?.textContent()
-            ?? context.rawMessages.first?.textContent() ?? ""
+            ?? conversationMessages.first?.textContent() ?? ""
 
         // FIX: VLM requests with .parts (images/audio/video) produce empty textContent(),
         // causing ComplexityAnalyzer to score 0 and ThinkingBudget to return no scaffold.

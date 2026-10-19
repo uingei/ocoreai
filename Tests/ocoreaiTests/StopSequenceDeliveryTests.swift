@@ -24,6 +24,7 @@
 /// Surviving companion: live probe `scripts/probes/10-sampling-knob-delivery.sh`, which
 /// measures truncation on a real model in both streaming and non-streaming modes.
 
+import Foundation
 import Testing
 
 @testable import ocoreai
@@ -127,5 +128,129 @@ struct OpenAIFinishReasonWordTests {
         #expect(openAIToAnthropicStopReason("stop_sequence") == "end_turn")
         #expect(openAIToAnthropicStopReason("length") == "max_tokens")
         #expect(openAIToAnthropicStopReason("tool_calls") == "tool_use")
+    }
+}
+
+// MARK: - Inbound shape: `stop` is a union on the wire
+
+/// The spec types `stop` as `string | array[string] | null` -- vllm `StopParam`
+/// (entrypoints/generate/base/protocol.py:26), sglang Optional[Union[str, List[str]]]
+/// (srt/entrypoints/openai/protocol.py:368) -- and the canonical SDKs send whichever
+/// spelling the caller wrote. Decoding [String]-only turned a legal bare string into a
+/// 400 on that field, while its neighbour `prompt` on the very same body already
+/// honoured the same union (CompletionRequest.init(from:)).
+///
+/// Each body below is written ONCE and fed to both OpenAI faces: the shape rule has one
+/// home (decodeStopUnion), so per-face expectations would be a second truth able to drift.
+@Suite("`stop` decodes the union the spec types it as -- both OpenAI faces")
+struct StopUnionDecodeTests {
+
+    private func chatStop(_ body: String) throws -> [String]? {
+        try JSONDecoder().decode(ChatCompletionRequest.self, from: Data(body.utf8)).stop
+    }
+
+    private func completionsStop(_ body: String) throws -> [String]? {
+        try JSONDecoder().decode(CompletionRequest.self, from: Data(body.utf8)).stop
+    }
+
+    /// A legal `stop` field and the sequences it must decode to.
+    private struct Spelling {
+        let name: String
+        let field: String
+        let expected: [String]?
+    }
+
+    private static let legal: [Spelling] = [
+        Spelling(name: "bare string", field: "\"stop\": \"END\"", expected: ["END"]),
+        Spelling(name: "single-element array", field: "\"stop\": [\"END\"]", expected: ["END"]),
+        Spelling(
+            name: "multi-element array keeps order", field: "\"stop\": [\"STOP\", \"END\"]",
+            expected: ["STOP", "END"]
+        ),
+        Spelling(name: "explicit null", field: "\"stop\": null", expected: nil),
+        Spelling(name: "absent", field: "", expected: nil),
+    ]
+
+    @Test("chat face honours every legal spelling, exact value")
+    func chatLegal() throws {
+        for spelling in Self.legal {
+            let body = Self.body(Self.messagesChunk, spelling.field)
+            #expect(try chatStop(body) == spelling.expected, "spelling: \(spelling.name)")
+        }
+    }
+
+    @Test("completions face honours the same spellings -- the sibling fix")
+    func completionsLegal() throws {
+        for spelling in Self.legal {
+            let body = Self.body(Self.promptChunk, spelling.field)
+            #expect(
+                try completionsStop(body) == spelling.expected, "spelling: \(spelling.name)")
+        }
+    }
+
+    /// Both faces decode the field through the same helper, so any divergence here is
+    /// the two-faces-two-answers defect class coming back.
+    @Test("the two faces cannot disagree about one stop value")
+    func facesAgree() throws {
+        for spelling in Self.legal {
+            let viaChat = try chatStop(Self.body(Self.messagesChunk, spelling.field))
+            let viaCompletions =
+                try completionsStop(Self.body(Self.promptChunk, spelling.field))
+            #expect(viaChat == viaCompletions, "spelling: \(spelling.name)")
+        }
+    }
+
+    /// Premise of routing through one helper: the union must not widen into a black hole
+    /// that turns a malformed body into a silent no-op. AGENTS.md invariant 2 -- a caller
+    /// bug costs a 4xx naming the field, never the server and never a quietly ignored
+    /// knob (the shape RequestNumericDomainTests and probe 09 pin for numeric knobs).
+    @Test("a non-string, non-array stop still throws rather than becoming no-stop")
+    func wrongTypeStillThrows() {
+        let badFields = [
+            "\"stop\": 5",
+            "\"stop\": [5]",
+            "\"stop\": {\"a\": 1}",
+        ]
+        for field in badFields {
+            let body = Self.body(Self.messagesChunk, field)
+            #expect(throws: (any Error).self) {
+                _ = try self.chatStop(body)
+            }
+            let completionsBody = Self.body(Self.promptChunk, field)
+            #expect(throws: (any Error).self) {
+                _ = try self.completionsStop(completionsBody)
+            }
+        }
+    }
+
+    /// Premise: the union sits beside fields that already had their own shapes and must
+    /// not have disturbed them -- `prompt` keeps its own union, and an absent stop
+    /// leaves the rest of the request intact.
+    @Test("premise: neighbouring fields are untouched by the union")
+    func neighboursIntact() throws {
+        let req = try JSONDecoder().decode(
+            CompletionRequest.self,
+            from: Data("{\"prompt\": [\"a\", \"b\"], \"model\": \"m\"}".utf8))
+        #expect(req.prompt == ["a", "b"])
+        #expect(req.stop == nil)
+        #expect(req.model == "m")
+
+        let ids = try JSONDecoder().decode(
+            CompletionRequest.self,
+            from: Data("{\"prompt\": [1, 2, 3]}".utf8))
+        #expect(ids.stop == nil)
+    }
+
+    // MARK: Body builders
+
+    private static let messagesChunk =
+        "\"messages\": [{\"role\": \"user\", \"content\": \"count\"}]"
+    private static let promptChunk =
+        "\"prompt\": \"count to twenty\""
+
+    private static func body(_ required: String, _ stopField: String) -> String {
+        var fields = [required]
+        if !stopField.isEmpty { fields.append(stopField) }
+        return "{" + fields.joined(separator: ", ") + "}"
     }
 }
