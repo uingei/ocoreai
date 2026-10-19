@@ -500,6 +500,24 @@ actor MLXSessionPool {
                 hitCount += 1
                 totalAcquireAttempts += 1
                 logHitRateIfNeeded()
+                // Hand back this turn's knobs, not the ones the session was born with.
+                // Sampling lives on the session, not on the call: upstream captures
+                // `ChatSession.generateParameters` when a stream starts
+                // (`ChatSession.swift:370`, capture list at `:981-987`), so a reused
+                // session that keeps turn 1's parameters answers turn 2 under turn 1's
+                // `max_tokens`/`temperature`/`seed` — measured, and named in
+                // ``staleSamplingFields``. Cache-affecting changes stay upstream's job
+                // (`ChatSession.swift:1052-1067` rebuilds from its retained transcript).
+                let overriddenFields = Self.staleSamplingFields(
+                    before: pooled.session.generateParameters,
+                    after: genParams
+                )
+                pooled.session.generateParameters = genParams
+                if !overriddenFields.isEmpty {
+                    logger.info(
+                        "Session pool HIT \(key) — this turn overrides the knobs it was created with: \(overriddenFields.joined(separator: ","))"
+                    )
+                }
                 if divergence > 0 {
                     // What this line can honestly claim is about the *feed*: the
                     // caller withholds `divergence` messages this session's transcript
@@ -1083,7 +1101,7 @@ actor MLXSessionPool {
     ///
     /// This is not a perf heuristic that can be loosened for a faster hit: the caller
     /// acts on the returned index by *withholding* `messages[0..<divergenceIndex]`
-    /// from the model (`EngineInference.swift:3135`), so a cache credited with turns
+    /// from the model (`EngineInference.swift:3148`), so a cache credited with turns
     /// it was never asked about costs the user their real context — and when the
     /// credit exceeds the incoming message count, the slice `messages[n...]` traps.
     /// A bypass here was briefly tried on 10-13 to observe upstream's own transcript
@@ -1093,6 +1111,76 @@ actor MLXSessionPool {
         commonPrefixCount: Int
     ) -> Bool {
         commonPrefixCount >= cachedMessageCount
+    }
+
+    /// Which per-turn generation knobs differ between what a pooled session currently
+    /// carries and what this turn asked for.
+    ///
+    /// Pure, so the field set is pinned by `PooledParameterDriftTests` rather than
+    /// inferred from a live run (and the scan floors its own premise there).
+    ///
+    /// Why this exists: sampling does not travel with the call. Upstream reads the
+    /// session's *stored* parameters when a stream starts
+    /// (`ChatSession.swift:370` declares `public var generateParameters`, and `streamMap`
+    /// captures that property in its task capture list at `:981-987`), so handing a pooled
+    /// session back untouched means the next turn on that conversation generates under the
+    /// previous turn's knobs. Measured 10-19 on this host
+    /// (`mlx-community/gemma-4-e2b-it-4bit`, temp 0, two turns on one session): a
+    /// `response_format: json_object` turn at `max_tokens=64` left 64 behind, and the next
+    /// turn asked for 8 and spent 64 with `finish_reason=length` — 370 characters of text
+    /// cut mid-sentence — against `Assembled prompt … wireMaxTokens=8` and
+    /// `Generation budget: maxTokens=8` in the same log. A `tools[]` turn at 64 leaked the
+    /// same way; a session whose first turn was plain text honoured 8. The asymmetry is
+    /// the giveaway: plain turns update the pool's transcript, so the next turn fails
+    /// ``canReusePooledSession`` and gets a clean session, while a guided/tool turn
+    /// releases with `assistantMessage: nil` (EngineInference's guided/MTP early release),
+    /// which parks the session with an empty transcript — and an empty transcript reuses
+    /// against anything.
+    ///
+    /// The cache-affecting fields (`maxKVSize`, `kvBits`, `kvGroupSize`,
+    /// `quantizedKVStart`, `kvScheme`, `kvCache`) are deliberately absent: upstream
+    /// reconciles those itself, rebuilding the cache from its retained transcript when the
+    /// plan moves (`ChatSession.swift:1052-1067`), so a change there is not silently lost
+    /// and naming it here would claim a defect upstream already handles.
+    nonisolated static func staleSamplingFields(
+        before stored: MLXLMCommon.GenerateParameters,
+        after incoming: MLXLMCommon.GenerateParameters
+    ) -> [String] {
+        var fields: [String] = []
+        if stored.maxTokens != incoming.maxTokens { fields.append("maxTokens") }
+        if stored.temperature != incoming.temperature { fields.append("temperature") }
+        if stored.topP != incoming.topP { fields.append("topP") }
+        if stored.topK != incoming.topK { fields.append("topK") }
+        if stored.minP != incoming.minP { fields.append("minP") }
+        if stored.seed != incoming.seed { fields.append("seed") }
+        if stored.logProbabilities != incoming.logProbabilities {
+            fields.append("logProbabilities")
+        }
+        if stored.repetitionPenalty != incoming.repetitionPenalty {
+            fields.append("repetitionPenalty")
+        }
+        if stored.repetitionContextSize != incoming.repetitionContextSize {
+            fields.append("repetitionContextSize")
+        }
+        if stored.presencePenalty != incoming.presencePenalty {
+            fields.append("presencePenalty")
+        }
+        if stored.presenceContextSize != incoming.presenceContextSize {
+            fields.append("presenceContextSize")
+        }
+        if stored.frequencyPenalty != incoming.frequencyPenalty {
+            fields.append("frequencyPenalty")
+        }
+        if stored.frequencyContextSize != incoming.frequencyContextSize {
+            fields.append("frequencyContextSize")
+        }
+        if stored.prefill.stepSize != incoming.prefill.stepSize {
+            fields.append("prefillStepSize")
+        }
+        if stored.toolCallPolicy != incoming.toolCallPolicy {
+            fields.append("toolCallPolicy")
+        }
+        return fields
     }
 
     /// Update the set of model IDs whose sessions are exempt from TTL/LRU eviction.

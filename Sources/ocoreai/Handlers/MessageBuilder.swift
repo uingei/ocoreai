@@ -57,6 +57,15 @@ struct MessageBuilderContext {
 /// here, and a knob that reaches the handler but not the options is the defect this round
 /// fixed (probe 13 §8 greps this line as its live delivery proof).
 ///
+/// `wireOutputBudget` names what the client asked to spend. It goes on the same line because
+/// `max_tokens` is a knob whose delivery has been measured to fail: on one session the turn
+/// after a grammar/tool turn spent the *previous* turn's budget (fixed 10-20 — a reused
+/// pooled session carried the old parameters, see `MLXSessionPool.staleSamplingFields`), and a
+/// response whose `usage.completion_tokens` exceeds the request's `max_tokens` is unreadable
+/// unless the log says which side dropped the number. Handler-side "asked" versus
+/// engine-side "generation budget" (EngineInference) versus pool-side "override" is what
+/// localized it in one run.
+///
 /// `Logger.Message` takes a single interpolated string, so the pieces are built first.
 func logAssembledPrompt(
     _ logger: Logger,
@@ -65,6 +74,7 @@ func logAssembledPrompt(
     promptTokens: Int,
     enableReasoning: Bool?,
     declaredToolCount: Int,
+    wireOutputBudget: Int?,
 ) {
     let systemChars =
         messages.first?.role == "system" ? messages[0].textContent().utf8.count : 0
@@ -76,7 +86,7 @@ func logAssembledPrompt(
         case .none: "default"
         }
     logger.info(
-        "Assembled prompt [\(face)]: \(messages.count) message(s) [\(roles)] systemChars=\(systemChars) promptTokens=\(promptTokens) enableReasoning=\(reasoning) declaredTools=\(declaredToolCount)"
+        "Assembled prompt [\(face)]: \(messages.count) message(s) [\(roles)] systemChars=\(systemChars) promptTokens=\(promptTokens) enableReasoning=\(reasoning) declaredTools=\(declaredToolCount) wireMaxTokens=\(wireOutputBudget.map(String.init) ?? "unset")"
     )
 }
 

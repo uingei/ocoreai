@@ -39,9 +39,8 @@
 #   6. `tool_choice`: OpenAI's nested named-tool shape works (no leaked `Coding key`), the
 #      flat alias still works, an unknown word and a choice with no `tools[]` come back 400
 #      naming `tool_choice` with `type:"invalid_request_error"`.
-#   7. KNOWN OPEN, held as XFAIL with its numbers: on one session, the turn after a
-#      grammar- or tool-constrained turn runs with the *previous* turn's `max_tokens`
-#      (asked 8, spent 60) — §7 measures it, AGENTS.md §Open owns the unresolved cause.
+#   7. A turn obeys its OWN `max_tokens` even when the turn before it on the same session
+#      was grammar- or tool-constrained (measured 10-19 as asked-8-spent-64; see §7).
 #
 # Bodies are single-quoted JSON with "$VAR" splices (macOS bash 3.2 mis-parses nested
 # quoted command substitution — see probe 09), and every compared turn gets its own session
@@ -463,25 +462,39 @@ else
   probe_fail "Anthropic refusal did not name tool_choice: $(printf %.200s "$PROBE_BODY")"
 fi
 
-# ── 7. the turn after a guided turn must obey its own budget (KNOWN OPEN) ─────
-# Measured 10-19 on this host (`gemma-4-e2b-it-4bit`, temp 0), two turns on ONE session:
+# ── 7. a turn obeys its own budget even after a guided turn on the same session ───
+# Measured 10-19 on this host (`gemma-4-e2b-it-4bit`, temp 0), two turns on ONE session,
+# before the fix:
 #
-#   grammar turn (`response_format: json_object`) max_tokens=60 -> completion=19, finish=stop
-#   next turn, plain text                              max_tokens=8  -> completion=60, finish=length
-#   tool turn (`tools[]`, calls returned)             max_tokens=60 -> completion=28, finish=tool_calls
-#   next turn, plain text                              max_tokens=8  -> completion=60, finish=length
+#   grammar turn (`response_format: json_object`) max_tokens=64 -> completion=19, finish=stop
+#   next turn, plain text                              max_tokens=8  -> completion=64, finish=length
+#   tool turn (`tools[]`, calls returned)             max_tokens=64 -> completion=28, finish=tool_calls
+#   next turn, plain text                              max_tokens=8  -> completion=64, finish=length
 #   control, no guided turn first in the session:     max_tokens=60 -> 60, max_tokens=8 -> 8
 #
-# The turn that follows a grammar- or tool-constrained turn therefore runs with the
-# PREVIOUS turn's `max_tokens`: the client asked for 8, paid for 60, and the same response
-# body contradicts itself (`usage.completion_tokens=60` against `max_tokens=8`) — invariant 2
-# and the "a knob the wire accepts must reach the engine" rule. The wire is not where it is
-# lost (`max_tokens` is resolved per request at Handlers/ChatHandler.swift:582-583 and
-# threaded into `GenerateParameters` at Engine/MLXBridge.swift:954), so the stale budget is
-# left behind by the guided/tool path and picked up by the next turn on the conversation.
-# Root cause unresolved — AGENTS.md §Open carries this repro until the fix lands, and
-# `probe_xfail` turns XPASS (defect gone) into a failure so the exception cannot outlive it.
-probe_section "7 — the turn after a guided turn must obey its own budget (known open)"
+# The client asked for 8, paid for 64, and the same response body contradicted itself
+# (`usage.completion_tokens=64` against `max_tokens=8`) — invariant 2 and "a knob the wire
+# accepts must reach the engine". The wire is not where it was lost (`max_tokens` is
+# resolved per request at Handlers/ChatHandler.swift:582-583 and threaded into
+# `GenerateParameters` at Engine/MLXBridge.swift:954), and the follow-up turn's own log said
+# `wireMaxTokens=8` / `Generation budget: maxTokens=8`.
+#
+# Root cause, and why only the guided/tool session leaked: sampling lives on the
+# `ChatSession`, not on the call — mlx-swift-lm declares `public var generateParameters`
+# (ChatSession.swift:370) and `streamMap` captures that stored property when the stream
+# starts (ChatSession.swift:981-987), so `streamDetails(to:)` carries no parameters at all. A pooled session
+# reused on the next turn therefore generates under whatever budget it was created with.
+# Plain turns mask this: they park a transcript in the pool, so their successor fails
+# `MLXSessionPool.canReusePooledSession` and gets a clean session; a guided/MTP turn
+# releases with `assistantMessage: nil`, which parks an *empty* transcript — and an empty
+# transcript reuses against anything.
+#
+# Fix: `MLXSessionPool.acquire` refreshes the reused session's `generateParameters` from
+# this turn's request before handing it back (cache-affecting fields stay upstream's job:
+# ChatSession.swift:1052-1067 rebuilds from its retained transcript when the plan moves).
+# Unit gate: Tests/ocoreaiTests/PooledParameterDriftTests.swift (field set + the site).
+# This section is that gate's live half: delete the refresh and §7 goes red twice.
+probe_section "7 — a turn obeys its own budget after a guided turn on the same session"
 JSON_ONLY=',"response_format":{"type":"json_object"}'
 
 # budget_after LABEL PRIOR_EXTRA PRIOR_MAX PRIOR_PROMPT — a guided turn, then a plain turn
@@ -498,9 +511,9 @@ budget_after() {
   if [ "$STATUS" != "200" ]; then
     probe_fail "$lab: the follow-up turn answered $STATUS — $(printf %.200s "$BODY")"
   elif [ "$(budget_class "$tight" "$COMPLETION")" = "over" ]; then
-    probe_xfail open "$lab: max_tokens=$tight delivered completion_tokens=$COMPLETION (the guided turn before it asked for $prior_max) — budget left behind by a guided turn, AGENTS.md §Open"
+    probe_fail "$lab: max_tokens=$tight delivered completion_tokens=$COMPLETION (the guided turn before it asked for $prior_max) — a reused pooled session served this turn under the previous turn's budget"
   else
-    probe_xfail fixed "$lab: max_tokens=$tight delivered $COMPLETION — the leak no longer reproduces, so delete this xfail and close the §Open item"
+    probe_ok "$lab: max_tokens=$tight delivered $COMPLETION — the second turn on this session obeyed its own budget"
   fi
 }
 

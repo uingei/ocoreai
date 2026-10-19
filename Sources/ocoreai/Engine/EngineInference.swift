@@ -1914,6 +1914,19 @@ extension EnginePool {
                 )
             },
         )
+        // The other half of the `max_tokens` audit: the handler line says what the client
+        // asked (`wireMaxTokens=`), this one says what generation was actually handed. When
+        // the two disagree, the drop is between them; when they agree and the response still
+        // overshoots, the budget came in beside the call — on the pooled session this turn
+        // reused. Measured 10-19 exactly that way (asked 8, spent 64, both lines said 8);
+        // `MLXSessionPool.acquire` now refreshes the reused session's parameters and logs the
+        // override, and probe 14 §7 fails the run if a turn spends more than it asked for.
+        let engineMaxTokens: String = genParams.maxTokens.map { String($0) } ?? "unlimited"
+        let optionsMaxTokens: String = options.maxTokens.map { String($0) } ?? "nil"
+        let guidedThisTurn: String = options.grammarSchema == nil ? "no" : "yes"
+        logger.info(
+            "Generation budget: maxTokens=\(engineMaxTokens) optionsMaxTokens=\(optionsMaxTokens) guided=\(guidedThisTurn)"
+        )
 
         // Build speculative decoding config once before inference body.
         // CPU channel: disable session pool + speculative decoding (no shared memory, no Metal kernel).

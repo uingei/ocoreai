@@ -433,7 +433,8 @@ func chatCompletionsHandler(
             messages: fullMessages,
             promptTokens: promptTokenCount,
             enableReasoning: request.reasoning,
-            declaredToolCount: request.tools?.count ?? 0)
+            declaredToolCount: request.tools?.count ?? 0,
+            wireOutputBudget: request.maxCompletionTokens ?? request.maxTokens)
 
         /// Phase 3.5: Enforce per-model context window cap (omlx max_context_window).
         /// When a per-model `max_context_window` is configured and the estimated

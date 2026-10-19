@@ -334,7 +334,8 @@ func anthropicMessagesHandler(
         messages: fullMessages,
         promptTokens: inputTokenCount,
         enableReasoning: inferenceOpts.enableReasoning,
-        declaredToolCount: declaredTools?.count ?? 0)
+        declaredToolCount: declaredTools?.count ?? 0,
+        wireOutputBudget: request.maxTokens)
 
     // ═══════════════════════════════════════════════════════
     // Phase 4: Dispatch to stream OR non-stream
