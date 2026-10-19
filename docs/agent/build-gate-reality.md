@@ -114,3 +114,25 @@ live assertion about the pair (`scripts/probes/`), not a test of the handler alo
 <!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml:221-229 Status: -->
 <!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml:250 xcodebuild build-for-testing -->
 <!-- anchor:mlx-swift Source/MLX/GPU+Metal.swift:54-55 metallib load path -->
+
+## 本地全量到底能不能跑（moved out of AGENTS.md 10-19(续3), byte ratchet）
+
+the full suite **does** run on this host — ~2.7k tests / ~480 suites on the CLT route (`make test-clt`).
+The blocker was the **agent sandbox**, never the platform, metallib or macOS 26: inside it MLX logs
+`No Metal device available` and the first MLX suite dies. And `ocoreai serve` + live `curl` on `/v1/*` work
+locally — the loop that caught defects no static audit here had (see «The four defects the live loop caught»).
+**Prefer a live check over an inference whenever a claim is about behaviour.**
+
+## CoreAI 约束解码：本机永不可运行的那一段（moved out of AGENTS.md 10-19(续3), byte ratchet）
+
+`Engine/CoreAI` 的 `_applyBitmask`（`EngineInference.swift:1374`）有两处与自己的文档相反：
+
+1. 文档写「disallowed tokens → -inf」，代码却是 `Float.leastNormalMagnitude * -1` ≈ −1.18e-38 —— 在加法掩码下
+   几乎等于 0，等于没掩：被禁的 token 仍以接近原值参加 softmax。
+2. 循环内 `guard tokenIdx < vocabSize, tokenIdx < logits.count else { return }` 在**首个越界索引**处整个函数返回，
+   跳过其后所有掩码字（正确语义是 `continue`）。
+
+唯一调用点是 `@available(macOS 27.0,*)` 的 `_runConstrainedDecoding`（定义 :1081、掩码调用 :1223）。CLT SDK 无 CoreAI，
+macOS 26 既编不进也跑不了这段 ⇒ 改法虽然显然（`-Float.infinity` + `continue`），在 macOS 27 上真跑通之前不臆修、
+不宣称已修（AGENTS.md §Open 的同名条目只留判据与指针）。门：`V1EndpointCatalogTests` 那套自带地板的源码扫描风格
+适合它，但断言的是一处不可运行的代码 —— 需要 CI 的 macOS 27 leg 才能长出真正的行为门。
