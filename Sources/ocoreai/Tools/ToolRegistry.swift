@@ -490,10 +490,17 @@ actor ToolRegistry {
     ///   - name: Tool name to invoke
     ///   - arguments: JSON-encoded argument string
     ///   - caller: Optional caller identity for audit trail (default: "unknown")
+    ///   - conversationKey: The conversation that owns this call, when the caller has one —
+    ///     the exact string ``SteerQueue`` is keyed by, published to
+    ///     ``ToolInvocationContext/conversationKey`` for the duration of the handler so a
+    ///     waiting tool can tell whose input may end its wait. `nil` (an inbound MCP
+    ///     `tools/call`, a proactive GUI read, a unit harness) means no conversation owns it,
+    ///     and the tool must not claim session-scoped behaviour.
     /// - Returns: Tool result string
     /// - Throws: ``ToolError`` on validation or execution failure
     func call(
-        _ name: String, arguments: String, caller: String = "unknown", headless: Bool = false
+        _ name: String, arguments: String, caller: String = "unknown", headless: Bool = false,
+        conversationKey: String? = nil
     ) async throws -> String {
         // 0a. Exec-host state guard (absorbs codex #41454): a blocked exec host
         //      is refused BEFORE any hook/approval — asking the user for a call
@@ -542,7 +549,15 @@ actor ToolRegistry {
         //    failure paths, so an observation hook can log both outcomes (codex
         //    semantics — hooks are observation-only here; the verdict is ignored).
         do {
-            let result = try await entry.handler(arguments)
+            // The owning conversation travels here and nowhere else: one task local, set at
+            // the single chokepoint every dispatch goes through, so a tool that waits can ask
+            // "is input pending for THIS turn?" without inventing a second identity (codex
+            // #55644 — input injected before a wait must still interrupt it).
+            let result = try await ToolInvocationContext.$conversationKey.withValue(
+                conversationKey
+            ) {
+                try await entry.handler(arguments)
+            }
             recordExecution(name, hash: inputHash)
             // Exec-breaker reset (codex #41454: any successful tool clears the
             // streak in the turn). Success of ANY tool — not just the exec

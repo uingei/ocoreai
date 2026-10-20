@@ -10,6 +10,9 @@
 ///              + `ClockSleep.outOfRange`(拒绝报告精确形态)
 ///              + `SleepClient.runForTool` fake backend 不真等即返回(12h 上限也可触发)。
 ///
+/// 唤醒面(谁能结束等待、会话键怎么传到工具、真时钟下的轮询节拍)= `SleepSteerWakeTests`,
+/// 本文件只管时长与报告形态。
+///
 /// 基准: codex `core/src/tools/handlers/current_time.rs` + `sleep.rs`(0.150.1 HEAD 逐行对齐)。
 
 import Foundation
@@ -24,13 +27,26 @@ struct FixedClock: ClockTimeProvider {
 }
 
 /// 文件级假 sleep 后端 — 记录被请求的时长, 不真等(12h 上限可安全触发, 不拖慢 CI)。
+///
+/// 契约照搬 `SystemSleepBackend`: 第一刀之前先查一次 `wakeCheck`, 命中即 `.interrupted`
+/// (codex #55644 那一格)。`checks` 记下 consult 次数, 让「先查再睡」离线可断言,
+/// 不依赖真时钟。
 struct FakeSleepBackend: SleepBackend {
     let requested: RefBox<[Int]>
-    init(requested: RefBox<[Int]> = RefBox<[Int]>([])) {
+    let checks: RefBox<Int>
+    init(
+        requested: RefBox<[Int]> = RefBox<[Int]>([]),
+        checks: RefBox<Int> = RefBox<Int>(0)
+    ) {
         self.requested = requested
+        self.checks = checks
     }
-    nonisolated func sleep(milliseconds: Int) async {
+    nonisolated func sleep(
+        milliseconds: Int, wakeCheck: @escaping @Sendable () -> Bool
+    ) async -> SleepOutcome {
+        checks.value += 1
         requested.value.append(milliseconds)
+        return wakeCheck() ? .interrupted : .completed
     }
 }
 
@@ -113,14 +129,15 @@ struct SleepReportTests {
     @Test
     func exactReportShape() {
         #expect(
-            ClockSleep.report(elapsedSeconds: 1.2345)
+            ClockSleep.report(elapsedSeconds: 1.2345, outcome: .completed)
                 == "Wall time: 1.2345 seconds\nSleep completed.")
     }
 
     @Test
     func zeroElapsed() {
         #expect(
-            ClockSleep.report(elapsedSeconds: 0) == "Wall time: 0.0000 seconds\nSleep completed.")
+            ClockSleep.report(elapsedSeconds: 0, outcome: .completed)
+                == "Wall time: 0.0000 seconds\nSleep completed.")
     }
 
     @Test
@@ -152,9 +169,13 @@ struct SleepClientTests {
     @Test
     func runForToolSleepsRequestedMsThenReports() async {
         let req = RefBox<[Int]>([])
+        let checks = RefBox<Int>(0)
         let out = await SleepClient.runForTool(
-            durationMs: 120, backend: FakeSleepBackend(requested: req))
+            durationMs: 120, wakeCheck: SleepWake.never,
+            backend: FakeSleepBackend(requested: req, checks: checks))
         #expect(req.value == [120])
+        // 等待必须查过一次唤醒条件: 一次都不查 = 这个 backend 根本没接转向。
+        #expect(checks.value == 1, "the seam consulted the wake condition \(checks.value) time(s)")
         #expect(out.hasPrefix("Wall time: "))
         #expect(out.hasSuffix("seconds\nSleep completed."))
     }
@@ -164,7 +185,8 @@ struct SleepClientTests {
         // 12h 上限经 fake backend 离线触发 — 不真等, 断言请求值精确。
         let req = RefBox<[Int]>([])
         let out = await SleepClient.runForTool(
-            durationMs: 43_200_000, backend: FakeSleepBackend(requested: req))
+            durationMs: 43_200_000, wakeCheck: SleepWake.never,
+            backend: FakeSleepBackend(requested: req))
         #expect(req.value == [43_200_000])
         #expect(out.contains("Sleep completed."))
     }
@@ -173,7 +195,8 @@ struct SleepClientTests {
     func outOfRangeReturnsErrorWithoutSleeping() async {
         let req = RefBox<[Int]>([])
         let backend = FakeSleepBackend(requested: req)
-        let out = await SleepClient.runForTool(durationMs: 43_200_001, backend: backend)
+        let out = await SleepClient.runForTool(
+            durationMs: 43_200_001, wakeCheck: SleepWake.never, backend: backend)
         #expect(req.value.isEmpty)
         #expect(out == "sleep: error: duration_ms must be between 1 and 43200000 (got 43200001)")
     }

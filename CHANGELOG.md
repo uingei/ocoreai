@@ -2,7 +2,21 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-10-20
+## [Unreleased] — 2026-09-05 → 2026-10-21
+**10-21 `clock.sleep` 第一次能被本会话的输入叫醒：形状不迁移，缺的那块是身份**(P0 上游偏离 / P1 执行链) — codex `305db3808c`(#55644，10-20 17:50；已在 clone HEAD 的祖先链上) "Make pending injections interrupt agent waits and sleep"：`codex-rs/core/src/session/input_queue.rs:93` 新增 `has_pending_injection`，注入时置位(`:380`)、投喂时连 items 一起 `std::mem::take` 清零(`:401`)、等待循环读它(`:482`)。一句话 = 排在 wait **开始之前**的输入也必须结束这场等待；已被消费掉的输入不得再去叫醒后面的等待。
+
+- **形状不迁移**：codex 需要一个标志位，因为它的 `TurnInputQueue` 同时装着 notifying injection 和 passive context，只有前者该打断。我们 `SteerQueue` 的全部生产者都是真转向（三处：`/v1/steer` `Router/ChatCompletionsRouter.swift:552`、GUI composer `UI/ViewModels/ChatViewModel.swift:203`、轮次失败回灌 `Handlers/ChatHandler.swift:852`）⇒ 没有 passive 混进来，标志位是多余的。另一半形状差异：codex 在 activity 订阅上等**变化**，我们读 `pendingCount(sessionKey:)` 的**当前深度** ⇒「等待开始前已入队」那一格天然覆盖，代价是 100 ms 节拍轮询（AGENTS.md 并发条：轮询循环只睡一个间隔，绝不睡到 deadline；先例 `EnginePoolLoadingGateTests`，反例 `waitForLoading` 曾把 8 s 的模型等成 120 s）。
+
+- **这一刀真正缺的是身份**：`sleep` 要回答「谁的输入能结束我的等待」，而工具处理器签名 `(String) async throws -> String` 不带会话——早先这份工具诚实写着「无同形状信号，不宣称提前中断」。新增 `Tools/ToolInvocationContext.swift`（`@TaskLocal conversationKey`），**唯一设值点** = `ToolRegistry.call(..., conversationKey:)`，也就是所有投喂共同穿过的那一个咽喉；调用方交出自己已经持有的键，任何工具都不许从 model id / env / 进程级标志再推一套第二身份。全仓 6 处活 `registry.call`：引擎两条投喂路交键（`EngineInference.swift:2973` 标准路、`:4037` MTP 路，正是 `SteerQueue.drain` 的两个宿主），其余 4 处留 nil（`FMToolBridge.swift:100`、`MCPTools.swift:65`、`MCPServer.swift:154`、`ProactiveActionExecutor.swift:43`）⇒ 按不变量 2 睡满全程并报 `Sleep completed.`，不宣称打断。
+
+- **词必须来自实测**：`ClockSleep.report(elapsedSeconds:outcome:)` 的 `outcome` **没有默认值**——给一个 `.completed` 默认 = 任何忘记传终局的调用方都默认谎称睡满，那是比实际更短的等待。工具描述同步改写，两个终局各报什么写清楚；`SystemSleepBackend` 睡满之后不再回头看 `wakeCheck`（最后一刀里才到的转向照旧走正常 steer 缝进下一轮）。
+
+- **红样实测（三条，逐条只红该红的）**：① 把 `wakeCheck` 从「每刀之前」挪到「每刀之后」⇒ 只红 1 条（`先查后睡`：实测 102 ms vs 界 50 ms），其余 31 条绿——这条界就是专门用来区分「先查」与「先睡」的；② 拆掉 `ToolRegistry.call` 里的 `withValue` ⇒ 红 3 条，其中端到端那条真睡了 **30.969 s** 并答出 `Sleep completed.`，正是这条线上最坏的失败形状；③ 标准路不交键 ⇒ 静态门红 2 条（`lanes.count == 2` 与该窗口内的 `conversationKey:`）。绿样：**32 tests / 11 suites / 0 失败**（`--filter 'Sleep|Clock|ToolInvocation|EngineToolLanes'`，1.035 s）。门 = 新 `Tests/ocoreaiTests/SleepSteerWakeTests.swift`（正向×2、反向、隔离、缺席、真时钟节拍×5、chokepoint 传播×3、线上词形×2、静态接线×1）+ `ClockToolsTests` 改 4 处（终局词、`checks == 1`：一次都不查 = 这个 backend 根本没接转向）。
+
+- **这道门自己被自己的前提咬了一口（记下来）**：静态接线门最初找子串 `registry.call(`，只数到 1 条——MTP 路写的是 `toolRegistry?.call(`，那个 `?`（以及大写 R）让子串漏匹配。若断言当初写成 `>= 1`，「少扫一条投喂路」会永久伪装成正常；写成 `== 2` 才把它逼出来，随后改成正则 `[A-Za-z]*[Rr]egistry\??\.call\(`（不变量 1 的又一例：扫描必须钉住自己的命中数）。
+
+- **未验（写出来而不是藏起来）**：链路只证到「工具面 + 引擎两条投喂路的接线 + 真时钟节拍」，**没有**一次真模型端到端（要模型自己决定调 `sleep`，本机没有稳定复现路径）⇒ 登记 open，不宣称已交付到线上；GUI 侧同样零验证（既有 open 项）。FoundationModels 路是**故意**不接：那一轮内没有 steer 排空点，叫醒它只会报一个模型永远读不到的中断——那种「打断」比不打断更坏。
+
 **10-20(续23) codex +5 窗口：一条不变量跨语言落地，顺带把「注释里声称的测试」变成一道门**(P0 上游偏离 / P3 可观测性) — `e1b9c9457..fa71afc8a7` = 5 条 subject 全读，其中 2 条读到 diff（#55581、#55587）；本轮改代码 1 处、新增门 2 道、登记待判 1 条、N/A 2 条。
 
 - **#55581 `e8aa7c1678`（唯一改本地代码的一条）**：codex 把 `oneshot` 接收端在 `try_recv` **之前**先 `take()` 出状态，只在 `Empty` 时放回、`Closed` 时丢弃——一个已 closed 的接收端若留在 session state 里，下一次 `await` 直接 panic 而不是回落到前台压缩。**形状不迁移**（Rust 的 receiver 可消费，Swift 的 `CheckedContinuation` 不可；我们的续体存在字典里，靠「先离开容器再 resume」保 exactly-once），**不变量迁移**：一次性的等待者必须先离开状态再被消费，且归还类操作不能凭空造出许可。逐条量自家的存量续体点：`Agents/Approval.swift:189`（`removeValue` → resume ✓）、`HearingEngineProbe`（exactly-once `ProbeLanding` + deadline ✓）、`SessionWorkspace`/`ExecTools`（栈局部 ✓）。

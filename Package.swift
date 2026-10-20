@@ -71,10 +71,10 @@ let package = Package(
         // goes red when an edit moves one, instead of a cite drifting 214 lines as this
         // one did; DependencyPinStatementTests re-greps Sources and fails when this audit
         // stops being the set the code actually reaches.
-        // anchor:. Sources/ocoreai/Engine/EngineInference.swift:3511 asArray(Int32.self)
-        // anchor:. Sources/ocoreai/Engine/EngineInference.swift:3558 Stream.gpu.synchronize
-        // anchor:. Sources/ocoreai/Engine/EngineInference.swift:3771 asArray(Int32.self)
-        // anchor:. Sources/ocoreai/Engine/EngineInference.swift:4918 asArray(Int.self)
+        // anchor:. Sources/ocoreai/Engine/EngineInference.swift:3512 asArray(Int32.self)
+        // anchor:. Sources/ocoreai/Engine/EngineInference.swift:3559 Stream.gpu.synchronize
+        // anchor:. Sources/ocoreai/Engine/EngineInference.swift:3772 asArray(Int32.self)
+        // anchor:. Sources/ocoreai/Engine/EngineInference.swift:4920 asArray(Int.self)
         // anchor:. Sources/ocoreai/Engine/EngineInferenceSupport.swift:153 MLXArray
         // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1214 MLXArray(
         // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1220 MLXArray.zeros

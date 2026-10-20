@@ -2974,7 +2974,8 @@ extension EnginePool {
                             toolCall.function.name,
                             arguments: jsonArgs,
                             caller: "mlx_engine",
-                            headless: headless
+                            headless: headless,
+                            conversationKey: convKey
                         )
                     } catch let error as ToolError {
                         logger.warning(
@@ -4034,7 +4035,8 @@ extension EnginePool {
                                         decoding: jsonEncoded, as: UTF8.self)
                                     result =
                                         try await toolRegistry?.call(
-                                            toolCall.function.name, arguments: argsString)
+                                            toolCall.function.name, arguments: argsString,
+                                            conversationKey: convKey)
                                         ?? "[\(toolCall.function.name): tool registry not available]"
                                 }
                             } catch {
