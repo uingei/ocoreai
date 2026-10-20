@@ -33,11 +33,46 @@ public struct ThirdPartyNoticesManifest: Codable, Sendable {
         public let upstream: String
         public let license: String
         public let licenseFile: String
+        /// sha256 of `licenseFile` as committed — the bytes the product ships.
+        public let licenseSha256: String?
+        /// Upstream revision the shipped text was byte-compared against. Nil when the
+        /// reference clone was not present at collection time: it is host-local, so the
+        /// collector records the absence instead of guessing a SHA.
+        public let pin: String?
+        /// Did upstream's `LICENSE` at `pin` hash to the same bytes we ship?
+        public let verifiedAgainstPin: Bool?
+    }
+
+    /// A third-party file vendored into the source tree — redistributed, but not a
+    /// SwiftPM dependency, so no pin or checkout exists to re-resolve it against.
+    public struct Vendored: Codable, Sendable, Hashable {
+        public let file: String
+        public let upstream: String
+        public let license: String
+        public let holder: String
+        public let textFile: String
+        public let sha256: String?
     }
 
     public let schemaVersion: Int
     public let apple: Apple
     public let dependencies: [ThirdPartyLicenseEntry]
+    /// Empty when the manifest predates schema 2. Absent must not read as "this build
+    /// ships no vendored code" — that is the same absence-vs-falsehood distinction the
+    /// encode side of `toolProse` had to get right.
+    public let vendored: [Vendored]
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, apple, dependencies, vendored
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        apple = try container.decode(Apple.self, forKey: .apple)
+        dependencies = try container.decode([ThirdPartyLicenseEntry].self, forKey: .dependencies)
+        vendored = try container.decodeIfPresent([Vendored].self, forKey: .vendored) ?? []
+    }
 }
 
 public enum ThirdPartyNotices {
@@ -65,6 +100,13 @@ public enum ThirdPartyNotices {
     public static var appleLicenseText: String? {
         guard let apple = manifest?.apple else { return nil }
         return text(named: apple.licenseFile)
+    }
+
+    /// Verbatim upstream license text for one vendored file, nil when not bundled.
+    public static func vendoredLicenseText(
+        for entry: ThirdPartyNoticesManifest.Vendored
+    ) -> String? {
+        text(named: entry.textFile)
     }
 
     private static func text(named file: String) -> String? {

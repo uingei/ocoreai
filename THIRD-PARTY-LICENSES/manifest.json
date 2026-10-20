@@ -2,7 +2,10 @@
   "apple": {
     "license": "BSD-3-Clause",
     "licenseFile": "Apple-coreai-models.txt",
-    "upstream": "apple/coreai-models"
+    "licenseSha256": "0ce5470a3d6a7c2a2d28b3effa68a6298a56e092da1c166bd0eba977f6e075ab",
+    "pin": "9e120659a5643ad77f09125ba75eb6c9291e6ef4",
+    "upstream": "apple/coreai-models",
+    "verifiedAgainstPin": true
   },
   "dependencies": [
     {
@@ -244,5 +247,15 @@
       "textFile": "yyjson.txt"
     }
   ],
-  "schemaVersion": 1
+  "schemaVersion": 2,
+  "vendored": [
+    {
+      "file": "Sources/lib/CXGrammar/include/dlpack/dlpack.h",
+      "holder": "Copyright (c) 2017 by Contributors",
+      "license": "Apache-2.0",
+      "sha256": "701e24d408eed779b36abef036f20f3f515e7a42f56d2f21a98a7882939bc4e7",
+      "textFile": "Vendored-dlpack-Apache-2.0.txt",
+      "upstream": "dmlc/dlpack"
+    }
+  ]
 }

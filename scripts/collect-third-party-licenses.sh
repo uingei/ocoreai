@@ -45,7 +45,7 @@ if [ -z "$BUILD" ]; then
   exit 1
 fi
 python3 - "$BUILD" "$OUT" <<'PY'
-import glob, json, os, re, subprocess, sys
+import glob, hashlib, json, os, re, subprocess, sys
 build, out = sys.argv[1], sys.argv[2]
 res = json.load(open("Package.resolved"))
 pins = {}
@@ -167,22 +167,73 @@ lines.append("## 5. Apple frameworks (CoreAI etc.)\n")
 lines.append("- System frameworks are linked at runtime by the OS and are not redistributed with this app; they are subject to Apple's platform terms.\n")
 open(os.path.join(out,"NOTICES.md"),"w",encoding="utf-8").write("\n".join(lines)+"\n")
 miss=[n for n,v,k,f,u in rows if f=="(not collected)"]
+def sha256(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+# Which upstream revision does the shipped Apple text correspond to? The reference clone
+# is host-local (absent on CI and in a fresh clone), so the pin is recorded when the
+# clone can answer and null when it cannot -- never guessed. `git show <pin>:LICENSE`
+# re-opens that exact tree, so the byte-identity claim survives after the clone's HEAD
+# moves on, which is exactly what a bare "verified at collection time" could not do.
+# Borrowed from harness2's third_party/PROVENANCE.md + dependencies/ASSETS.json habit:
+# vendored bytes carry their source and a hash, and a script re-checks them.
+apple_pin, apple_match = None, None
+apple_file = os.path.join(out, "Apple-coreai-models.txt")
+for cand in (os.path.expanduser("~/references/coreai-models"), "coreai-models"):
+    if not os.path.isdir(os.path.join(cand, ".git")):
+        continue
+    head = subprocess.run(["git", "-C", cand, "rev-parse", "HEAD"],
+                          capture_output=True, text=True).stdout.strip()
+    upstream_text = subprocess.run(["git", "-C", cand, "show", "%s:LICENSE" % head],
+                                   capture_output=True)
+    if not head or upstream_text.returncode != 0:
+        continue
+    apple_pin = head
+    apple_match = hashlib.sha256(upstream_text.stdout).hexdigest() == sha256(apple_file)
+    break
+
 manifest = {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "apple": {
         "upstream": "apple/coreai-models",
         "license": "BSD-3-Clause",
         "licenseFile": "Apple-coreai-models.txt",
+        "licenseSha256": sha256(apple_file) if os.path.exists(apple_file) else None,
+        "verifiedAgainstPin": apple_match,
+        "pin": apple_pin,
     },
     "dependencies": [
         {"name": n, "pin": v, "license": k, "textFile": f, "repository": u}
         for n, v, k, f, u in rows
     ],
+    # Vendored bytes are the redistribution this repo hand-carries: no SwiftPM pin, no
+    # checkout, nothing upstream to re-resolve them against. Until now the manifest
+    # described only Apple + dependencies, so the machine-readable index omitted the
+    # Apache-2.0 header the product ships (NOTICES.md listed it; manifest.json did not),
+    # and the GUI showed neither.
+    "vendored": [
+        {
+            "file": p,
+            "upstream": upstream,
+            "license": spdx,
+            "holder": holder,
+            "textFile": tf,
+            "sha256": sha256(p) if os.path.exists(p) else None,
+        }
+        for p, (upstream, spdx, holder, tf) in sorted(vendored.items())
+    ],
 }
 with open(os.path.join(out, "manifest.json"), "w", encoding="utf-8") as fh:
     json.dump(manifest, fh, indent=2, sort_keys=True)
     fh.write("\n")
-print("deps=%d  texts_written=%d  missing=%s  apple_derived_files=%d  naming_coreai=%d" % (len(rows), wrote, miss or "none", apple_count, named_coreai))
+print("deps=%d  texts_written=%d  missing=%s  apple_derived_files=%d  naming_coreai=%d"
+      % (len(rows), wrote, miss or "none", apple_count, named_coreai))
+print("provenance: apple_pin=%s  byte_identical_at_pin=%s  vendored=%d"
+      % (apple_pin or "<clone not present>", apple_match, len(vendored)))
 # Gate: BSD-3 clause 2 / Apache-2.0 4 require the text to travel with the
 # distribution, so a dependency without a collected text is a build failure,
 # not a footnote -- a silent gap here is a license violation users cannot see.
