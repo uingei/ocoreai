@@ -36,7 +36,9 @@ Direct SwiftPM build, no `.xcodeproj` (the test gate runs through the SPM `ocore
 **Headless HTTP entry: `ocoreai serve`** (`swift run ocoreai serve`, or the built binary directly) — boots the engine + bridge on `127.0.0.1:8080` with no GUI/WindowServer session. Shutdown: `SIGTERM` or closing stdin drains the engine (≤30s) then exits clean; `SIGINT` keeps default terminal behavior. Bare `ocoreai` launches the GUI as before. Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显式 opt-in — 终端运行 `OCOREAI_ENABLE_HTTP=1 /Applications/ocoreai.app/Contents/MacOS/ocoreai`（实证：bridge 日志出现 + `/health` 200 + `/v1/chat/completions` 推理闭环）。无头启动走 `ocoreai serve`：引擎 + 桥绑定 `127.0.0.1:8080`，无需窗口会话；`SIGTERM` 或关闭 stdin 触发优雅退出（引擎排空 ≤30s），`SIGINT` 保持终端默认行为。
 
-> ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. **Auth is off unless** the `OCOREAI_API_KEYS` env var is set; **no TLS**. Built-in token-bucket rate limiting is on (200 req/s global).
+> ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. **Auth is off unless** the `OCOREAI_API_KEYS` env var is set; **no TLS**. Token-bucket rate limiting is on by default: global **200 req/s** (burst 300), per-model 30/s (burst 45), per-IP 20/s (burst 30) — set once at `App.swift:701`, enforced by `Middleware/RateLimitMiddleware.swift`.
+<!-- claim:global_rate_set=1 :: grep -c 'globalRate: 200' Sources/ocoreai/App.swift -->
+<!-- anchor:. Sources/ocoreai/App.swift:701 globalRate: 200 -->
 
 > 🛠️ **Dev release** — This is a development build. Production use requires additional hardening (see Security section below).
 
@@ -65,7 +67,7 @@ Known boundaries (as of this commit, not aspirations):
 - **Perception & TTS are off by default** — per-channel toggles in Settings; camera/screen/speaker also need OS permissions.
 - **TTS/STT require microphone permission**; screen capture is macOS-only.
 - **i18n**: en + zh-Hans shipped (full tables); ja/ko/fr/es defined in `OCALocale` but not in `availableLocales` (no table yet).
-- **CI**: both the macOS-26 and xcode-27 legs pass (last green run `deee580`). macOS-26 is the delivery gate.
+- **CI**: six legs — `governance` (ubuntu-latest), `audit` (macos-26: static audit, docs contract, line-cite anchors, toolchain contract, resolved-sync, swift-format, secret scan), `build-and-test` (matrix `macos-26` + `xcode-27`), `release` (macos-26 DMG), `build-appstore` (macos-26), `build-ios` (macos-26). **macOS-26 is the delivery gate.** This file states which legs exist, not whether they are green: a SHA-pinned "last green" claim rots on the next push and cannot be re-checked from a clone — the sentence this one replaces said both legs pass, while `README.zh.md` called `xcode-27` red in one bullet and green in another. Live status = the badge above and the run for this SHA; per-item verdicts = `CHANGELOG.md`.
 - **Status rows that were ✅ by code audit do not guarantee runtime behavior** — treat as "implemented in source", verified where a test exists.
 
 **Direction** — an agent for open models, natively local, built for creativity, work, and code; a complete agentic system designed for coding and knowledge work. **Coding** is the deepest slice: a Coding/Computer Agent that reliably completes multi-step engineering tasks on-device (**Execute** → **Verify** → **Recover**). Creativity (Apple-native perception/multimodal) and knowledge work (research, reading, writing) are first-class product surfaces, not afterthoughts. Inference stays upstream (MLX / CoreAI); ocoreai is the reliable execution layer above it — follow upstream, don't compete.
@@ -95,9 +97,11 @@ Known boundaries (as of this commit, not aspirations):
 | `DELETE` | `/v1/models/sampling` | Reset all sampling |
 | `GET`  | `/v1/models/:model/kv-cache` | KV cache report for a loaded model |
 | `POST` | `/v1/models/download` | Download from ModelScope / HuggingFace |
+| `POST` | `/v1/audio/transcriptions` | On-device speech-to-text (multipart `file`, or JSON `audio` base64 / `file://` URL; `verbose_json` refused by name, not silently ignored) |
 | `POST` | `/v1/models/train` | LLM training |
 | `POST` | `/v1/models/evaluate` | LLM evaluation |
 | `GET`  | `/v1/stats` | Ops statistics (requests/tokens/duration/TTFB) |
+| `GET`  | `/v1/perception` | Persistent-perception gauge: per channel, user vote vs live engine flag vs actual frame flow (flags + ages, never frame content) |
 | `POST` | `/v1/multimodal/capture` | Capture camera / microphone / screen (`success:true` only with bytes) |
 | `POST` | `/v1/multimodal/speak` | TTS output (needs speaker enabled + an installed voice) |
 | `POST` | `/v1/multimodal/status` | Toggles + measured permissions, device/voice counts, screen delivery evidence, per-channel verdicts |
@@ -112,6 +116,8 @@ Known boundaries (as of this commit, not aspirations):
 | `GET`  | `/metrics` | Prometheus metrics (text format) |
 
 > Public (no auth): `/health`, `/ready`, `/v1/models`, `/v1/tools`, `/v1/capabilities`, `/v1/stats`, `/metrics` — the discovery surface, matching `AuthMiddleware.publicPaths`. Admin key (`OCOREAI_ADMIN_KEYS`) required for all `PATCH`/`DELETE`.
+
+> Everything else needs an API key once `OCOREAI_API_KEYS` is set — **including `GET /v1/perception`**, which is keyed because it is absent from `AuthRoutePolicy.publicPaths`. That set is the one home for this list; P10 of `make docs-check` fails if the two diverge.
 
 > **Measured, never inferred.** `GET /v1/models` carries per-model disclosure keys — `vlm`, `contextLength`, `capabilities`, `videoInput`/`videoEvidence`, `toolCallDelivery`/`toolCallEvidence` (`parsed` | `prose_only` | `not_observed`) — and `GET /v1/capabilities` publishes the same measurements aggregated, plus `tokenizerBackend` (`real`/`heuristic`) and the endpoint index. Nothing is inferred from an architecture name or a linked framework: an unmeasured capability is an explicit `not_observed`/`unknown`, never a silent absence, and unloading a model resets its claims. Model ids contain `/`, so percent-encode them in `/v1/models/:model/…` paths.
 
@@ -153,7 +159,7 @@ memory:
 
 Memory budget auto-detected from `sysctl hw.memsize`; default guard tier is `balanced` = 55% of physical RAM (tiers: safe 40% / balanced 55% / aggressive 75%, custom 20–85%, floor 4 GB). OOMGuard then enforces the downgrade chain 8-bit → 4-bit → refuse (no CPU tier on UMA) — no disk I/O, the correct approach for Apple Silicon UMA.
 
-Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check) and `mlx` (Metal). Default `backend.preference` order is `["coreai", "mlx"]` — first available backend wins (override in `config.yaml`).
+Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check) and `mlx` (Metal). Default `backend.preference` order is `["coreai", "mlx"]` — first available backend wins (override in `~/.ocoreai/config.yaml`).
 
 ---
 
@@ -196,7 +202,7 @@ Supported backends: `coreai` (macOS 27+ SDK, requires `#available` runtime check
 
 Per-feature status with commit refs lives in `CHANGELOG.md` — a pinned ✅ table here would go stale on every commit. What is stable as of this commit:
 
-- **Authoritative gate**: `make test-ci` (xcodebuild → xctest), CI leg `macos-26` — full suite green at `deee580`. Test count 1,852 as of that commit (source: `~/wiki/ocoreai/log.md` — CHANGELOG keeps per-item state, not rolling counts).
+- **Authoritative gate**: the CI `build-and-test` leg on `macos-26` (`make test-ci` → `xcodebuild` → `xctest`). Locally the same suite runs through `make test-clt` — the historical blocker was the agent sandbox, never the platform (`AGENTS.md` § Build / Test / Lint), so a claim about behaviour gets measured here rather than excused as environment noise. No rolling test count: it moves on every commit, and re-counting is one command (`grep -rE '^[[:space:]]*@Test' Tests | wc -l`).
 - **Local builds** compile clean: ocoreai source 0 warnings (dependency-bundle noise aside).
 - **Default-off surfaces** (deliberate, not missing): perception channels, TTS/speaker, self-correction pipeline — see "Known boundaries" above.
 
@@ -214,8 +220,12 @@ MIT — Copyright © 2026 uingei@163.com
 
 MIT covers ocoreai's own code. The product also carries third-party code under its own terms, and those texts travel inside the artifact (`ocoreai.app/Contents/Resources/THIRD-PARTY-LICENSES/`), readable in the GUI under **Settings → About → Third-Party Notices**:
 
-- **Apple-derived source** — BSD-3-Clause. 44 files under `Sources/` retain Apple's copyright notice plus its verbatim BSD-3 header (`git grep -l "Copyright 2026 Apple Inc" -- Sources`; 29 of them name `coreai-models`, the rest are Apple-authored files from other Apple trees), and the verbatim upstream LICENSE ships as `Apple-coreai-models.txt` — byte-compared against upstream at collection time.
-- **34 SwiftPM dependencies** — 29 Apache-2.0 + 5 MIT, full text each; index in `NOTICES.md` / `manifest.json`.
+- **Apple-derived source** — BSD-3-Clause. 44 files under `Sources/` retain Apple's copyright notice plus its verbatim BSD-3 header (`git grep -l "Copyright 2026 Apple Inc" -- Sources`; 29 of them name `coreai-models`, the rest are Apple-authored files from other Apple trees), and the verbatim upstream LICENSE ships as `THIRD-PARTY-LICENSES/Apple-coreai-models.txt` — byte-compared against upstream at collection time.
+<!-- claim:apple_derived_files>=44 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
+<!-- claim:apple_coreai_named>=29 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | xargs grep -l coreai-models | wc -l -->
+- **34 SwiftPM dependencies** — 29 Apache-2.0 + 5 MIT, full text each; index in `THIRD-PARTY-LICENSES/NOTICES.md` / `THIRD-PARTY-LICENSES/manifest.json` (38 files in that directory: 34 dependency texts + Apple + dlpack + `NOTICES.md` + `manifest.json`).
+<!-- claim:spm_deps=34 :: grep -c '"identity" : ' Package.resolved -->
+<!-- claim:notice_files>=38 :: ls THIRD-PARTY-LICENSES | wc -l -->
 - **Vendored header** — `Sources/lib/CXGrammar/include/dlpack/dlpack.h`, from dmlc/dlpack (Apache-2.0); text ships as `Vendored-dlpack-Apache-2.0.txt`. Any header under `Sources/lib/` with another holder must be added to that table — CI Class-I fails otherwise.
 - **openai/codex** — semantic reference only: Rust, never linked, no source redistributed, so no codex license text ships.
 - **Apple system frameworks** — linked by macOS at runtime, not redistributed.

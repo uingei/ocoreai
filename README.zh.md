@@ -30,7 +30,9 @@ swift run ocoreai serve    # headless：引擎 + HTTP 桥，无窗口
 **无头 HTTP 入口：`ocoreai serve`**（`swift run ocoreai serve`，或直接运行构建产物）——引擎 + 桥绑定 `127.0.0.1:8080`，无需窗口/WindowServer 会话。退出语义：`SIGTERM` 或关闭 stdin 触发优雅退出（引擎排空 ≤30s 后干净退出），`SIGINT` 保持终端默认行为。不带参数直接 `ocoreai` 则照常启动 GUI。服务监听 `127.0.0.1:8080`。配置位于 `~/.ocoreai/config.yaml`。
 DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显式 opt-in — 终端运行 `OCOREAI_ENABLE_HTTP=1 /Applications/ocoreai.app/Contents/MacOS/ocoreai`（实证：`/health` 200 + `/v1/chat/completions` 推理闭环）。
 
-> ⚠️ **仅本机访问** — HTTP API 默认绑定 `127.0.0.1`。认证默认关（设 `OCOREAI_API_KEYS` 环境变量开启），无 TLS。内置令牌桶限流默认开（全局 200 次/秒）。
+> ⚠️ **仅本机访问** — HTTP API 默认绑定 `127.0.0.1`。认证默认关（设 `OCOREAI_API_KEYS` 环境变量开启），无 TLS。令牌桶限流默认开：全局 **200 次/秒**（burst 300）、单模型 30/秒（burst 45）、单 IP 20/秒（burst 30）—— 在 `App.swift:701` 一处设定，由 `Middleware/RateLimitMiddleware.swift` 执行。
+<!-- claim:global_rate_set=1 :: grep -c 'globalRate: 200' Sources/ocoreai/App.swift -->
+<!-- anchor:. Sources/ocoreai/App.swift:701 globalRate: 200 -->
 
 > 🛠️ **开发版本** — 此为开发构建。生产使用需要额外加固（见下方 Security 部分）。
 
@@ -52,7 +54,7 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 - **感知与 TTS 默认关闭** — Settings 逐通道开启；摄像头/屏幕/扬声器另需系统权限。
 - **TTS/STT 需麦克风权限**；屏幕捕获仅 macOS。
 - **i18n**：en + zh-Hans 已交付；ja/ko/fr/es 已定义未翻译。
-- **CI**：macOS-26 腿为权威门；xcode-27 腿当前红，失败在上游 mlx-swift-lm pin（非 ocoreai 代码）。
+- **CI**：六条腿 —— `governance`（ubuntu-latest）、`audit`（macos-26：静态审计、文档契约、行锚点、工具链契约、resolved 同步、swift-format、密钥扫描）、`build-and-test`（矩阵 `macos-26` + `xcode-27`）、`release`（macos-26 DMG）、`build-appstore`（macos-26）、`build-ios`（macos-26）。**macOS-26 是交付门。** 本文只陈述「有哪些腿」，不陈述「腿绿不绿」：钉死某个 SHA 的「最后一次全绿」下次 push 就过期，且克隆里无从复核 —— 本文件上方曾说 `xcode-27` 红、下方又说它绿，两句互相矛盾。实时状态看顶部徽章与该 SHA 对应的 run；逐条裁决在 `CHANGELOG.md`。
 - **代码审计 ✅ ≠ 行为验证** — 只说明"源码已实现"，有测试的才算验证过。
 
 **方向** —— 开放模型的 Agent，原生本地，为创作、工作与代码而生；面向编码与知识工作的完整 agentic 系统。**编码是最深切片**：Coding/Computer Agent，让 LLM 在端侧可靠完成多步工程任务（**Execute** → **Verify** → **Recover**）。创作（Apple 原生感知/多模态）与知识工作（检索/阅读/写作）是一等产品面，不是附属。推理归上游（MLX / CoreAI），ocoreai 是其上的可靠执行层 —— 跟齐上游，不与之竞争。
@@ -80,9 +82,11 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 | `DELETE` | `/v1/models/sampling` | 重置全部采样配置 |
 | `GET`  | `/v1/models/:model/kv-cache` | 已加载模型的 KV cache 报告 |
 | `POST` | `/v1/models/download` | 从 ModelScope / HuggingFace 下载 |
+| `POST` | `/v1/audio/transcriptions` | 端侧语音转文字（multipart `file`，或 JSON `audio` base64 / `file://` URL；`verbose_json` 明确拒绝而非静默忽略） |
 | `POST` | `/v1/models/train` | LLM 训练 |
 | `POST` | `/v1/models/evaluate` | LLM 评估 |
 | `GET`  | `/v1/stats` | 运行统计（请求/Token/耗时/TTFB） |
+| `GET`  | `/v1/perception` | 持久感知仪表：逐通道对照 用户投票 vs 引擎实时开关 vs 实际出帧（只出开关与时间，绝不出帧内容） |
 | `POST` | `/v1/multimodal/capture` | 摄像头 / 麦克风 / 录屏捕获（`success:true` 必带数据） |
 | `POST` | `/v1/multimodal/speak` | TTS 输出（需开启喇叭且有已装语音） |
 | `POST` | `/v1/multimodal/status` | 开关 + 实测权限、设备/语音数、屏幕出帧证据、逐通道裁决 |
@@ -97,6 +101,8 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 | `GET`  | `/metrics` | Prometheus 指标（文本格式） |
 
 > 免认证 public 路由：`/health`、`/ready`、`/v1/models`、`/v1/tools`、`/v1/capabilities`、`/v1/stats`、`/metrics`（与 `AuthMiddleware.publicPaths` 一致）。所有 `PATCH`/`DELETE` 需 admin key（`OCOREAI_ADMIN_KEYS`）。
+
+> 其余路由在设了 `OCOREAI_API_KEYS` 之后一律要 API key —— **包括 `GET /v1/perception`**：它不在 `AuthRoutePolicy.publicPaths` 里，所以是带鉴权的。该集合是这份名单的唯一真源，两者分叉时 `make docs-check` 的 P10 会判红。
 
 ---
 
@@ -136,7 +142,7 @@ memory:
 
 显存预算自 `sysctl hw.memsize` 自动检测；默认保护档 `balanced` = 物理 RAM 的 55%（档位：safe 40% / balanced 55% / aggressive 75%，下限 4 GB）。
 
-支持的推理后端：`coreai`（macOS 27+ SDK，需 `#available` 运行时检查）与 `mlx`（Metal）。默认 `backend.preference` 顺序为 `["coreai", "mlx"]` — 取第一个可用后端（可在 `config.yaml` 覆盖）。
+支持的推理后端：`coreai`（macOS 27+ SDK，需 `#available` 运行时检查）与 `mlx`（Metal）。默认 `backend.preference` 顺序为 `["coreai", "mlx"]` — 取第一个可用后端（可在 `~/.ocoreai/config.yaml` 覆盖）。
 
 ---
 
@@ -179,8 +185,8 @@ memory:
 
 逐特性状态 + commit 引用在 `CHANGELOG.md`。截至本 commit 的稳定事实：
 
-- **权威门**：`make test-ci`（xcodebuild → xctest，macOS-26 腿）—— `swift test` 会撞 `.build` metallib 缺失（环境噪声，非真失败），只作增量快筛。全量测试在 `deee580` 全绿；测试计数 1,852（来源：`~/wiki/ocoreai/log.md`）。
-- **CI**：macOS-26 腿与 xcode-27 腿均绿（最后绿 run `deee580`）。`macos-26` 是交付门。
+- **权威门**：CI 的 `build-and-test` 腿（`macos-26`，`make test-ci` → `xcodebuild` → `xctest`）。本机也能跑全量：`make test-clt` —— 历史上的拦路石是 agent 沙箱，从来不是平台（见 `AGENTS.md` § Build / Test / Lint），所以关于行为的结论要实测，不许拿「环境噪声」当免检理由。本文不记滚动测试数：每个 commit 都在动，重数只需一条命令（`grep -rE \'^[[:space:]]*@Test\' Tests | wc -l`）。
+- **CI**：腿的清单见上方 Known boundaries；实时状态看顶部徽章。本文刻意不写「某 SHA 全绿」—— 那句曾在本文件里自相矛盾（一处说 `xcode-27` 红、另一处说绿），而两条都不在克隆里可复核。
 
 ---
 
@@ -197,8 +203,12 @@ MIT — Copyright © 2026 uingei@163.com
 
 MIT 只覆盖 ocoreai 自身代码。产品中携带的第三方代码各自保留其条款，许可全文随产物一同分发（`ocoreai.app/Contents/Resources/THIRD-PARTY-LICENSES/`），并在 GUI 内可直接查看：**设置 → 关于 → 第三方许可**。
 
-- **源自 Apple 的代码** — BSD-3-Clause。`Sources/` 下 44 个文件保留 Apple 版权头及其 BSD-3 声明原文（`git grep -l "Copyright 2026 Apple Inc" -- Sources`；其中 29 个注明 `coreai-models`，其余为来自其他 Apple 代码树的 Apple 原创文件），上游 LICENSE 原文以 `Apple-coreai-models.txt` 打包，收集时已与上游逐字节比对。
-- **34 个 SwiftPM 依赖** — 29 个 Apache-2.0 + 5 个 MIT，逐个附全文；索引见 `NOTICES.md` / `manifest.json`。
+- **源自 Apple 的代码** — BSD-3-Clause。`Sources/` 下 44 个文件保留 Apple 版权头及其 BSD-3 声明原文（`git grep -l "Copyright 2026 Apple Inc" -- Sources`；其中 29 个注明 `coreai-models`，其余为来自其他 Apple 代码树的 Apple 原创文件），上游 LICENSE 原文以 `THIRD-PARTY-LICENSES/Apple-coreai-models.txt` 打包，收集时已与上游逐字节比对。
+<!-- claim:apple_derived_files>=44 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
+<!-- claim:apple_coreai_named>=29 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | xargs grep -l coreai-models | wc -l -->
+- **34 个 SwiftPM 依赖** — 29 个 Apache-2.0 + 5 个 MIT，逐个附全文；索引见 `THIRD-PARTY-LICENSES/NOTICES.md` / `THIRD-PARTY-LICENSES/manifest.json`（该目录共 38 个文件：34 份依赖全文 + Apple + dlpack + `NOTICES.md` + `manifest.json`）。
+<!-- claim:spm_deps=34 :: grep -c '"identity" : ' Package.resolved -->
+<!-- claim:notice_files>=38 :: ls THIRD-PARTY-LICENSES | wc -l -->
 - **随库头文件** — `Sources/lib/CXGrammar/include/dlpack/dlpack.h`，来自 dmlc/dlpack（Apache-2.0），全文以 `Vendored-dlpack-Apache-2.0.txt` 打包。`Sources/lib/` 下任何属于其他权利人的头文件都必须登记进该表，否则 CI 的 Class-I 直接失败。
 - **openai/codex** — 仅作语义参照：Rust 实现、未被链接、不重分发源码，因此不打包其许可文本。
 - **Apple 系统框架** — 由 macOS 运行时链接，不随本应用重分发。

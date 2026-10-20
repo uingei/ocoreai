@@ -20,8 +20,15 @@
 /// - ``GET /v1/models/:model/kv-cache`` → Planned KV cache topology + capacity disposition
 ///
 /// ### Auth Scope:
-/// - ``GET /health``, ``GET /ready``, ``GET /v1/models``, ``GET /v1/stats``, ``GET /metrics`` excluded from ``AuthMiddleware``
-/// - All other endpoints require valid API key. PATCH/DELETE require admin key.
+/// One home: `AuthRoutePolicy.publicPaths` in `Middleware/AuthMiddleware.swift` — the set
+/// `AuthMiddleware` actually consults, and the set `/v1/capabilities` publishes. This block
+/// deliberately does not re-list it. The copy that used to sit here named 5 of the 7 public
+/// paths and then asserted "All other endpoints require valid API key", which was false for
+/// ``GET /v1/tools`` and ``GET /v1/capabilities`` for as long as those have been public.
+/// Gate: `V1EndpointCatalogTests` fails any auth-scope line that enumerates paths, and fails
+/// if the public set stops being the documented discovery surface.
+/// - Public (no key): see `AuthRoutePolicy.publicPaths`.
+/// - Everything else requires a valid API key; PATCH/DELETE require an admin key.
 ///
 /// ### Metrics:
 /// - ``MetricsMiddleware`` tracks per-route HTTP request counts (status/method/path)
@@ -397,9 +404,20 @@ func buildRouter(
 
     // MARK: - Perception Honesty Gauge
 
-    /// ``GET /v1/perception`` — public, flags + ages ONLY (never frame
-    /// content). The honest invariant made machine-readable: per channel,
-    /// persisted user vote vs live engine flag vs actual frame flow.
+    /// ``GET /v1/perception`` — flags + ages ONLY (never frame content).
+    /// The honest invariant made machine-readable: per channel, persisted user
+    /// vote vs live engine flag vs actual frame flow.
+    ///
+    /// Auth: keyed, **not public** — this path is absent from
+    /// `AuthRoutePolicy.publicPaths`, so it requires an API key whenever
+    /// `OCOREAI_API_KEYS` is set. The word "public" here had no owner: the
+    /// enforced set never contained it, and this file is the only place that
+    /// said otherwise. Whether the gauge *should* join the public discovery
+    /// surface is an open question for the owner (it carries no frame
+    /// content, so the case is arguable) — widening auth is not a doc fix, so
+    /// the code keeps its current behaviour and the wording follows the code.
+    /// `make docs-check` P10 diffs the README route lists and public-path
+    /// list against this router and `AuthMiddleware`, so no third copy drifts.
     routes.get("/v1/perception") { _, _ in
         let gauge = await PerceptionGaugeSnapshot.build()
         return try Response.json(gauge)
