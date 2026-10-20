@@ -62,6 +62,35 @@ EOF
 WHITELIST="$ROOT/scripts/audit_whitelist.txt"
 touch "$WHITELIST" 2>/dev/null || true
 
+# --- Premise: every whitelist entry must point at a live path ---
+# The whitelist is the loudest part of this gate, so it needs its own premise check
+# (AGENTS.md invariant 1). An entry whose path no longer exists is not an exemption, it is
+# a loaded silence: the day a file reuses that name, the audit waves it through — and the
+# rationale above it keeps explaining, at length, why a defect that isn't there is forgiven.
+# Measured 10-20: `ErrorContext` was one such entry (the file it excused had been deleted;
+# grep = 0 in Sources/), found the same hour Class-J started resolving suite-name claims.
+echo ""
+echo "[Premise: whitelist entries point at live paths]"
+W_ENTRIES=$(sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$WHITELIST" \
+    | grep -v '^[[:space:]]*$' || true)
+W_TOTAL=$(printf '%s\n' "$W_ENTRIES" | grep -c . || true)
+W_DEAD=0
+while IFS= read -r wentry; do
+    [ -n "$wentry" ] || continue
+    if ! grep -rlF --include='*.swift' "$wentry" "$SRC" 2>/dev/null | grep -q .; then
+        echo "  ❌ dead entry: $wentry matches no file in $SRC — prune it, or restore the defect it excuses"
+        W_DEAD=$((W_DEAD + 1))
+    fi
+done <<WEOF
+$W_ENTRIES
+WEOF
+echo "  scan: $W_TOTAL exemption entries, $W_DEAD dead"
+if [ "$W_DEAD" -gt 0 ]; then
+    FAIL=1
+else
+    echo "  ✅ Clean"
+fi
+
 # --- Class-F: .first! force unwrap ---
 check "Class-F: .first! force unwrap" '\.first!' \
     "test|Test"
@@ -300,6 +329,88 @@ if [ "$I_FAIL" -eq 0 ]; then
     grep -c "^| " "$NOTICES" 2>/dev/null | sed 's/^/     notices table rows: /'
 fi
 FAIL=$((FAIL + I_FAIL))
+
+# --- Class-J: a comment that names a test suite is a claim about Tests/ ---
+# Provenance (10-20, found while auditing codex #55581): a comment in
+# Engine/CoreAIPipelinedEngine.swift stated its encode gate was "exercised by
+# `PipelineGateTests`". No such suite existed — and none could have: the entire file sat
+# inside one file-level `#if canImport(CoreAI)`, so on the macOS 26 SDK that ships (and on
+# CI) the type was compiled out and a suite for it could not compile either. Nothing in the
+# repo could go red for that sentence, so under invariant 1 it was not a claim. This class
+# makes the whole genus one: every `…Tests` identifier named in a Sources/ comment must
+# resolve to a suite that exists — declared in Tests/ (struct/class/actor/extension) or a
+# Tests/**/<name>.swift file — or, when the comment cites upstream provenance, to a suite in
+# a dependency checkout or ~/references clone. Upstream resolution is a loud SKIP when no tree
+# is present: unverifiable is never a pass, and never a silence either.
+echo ""
+echo "[Class-J: test-suite claims in comments resolve to a real suite]"
+J_TESTS="$ROOT/Tests"
+J_FLOOR=20
+if [ ! -d "$J_TESTS" ]; then
+    echo "  ⚠️  SKIP: no $J_TESTS in $ROOT — claims cannot be resolved (not a pass)"
+else
+    J_FAIL=0
+    J_CLAIMS=$(mktemp)
+    J_LINES=$(mktemp)
+    # Comment lines only: `//…` or a doc-comment continuation ` * …`. Sources/ is the side
+    # that makes the promise; Tests/ is the side that has to keep it.
+    grep -rn --include='*.swift' -E '(//|\*)[^"]*[A-Za-z0-9_]*Tests\b' "$SRC" 2>/dev/null \
+        > "$J_LINES" || true
+    grep -oE '[A-Za-z0-9_]*Tests\b' "$J_LINES" | sort -u > "$J_CLAIMS" || true
+    J_TOTAL=$(grep -c . "$J_CLAIMS" || true)
+    echo "  scan: $J_TOTAL distinct suite name(s) claimed in Sources/ comments (floor $J_FLOOR)"
+    if [ "$J_TOTAL" -lt "$J_FLOOR" ]; then
+        echo "  ❌ scan premise unmet: a comment layer this thin means the pattern stopped matching"
+        J_FAIL=1
+    fi
+    # Directory names under Tests/ (the module dir, `Tests` itself) are path references,
+    # not suite claims — derived, never hand-listed, so a renamed module cannot leave the
+    # exclusion pointing at nothing.
+    J_DIRS=$(find "$J_TESTS" -maxdepth 1 -type d 2>/dev/null | xargs -n1 basename | sort -u)
+    J_TREES=""
+    for t in "$ROOT"/.build/checkouts/* "$ROOT"/.build-clt/checkouts/* "$HOME"/references/*; do
+        [ -d "$t" ] && J_TREES="$J_TREES $t"
+    done
+    J_LOCAL=0 J_UP=0 J_SKIP=0 J_BAD=0
+    while IFS= read -r jname; do
+        [ -n "$jname" ] || continue
+        if printf '%s\n' "$J_DIRS" | grep -qxF "$jname"; then
+            J_LOCAL=$((J_LOCAL + 1)); continue
+        fi
+        if grep -rEl "(struct|final class|class|actor|extension)[[:space:]]+${jname}[[:space:]:{]" \
+                "$J_TESTS" --include='*.swift' 2>/dev/null | grep -q . \
+           || find "$J_TESTS" -name "${jname}.swift" 2>/dev/null | grep -q .; then
+            J_LOCAL=$((J_LOCAL + 1)); continue
+        fi
+        jhit=""
+        if [ -n "$J_TREES" ]; then
+            for t in $J_TREES; do
+                if find "$t" -name "${jname}.swift" -not -path '*/.git/*' 2>/dev/null | grep -q .; then
+                    jhit=$(basename "$t"); break
+                fi
+            done
+        fi
+        if [ -n "$jhit" ]; then
+            echo "  OK (upstream) $jname — resolves in the $jhit clone; kept as provenance"
+            J_UP=$((J_UP + 1))
+        elif [ -n "$J_TREES" ]; then
+            echo "  ❌ UNRESOLVED $jname — named in a Sources/ comment, absent from Tests/ and every checkout"
+            grep -nE "[A-Za-z0-9_]*${jname}\b" "$J_LINES" | head -3 | sed 's/^/       /'
+            J_BAD=$((J_BAD + 1))
+        else
+            echo "  ⚠️  SKIP $jname — no dependency checkout here to resolve an upstream claim"
+            J_SKIP=$((J_SKIP + 1))
+        fi
+    done < "$J_CLAIMS"
+    echo "  resolve: $J_LOCAL local, $J_UP upstream, $J_SKIP unverifiable, $J_BAD unresolved"
+    if [ "$J_BAD" -gt 0 ]; then
+        echo "  ❌ $J_BAD claim(s) name a suite that does not exist — add the suite, or name the gate that does"
+        J_FAIL=1
+    fi
+    if [ "$J_FAIL" -eq 0 ]; then echo "  ✅ Clean"; fi
+    FAIL=$((FAIL + J_FAIL))
+    rm "$J_CLAIMS" "$J_LINES"
+fi
 
 echo ""
 echo "=========================================="
