@@ -18,6 +18,28 @@ import Testing
 struct AppLifecycleLiveTests {
     private static let finderBundle = "com.apple.finder"
 
+    /// 这台机器此刻有没有「能把 app 送上前台」的 GUI 会话；`nil` = 有，否则返回实测到的占有者。
+    ///
+    /// 读的是失败信息里那个量本身，不是「测试被跑起来了所以有 GUI」这种推论：frontmost 恒为
+    /// `com.apple.loginwindow` = 屏幕锁着/停在登录窗，任何进程都上不了前台；`nil` frontmost =
+    /// 没有窗口会话（headless/ssh）。在这两种会话上断言「Finder 必须成为前台」测的是会话状态，
+    /// 不是本仓的代码 —— 每次全量门都为它报三处红，噪音会把真回归埋掉。与
+    /// `RepetitionPenaltyGPUStateTests` 的 `.enabled(if: MTLCreateSystemDefaultDevice() != nil)`
+    /// 同族：门只在自己声称的前提成立时说话。
+    ///
+    /// 不许反过来用：会话可前台时，失败照旧是失败（下面两条测试的断言一字未放宽）；锁屏那一侧
+    /// 也不是没人管 —— `liveActivateAndOpenNameTheirBlockerWhenLocked` 专测降级必须点名阻塞。
+    private static var frontmostBlocker: String? {
+        guard let front = NSWorkspace.shared.frontmostApplication else {
+            return "frontmostApplication=nil (no window session — headless/ssh)"
+        }
+        let id = front.bundleIdentifier ?? "?"
+        if id.hasPrefix("com.apple.loginwindow") || id == "com.apple.WindowServer" {
+            return "frontmost=\(id) (locked screen / login window — nothing can come forward)"
+        }
+        return nil
+    }
+
     @Test("list_apps: 真实运行面 — 头行 + active 标记与真实 frontmost 双向一致 + filter 语义")
     func liveListApps() async {
         let before = NSWorkspace.shared.frontmostApplication
@@ -55,7 +77,10 @@ struct AppLifecycleLiveTests {
         #expect(rows == 0, "无命中过滤 → 0 数据行: \(none)")
     }
 
-    @Test("activate_app(Finder): 已运行 → 接受 + 前台状态在收敛窗口内落地")
+    @Test(
+        "activate_app(Finder): 已运行 → 接受 + 前台状态在收敛窗口内落地",
+        .enabled(if: AppLifecycleLiveTests.frontmostBlocker == nil)
+    )
     func liveActivateRunning() async {
         let id = AppLifecycleLiveTests.finderBundle
         let out = await AppLifecycleDriver.activateApp(id)
@@ -84,7 +109,10 @@ struct AppLifecycleLiveTests {
             "frontmost=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil")")
     }
 
-    @Test("open_app(Finder): 已运行分支幂等 — 不重复拉起, 报 already running")
+    @Test(
+        "open_app(Finder): 已运行分支幂等 — 不重复拉起, 报 already running",
+        .enabled(if: AppLifecycleLiveTests.frontmostBlocker == nil)
+    )
     func liveOpenRunningIsIdempotent() async {
         let id = AppLifecycleLiveTests.finderBundle
         let countFinder = {
@@ -96,6 +124,41 @@ struct AppLifecycleLiveTests {
         // 幂等铁证: 前后进程数不变(不重复拉起)
         let after = countFinder()
         #expect(before == 1 && after == 1)
+    }
+
+    /// 前提的另一侧（`.enabled(if:)` 与上面两条互斥）：锁屏/登录窗下这两个工具**必须**点名
+    /// 阻塞，且一个字都不许写得像成功。会话没锁时这条不该跑（跑了也是空断言），所以它同样
+    /// 只在自已声称的前提成立时开口。
+    @Test(
+        "锁屏/登录窗下 activate_app 与 open_app 必须点名阻塞, 不许假装成功",
+        .enabled(if: AppLifecycleLiveTests.frontmostBlocker != nil)
+    )
+    func liveActivateAndOpenNameTheirBlockerWhenLocked() async {
+        let id = AppLifecycleLiveTests.finderBundle
+        let blocker = AppLifecycleLiveTests.frontmostBlocker ?? "?"
+        let activated = await AppLifecycleDriver.activateApp(id)
+        let opened = await AppLifecycleDriver.openApp(id)
+        do {
+            // 必须点名：真实占有者 + 「没上前台」这条事实
+            #expect(
+                activated.contains("never became frontmost"),
+                "会话上不了前台, activate_app 却没有点名阻塞: \(activated) (\(blocker))"
+            )
+            #expect(
+                opened.contains("activate failed") || opened.contains("never became frontmost"),
+                "open_app 在同样会话里把失败说成了别的: \(opened) (\(blocker))"
+            )
+            // 不许假装：成功句式一个字都不许出现
+            #expect(
+                !activated.contains("→ frontmost") && !opened.contains("→ activated"),
+                "锁屏下报出成功句式 = 表面声称了引擎没交付的东西: \(activated) / \(opened)"
+            )
+            // Finder 必须在名单里（否则失败原因就不是「上不了前台」，判据得改）
+            #expect(
+                activated.contains(id) && opened.contains(id),
+                "两条回答都没点名 \(id): \(activated) / \(opened)"
+            )
+        }
     }
 
     @Test("open_app(不存在): 诚实 app_open_failed, 不假装成功")

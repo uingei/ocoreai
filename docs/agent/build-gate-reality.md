@@ -143,4 +143,4 @@ macOS 26 既编不进也跑不了这段 ⇒ 改法虽然显然（`-Float.infinit
 `AppLifecycleLiveTests`，报 `never became frontmost (frontmost=com.apple.loginwindow)`。锁屏/登录窗时
 `NSWorkspace.frontmostApplication` 就是 loginwindow，任何 app 都到不了前台 ⇒ 与代码无关（本轮 diff 不含
 AppLifecycle/Computer 文件；`--filter AppLifecycleLive` 同样三处红）。这是**会话状态**的门，与 §Open 屏幕抓取
-条目同源；收口方向是让这一支自证会话前提（测到 loginwindow 即报 skip 并写明原因），不是放宽断言。
+条目同源；**已收口（10-20 续10）**：`frontmostBlocker` 实测 frontmost 的占有者，两条「必须上前台」的断言挂 `.enabled(if: frontmostBlocker == nil)`，锁屏侧另加一条 `.enabled(if: != nil)` 专测降级必须点名 `never became frontmost (frontmost=…)` 且不得写出成功句式。锁屏实测 `--filter AppLifecycle` = 13 tests / 2 suites 绿、两条 `➜ skipped`、降级条真跑并绿：断言一字未放宽，各自只在前提成立处说话。

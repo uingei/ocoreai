@@ -3,6 +3,15 @@
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## [Unreleased] — 2026-09-05 → 2026-10-20
+**10-20(续10) 会话状态不许冒充代码回归——`AppLifecycleLiveTests` 学会自证前提**(P3 判据可信度 + P0 一致性) — 上一轮把「那三处红是锁屏」写成了文档；本轮把它变成判据本身，并补上此前**没人断言**的另一侧。
+
+- **一手证据（本机实测，非推断）** — 锁屏会话里 `open_app(Finder)` 返回 `app=com.apple.finder running but activate failed (pid 490; never became frontmost (frontmost=com.apple.loginwindow)).`：Finder **确在运行**（pid 490），失败原因自己写着真实占有者 = loginwindow。测试却断言 `out.contains("already running")`（等于要求「已成功激活」），`activate_app` 同样断言「必须 → frontmost」⇒ 只要锁屏，全量门必报三处红（本轮起点 `make test-clt` = 2755 tests / 489 suites、3 issues 全在此），真回归会被这份固定噪音埋掉。
+- **改法（`.enabled(if:)` 读实测占有者，两侧各测各的）** — ①`frontmostBlocker`：把 frontmost 的三种占有者各写成原因（`nil` = headless/ssh、`com.apple.loginwindow*` = 锁屏/登录窗、`com.apple.WindowServer`），可上前台则 `nil`；②两条「必须上前台」的测试挂 `.enabled(if: frontmostBlocker == nil)`，**断言一字未放宽**；③新增 `liveActivateAndOpenNameTheirBlockerWhenLocked`（`.enabled(if: frontmostBlocker != nil)`）钉死降级侧：`activate_app` 必须含 `never became frontmost`、`open_app` 必须含 `activate failed`/`never became frontmost`、两条都不得写出成功句式（`→ frontmost` / `→ activated`），且必须点名 `com.apple.finder`（若连工具都没被点名，失败原因就不是「上不了前台」，判据当量级重估而非放过）。两侧互斥，各自只在自己声称成立的前提上开口 ⇒ 没有哪一侧能靠空断言蒙过去。
+- **实测（同一 scratch，锁屏会话）** — `swift test --filter AppLifecycle` = **13 tests / 2 suites 通过**：`activate_app(Finder)` 与 `open_app(Finder)` 各报 `➜ Test … skipped.`（在输出里可见，不是静默消失），降级条 4.656 s **真跑**并绿（它确实调了两个工具、读到 loginwindow 的占有并逐条校验措辞）。
+- **同一判据的另一侧（解锁会话再跑一次全量做对照）** — 稍后这台机器可上前台，`make test-clt` = **2756 tests / 489 suites、EXIT=0**：本仓在本机**首次零失败全量门**（此前每轮固定三处红）。两条 Finder 断言真跑并绿（`activate_app` 0.079 s、`open_app` 0.059 s），降级条 `➜ Test …skipped.`；全量里 skipped 只有两处——`readTree`（AX 未受信，既有 `.enabled(if:)` 门）与这条降级条。于是「谁的前提谁负责」两侧各有实测记录，而不是纸面设计：锁屏那次是 2 skip + 降级绿，解锁这次是 2 绿 + 降级 skip。
+- **为什么这不是放宽** — 会话能上前台时（解锁的开发机、CI macos-26）跑的就是原来那两条断言，一字未改；锁屏时改测「必须诚实降级」，比原判定更严：旧失败只说「没上前台」，新判据额外禁止任何成功句式并强制点名占有者与目标 app。skip 与 fail 的分工从此是**谁的前提谁负责**，而不是让环境替代码顶罪。
+- **未证 / 未做（不冒充）** — ①「锁屏会话里 Finder 是否总在运行」未穷举：判据里有「两条回答必须点名 `com.apple.finder`」兜住，不成立时会红而非静默放过；②`.enabled(if:)` 的 skip 不计入 `N tests passed`，只有 `➜ skipped` 行可见——要让 CI 摘要显式统计 skipped 需在 workflow 解析 xunit/`➜`，本轮未动 CI；③屏幕抓取、ChatView/MultimodalControls 等 UI 活验仍挂 §Open（同源不同症：SCStream 在无 GUI 会话起不了流）。
+
 **10-20(续9) 契约文件自己说的话没人读——`Package.swift` 的注记现与 pin 同音**(P0 文档↔代码不一致 + P3 判据补口) — 不变量 1 说的是「判据断言自己的前提」；本轮发现有一处连「有人读」都谈不上：manifest 用一整段注释解释它为什么钉这个版本，而那段话与 pin 已经矛盾，且没有任何判据扫这个文件。
 
 - **一手证据（本轮逐条 grep 实测，非推断）** — pin 之上写着 `pin to the 0.32.2 tag (main HEAD 2b5e877)`，pin 本身却是 `exact: "0.32.3"`（`0401256` 于 10-05 上移，理由=0.32.2 在 macOS/iOS <26.4 启动即崩，CHANGELOG 当轮已裁决）；同一段注记的两条消费面 cite 也早飞了：`EngineInference.swift:3344` 实为 `:3558`（差 **214** 行）、`MLXBridge.swift:1094` 实为 `:1218`（差 **124** 行）。既有版本判据只比包名集合（`ThirdPartyNoticesTests`），anchor 门的扫描集只含 `*.md` 与 `Sources/**/*.swift` ⇒ 两处漂移一路绿过 CI。
