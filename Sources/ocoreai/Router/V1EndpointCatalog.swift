@@ -136,7 +136,12 @@ enum V1EndpointCatalog {
                 "Planned KV cache topology, capacity disposition, and the measured dispositions of prefix reuse and tool-declaration prose (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)"
         ),
         RouteSpec(
-            method: "POST", path: "/v1/models/download", note: "Fetch a model into the local cache"),
+            method: "POST", path: "/v1/models/download",
+            note:
+                "Fetch a model into the local cache — `model` is a relative `org/name` "
+                + "(absolute paths and `..` are refused 400 naming the field; `provider` hf|mscope, "
+                + "`revision`/`useLatest` optional)"
+        ),
         RouteSpec(
             method: "POST", path: "/v1/audio/transcriptions",
             note:
