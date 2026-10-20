@@ -25,7 +25,7 @@ This project is developed with heavy AI assistance. The rules:
 
 **Tech stack:** Swift 6.2 · SwiftPM · Hummingbird 2.26 · SwiftUI · SQLite + FTS5
 
-**Key modules:** subdirectories under `Sources/ocoreai/`: Engine, Agents, Client, Scheduler, MCP, Tools, UI, SQLite, Config, Multimodal, Reasoning, Profiling, Tokenizer, Security, Skills, Video, etc. （全集 = 目录本身，不计数）.
+**Key modules:** subdirectories of `Sources/ocoreai/`: Engine, Agents, Client, Scheduler, MCP, Tools, UI, SQLite, Config, Multimodal, Reasoning, Profiling, Tokenizer, Security, Skills, Video, etc.
 
 ---
 
@@ -33,7 +33,7 @@ This project is developed with heavy AI assistance. The rules:
 
 Almost every rule below is a corollary of these two. When a shortcut and an invariant collide, the invariant wins.
 
-1. **A claim is worth exactly the gate that goes red when it breaks.** A fix with no gate is a claim; a gate that infers its own premises from the environment rots the day the toolchain moves (SDK 26.5 → 27.0 flipped `canImport(CoreAI)` mid-session); a scan that stopped matching passes vacuously unless it floors its own hit count; and a doc whose numbers nobody re-greps drifts. Corollaries: policy 2 + 4, `make toolchain-check`, `V1EndpointCatalogTests`' floors, § Docs Contract.
+1. **A claim is worth exactly the gate that goes red when it breaks.** A fix with no gate is a claim; a gate that infers its own premises from the environment rots the day the toolchain moves (SDK 26.5 → 27.0 flipped `canImport(CoreAI)` mid-session); a scan that stopped matching passes vacuously unless it floors its own hit count; and a doc whose numbers nobody re-greps drifts; an effect reported in a **value** not a code (a pragma's busy column) needs a gate reading it, and "unmeasurable" is a claim too (10-20: two in-process connections settled a SQLite 未决). Corollaries: policy 2 + 4, `make toolchain-check`, `V1EndpointCatalogTests`' floors, § Docs Contract.
 2. **The surface never claims more than the engine delivered.** ocoreai's product is a GUI that sees, hears, speaks and codes, so every capability statement a user can read (`/v1/models`, `/v1/capabilities`, the dashboard, a tool result, the composer, a localization string) must be *measured*, and must degrade honestly where the backend is absent. Corollaries: `tokenizerBackend: real|heuristic`, `vlm:` from the manifest, the endpoint index behind the 404 hint, `/v1/steer` delivering on the next request, chat `audio_url` heard-or-refused, no fabricated `terminal command:` output on zero-tool turns. When authority is unclear: run it and read what came back.
 
 ---
@@ -92,7 +92,7 @@ whenever a claim is about behaviour.**
 **Linting:** none — aligned with upstream (mlx-swift-lm / coreai-models ship no swiftlint). swift-format via `.swift-format` (pinned 603.0.0) is the only style gate, enforced in CI and pre-commit. Crash-safe coding (no `try!`/`as!`/`fatalError` in Sources/) is a code convention, not a CI gate.
 
 **Distribution licenses (CI-gated):** the artifact is MIT **plus** third-party code under its own terms
-(BSD-3 cl.1/cl.2 + Apache-2.0 §4 attach to the notice, so the texts travel with it). The invariant: **adding a dependency, bumping a pin, or vendoring a header ⇒ re-run
+(BSD-3 cl.1/cl.2 + Apache-2.0 §4 make the notice travel with the binary). The invariant: **adding a dependency, bumping a pin, or vendoring a header ⇒ re-run
 `scripts/collect-third-party-licenses.sh` and commit its output** (the table records each pin);
 `scripts/bundle-licenses.sh <app>` copies `THIRD-PARTY-LICENSES/` into `Contents/Resources/` and
 re-reads it *from inside* the bundle. Two gates: `ThirdPartyNoticesTests` (no checkouts needed ⇒
@@ -114,7 +114,7 @@ metric warning, the vendored-header table and the re-collect discipline:
 - Swift 6.2 strict concurrency mode. `Sendable` enforcement active.
 - `EnginePool` is an `actor` with `@unchecked Sendable` mutable state (perform-based isolation). Every `@unchecked Sendable` declaration carries a justification comment.
 - UI layer runs on `@MainActor`. Engine layer is actor-isolated. Cross-actor calls via `await`.
-- `@unchecked Sendable` requires justification comment. Closure `var` declared inside closure scope (not outer).
+- Closure `var` declared inside closure scope (not outer).
 - **A continuation wrapped around an SDK callback needs a deadline, and the caller owns the callback object's lifetime.** `AVCapturePhotoOutput.capturePhoto(with:delegate:)` documents no retention of its delegate, so an inline temporary can leave nothing to call back — the continuation never resumes and the request hangs. Measured 10-15: `POST /v1/multimodal/capture` (camera, authorized) parked ≥45 s; retained delegate + exactly-once `fire()` + an 8 s deadline ⇒ a frame in 1.1 s. Without the deadline, "stalled" is indistinguishable from "still working".
 - **A polling loop sleeps one poll interval, never the deadline.** `Task.sleep(until: deadline)` inside `while <still pending>` parks the waiter for the whole window regardless of when the condition clears. `EnginePool.waitForLoading` did exactly this (the first chat request cost 120 s for a model ready in 8 s; fixed to `min(deadline, now + 100 ms)`, release timing pinned by `EnginePoolLoadingGateTests`). Sleeping to the deadline is correct only in a single-shot watchdog — see `EngineInference.swift:149`.
 
@@ -150,7 +150,6 @@ metric warning, the vendored-header table and the re-collect discipline:
 - **`print()` — 2 sites, both CLI/stdout product surface**, not debug logging: `Sources/ocoreai/UI/Application.swift:38` (`--version`/`--help` report) and `Sources/ocoreai/Headless/HeadlessServer.swift:141` (headless `serve` banner); bare `print(` would match `fingerprint(`. Ceiling 2 until the owner rules whether either belongs on the logger; then 0.
 <!-- claim:print_sites<=2 :: git grep -nE '(^|[^A-Za-z0-9_.])print\(' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
 - `try?`: used as the defensive-fallback pattern; `try?` stays acceptable where a real fallback follows.
-- `Profiling/` contains **2 files**: `TimingHooks.swift` + `PerformanceMetrics.swift`.
 
 ### Naming
 - Target names ≠ module boundaries (e.g., `GuidedGenerationLoop` is peer to `ChatSession`, not nested).
