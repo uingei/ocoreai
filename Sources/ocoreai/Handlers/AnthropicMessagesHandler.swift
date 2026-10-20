@@ -513,6 +513,11 @@ private func nonStreamAnthropicResponse(
     /// engine must not hand a client two different numbers for the same prompt (measured
     /// 10-19: 774 measured against 769 estimated, on identical assembled messages).
     var observedPromptTokens: Int? = nil
+    /// Prompt tokens the engine's KV cache kept from a previous turn
+    /// (`GenerateCompletionInfo.cachedPromptTokenCount`). `input_tokens` means the whole
+    /// rendered prompt, so this is added back rather than dropped — see
+    /// ``PromptTokenAccounting``.
+    var observedCachedPromptTokens: Int? = nil
 
     do {
         for try await event in tokenStream {
@@ -529,10 +534,11 @@ private func nonStreamAnthropicResponse(
 
             case .done(
                 let reason, let doneTokenCount, let donePromptTokenCount,
-                _, _, _, _, _, _, _
+                _, _, _, let doneCachedPromptTokenCount, _, _, _
             ):
                 let openaiReason = stopReasonToString(reason) ?? "stop"
                 observedPromptTokens = donePromptTokenCount
+                observedCachedPromptTokens = doneCachedPromptTokenCount
                 finishReason = openAIToAnthropicStopReason(openaiReason)
                 openAIFinishReason = openaiReason
                 // Authoritative token count from the engine — overwrite the
@@ -738,7 +744,11 @@ private func nonStreamAnthropicResponse(
 
     // Build Anthropic response — the measured prompt count where the engine has one.
     let usage = AnthropicUsage(
-        inputTokens: observedPromptTokens ?? inputTokenCount,
+        inputTokens: PromptTokenAccounting.renderedPromptTokens(
+            observedPrefilled: observedPromptTokens,
+            cachedPromptTokens: observedCachedPromptTokens,
+            fallback: inputTokenCount,
+        ),
         outputTokens: totalOutputTokens)
     /// The terminal word, resolved in OpenAI's vocabulary by the shared rule and then
     /// translated: `tool_use` only when a block actually reached this client **and** the
@@ -820,6 +830,9 @@ private func streamAnthropicResponse(
             /// name: `message_start`/`message_stop` must carry the number the OpenAI face
             /// carries for the same prompt.
             var observedPromptTokens: Int? = nil
+            /// Reused KV-cache prefix — added back so `input_tokens` is the rendered prompt,
+            /// as it is on the OpenAI face.
+            var observedCachedPromptTokens: Int? = nil
             var deliveredToolCalls: [ToolCall] = []
             var emitter = AnthropicStreamEmitter()
             /// `tool_choice.disable_parallel_tool_use:true` → the client takes one call,
@@ -922,10 +935,11 @@ private func streamAnthropicResponse(
 
                     case .done(
                         let reason, let doneTokenCount, let donePromptTokenCount,
-                        _, _, _, _, _, _, _
+                        _, _, _, let doneCachedPromptTokenCount, _, _, _
                     ):
                         finishReason = stopReasonToString(reason) ?? "stop"
                         observedPromptTokens = donePromptTokenCount
+                        observedCachedPromptTokens = doneCachedPromptTokenCount
 
                         // Authoritative token count from the engine — overwrite the
                         // per-event estimate (a `.text`/`.reasoning` case is a text
@@ -1089,7 +1103,11 @@ private func streamAnthropicResponse(
             // carries what the engine measured, which is the number a client budgets on
             // and the one `/v1/chat/completions` reports as `prompt_tokens`.
             let finalEvent = AnthropicStreamEvent.messageStop(
-                inputTokens: observedPromptTokens ?? inputTokenCount,
+                inputTokens: PromptTokenAccounting.renderedPromptTokens(
+                    observedPrefilled: observedPromptTokens,
+                    cachedPromptTokens: observedCachedPromptTokens,
+                    fallback: inputTokenCount,
+                ),
                 outputTokens: totalOutputTokens,
             )
             writeSSEEvent(continuation, event: finalEvent)

@@ -1234,7 +1234,14 @@ private func nonStreamWithToolCalling(
     /// Record inference metrics.
     let dur = startTime.duration(to: ContinuousClock.now)
     let elapsed = Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
-    let observedInputTokens = observedPromptTokens ?? promptTokenCount
+    /// `prompt_tokens` on the wire is the rendered prompt, not the suffix this turn prefilled:
+    /// upstream reports the reused prefix separately, and the same number here feeds metrics and
+    /// the persisted conversation record, so all three say the same thing about the prompt.
+    let observedInputTokens = PromptTokenAccounting.renderedPromptTokens(
+        observedPrefilled: observedPromptTokens,
+        cachedPromptTokens: observedCachedPromptTokens,
+        fallback: promptTokenCount,
+    )
     await metrics.observeInferenceDuration(elapsed / 1000.0)
     await metrics.incrementTokens(kind: "generated", count: totalOutputTokens)
     await metrics.incrementTokens(kind: "prompt", count: observedInputTokens)
@@ -1857,7 +1864,11 @@ private func streamWithToolCalling(
                 model: modelId,
                 choices: [],
                 usage: Usage(
-                    input: observedPromptTokens ?? promptTokenCount,
+                    input: PromptTokenAccounting.renderedPromptTokens(
+                        observedPrefilled: observedPromptTokens,
+                        cachedPromptTokens: observedCachedPromptTokens,
+                        fallback: promptTokenCount,
+                    ),
                     output: totalOutputTokens,
                     cachedPromptTokens: observedCachedPromptTokens,
                     reasoningTokens: finalReasoningTokens

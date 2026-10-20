@@ -1016,6 +1016,40 @@ struct Usage: Encodable {
     }
 }
 
+/// The rendered prompt length, which is what `prompt_tokens` means on the wire.
+///
+/// OpenAI defines `prompt_tokens` as the whole input prompt and
+/// `prompt_tokens_details.cached_tokens` as a *breakdown of* it, so
+/// `cached_tokens ≤ prompt_tokens` holds by construction — vllm and sglang publish it that way.
+///
+/// Upstream hands us the two parts and never the total: `GenerateCompletionInfo.promptTokenCount`
+/// is what this turn **prefilled** ("When a session reuses a KV-cache prefix only the remaining
+/// suffix is fed to the model, so this counts fewer tokens than the rendered prompt" —
+/// mlx-swift-lm `Evaluate.swift:2921-2926`), while `cachedPromptTokenCount` is the prefix its KV
+/// cache kept. Upstream's own total is `cached + prefilled` (`totalPromptTokenCount`,
+/// `Evaluate.swift:2984-2987`), and mlx-swift-lm emits exactly that as its input-token count at
+/// `MLXLanguageModel.swift:1377`, `:1519` and `:1721`.
+///
+/// Publishing the prefilled suffix instead was the deviation this exists to prevent. Measured 10-21
+/// on this host, three warm turns on `/v1/chat/completions` answered `prompt_tokens` 30, 44 and 54
+/// each with `prompt_tokens_details.cached_tokens: 949` — a breakdown up to 31x the whole it
+/// belongs to, and by upstream's own sum (`cached + prefilled`) a prompt of 979 reported as 30:
+/// the entire reused prefix is missing from anything a client bills, budgets, or rate-limits with.
+enum PromptTokenAccounting {
+    /// What this turn's prompt really was: the reused prefix plus the tokens it paid.
+    ///
+    /// `observedPrefilled == nil` means the path produced no upstream `.info` at all, so
+    /// `fallback` (the pre-flight tokenizer count, or the bytes heuristic) is the best number
+    /// available for the whole prompt and there is no suffix to add back — adding a cached count
+    /// that was never observed here would over-report the prompt instead.
+    static func renderedPromptTokens(
+        observedPrefilled: Int?, cachedPromptTokens: Int?, fallback: Int
+    ) -> Int {
+        guard let prefilled = observedPrefilled else { return fallback }
+        return prefilled + max(0, cachedPromptTokens ?? 0)
+    }
+}
+
 // MARK: - Text Completion (OpenAI `/v1/completions`, legacy text-gen API)
 //
 // Wire contract source of truth: vllm `entrypoints/openai/completion/protocol.py`

@@ -447,15 +447,22 @@ struct AnthropicSharedAssemblySourceTests {
             "the disclosure lives in one home next to the assembly it describes")
     }
 
-    /// `usage` on this face reports the engine's measured prompt count, not a second
-    /// number for the same prompt. Textual because the value needs an engine: the live
-    /// pair is probe 13 §9.
+    /// `usage` on this face reports the engine's measured **rendered** prompt — the tokens this
+    /// turn prefilled plus whatever its KV cache kept — not a second number for the same prompt,
+    /// and not the suffix on its own. Textual because the value needs an engine: the live pair is
+    /// probe 13 §9. The sum (rather than the prefilled count) is `PromptTokenAccounting`'s job,
+    /// pinned by `PromptTokenAccountingTests`: `cached_tokens` is a breakdown OF the prompt
+    /// count, so the prefix cannot be left out of the whole it belongs to.
     @Test("usage prefers the engine's measured prompt count")
     func usageReportsMeasurement() throws {
         let s = try source(handlerSource)
         #expect(
-            s.components(separatedBy: "observedPromptTokens ?? inputTokenCount").count - 1 == 2,
-            "both response modes must report the measured prompt count when the engine has one"
+            s.components(separatedBy: "PromptTokenAccounting.renderedPromptTokens(").count - 1 == 2,
+            "both response modes must size input_tokens through the one accounting home"
+        )
+        #expect(
+            !s.contains("inputTokens: observedPromptTokens ??"),
+            "input_tokens must not publish the prefilled suffix alone — the reused prefix is part of the prompt it counts"
         )
     }
 
