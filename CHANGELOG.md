@@ -3,6 +3,22 @@
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## [Unreleased] — 2026-09-05 → 2026-10-21
+**10-21 `prompt_tokens` 报的是本轮付过的钱，不是提示词的长度——一个分解量比它的整体还大**(P0 上游偏离 / OpenAI 兼容) — 写探针 21 时被两个数字撞了头：三条热轮在 `/v1/chat/completions` 上分别答出 `{"prompt_tokens": 30, "cached_tokens": 949}`、`44/949`、`54/949`。分解量 (949) 比它所分解的整体 (30) 大到 31 倍，规范上不可能；按上游自己的加法（`cached + prefilled`）那是一条 979 token 的提示词，报给客户 30——整条复用前缀从客户记账、预算、限流的依据里消失了。
+
+- **规范与上游两头都站在总量一边**：OpenAI `prompt_tokens_details` 是 `prompt_tokens` 的 breakdown（故 `cached_tokens ≤ prompt_tokens`），vllm/sglang 同形；上游 `GenerateCompletionInfo.promptTokenCount` 自己的注释就写着 "counts fewer tokens than the rendered prompt"（`Evaluate.swift:2921-2926`），并把总量算成 `cached + prefilled`（`totalPromptTokenCount`，`Evaluate.swift:2984-2987`），mlx-swift-lm 发 usage 时用的正是总量（`MLXLanguageModel.swift:1377`/`:1519`/`:1721`）。我们发的是差额。**证据早就在仓里**：探针 19 已提交的 `prompt=12 cached=1458` 就是同一个形状，当时被当成"复用生效"记下来了——一条断言只比 `cached` 与日志、从不问同轮的 `prompt` 是多少，就永远看不见这个矛盾（不变量 1：门要钉得住自己那句前提）。
+
+- **一个家**：`Models/OpenAIModels.swift PromptTokenAccounting.renderedPromptTokens(observedPrefilled:cachedPromptTokens:fallback:)` = `prefilled + max(0, cached)`；`observedPrefilled == nil`（guided/FM/CoreAI 这些没有 `.info` 的腿）交回整段估计、**绝不再加一次 cached**，否则把没观测到的东西报成观测到了。四个面同一处调用：OpenAI 非流式（`ChatHandler.swift` `observedInputTokens`，同一个数同时喂 metrics 与落库）／OpenAI 流式 usage chunk／Anthropic 非流式／Anthropic `message_stop`（Anthropic `.done` 元组第 7 位此前被 `_` 丢掉，现接住）。`Usage` DTO 不动——它只管编码不管记账，故 09-12 的 `PromptTokensDetailsCachedWireTests`（`input: 2500, cached: 2048`）原样成立。
+
+- **顺手量出第二处偏离（P1 执行链/状态）**：identical-call 循环网是**进程级**的——`executionHistory` 只按 (tool, args hash) 记，四个不同会话各调一次 `sleep(duration_ms:8000)`，第四个就被判 `[tool_error: Execution loop detected: sleep] FAILED — its effects do not exist.`（探针 21 第一版的隔离腿 1.97 s 返回这条从未执行的失败，正是被它咬的）。循环是"一个 agent 的轮次序列"的属性 ⇒ `executionHistory` 现按 `conversationKey` 分桶；没有键的入口（MCP `tools/call`、GUI 主动读盘、单测）共用 `process` 桶——有了身份就把网撤掉是更坏的答案。
+
+- **`required` 与内置工具是两条路（实测登记，不判缺陷）**：`tool_choice:"required"` 把约束出来的调用原样交回 caller（`finish_reason:"tool_calls"`，日志里没有 `Tool call: sleep`），只有 `auto` 会走本仓自己的 `toolDispatch` 执行注册表内的工具——OpenAI 兼容面本就该让 caller 执行 caller 声明的调用。探针 11 §3c 证的是 caller-owned 那条，两件事不可互相引用；探针 21 因此用 `auto` 并写明理由。
+
+- **门**：`PromptTokenAccountingTests`(6)（正/反值 + "无 .info 不加 cached" + 负数下界 + 编码后 `cached ≤ prompt` 的结构断言）；`ToolRegistryTests` 新 2 条（分会话互不污染／无键共用一桶）；Anthropic 那条静态钉子的文本改到新家（`renderedPromptTokens(` 恰好 2 处，且禁止 `inputTokens: observedPromptTokens ??` 复活）。红样逐条只红该红的：总量退回差额 ⇒ 红 3 条（含 `cachedOut <= prompt`）；循环网退回进程级 ⇒ 只红 1 条（`conv-B` 那条），原有 `loopDetection`/`repeatedFailuresAreLoopDetected` 与无键桶全绿；两处一起退 ⇒ 52 tests 中 10 issues／4 条测试失败。绿样聚焦 **191 tests / 37 suites / 0 失败**。
+
+- **活体（新探针 `21-sleep-steer-wake.sh`，16 断言／3 会话／0 失败）**：control 请求 9000 ms → 10807 ms 且答出 `Sleep completed.`（前提：确实睡了）；steer 在 1.5 s 注入 → 同一轮 2651 ms 结束，`sleep` 本身 1.0860 s 返回，正文同轮带回 `Sleep interrupted by new input.` 与 `[mid-turn user steering]`（接受且送达，不是只入队）；另一会话被 steer → 本会话仍睡满 8628 ms(≥7000)。三条响应 `cached ≤ prompt` = 957/987、957/1006、957/987。这把 10-21 早晨那条「无真模型端到端」的 open 关掉了：**有工具的一轮，转向当场生效**。
+
+- **未决（登记，不宣称）**：① 多跳轮次的 `completion_tokens` 仍只报最后一跳（`auto` 路实测两轮生成，线上 `completion_tokens=15`）——工具调用本身也是模型生成的输出，跨不跨跳累加是口径裁决；② Anthropic 面未公布 `cache_read_input_tokens`（规范里可选，没做就不加）；③ `required` 交回 caller 而 `auto` 内部执行这条不对称是否要向 vllm/sglang 的"服务端永不执行"收齐，留人拍板。
+
 **10-21 `clock.sleep` 第一次能被本会话的输入叫醒：形状不迁移，缺的那块是身份**(P0 上游偏离 / P1 执行链) — codex `305db3808c`(#55644，10-20 17:50；已在 clone HEAD 的祖先链上) "Make pending injections interrupt agent waits and sleep"：`codex-rs/core/src/session/input_queue.rs:93` 新增 `has_pending_injection`，注入时置位(`:380`)、投喂时连 items 一起 `std::mem::take` 清零(`:401`)、等待循环读它(`:482`)。一句话 = 排在 wait **开始之前**的输入也必须结束这场等待；已被消费掉的输入不得再去叫醒后面的等待。
 
 - **形状不迁移**：codex 需要一个标志位，因为它的 `TurnInputQueue` 同时装着 notifying injection 和 passive context，只有前者该打断。我们 `SteerQueue` 的全部生产者都是真转向（三处：`/v1/steer` `Router/ChatCompletionsRouter.swift:552`、GUI composer `UI/ViewModels/ChatViewModel.swift:203`、轮次失败回灌 `Handlers/ChatHandler.swift:852`）⇒ 没有 passive 混进来，标志位是多余的。另一半形状差异：codex 在 activity 订阅上等**变化**，我们读 `pendingCount(sessionKey:)` 的**当前深度** ⇒「等待开始前已入队」那一格天然覆盖，代价是 100 ms 节拍轮询（AGENTS.md 并发条：轮询循环只睡一个间隔，绝不睡到 deadline；先例 `EnginePoolLoadingGateTests`，反例 `waitForLoading` 曾把 8 s 的模型等成 120 s）。
