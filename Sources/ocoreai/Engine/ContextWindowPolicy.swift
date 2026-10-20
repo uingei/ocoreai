@@ -148,7 +148,7 @@ enum ContextWindowPolicy {
     /// its canonical form (`ModelStore.normalizeModelId`), then each prefixed form.
     /// A bare id can address two hubs at once (`hf:org/repo` and `mscope:org/repo`
     /// are different models); the first hit in that order wins rather than leaving
-    /// the caller with an unanswerable tie, and `ModelOverridePrecedenceTests`
+    /// the caller with an unanswerable tie, and `ContextWindowPolicyTests`
     /// pins the choice so a future reorder is a deliberate, reviewed change.
     static func overrideTokens<T>(
         in overrides: [String: T], for modelId: String, extract: (T) -> Int?

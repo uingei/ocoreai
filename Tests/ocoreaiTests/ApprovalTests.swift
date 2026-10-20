@@ -49,20 +49,25 @@ struct ApprovalSnippetTests {
     }
 }
 
+/// 轮询 pending 行（Task 并发启动存在窗口期，deadline 内必须出现）。
+/// `requiring` 让需要多行**同时在场**的用例（如清场只 resume 一次）等到目标数量，而不是第一行。
+private func waitForRow(_ b: ApprovalBroker, requiring count: Int = 1) async
+    -> PendingApproval?
+{
+    for _ in 0 ..< 400 {
+        let rows = await b.snapshot()
+        if rows.count >= count {
+            return rows.first
+        }
+        try? await Task.sleep(nanoseconds: 2_000_000)
+    }
+    return nil
+}
+
 // MARK: - broker 决策矩阵
 
 @Suite("ApprovalBroker — decision matrix")
 struct ApprovalBrokerTests {
-    /// 轮询 pending 行（Task 并发启动存在窗口期，deadline 内必须出现）。
-    private func waitForRow(_ b: ApprovalBroker) async -> PendingApproval? {
-        for _ in 0 ..< 400 {
-            if let row = await b.snapshot().first {
-                return row
-            }
-            try? await Task.sleep(nanoseconds: 2_000_000)
-        }
-        return nil
-    }
 
     @Test("never policy → denied(auto-denied), no pending")
     func never() async {
@@ -429,8 +434,7 @@ struct ReviewSurfaceGateTests {
         let t1 = Task {
             await b.request(toolName: "write_stdin", arguments: "{}", reason: "stdin")
         }
-        // 本 struct 作用域内联轮询（waitForRow 属另一个 struct，private 不可见）
-        guard let row = await snapshotRow(b) else {
+        guard let row = await waitForRow(b) else {
             #expect(false, "row never published")
             return
         }
@@ -465,7 +469,7 @@ struct ReviewSurfaceGateTests {
             await b.request(
                 toolName: "write_file", arguments: "{\"path\":\"/tmp/keep\"}", reason: "r")
         }
-        guard let row = await snapshotRow(b) else {
+        guard let row = await waitForRow(b) else {
             #expect(false, "row never published")
             return
         }
@@ -502,7 +506,7 @@ struct ReviewSurfaceGateTests {
             await b.request(
                 toolName: "delete_file", arguments: "{\"path\":\"/tmp/other\"}", reason: "r")
         }
-        guard let row2 = await snapshotRow(b) else {
+        guard let row2 = await waitForRow(b) else {
             #expect(false, "unapproved action must still prompt after compaction")
             return
         }
@@ -511,14 +515,6 @@ struct ReviewSurfaceGateTests {
         _ = await t2.value
     }
 
-    private func snapshotRow(_ b: ApprovalBroker) async -> PendingApproval? {
-        for _ in 0 ..< 400 {
-            let rows = await b.snapshot()
-            if let row = rows.first { return row }
-            try? await Task.sleep(nanoseconds: 2_000_000)
-        }
-        return nil
-    }
     // MARK: - headless surface (codex lib.rs:566: headless → Never → Rejected)
 
     /// The .interactive verdict arrives via a PreToolUse `.ask` hook (the gate's
@@ -576,7 +572,7 @@ struct ReviewSurfaceGateTests {
             try await registry.securityPrecheck(
                 toolName: "write_file", arguments: "{}", headless: false)
         }
-        guard let row = await snapshotRow(b) else {
+        guard let row = await waitForRow(b) else {
             #expect(false, "in-process .ask must still park on the broker (GUI path)")
             return
         }
@@ -683,5 +679,56 @@ struct ReviewSurfaceGateTests {
         } catch {
             #expect(false, "expected ToolError.denied, got: \(type(of: error)) \(error)")
         }
+    }
+}
+
+// MARK: - exactly-once consumption（codex #55581 借来的那条不变量）
+
+/// codex #55581（`e8aa7c1678`，10-20 读）修的是一句话：一次性接收端必须**先离开状态再被消费**。
+/// 它原先 `try_recv` 之后仍把已 closed 的 receiver 留在 session state 里，下一次 await 直接 panic，
+/// 而不是回落到前台压缩。本仓的对应物是存在 `pendingByID` 里的 CheckedContinuation：
+/// 同一个 id 第二次 resume 就是运行时 trap，`cancelAll` 二次清理同理。
+@Suite("ApprovalBroker — 裁决是 exactly-once，状态先离开再被消费")
+struct ApprovalExactlyOnceTests {
+
+    @Test("同一个 id 第二次 resolve → false，挂起方仍只拿到一个决定")
+    func doubleResolveIsRefused() async throws {
+        let b = ApprovalBroker(policy: .interactive)
+        let t = Task {
+            await b.request(toolName: "write_file", arguments: "{\"path\":\"/tmp/x\"}", reason: "r")
+        }
+        guard let row = await waitForRow(b) else {
+            Issue.record("approval row never published")
+            return
+        }
+        #expect(await b.resolve(id: row.id, decision: .approved) == true)
+        // 第二次裁决：必须被拒（键已随第一次消费离开 `pendingByID`），而不是再 resume 一次。
+        #expect(await b.resolve(id: row.id, decision: .denied(reason: "too late")) == false)
+        #expect(await t.value == .approved)
+        #expect(await b.snapshot().count == 0)
+    }
+
+    @Test("cancelAll 之后同一批 id 再裁决 → 全部 false（清场也只 resume 一次）")
+    func cancelAllThenResolveIsRefused() async throws {
+        let b = ApprovalBroker(policy: .interactive)
+        let t1 = Task { await b.request(toolName: "write_file", arguments: "{}", reason: "r1") }
+        guard let row1 = await waitForRow(b) else {
+            Issue.record("approval row never published")
+            return
+        }
+        let t2 = Task { await b.request(toolName: "delete_file", arguments: "{}", reason: "r2") }
+        // 第二行出现前，第一行仍在场；等两行都在场再清场，避免竞态。
+        guard let row2 = await waitForRow(b, requiring: 2) else {
+            Issue.record("second approval row never published")
+            return
+        }
+        await b.cancelAll()
+        #expect(await t1.value == .denied(reason: "session-ended"))
+        #expect(await t2.value == .denied(reason: "session-ended"))
+        #expect(await b.snapshot().count == 0)
+        #expect(await b.resolve(id: row1.id, decision: .approved) == false)
+        #expect(await b.resolve(id: row2.id, decision: .approved) == false)
+        // 会话放行也随清场失效（codex：批准是 session-scoped）。
+        #expect(await b.sessionApprovalCount == 0)
     }
 }
