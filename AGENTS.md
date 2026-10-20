@@ -25,7 +25,7 @@ This project is developed with heavy AI assistance. The rules:
 
 **Tech stack:** Swift 6.2 · SwiftPM · Hummingbird 2.26 · SwiftUI · SQLite + FTS5
 
-**Key modules:** subdirectories under `Sources/ocoreai/`: Engine, Agents, Client, Scheduler, MCP, Tools, UI, SQLite, Config, Multimodal, Reasoning, Profiling, Tokenizer, Security, Skills, Video, etc. (the full set is the directory listing itself — not counted here).
+**Key modules:** subdirectories under `Sources/ocoreai/`: Engine, Agents, Client, Scheduler, MCP, Tools, UI, SQLite, Config, Multimodal, Reasoning, Profiling, Tokenizer, Security, Skills, Video, etc. （全集 = 目录本身，不计数）.
 
 ---
 
@@ -171,7 +171,7 @@ metric warning, the vendored-header table and the re-collect discipline:
 
 - **`/v1/models/:model/…` 不收原样模型 id**（Handlers/）— `:model` 只匹配一段而 `/v1/models` 发布 `org/name`（两段）⇒ verbatim 一律 router-404，须 `%2F`。四条 `:model` 路由已统一走 `resolvedPathModelId`，catalog note 写明须 percent-encode（探针 03/01）。未决：直收带斜杠 id 会让 Hummingbird `**` 连 `/v1/models/download` 一块吞，代价是再造一层路由真值，留人拍板。
 
-- **CoreAI 约束路的掩码常数**（`EngineInference.swift:1374`）— `_applyBitmask` 掩的不是 -inf，且越界即 `return` 跳过后续掩码字；唯一调用点在 `@available(macOS 27.0,*)` ⇒ 本机永不可运行验证，不臆修、不宣称已修（全文+判据 = `docs/agent/build-gate-reality.md`）。
+- **CoreAI 路上两处「改法显然、本机验不了」**（Engine/）— ① `_applyBitmask`(`EngineInference.swift:1374`) 掩的不是 -inf，越界即 `return` 跳过后续掩码；② fp8→`.float16` 停在 coreai-models #328 修前(`KVCache+CoreAI.swift:618`，fp8 全仓仅此表)。两处皆 `@available(macOS 27.0,*)` ⇒ 本机验不了：不臆修、不宣称已修（①`docs/agent/build-gate-reality.md` ②续17）。
 
 - **iOS UI parity** (UI/) — 工具层平台门控与三处 SwiftUI 编译门已逐条对 iPhoneOS 27 SDK 核过（名单/行号/判据 = CHANGELOG 10-13）。仍开 = iOS **运行时**零验证（编译面 = CI job `build-ios`），MCP/Security on iOS TBD，ChatView/MultimodalControls 仍需活验。
 - **Reasoning `<thinking>` parse** (Engine/) — 字符串协议状态机（`ThinkTagParser`，0 处 regex，15/15 绿），无 AST。
@@ -182,7 +182,7 @@ metric warning, the vendored-header table and the re-collect discipline:
 - **屏幕抓取起不来流（Multimodal/）** — 授权且有显示器，`SCScreenshotManager.captureImage` 仍回 `无法开始流播放`；同机相机能出帧 ⇒ 不是 TCC，是 SCStream 在无 GUI 会话起不了流。`screenStatus` 只在出过帧时才 `ready`（未试=unknown、失败=blocked；门=`ScreenDeliveryHonestyTests`+探针 04）。未决：headless `serve` 能否抓屏。
 - **`tools[]` 的真相集是声明；强制只跟需求，只许一个家**（Handlers/Engine/Client）— 声明即投喂面（本地名装 `toolDispatch`，余者交回 `tool_calls`），grammar 只跟 `tool_choice`/JSON `response_format` 的需求、绝不跟「有没有声明」，该判断唯一落 `shouldConstrainOutput`（`Models/OpenAIModels.swift`），`InferenceOptions` 三个组装面（wire／GUI／Anthropic）同调（历史=CHANGELOG 10-18(续4)+10-19(续)(续2)）；公布按实测（`ToolCallDeliveryLedger`，unload 归零）。门=`ToolDeclarationSurfaceTests`＋探针 11 §7。未决：GUI 端到端零验证（不经 HTTP ⇒ 只有静态门）；`required` 强制力受 checkpoint 限制。
 
-**Resolved items**: not restated here (the names live in `CHANGELOG.md`, and a list maintained in two places is a second truth that drifts).
+**Resolved items** 不在此重述（名字在 `CHANGELOG.md`——两处维护必漂）。
 
 ---
 
@@ -194,7 +194,7 @@ metric warning, the vendored-header table and the re-collect discipline:
    **Layout + mirror caveat (10-14, re-walked 10-16):** upstream moved its sources `Sources/` → `Libraries/`, so `grep -r … Sources` against the clone returns nothing and reads as "API missing" (`saveCache` is at `Libraries/MLXLMCommon/ChatSession.swift:1724`) — grep `Libraries/`. And this clone *is* the build source: `.swiftpm/configuration/mirrors.json` (gitignored) is consulted per revision, so reading the clone equals reading what we compile only while clone, pin and checkout agree (10-14: all three differed). What holds is **pin is an ancestor of clone HEAD** (`git merge-base --is-ancestor`); pin + checkout cleanliness of the built binary is asserted by `scripts/probes/_lib.sh`, not by prose.
 2. **coreai-models** — Apple's reference tree, consumed here as the local `Engine/CoreAI*` derivation (BSD-3; types redefined locally to dodge the macOS 27 requirement). Python/export-side commits are consumer-transparent: ocoreai has no Python or export surface.
 3. **codex** — semantic axis reference (Rust, not linked, nothing redistributed, no per-commit copying).
-4. **Apple Developer Documentation** — **public, no login** (corrected 10-14 — the old "requires login" note was an unverified carry-over; forensics = CHANGELOG 10-14). Division of labour: DocC for intent and semantics, the SDK's `.swiftinterface` for exact signatures and `@available` gates, and **live execution** for behaviour — the CLT SDK has no CoreAI, so CLT-route builds compile every `canImport(CoreAI)` branch out and macOS 26 can never run them (SDK-level numbers: `docs/agent/build-gate-reality.md`). Fetch pattern: the same `/tutorials/data/documentation/` path with `<topic>` swapped.
+4. **Apple Developer Documentation** — **public, no login** (corrected 10-14：旧「requires login」未经核实；forensics = CHANGELOG 10-14). Division of labour: DocC for intent and semantics, the SDK's `.swiftinterface` for exact signatures and `@available` gates, and **live execution** for behaviour — the CLT SDK has no CoreAI, so CLT-route builds compile every `canImport(CoreAI)` branch out and macOS 26 can never run them (SDK-level numbers: `docs/agent/build-gate-reality.md`). Fetch pattern: the same `/tutorials/data/documentation/` path with `<topic>` swapped.
 
 5. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: the only one of the five that judges **the GUI itself** rather than the engine, so on anything user-visible HIG is the authority — not upstream codex. It is **not DocC** (its `.json` variants 404, verified 10-14) ⇒ cite the section; there is no machine index to grep. What it judges here: ⌘ coverage + focus order, Settings hierarchy, `textSelection` on anything readable, a11y labels, dark mode + Dynamic Type, destructive-confirmation wording, replying in the medium the user used — counts move, so re-grep before quoting one.
 6. **Auxiliary references (owner-designated 10-15, extended 10-20)** — vllm / sglang (the OpenAI/Anthropic compat benchmark) + vllm-metal / omlx / mlx-serve / MTPLX / ollama / TensorFold / Strata / hermes-agent / deepseek-harness / harness2: serving, MTP, packaging and agent-loop comparators, not pins — nothing is linked or redistributed, and a borrowed verdict stays an inference until a file:line in our own build says otherwise. Per-repo strengths: docs/agent/comparator-repos.md — all 12 designated trees present on this host (verified 10-20).
