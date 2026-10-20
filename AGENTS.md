@@ -1,6 +1,6 @@
 # ocoreai — Project Context for AI Agents
 
-> This file is loaded by the coding agent (Codex — CLI and desktop app) on every session. It anchors the agent to the project's conventions, architecture, and known issues — zero cold-start tax.
+> Loaded into the coding agent's context every session (Codex CLI + desktop): conventions, architecture, known issues — zero cold-start tax.
 >
 > **It is not free.** Every byte here is paid for on every session, so this file carries judgment,
 > invariants and verdicts and pushes long-form evidence one hop away (§ Read on demand, § Routing
@@ -163,7 +163,7 @@ metric warning, the vendored-header table and the re-collect discipline:
 - **Reject** `count > N` weak assertions.
 - Test modules: Scheduler lifecycle + concurrency, OOMGuard (full), MemoryTracker (partial gaps), AdmissionGate (partial gaps), HardwareRouter (Mirror + Integration — see table below).
 - **A scan-based test asserts its own premises:** find the repo root by searching, never by fixed `deletingLastPathComponent()` hops (three "passing" assertions here were really ENOENT), and floor the scan's own hit count so a regex that stopped matching fails instead of passing vacuously. `V1EndpointCatalogTests` is the pattern.
-- **Commit the probe.** Anything that proves behaviour against a live server ships as a script — cf. `scripts/proc-status-cache-probe.swift`, mlx-serve's `tests/test_*.sh` — so the claim outlives the session that made it.
+- **Commit the probe.** Anything proving behaviour against a live server ships as a script (cf. `scripts/proc-status-cache-probe.swift`, mlx-serve's `tests/test_*.sh`) so the claim outlives the session that made it.
 
 ---
 
@@ -229,7 +229,7 @@ Areas without a guide (Scheduler, MCP, Tools, Skills, Multimodal, Video, Securit
 ## Docs Contract — how this file stays true
 
 `make docs-check` (`scripts/agents-md-contract.sh`; CI: the `audit` job) asserts, sub-second and with no build:
-**B1** root byte budget, shrink-only — adding text means removing text, and `make docs-budget` only ever lowers the cap · **B2** root + guide chain budget · **P1** the scan's own floors, so a regex that stopped matching fails loudly instead of passing vacuously · **P2** every file named here resolves — in this repo, by basename in git, in a local upstream clone, or is declared absent on the same line · **P3** every `file:line` anchor points at a line that exists · **P4** every `<!-- claim:id OP N :: command -->` runs and holds · **P5/P6** every `make` target and every test-suite name is real · **P7** every area guide on disk has a routing row.
+**B1** root byte budget, shrink-only — adding text means removing text, and `make docs-budget` only ever lowers the cap · **B2** root + guide chain budget · **P1** the scan's own floors, so a regex that stopped matching fails loudly instead of passing vacuously · **P2** every file named here resolves — in this repo, by basename in git, in a local upstream clone, or is declared absent on the same line · **P3** every `file:line` anchor points at a line that exists · **P4** every `<!-- claim:id OP N :: command -->` runs and holds · **P5/P6** every `make` target and every test-suite name is real · **P7** every area guide on disk has a routing row · **P9** routing targets are tracked, not merely present · **P10** the READMEs' endpoint table + public-route list equal the router and `AuthRoutePolicy` (both READMEs are in this scan).
 
 A claim sits on the same line as its instrument, and the operator is part of the meaning: `>=` a floor that must not shrink, `<=` a ceiling that must not grow, `=` only for facts that move when this file is edited. Pinning equality to an inventory count is a churn generator — name the command instead. Long form: `CONTRIBUTING.md` → *The three questions*.
 
@@ -247,17 +247,17 @@ A claim sits on the same line as its instrument, and the operator is part of the
 | `Sources/ocoreai/Skills/SystemPromptBuilder.swift` | **Agent** (LLM context) | Builds the base + skills system prompt | Prompt-wording changes = behaviour changes — needs inference regression |
 | `Sources/ocoreai/Tools/ToolEntry.swift` (+ `Tool*.swift`) | **Agent** (LLM context) | `description` / JSON schema are consumed by the model as function-calling contracts | schema/wording changes = tool-call behaviour — test with live model |
 | `Sources/ocoreai/Parsers/*` (`ThinkTagParser` etc.) | **Agent** (implicit) | Defines what the model may emit (marker tags) | marker changes break both parse and parse-back — hexdump-verify parity with upstream |
-| `README.md` / `README.zh.md` | **Human** | Entry point for humans | Feature surface changes |
+| `README.md` / `README.zh.md` | **Human** | Entry point for humans | Feature surface changes — P10 diffs the endpoint table + public-route list against router/middleware, so a stale row is a red gate, not a missed read |
 | `CHANGELOG.md` | **Human** | Per-feature provenance, commit refs | Every user-visible change (see Workflow) |
 | `CONTRIBUTING.md` | **Human** | How to contribute | Process / tooling changes |
 | `ARCHITECTURE.md` | **Human** (historical) | Point-in-time architecture review (2026-07-26) | Do not edit — superseded by `AGENTS.md` + `CHANGELOG.md` |
 | `SECURITY.md` | **Human** | Threat model + reporting | Trust-model / network-surface changes |
-| ~~`docs/CONTEXT.md`~~ | — | v2 context from 2026-06-24; **removed from the repo at `11dd586`** and still cited by this map for weeks | do not cite |
-| ~~`docs/precise-tasks.md`~~ | — | **never tracked**: `git log --all -- docs/` returns exactly one commit (`11dd586`, which deleted `CONTEXT.md`) — the map cited a file the repo never had | re-create deliberately, or leave the row struck |
-| ~~`docs/prompt-ocoreai.md`~~ | — | the 自主推进协议 this file told agents to maintain **does not exist in git** (same check as above); its substance is now § Core Principles + § Rules that apply everywhere | restore it only as a real file, with its own gate |
-| ~~`docs/plans/agent-os-dual-mode-architecture.md`~~ | — | never tracked; a plan that exists nowhere cannot gate anything | write it as a file or drop it |
+| ~~`docs/CONTEXT.md`~~ | — | v2 context from 2026-06-24; **removed at `11dd586`** yet still cited by this map for weeks | do not cite |
+| ~~`docs/precise-tasks.md`~~ | — | **never tracked**: `git log --all -- docs/` returns one commit (`11dd586`, which deleted `CONTEXT.md`) — the map cited a file the repo never had | re-create deliberately, or leave the row struck |
+| ~~`docs/prompt-ocoreai.md`~~ | — | the 自主推进协议 this file told agents to maintain **does not exist in git** (same check as above); substance now lives in § Core Principles + § Rules that apply everywhere | restore only as a real file, with its own gate |
+| ~~`docs/plans/agent-os-dual-mode-architecture.md`~~ | — | never tracked; a plan that exists nowhere cannot gate anything | write it or drop the row |
 | `CHECKPOINT.md` | **Agent (transient)** | Live-work checkpoint, overwritten each round | Not stable — do not cite as source of truth |
-| `~~.status.md~~` | — | Tracked in git (listed in `.gitignore` L37 but committed earlier) — status snapshot | Do not cite — point-in-time |
+| `~~.status.md~~` | — | tracked in git (listed `.gitignore` L37 but committed earlier) — status snapshot | do not cite, point-in-time |
 
 **Agent-facing change discipline:**
 1. Identify the behaviour that will change (tool schema / prompt wording / marker).
@@ -269,18 +269,15 @@ A claim sits on the same line as its instrument, and the operator is part of the
 
 ## Wiki / Knowledge Base
 
-- **Location:** `~/wiki` (Obsidian vault) — **host-local, and absent on this host today** (`ls ~/wiki` → *No such file or directory*, 10-14). It is not in this repo, cannot be checked out on CI, and is therefore never project evidence: cite `CHANGELOG.md` + the code. `make docs-check` reports `~`-rooted refs separately from failures so the distinction is mechanical, not rhetorical.
-- **Known issue:** Time-aging distortion — wiki pins HEAD but repo advances. Concept pages say "implemented" ≠ actually in Engine.
-- **Verification:** `git merge-base --is-ancestor $wiki_head $real_head` + grep for file existence + symbol grep
-- **Local scratch dir is not truth:** `.hermes/` is gitignored (`.gitignore` L29) and today holds only `.hermes/plans/2026-10-09_first-principles-roadmap.md`; there is **no** `.hermes/audits/`. Untracked files cannot be shared project evidence — cite `CHANGELOG.md` + `~/wiki/concepts/*` instead, and treat that roadmap as historical wherever it conflicts with this file.
+- **Location:** `~/wiki` (Obsidian vault) — **host-local, absent here** (`ls ~/wiki` → *No such file*, 10-14): not in this repo, not on CI ⇒ never project evidence — cite `CHANGELOG.md` + the code. `make docs-check` reports `~`-rooted refs apart from failures (mechanical, not rhetorical); until 10-20 `README.md` sourced a test count from this vault.
+- **Known issue:** time-aging — the wiki pins HEAD while the repo advances; "implemented" on a concept page ≠ in Engine. Verify with `git merge-base --is-ancestor $wiki_head $real_head` + file/symbol greps
+- **Local scratch dir is not truth:** `.hermes/` is gitignored (`.gitignore` L29), holds only `.hermes/plans/2026-10-09_first-principles-roadmap.md`, and has **no** `.hermes/audits/`. Untracked files are not shareable evidence — cite `CHANGELOG.md` + `~/wiki/concepts/*`, and treat that roadmap as historical where it conflicts with this file.
 
 ---
 
 ## Workflow
 
-- **Direct commits to `main`** — no branch ritual; the CI gate (`make test-ci` equivalent on macos-26) is the authority, run green before push
-- Every commit message: what changed + verification evidence (test count / command output)
-- One logical change per commit
+- **Direct commits to `main`** — no branch ritual; the macos-26 CI gate (`make test-ci`) is the authority, run green before push
 - `CHANGELOG.md` updated with every user-visible change (commit reference mandatory)
 - Editing `AGENTS.md`, `docs/**` or an area guide ⇒ `make docs-check` green before push (sub-second, no build)
 
