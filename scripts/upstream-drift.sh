@@ -292,7 +292,7 @@ PY
   done
   if [ "$ADOPT_OK" -eq 1 ]; then
     if [ "${#SELECTED[@]}" -gt 0 ]; then
-      echo "✔ 已采纳所选轴 → $STATE（其余轴基线未动）"
+      echo "✔ 已采纳所选轴 → ${STATE}（其余轴基线未动）"
     else
       echo "✔ 基线已采纳 → $STATE"
     fi

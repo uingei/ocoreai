@@ -1,17 +1,17 @@
 {
-  "note": "versioned upstream drift baseline — values are SHAs (full or short, compare tolerant). scripts/upstream-drift.sh",
-  "checked_at_utc": "2026-10-20T09:22:53Z",
+  "note": "versioned upstream drift baseline \u2014 values are SHAs (full or short, compare tolerant). scripts/upstream-drift.sh",
+  "checked_at_utc": "2026-10-20T12:04:56Z",
   "baselines": {
     "mlx-swift-lm": "4cc5504",
     "coreai-models": "9e12065",
-    "codex": "efa159f7aa"
+    "codex": "e1b9c94"
   },
   "sources": {
     "mlx-swift-lm": "ml-explore/mlx-swift-lm",
     "coreai-models": "apple/coreai-models",
     "codex": "openai/codex"
   },
-  "adopt_provenance": "10-20 round 续17 — partial adopt: coreai-models window bd61eb1..9e120659a (+8) read and adjudicated line by line (7 commits in CHANGELOG 10-20(续12); #358 read this round from the local clone after the fetch timeout, verdict = Python/export axis, 0 Swift files, LICENSE untouched so apple.pin stays byte-valid). codex deliberately LEFT at efa159f7aa (+231 unread) and mlx-swift-lm at 4cc5504: stamping an unread tail into the baseline is the time-aging distortion this file warns about. The all-or-nothing adopt that forced that choice is fixed in scripts/upstream-drift.sh (adopt now takes axis arguments; an unknown axis exits 1 without writing). Open outcomes that survive this adopt: #328 fp8 dtype mapping still pre-fix in Sources/ocoreai/Engine/KVCache+CoreAI.swift:618 (recorded §Open, not patched — the only call sites are macOS 27 + CoreAI), and #351 stateKinds awaits an owner decision.",
+  "adopt_provenance": "10-20 round \u7eed17 \u2014 partial adopt: coreai-models window bd61eb1..9e120659a (+8) read and adjudicated line by line (7 commits in CHANGELOG 10-20(\u7eed12); #358 read this round from the local clone after the fetch timeout, verdict = Python/export axis, 0 Swift files, LICENSE untouched so apple.pin stays byte-valid). codex deliberately LEFT at efa159f7aa (+231 unread) and mlx-swift-lm at 4cc5504: stamping an unread tail into the baseline is the time-aging distortion this file warns about. The all-or-nothing adopt that forced that choice is fixed in scripts/upstream-drift.sh (adopt now takes axis arguments; an unknown axis exits 1 without writing). Open outcomes that survive this adopt: #328 fp8 dtype mapping still pre-fix in Sources/ocoreai/Engine/KVCache+CoreAI.swift:618 (recorded \u00a7Open, not patched \u2014 the only call sites are macOS 27 + CoreAI), and #351 stateKinds awaits an owner decision.",
   "resolved_via": {
     "mlx-swift-lm": "api",
     "coreai-models": "api",

@@ -44,6 +44,15 @@ MARKER = re.compile(
     r"anchor:([A-Za-z0-9._+-]+)\s+([^\s:]+):(\d{1,6})(?:-(\d{1,6}))?\s+(.+?)\s*(?:-->)?\s*$"
 )
 
+# A line that *declares* an anchor (comment marker + repo + a file with a line number) but
+# does not parse as MARKER. The shape test stays narrow on purpose — `SwiftUI`'s
+# `proxy.scrollTo("bottom", anchor: .bottom)` and prose like "HEAD anchor: 54e6163" must not
+# be mistaken for a declaration, and they are not: they neither follow a comment marker nor
+# carry `path.ext:<digits>`.
+DECLARED = re.compile(
+    r"(?:<!--|//|#)\s*anchor:\s*\S+\s+\S+\.[A-Za-z0-9]+\s*:\s*\d"
+)
+
 # The docs the agent reads, plus the source comments that cite upstream while being edited
 # (that is where the wrong 1131 lived).
 SOURCES = (
@@ -156,11 +165,20 @@ def lines_at(tree, rev, path):
 
 checked = drift = skipped = 0
 local_checked = upstream_checked = upstream_skipped = 0
+unparsed = []
 notes = []
 for src in SOURCES:
     for no, raw in enumerate(read(src).splitlines(), 1):
         m = MARKER.search(raw)
         if not m:
+            # A line that says `anchor:` but does not parse is not "no anchor" — it is an
+            # anchor that silently stopped being checked. Measured 10-20 (same session that
+            # wrote this): a re-pin script mangled five markers into
+            # `MLXBridge.swift:12141206`, `checked` fell 37 -> 32, drift stayed 0, and the
+            # only thing that noticed was a human reading the OK line. The floor on N catches
+            # a regex that dies wholesale; this catches one marker at a time.
+            if DECLARED.search(raw):
+                unparsed.append("%s:%d %s" % (src, no, raw.strip()[:90]))
             continue
         name, path, start, end, token = m.groups()
         start, end = int(start), int(end or 0) or int(start)
@@ -203,6 +221,13 @@ for src in SOURCES:
                      % (shown, ",+%d more" % (len(matches) - 4) if len(matches) > 4 else "", len(body)))
         notes.append("DRIFT %s:%d %s -> %s:%s %s" % (src, start, token_norm[:40], path,
                                                      ("(%s in %s)" % (name, tree.split("/")[-1])) if name != "." else "", where))
+
+if unparsed:
+    print("  UNPARSED %d marker(s) declared `anchor:` but did not parse — they are NOT checked:"
+          % len(unparsed))
+    for u in unparsed:
+        print("    " + u)
+    drift += len(unparsed)
 
 for line in notes:
     print("  " + line)
