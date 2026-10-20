@@ -203,7 +203,24 @@ actor ToolRegistry {
     private let destructiveBlacklist: Set<String>
 
     /// Loop detection: tracks (tool_name, last_input_hash) to prevent cycles
-    private var executionHistory: [(name: String, hash: String, time: ContinuousClock.Instant)] = []
+    /// Identical-call history for the loop net, bucketed by the conversation that made the call.
+    ///
+    /// A loop is a property of one agent's turn sequence, so the streak has to live in that
+    /// conversation's bucket: measured 10-21, four `sleep(duration_ms:8000)` calls from four
+    /// *different* sessions within 60 s tripped `loopDetected` on the fourth, because the
+    /// registry is process-wide and keyed only on (tool, args). One client's repeats therefore
+    /// refused another client's legitimate call — the same cross-conversation interference this
+    /// repo already closed on the session pool (`SessionIsolationTests`) and on the steer wake
+    /// (`ToolInvocationContext.conversationKey`).
+    ///
+    /// Calls with no conversation key (inbound MCP `tools/call`, a proactive GUI read, a unit
+    /// harness) share one `process` bucket, which keeps the net intact where no identity exists
+    /// rather than disabling it.
+    private var executionHistory:
+        [(scope: String, name: String, hash: String, time: ContinuousClock.Instant)] = []
+
+    /// Bucket for calls that arrive without a conversation — see ``executionHistory``.
+    static let loopScopeNoConversation = "process"
     private let maxHistoryDepth = 3
 
     /// Exec-host failure circuit breaker (absorbs codex #41454 `GoalAccountingState`.
@@ -520,7 +537,9 @@ actor ToolRegistry {
         // 2. Loop detection via process-local hash of arguments (String.hashValue —
         //    in-process identity key only; NOT a cryptographic digest, never persisted)
         let inputHash = String(format: "%llX", arguments.hashValue)
-        try checkLoop(entry: entry, inputHash: inputHash)
+        try checkLoop(
+            entry: entry, inputHash: inputHash,
+            scope: conversationKey ?? Self.loopScopeNoConversation)
 
         // 3. Destructive tool serialization check
         if destructiveBlacklist.contains(name) {
@@ -558,7 +577,9 @@ actor ToolRegistry {
             ) {
                 try await entry.handler(arguments)
             }
-            recordExecution(name, hash: inputHash)
+            recordExecution(
+                name, hash: inputHash,
+                scope: conversationKey ?? Self.loopScopeNoConversation)
             // Exec-breaker reset (codex #41454: any successful tool clears the
             // streak in the turn). Success of ANY tool — not just the exec
             // surface — breaks the "consecutive" run, matching `successful_tool`.
@@ -582,7 +603,9 @@ actor ToolRegistry {
             // That let an agent grind a broken tool with identical args past the
             // declared "≥ maxHistoryDepth identical calls" cap. See
             // ToolRegistryTests.repeatedFailuresAreLoopDetected for the exact-value lock.
-            recordExecution(name, hash: inputHash)
+            recordExecution(
+                name, hash: inputHash,
+                scope: conversationKey ?? Self.loopScopeNoConversation)
             // Exec-breaking (codex #41454): a HANDLER failure on the exec surface
             // advances the consecutive-failure streak. Only exec-host tools count
             // (codex scopes to `exec`); only failures that got this far count
@@ -626,10 +649,11 @@ actor ToolRegistry {
             domain: "ocoreai.tool.sanitized", code: 0, userInfo: [NSLocalizedDescriptionKey: msg])
     }
 
-    /// SHA256-based loop detection
+    /// Identical-call loop detection, within one conversation's recent history.
     private func checkLoop(
         entry: ToolEntry,
         inputHash: String,
+        scope: String
     ) throws {
         // Clean old entries (> 60 seconds)
         let now = ContinuousClock.now
@@ -637,7 +661,7 @@ actor ToolRegistry {
 
         // Check for recent identical calls (cycle = same tool + same input ≥ maxDepth times)
         let recentCount = executionHistory.count(where: {
-            $0.name == entry.name && $0.hash == inputHash
+            $0.scope == scope && $0.name == entry.name && $0.hash == inputHash
         })
 
         guard recentCount < maxHistoryDepth else {
@@ -646,8 +670,9 @@ actor ToolRegistry {
     }
 
     /// Record a successful execution for loop detection
-    private func recordExecution(_ name: String, hash: String) {
-        executionHistory.append((name: name, hash: hash, time: ContinuousClock.now))
+    private func recordExecution(_ name: String, hash: String, scope: String) {
+        executionHistory.append(
+            (scope: scope, name: name, hash: hash, time: ContinuousClock.now))
         // Trim history
         if executionHistory.count > 100 {
             executionHistory.removeFirst(50)

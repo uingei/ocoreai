@@ -216,6 +216,90 @@ struct ToolRegistryExecutionTests {
         }
     }
 
+    /// The net counts ONE conversation's repeats. Measured live 10-21: four
+    /// `sleep(duration_ms:8000)` calls from four different sessions inside 60 s made the fourth
+    /// come back `[tool_error: Execution loop detected: sleep] FAILED — its effects do not
+    /// exist.` to a client that had called the tool once. The registry is one process-wide
+    /// actor, so the streak has to be bucketed by the conversation that owns the call — the
+    /// same reason `SessionIsolationTests` exists and the reason `sleep` asks
+    /// `SteerQueue.pendingCount(sessionKey:)` rather than a global flag.
+    @Test("loop detection is scoped per conversation — another conversation is not contaminated")
+    func loopDetectionIsConversationScoped() async {
+        let registry = makeRegistry()
+        try? await registry.register(
+            ToolEntry(
+                name: "repeater", toolset: "debug", schema: ToolSchema(),
+                handler: { _ in "ok" }, maxDepth: 3))
+        let args = #"{"duration_ms":8000}"#
+
+        // Conversation A fills its own bucket: 3 identical calls pass, the 4th is refused.
+        for _ in 0 ..< 3 {
+            do {
+                _ = try await registry.call("repeater", arguments: args, conversationKey: "conv-A")
+            } catch {
+                #expect(Bool(false), "conv-A call should succeed before the cap: \(error)")
+            }
+        }
+        do {
+            _ = try await registry.call("repeater", arguments: args, conversationKey: "conv-A")
+            #expect(Bool(false), "conv-A must still trip its own net at depth+1")
+        } catch let error as ToolError {
+            #expect(error.localizedDescription.contains("loop detected"))
+        } catch {
+            #expect(Bool(false), "Unexpected error: \(error)")
+        }
+
+        // Conversation B, same tool, byte-identical arguments: A's streak must not be B's.
+        do {
+            _ = try await registry.call("repeater", arguments: args, conversationKey: "conv-B")
+        } catch {
+            #expect(
+                Bool(false),
+                """
+                conv-B's first identical call was refused because conv-A repeated it — \
+                cross-conversation contamination: \(error)
+                """)
+        }
+
+        // Scoping must not weaken the net: B trips on its own repeats too.
+        for _ in 0 ..< 2 {
+            _ = try? await registry.call("repeater", arguments: args, conversationKey: "conv-B")
+        }
+        do {
+            _ = try await registry.call("repeater", arguments: args, conversationKey: "conv-B")
+            #expect(Bool(false), "conv-B must trip its own net after its own 3 identical calls")
+        } catch let error as ToolError {
+            #expect(error.localizedDescription.contains("loop detected"))
+        } catch {
+            #expect(Bool(false), "Unexpected error: \(error)")
+        }
+    }
+
+    /// Lanes with no conversation (inbound MCP `tools/call`, a proactive GUI read, a harness)
+    /// share one `process` bucket — the net stays armed where no identity exists, rather than
+    /// being switched off by the scoping above.
+    @Test("keyless calls share one bucket, so scoping cannot silently disarm the net")
+    func keylessCallsStillShareOneBucket() async {
+        let registry = makeRegistry()
+        try? await registry.register(
+            ToolEntry(
+                name: "repeater", toolset: "debug", schema: ToolSchema(),
+                handler: { _ in "ok" }, maxDepth: 3))
+        let args = #"{"duration_ms":8000}"#
+
+        for _ in 0 ..< 3 {
+            _ = try? await registry.call("repeater", arguments: args)
+        }
+        do {
+            _ = try await registry.call("repeater", arguments: args)
+            #expect(Bool(false), "keyless calls must accumulate in one bucket and trip at depth+1")
+        } catch let error as ToolError {
+            #expect(error.localizedDescription.contains("loop detected"))
+        } catch {
+            #expect(Bool(false), "Unexpected error: \(error)")
+        }
+    }
+
     private struct BrokenToolError: Error {}
 
     @Test("loop detection counts FAILED identical attempts (not just successes)")
