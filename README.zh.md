@@ -30,9 +30,9 @@ swift run ocoreai serve    # headless：引擎 + HTTP 桥，无窗口
 **无头 HTTP 入口：`ocoreai serve`**（`swift run ocoreai serve`，或直接运行构建产物）——引擎 + 桥绑定 `127.0.0.1:8080`，无需窗口/WindowServer 会话。退出语义：`SIGTERM` 或关闭 stdin 触发优雅退出（引擎排空 ≤30s 后干净退出），`SIGINT` 保持终端默认行为。不带参数直接 `ocoreai` 则照常启动 GUI。服务监听 `127.0.0.1:8080`。配置位于 `~/.ocoreai/config.yaml`。
 DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显式 opt-in — 终端运行 `OCOREAI_ENABLE_HTTP=1 /Applications/ocoreai.app/Contents/MacOS/ocoreai`（实证：`/health` 200 + `/v1/chat/completions` 推理闭环）。
 
-> ⚠️ **仅本机访问** — HTTP API 默认绑定 `127.0.0.1`。认证默认关（设 `OCOREAI_API_KEYS` 环境变量开启），无 TLS。令牌桶限流默认开：全局 **200 次/秒**（burst 300）、单模型 30/秒（burst 45）、单 IP 20/秒（burst 30）—— 在 `App.swift:701` 一处设定，由 `Middleware/RateLimitMiddleware.swift` 执行。
+> ⚠️ **仅本机访问** — HTTP API 默认绑定 `127.0.0.1`。认证默认关（设 `OCOREAI_API_KEYS` 环境变量开启），无 TLS。令牌桶限流默认开：全局 **200 次/秒**（burst 300）、单模型 30/秒（burst 45）、单 IP 20/秒（burst 30）—— 在 `App.swift:703` 一处设定，由 `Middleware/RateLimitMiddleware.swift` 执行。
 <!-- claim:global_rate_set=1 :: grep -c 'globalRate: 200' Sources/ocoreai/App.swift -->
-<!-- anchor:. Sources/ocoreai/App.swift:701 globalRate: 200 -->
+<!-- anchor:. Sources/ocoreai/App.swift:703 globalRate: 200 -->
 
 > 🛠️ **开发版本** — 此为开发构建。生产使用需要额外加固（见下方 Security 部分）。
 

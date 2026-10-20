@@ -19,12 +19,6 @@ import SwiftUI
 
 // MARK: - Chat Message
 
-/// Unified hub source for model search (HF vs ModelScope)
-enum HubSource: String, CaseIterable {
-    case huggingFace = "HuggingFace"
-    case modelScope = "ModelScope"
-}
-
 // Note: HFModelInfo and MSModelInfo have been replaced by HFHubModel and MSHubModel
 // from HuggingFaceSearchClient and ModelScopeSearchClient respectively.
 

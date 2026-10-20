@@ -2,10 +2,15 @@
 //
 // Locks the env-var documentation surface (.env.example) against code drift.
 //
-// ocoreai reads 27 environment variables: 21 static `environment["KEY"]`
-// literals + 6 read through a constant or interpolated prefix
+// ocoreai reads 27 environment variables: 19 static `environment["KEY"]`
+// literals + 8 read through a constant, an accessor, or an interpolated prefix
 // (`HttpBridgePolicy.envVar`, `HF_ENDPOINT_MIRROR` via operatorEnvironment,
 // and `\(...)HOST/PORT/BACKEND/...` in ConfigSystem.applyEnvOverrides).
+// 10-21: `HF_TOKEN` / `MODELSCOPE_TOKEN` stopped being literals at their read sites —
+// `Models/HubCredential.swift` names them once (`HubSource.envVar`) and reads them only
+// through `precedence(source:stored:)`. Assertion 5 unions the accessor's own names rather
+// than letting the floor drop: a key that moves behind an accessor must stay visible to the
+// contract, not age out of it.
 // Every count here is re-derived by set analysis, not remembered — a stale
 // count in a doc comment is the drift this file was born from (22→23 found
 // live: README said 22, expectedKeys held 23). 10-12: the native web_search
@@ -23,13 +28,16 @@
 //   2. no omission:  no expected key missing from `.env.example`
 //   3. no stale row: every expected key is actually read in Sources/
 //   4. no dupes:     `.env.example` has no repeated key
-//   5. no blind spot: every literal `environment["KEY"]` read in Sources/ is
-//      carried by the contract — a key added in code cannot skip this file
+//   5. no blind spot: every env key Sources/ can produce — a literal `environment["KEY"]`
+//      read, or a name declared by the accessor that reads on its behalf — is carried by the
+//      contract; a key added in code cannot skip this file
 //
 // ADD a new env var in code → add it to expectedKeys AND to .env.example;
 // test 3 will fail until both are done.
 import Foundation
 import Testing
+
+@testable import ocoreai
 
 struct EnvKeysDocumentationTests {
 
@@ -169,15 +177,33 @@ struct EnvKeysDocumentationTests {
         return keys
     }
 
+    /// The env names the code reads *through* its single accessor instead of spelling at the
+    /// read site: `HubSource.envVar` (`Models/HubCredential.swift`) is the one home for the
+    /// two hub-token names, and `precedence(source:stored:)` the only expression that reads
+    /// them. Taken from the compiled type rather than a remembered list, so this still sees a
+    /// provider added to the enum — the direction assertion 5 exists to cover.
+    private static var keysDeclaredByAccessor: Set<String> {
+        Set(HubSource.allCases.map(\.envVar))
+    }
+
     /// Assertion 5 — closes the hole this suite was blind to: keys that exist in
     /// code but were never added to the contract (and therefore never documented).
     @Test func noLiteralReadIsMissingFromContract() {
-        let derived = Self.derivedLiteralKeys()
-        // Guard the guard: a scan that silently returned almost nothing would
-        // make the subset check below pass vacuously. 21 = the literal reads in
-        // the tree today. If a key is legitimately REMOVED from code, lower this
-        // floor in the same commit that removes it from expectedKeys.
-        #expect(derived.count >= 21, "literal-key scan regressed: \(derived.sorted())")
+        let literal = Self.derivedLiteralKeys()
+        let viaAccessor = Self.keysDeclaredByAccessor
+        let derived = literal.union(viaAccessor)
+        // Guard the guard, in parts, because the union alone would hide a collapsed half:
+        // 19 = the literal reads left in the tree today (21 before the two hub tokens moved
+        // behind `HubSource.envVar`); the accessor must name one distinct variable per
+        // provider, or a duplicated/blank `envVar` would shrink the set unnoticed.
+        // If a key is legitimately REMOVED from code, lower the matching floor in the same
+        // commit that removes it from expectedKeys.
+        #expect(literal.count >= 19, "literal-key scan regressed: \(literal.sorted())")
+        #expect(
+            viaAccessor.count == HubSource.allCases.count,
+            "the hub accessor named \(viaAccessor.sorted()) for \(HubSource.allCases.count) providers — each provider must name one distinct env var"
+        )
+        #expect(derived.count >= 21, "derived key set regressed: \(derived.sorted())")
         let unlisted = derived.subtracting(Set(Self.expectedKeys)).sorted()
         #expect(
             unlisted.isEmpty,

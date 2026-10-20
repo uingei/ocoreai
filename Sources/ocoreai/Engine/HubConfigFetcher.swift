@@ -107,7 +107,8 @@ enum HubConfigFetcher {
             logger.warning("Invalid HF config URL for \(repoId)")
             return nil
         }
-        return await fetchConfig(url: url, repoId: cacheKey, logger: logger)
+        return await fetchConfig(
+            url: url, repoId: cacheKey, source: .huggingFace, logger: logger)
     }
 
     /// Fetch config.json from ModelScope Hub and parse vocab_size + max_context_length.
@@ -137,7 +138,8 @@ enum HubConfigFetcher {
             logger.warning("Invalid ModelScope config URL for \(repoId)")
             return nil
         }
-        return await fetchConfig(url: url, repoId: cacheKey, token: token, logger: logger)
+        return await fetchConfig(
+            url: url, repoId: cacheKey, token: token, source: .modelScope, logger: logger)
     }
 
     // MARK: - Parameter Count Estimation
@@ -184,21 +186,35 @@ enum HubConfigFetcher {
         url: URL,
         repoId: String,
         token: String? = nil,
+        source: HubSource = .modelScope,
         logger: Logger,
     ) async -> (vocabSize: Int, maxContextLength: Int)? {
+        // Classified once per fetch: the header is either complete or absent, never
+        // `Bearer ` with a blank value (HubCredential.swift). A stored-but-unusable value is
+        // named here, because the config fetch failing silently is what makes "the model
+        // loaded with the wrong context window" untraceable later.
+        let credential = HubCredentialResolution.resolve(source: source, stored: token)
+        if let reason = credential.unusableReasonText {
+            logger.warning(
+                "Config fetch for \(repoId) continues anonymously: \(source.envVar) \(reason)")
+        }
         do {
             var request = URLRequest(url: url)
             request.timeoutInterval = 10
-            if let token {
-                request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            if let headerValue = credential.headerValue {
+                request.setValue(headerValue, forHTTPHeaderField: "Authorization")
             }
             let (data, response) = try await URLSession.shared.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200
             else {
-                logger.warning(
-                    "Config fetch failed for \(repoId): HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)"
-                )
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                let advice = (response as? HTTPURLResponse).flatMap {
+                    HubRejection.classify(
+                        statusCode: $0.statusCode, credential: credential, source: source)?.advice
+                }
+                let adviceSuffix = advice.map { "; \($0)" } ?? ""
+                logger.warning("Config fetch failed for \(repoId): HTTP \(status)\(adviceSuffix)")
                 return nil
             }
 

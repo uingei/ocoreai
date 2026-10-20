@@ -44,7 +44,9 @@ nonisolated func retryDelay(attempt: Int, maxDelay: TimeInterval = 10.0) -> Time
 actor ModelScopeDownloader: Downloader {
     // MARK: - Configuration
 
-    private let token: String?
+    /// What this downloader may offer the hub, classified once at init (HubCredential.swift):
+    /// a request carries a complete `Bearer <token>` or no `Authorization` header at all.
+    private let credential: HubCredentialResolution
     /// ModelScope API base — configurable via MODELSCOPE_ENDPOINT env var
     /// or passed via init. Falls back to `https://www.modelscope.cn/api/v1`.
     private let baseAPI: URL
@@ -61,7 +63,11 @@ actor ModelScopeDownloader: Downloader {
         cacheRoot: URL? = nil,
         endpoint: String? = nil
     ) {
-        self.token = token
+        self.credential = HubCredentialResolution.resolve(source: .modelScope, stored: token)
+        if let reason = credential.unusableReasonText {
+            Logger(label: "ModelScopeDownloader").warning(
+                "MODELSCOPE_TOKEN \(reason) — requests will go out anonymously")
+        }
 
         // Determine endpoint: explicit param > env var > default
         let resolvedEndpoint: String
@@ -272,8 +278,8 @@ actor ModelScopeDownloader: Downloader {
             "Accept": "application/json",
             "Content-Type": "application/json",
         ]
-        if let token {
-            headers["Authorization"] = "Bearer \(token)"
+        if let headerValue = credential.headerValue {
+            headers["Authorization"] = headerValue
         }
         return headers
     }
@@ -309,8 +315,18 @@ actor ModelScopeDownloader: Downloader {
         guard let httpResponse = response as? HTTPURLResponse,
             (200 ... 299).contains(httpResponse.statusCode)
         else {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 400
+            let rejection = HubRejection.classify(
+                statusCode: status, credential: credential, source: .modelScope)
+            if rejection?.kind == .credentialRefused || rejection?.kind == .accessDenied {
+                // Terminal by construction: `withRetry` treats anything that is not
+                // apiError/downloadFailed as non-retryable, and re-sending a refused token
+                // three times is three requests that buy the user nothing but delay.
+                throw DownloaderError.credentialRejected(
+                    repoId: repoId, statusCode: status, advice: rejection?.advice ?? "")
+            }
             throw DownloaderError.apiError(
-                statusCode: (response as? HTTPURLResponse)?.statusCode ?? 400,
+                statusCode: status,
                 body: String(data: data, encoding: .utf8) ?? "",
             )
         }
@@ -338,7 +354,8 @@ actor ModelScopeDownloader: Downloader {
             throw DownloaderError.gatedRepository(
                 repoId: repoId,
                 hint:
-                    "Data.Files is null in API response — repo may require MODELSCOPE_TOKEN. Response: \(raw.prefix(300))",
+                    "Data.Files is null in API response; \(credential.stateText(source: .modelScope)) — "
+                    + "the repository is gated or private. Response: \(raw.prefix(300))",
             )
         }
 
@@ -1149,6 +1166,10 @@ enum DownloaderError: LocalizedError {
     case gatedRepository(repoId: String, hint: String)
     case adapterDetected(repoId: String)
     case apiError(statusCode: Int, body: String)
+    /// The hub refused authentication (401) or the repository (403) on an API call. Its own case
+    /// because it is terminal, and its own advice because "the token was sent and refused" and
+    /// "no credential was offered" need opposite fixes.
+    case credentialRejected(repoId: String, statusCode: Int, advice: String)
     case downloadFailed(path: String, statusCode: Int)
     case downloadStalled(path: String, timeout: Int)
     case downloadBatchStalled(timeout: Int, downloadedFiles: Int, totalFiles: Int)
@@ -1171,6 +1192,8 @@ enum DownloaderError: LocalizedError {
             "Model '\(repo)' appears to be a LoRA/Adapter (not a full model) — adapter download is not supported"
         case .apiError(let code, let body):
             "ModelScope API error (\(code)): \(body)"
+        case .credentialRejected(let repo, let code, let advice):
+            "ModelScope refused access to '\(repo)' (HTTP \(code)): \(advice)"
         case .downloadFailed(let path, let code):
             "Download failed for '\(path)' (HTTP \(code))"
         case .downloadStalled(let path, let timeout):

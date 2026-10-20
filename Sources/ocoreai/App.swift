@@ -299,13 +299,15 @@ public final class OcoreaiEngine {
         // Must happen before EnginePool init so MLXModelLoader has the token for MS downloads
         // NOTE: ProcessInfo.setValue(forKey:) uses KVC, NOT environment vars — custom keys
         // throw NSUnknownKeyException. Tokens are passed via constructor chain instead.
-        // Priority: env var > UserDefaults (persistent form). env-first mirrors upstream (no keychain tokens).
-        let msToken: String? =
-            ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
-            ?? UserDefaults.standard.string(forKey: "settings.hub.modelScopeToken")
-        let hfToken: String? =
-            ProcessInfo.processInfo.environment["HF_TOKEN"]
-            ?? UserDefaults.standard.string(forKey: "settings.hub.hfToken")
+        // Priority: env var > UserDefaults (persistent form). The precedence itself is
+        // `HubCredentialResolution.precedence`, the same rule `SettingsStore` applies, so the
+        // startup path and the Settings surface cannot disagree about which value wins.
+        let msToken: String? = HubCredentialResolution.precedence(
+            source: .modelScope,
+            stored: UserDefaults.standard.string(forKey: HubSource.modelScope.userDefaultsKey))
+        let hfToken: String? = HubCredentialResolution.precedence(
+            source: .huggingFace,
+            stored: UserDefaults.standard.string(forKey: HubSource.huggingFace.userDefaultsKey))
 
         let oomGuard = OOMGuard(log: logger)
         let memoryTracker = MemoryTracker(
@@ -728,12 +730,12 @@ public final class OcoreaiEngine {
             }
         }
 
-        let hfToken =
-            ProcessInfo.processInfo.environment["HF_TOKEN"]
-            ?? UserDefaults.standard.string(forKey: "settings.hub.hfToken")
-        let msToken =
-            ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
-            ?? UserDefaults.standard.string(forKey: "settings.hub.modelScopeToken")
+        let hfToken = HubCredentialResolution.precedence(
+            source: .huggingFace,
+            stored: UserDefaults.standard.string(forKey: HubSource.huggingFace.userDefaultsKey))
+        let msToken = HubCredentialResolution.precedence(
+            source: .modelScope,
+            stored: UserDefaults.standard.string(forKey: HubSource.modelScope.userDefaultsKey))
 
         Task {
             do {

@@ -71,7 +71,9 @@ final actor ModelScopeSearchClient {
 
     /// Base URL - follows the same pattern as the Python SDK.
     private let baseURL: URL
-    private let token: String?
+    /// What this client may offer the hub. Classified at init so every request either carries a
+    /// complete `Bearer <token>` or says nothing about credentials (HubCredential.swift).
+    private let credential: HubCredentialResolution
 
     /// Default base URL — reads MODELSCOPE_ENDPOINT env var when set,
     /// otherwise falls back to the canonical root domain (single source:
@@ -95,7 +97,7 @@ final actor ModelScopeSearchClient {
         token: String? = nil,
     ) {
         self.baseURL = baseURL
-        self.token = token
+        self.credential = HubCredentialResolution.resolve(source: .modelScope, stored: token)
     }
 
     // MARK: - Search
@@ -129,8 +131,8 @@ final actor ModelScopeSearchClient {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let headerValue = credential.headerValue {
+            request.setValue(headerValue, forHTTPHeaderField: "Authorization")
         }
 
         let body: [String: Any] = [
@@ -144,7 +146,13 @@ final actor ModelScopeSearchClient {
         guard let httpResponse = response as? HTTPURLResponse,
             httpResponse.statusCode == 200
         else {
-            throw MSError.httpError(response)
+            throw MSError.refused(
+                statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                advice: (response as? HTTPURLResponse).flatMap {
+                    HubRejection.classify(
+                        statusCode: $0.statusCode, credential: credential, source: .modelScope)?
+                        .advice
+                })
         }
 
         return try parseModelList(data)
@@ -157,15 +165,21 @@ final actor ModelScopeSearchClient {
     func modelDetail(modelId: String) async throws -> [String: Any] {
         let url = baseURL.appending(path: "api/v1/models/\(modelId)")
         var request = URLRequest(url: url)
-        if let token {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let headerValue = credential.headerValue {
+            request.setValue(headerValue, forHTTPHeaderField: "Authorization")
         }
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
             httpResponse.statusCode == 200
         else {
-            throw MSError.httpError(response)
+            throw MSError.refused(
+                statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                advice: (response as? HTTPURLResponse).flatMap {
+                    HubRejection.classify(
+                        statusCode: $0.statusCode, credential: credential, source: .modelScope)?
+                        .advice
+                })
         }
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -251,18 +265,25 @@ final actor ModelScopeSearchClient {
 // MARK: - Errors
 
 enum MSError: LocalizedError {
-    case httpError(URLResponse?)
+    /// A hub answer that is not 2xx, with the credential state that produced it. Carrying the
+    /// status (not the whole `URLResponse`) is what lets the GUI say 401 rather than
+    /// `Optional<NSHTTPURLResponse>` — and the advice is the measured "was a token offered",
+    /// which is the difference between "re-paste your token" and "set one".
+    case refused(statusCode: Int, advice: String?)
     case invalidJSON
     case missingField(String)
 
     var errorDescription: String? {
         switch self {
-        case .httpError(let resp):
-            "ModelScope API request failed: \(String(describing: resp))"
+        case .refused(let status, let advice):
+            guard let advice else {
+                return "ModelScope API request failed (HTTP \(status))"
+            }
+            return "ModelScope API request failed (HTTP \(status)) — \(advice)"
         case .invalidJSON:
-            "Invalid JSON response from ModelScope"
+            return "Invalid JSON response from ModelScope"
         case .missingField(let field):
-            "Expected field '\(field)' not found in ModelScope response"
+            return "Expected field '\(field)' not found in ModelScope response"
         }
     }
 }

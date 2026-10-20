@@ -508,8 +508,8 @@ final class SettingsStore {
     /// Note: env-first mirrors upstream mlx-swift-lm / coreai-models (no keychain token storage).
     var hfToken: String? {
         get {
-            ProcessInfo.processInfo.environment["HF_TOKEN"]
-                ?? defaults.string(forKey: Key.hfToken.rawValue)
+            HubCredentialResolution.precedence(
+                source: .huggingFace, stored: defaults.string(forKey: Key.hfToken.rawValue))
         }
         set {
             if let v = newValue, !v.isEmpty {
@@ -524,8 +524,9 @@ final class SettingsStore {
     /// Note: env-first mirrors upstream mlx-swift-lm / coreai-models (no keychain token storage).
     var modelScopeToken: String? {
         get {
-            ProcessInfo.processInfo.environment["MODELSCOPE_TOKEN"]
-                ?? defaults.string(forKey: Key.modelScopeToken.rawValue)
+            HubCredentialResolution.precedence(
+                source: .modelScope,
+                stored: defaults.string(forKey: Key.modelScopeToken.rawValue))
         }
         set {
             if let v = newValue, !v.isEmpty {
