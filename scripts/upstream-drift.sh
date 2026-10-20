@@ -4,7 +4,9 @@
 # 用法：
 #   bash scripts/upstream-drift.sh          # 只读检查（不改文件）
 #                                            exit 0 = 基线以来 0 新 commit；exit 10 = 有新 commit 待裁决
-#   bash scripts/upstream-drift.sh adopt    # 把三源当前 HEAD 采纳为新基线（只改 state 文件）
+#   bash scripts/upstream-drift.sh adopt                  # 把三源当前 HEAD 采纳为新基线（只改 state 文件）
+#   bash scripts/upstream-drift.sh adopt coreai-models    # 只采纳这一条轴，其余轴的窗口如实留着
+#     轴名写错直接 exit 1 —— 静默采纳 0 条轴看起来像「全部办完」，正是这类工具最贵的错。
 #
 # 纪律（09-27 机制化轮定案）：
 #   - state 基线 = 版本化 SHA 前缀（.upstream-baseline.json，入库可复现）
@@ -240,8 +242,34 @@ mlx_axis
 echo
 if [ "$cmd" = "adopt" ]; then
   ADOPT_OK=1
+  # 部分采纳：一条轴逐条读完并裁决完，就该能只关这一条窗口。全量 adopt 会顺手把
+  # 没读过的轴（codex 的数百条）一并盖进基线，把「未读」伪装成「已裁决」。
+  shift || true
+  SELECTED=("$@")
+  if [ "${#SELECTED[@]}" -gt 0 ]; then
+    for want in "${SELECTED[@]}"; do
+      known=0
+      for pair in $REPOS; do
+        [ "${pair%%:*}" = "$want" ] && known=1
+      done
+      if [ "$known" -eq 0 ]; then
+        echo "!! 未知轴 '$want'（可选：mlx-swift-lm / coreai-models / codex）— 未改动 $STATE"
+        exit 1
+      fi
+    done
+  fi
   for pair in $REPOS; do
     name="${pair%%:*}"; repo="${pair##*:}"
+    if [ "${#SELECTED[@]}" -gt 0 ]; then
+      picked=0
+      for want in "${SELECTED[@]}"; do
+        [ "$want" = "$name" ] && picked=1
+      done
+      if [ "$picked" -eq 0 ]; then
+        echo "     · $name 未选 ⇒ 基线保持不变（窗口如实留着，下次 check 继续报）"
+        continue
+      fi
+    fi
     src=api
     head="$(api "repos/$repo/commits?per_page=1" head 2>/dev/null)" || true
     if [ -z "$head" ]; then
@@ -263,7 +291,11 @@ json.dump(d,open(path,"w"),indent=2); open(path,"a").write("\n")
 PY
   done
   if [ "$ADOPT_OK" -eq 1 ]; then
-    echo "✔ 基线已采纳 → $STATE"
+    if [ "${#SELECTED[@]}" -gt 0 ]; then
+      echo "✔ 已采纳所选轴 → $STATE（其余轴基线未动）"
+    else
+      echo "✔ 基线已采纳 → $STATE"
+    fi
     echo "  ⚠ adopt ≠ 完成：上列新 commit 窗口仍须 ① consumer-transparent 双根全扫逐条裁决 ② AGENTS.md 审计行 ③ CHANGELOG 行（先例 e8d41c8）。"
     exit 0
   else
