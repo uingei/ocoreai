@@ -165,4 +165,83 @@ struct ToolProseLedgerTests {
             try Self.count("Available tools:", in: builder) == 1,
             "the prose block must exist exactly once, inside the guard")
     }
+
+    // MARK: — the published row (GET /v1/models/:model/kv-cache → toolProse)
+
+    /// Closed vocabulary on the wire, not just in the log: a fourth spelling is how a
+    /// publisher starts inventing capability.
+    @Test("the wire vocabulary is snake_case and closed at three values")
+    func wireVocabulary() {
+        #expect(
+            ToolProseMode.allCases.map(\.wireMode)
+                == [
+                    "skipped_template_renders", "injected_template_ignores",
+                    "injected_unmeasured",
+                ])
+    }
+
+    /// Every published row must carry its own evidence: the mode, the raw measurement and the
+    /// reason all come from the same mode, so no row can advertise what was not measured.
+    @Test("a published row never claims more than its measurement")
+    func rowsMatchTheirEvidence() {
+        for mode in ToolProseMode.allCases {
+            let row = mode.observation
+            #expect(row.mode == mode.wireMode, "\(mode): wire mode must be derived")
+            #expect(
+                row.reason == mode.reasonPhrase,
+                "\(mode): the row must quote the ledger's own sentence, not a second explanation")
+            #expect(
+                row.templateRendersTools == mode.measuredTemplateRendersTools,
+                "\(mode): the measurement alone must match the mode it produced")
+        }
+        // The specific lie this guards: an unmeasured model reading as if its template
+        // were proven to render tools.
+        let unmeasured = ToolProseMode.injectedUnmeasured.observation
+        #expect(unmeasured.templateRendersTools == nil)
+        #expect(!unmeasured.mode.contains("renders"))
+        #expect(unmeasured.reason.contains("not measured"))
+    }
+
+    /// `nil` has to arrive as `null`, not as an absent key: absence is the shape that makes
+    /// "engine never measured this" indistinguishable from "this build forgot to publish".
+    @Test("the unmeasured row encodes an explicit null instead of dropping the key")
+    func unmeasuredEncodesNull() throws {
+        let data = try JSONEncoder().encode(ToolProseMode.injectedUnmeasured.observation)
+        guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            Issue.record("row did not encode to a JSON object")
+            return
+        }
+        #expect(obj["mode"] as? String == "injected_unmeasured")
+        #expect(
+            obj.keys.contains("templateRendersTools"),
+            "the synthesized Encodable dropped the optional key — a client cannot tell unmeasured from a regression: \(obj.keys.sorted())"
+        )
+        #expect(obj["templateRendersTools"] is NSNull)
+
+        let rendered = try JSONEncoder().encode(ToolProseMode.skippedTemplateRenders.observation)
+        let renderedObj = try JSONSerialization.jsonObject(with: rendered) as? [String: Any]
+        #expect(renderedObj?["templateRendersTools"] as? Bool == true)
+    }
+
+    /// The row is published at one seam and the DTO always carries it: a caller that forgets
+    /// to pass a measurement still degrades to `injected_unmeasured` rather than claiming one.
+    @Test("the row has one publisher, and forgetting to pass it degrades honestly")
+    func publisherHasOneHomeAndAHonestDefault() throws {
+        let dto = try Self.source("Sources/ocoreai/Engine/KVCacheStatus.swift")
+        #expect(
+            try Self.count(#"let toolProse: ToolProseObservation"#, in: dto) == 1,
+            "the DTO must carry exactly one toolProse row")
+        #expect(
+            try Self.count(#"ToolProseLedger\.shared\.observation\(modelId:"#, in: dto) == 1,
+            "the row must be published at one seam — a second call site is a second truth about one measurement"
+        )
+        // Defaults are the honest value, not a flattering one.
+        #expect(
+            dto.contains(
+                "toolProse: ToolProseObservation = ToolProseMode.injectedUnmeasured.observation"),
+            "the default for a caller that passes nothing must be unmeasured, never skipped")
+        // And the row must sit on the same response as prefixReuse, so one request answers
+        // both measured KV questions a client has about this model.
+        #expect(dto.contains("let prefixReuse: PrefixReuseObservation"))
+    }
 }

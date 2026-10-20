@@ -82,6 +82,83 @@ enum ToolProseMode: String, Encodable, Equatable, Sendable, CaseIterable {
             "not measured for this model in this process (not loaded, or its template rejected the probe feed) — keeping the ## Tool: prose"
         }
     }
+
+    /// The measurement behind the mode, without the action attached: `nil` means this
+    /// process never measured it, which is a different fact from "measured: it ignores".
+    var measuredTemplateRendersTools: Bool? {
+        switch self {
+        case .skippedTemplateRenders: true
+        case .injectedTemplateIgnores: false
+        case .injectedUnmeasured: nil
+        }
+    }
+}
+
+// MARK: - Wire line
+
+/// Per-model tool-prose disposition, published on
+/// `GET /v1/models/:model/kv-cache` as `toolProse`.
+///
+/// Why a row here at all: whether a turn carries one declaration of a tool or two is a fact
+/// about the checkpoint that a client cannot otherwise see, and `## Tool:` prose costs real
+/// context (measured 10-20 by probe 16: +116 delivered prompt tokens for the first declared
+/// tool on gemma-4-e2b-it-4bit, +52 for the second). Before this row the only place the
+/// answer existed was a log line — invisible to an HTTP client, and uncorroborable against
+/// the engine's own decision.
+struct ToolProseObservation: Encodable, Equatable, Sendable {
+    /// `skipped_template_renders` | `injected_template_ignores` | `injected_unmeasured`.
+    ///
+    /// snake_case for the wire, while the log line prints ``ToolProseMode/rawValue``
+    /// (camelCase). Two renderings of one value, both derived here rather than typed out at
+    /// a call site — so probe 16 can require the wire and the log to say the same thing in
+    /// their own vocabularies, and a drift between them fails instead of going unnoticed.
+    let mode: String
+    /// The measurement alone, so a caller can tell "renders" from "we never checked"
+    /// instead of reading `injected_unmeasured` as if it were a measured negative.
+    let templateRendersTools: Bool?
+    /// Why this mode — the ledger's own sentence, so the wire and the log never explain
+    /// one decision with two different reasons.
+    let reason: String
+
+    private enum CodingKeys: String, CodingKey {
+        case mode, templateRendersTools, reason
+    }
+
+    /// Hand-written so `templateRendersTools` is present and `null` when unmeasured. The
+    /// synthesized conformance calls `encodeIfPresent` for optionals and drops the key
+    /// outright, which would leave a client choosing between "the engine never measured this"
+    /// and "this build forgot to publish it" — the same ambiguity this repo refuses on the
+    /// decode side (`AnthropicMessageRequest.stream`, 10-13).
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(mode, forKey: .mode)
+        if let templateRendersTools {
+            try container.encode(templateRendersTools, forKey: .templateRendersTools)
+        } else {
+            try container.encodeNil(forKey: .templateRendersTools)
+        }
+        try container.encode(reason, forKey: .reason)
+    }
+}
+
+extension ToolProseMode {
+    /// The wire spelling of this mode. Derived, never stored: a fourth value cannot be
+    /// invented at a publisher because there is nowhere on this type to put it.
+    var wireMode: String {
+        switch self {
+        case .skippedTemplateRenders: "skipped_template_renders"
+        case .injectedTemplateIgnores: "injected_template_ignores"
+        case .injectedUnmeasured: "injected_unmeasured"
+        }
+    }
+
+    /// The wire line for this mode, built in one place.
+    var observation: ToolProseObservation {
+        ToolProseObservation(
+            mode: wireMode,
+            templateRendersTools: measuredTemplateRendersTools,
+            reason: reasonPhrase)
+    }
 }
 
 /// The decision, as a pure function of the one fact that decides it.
@@ -131,11 +208,14 @@ actor ToolProseLedger {
     /// surfaces that must distinguish "renders" from "we do not know" rather than flatten
     /// both into a default.
     func templateRendersTools(modelId: String) -> Bool? {
-        switch modes[modelId] {
-        case .some(.skippedTemplateRenders): true
-        case .some(.injectedTemplateIgnores): false
-        default: nil
-        }
+        modes[modelId]?.measuredTemplateRendersTools
+    }
+
+    /// The wire line for `GET /v1/models/:model/kv-cache`. An unmeasured model reports
+    /// `injected_unmeasured` with `templateRendersTools: null` — the row degrades to "not
+    /// measured here", never to a capability claim.
+    func observation(modelId: String) -> ToolProseObservation {
+        (modes[modelId] ?? .injectedUnmeasured).observation
     }
 
     func forget(modelId: String) {

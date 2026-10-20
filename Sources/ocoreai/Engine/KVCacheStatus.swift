@@ -56,8 +56,18 @@ struct KVCacheStatusResponse: Encodable {
     /// before any warm turn completes — never a guessed "supported".
     let prefixReuse: PrefixReuseObservation
 
-    init(status: KVCacheStatus, prefixReuse: PrefixReuseObservation = .notObserved) {
+    /// What the engine has *measured* about this checkpoint's own chat template: whether it
+    /// declares tools itself, which decides whether this server writes a second copy.
+    /// `injected_unmeasured` when this process never probed it — never a claimed capability.
+    let toolProse: ToolProseObservation
+
+    init(
+        status: KVCacheStatus,
+        prefixReuse: PrefixReuseObservation = .notObserved,
+        toolProse: ToolProseObservation = ToolProseMode.injectedUnmeasured.observation
+    ) {
         self.prefixReuse = prefixReuse
+        self.toolProse = toolProse
         let layers = status.layers.map { KVCacheLayerWire(layer: $0) }
         let requestedCapacity = status.requestedConfiguration?.capacity.map {
             KVCapacityWire(
@@ -183,9 +193,10 @@ extension KVCacheStatusResponse {
 /// never derived from this plan, so the two sources cannot disagree about a capability.
 nonisolated func makeKVCacheStatusResponse(
     _ status: KVCacheStatus,
-    prefixReuse: PrefixReuseObservation = .notObserved
+    prefixReuse: PrefixReuseObservation = .notObserved,
+    toolProse: ToolProseObservation = ToolProseMode.injectedUnmeasured.observation
 ) -> KVCacheStatusResponse {
-    KVCacheStatusResponse(status: status, prefixReuse: prefixReuse)
+    KVCacheStatusResponse(status: status, prefixReuse: prefixReuse, toolProse: toolProse)
 }
 
 // MARK: - EnginePool consumption
@@ -216,7 +227,9 @@ extension EnginePool {
         do {
             let status = try await handle.modelContainer.cacheStatus(parameters: params)
             return makeKVCacheStatusResponse(
-                status, prefixReuse: prefixReuse.observation(modelId: modelId))
+                status,
+                prefixReuse: prefixReuse.observation(modelId: modelId),
+                toolProse: await ToolProseLedger.shared.observation(modelId: modelId))
         } catch {
             throw AppError.inferenceFailed("KV cache status: \(error)")
         }

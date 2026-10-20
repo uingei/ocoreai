@@ -34,6 +34,10 @@
 #      growth alone cannot tell a duplicate declaration from ordinary prompt text.
 #   4. Scaling: at two declared tools the same must hold and the delivered delta must keep
 #      scaling — so the count is one per tool, not one per request.
+#   5. The published row: `GET /v1/models/:model/kv-cache` must carry `toolProse` saying the
+#      same thing the log said (wire vocabulary, measurement attached, reason quoted). A
+#      client that never reads logs still has to be able to see whether its tools reach the
+#      model once or twice — and an absent key must not masquerade as "not measured".
 #
 # An XFAIL is a live exception, not a skip: it exits 0 with the numbers in the log, and if
 # the shape stops reproducing the harness reports XPASS as a failure.
@@ -189,6 +193,72 @@ else
       probe_note "§4 reports numbers only, because §2 found the mode to be ${MODE:-unset}"
       ;;
   esac
+fi
+
+# ---------------------------------------------------------------------------
+printf '\n── 5 — the API publishes the same measurement the log made\n'
+# Invariant 2: the surface may not say more, or differently, than the engine delivered.
+# §2 read the mode off the engine's own log line; here the same fact has to arrive over
+# HTTP, in the wire's own vocabulary, with its measurement attached rather than implied.
+ENC_MODEL="$(python3 -c 'import sys;print(sys.argv[1].replace("/", "%2F"))' "$PROBE_MODEL")"
+probe_api GET "/v1/models/${ENC_MODEL}/kv-cache"
+if [ "${PROBE_STATUS:-}" != "200" ]; then
+  probe_fail "GET /v1/models/<model>/kv-cache -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:160}"
+else
+  TP_MODE="$(probe_json "$PROBE_BODY" 'toolProse.mode')"
+  TP_REASON="$(probe_json "$PROBE_BODY" 'toolProse.reason')"
+  # probe_json prints "" for both a missing key and a null value, and the difference
+  # between those two IS the claim here — so ask the payload directly.
+  TP_SHAPE="$(python3 -c '
+import json, sys
+try:
+    row = (json.loads(sys.argv[1]).get("toolProse") or {})
+except Exception:
+    print("no-row"); sys.exit(0)
+if "templateRendersTools" not in row:
+    print("key-absent")
+elif row["templateRendersTools"] is None:
+    print("explicit-null")
+elif row["templateRendersTools"] is True:
+    print("true")
+elif row["templateRendersTools"] is False:
+    print("false")
+else:
+    print("other")
+' "$PROBE_BODY")"
+  probe_note "wire: toolProse.mode=${TP_MODE:-<absent>} templateRendersTools=$TP_SHAPE reason=${TP_REASON:+present}"
+
+  case "$MODE" in
+    skippedTemplateRenders) EXPECTED="skipped_template_renders" ;;
+    injectedTemplateIgnores) EXPECTED="injected_template_ignores" ;;
+    injectedUnmeasured) EXPECTED="injected_unmeasured" ;;
+    *) EXPECTED="" ;;
+  esac
+
+  if [ -z "$TP_MODE" ]; then
+    probe_fail "kv-cache payload carries no toolProse.mode — the template measurement is on the log but not on the wire, so an HTTP client still cannot see whether its declared tools reach the model once or twice"
+  else
+    case "$TP_MODE" in
+      skipped_template_renders|injected_template_ignores|injected_unmeasured)
+        ;;
+      *)
+        probe_fail "toolProse.mode='$TP_MODE' is outside the closed three-value vocabulary"
+        ;;
+    esac
+    if [ -n "$EXPECTED" ] && [ "$TP_MODE" != "$EXPECTED" ]; then
+      probe_fail "the log decided $MODE (wire: $EXPECTED) while the API publishes $TP_MODE — one measurement, two stories"
+    elif [ "$TP_SHAPE" = "key-absent" ] || [ "$TP_SHAPE" = "no-row" ]; then
+      probe_fail "toolProse has no templateRendersTools key — absence makes 'never measured' indistinguishable from a build that forgot to publish it"
+    elif [ "$TP_MODE" = "injected_unmeasured" ] && [ "$TP_SHAPE" != "explicit-null" ]; then
+      probe_fail "mode injected_unmeasured but templateRendersTools=$TP_SHAPE — an unmeasured model must carry an explicit null, not a value it never earned"
+    elif [ "$TP_MODE" = "skipped_template_renders" ] && [ "$TP_SHAPE" != "true" ]; then
+      probe_fail "mode claims the template renders tools while templateRendersTools=$TP_SHAPE — the claim outruns its own measurement"
+    elif [ -z "$TP_REASON" ]; then
+      probe_fail "toolProse.reason is empty — the row must say why, in the ledger's own words"
+    else
+      probe_ok "the API and the log tell one story: $TP_MODE, measurement and reason attached"
+    fi
+  fi
 fi
 
 probe_summary "$PROBE_NAME"

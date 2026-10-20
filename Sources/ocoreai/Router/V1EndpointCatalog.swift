@@ -133,7 +133,7 @@ enum V1EndpointCatalog {
         RouteSpec(
             method: "GET", path: "/v1/models/:model/kv-cache",
             note:
-                "Planned KV cache topology, capacity disposition, and measured prefix-reuse disposition (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)"
+                "Planned KV cache topology, capacity disposition, and the measured dispositions of prefix reuse and tool-declaration prose (a `:model` id containing `/` must be percent-encoded as %2F — verbatim ids 404)"
         ),
         RouteSpec(
             method: "POST", path: "/v1/models/download", note: "Fetch a model into the local cache"),
