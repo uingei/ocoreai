@@ -136,3 +136,11 @@ locally — the loop that caught defects no static audit here had (see «The fou
 macOS 26 既编不进也跑不了这段 ⇒ 改法虽然显然（`-Float.infinity` + `continue`），在 macOS 27 上真跑通之前不臆修、
 不宣称已修（AGENTS.md §Open 的同名条目只留判据与指针）。门：`V1EndpointCatalogTests` 那套自带地板的源码扫描风格
 适合它，但断言的是一处不可运行的代码 —— 需要 CI 的 macOS 27 leg 才能长出真正的行为门。
+
+## `AppLifecycleLiveTests` 需要解锁的 GUI 会话（10-20 实测）
+
+同一 scratch、同一支 `make test-clt`：07:16 = 2728 tests / 484 suites 全绿；09:20 = 2739 / 486，3 处红，全在
+`AppLifecycleLiveTests`，报 `never became frontmost (frontmost=com.apple.loginwindow)`。锁屏/登录窗时
+`NSWorkspace.frontmostApplication` 就是 loginwindow，任何 app 都到不了前台 ⇒ 与代码无关（本轮 diff 不含
+AppLifecycle/Computer 文件；`--filter AppLifecycleLive` 同样三处红）。这是**会话状态**的门，与 §Open 屏幕抓取
+条目同源；收口方向是让这一支自证会话前提（测到 loginwindow 即报 skip 并写明原因），不是放宽断言。
