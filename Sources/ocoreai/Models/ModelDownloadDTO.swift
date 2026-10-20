@@ -25,6 +25,26 @@ struct DownloadModelRequest: Codable {
         self.useLatest = useLatest
     }
 
+    enum CodingKeys: String, CodingKey {
+        case model, provider, revision, useLatest
+    }
+
+    /// `model` is the only key the wire requires; the rest carry defaults.
+    ///
+    /// Measured 10-20 (probe `scripts/probes/20-download-path-traversal.sh`, before the fix):
+    /// every body that omitted `useLatest` — which is every body, since it is a refresh override
+    /// — answered `400 Coding key \`useLatest\` not found.`, so the endpoint never reached
+    /// `validate()` and never streamed. `useLatest: Bool = false` in `init` is Swift-side
+    /// convenience; the synthesized decoder still asks for the key (AGENTS.md § Wire DTOs: an
+    /// optional field must be Optional in the DTO or hand-decoded with `decodeIfPresent`).
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        model = try container.decode(String.self, forKey: .model)
+        provider = try container.decodeIfPresent(String.self, forKey: .provider)
+        revision = try container.decodeIfPresent(String.self, forKey: .revision)
+        useLatest = try container.decodeIfPresent(Bool.self, forKey: .useLatest) ?? false
+    }
+
     func validate() throws {
         guard !model.isEmpty else {
             throw AppError.invalidRequest("Model identifier must not be empty")

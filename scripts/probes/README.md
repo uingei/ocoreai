@@ -73,6 +73,13 @@ Every file here keeps the contract `_lib.sh` documents:
 6. An unfixed defect is a `NOTE` with the measurement, not a permanently red gate. Give it
    an opt-in flag so the day it is fixed the probe becomes its regression gate — cf.
    `OCOREAI_REQUIRE_PREFIX_REUSE=1` in `01-prefix-accounting.sh`.
+7. **A refusal leg must name the field it blames.** Asserting only "400" lets a probe pass on
+   an endpoint that is broken for a different reason: on `20-download-path-traversal.sh`'s first
+   run the two "pre-existing validation" legs were **green** while every request died at
+   `Coding key \`useLatest\` not found.` — a 400 arrived, just not for the field under test. So
+   assert the field appears in the body (case-insensitively — refusals are prose: "Model
+   identifier must not be empty"), and where the wire carries `error.param`, assert that too.
+   A refusal that does not say what it refused is not evidence.
 
 ## Knobs
 
