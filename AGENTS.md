@@ -81,7 +81,7 @@ swift test --filter SystemContextSensor  # one suite (substring match)
 **Local gate reality:** the full suite **does** run on this host (`make test-clt`) — the blocker was the **agent sandbox**, and `serve` + live `curl` work locally: **prefer a live check over an inference
 whenever a claim is about behaviour.**
 
-**Gate tiering — the decision (full host forensics — sandbox-vs-Metal, metallib archaeology, module-cache shape, the SDK bump that flipped `canImport(CoreAI)` — in `docs/agent/build-gate-reality.md`).**
+**Gate tiering — the decision (the host forensics behind it: `docs/agent/build-gate-reality.md`).**
 - **sandbox** → app-target build + non-Metal suites: `HOME=<canonical writable path> DEVELOPER_DIR=<CLT> SDKROOT=<SDK without CoreAI> swift build --scratch-path .build-clt --disable-sandbox`. `--disable-sandbox` drops only SwiftPM's own nested sandbox; the harness still denies the Darwin clang module cache, so `HOME` must move — canonical path only, SIGSEGV mechanism in `docs/agent/build-gate-reality.md`.
 - **escalation** → `make test-clt` (full suite) + `make probes` (live `/v1/*`, `scripts/probes/`).
 - **CI only** → the `xcodebuild` legs (`test-ci`, `build-ios`).
@@ -161,7 +161,7 @@ metric warning, the vendored-header table and the re-collect discipline:
 - **Reject** `count > N` weak assertions.
 - Test modules: Scheduler lifecycle + concurrency, OOMGuard (full), MemoryTracker / AdmissionGate (partial gaps), HardwareRouter (Mirror + Integration — table below).
 - **A scan-based test asserts its own premises:** find the repo root by searching, never by fixed `deletingLastPathComponent()` hops (three "passing" assertions here were really ENOENT), and floor the scan's own hit count so a regex that stopped matching fails (`V1EndpointCatalogTests`).
-- **Commit the probe.** Anything proving behaviour against a live server ships as a script (`scripts/proc-status-cache-probe.swift`, mlx-serve `tests/test_*.sh`) so the claim outlives its session.
+- **Commit the probe.** Anything proving behaviour against a live server ships as a script (`scripts/proc-status-cache-probe.swift`) so the claim outlives its session.
 
 ---
 
@@ -195,7 +195,7 @@ metric warning, the vendored-header table and the re-collect discipline:
 4. **Apple Developer Documentation** — **public, no login** (corrected 10-14：旧「requires login」未经核实；forensics = CHANGELOG 10-14). Division of labour: DocC for intent and semantics, the SDK's `.swiftinterface` for exact signatures and `@available` gates, and **live execution** for behaviour — the CLT SDK has no CoreAI, so CLT-route builds compile every `canImport(CoreAI)` branch out and macOS 26 can never run them (SDK-level numbers: `docs/agent/build-gate-reality.md`). Fetch pattern: the same `/tutorials/data/documentation/` path with `<topic>` swapped.
 
 5. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: the only one of the five that judges **the GUI itself** rather than the engine, so on anything user-visible HIG is the authority — not upstream codex. It is **not DocC** (its `.json` variants 404) ⇒ cite the section; no machine index to grep. What it judges here: ⌘ coverage + focus order, Settings hierarchy, `textSelection` on anything readable, a11y labels, dark mode + Dynamic Type, destructive-confirmation wording, replying in the medium the user used — counts move, so re-grep before quoting one.
-6. **Auxiliary references (owner-designated 10-15, extended 10-20)** — vllm / sglang (the OpenAI/Anthropic compat benchmark) + vllm-metal / omlx / mlx-serve / MTPLX / ollama / TensorFold / Strata / hermes-agent / deepseek-harness / harness2: serving, MTP, packaging and agent-loop comparators, not pins — nothing is linked or redistributed, and a borrowed verdict stays an inference until a file:line in our own build says otherwise. Per-repo strengths: docs/agent/comparator-repos.md — all 12 designated trees present on this host (verified 10-20).
+6. **Auxiliary references (owner-designated 10-15, extended 10-20)** — vllm / sglang (the OpenAI/Anthropic compat benchmark) + vllm-metal / omlx / mlx-serve / MTPLX / ollama / TensorFold / Strata / hermes-agent / deepseek-harness / harness2: serving, MTP, packaging and agent-loop comparators, not pins — nothing linked or redistributed, and a borrowed verdict stays an inference until a file:line in our build says otherwise. Per-repo strengths: `docs/agent/comparator-repos.md` (all 12 present on this host, 10-20).
 
 **Mirror ≠ HEAD:** a clone under `~/references/` proves *content*, never HEAD — `api.github.com` is authoritative for HEAD and compare windows (the local clones lag). A mirror *is* valid for byte-checking Apple's BSD-3 `LICENSE`.
 **Host-local ≠ project truth:** `~/wiki/concepts/*` sits outside this repo, absent on this host — host-local colour, never project evidence; verdicts that bind the repo live in `CHANGELOG.md`.
@@ -210,6 +210,7 @@ metric warning, the vendored-header table and the re-collect discipline:
 - `docs/agent/third-party-notices.md` — license composition, the `coreai-models` metric warning, the vendored-header table.
 - `docs/agent/closed-items-log.md` — verdicts § Open used to carry prose for (resolved / retracted / phantom).
 - `docs/agent/instruction-channel.md` — who delivers the caller's `system`/`developer` text, and what refusing to reuse its cache costs.
+- `docs/agent/systemone-decisions.md` — upstream's Jev / System 1 decision API (`/v1/systemone`, `/v1/decisions`), what we already have, and the price of the cheapest honest slice.
 - `~/references/*`, `~/wiki/*` — host-local clones / notes; absent on some hosts (§ Upstream, § Wiki).
 
 ## Routing table — working in X → read this first
