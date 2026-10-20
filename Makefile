@@ -287,6 +287,17 @@ anchor-check:
 	@echo "🎯 Verifying line cites in docs and code comments..."
 	bash scripts/anchor-check.sh
 
+## Four upstream axes, one command. Three HEAD axes (mlx-swift-lm revision pin, coreai-models
+## and codex reference axes) against .upstream-baseline.json, plus the mlx-swift *tag* axis —
+## that one is judged against the newest release tag, because `exact:` means unreleased commits
+## on main are not something any Swift consumer can take. Exit codes: 0 = nothing pending,
+## 10 = a window needs adjudication (then `bash scripts/upstream-drift.sh adopt` after the
+## verdicts are written to CHANGELOG.md), 1 = a check could not complete. Needs network via
+## git/gh or the ~/references clones; it never mutates the repo except through `adopt`.
+drift:
+	@echo "🛰 Checking upstream drift (3 HEAD axes + mlx-swift tag axis)..."
+	bash scripts/upstream-drift.sh
+
 ## ── Docs Contract ──────────────────────────────────────────────────
 
 # AGENTS.md (and the area guides) are injected into the model's context on every session, so they

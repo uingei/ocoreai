@@ -51,23 +51,44 @@ let package = Package(
         // release 0.32.3", because an app linking 0.32.2 crashes at launch on macOS/iOS
         // < 26.4 (mlx-swift #491/#493) — which would flatly contradict this package's
         // declared platforms (macOS 14 / iOS 17). The floor argument stands as written
-        // when it was about 0.32.2: mlx-swift-lm #646 (c043fb3) raised its own constraint
-        // to .upToNextMinor(from: 0.32.2), so a direct pin at 0.32.3 and lm's transitive
-        // dep agree and resolution holds. The content that made that floor worth having is
+        // when it was about 0.32.2, but the floor has since moved under this sentence:
+        // mlx-swift-lm #646 (c043fb3) raised its constraint to .upToNextMinor(from: 0.32.2)
+        // and at the lm revision pinned above it reads 0.32.3, so 0.32.2 no longer resolves
+        // here at all — lm's floor and this pin are now the same number.
+        // anchor:mlx-swift-lm Package.swift:67 .upToNextMinor(from: "0.32.3")
+        // DependencyPinStatementTests reads lm's floor out of the resolved checkout and goes
+        // red when this sentence, the pin, or lm's constraint stop agreeing with each other.
+        // The content that made that floor worth having is
         // in both: #450 (air64 Metal-thread-qualifier fix for steel/attn/mma.h) unblocks
         // IPHONEOS_DEPLOYMENT_TARGET=27, and cd36d17 makes mlx-c custom-io return bytes
         // read/written.
         //
-        // Consumer-impact audit. ocoreai's only direct MLX surface is these two calls; both
-        // cites are anchored now, so make anchor-check (which scans this file too) goes red
-        // when an edit moves them, instead of a cite drifting 214 lines as this one did.
+        // Consumer-impact audit. Direct MLX surface = 10 sites / 5 APIs: 8 call+construct
+        // sites across 5 APIs plus 2 MLXArray-typed properties. It is not the two calls an
+        // earlier verdict here counted — asArray is called 4× (prompt-tail decode, std and
+        // MTP paths, and the embedding path), and MLXArray itself is constructed there.
+        // Every cite below is anchored, so make anchor-check (which scans this file too)
+        // goes red when an edit moves one, instead of a cite drifting 214 lines as this
+        // one did; DependencyPinStatementTests re-greps Sources and fails when this audit
+        // stops being the set the code actually reaches.
+        // anchor:. Sources/ocoreai/Engine/EngineInference.swift:3511 asArray(Int32.self)
         // anchor:. Sources/ocoreai/Engine/EngineInference.swift:3558 Stream.gpu.synchronize
+        // anchor:. Sources/ocoreai/Engine/EngineInference.swift:3771 asArray(Int32.self)
+        // anchor:. Sources/ocoreai/Engine/EngineInference.swift:4918 asArray(Int.self)
+        // anchor:. Sources/ocoreai/Engine/EngineInferenceSupport.swift:153 MLXArray
+        // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1206 MLXArray(
+        // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1212 MLXArray.zeros
         // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1218 result.eval
-        // Both are stable across 0.31→0.32. ZERO consumers of the changed public surface
-        // (Device/withNewDefaultStream/convolve/Distributed); all MLX inference flows
-        // through MLXLLM/MLXNN/MLXLMCommon. The lm #646 `Stream()→Stream.defaultStream()`
-        // rename is inside lm's own Evaluate.swift, not ocoreai's. Per-bump verdicts live
-        // in CHANGELOG.md; AGENTS.md § Upstream Audit Dependencies keeps the current pins.
+        // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1220 asArray(Float.self)
+        // All MLX *inference* flows through MLXLLM/MLXNN/MLXLMCommon; these 5 APIs are
+        // where an MLX signature change lands in ocoreai's own code, so a bump audits
+        // exactly these files. The 0.31→0.32 verdict holds for released versions (zero
+        // consumers of the surface changed then: Device/withNewDefaultStream/convolve/
+        // Distributed), and the lm #646 `Stream()→Stream.defaultStream()` rename sat in
+        // lm's own Evaluate.swift, not here. Commits on unreleased main are a different
+        // question: scripts/upstream-drift.sh now reports them per-file against these
+        // APIs. Per-bump verdicts live in CHANGELOG.md; AGENTS.md § Upstream Audit
+        // Dependencies keeps the current pins.
         .package(
             url: "https://github.com/ml-explore/mlx-swift.git",
             exact: "0.32.3"),

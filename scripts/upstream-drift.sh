@@ -20,6 +20,8 @@ cd "$(dirname "$0")/.."
 STATE=".upstream-baseline.json"
 NOW_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 REPOS="mlx-swift-lm:ml-explore/mlx-swift-lm coreai-models:apple/coreai-models codex:openai/codex"
+# 第四轴单列在文件末尾：mlx-swift 不是 HEAD 轴，是 tag 轴（判定单位不同，退出码语义也不同）。
+MLX_REPO="ml-explore/mlx-swift"
 cmd="${1:-check}"
 DRIFT=0
 
@@ -39,6 +41,92 @@ local_count() { local d; d="$(local_dir "$1")" || return 1
   git -C "$d" rev-list --count "$2..$3" 2>/dev/null || echo '?'; }
 local_msgs() { local d; d="$(local_dir "$1")" || return 1
   git -C "$d" log --format=%s "$2..$3" 2>/dev/null; }
+
+# ── 第四轴：mlx-swift —— 判定单位是 tag，不是 HEAD ─────────────────────────
+# 三轴盯 HEAD 是对的：lm 是 revision pin（HEAD 前进 = 待裁决窗口），coreai-models/codex
+# 是参考轴。mlx-swift 不同：本仓对它下的是 `exact:` tag（Package.swift），main 上没打 tag
+# 的 commit 任何 Swift 消费者都拿不到 —— 「HEAD 领先 N 条」在这里不是待办，只是下一次 tag
+# 的审计输入。判定单位换成立即：
+#   newest tag > pin  → ⚠ 已发布漂移，DRIFT=10（走 Package.swift 头注的 bump 协议）
+#   newest tag == pin → 已发布面 0 漂移；main 领先只打成 ⚑ 提示，不动退出码
+# 通道（10-20 实测本机）：api.github.com 的 repo 端点挂起（HTTP 000，而 /rate_limit 回
+# 200，gh 未装），git 传输可用 ⇒ tag 走 ls-remote；再失败回落 SPM checkout 的本地 tag，
+# 并把 FETCH_HEAD 的时龄打出来 —— 把「最后一次 fetch」说成「现在」是本仓点名的时龄失真。
+# ⚑ 段顺手列出 main 上落在 ocoreai 直接消费的 MLX 文件上的 commit（名单 = Package.swift
+# 的 consumer-impact audit：10 sites / 5 APIs，两边同一批文件，谁改了哪条一眼可见）。
+MLX_FILES="Source/MLX/Stream.swift Source/MLX/Transforms+Eval.swift Source/MLX/MLXArray.swift \
+Source/MLX/MLXArray+Bytes.swift Source/MLXNN/Transformer.swift"
+
+mlx_axis() {
+  local spm="" spec="" pin_ver="" pin_rev="" newest="" src="" main="" ahead="" hits="" n="" fh=""
+  for d in .build-clt/checkouts/mlx-swift .build/checkouts/mlx-swift; do
+    [ -d "$d/.git" ] && { spm="$d"; break; }
+  done
+  if [ -z "$spm" ]; then
+    echo "!!  mlx-swift: 无 SPM checkout（$MLX_REPO 未 resolve），tag 轴未检查"
+    DRIFT=1
+    return
+  fi
+  spec="$(python3 -c '
+import json
+d = json.load(open("Package.resolved"))
+for p in d.get("pins", []):
+    if p.get("identity", "") == "mlx-swift":
+        st = p.get("state", {}) or {}
+        print((st.get("version") or "") + " " + (st.get("revision") or ""))
+        break
+' 2>/dev/null || true)"
+  pin_ver="${spec%% *}"
+  pin_rev="${spec##* }"
+  if [ -z "$pin_ver" ]; then
+    echo "!!  mlx-swift: Package.resolved 里没有 version pin（exact tag 未解析），tag 轴未检查"
+    DRIFT=1
+    return
+  fi
+  newest="$(git -C "$spm" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=45 ls-remote --tags origin \
+    2>/dev/null | sed 's#.*refs/tags/##' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 \
+    || true)"
+  if [ -n "$newest" ]; then
+    src="ls-remote"
+  else
+    newest="$(git -C "$spm" tag --sort=-v:refname 2>/dev/null \
+      | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)"
+    fh="$(git -C "$spm" rev-parse --git-path FETCH_HEAD 2>/dev/null || true)"
+    if [ -n "$fh" ] && [ -f "$fh" ]; then
+      src="local tags, last fetch $(date -u -r "$fh" +%Y-%m-%dT%H:%MZ)"
+    else
+      src="local tags, fetch 时龄未知"
+    fi
+  fi
+  if [ -z "$newest" ]; then
+    echo "!!  mlx-swift: tag 解析失败（ls-remote 与本地 tag 均空），tag 轴未检查"
+    DRIFT=1
+    return
+  fi
+  if [ "$newest" = "$pin_ver" ]; then
+    printf "%-16s tag=%s pin=%s  0 new release  ✓ 已发布面无漂移（newest tag == pin，src=%s）\n" \
+      "mlx-swift" "$newest" "$pin_ver" "$src"
+  elif [ "$(printf '%s\n%s\n' "$newest" "$pin_ver" | sort -V | tail -1)" = "$newest" ]; then
+    printf "%-16s tag=%s pin=%s  ⚠ 已发布漂移：上游有更新的 tag，按 bump 协议逐条裁决\n" \
+      "mlx-swift" "$newest" "$pin_ver"
+    DRIFT=10
+  else
+    printf "%-16s tag=%s pin=%s  !! pin 比最新 tag 还新（pin 落在 tag 之后？），人工复查\n" \
+      "mlx-swift" "$newest" "$pin_ver"
+    DRIFT=1
+  fi
+  main="$(git -C "$spm" rev-parse --verify -q origin/main || true)"
+  [ "$pin_rev" = "$main" ] && return
+  ahead="$(git -C "$spm" rev-list --count "$pin_rev..$main" 2>/dev/null || echo '?')"
+  [ "$ahead" = "?" ] && return
+  printf '%s\n' "                 main=${main:0:9} +$ahead commits（未发布 ⇒ 非待办，是下一次 tag 的审计输入）"
+  hits="$(git -C "$spm" log --format='%h %s' --name-only "$pin_rev..$main" -- $MLX_FILES 2>/dev/null \
+    | grep -v '^[[:space:]]*$' || true)"
+  [ -z "$hits" ] && return
+  n="$(printf '%s\n' "$hits" | grep -c '^[0-9a-f]\{7,\} ' || true)"
+  printf '%s\n' "                 ⚑ $n 条落在 ocoreai 直接消费的 MLX 文件上（名单=Package.swift consumer audit）："
+  printf '%s\n' "$hits" | sed 's/^/                    /'
+}
 
 baseline_note() { python3 -c 'import json; d=json.load(open("'"$STATE"'")); print("@"+d["checked_at_utc"])' 2>/dev/null || echo "缺失(首次)"; }
 base_sha() {
@@ -147,6 +235,8 @@ for pair in $REPOS; do
   fi
 done
 
+mlx_axis
+
 echo
 if [ "$cmd" = "adopt" ]; then
   ADOPT_OK=1
@@ -182,6 +272,6 @@ PY
   fi
 fi
 
-if [ "$DRIFT" -eq 0 ]; then echo "结论：三轴基线以来 0 新 commit。"; exit 0
+if [ "$DRIFT" -eq 0 ]; then echo "结论：四轴（三 HEAD 轴 + mlx-swift tag 轴）均无待裁决漂移。"; exit 0
 elif [ "$DRIFT" -eq 10 ]; then echo "结论：存在新漂移窗口，裁决后再 adopt。"; exit 10
 else echo "结论：检查不完整/基线异常，人工复查。"; exit 1; fi

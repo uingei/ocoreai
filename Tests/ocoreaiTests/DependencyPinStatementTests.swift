@@ -233,4 +233,239 @@ struct DependencyPinStatementTests {
             "\(unanchored.count) hand-counted cite(s) in Package.swift, which no gate re-reads: \(unanchored)"
         )
     }
+
+    // MARK: - What the manifest claims about the code it pins
+
+    /// Direct MLX surface as the code expresses it. Measured 10-20: the manifest's own
+    /// consumer-impact audit said "only these two calls" (`Stream.gpu.synchronize`,
+    /// `result.eval`) while `Sources` reaches MLX at 10 sites across 5 APIs — `asArray` is
+    /// called 4× and `MLXArray` is constructed and stored in the embedding path. The
+    /// under-report is not pedantry: 0.32.3→main carries #486 ("Fix asArray crash on
+    /// zero-size arrays"), an API the audit did not know we used.
+    private static let surfacePattern =
+        #"asArray\(|\.eval\(|Stream\.gpu\.synchronize\(|MLXArray\.zeros\(|MLXArray\(|: MLXArray"#
+
+    private static func repoRoot() throws -> URL {
+        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        for _ in 0 ..< 8 {
+            if FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("Package.swift").path)
+            {
+                return dir
+            }
+            let parent = dir.deletingLastPathComponent()
+            if parent.path == dir.path { break }
+            dir = parent
+        }
+        struct NoRoot: Error, CustomStringConvertible {
+            var description: String { "no package root above \(#filePath)" }
+        }
+        throw NoRoot()
+    }
+
+    private static func swiftFiles(in root: URL) -> [URL] {
+        guard
+            let walker = FileManager.default.enumerator(
+                at: root.appendingPathComponent("Sources"), includingPropertiesForKeys: nil)
+        else {
+            return []
+        }
+        return walker.compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" }
+            .sorted { $0.path < $1.path }
+    }
+
+    private static func apiLabel(_ matched: String) -> String {
+        if matched.contains("Stream.gpu.synchronize") { return "Stream.gpu.synchronize" }
+        if matched.contains("MLXArray.zeros") { return "MLXArray.zeros" }
+        if matched.hasPrefix(": MLXArray") { return "MLXArray-typed" }
+        if matched.contains("asArray") { return "asArray" }
+        if matched.contains(".eval(") { return "eval" }
+        if matched.contains("MLXArray(") { return "MLXArray(" }
+        return "unclassified:\(matched)"
+    }
+
+    @Test(
+        "the manifest's consumer audit is the set Sources actually reach — 10 sites / 5 APIs"
+    )
+    static func consumerSurfaceIsTheAuditedSet() throws {
+        let root = try repoRoot()
+        let manifest = try repoFile("Package.swift")
+        let regex = try NSRegularExpression(pattern: surfacePattern)
+        var sites: [String] = []
+        var callApis: Set<String> = []
+        var typeSites = 0
+
+        for file in swiftFiles(in: root) {
+            guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+            for (index, rawLine) in text.split(
+                separator: "\n", omittingEmptySubsequences: false
+            ).enumerated() {
+                let line = String(rawLine)
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.hasPrefix("//") || trimmed.hasPrefix("/*") || trimmed.hasPrefix("*") {
+                    continue
+                }
+                for hit in regex.matches(in: line, range: NSRange(line.startIndex..., in: line)) {
+                    guard let range = Range(hit.range, in: line) else { continue }
+                    sites.append("\(file.lastPathComponent):\(index + 1)")
+                    let label = apiLabel(String(line[range]))
+                    if label == "MLXArray-typed" {
+                        typeSites += 1
+                    } else {
+                        callApis.insert(label)
+                    }
+                }
+            }
+        }
+
+        // Premise floors: a scan that stopped matching would report a tidy empty surface,
+        // which is how this repo's earlier grep-based gates passed vacuously.
+        #expect(
+            sites.count >= 8,
+            "only \(sites.count) direct MLX site(s) found in Sources/ — the scan is not reading the tree (\(sites))"
+        )
+        #expect(
+            callApis.count >= 5,
+            "only \(callApis.count) distinct MLX API(s) found: \(callApis.sorted())"
+        )
+
+        var unnamed = callApis.filter { !manifest.contains($0) }.sorted()
+        if typeSites > 0, !manifest.contains("MLXArray-typed") { unnamed.append("MLXArray-typed") }
+        #expect(
+            unnamed.isEmpty,
+            "Sources/ reaches MLX through \(callApis.count) APIs but Package.swift's audit never names \(unnamed) — the consumer-impact list is not the surface"
+        )
+        #expect(
+            manifest.contains("\(sites.count) sites")
+                && manifest.contains("\(callApis.count) APIs"),
+            "measured direct MLX surface is \(sites.count) sites / \(callApis.count) APIs (+\(typeSites) typed properties) while the manifest states a different size — re-run the audit, do not edit this assertion to match"
+        )
+    }
+
+    /// lm's own floor for mlx-swift, read out of the resolved checkout (the tree that gets
+    /// compiled), never hand-copied into a comment.
+    private static func lmManifestURL() -> URL? {
+        guard let root = try? repoRoot() else { return nil }
+        // The tree that actually gets compiled first: a SwiftPM checkout is what this build
+        // links, while ~/references is a mirror whose HEAD may sit elsewhere.
+        for relative in [
+            ".build-clt/checkouts/mlx-swift-lm/Package.swift",
+            ".build/checkouts/mlx-swift-lm/Package.swift",
+        ] {
+            let url = root.appendingPathComponent(relative)
+            if FileManager.default.fileExists(atPath: url.path) { return url }
+        }
+        let refsBases = [
+            ProcessInfo.processInfo.environment["OCOREAI_REFS"],
+            ProcessInfo.processInfo.environment["HOME"],
+            NSHomeDirectory(),
+        ].compactMap { $0 }
+        for base in refsBases {
+            let path = "\(base)/references/mlx-swift-lm/Package.swift"
+            if FileManager.default.fileExists(atPath: path) { return URL(fileURLWithPath: path) }
+        }
+        return nil
+    }
+
+    @Test(
+        "this pin satisfies lm's transitive floor, and the manifest names that floor as it now reads",
+        .enabled(if: lmManifestURL() != nil)
+    )
+    static func pinSatisfiesLmsTransitiveFloor() throws {
+        guard let lmManifest = lmManifestURL(),
+            let lmText = try? String(contentsOf: lmManifest, encoding: .utf8)
+        else {
+            Issue.record("no mlx-swift-lm checkout to read lm's constraint from")
+            return
+        }
+        let manifest = try repoFile("Package.swift")
+        guard
+            let exact = manifestConstraint(
+                manifest, packageURL: "ml-explore/mlx-swift.git", keyword: "exact")
+        else {
+            Issue.record(
+                "no `exact:` constraint for ml-explore/mlx-swift.git — the pin moved shape, this gate needs re-reading"
+            )
+            return
+        }
+        let floorPattern =
+            #"ml-explore/mlx-swift"\s*,\s*\.upToNextMinor\(from:\s*"([0-9]+\.[0-9]+\.[0-9]+)"\)"#
+        // A `try?` here would fold "this pattern is broken" into "lm changed its constraint",
+        // and the two need different answers: one is a bug in this gate.
+        let floorRegex: NSRegularExpression
+        do {
+            floorRegex = try NSRegularExpression(pattern: floorPattern)
+        } catch {
+            Issue.record(
+                "the lm-floor pattern is not a valid regex — that is this gate's bug, not lm's: \(error)"
+            )
+            return
+        }
+        guard
+            let hit = floorRegex.firstMatch(
+                in: lmText, range: NSRange(lmText.startIndex..., in: lmText)),
+            let range = Range(hit.range(at: 1), in: lmText)
+        else {
+            Issue.record(
+                "lm's mlx-swift constraint is not `.upToNextMinor(from:)` at \(lmManifest.lastPathComponent) — read it and update this gate, do not let it pass silently"
+            )
+            return
+        }
+        let floor = String(lmText[range])
+
+        /// `x.y.z` → one comparable integer, so the gate does not lean on sequence operators.
+        func versionKey(_ version: String) -> Int? {
+            let numbers = version.split(separator: ".").compactMap { Int($0) }
+            guard numbers.count == 3 else { return nil }
+            return numbers[0] * 1_000_000 + numbers[1] * 1_000 + numbers[2]
+        }
+        func minorLine(_ version: String) -> String? {
+            let numbers = version.split(separator: ".").compactMap { Int($0) }
+            guard numbers.count == 3 else { return nil }
+            return "\(numbers[0]).\(numbers[1])"
+        }
+        guard let pinKey = versionKey(exact), let floorKey = versionKey(floor) else {
+            Issue.record(
+                "pin \(exact) or lm floor \(floor) is not x.y.z — not semver, cannot compare")
+            return
+        }
+        #expect(
+            pinKey >= floorKey && minorLine(exact) == minorLine(floor),
+            "this package pins mlx-swift \(exact) while mlx-swift-lm (at the resolved revision) requires .upToNextMinor(from: \(floor)) — resolution would fail or the pin is below the floor lm sets"
+        )
+        // And the prose that justifies the tag has to carry lm's current floor, not the one
+        // that was true when the sentence was written (#646 raised it to 0.32.2; at our
+        // pinned lm it reads 0.32.3).
+        #expect(
+            manifest.contains(".upToNextMinor(from: \(floor))")
+                || manifest.contains(".upToNextMinor(from: \"\(floor)\")"),
+            "lm's floor is \(floor) but Package.swift never states it — the sentence that explains the pin still describes an older contract"
+        )
+    }
+
+    @Test("the drift instrument watches every pinned upstream, and judges mlx-swift by tags")
+    static func driftScriptCoversBothPinnedUpstreams() throws {
+        let script = try repoFile("scripts/upstream-drift.sh")
+        // Premise floor: the three HEAD axes plus the tag axis must all be present, or a
+        // rewritten script could report "clean" having watched nothing.
+        let axes = ["mlx-swift-lm", "coreai-models", "codex", "mlx-swift"]
+            .filter { script.contains($0) }
+        #expect(
+            axes.count == 4,
+            "scripts/upstream-drift.sh covers \(axes.count)/4 upstream axes (\(axes)) — a dependency with no axis is unmonitored drift"
+        )
+        #expect(
+            script.contains("MLX_REPO=\"ml-explore/mlx-swift\""),
+            "mlx-swift has no axis entry in scripts/upstream-drift.sh"
+        )
+        #expect(
+            script.contains("ls-remote --tags") && script.contains("sort -V"),
+            "the mlx-swift axis no longer judges releases by tag — `exact:` pins drift against *tags*, not against main's HEAD"
+        )
+        #expect(
+            script.contains("Package.resolved"),
+            "the axis reads its pin from somewhere other than Package.resolved — a hand-copied version is a second truth"
+        )
+    }
 }
