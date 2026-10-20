@@ -76,6 +76,47 @@ final class MLXModelHandleImpl: MLXModelHandle {
     }
 }
 
+extension MLXModelHandle {
+    /// Does this checkpoint's own chat template write a tool declaration into the prompt?
+    ///
+    /// Measured by rendering, not by reading a config key: the same one-message feed goes
+    /// through `applyChatTemplate` twice, once with no tools and once with a probe tool, and
+    /// the token counts are compared. A template that iterates `tools` (Gemma-4 renders
+    /// `<|tool>…<tool|>` per entry, `chat_template.jinja:196-203`) necessarily renders
+    /// longer with the tool than without it; a template that ignores `tools` renders the
+    /// same text twice.
+    ///
+    /// `nil` means the probe could not run — a template that throws on a toolless feed, or
+    /// on any feed at all. That is *not* "does not render": the caller keeps the existing
+    /// behaviour and says it never measured (AGENTS.md invariant 2).
+    ///
+    /// Cost: two template renders per model load, cached by ``ToolProseLedger``.
+    ///
+    /// - Returns: `true` when the checkpoint declares tools itself, `false` when it ignores
+    ///   them, `nil` when the measurement did not run.
+    nonisolated func chatTemplateRendersTools() async -> Bool? {
+        let feed: [[String: any Sendable]] = [["role": "user", "content": "x"]]
+        let probeTool: [String: any Sendable] = [
+            "type": "function",
+            "function": [
+                "name": "__ocoreai_probe__",
+                "description": "probe",
+                "parameters": [
+                    "type": "object", "properties": [:] as [String: any Sendable],
+                ] as [String: any Sendable],
+            ] as [String: any Sendable],
+        ]
+        let tokenizer = await modelContainer.tokenizer
+        guard
+            let bare = try? tokenizer.applyChatTemplate(messages: feed),
+            let withTool = try? tokenizer.applyChatTemplate(messages: feed, tools: [probeTool])
+        else {
+            return nil
+        }
+        return withTool.count > bare.count
+    }
+}
+
 // MARK: - MLX Model Loader
 
 /// Load an MLX model from local filesystem, ModelScope Hub, or HuggingFace.

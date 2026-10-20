@@ -1106,6 +1106,18 @@ actor EnginePool {
                 "Tokenizer registration failed for \(modelId) (\(error.localizedDescription)) — falling back to heuristic token estimates"
             )
         }
+        // Measure, for this checkpoint, whether its own chat template declares tools — the
+        // fact that decides whether MessageBuilder's `## Tool:` prose is a declaration or a
+        // duplicate (probe 16 measured 116 delivered prompt_tokens for one tool where our
+        // prose accounted for 65). Ran after the container exists; the answer belongs to
+        // these weights, so unloadModel() drops it.
+        do {
+            let proseMode = await ToolProseLedger.shared.record(
+                modelId: modelId,
+                templateRendersTools: mlxHandleToSet.chatTemplateRendersTools()
+            )
+            logger.info("\(proseMode.logLine(modelId: modelId))")
+        }
         // Persist MLXLanguageModel so executor.respond() can route through
         // capability gates, ToolCallingModeResolution, and ConfigurationResolver
         // on macOS 27. The instance was constructed above and hoisted into mlxLM.
@@ -1507,6 +1519,10 @@ actor EnginePool {
         videoDeliveries.forget(modelId: modelId)
         // And for function calling: `tool_call_delivery` goes back to `not_observed`.
         toolCallDeliveries.forget(modelId: modelId)
+        // And for the template measurement: whether this checkpoint renders tools was read
+        // off these weights. A reload may be a different checkpoint under the same id, so
+        // the answer is re-measured at load rather than trusted from before.
+        await ToolProseLedger.shared.forget(modelId: modelId)
 
         logger.info("Model unloaded: \(modelId)")
         return true

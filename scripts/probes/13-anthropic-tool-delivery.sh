@@ -701,10 +701,35 @@ if [ "$DECL11" = "1" ]; then
 else
   probe_fail "a declared tool did not reach the assembly: $ASM11"
 fi
-if [ -n "$SYS11" ] && [ -n "$SYS9" ]; then
-  probe_note "one declared tool grows the system message $SYS9 -> $SYS11 chars (+$(( SYS11 - SYS9 )) of schema-less ## Tool: prose, while the same spec also goes to the engine structured — the model gets two copies, one of them without parameters)"
-else
+if [ -z "$SYS11" ] || [ -z "$SYS9" ]; then
   probe_fail "assembly line missing systemChars (§11 cannot measure the duplication): $ASM11"
+else
+  # One copy per declared tool (AGENTS.md § Open, fixed 10-20续7): the checkpoint's own chat
+  # template declares tools it renders, so our ## Tool: prose must be skipped for it. The
+  # decision and its reason are published at load; §11 checks the effect against that claim.
+  MODE11="$(grep -o "Tool prose [a-zA-Z]* for $PROBE_MODEL —.*" "$PROBE_LOG" | head -1)"
+  B11="$(grep -o "Tool prose [a-zA-Z]* for $PROBE_MODEL with 1 declared tool(s), [0-9]* ## Tool: block(s) written" "$PROBE_LOG" | tail -1 | sed -nE 's/.* ([0-9]+) ## Tool.*/\1/p')"
+  GROWTH11=$(( SYS11 - SYS9 ))
+  probe_note "load-time decision: ${MODE11:-<none>}; this turn wrote ${B11:-<none>} ## Tool: block(s); system message $SYS9 -> $SYS11 (+$GROWTH11 chars, which is the tool-agnostic action directive, not a declaration)"
+  case "$MODE11" in
+    *"Tool prose skippedTemplateRenders"*)
+      if [ "${B11:-0}" -eq 0 ]; then
+        probe_ok "one declared tool, zero ## Tool: blocks written — the checkpoint's own <|tool> block is the single declaration"
+      else
+        probe_fail "the ledger said skippedTemplateRenders but this turn wrote $B11 ## Tool: block(s): the duplicate declaration is back"
+      fi
+      ;;
+    *"Tool prose injectedTemplateIgnores"*)
+      if [ "${B11:-0}" -ge 1 ]; then
+        probe_ok "this template was measured to ignore tools, so our $B11 block(s) are the only declaration it can see"
+      else
+        probe_fail "mode injectedTemplateIgnores but no ## Tool: block was written — nothing declared the tool"
+      fi
+      ;;
+    *)
+      probe_xfail open "a declared tool arrived with no measured decision on record (${MODE11:-no Tool prose line}) — the model may be getting the surface in two dialects"
+      ;;
+  esac
 fi
 
 probe_summary "$PROBE_NAME"

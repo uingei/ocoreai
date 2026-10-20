@@ -91,6 +91,11 @@ nonisolated func splitInstructionMessages(
     return (texts.joined(separator: "\n\n"), conversation)
 }
 
+/// Where the tool-prose decision is narrated. A file-scope logger because
+/// ``MessageBuilder`` is an actor with no logger of its own, and the line must come from the
+/// same seam that makes the decision.
+private let toolProseLogger = Logger(label: "ocoreai.tool-prose")
+
 // MARK: - Assembly disclosure
 
 /// What a handler is about to feed the model, in one line.
@@ -261,17 +266,33 @@ actor MessageBuilder {
             }.joined(separator: "\n\n")
 
             if !toolDefs.isEmpty {
-                if let firstSystem = messages.firstIndex(where: { $0.role == "system" }) {
-                    if case .text(var existingContent) = messages[firstSystem].content {
-                        existingContent += "\n\nAvailable tools:\n\(toolDefs)"
-                        messages[firstSystem].content = .text(existingContent)
+                // One declaration per turn, and the checkpoint decides which one: when its own
+                // chat template already writes the tool in the dialect the model was trained on
+                // (`<|tool>…<tool|>` for Gemma-4), this prose is a second copy — measured per
+                // model at load by ``ToolProseLedger``, because a template that ignores `tools`
+                // would be left with no declaration at all. Unmeasured keeps the prose: the
+                // default is the behaviour that predates the ledger, not a guess (probe 16).
+                let proseMode = await ToolProseLedger.shared.mode(modelId: context.modelId)
+                let blocksWritten =
+                    proseMode.injectsProse
+                    ? tools.filter { $0.function.description != nil }.count
+                    : 0
+                toolProseLogger.info(
+                    "\(proseMode.logLine(modelId: context.modelId, declaredTools: tools.count, proseBlocks: blocksWritten))"
+                )
+                if proseMode.injectsProse {
+                    if let firstSystem = messages.firstIndex(where: { $0.role == "system" }) {
+                        if case .text(var existingContent) = messages[firstSystem].content {
+                            existingContent += "\n\nAvailable tools:\n\(toolDefs)"
+                            messages[firstSystem].content = .text(existingContent)
+                        }
+                    } else {
+                        let toolMessage = Message(
+                            role: "system",
+                            content: "You have access to the following tools:\n\n\(toolDefs)",
+                        )
+                        messages.insert(toolMessage, at: 0)
                     }
-                } else {
-                    let toolMessage = Message(
-                        role: "system",
-                        content: "You have access to the following tools:\n\n\(toolDefs)",
-                    )
-                    messages.insert(toolMessage, at: 0)
                 }
             }
         }
