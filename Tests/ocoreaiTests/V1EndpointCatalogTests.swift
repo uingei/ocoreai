@@ -133,4 +133,64 @@ struct V1EndpointCatalogTests {
             source.contains("endpoints: V1EndpointCatalog.lines"),
             "GET /v1/capabilities no longer publishes `endpoints` — the 404 hint is a lie again")
     }
+
+    // ── auth is one home ─────────────────────────────────────────────────────
+    // Measured 10-20: four places stated which routes are public — `AuthRoutePolicy
+    // .publicPaths` (the set `AuthMiddleware` consults), `/v1/capabilities` (derived, the
+    // only correct copy), README.md/README.zh.md (hand-copied), and this router's own header
+    // comment. The header was wrong: it named 5 of the 7 public paths and asserted "All
+    // other endpoints require valid API key", false for `/v1/tools` and
+    // `/v1/capabilities`; and a docstring on `/v1/perception` called that route "public"
+    // while the enforced set never contained it. `authColumnIsDerived` cannot catch any of
+    // it — it proves the column is derived, not that the set is the documented one.
+
+    @Test("the public set is exactly the documented discovery surface")
+    func publicSetIsTheDocumentedSurface() {
+        // Pinning membership (not just derivation): adding a path to publicPaths widens the
+        // unauthenticated surface, and dropping one breaks clients that were told to expect
+        // it open. Either way this must be a deliberate edit, in the same change as the
+        // README rows that publish it.
+        let documented: Set<String> = [
+            "/health", "/ready", "/metrics", "/v1/models", "/v1/tools", "/v1/capabilities",
+            "/v1/stats",
+        ]
+        #expect(
+            AuthRoutePolicy.publicPaths == documented,
+            """
+            publicPaths changed shape — re-rule this pin and both READMEs' public-route lines
+            in the same change; this set is the unauthenticated surface clients rely on.
+            """)
+    }
+
+    @Test("the perception gauge is keyed, as the READMEs now state")
+    func perceptionGaugeIsKeyed() {
+        #expect(
+            V1EndpointCatalog.auth(method: "GET", path: "/v1/perception") == "key",
+            """
+            /v1/perception changed auth status: the router docstring, both READMEs and this pin
+            must be re-ruled together — widening auth is an owner decision, not a doc fix.
+            """)
+    }
+
+    @Test("no auth-scope comment re-lists the public paths")
+    func authScopeIsNotCopiedIntoTheRouter() throws {
+        let source = try Self.routerSource()
+        let mentions = source.split(separator: "\n").filter { $0.contains("AuthMiddleware") }
+        // Floor: prove this scan still has something to look at.
+        #expect(!mentions.isEmpty, "no AuthMiddleware mention left in the router — scan rotted")
+        let literal = try NSRegularExpression(
+            pattern: #"(get|post|patch|delete) /"#, options: [.caseInsensitive])
+        for line in mentions {
+            let lineString = String(line)
+            let hits = literal.matches(
+                in: lineString, range: NSRange(lineString.startIndex..., in: lineString)
+            ).count
+            #expect(
+                hits < 2,
+                """
+                auth-scope comment enumerates \(hits) routes instead of pointing at
+                AuthRoutePolicy.publicPaths — a second copy of auth drifts, and this one did
+                """)
+        }
+    }
 }

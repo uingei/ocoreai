@@ -23,6 +23,10 @@
 #                    Package.swift actually pins — the pin is the contract (§ Upstream),
 #                    and a stale SHA in the injected context sends every future session
 #                    to audit the wrong commit
+#   P9 routing targets are TRACKED, not merely present on this host
+#   P10 human surface  README.md/README.zh.md are diffed against the code that serves the
+#                    surface: the endpoint table must equal the router's route set, and the
+#                    public-route sentence must equal AuthRoutePolicy.publicPaths
 #
 # Why (measured 10-14, same session as this file): three "verified" counts had already
 # drifted — Engine/*.swift 44 -> 53, precondition 12 sites/9 files -> 14/11 — and the
@@ -46,6 +50,11 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_AGENTS_FLOOR_CLAIMS:=8}"
 : "${OCOREAI_AGENTS_FLOOR_SUITES:=8}"
 : "${OCOREAI_AGENTS_FLOOR_ROUTING:=4}"
+# P10 floor: the router route scan must keep matching (measured 34 routes on 10-20), else
+# the README-vs-router parity below compares against an empty set and passes vacuously.
+: "${OCOREAI_README_FLOOR_ROUTES:=30}"
+# P10 floor: CI job ids parsed from the `jobs:` section (measured 6 on 10-20).
+: "${OCOREAI_README_FLOOR_JOBS:=5}"
 
 MODE="${1:-check}"
 if [ "$MODE" = budget ]; then
@@ -70,6 +79,8 @@ OCOREAI_AGENTS_FLOOR_REFS="$OCOREAI_AGENTS_FLOOR_REFS" \
 OCOREAI_AGENTS_FLOOR_CLAIMS="$OCOREAI_AGENTS_FLOOR_CLAIMS" \
 OCOREAI_AGENTS_FLOOR_SUITES="$OCOREAI_AGENTS_FLOOR_SUITES" \
 OCOREAI_AGENTS_FLOOR_ROUTING="$OCOREAI_AGENTS_FLOOR_ROUTING" \
+OCOREAI_README_FLOOR_ROUTES="$OCOREAI_README_FLOOR_ROUTES" \
+OCOREAI_README_FLOOR_JOBS="$OCOREAI_README_FLOOR_JOBS" \
 python3 - <<'PY'
 import os, re, subprocess, glob
 
@@ -160,7 +171,7 @@ for c in clones:
     for t in out:
         clone_index.setdefault(os.path.basename(t), []).append(os.path.relpath(c, repo))
 
-docs = {"AGENTS.md": root_text}
+docs = {"AGENTS.md": root_text, "README.md": read("README.md"), "README.zh.md": read("README.zh.md")}
 docs.update({p: read(p) for p in guides})
 
 refs, anchors, claims, suites, make_targets, routing = set(), set(), set(), set(), set(), set()
@@ -313,6 +324,80 @@ else:
         fail.append("P8 AGENTS.md quotes pin %s but Package.swift pins %s — the injected context "
                     "names a stale upstream contract" % ("/".join(sorted(quoted)), pin))
 
+# ── P10 the human-facing surface matches the code that serves it ─────────────
+# Until now the READMEs' only gate was "a human reads them" — the root Documentation Map
+# said so out loud (row README.md/README.zh.md, gate "Human"). Measured 10-20: both
+# READMEs listed 32 endpoints while the router registers 34 (GET /v1/perception and
+# POST /v1/audio/transcriptions undocumented, in BOTH languages), and the two files
+# disagreed with each other about whether the xcode-27 CI leg was green. A hand-copied
+# list is a second truth with no owner (§ Endpoint Promises: the auth column comes from
+# AuthRoutePolicy, never a hand-copied list) — so the two lists a human actually reads
+# are now diffed against the code that produces them.
+ROUTER_SRC = "Sources/ocoreai/Router/ChatCompletionsRouter.swift"
+AUTH_SRC = "Sources/ocoreai/Middleware/AuthMiddleware.swift"
+HUMAN_DOCS = ["README.md", "README.zh.md"]
+
+router_routes = {
+    "%s %s" % (m.group(1).upper(), m.group(2))
+    for m in re.finditer(r'routes\.(get|post|patch|delete)\("([^"]+)"', read(ROUTER_SRC))
+}
+if len(router_routes) < env_int("OCOREAI_README_FLOOR_ROUTES"):
+    fail.append("P10 router scan found only %d route(s) (< floor %d) — the regex stopped "
+                "matching %s, so every parity below is vacuous"
+                % (len(router_routes), env_int("OCOREAI_README_FLOOR_ROUTES"), ROUTER_SRC))
+
+mpub = re.search(r"static let publicPaths: Set<String> = \[(.*?)\]", read(AUTH_SRC), re.S)
+if not mpub:
+    fail.append("P10 `AuthRoutePolicy.publicPaths` not found in %s — the public-route parity "
+                "has no source of truth, so it cannot gate anything" % AUTH_SRC)
+public_paths = set(re.findall(r'"([^"]+)"', mpub.group(1))) if mpub else set()
+
+# CI job ids are code identifiers, identical in both languages, so the leg list a human
+# reads can be diffed against the workflow without parsing prose. Measured 10-20: README.md
+# said both legs pass, README.zh.md line 55 said xcode-27 is red and line 183 said it is
+# green — three statements, two files, one of them true, none of them re-checkable.
+ci = read(".github/workflows/ci.yml")
+ci_jobs = re.findall(r"^  ([a-z][a-z-]+):$", ci.split("jobs:")[-1], re.M)
+if len(ci_jobs) < env_int("OCOREAI_README_FLOOR_JOBS"):
+    fail.append("P10 the CI workflow yielded only %d job id(s) (< floor %d) — the scan stopped "
+                "matching, so the leg list below is vacuous"
+                % (len(ci_jobs), env_int("OCOREAI_README_FLOOR_JOBS")))
+
+ROW_RE = re.compile(r"^\|\s*`(GET|POST|PATCH|DELETE)`\s*\|\s*`(/[^`]+)`\s*\|", re.M)
+for doc in HUMAN_DOCS:
+    text = read(doc)
+    listed = {"%s %s" % (m.group(1), m.group(2)) for m in ROW_RE.finditer(text)}
+    if len(listed) < env_int("OCOREAI_README_FLOOR_ROUTES"):
+        fail.append("P10 %s endpoint table has only %d row(s) (< floor %d) — either the table "
+                    "or its regex rotted, and a doc that lists nothing looks tidy"
+                    % (doc, len(listed), env_int("OCOREAI_README_FLOOR_ROUTES")))
+    missing = sorted(router_routes - listed)
+    extra = sorted(listed - router_routes)
+    if missing:
+        fail.append("P10 %s omits %d endpoint(s) the router serves: %s"
+                    % (doc, len(missing), ", ".join(missing)))
+    if extra:
+        fail.append("P10 %s advertises %d endpoint(s) the router does not register: %s"
+                    % (doc, len(extra), ", ".join(extra)))
+    no_leg = sorted(j for j in ci_jobs if "`%s`" % j not in text)
+    if no_leg:
+        fail.append("P10 %s never names CI leg(s) %s — a reader cannot tell which gates exist "
+                    "if the entry point only claims 'CI is green'" % (doc, ", ".join(no_leg)))
+    # The public-route sentence is prose and differs by language, so it is found by what
+    # it must contain (the two ends of the set), not by a translated keyword.
+    notes = [ln for ln in text.splitlines() if "/health" in ln and "/metrics" in ln]
+    if len(mpub.group(0)) and not notes:
+        fail.append("P10 %s no longer states which routes are public — the discovery surface "
+                    "is undocumented where users look for it" % doc)
+    for ln in notes:
+        asserted = set(re.findall(r"`(/[^`]+)`", ln))
+        if asserted != public_paths:
+            miss = sorted(public_paths - asserted)
+            over = sorted(asserted - public_paths)
+            fail.append("P10 %s public-route list != AuthRoutePolicy.publicPaths (missing: %s; "
+                        "extra: %s) — auth is one home, and this copy already drifted"
+                        % (doc, ",".join(miss) or "none", ",".join(over) or "none"))
+
 # ── report ───────────────────────────────────────────────────────────────────
 print("AGENTS.md contract (%s)" % mode)
 print("  budgets   root=%d/%d chars  guides=%d  chain-cap=%d"
@@ -320,6 +405,10 @@ print("  budgets   root=%d/%d chars  guides=%d  chain-cap=%d"
 print("  scan      gateable-refs=%d (floor %d)  claims=%d/%d ok (floor %d)  suites=%d  routing=%d  upstream-trees=%d"
       % (len(hard_refs), env_int("OCOREAI_AGENTS_FLOOR_REFS"), ok_claims, len(claims),
          env_int("OCOREAI_AGENTS_FLOOR_CLAIMS"), len(suites), len(routing), len(clones)))
+print("  human     router-routes=%d (floor %d)  public-paths=%d  README tables=%s"
+      % (len(router_routes), env_int("OCOREAI_README_FLOOR_ROUTES"), len(public_paths),
+         ",".join("%d rows" % len({("%s %s" % (m.group(1), m.group(2)))
+                                  for m in ROW_RE.finditer(read(d))}) for d in HUMAN_DOCS)))
 if upstream:
     print("  upstream  %d ref(s) resolved in a dependency checkout or ~/references "
           "(line numbers inside them are what `make anchor-check` verifies): %s"
