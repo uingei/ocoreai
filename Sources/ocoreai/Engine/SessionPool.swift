@@ -402,6 +402,10 @@ actor MLXSessionPool {
     private var hitCount = 0
     private var missCount = 0
     private var totalAcquireAttempts = 0
+    /// Which rule turned a warm session away, per model, and how often a cold turn arrived
+    /// while another session for the same model already held its prefix
+    /// (ReuseRefusalLedger.swift). Counts only: no decision here consults it.
+    private var reuseRefusals = ReuseRefusalLedger()
 
     /// Model IDs whose pooled sessions are exempt from TTL/LRU eviction
     /// (set from EnginePool via ``setPinnedModels``). Critical pressure (level 3) ignores this.
@@ -550,6 +554,16 @@ actor MLXSessionPool {
                 // it there would let the next pool miss for this key revive the same
                 // stale context.
                 deleteCachedSession(key: key)
+                // Counted at the site that already decided, from the same two premises, in
+                // the same precedence (`ReuseRefusalReason.decide`) - so the log line, the wire
+                // counter and the gate cannot drift into three spellings of one refusal.
+                if let reason = ReuseRefusalReason.decide(
+                    instructionsMatch: instructionsMatch,
+                    cachedMessageCount: pooled.messageHistory.count,
+                    commonPrefixCount: divergence
+                ) {
+                    reuseRefusals.record(modelId: modelId, reason: reason)
+                }
                 var refusalReasons: [String] = []
                 if !instructionsMatch {
                     refusalReasons.append("instructions changed")
@@ -676,6 +690,28 @@ actor MLXSessionPool {
             modelId: modelId,
             messageHistory: []
         )
+        // Opportunity accounting, nothing more. The sessions this scans are other
+        // conversations' (this key's own entry was either handed back above or dropped as
+        // unreusable), and no decision about which session answers this turn reads the
+        // result - the pool still keys sessions by conversation.
+        if let feed = prefixMessages {
+            let candidates = pool.values.compactMap { entry -> CrossConversationPrefix.Candidate? in
+                guard entry.modelId == modelId else { return nil }
+                return CrossConversationPrefix.Candidate(
+                    messageHistory: entry.messageHistory,
+                    instructionsHash: entry.instructionsHash)
+            }
+            if let overlap = CrossConversationPrefix.best(
+                feed: feed,
+                instructionsHash: instructionsFP,
+                candidates: candidates
+            ) {
+                reuseRefusals.recordOpportunity(modelId: modelId, overlap: overlap)
+                logger.info(
+                    "Cross-conversation prefix opportunity for \(key): \(overlap.messagesInCommon)/\(overlap.feedMessages) message(s) of this feed are already resident in another session for \(modelId) - counted, not reused: the pool keys sessions by conversation and no rewind reserve is requested"
+                )
+            }
+        }
         missCount += 1
         totalAcquireAttempts += 1
         logHitRateIfNeeded()
@@ -950,6 +986,7 @@ actor MLXSessionPool {
             instructionsHash: instructionsHash,
             incomingMessages: incomingMessages
         ) {
+            reuseRefusals.record(modelId: modelId, reason: refusal.ledgerReason)
             discardCachedSession(cacheURL: cacheURL, why: refusal.logText)
             return nil
         }
@@ -1143,6 +1180,17 @@ actor MLXSessionPool {
         for key in keysToRemove {
             pool.removeValue(forKey: key)
         }
+        // The refusals were counted against sessions that no longer exist; keeping the
+        // tally would publish a number that outlives what it measured.
+        reuseRefusals.forget(modelId: modelId)
+    }
+
+    /// What this pool has counted about reuse refusals for one model - counts taken at
+    /// the sites where the existing rules already said no (ReuseRefusalLedger.swift).
+    /// Published on `GET /v1/models/:model/kv-cache`; before any refusal it is an empty
+    /// set, never a prediction that reuse would fail.
+    func reuseRefusalObservation(modelId: String) -> ReuseRefusalObservation {
+        reuseRefusals.observation(modelId: modelId)
     }
 
     // MARK: - Helpers

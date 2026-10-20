@@ -80,7 +80,7 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 | `PATCH` | `/v1/models/:model/sampling` | 热替换采样配置 |
 | `DELETE` | `/v1/models/:model/sampling` | 重置单模型采样配置 |
 | `DELETE` | `/v1/models/sampling` | 重置全部采样配置 |
-| `GET`  | `/v1/models/:model/kv-cache` | 已加载模型的 KV cache 报告 |
+| `GET`  | `/v1/models/:model/kv-cache` | 已加载模型的 KV cache 报告 — 规划拓扑、容量处置，以及实测的前缀复用、工具声明散文、复用拒用归因 |
 | `POST` | `/v1/models/download` | 从 ModelScope / HuggingFace 下载 |
 | `POST` | `/v1/audio/transcriptions` | 端侧语音转文字（multipart `file`，或 JSON `audio` base64 / `file://` URL；`verbose_json` 明确拒绝而非静默忽略） |
 | `POST` | `/v1/models/train` | LLM 训练 |

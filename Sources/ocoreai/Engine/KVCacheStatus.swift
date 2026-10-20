@@ -61,13 +61,21 @@ struct KVCacheStatusResponse: Encodable {
     /// `injected_unmeasured` when this process never probed it — never a claimed capability.
     let toolProse: ToolProseObservation
 
+    /// Which reuse rule turned a warm session away, counted per refusal, plus how many cold
+    /// turns arrived while another session for the same model already held part of their feed
+    /// (ReuseRefusalLedger.swift). Counted where the pool already decided — it publishes the
+    /// cost of the rules, never a claim that loosening them would save anything.
+    let reuseRefusals: ReuseRefusalObservation
+
     init(
         status: KVCacheStatus,
         prefixReuse: PrefixReuseObservation = .notObserved,
-        toolProse: ToolProseObservation = ToolProseMode.injectedUnmeasured.observation
+        toolProse: ToolProseObservation = ToolProseMode.injectedUnmeasured.observation,
+        reuseRefusals: ReuseRefusalObservation = .empty
     ) {
         self.prefixReuse = prefixReuse
         self.toolProse = toolProse
+        self.reuseRefusals = reuseRefusals
         let layers = status.layers.map { KVCacheLayerWire(layer: $0) }
         let requestedCapacity = status.requestedConfiguration?.capacity.map {
             KVCapacityWire(
@@ -194,9 +202,12 @@ extension KVCacheStatusResponse {
 nonisolated func makeKVCacheStatusResponse(
     _ status: KVCacheStatus,
     prefixReuse: PrefixReuseObservation = .notObserved,
-    toolProse: ToolProseObservation = ToolProseMode.injectedUnmeasured.observation
+    toolProse: ToolProseObservation = ToolProseMode.injectedUnmeasured.observation,
+    reuseRefusals: ReuseRefusalObservation = .empty
 ) -> KVCacheStatusResponse {
-    KVCacheStatusResponse(status: status, prefixReuse: prefixReuse, toolProse: toolProse)
+    KVCacheStatusResponse(
+        status: status, prefixReuse: prefixReuse, toolProse: toolProse, reuseRefusals: reuseRefusals
+    )
 }
 
 // MARK: - EnginePool consumption
@@ -229,7 +240,9 @@ extension EnginePool {
             return makeKVCacheStatusResponse(
                 status,
                 prefixReuse: prefixReuse.observation(modelId: modelId),
-                toolProse: await ToolProseLedger.shared.observation(modelId: modelId))
+                toolProse: await ToolProseLedger.shared.observation(modelId: modelId),
+                reuseRefusals: await sessionPool?.reuseRefusalObservation(modelId: modelId)
+                    ?? .empty)
         } catch {
             throw AppError.inferenceFailed("KV cache status: \(error)")
         }

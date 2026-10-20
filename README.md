@@ -95,7 +95,7 @@ Known boundaries (as of this commit, not aspirations):
 | `PATCH` | `/v1/models/:model/sampling` | Hot-swap sampling config |
 | `DELETE` | `/v1/models/:model/sampling` | Reset single model sampling |
 | `DELETE` | `/v1/models/sampling` | Reset all sampling |
-| `GET`  | `/v1/models/:model/kv-cache` | KV cache report for a loaded model |
+| `GET`  | `/v1/models/:model/kv-cache` | KV cache report for a loaded model — planned topology, capacity disposition, and the measured prefix-reuse / tool-prose / reuse-refusal accounting |
 | `POST` | `/v1/models/download` | Download from ModelScope / HuggingFace |
 | `POST` | `/v1/audio/transcriptions` | On-device speech-to-text (multipart `file`, or JSON `audio` base64 / `file://` URL; `verbose_json` refused by name, not silently ignored) |
 | `POST` | `/v1/models/train` | LLM training |

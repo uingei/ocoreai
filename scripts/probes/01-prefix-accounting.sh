@@ -116,6 +116,27 @@ else
   probe_fail "turn 4 (edited resend) -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:200}"
 fi
 
+# turn 5 — the same head, a different conversation. Sessions are keyed
+# `modelId:conversationId` (SessionPool.poolKey), so this turn pays a cold prefill even
+# though a live session for the same model already holds [U1, A1]: codex #55587 decouples
+# the prompt-cache key from session identity for exactly this reason (its axis is
+# provider-side caching, ours is local KV). NOTE only — loosening the key is an owner
+# decision with a correctness cost, so this turn prices it instead of asserting a verdict.
+# The deepest overlap here is 2, not 3, because turn 4 rewrote the second message: the
+# edited transcript is what conversation 1 is holding now.
+SESSION2="PROBE-XCONV-$$"
+body="$(probe_chat_body "$SESSION2" "$(python3 -c '
+import json,sys
+print(json.dumps([{"role":"user","content":sys.argv[1]},{"role":"assistant","content":sys.argv[2]},{"role":"user","content":sys.argv[3]}]))' "$U1" "$A1" "$U2")" "$MAX_TOKENS")"
+probe_chat "$SESSION2" "$body"
+if [ "${PROBE_STATUS:-}" = "200" ]; then
+  T5_PROMPT="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens')"
+  T5_CACHED="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens_details.cached_tokens')"
+  probe_note "cross-conversation turn (fresh session id, same head) 200 - prompt_tokens=${T5_PROMPT:-?} cached_tokens=${T5_CACHED:-none}: this is what conversation-partitioned KV costs"
+else
+  probe_fail "turn 5 (cross-conversation) -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:200}"
+fi
+
 probe_section "engine log — what the pool and upstream actually did"
 # The pool keys itself `modelId:conversationId` (SessionPool.poolKey), so the HIT line
 # carries the conversation id after the model id. Match the form that says messages were
@@ -261,6 +282,40 @@ else
     probe_ok "ledger recorded $PR_WARM warm turns — the accounting actually ran"
   else
     probe_fail "kv-cache reports ${PR_WARM:-0} warm turn(s) after 3 same-session requests — the ledger never recorded"
+  fi
+  # The refusal ledger: which rule said no, and how often a cold turn arrived while another
+  # session already held the head. Same discipline as prefixReuse above — the counter must be
+  # on the wire, must be non-zero when this run knows a refusal happened, and must not
+  # out-count the log lines that record them.
+  RR_TOTAL="$(probe_json "$PROBE_BODY" 'reuseRefusals.total')"
+  RR_DIVERGED="$(probe_json "$PROBE_BODY" 'reuseRefusals.byReason.historyDiverged')"
+  RR_XCONV="$(probe_json "$PROBE_BODY" 'reuseRefusals.crossConversationTurns')"
+  RR_BEST="$(probe_json "$PROBE_BODY" 'reuseRefusals.bestMessagesInCommon')"
+  if [ -z "$RR_TOTAL" ]; then
+    probe_fail "kv-cache payload carries no reuseRefusals — the refusal accounting is not on the surface"
+  else
+    LOG_REFUSALS="$(grep -c "not reusable:" "$PROBE_LOG" 2>/dev/null || true)"
+    LOG_REFUSALS="${LOG_REFUSALS:-0}"
+    if [ "${RR_TOTAL:-0}" -ge 1 ] && [ "${RR_DIVERGED:-0}" -ge 1 ]; then
+      probe_ok "reuseRefusals on the wire: total=$RR_TOTAL historyDiverged=$RR_DIVERGED (the edited resend was named, not just logged)"
+    else
+      probe_fail "the edited resend was refused this run, yet reuseRefusals reports total=${RR_TOTAL:-?} historyDiverged=${RR_DIVERGED:-absent} — the ledger did not record what the pool did"
+    fi
+    if [ "${RR_TOTAL:-0}" -lt "$LOG_REFUSALS" ]; then
+      probe_fail "reuseRefusals.total=$RR_TOTAL is below the $LOG_REFUSALS in-memory refusal line(s) in the log — a counter that misses refusals cannot price the rules it counts"
+    else
+      probe_ok "counter $RR_TOTAL covers the $LOG_REFUSALS in-memory refusal(s) logged (any excess is a disk-snapshot refusal)"
+    fi
+    LOG_XCONV="$(grep -c "Cross-conversation prefix opportunity" "$PROBE_LOG" 2>/dev/null || true)"
+    LOG_XCONV="${LOG_XCONV:-0}"
+    if [ "${RR_XCONV:-0}" -ge 1 ] && [ "${RR_BEST:-0}" -ge 2 ]; then
+      probe_ok "cross-conversation opportunity counted: turns=$RR_XCONV deepest=${RR_BEST}-message head already resident (counted, not reused)"
+    else
+      probe_fail "turn 5 arrived while another session held its head, yet reuseRefusals reports crossConversationTurns=${RR_XCONV:-absent} best=${RR_BEST:-absent} (log lines: $LOG_XCONV)"
+    fi
+    if [ "${RR_XCONV:-0}" -lt "$LOG_XCONV" ]; then
+      probe_fail "$LOG_XCONV opportunity line(s) in the log but the counter says $RR_XCONV — the surface under-reports what the engine saw"
+    fi
   fi
 fi
 fi
