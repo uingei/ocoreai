@@ -7,6 +7,7 @@
 
 import Darwin
 import Foundation
+import Logging
 
 // MARK: - SQLite3 C Bindings
 
@@ -128,8 +129,28 @@ final class SQLiteConnection: @unchecked Sendable {
 
 /// Actor managing the SQLite database connection and lifecycle.
 actor SQLiteStore {
+    /// The outcome of the WAL truncation attempted by the most recent ``open()``.
+    ///
+    /// `PRAGMA wal_checkpoint(TRUNCATE)` reports contention in the **first column of a returned
+    /// row**, not as an error code, so ``exec`` — which treats SQLITE_ROW as success — cannot see a
+    /// truncation that never happened. Reading the column is the only way this promise is either
+    /// kept or honestly reported (AGENTS.md invariant 2: a surface may not claim more than the
+    /// engine delivered).
+    struct WALCheckpoint: Equatable, Sendable {
+        /// True when another connection held the WAL and the truncation was refused.
+        let busy: Bool
+        /// Pages in the WAL log when the checkpoint ran.
+        let logPages: Int
+        /// Pages written back into the database file.
+        let checkpointedPages: Int
+    }
+
+    /// nil until ``open()`` has run; set by every subsequent open on this instance.
+    private(set) var lastOpenWALCheckpoint: WALCheckpoint?
+
     private let dbPath: String
     private var connection: SQLiteConnection?
+    private let logger = Logger(label: "ocoreai.sqlite")
 
     /// Path description for logging
     nonisolated var dbPathDescription: String {
@@ -194,11 +215,33 @@ actor SQLiteStore {
             throw SQLiteError.connectionFailed(detail: "sqlite3_open error: \(result)")
         }
 
-        // PRAGMAs
+        // PRAGMAs — `busy_timeout` must be the *first* statement, because everything below it
+        // either contends with another connection or is guarded by the timeout. Measured 10-20 on
+        // macOS' system libsqlite3, two connections on one file, the writer holding
+        // `BEGIN IMMEDIATE` and committing 300 ms later (pinned by
+        // Tests/ocoreaiTests/SQLiteOpenBusyTimeoutTests.swift):
+        //   * `wal_checkpoint(TRUNCATE)` reports contention in column 0 of its result row, not as
+        //     an error code: at timeout=0 it answers busy=1/log=2 in ~4 ms and leaves the WAL to
+        //     grow, unnoticed; with the timeout in force it waits for the writer (262 ms) and
+        //     truncates (busy=0).
+        //   * `journal_mode=WAL` is a no-op row in the steady state (the file is already WAL).
+        //     Converting a database that is *not* in WAL mode while another connection holds a
+        //     transaction is refused with SQLITE_BUSY immediately, and the timeout does not turn
+        //     that into a wait (`PRAGMA busy_timeout` reads back 5000 either way) — so refusing to
+        //     retry it here is a measured limit, not an oversight; see CHANGELOG 10-20(续21).
+        try SQLiteStore.exec(
+            sql: "PRAGMA busy_timeout=\(SQLiteStore.walBusyTimeoutMilliseconds);", db: ptr)
         try SQLiteStore.exec(sql: "PRAGMA journal_mode=WAL;", db: ptr)
         try SQLiteStore.exec(sql: "PRAGMA foreign_keys=ON;", db: ptr)
-        try SQLiteStore.exec(sql: "PRAGMA wal_checkpoint(TRUNCATE);", db: ptr)
-        try SQLiteStore.exec(sql: "PRAGMA busy_timeout=5000;", db: ptr)
+        let checkpoint = try SQLiteStore.walCheckpointTruncate(db: ptr)
+        lastOpenWALCheckpoint = checkpoint
+        if checkpoint.busy {
+            // Not fatal: SQLite auto-checkpoints on later writes. Stated, not swallowed — a WAL
+            // that never truncates is a growing file nobody reported.
+            logger.warning(
+                "wal_checkpoint(TRUNCATE) skipped at open: another connection held the WAL (log=\(checkpoint.logPages) checkpointed=\(checkpoint.checkpointedPages) db=\(dbPath))"
+            )
+        }
         try SQLiteStore.exec(sql: "PRAGMA page_size=4096;", db: ptr)
 
         connection = SQLiteConnection(ptr)
@@ -334,6 +377,27 @@ actor SQLiteStore {
         default:
             return nil
         }
+    }
+
+    /// How long an open-time statement waits for another connection before giving up.
+    static let walBusyTimeoutMilliseconds = 5000
+
+    /// `PRAGMA wal_checkpoint(TRUNCATE)` with its three result columns read.
+    ///
+    /// Contention here is a *value*, not an error code (busy is column 0 of the returned row), so
+    /// this bypasses ``exec`` — which would call a refused truncation a success.
+    private static func walCheckpointTruncate(db: OpaquePointer) throws -> WALCheckpoint {
+        guard let stmt = try prepare(sql: "PRAGMA wal_checkpoint(TRUNCATE);", db: db) else {
+            return WALCheckpoint(busy: false, logPages: 0, checkpointedPages: 0)
+        }
+        defer { _ = _finalize(stmt) }
+        guard _step(stmt) == SQLITE_ROW else {
+            return WALCheckpoint(busy: true, logPages: 0, checkpointedPages: 0)
+        }
+        return WALCheckpoint(
+            busy: _column_int64(stmt, 0) != 0,
+            logPages: Int(_column_int64(stmt, 1)),
+            checkpointedPages: Int(_column_int64(stmt, 2)))
     }
 
     /// Execute DML/DDL
