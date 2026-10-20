@@ -168,6 +168,133 @@ if [ -d "$LIBDIR" ] && [ -f "$NOTICES" ]; then
         fi
     done
 fi
+# Provenance: attribution says whose it is; a hash says *which bytes*. BSD-3 and
+# Apache-2.0 4 both attach to the copy that travels, so "verified against upstream at
+# collection time" has to name the revision and the digest or no later session can tell
+# which upstream it meant. The reference clone is host-local, so upstream byte-identity
+# counts as a loud SKIP when the clone is absent -- never as a pass, never as a silence.
+MANIFEST="$ROOT/THIRD-PARTY-LICENSES/manifest.json"
+if [ ! -f "$MANIFEST" ]; then
+    echo "  ❌ $MANIFEST missing — run scripts/collect-third-party-licenses.sh"
+    I_FAIL=1
+else
+    PROV_LOG="$(mktemp -t ocoreai-provenance-XXXXXX)"
+    python3 - "$MANIFEST" "$ROOT" > "$PROV_LOG" 2>&1 <<'PYPROV'
+import hashlib, json, os, subprocess, sys
+
+manifest_path, root = sys.argv[1], sys.argv[2]
+fails, oks, skips = [], [], []
+
+
+def sha(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+try:
+    m = json.load(open(manifest_path, encoding="utf-8"))
+except Exception as exc:  # noqa: BLE001 - report, never crash the gate
+    print("FAIL manifest.json unreadable: %s" % exc)
+    sys.exit(1)
+
+if m.get("schemaVersion", 0) < 2:
+    fails.append("manifest schemaVersion=%s < 2 — provenance fields (pin/sha256/vendored) are absent; "
+                 "re-run scripts/collect-third-party-licenses.sh" % m.get("schemaVersion"))
+
+apple = m.get("apple") or {}
+aff = apple.get("licenseFile")
+if not aff:
+    fails.append("manifest.apple has no licenseFile")
+else:
+    apath = os.path.join(os.path.dirname(manifest_path), aff)
+    if not os.path.exists(apath):
+        fails.append("Apple license text not on disk: %s" % aff)
+    else:
+        digest = sha(apath)
+        if apple.get("licenseSha256") != digest:
+            fails.append("Apple license text changed since collection: recorded %s… now %s…"
+                        % (str(apple.get("licenseSha256"))[:12], digest[:12]))
+        else:
+            oks.append("Apple license text matches its recorded sha256 (%s…)" % digest[:12])
+
+pin = apple.get("pin")
+if not pin:
+    skips.append("apple.pin is null — the coreai-models clone was not present when the text was "
+                 "collected, so upstream byte-identity is unverified for this manifest")
+else:
+    clone = None
+    for cand in (os.path.expanduser("~/references/coreai-models"), "coreai-models"):
+        if os.path.isdir(os.path.join(cand, ".git")):
+            clone = cand
+            break
+    if clone is None:
+        skips.append("coreai-models clone not on this host — apple.pin=%s could not be re-opened "
+                     "(recorded claim preserved, not re-verified here)" % pin[:11])
+    else:
+        up = subprocess.run(["git", "-C", clone, "show", "%s:LICENSE" % pin], capture_output=True)
+        if up.returncode != 0:
+            fails.append("apple.pin=%s is not a readable object in %s — the recorded provenance "
+                         "cannot be re-checked" % (pin[:11], clone))
+        elif hashlib.sha256(up.stdout).hexdigest() != (apple.get("licenseSha256") or ""):
+            fails.append("Apple text is NOT byte-identical to upstream LICENSE at %s — either the "
+                         "text drifted or the pin was recorded against the wrong tree" % pin[:11])
+        else:
+            oks.append("Apple text byte-identical to apple/coreai-models LICENSE at %s" % pin[:11])
+
+vend = m.get("vendored")
+if vend is None:
+    fails.append("manifest has no `vendored` array — the machine-readable index omits the "
+                 "redistribution the product hand-carries")
+elif len(vend) < 1:
+    fails.append("manifest.vendored is empty while Sources/lib/ ships third-party code — a scan "
+                 "that matches nothing certifies nothing")
+else:
+    bad = 0
+    for v in vend:
+        f = v.get("file") or ""
+        path = os.path.join(root, f)
+        if not os.path.exists(path):
+            fails.append("vendored file listed in manifest but absent: %s" % f)
+            bad += 1
+            continue
+        digest = sha(path)
+        if v.get("sha256") != digest:
+            fails.append("vendored bytes changed since collection: %s (recorded %s… now %s…)"
+                        % (f, str(v.get("sha256"))[:12], digest[:12]))
+            bad += 1
+            continue
+        tf = v.get("textFile") or ""
+        if not os.path.exists(os.path.join(os.path.dirname(manifest_path), tf)):
+            fails.append("vendored %s names license text %s, which is not bundled" % (f, tf))
+            bad += 1
+            continue
+        if not v.get("upstream"):
+            fails.append("vendored %s records no upstream — provenance with no source" % f)
+            bad += 1
+            continue
+    if bad == 0:
+        oks.append("all %d vendored file(s) match their recorded sha256, upstream and text file"
+                  % len(vend))
+
+for line in oks:
+    print("OK %s" % line)
+for line in skips:
+    print("SKIP %s" % line)
+for line in fails:
+    print("FAIL %s" % line)
+sys.exit(1 if fails else 0)
+PYPROV
+    PROV_RC=$?
+    sed 's/^/     /' "$PROV_LOG"
+    rm -f "$PROV_LOG"
+    if [ "$PROV_RC" -ne 0 ]; then
+        I_FAIL=1
+    fi
+fi
+
 if [ "$I_FAIL" -eq 0 ]; then
     echo "  ✅ Clean"
     grep -c "^| " "$NOTICES" 2>/dev/null | sed 's/^/     notices table rows: /'

@@ -1,3 +1,4 @@
+import CryptoKit
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// Distribution-license gate.
@@ -105,7 +106,7 @@ struct ThirdPartyNoticesTests {
     func appleBlockIsAccurate() {
         #expect(manifest.apple.upstream == "apple/coreai-models")
         #expect(manifest.apple.license == "BSD-3-Clause")
-        #expect(manifest.schemaVersion == 1)
+        #expect(manifest.schemaVersion == 2)
     }
 
     @Test("Apple text is the BSD-3-Clause conditions, not MIT and not truncated")
@@ -277,5 +278,101 @@ struct ThirdPartyNoticesTests {
             #expect(!header.contains("Copyright ?"), "mojibake copyright: \(url.path)")
             #expect(!header.contains("uigei@"), "misspelled rightsholder: \(url.path)")
         }
+    }
+
+    // MARK: - Provenance (schema 2)
+
+    /// The manifest must say *where* its Apple text came from, not only that some
+    /// text exists: a full upstream pin plus the digest of the shipped bytes lets a
+    /// reviewer re-verify byte-identity against upstream instead of trusting this
+    /// repo's copy of a license for someone else's code.
+    @Test("Apple block records a full upstream pin and the digest of the shipped text")
+    func appleProvenanceIsRecorded() {
+        let pin = manifest.apple.pin ?? ""
+        #expect(pin.count == 40, "apple.pin must be a full upstream sha, got \(pin)")
+        #expect(manifest.apple.verifiedAgainstPin == true)
+        #expect(manifest.apple.licenseSha256?.count == 64)
+    }
+
+    /// Recomputes the digest from the bytes in the folder rather than reading it back
+    /// from the manifest, so "recorded sha" and "shipped bytes" cannot drift apart.
+    @Test("apple.licenseSha256 is the digest of the text this repo ships")
+    func appleDigestMatchesShippedBytes() throws {
+        let bytes = try Data(
+            contentsOf: folder.appendingPathComponent(manifest.apple.licenseFile))
+        #expect(Self.sha256(bytes) == manifest.apple.licenseSha256)
+    }
+
+    // MARK: - Vendored files
+
+    /// A vendored header is third-party source sitting in *our* tree: no package
+    /// graph resolves it, no build log mentions it, and nothing re-checks it after
+    /// the day it was copied. The manifest is the only record that it is not ours,
+    /// so the digest is asserted against the file itself — a silent local edit
+    /// changes the bytes the product ships and must fail here.
+    @Test("every vendored file exists, hashes to its record, and ships its license text")
+    func vendoredFilesMatchTheirRecords() throws {
+        // Floor: the collector measured one vendored header. Without it an empty
+        // list — the collector finding nothing — would read as full compliance.
+        #expect(manifest.vendored.count >= 1, "no vendored entries recorded")
+        for entry in manifest.vendored {
+            #expect(!entry.upstream.isEmpty, "vendored entry without upstream: \(entry.file)")
+            #expect(!entry.holder.isEmpty, "vendored entry without holder: \(entry.file)")
+            #expect(!entry.license.isEmpty, "vendored entry without license: \(entry.file)")
+            let bytes = try Data(
+                contentsOf: Self.repoRoot.appendingPathComponent(entry.file))
+            #expect(
+                Self.sha256(bytes) == entry.sha256, "digest drift for vendored file: \(entry.file)")
+            #expect(
+                FileManager.default.fileExists(
+                    atPath: folder.appendingPathComponent(entry.textFile).path),
+                "license text for \(entry.file) not bundled as \(entry.textFile)")
+        }
+    }
+
+    /// Wire rule for every field added later: it must decode when absent, and
+    /// absence must land on nil/empty rather than a fabricated verdict. A stale
+    /// bundle or an older manifest has to load, and `verifiedAgainstPin == false`
+    /// would claim "checked, and it did not match" about a check that never ran.
+    @Test("a manifest predating the vendored fields still decodes, without inventing verdicts")
+    func legacyManifestWithoutVendoredStillDecodes() throws {
+        let legacy = """
+            {
+              "schemaVersion": 1,
+              "apple": {
+                "upstream": "apple/coreai-models",
+                "license": "BSD-3-Clause",
+                "licenseFile": "Apple-coreai-models.txt"
+              },
+              "dependencies": []
+            }
+            """
+        let decoded = try JSONDecoder().decode(
+            ThirdPartyNoticesManifest.self, from: Data(legacy.utf8))
+        #expect(decoded.schemaVersion == 1)
+        #expect(decoded.vendored.isEmpty)
+        #expect(decoded.apple.pin == nil)
+        #expect(decoded.apple.licenseSha256 == nil)
+        #expect(decoded.apple.verifiedAgainstPin == nil)
+    }
+
+    /// Settings -> About is the only place a user can read what this build
+    /// redistributes. Pinned against the view source because nothing here renders
+    /// SwiftUI: deleting the section would otherwise ship the omission silently.
+    @Test("the About panel renders the vendored section it must disclose")
+    func guiDisclosesVendoredFiles() throws {
+        let view = try String(
+            contentsOf: Self.repoRoot.appendingPathComponent(
+                "Sources/ocoreai/UI/Views/ThirdPartyNoticesView.swift"),
+            encoding: .utf8)
+        #expect(view.contains("ThirdPartyVendoredSection(vendored: manifest.vendored)"))
+        #expect(view.contains("vendoredLicenseText(for:"))
+        #expect(
+            view.components(separatedBy: "StringKey.thirdPartyNoticesVendored").count - 1 >= 2,
+            "the vendored section lost one of its localized strings")
+    }
+
+    private static func sha256(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }
