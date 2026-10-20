@@ -76,10 +76,10 @@ let package = Package(
         // anchor:. Sources/ocoreai/Engine/EngineInference.swift:3771 asArray(Int32.self)
         // anchor:. Sources/ocoreai/Engine/EngineInference.swift:4918 asArray(Int.self)
         // anchor:. Sources/ocoreai/Engine/EngineInferenceSupport.swift:153 MLXArray
-        // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1206 MLXArray(
-        // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1212 MLXArray.zeros
-        // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1218 result.eval
-        // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1220 asArray(Float.self)
+        // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1214 MLXArray(
+        // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1220 MLXArray.zeros
+        // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1226 result.eval
+        // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1228 asArray(Float.self)
         // All MLX *inference* flows through MLXLLM/MLXNN/MLXLMCommon; these 5 APIs are
         // where an MLX signature change lands in ocoreai's own code, so a bump audits
         // exactly these files. The 0.31→0.32 verdict holds for released versions (zero

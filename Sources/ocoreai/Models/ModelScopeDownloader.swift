@@ -116,7 +116,11 @@ actor ModelScopeDownloader: Downloader {
         let rev = revision ?? "master"
         // omlx 平铺布局:`cacheRoot/<ns>/<name>/`(revision 不落盘,
         // 对齐 omlx ms_downloader.py target_dir = model_dir / task.repo_id)
-        let cacheDir = cacheRoot.appendingPathComponent(id)
+        // `id` arrives from the wire (`POST /v1/models/download` `model`) or from a model
+        // reference string. It names a directory *inside* the cache root, or this is not a
+        // download request — `appendingPathComponent` percent-encodes but never contains, so the
+        // check has to be explicit. Rule: Core/HubRelativePath.swift.
+        let cacheDir = try HubRelativePath.resolve(under: cacheRoot, id, field: "model")
 
         if !useLatest, let existingFiles = try? listLocalFiles(in: cacheDir),
             firstMissingPattern(patterns, in: existingFiles) == nil
@@ -130,6 +134,19 @@ actor ModelScopeDownloader: Downloader {
 
         let matchingFiles = fileInfo.filter { info in
             patterns.contains { matchesGlob(info.path, $0) }
+        }
+
+        // A manifest entry that escapes the cache dir is not a file to fetch: it is a hostile or
+        // broken answer from whatever served the API — and `MODELSCOPE_ENDPOINT` makes "whatever
+        // served the API" an operator-configurable thing (mirror/proxy). Refuse the whole
+        // download here, before any byte is written or any file is deleted, rather than
+        // letting one poisoned path through into the per-file joins below.
+        for info in matchingFiles {
+            do {
+                _ = try HubRelativePath.components(info.path, field: Self.manifestPathField)
+            } catch let rejection as HubRelativePath.Unsafe {
+                throw DownloaderError.unsafeManifestPath(repoId: id, rejection: rejection)
+            }
         }
 
         guard !matchingFiles.isEmpty else {
@@ -355,8 +372,11 @@ actor ModelScopeDownloader: Downloader {
     /// Deterministic temp path for a repo file — resume across attempts and
     /// process restarts. `.download-` prefix keeps it inside the sweep.
     static func resumeTempURL(for path: String, in cacheDir: URL) -> URL {
-        cacheDir.appendingPathComponent(
-            ".download-\(path.replacingOccurrences(of: "/", with: "__"))")
+        // Separators are flattened into the filename *before* the join, so this name cannot walk
+        // out of `cacheDir` whatever `path` says. (The only unguarded join left in this file;
+        // `HubPathTraversalTests` floors that fact so a new raw join goes red.)
+        let flattened = path.replacingOccurrences(of: "/", with: "__")
+        return cacheDir.appendingPathComponent(".download-\(flattened)")
     }
 
     static func resumeMetaURL(for path: String, in cacheDir: URL) -> URL {
@@ -856,6 +876,16 @@ actor ModelScopeDownloader: Downloader {
     ///
     /// After download: verifies every file's size matches the remote manifest.
     /// Files with size mismatch are treated as corrupted and removed.
+    /// The wire location of a manifest path, as a client sees it: `Data.Files[].Path` in the
+    /// ModelScope API response. One name, so a refusal never blames a field the client didn't send.
+    private nonisolated static let manifestPathField = "files[].path"
+
+    /// Resolve one manifest path inside `cacheDir`, or throw. One home for the root and the field
+    /// name, so no write / delete / verify site can join an unvalidated remote string.
+    private func cacheFileURL(for manifestPath: String, under cacheDir: URL) throws -> URL {
+        try HubRelativePath.resolve(under: cacheDir, manifestPath, field: Self.manifestPathField)
+    }
+
     private func downloadFiles(
         _ files: [FileInfo],
         to cacheDir: URL,
@@ -919,7 +949,7 @@ actor ModelScopeDownloader: Downloader {
                             batch.settle(file: filePath, exactBytes: fileInfo.size ?? 0)
                             return (fileInfo, false)
                         }
-                        let dest = cacheDir.appendingPathComponent(filePath)
+                        let dest = try cacheFileURL(for: filePath, under: cacheDir)
                         // Byte progress (HIG: bar reflects real bytes): per-file
                         // flushes (~1MB) report absolute cumulative — resumed
                         // temp bytes count from the first flush of attempt 2.
@@ -959,7 +989,12 @@ actor ModelScopeDownloader: Downloader {
             /// Clean up only the files we downloaded in this session.
             /// Pre-existing files are kept (user may want to retry).
             for path in newlyDownloaded {
-                try? FileManager.default.removeItem(at: cacheDir.appendingPathComponent(path))
+                // Unreachable by construction (the manifest filter above refuses escaping paths,
+                // and `newlyDownloaded` only holds paths that passed it). Guarded anyway: a
+                // delete is the one mistake you cannot undo. The thrown `partialDownload` names
+                // the file, so nothing here is silently swallowed.
+                guard let target = try? cacheFileURL(for: path, under: cacheDir) else { continue }
+                try? FileManager.default.removeItem(at: target)
             }
             throw DownloaderError.partialDownload(
                 failed: failedPaths,
@@ -974,7 +1009,8 @@ actor ModelScopeDownloader: Downloader {
         if !corrupted.isEmpty {
             // Remove only the corrupted files — next download attempt re-downloads them.
             for path in corrupted {
-                try? FileManager.default.removeItem(at: cacheDir.appendingPathComponent(path))
+                guard let target = try? cacheFileURL(for: path, under: cacheDir) else { continue }
+                try? FileManager.default.removeItem(at: target)
             }
             throw DownloaderError.corruptedDownload(
                 files: corrupted,
@@ -992,7 +1028,9 @@ actor ModelScopeDownloader: Downloader {
         var corrupted: [String] = []
 
         for fileInfo in files {
-            let localPath = cacheDir.appendingPathComponent(fileInfo.path)
+            guard let localPath = try? cacheFileURL(for: fileInfo.path, under: cacheDir) else {
+                continue
+            }
             guard FileManager.default.fileExists(atPath: localPath.path(percentEncoded: false))
             else {
                 corrupted.append(fileInfo.path)
@@ -1119,6 +1157,9 @@ enum DownloaderError: LocalizedError {
     case insufficientDiskSpace(repoId: String, requiredBytes: Int64, freeBytes: Int64)
     case parseError
     case invalidURL(String)
+    /// The hub's own manifest named a path outside the cache directory. Typed so the caller can
+    /// tell "the server answered something unsafe" from "the network failed".
+    case unsafeManifestPath(repoId: String, rejection: HubRelativePath.Unsafe)
 
     var errorDescription: String? {
         switch self {
@@ -1142,6 +1183,8 @@ enum DownloaderError: LocalizedError {
             "Corrupted download (\(files.count) file(s)): \(reason). \(files.prefix(5).joined(separator: ", "))"
         case .insufficientDiskSpace(let repo, let required, let free):
             "Not enough disk space for '\(repo)' — needs \(ByteCountFormatter.string(fromByteCount: required, countStyle: .file)), \(ByteCountFormatter.string(fromByteCount: free, countStyle: .file)) free. Free up space or pick a smaller/quantized model."
+        case .unsafeManifestPath(let repo, let rejection):
+            "ModelScope repository '\(repo)' offered a manifest path outside the cache directory — \(rejection.description)"
         case .parseError:
             "Failed to parse ModelScope API response"
         case .invalidURL(let msg):

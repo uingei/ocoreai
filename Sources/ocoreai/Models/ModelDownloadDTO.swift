@@ -33,6 +33,18 @@ struct DownloadModelRequest: Codable {
         guard p == "hf" || p == "mscope" else {
             throw AppError.invalidRequest("Provider must be hf or mscope, got \(p)")
         }
+        // Both values below end up inside a filesystem path or a URL path, so both are checked
+        // as relative paths here — before the handler opens the SSE stream. A client that names
+        // `../../anything` gets a 400 naming the field, not a 200 stream of error events.
+        // The rule itself lives in Core/HubRelativePath.swift (one home).
+        do {
+            _ = try HubRelativePath.components(model, field: "model")
+            if let revision {
+                _ = try HubRelativePath.components(revision, field: "revision")
+            }
+        } catch let rejection as HubRelativePath.Unsafe {
+            throw AppError(hubPathRejected: rejection)
+        }
     }
 }
 

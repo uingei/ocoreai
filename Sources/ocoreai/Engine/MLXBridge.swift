@@ -697,15 +697,23 @@ struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
 
     /// Flat destination for `org/name`: `flatRoot/org/name`. Returns nil when no
     /// root is configured (legacy HubCache path) or id isn't in `org/name` shape.
-    private func flatTarget(for repoId: String) -> URL? {
+    ///
+    /// Internal (not private) so `@testable` tests can pin the containment rule on the real
+    /// predicate — the same reasoning as `ChatViewModel`'s internal helpers.
+    func flatTarget(for repoId: String) -> URL? {
         guard let root = flatRoot else { return nil }
-        let trimmed =
-            repoId
-            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard trimmed.contains("/") else { return nil }
+        // Same rule as the ModelScope lane, from the same home (Core/HubRelativePath.swift):
+        // the id is a relative path *under* the hub root, or there is no flat target and the
+        // caller falls back to the SDK's own cache. The old form trimmed leading/trailing
+        // slashes and skipped empty parts, but never looked for `..` — and upstream
+        // `Repo.ID(rawValue:)` (swift-huggingface Repo.swift:200-207) accepts any two
+        // slash-split components, so `../../x` sailed through it as namespace="..".
+        guard let parts = try? HubRelativePath.components(repoId, field: "model"),
+            parts.count >= 2
+        else { return nil }
         var dir = root
-        for part in trimmed.split(separator: "/") where !part.isEmpty {
-            dir = dir.appendingPathComponent(String(part))
+        for part in parts {
+            dir = dir.appendingPathComponent(part)
         }
         return dir
     }
