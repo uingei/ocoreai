@@ -3225,16 +3225,25 @@ extension EnginePool {
                         assistantMessage: historyKey,
                         mediaFiles: spooledMedia
                     )
-                    // A turn that carried frames and produced an assistant message: the
-                    // model saw video. Record it so the discovery surface can say so.
-                    if videoInputCount > 0 {
-                        videoDeliveries.record(
-                            modelId: modelId, items: videoInputCount, promptTokens: promptTokens)
-                        log.info(
-                            "Video delivered for \(modelId): \(videoInputCount) part(s) in a completed turn; /v1/models now reports video_input=delivered"
-                        )
-                    }
                 }
+            }
+
+            /// The one place this process may claim that a model saw video.
+            ///
+            /// Deliberately NOT inside ``releasePoolSlotWithAssistant``: that helper is a
+            /// no-op whenever there is no pooled session — the CPU lane sets `poolRef = nil`
+            /// when the HardwareRouter degrades a turn, and a pool-disabled engine has no
+            /// pool at all (EnginePool.swift). Both lanes still hand every frame to the
+            /// processor, so keying the claim on the pool published `not_observed` for a
+            /// video this server had already answered. Invariant 2 runs both ways: call the
+            /// record on the completion path, next to the release, not inside it.
+            func recordVideoDelivery(promptTokens: Int?) {
+                guard videoInputCount > 0 else { return }
+                videoDeliveries.record(
+                    modelId: modelId, items: videoInputCount, promptTokens: promptTokens)
+                log.info(
+                    "Video delivered for \(modelId): \(videoInputCount) part(s) in a completed turn; /v1/models now reports video_input=delivered"
+                )
             }
 
             do {
@@ -4673,6 +4682,13 @@ extension EnginePool {
                     hasToolTraffic: false
                 )
                 await releasePoolSlotWithAssistant(assistantKey, promptTokens: stdPromptTokenCount)
+                // The answer came out, so this turn completed: whatever lane it ran on,
+                // whatever the pool decided, every frame it carried went into the model.
+                // The else branch (no assistant text at all) deliberately records nothing —
+                // "delivered" on the discovery surface means a turn that both took frames
+                // and answered, and a turn with no answer is the honest direction to
+                // under-claim, not a fact to publish.
+                recordVideoDelivery(promptTokens: stdPromptTokenCount)
             } else {
                 await releasePoolSlot()
             }

@@ -17,12 +17,25 @@
 //! about a class, not about this server; until a turn carrying video completes against a
 //! model here, the honest answer is `not_observed`.
 //!
-//! Only one seam may record: the point where a turn both carried frames and completed on
-//! the standard ChatSession path (`releasePoolSlotWithAssistant`, EngineInference.swift),
-//! with upstream's own `promptTokenCount` as the evidence number. Turns that end on the
-//! guided-gen / MTP early release do not extend pooled history either, so they leave the
-//! counter alone — an under-claim on those paths, which is the honest direction; the
-//! inverse is the defect this file exists to kill.
+//! One seam may record: ``recordVideoDelivery`` at the normal completion of an inference
+//! body, with upstream's own `promptTokenCount` as the evidence number. Two things worth
+//! stating, because both were written down wrong here once (10-20, re-read against the
+//! code rather than inferred from the shape of the pipeline):
+//!
+//!   • The lane matters. This used to record *inside* the pooled release, which is a
+//!     no-op when there is no pool — the degraded CPU lane and a pool-disabled engine
+//!     both run without one, and both still hand every frame to the processor. An answered
+//!     video turn there published `not_observed`; probe 17 now boots a server on that lane
+//!     and fails if the disclosure goes missing again.
+//!   • Guided-gen and MTP are not leaks. Their branch guards require every message to
+//!     carry no images, audio or video, so a turn with frames never enters them (a grammar
+//!     request with media falls through to ChatSession with the constraint dropped). The
+//!     earlier note here claimed those paths under-reported; they cannot carry video.
+//!
+//! What stays deliberately unrecorded: a turn that carried frames but produced no
+//! assistant text at all. `delivered` means a turn that both took frames and answered, and
+//! a turn with no answer is the honest direction to under-claim. The inverse — claiming
+//! more than the engine delivered — is the defect this file exists to kill.
 
 /// One model's measured video history in this process.
 struct VideoDeliveryRecord: Encodable, Equatable, Sendable {

@@ -361,7 +361,9 @@ actor EnginePool {
         )
         logger.info("MLXModelLoader initialized (MLXLLM backend)")
 
-        if let poolConfig = config.sessionPoolConfig, poolConfig.enabled {
+        if let poolConfig = config.sessionPoolConfig,
+            SessionPoolPolicy.enabled(config: poolConfig)
+        {
             var wiredPoolConfig = poolConfig
             wiredPoolConfig.vlmImageResize = config.vlmImageResize
             sessionPool = MLXSessionPool(config: wiredPoolConfig, logger: logger)
@@ -404,7 +406,13 @@ actor EnginePool {
             }
         } else {
             sessionPool = nil
-            logger.info("MLXSessionPool disabled (create-and-destroy per request)")
+            // Name which switch flipped it: an operator who set the escape hatch has to be
+            // able to see it took effect, and probe 17 reads this line as its own premise
+            // (the lane under test is unpooled only if the server says so).
+            let override = SessionPoolPolicy.environmentOverride()
+            let suffix = override.map { " — \(SessionPoolPolicy.environmentVariable)=\($0)" } ?? ""
+            logger.info(
+                "MLXSessionPool disabled (create-and-destroy per request)\(suffix)")
         }
 
         // Log speculative decoding status

@@ -57,26 +57,10 @@ BLUE_CLIP="$WORK/blue.mp4"
 export OCOREAI_MEDIA_SPOOL="$WORK/spool"
 mkdir -p "$OCOREAI_MEDIA_SPOOL"
 
-if ! command -v swift >/dev/null 2>&1; then
-  probe_fail "no swift toolchain to render the clips — set DEVELOPER_DIR"
-  probe_summary "$PROBE_NAME"
-fi
-
-render_clip() {
-  swift "$PROBE_REPO_ROOT/scripts/make-test-video.swift" "$1" "$2" 2 15 2>&1 \
-    | grep -E "^wrote |make-test-video: " | tail -1
-}
-RED_REPORT="$(render_clip "$RED_CLIP" red)"
-BLUE_REPORT="$(render_clip "$BLUE_CLIP" blue)"
-printf '        %s\n' "$RED_REPORT" "$BLUE_REPORT"
-for CLIP in "$RED_CLIP" "$BLUE_CLIP"; do
-  if [ ! -s "$CLIP" ]; then
-    probe_fail "clip missing or empty: $CLIP — VideoToolbox is unavailable inside the agent sandbox; run this probe unsandboxed (make probes)"
-    probe_summary "$PROBE_NAME"
-  fi
-done
-RED_BYTES="$(wc -c < "$RED_CLIP" | tr -d ' ')"
-BLUE_BYTES="$(wc -c < "$BLUE_CLIP" | tr -d ' ')"
+probe_render_clip "$RED_CLIP" red || probe_summary "$PROBE_NAME"
+RED_BYTES="$PROBE_CLIP_BYTES"
+probe_render_clip "$BLUE_CLIP" blue || probe_summary "$PROBE_NAME"
+BLUE_BYTES="$PROBE_CLIP_BYTES"
 probe_ok "two clips rendered and self-verified by AVURLAsset ($RED_BYTES + $BLUE_BYTES bytes)"
 printf '        media spool for this run: %s\n' "$OCOREAI_MEDIA_SPOOL"
 
@@ -140,7 +124,6 @@ ask blue "$FRESH_SESSION"
 BLUE_STATUS="$ASK_STATUS"; BLUE_TOKENS="$ASK_TOKENS"; BLUE_ANSWER="$ASK_ANSWER"
 printf '        blue clip -> HTTP %s, %s tokens, answer: %s (fresh session)\n' "${BLUE_STATUS:-?}" "${BLUE_TOKENS:-?}" "${BLUE_ANSWER:-}"
 
-lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 RED_L="$(lower "$RED_ANSWER")"; BLUE_L="$(lower "$BLUE_ANSWER")"
 RED_NAMED=0; BLUE_NAMED=0
 case "$RED_L" in *red*) RED_NAMED=1 ;; esac

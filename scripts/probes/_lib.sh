@@ -50,6 +50,11 @@ probe_ok() {
   printf '  PASS  %s\n' "$*"
 }
 
+# lower STRING — bash 3.2 (the macOS default, and what `env bash` resolves to here) has no
+# `${VAR,,}`, and a probe that quietly produced an empty string on a lowercase expansion
+# would turn every colour-word verdict into a false FAIL.
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
 probe_fail() {
   PROBE_FAIL=$(( PROBE_FAIL + 1 ))
   printf '  FAIL  %s\n' "$*"
@@ -355,6 +360,36 @@ elif isinstance(node, (list, dict)):
 else:
     print(node)
 PY
+}
+
+# ── media fixtures ─────────────────────────────────────────────────────────────
+
+# probe_render_clip PATH COLOUR — a solid-colour MP4 (2 s at 15 fps) written by
+# scripts/make-test-video.swift through AVFoundation/VideoToolbox. Every probe that has to
+# *see* something needs one, and a clip that silently failed to render turns every later
+# "the model did not see it" verdict into a lie about the harness — so the emptiness check
+# lives here, once, instead of in each caller.
+#
+# The byte count lands in `PROBE_CLIP_BYTES` rather than on stdout: a helper called inside
+# `$(…)` runs in a subshell, where a `probe_fail` it records would vanish with the shell and
+# the run would report green on a broken fixture.
+#
+# A failure sets PROBE_FAIL and returns non-zero — the caller bails with probe_summary.
+probe_render_clip() {
+  local path="$1" colour="$2" report
+  PROBE_CLIP_BYTES=0
+  if ! command -v swift >/dev/null 2>&1; then
+    probe_fail "no swift toolchain to render the $colour clip — set DEVELOPER_DIR"
+    return 1
+  fi
+  report="$(swift "$PROBE_REPO_ROOT/scripts/make-test-video.swift" "$path" "$colour" 2 15 2>&1 \
+    | grep -E "^wrote |make-test-video: " | tail -1)"
+  printf '        %s\n' "${report:-make-test-video.swift printed no report}"
+  if [ ! -s "$path" ]; then
+    probe_fail "clip missing or empty: $path — VideoToolbox is unavailable inside the agent sandbox; run this probe unsandboxed (make probes)"
+    return 1
+  fi
+  PROBE_CLIP_BYTES="$(wc -c < "$path" | tr -d ' ')"
 }
 
 # ── server lifecycle ───────────────────────────────────────────────────────────

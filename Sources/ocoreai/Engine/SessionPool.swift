@@ -85,6 +85,48 @@ struct SessionPoolConfig {
     static let `default`: SessionPoolConfig = .init()
 }
 
+// MARK: - Pool Availability Policy
+
+/// Whether this process starts a session pool at all.
+///
+/// ``SessionPoolConfig/enabled`` is the product's switch. `OCOREAI_SESSION_POOL=0`
+/// (also `false` / `off` / `no`) forces pooling off for one run, and it exists so the
+/// unpooled lane is reachable *on demand*: the other way into it is the HardwareRouter
+/// degrading a turn under memory pressure, which nobody can schedule. That lane matters
+/// because every pooled release path is a no-op without a pool — and until 10-20 the
+/// video ledger recorded only inside one of them, so an answered video turn on this lane
+/// left `/v1/models` publishing `not_observed` for a model that had just named the
+/// colour of a clip (AGENTS.md invariant 2 runs both ways). Live gate: probe 17.
+enum SessionPoolPolicy {
+    /// Escape hatch naming this switch on the wire of the process environment.
+    static let environmentVariable = "OCOREAI_SESSION_POOL"
+
+    /// Values that mean "off". Anything else (including garbage) leaves pooling alone —
+    /// a typo in an escape hatch must not silently change engine behaviour beyond what
+    /// it asked for, and the boot log prints the raw value either way.
+    private static let offValues: Set<String> = ["0", "false", "off", "no"]
+
+    /// The raw value when the environment forces pooling off, else `nil`. The init logs
+    /// this so an operator can tell a config decision from a debug escape hatch.
+    static func environmentOverride(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> String? {
+        guard let raw = environment[environmentVariable] else { return nil }
+        let value = raw.trimmingCharacters(in: .whitespaces).lowercased()
+        return offValues.contains(value) ? value : nil
+    }
+
+    /// Pooling runs only when the config asks for it *and* the environment does not
+    /// veto it. A missing config is not a veto to invent one: no config, no pool.
+    static func enabled(
+        config: SessionPoolConfig?,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        guard let config, config.enabled else { return false }
+        return environmentOverride(environment: environment) == nil
+    }
+}
+
 // MARK: - Durable Identity
 
 /// Deterministic 64-bit FNV-1a over UTF-8 bytes.
