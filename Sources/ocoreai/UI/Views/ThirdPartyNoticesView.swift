@@ -36,6 +36,9 @@ struct ThirdPartyNoticesView: View {
                         intro
                         appleSection(manifest.apple)
                         dependencySection(manifest.dependencies)
+                        if !manifest.vendored.isEmpty {
+                            ThirdPartyVendoredSection(vendored: manifest.vendored)
+                        }
                         referenceSection
                     } else {
                         Text(StringKey.thirdPartyNoticesUnavailable.l)
@@ -105,6 +108,52 @@ struct ThirdPartyNoticesView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
+        }
+    }
+}
+
+/// Vendored third-party files: redistributed copies that sit in the source tree
+/// rather than in `Package.swift`, so nothing re-resolves them and no build log
+/// mentions them. Without this section a header shipped under Apache-2.0 §4 would
+/// travel in the binary while the only user-visible disclosure said nothing.
+///
+/// An empty list is the collector's measured "none", so nothing renders; the
+/// audit refuses to ship a manifest that predates the vendored field.
+private struct ThirdPartyVendoredSection: View {
+    let vendored: [ThirdPartyNoticesManifest.Vendored]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(StringKey.thirdPartyNoticesVendored.l)
+                .font(.ocoreaiText(13, weight: .semibold))
+            Text(StringKey.thirdPartyNoticesVendoredDetail.l)
+                .font(.ocoreaiText(11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(vendored, id: \.file) { entry in
+                DisclosureGroup {
+                    Text(
+                        ThirdPartyNotices.vendoredLicenseText(for: entry)
+                            ?? StringKey.thirdPartyNoticesUnavailable.l
+                    )
+                    .font(.system(size: 11, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(entry.file)
+                            .font(.system(size: 11, design: .monospaced))
+                        Spacer(minLength: 8)
+                        Text(entry.license)
+                            .font(.ocoreaiText(11))
+                            .foregroundStyle(.secondary)
+                        Text(String(entry.sha256?.prefix(12) ?? ""))
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
         }
     }
 }

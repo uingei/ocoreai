@@ -438,6 +438,8 @@ public enum StringKey: String, CaseIterable, Sendable {
     case thirdPartyNoticesAppleDetail = "About.ThirdPartyNoticesAppleDetail"
     case thirdPartyNoticesDependencies = "About.ThirdPartyNoticesDependencies"
     case thirdPartyNoticesDependenciesDetail = "About.ThirdPartyNoticesDependenciesDetail"
+    case thirdPartyNoticesVendored = "About.ThirdPartyNoticesVendored"
+    case thirdPartyNoticesVendoredDetail = "About.ThirdPartyNoticesVendoredDetail"
     case thirdPartyNoticesCodex = "About.ThirdPartyNoticesCodex"
     case thirdPartyNoticesFrameworks = "About.ThirdPartyNoticesFrameworks"
     case capabilityBackend = "About.CapabilityBackend"
@@ -1023,6 +1025,9 @@ enum L10nTables {
         .thirdPartyNoticesDependencies: "Linked dependencies",
         .thirdPartyNoticesDependenciesDetail:
             "BSD-3 and Apache-2.0 require the license text to travel with the product, so each one ships inside the app.",
+        .thirdPartyNoticesVendored: "Vendored files",
+        .thirdPartyNoticesVendoredDetail:
+            "These third-party files ship in our source tree instead of as packages. Each one is recorded in THIRD-PARTY-LICENSES/manifest.json with its SHA-256, and the digest is re-checked against the file on every audit.",
         .thirdPartyNoticesCodex:
             "openai/codex is a semantic reference only: it is Rust, it is not linked, and no codex source is redistributed here.",
         .thirdPartyNoticesFrameworks:
@@ -1567,6 +1572,9 @@ enum L10nTables {
         .thirdPartyNoticesDependencies: "链接的依赖",
         .thirdPartyNoticesDependenciesDetail:
             "BSD-3 与 Apache-2.0 要求许可文本随产品一同分发，因此每个依赖的全文都打进应用内。",
+        .thirdPartyNoticesVendored: "随源码分发的文件",
+        .thirdPartyNoticesVendoredDetail:
+            "这些第三方文件以副本形式放在本仓库源码树中，而非包依赖。每个都连同 SHA-256 记录在 THIRD-PARTY-LICENSES/manifest.json，审计时会拿文件本体重新核算该摘要。",
         .thirdPartyNoticesCodex:
             "openai/codex 仅作语义参照：它是 Rust，未被链接，本应用不重分发其源码。",
         .thirdPartyNoticesFrameworks:
