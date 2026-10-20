@@ -41,20 +41,33 @@ let package = Package(
         // (docs/agent/upstream-audit-log.md was written once and deleted the same session:
         //  CHANGELOG.md already carries the round-by-round verdicts — one diary, one home.)
         .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "48114eedf"),
-        // mlx-swift: pin to the 0.32.2 tag (main HEAD 2b5e877). Floor follows
-        // mlx-swift-lm #646 (c043fb3) which raised its own mlx-swift constraint from
-        // .upToNextMinor(0.31.6) → .upToNextMinor(0.32.2): ocoreai's direct pin and
-        // lm's transitive dep on the same package must agree, or resolution fails.
-        // 0.32.2 carries #450 (air64 Metal-thread-qualifier fix for steel/attn/mma.h)
-        // that unblocks IPHONEOS_DEPLOYMENT_TARGET=27, plus cd36d17 (mlx-c custom-io:
-        // I/O callbacks now return bytes read/written to signal success/failure).
-        // Consumer-impact audit: ocoreai's only direct MLX surface = Stream.gpu.synchronize()
-        // (EngineInference.swift:3344) + result.eval() (MLXBridge.swift:1094) — both
-        // stable across 0.31→0.32. ZERO consumers of the changed public surface
+        // mlx-swift: pinned exact 0.32.3 (resolved revision 19601207e). This sentence is
+        // gated against the pin below and against Package.resolved by
+        // DependencyPinStatementTests — this sentence named 0.32.2 as the pin long after
+        // 0.32.3 landed (bumped in 0401256), and no check read this file: a statement about
+        // the contract that contradicted it (AGENTS.md invariant 1).
+        //
+        // Why this tag and not 0.32.2: upstream's own 0.32.2 release notes open with "Use
+        // release 0.32.3", because an app linking 0.32.2 crashes at launch on macOS/iOS
+        // < 26.4 (mlx-swift #491/#493) — which would flatly contradict this package's
+        // declared platforms (macOS 14 / iOS 17). The floor argument stands as written
+        // when it was about 0.32.2: mlx-swift-lm #646 (c043fb3) raised its own constraint
+        // to .upToNextMinor(from: 0.32.2), so a direct pin at 0.32.3 and lm's transitive
+        // dep agree and resolution holds. The content that made that floor worth having is
+        // in both: #450 (air64 Metal-thread-qualifier fix for steel/attn/mma.h) unblocks
+        // IPHONEOS_DEPLOYMENT_TARGET=27, and cd36d17 makes mlx-c custom-io return bytes
+        // read/written.
+        //
+        // Consumer-impact audit. ocoreai's only direct MLX surface is these two calls; both
+        // cites are anchored now, so make anchor-check (which scans this file too) goes red
+        // when an edit moves them, instead of a cite drifting 214 lines as this one did.
+        // anchor:. Sources/ocoreai/Engine/EngineInference.swift:3558 Stream.gpu.synchronize
+        // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1218 result.eval
+        // Both are stable across 0.31→0.32. ZERO consumers of the changed public surface
         // (Device/withNewDefaultStream/convolve/Distributed); all MLX inference flows
-        // through MLXLM/MLXNN/MLXLMCommon. The lm #646 `Stream()→Stream.defaultStream()`
-        // rename is inside lm's own Evaluate.swift, not ocoreai's. See AGENTS.md
-        // "Upstream Audit Dependencies" + CHANGELOG.md.
+        // through MLXLLM/MLXNN/MLXLMCommon. The lm #646 `Stream()→Stream.defaultStream()`
+        // rename is inside lm's own Evaluate.swift, not ocoreai's. Per-bump verdicts live
+        // in CHANGELOG.md; AGENTS.md § Upstream Audit Dependencies keeps the current pins.
         .package(
             url: "https://github.com/ml-explore/mlx-swift.git",
             exact: "0.32.3"),

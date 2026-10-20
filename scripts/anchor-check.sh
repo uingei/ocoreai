@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# anchor-check.sh — verify every line cite in this repo's docs and code comments against
-# the file it points at: the working tree for local files, the pinned revision for
-# upstream ones.
+# anchor-check.sh — verify every line cite in this repo's docs, code comments and the
+# package manifest against the file it points at: the working tree for local files, the
+# pinned revision for upstream ones.
 #
 # Why this exists. Line numbers are the most load-bearing and most fragile thing in
 # AGENTS.md: the agent navigates by them, and they move under every edit and every bump.
@@ -47,7 +47,11 @@ MARKER = re.compile(
 # The docs the agent reads, plus the source comments that cite upstream while being edited
 # (that is where the wrong 1131 lived).
 SOURCES = (
-    ["AGENTS.md", "ARCHITECTURE.md", "README.md", "README.zh.md"]
+    # The manifest is a document too: its comments state which pin the project depends on
+    # and which two lines of this repo consume it. Measured 10-20: the comment said "pin to
+    # the 0.32.2 tag" while the pin read exact 0.32.3 (bumped in 0401256), and its two
+    # consumer cites were 214 and 124 lines off. Nothing read this file.
+    ["AGENTS.md", "ARCHITECTURE.md", "README.md", "README.zh.md", "Package.swift"]
     + sorted(glob.glob("docs/agent/*.md"))
     + sorted(glob.glob("Sources/**/AGENTS.md", recursive=True))
     + sorted(glob.glob("Sources/**/*.swift", recursive=True))
