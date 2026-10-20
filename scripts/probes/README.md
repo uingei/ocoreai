@@ -53,6 +53,8 @@ model load.
 | `15-system-instruction-delivery.sh` | Does the caller's `system`/`developer` text reach the model on both faces, and does rewriting it invalidate the cache that was rendered without it? |
   a ~1k-char `system` message that leaves `usage.prompt_tokens` at the no-system baseline (accepted, counted by the disclosure line, never delivered); `developer` costing different tokens than `system`; the two faces disagreeing on identical content by more than 8 tokens; the disclosure showing two system messages (`[system,system,…]`) or its `systemChars=` failing to grow with the client text; unchanged instructions not reusing the prefix (which would make the changed-instructions half vacuous); changed instructions still reusing the pooled session; or a cache dropped without its reason logged at info level |
 | `16-tool-declaration-duplication.sh` | Does one declared tool reach the model once, or twice — and who writes it? | no `Tool prose <mode> for <model>` line at all (the load-time template measurement never ran); mode `injectedUnmeasured` on a loaded model (XFAIL with numbers); under `skippedTemplateRenders` any `## Tool: block(s) written > 0`, or the delivered `prompt_tokens` failing to grow ≥16 for a declared tool (the tool never arrived); under `injectedTemplateIgnores` zero blocks written (nothing declared it); the delivered delta failing to scale with the surface; or no `tool_calls` on the premise turn, which makes every later section vacuous. Measured 10-20 post-fix: 0 blocks written, +95 delivered tokens for one tool (+52 per extra tool) |
+| `17-video-unpooled-lane.sh` | Does a server **with no session pool** still disclose the video it delivered? |
+  a turn on that lane naming the clip's colour with a prompt-token jump (measured 712 → 856) while `/v1/models` still reads `video_input=not_observed` — the record used to live inside the pooled release, which never runs here; also fails if the premise is false (log claims the pool enabled, or a second turn reuses a session via `cached_tokens`/`Session pool HIT` despite `OCOREAI_SESSION_POOL=0`), and if `delivered` arrives without evidence naming turns and parts |
 | `_lib.sh` | shared harness | — |
 
 ## Rules for adding a probe
@@ -81,4 +83,5 @@ Every file here keeps the contract `_lib.sh` documents:
 | `OCOREAI_PROBE_MODEL_LIMIT` | how many ready models `03` cross-checks (default 2) |
 | `OCOREAI_PROBE_PAD_UNITS` | length of the filler prompt in `01`/`02` (default 40 sentences) |
 | `OCOREAI_REQUIRE_PREFIX_REUSE` | `1` turns the P1 measurement into a hard assertion |
+| `OCOREAI_SESSION_POOL` | `0`/`false`/`off`/`no` starts the engine with no session pool — `17` uses it to reach the degraded lane on demand (memory pressure cannot be scheduled); the boot log must name it |
 | `OCOREAI_PROBE_KEEP_LOGS` | `1` keeps the server log and prints its path |

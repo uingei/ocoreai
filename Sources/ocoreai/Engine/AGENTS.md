@@ -33,24 +33,33 @@ signed bundle (nested code object ⇒ CodeSign dies). Gate: `MetalShaderLibraryT
 ## Steering is delivered at the request seam
 `mergingSteeredTurn` (`Sources/ocoreai/Handlers/ChatHandler.swift`) folds a queued steer into the head
 of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3013`,
-`:3631`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
+`:3642`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
 delivers on the next request, or its contract is fiction (root § Endpoint Promises).
 
 ## Video is disclosed where a turn completes, not where bytes arrive
 `/v1/models` may say `video_input=delivered` only once a turn that carried frames has *completed*:
-the record site is `releasePoolSlotWithAssistant` (`EngineInference.swift:3232`), and the prompt size
-in its evidence line is upstream's `completionInfo.promptTokenCount` — never a bytes/4 heuristic.
+the single record site is `recordVideoDelivery` (`EngineInference.swift:3242`), called from the
+completion path (`EngineInference.swift:4691`), and the prompt size in its evidence line is upstream's
+`completionInfo.promptTokenCount` — never a bytes/4 heuristic.
 Counting at the media hand-off instead would claim video for turns that never produced an answer;
 reading `processor_class` would claim it for checkpoints whose processor ignores `input.videos`
 (`Gemma4UnifiedProcessor`), which is exactly the per-checkpoint trap this disclosure avoids.
-Gate: `VideoDeliveryDisclosureTests` + probe 08 §4.
+
+**Never inside the pooled release.** `releasePoolSlotWithAssistant` is a no-op when there is no pool —
+the degraded `.cpu` lane (`poolRef = nil`) and a pool-disabled engine (`sessionPool = nil`) both run
+without one, and both still hand every frame to the processor. Measured 10-20 on that lane: the model
+answered "Red" with prompt 712 → 856 (+144 video tokens) while `/v1/models` held `video_input =
+not_observed`. `OCOREAI_SESSION_POOL=0` reaches the lane on demand (the memory-pressure route cannot
+be scheduled). Gates: `VideoDeliveryPathTests` (placement, premise-floored: one record site in the
+tree, none inside the release, guards still exclude media from guided-gen/MTP) +
+`VideoDeliveryDisclosureTests` + probe 08 §4 (pooled lane) + probe 17 (unpooled lane).
 
 The server-wide row (`/v1/capabilities` → `video_input`) is the *same* measurement aggregated:
 `VideoDeliveryLedger.aggregate` counts models separately from turns/parts, and the sentence lives on
 `VideoDeliveryAggregate.evidenceLine`, so no publisher re-words it (a router that assembles its own
 evidence sentence is a second truth). Both are measured-only: `not_observed` is a fact about this
 process, never a claim about the checkpoint. Gate: `CapabilityMeasurementHonestyTests`.
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3232 items: videoInputCount, promptTokens -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3243 items: videoInputCount, promptTokens -->
 
 ## Known defect, deliberately unfixed — do not "fix" it blind
 `_applyBitmask` (`EngineInference.swift:1374`) multiplies by `-Float.leastNormalMagnitude`
@@ -67,11 +76,11 @@ AGENTS.md moved off their targets with no gate going red; these markers are the 
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:149 Task.sleep(until: deadline -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1374 Float.leastNormalMagnitude -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3013 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3633 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4238 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3734 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4253 components: genComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3757 components: mtpGenComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3642 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4247 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3743 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4262 components: genComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3766 components: mtpGenComponents -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:812 case "affine" -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1724 func saveCache -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1110 templateMessages = leadingMessages -->
