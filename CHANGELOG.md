@@ -3,6 +3,14 @@
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## [Unreleased] — 2026-09-05 → 2026-10-20
+**10-20(续15) 探针 18：`auth` 列从此有线上裁决（12 项全绿，红样 3 条）**(P3 可观测性 + 不变量 2) — `/v1/capabilities` 每个端点都带一行 `auth`，它由 `AuthRoutePolicy.publicPaths` 派生；`V1EndpointCatalogTests` 静态证明的是「派生自真源」，**从来没证明中间件真的执行**。上一轮又数出「谁免鉴权」在 repo 里有四份副本（其中 router 头注释 7 条只写 5 条）。也就是说「文档说 public」与「不带 key 打得通」这两件事，此前从未被当作同一事实测过。新探针 `scripts/probes/18-auth-surface.sh` 把它变成线上裁决（`run.sh` 靠 `[0-9]*.sh` 自动纳入，无需登记）：
+
+- **前提自证优先** — keys 必须 ON：`config.enabled=false` 时中间件短路、每条路由都放行，下面所有 401 会在 200 上假绿。故探针自己 `export OCOREAI_API_KEYS` 并双向钉住「鉴权确实在跑」：`/health` keyless==200（public 该开）与 `POST /v1/count-tokens` keyless==401（keyed 该关），任一不成立直接收口报错，不再往下装样子。
+- **逐条对照（index 34 行，地板 30）** — 7 条标 `public` 的端点全部 keyless 可答（400/404 无妨，路由活着即可）；27 条 `key`/`admin` 全部 401。另点名 `/v1/perception`：keyless 401、带 key 200 —— 正是续14 改注释那条路的线上真值；`DELETE /sessions/:id` 带 **user** key → 403 `adminKeyRequired`（不是静默 2xx），不带 key → 401（key 校验先于 admin）。
+- **wire == index == README** — 最后把线上实测出的 public 集合与 README.md 写的那 7 条逐字比对；三处必须是一个事实。
+- **三轮自我修正（每条都写进脚本注释，堵同类坑）** — ① 循环变量写成 `PATH` 会冲掉 shell 的 `$PATH`：之后 curl 全部找不到、状态全 `000`，而 `000` 恰好穿过「非 401/403」被判成 public ⇒ 报出 **7/7 假绿**。改 `EP_PATH`；「完全没答上来」自此计为矛盾而非开门；再加一条覆盖地板：两分支合计必须覆盖 index 全部行数，否则红。② `$( … <<'PY' )` 里出现反引号是 bash 3.2 的解析陷阱：改为 python 输出落文件再读回，正则用 `chr(96)` 拼。③ 向上找仓库根时第一个 `README.md` 命中的是 `scripts/probes/README.md`（另一份文档，不含 public 句），交叉校验据此空转报「无目标」⇒ 改用只存在于根部的 `Package.swift` 作标志。
+- **判据与实测** — 绿：**12 passed / 0 failed / 4 measured / 0 known-open**。红样（把 `/v1/perception` 塞进 `publicPaths` 后重建）当场报 3 条：keyless 得 200、README 的 7 条 vs 线上 8 条、keyed 计数 26/27；`git checkout --` 还原并重建后回到 12/0，`git diff` 该文件为空 ⇒ 「悄悄放宽未鉴权面」现在既是单测红也是活体红。
+- **未证 / 未做（不冒充）** — ①探针只回答「公布的 auth 列 == 线上行为 == README」，不回答 `/v1/perception` **该不该**并入 public（续14 已留人拍板）；②调用方已设 `OCOREAI_ADMIN_KEYS` 时 403 那条以 NOTE 跳过（不是静默通过，但也没测）；③本轮只跑探针 18，未跑全量 `run.sh`（现 18 条）与 `make test-clt`，CI macos-26 仍是权威。
 **10-20(续14) 「门=人读」不是门：README 的端点表、鉴权名单与「最后一次全绿」全部改由代码裁决**(P0 文档↔代码不一致 + 不变量 1/2) — root § Documentation Map 一直明写 `README.md`/`README.zh.md` 的门是 **Human**；本轮把两份 README 纳入 `make docs-check` 扫描域（`docs` 字典）并新增 **P10**，它第一次跑就点名 4 处不一致，逐条查实、逐条落码：
 
 - **① 端点表漏两条（两种语言同时漏）** — router `routes.<method>("…")` 实测 **34** 条、`V1EndpointCatalog` 亦 34 条（`V1EndpointCatalogTests` 长期全绿），两份 README 却各 **32** 行：`GET /v1/perception`、`POST /v1/audio/transcriptions` 双语同时缺。既有门只比 catalog↔router，README 整份在门外 ⇒ 绿的门说的是另一条线（invariant 1 的又一例）。现补齐并在 P10 里做全等（缺、多都红）。
