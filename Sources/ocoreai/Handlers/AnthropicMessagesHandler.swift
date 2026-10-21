@@ -473,6 +473,10 @@ private func nonStreamAnthropicResponse(
     let requestId = "msg-\(UUID().uuidString.prefix(8))"
     let startTime = ContinuousClock.now
 
+    /// Baseline for the claim/audit cross-check at this face's finalize site — the same rule
+    /// as `ChatHandler`, one home for the verdict (`Models/ClaimVsAudit.swift`).
+    let mutationBaseline = await ToolMutationLedger.shared.snapshot()
+
     await handle.markActive()
 
     let tokenStream = handle.generateFromMessages(
@@ -718,6 +722,23 @@ private func nonStreamAnthropicResponse(
     if contentBlocks.isEmpty {
         contentBlocks.append(AnthropicAssistantContent(text: ""))
     }
+    /// Invariant 2 at the end of the turn: the sentence a client reads as "done" (or as
+    /// "failed") has to match what this turn's tools actually did. One rule, one home
+    /// (`ClaimVsAudit.notice`) shared with `/v1/chat/completions` — measured 10-22 that a
+    /// zero-tool turn answered "File created." with the file absent, and that a turn whose
+    /// `edit_file` succeeded answered "I failed to fix the code". A `tool_use` turn is not
+    /// an answer yet, so it is not judged.
+    let turnMutations = await ToolMutationLedger.shared.since(mutationBaseline)
+    var auditedContent = content
+    if deliveredCalls.isEmpty, finishReason == "end_turn",
+        let notice = ClaimVsAudit.notice(text: content, mutations: turnMutations)
+    {
+        auditedContent += "\n\n" + notice
+        contentBlocks.append(AnthropicAssistantContent(text: notice))
+        logger.info(
+            "Claim/audit mismatch corrected on /v1/messages: \(turnMutations.count) successful mutation(s)"
+        )
+    }
 
     if deliveredCalls.isEmpty, toolChoiceDemandsCall(request.toolChoice) {
         let demandedBy = request.toolChoice ?? "any"
@@ -772,7 +793,7 @@ private func nonStreamAnthropicResponse(
     await persistConversation(
         request: request,
         messages: messages,
-        assistantContent: content,
+        assistantContent: auditedContent,
         modelId: modelId,
         outputTokens: totalOutputTokens,
         compressor: compressor,
@@ -806,6 +827,9 @@ private func streamAnthropicResponse(
     semanticSearch: SemanticSearch?,
 ) async throws -> Response {
     let responseHeaders = SSEHeaders
+
+    /// See `nonStreamAnthropicResponse`: same audit baseline, same rule, this face's stream.
+    let mutationBaseline = await ToolMutationLedger.shared.snapshot()
 
     let (stream, continuation) = AsyncStream<ByteBuffer>.makeStream()
 
@@ -1122,6 +1146,22 @@ private func streamAnthropicResponse(
                 cachedPromptTokens: observedCachedPromptTokens,
                 fallback: inputTokenCount,
             )
+            /// Same cross-check as this face's non-stream path: the claim already streamed, so
+            /// the audit line arrives as one more `text_delta` (clients concatenate blocks) and
+            /// the persisted row stores the corrected answer.
+            let streamTurnMutations = await ToolMutationLedger.shared.since(mutationBaseline)
+            if deliveredToolCalls.isEmpty, finishReason == "stop",
+                let notice = ClaimVsAudit.notice(text: answerText, mutations: streamTurnMutations)
+            {
+                writeSSEEvent(
+                    continuation,
+                    event: .textDelta(index: 0, text: "\n\n" + notice))
+                answerText += "\n\n" + notice
+                logger.info(
+                    "Claim/audit mismatch corrected on /v1/messages stream: \(streamTurnMutations.count) successful mutation(s)"
+                )
+            }
+
             let finalEvent = AnthropicStreamEvent.messageStop(
                 inputTokens: observedInputTokens,
                 outputTokens: totalOutputTokens,

@@ -900,6 +900,14 @@ private func nonStreamWithToolCalling(
     /// Resolve conversation ID for session pooling / KV cache reuse.
     let conversationId: String? = request.sessionID
 
+    /// Baseline for the claim/audit cross-check at this turn's finalize site: "did anything
+    /// change the workspace between here and the answer" is answered by `ToolMutationLedger`
+    /// (fed at the `ToolRegistry` chokepoint), never by what the model said nor by the wire
+    /// echo — a native tool turn runs inside `ChatSession` and echoes no `tool_calls` at all.
+    /// Skew is one-directional: a concurrent turn's write can only inflate this set, which
+    /// suppresses a notice rather than inventing a contradiction.
+    let mutationBaseline = await ToolMutationLedger.shared.snapshot()
+
     /// Generate unique request ID for tracing.
     let requestId = "req-\(UUID().uuidString.prefix(8))"
     let created = Int64(Date().timeIntervalSince1970)
@@ -1211,6 +1219,22 @@ private func nonStreamWithToolCalling(
         )
     }
 
+    /// Invariant 2 at the end of a turn: the sentence the user reads as "done" (or as
+    /// "failed") has to match what this turn's tools actually did. Measured 10-22 in
+    /// `scripts/eval/run.sh`: a zero-tool turn answered "File created." with the file absent,
+    /// and a turn whose `edit_file` had succeeded answered "I failed to fix the code".
+    /// Only a self-terminated answer turn is judged — a turn ending in `tool_calls` has not
+    /// finished the work yet, so its text is not a completion claim.
+    if toolCalls == nil, finishReasonFinal == "stop" {
+        let mutations = await ToolMutationLedger.shared.since(mutationBaseline)
+        if let notice = ClaimVsAudit.notice(text: finalContent, mutations: mutations) {
+            finalContent += "\n\n" + notice
+            logger.info(
+                "Claim/audit mismatch corrected at the wire edge: \(mutations.count) successful mutation(s)"
+            )
+        }
+    }
+
     /// Build response choice with assistant message + tool calls.
     let choice = CompletionChoice(
         message: AssistantMessage(
@@ -1338,6 +1362,14 @@ private func streamWithToolCalling(
 ) async throws -> Response {
     /// Resolve conversation ID for session pooling / KV cache reuse.
     let conversationId: String? = request.sessionID
+
+    /// Baseline for the claim/audit cross-check at this turn's finalize site: "did anything
+    /// change the workspace between here and the answer" is answered by `ToolMutationLedger`
+    /// (fed at the `ToolRegistry` chokepoint), never by what the model said nor by the wire
+    /// echo — a native tool turn runs inside `ChatSession` and echoes no `tool_calls` at all.
+    /// Skew is one-directional: a concurrent turn's write can only inflate this set, which
+    /// suppresses a notice rather than inventing a contradiction.
+    let mutationBaseline = await ToolMutationLedger.shared.snapshot()
 
     /// Configure SSE-compliant response headers.
     let responseHeaders = SSEHeaders
@@ -1840,6 +1872,32 @@ private func streamWithToolCalling(
             cachedPromptTokens: observedCachedPromptTokens,
             fallback: promptTokenCount,
         )
+
+        /// Same cross-check as the non-stream path, one delta before the terminator: the
+        /// claim has already streamed, so the audit line rides as an extra content delta
+        /// (clients concatenate) and the persisted row stores the corrected text.
+        let streamMutations = await ToolMutationLedger.shared.since(mutationBaseline)
+        let streamResolvedFinish = ToolCallWire.resolveFinishReason(
+            engineReason: lastFinishReason,
+            toolCallsMade: !deliveredToolCalls.isEmpty)
+        if deliveredToolCalls.isEmpty, streamResolvedFinish == "stop",
+            let notice = ClaimVsAudit.notice(text: prevDecodedText, mutations: streamMutations)
+        {
+            _ = yieldSSE(
+                ChatCompletionChunk(
+                    id: requestId,
+                    created: created,
+                    model: modelId,
+                    choices: [
+                        ChunkChoice(delta: ChatDelta(content: "\n\n" + notice), finishReason: nil)
+                    ],
+                ),
+                to: continuation)
+            prevDecodedText += "\n\n" + notice
+            logger.info(
+                "Claim/audit mismatch corrected on the stream: \(streamMutations.count) successful mutation(s)"
+            )
+        }
 
         /// FINAL stop chunk — the only chunk on this stream allowed a non-null
         /// `finish_reason`, and the word it carries is resolved by the same rule the

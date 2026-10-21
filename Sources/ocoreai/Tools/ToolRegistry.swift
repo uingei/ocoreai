@@ -588,6 +588,16 @@ actor ToolRegistry {
             if let t = token {
                 await auditTrail?.completeToken(t, status: .success, result: result)
             }
+            // Claim/audit cross-check input (Models/ClaimVsAudit.swift): this is the one
+            // chokepoint every dispatch goes through — native ChatSession loop, MTP loop,
+            // direct GUI calls and external MCP `tools/call` — so "did this turn change any
+            // file" is answered here and nowhere else. Read-only tools do not count; an
+            // unknown external tool counts as mutating, which keeps the notice from ever
+            // accusing a turn that ran an unrecognised writer.
+            if ToolMutationLedger.countsAsMutation(isReadOnly: isReadOnly(name)) {
+                await ToolMutationLedger.shared.record(
+                    SuccessfulMutation(tool: name, target: Self.mutationTarget(in: arguments)))
+            }
             await hookRunner.firePostToolUse(
                 toolName: name, arguments: arguments, result: result, error: nil)
             // Secret redaction (codex main-axis baseline, `secrets/sanitizer.rs`):
@@ -629,6 +639,21 @@ actor ToolRegistry {
     }
 
     // MARK: - Safety
+
+    /// The thing a mutating call acted on, for the audit notice ("app.toml", not "edit_file").
+    /// Nil when the arguments name nothing file-like: the notice then falls back to tool names
+    /// rather than guessing a path.
+    static func mutationTarget(in arguments: String) -> String? {
+        guard let data = arguments.data(using: .utf8),
+            let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        for key in ["path", "file_path", "file", "filename", "command", "cmd"] {
+            if let value = dict[key] as? String, !value.isEmpty {
+                return value
+            }
+        }
+        return nil
+    }
 
     /// Check if a tool is read-only (safe for concurrent execution)
     func isReadOnly(_ name: String) -> Bool {

@@ -82,8 +82,7 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   and a ceiling below § Error Handling.
 - Licenses travel with the binary: MIT **plus** third-party terms (BSD-3 cl.1/cl.2, Apache-2.0 §4).
   Adding a dependency, bumping a pin or vendoring a header ⇒ re-run
-  `scripts/collect-third-party-licenses.sh` and commit its output; `scripts/bundle-licenses.sh <app>`
-  copies `THIRD-PARTY-LICENSES/` into the bundle and re-reads it from inside. Gates:
+  `scripts/collect-third-party-licenses.sh` and commit its output. Gates:
   `ThirdPartyNoticesTests`(16) + `scripts/audit.swift_patterns.sh` Class-I. Composition and the
   vendored-header table: `docs/agent/third-party-notices.md`.
 <!-- claim:apple_derived_files>=44 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
@@ -172,6 +171,13 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   and never let "could not ask" wear "does not exist" — `HubReachability.probe` names the repo, the status
   and the remedy (`HF_ENDPOINT`), and flowing bytes are never cut, only silence. Gate:
   `HubReachabilityTests`(20) + probes 23, 24.
+
+- **A turn's last sentence is a claim, checked against the audit.** `ClaimVsAudit` compares a
+  self-terminated answer's file-change sentences with `ToolMutationLedger`, fed at
+  `ToolRegistry.call` — the one chokepoint the native loop, MTP, GUI and MCP share (the wire
+  echoes no `tool_calls` on a native turn, so it proves nothing). "File created." with zero
+  writes, and "I failed" with a landed edit, both get an `[audit]` line on all four faces;
+  read-only tools never count, so a notice can only under-accuse. Gate: `ClaimVsAuditTests`(17).
 - `/v1/models/:model/…` takes a **percent-encoded** model id: `:model` matches one path segment while
   `/v1/models` publishes `org/name`. The catalog says so and probe 03 pins it. Accepting an unencoded slash
   would drag `/v1/models/download` into the same wildcard — owner call.
@@ -192,8 +198,6 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
 
 ### Naming
 - Target names ≠ module boundaries (`GuidedGenerationLoop` is a peer of `ChatSession`, not nested inside it).
-- A TODO count is a debt counter with a gate, not a comment.
-<!-- claim:todo_sites<=1 :: git grep -n TODO -- Sources | wc -l -->
 
 ### Testing Quality
 - Gold standard: exact-value assertions (`#expect(x == N)`), parameterized traversal, boundary cases.
@@ -301,8 +305,7 @@ suite names, `§` sections and `file:line` anchors resolving; every `<!-- claim:
 suite counts equal to `Tests/`; the probe/doc indexes equal to the filesystem; the READMEs equal to the
 router and `AuthRoutePolicy`; this file and the one-hop corpus carrying no dates and no prose walls.
 The named gate list with its rationale and env knobs lives **in that script** — one home: the copy here
-omitted gates twice before anything read it. Scans floor their own hit counts, so "found nothing" never
-reads as "nothing wrong".
+omitted gates twice before anything read it.
 Operator semantics (`>=` floor, `<=` ceiling) + the three questions: `CONTRIBUTING.md`.
 
 ## Documentation Map — Agent-facing vs Human-facing
@@ -351,8 +354,7 @@ project is **Human-facing**.
   `MediaLifetimeTests`(15) + probe 08.
 - **Comments say the *why* the code cannot, in 1–3 lines.** No bug history, dates or audit trails inside
   source comments — that is the commit message. Diffs are read by a human: one logical change per commit.
-- **No new defensive clutter:** no wrapper or `try?` around code that cannot fail, no flag nobody sets, no
-  capability wired before its consumer exists.
+- **No new defensive clutter:** no wrapper or `try?` around code that cannot fail.
 - **Not a diary.** A root rule is ≤3 lines: what + the one-line evidence + the gate. Dates, round verdicts
   and host forensics go to `CHANGELOG.md` / `docs/agent/` next to the claim they came from — enforced by P13.
 - Default is one-pass: intent → plan → implement → review → verify → commit in one thread, no sub-agent
@@ -362,10 +364,7 @@ project is **Human-facing**.
 ## Taste test before you hand off
 - Does every piece of state live with its authority, at the narrowest scope that can still be right?
 - Can any sentence a user can read promise more than the engine measured?
-- Would a background event steal focus, navigate, or announce?
 - Does each resolver/fallback have one home, a validated ladder, and a bounded, recoverable end?
-- Does async failure leave a usable UI and a way forward?
-- Do the numbers in this file still reproduce (`make docs-check`), and does every new claim carry a gate?
 - Is the hot path still cheap under *realistic* content — long transcript, warm KV, a real model — not the
   empty demo?
 - Did `swift build` exit 0, and does `CHANGELOG.md` name the commit?

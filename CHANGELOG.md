@@ -4,6 +4,16 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-22
 
+**10-22 一轮的最后一句话第一次要和它自己的工具记录对账：`ClaimVsAudit` 双向拦「假成功」与「假失败」**(P0 门面诚实 / P1 执行链) — invariant 2 在轮子出口处一直有个洞：模型停下，循环就停，没人拿最后一句和这一轮真正执行过的东西比。记分板抓到两半，今天一起堵上。
+
+- **现场证据（`scripts/eval/run.sh`，同机同模型 `mlx-community/gemma-4-e2b-it-4bit`）**：`multi-step-nested-write` 答 `File created.`，`finish_reason: stop`、`tool_calls: null`、76 个 completion token，而 `build/report.txt` 不存在（**零工具调用**）；反方向的 `fix-off-by-one` 答 `I failed to fix the code…`，而它之前一次 `edit_file` 已成功、工作区校验是 PASS。前一句是 GUI 当着用户说谎，后一句把干完的活劝回去；两句都会进会话记忆、FTS 和 `/sessions`，然后一直留在那儿。
+- **审计面只有一个老家**：`ToolMutationLedger` 在 `ToolRegistry.call` 的成功出口记账——那是 native `ChatSession` 循环、MTP 循环、GUI 直连和外部 MCP `tools/call` 唯一的共同咽喉。为什么不能拿线面上的 `tool_calls` 当证据：本地一轮工具在 `ChatSession` 内部跑完，线面回声是 `echoed_tool_calls=0`，而任务其实做完了。**读 `readOnlyWhitelist` 决定算不算改动**（`ToolRegistry` 才是那份名单的老家）：只读工具不算，未知的外部 MCP 工具算 ⇒ 通知只可能少报，不可能凭空指控。
+- **判词规则收窄到能判得住的句子**：按句切（含中文句号与换行），一句里必须同时出现「改动动词」和「文件/artifact 线索」才算断言；将来时（`I will create…` / `我马上创建`）是计划不是完成，带否定标记的只认「文件操作失败」这一窄集。原因是第一版就把范围开宽了：`the test still fails`、`it cannot compile` 是对验证的陈述，一次成功的编辑并没有把它们反驳掉——照那样写就会朝反方向 over-claim。
+- **只在「自己终止」的答题轮上判**：`finish_reason == stop`（Anthropic 面 `end_turn`）且本轮没交付 `tool_calls`；被预算砍断或正要调工具的轮子不是完成断言。成功与失败两类断言同时出现时判官闭嘴（歧义不等于矛盾）。
+- **落地在四张脸上，同一个判词函数**：`/v1/chat/completions` 非流式与流式、`/v1/messages` 非流式与流式。流式的谎已经发出去了，所以纠正作为**再一个 delta** 发出（客户端本就拼接文本块），落库的那行存纠正后的文本；基线在各自响应组装函数的开头取，skew 只有一个方向（并发轮的写入只会把集合撑大 ⇒ 少报，不会误伤）。
+- **门 `ClaimVsAuditTests`(17)**：断言全部用当天记分板记下的原文（`File created.` / 那段 `I failed to fix the code…` / `Token: 1|ORANGE-7731` / `I failed to read the file.` / `The command \`uname -m\` printed \`arm64\`.`），加中英双向、intent 排除、无文件线索排除、混合断言闭嘴、命名窗口 32 上限、`mutationTarget` 不猜路径。本轮 `--filter 'ClaimVsAudit|ToolMutationLedger|ToolRegistry'` **47 tests 全绿**。
+- **记分板仍记 7/9**：这条改动不会把 `multi-step-nested-write` 变成 PASS——工作区里文件确实不在，**判分看工作区**正是它的定义。它改变的是那句谎不再被悄悄转述成「已完成」，而是带着 `[audit]` 说清楚没有工作区证据。
+
 **10-22 使命的单位第一次有一块记分板：同机同模型 0/9 → 7/9，并当场抓到「说建了文件、文件不在原地」**(P1 执行链 / P0 门面诚实 / P3 回归防护) — 此前 `scripts/` 量的全是**线**（字段对不对、声称的复用有没有真付），没有一处量使命自己的单位：**agent 有没有把一件真实的活干完**。补上之后第一次有了可复现的分数，也第一次看清失败长什么样。
 
 - **新 `scripts/eval/`（9 个可机验任务：写文件 / 修语法 / off-by-one / 定点改配置 / 读并报值 / 执行并报值 / 嵌套多步写 / 让失败的测试变绿 / 不许编造不存在的文件内容）**：判分**只看工作区**（`test -f`、`python3 -m py_compile`、`unittest … | grep OK`、`grep` 原文），模型的自述一律不作数；工作区在整轮开始前以 `OCOREAI_WORKSPACE` 交给 server，每个任务前清空，杜绝上一个任务的残留文件替下一个任务交卷。工具声明从 `GET /v1/tools` 现取，脚本里不留一份会漂的副本。
