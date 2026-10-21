@@ -30,10 +30,36 @@ enum WorkspaceContext {
     /// `AGENTS.override.md` then `AGENTS.md`.
     static let candidateFilenames = ["AGENTS.override.md", "AGENTS.md"]
 
-    /// The workspace directory the user configured, or nil when unset/invalid.
-    /// Read from the shared `UserDefaults.standard` domain so the Settings UI
-    /// (same executable) and the server process see one source of truth.
+    /// Headless anchor: `OCOREAI_WORKSPACE`. A `serve` process has no Settings UI to
+    /// write `UserDefaults`, and `SessionWorkspace.setDirectory` is called only from the
+    /// UI (`ChatViewModel`, `SessionManager`) — so before this, every relative path a wire
+    /// client sent anchored to the *process* cwd, and the model was never told which.
+    /// Measured 10-22 (`scripts/eval/`): 5 of 9 task failures were
+    /// `edit_file: cannot read (missing or non-UTF8): calc.py` — the natural relative path
+    /// a coding prompt produces, resolved somewhere the file was not. Env precedes the
+    /// stored setting because a headless operator states it per run.
+    static let workspaceEnvironmentKey = "OCOREAI_WORKSPACE"
+
+    static func environmentDirectory(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> String? {
+        guard let raw = environment[workspaceEnvironmentKey], !raw.isEmpty else { return nil }
+        let expanded = (raw as NSString).expandingTildeInPath
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: expanded, isDirectory: &isDir),
+            isDir.boolValue
+        else { return nil }
+        return expanded
+    }
+
+    /// The workspace directory the operator configured, or nil when unset/invalid.
+    /// `OCOREAI_WORKSPACE` first (headless serve, CI), then the shared
+    /// `UserDefaults.standard` domain the Settings UI writes, so GUI and server still
+    /// see one source of truth and a headless run can state one too.
     static func configuredDirectory(defaults: UserDefaults = .standard) -> String? {
+        if let env = environmentDirectory() {
+            return env
+        }
         guard
             let raw = defaults.string(forKey: settingsKey),
             !raw.isEmpty
