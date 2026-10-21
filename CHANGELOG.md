@@ -3,6 +3,24 @@
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## [Unreleased] — 2026-09-05 → 2026-10-21
+
+**10-21 一个查无此 id 让会话沉默了 300 秒——404 之后没人再问第二句**(P0 行为不一致 / 执行链) — **活体证据（本机）**：`POST /v1/chat/completions` 与 `/v1/models/evaluate` 发 `no-such-org/no-such-model-ocoreai`，ModelScope 0.2 s 就答了 404（`{"Code":10010205001,"Message":"获取模型目录树失败，信息：record not found"}`），`MLXBridge.loadFromHubWithFallback` 却把同一个请求继续交给 HF 客户端，此后 **300 s 无任何响应**，id 卡在 `EnginePool.loadingModels`，而同机 `/health` 一直 200——一次下载把机上别的会话挤掉了。同一场还量到网络事实：`curl` 打 `huggingface.co/api/models/<存在的 repo>` 8 s 无回音（`HTTP=000`），ModelScope 则 0.18 s 给出真 404。
+
+- **为什么不给整条下载加截止，而是先问一句**：真下载本来就要几分钟，那正是用户在等的东西；「这个 repo 在不在」却是廉价可判的——可达的 hub 回 `/api/models/<repo>` 远小于 1 s，被墙的永远不回。于是兜底之前先探一次：happy path 多花 ~1 s，换掉这条网络上几分钟的沉默；**已经在流的字节一个不砍**。
+
+- **`Engine/HubReachability.swift`（新）**：`apiURL`——ModelScope `api/v1/models/<repo>`，HF `<endpoint>/api/models/<repo>` 且 endpoint 取 `HFMirrorPolicy.current()` ⇒ 配了镜像就探镜像；`classify` 逐值——2xx 与 401/403 → `.present`（鉴权挑战不许把「带 token 就能拉」的东西判成不存在）、404/422 → `.absent(status)`、429/5xx/传输失败 → `.unreachable(reason)`；`probe` 用 ephemeral session + 8 s 硬窗口，从不 throw——问不到本身就是答案。两个 endpoint 走同一条规则：先认 operator 的镜像杠杆（`MODELSCOPE_ENDPOINT` / `HF_ENDPOINT`），再去 canonical；域名不在这里拼——**既有门 `ModelScopeEndpointSourceTests` 当场把本文件第二份 `www.modelscope.cn` 字面量拦下来**（www 也能解析，所以这种第二拼写 normally 能活到有人拿它去问一个下载器从来不用的主机），改为接 `ModelStore.modelScopeDefaultBaseURL`；新增断言把这条链接钉住：guard 文件里 0 个 `https?://` 字面量，且必须出现那个单一真源。
+
+- **「问不到」不是「不存在」**：新增 `AppError.modelUnavailable(modelId:reason:)` → 503，正文点名两个 hub 各自的下落并把 `HF_ENDPOINT` 写成药；404 只留给 hub 真答了的那一半。把 timeout 说成 404，等于让被墙网络上的调用者去改模型名。
+
+- **顺手抓到探针自己的洞**：JSON 编码器把 `/` 输出成 `\/`，第一版 §4 直接子串扫 body，于是两条「refusal 必须点名 id」的断言在 body 明明点名了的情况下 FAIL。判据要照 wire 的样子比（`tr -d '\\'`）——门红在错地方比不红更糟。
+
+- **同一台机上还有第二份兜底，但它不在本机的车道（登记，不臆修）**：`EnginePool` 的 FM 块里是同款 hub fallback（无 probe）。这不是推测：CLT SDK 26.5 的 FoundationModels `-user-module-version 1.5.2` ⇒ `canImport(FoundationModels, _version: 2)` 为 false（本机 `swiftc` 打印 `FM_V2_FALSE`），SDK 27.0 声明 2.0.68.1.402 才为 true（同机打印 `FM_V2_TRUE`）。与既有 CoreAI/macOS-27 同类项同口径：不改、不宣称已修，进 AGENTS.md § Open。
+
+- **门（三层，全部本次实跑）**：`HubReachabilityTests`(20)/4 套——classify/apiURL 逐值、`.absent` 与 `.unreachable` 必须不同、端口 1 立拒证「快且不 throw」；扫描面先自证（正例命中 + 形近负例不命中：`probeTimeoutSeconds` 引用不算调用、`loadFromHub(provider…)` 不算兜底、UI 显示字符串不算选路），再断言 `HubReachability.probe(` 全仓恰好 1 且只在 `MLXBridge.swift`、兜底下载必须在 guard 之后（家自身的形状是「先选 provider → 再问 → 才下载」，判据看下载那一跳）、每个「挑另一个 hub」的位置要么被问过要么在 FM-only 区内，且 FM 区恰好 `EnginePool.swift`。**红样**：把兜底下载挪到 guard 之前 ⇒ `HubGuardPlacement` 4 项里 3 处断言红（`fallbackSitsBehindGuard` + `noUnguardedFallback` 两条）。
+  探针 **23 §4** 由 xfail 转硬门：30 s 内必须给出 404/503 且点名 id，503 还须点名两个 hub 与 `HF_ENDPOINT`。绿：两条都是 **8 s / HTTP 503**，随后 `/health` 与 chat 代码字都活着；整支 `10 passed, 0 failed, 4 measured, 1 known-open`（同一支修前是 7 passed + 2 known-open 的沉默）。
+  新探针 **24-hub-existence-gate**：`.present` 这一半没法拿真 hub 验（HF 在这台机上不通），于是自带 stub hub（`/api/models/<repo>` 答 200、其余 404），`HF_ENDPOINT` 指过去。绿 `7 passed, 0 failed, 3 measured`：stub 日志先证明「引擎确实问了」`/api/models/<repo>`，其后紧跟 `/revision/main?` 与 `/tree/main?recursive=true`——闸门放行、请求进了 hub 客户端；再把 stub 杀掉，同一个 id 立刻（0 s）翻成 503。**一个 id 两种判决，由 hub 的回答决定，而不是由调用者等了多久。**
+  余下那半格（登记 § Open）：这条路上没有负缓存，重试同一个死 id 每次再付一次窗口（实测 8 s → 8 s）。
+
 **10-21 一个合法的 LoRA 请求把整台机器带走了——崩溃点在上游一个 `as!`，而它被「根本没接上」盖着**(P0 行为不一致 / 上游偏离) — **活体证据（本机冷进程）**：`POST /v1/models/evaluate` 发 `{"model":"mlx-community/gemma-4-e2b-it-4bit","dataset":["The quick brown fox …"],"batch_size":1,"max_batches":1}` 得到 `curl: (52) Empty reply from server`，进程 `Trace/BPT trap: 5`；`POST /v1/models/train` 发两条 10-token 合法样本跑 2 iter，得到 HTTP 200 后 `transfer closed with outstanding read data`，随后 `/health` 不再应答——机上别的会话一起没。崩溃报告逐帧点名：`Swift runtime failure: type cast failed` → `dynamic_cast_existential_1_unconditional` → `static LoRATrain.loss(model:inputs:targets:lengths:)`，也就是 pin `48114eedf` 的 `LoraTrain.swift:165` `let model = model as! any LLMModel`：这个 checkpoint 经 `VLMModelFactory` 装成 `Gemma4`，不 conform ⇒ 必炸。
 
 - **崩溃底下还压着一层「没接上」（同一跳挖出来的第二条）**：两端点原先走 `getMLXModelAndTokenizer(modelId:)`，它只看**是否已驻留**；`/health` 报 `loadedModels: 0` 时，它对 `/v1/models` 自己广告的那个 id 答 `Model not found`，而同一个 id 在 `/v1/chat/completions` 正常答。**这两条端点从来没走到引擎，所以崩溃一直看不见**——先把解析修通，崩溃才露头。P0 常是两层叠着：修掉一层不等于修完。

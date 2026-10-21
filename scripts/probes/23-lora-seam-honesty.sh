@@ -31,11 +31,22 @@
 #      come back 400 naming `dataset[0]`. On a non-conforming checkpoint the capability
 #      refusal comes first, and the probe says so instead of pretending it checked
 #      (LoRASampleDomain pins that rule by exact value in Tests/).
+#   6. AN ID THAT EXISTS NOWHERE IS ANSWERED — 404 or 503, within 30 s, naming the id, with
+#      the box still serving. Silence is the defect this gate was written against.
+#
+# ### Hub refusal — gated hard since the same session
+#   Measured here before the guard: a nonexistent hub id answered nothing within 25 s on BOTH
+#   /v1/models/evaluate and /v1/chat/completions (the chat leg was still silent at 300 s),
+#   because the fallback hub client owns no deadline ocoreai controls and huggingface.co is a
+#   black hole on this network. `HubReachability` now asks the fallback whether it can answer at
+#   all — existence costs under a second on a reachable hub — so §4 asserts the refusal: an
+#   answer within 30 s, HTTP 404 (a hub said it is not here) or 503 (a hub could not be
+#   asked), naming the id, with the box still serving afterwards.
 #
 # ### Known-open (xfail, measured not assumed)
-#   An id that cannot be resolved should refuse promptly. Measured 10-21: a nonexistent hub
-#   id produced no answer within 20 s on BOTH /v1/models/evaluate and /v1/chat/completions
-#   (the shared `EnginePool` load path waits out the hub resolver), while /health stayed up.
+#   The refusal is per-attempt, not remembered: §4b re-sends the same dead id and reports both
+#   elapsed times. EnginePool keeps no negative cache, so a client retrying a typo re-pays the
+#   probe window (AGENTS.md § Open).
 #
 # Run: bash scripts/probes/run.sh 23
 PROBE_NAME="23-lora-seam-honesty"
@@ -107,24 +118,80 @@ else
   probe_note "capability refused first on $MODEL, so the sample rule is unmeasured here — pinned by exact value in Tests/ocoreaiTests/LoRASampleDomainTests.swift"
 fi
 
-probe_section "4) an unresolvable id should refuse promptly (known-open: hub resolver waits)"
-# Bounded at 25 s on purpose: the measured claim is "no answer within 25 s", not "the
-# resolver takes 180 s" — the client-side deadline is what a caller actually experiences,
-# and a probe that waits out the resolver spends six minutes learning nothing new.
+probe_section "4) an unresolvable id must be refused by name, promptly"
+# Bounded at 30 s on purpose: the guard's window is 8 s per hub, so an honest refusal costs
+# well under that, and the number a caller experiences is the client-side wait — not how long
+# the resolver could theoretically stall.
+FIRST_ELAPSED=0
 for path in /v1/models/evaluate /v1/chat/completions; do
   case "$path" in
     /v1/models/evaluate) body="{\"model\":\"$BOGUS\",\"dataset\":[\"hello there world\"],\"batch_size\":1,\"max_batches\":1}" ;;
     *) body="{\"model\":\"$BOGUS\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":4}" ;;
   esac
   started=$(date +%s)
-  OCOREAI_PROBE_CURL_TIMEOUT=25 probe_api POST "$path" "$body" || true
+  OCOREAI_PROBE_CURL_TIMEOUT=30 probe_api POST "$path" "$body" || true
   elapsed=$(( $(date +%s) - started ))
-  if [ "${PROBE_STATUS:-000}" = "000" ]; then
-    probe_xfail open "$path with an unresolvable id: no answer after ${elapsed}s (hub resolver unbounded at the wire)"
-  else
-    probe_ok "$path refused in ${elapsed}s: ${PROBE_BODY:0:120}"
+  # The JSON encoder emits "/" as "\/", so a raw substring scan of the body misses the very id
+  # the refusal names — measured 10-21: the check failed against
+  # "Model no-such-org\/no-such-model-ocoreai is not available…". Compare against the wire's
+  # own escaping, not the string we typed.
+  named="$(printf '%s' "${PROBE_BODY:-}" | tr -d '\\')"
+  case "${PROBE_STATUS:-000}" in
+    404 | 503)
+      case "$named" in
+        *"$BOGUS"*)
+          # 503 means "could not ask", so it owes the caller the full account: which hub said
+          # what, and the lever that would fix this network. 404 means a hub answered, and
+          # naming the id is enough.
+          if [ "${PROBE_STATUS}" = "503" ]; then
+            missing=""
+            printf '%s' "$named" | grep -q "ModelScope" || missing="${missing} ModelScope"
+            printf '%s' "$named" | grep -q "Hugging Face" || missing="${missing} Hugging-Face"
+            printf '%s' "$named" | grep -q "HF_ENDPOINT" || missing="${missing} HF_ENDPOINT"
+            if [ -z "$missing" ]; then
+              probe_ok "$path refused in ${elapsed}s with HTTP 503 naming the id, both hubs and the HF_ENDPOINT lever"
+            else
+              probe_fail "HTTP 503 missing:${missing} — a could-not-ask refusal must account for both hubs and name the remedy: ${PROBE_BODY:0:160}"
+            fi
+          else
+            probe_ok "$path refused in ${elapsed}s with HTTP 404, naming $BOGUS"
+          fi
+          ;;
+        *)
+          probe_fail "$path refused with HTTP ${PROBE_STATUS} but never named the id: ${PROBE_BODY:0:160}"
+          ;;
+      esac
+      ;;
+    000)
+      probe_fail "$path answered nothing in ${elapsed}s for an id that exists nowhere — silence is the defect this gate exists for, not an outcome"
+      ;;
+    *)
+      probe_fail "$path answered HTTP ${PROBE_STATUS} for an unresolvable id — expected 404 (absent) or 503 (could not ask): ${PROBE_BODY:0:160}"
+      ;;
+  esac
+  if [ "$path" = "/v1/chat/completions" ]; then
+    FIRST_ELAPSED="$elapsed"
   fi
 done
+if alive; then
+  probe_ok "server alive after two refused loads"
+else
+  probe_fail "server stopped answering /health after refused loads"
+fi
+
+probe_section "4b) residual — the refusal is not remembered (known-open)"
+# The guard prices every attempt. Measured 10-21 post-fix: ~9 s for the first request for a dead
+# id on this network (ModelScope 404 in ~0.2 s + an 8 s HF window), and the same again on a
+# retry — EnginePool keeps no negative cache, so a client retrying a typo re-pays the window.
+started=$(date +%s)
+OCOREAI_PROBE_CURL_TIMEOUT=30 probe_api POST /v1/chat/completions "{\"model\":\"$BOGUS\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":4}" \
+  || true
+repeat=$(( $(date +%s) - started ))
+if [ "${PROBE_STATUS:-000}" = "000" ]; then
+  probe_fail "the retry of a dead id went silent after ${repeat}s — a refusal must hold every time, not just the first"
+else
+  probe_xfail open "a dead id re-pays the probe window — first ${FIRST_ELAPSED}s, retry ${repeat}s, both HTTP ${PROBE_STATUS}: no negative cache in EnginePool"
+fi
 
 probe_section "5) survival — every other conversation still works"
 probe_api POST /v1/chat/completions "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly the word $CODE_WORD and nothing else.\"}],\"max_tokens\":8}" || true

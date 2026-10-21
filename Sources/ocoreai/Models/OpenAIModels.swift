@@ -1879,6 +1879,13 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
     /// Not Found — model does not exist or is not loaded
     case modelNotFound(String)
 
+    /// Service Unavailable — the id is not resident and could not be fetched: the configured
+    /// hub answered, and the fallback hub could not be asked within
+    /// `HubReachability.probeTimeoutSeconds`. Distinct from `modelNotFound` on purpose: this
+    /// one is transient, so the client should retry (or point `HF_ENDPOINT` at a reachable
+    /// mirror) instead of concluding the model does not exist.
+    case modelUnavailable(modelId: String, reason: String)
+
     /// Internal Error — engine pool exhausted (max sessions reached)
     case poolExhausted(Int)
 
@@ -1982,6 +1989,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         case .contextWindowExhausted(let postTokens, let cap):
             "Context window exhausted: \(postTokens) tokens after compaction (cap \(cap)) — start a fresh conversation"
         case .modelNotFound(let name): "Model \(name) not found"
+        case .modelUnavailable(let name, let reason):
+            "Model \(name) is not available right now: \(reason)"
         case .poolExhausted(let max): "Engine pool exhausted (max: \(max))"
         case .queueClosed: "Request queue closed"
         case .coldStoreNotFound(let id): "Cold store entry \(id) not found"
@@ -2034,6 +2043,8 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         case .poolExhausted, .queueClosed, .engineUnavailable, .memoryExhausted,
             .modelLoading,
             .sessionLimitExceeded:
+            .serviceUnavailable
+        case .modelUnavailable:
             .serviceUnavailable
         case .sessionExpired:
             .gone

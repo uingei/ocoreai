@@ -458,16 +458,41 @@ actor MLXModelLoader {
 
         // Try configured provider, fall back to the other on failure
         func loadFromHubWithFallback() async throws -> MLXLMCommon.ModelContainer {
+            let primaryName = provider == .modelScope ? "ModelScope" : "Hugging Face"
             do {
                 return try await loadFromHub(
                     provider, repoId: repoId, modelId: modelId, progressHandler: progressHandler)
             } catch {
+                let primaryFailure = error.localizedDescription
                 logger.warning(
-                    "\(provider == .modelScope ? "ModelScope" : "HuggingFace") failed for \(modelId) — falling back: \(error.localizedDescription)"
-                )
+                    "\(primaryName) failed for \(modelId) — falling back: \(primaryFailure)")
                 let fallback: HubProvider = provider == .modelScope ? .huggingFace : .modelScope
-                return try await loadFromHub(
-                    fallback, repoId: repoId, modelId: modelId, progressHandler: progressHandler)
+                let fallbackHub: HubReachability.Hub =
+                    fallback == .huggingFace ? .huggingFace : .modelScope
+                // The hub client owns no deadline we control, so ask the fallback whether it
+                // can answer before spending the request on it. Measured 10-21 on a network
+                // where huggingface.co is a black hole: this route never returned (no answer
+                // after 300 s), and the id sat in EnginePool.loadingModels while it waited.
+                // Existence is cheap (a reachable hub answers in <1 s); silence is not.
+                switch await HubReachability.probe(hub: fallbackHub, repoId: repoId) {
+                case .present:
+                    return try await loadFromHub(
+                        fallback, repoId: repoId, modelId: modelId,
+                        progressHandler: progressHandler)
+                case .absent(let status):
+                    logger.warning(
+                        "\(fallbackHub.name) has no repo \(repoId) (HTTP \(status)) — refusing instead of waiting"
+                    )
+                    throw AppError.modelNotFound(modelId)
+                case .unreachable(let reason):
+                    let unavailable = "\(fallbackHub.name) unreachable (\(reason))"
+                    logger.warning("\(fallbackHub.name) unreachable for \(repoId): \(reason)")
+                    throw AppError.modelUnavailable(
+                        modelId: modelId,
+                        reason:
+                            "\(primaryName): \(primaryFailure); \(unavailable). Retry later, or point HF_ENDPOINT at a reachable mirror."
+                    )
+                }
             }
         }
 

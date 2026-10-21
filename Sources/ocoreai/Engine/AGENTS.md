@@ -81,7 +81,7 @@ AGENTS.md moved off their targets with no gate going red; these markers are the 
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3734 .applyingThinkingBudget -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4254 components: genComponents -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3757 components: mtpGenComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:820 case "affine" -->
+<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:845 case "affine" -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1724 func saveCache -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1110 templateMessages = leadingMessages -->
 
