@@ -52,7 +52,10 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 ## ── pinned budgets (a raise must be a visible edit in the diff) ──────────────
-: "${OCOREAI_AGENTS_MAX_ROOT:=50618}"   # pinned 10-22 by `make docs-budget`
+: "${OCOREAI_AGENTS_MAX_ROOT:=30480}"   # root rewrite 10-22: 50618 -> 30480 (-39.8%); after that,
+                                     # `make docs-budget` may only lower it (B1 stays a ratchet)
+# P13: the injected file carries rules, not diary. Longest allowed line in AGENTS.md, in bytes.
+: "${OCOREAI_AGENTS_MAX_LINE:=400}"
 : "${OCOREAI_AGENTS_MAX_CHAIN:=78000}" # AGENTS.md + one area guide loaded together
 : "${OCOREAI_AGENTS_MAX_AREA:=16000}"  # each Sources/**/AGENTS.md or docs/agent/*.md
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
@@ -89,6 +92,7 @@ OCOREAI_AGENTS_MODE="$MODE" \
 OCOREAI_AGENTS_MAX_ROOT="$OCOREAI_AGENTS_MAX_ROOT" \
 OCOREAI_AGENTS_MAX_CHAIN="$OCOREAI_AGENTS_MAX_CHAIN" \
 OCOREAI_AGENTS_MAX_AREA="$OCOREAI_AGENTS_MAX_AREA" \
+OCOREAI_AGENTS_MAX_LINE="$OCOREAI_AGENTS_MAX_LINE" \
 OCOREAI_AGENTS_FLOOR_REFS="$OCOREAI_AGENTS_FLOOR_REFS" \
 OCOREAI_AGENTS_FLOOR_CLAIMS="$OCOREAI_AGENTS_FLOOR_CLAIMS" \
 OCOREAI_AGENTS_FLOOR_SUITES="$OCOREAI_AGENTS_FLOOR_SUITES" \
@@ -134,6 +138,25 @@ for p in guides:
     chain = root_size + n
     if chain > env_int("OCOREAI_AGENTS_MAX_CHAIN"):
         fail.append("B2 chain AGENTS.md+%s = %d chars > cap %d" % (p, chain, env_int("OCOREAI_AGENTS_MAX_CHAIN")))
+
+# ── P13 the injected file stays rule-only: no diary, no prose walls ──────────
+# 10-22: this file stated "Not a diary. A root rule is <=3 lines: what + evidence + the gate.
+# Dates… go to CHANGELOG.md" while carrying 38 dated stamps and 37 lines over 400 bytes. A rule
+# nobody can re-run is a claim (invariant 1), so the rule became a gate: zero `MM-DD` stamps and no
+# line longer than OCOREAI_AGENTS_MAX_LINE bytes. Content that needs either belongs in
+# CHANGELOG.md / docs/agent/, one hop away and out of every session's context.
+root_text = read("AGENTS.md")
+_stamps = re.findall(r"(?<![\d/.])(?:0[1-9]|1[0-2])-(?:[1-9]|[12]\d|3[01])(?![\d])", root_text)
+if _stamps:
+    fail.append("P13 AGENTS.md carries %d dated stamp(s) (%s) — dates belong to CHANGELOG.md or "
+                "docs/agent/, never to the file injected into every session"
+                % (len(_stamps), ", ".join(sorted(set(_stamps))[:6])))
+_walls = [(i + 1, len(l.encode("utf-8"))) for i, l in enumerate(root_text.splitlines())
+          if len(l.encode("utf-8")) > env_int("OCOREAI_AGENTS_MAX_LINE")]
+if _walls:
+    fail.append("P13 AGENTS.md has %d line(s) over %d bytes (first L%d = %d) — one rule per line, "
+                "evidence one hop away; a 400-byte wall is a paragraph wearing a bullet"
+                % (len(_walls), env_int("OCOREAI_AGENTS_MAX_LINE"), _walls[0][0], _walls[0][1]))
 
 # ── reference extraction (root + guides share the contract) ───────────────────
 NAME = r"(?:~?/?[A-Za-z0-9_+.\-]+/)*[A-Za-z0-9_+.\-]*[A-Za-z0-9_+\-]"
@@ -372,7 +395,11 @@ if not m:
     fail.append("P8 no mlx-swift-lm `revision:` found in Package.swift — the pin contract is unreadable")
 else:
     pin = m.group(1)
-    quoted = set(re.findall(r"Pinned upstream `mlx-swift-lm` at `([0-9a-f]{7,})`", read("AGENTS.md")))
+    # Form was "Pinned upstream `mlx-swift-lm` at `…`" until 10-22, when the root rewrite moved the
+    # sentence into the numbered upstream list. The gate's job is the comparison, not the wording:
+    # match any hex token quoted near the repo name (still a token in backticks, so prose that merely
+    # names the repo does not satisfy it).
+    quoted = set(re.findall(r"`mlx-swift-lm`[^\n]{0,120}?`([0-9a-f]{7,})`", read("AGENTS.md")))
     if not quoted:
         fail.append("P8 AGENTS.md no longer states the mlx-swift-lm pin in the form the gate reads")
     elif not any(q == pin or pin.startswith(q) or q.startswith(pin) for q in quoted):

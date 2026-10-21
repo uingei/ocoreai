@@ -51,4 +51,4 @@
 <!-- claim:cmp_mlx_serve_changelog_lines>=3 :: grep -c -- mlx-serve CHANGELOG.md -->
 <!-- claim:cmp_vllm_metal_changelog_lines>=2 :: grep -c -- vllm-metal CHANGELOG.md -->
 <!-- claim:cmp_harness2_changelog_lines>=3 :: grep -c -- harness2 CHANGELOG.md -->
-<!-- claim:cmp_designation_line_exists=1 :: grep -c 'Auxiliary references (owner-designated 10-15, extended 10-20)' AGENTS.md -->
+<!-- claim:cmp_designation_line_exists=1 :: grep -c '^6\. \*\*Comparators\*\*' AGENTS.md -->

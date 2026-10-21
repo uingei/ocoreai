@@ -4,6 +4,14 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-22
 
+**10-22 AGENTS.md 自己正是它管着的那个坏样子：root 50,618 → 30,480（−39.8%），并把「不许写日记」从一句自我提醒变成一道门（P13）**(P2 文档复杂度 / P3 可观测性) — 起因是两句「AGENTS.md 一点也不规范？」「你还没意识到文档稀烂？」。这不是文风之争，是可量的：root **38 处 `MM-DD` 日期戳**、**37 行超过 400 字节（最长 1,223 B）**、六个政策章节互相重复（`Core Principles` / `Rules that apply everywhere` / `Workflow` / `Agent Execution Rules` / `Agent Runtime Reality` / `Taste test`），而它自己在 § Rules 里白纸黑字写着「**Not a diary.** A root rule is ≤3 lines… Dates… go to `CHANGELOG.md`」。P1–P12 与 B1 全绿，日记照样长——**规则没有门就是断言**（invariant 1 的自打脸现场）。
+
+- **改法（只搬位置，不销毁证据）**：root 只留规则与指针，每条 ≤3 行（what + 一句证据 + 门名），日期全部退场；只与这台主机有关的事实（谁是 Codex、skills 清单会漂、sub-agent 默认为何是一趟、escalation 复核坏在哪一层、`~/wiki` 与 `.hermes/` 为何永远不是项目证据）搬去新 `docs/agent/codex-runtime.md`；其余过程叙述本就在本文件——逐符号 grep 已核：`firstStopOccurrence` / `ToolProseLedger` / `splitInstructionMessages` / `PromptCacheReuse` / `mergingSteeredTurn` / `HubReachability` 全都在，root 里的复述是第二份真相。结果 **root 30,480 B**，上限同刀 **50,618 → 30,480**（B1 仍是棘轮，此后只减）。
+- **补门 P13（`scripts/agents-md-contract.sh`）**：`AGENTS.md` 中 `MM-DD` 日期戳必须为 **0**；任何一行不得超过 `OCOREAI_AGENTS_MAX_LINE=400` 字节。**红样当场跑过**：塞进一行「Measured 10-22 …」⇒ 同时报 `P13 carries 1 dated stamp (10-22)` 与 `P13 has 1 line over 400 bytes (first L10 = 640)`；撤掉即 `✅ contract holds`。上限管体量，P13 管形状——「该删的删」能长期成立，靠的是后者。
+- **两处门形跟着事实搬家（不是放宽检查）**：P8 过去只认 `Pinned upstream mlx-swift-lm at \`…\`` 一种句式，现认「repo 名附近被反引号包住的 hex 令牌」并与 `Package.swift` 的 pin 比相等——钉住的仍是 `48114eedf`，比对逻辑一字未松；`cmp_designation_line_exists` 的 grep 跟着新措辞改模式（仍断言比较器清单被点名，等号 = 1）。§ 交叉引用扫描地板维持 12（瘦身后实测 12，未下调），dangling 0。
+- **入账**：`make docs-check` ✅（root 30,480/30,480、§-refs 12/12 floor 12、claims 42/42、numbered-claims 19/19、routing 12）、`make audit` ✅、`make anchor-check` 46/0 drift ✅（同日 rewind 那笔插入的行把 14 条引用推走，逐条重钉）、`format-check` 不受影响。
+- **仍欠的一刀（要人点头）**：`CHANGELOG.md` 已 **574,927 B / 261 个日期戳 / 平均行长 464 B**，是另一处「日记不可查」。按轮切到 `docs/agent/rounds/` + 根留索引，动的是「唯一日记、唯一落点」这条既有裁决的**形态**，不自作主张；先记在这儿，附可量的尺寸。
+
 **10-22 rewind 在 guided/MTP 那一轮说了大话：现场抓到它「声称复用、实际全量重付」，决定改搬到车道处**(P1 门面诚实 / 执行链) — 上一笔把编辑重发从 `758/0` 做到 `758/718`，并写下「池子在拒答处给 offer，调用处接住」。它没说出口的假设是**调用处一定会接**。guided gen 与 MTP 不接：它们各自建 KV，并在生成前把池槽交回去。
 
 - **现场证据（探针 27 §5 逐字复现）**：带 `response_format: json_object` 的编辑重发，日志先说 `Session REWOUND … instead of re-prefilling 2`，下一行 `Routing through GuidedGenerationLoop with grammar constraint`，usage 报 `prompt_tokens=753 cached_tokens=none`——**753 个 token 全量重付，而复用已被声称**。更糟的是账：池子在给 offer 的那一刻已摘条目、删磁盘快照，并且按规则**跳过** `historyDiverged` 记账；于是一次货真价实的全量重建，在线面上既没代价也没病因。
