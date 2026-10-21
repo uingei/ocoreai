@@ -148,11 +148,13 @@ struct SessionIsolationTests {
             messages: [
                 MessageHistoryKey.from(user("hello")), MessageHistoryKey.from(assistant("hi")),
             ],
+            rewindReserve: kvCacheRewindReserveTokens
         )
         #expect(
             manifest.reuseDecision(
                 modelId: "m", instructionsHash: 2,
-                incomingMessages: [MessageHistoryKey.from(user("hello"))])
+                incomingMessages: [MessageHistoryKey.from(user("hello"))],
+                rewindReserve: kvCacheRewindReserveTokens)
                 == .instructionsChanged)
     }
 
@@ -235,24 +237,28 @@ struct SessionIsolationTests {
     private func snapshot(
         _ keys: [MessageHistoryKey],
         model: String = "gemma-test",
-        instructions: String = "sys prompt"
+        instructions: String = "sys prompt",
+        reserve: Int = kvCacheRewindReserveTokens
     ) -> KVCacheManifest {
         KVCacheManifest(
             modelId: model,
             instructionsHash: DurableHash.fingerprint(instructions),
-            messages: keys)
+            messages: keys,
+            rewindReserve: reserve)
     }
 
     private func decision(
         _ manifest: KVCacheManifest,
         model: String = "gemma-test",
         instructions: String = "sys prompt",
-        incoming: [MessageHistoryKey]
+        incoming: [MessageHistoryKey],
+        reserve: Int = kvCacheRewindReserveTokens
     ) -> SnapshotRefusal? {
         manifest.reuseDecision(
             modelId: model,
             instructionsHash: DurableHash.fingerprint(instructions),
-            incomingMessages: incoming)
+            incomingMessages: incoming,
+            rewindReserve: reserve)
     }
 
     @Test("accepts a continuation that replays everything the cache holds")
@@ -278,7 +284,8 @@ struct SessionIsolationTests {
                 KVCacheManifest.self,
                 from: Data(
                     #"""
-                    {"version":0,"modelId":"gemma-test","instructionsHash":7,"messages":[]}
+                    {"version":0,"modelId":"gemma-test","instructionsHash":7,"messages":[],
+                    "rewindReserve":1024}
                     """#.utf8))
         )
         #expect(legacy.version != KVCacheManifest.currentVersion)
@@ -336,6 +343,58 @@ struct SessionIsolationTests {
                 == .modelMismatch(snapshot: "gemma-test", requested: "qwen-test"))
     }
 
+    /// The KV-cache plan is part of the snapshot's identity: a sidecar that states another
+    /// reserve describes rows this build cannot realize, and upstream says so at first token
+    /// (`requirePlan` throws `kvCacheConfigurationChanged`, `ChatSession.swift:307`). Deciding
+    /// that here turns a failed turn into what it is — one cold turn — and names it on the
+    /// ledger instead of the error path.
+    @Test("refuses a snapshot built under another KV-cache plan")
+    func rewindReserveChangedRefused() {
+        let cached = snapshot([ukey("u1"), akey("a1")], reserve: 0)
+        #expect(
+            decision(cached, incoming: [ukey("u1"), akey("a1")])
+                == .rewindReserveChanged(snapshot: 0, requested: kvCacheRewindReserveTokens))
+        #expect(
+            decision(cached, incoming: [ukey("u1"), akey("a1")])?.ledgerReason
+                == .rewindReserveChanged)
+        // The reserve is the plan, not the identity: the model still reports first.
+        #expect(
+            decision(cached, model: "qwen-test", incoming: [ukey("u1")])
+                == .modelMismatch(snapshot: "gemma-test", requested: "qwen-test"))
+        // A matching plan still passes, so the field cannot refuse everything. The feed has
+        // to be the continuation the cache is a prefix *of*: [u1] alone is divergence, not
+        // a plan mismatch (that leg is `forkRefusedByManifest`).
+        #expect(
+            decision(snapshot([ukey("u1"), akey("a1")]), incoming: [ukey("u1"), akey("a1")])
+                == nil)
+    }
+
+    /// Round trip, both directions of the upgrade: the reserve must survive encode/decode
+    /// (a field that silently defaults to 0 would silently disable the rewind at the first
+    /// reload, invisible to every correctness probe), and the byte shape shipped before the
+    /// plan was recorded must fail to decode, which is what routes it to the cold path.
+    @Test("the plan travels: v2 round-trips, a pre-plan sidecar does not decode")
+    func manifestVersionRoundTrip() throws {
+        let written = snapshot([ukey("u1"), akey("a1")])
+        let data = try JSONEncoder().encode(written)
+        let readBack = try #require(try? JSONDecoder().decode(KVCacheManifest.self, from: data))
+        #expect(readBack.version == KVCacheManifest.currentVersion)
+        #expect(readBack.modelId == written.modelId)
+        #expect(readBack.instructionsHash == written.instructionsHash)
+        #expect(readBack.messages == written.messages)
+        #expect(readBack.rewindReserve == kvCacheRewindReserveTokens)
+
+        // Verbatim shape of the sidecars builds before this shipped left on disk.
+        let prePlan = """
+            {"instructionsHash":1308216081840540159,"modelId":"mlx-community/gemma-4-e2b-it-4bit",\
+            "messages":[{"contentHash":-4510834227904338520,"role":"user","hasMedia":false,\
+            "hasToolTraffic":false}],"version":1}
+            """
+        #expect(
+            (try? JSONDecoder().decode(KVCacheManifest.self, from: Data(prePlan.utf8))) == nil,
+            "a sidecar that cannot state its plan must not decode as one")
+    }
+
     @Test("every refusal names a reason the log can carry")
     func refusalLogText() {
         #expect(SnapshotRefusal.unusableManifest.logText == "no usable manifest")
@@ -347,5 +406,8 @@ struct SessionIsolationTests {
         #expect(
             SnapshotRefusal.modelMismatch(snapshot: "a", requested: "b").logText
                 == "stamped model a, request wants b")
+        #expect(
+            SnapshotRefusal.rewindReserveChanged(snapshot: 0, requested: 1024).logText
+                == "built with a 0-row rewind reserve, this build reserves 1024")
     }
 }

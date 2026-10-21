@@ -30,16 +30,45 @@ signed bundle (nested code object ⇒ CodeSign dies). Gate: `MetalShaderLibraryT
   for a model ready in 8 s. Deadline-sleeping is correct only in a single-shot watchdog
   (`EngineInference.swift:149`).
 
+## An edited resend rewinds; it does not re-prefill
+The pool may not *answer* a conversation that diverged from its resident cache
+(`canReusePooledSession`) — but that is not a reason to discard the cache. `rewindHistoryEnd`
+(`SessionPool.swift:1389`, called at `SessionPool.swift:647`) decides whether the cache can be
+rewound onto the conversation that arrived and hands the boundary to the caller as
+`AcquireResult.rewind`; the fork itself is `EngineInference.swift:3139`, the only such site,
+because the transcript cannot cross into the pool actor — upstream `Chat.Message`
+(`Libraries/MLXLMCommon/Chat.swift:13`) is not `Sendable` and carries `UserInput.Image`
+(`Libraries/MLXLMCommon/UserInput.swift:131`). The pool judges, the caller forks.
+
+Three conditions, and two of the ways they fail are silent (measured, not inferred):
+- **The reserve must be requested.** A rotating cache past its window reports `maxTrimCount == 0`
+  (upstream `KVCache.swift:1015`), so `RewindToCommonPrefixRule` downgrades the trim to
+  `.rebuild`: the answer stays correct and `cached_tokens` stays 0.
+  `kvCacheRewindReserveTokens` (`MLXBridge.swift:869`) is therefore passed at all three exits of
+  `makeKVCacheConfiguration`, including the unquantized one that used to return nil.
+- **A rewind is not a refusal.** It books under `prefixReuse`, never `historyDiverged` — a ledger
+  that counts it as refused publishes a full recompute the engine did not perform.
+- **A snapshot states the plan it was written under.** `KVCacheManifest` v2 carries
+  `rewindReserve`; a sidecar that cannot state it does not decode, and the loader drops the cache
+  (one cold turn) rather than hand upstream rows it rejects at first token — `requirePlan` throws
+  `kvCacheConfigurationChanged` for a plan mismatch.
+
+Measured 10-21 (gemma-4-e2b-it-4bit, one session): appended turn `758/734`, edited resend
+`758/718`; the same turn was `758/0` before this landed. Gates: `SessionRewindOnDivergenceTests`
+(the two rules never both say yes, over a 384-cell sweep; one fork site, one decision home,
+reserve at every resolver exit), `SessionIsolationTests` (plan mismatch, precedence, round trip),
+probe 27 (live server: reuse asserted, replaced fact absent from the reply).
+
 ## Steering is delivered at the request seam
 `mergingSteeredTurn` (`Sources/ocoreai/Handlers/ChatHandler.swift`) folds a queued steer into the head
-of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3003`,
-`:3642`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
+of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3004`,
+`:3675`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
 delivers on the next request, or its contract is fiction (root § Endpoint Promises).
 
 ## Video is disclosed where a turn completes, not where bytes arrive
 `/v1/models` may say `video_input=delivered` only once a turn that carried frames has *completed*:
-the single record site is `recordVideoDelivery` (`EngineInference.swift:3232`), called from the
-completion path (`EngineInference.swift:4681`), and the prompt size in its evidence line is upstream's
+the single record site is `recordVideoDelivery` (`EngineInference.swift:3273`), called from the
+completion path (`EngineInference.swift:4725`), and the prompt size in its evidence line is upstream's
 `completionInfo.promptTokenCount` — never a bytes/4 heuristic.
 Counting at the media hand-off instead would claim video for turns that never produced an answer;
 reading `processor_class` would claim it for checkpoints whose processor ignores `input.videos`
@@ -59,7 +88,7 @@ The server-wide row (`/v1/capabilities` → `video_input`) is the *same* measure
 `VideoDeliveryAggregate.evidenceLine`, so no publisher re-words it (a router that assembles its own
 evidence sentence is a second truth). Both are measured-only: `not_observed` is a fact about this
 process, never a claim about the checkpoint. Gate: `CapabilityMeasurementHonestyTests`.
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3234 items: videoInputCount, promptTokens -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3276 items: videoInputCount, promptTokens -->
 
 ## Known defect, deliberately unfixed — do not "fix" it blind
 `_applyBitmask` (`EngineInference.swift:1374`) multiplies by `-Float.leastNormalMagnitude`
@@ -76,12 +105,21 @@ AGENTS.md moved off their targets with no gate going red; these markers are the 
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:149 Task.sleep(until: deadline -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1374 Float.leastNormalMagnitude -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3004 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3633 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4239 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3734 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4254 components: genComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3757 components: mtpGenComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3675 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4281 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3776 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4296 components: genComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3799 components: mtpGenComponents -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:845 case "affine" -->
+<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1389 static func rewindHistoryEnd -->
+<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:647 Self.rewindHistoryEnd( -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3139 rewind.source.session.fork( -->
+<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:869 let kvCacheRewindReserveTokens = 1024 -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:14 public struct Message { -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/UserInput.swift:131 public struct Image { -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1652 func fork(history -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:307 func requirePlan -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/KVCache.swift:1015 var maxTrimCount -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1724 func saveCache -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1110 templateMessages = leadingMessages -->
 

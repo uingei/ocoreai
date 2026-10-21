@@ -2,7 +2,7 @@
 # 27-edited-history-honesty.sh — when a caller rewrites the past, does the answer come from
 # the history it actually sent, and what does that turn really pay?
 #
-# ### Why (AGENTS.md § Open "改历史的那一轮仍付全量")
+# ### Why (AGENTS.md § Open "rewind 已接，储备是拍的常数")
 # An edited resend is the most common state change a coding-agent UI makes — fix a typo in
 # prompt 2 and send again. `SessionPool.canReusePooledSession` refuses it and builds a clean
 # session, because the pooled KV describes the *pre-edit* conversation. Probe 01 already
@@ -13,9 +13,10 @@
 #      refusal actually prevents the leak: it was a rule believed, not observed. If an
 #      edited resend can still answer with the replaced fact, that is a P0 correctness bug
 #      hiding behind a green token ledger.
-#   2. THE PRIZE — § Open keeps the rewind reserve ("接不接仍待样本") pending samples, but
-#      the size of the prize was never stated in tokens on the same run as the correctness
-#      check, so the decision had no number attached to it.
+#   2. THE PRIZE — the reserve was a constant nobody had priced: § Open keeps whether 1024
+#      rows is the right size ("不随模型或内存水位调") pending samples, so this probe states
+#      the prize in tokens on the same run as the correctness check, and keeps the residual
+#      (what the reserve could not cover) visible instead of folding it into a pass.
 #
 # ### What is asserted
 #   1. The run's own premise: an appended warm turn reuses (`cached_tokens > 0`) — without
@@ -24,19 +25,28 @@
 #   2. The codeword mechanism: the appended turn answers with the codeword it was given.
 #   3. THE EDIT IS OBSERVED: after the codeword turn is reworded, the answer must be the
 #      NEW codeword and the OLD one must not appear anywhere in the reply. This is the
-#      leak the refuse-and-rebuild exists to prevent.
+#      leak the refusal exists to prevent — and, once the cache is rewound instead of
+#      discarded, the leak the trim must not reintroduce: the rows between the shared
+#      prefix and the old answer have to be gone, not merely ignored.
 #   4. Honest accounting on that turn: `prompt_tokens >= cached_tokens`, and the reused part
 #      may not exceed what the warm appended turn reused (a rebuild that reports more reuse
 #      than the extension is the surface promising more than the engine delivered).
-#   5. The ledger names this run's refusal (`historyDiverged >= 1`) — cost and cause on one
-#      surface, not one without the other.
+#   4b. The edited turn REUSES: `cached_tokens > 0`. The pool refuses to answer a diverged
+#       conversation from a stale cache, but it no longer throws that cache away — it offers
+#       the caller `ChatSession.fork(history:)` (ChatSession.swift:1652 at pin 48114eedf),
+#       which keeps the KV rows the new prompt still starts with. Without this leg the
+#       rewind could silently stop working and only latency would notice.
+#   5. The ledger records what actually happened: `historyDiverged == 0` (this edit was not
+#      refused) and `prefixReuse` publishes the reuse the usage field reported — cause, cost
+#      and gain on one surface, none of them inferred by this probe.
 #
 # ### What is measured (NOTE, not asserted)
 #   paid = prompt_tokens - cached_tokens on the edited turn, against the reused count of the
-#   appended turn: that pair IS the sample the rewind-reserve decision asked for (upstream
-#   #622 `KVCacheConfiguration.rewind(maxTokens:)` + `RewindToCommonPrefixRule` exist at our
-#   pin and are not requested here). Wiring it is a memory decision, so the number is
-#   evidence, not a gate.
+#   appended turn. The reserve is requested (MLXBridge `kvCacheRewindReserveTokens`, 1024
+#   rows — pinned present by `SessionRewindOnDivergenceTests`), and what is left paid is
+#   the distance the reserve cannot cover: rows older than the reserve are gone, so an edit
+#   further back than 1024 tokens still re-prefills its prefix. That residual is the
+#   memory dial, not a correctness dial, which is why it is reported and not asserted.
 #
 # Run: bash scripts/probes/run.sh 27
 PROBE_NAME="27-edited-history-honesty"
@@ -135,26 +145,38 @@ if [ "${PROBE_STATUS:-}" = "200" ]; then
     probe_fail "a breakdown larger than its whole: prompt_tokens=${EDIT_PROMPT} cached_tokens=${EDIT_CACHED}"
   fi
   if [ "${EDIT_CACHED:-0}" -le "${APPEND_CACHED:-0}" ]; then
-    probe_ok "the rebuilt turn claims no more reuse (${EDIT_CACHED}) than the extended turn got (${APPEND_CACHED})"
+    probe_ok "the edited turn claims no more reuse (${EDIT_CACHED}) than the extended turn got (${APPEND_CACHED})"
   else
     probe_fail "the edited turn claims cached_tokens=${EDIT_CACHED} > the appended turn's ${APPEND_CACHED} — the surface is promising reuse the engine did not deliver"
   fi
+  if [ "${EDIT_CACHED:-0}" -gt 0 ]; then
+    probe_ok "the edited resend reused ${EDIT_CACHED}/${EDIT_PROMPT} token(s) — the shared prefix was kept instead of re-prefilled"
+  else
+    probe_fail "the edited resend re-prefilled the whole conversation (cached_tokens=${EDIT_CACHED:-0}) — the rewind never reached the cache, so this turn still costs the full prompt"
+  fi
 fi
 
-probe_section "4) the refusal is named on the same surface that prices it"
+probe_section "4) the ledger records a rewind, not a refusal"
 ENC_MODEL="$(python3 -c 'import sys;print(sys.argv[1].replace("/", "%2F"))' "$MODEL")"
 probe_api GET "/v1/models/${ENC_MODEL}/kv-cache"
 if [ "${PROBE_STATUS:-}" = "200" ]; then
   RR_DIVERGED="$(probe_json "$PROBE_BODY" 'reuseRefusals.byReason.historyDiverged')"
-  if [ "${RR_DIVERGED:-0}" -ge 1 ]; then
-    probe_ok "kv-cache publishes historyDiverged=${RR_DIVERGED} — the edit's refusal is on the wire, not only in the log"
+  if [ "${RR_DIVERGED:-0}" -eq 0 ]; then
+    probe_ok "historyDiverged=${RR_DIVERGED:-0} — this edit was rewound onto the shared prefix, not discarded and rebuilt"
   else
-    probe_fail "this run edited a conversation, yet reuseRefusals.byReason.historyDiverged=${RR_DIVERGED:-absent}"
+    probe_fail "reuseRefusals.byReason.historyDiverged=${RR_DIVERGED} — the pool threw this conversation's cache away instead of rewinding it"
+  fi
+  PR_LAST_CACHED="$(probe_json "$PROBE_BODY" 'prefixReuse.lastCached')"
+  PR_LAST_PREFILL="$(probe_json "$PROBE_BODY" 'prefixReuse.lastPrefilled')"
+  if [ "${PR_LAST_CACHED:-0}" -gt 0 ] && [ "${PR_LAST_PREFILL:-0}" -gt 0 ]; then
+    probe_ok "kv-cache publishes the same turn the usage field reported: cached=${PR_LAST_CACHED}, prefilled=${PR_LAST_PREFILL} — measured by the engine, not inferred by this probe"
+  else
+    probe_fail "prefixReuse reports lastCached=${PR_LAST_CACHED:-absent} lastPrefilled=${PR_LAST_PREFILL:-absent} after a turn that reused ${EDIT_CACHED:-?} tokens — the wire and the usage field disagree"
   fi
 else
   probe_fail "GET /v1/models/<model>/kv-cache -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:160}"
 fi
 
-probe_note "SAMPLE for the rewind-reserve decision (§ Open): appended turn reused ${APPEND_CACHED:-?} tokens; edited turn paid $((${EDIT_PROMPT:-0} - ${EDIT_CACHED:-0})) of ${EDIT_PROMPT:-?} (cached ${EDIT_CACHED:-0}). That paid figure is what a rewind reserve (upstream #622 KVCacheConfiguration.rewind(maxTokens:) + RewindToCommonPrefixRule, both present at pin 48114eedf and not requested here) would aim to skip; it is reported, not asserted, because reserving rows costs memory and the wiring is an owner call."
+probe_note "MEASURED: appended turn reused ${APPEND_CACHED:-?} tokens; edited turn reused ${EDIT_CACHED:-0} of ${EDIT_PROMPT:-?} and paid $((${EDIT_PROMPT:-0} - ${EDIT_CACHED:-0})). The paid remainder is the distance the 1024-row rewind reserve (MLXBridge kvCacheRewindReserveTokens) cannot cover — rows older than the reserve are gone, so an edit further back still re-prefills its prefix. Size it by memory, not by correctness: pre-reserve this same turn reused 0 of 758."
 
 probe_summary "$PROBE_NAME"

@@ -851,6 +851,33 @@ nonisolated func extractKVQuantizationParams(
     }
 }
 
+/// Rows a rotating cache keeps beyond its attention window so a rewound conversation can
+/// land on rows that are still resident.
+///
+/// Why this exists at all (measured 10-21, probe 27's repro): forking a session onto the
+/// shared prefix is not enough on a checkpoint with sliding-window layers — its rotating
+/// caches report `maxTrimCount == 0` once the window has turned, so upstream's own
+/// verify-and-downgrade turns the rewind into a rebuild and `cached_tokens` stays 0. The
+/// reserve is what extends that limit (`CacheConfiguration.swift:299` hands
+/// `kvCache.rewind.maxTokens` straight to `RotatingKVCache.rewindCapacity`; the exact
+/// wording is at `KVCache.swift:1036`).
+///
+/// 1024 tokens is the distance an edit may sit from the current turn and still rewind
+/// exactly; past it the engine rebuilds, which is the pre-#700 behaviour, not a failure.
+/// The cost is storage only — it widens no attention window (`KVCacheConfiguration.Rewind`
+/// is documented as adding rows "beyond each attention window without widening attention").
+let kvCacheRewindReserveTokens = 1024
+
+/// The reserve as upstream wants it. `Rewind.init` rejects `maxTokens <= 0`, so a disabled
+/// reserve degrades to "no reserve requested" rather than to an error: the caller keeps
+/// full-precision caches and pays a rebuild on a diverged turn.
+nonisolated func makeKVCacheRewind(maxTokens: Int = kvCacheRewindReserveTokens)
+    -> MLXLMCommon.KVCacheConfiguration.Rewind?
+{
+    guard maxTokens > 0 else { return nil }
+    return try? MLXLMCommon.KVCacheConfiguration.Rewind(maxTokens: maxTokens)
+}
+
 /// Convert legacy KV cache quantization parameters to the typed
 /// ``KVCacheConfiguration`` API (mlx-swift-lm Evaluate.swift L74-79).
 ///
@@ -912,7 +939,7 @@ nonisolated func makeKVCacheConfiguration(
         } catch {
             return nil
         }
-        return MLXLMCommon.KVCacheConfiguration(strategy: strategy)
+        return MLXLMCommon.KVCacheConfiguration(strategy: strategy, rewind: makeKVCacheRewind())
     }
 
     // Fallback: sampling-level kvBits field
@@ -949,10 +976,14 @@ nonisolated func makeKVCacheConfiguration(
         } catch {
             return nil
         }
-        return MLXLMCommon.KVCacheConfiguration(strategy: strategy)
+        return MLXLMCommon.KVCacheConfiguration(strategy: strategy, rewind: makeKVCacheRewind())
     }
 
-    return nil
+    // No quantization was asked for, but the cache is still worth configuring: without a
+    // rewind reserve every edited resend rebuilds from scratch (measured above), and
+    // `.fullPrecision` says out loud what `nil` used to mean implicitly.
+    return MLXLMCommon.KVCacheConfiguration(
+        strategy: .fullPrecision, rewind: makeKVCacheRewind())
 }
 
 private func parseTurboScheme(_ scheme: String) -> (Int, Int)? {

@@ -4,7 +4,7 @@
 //!
 //! ### Why this exists
 //! The pool already *decides* reuse refusal with named rules: ``SnapshotRefusal`` for the disk
-//! path (five cases, pinned by `SessionIsolationTests`), and the same two premises inline at
+//! path (six cases, pinned by `SessionIsolationTests`), and the same two premises inline at
 //! the in-memory site (`SessionPool.swift`'s `canReusePooledSession` check). What it did with
 //! the verdict was write one `logger.info` line per refusal and forget it. So the two open
 //! decisions in this area have no numbers attached to them:
@@ -30,10 +30,14 @@
 //! ### What this deliberately is NOT
 //! `crossConversationTurns` is an **opportunity** count, not a capability claim (invariant 2).
 //! It says a resident session's transcript shared a prefix with this turn's feed under the same
-//! instructions; it does *not* say upstream's rewind path (`RewindToCommonPrefixRule`, still
-//! unrequested here — § Open, rewind reserve) could have skipped that prefix, and no wire
-//! value in this file implies a token saving. Before any turn has been refused the answer is
-//! an empty set, never a predicted `would_save`.
+//! instructions; it does *not* say those two conversations ever shared a prefix, because
+//! sessions are still keyed by `conversationId` and no cross-conversation sharing exists.
+//! (Divergence *within* one conversation is a different case and is no longer hypothetical:
+//! a rewound turn reuses from the common prefix, measured 10-21 at 718 of 758 prompt tokens
+//! on gemma-4-e2b-it-4bit, gate = probe 27. `historyDiverged` counts only refusals that
+//! stayed refusals — an offer made is not recorded as a refusal, so a rewound turn cannot
+//! inflate the opportunity count either.)
+//! Before any turn has been refused the answer is an empty set, never a predicted `would_save`.
 
 import Foundation
 
@@ -59,6 +63,9 @@ enum ReuseRefusalReason: String, Codable, Equatable, Sendable, CaseIterable {
     /// No sidecar, unreadable, or written by a build whose hashes came from the per-process
     /// seed: nothing states where the cache came from.
     case unusableManifest
+    /// The snapshot was written under a different KV-cache plan than this build asks for, so
+    /// its rows cannot be realized against today's generation parameters.
+    case rewindReserveChanged
 
     /// The in-memory rule's verdict as a name, with `nil` meaning reusable.
     ///
@@ -85,6 +92,7 @@ extension SnapshotRefusal {
         case .mediaTurn: return .mediaTurn
         case .instructionsChanged: return .instructionsChanged
         case .notAPrefix: return .historyDiverged
+        case .rewindReserveChanged: return .rewindReserveChanged
         }
     }
 }

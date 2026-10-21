@@ -201,20 +201,39 @@ enum ConversationIdentity {
 /// without proof re-attaches a previous conversation's context to a new request, so
 /// this manifest is the proof, and no manifest means no reuse.
 struct KVCacheManifest: Codable, Sendable {
-    static let currentVersion = 1
+    /// 2 — the manifest now names the KV-cache plan the snapshot was written under.
+    ///
+    /// A v1 file cannot state its reserve, and upstream will not realize a cache whose plan
+    /// differs from the live generation parameters: `requirePlan` throws
+    /// `kvCacheConfigurationChanged` (`ChatSession.swift:307`), which would surface as a
+    /// failed turn for every conversation that persisted before a plan change. Refusing the
+    /// snapshot here turns that into what it actually is — one cold turn — and says so on
+    /// the ledger instead of the error path.
+    static let currentVersion = 2
 
     let version: Int
     let modelId: String
     /// Fingerprint of the system instructions the cache was built under. A changed
     /// system prompt means the cached prefix encodes text this request never sent.
     let instructionsHash: Int
+    /// Rows per rotating cache this snapshot was built with (`kvCacheRewindReserveTokens`).
+    /// Part of the plan, not a preference: 0 and 1024 describe caches that are not
+    /// interchangeable, because only the latter can rewind into retained history.
+    let rewindReserve: Int
+
     /// The messages the KV cache represents, in render order.
     let messages: [MessageHistoryKey]
 
-    init(modelId: String, instructionsHash: Int, messages: [MessageHistoryKey]) {
+    init(
+        modelId: String,
+        instructionsHash: Int,
+        messages: [MessageHistoryKey],
+        rewindReserve: Int
+    ) {
         self.version = Self.currentVersion
         self.modelId = modelId
         self.instructionsHash = instructionsHash
+        self.rewindReserve = rewindReserve
         self.messages = messages
     }
 
@@ -232,11 +251,19 @@ struct KVCacheManifest: Codable, Sendable {
     func reuseDecision(
         modelId requestedModelId: String,
         instructionsHash requestedInstructionsHash: Int,
-        incomingMessages: [MessageHistoryKey]
+        incomingMessages: [MessageHistoryKey],
+        rewindReserve requestedRewindReserve: Int
     ) -> SnapshotRefusal? {
         guard isUsable else { return .unusableManifest }
         guard modelId == requestedModelId else {
             return .modelMismatch(snapshot: modelId, requested: requestedModelId)
+        }
+        // Identity first, then the plan the bytes were produced under: a cache that cannot
+        // be realized under today's parameters is not a stale prefix, it is an error
+        // waiting at first token.
+        guard rewindReserve == requestedRewindReserve else {
+            return .rewindReserveChanged(
+                snapshot: rewindReserve, requested: requestedRewindReserve)
         }
         // Recorded here, decided once — by ``MLXSessionPool/canReusePooledSession(cachedMessageCount:commonPrefixCount:instructionsMatch:)``
         // below, the same gate the in-memory pool consults. Two copies of the rule is how
@@ -288,6 +315,10 @@ enum SnapshotRefusal: Equatable, Sendable {
     /// The cache holds turns the caller never sent - a fork (edit & resend), a
     /// compacted history, or an identity collision.
     case notAPrefix(cached: Int, commonPrefix: Int)
+    /// The snapshot was written under a different KV-cache plan (here: a different rewind
+    /// reserve). Its rows cannot be realized under today's parameters, so it is dropped
+    /// rather than handed to a session that would fail the turn.
+    case rewindReserveChanged(snapshot: Int, requested: Int)
 
     /// One-line reason for the log, so a dropped cache is explainable after the fact.
     var logText: String {
@@ -299,6 +330,8 @@ enum SnapshotRefusal: Equatable, Sendable {
         case .mediaTurn: return "media turn cannot be re-verified"
         case .notAPrefix(let cached, let commonPrefix):
             return "cached \(cached) exceeds common prefix \(commonPrefix)"
+        case .rewindReserveChanged(let snapshot, let requested):
+            return "built with a \(snapshot)-row rewind reserve, this build reserves \(requested)"
         }
     }
 
@@ -378,6 +411,41 @@ struct AcquireResult {
     /// - < messages.count: partial prefix match (pass suffix)
     /// - == messages.count: full match (only new messages needed, but pool hit means nothing new yet)
     let divergenceIndex: Int
+
+    /// Set when this turn was refused but the resident cache can be rewound onto the
+    /// conversation that arrived instead of being rebuilt. `pooled` above still answers
+    /// this turn correctly (cold), so a caller that ignores this field keeps the old
+    /// behaviour; a caller that takes it forks ``PooledRewind/source`` and prefers the fork.
+    let rewind: PooledRewind?
+
+    init(
+        pooled: PooledChatSession,
+        isHit: Bool,
+        divergenceIndex: Int,
+        rewind: PooledRewind? = nil
+    ) {
+        self.pooled = pooled
+        self.isHit = isHit
+        self.divergenceIndex = divergenceIndex
+        self.rewind = rewind
+    }
+}
+
+/// A resident KV cache that can be rewound onto a conversation that diverged from it.
+///
+/// The pool cannot fork on the caller's behalf: ``ChatSession/fork(history:)`` takes
+/// `[Chat.Message]`, which is not `Sendable`, so a transcript cannot cross into the pool
+/// actor. The pool therefore decides *whether* a rewind is sound (``
+/// MLXSessionPool/rewindHistoryEnd``) and hands the boundary to the caller, who owns the
+/// messages and performs the fork.
+struct PooledRewind {
+    /// The session whose cache still holds the shared prefix. Not the session `acquire`
+    /// returned: taking this offer means forking this one and preferring the fork.
+    let source: PooledChatSession
+
+    /// How many leading messages the fork should hold — the longest prefix this turn and
+    /// that cache agree on. The caller then feeds `messages[historyEnd...]`.
+    let historyEnd: Int
 }
 
 // MARK: - Session Pool Actor
@@ -519,6 +587,9 @@ actor MLXSessionPool {
         let instructionsFP = DurableHash.fingerprint(instructions ?? "")
 
         // 3. Try hit — with prefix match
+        // A refusal that has a resumable cache behind it survives to the miss return below,
+        // where the caller can still take it (see ``AcquireResult/rewind``).
+        var pendingRewind: PooledRewind?
         if let pooled = pool[key] {
             let divergence: Int
             if let prefix = prefixMessages {
@@ -538,14 +609,55 @@ actor MLXSessionPool {
             // independent one-message /v1/chat/completions calls, where the third
             // quoted the first question verbatim. Same rule covers an edited
             // resend — the old KV describes the pre-edit conversation.
-            // Discard rather than hand back: a forked conversation's cache is stale
-            // anyway, and the fall-through below builds a clean session.
+            // So this session may not answer the turn. Whether its cache is
+            // nevertheless worth keeping is a second question, answered below
+            // (``rewindHistoryEnd``): when it is, the caller gets the offer and this turn
+            // still falls through to a clean session, so nothing here depends on the
+            // caller taking it.
             let instructionsMatch = pooled.instructionsHash == instructionsFP
             if !Self.canReusePooledSession(
                 cachedMessageCount: pooled.messageHistory.count,
                 commonPrefixCount: divergence,
                 instructionsMatch: instructionsMatch
             ) {
+                // Refusing to *answer* from this cache is not the same as throwing it away,
+                // and the two questions have different answers. The rule above says no,
+                // correctly: these KV rows describe the conversation before this caller
+                // replaced part of it. Upstream's `fork(history:)`
+                // (ChatSession.swift:1652 at pin 48114eedf) answers the other question — may
+                // the cache be rewound onto the conversation the caller did send? — with a
+                // session that holds that transcript and "keeps only the part of the cache
+                // that its prompt starts with, and prefills the rest". Its boundary is the
+                // token-level common prefix, and upstream verifies the trim landed before
+                // trusting it (the verify-and-downgrade block that opens at
+                // ChatSession.swift:1217). Editing a past turn is the most common state change a
+                // coding-agent UI makes, and every such turn used to re-prefill everything:
+                // measured 10-21 (probe 27, gemma-4-e2b-it-4bit, one session) a warm
+                // appended turn reused 734 of 758 tokens while the edited resend reused 0.
+                //
+                // The fork cannot be performed here: `Chat.Message` is not `Sendable`
+                // (Chat.swift:14 — it carries `UserInput.Image`, UserInput.swift:131), so a
+                // transcript cannot cross into this actor. That is also why this file matches
+                // conversations on `MessageHistoryKey` rather than on messages. So the pool
+                // hands the caller the resumable session plus the boundary, and the caller
+                // forks in its own isolation region (`EngineInference.swift`).
+                //
+                // Everything below still runs unchanged: this turn is served by a clean
+                // session, so a caller that ignores the offer behaves exactly as before.
+                let rewindOffer = Self.rewindHistoryEnd(
+                    cachedMessageCount: pooled.messageHistory.count,
+                    commonPrefixCount: divergence,
+                    incomingMessageCount: prefixMessages?.count,
+                    instructionsMatch: instructionsMatch,
+                    carriesMedia: (prefixMessages?.contains { $0.hasMedia } ?? false)
+                        || pooled.messageHistory.contains { $0.hasMedia }
+                )
+                if let rewindOffer {
+                    pendingRewind = PooledRewind(source: pooled, historyEnd: rewindOffer)
+                    logger.info(
+                        "Session pool REWIND offered for \(key): this conversation diverges at message \(rewindOffer)/\(pooled.messageHistory.count) — the resident cache can be rewound onto the shared prefix instead of re-prefilling it"
+                    )
+                }
                 pool[key] = nil
                 // A discarded conversation no longer needs the bytes its transcript
                 // named. Anything a still-live session also cites is left alone.
@@ -557,11 +669,21 @@ actor MLXSessionPool {
                 // Counted at the site that already decided, from the same two premises, in
                 // the same precedence (`ReuseRefusalReason.decide`) - so the log line, the wire
                 // counter and the gate cannot drift into three spellings of one refusal.
-                if let reason = ReuseRefusalReason.decide(
-                    instructionsMatch: instructionsMatch,
-                    cachedMessageCount: pooled.messageHistory.count,
-                    commonPrefixCount: divergence
-                ) {
+                //
+                // Not counted when a rewind was offered: a turn whose cache survives is not a
+                // refusal, and publishing one for it would report a full rebuild the engine
+                // did not perform (AGENTS.md invariant 2 — the surface may not state more
+                // than the engine delivered). The offer is not speculation at this point:
+                // today's only `acquire` caller takes it, and
+                // `SessionRewindOnDivergenceTests.singleHomeForTheFork` pins that there is
+                // exactly one fork site to take it with.
+                if rewindOffer == nil,
+                    let reason = ReuseRefusalReason.decide(
+                        instructionsMatch: instructionsMatch,
+                        cachedMessageCount: pooled.messageHistory.count,
+                        commonPrefixCount: divergence
+                    )
+                {
                     reuseRefusals.record(modelId: modelId, reason: reason)
                 }
                 var refusalReasons: [String] = []
@@ -577,7 +699,7 @@ actor MLXSessionPool {
                 // turn costs a full prefill. A refusal whose cause only shows up when somebody
                 // raises the log level is an explanation nobody gets at the moment it matters.
                 logger.info(
-                    "Session pool entry \(key) not reusable: \(refusalReasons.joined(separator: "; ")) — building a clean session"
+                    "Session pool entry \(key) not reusable: \(refusalReasons.joined(separator: "; ")) — \(rewindOffer == nil ? "building a clean session" : "cache kept for a rewind instead of discarded")"
                 )
             } else {
                 pool[key] = nil
@@ -719,7 +841,8 @@ actor MLXSessionPool {
         return AcquireResult(
             pooled: freshPooled,
             isHit: false,
-            divergenceIndex: 0
+            divergenceIndex: 0,
+            rewind: pendingRewind
         )
     }
 
@@ -922,7 +1045,8 @@ actor MLXSessionPool {
         let manifest = KVCacheManifest(
             modelId: entry.modelId,
             instructionsHash: entry.instructionsHash,
-            messages: entry.messageHistory
+            messages: entry.messageHistory,
+            rewindReserve: kvCacheRewindReserveTokens
         )
         let log = self.logger
         _ = Task.detached(priority: .utility) { [entry, log, cacheURL, manifest] in
@@ -984,7 +1108,8 @@ actor MLXSessionPool {
         if let refusal = manifest.reuseDecision(
             modelId: modelId,
             instructionsHash: instructionsHash,
-            incomingMessages: incomingMessages
+            incomingMessages: incomingMessages,
+            rewindReserve: kvCacheRewindReserveTokens
         ) {
             reuseRefusals.record(modelId: modelId, reason: refusal.ledgerReason)
             discardCachedSession(cacheURL: cacheURL, why: refusal.logText)
@@ -1237,6 +1362,45 @@ actor MLXSessionPool {
         instructionsMatch: Bool
     ) -> Bool {
         instructionsMatch && commonPrefixCount >= cachedMessageCount
+    }
+
+    /// Rewind boundary for a diverged conversation, or nil when it must be discarded.
+    ///
+    /// The pair to ``canReusePooledSession``, and it answers a different question. That rule
+    /// asks "may this turn be answered from the cache as it stands?" — still no, and it must
+    /// stay no: the cache holds turns this caller replaced. This asks "may the cache be
+    /// rewound onto the conversation the caller *did* send, before answering?" — the question
+    /// upstream's `ChatSession.fork(history:)` exists to take (ChatSession.swift:1652 at pin
+    /// 48114eedf), whose trim boundary is the token-level common prefix and which verifies
+    /// the trim landed before trusting it. Kept pure and off the MLX path so the whole table
+    /// is pinned by `SessionRewindOnDivergenceTests` without a live model.
+    ///
+    /// Three premises, one home:
+    /// - `instructionsMatch`: a session renders the instructions it was *created* with, so a
+    ///   rewound fork would still answer under the old instruction list.
+    /// - `incomingMessageCount > commonPrefixCount`: past the shared prefix the caller must
+    ///   have something to say. The 10-12 cross-talk shape is a same-key resend of an
+    ///   already-answered turn (`incoming == commonPrefix`); rewinding there would leave the
+    ///   turn no new message and the caller no answer, so it keeps the discard path.
+    /// - `!carriesMedia`: a media placeholder is the same tokens for different pixels, so
+    ///   shared tokens cannot prove a shared prefix, and upstream refuses to reconcile those
+    ///   (ChatSession.swift:345-356) — the fork would start cold while this line claimed a
+    ///   rewind.
+    nonisolated static func rewindHistoryEnd(
+        cachedMessageCount: Int,
+        commonPrefixCount: Int,
+        incomingMessageCount: Int?,
+        instructionsMatch: Bool,
+        carriesMedia: Bool
+    ) -> Int? {
+        guard instructionsMatch,
+            !carriesMedia,
+            commonPrefixCount >= 0,
+            commonPrefixCount < cachedMessageCount,
+            let incomingMessageCount,
+            incomingMessageCount > commonPrefixCount
+        else { return nil }
+        return commonPrefixCount
     }
 
     /// Which per-turn generation knobs differ between what a pooled session currently

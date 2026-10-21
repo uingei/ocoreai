@@ -30,14 +30,18 @@
 #
 # What it measures: tokens paid / reused / promptTime per turn, and the tok/s rate with
 # its 30k-context extrapolation, printed from this run's own numbers.
-# Turn 4 is measured and deliberately NOT asserted: an edited resend (a past turn reworded)
-# is refused by `canReusePooledSession` and rebuilds from scratch, so its cached_tokens is
-# the price of having no rewind reserve. Whether to pay that storage for
-# `KVCacheConfiguration.rewind` is the owner's call, and this number is the evidence.
+# Turn 4 is an edited resend (a past turn reworded). `canReusePooledSession` still refuses
+# to ANSWER from that cache — and since 10-21 the cache is no longer discarded either: the
+# session is forked onto the shared prefix, so this turn reuses it and the turn owes an
+# accounting line like any other warm turn. Correctness of the edit (the replaced fact must
+# not leak) is owned by 27-edited-history-honesty.sh, which is why turn 4's REUSE stays a
+# NOTE here: this probe prices turns, it does not judge what they say.
 #
 # Before/after baseline for the record (same host, same script, same model):
 #   10-16 @ pin 4cc5504 — [708, 730, 749] paid, cached 0/0/0, status no_reuse_observed
 #   10-16 @ pin 6e338e5 — [708,  20,  16] paid, cached 0/710/733, status reuse_observed
+#   10-21 @ pin 48114eedf — same three turns, plus the edited resend: 721 of 752 reused
+#                             (it re-prefilled all 752 before fork + rewind reserve)
 # (turns 1-3; the edited-resend turn was added after these two runs)
 #
 # Run: bash scripts/probes/01-prefix-accounting.sh
@@ -101,12 +105,13 @@ else
 fi
 
 # turn 4 — the edited resend: same conversation, but the second user turn is reworded, so
-# the transcript no longer *extends* what the pool holds. SessionPool.canReusePooledSession
-# refuses that (the KV describes the pre-edit conversation) and a clean session is built.
-# This is the measurement behind the open rewind-reserve item: upstream #622 now provides
-# KVCacheConfiguration.rewind(maxTokens:) plus trim-to-common-prefix, and this engine does
-# not request a reserve. NOTE only — wiring it is a decision with a memory cost, so the
-# number is evidence for that decision, not a regression gate.
+# the transcript no longer *extends* what the pool holds. Answering from that KV would leak
+# the pre-edit turn, so `canReusePooledSession` refuses it — but the cache is now rewound
+# onto the shared prefix instead of dropped (SessionPool.rewindHistoryEnd -> the fork at
+# EngineInference, with the reserve requested in MLXBridge.makeKVCacheConfiguration). The
+# number printed here is what that leaves unpaid: rows older than the 1024-row reserve are
+# gone, so an edit further back still re-prefills its prefix. Size is a memory dial, so it
+# stays a NOTE; the reuse itself is asserted by probe 27 (cached_tokens > 0).
 U2EDITED="Now reply with exactly the word BETA, spelled in capitals."
 U4="And finally, exactly the word DELTA."
 body="$(probe_chat_body "$SESSION" "$(python3 -c '
@@ -116,7 +121,7 @@ probe_chat "$SESSION" "$body"
 if [ "${PROBE_STATUS:-}" = "200" ]; then
   T4_PROMPT="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens')"
   T4_CACHED="$(probe_json "$PROBE_BODY" 'usage.prompt_tokens_details.cached_tokens')"
-  probe_note "edited resend (a past turn reworded) 200 — prompt_tokens=${T4_PROMPT:-?} cached_tokens=${T4_CACHED:-none}: this is what an edit costs today"
+  probe_note "edited resend (a past turn reworded) 200 — prompt_tokens=${T4_PROMPT:-?} cached_tokens=${T4_CACHED:-none}: what an edit costs with a 1024-row rewind reserve (before the rewind was wired, this same turn re-prefilled all ${T4_PROMPT:-?})"
 else
   probe_fail "turn 4 (edited resend) -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:200}"
 fi
@@ -150,6 +155,13 @@ probe_section "engine log — what the pool and upstream actually did"
 # demand a line the engine is right not to write.
 HITS="$(grep -c "Session pool HIT.*$SESSION.*withholding them" "$PROBE_LOG" 2>/dev/null || true)"
 HITS="${HITS:-0}"
+# A rewound turn withholds the shared prefix from its feed exactly the way a HIT does
+# (EngineInference sets divergenceIndex to the rewind boundary and feeds the suffix), so it
+# is a warm turn and owes an accounting line on the same terms. Counting only the HIT form
+# would demand 2 lines for 3 warm turns and blame the engine for keeping a cache it kept.
+REWOUNDS="$(grep -c "Session REWOUND for $SESSION" "$PROBE_LOG" 2>/dev/null || true)"
+REWOUNDS="${REWOUNDS:-0}"
+HITS=$(( HITS + REWOUNDS ))
 NOREUSE_LINES="$(grep "Prefix cache reused no tokens for $SESSION" "$PROBE_LOG" 2>/dev/null || true)"
 NOREUSE="$(printf '%s' "$NOREUSE_LINES" | grep -c . || true)"
 NOREUSE="${NOREUSE:-0}"
@@ -206,10 +218,10 @@ fi
 # and never the whole cannot see a whole that is too small (AGENTS.md invariant 1). Upstream's
 # total is cached + prefilled (mlx-swift-lm Evaluate.swift:2984-2987) and the reuse line already
 # prints it, so log and wire must agree digit for digit.
-PAIR_CHECK="$(python3 - "$PROBE_LOG" "$SESSION" "$T2_CACHED" "$T2_PROMPT" "$T3_CACHED" "$T3_PROMPT" <<'PY'
+PAIR_CHECK="$(python3 - "$PROBE_LOG" "$SESSION" "$T2_CACHED" "$T2_PROMPT" "$T3_CACHED" "$T3_PROMPT" "$T4_CACHED" "$T4_PROMPT" <<'PY'
 import re, sys
 log, session = sys.argv[1], sys.argv[2]
-wire = [(sys.argv[i], sys.argv[i + 1]) for i in (3, 5)]
+wire = [(sys.argv[i], sys.argv[i + 1]) for i in (3, 5, 7)]
 try:
     text = open(log, errors="replace").read()
 except Exception as e:
@@ -464,12 +476,16 @@ else
   if [ -z "$RR_TOTAL" ]; then
     probe_fail "kv-cache payload carries no reuseRefusals — the refusal accounting is not on the surface"
   else
-    LOG_REFUSALS="$(grep -c "not reusable:" "$PROBE_LOG" 2>/dev/null || true)"
+    # Only the lines that threw the cache away are refusals. Since 10-21 the diverged-turn
+    # line can also end "cache kept for a rewind instead of discarded", and counting that as
+    # a refusal would have the counter report a rebuild the engine did not do — the same
+    # direction of error this whole probe exists to catch (AGENTS.md invariant 2).
+    LOG_REFUSALS="$(grep -c "not reusable:.*building a clean session" "$PROBE_LOG" 2>/dev/null || true)"
     LOG_REFUSALS="${LOG_REFUSALS:-0}"
-    if [ "${RR_TOTAL:-0}" -ge 1 ] && [ "${RR_DIVERGED:-0}" -ge 1 ]; then
-      probe_ok "reuseRefusals on the wire: total=$RR_TOTAL historyDiverged=$RR_DIVERGED (the edited resend was named, not just logged)"
+    if [ "${RR_DIVERGED:-0}" -gt 0 ]; then
+      probe_fail "this run's edited resend was rewound, yet reuseRefusals.historyDiverged=$RR_DIVERGED — the ledger still books a rewound turn as refused-and-rebuilt"
     else
-      probe_fail "the edited resend was refused this run, yet reuseRefusals reports total=${RR_TOTAL:-?} historyDiverged=${RR_DIVERGED:-absent} — the ledger did not record what the pool did"
+      probe_ok "reuseRefusals on the wire: total=$RR_TOTAL historyDiverged=${RR_DIVERGED:-0} — the rewound edit is not booked as a refusal (probe 27 asserts the reuse it got instead)"
     fi
     if [ "${RR_TOTAL:-0}" -lt "$LOG_REFUSALS" ]; then
       probe_fail "reuseRefusals.total=$RR_TOTAL is below the $LOG_REFUSALS in-memory refusal line(s) in the log — a counter that misses refusals cannot price the rules it counts"

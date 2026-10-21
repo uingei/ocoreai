@@ -3128,7 +3128,49 @@ extension EnginePool {
                 // Pool slot is released at end of inference body (below).
                 // Early-release paths (guided gen / MTP / std on pool hit) release
                 // via poolRefForRelease and nil out chatSession to prevent double release.
-                if divergenceIndex > 0 {
+                if let rewind = acquired.rewind, rewind.historyEnd < mlxMessages.count {
+                    // The pool refused this conversation but left a resumable cache behind:
+                    // `fork(history:)` (ChatSession.swift:1652) gives back a session that
+                    // holds *this* transcript and keeps only the KV rows its prompt starts
+                    // with, so an edited resend stops costing a full re-prefill. The pool
+                    // could not do this itself — `[Chat.Message]` is not `Sendable`, so the
+                    // transcript cannot cross into the pool actor — hence the split: the pool
+                    // decided soundness, this site owns the messages.
+                    let forked = await rewind.source.session.fork(
+                        history: Array(mlxMessages[0 ..< rewind.historyEnd]))
+                    // A fork inherits the parent's configuration, and sampling lives on the
+                    // session rather than the call (`ChatSession.swift:370`), so a fork that
+                    // keeps last turn's knobs answers this turn under them — the same drift
+                    // `staleSamplingFields` names on the pool-hit path.
+                    let overriddenFields = MLXSessionPool.staleSamplingFields(
+                        before: forked.generateParameters,
+                        after: genParams
+                    )
+                    forked.generateParameters = genParams
+                    chatSession = forked
+                    pooledSession = PooledChatSession(
+                        session: forked,
+                        lastAccessedAt: .now,
+                        cacheFileURL: rewind.source.cacheFileURL,
+                        instructionsHash: rewind.source.instructionsHash,
+                        modelId: modelId,
+                        // From here this cache represents the shared prefix and nothing else;
+                        // `release` extends the ledger with what this turn actually adds.
+                        messageHistory: Array(
+                            rewind.source.messageHistory[0 ..< rewind.historyEnd]),
+                        mediaFiles: []
+                    )
+                    divergenceIndex = rewind.historyEnd
+                    newMessages = Array(mlxMessages[rewind.historyEnd...])
+                    log.info(
+                        "Session REWOUND for \(convKey): history re-sent with a change at message \(rewind.historyEnd)/\(mlxMessages.count) — forking the resident cache onto the shared prefix and feeding the last \(newMessages.count) message(s) instead of re-prefilling \(rewind.historyEnd)"
+                    )
+                    if !overriddenFields.isEmpty {
+                        log.info(
+                            "Rewound session for \(convKey) — this turn overrides the knobs it was forked with: \(overriddenFields.joined(separator: ","))"
+                        )
+                    }
+                } else if divergenceIndex > 0 {
                     log.debug(
                         "Pool reuse for \(convKey) — divergence at \(divergenceIndex)/\(mlxMessages.count),"
                     )

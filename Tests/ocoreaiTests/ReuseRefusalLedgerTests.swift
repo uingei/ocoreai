@@ -80,9 +80,10 @@ struct ReuseRefusalReasonTests {
             .mediaTurn,
             .instructionsChanged,
             .notAPrefix(cached: 3, commonPrefix: 1),
+            .rewindReserveChanged(snapshot: 0, requested: 1024),
         ]
         let mapped = refusals.map(\.ledgerReason)
-        #expect(mapped.count == 5)
+        #expect(mapped.count == 6)
         #expect(
             Set(mapped) == Set(ReuseRefusalReason.allCases),
             "the disk path and the wire must name the same set of reasons, not two overlapping ones"
