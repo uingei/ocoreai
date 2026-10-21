@@ -61,13 +61,19 @@ private func _doTrain(
     logger: Logger,
     continuation: AsyncStream<ByteBuffer>.Continuation,
 ) async throws {
-    guard let modelContainer = await enginePool.getMLXModelAndTokenizer(modelId: request.model)
-    else {
+    // Load-on-demand, the way a chat turn does. The old lookup only reported residency, so a
+    // cold server refused the very id `/v1/models` advertises (measured 10-21); whatever this
+    // throws already names the real reason — not found, still loading, or no MLX lane — and
+    // that is what the stream says.
+    let modelContainer: MLXLMCommon.ModelContainer
+    do {
+        modelContainer = try await enginePool.mlxContainer(modelId: request.model)
+    } catch {
         _ = yieldSSE(
             TrainProgressChunk(
                 type: "error", iteration: 0, trainingLoss: nil, validationLoss: nil,
                 iterationsPerSec: nil, tokensPerSec: nil, checkpointPath: nil,
-                message: "Model not found: \(request.model)",
+                message: "\(error)",
                 timestamp: Int64(Date().timeIntervalSince1970),
             ), to: continuation,
         )
@@ -132,6 +138,51 @@ private func _doTrain(
                 return TrainResult(
                     success: false, iterations: 0, trainLoss: nil, validLoss: nil, adapterPath: nil,
                     errMsg: "Model does not support LoRA")
+            }
+
+            // Capability before effort: upstream's LoRA loss runs `model as! any LLMModel`,
+            // so a model that is not an LLMModel takes the whole process down (measured
+            // 10-21 — this endpoint died mid-stream on a VLM checkpoint). Same predicate,
+            // asked with `is`, answered with a refusal the client can act on.
+            if let rejection = LoRAModelSupport.rejection(for: ctx.model) {
+                _ = yieldSSE(
+                    TrainProgressChunk(
+                        type: "error", iteration: 0, trainingLoss: nil, validationLoss: nil,
+                        iterationsPerSec: nil, tokensPerSec: nil, checkpointPath: nil,
+                        message: rejection,
+                        timestamp: Int64(Date().timeIntervalSince1970),
+                    ), to: continuation,
+                )
+                return TrainResult(
+                    success: false, iterations: 0, trainLoss: nil, validLoss: nil, adapterPath: nil,
+                    errMsg: rejection)
+            }
+
+            // A 1-token sample has nothing to predict and traps inside mlx (LoRASampleDomain).
+            // Counted with this model's own tokenizer — the one the batch iterator will use.
+            let sampleTokenizer = ctx.tokenizer
+            let sampleCounts: (String) -> Int = { sampleTokenizer.encode(text: $0).count }
+            for dataset in [
+                (rows: snapshotTrain, label: "trainingData"),
+                (rows: snapshotValid, label: "validationData"),
+            ] {
+                guard
+                    let violation = LoRASampleDomain.firstViolation(
+                        dataset: dataset.rows, label: dataset.label, tokenCount: sampleCounts
+                    )
+                else { continue }
+                let message = LoRASampleDomain.message(for: violation)
+                _ = yieldSSE(
+                    TrainProgressChunk(
+                        type: "error", iteration: 0, trainingLoss: nil, validationLoss: nil,
+                        iterationsPerSec: nil, tokensPerSec: nil, checkpointPath: nil,
+                        message: message,
+                        timestamp: Int64(Date().timeIntervalSince1970),
+                    ), to: continuation,
+                )
+                return TrainResult(
+                    success: false, iterations: 0, trainLoss: nil, validLoss: nil, adapterPath: nil,
+                    errMsg: message)
             }
 
             _ = try LoRAContainer.from(
@@ -301,12 +352,29 @@ func evaluateHandler(
             "datasetSize": .string(String(request.dataset.count)),
         ])
 
-    guard let modelContainer = await enginePool.getMLXModelAndTokenizer(modelId: request.model)
-    else {
-        throw AppError.invalidRequest("Model not found: \(request.model)")
-    }
+    // Same resolution as the train face and as chat: load on demand, then refuse honestly
+    // with the reason actually hit.
+    let modelContainer = try await enginePool.mlxContainer(modelId: request.model)
 
-    let (loss, batches): (Float, Int) = await modelContainer.perform { ctx in
+    let (loss, batches): (Float, Int) = try await modelContainer.perform { ctx in
+        // The loss this call passes (`LoRATrain.loss`) casts `model as! any LLMModel`
+        // upstream: without this guard the request traps the server instead of failing.
+        if let rejection = LoRAModelSupport.rejection(for: ctx.model) {
+            throw AppError.invalidParameter(
+                param: "model", message: rejection, value: request.model)
+        }
+
+        // `LoRATrain.evaluate` has no pre-flight of its own upstream, so a 1-token sample
+        // would reach the batch iterator and trap there.
+        if let violation = LoRASampleDomain.firstViolation(
+            dataset: request.dataset, label: "dataset",
+            tokenCount: { ctx.tokenizer.encode(text: $0).count }
+        ) {
+            throw AppError.invalidParameter(
+                param: "dataset[\(violation.index)]",
+                message: LoRASampleDomain.message(for: violation),
+                value: String(violation.tokenCount))
+        }
         let loss = LoRATrain.evaluate(
             model: ctx.model,
             dataset: request.dataset,

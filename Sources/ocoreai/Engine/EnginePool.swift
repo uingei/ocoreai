@@ -480,34 +480,41 @@ actor EnginePool {
     // MARK: - Acquire / Release
 
     func acquire(model modelId: String) async throws -> EngineHandle {
-        // 1. Fast path: already loaded and ready
-        if let model = loadedModels[modelId] {
-            return try await _acquireSession(model: model, modelId: modelId)
-        }
+        try await ensureModelLoaded(modelId: modelId)
+        return try await _acquireSession(modelId: modelId)
+    }
 
-        // 2. Another caller is loading this model — wait for it to finish.
-        // Uses 1s sleep (down from 200ms) to reduce mailbox wake-up frequency
-        // on longer model downloads (30s+). Actor mailbox is NOT blocked during
-        // Task.sleep — Swift actors yield at each suspend point.
+    /// One home for "this id must be resident before anything touches the engine": fast
+    /// path, wait out a concurrent load, else perform the load. `acquire(model:)` and
+    /// ``mlxContainer(modelId:)`` both route through here, so every endpoint that needs the
+    /// model gets the same lazy load a chat turn gets.
+    ///
+    /// This extraction exists because residency was not the same thing as availability at the
+    /// two LoRA endpoints: their old accessor only *inspected* `loadedModels` and returned
+    /// `nil` for a model that merely was not resident yet, so `/v1/models/train` and
+    /// `/v1/models/evaluate` answered
+    /// "Model not found" for the very id `/v1/models` advertises — measured live 10-21 on
+    /// a cold process: `/health` reported `loadedModels: 0`, `/v1/chat/completions` on the
+    /// same id answered normally, both LoRA endpoints refused it. A model that exists on
+    /// disk is not "not found"; it is not resident *yet*, and only a loader can fix that.
+    func ensureModelLoaded(modelId: String) async throws {
+        // Fast path: already loaded and ready.
+        if loadedModels[modelId] != nil { return }
+
+        // Another caller is loading this model — wait for it to finish. Uses 1s sleep (down
+        // from 200ms) to reduce mailbox wake-up frequency on longer model downloads (30s+).
+        // Actor mailbox is NOT blocked during Task.sleep — Swift actors yield at each
+        // suspend point.
         try await waitForLoading(modelId: modelId, timeoutSeconds: 120)
-        // Model should now be loaded — try acquire again
-        if let model = loadedModels[modelId] {
-            return try await _acquireSession(model: model, modelId: modelId)
-        }
+        if loadedModels[modelId] != nil { return }
 
-        // 3. Not loaded — start the load
+        // Not loaded — start the load. Double-check after registering (another caller may
+        // have finished between the check and the insert).
         loadingModels.insert(modelId)
         defer { loadingModels.remove(modelId) }
-
-        // Double-check after defer setup (another caller may have finished between check & insert)
-        if loadedModels[modelId] != nil {
-            return try await _acquireSession(modelId: modelId)
-        }
+        if loadedModels[modelId] != nil { return }
 
         loadedModels[modelId] = try await loadModel(modelId)
-
-        // 4. Load succeeded — acquire session
-        return try await _acquireSession(modelId: modelId)
     }
 
     /// Acquire a session for an already-loaded model.
@@ -1309,9 +1316,21 @@ actor EnginePool {
         0.0
     }
 
-    func getMLXModelAndTokenizer(modelId: String) -> MLXLMCommon.ModelContainer? {
-        guard let loaded = loadedModels[modelId], let handle = loaded.mlxModelHandle else {
-            return nil
+    /// The MLX lane for `modelId`, **loading the model on demand** (``ensureModelLoaded(modelId:)``).
+    ///
+    /// Refuses with the reason it actually hit: `modelNotFound` when the id cannot be
+    /// resolved to a model, and a named 400 when the model resolved but has no MLX lane
+    /// (a CoreAI-native model cannot take LoRA adapters). Neither is "not loaded" — the
+    /// caller never has to guess whether it misspelled the id or merely arrived early.
+    func mlxContainer(modelId: String) async throws -> MLXLMCommon.ModelContainer {
+        try await ensureModelLoaded(modelId: modelId)
+        guard let loaded = loadedModels[modelId] else {
+            throw AppError.modelNotFound(modelId)
+        }
+        guard let handle = loaded.mlxModelHandle else {
+            throw AppError.invalidRequest(
+                "Model has no MLX lane (CoreAI-native): \(modelId) — LoRA train/eval need the MLX path"
+            )
         }
         return handle.modelContainer
     }

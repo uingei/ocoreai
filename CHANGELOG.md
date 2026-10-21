@@ -3,6 +3,20 @@
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## [Unreleased] — 2026-09-05 → 2026-10-21
+**10-21 一个合法的 LoRA 请求把整台机器带走了——崩溃点在上游一个 `as!`，而它被「根本没接上」盖着**(P0 行为不一致 / 上游偏离) — **活体证据（本机冷进程）**：`POST /v1/models/evaluate` 发 `{"model":"mlx-community/gemma-4-e2b-it-4bit","dataset":["The quick brown fox …"],"batch_size":1,"max_batches":1}` 得到 `curl: (52) Empty reply from server`，进程 `Trace/BPT trap: 5`；`POST /v1/models/train` 发两条 10-token 合法样本跑 2 iter，得到 HTTP 200 后 `transfer closed with outstanding read data`，随后 `/health` 不再应答——机上别的会话一起没。崩溃报告逐帧点名：`Swift runtime failure: type cast failed` → `dynamic_cast_existential_1_unconditional` → `static LoRATrain.loss(model:inputs:targets:lengths:)`，也就是 pin `48114eedf` 的 `LoraTrain.swift:165` `let model = model as! any LLMModel`：这个 checkpoint 经 `VLMModelFactory` 装成 `Gemma4`，不 conform ⇒ 必炸。
+
+- **崩溃底下还压着一层「没接上」（同一跳挖出来的第二条）**：两端点原先走 `getMLXModelAndTokenizer(modelId:)`，它只看**是否已驻留**；`/health` 报 `loadedModels: 0` 时，它对 `/v1/models` 自己广告的那个 id 答 `Model not found`，而同一个 id 在 `/v1/chat/completions` 正常答。**这两条端点从来没走到引擎，所以崩溃一直看不见**——先把解析修通，崩溃才露头。P0 常是两层叠着：修掉一层不等于修完。
+
+- **修法（三个家）**：① `EnginePool.ensureModelLoaded(modelId:)` 从 `acquire(model:)` 里提出——lazy-load 只有一个家，chat 与 LoRA 同路；② `EnginePool.mlxContainer(modelId:)`：要模型的面统一走它，错误按真实原因分层（不存在 / 还在载 / 没有 MLX 车道），并把 `getMLXModelAndTokenizer` 删掉（改完全仓零调用者——「只看驻留」的取法就是下一次同类 bug 的入口）；③ `Models/LoRAModelSupport.swift` 把损失里那句 `as!` 换成入口处的 `is`（同一个判据，可恢复的结果），`Models/LoRASampleDomain.swift` 管「每条样本 ≥2 token」——上游 #683 只给 `train` 加了预检，`LoRATrain.evaluate` 至今没有。
+
+- **上游裁决**：mlx-swift-lm `bb0d5b0`（#683，10-20）加的是样本长度预检，`as! any LLMModel` 原样留着 ⇒ 这次没有可消费的上游答案，本仓在自家缝上补。**pin 本次不动**：#683 唯一能给的 train 侧预检我们已在两面自补且口径更细（点名 `dataset[0]` 与 token 数），单为它 bump 收益不足；「差 1 个提交」的窗口记在这里，留给下次带消费价值的 bump 一起走。
+
+- **门**：新探针 **23-lora-seam-honesty**（活体硬门）。绿：`7 passed, 0 failed, 4 measured, 2 known-open`——refusal 必须命名所需能力、train 流必须以 `error` chunk 收尾、`/health` 与 chat 代码字都得活着。红样（只把 `LoRAModelSupport.rejection` 第一行塞 `return nil`）：`2 passed, 5 failed`，`chat turn did not return the code word after LoRA (HTTP 000)`——原缺陷原样复现。静态 `LoRASampleDomainTests`(7)/2 套：train 与 evaluate 各**恰好 1** 处样本闸、各**恰好 1** 处能力闸（新增第三面不设闸即红）、`enginePool.mlxContainer(modelId:` 恰好 2、`getMLXModelAndTokenizer` 在 wire 层与 pool 层都必须为 0、lazy-load 必须共享同一条（`try await ensureModelLoaded(modelId: modelId)` 恰好 2），每条模式先自证「还看得见自己要禁的形状」再扫。
+
+- **公开口径（xfail，已量）**：解析不出的 model id 在 `/v1/models/evaluate` 与 `/v1/chat/completions` 上 **≥25 s 无任何响应**（`/health` 仍活）——两面同走 `EnginePool` 加载，等的是 hub 解析超时，wire 上没有 deadline。加超时还是负缓存待拍板，探针 23 以 xfail 钉住这个口径（红样跑里它显示 `after 0s`，正是「服务器已死」与「解析慢」在客户端同形的原因，也是这句要写下来的理由）。
+
+- **入账**：AGENTS.md § Wire DTO 的域条补一句「域外的不止数字：上游一个 `as!` 也能让请求 owning 进程——能力问题在入口用 `is` 问一次」；为付字节压掉两处更长的叙述（CLT SDK 配方的细节回到 `docs/agent/build-gate-reality.md`、`print()` 条去冗），root 现 **50665/50668**。仍未验证：GUI 端到端零验证；`LoRASampleDomain` 的 1-token 规则在本机被能力拒绝对在前，只有单元测试钉住（探针明说，不假称量过）。
+
 **10-21 一句「这段文字大概多少 token」，仓库里有十七处在算、三种答案**(P2 重复抽象 / P0 行为不一致) — 起因是给会话行记自己的内容 token 时顺手核了一眼 `/v1/count-tokens` 的启发式，`git grep`（`5c13f6a`）当场给出 **17 处 / 9 文件 / 3 条公式**：CJK 字节律（`> 1.5 ? 3 : 4`）复制了 5 份（`ChatHandler`、`AnthropicMessagesHandler`、`CompletionsHandler`、`EngineInference`、`ConversationCompaction`）；「长度 ÷ 4」跑了 11 次（`SchedulerActor.swift:356` 的 `utf8.count / 4`——那是决定请求进不进得来的数，外加 perception 预算 10 处按**字符数**除 4）；最后一份是 GUI `ChatState` 的 `utf16/3`，也就是输入框上那条上下文表显示的数。同一段文字，看哪条电路在问。
 
 - **方向性最坏的是 GUI 那一份**：它自称 CJK-aware，实际给每个 CJK 字符记一个 UTF-16 单元 ⇒ `你好世界` 在上下文表上是 **1**，字节律是 **4**。少报是唯一致命的方向——它告诉用户「窗口还有地方」。
