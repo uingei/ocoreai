@@ -148,7 +148,7 @@ struct MCPTimeoutDeliveryTests {
             Issue.record("expected a timeout: the stub sleeps 3s on a 1s budget")
             return
         } catch let error as MCPClientError {
-            guard case .timeout(let name, let seconds) = error else {
+            guard case .timeout(let name, let seconds, _) = error else {
                 Issue.record("expected .timeout, got \(error)")
                 return
             }
@@ -159,6 +159,11 @@ struct MCPTimeoutDeliveryTests {
             #expect(
                 error.localizedDescription.contains("did not answer within 1s"),
                 "the caller is told which bound fired: \(error.localizedDescription)")
+            // 这个 stub 一声不吭 ⇒ 文案必须和加 stderr 采集之前逐字相同：
+            // 没有证据就不许出现"stderr"字样（invariant 2 的反面——不许编证据）。
+            #expect(
+                !error.localizedDescription.contains("stderr"),
+                "a silent child must not gain invented evidence: \(error.localizedDescription)")
         }
     }
 
@@ -279,9 +284,12 @@ struct MCPTimeoutDeliveryTests {
     @Test("one home for the numbers; the unread knob stays deleted")
     func scanFloors() throws {
         let root = try Self.repoRoot()
-        let client = try Self.read("Sources/ocoreai/MCP/MCPStdioClient.swift", in: root)
-        let bridge = try Self.read("Sources/ocoreai/MCP/MCPBridge.swift", in: root)
-        let timeouts = try Self.read("Sources/ocoreai/MCP/MCPTimeouts.swift", in: root)
+        let client = Self.codeOnly(
+            try Self.read("Sources/ocoreai/MCP/MCPStdioClient.swift", in: root))
+        let bridge = Self.codeOnly(
+            try Self.read("Sources/ocoreai/MCP/MCPBridge.swift", in: root))
+        let timeouts = Self.codeOnly(
+            try Self.read("Sources/ocoreai/MCP/MCPTimeouts.swift", in: root))
 
         // Floor the premises first: a scan whose pattern stopped matching passes vacuously.
         #expect(
@@ -316,6 +324,21 @@ struct MCPTimeoutDeliveryTests {
     }
 
     // MARK: - helpers
+
+    /// 只留代码行：一条解释"为什么不能这样写"的注释不是那个写法本身。
+    /// 若注释也算命中，后来的维护者只会把注释删掉——门反而教会人销毁理由。
+    /// 与 AGENTS.md 里 claim 扫描同一口径（`grep -vE ':[0-9]+: *(//|/\*|\*)'`）。
+    /// 只剥整行注释，行尾注释保留：`x = 15 // 旧值` 仍然是代码里的那个 15。
+    static func codeOnly(_ source: String) -> String {
+        source
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { line in
+                let trimmed = line.drop(while: { $0 == " " || $0 == "\t" })
+                return !trimmed.hasPrefix("//") && !trimmed.hasPrefix("/*")
+                    && !trimmed.hasPrefix("*")
+            }
+            .joined(separator: "\n")
+    }
 
     private static func jsonObject(_ line: String) throws -> [String: Any] {
         let data = try #require(line.data(using: .utf8))

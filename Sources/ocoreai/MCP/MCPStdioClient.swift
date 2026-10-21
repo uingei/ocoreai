@@ -70,6 +70,11 @@ actor MCPStdioClient {
     /// `15` 抄在两处，且 config 里那个 knob 无人读取。
     private let budgets: MCPRPCBudgets
 
+    /// 子进程 stderr 的有界尾部（诊断证据的存放处）。写侧是 ``startStderrDrain`` 起的
+    /// drain 线程，读侧是本 actor：同一个对象，所以"报出去的死因"和"收到的死因"
+    /// 不可能分叉（AGENTS.md：一个决定一个家）。
+    private let stderrTail = MCPStderrTail()
+
     // MARK: - 初始化
 
     init(
@@ -132,7 +137,7 @@ actor MCPStdioClient {
     ) async throws -> String {
         // 断连/错误状态 → 直接抛错（不重试 — 对齐 codex: reconnect_failed_startup 后保持断开）
         if status != .connected {
-            throw MCPClientError.notConnected(endpoint.name)
+            throw MCPClientError.notConnected(endpoint.name, stderr: stderrTail.snapshot())
         }
         // 子进程意外退出检测（status==.connected 但 process 已死）→ 自动重连
         #if os(macOS)
@@ -188,7 +193,9 @@ actor MCPStdioClient {
             }
             group.addTask {
                 try? await Task.sleep(for: .seconds(seconds))
-                return .failure(MCPClientError.timeout(self.endpoint.name, seconds))
+                return .failure(
+                    MCPClientError.timeout(
+                        self.endpoint.name, seconds, stderr: self.stderrTail.snapshot()))
             }
 
             for try await result in group {
@@ -198,7 +205,7 @@ actor MCPStdioClient {
                 case .failure(let error): throw error
                 }
             }
-            throw MCPClientError.timeout(self.endpoint.name, seconds)
+            throw MCPClientError.timeout(self.endpoint.name, seconds, stderr: stderrTail.snapshot())
         }
     }
 
@@ -248,6 +255,7 @@ actor MCPStdioClient {
     private func launchProcess(
         stdin: Pipe,
         stdout: Pipe,
+        stderr: Pipe,
     ) throws -> Process {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -255,8 +263,10 @@ actor MCPStdioClient {
 
         proc.standardInput = stdin
         proc.standardOutput = stdout
-        // stderr 重定向到 /dev/null，由 Process 内部管理
-        proc.standardError = nil
+        // stderr 交给 drain 线程收进有界尾部。旧写法 `= nil` 让 Foundation 把子进程
+        // stderr 接到 /dev/null：启动即崩的 server 只剩一句 "exited with status N"，
+        // 而那几行 stderr 正是死因（ModuleNotFoundError / MODULE_NOT_FOUND / bind 冲突）。
+        proc.standardError = stderr
 
         // 子进程退出 → 精确值捕获 termination status（重连检测锚点）
         proc.terminationHandler = { [weak self] proc in
@@ -324,12 +334,13 @@ actor MCPStdioClient {
         // 且每轮开头查 Task.isCancelled —— 外层 cancelAll 生效即退出。
         while true {
             if Task.isCancelled {
-                throw MCPClientError.timeout(endpoint.name, timeout)
+                throw MCPClientError.timeout(endpoint.name, timeout, stderr: stderrTail.snapshot())
             }
             // 死进程守卫：子进程已退出 → 管道已 EOF，读取会永久阻塞。
             #if os(macOS)
             if let proc = process, !proc.isRunning {
-                throw MCPClientError.childExited(proc.terminationStatus)
+                throw MCPClientError.childExited(
+                    proc.terminationStatus, stderr: await stderrEvidence())
             }
             #endif
             guard let line = await transport.readLine(), !line.isEmpty else {
@@ -358,7 +369,7 @@ actor MCPStdioClient {
                 let error = obj["error"] as? [String: Any]
             {
                 let msg = error["message"] as? String ?? "Unknown error"
-                throw MCPClientError.protocolError(msg)
+                throw MCPClientError.protocolError(msg, stderr: stderrTail.snapshot())
             }
             return line
         }
@@ -402,6 +413,62 @@ actor MCPStdioClient {
         // attemptConnection() 成功后重置，防止意外退出路径误计。
     }
 
+    /// 起一条 drain 收 stderr：写进 ``MCPStderrTail``，并逐行落日志（codex
+    /// `executor_process_transport.rs:465-487` 两件事都做——日志是给现场的，尾部是给
+    /// 这一次调用方的拒绝文案的）。
+    ///
+    /// 用阻塞 `read(2)` 而不是 `FileHandle.read(upToCount:)`：后者在本机 macOS 27 beta 上
+    /// 实测 13–23s/行（``MCPStdioTransport`` 头部记着同一条实测，stdout 侧早已改原始 fd）。
+    /// 线程生命周期由管道决定：孩子退出 ⇒ 写端关闭 ⇒ `read` 回 0 ⇒ 线程自己收口；闭包
+    /// **强持有** `Pipe`，所以线程在读的时候 fd 不可能被 Foundation 的 deinit 提前关掉。
+    /// 不做手动 `close`：`Pipe` 释放时关 fd，手动再关一次会误伤已复用的 fd 号。
+    private func startStderrDrain(_ pipe: Pipe) {
+        let tail = stderrTail
+        let log = self.log
+        let program = endpoint.stdioCommand
+        DispatchQueue.global(qos: .utility).async {
+            let fd = pipe.fileHandleForReading.fileDescriptor
+            guard fd >= 0 else {
+                _ = tail.finish()
+                return
+            }
+            var buffer = [UInt8](repeating: 0, count: 8192)
+            while true {
+                let n = read(fd, &buffer, buffer.count)
+                if n > 0 {
+                    for line in tail.append(Data(buffer[0 ..< n])) {
+                        log.info("MCP server stderr (\(program)): \(line)")
+                    }
+                    continue
+                }
+                if n < 0, errno == EINTR { continue }
+                break  // n == 0：EOF（孩子退出/关掉 stderr）；其余错误同样按结束处理
+            }
+            if let last = tail.finish() {
+                log.info("MCP server stderr (\(program)): \(last)")
+            }
+        }
+    }
+
+    /// 取证据。已有证据、或管道已 EOF（确实没写过）→ 立刻返回，不白等；只有"孩子刚死、
+    /// 最后几行可能还压在管道里"这一种情况会轮询，上限 10×15ms=150ms（读侧要到 EOF 才
+    /// 收剩下字节；探针量的是秒级，这点窗口不改变任何预算）。
+    ///
+    /// 刻意写成**次数**而不是 `ContinuousClock.now + …`：本文件的门
+    /// （`MCPTimeoutDeliveryTests.scanFloors`）规定"响应等待只能有一条死线，且归调用方"。
+    /// 这不是响应等待而是一次有界收尾轮询——写成次数既不去撞那条规则，也不会哪天被读成
+    /// 第二个预算家（同一个文件里出现第二条绝对死线，正是那个 gate 存在的理由）。
+    private func stderrEvidence() async -> String? {
+        if let early = stderrTail.snapshot() { return early }
+        if stderrTail.isEnded() { return nil }
+        for _ in 0 ..< 10 {
+            if Task.isCancelled { break }
+            try? await Task.sleep(for: .milliseconds(15))
+            if stderrTail.isEnded() || stderrTail.snapshot() != nil { break }
+        }
+        return stderrTail.snapshot()
+    }
+
     /// 从意外退出状态恢复连接。
     /// 成功 → `.connected`；失败 → `.error`（后续 request() 直接抛错，不重试 —
     /// 对齐 codex rmcp_client reconnect_failed_startup 语义）。
@@ -426,8 +493,12 @@ actor MCPStdioClient {
         do {
             let stdinPipe = Pipe()
             let stdoutPipe = Pipe()
-            let proc = try launchProcess(stdin: stdinPipe, stdout: stdoutPipe)
+            let stderrPipe = Pipe()
+            // 新一个孩子 = 新账：上一轮的死因不得混进这一轮的诊断。
+            stderrTail.reset()
+            let proc = try launchProcess(stdin: stdinPipe, stdout: stdoutPipe, stderr: stderrPipe)
             process = proc
+            startStderrDrain(stderrPipe)
             await transport.configurePipeMode(stdinPipe: stdinPipe, stdoutPipe: stdoutPipe)
             try await sendInitialize()
             status = .connected
@@ -435,9 +506,18 @@ actor MCPStdioClient {
         } catch {
             process = nil
             status = .error
-            lastError = error.localizedDescription
-            log.error("Connection failed for '\(endpoint.name)': \(error)")
-            throw MCPClientError.protocolError(error.localizedDescription)
+            // 类型与证据都要留：旧写法把 .childExited / .timeout 一律压成 .protocolError，
+            // 上层从此分不出"崩了"与"没答"，而死因也被丢在 /dev/null 里。
+            let enriched: MCPClientError
+            if let mcp = error as? MCPClientError {
+                enriched = mcp.withStderr(await stderrEvidence())
+            } else {
+                enriched = MCPClientError.protocolError(
+                    error.localizedDescription, stderr: await stderrEvidence())
+            }
+            lastError = enriched.localizedDescription
+            log.error("Connection failed for '\(endpoint.name)': \(enriched)")
+            throw enriched
         }
         #else
         throw MCPClientError.platformNotSupported
@@ -460,7 +540,8 @@ actor MCPStdioClient {
             reconnectionAttempts += 1  // 仅成功重连计数
         } catch {
             status = .error
-            throw MCPClientError.notConnected(endpoint.name)
+            // 重连失败也要带证据：新孩子的 stderr 就是"为什么叫不醒"的答案。
+            throw MCPClientError.notConnected(endpoint.name, stderr: await stderrEvidence())
         }
         #else
         throw MCPClientError.platformNotSupported
@@ -501,6 +582,9 @@ actor MCPStdioClient {
     /// 入站请求应答计数（按 method）——精确值测试断言面（elicit→1、ping→1）。
     func testInboundResponses() -> [String: Int] { inboundResponses }
 
+    /// 子进程 stderr 尾部快照（测试断言面：证据是否真被收下、是否被截断）。
+    func testStderrTail() -> String? { stderrTail.snapshot() }
+
     /// 安全终止子进程。
     private func cleanupProcess() {
         #if os(macOS)
@@ -539,28 +623,74 @@ actor MCPStdioClient {
 
 /// 外部 MCP 客户端错误
 enum MCPClientError: Error, LocalizedError {
-    case notConnected(String)
+    /// 未连接。`stderr` = 最近一次连接尝试里子进程自己留下的证据（nil = 确实没有）。
+    case notConnected(String, stderr: String?)
     /// 超时：带上**生效的那条预算**，因为"多久算超时"是调用方需要知道的契约量，
     /// 只报"timed out"会让人去查一个代码里根本不存在的默认值（旧文案就是这样）。
-    case timeout(String, TimeInterval)
-    case protocolError(String)
+    case timeout(String, TimeInterval, stderr: String?)
+    case protocolError(String, stderr: String?)
     /// 子进程已退出（termination status 携带）——上层据此区分"重连/放弃"。
-    case childExited(Int32)
+    case childExited(Int32, stderr: String?)
     case platformNotSupported
 
-    var errorDescription: String? {
+    // 无证据的同名构造：绝大多数站点确实拿不到 stderr，在每个调用点写 `nil` 只是噪声，
+    // 而"带证据"的那几个点必须显式写出来——它们正是这套诊断的意义所在。
+    static func notConnected(_ name: String) -> MCPClientError { .notConnected(name, stderr: nil) }
+    static func timeout(_ name: String, _ seconds: TimeInterval) -> MCPClientError {
+        .timeout(name, seconds, stderr: nil)
+    }
+    static func protocolError(_ detail: String) -> MCPClientError {
+        .protocolError(detail, stderr: nil)
+    }
+    static func childExited(_ status: Int32) -> MCPClientError { .childExited(status, stderr: nil) }
+
+    /// 这条诊断携带的 stderr 证据（`nil` = 确实没有，不编一段"大概是因为"）。
+    var stderrEvidence: String? {
         switch self {
-        case .notConnected(let name):
+        case .notConnected(_, let tail), .protocolError(_, let tail): return tail
+        case .timeout(_, _, let tail), .childExited(_, let tail): return tail
+        case .platformNotSupported:
+            return nil
+        }
+    }
+
+    /// 把证据折进诊断——唯一落点。已有证据就不覆盖：同一死因说两遍等于没说
+    /// （`attemptConnection` 会把内层已带证据的错误再包一次，靠这里挡住重复）。
+    func withStderr(_ tail: String?) -> MCPClientError {
+        guard let tail, !tail.isEmpty else { return self }
+        switch self {
+        case .notConnected(let name, let existing):
+            return .notConnected(name, stderr: existing ?? tail)
+        case .timeout(let name, let seconds, let existing):
+            return .timeout(name, seconds, stderr: existing ?? tail)
+        case .protocolError(let detail, let existing):
+            return .protocolError(detail, stderr: existing ?? tail)
+        case .childExited(let status, let existing):
+            return .childExited(status, stderr: existing ?? tail)
+        case .platformNotSupported: return self
+        }
+    }
+
+    /// 结论本身（不含证据）——这些文案的唯一落点，别再抄第二份。
+    var headline: String {
+        switch self {
+        case .notConnected(let name, _):
             "MCP client for '\(name)' is not connected"
-        case .timeout(let name, let seconds):
+        case .timeout(let name, let seconds, _):
             "MCP server '\(name)' did not answer within \(MCPTimeouts.describe(seconds))"
-        case .protocolError(let detail):
+        case .protocolError(let detail, _):
             "MCP protocol error: \(detail)"
-        case .childExited(let code):
+        case .childExited(let code, _):
             "MCP server process exited with status \(code)"
         case .platformNotSupported:
             "MCP stdio subprocess is not supported on this platform"
         }
+    }
+
+    /// 结论 + 证据：没有 stderr 时与过去的文案逐字相同（追加，不改写）。
+    var errorDescription: String? {
+        guard let tail = stderrEvidence, !tail.isEmpty else { return headline }
+        return "\(headline) — stderr: \(tail)"
     }
 }
 
