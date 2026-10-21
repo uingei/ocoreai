@@ -656,9 +656,19 @@ private func nonStreamAnthropicResponse(
     // Record metrics
     let dur = startTime.duration(to: ContinuousClock.now)
     let elapsed = Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
+    /// One number for one prompt at every hop this turn reports it — the
+    /// `usage.input_tokens` the client reads and the counter `/metrics` publishes. They could
+    /// differ for the same turn: the wire carried the engine-measured prompt, the counter the
+    /// pre-flight estimate (`inputTokenCount`), and the two are not the same number on this
+    /// engine (measured 10-20: a counted-but-undelivered `system` message).
+    let observedInputTokens = PromptTokenAccounting.renderedPromptTokens(
+        observedPrefilled: observedPromptTokens,
+        cachedPromptTokens: observedCachedPromptTokens,
+        fallback: inputTokenCount,
+    )
     await metrics.observeInferenceDuration(elapsed / 1000.0)
     await metrics.incrementTokens(kind: "generated", count: totalOutputTokens)
-    await metrics.incrementTokens(kind: "prompt", count: inputTokenCount)
+    await metrics.incrementTokens(kind: "prompt", count: observedInputTokens)
 
     /// The calls this turn produced: the structured ones the engine emitted, and only
     /// as a fallback a dialect parsed out of the answer text (same precedence as
@@ -744,11 +754,7 @@ private func nonStreamAnthropicResponse(
 
     // Build Anthropic response — the measured prompt count where the engine has one.
     let usage = AnthropicUsage(
-        inputTokens: PromptTokenAccounting.renderedPromptTokens(
-            observedPrefilled: observedPromptTokens,
-            cachedPromptTokens: observedCachedPromptTokens,
-            fallback: inputTokenCount,
-        ),
+        inputTokens: observedInputTokens,
         outputTokens: totalOutputTokens)
     /// The terminal word, resolved in OpenAI's vocabulary by the shared rule and then
     /// translated: `tool_use` only when a block actually reached this client **and** the
@@ -1102,12 +1108,15 @@ private func streamAnthropicResponse(
             // handler's estimate (nothing had been prefilled yet); the terminal event
             // carries what the engine measured, which is the number a client budgets on
             // and the one `/v1/chat/completions` reports as `prompt_tokens`.
+            /// Same number, both hops: the terminal event and the metrics counter report one
+            /// prompt, not an estimate and a measurement of it.
+            let observedInputTokens = PromptTokenAccounting.renderedPromptTokens(
+                observedPrefilled: observedPromptTokens,
+                cachedPromptTokens: observedCachedPromptTokens,
+                fallback: inputTokenCount,
+            )
             let finalEvent = AnthropicStreamEvent.messageStop(
-                inputTokens: PromptTokenAccounting.renderedPromptTokens(
-                    observedPrefilled: observedPromptTokens,
-                    cachedPromptTokens: observedCachedPromptTokens,
-                    fallback: inputTokenCount,
-                ),
+                inputTokens: observedInputTokens,
                 outputTokens: totalOutputTokens,
             )
             writeSSEEvent(continuation, event: finalEvent)
@@ -1118,7 +1127,7 @@ private func streamAnthropicResponse(
                 Double(dur.components.seconds) * 1000 + Double(dur.components.attoseconds) / 1e15
             await metrics.observeInferenceDuration(elapsed / 1000.0)
             await metrics.incrementTokens(kind: "generated", count: totalOutputTokens)
-            await metrics.incrementTokens(kind: "prompt", count: inputTokenCount)
+            await metrics.incrementTokens(kind: "prompt", count: observedInputTokens)
 
         } catch {
             // On error, write a single error event

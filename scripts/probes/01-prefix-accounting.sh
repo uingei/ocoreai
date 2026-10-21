@@ -22,6 +22,11 @@
 #      prefill is a red gate, not a NOTE. Relax it explicitly with =0; a host that
 #      cannot reuse must say so rather than leave the claim untested. Reuse must also be
 #      worth something: a turn may not pay more tokens than it reuses.
+#   E. One prompt, every hop, on the streaming face: the `prompt_tokens` a warm stream
+#      answers must equal what the engine logged as that turn's whole prompt, and the
+#      process's own prompt counter (`/metrics`) must move by exactly that number. The
+#      wire was accounted on 10-21 and the counter was not, so a turn could cost 730
+#      tokens for the client and ~20 for the box's own cost and capacity reporting.
 #
 # What it measures: tokens paid / reused / promptTime per turn, and the tok/s rate with
 # its 30k-context extrapolation, printed from this run's own numbers.
@@ -236,6 +241,118 @@ case "$PAIR_CHECK" in
   ERR\ *)  probe_fail "$PAIR_CHECK" ;;
   FAIL\ *) probe_fail "wire/log prompt mismatch — ${PAIR_CHECK#FAIL }" ;;
   *)       probe_fail "prompt-tie check produced no verdict (empty output) — a check that stays silent is not a check" ;;
+esac
+
+# E. one prompt, every hop, on the streaming face. A warm turn is the only shape where "the whole
+# prompt" and "what this turn prefilled" are different numbers, and the streaming path reported the
+# former to the client and the latter to everything else: 4b706ef accounted the SSE `usage` chunk
+# and left the metrics call on the prefilled suffix, so one turn cost 730 tokens for the client and
+# ~20 for /metrics and for the session rows that drive the compaction threshold. No gate compared
+# the two hops, so the suite stayed green. Shape: open a conversation with a cold turn, then stream
+# the warm one with stream_options.include_usage, and the process's own prompt counter must advance
+# by exactly the prompt_tokens that stream answered.
+probe_section "streaming face — /metrics must move by the prompt the wire reported"
+SSESSION="PROBE-PREFIX-STREAM-$$"
+# cold turn on this conversation: the warm one that follows is the turn that can reuse a prefix
+body="$(probe_chat_body "$SSESSION" "$(python3 -c 'import json,sys;print(json.dumps([{"role":"user","content":sys.argv[1]}]))' "$U1")" "$MAX_TOKENS")"
+probe_chat "$SSESSION" "$body"
+if [ "${PROBE_STATUS:-}" = "200" ]; then
+  SA1="$(probe_json "$PROBE_BODY" 'choices.0.message.content')"
+else
+  probe_fail "§E warm-up (cold) turn -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:200}"
+fi
+
+# Read the counter only now: bracketing the warm-up turn as well would make the delta cover two
+# generations, and a turn that costs 708 + 730 is not evidence about a 730-token prompt.
+probe_api GET /metrics
+PROMPT_BEFORE="$(printf '%s\n' "$PROBE_BODY" \
+  | awk '/^ocoreai_inference_tokens_total\{kind="prompt"\} /{print $2}')"
+
+STREAM_MSGS="$(python3 -c '
+import json,sys
+print(json.dumps([{"role":"user","content":sys.argv[1]},{"role":"assistant","content":sys.argv[2]},{"role":"user","content":sys.argv[3]}]))' "$U1" "$SA1" "$U2")"
+STREAM_BODY="$(python3 - "$PROBE_MODEL" "$SSESSION" "$STREAM_MSGS" "$MAX_TOKENS" <<'PY'
+import json, sys
+model, session_id, messages, max_tokens = sys.argv[1:5]
+print(json.dumps({
+    "model": model,
+    "session_id": session_id,
+    "max_tokens": int(max_tokens),
+    "temperature": 0.0,
+    "stream": True,
+    "stream_options": {"include_usage": True},
+    "messages": json.loads(messages),
+}))
+PY
+)"
+probe_chat "$SSESSION" "$STREAM_BODY" || true
+if [ "${PROBE_STATUS:-}" != "200" ]; then
+  probe_fail "§E streaming turn -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:200}"
+fi
+STREAM_USAGE="$(printf '%s' "${PROBE_BODY:-}" | python3 -c '
+import json, sys
+best = None
+saw_content = False
+for line in sys.stdin.read().splitlines():
+    if not line.startswith("data: "):
+        continue
+    payload = line[6:].strip()
+    if payload == "[DONE]":
+        continue
+    try:
+        obj = json.loads(payload)
+    except Exception:
+        continue
+    for ch in obj.get("choices", []):
+        if (ch.get("delta") or {}).get("content"):
+            saw_content = True
+    if obj.get("usage"):
+        best = obj["usage"]
+if best is None:
+    print("ERR no usage chunk on this stream though stream_options.include_usage was asked for")
+elif not saw_content:
+    print("ERR the stream carried a usage chunk but no content delta")
+else:
+    details = best.get("prompt_tokens_details") or {}
+    print("%s %s" % (best.get("prompt_tokens"), details.get("cached_tokens", "")))
+')"
+probe_api GET /metrics
+PROMPT_AFTER="$(printf '%s\n' "$PROBE_BODY" \
+  | awk '/^ocoreai_inference_tokens_total\{kind="prompt"\} /{print $2}')"
+
+case "$STREAM_USAGE" in
+  ERR\ *)
+    probe_fail "streaming usage unusable — ${STREAM_USAGE#ERR }"
+    ;;
+  *)
+    SF_PROMPT="${STREAM_USAGE%% *}"
+    SF_CACHED="${STREAM_USAGE##* }"
+    if [ -z "$SF_PROMPT" ] || [ -z "$PROMPT_BEFORE" ] || [ -z "$PROMPT_AFTER" ]; then
+      probe_fail "§E could not read both sides of the counter (wire prompt_tokens=${SF_PROMPT:-?}, /metrics $PROMPT_BEFORE->$PROMPT_AFTER) — the check judged nothing"
+    else
+      DELTA=$(( PROMPT_AFTER - PROMPT_BEFORE ))
+      if [ "$DELTA" -eq "$SF_PROMPT" ]; then
+        probe_ok "streaming turn's prompt_tokens reached every hop — wire said $SF_PROMPT, /metrics moved by $DELTA"
+      else
+        probe_fail "streaming turn said prompt_tokens=$SF_PROMPT on the wire while /metrics moved by $DELTA — one turn, two numbers for one prompt (the counter is what cost and capacity are read from)"
+      fi
+      # The counter tie only bites when whole != suffix, i.e. when this turn reused a prefix.
+      # A cold streaming turn makes the two equal, and a §E that quietly degrades to that shape
+      # would report the same clean line as a run that checked the defect — so say which happened.
+      SF_LOGGED="$(grep -E "Prefix cache reused [0-9]+ of [0-9]+ prompt tokens for $SSESSION" "$PROBE_LOG" 2>/dev/null | tail -1 || true)"
+      if [ -n "$SF_LOGGED" ]; then
+        SF_T="$(printf '%s' "$SF_LOGGED" | sed -nE 's/.*reused ([0-9]+) of ([0-9]+) prompt tokens.*/\2/p')"
+        probe_ok "the streaming wire is the whole its log names — log reused $(printf '%s' "$SF_LOGGED" | sed -nE 's/.*reused ([0-9]+) of ([0-9]+) prompt tokens.*/\1/p') of $SF_T, wire prompt_tokens=$SF_PROMPT cached_tokens=${SF_CACHED:-none}"
+        if [ "$SF_PROMPT" != "$SF_T" ]; then
+          probe_fail "streaming wire prompt_tokens=$SF_PROMPT but the engine's whole prompt was $SF_T — the suffix is on the wire again"
+        fi
+      elif [ "${OCOREAI_REQUIRE_PREFIX_REUSE:-1}" = "1" ]; then
+        probe_fail "§E streaming turn reused nothing, so whole == suffix and the counter tie could not tell the two apart — this run did not test what §E exists to test"
+      else
+        probe_note "§E streaming turn reused nothing (whole == suffix), so the counter tie judged nothing about the suffix defect"
+      fi
+    fi
+    ;;
 esac
 
 probe_section "measured (P1)"

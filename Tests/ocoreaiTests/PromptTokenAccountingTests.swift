@@ -29,6 +29,12 @@
 //! stayed green through this — they never asked what `prompt_tokens` was on the same turn. So the
 //! assertions below are exact-value, and the final one encodes a real `Usage` and re-reads the
 //! JSON, so a regression in field wiring (not just in the arithmetic) goes red.
+//!
+//! ### Why the scan at the end
+//! Summing in one place is only half the rule: the same turn reports its prompt at several hops
+//! (the wire, `/metrics`, the persisted session row), and 4b706ef fixed the wire on the streaming
+//! path while metrics and session memory kept the suffix — one turn, two numbers, every gate green.
+//! So the last test counts the hops per face instead of trusting that a fix reached all of them.
 
 import Foundation
 import Testing
@@ -127,5 +133,68 @@ struct PromptTokenAccountingTests {
                     "no cached count observed, so the breakdown object must be absent")
             }
         }
+    }
+
+    /// One prompt, every hop: the client, `/metrics` and session memory must be sized by the same
+    /// accounted number. Textual because the value needs an engine; the live pair is probe 01 §E,
+    /// which ties `ocoreai_inference_tokens_total{kind="prompt"}` to the `prompt_tokens` a warm
+    /// turn answers. Exact counts, per face: a fix applied to one response mode but not the other
+    /// is the defect this repo already shipped once, and a `>=` would not see the missing hop.
+    @Test(arguments: [
+        HopCase(
+            file: "Sources/ocoreai/Handlers/ChatHandler.swift",
+            accounting: 2, hops: 8,
+            banned: "observedPromptTokens ?? promptTokenCount",
+            face: "OpenAI"),
+        HopCase(
+            file: "Sources/ocoreai/Handlers/AnthropicMessagesHandler.swift",
+            accounting: 2, hops: 6,
+            banned: "kind: \"prompt\", count: inputTokenCount",
+            face: "Anthropic"),
+    ])
+    static func everyHopReportsOnePrompt(_ c: HopCase) throws {
+        let src = try repoFile(c.file)
+        #expect(src.count > 20_000, "\(c.file) read looks truncated — the scan cannot be trusted")
+        #expect(
+            src.components(separatedBy: "PromptTokenAccounting.renderedPromptTokens(").count - 1
+                == c.accounting,
+            """
+            \(c.face) face must size its prompt through the one accounting home once per response \
+            mode (expected \(c.accounting))
+            """)
+        #expect(
+            src.components(separatedBy: "observedInputTokens").count - 1 == c.hops,
+            """
+            \(c.face) face: expected \(c.hops) uses of the accounted prompt count (declaration + \
+            wire + metrics + session memory, per response mode); a hop added or dropped changes \
+            what this gate covers
+            """)
+        #expect(
+            !src.contains(c.banned),
+            """
+            \(c.face) face still publishes an unaccounted prompt to a consumer \
+            (\(c.banned)) — the wire and the counters must not report two numbers for one prompt
+            """)
+    }
+
+    private static func repoFile(_ relative: String) throws -> String {
+        var dir = URL(fileURLWithPath: #filePath)
+        while dir.path != "/" {
+            if let data = try? Data(contentsOf: dir.appendingPathComponent(relative)) {
+                return String(decoding: data, as: UTF8.self)
+            }
+            dir.deleteLastPathComponent()
+        }
+        throw ClaimError.missing(relative)
+    }
+
+    enum ClaimError: Error { case missing(String) }
+
+    struct HopCase: Sendable {
+        let file: String
+        let accounting: Int
+        let hops: Int
+        let banned: String
+        let face: String
     }
 }

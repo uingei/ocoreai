@@ -142,7 +142,7 @@ metric warning, the vendored-header table and the re-collect discipline:
 
 ### Error Handling
 - Precondition: production code uses precondition/preconditionFailure only for structural invariants and upstream-verbatim surfaces; new code must not add them. **Full-scan: 14 sites / 11 files**, re-measured by `make docs-check`:
-  - 逐个位置 = 下面两条 claim 用的同一条 `git grep`，不在这里手抄第二份地图（手抄的那份上一版就过期了）。
+  - 逐个位置 = 下面两条 claim 用的同一条 `git grep`，不在此手抄第二份地图。
 <!-- claim:precondition_sites<=14 :: git grep -nE 'precondition(Failure)?\(' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
 <!-- claim:precondition_files<=11 :: git grep -nE 'precondition(Failure)?\(' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | cut -d: -f1 | sort -u | wc -l -->
 - **Zero `try!`, `as!`, `fatalError`, `assert` outside comments.** Counted excluding comment lines: six `try!` occurrences are prose *inside* doc comments ("全 Safe API, 无 as!/try!"), so the naive grep is not the instrument.
@@ -150,18 +150,19 @@ metric warning, the vendored-header table and the re-collect discipline:
 <!-- claim:fatalerror_as<=0 :: git grep -nE 'fatalError\(| as! ' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
 - **`print()` — 2 sites, both CLI/stdout product surface**, not debug logging: `Sources/ocoreai/UI/Application.swift:38` (`--version`/`--help` report) and `Sources/ocoreai/Headless/HeadlessServer.swift:141` (headless `serve` banner); bare `print(` would match `fingerprint(`. Ceiling 2 until the owner rules whether either belongs on the logger; then 0.
 <!-- claim:print_sites<=2 :: git grep -nE '(^|[^A-Za-z0-9_.])print\(' -- Sources | grep -vE ':[0-9]+: *(//|/\*|\*)' | wc -l -->
-- `try?`: used as the defensive-fallback pattern; `try?` stays acceptable where a real fallback follows.
+- `try?`: acceptable where a real fallback follows.
 
 ### Naming
 - Target names ≠ module boundaries (e.g., `GuidedGenerationLoop` is peer to `ChatSession`, not nested).
-- TODO 计数 = **1**: `CoreAIInputEmbeddings.swift:36` (`4517ca3`, coreai-models absorb); re-measured by the claim below.
+- TODO 计数 = **1**: `CoreAIInputEmbeddings.swift:36` (`4517ca3`, coreai-models absorb); re-measured below.
 <!-- claim:todo_sites<=1 :: git grep -n TODO -- Sources | wc -l -->
 
 ### Testing Quality
 - Gold standard: `ThinkingBudget`, `ComplexityAnalyzer` — exact value assertions (`#expect == N`), parameterized traversal, boundary assertions.
 - **Reject** `count > N` weak assertions.
-- Test modules: Scheduler lifecycle + concurrency, OOMGuard (full), MemoryTracker / AdmissionGate (partial gaps), HardwareRouter (Mirror + Integration — table below).
-- **A scan-based test asserts its own premises:** find the repo root by searching, never by fixed `deletingLastPathComponent()` hops (three "passing" assertions here were really ENOENT), and floor the scan's own hit count so a regex that stopped matching fails (`V1EndpointCatalogTests`).
+- Test modules: Scheduler lifecycle + concurrency, OOMGuard (full), MemoryTracker / AdmissionGate (partial gaps), HardwareRouter (Mirror + Integration).
+- **A scan-based test asserts its own premises:** find the repo root by searching, never by fixed `deletingLastPathComponent()` hops, and floor the scan's own hit count so a regex that stopped matching fails (`V1EndpointCatalogTests`).
+- **A fix gates every consumer of the value it changed** — an emit-site pin left `/metrics` and the persisted row on the fixed wire's suffix; gate the hops, not the emit site.
 - **Commit the probe.** Anything proving behaviour against a live server ships as a script (`scripts/proc-status-cache-probe.swift`) so the claim outlives its session.
 
 ---

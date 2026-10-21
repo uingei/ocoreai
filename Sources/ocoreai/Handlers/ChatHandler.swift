@@ -1836,6 +1836,17 @@ private func streamWithToolCalling(
             )
         }
 
+        /// One number for one prompt, at every hop this turn reports it: the SSE `usage` chunk,
+        /// the metrics counter and the persisted conversation row. The non-stream path has done
+        /// this since 4b706ef; this path sent the whole rendered prompt to the client and the
+        /// prefilled suffix to the other two, so one warm streaming turn said ~730 tokens on the
+        /// wire and ~20 to `/metrics` and to session memory.
+        let observedInputTokens = PromptTokenAccounting.renderedPromptTokens(
+            observedPrefilled: observedPromptTokens,
+            cachedPromptTokens: observedCachedPromptTokens,
+            fallback: promptTokenCount,
+        )
+
         /// FINAL stop chunk — the only chunk on this stream allowed a non-null
         /// `finish_reason`, and the word it carries is resolved by the same rule the
         /// non-stream wire uses: `tool_calls` when a call reached this client and the
@@ -1864,11 +1875,7 @@ private func streamWithToolCalling(
                 model: modelId,
                 choices: [],
                 usage: Usage(
-                    input: PromptTokenAccounting.renderedPromptTokens(
-                        observedPrefilled: observedPromptTokens,
-                        cachedPromptTokens: observedCachedPromptTokens,
-                        fallback: promptTokenCount,
-                    ),
+                    input: observedInputTokens,
                     output: totalOutputTokens,
                     cachedPromptTokens: observedCachedPromptTokens,
                     reasoningTokens: finalReasoningTokens
@@ -1897,7 +1904,7 @@ private func streamWithToolCalling(
         }
         await metrics.observeInferenceDuration(
             ms: inferenceDurationMs,
-            inputTokens: observedPromptTokens ?? promptTokenCount,
+            inputTokens: observedInputTokens,
             outputTokens: totalOutputTokens,
             ttfbMs: String(format: "%.1f", ttfbMsVal),
             modelId: modelId,
@@ -1909,7 +1916,7 @@ private func streamWithToolCalling(
             messages: messages,
             assistantContent: prevDecodedText,
             modelId: modelId,
-            promptTokens: observedPromptTokens ?? promptTokenCount,
+            promptTokens: observedInputTokens,
             outputTokens: totalOutputTokens,
             compressor: sessionCompressor,
             semanticSearch: semanticSearch,

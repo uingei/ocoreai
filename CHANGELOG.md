@@ -3,6 +3,20 @@
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## [Unreleased] — 2026-09-05 → 2026-10-21
+**10-21 线上修好了，同一条腿还有两个出口没跟上：一个提示词只能有一个数**(P0 行为不一致 / P1 可观测性) — 4b706ef 把 `prompt_tokens` 算成整段渲染提示词，改的是**发给客户的那一行**。同一轮的两个出口仍传旧值：OpenAI 流式的 metrics 调用与落库仍是 `observedPromptTokens ?? promptTokenCount`（本轮 prefilled 的尾巴），Anthropic 两面的 metrics 仍传 `inputTokenCount`（生成前的估计）。于是一条热轮同时说着三种话：客户端 730、`/metrics` 的 `ocoreai_inference_tokens_total{kind="prompt"}` 加 20、会话表里按 730 与 20 摊出来的 per-message `token_count`——而 128K 的会话压缩阈值（`SessionCompressor.tokenThreshold`）正是从这个累加读出来的。
+
+- **为什么满仓皆绿**：4b706ef 的静态钉子只数 `renderedPromptTokens(` 的出现次数，禁的是 wire 那一跳的写法（`inputTokens: observedPromptTokens ??`）；metrics 那一跳换了变量名，落库那一跳连字段名都不同（`promptTokens:`）。**修了一条腿不等于修了这条腿的所有出口**——门要数出口，不能只数修过的地方。
+
+- **一个数，三个出口**：两面各在生成结束处算一次 `observedInputTokens`（`ChatHandler.swift` 流式/非流式、`AnthropicMessagesHandler.swift` 两模式），wire／metrics／落库同用它。生成**之前**的判定照旧用估计（`promptExceedsContextWindow`、`ContextStatusStore`、Anthropic `message_start` 与 admission）——那一刻还没有可测的数，这是分工不是遗漏。
+
+- **门**：`PromptTokenAccountingTests` 新 `everyHopReportsOnePrompt`（两面参数化）——每面 `renderedPromptTokens(` 恰好 2（每响应模式一次），`observedInputTokens` 恰好 8（OpenAI：声明+wire+metrics+落库 ×2）／6（Anthropic：声明+wire+metrics ×2），并禁掉两处已知的"另一条腿"写法；用精确值而非 `>=`，出口凭空多一个或少一个都会改变这道门覆盖的东西。活体加在探针 01 §E：冷轮起会话 → 同会话**流式**热轮（`stream_options.include_usage`），断言线上 `prompt_tokens` == `/metrics` prompt 计数器这一轮的增量，并与日志 `reused C of T` 的 T 对齐；这一轮若没复用（whole==suffix，两数天然相等）就按 `OCOREAI_REQUIRE_PREFIX_REUSE` 判失败或明说"这轮没测到那件事"——不许安静退化成空判。
+
+- **写门时自己挨的一刀**：§E 第一版在冷启动轮**之前**就读计数器，增量于是盖住两代生成（708+730=1438）而报 FAIL。计数增量必须只夹住被测的那一代，这条已经写进 §E 的注释。
+
+- **红样（逐条只红该红）**：只把流式 metrics 退回 `observedPromptTokens ?? promptTokenCount` ⇒ 探针 01 恰好红 §E 那条，并把缺陷原话说出来：`streaming turn said prompt_tokens=730 on the wire while /metrics moved by 20`；静态门同一退回态红 2 条（`observedInputTokens` 8→7、禁词复活），Anthropic 那条用例仍绿。绿样：`wire said 730, /metrics moved by 730`，探针 01 **18 断言 / 0 失败**。
+
+- **登记（不宣称已修）**：落库那个数虽然与线上同源于一次记账，但 `persistConversation` 把整轮提示词摊给本轮的 user 行（`tokensPerMsg = promptTokens / userMsgCount`），既不是每条消息自己的 token（摊整段会把历史重复计入每一轮，令 128K 阈值提前触发），摊尾巴又会让阈值几乎不触发。per-message `token_count` 应当量它自己那条消息——真要改需要在这条腿上接真 tokenizer 并给出无 tokenizer 时的降级说法，留作下一轮。
+
 **10-21 `prompt_tokens` 报的是本轮付过的钱，不是提示词的长度——一个分解量比它的整体还大**(P0 上游偏离 / OpenAI 兼容) — 写探针 21 时被两个数字撞了头：三条热轮在 `/v1/chat/completions` 上分别答出 `{"prompt_tokens": 30, "cached_tokens": 949}`、`44/949`、`54/949`。分解量 (949) 比它所分解的整体 (30) 大到 31 倍，规范上不可能；按上游自己的加法（`cached + prefilled`）那是一条 979 token 的提示词，报给客户 30——整条复用前缀从客户记账、预算、限流的依据里消失了。
 
 - **规范与上游两头都站在总量一边**：OpenAI `prompt_tokens_details` 是 `prompt_tokens` 的 breakdown（故 `cached_tokens ≤ prompt_tokens`），vllm/sglang 同形；上游 `GenerateCompletionInfo.promptTokenCount` 自己的注释就写着 "counts fewer tokens than the rendered prompt"（`Evaluate.swift:2921-2926`），并把总量算成 `cached + prefilled`（`totalPromptTokenCount`，`Evaluate.swift:2984-2987`），mlx-swift-lm 发 usage 时用的正是总量（`MLXLanguageModel.swift:1377`/`:1519`/`:1721`）。我们发的是差额。**证据早就在仓里**：探针 19 已提交的 `prompt=12 cached=1458` 就是同一个形状，当时被当成"复用生效"记下来了——一条断言只比 `cached` 与日志、从不问同轮的 `prompt` 是多少，就永远看不见这个矛盾（不变量 1：门要钉得住自己那句前提）。
