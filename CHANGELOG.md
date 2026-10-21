@@ -4,6 +4,18 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-22
 
+**10-22 第二句「你还没意识到文档稀烂？」：镜头从 root 移到 root 之外那一跳，量出四类真缺陷并全部补上门**(P2 文档复杂度 / P3 回归防护) — root 瘦完不算完：root 之外那份「agent 被指过去再看」的语料才是当天真正在骗人的东西。同一台机器、同一套 grep 量出来的不是感觉：
+
+- **表格坏在渲染层（不只是难看）**：`scripts/probes/README.md` 24,720 B，从 `05` 那行起 **8 行断行**（一条 row 折到下一行），markdown 表格在第一个断行处整块失效——那下面的每一条 probe 契约在 GitHub/编辑器里都不是表格；另有 **2 行列数不齐**（`24`、`26` 把 question 和 method 挤进同一格，表头是 3 列）；14 行 >600 B（最长 1,362 B）。写检查器时 `.github/REVIEW.md:254` 先误报一次（格内转义 `\|`），门里显式处理转义 ⇒ 全仓 22 个 .md 扫下来，真缺陷只剩探针索引这一处（不是全都烂，是烂得具体）。
+- **`docs/agent/closed-items-log.md` 有一行 3,047 B**，把 10-14 那一轮逐条复述了一遍，而 CHANGELOG 里同一轮指纹全在（`v1/messages/count_tokens` 4 处、`prompt_tokens:43`、`deletingLastPathComponent`）⇒ 第二份真相。**但这文件不能整删**：`kvCacheRuntimeReport` 这条裁决在 CHANGELOG 里 **0 命中**，是全仓唯一记录（还挂着一个上游锚点）⇒ 删复述、留裁决与仍未决的那半条（`tokenizer_backend: heuristic` 的估算精度没有独立断言），4,506 → **2,435 B（−46%）**。
+- **改法一律可验证无损**：探针索引 表 → 每条一个 bullet（`NN-name.sh` — 问题 / `Fails when:` 逐条，27 条齐全）；`docs/agent/comparator-repos.md` 同形 4 列长表 → bullet；行重排 14 行（CJK 感知，跳代码围栏 / HTML 注释 / 表格行：build-gate-reality 4、third-party-notices 6、closed-items-log 3、ARCHITECTURE 1）。**无损不是口号**：改写前后按「去掉空白后的字符多重集」逐文件比对，7 个文件 `lost=0`，唯一差异是表头与分隔行的结构字符。形状结果：探针索引最长行 1,362 → **364 B**，全语料最长行 1,823 → **≤400 B**。
+- **门自己抓到自己管着的文档在说旧形状**：`cmp_matrix_rows` / `cmp_named_trees` 两条 claim 的 grep 钉在 `^| \`` 上，表格一变形状 P4 当场报 `command returns 0`——这正是 P4 存在的意义；改成 `^- \`` 后 claims **42/42**。
+- **补门两条（`scripts/agents-md-contract.sh`）**：**P14 索引 == 文件系统**——探针 README 必须恰好索引存在的脚本（少一个红、多一个红），全仓 .md 表格必须一行一 row、列数与表头一致、行不许折，`docs/agent/*.md` 不许有孤儿（root 与 guides 都没点名就红）；三条扫描各自带地板（.md≥15、doc≥5、index≥20），免得「扫不到」被当成「没问题」。**P15 一跳语料形状**——13 个文件、总量 **152,041 B** 上限（shrink-only）、行 ≤400 B（围栏/注释/表格行豁免：注释里的 claim 必须留在解析器读它的那一行）。
+- **顺手修一处「文档不反映代码」**：脚本头部把 P1–P12 逐条写明白了，**P13 只有代码没有说明**；已补齐 P13/P14/P15。root § Docs Contract 同步补一句，为守 B1 棘轮，删掉与 `CONTRIBUTING.md` 重复的两行操作符语义（`>=` floor / `<=` ceiling 的老家在 CONTRIBUTING），root 30,480 → **30,471**。
+- **红样全部当场跑过（真插真删）**：幽灵条目 `99-ghost-probe.sh` → P14 ghost 红；新建 `28-unindexed-dummy.sh` 不索引 → P14 missing 红；`instruction-channel.md` 追加 430 B 长行 → P15 wall 红 + 语料字节同时红；`README.md` 塞一行折行 → `P14 … README.md:117 continues a table row` 红；逐项还原后 `✅ contract holds`。
+- **入账**：`make docs-check` ✅（root 30,471/30,480、corpus 152,032/152,041、walls 0、probe-index 27/27、doc-orphans 0、table-defects 0、claims 42/42、numbered 19/19）、`make audit` ✅、`make anchor-check` 46/0 drift、`make format-check` 0 重排。
+- **仍开（不虚报）**：`CHANGELOG.md` 本体 581,298 B / 372 个日期戳 / 最长行 6,082 B 仍等 owner 点头（切 `docs/agent/rounds/` 动的是「唯一日记」的形态）；`README.md` / `README.zh.md` 面向人，本轮没纳入形状门，各自还有 8 行 >400 B；探针与比较器两处由表格改成了 bullet，若 owner 更看重表格呈现，可回退成「一行一 row、列数一致」的窄表——门禁允许那种写法。
+
 **10-22 AGENTS.md 自己正是它管着的那个坏样子：root 50,618 → 30,480（−39.8%），并把「不许写日记」从一句自我提醒变成一道门（P13）**(P2 文档复杂度 / P3 可观测性) — 起因是两句「AGENTS.md 一点也不规范？」「你还没意识到文档稀烂？」。这不是文风之争，是可量的：root **38 处 `MM-DD` 日期戳**、**37 行超过 400 字节（最长 1,223 B）**、六个政策章节互相重复（`Core Principles` / `Rules that apply everywhere` / `Workflow` / `Agent Execution Rules` / `Agent Runtime Reality` / `Taste test`），而它自己在 § Rules 里白纸黑字写着「**Not a diary.** A root rule is ≤3 lines… Dates… go to `CHANGELOG.md`」。P1–P12 与 B1 全绿，日记照样长——**规则没有门就是断言**（invariant 1 的自打脸现场）。
 
 - **改法（只搬位置，不销毁证据）**：root 只留规则与指针，每条 ≤3 行（what + 一句证据 + 门名），日期全部退场；只与这台主机有关的事实（谁是 Codex、skills 清单会漂、sub-agent 默认为何是一趟、escalation 复核坏在哪一层、`~/wiki` 与 `.hermes/` 为何永远不是项目证据）搬去新 `docs/agent/codex-runtime.md`；其余过程叙述本就在本文件——逐符号 grep 已核：`firstStopOccurrence` / `ToolProseLedger` / `splitInstructionMessages` / `PromptCacheReuse` / `mergingSteeredTurn` / `HubReachability` 全都在，root 里的复述是第二份真相。结果 **root 30,480 B**，上限同刀 **50,618 → 30,480**（B1 仍是棘轮，此后只减）。

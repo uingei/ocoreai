@@ -302,11 +302,10 @@ is real · **P7** every area guide on disk has a routing row · **P9** routing t
 present · **P10** the READMEs' endpoint table + public-route list equal the router and `AuthRoutePolicy` ·
 **P11** every numbered suite claim equals that file's `@Test` count · **P12** every internal `§` cross-reference names a section
 that exists · **P13** this file carries no dates and no prose wall (every line ≤ 400 bytes) — the anti-rot
-rule it always stated and never enforced.
-A claim sits on the same line as its instrument, and the operator is part of the meaning: `>=` a floor that
-must not shrink, `<=` a ceiling that must not grow, `=` only for facts that move when this file is edited.
-Pinning equality to an inventory count is a churn generator — name the command instead. Long form:
-`CONTRIBUTING.md` → *The three questions*.
+rule it always stated and never enforced · **P14** the indexes equal the filesystem: the probe README indexes the
+scripts that exist, every markdown table keeps one row per line + column count, no `docs/agent/*.md` unreachable ·
+**P15** the one-hop corpus obeys P13's shape under a shrink-only byte cap.
+Operator semantics (`>=` floor, `<=` ceiling) + the three questions: `CONTRIBUTING.md`.
 
 ## Documentation Map — Agent-facing vs Human-facing
 **Rule of thumb:** text *injected into the model's context at runtime* is **Agent-facing** — a change alters

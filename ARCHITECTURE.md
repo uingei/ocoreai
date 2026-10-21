@@ -2,7 +2,8 @@
 
 > **Status**: Point-in-time review, not live. The codebase has moved — treat ✅/❌ claims as of the date, not as current truth. (137 Swift files / 40,355 LOC as of 2026-07-26; now 227 files / ~76k LOC)
 > **Date**: 2026-07-26
-> **Superseded**: `BackendProtocol` and `PagedKVCache`/`BlockPool`/`KVCacheManager` were **removed** after this review (see commit `2123143` for BackendProtocol). CoreAI **now has** native grammar-constrained decoding (`ConstrainedGenerationCapable`) — the "CoreAI lacks grammar/stop" rows in this doc are obsolete. Cross-check `CHANGELOG.md` + `~/wiki/concepts/upstream-coreai-models.md` for current state.
+> **Superseded**: `BackendProtocol` and `PagedKVCache`/`BlockPool`/`KVCacheManager` were **removed** after this review (see commit `2123143` for BackendProtocol). CoreAI **now has** native grammar-constrained decoding (`ConstrainedGenerationCapable`) — the "CoreAI lacks grammar/stop" rows in this doc are obsolete. Cross-check `CHANGELOG.md` +
+`~/wiki/concepts/upstream-coreai-models.md` for current state.
 > **Methodology**: source-level reading, three-layer verification (grep → compile → read)
 
 ---

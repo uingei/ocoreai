@@ -37,6 +37,21 @@
 #                    found two citations of `§ Open` after that block lost its heading in an
 #                    earlier trim — green before, because nothing read §-references (invariant 1
 #                    again). Anchors include the bold pseudo-headings this corpus really uses.
+#   P13 diary-free    AGENTS.md carries rules, not dated forensics: zero MM-DD stamps and no
+#                    line over OCOREAI_AGENTS_MAX_LINE bytes. The file said "Not a diary" while
+#                    holding 38 dated stamps and 37 lines over 400 bytes, and P1-P12 stayed green
+#                    the whole time — a rule with no gate is a claim (invariant 1, turned on the
+#                    file that states it)
+#   P14 indexes       the three hand-maintained places that decide where a reader looks next are
+#                    compared with the filesystem: scripts/probes/README.md must index exactly the
+#                    probe scripts that exist (no gap, no ghost); every markdown table in the repo
+#                    must keep one row per line and one column count (the probe README had rows
+#                    that wrapped, so everything below the first one rendered as stray prose); and
+#                    no docs/agent/*.md may be unreachable from AGENTS.md or an area guide,
+#                    because an orphan doc drifts unnoticed
+#   P15 corpus shape  P13's shape rule one hop out — no line over OCOREAI_CORPUS_MAX_LINE bytes
+#                    outside code fences/comments/tables, corpus total under OCOREAI_CORPUS_MAX_BYTES.
+#                    A guide nobody can read is a guide nobody obeys.
 #
 # Why (measured 10-14, same session as this file): three "verified" counts had already
 # drifted — Engine/*.swift 44 -> 53, precondition 12 sites/9 files -> 14/11 — and the
@@ -56,6 +71,18 @@ cd "$(dirname "$0")/.."
                                      # `make docs-budget` may only lower it (B1 stays a ratchet)
 # P13: the injected file carries rules, not diary. Longest allowed line in AGENTS.md, in bytes.
 : "${OCOREAI_AGENTS_MAX_LINE:=400}"
+# P15: the same shape rule for the corpus an agent reads one hop out — area guides,
+# docs/agent/*, the probe index, ARCHITECTURE/CONTRIBUTING. Measured 10-22 after the corpus
+# pass: 13 files, 152,041 bytes, zero lines over 400 bytes outside code fences. Raising
+# either constant must be a visible edit in the diff.
+: "${OCOREAI_CORPUS_MAX_LINE:=400}"
+: "${OCOREAI_CORPUS_MAX_BYTES:=152041}"
+# P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
+# README whose index pattern rotted cannot report "every probe is documented" vacuously.
+: "${OCOREAI_PROBE_FLOOR_INDEX:=20}"
+# P14 floors for the other two index scans (measured 22 tracked .md, 7 files in docs/agent).
+: "${OCOREAI_FLOOR_MD_SCANNED:=15}"
+: "${OCOREAI_FLOOR_DOC_FILES:=5}"
 : "${OCOREAI_AGENTS_MAX_CHAIN:=78000}" # AGENTS.md + one area guide loaded together
 : "${OCOREAI_AGENTS_MAX_AREA:=16000}"  # each Sources/**/AGENTS.md or docs/agent/*.md
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
@@ -93,6 +120,11 @@ OCOREAI_AGENTS_MAX_ROOT="$OCOREAI_AGENTS_MAX_ROOT" \
 OCOREAI_AGENTS_MAX_CHAIN="$OCOREAI_AGENTS_MAX_CHAIN" \
 OCOREAI_AGENTS_MAX_AREA="$OCOREAI_AGENTS_MAX_AREA" \
 OCOREAI_AGENTS_MAX_LINE="$OCOREAI_AGENTS_MAX_LINE" \
+OCOREAI_CORPUS_MAX_LINE="$OCOREAI_CORPUS_MAX_LINE" \
+OCOREAI_CORPUS_MAX_BYTES="$OCOREAI_CORPUS_MAX_BYTES" \
+OCOREAI_PROBE_FLOOR_INDEX="$OCOREAI_PROBE_FLOOR_INDEX" \
+OCOREAI_FLOOR_MD_SCANNED="$OCOREAI_FLOOR_MD_SCANNED" \
+OCOREAI_FLOOR_DOC_FILES="$OCOREAI_FLOOR_DOC_FILES" \
 OCOREAI_AGENTS_FLOOR_REFS="$OCOREAI_AGENTS_FLOOR_REFS" \
 OCOREAI_AGENTS_FLOOR_CLAIMS="$OCOREAI_AGENTS_FLOOR_CLAIMS" \
 OCOREAI_AGENTS_FLOOR_SUITES="$OCOREAI_AGENTS_FLOOR_SUITES" \
@@ -526,10 +558,122 @@ if dead_refs:
     fail.append("P12 %d dangling § cross-reference(s) — no section by that name in AGENTS.md or "
                 "any guide: %s" % (len(dead_refs), ", ".join("§ " + r for r in dead_refs)))
 
+# ── P14: index surfaces match the filesystem ─────────────────────────────────
+# Three hand-maintained indexes decide where a reader looks next. Each is compared with the
+# filesystem and floors its own scan, so "every probe documented" and "every guide routed"
+# mean what they meant the day they were written (V1EndpointCatalogTests' pattern, aimed at
+# the docs instead of the router).
+PROBE_DIR = "scripts/probes"
+probe_scripts = sorted(f for f in os.listdir(PROBE_DIR) if re.match(r"^\d\d-[a-z0-9-]+\.sh$", f))
+probe_indexed = sorted(set(re.findall(r"^- `(\d\d-[a-z0-9-]+\.sh)`", read(PROBE_DIR + "/README.md"), re.M)))
+probe_missing = sorted(set(probe_scripts) - set(probe_indexed))
+probe_ghosts = sorted(set(probe_indexed) - set(probe_scripts))
+if len(probe_indexed) < env_int("OCOREAI_PROBE_FLOOR_INDEX"):
+    fail.append("P14 the probe index scan matched only %d entries (floor %d) — the pattern in "
+                "scripts/probes/README.md rotted, so a missing probe would pass unseen"
+                % (len(probe_indexed), env_int("OCOREAI_PROBE_FLOOR_INDEX")))
+if probe_missing:
+    fail.append("P14 %d probe script(s) exist but are not indexed in scripts/probes/README.md: %s"
+                % (len(probe_missing), ", ".join(probe_missing)))
+if probe_ghosts:
+    fail.append("P14 scripts/probes/README.md indexes %d script(s) that do not exist: %s"
+                % (len(probe_ghosts), ", ".join(probe_ghosts)))
+
+
+def row_cells(row):
+    return row.strip().strip("|").replace("\\|", "\x00").split("|")
+
+
+def table_problems(path):
+    out = []
+    lines = read(path).split("\n")
+    i = 0
+    while i < len(lines):
+        s = lines[i].strip()
+        if s.startswith("|") and i + 1 < len(lines) and re.match(r"^\|[\s:|\-]+\|$", lines[i + 1].strip()):
+            ncol = len(row_cells(lines[i]))
+            j = i + 2
+            while j < len(lines) and lines[j].strip().startswith("|"):
+                c = len(row_cells(lines[j]))
+                if c != ncol:
+                    out.append("%s:%d has %d column(s), the header has %d" % (path, j + 1, c, ncol))
+                j += 1
+            if j < len(lines):
+                nxt = lines[j].strip()
+                if nxt and not nxt.startswith(("|", "#", ">", "-", "*", "`", "!", "[", "<!--")):
+                    out.append("%s:%d continues a table row — the table stops rendering there" % (path, j + 1))
+            i = j
+        else:
+            i += 1
+    return out
+
+
+md_tracked = [q for q in subprocess.check_output(["git", "ls-files", "*.md"]).decode().split("\n") if q]
+table_bad = []
+for q in md_tracked:
+    table_bad += table_problems(q)
+if len(md_tracked) < env_int("OCOREAI_FLOOR_MD_SCANNED"):
+    fail.append("P14 only %d tracked .md file(s) scanned for table validity (floor %d) — the file "
+                "list is the premise, and a premise that shrinks silently voids the check"
+                % (len(md_tracked), env_int("OCOREAI_FLOOR_MD_SCANNED")))
+if table_bad:
+    fail.append("P14 %d markdown table defect(s) (one row per line, one column count): %s"
+                % (len(table_bad), "; ".join(table_bad[:6])))
+
+AREA_GUIDES = [q for q in glob.glob("Sources/**/AGENTS.md", recursive=True)
+               + glob.glob("Tests/**/AGENTS.md", recursive=True)]
+doc_files = sorted(glob.glob("docs/agent/*.md"))
+reachable = read("AGENTS.md") + "".join(read(q) for q in AREA_GUIDES)
+doc_orphans = [q for q in doc_files if os.path.basename(q) not in reachable]
+if len(doc_files) < env_int("OCOREAI_FLOOR_DOC_FILES"):
+    fail.append("P14 only %d docs/agent/*.md found (floor %d) — sweeping orphans away would look "
+                "like a clean pass" % (len(doc_files), env_int("OCOREAI_FLOOR_DOC_FILES")))
+if doc_orphans:
+    fail.append("P14 %d file(s) in docs/agent/ are named by neither AGENTS.md nor an area guide, so "
+                "nothing routes a reader to them: %s" % (len(doc_orphans), ", ".join(doc_orphans)))
+
+# ── P15: corpus shape ────────────────────────────────────────────────────────
+# The one-hop corpus is not injected, so it does not cost every session — but it is where an
+# agent goes when AGENTS.md sends it somewhere, and the same failure modes apply: a 1,200-byte
+# line nobody reads, a file that grows because nothing priced it. Code fences, HTML comments and
+# table rows are exempt (a command line may be long; a claim inside a comment must stay on the
+# line its parser reads it from, and table arity is P14's job).
+CORPUS = (["AGENTS.md", "ARCHITECTURE.md", "CONTRIBUTING.md", "scripts/probes/README.md"]
+          + AREA_GUIDES + doc_files)
+corpus_bytes = 0
+corpus_walls = []
+for q in sorted(set(CORPUS)):
+    if not os.path.exists(q):
+        fail.append("P15 corpus file missing: %s" % q)
+        continue
+    txt = read(q)
+    corpus_bytes += len(txt.encode("utf-8"))
+    fence = False
+    for n, l in enumerate(txt.split("\n"), 1):
+        if l.strip().startswith("```"):
+            fence = not fence
+            continue
+        if fence or l.lstrip().startswith(("|", "#", "<!--")):
+            continue
+        b = len(l.encode("utf-8"))
+        if b > env_int("OCOREAI_CORPUS_MAX_LINE"):
+            corpus_walls.append("%s:%d (%d bytes)" % (q, n, b))
+if corpus_bytes > env_int("OCOREAI_CORPUS_MAX_BYTES"):
+    fail.append("P15 the agent-facing corpus is %d bytes > cap %d — text goes in only when text "
+                "comes out (B1's ratchet, applied to the corpus; a legitimate growth must be a "
+                "visible edit of the constant)" % (corpus_bytes, env_int("OCOREAI_CORPUS_MAX_BYTES")))
+if corpus_walls:
+    fail.append("P15 %d line(s) over %d bytes in the agent-facing corpus (outside code fences, "
+                "comments and tables): %s"
+                % (len(corpus_walls), env_int("OCOREAI_CORPUS_MAX_LINE"), "; ".join(corpus_walls[:6])))
+
 # ── report ───────────────────────────────────────────────────────────────────
 print("AGENTS.md contract (%s)" % mode)
 print("  xrefs     §-refs=%d (floor %d)  anchors=%d  dangling=%d"
       % (len(refs), env_int("OCOREAI_AGENTS_FLOOR_XREFS"), len(anchors), len(dead_refs)))
+print("  corpus    files=%d bytes=%d/%d  walls=%d  probe-index=%d/%d  doc-orphans=%d  table-defects=%d"
+      % (len(sorted(set(CORPUS))), corpus_bytes, env_int("OCOREAI_CORPUS_MAX_BYTES"),
+         len(corpus_walls), len(probe_indexed), len(probe_scripts), len(doc_orphans), len(table_bad)))
 print("  budgets   root=%d/%d chars  guides=%d  chain-cap=%d"
       % (root_size, env_int("OCOREAI_AGENTS_MAX_ROOT"), len(guides), env_int("OCOREAI_AGENTS_MAX_CHAIN")))
 print("  scan      gateable-refs=%d (floor %d)  claims=%d/%d ok (floor %d)  suites=%d  routing=%d  upstream-trees=%d"

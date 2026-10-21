@@ -11,20 +11,58 @@
 > is redistributed, and a borrowed verdict stays an inference until a `file:line` in *our* build
 > carries it (AGENTS.md policy 3 + 4).
 
-| Tree | What the clone actually contains (measured 10-20) | The axis it is worth borrowing from | Audit state (CHANGELOG lines, 10-20) |
-|---|---|---|---|
-| `vllm` | Python serving stack; `entrypoints/serve/utils/tool_calls_utils.py`, `entrypoints/anthropic/serving.py` | OpenAI + Anthropic compatibility: parallel-call filtering, `finish_reason` resolution, OpenAI→Anthropic field mapping | consumed — 21, cited by file:line through rounds 19–20 |
-| `sglang` | Python serving stack; `srt/entrypoints/openai/{protocol,serving_chat}.py`, `srt/entrypoints/anthropic/protocol.py` | The same compat axis, second opinion: discriminated `delta.type` unions, `tool_choice` vocabularies, `/v1/decisions` (the AR route to typed yes/no・choice・score reads — `docs/agent/systemone-decisions.md`), "upgrade the word only if a call landed **and** it stopped naturally" | consumed — 17, cited by file:line |
-| `omlx` | MLX serving project (config surface, per-model overrides) | Serving knobs that a local MLX server publishes per model (context-window caps, model-level config) | consumed — 12 |
-| `hermes-agent` | Agent-loop reference | Loop shape, tool-result handling | consumed — 6 |
-| `ollama` | Go server; `LLAMA_CPP_VERSION=b11669`, `MLX_C_VERSION=a341b492…`, plus its own `AGENTS.md` | Multiplexing two engine families (llama.cpp + MLX C) behind one local API and versioning each pin separately — the closest published analogue to ocoreai's MLX + CoreAI dual path; also model management/download UX | touched, not audited — 5, no file:line verdict yet |
-| `mlx-serve` | MLX serving project with `tests/test_*.sh` | The convention that a behaviour claim ships as a committed shell probe (the rule behind `scripts/probes/`) | convention adopted — 3; deeper API audit open |
-| `harness2` | Python agent harness (`harness2/{core,benchmarks,cli,substrate}`); `third_party/{jb_runner,lab_runner,wb_runner,patches,licenses}` each with `PROVENANCE.md`; `ASSETS.json` = 47 path→sha256 entries; `check_provenance.py` (exit 1 on any changed/missing asset); `PINNED.md` pin table; `docs/{BENCHMARKS,EXPERIMENTS,SETUP}.md` | **Release-asset provenance**: every redistributed file pinned by digest in a committed map, a checker that fails on drift, and a written line between "vendored asset" and "release code we rewrote". Adopted 10-20 as manifest schema 2 (Apple `pin`+`licenseSha256`+`verifiedAgainstPin`, `vendored[]` rows) — see `docs/agent/third-party-notices.md` | consumed — 3 (designated + this round's two borrowings) |
-| `TensorFold` | Zig engine (`metal/`, `include/`, `packaging/`), `NOTICE` + `THIRD_PARTY_NOTICES.md` + `LICENSES/`, `RUNBOOK.md`, `RELEASE-NOTES-1.0.0.md`, `SECURITY.md`, `ZIG-PREVIEW.md` | Distribution discipline next to ours: a third-party notice set that ships with the binary (our `THIRD-PARTY-LICENSES/` + `ThirdPartyNoticesTests`), plus a runbook/release-notes habit we do not have | named, unused — 1 (the designation line); use it or drop it from `AGENTS.md` |
-| `Strata` | C++/Metal host: `apps/host`, `apps/desktop`, `metal/`, `packaging/`, `bench/`, `docs/{BENCHMARK_PROTOCOL,COMMUNITY_BENCHMARKS,BATCHING,BATCHED_DMA,AMD_HIP}.md`, 7 README localizations | A written benchmark protocol (how a number is produced, before it is quoted) and app packaging for a local model host; AMD/HIP + DMA batching are outside our hardware envelope | named, unused — 1; same call pending |
-| `MTPLX` | MTP speculative decoding for MLX | MTP drafter/acceptance behaviour against our `_runInferenceWithMessages` → `generate(::mtpDrafter:)` path | named, unused — 1 (rounds 9–15 audited mlx-swift-lm's own MTP instead) |
-| `vllm-metal` | Metal backend for vllm | How a Python server reaches Metal; mostly out of stack for a Swift-native engine. 10-20: it is also where this repo first found the **Jev / System 1 decision** axis named (`docs/structured_decisions.md:3`) → `docs/agent/systemone-decisions.md` | touched — 2 |
-| `deepseek-harness` | `dsh`, "everything-is-a-plugin" agent harness powered by Cordis | Skill/plugin surface design and how a harness declares capabilities — the axis `codex` covers for us in Rust | named, unused — 1; same call pending |
+Each entry is one clone under `~/references/`: what it holds, the axis worth borrowing,
+and how far the audit got. A borrowed verdict is an inference until a `file:line` in our
+build carries it.
+
+- `vllm` — Python serving stack; `entrypoints/serve/utils/tool_calls_utils.py`, `entrypoints/anthropic/serving.py`
+Contains: OpenAI + Anthropic compatibility: parallel-call filtering, `finish_reason` resolution, OpenAI→Anthropic field mapping
+Borrow: consumed — 21, cited by file:line through rounds 19–20
+
+- `sglang` — Python serving stack; `srt/entrypoints/openai/{protocol,serving_chat}.py`, `srt/entrypoints/anthropic/protocol.py`
+Contains: The same compat axis, second opinion: discriminated `delta.type` unions, `tool_choice` vocabularies, `/v1/decisions` (the AR route to typed yes/no・choice・score reads — `docs/agent/systemone-decisions.md`), "upgrade the word only if a call landed **and** it stopped naturally"
+Borrow: consumed — 17, cited by file:line
+
+- `omlx` — MLX serving project (config surface, per-model overrides)
+Contains: Serving knobs that a local MLX server publishes per model (context-window caps, model-level config)
+Borrow: consumed — 12
+
+- `hermes-agent` — Agent-loop reference
+Contains: Loop shape, tool-result handling
+Borrow: consumed — 6
+
+- `ollama` — Go server; `LLAMA_CPP_VERSION=b11669`, `MLX_C_VERSION=a341b492…`, plus its own `AGENTS.md`
+Contains: Multiplexing two engine families (llama.cpp + MLX C) behind one local API and versioning each pin separately — the closest published analogue to ocoreai's MLX + CoreAI dual path; also model management/download UX
+Borrow: touched, not audited — 5, no file:line verdict yet
+
+- `mlx-serve` — MLX serving project with `tests/test_*.sh`
+Contains: The convention that a behaviour claim ships as a committed shell probe (the rule behind `scripts/probes/`)
+Borrow: convention adopted — 3; deeper API audit open
+
+- `harness2` — Python agent harness (`harness2/{core,benchmarks,cli,substrate}`); `third_party/{jb_runner,lab_runner,wb_runner,patches,licenses}` each with `PROVENANCE.md`; `ASSETS.json` = 47 path→sha256 entries; `check_provenance.py` (exit 1 on any changed/missing asset); `PINNED.md` pin table; `docs/{BENCHMARKS,EXPERIMENTS,SETUP}.md`
+Contains: **Release-asset provenance**: every redistributed file pinned by digest in a committed map, a checker that fails on drift, and a written line between "vendored asset" and "release code we rewrote". Adopted 10-20 as manifest schema 2 (Apple `pin`+`licenseSha256`+`verifiedAgainstPin`, `vendored[]` rows) — see `docs/agent/third-party-notices.md`
+Borrow: consumed — 3 (designated + this round's two borrowings)
+
+- `TensorFold` — Zig engine (`metal/`, `include/`, `packaging/`), `NOTICE` + `THIRD_PARTY_NOTICES.md` + `LICENSES/`, `RUNBOOK.md`, `RELEASE-NOTES-1.0.0.md`, `SECURITY.md`, `ZIG-PREVIEW.md`
+Contains: Distribution discipline next to ours: a third-party notice set that ships with the binary (our `THIRD-PARTY-LICENSES/` + `ThirdPartyNoticesTests`), plus a runbook/release-notes habit we do not have
+Borrow: named, unused — 1 (the designation line); use it or drop it from `AGENTS.md`
+
+- `Strata` — C++/Metal host: `apps/host`, `apps/desktop`, `metal/`, `packaging/`, `bench/`, `docs/{BENCHMARK_PROTOCOL,COMMUNITY_BENCHMARKS,BATCHING,BATCHED_DMA,AMD_HIP}.md`, 7 README localizations
+Contains: A written benchmark protocol (how a number is produced, before it is quoted) and app packaging for a local model host; AMD/HIP + DMA batching are outside our hardware envelope
+Borrow: named, unused — 1; same call pending
+
+- `MTPLX` — MTP speculative decoding for MLX
+Contains: MTP drafter/acceptance behaviour against our `_runInferenceWithMessages` → `generate(::mtpDrafter:)` path
+Borrow: named, unused — 1 (rounds 9–15 audited mlx-swift-lm's own MTP instead)
+
+- `vllm-metal` — Metal backend for vllm
+Contains: How a Python server reaches Metal; mostly out of stack for a Swift-native engine. 10-20: it is also where this repo first found the **Jev / System 1 decision** axis named (`docs/structured_decisions.md:3`) → `docs/agent/systemone-decisions.md`
+Borrow: touched — 2
+
+- `deepseek-harness` — `dsh`, "everything-is-a-plugin" agent harness powered by Cordis
+Contains: Skill/plugin surface design and how a harness declares capabilities — the axis `codex` covers for us in Rust
+Borrow: named, unused — 1; same call pending
+
 
 ## How to use this file
 
@@ -41,8 +79,8 @@
    — `mlx-swift-lm`, `coreai-models` and `codex` are the axes in § Upstream Audit Dependencies
    1–3, not comparators). A clone proves *content*, never HEAD (see the mirror caveat there).
 
-<!-- claim:cmp_matrix_rows>=12 :: grep -c '^| `' docs/agent/comparator-repos.md -->
-<!-- claim:cmp_named_trees>=12 :: grep -oE '\| `[A-Za-z0-9._-]+` \|' docs/agent/comparator-repos.md | wc -l -->
+<!-- claim:cmp_matrix_rows>=12 :: grep -c '^- \`' docs/agent/comparator-repos.md -->
+<!-- claim:cmp_named_trees>=12 :: grep -oE '^- \`[A-Za-z0-9._-]+\`' docs/agent/comparator-repos.md | wc -l -->
 <!-- claim:cmp_vllm_changelog_lines>=21 :: grep -c -- vllm CHANGELOG.md -->
 <!-- claim:cmp_sglang_changelog_lines>=17 :: grep -c -- sglang CHANGELOG.md -->
 <!-- claim:cmp_omlx_changelog_lines>=12 :: grep -c -- omlx CHANGELOG.md -->
