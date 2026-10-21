@@ -50,6 +50,11 @@ struct MCPEndpointTests {
     }
 }
 
+/// Storage round-trips only. This suite is NOT where a knob's delivery is proved —
+/// `serverTimeoutSeconds` sat here with `#expect(config.serverTimeoutSeconds == 10)`
+/// while nothing in Sources read it (measured 10-21), which is a green suite describing
+/// a capability that did not exist. Timeout delivery is gated in `MCPTimeoutDeliveryTests`
+/// (real stdio child + scan floors), and this suite says so rather than pretending.
 @Suite("MCP — Bridge Config")
 struct MCPBridgeConfigTests {
     @Test("Default config matches documented values")
@@ -58,7 +63,8 @@ struct MCPBridgeConfigTests {
         #expect(config.callCacheEnabled == true)
         #expect(config.callCacheMaxEntries == 256)
         #expect(config.callCacheTTLSeconds == 60)
-        #expect(config.serverTimeoutSeconds == 10)
+        #expect(config.startupTimeoutSeconds == MCPTimeouts.startupDefault)
+        #expect(config.toolTimeoutSeconds == MCPTimeouts.toolDefault)
     }
 
     @Test("Custom config overrides work")
@@ -67,13 +73,15 @@ struct MCPBridgeConfigTests {
             callCacheEnabled: false,
             callCacheMaxEntries: 128,
             callCacheTTLSeconds: 30,
-            serverTimeoutSeconds: 5,
+            startupTimeoutSeconds: 5,
+            toolTimeoutSeconds: 45,
             fanOutStrategy: .serial
         )
         #expect(config.callCacheEnabled == false)
         #expect(config.callCacheMaxEntries == 128)
         #expect(config.callCacheTTLSeconds == 30)
-        #expect(config.serverTimeoutSeconds == 5)
+        #expect(config.startupTimeoutSeconds == 5)
+        #expect(config.toolTimeoutSeconds == 45)
         #expect(config.fanOutStrategy == .serial)
     }
 }

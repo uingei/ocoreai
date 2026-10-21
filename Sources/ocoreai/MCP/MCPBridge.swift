@@ -30,16 +30,30 @@ public struct MCPEndpoint: Codable, Sendable {
     /// Server 能力列表（如 ["tools", "resources"]）
     public let capabilities: [String]
 
+    /// 本 endpoint 的 startup（initialize + 首次 tools/list）超时覆盖（秒）。
+    /// `nil` = 用 ``MCPBridgeConfig/startupTimeoutSeconds``。键名对齐 codex
+    /// `config/src/mcp_types.rs:272`（`startup_timeout_sec`）。
+    public var startupTimeoutSeconds: TimeInterval? = nil
+
+    /// 本 endpoint 的 tools/call 超时覆盖（秒）。
+    /// `nil` = 用 ``MCPBridgeConfig/toolTimeoutSeconds``。键名对齐 codex
+    /// `config/src/mcp_types.rs:276`（`tool_timeout_sec`）。
+    public var toolTimeoutSeconds: TimeInterval? = nil
+
     public init(
         name: String,
         stdioCommand: String,
         stdioArgs: [String] = [],
         capabilities: [String] = ["tools"],
+        startupTimeoutSeconds: TimeInterval? = nil,
+        toolTimeoutSeconds: TimeInterval? = nil,
     ) {
         self.name = name
         self.stdioCommand = stdioCommand
         self.stdioArgs = stdioArgs
         self.capabilities = capabilities
+        self.startupTimeoutSeconds = startupTimeoutSeconds
+        self.toolTimeoutSeconds = toolTimeoutSeconds
     }
 }
 
@@ -74,12 +88,17 @@ private struct EndpointHandle {
     /// 连接时间
     var connectedAt: Date?
 
+    /// 引擎**实际装配**的预算（连接成功后从 client 取回）。ledger 公布这个数，而不是
+    /// 请求里填的那个数——门面只能宣称引擎交付的那一份（invariant 2）。未连成 = nil。
+    var appliedBudget: MCPRPCBudgets?
+
     init(endpoint: MCPEndpoint, status: MCPEndpoint.Status = .disconnected) {
         self.endpoint = endpoint
         self.status = status
         serverCapabilities = [:]
         lastError = nil
         connectedAt = nil
+        appliedBudget = nil
     }
 }
 
@@ -96,8 +115,17 @@ public struct MCPBridgeConfig: Sendable {
     /// 缓存 TTL（秒）
     public var callCacheTTLSeconds: TimeInterval
 
-    /// 外部 server 响应超时（秒）
-    public var serverTimeoutSeconds: TimeInterval
+    /// 外部 server 的 startup（initialize + 首次 tools/list）响应超时（秒）。
+    /// **已交付**：`MCPStdioClient` 用它给 `initialize`/`tools/list` 设死线。
+    /// 前任那条 knob 只声明、无人读取（实测 10-21：全仓 `git grep` 只剩声明与 `self.x = x`），
+    /// 真正的超时是 `MCPStdioClient` 里写死的两处 `15`。旧名字留在 `MCPTimeouts.swift` 的
+    /// 头注释里做来历；本文件由 `MCPTimeoutDeliveryTests` 扫着，它一回来就红。
+    public var startupTimeoutSeconds: TimeInterval
+
+    /// 外部 server 的 tools/call 响应超时（秒）—— 同上，已交付。
+    /// 与 startup 分开，因为一次工具调用就是任务本身：写死 15 s 会让一个真正在干活
+    /// 的 MCP 工具被掐死，而本机自己的 shell 工具允许 300 s（`ExecTools`）。
+    public var toolTimeoutSeconds: TimeInterval
 
     /// Fan-out 策略：并行还是串行
     public var fanOutStrategy: MCPEndpoint.FanOutStrategy
@@ -109,13 +137,15 @@ public struct MCPBridgeConfig: Sendable {
         callCacheEnabled: Bool = true,
         callCacheMaxEntries: Int = 256,
         callCacheTTLSeconds: TimeInterval = 60,
-        serverTimeoutSeconds: TimeInterval = 10,
+        startupTimeoutSeconds: TimeInterval = MCPTimeouts.startupDefault,
+        toolTimeoutSeconds: TimeInterval = MCPTimeouts.toolDefault,
         fanOutStrategy: MCPEndpoint.FanOutStrategy = .parallel,
     ) {
         self.callCacheEnabled = callCacheEnabled
         self.callCacheMaxEntries = callCacheMaxEntries
         self.callCacheTTLSeconds = callCacheTTLSeconds
-        self.serverTimeoutSeconds = serverTimeoutSeconds
+        self.startupTimeoutSeconds = startupTimeoutSeconds
+        self.toolTimeoutSeconds = toolTimeoutSeconds
         self.fanOutStrategy = fanOutStrategy
     }
 }
@@ -231,9 +261,27 @@ actor MCPBridge {
             }
             let args = params["args"] as? [String] ?? []
             let caps = params["capabilities"] as? [String] ?? []
+            // 响应预算可覆盖（codex `startup_timeout_sec` / `tool_timeout_sec`）。越界值
+            // 在这里就拒，命名字段 + 区间 + 原值：一个填错的数字不该换来 15 s 的黑盒等待
+            // 或一条落在过去的死线。
+            let startupOverride: TimeInterval?
+            let toolOverride: TimeInterval?
+            do {
+                startupOverride = try Self.wireTimeout(
+                    params: params, key: "startup_timeout_sec",
+                    configDefault: config.startupTimeoutSeconds)
+                toolOverride = try Self.wireTimeout(
+                    params: params, key: "tool_timeout_sec",
+                    configDefault: config.toolTimeoutSeconds)
+            } catch {
+                // 这两个参数的任何失败都是 invalid params：-32602 + 名字 + 区间 + 原值。
+                return jsonError(error.localizedDescription, code: -32602, id: reqID)
+            }
             do {
                 try await connectEndpoint(
-                    name: name, command: command, args: args, capabilities: caps)
+                    name: name, command: command, args: args, capabilities: caps,
+                    startupTimeoutSeconds: startupOverride,
+                    toolTimeoutSeconds: toolOverride)
                 return jsonResult(["endpoint": name, "status": "connected"], id: reqID)
             } catch {
                 return jsonError(
@@ -841,18 +889,54 @@ actor MCPBridge {
         return results
     }
 
+    /// ledger 口径：已装配优先，否则按唯一解析点算"将要生效"的值。
+    nonisolated fileprivate static func effectiveBudget(
+        for handle: EndpointHandle, config: MCPBridgeConfig
+    ) -> MCPRPCBudgets {
+        handle.appliedBudget
+            ?? MCPRPCBudgets.resolve(
+                endpointStartup: handle.endpoint.startupTimeoutSeconds,
+                endpointTool: handle.endpoint.toolTimeoutSeconds,
+                configStartup: config.startupTimeoutSeconds,
+                configTool: config.toolTimeoutSeconds)
+    }
+
+    /// 从 `$bridge/endpoint/connect` 的 params 里取一条响应预算。
+    ///
+    /// 缺席 = `nil`（交给 bridge config）；非数字或越界 = 抛错，由调用方译成
+    /// JSON-RPC -32602，命名「字段 + 区间 + 原值」。绝不静默取整成别的数：调用方
+    /// 必须知道自己那次覆盖到底生效了没有。
+    nonisolated static func wireTimeout(
+        params: [String: Any], key: String, configDefault: TimeInterval
+    ) throws -> TimeInterval? {
+        guard params[key] != nil else { return nil }
+        guard let raw = params[key] as? NSNumber else {
+            let sent = String(describing: params[key])
+            throw MCPTimeoutError.notANumber(field: key, sent: sent)
+        }
+        return try MCPTimeouts.resolve(
+            field: key, explicit: raw.doubleValue, fallback: configDefault)
+    }
+
     /// 连接外部 MCP endpoint（启动子进程 + initialize + discover tools）。
+    ///
+    /// 两个超时参数是 per-endpoint 覆盖（nil = 用 config）；数值域已由 wireTimeout
+    /// 把过，此处不再判一遍（一个决定一个家）。
     func connectEndpoint(
         name: String,
         command: String,
         args: [String],
         capabilities: [String],
+        startupTimeoutSeconds: TimeInterval? = nil,
+        toolTimeoutSeconds: TimeInterval? = nil,
     ) async throws {
         let ep = MCPEndpoint(
             name: name,
             stdioCommand: command,
             stdioArgs: args,
             capabilities: capabilities,
+            startupTimeoutSeconds: startupTimeoutSeconds,
+            toolTimeoutSeconds: toolTimeoutSeconds,
         )
 
         var handle = EndpointHandle(endpoint: ep, status: .connecting)
@@ -864,7 +948,9 @@ actor MCPBridge {
                 endpoint: ep, transport: transport, log: log,
                 incomingRequestHandler: { line in
                     await self.respondInboundRequest(line, from: name)
-                })
+                },
+                configStartupTimeout: config.startupTimeoutSeconds,
+                configToolTimeout: config.toolTimeoutSeconds)
             try await client.connect()
 
             handle.status = .connected
@@ -872,7 +958,12 @@ actor MCPBridge {
             endpointHandles[name] = handle
             externalClients[name] = client
 
-            log.info("Endpoint \(name) connected: \(command) \(args.joined(separator: " "))")
+            let argLine = args.joined(separator: " ")
+            let applied = await client.budget()
+            handle.appliedBudget = applied
+            endpointHandles[name] = handle
+            log.info(
+                "Endpoint \(name) connected: \(command) \(argLine) \(applied.logWord)")
 
             // Discover tools from this endpoint and register them to ToolRegistry
             try await discoverAndRegisterTools(client: client, source: name)
@@ -927,6 +1018,10 @@ actor MCPBridge {
             "endpoints": endpointHandles.count,
             "connectedEndpoints": connected,
             "cacheEnabled": config.callCacheEnabled,
+            // 未覆盖 endpoint 的默认预算。超时会改变调用方的行为，写进值里才谈得上
+            // 被验证（AGENTS.md：值里的效果要有读它的门）。
+            "startupTimeoutSeconds": config.startupTimeoutSeconds,
+            "toolTimeoutSeconds": config.toolTimeoutSeconds,
         ]
     }
 
@@ -940,6 +1035,11 @@ actor MCPBridge {
                 "capabilities": handle.endpoint.capabilities,
                 "status": handle.status.rawValue,
                 "lastError": handle.lastError as Any,
+                // 生效预算：连成过的报 client 装配的那两个数；没连成的报同一条规则算出来的
+                // 将要生效值。操作员由此看得见"这台 server 的调用最多等多久"，不必猜常数。
+                "startupTimeoutSeconds": Self.effectiveBudget(for: handle, config: config)
+                    .startupSeconds,
+                "toolTimeoutSeconds": Self.effectiveBudget(for: handle, config: config).toolSeconds,
             ]
         }
     }

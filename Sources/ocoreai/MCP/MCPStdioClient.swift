@@ -65,6 +65,11 @@ actor MCPStdioClient {
     /// 已应答的入站请求计数（按 method）——精确值测试断言面（elicit→1、ping→1）。
     private(set) var inboundResponses: [String: Int] = [:]
 
+    /// 本次连接生效的两条预算，构造时一次定稿（来源 = endpoint 覆盖 → bridge config →
+    /// ``MCPTimeouts`` 硬默认）。这是本仓唯一决定"外部 server 能等多久"的地方——旧写法把
+    /// `15` 抄在两处，且 config 里那个 knob 无人读取。
+    private let budgets: MCPRPCBudgets
+
     // MARK: - 初始化
 
     init(
@@ -72,11 +77,18 @@ actor MCPStdioClient {
         transport: MCPStdioTransport,
         log: Logger = Logger(label: "ocoreai.mcp.client"),
         incomingRequestHandler: (@Sendable (String) async -> String?)? = nil,
+        configStartupTimeout: TimeInterval? = nil,
+        configToolTimeout: TimeInterval? = nil,
     ) {
         self.endpoint = endpoint
         self.transport = transport
         self.log = log
         self.incomingRequestHandler = incomingRequestHandler
+        self.budgets = MCPRPCBudgets.resolve(
+            endpointStartup: endpoint.startupTimeoutSeconds,
+            endpointTool: endpoint.toolTimeoutSeconds,
+            configStartup: configStartupTimeout,
+            configTool: configToolTimeout)
     }
 
     // MARK: - 连接管理
@@ -115,7 +127,9 @@ actor MCPStdioClient {
     ///   - params: 请求参数字典\
     /// - Returns: 响应 JSON 字符串。\
     /// - Throws: 协议错误或超时。\
-    func request(_ method: String, params: [String: Any]?) async throws -> String {
+    func request(
+        _ method: String, params: [String: Any]?, phase: MCPRPCPhase = .tool
+    ) async throws -> String {
         // 断连/错误状态 → 直接抛错（不重试 — 对齐 codex: reconnect_failed_startup 后保持断开）
         if status != .connected {
             throw MCPClientError.notConnected(endpoint.name)
@@ -128,11 +142,23 @@ actor MCPStdioClient {
         #endif
         let id = nextID
         nextID += 1
-        return try await sendRPC(id: id, method: method, params: params)
+        return try await sendRPC(
+            id: id, method: method, params: params, timeout: timeout(for: phase))
+    }
+
+    /// 一次请求用哪条预算：握手/发现走 startup，工具调用走 tool。
+    /// 判据写在类型上，调用点就不必各自记一个数（AGENTS.md：一个决定一个家）。
+    private func timeout(for phase: MCPRPCPhase) -> TimeInterval {
+        switch phase {
+        case .startup: budgets.startupSeconds
+        case .tool: budgets.toolSeconds
+        }
     }
 
     /// 不走状态守卫的原始 RPC（内部握手 initialize 用 — 此时 status 尚未 .connected）。
-    private func sendRPC(id: Int, method: String, params: [String: Any]?) async throws -> String {
+    private func sendRPC(
+        id: Int, method: String, params: [String: Any]?, timeout: TimeInterval
+    ) async throws -> String {
         var req: [String: Any] = [
             "jsonrpc": "2.0",
             "method": method,
@@ -143,8 +169,8 @@ actor MCPStdioClient {
         }
         let reqJSON = try serializeJSON(req)
         _ = await transport.writeDirect(reqJSON)
-        return try await withTimeout(seconds: 15) {
-            try await self.waitForResponse()
+        return try await withTimeout(seconds: timeout) {
+            try await self.waitForResponse(timeout: timeout)
         }
     }
 
@@ -162,7 +188,7 @@ actor MCPStdioClient {
             }
             group.addTask {
                 try? await Task.sleep(for: .seconds(seconds))
-                return .failure(MCPClientError.timeout(self.endpoint.name))
+                return .failure(MCPClientError.timeout(self.endpoint.name, seconds))
             }
 
             for try await result in group {
@@ -172,19 +198,19 @@ actor MCPStdioClient {
                 case .failure(let error): throw error
                 }
             }
-            throw MCPClientError.timeout(self.endpoint.name)
+            throw MCPClientError.timeout(self.endpoint.name, seconds)
         }
     }
 
     /// 列出外部 server 提供的工具。
     func listTools() async throws -> [[String: Any]] {
-        let response = try await request("tools/list", params: [:])
+        let response = try await request("tools/list", params: [:], phase: .startup)
         return parseToolsListResponse(response)
     }
 
     /// 列出外部 server 提供的工具（返回原始 JSON 字符串，Sendable-safe）。
     func listToolsRaw() async throws -> String {
-        try await request("tools/list", params: [:])
+        try await request("tools/list", params: [:], phase: .startup)
     }
 
     /// 调用外部 server 上的工具。\
@@ -197,6 +223,10 @@ actor MCPStdioClient {
 
     // MARK: - 状态查询
 
+    /// 生效预算的跨 actor 出口：actor 的存储属性不可被外部直接引用，把出口收敛成一个
+    /// 方法，判据与读数就还是同一个家（测试与 bridge 日志都从这里读）。
+    func budget() -> MCPRPCBudgets { budgets }
+
     /// 返回当前状态摘要。
     func statusSummary() -> [String: String] {
         [
@@ -204,6 +234,10 @@ actor MCPStdioClient {
             "status": status.rawValue,
             "command": endpoint.stdioCommand,
             "lastError": lastError ?? "(none)",
+            // 公布生效预算：超时是会改变调用方行为的量，只写在代码里就等于没写
+            // （AGENTS.md：写进值里的效果要有读这个值的门）。
+            "startupTimeout": MCPTimeouts.describe(budgets.startupSeconds),
+            "toolTimeout": MCPTimeouts.describe(budgets.toolSeconds),
         ]
     }
 
@@ -253,7 +287,8 @@ actor MCPStdioClient {
                     // the artifact on disk, never a frozen literal.
                     "version": AppInfo.shortVersion,
                 ],
-            ])
+            ],
+            timeout: budgets.startupSeconds)
         // 消费协商结果：server 回选定的 protocolVersion（旧实现直接丢弃）。
         self.negotiatedProtocolVersion =
             Self.parsedProtocolVersion(from: resp)
@@ -282,11 +317,14 @@ actor MCPStdioClient {
     ///   发 `elicit`/`ping` 请求（codex `555b82afa9` user-verification）。
     ///   旧缺陷：无应答面 → 这些行要么被误当响应返回（调用结果错乱），
     ///   要么 server 永久等待（挂死）。
-    private func waitForResponse() async throws -> String {
-        let deadline = ContinuousClock.now + .milliseconds(15000)
-        while ContinuousClock.now < deadline {
+    private func waitForResponse(timeout: TimeInterval) async throws -> String {
+        // 这里**不再**自带一条死线：死线唯一的主人是调用方 sendRPC 的 withTimeout
+        // （第二个家会让 config 无论填什么都白填）。循环能收口靠两点：
+        // `transport.readLine()` 单次有界等待 ≤50ms（MCPStdioTransport.readLine 契约），
+        // 且每轮开头查 Task.isCancelled —— 外层 cancelAll 生效即退出。
+        while true {
             if Task.isCancelled {
-                throw MCPClientError.timeout(endpoint.name)
+                throw MCPClientError.timeout(endpoint.name, timeout)
             }
             // 死进程守卫：子进程已退出 → 管道已 EOF，读取会永久阻塞。
             #if os(macOS)
@@ -324,7 +362,6 @@ actor MCPStdioClient {
             }
             return line
         }
-        throw MCPClientError.timeout(endpoint.name)
     }
 
     /// 清理子进程与传输层。
@@ -503,7 +540,9 @@ actor MCPStdioClient {
 /// 外部 MCP 客户端错误
 enum MCPClientError: Error, LocalizedError {
     case notConnected(String)
-    case timeout(String)
+    /// 超时：带上**生效的那条预算**，因为"多久算超时"是调用方需要知道的契约量，
+    /// 只报"timed out"会让人去查一个代码里根本不存在的默认值（旧文案就是这样）。
+    case timeout(String, TimeInterval)
     case protocolError(String)
     /// 子进程已退出（termination status 携带）——上层据此区分"重连/放弃"。
     case childExited(Int32)
@@ -513,8 +552,8 @@ enum MCPClientError: Error, LocalizedError {
         switch self {
         case .notConnected(let name):
             "MCP client for '\(name)' is not connected"
-        case .timeout(let name):
-            "Request timed out for MCP client '\(name)'"
+        case .timeout(let name, let seconds):
+            "MCP server '\(name)' did not answer within \(MCPTimeouts.describe(seconds))"
         case .protocolError(let detail):
             "MCP protocol error: \(detail)"
         case .childExited(let code):
@@ -523,4 +562,44 @@ enum MCPClientError: Error, LocalizedError {
             "MCP stdio subprocess is not supported on this platform"
         }
     }
+}
+
+/// 一条外部 MCP 连接生效的响应预算（秒）。
+///
+/// Sendable + 一个出口方法：actor 的存储属性跨 actor 读不到，把"读生效值"收敛成
+/// 一个类型，公布面、日志和测试读的就是引擎真正用的那两个数，而不是第二份抄件。
+struct MCPRPCBudgets: Sendable, Equatable {
+    let startupSeconds: TimeInterval
+    let toolSeconds: TimeInterval
+
+    /// **唯一**的预算解析点：client 用它装配自己，bridge 的 ledger 在还没连上时用它公布
+    /// "将要生效的那两个数"。两处读的是同一条规则，门面就不可能报一个引擎没用的数。
+    ///
+    /// 越界的 wire 值已经在 `$bridge/endpoint/connect` 被拒（命名字段+区间+原值）；这里再
+    /// 钳进 allowedRange，是让"调用方的一个 bug"只损失一次取整而不是买一次挂死。
+    static func resolve(
+        endpointStartup: TimeInterval?,
+        endpointTool: TimeInterval?,
+        configStartup: TimeInterval?,
+        configTool: TimeInterval?
+    ) -> MCPRPCBudgets {
+        MCPRPCBudgets(
+            startupSeconds: MCPTimeouts.clamped(
+                endpointStartup ?? configStartup ?? MCPTimeouts.startupDefault),
+            toolSeconds: MCPTimeouts.clamped(
+                endpointTool ?? configTool ?? MCPTimeouts.toolDefault))
+    }
+
+    /// 一行可读形态，供日志用（`Logger.Message` 不吃跨行的字面量拼接）。
+    var logWord: String {
+        "startupTimeout=\(MCPTimeouts.describe(startupSeconds)) toolTimeout=\(MCPTimeouts.describe(toolSeconds))"
+    }
+}
+
+/// 一次 JSON-RPC 走哪条响应预算。判据写成类型，两个数各有一个家。
+enum MCPRPCPhase {
+    /// 握手与发现：`initialize`、`tools/list`。
+    case startup
+    /// 任务本身：`tools/call`。
+    case tool
 }
