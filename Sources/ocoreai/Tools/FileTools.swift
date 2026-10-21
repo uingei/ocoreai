@@ -46,7 +46,8 @@ enum FileTools {
     {
         let url = resolve(path)
         guard let data = try? Data(contentsOf: url, options: .uncached) else {
-            throw ToolError.invalidParameter("read_file: cannot read: \(path)")
+            throw ToolError.invalidParameter(
+                "read_file: cannot read: \(path)\(Self.pathContext(url))")
         }
         guard data.count <= maxReadBytes else {
             throw ToolError.invalidParameter(
@@ -217,7 +218,7 @@ enum FileTools {
         let url = resolve(path)
         guard let original = try? String(contentsOf: url, encoding: .utf8) else {
             throw ToolError.invalidParameter(
-                "edit_file: cannot read (missing or non-UTF8): \(path)")
+                "edit_file: cannot read (missing or non-UTF8): \(path)\(Self.pathContext(url))")
         }
         guard !oldString.isEmpty else {
             throw ToolError.invalidParameter("edit_file: oldString must not be empty")
@@ -228,9 +229,10 @@ enum FileTools {
         let expected = max(1, occurrences ?? 1)
         let count = original.components(separatedBy: oldString).count - 1
         guard count == expected else {
+            let hint = count == 0 ? nearestLinesHint(text: original, oldString: oldString) : ""
             throw ToolError.invalidParameter(
                 "edit_file: expected exactly \(expected) occurrence(s) of oldString in \(path), "
-                    + "found \(count) — refusing partial edit")
+                    + "found \(count) — refusing partial edit\(hint)")
         }
         let updated = original.replacingOccurrences(of: oldString, with: newString)
         let bytes = updated.data(using: .utf8) ?? Data()
@@ -330,6 +332,81 @@ enum FileTools {
     }
 
     // MARK: - Helpers
+
+    /// Where a relative path actually landed, in words the model can act on.
+    ///
+    /// `read_file: cannot read: calc.py` is true and useless: nothing in it tells the
+    /// caller which directory held the miss, so the next turn retries the same wrong
+    /// path. Measured 10-22 (`scripts/eval/`): a fix-syntax-error turn repeated the same
+    /// failed `edit_file` and gave up, and the scoreboard called it 4/9. Naming the
+    /// resolved path (and who anchored it) turns an unrecoverable refusal into a
+    /// correctable one — the cheapest reliability win in the execution chain.
+    static func pathContext(_ url: URL) -> String {
+        let session = SessionWorkspace.currentDirectory()
+        let configured = WorkspaceContext.configuredDirectory()
+        let anchor = session ?? configured ?? FileManager.default.currentDirectoryPath
+        let source =
+            if session != nil {
+                "session workspace"
+            } else if configured != nil {
+                "configured workspace"
+            } else {
+                "process cwd — no workspace set: send absolute paths or set OCOREAI_WORKSPACE"
+            }
+        return " (resolved: \(url.path); anchored to \(anchor); \(source))"
+    }
+
+    /// When `oldString` misses, quote the file's own lines back so the caller can correct
+    /// instead of re-sending the same guess.
+    ///
+    /// The refusal itself is right — matching loosely is how a partial edit lands somewhere
+    /// unintended — but `found 0` alone is unanswerable: measured 10-22 (`scripts/eval/`),
+    /// one turn retried `edit_file` on `sum100.py` five times and gave up, because the model
+    /// had edited from an assumption instead of a read and nothing told it what the file
+    /// actually says. So the edit stays refused, and the message becomes correctable.
+    static func nearestLinesHint(
+        text: String, oldString: String, maxLines: Int = 8, limit: Int = 1200
+    ) -> String {
+        func normalized(_ slice: some StringProtocol) -> String {
+            slice.split(whereSeparator: { $0 == " " || $0 == "\t" }).joined(separator: " ")
+        }
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        guard !lines.isEmpty else { return "" }
+        let target = oldString.split(separator: "\n").first.map(normalized) ?? ""
+        var bestIndex = 0
+        var bestScore = -1.0
+        let targetTokens = Set(target.split(separator: " ").map(String.init))
+        for (index, line) in lines.enumerated() {
+            let tokens = Set(normalized(line).split(separator: " ").map(String.init))
+            let score: Double
+            if tokens == targetTokens && !targetTokens.isEmpty {
+                score = 1
+            } else {
+                let union = tokens.union(targetTokens).count
+                score =
+                    union == 0 ? 0 : Double(tokens.intersection(targetTokens).count) / Double(union)
+            }
+            if score > bestScore {
+                bestScore = score
+                bestIndex = index
+                if score == 1 { break }
+            }
+        }
+        func numbered(_ range: Range<Int>) -> String {
+            range.map { "\($0 + 1)|\(lines[$0])" }.joined(separator: "\n")
+        }
+        // A small file is quoted whole: scoring the nearest window was a false economy —
+        // measured 10-22 it pointed at line 5 (`return s`) when the line the caller needed
+        // was line 3 (`for i in range(1, n):`), which is a hint that misleads.
+        let whole = numbered(0 ..< lines.count)
+        if whole.count <= limit {
+            return " — the file says (quote exactly, indentation included):\n\(whole)"
+        }
+        let end = min(bestIndex + maxLines, lines.count)
+        let window = numbered(bestIndex ..< end)
+        let clipped = window.count > limit ? String(window.prefix(limit)) + "…" : window
+        return " — nearest actual lines (quote exactly, indentation included):\n\(clipped)"
+    }
 
     /// Resolve a tool-supplied path: `~` expanded; absolute stays; relative
     /// anchors to the configured workspace, falling back to the process cwd
