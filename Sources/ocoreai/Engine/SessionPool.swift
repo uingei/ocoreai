@@ -625,7 +625,7 @@ actor MLXSessionPool {
                 // and the two questions have different answers. The rule above says no,
                 // correctly: these KV rows describe the conversation before this caller
                 // replaced part of it. Upstream's `fork(history:)`
-                // (ChatSession.swift:1652 at pin 48114eedf) answers the other question — may
+                // (ChatSession.swift:1652 at pin bb0d5b048) answers the other question — may
                 // the cache be rewound onto the conversation the caller did send? — with a
                 // session that holds that transcript and "keeps only the part of the cache
                 // that its prompt starts with, and prefills the rest". Its boundary is the
@@ -1380,7 +1380,7 @@ actor MLXSessionPool {
     /// stay no: the cache holds turns this caller replaced. This asks "may the cache be
     /// rewound onto the conversation the caller *did* send, before answering?" — the question
     /// upstream's `ChatSession.fork(history:)` exists to take (ChatSession.swift:1652 at pin
-    /// 48114eedf), whose trim boundary is the token-level common prefix and which verifies
+    /// bb0d5b048), whose trim boundary is the token-level common prefix and which verifies
     /// the trim landed before trusting it. Kept pure and off the MLX path so the whole table
     /// is pinned by `SessionRewindOnDivergenceTests` without a live model.
     ///
