@@ -3,6 +3,16 @@
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## [Unreleased] — 2026-09-05 → 2026-10-21
+**10-21 `/v1/messages` 也记住会话了——登记得太快，答案本来就在自家 DTO 里**(P0 行为不一致 / P1 执行链) — 本 CHANGELOG 上面一条把「`/v1/messages` 不收会话记忆」登记成待拍板，理由是"规范没有 conversation id"。当场自查就推翻了这个理由：`AnthropicModels.swift:995` 的 `AnthropicMetadata` 早就声明了 `sessionId`（`session_id`），`AnthropicModels.swift:1056` 更已经把它映进 `request.sessionID`——**身份缝一直存在，缺的只是没人把这条面接到持久缝上**。登记前该先 grep 一遍自家 DTO，而不是只读规范：这一条不该留到人手。
+
+- **修法（一面一面各自记账 → 两面共用一次组装的最后一环）**：`persistConversation` 从 file-private 提成 internal（会话记忆只有一个家：身份、去重、每行自己的价都在里面）；`nonStreamAnthropicResponse`／`streamAnthropicResponse` 各调一次，`sessionCompressor`、`semanticSearch` 两个参数从 `_` 改成实名并传到调用点；流式那次放在 `message_stop` 之后、`continuation.finish()` 之前——客户端不等它，行照样在流关闭前落库。
+
+- **门（两条，各管一面镜子）**：静态 `bothFacesReachTheHop`——两面各**恰好 2** 处 `await persistConversation(`（每响应模式一处；`>= 1` 会把缺的那条响应模式藏起来）；探针 22 新增 Anthropic 一节——同一 `metadata.session_id` 三轮（两轮非流式 + 一轮流式，后两轮各重发全史）必须**恰好一行**、`message_count == 6`（3 user + 3 assistant），且流式那轮必须真到 `message_stop`（否则"根本没答"会被当成持久成功）。
+
+- **实测（同会话）**：绿——`one metadata.session_id makes one session row on the Anthropic face — one row id=1969 holds message_count=6 (3 user + 3 assistant, both response modes) token_count=28`，探针 22 `10 passed, 0 failed, 6 measured, 0 known-open`；`--filter 'SessionTranscript|PersistHop|PromptTokenAccounting|Anthropic'` = **127 tests / 20 suites** 全绿。红样（只把两条 persist 调用注释掉）：静态**恰好红那一条** `both HTTP faces reach the one persist hop … Expectation failed: calls.count == 2`；线上**恰好红那一条** `two accepted /v1/messages turns wrote no session row — this face has no memory`，探针 `9 passed, 1 failed`、exit 1。
+
+- **入账**：§ Open 那条 `/v1/messages` 缺口删除，改写进 Endpoint Promises 的规则——兼容面复用的不止组装与 steer，**会话记忆也算同一缝**（一面写一面不写 ⇒ `/sessions`、FTS、GUI 只看得见一条线），身份两面同口径 `session_id`／`metadata.session_id`。留在原地没做的：键缺席时一请求一行（无身份即无会话可长），这句 `/sessions` 上没写，属公开面措辞，与 `usage` 口径一并裁；GUI 端到端仍零验证。root 现 50495/50668 字节。
+
 **10-21 门禁补上最后一格：`XxxTests`(N) 括号里那个数也是 claim——五条已经漂了**(P0 文档失真 / P3 可观测性) — 起因是给 § Open 添一条新缺口时顺手核了一眼数字：AGENTS.md 写着 `PromptTokenAccountingTests`(6)，文件里 7 条——上一个提交刚加的那条 `everyHopReportsOnePrompt` 改了代码，没人改数。
 
 - **全扫结果**：文档里 ``XxxTests`(N)`` 形状共 12 处（AGENTS.md 9 + `docs/agent/closed-items-log.md` 3），**5 处与文件不符**：AGENTS.md `CapabilityMeasurementHonestyTests`(15)→16、`PromptTokenAccountingTests`(6)→7、`ToolProseLedgerTests`(11)→15；closed-items-log `V1EndpointCatalogTests`(6)→9、`MetalShaderLibraryTests`(7)→**6**（最后一条是向上虚报：宣称的门禁覆盖比文件里实际存在的还多一条）。

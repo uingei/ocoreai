@@ -19,8 +19,9 @@
 # `tokenizerBackend` on `/v1/capabilities` already discloses).
 #
 # These are hard gates now, not xfail: a conversation splitting into a second row, a row
-# costing anything like the turn's whole prompt, or a re-sent history written a second time
-# fails the run.
+# costing anything like the turn's whole prompt, a re-sent history written a second time, or
+# the Anthropic face (`/v1/messages`, keyed by `metadata.session_id`) keeping no conversation
+# at all fails the run.
 #
 # Run: bash scripts/probes/22-session-memory-identity.sh
 PROBE_NAME="22-session-memory-identity"
@@ -256,6 +257,132 @@ PY
   fi
 fi
 rm -f "$HISTORY"
+
+# The Anthropic face is a second wire onto the same engine, and it carries its own conversation
+# key (`metadata.session_id`, mapped by `toChatCompletionRequest`). Two turns on one key must
+# land on ONE new session row that grew to hold both — before 10-21 this face wrote nothing at
+# all, so an Anthropic-SDK conversation was invisible to `/sessions`, `/sessions/:id/memory`,
+# `/sessions/search` and the GUI list while the OpenAI face above was remembered.
+probe_section "does the Anthropic face keep one conversation too?"
+MKEY="AMEMPROBE-$$"
+probe_api GET "/sessions?limit=500"
+IDS_BEFORE_M="$PROBE_BODY"
+
+MTEXT1="Reply with exactly the word ZETA."
+MTEXT2="Reply with exactly the word ETA."
+MBODY1="$(python3 - "$PROBE_MODEL" "$MKEY" "$MAX_TOKENS" "$MTEXT1" <<'PY'
+import json, sys
+model, key, max_tokens, text = sys.argv[1:5]
+print(json.dumps({
+    "model": model,
+    "max_tokens": int(max_tokens),
+    "temperature": 0.0,
+    "metadata": {"user_id": "probe-user", "session_id": key},
+    "messages": [{"role": "user", "content": text}],
+}))
+PY
+)"
+probe_api POST /v1/messages "$MBODY1"
+if [ "${PROBE_STATUS:-}" != "200" ]; then
+  probe_fail "POST /v1/messages (turn 1) -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:200}"
+else
+  MREPLY1="$(probe_json "$PROBE_BODY" 'content.0.text')"
+  MBODY2="$(python3 - "$PROBE_MODEL" "$MKEY" "$MAX_TOKENS" "$MTEXT1" "$MREPLY1" "$MTEXT2" <<'PY'
+import json, sys
+model, key, max_tokens, t1, r1, t2 = sys.argv[1:7]
+messages = [{"role": "user", "content": t1}]
+if r1.strip():
+    messages.append({"role": "assistant", "content": r1})
+messages.append({"role": "user", "content": t2})
+print(json.dumps({
+    "model": model,
+    "max_tokens": int(max_tokens),
+    "temperature": 0.0,
+    "metadata": {"user_id": "probe-user", "session_id": key},
+    "messages": messages,
+}))
+PY
+)"
+  probe_api POST /v1/messages "$MBODY2"
+  if [ "${PROBE_STATUS:-}" != "200" ]; then
+    probe_fail "POST /v1/messages (turn 2) -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:200}"
+  else
+    sleep 1
+    MREPLY2="$(probe_json "$PROBE_BODY" 'content.0.text')"
+    # Turn 3 goes out streaming with the whole history again: streaming has its own persist
+    # call on this face, so it needs its own wire — the static gate can see the call exists,
+    # only this can see the row grow.
+    MBODY3="$(python3 - "$PROBE_MODEL" "$MKEY" "$MAX_TOKENS" "$MTEXT1" "$MREPLY1" "$MTEXT2" "$MREPLY2" <<'PY'
+import json, sys
+model, key, max_tokens, t1, r1, t2, r2 = sys.argv[1:8]
+messages = [{"role": "user", "content": t1}]
+if r1.strip():
+    messages.append({"role": "assistant", "content": r1})
+messages.append({"role": "user", "content": t2})
+if r2.strip():
+    messages.append({"role": "assistant", "content": r2})
+messages.append({"role": "user", "content": "Reply with exactly the word THETA."})
+print(json.dumps({
+    "model": model,
+    "max_tokens": int(max_tokens),
+    "temperature": 0.0,
+    "stream": True,
+    "metadata": {"user_id": "probe-user", "session_id": key},
+    "messages": messages,
+}))
+PY
+)"
+    probe_api POST /v1/messages "$MBODY3"
+    if [ "${PROBE_STATUS:-}" != "200" ]; then
+      probe_fail "POST /v1/messages (stream turn) -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:200}"
+    elif ! printf '%s' "$PROBE_BODY" | grep -q message_stop; then
+      probe_fail "the stream turn never reached message_stop — nothing was there to persist: ${PROBE_BODY:0:200}"
+    else
+      probe_ok "the streaming Anthropic turn delivered message_stop"
+      sleep 1
+    fi
+    probe_api GET "/sessions?limit=500"
+    MJSON="/tmp/ocoreai-probe22-anth-$$.json"
+    MVERDICT="/tmp/ocoreai-probe22-anth-verdict-$$.txt"
+    printf '%s' "{\"after\": $PROBE_BODY, \"before\": $IDS_BEFORE_M}" > "$MJSON"
+    python3 - "$MJSON" > "$MVERDICT" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8", errors="replace") as fh:
+    doc = json.load(fh)
+after, before = doc["after"], doc["before"]
+ids_before = {r.get("id") for r in before if isinstance(r, dict)}
+by_id = {r["id"]: r for r in after if isinstance(r, dict) and "id" in r}
+new = [by_id[i] for i in sorted(set(by_id) - ids_before)]
+if not new:
+    print("ANTHFAIL two accepted /v1/messages turns wrote no session row — this face has no memory")
+elif len(new) > 1:
+    print("ANTHFAIL %d session rows for one metadata.session_id: %s" % (
+        len(new), [(s.get("id"), s.get("message_count")) for s in new]))
+else:
+    s = new[0]
+    print("ANTHROW %s" % s.get("id"))
+    # Three turns (two non-stream, one streaming), the 2nd and 3rd re-sending history:
+    # 3 user + 3 assistant rows on one row, nothing duplicated.
+    if s.get("message_count") == 6:
+        print("ANTH OK one row id=%s holds message_count=%s (3 user + 3 assistant, both response modes) token_count=%s" % (
+            s.get("id"), s.get("message_count"), s.get("token_count")))
+    else:
+        print("ANTHFAIL one row id=%s holds message_count=%s, expected 6 (three turns, two re-sent, stored once)" % (
+            s.get("id"), s.get("message_count")))
+PY
+    while IFS= read -r line; do
+      case "$line" in
+        ANTH\ OK\ *) probe_ok "one metadata.session_id makes one session row on the Anthropic face — ${line#ANTH OK }" ;;
+        ANTHFAIL\ *) probe_fail "${line#ANTHFAIL }" ;;
+      esac
+    done < "$MVERDICT"
+    MSID="$(awk '/^ANTHROW /{print $2}' "$MVERDICT")"
+    if [ -n "${MSID:-}" ]; then
+      probe_atexit "curl -s -m 5 -X DELETE \"$PROBE_BASE/sessions/$MSID\" > /dev/null 2>&1"
+    fi
+    rm -f "$MJSON" "$MVERDICT"
+  fi
+fi
 
 # Leave the dev database as found: the rows this run made are evidence, not cruft. The id list
 # is flattened at registration time — `probe_atexit` stores a string it later evals, so a

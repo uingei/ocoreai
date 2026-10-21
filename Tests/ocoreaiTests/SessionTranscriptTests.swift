@@ -316,6 +316,28 @@ struct PersistHopSourceTests {
         )
     }
 
+    /// Session memory is one rule with one home, so both wires have to reach it. Measured
+    /// 10-21: `/v1/messages` took `sessionCompressor`/`semanticSearch` and discarded both, so
+    /// every Anthropic-SDK conversation was absent from `/sessions`, FTS and the GUI list
+    /// while the OpenAI face was remembered. Exact counts — one call per response mode per
+    /// face — because a `>= 1` would hide the missing streaming mode.
+    @Test("both HTTP faces reach the one persist hop, once per response mode")
+    static func bothFacesReachTheHop() throws {
+        let faces = [
+            "Sources/ocoreai/Handlers/ChatHandler.swift",
+            "Sources/ocoreai/Handlers/AnthropicMessagesHandler.swift",
+        ]
+        for file in faces {
+            let calls = try codeLines(repoFile(file)).filter {
+                $0.contains("await persistConversation(")
+            }
+            #expect(
+                calls.count == 2,
+                "\(file) must persist from both response modes (stream + non-stream), saw \(calls.count)"
+            )
+        }
+    }
+
     private static func repoFile(_ relative: String) throws -> String {
         var dir = URL(fileURLWithPath: #filePath)
         while dir.path != "/" {

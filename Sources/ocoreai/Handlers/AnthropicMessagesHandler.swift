@@ -48,8 +48,8 @@ func anthropicMessagesHandler(
     enginePool: EnginePool,
     scheduler: SchedulerActor,
     metrics: MetricsRegistry,
-    sessionCompressor _: SessionCompressor,
-    semanticSearch _: SemanticSearch?,
+    sessionCompressor: SessionCompressor,
+    semanticSearch: SemanticSearch?,
     messageBuilder: MessageBuilder,
     logger: Logger,
 ) async throws -> Response {
@@ -354,6 +354,8 @@ func anthropicMessagesHandler(
                 logger: logger,
                 metrics: metrics,
                 contentGuard: streamGuard,
+                compressor: sessionCompressor,
+                semanticSearch: semanticSearch,
             )
         } else {
             return try await nonStreamAnthropicResponse(
@@ -368,6 +370,8 @@ func anthropicMessagesHandler(
                 logger: logger,
                 metrics: metrics,
                 contentGuard: streamGuard,
+                compressor: sessionCompressor,
+                semanticSearch: semanticSearch,
             )
         }
     } catch {
@@ -480,6 +484,8 @@ private func nonStreamAnthropicResponse(
     logger: Logger,
     metrics: MetricsRegistry,
     contentGuard: ContentGuard? = nil,
+    compressor: SessionCompressor,
+    semanticSearch: SemanticSearch?,
 ) async throws -> Response {
     let requestId = "msg-\(UUID().uuidString.prefix(8))"
     let startTime = ContinuousClock.now
@@ -775,6 +781,22 @@ private func nonStreamAnthropicResponse(
 
     logger.info("Anthropic non-stream request completed")
 
+    // Session memory, same hop as `/v1/chat/completions`: the conversation key is the
+    // request's `metadata.session_id` (mapped into `request.sessionID` by
+    // ``toChatCompletionRequest(_:)``), rows are the messages this turn adds, and each row
+    // costs its own content. Skipping this made every Anthropic-SDK conversation invisible to
+    // `/sessions`, `/sessions/:id/memory`, `/sessions/search` and the GUI session list.
+    await persistConversation(
+        request: request,
+        messages: messages,
+        assistantContent: content,
+        modelId: modelId,
+        outputTokens: totalOutputTokens,
+        compressor: compressor,
+        semanticSearch: semanticSearch,
+        enginePool: enginePool,
+    )
+
     var headers: HTTPFields = [:]
     headers[.contentType] = "application/json"
     let bodyData = try JSONEncoder().encode(response)
@@ -797,6 +819,8 @@ private func streamAnthropicResponse(
     logger: Logger,
     metrics: MetricsRegistry,
     contentGuard: ContentGuard? = nil,
+    compressor: SessionCompressor,
+    semanticSearch: SemanticSearch?,
 ) async throws -> Response {
     let responseHeaders = SSEHeaders
 
@@ -1128,6 +1152,20 @@ private func streamAnthropicResponse(
             await metrics.observeInferenceDuration(elapsed / 1000.0)
             await metrics.incrementTokens(kind: "generated", count: totalOutputTokens)
             await metrics.incrementTokens(kind: "prompt", count: observedInputTokens)
+
+            // Session memory, same hop as the non-stream path and as `/v1/chat/completions`,
+            // and before the stream closes so a client that reads `/sessions/:id/memory` when
+            // the stream ends already sees this turn's rows.
+            await persistConversation(
+                request: request,
+                messages: messages,
+                assistantContent: answerText,
+                modelId: modelId,
+                outputTokens: totalOutputTokens,
+                compressor: compressor,
+                semanticSearch: semanticSearch,
+                enginePool: enginePool,
+            )
 
         } catch {
             // On error, write a single error event

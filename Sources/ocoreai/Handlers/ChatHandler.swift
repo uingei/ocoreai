@@ -1990,7 +1990,11 @@ private func streamWithToolCalling(
 
 // MARK: - Persistence Helper
 
-/// Persist user/assistant messages to SQLite after inference completes.
+/// Persist user/assistant messages to SQLite after inference completes. **Both HTTP faces run
+/// this one hop** (`/v1/chat/completions` and `/v1/messages`), because session memory is one
+/// rule with one home: identity (`resolveSession`), what a turn adds (`SessionTranscript`), and
+/// what a row costs (its own content tokens). A face that skips it is invisible to
+/// `/sessions`, `/sessions/:id/memory`, `/sessions/search` and the GUI session list.
 ///
 /// Fire-and-forget — errors are logged but do not affect the response. After persistence,
 /// each message is embedded for semantic search via MLXEmbedders.
@@ -2010,7 +2014,7 @@ private func streamWithToolCalling(
 ///   tokens (real tokenizer when this model has one, the byte heuristic otherwise — the
 ///   substitution is nameable via ``TokenizerManager/isRealTokenizerBackend``), and only the
 ///   messages the turn actually adds are written (``SessionTranscript``).
-private func persistConversation(
+func persistConversation(
     request: ChatCompletionRequest,
     messages: [Message],
     assistantContent: String,
