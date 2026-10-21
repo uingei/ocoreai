@@ -4,6 +4,15 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-22
 
+**10-22 `write_file` 的 path 槽位把「保留目录」说出来：目标任务 0/5 → 4/4，顺带量出记分板自己的方差**(P1 工具调用 / P3 回归防护) — `multi-step-nested-write` 连输五轮之后，第一次被拆到参数描述这一层。
+
+- **不是工具的错**：`FileTools.write` 做得对——`createDirectory(withIntermediateDirectories: true)` + 原子写 + 读回逐字节校验 + 把路径回显给模型。五轮里它每次都成功，工作区里却永远只有 `./report.txt` ⇒ 丢目录发生在模型的计划里：它填 `path` 时填的是 `report.txt`。
+- **改在它读的那一层**：`path` 参数的描述原本只有 "File path to create or overwrite"，现在把规则写进这个槽本身——"…KEEPING every folder the user named (asked for build/report.txt → path = build/report.txt). Missing folders are created."（`GET /v1/tools` 声明面，模型逐轮读到）。
+- **效果（同机同模型）**：定点任务 0/3 → **3/3**，单步嵌套新任务 2/2；整卷再跑四次，`multi-step-nested-write` **4/4 全过**（改前是 2 次整卷 + 3 次定点共 5 次全败）。
+- **一次改动不算证据，所以补了方差**：同一棵树整卷连跑四次是 **6/9、6/9、7/9、7/9**；失败集中在编辑恢复类——`change-config-value` 4/4 失败、`fix-off-by-one` 3/4 失败、`make-failing-test-pass` 2/4 失败、`fix-syntax-error` 1/4 失败。此前写过的 7/9 是一次好样本，不是稳态：**记分板此后报区间与逐任务命中率，不报单次分数**。
+- **反面记录（试了、没用、已回滚）**：先把这条意思写进 system prompt 的 `toolActionDirective`（"read back the exact path… asked for build/report.txt…"），定点三次全败、整卷 6/9，已 `git checkout` 回滚。同一个要求，写在 prompt 段落里对这个 2B 模型不起作用，写在它要填的那个参数槽上起作用——这是这次最值钱的一条经验。
+- **门**：`ToolSpecFullRegistryTests` 加一条，钉住 `path` 描述必须含 `build/report.txt` 与 `Missing folders are created`；schema 描述是 function-calling 契约，将来谁把它改回短句就红。
+
 **10-22 一轮的最后一句话第一次要和它自己的工具记录对账：`ClaimVsAudit` 双向拦「假成功」与「假失败」**(P0 门面诚实 / P1 执行链) — invariant 2 在轮子出口处一直有个洞：模型停下，循环就停，没人拿最后一句和这一轮真正执行过的东西比。记分板抓到两半，今天一起堵上。
 
 - **现场证据（`scripts/eval/run.sh`，同机同模型 `mlx-community/gemma-4-e2b-it-4bit`）**：`multi-step-nested-write` 答 `File created.`，`finish_reason: stop`、`tool_calls: null`、76 个 completion token，而 `build/report.txt` 不存在（**零工具调用**）；反方向的 `fix-off-by-one` 答 `I failed to fix the code…`，而它之前一次 `edit_file` 已成功、工作区校验是 PASS。前一句是 GUI 当着用户说谎，后一句把干完的活劝回去；两句都会进会话记忆、FTS 和 `/sessions`，然后一直留在那儿。

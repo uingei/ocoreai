@@ -297,4 +297,20 @@ struct ToolSpecFullRegistryTests {
         _ = schema
     }
     #endif
+
+    @Test("write_file's path slot states nested paths, not just 'a file path'")
+    func writeFilePathDescribesNesting() async {
+        // Measured 2026-10-22 (`scripts/eval/run.sh`, gemma-4-e2b-it-4bit): asked for
+        // build/report.txt the turn wrote ./report.txt five runs in a row and answered
+        // "File created." — the tool was fine (intermediate dirs + atomic write + read-back),
+        // the argument description never said to keep the folder the user named. Stating it in
+        // the slot the model fills took that task from 0/5 to 4/4, so this wording is a
+        // function-calling contract, not prose: a reword that drops it goes red here.
+        let registry = await Self.fullRegistry()
+        let pathDescription =
+            await registry.lookup("write_file")?.schema.parameters["path"]?
+            .description ?? ""
+        #expect(pathDescription.contains("build/report.txt"))
+        #expect(pathDescription.contains("Missing folders are created"))
+    }
 }

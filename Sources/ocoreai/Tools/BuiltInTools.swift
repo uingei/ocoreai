@@ -215,7 +215,11 @@ func bootstrapBuiltInTools(
             schema: ToolSchema(
                 parameters: [
                     "path": ToolParameter(
-                        type: .string, description: "File path to create or overwrite"),
+                        type: .string,
+                        description:
+                            "Path relative to the working directory, KEEPING every folder the user "
+                            + "named (asked for build/report.txt → path = build/report.txt). "
+                            + "Missing folders are created."),
                     "content": ToolParameter(type: .string, description: "Full new content"),
                 ], required: ["path", "content"]),
             isDestructive: true
