@@ -4,6 +4,14 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-21
 
+**10-21 编辑重发到底漏不漏？——「refusal 在防泄漏」第一次被看见，一次编辑的价格也量出来了**(P1 上下文与状态管理 / P3 回归防护) — 探针 01 给这一轮标过价（`prompt_tokens`/`cached_tokens`），却从未验证过正确性：`canReusePooledSession` 拒绝对话本的全部理由是「旧 KV 描述的是改前的会话」，而 HTTP 面上没有任何一处检查过它真的挡住了改前的答案。若编辑重发仍能答出被替换掉的事实，那就是一个躲在绿色 token 台账后面的 P0 正确性缺陷——**这条规则此前是被相信的，不是被观测的**。
+
+- **新探针 27（`scripts/probes/27-edited-history-honesty.sh`）**：同一会话四轮——追加轮（自带前提：它必须复用，否则「这次编辑值多少」没有基准）→ 给代码字 MARLIN → 把 MARLIN 那一轮改写成 SALMON 重发 → 断言答案必须是 SALMON 且 MARLIN 全文一个字都不许出现。另钉三条诚实台账：`prompt_tokens ≥ cached_tokens`；编辑轮的复用不得超过追加轮的复用（重建轮报出比续写还多的复用＝门面承诺超过引擎交付）；本次拒绝必须在 `/v1/models/:model/kv-cache` 的 `reuseRefusals.byReason.historyDiverged` 里点名（代价与病因落在同一张面，不许只有一头）。**实跑：`12 passed, 0 failed, 4 measured, 0 known-open`。**
+- **实测（gemma-4-e2b-it-4bit，单会话四轮）**：turn1 `708/0` · turn2 `732/710` · turn3 追加 `758/734`（续写复用 97%）· turn4 编辑 `758/cached 0`——758 全部重付，而答案是 SALMON、MARLIN 不出现。**「拒绝在防泄漏」从推断变成观测。**
+- **§ Open 那条「接不接仍待样本」现在交得出样本了**：一次编辑的奖品＝**734 tokens**（同会话续写复用 734，编辑轮复用 0）。卡点不是缺样本，是这一行还没接：上游 `fork(history:)`（`ChatSession.swift:1652`，pin `48114eedf`）就是为此设的公开入口——文档原话「With `history`, it holds that conversation instead. Its first response keeps only the part of the cache that its prompt starts with, and prefills the rest」，底下 `Cache.replacingTranscript(with:)`（`ChatSession.swift:345`）置 `transcriptBuiltCache = false`，让 `RewindToCommonPrefixRule` 在同一份 KV 数组上做 COW trim；而我们的 `acquire` 在上游看到这件事之前就把会话丢了（`SessionPool.swift:544`、`:549`）。**这条是读上游得到的推断：接上之后复用多少尚未实测，实测之前不算已修。**
+- **哪个门会红**：探针 27 第 3 断（改后仍答旧事实＝泄漏）、第 4 断（台账超过整体，或重建报出比续写更多的复用）、第 5 断（拒绝不被公布）。回归形态＝把 `canReusePooledSession` 的 `commonPrefixCount >= cachedMessageCount`（`SessionPool.swift:1239`）摘掉，让旧 KV 直接续写。
+- **净账**：root `50631 → 50629`（§ Open 该行改写后更短：删去「正确：」「机制」两处赘词，换上的结论比「仍待样本」更短），shrink-only 上限同步下调至 **50629**。
+
 **10-21 AGENTS.md 自己也得归档：`§ Open` 两处引用指向一个不存在的章节**(P3 可观测性 / 契约缺口) — 起因是一句「AGENTS.md 一点也不规范？」。测下来不是文风问题：`§ Open` 在 root 被引用两处（`SessionPool` 那一行、Documentation Map 里 `closed-items-log.md` 那一行），而 root **没有任何叫 Open 的章节**——那串 open items 在早前一次瘦身里丢了标题，裸挂在 `### Testing Quality` 与 `### Upstream Audit Dependencies` 中间。契约一直全绿，因为 P1–P11 里**没有任何一条读 `§` 引用**（invariant 1：没人复跑的断言等于没断言）。
 
 - **补门（P12，`scripts/agents-md-contract.sh`）**：抽出 root + 8 份 guide 里所有 `§ Name` 引用；锚点＝全部 `#`–`######` 标题，加上这套文档真正用来标块的加粗小标题（`**Upstream alignment:**` 这种就在文中起导航作用）；允许引用只写目标前缀（`§ Routing` → `Routing table — working in X → read this first`），并在"引用后面还接着散文"时从最长前缀往回试（`§ Routing table names those with their own guide` 指的是 Routing table，不是七词章节）。扫描自带下限（实测 19 条引用，floor 12），模式一旦不再命中就红而不是空过。**首跑即抓出那 2 条 dangling**。

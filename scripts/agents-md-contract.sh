@@ -52,7 +52,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 ## ── pinned budgets (a raise must be a visible edit in the diff) ──────────────
-: "${OCOREAI_AGENTS_MAX_ROOT:=50631}"   # pinned 10-21 by `make docs-budget`
+: "${OCOREAI_AGENTS_MAX_ROOT:=50629}"   # pinned 10-21 by `make docs-budget`
 : "${OCOREAI_AGENTS_MAX_CHAIN:=78000}" # AGENTS.md + one area guide loaded together
 : "${OCOREAI_AGENTS_MAX_AREA:=16000}"  # each Sources/**/AGENTS.md or docs/agent/*.md
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
