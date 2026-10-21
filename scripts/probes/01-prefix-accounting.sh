@@ -194,6 +194,50 @@ else
   probe_ok "wire and log agree — wire: $WIRE_REUSE reused / $WIRE_ZEROS full prefill, log: $REUSED reused / $NOREUSE full prefill, max cached_tokens=$MAX_CACHED"
 fi
 
+# D. the whole, not just the part. Until 10-21 the wire published the prefilled SUFFIX as
+# `prompt_tokens` (upstream GenerateCompletionInfo.promptTokenCount), so a warm turn could log
+# "reused 710 of 730" and answer prompt_tokens=20 / cached_tokens=710. Assertion B above compares
+# the CACHED numbers turn for turn, so it stayed green through that: a gate that checks the part
+# and never the whole cannot see a whole that is too small (AGENTS.md invariant 1). Upstream's
+# total is cached + prefilled (mlx-swift-lm Evaluate.swift:2984-2987) and the reuse line already
+# prints it, so log and wire must agree digit for digit.
+PAIR_CHECK="$(python3 - "$PROBE_LOG" "$SESSION" "$T2_CACHED" "$T2_PROMPT" "$T3_CACHED" "$T3_PROMPT" <<'PY'
+import re, sys
+log, session = sys.argv[1], sys.argv[2]
+wire = [(sys.argv[i], sys.argv[i + 1]) for i in (3, 5)]
+try:
+    text = open(log, errors="replace").read()
+except Exception as e:
+    print("ERR cannot read log: %s" % e)
+    sys.exit()
+logged = re.findall(
+    r"Prefix cache reused (\d+) of (\d+) prompt tokens for %s" % re.escape(session), text)
+wturns = [(c, p) for c, p in wire if c.isdigit() and p.isdigit() and int(c) > 0]
+if not logged and not wturns:
+    print("SKIP no reused turn in this run")
+    sys.exit()
+if len(logged) != len(wturns):
+    print("FAIL %d reused turn(s) in the log but %d on the wire" % (len(logged), len(wturns)))
+    sys.exit()
+bad = [(lc, lp, wc, wp) for (lc, lp), (wc, wp) in zip(logged, wturns) if (lc, lp) != (wc, wp)]
+if bad:
+    # ONE line, so probe_fail runs in this shell and its counter survives (a verdict counted
+    # inside a pipeline subshell is a verdict that never happened).
+    print("FAIL " + " ; ".join(
+        "log says reused %s of %s, wire says cached_tokens=%s prompt_tokens=%s" % (lc, lp, wc, wp)
+        for lc, lp, wc, wp in bad))
+else:
+    print("OK %s" % ", ".join("reused %s of %s" % (c, p) for c, p in logged))
+PY
+)"
+case "$PAIR_CHECK" in
+  OK\ *)  probe_ok "prompt_tokens is the whole the log names — $PAIR_CHECK" ;;
+  SKIP\ *) probe_note "$PAIR_CHECK — nothing to tie this run" ;;
+  ERR\ *)  probe_fail "$PAIR_CHECK" ;;
+  FAIL\ *) probe_fail "wire/log prompt mismatch — ${PAIR_CHECK#FAIL }" ;;
+  *)       probe_fail "prompt-tie check produced no verdict (empty output) — a check that stays silent is not a check" ;;
+esac
+
 probe_section "measured (P1)"
 printf '%s\n' "$NOREUSE_LINES" | grep . | sed 's/^/        /'
 printf '%s\n' "$REUSE_LINES" | grep . | sed 's/^/        /'
@@ -238,12 +282,21 @@ if [ "$REQUIRE_REUSE" = "1" ]; then
   # A reused turn must reuse at least what it paid. "Reused 1 token" in a 700-token
   # conversation is a rounding error dressed as a capability, and would keep this gate green
   # while every cost claim built on it went false.
+  #
+  # What a turn PAID is the difference, not the prompt: `prompt_tokens` on the wire is the whole
+  # rendered prompt and `cached_tokens` the part its KV cache kept, so paid = prompt - cached.
+  # Comparing `prompt <= cached` here (what this line did until 10-21) looked sane only because
+  # the wire published the prefilled suffix under the prompt's name; with the accounting fixed
+  # that comparison fails every healthy turn (prompt 749 / cached 733).
   LOPSIDED=""
   for pair in "$T2_CACHED:$T2_PROMPT" "$T3_CACHED:$T3_PROMPT" "$T4_CACHED:$T4_PROMPT"; do
     c="${pair%%:*}"
     p="${pair##*:}"
     case "$c$p" in ''|*[!0-9]*) continue ;; esac
-    if [ "$c" -gt 0 ] && [ "$p" -gt "$c" ]; then LOPSIDED="$p tokens paid / only $c reused"; fi
+    paid=$(( p - c ))
+    if [ "$c" -gt 0 ] && [ "$paid" -gt "$c" ]; then
+      LOPSIDED="$paid tokens prefilled / only $c reused (whole prompt $p)"
+    fi
   done
   if [ -n "$LOPSIDED" ]; then
     probe_fail "lopsided reuse — $LOPSIDED"
