@@ -64,6 +64,7 @@ swift build --traits appStore        # App Store route (traits: appStore | Found
 swift test                           # full suite; needs Metal, so CI macos-26 is the authority
 swift test --filter <SuiteRegex>     # one suite (substring)
 make docs-check                      # docs contract: sub-second, no build
+bash scripts/eval/run.sh               # task-success scoreboard: verifies the WORKSPACE, not the prose
 ```
 - Gate tiering: **sandbox** → app-target build + non-Metal suites (`HOME=<canonical writable path>`,
   CLT `DEVELOPER_DIR`/`SDKROOT`, `--disable-sandbox` drops only SwiftPM's nested sandbox);
@@ -239,7 +240,7 @@ Not resolved here, not forgotten: each item names the instrument that would sett
 
 ## Upstream Audit Dependencies
 Five empirical sources plus comparators; round-by-round verdicts live in `CHANGELOG.md`, one diary, one home.
-1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `48114eedf`;
+1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `bb0d5b048`;
    `Package.swift` keeps the pin and a pointer, never a per-commit diary. Bump protocol: audit the consumption surface commit by
    commit → bump `.revision` → `swift build` + `make test-ci` green → verdicts into `CHANGELOG.md`.
    Upstream sources live under `Libraries/`, not `Sources/`; what must hold between clone and pin is
@@ -285,6 +286,8 @@ Five empirical sources plus comparators; round-by-round verdicts live in `CHANGE
 | `Sources/ocoreai/UI/**` | `Sources/ocoreai/UI/AGENTS.md` | SwiftUI state authority, HIG duties, iOS-parity reality, focus discipline |
 | `Sources/ocoreai/Handlers/**`, `Router/`, `Models/` | § Wire DTOs + § Endpoint Promises below | wire shapes, discovery contract |
 | `Tests/**` | § Testing Quality below | exact-value assertions, scan floors, self-premise checks |
+| `scripts/eval/**` | `scripts/eval/README.md` | task success: does the agent finish real jobs (the mission's unit) |
+| `scripts/probes/**` | `scripts/probes/README.md` | live `/v1/*` wire-contract probes, one index per script |
 | this file, `docs/**` | `scripts/agents-md-contract.sh` (`make docs-check`) | budgets, dead pointers, claim reproduction |
 
 Areas without a guide (Scheduler, MCP, Tools, Skills, Multimodal, Video, Security): start from
@@ -292,19 +295,14 @@ Areas without a guide (Scheduler, MCP, Tools, Skills, Multimodal, Video, Securit
 row here — a guide costs context only inside its subtree, which is the whole point.
 
 ## Docs Contract — how this file stays true
-`make docs-check` (`scripts/agents-md-contract.sh`; CI: the `audit` job) asserts, sub-second and with no
-build: **B1** root byte budget, shrink-only — adding text means removing text, and `make docs-budget` only
-ever lowers the cap · **B2** root + guide chain budget · **P1** the scan's own floors (a regex that stopped
-matching fails loudly) · **P2** every file named here resolves (in-repo, git basename, upstream clone) or is
-declared absent in place · **P3** every `file:line` anchor points at a line that exists · **P4** every
-`<!-- claim:id OP N :: command -->` runs and holds · **P5/P6** every `make` target and every test-suite name
-is real · **P7** every area guide on disk has a routing row · **P9** routing targets are tracked, not merely
-present · **P10** the READMEs' endpoint table + public-route list equal the router and `AuthRoutePolicy` ·
-**P11** every numbered suite claim equals that file's `@Test` count · **P12** every internal `§` cross-reference names a section
-that exists · **P13** this file carries no dates and no prose wall (every line ≤ 400 bytes) — the anti-rot
-rule it always stated and never enforced · **P14** the indexes equal the filesystem: the probe README indexes the
-scripts that exist, every markdown table keeps one row per line + column count, no `docs/agent/*.md` unreachable ·
-**P15** the one-hop corpus obeys P13's shape under a shrink-only byte cap.
+`make docs-check` (`scripts/agents-md-contract.sh`; CI: the `audit` job) asserts it sub-second and with
+no build: root + guide byte budgets on a shrink-only ratchet; every named file, `make` target,
+suite names, `§` sections and `file:line` anchors resolving; every `<!-- claim: … -->` reproducing; numbered
+suite counts equal to `Tests/`; the probe/doc indexes equal to the filesystem; the READMEs equal to the
+router and `AuthRoutePolicy`; this file and the one-hop corpus carrying no dates and no prose walls.
+The named gate list with its rationale and env knobs lives **in that script** — one home: the copy here
+omitted gates twice before anything read it. Scans floor their own hit counts, so "found nothing" never
+reads as "nothing wrong".
 Operator semantics (`>=` floor, `<=` ceiling) + the three questions: `CONTRIBUTING.md`.
 
 ## Documentation Map — Agent-facing vs Human-facing
