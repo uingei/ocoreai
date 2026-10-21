@@ -463,6 +463,20 @@ actor EnginePool {
         return try await provider.detokenize(tokenIds: tokens)
     }
 
+    /// Content tokens of one raw string, no chat-template framing — the size a persisted
+    /// message row should carry.
+    ///
+    /// `nil` when this model has no tokenizer registered or the encoder refused. The caller
+    /// then degrades to the byte heuristic, and that substitution stays nameable:
+    /// ``TokenizerManager/isRealTokenizerBackend`` says whether the build has a real backend at
+    /// all, and this returning nil says *this model* had none for this row.
+    func countContentTokens(modelId: String, text: String) async -> Int? {
+        guard let provider = await tokenizerManager.getTokenizer(for: modelId) else {
+            return nil
+        }
+        return try? await provider.countContentTokens(text: text)
+    }
+
     // MARK: - Acquire / Release
 
     func acquire(model modelId: String) async throws -> EngineHandle {

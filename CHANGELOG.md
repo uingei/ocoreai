@@ -3,15 +3,41 @@
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## [Unreleased] — 2026-09-05 → 2026-10-21
+**10-21 门禁补上最后一格：`XxxTests`(N) 括号里那个数也是 claim——五条已经漂了**(P0 文档失真 / P3 可观测性) — 起因是给 § Open 添一条新缺口时顺手核了一眼数字：AGENTS.md 写着 `PromptTokenAccountingTests`(6)，文件里 7 条——上一个提交刚加的那条 `everyHopReportsOnePrompt` 改了代码，没人改数。
+
+- **全扫结果**：文档里 ``XxxTests`(N)`` 形状共 12 处（AGENTS.md 9 + `docs/agent/closed-items-log.md` 3），**5 处与文件不符**：AGENTS.md `CapabilityMeasurementHonestyTests`(15)→16、`PromptTokenAccountingTests`(6)→7、`ToolProseLedgerTests`(11)→15；closed-items-log `V1EndpointCatalogTests`(6)→9、`MetalShaderLibraryTests`(7)→**6**（最后一条是向上虚报：宣称的门禁覆盖比文件里实际存在的还多一条）。
+
+- **根因**：`make docs-check` 会跑 `<!-- claim: … -->`（可执行数字）、会验 suite 名是否存在（P6）、会验 file:line 锚点（P3），**唯独没人读括号里的条数**——不变量 1 的原话：一个数只要没人 re-grep 它，它就漂；而这三处数字恰恰是"覆盖率"的说法，最容易在加测试的那天过期。
+
+- **修法（`scripts/agents-md-contract.sh` 新增 P11）**：括号数字必须等于 `Tests/**/<Name>.swift` 里 `@Test` 声明数——口径就是 `swift test --filter <Name>` 报的口径（参数化 `@Test(arguments:)` 记 1 条、携带 N 个 case，实测：21 行 `✔ Test` + 1 条 `with 2 test cases` = `22 tests`）。扫描**自钉下限**（`OCOREAI_AGENTS_FLOOR_SUITE_COUNTS:=8`：正则哪天不再匹配，P11 直接红，不许空过——同 P1 的路子）。**日记类豁免**（`CHANGELOG.md`、`docs/agent/closed-items-log.md`）：那上面写的是"当天为真"，把历史数字改成今天的值等于改记录；契约面（root 与被路由进去的 guides）描述的是此刻的代码，所以它们的数字必须追着文件跑。
+
+- **红→绿（同会话）**：加完 P11 当场红，并逐条点名——`P11 5 numbered suite claim(s) do not match Tests/: AGENTS.md CapabilityMeasurementHonestyTests(15) — file holds 16; … docs/agent/closed-items-log.md MetalShaderLibraryTests(7) — file holds 6; …`；改完三处 AGENTS 数字（全是等长数字，不动 root 预算）后 `suites numbered-claims=9/9 ok (floor 8)`，`make docs-check` ✅；`make anchor-check`（37 锚点）、`make audit`、`make format-check`（0 重排）同轮全绿。
+
+- **同时登记的一条新缺口（未修，不臆修）**：`/v1/messages` 收下 `sessionCompressor` 与 `semanticSearch` 两个依赖却都写成 `_`(`AnthropicMessagesHandler.swift:51`) ⇒ 这条兼容面**根本不写会话记忆**：`/sessions` 无行、FTS 搜不到，OpenAI 面三条全写（探针 22 实测）。为什么不当场修：Anthropic 规范里没有 conversation id（只有 `metadata.user_id`，那是用户不是会话），拿什么当身份是接口形状的决定；门已写进 § Open——同 key 两轮 `/v1/messages` 后读 `/sessions` 看有无行。root 现 50662/50668 字节。
+
+**10-21 一条 `session_id` 真正成一个会话：一行归一轮，每行只记自己那条消息的价**(P1 执行链/状态 + P0 行为不一致) — 本节早前登记的两件事当日修完，写门时又在这一条腿上挖出第三件。为什么不留人拍板：外部 key→行 的映射收在服务端内部，**线上一个字段没动、`/sessions` 的形状没变**，迁移是 `ALTER TABLE … ADD COLUMN`（旧行 key 为 NULL，照旧可读）——改的是内部记账，不是接口形状；真正需要人拍板的是"客户端该持有整数 id 还是服务端自己映射"，而答案早就写在代码里：整数 id 从不回吐，所以服务端必须自己映射。
+
+- **① 身份（`Handlers/ChatHandler.swift:2013` `persistConversation`）**：旧规则是"`session_id` 能解析成 `Int64` 就复用那一行，否则新建"，而 HTTP 面从不发整数 ⇒ 每请求一行（本日两轮红样：id 1936/1937/1938、1956/1957/1958，各 `message_count=2`）。新增 `sessions.external_key TEXT` + `idx_sessions_external_key`（`SQLiteStore.swift:585`，与 `workspace_directory` 同一条 probe-then-ALTER 路），`SQLite/SessionCompressor.swift:155 resolveSession(externalKey:modelId:ttlDays:)` 三条臂按既有契约排序：数字 key 命名一行真存在 = 那一行（老客户端行为不动）；key 见过 = 它当初那行；否则建行并记住 key。**与 `modelId` 同键**，因为引擎本就按 `SessionPool.poolKey = modelId:conversationId` 分会话——同一个 key 换模型是两条转写，不是一锅。数字 key 命名不存在的行也不再往不存在的爹上写 `messages`。
+
+- **② 去重（新 `SQLite/SessionTranscript.swift`）**：客户端每轮重发全史，而 `messages` 只追加 ⇒ 一轮真正新增的 = 已存行与本轮转写的**最长公共前缀之后的尾巴**（`SessionTranscript.swift:52 newEntries`）。四种形状各有说法：首轮全新增；普通轮只加尾巴；原样重放加 0 条（幂等）；rewind（客户端比库里短）加 0 条；改写过历史则从发散点往后追加——这是只存追加表能给出的最诚实答案，也正是引擎 `canReusePooledSession` 拒绝复用改写过会话的 KV 的同一条理由。**两侧必须先化成同一种形状**：库里插着 assistant 回复，客户端列表按持久规则没有，逐位比会在第一条回复处停下、把之前每一轮重写一遍——同一个缺陷小一号，门 `shapeFilteringAgreesOnBothSides` 钉住它；角色集合只在 `SessionTranscript.swift:39 persistedRoles` 说一次，SQL 侧用它，不许再手写第二份。
+
+- **③ 计量（每行记自己）**：`tokensPerMsg = promptTokens / userMsgCount` 删掉。行改记这条消息自己的内容 token：`Tokenizer/TokenizerManager.swift:221 countContentTokens(text:)` = `encode(text:addSpecialTokens:false)`（**不带模板框**，测的是内容），经 `Engine/EnginePool.swift:473 countContentTokens(modelId:text:)` 取；这个模型没有 tokenizer 时返 nil，调用方退回 `estimatePromptTokensFallback` 字节启发式——替换依旧可被检出（`/v1/capabilities` 的 `tokenizerBackend: real|heuristic` 已公布是哪一路）。assistant 行留 `outputTokens`：那本来就是这一条回复生成的量，且含模型自己产出的 reasoning，内容 tokenizer 看不见。`SQLite/SessionCompressor.swift:175 touch` 在解析到既有行时把行里的 `token_count` 读回 `sessionTokenCounts`——否则进程重启后那条长会话的裁剪阈值从 0 重新数起（128k 阈值会以为它很轻）。
+
+- **写门时挨的第三刀（同一族，浅会话看不见）**：读已存转写最初写作 `limit: incoming.count + 8` 且**不过滤角色**——库里一半行是回复，深会话里这样读回来的是**短了的头**，重叠规则就把缺的那几轮当"新的"再写一遍。改成 SQL 侧按 `persistedRoles` 过滤，`limit` 就恰好等于调用方数的条数（`SQLite/SessionCompressor.swift:424 transcriptAscending`，`ORDER BY created_at ASC, id ASC`，同微秒内以 id 定序）。红样实测（只把过滤摘掉，其余不动）：**恰好红那一条**——`the reader shorted the head — asked for 13 conversation rows, got 7; the rest would be stored a second time`，22 条里其余 21 条全绿；探针 22 只有 4 轮，余量正好盖住 ⇒ 这类缺陷只能靠深会话单元测试逼出来，线上看不见（不变量 1 的又一例：门要问的是这件事本身，不是最容易问的那一件）。
+
+- **门**：新 `Tests/ocoreaiTests/SessionTranscriptTests.swift` **15 条 / 3 套**——重叠规则（首轮/普通/重放/rewind/改写/两侧同形/角色集，全精确值）；SQLite 身份（3 轮 1 行 6 消息 `token_count=24`、key×model 分区、数字 key 诚实、**身份活过重启**、深会话看全头）；静态钉子（`ChatHandler` 代码行里再没有 `tokensPerMsg`、`resolveSession(` 与 `transcriptAscending(` 各恰好 1 处、`limit: incoming.count)` 精确、角色集只有一个家；扫描是**注释感知**的——文档可以说出被禁的写法，代码不行）。探针 22 从 xfail×2 改成**硬门 8 绿**（`8 passed, 0 failed, 6 measured, 0 known-open`），实测：`one session row id=1960 holding message_count=6 token_count=25`、`the largest user row costs token_count=7 for a 33-character message`、新加的再发全史一节 `4 turns on one key, 4 user rows, nothing duplicated`。红样（退回 `createSession` + 整段 prompt 摊派）：探针 22 `3 passed, 2 failed`，`id=1956/1957/1958 message_count=2 token_count=699`。
+
+- **入账**：AGENTS.md § Open 那条 `session_id` 缺口按已解决删除（root 现 50312 字节 / 上限 50668）。留下一条没做的诚实边界：会话总量自此**只数消息内容**，不含系统提示与模板框——这是口径选择不是缺陷，`SessionCompressor.tokenThreshold` 与它比的是同一口径的数；`/sessions` 上没写这句话，写它属于公开面措辞，待与 `usage` 口径一并裁。
+
 **10-21 一条 `session_id` 在 HTTP 面上不成一个会话**(P1 执行链/状态 / 不变量 2) — 写探针时直接量出来的两件事，同一次实测（`mlx-community/gemma-4-e2b-it-4bit`，同一 `session_id: "MEMPROBE-…"` 三轮）：
 
 - **① 每请求一条 sessions 行**：`ChatHandler.persistConversation` 把 `session_id` 解析成 `Int64` 才复用行，否则 `createSession` 新建一行 ⇒ 三轮造出三行（实测 id 1936/1937/1938，各 `message_count=2`）。而 HTTP 面**从不把整数 id 回吐给客户端**（`/sessions` 只读列，`POST /sessions` 不存在），所以真客户端（UUID、`PROBE-…`）的会话在持久层没有"可以长大的那一行"：`/sessions`、`/sessions/:id/memory`、`/sessions/search`(FTS) 与 GUI 的会话列表看见的是每请求一张快照，而不是同一条对话。引擎的 session pool 记得住历史，持久层记不住——两边各说各话。
 
 - **② per-message `token_count` 记的是整段 prompt**：`tokensPerMsg = promptTokens / userMsgCount`，于是一条 34 字符的 user 消息存成 `token_count: 705`（705 = 本轮整段渲染提示词，含 ocoreai 自己的系统提示与模板；同轮 `usage.prompt_tokens` 正是 705）。`SessionCompressor` 拿这些行的累加与 `tokenThreshold`（默认 128k）比较来决定何时裁剪历史，`SessionView.swift:136` 又把 `session.token_count` 当作会话大小显示给使用者——同一段历史每轮被重新计一次费。
 
-- **为什么不自己拍板改掉**：修法要动人家的持久层形状——外部 key→行 的映射需要一次 schema 迁移（加 `external_key` + 唯一索引，并决定旧行怎么办），per-message 计量需要在这条腿上接真 tokenizer 并给出无 tokenizer 时的降级说法（不变量：替换必须可被检出），而"HTTP 客户端该持有整数 id 还是服务端自己映射"是接口形状的决定。按规矩登记，不臆修、不宣称已修。
+- **为什么不自己拍板改掉**：修法要动人家的持久层形状——外部 key→行 的映射需要一次 schema 迁移（加 `external_key` + 唯一索引，并决定旧行怎么办），per-message 计量需要在这条腿上接真 tokenizer 并给出无 tokenizer 时的降级说法（不变量：替换必须可被检出），而"HTTP 客户端该持有整数 id 还是服务端自己映射"是接口形状的决定。按规矩登记，不臆修、不宣称已修。**（当日闭环：见本节顶部那条——映射收在服务端内部，线上字段与 `/sessions` 形状一个没动，迁移是加列；当年那个待裁的问题其实当时就有答案：整数 id 从不回吐，所以服务端必须自己映射。）**
 
-- **门（新探针 `22-session-memory-identity.sh`）**：前提硬门先站住——三轮必须 200、`/sessions` 必须答、必须出现新的 sessions 行、`/sessions/:id/memory` 必须答出该轮那条 user 消息（任何一条不成立就是 FAIL，而不是安静地"没测到"）；两条结论目前各记一次 `probe_xfail open`（XFAIL 计入 known-open，退出码 0），**任一条修好就变 XPASS 并报失败**，逼着删 xfail 与关 § Open。实测：`3 SQLite sessions for one session_id … across 3 turns`、`a 34-character user message is stored with token_count=705`。跑完用 `DELETE /sessions/:id` 把自己造的行清掉（顺带验了删除路由）。
+- **门（新探针 `22-session-memory-identity.sh`）**：前提硬门先站住——三轮必须 200、`/sessions` 必须答、必须出现新的 sessions 行、`/sessions/:id/memory` 必须答出该轮那条 user 消息（任何一条不成立就是 FAIL，而不是安静地"没测到"）；两条结论当时各记一次 `probe_xfail open`（XFAIL 计入 known-open，退出码 0），**任一条修好就变 XPASS 并报失败**，逼着删 xfail 与关 § Open。实测：`3 SQLite sessions for one session_id … across 3 turns`、`a 34-character user message is stored with token_count=705`。跑完用 `DELETE /sessions/:id` 把自己造的行清掉（顺带验了删除路由）。**（当日：两条 xfail 已删、改成硬门，探针另加"再发全史只存一次"一节；§ Open 那条已关。）**
 
 - **写门时挨的第二刀（同一族）**：清理钩子里用 `tr -cd '0-9\n'` 从行摘要里抠 id，把 `message_count=2`/`token_count=706` 的数字也粘了上去，`probe_atexit` 后来 eval 时炸成 `syntax error near unexpected token 19372707`。id 一律 `sed -nE 's/.*id=([0-9]+).*/\1/p'` 取，且在登记钩子时就压成一行。
 

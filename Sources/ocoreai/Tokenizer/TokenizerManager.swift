@@ -212,6 +212,16 @@ final class DirectTokenizer: Sendable {
         return tokenIds.count
     }
 
+    /// Tokens of one raw string, **without** chat-template framing.
+    ///
+    /// ``countTokens(messages:)`` renders the chat template, so sizing a single message
+    /// through it charges that message for the conversation's markup (BOS, role wrappers,
+    /// end-of-turn). A persisted message row needs its own size, which is what `encode` with
+    /// no special tokens answers.
+    func countContentTokens(text: String) async throws -> Int {
+        _tokenizer.encode(text: text, addSpecialTokens: false).count
+    }
+
     /// Warm up tokenizer with minimal chat template to ensure internal init completes.
     func prewarm() async throws {
         let warmupIds = try _tokenizer.applyChatTemplate(messages: [

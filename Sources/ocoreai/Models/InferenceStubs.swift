@@ -573,6 +573,9 @@ protocol TokenizerProvider: Sendable {
     func detokenize(tokenIds: [Int32]) async throws -> String
     func streamingDetokenizer() -> StreamingDetokenizer
     func countTokens(messages: [[String: String]]) async throws -> Int
+    /// Content-only token count for one raw string — see `DirectTokenizer.countContentTokens`.
+    /// Kept on the stub protocol so the pool's call site compiles on both sides of the gate.
+    func countContentTokens(text: String) async throws -> Int
     func prewarm() async throws
 }
 

@@ -18,6 +18,11 @@
 #   P4 claims        <!-- claim:id=N :: shell --> runs and must equal N
 #   P5 gates         every `make <target>` and scripts/*.sh named is real
 #   P6 suites        every XxxTests named is declared under Tests/
+#   P11 suite counts  every `XxxTests`(N) claim equals the @Test count in Tests/**/XxxTests.swift
+#                    — a numbered gate claim is a promise about how much is covered, and five of
+#                    them had already drifted (AGENTS.md 15→16, 6→7, 11→15;
+#                    docs/agent/closed-items-log.md 6→9 and 7→6, the last one claiming MORE
+#                    coverage than the file holds) before anything read them (invariant 1)
 #   P7 routing       every area guide on disk is listed in the root routing table
 #   P8 pin agreement the upstream revision AGENTS.md quotes is the revision
 #                    Package.swift actually pins — the pin is the contract (§ Upstream),
@@ -49,6 +54,7 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_AGENTS_FLOOR_REFS:=50}"
 : "${OCOREAI_AGENTS_FLOOR_CLAIMS:=8}"
 : "${OCOREAI_AGENTS_FLOOR_SUITES:=8}"
+: "${OCOREAI_AGENTS_FLOOR_SUITE_COUNTS:=8}"
 : "${OCOREAI_AGENTS_FLOOR_ROUTING:=4}"
 # P10 floor: the router route scan must keep matching (measured 34 routes on 10-20), else
 # the README-vs-router parity below compares against an empty set and passes vacuously.
@@ -78,6 +84,7 @@ OCOREAI_AGENTS_MAX_AREA="$OCOREAI_AGENTS_MAX_AREA" \
 OCOREAI_AGENTS_FLOOR_REFS="$OCOREAI_AGENTS_FLOOR_REFS" \
 OCOREAI_AGENTS_FLOOR_CLAIMS="$OCOREAI_AGENTS_FLOOR_CLAIMS" \
 OCOREAI_AGENTS_FLOOR_SUITES="$OCOREAI_AGENTS_FLOOR_SUITES" \
+OCOREAI_AGENTS_FLOOR_SUITE_COUNTS="$OCOREAI_AGENTS_FLOOR_SUITE_COUNTS" \
 OCOREAI_AGENTS_FLOOR_ROUTING="$OCOREAI_AGENTS_FLOOR_ROUTING" \
 OCOREAI_README_FLOOR_ROUTES="$OCOREAI_README_FLOOR_ROUTES" \
 OCOREAI_README_FLOOR_JOBS="$OCOREAI_README_FLOOR_JOBS" \
@@ -126,6 +133,8 @@ ANCHOR_RE = re.compile(r"(?<![\w/])(" + NAME + r"\.(?:swift|md|sh|yml|yaml|json|
 CLAIM_RE = re.compile(r"<!--\s*claim:([a-z0-9_]+)\s*(<=|>=|=)\s*(\d+)\s*::\s*(.+?)\s*-->")
 MAKE_RE = re.compile(r"`make\s+([a-z][a-z0-9-]+)")
 SUITE_RE = re.compile(r"\b([A-Z][A-Za-z0-9]*Tests)\b")
+# A gate named with a number in parentheses is a claim about how much it covers.
+SUITE_COUNT_RE = re.compile(r"`([A-Za-z0-9_]*Tests)`\((\d+)\)")
 ROUTING_RE = re.compile(r"(?<![\w/])((?:Sources|Tests)/[^\s|`,)]*AGENTS\.md|docs/agent/[A-Za-z0-9_\-]+\.md)")
 # The author already said the thing is gone; do not re-report a declared absence.
 ABSENT = ("does not exist", "no longer", "deleted", "removed", "absent", "never existed",
@@ -175,6 +184,7 @@ docs = {"AGENTS.md": root_text, "README.md": read("README.md"), "README.zh.md": 
 docs.update({p: read(p) for p in guides})
 
 refs, anchors, claims, suites, make_targets, routing = set(), set(), set(), set(), set(), set()
+suite_counts = set()
 for src, text in docs.items():
     for raw in text.splitlines():
         line = re.sub(r"https?://\S+", " ", raw)  # URLs are cites, not repo paths
@@ -188,6 +198,7 @@ for src, text in docs.items():
         for m in CLAIM_RE.finditer(line):
             claims.add((src, m.group(1), m.group(2), int(m.group(3)), m.group(4)))
         suites.update((src, s) for s in SUITE_RE.findall(line))
+        suite_counts.update((src, n, int(c)) for n, c in SUITE_COUNT_RE.findall(line))
         make_targets.update(MAKE_RE.findall(line))
         routing.update((src, r) for r in ROUTING_RE.findall(line))
 
@@ -202,6 +213,10 @@ if len(claims) < env_int("OCOREAI_AGENTS_FLOOR_CLAIMS"):
                 "not machine-checkable cannot gate itself" % (len(claims), env_int("OCOREAI_AGENTS_FLOOR_CLAIMS")))
 if len(suites) < env_int("OCOREAI_AGENTS_FLOOR_SUITES"):
     fail.append("P1 only %d *Tests names (< floor %d)" % (len(suites), env_int("OCOREAI_AGENTS_FLOOR_SUITES")))
+if len(suite_counts) < env_int("OCOREAI_AGENTS_FLOOR_SUITE_COUNTS"):
+    fail.append("P1 only %d numbered `XxxTests`(N) claims (< floor %d) — the count regex stopped "
+                "matching, so P11 would pass vacuously"
+                % (len(suite_counts), env_int("OCOREAI_AGENTS_FLOOR_SUITE_COUNTS")))
 if len(routing) < env_int("OCOREAI_AGENTS_FLOOR_ROUTING"):
     fail.append("P1 only %d routing-table rows (< floor %d)" % (len(routing), env_int("OCOREAI_AGENTS_FLOOR_ROUTING")))
 
@@ -280,6 +295,37 @@ missing_suites = sorted({s for _, s in suites
 if missing_suites:
     fail.append("P6 %d test suite(s) named but not declared under Tests/: %s"
                 % (len(missing_suites), ", ".join(missing_suites)))
+
+# ── P11 numbered suite claims equal what the file holds ──────────────────────
+# `ToolProseLedgerTests`(11) is not prose, it is a coverage number. Measured 10-21: five of
+# the twelve such claims in the docs had drifted off the files they name, one of them upward
+# (`MetalShaderLibraryTests`(7) against a 6-test file) — the shape invariant 1 describes: a
+# claim with nothing reading it. The count is @Test declarations in Tests/**/<Name>.swift,
+# which is what a `swift test --filter <Name>` run reports (a parameterized @Test is one test
+# carrying N cases).
+test_fn_counts = {}
+for p in glob.glob("Tests/**/*.swift", recursive=True):
+    test_fn_counts[os.path.splitext(os.path.basename(p))[0]] = len(
+        re.findall(r"^\s*@Test\b", read(p), re.M))
+stale_counts, unknown_counts = [], []
+# Dated logs are exempt: `closed-items-log.md`/`CHANGELOG.md` record what was true on the day
+# they were written, and "correcting" them rewrites the record. The contract surfaces — the root
+# and the guides a session is routed into — describe the code as it is, so those numbers chase
+# the files.
+DIARIES = {"CHANGELOG.md", "docs/agent/closed-items-log.md"}
+for src, name, claimed in sorted(suite_counts):
+    if src in DIARIES:
+        continue
+    if name not in test_fn_counts:
+        unknown_counts.append("%s %s" % (src, name))
+    elif test_fn_counts[name] != claimed:
+        stale_counts.append("%s %s(%d) — file holds %d" % (src, name, claimed, test_fn_counts[name]))
+if stale_counts:
+    fail.append("P11 %d numbered suite claim(s) do not match Tests/: %s"
+                % (len(stale_counts), "; ".join(stale_counts)))
+if unknown_counts:
+    fail.append("P11 %d numbered suite claim(s) name no file under Tests/: %s"
+                % (len(unknown_counts), "; ".join(unknown_counts)))
 
 # ── P7 routing covers every guide on disk ───────────────────────────────────
 listed = {r for _, r in routing}
@@ -409,6 +455,11 @@ print("  human     router-routes=%d (floor %d)  public-paths=%d  README tables=%
       % (len(router_routes), env_int("OCOREAI_README_FLOOR_ROUTES"), len(public_paths),
          ",".join("%d rows" % len({("%s %s" % (m.group(1), m.group(2)))
                                   for m in ROW_RE.finditer(read(d))}) for d in HUMAN_DOCS)))
+print("  suites    numbered-claims=%d/%d ok (floor %d)  files-with-@Test=%d"
+      % (len([1 for s, _, _ in suite_counts if s not in DIARIES])
+         - len(stale_counts) - len(unknown_counts),
+         len([1 for s, _, _ in suite_counts if s not in DIARIES]),
+         env_int("OCOREAI_AGENTS_FLOOR_SUITE_COUNTS"), len(test_fn_counts)))
 if upstream:
     print("  upstream  %d ref(s) resolved in a dependency checkout or ~/references "
           "(line numbers inside them are what `make anchor-check` verifies): %s"

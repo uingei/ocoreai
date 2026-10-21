@@ -571,6 +571,23 @@ actor SQLiteStore {
             sql: "CREATE INDEX IF NOT EXISTS idx_sessions_project_id ON sessions(project_id);",
             db: db)
 
+        // Conversation identity (CHANGELOG 10-21): the HTTP face gets a *client* key
+        // (`session_id` — a UUID, a `PROBE-…` string), while `sessions.id` is a row id the
+        // client can never obtain (`/sessions` is read-only, there is no POST). Without a
+        // column to hold the client's key, every request had to create its own session row:
+        // three turns on one conversation key made three sessions, so memory, FTS and the
+        // GUI session list saw one snapshot per request instead of one conversation.
+        // Same probe-then-ADD pattern as `workspace_directory`.
+        let hasExternalKey =
+            sessionsCols.contains { ($0["name"] as? String) == "external_key" }
+        if !hasExternalKey {
+            try Self.exec(
+                sql: "ALTER TABLE sessions ADD COLUMN external_key TEXT;", db: db)
+        }
+        try Self.exec(
+            sql: "CREATE INDEX IF NOT EXISTS idx_sessions_external_key ON sessions(external_key);",
+            db: db)
+
         // Reasoning trace persistence (codex #46711 parity): assistant messages
         // carry their reasoning/thinking text so a re-opened session shows the
         // SAME reasoning the live stream rendered instead of silently dropping

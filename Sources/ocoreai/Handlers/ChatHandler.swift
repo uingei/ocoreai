@@ -1293,10 +1293,10 @@ private func nonStreamWithToolCalling(
             messages: messages,
             assistantContent: finalContent,
             modelId: modelId,
-            promptTokens: observedInputTokens,
             outputTokens: totalOutputTokens,
             compressor: sessionCompressor,
             semanticSearch: semanticSearch,
+            enginePool: enginePool,
         )
     }
 
@@ -1916,10 +1916,10 @@ private func streamWithToolCalling(
             messages: messages,
             assistantContent: prevDecodedText,
             modelId: modelId,
-            promptTokens: observedInputTokens,
             outputTokens: totalOutputTokens,
             compressor: sessionCompressor,
             semanticSearch: semanticSearch,
+            enginePool: enginePool,
         )
 
         // MARK: Post-stream Self-Correction Trace (Phase 1 only — zero token cost)
@@ -1991,40 +1991,62 @@ private func streamWithToolCalling(
 // MARK: - Persistence Helper
 
 /// Persist user/assistant messages to SQLite after inference completes.
-/// Fire-and-forget — errors are logged but do not affect the response.
-/// After persistence, embeds each message for semantic search via MLXEmbedders.
+///
+/// Fire-and-forget — errors are logged but do not affect the response. After persistence,
+/// each message is embedded for semantic search via MLXEmbedders.
+///
+/// Two things this hop used to get wrong, both measured live on 10-21, both fixed here:
+/// • **identity** — every request created its own `sessions` row unless `session_id` parsed
+///   as an integer, which no HTTP client can arrange (`/sessions` is read-only; nothing hands
+///   out an id). Three turns on one conversation key made three sessions, so memory, FTS and
+///   the GUI session list saw one snapshot per request instead of one conversation.
+///   ``SessionCompressor/resolveSession(externalKey:modelId:ttlDays:)`` now maps the key to
+///   the one row it owns.
+/// • **size and duplication** — the turn's whole prompt was divided over the user rows
+///   (`tokensPerMsg = promptTokens / userMsgCount`), storing a 34-character message as 705
+///   tokens, and every user message in the re-sent history was inserted again each turn. The
+///   session total is what ``SessionCompressor`` compares against `tokenThreshold` to prune,
+///   so that gate was fed the same history once per turn. Rows now carry their own content
+///   tokens (real tokenizer when this model has one, the byte heuristic otherwise — the
+///   substitution is nameable via ``TokenizerManager/isRealTokenizerBackend``), and only the
+///   messages the turn actually adds are written (``SessionTranscript``).
 private func persistConversation(
     request: ChatCompletionRequest,
     messages: [Message],
     assistantContent: String,
     modelId: String,
-    promptTokens: Int,
     outputTokens: Int,
     compressor: SessionCompressor,
     semanticSearch: SemanticSearch?,
+    enginePool: EnginePool,
 ) async {
     let logger = Logger(label: "ocoreai.persist")
 
     do {
-        // Resolve session: use request.sessionID as database id if parseable, else create new
-        let sessionId: Int64 =
-            if let sidStr = request.sessionID, let sid = Int64(sidStr) {
-                sid
-            } else {
-                try await compressor.createSession(modelId: modelId)
-            }
+        let sessionId = try await compressor.resolveSession(
+            externalKey: request.sessionID, modelId: modelId)
 
-        // Persist user messages (skip system + assistant)
-        let userMsgCount = messages.count(where: { $0.role != "system" && $0.role != "assistant" })
-        let tokensPerMsg = max(1, promptTokens / max(1, userMsgCount))
+        // The client re-sends its history; the stored rows already hold the head of it, so
+        // only the tail this turn added gets written. `limit` is exact because the query
+        // answers in the same shape as `incoming` (assistant rows are not conversation
+        // content, so they never occupy a slot in either list).
+        let incoming = SessionTranscript.client(messages)
+        let stored = SessionTranscript.stored(
+            try await compressor.transcriptAscending(sessionId, limit: incoming.count))
+        let additions = SessionTranscript.newEntries(existing: stored, incoming: incoming)
 
-        for msg in messages where msg.role != "system" && msg.role != "assistant" {
-            let text = msg.textContent()
+        for entry in additions {
+            let text = entry.content
+            let bytesFallback = estimatePromptTokensFallback([
+                .init(role: entry.role, content: text)
+            ])
             let rowId = try await compressor.addMessage(
                 sessionId: sessionId,
-                role: msg.role,
+                role: entry.role,
                 content: text,
-                tokenCount: tokensPerMsg,
+                tokenCount:
+                    await enginePool.countContentTokens(modelId: modelId, text: text)
+                    ?? bytesFallback,
             )
             // Embed for semantic search (fire-and-forget, non-blocking)
             if let ss = semanticSearch {
@@ -2039,6 +2061,9 @@ private func persistConversation(
             sessionId: sessionId,
             role: "assistant",
             content: assistantContent,
+            // `outputTokens` is what the engine generated for *this* reply, so it is already
+            // the message's own size — and it counts reasoning the model produced, which
+            // content-only tokenizing would not see.
             tokenCount: outputTokens,
         )
         // Embed assistant response for semantic search

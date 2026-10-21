@@ -135,15 +135,22 @@ struct PromptTokenAccountingTests {
         }
     }
 
-    /// One prompt, every hop: the client, `/metrics` and session memory must be sized by the same
-    /// accounted number. Textual because the value needs an engine; the live pair is probe 01 §E,
-    /// which ties `ocoreai_inference_tokens_total{kind="prompt"}` to the `prompt_tokens` a warm
-    /// turn answers. Exact counts, per face: a fix applied to one response mode but not the other
-    /// is the defect this repo already shipped once, and a `>=` would not see the missing hop.
+    /// One prompt, every hop that reports *this turn's* prompt: the client and `/metrics` must
+    /// be sized by the same accounted number. Textual because the value needs an engine; the
+    /// live pair is probe 01 §E, which ties `ocoreai_inference_tokens_total{kind="prompt"}` to
+    /// the `prompt_tokens` a warm turn answers. Exact counts, per face: a fix applied to one
+    /// response mode but not the other is the defect this repo already shipped once, and a `>=`
+    /// would not see the missing hop.
+    ///
+    /// Session memory is deliberately not in these counts. A persisted row is a *message*, not
+    /// a turn, and since 10-21 it carries its own content tokens
+    /// (`SessionTranscript` + `EnginePool.countContentTokens`) rather than a share of the
+    /// turn's prompt — the apportionment was the second defect, pinned off by
+    /// `PersistHopSourceTests.persistHopShape`.
     @Test(arguments: [
         HopCase(
             file: "Sources/ocoreai/Handlers/ChatHandler.swift",
-            accounting: 2, hops: 8,
+            accounting: 2, hops: 6,
             banned: "observedPromptTokens ?? promptTokenCount",
             face: "OpenAI"),
         HopCase(

@@ -98,22 +98,108 @@ actor SessionCompressor {
     ///   - modelId: Model identifier
     ///   - ttlDays: Retention period override (nil = default)
     /// - Returns: Session ID
-    func createSession(modelId: String, ttlDays: Int? = nil) async throws -> Int64 {
+    ///   - externalKey: The client's own conversation key (`session_id` on the wire), stored
+    ///     so the next request carrying that key lands on this row. Nil for rows created
+    ///     without one (the GUI opens sessions by row id and needs no key).
+    func createSession(
+        modelId: String, ttlDays: Int? = nil, externalKey: String? = nil,
+    ) async throws -> Int64 {
         let ttl = ttlDays ?? self.ttlDays
         let now = Int64(Date().timeIntervalSince1970 * 1_000_000)
 
-        let sql = """
-            INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count, ttl_days)
-            VALUES (?, ?, ?, 0, 0, ?)
-            """
+        let sql: String
+        let params: [AnyHashable]
+        if let key = externalKey {
+            sql = """
+                INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count, ttl_days, external_key)
+                VALUES (?, ?, ?, 0, 0, ?, ?)
+                """
+            params = [modelId, now, now, ttl, key]
+        } else {
+            sql = """
+                INSERT INTO sessions (model_id, created_at, updated_at, message_count, token_count, ttl_days)
+                VALUES (?, ?, ?, 0, 0, ?)
+                """
+            params = [modelId, now, now, ttl]
+        }
 
         do {
-            _ = try await store.scalarQuery(sql: sql, parameters: [modelId, now, now, ttl])
+            _ = try await store.scalarQuery(sql: sql, parameters: params)
             return try await getLastInsertedId()
         } catch let sqliteErr as SQLiteError {
             throw sqliteErr
         } catch {
             throw SQLiteError.executionFailed(detail: error.localizedDescription)
+        }
+    }
+
+    // MARK: - Conversation identity
+
+    /// The one session row a conversation belongs to, looked up or created once.
+    ///
+    /// Three arms, in this order, because two of them are contracts that already exist:
+    /// 1. a numeric key naming an existing row is that row — a client that learned the id
+    ///    from `/sessions` keeps appending where it always did;
+    /// 2. a key seen before returns the row it was created on. This is the fix: one
+    ///    conversation gets one row instead of one row per request (measured 10-21, three
+    ///    turns on one `session_id` made three sessions, so memory/FTS/GUI saw snapshots and
+    ///    the prune threshold was fed history once per turn);
+    /// 3. otherwise create the row and remember the key.
+    ///
+    /// A numeric key naming a row that does not exist no longer writes `messages` rows
+    /// against a missing parent — arms 2/3 own it, so the transcript lands somewhere real.
+    ///
+    /// Keyed with `modelId` because that is how the engine partitions a conversation too
+    /// (`SessionPool.poolKey` = `modelId:conversationId`); one client key across two models
+    /// is two transcripts here, not one merged log.
+    func resolveSession(
+        externalKey rawKey: String?, modelId: String, ttlDays: Int? = nil,
+    ) async throws -> Int64 {
+        let key = rawKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        if let numeric = Int64(key), let existing = try await getSession(numeric) {
+            return try await touch(existing.id)
+        }
+        if !key.isEmpty, let hit = try await lookupSession(externalKey: key, modelId: modelId) {
+            return try await touch(hit.id)
+        }
+        return try await createSession(
+            modelId: modelId, ttlDays: ttlDays, externalKey: key.isEmpty ? nil : key)
+    }
+
+    /// Bring a resolved row's accounting into this process and mark it used.
+    ///
+    /// `sessionTokenCounts` starts empty after a restart while the row already holds a
+    /// `token_count`, so a long-lived conversation would be pruned against a number that
+    /// silently restarted at zero. Reading the row back is what keeps the threshold honest.
+    private func touch(_ sessionId: Int64) async throws -> Int64 {
+        if let row = try await getSession(sessionId) {
+            sessionTokenCounts[sessionId, default: 0] = row.tokenCount
+        }
+        do {
+            try await store.execute(
+                sql: "UPDATE sessions SET updated_at = ? WHERE id = ?",
+                parameters: [Int64(Date().timeIntervalSince1970 * 1_000_000), sessionId])
+        } catch {
+            throw SQLiteError.executionFailed(detail: "touch session failed: \(error)")
+        }
+        return sessionId
+    }
+
+    private func lookupSession(externalKey: String, modelId: String) async throws -> SessionModel? {
+        let sql = """
+            SELECT id, model_id, created_at, updated_at, message_count, token_count, summary,
+            ttl_days, workspace_directory
+            FROM sessions WHERE external_key = ? AND model_id = ?
+            ORDER BY id DESC LIMIT 1
+            """
+        do {
+            let rows = try await store.query(sql, parameters: [externalKey, modelId])
+            return rows.first.flatMap { SessionModel(from: $0) }
+        } catch let sqliteErr as SQLiteError {
+            throw sqliteErr
+        } catch {
+            throw SQLiteError.queryFailed(detail: "lookupSession failed: \(error)")
         }
     }
 
@@ -322,6 +408,40 @@ actor SessionCompressor {
     }
 
     // MARK: - Transcript Edit (edit-and-resend / regenerate)
+
+    /// The session's stored transcript, oldest-first, up to `limit` rows.
+    ///
+    /// ``getMessages(_:limit:offset:)`` answers newest-first with a `hotWindow` cap because
+    /// that is what a session reload renders. The overlap rule
+    /// (``SessionTranscript/newEntries(existing:incoming:)``) needs the *head* of the
+    /// conversation, and it only compares the roles a conversation contributes
+    /// (``SessionTranscript/persistedRoles``), so the filter lives in the query: an
+    /// unfiltered read has to guess how many assistant rows it will trip over, and under a
+    /// tight margin it returns a *shorter head* than the caller asked for — which the overlap
+    /// rule then reads as "these turns are new" and stores them twice. Filtering here makes
+    /// `limit` mean exactly what the caller counts, with `id` as the tiebreak inside one
+    /// microsecond timestamp.
+    func transcriptAscending(_ sessionId: Int64, limit: Int) async throws -> [MessageModel] {
+        let placeholders = SessionTranscript.persistedRoles.map { _ in "?" }.joined(separator: ", ")
+        let sql = """
+            SELECT id, session_id, role, content, created_at, token_count, tool_calls, reasoning
+            FROM messages
+            WHERE session_id = ? AND role IN (\(placeholders))
+            ORDER BY created_at ASC, id ASC
+            LIMIT ?
+            """
+        do {
+            var params: [AnyHashable] = [sessionId]
+            params.append(contentsOf: SessionTranscript.persistedRoles)
+            params.append(max(1, limit))
+            let rows = try await store.query(sql, parameters: params)
+            return rows.compactMap { MessageModel(from: $0) }
+        } catch let sqliteErr as SQLiteError {
+            throw sqliteErr
+        } catch {
+            throw SQLiteError.queryFailed(detail: "transcriptAscending failed: \(error)")
+        }
+    }
 
     /// Delete the newest `count` persisted messages of a session and report how
     /// many rows actually went.
