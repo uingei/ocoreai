@@ -67,7 +67,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 ## ── pinned budgets (a raise must be a visible edit in the diff) ──────────────
-: "${OCOREAI_AGENTS_MAX_ROOT:=30480}"   # root rewrite 10-22: 50618 -> 30480 (-39.8%); after that,
+: "${OCOREAI_AGENTS_MAX_ROOT:=30138}"   # pinned 10-22 by `make docs-budget`
                                      # `make docs-budget` may only lower it (B1 stays a ratchet)
 # P13: the injected file carries rules, not diary. Longest allowed line in AGENTS.md, in bytes.
 : "${OCOREAI_AGENTS_MAX_LINE:=400}"
