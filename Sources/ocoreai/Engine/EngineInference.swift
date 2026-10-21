@@ -3091,6 +3091,40 @@ extension EnginePool {
             let poolRefForRelease = poolRef
             _ = poolRefForRelease  // used below in guided gen / MTP / std reasoning early-release
 
+            /// Which lane will generate this turn, decided once, before the pool is asked
+            /// for anything. Guided gen and MTP build their own KV cache and hand the
+            /// pooled slot back before generating (`Self.reasoningSafeForConstrainedPaths`
+            /// gates the guided branch; the MTP branch checks the drafter), so nothing the
+            /// pooled session holds can pay for those turns.
+            ///
+            /// This is asked *before* acquire rather than answered after it because the pool
+            /// is the site that books a divergence in `reuseRefusals` and writes the
+            /// "not reusable" line: an offer the caller would have to decline would leave
+            /// both of those stating something the turn did not do. Measured 10-22 (probe
+            /// 27 §5) on an edited resend carrying `response_format: json_object`: the log
+            /// said "Session REWOUND … instead of re-prefilling 2" and the turn then paid
+            /// all 753 tokens cold through GuidedGenerationLoop.
+            let turnCarriesMedia = mlxMessages.contains {
+                !$0.images.isEmpty || !$0.videos.isEmpty || !$0.audios.isEmpty
+            }
+            let grammarLaneRequested = options.grammarSchema != nil
+            // Read the model's reasoning pairing only when a grammar is actually requested:
+            // it is the fact that decides whether the guided lane can run at all.
+            let constrainedLaneIsSound: Bool
+            if grammarLaneRequested {
+                constrainedLaneIsSound = Self.reasoningSafeForConstrainedPaths(
+                    await handleRef.modelContainer.configuration)
+            } else {
+                constrainedLaneIsSound = false
+            }
+            let routesAroundChatSession = Self.bypassesPooledChatSession(
+                grammarSchemaPresent: grammarLaneRequested,
+                constrainedLaneIsSound: constrainedLaneIsSound,
+                mtpDrafterPresent: mtpDrafterContainer != nil,
+                carriesMedia: turnCarriesMedia,
+                messageCount: mlxMessages.count
+            )
+
             /// This turn's message keys, computed once: they identify the conversation
             /// the KV cache will represent, for prefix matching at acquire and for the
             /// snapshot identity if the session is later evicted to disk.
@@ -3107,7 +3141,8 @@ extension EnginePool {
                     speculativeDecoding: specConfig,
                     instructions: systemInstructions,
                     processing: sessionProcessing,
-                    prefixMessages: keys
+                    prefixMessages: keys,
+                    rewindUsable: !routesAroundChatSession
                 )
                 let readyAt = ContinuousClock.now
                 let acquireMs = elapsedMs(acquireStart.duration(to: readyAt))
@@ -4970,6 +5005,30 @@ extension EnginePool {
     /// Returns false when the model has an .alwaysOn reasoning config that cannot
     /// be disabled — in which case the request must fall through to ChatSession
     /// where ReasoningEventEmitter handles thinking segmentation correctly.
+    /// Whether this turn generates *around* the pooled `ChatSession`.
+    ///
+    /// Both lanes below build their own KV cache (`GuidedGenerationLoop`, and
+    /// `loaded.mtpKVCache(conversationId:)` for MTP) and release the pooled slot before
+    /// generating, so a session rewind applied for them is work nobody spends — and a log
+    /// line claiming one is the surface stating more than the engine delivered (AGENTS.md
+    /// invariant 2). Media puts the turn back on `ChatSession` (neither lane carries media),
+    /// which is why `carriesMedia` outranks both, and an unsafe grammar pairing falls through
+    /// to the standard path rather than staying a bypass.
+    ///
+    /// One home for the routing fact; the two lanes keep their own guards because they bind
+    /// values (`if let schema`, `guard let drafterContainer`) that this predicate cannot carry.
+    nonisolated static func bypassesPooledChatSession(
+        grammarSchemaPresent: Bool,
+        constrainedLaneIsSound: Bool,
+        mtpDrafterPresent: Bool,
+        carriesMedia: Bool,
+        messageCount: Int
+    ) -> Bool {
+        if carriesMedia { return false }
+        if grammarSchemaPresent && constrainedLaneIsSound { return true }
+        return mtpDrafterPresent && messageCount > 0
+    }
+
     private static func reasoningSafeForConstrainedPaths(
         _ configuration: ModelConfiguration
     ) -> Bool {

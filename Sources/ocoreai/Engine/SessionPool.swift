@@ -559,6 +559,7 @@ actor MLXSessionPool {
         instructions: String? = nil,
         processing: MLXLMCommon.UserInput.Processing? = nil,
         prefixMessages: [MessageHistoryKey]? = nil,
+        rewindUsable: Bool,
     ) async -> AcquireResult {
         // 1. Expire stale sessions
         await evictExpired()
@@ -644,13 +645,21 @@ actor MLXSessionPool {
                 //
                 // Everything below still runs unchanged: this turn is served by a clean
                 // session, so a caller that ignores the offer behaves exactly as before.
+                // No offer when this turn cannot spend one: the guided-gen and MTP lanes build
+                // their own KV cache and hand the slot back before generating, so an offer
+                // here would be declined by the only caller that could take it — while this
+                // site had already dropped the entry, deleted the snapshot and skipped the
+                // `reuseRefusals` booking for a refusal the turn did in fact pay. The caller
+                // decides the lane (`EnginePool.bypassesPooledChatSession`) and says so here,
+                // so the log line, the ledger and the fork all describe the same turn.
                 let rewindOffer = Self.rewindHistoryEnd(
                     cachedMessageCount: pooled.messageHistory.count,
                     commonPrefixCount: divergence,
                     incomingMessageCount: prefixMessages?.count,
                     instructionsMatch: instructionsMatch,
                     carriesMedia: (prefixMessages?.contains { $0.hasMedia } ?? false)
-                        || pooled.messageHistory.contains { $0.hasMedia }
+                        || pooled.messageHistory.contains { $0.hasMedia },
+                    laneCanSpend: rewindUsable
                 )
                 if let rewindOffer {
                     pendingRewind = PooledRewind(source: pooled, historyEnd: rewindOffer)
@@ -673,10 +682,10 @@ actor MLXSessionPool {
                 // Not counted when a rewind was offered: a turn whose cache survives is not a
                 // refusal, and publishing one for it would report a full rebuild the engine
                 // did not perform (AGENTS.md invariant 2 — the surface may not state more
-                // than the engine delivered). The offer is not speculation at this point:
-                // today's only `acquire` caller takes it, and
-                // `SessionRewindOnDivergenceTests.singleHomeForTheFork` pins that there is
-                // exactly one fork site to take it with.
+                // than the engine delivered). That holds only because an offer is made when
+                // the turn can spend it: `rewindUsable` comes from the caller's lane, and
+                // `SessionRewindOnDivergenceTests` pins both that the offer is gated on it
+                // and that exactly one fork site exists to take it with.
                 if rewindOffer == nil,
                     let reason = ReuseRefusalReason.decide(
                         instructionsMatch: instructionsMatch,
@@ -1386,14 +1395,23 @@ actor MLXSessionPool {
     ///   shared tokens cannot prove a shared prefix, and upstream refuses to reconcile those
     ///   (ChatSession.swift:345-356) — the fork would start cold while this line claimed a
     ///   rewind.
+    /// - `laneCanSpend`: this turn generates through the pooled `ChatSession`. Guided gen and
+    ///   MTP build their own KV cache and release the slot before generating, so a rewind
+    ///   handed to those turns is never spent — and the refusal this site skips when it
+    ///   offers would then be a refusal the turn did pay (measured 10-22: an edited resend
+    ///   carrying `response_format: json_object` logged a rewind and re-prefilled all 753
+    ///   tokens). The caller decides the lane; this axis keeps the offer and the ledger one
+    ///   story.
     nonisolated static func rewindHistoryEnd(
         cachedMessageCount: Int,
         commonPrefixCount: Int,
         incomingMessageCount: Int?,
         instructionsMatch: Bool,
-        carriesMedia: Bool
+        carriesMedia: Bool,
+        laneCanSpend: Bool
     ) -> Int? {
-        guard instructionsMatch,
+        guard laneCanSpend,
+            instructionsMatch,
             !carriesMedia,
             commonPrefixCount >= 0,
             commonPrefixCount < cachedMessageCount,

@@ -212,7 +212,7 @@ protocol BackendProtocol: Sendable {
 <!-- Cites above are pinned: `make anchor-check` verifies each against the working tree, so a line that moves is a red build rather than a quiet lie. Rows whose mechanism no longer exists say so instead of keeping precision they never had. -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1118 CoreAI-side swift-transformers -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1171 toolParser -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4789 caughtError -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4824 caughtError -->
 
 ### 🟡 Medium Priority
 

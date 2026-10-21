@@ -84,6 +84,18 @@ ask() {  # ask <label> <prompt_tokens_var> <messages-json...> ; sets ANS/PROMPT/
   CACHED="$(probe_json "${PROBE_BODY:-}" 'usage.prompt_tokens_details.cached_tokens')"
 }
 
+# ask_json_turn <messages...> — the same feed with response_format json_object attached,
+# which routes the turn through GuidedGenerationLoop (that lane builds its own KV cache).
+ask_json_turn() {
+  local body
+  body="$(probe_chat_body "$SESSION" "$(msgs "$@")" 40)"
+  body="${body%?},\"response_format\":{\"type\":\"json_object\"}}"
+  probe_chat "$SESSION" "$body"
+  ANS="$(probe_json "${PROBE_BODY:-}" 'choices.0.message.content')"
+  PROMPT="$(probe_json "${PROBE_BODY:-}" 'usage.prompt_tokens')"
+  CACHED="$(probe_json "${PROBE_BODY:-}" 'usage.prompt_tokens_details.cached_tokens')"
+}
+
 probe_boot
 probe_require_ready_model
 MODEL="$PROBE_MODEL"
@@ -175,6 +187,59 @@ if [ "${PROBE_STATUS:-}" = "200" ]; then
   fi
 else
   probe_fail "GET /v1/models/<model>/kv-cache -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:160}"
+fi
+
+probe_section "5) a turn that routes around the pooled session declines the rewind, and says so"
+# Guided gen (and MTP) build their own KV cache and hand the pooled slot back before
+# generating, so a rewind offered to those turns is never spent. Measured 10-22 before the
+# lane gate existed: an edited resend carrying response_format logged
+# "Session REWOUND ... instead of re-prefilling 2" and then paid all 753 tokens cold, while
+# the pool had already skipped the historyDiverged booking for a refusal the turn did pay.
+# If a future change teaches the guided lane to reuse the pooled cache, this section is the
+# leg that has to be re-audited: the claims and the spend must move together.
+SESSION="PROBE-EDIT-BYPASS-$$"
+LOG_BEFORE="$(wc -l < "${PROBE_LOG:-/dev/null}" 2>/dev/null | tr -d '[:space:]')"
+LOG_BEFORE="${LOG_BEFORE:-0}"
+ask "user|$U1" "assistant|$A1" "user|$U2"
+if [ "${PROBE_STATUS:-}" != "200" ]; then
+  probe_fail "bypass-lane setup turn -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:200}"
+else
+  probe_ok "bypass-lane premise: standard turn 200 — prompt_tokens=${PROMPT:-?} cached_tokens=${CACHED:-none}"
+fi
+ask_json_turn "user|$U1" "assistant|$A1" "user|$U2EDITED" "assistant|$A2" "user|$Q"
+if [ "${PROBE_STATUS:-}" != "200" ]; then
+  probe_fail "bypass-lane edited resend -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:200}"
+else
+  SECTION_LOG="$(tail -n "+$((LOG_BEFORE + 1))" "${PROBE_LOG:-/dev/null}" 2>/dev/null)"
+  if printf '%s' "${ANS:-}" | grep -qi "$NEW_WORD" \
+    && ! printf '%s' "${ANS:-}" | grep -qi "$OLD_WORD"; then
+    probe_ok "the guided lane answers from the edited history too: ${ANS:0:50}"
+  else
+    probe_fail "on a grammar-constrained edited resend the answer was: ${ANS:0:80} — expected ${NEW_WORD} with ${OLD_WORD} absent"
+  fi
+  if printf '%s\n' "$SECTION_LOG" | grep -q "REWOUND for $SESSION"; then
+    probe_fail "the log claims a rewind (REWOUND for $SESSION) on a turn that generates around the pooled ChatSession — cached_tokens=${CACHED:-none} says the spend never happened"
+  else
+    probe_ok "no rewind claimed on this lane — the pool was not asked to keep a cache this turn cannot spend"
+  fi
+  if printf '%s\n' "$SECTION_LOG" | grep -q "$SESSION.*building a clean session"; then
+    probe_ok "the refusal is stated honestly (building a clean session), not dressed as a rewind"
+  else
+    probe_fail "no honest refusal line for $SESSION — the turn rebuilt a session and nothing in the log says so"
+  fi
+  if [ "${CACHED:-0}" -eq 0 ]; then
+    probe_ok "usage agrees with the claim: cached_tokens=${CACHED:-none} on a cold guided-lane turn"
+  else
+    probe_fail "cached_tokens=${CACHED} on a lane that is not supposed to spend the pooled cache — either the lane changed or this probe's premise did"
+  fi
+  ENC_MODEL2="$(python3 -c 'import sys;print(sys.argv[1].replace("/", "%2F"))' "$MODEL")"
+  probe_api GET "/v1/models/${ENC_MODEL2}/kv-cache"
+  RR2="$(probe_json "${PROBE_BODY:-}" 'reuseRefusals.byReason.historyDiverged')"
+  if [ "${RR2:-0}" -ge 1 ]; then
+    probe_ok "historyDiverged=${RR2} — the declined rewind is booked as the refusal it was (section 4 counted 0 for the turn that actually rewound)"
+  else
+    probe_fail "reuseRefusals.byReason.historyDiverged=${RR2:-absent} after a bypass-lane divergence — a full rebuild went unreported on the wire"
+  fi
 fi
 
 probe_note "MEASURED: appended turn reused ${APPEND_CACHED:-?} tokens; edited turn reused ${EDIT_CACHED:-0} of ${EDIT_PROMPT:-?} and paid $((${EDIT_PROMPT:-0} - ${EDIT_CACHED:-0})). The paid remainder is the distance the 1024-row rewind reserve (MLXBridge kvCacheRewindReserveTokens) cannot cover — rows older than the reserve are gone, so an edit further back still re-prefills its prefix. Size it by memory, not by correctness: pre-reserve this same turn reused 0 of 758."

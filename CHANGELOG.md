@@ -2,7 +2,16 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-10-21
+## [Unreleased] — 2026-09-05 → 2026-10-22
+
+**10-22 rewind 在 guided/MTP 那一轮说了大话：现场抓到它「声称复用、实际全量重付」，决定改搬到车道处**(P1 门面诚实 / 执行链) — 上一笔把编辑重发从 `758/0` 做到 `758/718`，并写下「池子在拒答处给 offer，调用处接住」。它没说出口的假设是**调用处一定会接**。guided gen 与 MTP 不接：它们各自建 KV，并在生成前把池槽交回去。
+
+- **现场证据（探针 27 §5 逐字复现）**：带 `response_format: json_object` 的编辑重发，日志先说 `Session REWOUND … instead of re-prefilling 2`，下一行 `Routing through GuidedGenerationLoop with grammar constraint`，usage 报 `prompt_tokens=753 cached_tokens=none`——**753 个 token 全量重付，而复用已被声称**。更糟的是账：池子在给 offer 的那一刻已摘条目、删磁盘快照，并且按规则**跳过** `historyDiverged` 记账；于是一次货真价实的全量重建，在线面上既没代价也没病因。
+- **根因是决定放错了地方**：「这条缓存能不能削到公共前缀」池子判得了（`rewindHistoryEnd`）；「这一轮到底走不走 `ChatSession`」只有调用处知道。若让池子照旧给 offer、调用处再回绝，日志/台账/复用会留下三条互相矛盾的陈述。于是把车道判断做成**一个家**：`EnginePool.bypassesPooledChatSession`（媒体 outrank 两条车道，因为两条车道都不带媒体 ⇒ 标准路答题；grammar 与推理配对不安全则落回标准路，MTP 还需有可草稿的消息），在 acquire 之前算一次，以 `rewindUsable` 交给池子，`rewindHistoryEnd` 多一条 `laneCanSpend` 轴。
+- **实测（改后，同机同模型同脚本）**：guided 那轮不再有 `REWOUND` 行；日志如实写 `not reusable: … building a clean session`；`/v1/models/:model/kv-cache` 的 `reuseRefusals.byReason.historyDiverged` 从 0 变 **1**（而标准路那笔编辑轮仍是 0——削前缀不算拒绝、不算削前缀的算，两头各自如实）；答案仍是 `{"word": "SALMON"}`，`MARLIN` 全文不出现。
+- **门**：`SessionRewindOnDivergenceTests` 5 → **7**（车道轴并入遍历，384 → **768 格**；新增「不能花钱的车道不给 offer」与 `bypassesPooledChatSession` 六格真值表；结构门再加三条：车道只在引擎里算一次、`rewindUsable` 只交一次、池子只在这一处按车道开门）。探针 27 §5 五断，**14 → 20 passed / 0 failed / 4 measured**。聚焦 `SessionRewindOnDivergence|SessionIsolation|ReuseRefusalLedger` = 45 tests 全绿。**红样当场跑过**：把 `laneCanSpend: rewindUsable` 硬改成 `true`，§5 同时红在「声称的复用」与「账上的拒绝」两处断言，结构门一起红（`laneGated == 0`）；改回即绿。全量 `make test-clt` 通过：**2931 tests / 526 suites**（上笔基线 2929/526，+2 = 新增的两条车道断言）。
+- **诚实登记**：本机没有可加载的 MTP checkpoint，MTP 那半边只有**谓词真值表 + 与 guided 同一条门的路径覆盖**，没有活体证据；探针与本文都写明这一点，不假称两头都验过。
+
 
 **10-21 改历史的那一轮：从「拒绝并重刷全量」到「削到公共前缀」——同一轮 0/758 → 718/758**(P1 执行链与状态管理) — 上一笔量出了价格（续写复用 734，编辑轮复用 0），并写下「`fork(history:)` 是入口，接上之后复用多少尚未实测」。接上之后实测：**光接 fork 不够**，而且失败得毫无声响——答案仍然正确（SALMON、MARLIN 不出现），`cached_tokens` 仍是 **0**。把这种「静默不省」读成成功，正是 invariant 1 要拦的事。
 

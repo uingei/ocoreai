@@ -25,14 +25,16 @@ struct SessionRewindOnDivergenceTests {
         common: Int,
         incoming: Int?,
         instructionsMatch: Bool = true,
-        carriesMedia: Bool = false
+        carriesMedia: Bool = false,
+        laneCanSpend: Bool = true
     ) -> Int? {
         MLXSessionPool.rewindHistoryEnd(
             cachedMessageCount: cached,
             commonPrefixCount: common,
             incomingMessageCount: incoming,
             instructionsMatch: instructionsMatch,
-            carriesMedia: carriesMedia)
+            carriesMedia: carriesMedia,
+            laneCanSpend: laneCanSpend)
     }
 
     /// The safety invariant the whole change rests on: a rewind is offered only for a
@@ -48,27 +50,31 @@ struct SessionRewindOnDivergenceTests {
                 for incoming in [nil, 0, 1, 2, 3, 4] {
                     for instructionsMatch in [true, false] {
                         for carriesMedia in [true, false] {
-                            let rewind = end(
-                                cached: cached, common: common, incoming: incoming,
-                                instructionsMatch: instructionsMatch, carriesMedia: carriesMedia)
-                            let reusable = MLXSessionPool.canReusePooledSession(
-                                cachedMessageCount: cached,
-                                commonPrefixCount: common,
-                                instructionsMatch: instructionsMatch)
-                            #expect(
-                                rewind == nil || !reusable,
-                                "cached=\(cached) common=\(common) incoming=\(String(describing: incoming)): rewind=\(String(describing: rewind)) while canReuse=\(reusable)"
-                            )
-                            if rewind != nil { offered += 1 }
-                            if !reusable { refused += 1 }
-                            checked += 1
+                            for laneCanSpend in [true, false] {
+                                let rewind = end(
+                                    cached: cached, common: common, incoming: incoming,
+                                    instructionsMatch: instructionsMatch,
+                                    carriesMedia: carriesMedia,
+                                    laneCanSpend: laneCanSpend)
+                                let reusable = MLXSessionPool.canReusePooledSession(
+                                    cachedMessageCount: cached,
+                                    commonPrefixCount: common,
+                                    instructionsMatch: instructionsMatch)
+                                #expect(
+                                    rewind == nil || !reusable,
+                                    "cached=\(cached) common=\(common) incoming=\(String(describing: incoming)): rewind=\(String(describing: rewind)) while canReuse=\(reusable)"
+                                )
+                                if rewind != nil { offered += 1 }
+                                if !reusable { refused += 1 }
+                                checked += 1
+                            }
                         }
                     }
                 }
             }
         }
         // Self-asserting scan: a shrunk loop or a rule that stopped matching cannot pass.
-        #expect(checked == 384, "the traversal stopped covering the rule's input space")
+        #expect(checked == 768, "the traversal stopped covering the rule's input space")
         #expect(offered > 0, "nothing is ever offered — the rule would be vacuously safe")
         #expect(refused > 0, "no refusal in the space — the pair was never compared")
     }
@@ -102,6 +108,46 @@ struct SessionRewindOnDivergenceTests {
         #expect(end(cached: 4, common: 2, incoming: 4, carriesMedia: true) == nil)
         // A cache with nothing in it has nothing to rewind.
         #expect(end(cached: 0, common: 0, incoming: 3) == nil)
+    }
+
+    /// The probe-27 §5 shape: the conversation diverges and a rewind would be sound, but
+    /// this turn generates through GuidedGenerationLoop, which builds its own KV cache and
+    /// releases the pooled slot before generating. Offering here would skip the
+    /// `reuseRefusals` booking for a refusal the turn did pay, and log a reuse the turn
+    /// never spent — measured 10-22: "Session REWOUND … instead of re-prefilling 2", then
+    /// `prompt_tokens=753 cached_tokens=0`.
+    @Test("a lane that cannot spend the cache gets no offer")
+    func bypassingLaneGetsNoOffer() {
+        #expect(end(cached: 5, common: 2, incoming: 5, laneCanSpend: false) == nil)
+        // The same divergence on the standard lane is offered at the shared prefix.
+        #expect(end(cached: 5, common: 2, incoming: 5) == 2)
+    }
+
+    /// `EnginePool.bypassesPooledChatSession` is the one statement of which lanes carry
+    /// their own cache. Media outranks both (neither lane can carry it, so `ChatSession`
+    /// answers), and a grammar pairing the model cannot honour falls through to the
+    /// standard path rather than staying a bypass.
+    @Test("bypassesPooledChatSession — guided gen and MTP bypass; media and unsafe grammar do not")
+    func lanePredicate() {
+        func bypasses(
+            grammar: Bool = false, grammarSafe: Bool = false, mtp: Bool = false,
+            media: Bool = false, messages: Int = 4
+        ) -> Bool {
+            EnginePool.bypassesPooledChatSession(
+                grammarSchemaPresent: grammar,
+                constrainedLaneIsSound: grammarSafe,
+                mtpDrafterPresent: mtp,
+                carriesMedia: media,
+                messageCount: messages)
+        }
+        #expect(bypasses() == false)
+        #expect(bypasses(grammar: true, grammarSafe: true) == true)
+        #expect(bypasses(grammar: true, grammarSafe: false) == false)
+        #expect(bypasses(mtp: true) == true)
+        // MTP needs something to draft against.
+        #expect(bypasses(mtp: true, messages: 0) == false)
+        // Both lanes exclude media ⇒ the standard path owns this turn.
+        #expect(bypasses(grammar: true, grammarSafe: true, mtp: true, media: true) == false)
     }
 
     /// Structure, pinned mechanically: one fork site, one decision home, one reserve
@@ -144,6 +190,27 @@ struct SessionRewindOnDivergenceTests {
             decisionCalls == 1,
             "the rewind decision must have one call site; found \(decisionCalls)"
         )
+        // The lane fact: computed once in the engine, declared once at the acquire call,
+        // and consulted once by the pool. Three occurrences of one fact in three files is
+        // how one of them drifts; these floors say the wiring exists, and the truth table
+        // above says what it decides.
+        let laneComputed =
+            inferenceSource.components(separatedBy: "Self.bypassesPooledChatSession(")
+            .count - 1
+        #expect(
+            laneComputed == 1,
+            "the bypass decision must be computed at one home; found \(laneComputed)")
+        let lanePassed =
+            inferenceSource.components(
+                separatedBy: "rewindUsable: !routesAroundChatSession"
+            ).count - 1
+        #expect(
+            lanePassed == 1,
+            "acquire must be told whether this turn can spend a rewind; found \(lanePassed)")
+        let laneGated = poolSource.components(separatedBy: "laneCanSpend: rewindUsable").count - 1
+        #expect(
+            laneGated == 1,
+            "the offer must be gated on the caller's lane; found \(laneGated)")
 
         // The reserve is what makes the fork pay, and it is pinned because its absence is
         // invisible to a correctness probe: with the fork applied but no reserve, upstream
