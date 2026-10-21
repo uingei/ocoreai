@@ -3,6 +3,18 @@
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## [Unreleased] — 2026-09-05 → 2026-10-21
+**10-21 一条 `session_id` 在 HTTP 面上不成一个会话**(P1 执行链/状态 / 不变量 2) — 写探针时直接量出来的两件事，同一次实测（`mlx-community/gemma-4-e2b-it-4bit`，同一 `session_id: "MEMPROBE-…"` 三轮）：
+
+- **① 每请求一条 sessions 行**：`ChatHandler.persistConversation` 把 `session_id` 解析成 `Int64` 才复用行，否则 `createSession` 新建一行 ⇒ 三轮造出三行（实测 id 1936/1937/1938，各 `message_count=2`）。而 HTTP 面**从不把整数 id 回吐给客户端**（`/sessions` 只读列，`POST /sessions` 不存在），所以真客户端（UUID、`PROBE-…`）的会话在持久层没有"可以长大的那一行"：`/sessions`、`/sessions/:id/memory`、`/sessions/search`(FTS) 与 GUI 的会话列表看见的是每请求一张快照，而不是同一条对话。引擎的 session pool 记得住历史，持久层记不住——两边各说各话。
+
+- **② per-message `token_count` 记的是整段 prompt**：`tokensPerMsg = promptTokens / userMsgCount`，于是一条 34 字符的 user 消息存成 `token_count: 705`（705 = 本轮整段渲染提示词，含 ocoreai 自己的系统提示与模板；同轮 `usage.prompt_tokens` 正是 705）。`SessionCompressor` 拿这些行的累加与 `tokenThreshold`（默认 128k）比较来决定何时裁剪历史，`SessionView.swift:136` 又把 `session.token_count` 当作会话大小显示给使用者——同一段历史每轮被重新计一次费。
+
+- **为什么不自己拍板改掉**：修法要动人家的持久层形状——外部 key→行 的映射需要一次 schema 迁移（加 `external_key` + 唯一索引，并决定旧行怎么办），per-message 计量需要在这条腿上接真 tokenizer 并给出无 tokenizer 时的降级说法（不变量：替换必须可被检出），而"HTTP 客户端该持有整数 id 还是服务端自己映射"是接口形状的决定。按规矩登记，不臆修、不宣称已修。
+
+- **门（新探针 `22-session-memory-identity.sh`）**：前提硬门先站住——三轮必须 200、`/sessions` 必须答、必须出现新的 sessions 行、`/sessions/:id/memory` 必须答出该轮那条 user 消息（任何一条不成立就是 FAIL，而不是安静地"没测到"）；两条结论目前各记一次 `probe_xfail open`（XFAIL 计入 known-open，退出码 0），**任一条修好就变 XPASS 并报失败**，逼着删 xfail 与关 § Open。实测：`3 SQLite sessions for one session_id … across 3 turns`、`a 34-character user message is stored with token_count=705`。跑完用 `DELETE /sessions/:id` 把自己造的行清掉（顺带验了删除路由）。
+
+- **写门时挨的第二刀（同一族）**：清理钩子里用 `tr -cd '0-9\n'` 从行摘要里抠 id，把 `message_count=2`/`token_count=706` 的数字也粘了上去，`probe_atexit` 后来 eval 时炸成 `syntax error near unexpected token 19372707`。id 一律 `sed -nE 's/.*id=([0-9]+).*/\1/p'` 取，且在登记钩子时就压成一行。
+
 **10-21 线上修好了，同一条腿还有两个出口没跟上：一个提示词只能有一个数**(P0 行为不一致 / P1 可观测性) — 4b706ef 把 `prompt_tokens` 算成整段渲染提示词，改的是**发给客户的那一行**。同一轮的两个出口仍传旧值：OpenAI 流式的 metrics 调用与落库仍是 `observedPromptTokens ?? promptTokenCount`（本轮 prefilled 的尾巴），Anthropic 两面的 metrics 仍传 `inputTokenCount`（生成前的估计）。于是一条热轮同时说着三种话：客户端 730、`/metrics` 的 `ocoreai_inference_tokens_total{kind="prompt"}` 加 20、会话表里按 730 与 20 摊出来的 per-message `token_count`——而 128K 的会话压缩阈值（`SessionCompressor.tokenThreshold`）正是从这个累加读出来的。
 
 - **为什么满仓皆绿**：4b706ef 的静态钉子只数 `renderedPromptTokens(` 的出现次数，禁的是 wire 那一跳的写法（`inputTokens: observedPromptTokens ??`）；metrics 那一跳换了变量名，落库那一跳连字段名都不同（`promptTokens:`）。**修了一条腿不等于修了这条腿的所有出口**——门要数出口，不能只数修过的地方。

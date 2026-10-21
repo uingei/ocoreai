@@ -15,17 +15,17 @@ This project is developed with heavy AI assistance. The rules:
 1. **Every line in git is reviewable** — AI-generated or not, the owner approves each commit. "It came from the model" is never an exception to a rule in this file.
 2. **No claim without a check** — "verified", "fixed", "aligned" in a commit message or doc must be immediately backed by command output (build/test/grep) in the same session.
 3. **When in doubt, point outward** — if an upstream repo (mlx-swift-lm / coreai-models / codex) already has an answer, consume/reference it instead of authoring a local variant; cite the upstream file:line.
-4. **An improvement answers three questions** — *what* behaviour improved, *what output* makes you think so (same-session command output; label inferences as inferences), and *which gate goes red* if it regresses. No answer to the third ⇒ it is a claim, not a change: record it as an open item plus the instrument that would settle it. Full text: `CONTRIBUTING.md` → "The three questions". The gate must assert its own premises too (`make toolchain-check`), because a check that infers the platform from its environment rots silently when the toolchain updates.
+4. **An improvement answers three questions** — *what* behaviour improved, *what output* makes you think so (same-session command output; label inferences as inferences), and *which gate goes red* if it regresses. No answer to the third ⇒ it is a claim, not a change: record it as an open item plus the instrument that would settle it. Full text: `CONTRIBUTING.md` → "The three questions".
 
 ---
 
 ## Identity
 
-**What it is:** an agent for open models, natively local — built for creativity, work, and code; a complete agentic system designed for coding and knowledge work. (09-27 canonical；variant 并存非互斥 = CHANGELOG 09-27) coding 最深切片 = Coding/Computer Agent (reliable Execute → Verify → Recover)；knowledge work / creativity (Apple 原生感知/多模态) = 一等产品面. Dual-channel on-device inference (MLX Metal GPU + CoreAI derived from coreai-models reference), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception pipeline. One binary.
+**What it is:** an agent for open models, natively local — built for creativity, work, and code; a complete agentic system designed for coding and knowledge work. (canonical 09-27；variant = CHANGELOG 09-27) coding 最深切片 = Coding/Computer Agent (reliable Execute → Verify → Recover)；knowledge work / creativity (Apple 原生感知/多模态) = 一等产品面. Dual-channel on-device inference (MLX Metal GPU + CoreAI derived from coreai-models reference), agent loop with tool dispatch, skill system, session memory, multimodal I/O, ReasoningEventEmitter pipeline, persistent-perception pipeline. One binary.
 
 **Tech stack:** Swift 6.2 · SwiftPM · Hummingbird 2.26 · SwiftUI · SQLite + FTS5
 
-**Key modules:** subdirectories of `Sources/ocoreai/`: Engine, Agents, Client, Scheduler, MCP, Tools, UI, SQLite, Config, Multimodal, Reasoning, Profiling, Tokenizer, Security, Skills, Video, etc.
+**Key modules:** subdirectories of `Sources/ocoreai/`; § Routing table names those with their own guide.
 
 ---
 
@@ -51,7 +51,7 @@ UI Layer (SwiftUI) — ChatViewModel, SessionManager(SQLite)
 ```
 
 **Dual Path reality:**
-- `EnginePool` uses inline `#if canImport(CoreAI)` branches (`BackendProtocol` deleted 2123143, 0 refs remaining)
+- `EnginePool` uses inline `#if canImport(CoreAI)` branches (`BackendProtocol` deleted 2123143)
 - **MLX path reality:** `_runInferenceWithMessages()` → `ChatSession` (session pool, guided gen, toolDispatch) — ReasoningEventEmitter ✅ (wired, both MLX + CoreAI paths), KVCacheRuntime ✅ (`.turboQuant`/`.affine` 双路 — 函数与行号见 § Upstream alignment). Pinned upstream `mlx-swift-lm` at `48114eedf` (逐条裁决 = CHANGELOG rounds 9–15)。 **ThinkingBudget** ✅ 两路皆接（std + MTP 各一对 `.applyingThinkingBudget` / `components:` 调用；四行 cite 由 `Engine/AGENTS.md` 的 anchor 门钉住，root 不手抄第二份地图）；MTP 仅 `guard mtpReasoningConfig` 非空才接，回退同 std。
 - **CoreAI** — derived from Apple's coreai-models reference (BSD-3-Clause), simplified for ocoreai: types redefined locally to avoid macOS 27 platform requirement. Engine/ contains CoreAI* + StateHandler + MPSGraphSamplers + KVCache/TensorStorage(+CoreAI); + Tokenizer/TokenizersMLXTokenizerAdapter.
 - **ANE path:** CoreAI `MPSGraphSamplers` (`MPSGraphSamplers.swift` 实存, `CoreAIPipelinedEngine.swift:547/:874` 消费) wires MPS constrained argmax/composite/sampler — the GPU-based constrained decoding path
@@ -89,7 +89,7 @@ whenever a claim is about behaviour.**
 - **CLT SDK 27 ≠ CLT compiler:** leave `SDKROOT` unpinned and even the *manifest* dies (`SwiftShims`), and clang resolves its module cache to the real user home whatever `HOME` exports. Recipe that completes: `SDKROOT=<CLT SDK without CoreAI>` **plus** `CLANG_MODULE_CACHE_PATH=<writable>`.
 - **Shader payload:** `Engine/MetalShaderLibrary.swift` resolves `default.metallib` down an ordered ladder (SwiftPM bundle → DerivedData → pip wheel; `$OCOREAI_METALLIB` overrides) and hands MLX `MLX.GPU.metallib`. Never stage it *into* a signed bundle — nested code object ⇒ CodeSign dies. Gate: `MetalShaderLibraryTests` pins the ladder order against a synthetic SwiftPM 6.4 layout.
 
-**Linting:** none — aligned with upstream (mlx-swift-lm / coreai-models ship no swiftlint). swift-format via `.swift-format` (pinned 603.0.0) is the only style gate, enforced in CI and pre-commit. Crash-safe coding (no `try!`/`as!`/`fatalError` in Sources/) is a code convention, not a CI gate.
+**Linting:** none — aligned with upstream. swift-format via `.swift-format` (pinned 603.0.0) is the only style gate, enforced in CI and pre-commit. Crash-safe coding (no `try!`/`as!`/`fatalError` in Sources/) is a code convention, not a CI gate.
 
 **Distribution licenses (CI-gated):** the artifact is MIT **plus** third-party code under its own terms
 (BSD-3 cl.1/cl.2 + Apache-2.0 §4 make the notice travel with the binary). The invariant: **adding a dependency, bumping a pin, or vendoring a header ⇒ re-run
@@ -169,6 +169,8 @@ metric warning, the vendored-header table and the re-collect discipline:
 
 ### Open (currently unresolved — the only items worth prose)
 
+- **HTTP 面的 `session_id` 不成一个会话**（Handlers/SQLite）— 实测同一 key 三轮 = 三条 sessions 行，整数 id 从不回吐 ⇒ 记忆/FTS/GUI 只见每请求一张快照；per-message `token_count` 记整段 prompt（34 字符→705），128k 压缩阈值按这偏大累加判。修法留人拍板。门 = 探针 22 xfail×2。
+
 - **`/v1/models/:model/…` 不收原样模型 id**（Handlers/）— `:model` 只匹配一段而 `/v1/models` 发布 `org/name`（两段）⇒ verbatim 一律 router-404，须 `%2F`。四条 `:model` 路由已统一走 `resolvedPathModelId`，catalog note 写明须 percent-encode（探针 03/01）。未决：直收带斜杠 id 会让 Hummingbird `**` 连 `/v1/models/download` 一块吞，代价是再造一层路由真值，留人拍板。
 
 - **CoreAI 路上两处「改法显然、本机验不了」**（Engine/）— ① `_applyBitmask`(`EngineInference.swift:1374`) 掩的不是 -inf，越界即 `return` 跳过后续掩码；② fp8→`.float16` 停在 coreai-models #328 修前(`KVCache+CoreAI.swift:618`，fp8 全仓仅此表)。两处皆 `@available(macOS 27.0,*)` ⇒ 本机验不了：不臆修、不宣称已修（①`docs/agent/build-gate-reality.md` ②续17）。
@@ -199,7 +201,7 @@ metric warning, the vendored-header table and the re-collect discipline:
 6. **Auxiliary references (owner-designated 10-15, extended 10-20)** — vllm / sglang (the OpenAI/Anthropic compat benchmark) + vllm-metal / omlx / mlx-serve / MTPLX / ollama / TensorFold / Strata / hermes-agent / deepseek-harness / harness2: serving, MTP, packaging and agent-loop comparators, not pins — nothing linked or redistributed, and a borrowed verdict stays an inference until a file:line in our build says otherwise. Per-repo strengths: `docs/agent/comparator-repos.md` (all 12 present on this host, 10-20).
 
 **Mirror ≠ HEAD:** a clone under `~/references/` proves *content*, never HEAD — `api.github.com` is authoritative for HEAD and compare windows (the local clones lag). A mirror *is* valid for byte-checking Apple's BSD-3 `LICENSE`.
-**Host-local ≠ project truth:** `~/wiki/concepts/*` sits outside this repo, absent on this host — host-local colour, never project evidence; verdicts that bind the repo live in `CHANGELOG.md`.
+**Host-local ≠ project truth:** anything outside this repo (e.g. `~/wiki/…`, absent on this host) is host colour, never project evidence; verdicts binding the repo live in `CHANGELOG.md`.
 <!-- claim:doc_pin_is_the_pin>=1 :: grep -c 'revision: "48114eedf"' Package.swift -->
 
 
