@@ -164,6 +164,8 @@ and the vendored-header table: `docs/agent/third-party-notices.md`.
 
 ---
 
+## Open — measured, unresolved
+
 - **`/v1/models/:model/…` 不收原样模型 id**（Handlers/）— `:model` 只匹配一段而 `/v1/models` 发布 `org/name`（两段）⇒ verbatim 一律 router-404，须 `%2F`。四条路由已统一走 `resolvedPathModelId` 并在 catalog note 写明须 percent-encode（探针 03/01）。未决：直收带斜杠 id 会让 Hummingbird `**` 连 `/v1/models/download` 一块吞，代价是再造一层路由真值，留人拍板。
 
 - **CoreAI/macOS-27 路上三处「改法显然、本机验不了」**（Engine/）— ① `_applyBitmask`(`EngineInference.swift:1374`) 掩的不是 -inf，越界即 `return` 跳过后续掩码；② fp8→`.float16` 停在 coreai-models #328 修前(`KVCache+CoreAI.swift:618`，fp8 全仓仅此表)。③ FM 块里的 hub 兜底没接 probe（同一判决又长一份；本机不编译：`canImport(FoundationModels, _version: 2)` 在 SDK 26.5 是 false、27 才 true）。①② 皆 `@available(macOS 27.0,*)` ⇒ 一律不臆修、不宣称已修（①`docs/agent/build-gate-reality.md` ②续17 ③CHANGELOG 10-21）。门 `HubReachabilityTests` 钉住「FM 区恰好这一处」：改了不销账就红。
@@ -176,11 +178,11 @@ and the vendored-header table: `docs/agent/third-party-notices.md`.
 - **屏幕抓取起不来流（Multimodal/）** — 授权且有显示器，`SCScreenshotManager.captureImage` 仍回 `无法开始流播放`；同机相机能出帧 ⇒ 不是 TCC，是 SCStream 在无 GUI 会话起不了流。`screenStatus` 只在出过帧时才 `ready`（未试=unknown、失败=blocked；门 `ScreenDeliveryHonestyTests`+探针 04）。未决：headless `serve` 能否抓屏。
 - **`tools[]` 的真相集是声明；强制只跟需求，只许一个家**（Handlers/Engine/Client）— 声明即投喂面（本地名装 `toolDispatch`，余者交回 `tool_calls`）；grammar 只跟 `tool_choice`/JSON `response_format` 的需求、绝不跟「有没有声明」，判断唯一落 `shouldConstrainOutput`（`Models/OpenAIModels.swift`），`InferenceOptions` 三个组装面同调（逐条=CHANGELOG 10-18~19）；公布按实测（`ToolCallDeliveryLedger`，unload 归零）。门=`ToolDeclarationSurfaceTests`＋探针 11 §7。未决：GUI 端到端零验证（不经 HTTP ⇒ 只有静态门）；`required` 强制力受 checkpoint 限制。
 
-**Resolved items** 不在此重述（名字在 `CHANGELOG.md`——两处维护必漂）。
+**Resolved items** 的名字只在 `CHANGELOG.md`（两处维护必漂）。
 
 ---
 
-### Upstream Audit Dependencies
+## Upstream Audit Dependencies
 
 **Five empirical sources** (the owner's first-principles reference set, reaffirmed 10-14). Round-by-round verdicts per upstream commit live in `CHANGELOG.md` (rounds 9–13) — one diary, one home; this section keeps only the current pin and the rules that transfer.
 1. **mlx-swift-lm** — the pin in `Package.swift:43` (`revision:`) is the contract; `Package.swift` keeps pin + pointer, never a per-commit diary.
@@ -224,7 +226,7 @@ Areas without a guide (Scheduler, MCP, Tools, Skills, Multimodal, Video, Securit
 ## Docs Contract — how this file stays true
 
 `make docs-check` (`scripts/agents-md-contract.sh`; CI: the `audit` job) asserts, sub-second and with no build:
-**B1** root byte budget, shrink-only — adding text means removing text, and `make docs-budget` only ever lowers the cap · **B2** root + guide chain budget · **P1** the scan's own floors, so a regex that stopped matching fails loudly instead of passing vacuously · **P2** every file named here resolves — in this repo, by basename in git, in a local upstream clone, or is declared absent on the same line · **P3** every `file:line` anchor points at a line that exists · **P4** every `<!-- claim:id OP N :: command -->` runs and holds · **P5/P6** every `make` target and every test-suite name is real · **P7** every area guide on disk has a routing row · **P9** routing targets are tracked, not merely present · **P10** the READMEs' endpoint table + public-route list equal the router and `AuthRoutePolicy` (both READMEs are in this scan).
+**B1** root byte budget, shrink-only — adding text means removing text, and `make docs-budget` only ever lowers the cap · **B2** root + guide chain budget · **P1** the scan's own floors (a regex that stopped matching fails loudly) · **P2** every file named here resolves (in-repo, git basename, upstream clone) or is declared absent in place · **P3** every `file:line` anchor points at a line that exists · **P4** every `<!-- claim:id OP N :: command -->` runs and holds · **P5/P6** every `make` target and every test-suite name is real · **P7** every area guide on disk has a routing row · **P9** routing targets are tracked, not merely present · **P10** the READMEs' endpoint table + public-route list equal the router and `AuthRoutePolicy` · **P11** every numbered suite claim equals that file's `@Test` count · **P12** every internal section reference names a section that exists.
 
 A claim sits on the same line as its instrument, and the operator is part of the meaning: `>=` a floor that must not shrink, `<=` a ceiling that must not grow, `=` only for facts that move when this file is edited. Pinning equality to an inventory count is a churn generator — name the command instead. Long form: `CONTRIBUTING.md` → *The three questions*.
 

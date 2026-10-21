@@ -32,6 +32,11 @@
 #   P10 human surface  README.md/README.zh.md are diffed against the code that serves the
 #                    surface: the endpoint table must equal the router's route set, and the
 #                    public-route sentence must equal AuthRoutePolicy.publicPaths
+#   P12 xrefs      every `§ Name` used by AGENTS.md or a guide names a section that exists.
+#                    §-references are how this corpus navigates, and the check's first run here
+#                    found two citations of `§ Open` after that block lost its heading in an
+#                    earlier trim — green before, because nothing read §-references (invariant 1
+#                    again). Anchors include the bold pseudo-headings this corpus really uses.
 #
 # Why (measured 10-14, same session as this file): three "verified" counts had already
 # drifted — Engine/*.swift 44 -> 53, precondition 12 sites/9 files -> 14/11 — and the
@@ -47,7 +52,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 ## ── pinned budgets (a raise must be a visible edit in the diff) ──────────────
-: "${OCOREAI_AGENTS_MAX_ROOT:=50668}"   # pinned 10-20 by `make docs-budget`
+: "${OCOREAI_AGENTS_MAX_ROOT:=50631}"   # pinned 10-21 by `make docs-budget`
 : "${OCOREAI_AGENTS_MAX_CHAIN:=78000}" # AGENTS.md + one area guide loaded together
 : "${OCOREAI_AGENTS_MAX_AREA:=16000}"  # each Sources/**/AGENTS.md or docs/agent/*.md
 # P1 floors: keep just under the measured count so a broken scan is a failure, not a pass.
@@ -56,6 +61,9 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_AGENTS_FLOOR_SUITES:=8}"
 : "${OCOREAI_AGENTS_FLOOR_SUITE_COUNTS:=8}"
 : "${OCOREAI_AGENTS_FLOOR_ROUTING:=4}"
+# P12 floor: the § cross-reference scan must keep matching, or "every ref resolves" is
+# vacuous (measured 23 distinct refs across root + guides on 10-21).
+: "${OCOREAI_AGENTS_FLOOR_XREFS:=12}"
 # P10 floor: the router route scan must keep matching (measured 34 routes on 10-20), else
 # the README-vs-router parity below compares against an empty set and passes vacuously.
 : "${OCOREAI_README_FLOOR_ROUTES:=30}"
@@ -86,6 +94,7 @@ OCOREAI_AGENTS_FLOOR_CLAIMS="$OCOREAI_AGENTS_FLOOR_CLAIMS" \
 OCOREAI_AGENTS_FLOOR_SUITES="$OCOREAI_AGENTS_FLOOR_SUITES" \
 OCOREAI_AGENTS_FLOOR_SUITE_COUNTS="$OCOREAI_AGENTS_FLOOR_SUITE_COUNTS" \
 OCOREAI_AGENTS_FLOOR_ROUTING="$OCOREAI_AGENTS_FLOOR_ROUTING" \
+OCOREAI_AGENTS_FLOOR_XREFS="$OCOREAI_AGENTS_FLOOR_XREFS" \
 OCOREAI_README_FLOOR_ROUTES="$OCOREAI_README_FLOOR_ROUTES" \
 OCOREAI_README_FLOOR_JOBS="$OCOREAI_README_FLOOR_JOBS" \
 python3 - <<'PY'
@@ -444,8 +453,56 @@ for doc in HUMAN_DOCS:
                         "extra: %s) — auth is one home, and this copy already drifted"
                         % (doc, ",".join(miss) or "none", ",".join(over) or "none"))
 
+# ── P12 internal § cross-references name a section that exists ───────────────
+# `§ Endpoint Promises` is how this corpus navigates: a reader — human or model — jumps by
+# section name, so a reference to a section that is no longer there is a dead link inside the
+# one document every session loads first. Measured 10-21 (the session that added this check):
+# the open-items block lost its heading in an earlier trim, while `§ Open` was still cited from
+# the SessionPool row and from the closed-items map row — pointed at nothing, with the contract
+# green because nothing read §-references at all (invariant 1: a claim nobody re-runs).
+# Anchors = the headings of the contract surfaces plus the bold pseudo-headings this corpus
+# really uses to label a block (`**Upstream alignment:**`). A ref may name a prefix of its
+# target ("§ Routing" → "Routing table — working in X → read this first"), and prose that runs
+# on after the name is trimmed by trying the longest prefix first ("§ Routing table names those
+# with their own guide" is a ref to "Routing table", not to a 7-word section).
+ANCHOR_SRC = ["AGENTS.md"] + guides
+anchors = []
+for p in ANCHOR_SRC:
+    t = read(p)
+    anchors += [h.strip() for h in re.findall(r"^#{1,6}[ \t]+(.+?)[ \t]*$", t, re.M)]
+    anchors += [b.strip() for b in re.findall(r"^\*\*([^*\n]{2,60}?)[*:]", t, re.M)]
+anchors = [a for a in anchors if a]
+
+XREF = re.compile(r"§[ \t]*([A-Z][A-Za-z0-9][A-Za-z0-9 ]{0,40})")
+refs = set()
+for p in ANCHOR_SRC:
+    refs |= {m.strip() for m in XREF.findall(read(p))}
+
+
+def xref_resolves(ref):
+    words = ref.lower().split()
+    for n in range(min(len(words), 5), 0, -1):
+        cand = " ".join(words[:n])
+        for a in anchors:
+            al = a.lower()
+            if al == cand or al.startswith(cand + " ") or cand.startswith(al):
+                return True
+    return False
+
+
+dead_refs = sorted(r for r in refs if not xref_resolves(r))
+if len(refs) < env_int("OCOREAI_AGENTS_FLOOR_XREFS"):
+    fail.append("P12 only %d § cross-reference(s) scanned (floor %d) — the pattern rotted, so "
+                "\"all refs resolve\" would pass vacuously"
+                % (len(refs), env_int("OCOREAI_AGENTS_FLOOR_XREFS")))
+if dead_refs:
+    fail.append("P12 %d dangling § cross-reference(s) — no section by that name in AGENTS.md or "
+                "any guide: %s" % (len(dead_refs), ", ".join("§ " + r for r in dead_refs)))
+
 # ── report ───────────────────────────────────────────────────────────────────
 print("AGENTS.md contract (%s)" % mode)
+print("  xrefs     §-refs=%d (floor %d)  anchors=%d  dangling=%d"
+      % (len(refs), env_int("OCOREAI_AGENTS_FLOOR_XREFS"), len(anchors), len(dead_refs)))
 print("  budgets   root=%d/%d chars  guides=%d  chain-cap=%d"
       % (root_size, env_int("OCOREAI_AGENTS_MAX_ROOT"), len(guides), env_int("OCOREAI_AGENTS_MAX_CHAIN")))
 print("  scan      gateable-refs=%d (floor %d)  claims=%d/%d ok (floor %d)  suites=%d  routing=%d  upstream-trees=%d"

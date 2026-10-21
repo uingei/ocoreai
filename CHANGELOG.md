@@ -4,6 +4,15 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-21
 
+**10-21 AGENTS.md 自己也得归档：`§ Open` 两处引用指向一个不存在的章节**(P3 可观测性 / 契约缺口) — 起因是一句「AGENTS.md 一点也不规范？」。测下来不是文风问题：`§ Open` 在 root 被引用两处（`SessionPool` 那一行、Documentation Map 里 `closed-items-log.md` 那一行），而 root **没有任何叫 Open 的章节**——那串 open items 在早前一次瘦身里丢了标题，裸挂在 `### Testing Quality` 与 `### Upstream Audit Dependencies` 中间。契约一直全绿，因为 P1–P11 里**没有任何一条读 `§` 引用**（invariant 1：没人复跑的断言等于没断言）。
+
+- **补门（P12，`scripts/agents-md-contract.sh`）**：抽出 root + 8 份 guide 里所有 `§ Name` 引用；锚点＝全部 `#`–`######` 标题，加上这套文档真正用来标块的加粗小标题（`**Upstream alignment:**` 这种就在文中起导航作用）；允许引用只写目标前缀（`§ Routing` → `Routing table — working in X → read this first`），并在"引用后面还接着散文"时从最长前缀往回试（`§ Routing table names those with their own guide` 指的是 Routing table，不是七词章节）。扫描自带下限（实测 19 条引用，floor 12），模式一旦不再命中就红而不是空过。**首跑即抓出那 2 条 dangling**。
+- **修结构**：给 open items 补回标题 `## Open — measured, unresolved`（`§ Open` 当场可解，`dangling=0`）；`### Upstream Audit Dependencies` 从 `## Code Conventions` 底下提出来做同级章节——它讲的是参考资料，不是代码约定，挂在下面只会让目录层级和 `§ Upstream` 一类引用互相打脸。
+- **index 自己漏了两项**：§ Docs Contract 列举这套门时**漏了 P8 与 P11**（脚本里有，目录里没有）。这是 invariant 2 的反方向：门面把引擎做的事说少了，读者照着判断一样会错。补上 P8/P11/P12，并用同一段里两处冗辞抵账。
+- **门当场抓到我写的新文案**：写 index 时我把 `XxxTests`(N) 和 `§ Name` 当占位符写进正文 ⇒ P6 报"没有这个套件"、P12 报"引用悬空"。这不是误报——扫描分不清占位符与断言，于是改成描述而不写模式原文；门的严格性原样留在门里。
+- **净账（不粉饰）**：root **50566 → 50631（+65）**：新标题与 index 三条是加进去的；但 shrink-only 上限经 `make docs-budget` 从 **50668 → 50631（−37）**，今天的天花板确实降了，文件本身涨了 65 字节，两笔都记在这儿。实跑：`make docs-check` ✅（`§-refs=19 scanned / dangling=0 / anchors=95`）、`make audit` ✅、`make anchor-check` 37 anchors / 0 drift ✅。
+- **仍未动（等一句确认）**：五条重叠的"怎么做事"章节（`Two invariants` / `Rules that apply everywhere` / `Core Principles` / `Agent Execution Rules` / `Taste test before you hand off`，合计 ≈7.6K 字符＝15%，且与 `CONTRIBUTING.md` 大面积重复）、以及满篇带日期的事故叙述，都还留在 root。把它们挪去 `CHANGELOG.md`/`docs/agent/`＋CONTRIBUTING、把 root 压到 ~30K 是另一笔账，方向可行但那是改契约级的手术，不在本次擅自动手。
+
 **10-21 子进程临死前喊的那一句，被我们亲手倒进了 /dev/null**(P1 执行链 / P3 可观测性) — 上一笔把 MCP 那一跳的预算定成 30/300 之后，拿一个故意起不来的 stub 去看拒绝文案，屏幕上只有 `Connect failed: MCP server process exited with status 1`。这句是真话，也是废话：`MCPStdioClient.launchProcess` 里 `proc.standardError = nil`，Foundation 把子进程 stderr 接到 /dev/null，于是 `ModuleNotFoundError` / `MODULE_NOT_FOUND` / `address already in use` 这些**直接把修复点写在脸上**的行当场销毁；卡死那一类也只留下 `did not answer within 30s`。旧套件拦不住它，而且不是门读错了数——是**根本没订这个货**：没有任何断言指望有字节回来（invariant 1 的另一面）。
 
 - **形状取自 codex，尺寸按"人会读多少"定**：`rmcp-client/src/executor_process_transport.rs:52-53` 给 stdout 8 MiB/行、stderr 只给 1 MiB（stderr 是诊断，不占协议流的额度），`:465-487` 逐行 `info!`、EOF 再 `flush_stderr`——它连一片都不留。这里同一分工，但留下一眼读得完的量：新 `MCP/MCPStderrTail.swift` ＝ 最后 **12 行 × 每行 400 字符**的环形缓冲，被挤掉多少行照样在文案里报数（`+N earlier stderr lines suppressed`）；traceback 的结论行天生落在最后，正是环形缓冲留下的那一行。半行按**字节**累积，所以一个 UTF-8 字符被 chunk 切开也不会烂成 U+FFFD（实测定死）。
