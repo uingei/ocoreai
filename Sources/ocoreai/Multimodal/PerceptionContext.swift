@@ -84,8 +84,8 @@ public struct PerceptionFrame: Codable, Sendable {
         textContext: String?
     ) -> Int {
         if imageURL != nil { return 800 }
-        if let ocr = ocrText, !ocr.isEmpty { return max(10, ocr.count / 4) }
-        if let ctx = textContext, !ctx.isEmpty { return max(3, ctx.count / 4) }
+        if let ocr = ocrText, !ocr.isEmpty { return max(10, TokenEstimate.contentTokens(ocr)) }
+        if let ctx = textContext, !ctx.isEmpty { return max(3, TokenEstimate.contentTokens(ctx)) }
         return 0
     }
 

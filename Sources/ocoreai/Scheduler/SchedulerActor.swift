@@ -353,10 +353,8 @@ actor SchedulerActor {
         return requests
     }
 
-    /// Rough estimate of input tokens from prompt text.
-    /// ~4 chars/token is a conservative average for English/Chinese mixed.
     private func estimateInputTokens(from prompt: String) -> Int {
-        max(1, prompt.utf8.count / 4)
+        TokenEstimate.promptTokens(prompt)
     }
 
     // MARK: - Interrupt

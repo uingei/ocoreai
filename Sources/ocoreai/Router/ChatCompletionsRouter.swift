@@ -1321,7 +1321,7 @@ func countPromptTokens(
         logger.warning(
             "Token count for \(modelId) fell back to the byte heuristic — \(error.localizedDescription)"
         )
-        return (estimatePromptTokensFallback(messages), "heuristic")
+        return (TokenEstimate.promptTokens(messages), "heuristic")
     }
 }
 

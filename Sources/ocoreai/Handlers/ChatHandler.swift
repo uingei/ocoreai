@@ -418,13 +418,7 @@ func chatCompletionsHandler(
             logger.warning(
                 "Tokenization failed, using heuristic estimate for metrics — \(error.localizedDescription)"
             )
-            /// CJK-aware estimation — UTF-8 bytes/4 overestimates for CJK text.
-            /// Use bytes/3 for CJK-heavy content, bytes/4 for Latin-heavy.
-            let totalBytes = fullMessages.reduce(0) { $0 + $1.textContent().utf8.count }
-            let totalChars = fullMessages.reduce(0) { $0 + $1.textContent().count }
-            let avgBytesPerChar = totalChars > 0 ? Double(totalBytes) / Double(totalChars) : 1.0
-            let divisor = avgBytesPerChar > 1.5 ? 3 : 4
-            promptTokenCount = max(1, Int(Double(totalBytes) / Double(divisor)))
+            promptTokenCount = TokenEstimate.promptTokens(fullMessages)
         }
 
         logAssembledPrompt(
@@ -2041,9 +2035,9 @@ func persistConversation(
 
         for entry in additions {
             let text = entry.content
-            let bytesFallback = estimatePromptTokensFallback([
-                .init(role: entry.role, content: text)
-            ])
+            // The same per-row rule history compaction sums against `tokenThreshold`, so the
+            // number that sizes a row and the number that decides when to prune are one rule.
+            let bytesFallback = TokenEstimate.contentTokens(text)
             let rowId = try await compressor.addMessage(
                 sessionId: sessionId,
                 role: entry.role,

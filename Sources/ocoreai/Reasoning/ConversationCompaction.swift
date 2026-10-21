@@ -73,15 +73,8 @@ enum ConversationCompaction {
         let estimatedTokens: Int
     }
 
-    /// Estimate tokens for one message — mirrors ChatHandler Phase 3 exactly:
-    /// UTF-8 bytes/4 for Latin-heavy text, /3 when CJK-heavy (avg bytes/char > 1.5).
     static func estimatedTokensPerMessage(_ message: Message) -> Int {
-        let text = message.textContent()
-        let bytes = text.utf8.count
-        let chars = text.count
-        let avg = chars > 0 ? Double(bytes) / Double(chars) : 1.0
-        let divisor = avg > 1.5 ? 3 : 4
-        return max(0, Int(Double(bytes) / Double(divisor)))
+        TokenEstimate.contentTokens(message.textContent())
     }
 
     /// Estimated tokens for a whole transcript (per-message rule, in order).

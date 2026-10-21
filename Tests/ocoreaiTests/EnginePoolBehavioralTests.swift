@@ -1,8 +1,8 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
-/// Engine-pool behavioral tests — contentToString actual pipeline, sampling
-/// normalization, token count heuristic. Only tests that exercise real
-/// data transformation logic.
+/// Tests that exercise real data transformation logic rather than a mock: the
+/// contentToString pipeline as the handler runs it. (The token-count heuristic this file
+/// used to pin lives in `TokenEstimateTests` now that the estimate has one home.)
 
 import Foundation
 import Testing
@@ -88,52 +88,5 @@ struct ContentToStringPipelineTests {
         let (text, dropped) = contentToString(content)
         #expect(text.isEmpty)
         #expect(dropped == 0)
-    }
-}
-
-// MARK: - Token count heuristic — calls real ChatState.estimateTokens on shared singleton
-// Production: max(1, text.utf8.count / 3) — uses /3, not /4
-
-@Suite("Token count heuristic — exercises actual ChatState.estimateTokens")
-struct TokenHeuristicTests {
-
-    @Test("hello (5 bytes) → estimate is 1 token (min floor)")
-    @MainActor func helloWord() async {
-        let msg = Message(role: "user", content: "hello")
-        let est = ChatState.shared.estimateTokens(msg.textContent())
-        #expect(est == 1)
-    }
-
-    @Test("hello + world → sum is 2 tokens (each 5 bytes, 5/3=1 each)")
-    @MainActor func twoMessages() async {
-        let messages = [
-            Message(role: "user", content: "hello"),
-            Message(role: "assistant", content: "world"),
-        ]
-        let count = messages.reduce(0) { $0 + ChatState.shared.estimateTokens($1.textContent()) }
-        // "hello" = 5/3 = 1, "world" = 5/3 = 1 → total = 2
-        #expect(count == 2)
-    }
-
-    @Test("40-char text → 13 tokens (40 / 3 = 13)")
-    @MainActor func fortyChars() async {
-        let msg = Message(role: "user", content: "0123456789012345678901234567890123456789")
-        let est = ChatState.shared.estimateTokens(msg.textContent())
-        #expect(est == 13)
-    }
-
-    @Test("empty string returns 1 (min floor)")
-    @MainActor func emptyString() async {
-        let msg = Message(role: "user", content: "")
-        let est = ChatState.shared.estimateTokens(msg.textContent())
-        #expect(est == 1)
-    }
-
-    @Test("CJK text (estimates ~1 token per 3 UTF-16 units)")
-    @MainActor func cjkText() async {
-        // "你好世界" = 4 UTF-16 code units → 4 / 3 = 1 token (integer division)
-        let msg = Message(role: "user", content: "你好世界")
-        let est = ChatState.shared.estimateTokens(msg.textContent())
-        #expect(est == 1)
     }
 }

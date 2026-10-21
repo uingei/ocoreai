@@ -3,6 +3,20 @@
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
 ## [Unreleased] — 2026-09-05 → 2026-10-21
+**10-21 一句「这段文字大概多少 token」，仓库里有十七处在算、三种答案**(P2 重复抽象 / P0 行为不一致) — 起因是给会话行记自己的内容 token 时顺手核了一眼 `/v1/count-tokens` 的启发式，`git grep`（`5c13f6a`）当场给出 **17 处 / 9 文件 / 3 条公式**：CJK 字节律（`> 1.5 ? 3 : 4`）复制了 5 份（`ChatHandler`、`AnthropicMessagesHandler`、`CompletionsHandler`、`EngineInference`、`ConversationCompaction`）；「长度 ÷ 4」跑了 11 次（`SchedulerActor.swift:356` 的 `utf8.count / 4`——那是决定请求进不进得来的数，外加 perception 预算 10 处按**字符数**除 4）；最后一份是 GUI `ChatState` 的 `utf16/3`，也就是输入框上那条上下文表显示的数。同一段文字，看哪条电路在问。
+
+- **方向性最坏的是 GUI 那一份**：它自称 CJK-aware，实际给每个 CJK 字符记一个 UTF-16 单元 ⇒ `你好世界` 在上下文表上是 **1**，字节律是 **4**。少报是唯一致命的方向——它告诉用户「窗口还有地方」。
+
+- **两条门在互斥的精确值上同时全绿**（这才是非修不可的那一件）：`EnginePoolBehavioralTests` 的 `TokenHeuristicTests` 钉 utf16/3（`40 字符 → 13`），`AnthropicInputTokenEstimateTests` 钉字节律（40 ASCII → 10），两套一起绿；而修前的 `EnginePoolBehavioralTests:95`（该套件现已删除）注释还写着 `// Production: max(1, text.utf8.count / 3) — uses /3, not /4`，被测函数算的却是 utf16。**满屏的绿不保证线上算的是哪一个数。**
+
+- **修法（一家一个口径）**：新 `Sources/ocoreai/Models/TokenEstimate.swift`——`contentTokens`（可以返 0，逐行相加的家：perception 预算、compaction 每行）与 `promptTokens`（String / [String] / [Message] 三重载：比率取在整段正文上，非空 ≥1，返 0 就是调用方拒单的信号）。17 处旧式全删、19 处调用改接 10 个文件；删 `estimatePromptTokensFallback`、删 `ChatState.estimateTokens`；`SchedulerActor.swift:356 estimateInputTokens` 留一行委托，准入的口径名留在原地。
+
+- **门（`TokenEstimateTests` 7 条 / 2 套）**：精确值，含把 GUI 读数**纠正**而非保留（`你好世界` 1→4、40 ASCII 13→10）；`noSecondFormula` 是扫描钉子，四条**正则**而非字面量——旧拷贝把量写在局部变量里（`utf16Count / 3`），`"utf16.count / 3"` 这种子串扫会直接走过去。每条先用一行合成 offender 自证「还看得见自己要禁的形状」，再要求全树除家之外 0 命中；下限自带（≥150 个 Swift 文件、家里 `? 3 : 4` 恰好 1、≥8 个调用文件）。**写门时挨的刀**：Swift Testing 打印失败表达式的操作数，`#expect` 里塞文件内容 ⇒ 一条红把 15k token 的函数体喷进 CI（会被静音的门比没门更糟），改成只报 `[String]` 路径。红样实测（往 `ChatHandler.swift` 追加一份 utf16/3）：`utf16 over 3 is back outside the home — ["Sources/ocoreai/Handlers/ChatHandler.swift"]`，其余 6 条全绿。
+
+- **实测（`mlx-community/gemma-4-e2b-it-4bit`，`/v1/count-tokens` `tokenizer_backend: real`，模板框 10 tok 用单字符 prompt 单独量出）**：内容真值 / 本律 / utf16÷3 / 字节÷4 —— en 19 / 22 (+16%) / 30 (+58%) / 22；中文 18 / 26 (+44%) / 10 (−44%) / 19；中英混 15 / 22 (+47%) / 13 (−13%) / 16；代码 17 / 15 (−12%) / 20 (+18%) / 15；长中文 32 / 50 (+56%) / 18 (−44%) / 37。**裁决：要除几是模型词表的性质，不是文字的性质**——这个 tokenizer 会合并 CJK 对，于是 /3 一律估高 44–56%，朴素的 /4 反而在五个样本里最贴近；换一套词表结论就翻向。所以**没有换常数**：客户端在 `/v1/count-tokens` 上拿到的已经是这条规则，改数等于悄悄改公开口径；代价写进家文件头，别处不再各写一份。未决 = 从**有 tokenizer 的模型**量出 bytes/token 再按模型分档（先例 `ToolProseLedger`：量模板，不猜模板）。
+
+- **入账**：AGENTS.md § Endpoint Promises 的 usage 条补一句「近似量一个家」（root 现 **50667/50668**，压线——下一刀必须先删后加）。绿：`--filter 'TokenEstimate|ConversationCompaction|FastPathContextWindow|EnginePoolBehavioral|CountTokens'` = **48 tests / 9 suites**。随函数一起走的两份钉（`AnthropicInputTokenEstimateTests` 折进新家、`TokenHeuristicTests` 五条）在 `Sources`/`docs`/`scripts` 里零引用，核过；`EnginePoolBehavioralTests` 文件头那句「sampling normalization, token count heuristic」也删了——它剩的那套只测 contentToString。
+
 **10-21 `/v1/messages` 也记住会话了——登记得太快，答案本来就在自家 DTO 里**(P0 行为不一致 / P1 执行链) — 本 CHANGELOG 上面一条把「`/v1/messages` 不收会话记忆」登记成待拍板，理由是"规范没有 conversation id"。当场自查就推翻了这个理由：`AnthropicModels.swift:995` 的 `AnthropicMetadata` 早就声明了 `sessionId`（`session_id`），`AnthropicModels.swift:1056` 更已经把它映进 `request.sessionID`——**身份缝一直存在，缺的只是没人把这条面接到持久缝上**。登记前该先 grep 一遍自家 DTO，而不是只读规范：这一条不该留到人手。
 
 - **修法（一面一面各自记账 → 两面共用一次组装的最后一环）**：`persistConversation` 从 file-private 提成 internal（会话记忆只有一个家：身份、去重、每行自己的价都在里面）；`nonStreamAnthropicResponse`／`streamAnthropicResponse` 各调一次，`sessionCompressor`、`semanticSearch` 两个参数从 `_` 改成实名并传到调用点；流式那次放在 `message_stop` 之后、`continuation.finish()` 之前——客户端不等它，行照样在流关闭前落库。

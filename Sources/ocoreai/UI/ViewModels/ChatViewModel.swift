@@ -798,7 +798,7 @@ final class ChatState {
                 sessionId: sid,
                 role: role,
                 content: content,
-                tokenCount: estimateTokens(content),
+                tokenCount: TokenEstimate.promptTokens(content),
                 toolCalls: toolCalls,
                 reasoning: reasoning
             )
@@ -806,18 +806,6 @@ final class ChatState {
             // Non-fatal: message still exists in memory
             Self.logger.warning("Failed to persist \(role) message: \(error.localizedDescription)")
         }
-    }
-
-    /// Rough token estimate: ~4 chars per token for English, ~2 for CJK.
-    /// Internal (not private) so @testable import can exercise the real formula.
-    /// CJK-aware estimation — Chinese/Japanese/Korean chars are 3 bytes in UTF-8
-    /// but represent ~1.5-2 chars per token vs ~4 bytes/token for English.
-    internal nonisolated func estimateTokens(_ text: String) -> Int {
-        let utf16Count = text.utf16.count
-        // Swift String indexing is UTF-16 code units, which maps closely to
-        // grapheme clusters for CJK (1 UTF-16 unit per CJK char).
-        // ~3.5 UTF-16 units per token is a reasonable heuristic across EN/CJK mix
-        return max(1, utf16Count / 3)
     }
 
     /// Parse a tool call's raw argument JSON into a flat `[String: String]`

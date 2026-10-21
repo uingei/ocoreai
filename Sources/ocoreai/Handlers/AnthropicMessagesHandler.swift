@@ -231,7 +231,7 @@ func anthropicMessagesHandler(
         logger.warning(
             "Tokenization failed, using heuristic estimate for metrics — \(error.localizedDescription)"
         )
-        inputTokenCount = estimatePromptTokensFallback(fullMessages)
+        inputTokenCount = TokenEstimate.promptTokens(fullMessages)
     }
 
     guard inputTokenCount > 0 else {
@@ -388,23 +388,6 @@ func anthropicMessagesHandler(
 }
 
 // MARK: - Message Construction
-
-/// CJK-aware prompt-token heuristic — mirror of the inline
-/// fallback in `ChatHandler` (bytes/3 for CJK-heavy, bytes/4 for Latin).
-///
-/// `internal` (not `private`) so the exact-value contract is directly
-/// unit-tested — `AnthropicInputTokenEstimateTests`. Out of the public
-/// API surface deliberately: it is a metrics heuristic, not an API.
-func estimatePromptTokensFallback(_ messages: [Message]) -> Int {
-    /// CJK-aware estimation — UTF-8 bytes/4 overestimates for CJK text.
-    /// Use bytes/3 for CJK-heavy content, bytes/4 for Latin-heavy.
-    let totalBytes = messages.reduce(0) { $0 + $1.textContent().utf8.count }
-    let totalChars = messages.reduce(0) { $0 + $1.textContent().count }
-    guard totalChars > 0 else { return 0 }
-    let avgBytesPerChar = Double(totalBytes) / Double(totalChars)
-    let divisor = avgBytesPerChar > 1.5 ? 3 : 4
-    return max(1, Int(Double(totalBytes) / Double(divisor)))
-}
 
 /// Build the inference message list from an Anthropic request: the conversation
 /// turns plus the leading `system` message (string or text-block form).
@@ -1200,8 +1183,7 @@ private func streamAnthropicResponse(
 /// first character that cannot begin a call object; `parseToolCalls` at stream end
 /// applies the same all-or-nothing rule the non-stream path and `ChatHandler` use.
 /// `internal`, not `private`: the hold/flush rule is an exact-value contract (what a
-/// client sees, and in which order), and `estimatePromptTokensFallback` above sets the
-/// precedent for testing a handler helper directly.
+/// client sees, and in which order), which is testable without a loaded model.
 struct AnthropicStreamEmitter {
     private var index = 0
     private var openKind: String? = nil

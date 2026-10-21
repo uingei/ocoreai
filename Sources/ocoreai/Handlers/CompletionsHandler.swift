@@ -218,11 +218,7 @@ func completionsHandler(
         let tok = try await handle.tokenize(messages: first)
         promptTokenCount = max(1, tok.count)
     } catch {
-        let totalBytes = prompts.reduce(0) { $0 + $1.utf8.count }
-        let totalChars = prompts.reduce(0) { $0 + $1.count }
-        let avg = totalChars > 0 ? Double(totalBytes) / Double(totalChars) : 1.0
-        let divisor = avg > 1.5 ? 3 : 4
-        promptTokenCount = max(1, Int(Double(totalBytes) / Double(divisor)))
+        promptTokenCount = TokenEstimate.promptTokens(prompts)
     }
 
     /// Dispatch stream / non-stream; structured cleanup on both paths.

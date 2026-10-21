@@ -329,7 +329,9 @@ final class PerceptionEngine: Sendable {
                         channel: .camera,
                         imageURL: ocrText == nil ? frameDataURL : nil,
                         ocrText: ocrText,
-                        estimatedTokens: ocrText.map { min(20, max(5, $0.count / 4)) } ?? 800
+                        estimatedTokens: ocrText.map {
+                            min(20, max(5, TokenEstimate.contentTokens($0)))
+                        } ?? 800
                     )
                     Task { @MainActor in
                         Self.shared.pushFrame(frame)
@@ -368,7 +370,9 @@ final class PerceptionEngine: Sendable {
                         channel: .screen,
                         imageURL: ocrText == nil ? frameDataURL : nil,
                         ocrText: ocrText,
-                        estimatedTokens: ocrText.map { min(20, max(5, $0.count / 4)) } ?? 800
+                        estimatedTokens: ocrText.map {
+                            min(20, max(5, TokenEstimate.contentTokens($0)))
+                        } ?? 800
                     )
                     Task { @MainActor in
                         Self.shared.pushFrame(frame)
@@ -387,7 +391,7 @@ final class PerceptionEngine: Sendable {
             let frame = PerceptionFrame(
                 channel: .network,
                 textContext: text,
-                estimatedTokens: max(3, text.count / 4)
+                estimatedTokens: max(3, TokenEstimate.contentTokens(text))
             )
             Task { @MainActor in
                 Self.shared.pushFrame(frame)
@@ -408,7 +412,7 @@ final class PerceptionEngine: Sendable {
             let frame = PerceptionFrame(
                 channel: .environment,
                 textContext: text,
-                estimatedTokens: max(3, text.count / 4)
+                estimatedTokens: max(3, TokenEstimate.contentTokens(text))
             )
             Task { @MainActor in
                 Self.shared.pushFrame(frame)
@@ -430,7 +434,7 @@ final class PerceptionEngine: Sendable {
             let frame = PerceptionFrame(
                 channel: .environment,
                 textContext: text,
-                estimatedTokens: max(5, text.count / 4)
+                estimatedTokens: max(5, TokenEstimate.contentTokens(text))
             )
             Task { @MainActor in
                 Self.shared.pushFrame(frame)
@@ -445,7 +449,7 @@ final class PerceptionEngine: Sendable {
             let frame = PerceptionFrame(
                 channel: .system,
                 textContext: text,
-                estimatedTokens: max(3, text.count / 4)
+                estimatedTokens: max(3, TokenEstimate.contentTokens(text))
             )
             Task { @MainActor in
                 Self.shared.pushFrame(frame)
@@ -464,7 +468,7 @@ final class PerceptionEngine: Sendable {
             let frame = PerceptionFrame(
                 channel: .speaker,
                 textContext: text,
-                estimatedTokens: max(3, text.count / 4)
+                estimatedTokens: max(3, TokenEstimate.contentTokens(text))
             )
             Task { @MainActor in
                 Self.shared.pushFrame(frame)
@@ -498,7 +502,7 @@ final class PerceptionEngine: Sendable {
                 let frame = PerceptionFrame(
                     channel: .audio,
                     textContext: transcript,
-                    estimatedTokens: max(3, transcript.count / 4)
+                    estimatedTokens: max(3, TokenEstimate.contentTokens(transcript))
                 )
                 Task { @MainActor in
                     Self.shared.pushFrame(frame)
