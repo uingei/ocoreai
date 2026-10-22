@@ -21,6 +21,11 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 - **下一件仪器（已命名，未实现）**：一行 load manifest——把 KV 配置解析结果、wired memory 授权、首个请求时会话池/前缀索引内容、以及任何依赖集合遍历序的选择，在模型加载时一次性打出来，再与模式对齐。对齐成功 = 找到决定位；对不齐 = 决定不在进程里，回到 per-request 假设重搜。
 
+- **层的定位（量出来的，不是推的）**：同一进程内 `max_tokens=1`、`prompt_tokens=713`：第 1 轮 wall 7404 ms（进程内首次 prefill，冷），第 2、3 轮 wall **176 ms / 230 ms**，`firstTokenMs=125.3 / 127.3 / 169.7`。也就是说 **713 token 的 prefill 在 warm 进程里本来就只要 ~180 ms**，塌掉那轮的 130–200 ms 完全就是一次真 prefill 的耗时。**⇒ 塌陷的轮次确实前向了，模型在 `temperature=0` 下真的先出 `1` 再出 EOS**。
+- **于是再收一条本条上文的话**：「那一轮没跑那 713 token 的 prefill」「模型答对了题头却没前向」——错了，来源是一个我当天没去量的物理假设（158 ms 不可能装下 713 token）。量的结果是相反的。层因此落到**采样/logits 边际**：slot 2 上 EOS 与 `2` 的边际在不同进程里被加载期绑定的数值路径（量化 KV 布局 / attention kernel / compile 路）推到不同侧，一进程内固定 ⇒ 正好解释 15/15 的 per-process 一致与跨进程的翻转。
+- **连带后果，写清楚以免明天再走一遍**：`min_tokens`（EOS 地板）当时是**对着正确方向写的**，却被这条错误的「prefill 被跳过」判死刑删掉了；它真机上失败的真正原因是投喂链断了（引擎日志 `min_tokens` 0 次命中），那是 plumbing bug，不是方向错误。**该修的是 plumbing**：`ChatHandler` 里 `SamplingConfiguration` 带了 `minTokens`，但 `_runInferenceWithMessages` 读到的是 nil——需要顺着 handler→pool→`EngineHandle`→`_runInferenceWithMessages` 找谁重建了 `SamplingConfiguration` 并丢掉未知字段，修完再验「floor 生效且答案正确」，两件事都要有硬门。
+- **per-process 数值路径的仪器（仍未实现，已命名）**：加载期一行 manifest——KV 布局/scheme/bits、wired 授权、compile/trace 是否启用、attention kernel 选择、首轮 `max_tokens=1` 的 `firstTokenMs`——与模式对齐。对齐成功即找到绑定位。
+
 - 本轮语料字节：`scripts/probes/README.md` **+22 B**（corpus 144,919/144,942）。
 
 **10-22(10) 塌陷是温度门控的：greedy 0/12，温度>0 就是 5–7/12；四个自研子系统 A/B 全部排除，只剩上游的 cache 生命周期**(P0 正确性 / P0 可靠性)
