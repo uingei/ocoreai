@@ -4,6 +4,13 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-22
 
+**10-22(5) `replace_all` 把那道题救回来了：0/3 → 3/3；总分仍在噪声里，两件事要分开说**(P1 工具调用 / P3 判定诚实)
+
+- **目标任务确定被修好**（`k=3` × 24，`/tmp/eval-24-k3-replaceall`，三轮全部有效、无 fault）：`edit-replace-all` **0/3 → 3/3**，verifier 查的是 workspace（3 个 BAR、0 个 FOO），不是模型自述；三轮延迟 1450/1451/2151 ms，回答统一是 "Changed notes.md."——不再问用户。**换名字比换措辞有效**：`occurrences` 要模型现场数数（上一轮它读到计数仍去问人），`replace_all` 是它在训练数据里见过的现成意图表达，不需要算术。
+- **但总分没动，而且不许把两件事混着说**：A=`16/19/20` → B=`17/19/18`，mean **18.33 → 18.00（−0.33）**，配对 b=21 c=18 **p=0.749 不显著**。搬动的任务：`edit-replace-all 0/3→3/3`、`change-config-value 0/3→2/3`、`fix-syntax-error 2/3→3/3`（+7）对上 `fix-off-by-one 2/3→0/3`、`move-into-subdir 2/3→0/3`、`make-failing-test-pass 1/3→0/3`、`exec-count-lines 3/3→2/3`、`fix-typo-variable 3/3→2/3`（−5）。**记分板的分辨率是 ±4.2 题，修好一道题本来就看不见**——所以这条的结论限定在「目标失败模式消失」，不写「整体变强」。统计口径提醒：|A|×|B| 配对里同一任务的 9 个 pair 高度相关，单题 pooled 的 p 会偏乐观，报数时以「3/3 对 0/3 + verifier 查 workspace + 延迟一致」为准。
+- **回归检查**：`replace_all` 只碰 edit_file 一处语义，同族 `edit-remove-line` 仍 3/3 稳定，没看到它对别的编辑任务的连带伤害；变差的那四个（`fix-off-by-one`、`move-into-subdir`、`make-failing-test-pass`、`fix-typo-variable`）全在基线就记名的抖动集合里。下一个 P1 因此很具体：**多步修复 + 长生成**——`fix-off-by-one` 基线 2/3、上一轮直接触发引擎占用（13 题 4 秒全拒），这一轮 0/3；它同时也是 `Engine busy` 那把锁的触发器（`Sources/ocoreai/Engine/LoadedModel.swift:528` fail-fast CAS、无排队、客户端断开不取消 ⇒ HTTP 500 而非 vllm/sglang 的 429+`Retry-After`）。
+- **门**：`EditMismatchRecoveryTests`(6)（措辞、`replaceAll` 行为、零命中不许假 OK、`{"replace_all": true}` 走 registry 全链路、裁切提示报总数）+ `FileToolsTests` schema；`swift build --build-tests` 139 s；46 tests / 6 suites 绿；`make audit` AUDIT_OK、`docs-check` 通过、`anchor-check` 174/174、`format-check` 零改动。
+
 **10-22(4) 记分板自己造了一次「显著回归」：那是停机，不是模型**(P0 测量完整性 / P1 工具调用 / P1 可靠性)
 
 - **上一轮那句「配对战还没跑完」现在有答案，而且不好听**：`occurrences: 3` 提示**没救回目标任务**——`edit-replace-all` 有效轮仍是 **0/2**。模型的最终回答逐字是：*"I failed to replace all occurrences because the tool requires an exact match count. Please specify how many occurrences you intended to replace."* 它读到了计数，然后**去问用户**，而不是自己重试。工具把话说清楚 ≠ 模型会行动：这就是 生成内容 与 可靠行动 之间那道缝。

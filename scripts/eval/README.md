@@ -63,7 +63,11 @@ The rule now enforced in code: a row whose usage carries `finish=None`, or whose
 `_repeat_stats.py` refuses to average an invalid run (retroactively, via `finish=None`, for data written before
 the marker existed) and prints the exclusion to stderr — quote it together with the number it changes.
 
-So the honest reading of the `edit_file` remedy A/B is: A=`16/19/20` → B=`20/20` after excluding one invalid run,
+Updated verdict after `replace_all` landed (see `CHANGELOG.md` 10-22(5)): over `k=3` valid runs
+`edit-replace-all` went **0/3 → 3/3** — every attempt succeeded where none had, judged by the workspace — while
+the aggregate stayed inside noise (A=`16/19/20` → B=`17/19/18`, mean −0.33, McNemar p=0.749). Both statements
+are true and they are different statements: the scoreboard resolves a failure mode disappearing, not one task
+being fixed. What was measured before that, kept for the record: the honest reading of the `edit_file` remedy A/B is: A=`16/19/20` → B=`20/20` after excluding one invalid run,
 mean **18.33 → 20.00 (+1.67)**, nominal McNemar b=4 c=14 p=0.031 — from 2 valid B runs, with |A|×|B| run pairs
 that are strongly correlated, and a single-run CI of ±3.6. That is **below the ≥6-task bar above**, so it is
 recorded as promising, not as an improvement. The task the change was written for did not move:
