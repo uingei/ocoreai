@@ -4732,16 +4732,20 @@ extension EnginePool {
                             if degenerateSuspected {
                                 // Invariant 2: a turn that delivered at most one token under a budget that
                                 // asked for more is not an answer, and it must not leave the process as a
-                                // plain success. Measured 10-22: identical greedy turns collapse to
-                                // 1 token + .eos at firstTokenMs 137-257 while healthy ones sit at
-                                // 4927-8020, and upstream reports promptTokens=713 in both modes. The
-                                // clause that used to live here — "the turn never forwarded its prompt" —
-                                // is retracted by measurement: a 713-token prefill costs ~180 ms once the
-                                // process is warm, so 130-257 ms is consistent with a prefill that ran
-                                // (CHANGELOG 10-22(11)). What the line claims is only the shape; the
-                                // numbers ride along so a reader can make the call (Engine/DegenerateTurn.swift).
+                                // plain success. The cost story that used to live here is retired twice over:
+                                // "the turn never forwarded its prompt" died to a measured prefill cost
+                                // (CHANGELOG 10-22(11)), and the numbers that buried it were themselves
+                                // mislabelled — `firstTokenMs` is stamped at the first output chunk
+                                // (`EngineInference.swift:4635`), and this path emits that chunk when the
+                                // generation completes (a healthy 200-token turn reported
+                                // firstTokenMs=4671.26 at overallMs=4672.66), so it is whole-turn latency.
+                                // Two points at one 713-token prompt — 1 token ≈147 ms, 200 tokens ≈4672 ms —
+                                // give fixed ≈124 ms and ≈44 tok/s, which is why the line now reports
+                                // `wholeTurnMs` and stops reporting a first-token time it cannot mean, and
+                                // why it names the instrument that *does* answer "why" instead of
+                                // gesturing at prefill (Engine/DegenerateMarginProbe.swift).
                                 logger.error(
-                                    "Degenerate generation for \(convKey) — tokens=\(actualTokenCount ?? metrics.generatedTokenCount) reason=eos under max_tokens=\(genParams.maxTokens ?? -1), firstTokenMs=\(metrics.firstTokenMs) promptTokens=\(localPromptTokenCount ?? -1): this turn completed as a success carrying one token — the model answered EOS where the task asked for more, and prefill is not the measured failure (713 tokens cost ~180 ms warm) — not an answer"
+                                    "Degenerate generation for \(convKey) — tokens=\(actualTokenCount ?? metrics.generatedTokenCount) reason=eos under max_tokens=\(genParams.maxTokens ?? -1), wholeTurnMs=\(String(format: "%.1f", metrics.overallMs)) promptTokens=\(localPromptTokenCount ?? -1): this turn completed as a success carrying one token — the model chose EOS where the task asked for more, and the cost is consistent with a prefill that ran; why it stopped is not measured on this path (OCOREAI_MARGIN_PROBE=1 reads the terminating step's margin) — not an answer"
                                 )
                             }
                             // The shape is detected above; the number that says *why* is

@@ -12,10 +12,20 @@ STEP = re.compile(
     r"step(\d+) chose '(.*?)' id=(-?\d+) lp=(-?[\d.]+) rival='(.*?)' id=(-?\d+) "
     r"margin=(-?[\d.]+|[-])"
 )
+# The step that ENDS the turn, i.e. the one that chose a stop token. Upstream reports its log
+# probabilities only when the caller asked for includeStopToken, so before that flag was set this
+# matched nothing on any row and every "collapsed turns record no step 2" reading was an artifact
+# of the instrument. A run where it matches zero times is blind at the decision point, and must
+# say so rather than summarise step-1 margins as if they were the discriminator.
+TERM = re.compile(r"step(\d+) chose '.*?' id=-?\d+ lp=-?[\d.]+ rival=.*? eos=(-?[\d.]+|out-of-top) eosChosen=true")
 rows = [l.rstrip("\n").split("\t") for l in open(sys.argv[1]) if l.strip()]
 healthy, collapsed, noprobe = [], [], 0
+terminating = []
 for _boot, outcome, line in rows:
     steps = {int(m.group(1)): m for m in STEP.finditer(line)}
+    term = TERM.search(line)
+    if term:
+        terminating.append((outcome, int(term.group(1)), term.group(2)))
     if not steps:
         noprobe += 1
         continue
@@ -59,6 +69,24 @@ print(
     % (LABEL, fmt(collapsed, 2), fmt(healthy, 2))
 )
 print("  %s distinct step1 lp values: %s" % (LABEL, sorted({round(v, 4) for v in c0 + h0})))
+
+# The step that chose EOS: which index, and how far the model was from the other side of the tie.
+print(
+    "  %s terminating-step reports=%d/%d %s"
+    % (
+        LABEL,
+        len(terminating),
+        len(rows),
+        ("(blind: includeStopToken is not taking effect — the margin at the collapse is NOT measured)")
+        if not terminating
+        else sorted({(o, i) for o, i, _ in terminating}),
+    )
+)
+if terminating:
+    print(
+        "  %s eos lp at the terminating step: %s"
+        % (LABEL, sorted({v for _, _, v in terminating}))
+    )
 
 c1 = [g[0] for g in collapsed if g[0] is not None]
 h1 = [g[0] for g in healthy if g[0] is not None]

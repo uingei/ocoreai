@@ -6,10 +6,17 @@
 /// Measured 10-22 on one host, one model (`gemma-4-e2b-it-4bit`), identical prompt bytes
 /// sent sequentially at `max_tokens=200` (16 turns, `scripts/probes/30-repeated-prompt-delivery.sh`
 /// reproduces the shape): turns split bimodally.
-///   • healthy — `firstTokenMs` 4927…8020 (a real 713-token prefill), `tokens=200`,
-///     `reason=maxTokens`
-///   • degenerate — `firstTokenMs` 137…257, `tokens=1`, `reason=eos`,
+///   • healthy — `tokens=200`, `reason=maxTokens`, whole-turn 4.7–7.5 s
+///   • degenerate — `tokens=1`, `reason=eos`, whole-turn 0.12–0.22 s,
 ///     yet `GenerateCompletionInfo.promptTokenCount` still reported 713
+/// Read those seconds as whole-turn latency, not as time-to-first-token: `firstTokenMs` is
+/// stamped at the first output chunk and the standard non-stream path emits that chunk when the
+/// generation completes (`EngineInference.swift:4635`; a 200-token turn reported
+/// `firstTokenMs=4671.26` with `overallMs=4672.66`). Two points at one 713-token prompt — 1 token
+/// at ≈147 ms and 200 tokens at ≈4672 ms — put fixed cost at ≈124 ms and decode at ≈44 tok/s, so
+/// the 30x spread is 200 tokens against 1 and says nothing about prefill (corrected 10-23; the
+/// clause that used to label those numbers "(a real 713-token prefill)" was an unmeasured reading
+/// of a field that cannot support it).
 /// 8 of those 16 turns collapsed: 4 of 8 sharing one anonymous conversation key and
 /// 4 of 8 under fresh `session_id`s, so conversation identity is not the trigger.
 /// The inference that used to sit here — "the collapsed turn never forwarded its prompt
@@ -28,11 +35,13 @@
 /// ### What this predicate is, and is not
 /// It is a *detector*, not a fix. It cannot distinguish a real model that chose to answer
 /// EOS early from a legitimate one-token answer (`OK`, `42`), so it is deliberately
-/// conservative about what it claims: it flags the shape, and the log line carries the two
-/// numbers that let a reader make the prefill call (`firstTokenMs` against `promptTokens`)
-/// rather than the engine asserting a verdict it has no measurement for. A per-model
-/// "prefill actually happened" signal from upstream is the missing instrument, and
-/// asking for it is recorded as an open item in `CHANGELOG.md`.
+/// conservative about what it claims: it flags the shape and hands over the numbers it actually
+/// has (`tokens`, `reason`, the requested budget, `promptTokens`), rather than the engine
+/// asserting a verdict it has no measurement for. `firstTokenMs` travels with the line but is not
+/// one of those numbers — see the latency note above. What the detector cannot see is *why* the
+/// model stopped, and that is measured one level down, per step, by `DegenerateMarginProbe`.
+/// A per-model "prefill actually happened" signal from upstream is still the missing instrument,
+/// and asking for it is recorded as an open item in `CHANGELOG.md`.
 enum DegenerateTurn {
 
     /// The largest generated-token count that still counts as "essentially nothing".

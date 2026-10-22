@@ -43,13 +43,30 @@
 /// 5.5677 / 5.8204), healthy turns at −0.0278 / −0.0222 (margin 4.4361 / 4.6290). So the
 /// collapse is preceded by *more* certainty at the first sampled token, not by a near-tie — and
 /// a margin width cannot be the mechanism, since the collapsed margins are the wider ones.
-/// Collapsed turns also record no step 2 at all: generation ends at the first sampled token, so
-/// whatever terminates the turn sits between the first token and the next forward pass.
+/// "Collapsed turns record no step 2" was an artifact of *this* instrument, not a fact about the
+/// model, and is corrected here (10-23, 95 probe turns): upstream routes a terminating stop token
+/// through `onStopToken` only when the handler asks for it, and hands that step its log
+/// probabilities only when `includeStopToken` is true — both default to false, so the step that
+/// ends the turn was structurally invisible to a probe that left them at default. The probe now
+/// passes `includeStopToken: true`, and that is what makes the discriminating step readable: at
+/// step 2 a healthy turn takes `'\n'` at lp −0.5905 over `'<turn|>'` (this model's EOS) at
+/// −0.808, a margin of **0.2172 nats**. The collapse therefore sits on a near-tie at the
+/// newline/turn-end boundary, and this probe is the instrument that can read the losing side of it.
 /// Retracted by this run: a previously recorded "0.0466 nats at slot 2" does not appear in any
 /// of these reconstructions (step-2 margin here is 0.2172–0.8533), so it was a one-off reading
 /// of one reconstruction and must not be quoted as the margin at the collapse. Reconstruction
 /// still ≠ live turn — it re-prepares without the session's KV — which is why the regime, not
 /// any single margin, is the number worth chasing.
+///
+/// ### What `firstTokenMs` is not, and what the collapse therefore is not
+/// `firstTokenMs` is stamped at the first output chunk (`EngineInference.swift:4635`), and on the
+/// standard non-stream path that chunk arrives when the generation completes: a healthy turn
+/// reported `firstTokenMs=4671.26` against `overallMs=4672.66` for 200 tokens, and 200 tokens do
+/// not decode in 1.4 ms. So `firstTokenMs` on this path is whole-turn latency, and the
+/// "healthy 4.7–7.5 s vs collapsed 0.12–0.22 s" split carries no independent signal — it is 200
+/// tokens against 1. Two points at the same 713-token prompt put the fixed cost at ≈124–176 ms
+/// and decode at ≈44 tok/s, which kills the prefill story in both directions: a collapsed turn
+/// pays what a prefill plus one token costs, exactly like a healthy one.
 
 import Foundation
 import Logging
@@ -181,6 +198,17 @@ enum DegenerateMarginProbe {
                     modelConfiguration: context.configuration,
                     tokenizer: context.tokenizer,
                     iterator: iterator,
+                    // The step that *ends* the turn is the step this probe exists to read, and it
+                    // is off by default: upstream delivers a terminating stop token to the handler
+                    // only on request, and hands it that step's log probabilities only under the
+                    // same flag.
+                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2762 handler.receivesStopTokens
+                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2774 logProbabilities: includeStopToken
+                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/TokenLoopHandler.swift:62 receivesStopTokens
+                    // Left at default a collapsed reconstruction stops after step 1 and the
+                    // terminating EOS carries no number — measured 10-23: 25 of 95 probe turns
+                    // reported exactly one step, and every one of them was a collapse.
+                    includeStopToken: true,
                     handler: MLXLMCommon.LogProbabilityTokenLoopHandler(
                         MLXLMCommon.TextToolTokenLoopHandler(
                             tokenizer: context.tokenizer,

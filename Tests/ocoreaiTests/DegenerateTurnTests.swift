@@ -7,9 +7,11 @@ import Testing
 ///
 /// The shapes come from live measurement, not invention: 16 sequential turns of one prompt
 /// at `max_tokens=200` on `gemma-4-e2b-it-4bit` split bimodally into `tokens=200 /
-/// reason=maxTokens / firstTokenMs 4927…8020` and `tokens=1 / reason=eos / firstTokenMs
-/// 137…257` (CHANGELOG 10-22(8)). If this predicate ever widens or narrows, these cases
-/// go red rather than the behaviour drifting behind a doc that describes the old shape.
+/// reason=maxTokens` (whole turn 4.7–7.5 s) and `tokens=1 / reason=eos` (whole turn
+/// 0.12–0.22 s) (CHANGELOG 10-22(8)). The latency that separated them is whole-turn, not
+/// time-to-first-token — see `DegenerateTurn` — and the predicate never read a latency anyway:
+/// it keys on token count, reason and budget. If it ever widens or narrows, these cases go red
+/// rather than the behaviour drifting behind a doc that describes the old shape.
 struct DegenerateTurnTests {
 
     // MARK: - The two shapes actually measured on a live server

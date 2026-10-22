@@ -7,6 +7,23 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 
 
+**10-23(7) 塌陷那一步终于被读到了：EOS 与换行在 4 位小数上完全平手，谁赢由进程数值决定**(P0 正确性 / P0 诚实口径 / P3 回归防护)
+
+- **一句话**：之前所有臂都在找「哪一轮塌陷」，从没读到「塌陷发生在第几步、比多少」——因为**自家探针把终止步关掉了**。上游只在调用方索要时把终止 stop token 交给 handler，并且只在同一个开关下把该步的 logprob 交出（`Evaluate.swift:2762`、`:2774`，`TokenLoopHandler.swift:62` 默认 false）。`DegenerateMarginProbe` 两个都用默认 ⇒ 重建永远停在 step 1，此前写在 `DegenerateTurn.swift` 与 10-23(5) 里的「塌陷轮记不到 step 2」是**仪表盲，不是事实**。现显式传 `includeStopToken: true`。
+- **修完立刻出判据（臂 E `BOOTS=10` 实跑，同字节贪心、每轮 fresh session）**：同一 prompt 只落进**四个离散区制**，结局由区制唯一决定——
+  · `step1 lp=-0.0094` → `step2` 选 `<turn|>`(EOS, lp=-0.6932)，margin **0.0000** → 塌陷；
+  · `step1 lp=-0.0111` → `step2` 选 `<turn|>`(EOS, lp=-0.4301)，margin 0.6212 → 塌陷；
+  · `step1 lp=-0.0222` → `step2` 选 `\n`(lp=-0.5905)，margin 0.2172 → 健康；
+  · `step1 lp=-0.0278` → `step2` 选 `\n`(lp=-0.3550)，margin 0.8533 → 健康。
+  四档里 step1 的 EOS 全在 top-8 之外 ⇒ **第 1 步从不选停，死在第 2 步**；而 step-2 margin 塌陷组 0.0000..0.6212 与健康组 0.2172..0.8533 **重叠** ⇒ 宽度不决定结局，**决定结局的是「EOS 与换行本来就在 0~0.85 nats 的近平手里，其中一档是 4 位小数完全平手」**。平手时 argmax 听谁的，就是内核数值噪声——这就是 P0 的真实形状。
+- **撤回一条被引用了两轮的读数（连带删掉日志里的一处谎）**：`firstTokenMs` **不是首 token 延迟**。代码证据：它在第一个输出 chunk 处盖章（`EngineInference.swift:4635`），而标准非流路那个 chunk 到生成结束才来；数据证据：健康轮 `firstTokenMs=4671.26` 配 `overallMs=4672.66`，200 个 token 不可能在 1.4 ms 里解码完。于是 10-23(5)/(6) 与 `DegenerateTurn.swift` 里「健康 4.7–7.5 s = 一次真 713-token prefill」「塌陷 0.13–0.26 s = prefill 没跑」整套读法作废：同一 713-token prompt 上两点（1 token≈147 ms、200 token≈4672 ms）拟合出固定开销 ≈124 ms、解码 ≈44 tok/s ⇒ **prefill 故事两个方向都死**，30 倍差就是 200 对 1 个 token。日志字段随之从 `firstTokenMs` 改成 `wholeTurnMs`（不说自己撑不住的字段名），并把「为什么停」显式指向 `OCOREAI_MARGIN_PROBE`，不再暗示 prefill。
+- **一条能省下半年弯路的不可能**：区制**进程内固定**（同一进程内每轮同结果，15 启动 84 轮的同质性早已测过，今天 10 启动再复现）⇒ **进程内自动重试不可能改变结局**，直觉里的「塌陷就重发一次」被数字否掉；能换区制的动作只有换进程。EOS 下限类缓解（vllm `sampling_params.py:339`、sglang `penaltylib/min_new_tokens.py:85`）在 mlx-swift-lm 里没有对应物（`grep -rn minTokens Libraries/MLXLMCommon/` 零命中），要做就是改生成语义——**留人拍板，不自作主张**。
+- **两台新仪器（都进仓，结论可复跑）**：`scripts/probes/boot-diff.py` 把启动日志按形状归一化后做组间结构差——131 个形状、两组 `StdTurn` 前平均都是 97 行，**没有任何结构差活过 n≥3**（唯一差异是 audit JSON 键序噪声）⇒ 差别不在日志里，只能往下（数值）找，这条排除把「找日志差异」这条路也关掉；`scripts/probes/startup-correlation.py` 逐启动联查 8 个字段，并把 `tokens` 摆进候选，让 `firstTokenMs` 的分离与 token 数同屏出现（否则它就是用结论证明结论）。
+- **反真空门**：`scripts/probes/margin-summary.py` 新增终止步计数与 `eos lp at the terminating step`，**报告数为 0 就自称瞎**（`includeStopToken is not taking effect`），不许拿 step-1 边际冒充判据。本轮实测 4/10 行报告终止步，全部来自塌陷轮——正是设计上该有的样子。
+- **诚实边界**：区制由什么设定仍未定（allocator 布局 / Metal 内核选择 / 量化 scale 编译变体都只是候选，未证）；step-2 近平手是重建（`cache: nil`）读到的，与实轮是否逐位同源仍未测；`kvcache` 快照目录仍空、像素仍被拒、GUI 运行时仍只有 `OCOREAI_GUI_LIVE` 那一寸 ⇒ 本轮没有任何界面结论。
+- **验证**：`swift build`（CLT `.build-clt`）exit 0；臂 E `BOOTS=10` 实跑并印出终止步；`docs-check`/`audit`/`anchor-check` 见提交说明。
+
+
 **10-23(6) 臂 F 把「磁盘 KV 是载体」也否了；代价是今天真删空了 44 个 prompt cache 快照——bug 修了，账记在这**(P0 正确性 / P0 可靠性 / P3 回归防护)
 
 - **臂 F（= C × E：每轮清空磁盘 KV 快照，同时 `=all` 量 margin）8 次冷启**：step-1 档位与臂 E 是同一批值——塌陷 `-0.0111`，健康 `-0.0278 / -0.0222`，零重叠复现（gap 0.0111 nats）。连臂 E 的 12 轮加上崩掉那次的 8 轮，**同机同字节累计 28 次冷启**，四个离散档位每次都出现、分离每次都成立 ⇒ **磁盘 KV 快照不是载体**（臂 C 过去只给出塌陷率，现在有了档位级读数背书）。
