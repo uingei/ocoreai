@@ -108,6 +108,8 @@ struct ModelStoreTests {
         _ = newSnap
 
         // env redirect → root points at our tmp tree
+        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        defer { lease.release() }
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }
 
@@ -157,6 +159,8 @@ struct ModelStoreTests {
                 .appendingPathComponent("modelscope/org/b/main/model.safetensors"))
         _ = (master, main)
 
+        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        defer { lease.release() }
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }
 
@@ -191,6 +195,8 @@ struct ModelStoreTests {
         try FileManager.default.createDirectory(at: brokenDir, withIntermediateDirectories: true)
         try Data().write(to: broken)
 
+        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        defer { lease.release() }
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }
 
@@ -242,6 +248,8 @@ struct ModelStoreTests {
             .appendingPathComponent("ms/ns/repoX")
         _ = try Self.file(at: msFlat.appendingPathComponent("master/model.safetensors"))
 
+        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        defer { lease.release() }
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }
 
@@ -293,6 +301,8 @@ struct ModelStoreTests {
     @Test("msRepoDir is flat root/<org>/<name>; msReadyDir honors valid safetensors")
     func msFlatLayout() throws {
         let rootURL = Self.tmpRoot.appendingPathComponent("msflat")
+        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        defer { lease.release() }
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }
 
@@ -353,6 +363,8 @@ struct ModelStoreTests {
         let emptyDir = rootURL.appendingPathComponent("Qwen/EmptyDir")
         try fm.createDirectory(at: emptyDir, withIntermediateDirectories: true)
 
+        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        defer { lease.release() }
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }
 
@@ -418,6 +430,8 @@ struct ModelStoreTests {
                 .appendingPathComponent(
                     "qwen2_5_1_5b_instruct_4bit_weights_8bit_kv_cache_dynamic.aimodel/main.mlirb"))
 
+        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        defer { lease.release() }
         setenv("OCOREAI_MODELS_DIR", rootURL.path, 1)
         defer { unsetenv("OCOREAI_MODELS_DIR") }
 

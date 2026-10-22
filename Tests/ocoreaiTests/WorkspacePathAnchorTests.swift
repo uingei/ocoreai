@@ -29,6 +29,8 @@ struct WorkspacePathAnchorTests {
 
     @Test("OCOREAI_WORKSPACE anchors relative paths, and beats a stored setting")
     func envAnchorWins() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
         let ws = try Self.sandbox()
         try "def add(a, b):\n    return a + b\n"
             .write(to: ws.appendingPathComponent("calc.py"), atomically: true, encoding: .utf8)
@@ -54,6 +56,8 @@ struct WorkspacePathAnchorTests {
 
     @Test("a stated workspace that does not exist (or is a file) is no anchor")
     func envAnchorValidated() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
         let dir = try Self.sandbox()
         let file = dir.appendingPathComponent("plain.txt")
         try "x".write(to: file, atomically: true, encoding: .utf8)
@@ -76,6 +80,8 @@ struct WorkspacePathAnchorTests {
 
     @Test("a refusal names the absolute path it looked at and who anchored it")
     func refusalIsRecoverable() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
         let ws = try Self.sandbox()
         SessionWorkspace.setDirectory(ws.path)
         defer { SessionWorkspace.clear() }
@@ -98,6 +104,8 @@ struct WorkspacePathAnchorTests {
     /// one (a gate that only passes on a pristine machine is a gate that gets ignored).
     @Test("the refusal names the anchor it really used, including the no-workspace case")
     func fallbackIsTruthful() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
         SessionWorkspace.clear()
         unsetenv(WorkspaceContext.workspaceEnvironmentKey)
         let anchor = WorkspaceContext.configuredDirectory()

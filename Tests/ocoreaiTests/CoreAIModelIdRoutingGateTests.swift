@@ -45,6 +45,8 @@ struct CoreAIModelIdRoutingGateTests {
 
     @Test("single-slash id with a local CoreAI asset resolves to the rooted dir")
     func singleSlashWithAssetResolves() throws {
+        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        defer { lease.release() }
         try setup()
         defer { tearDown() }
         let org = "Qwen2.5-1.5B-CoreAI"
@@ -62,6 +64,8 @@ struct CoreAIModelIdRoutingGateTests {
 
     @Test("multi-segment root-relative id also resolves")
     func multiSegmentResolves() throws {
+        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        defer { lease.release() }
         try setup()
         defer { tearDown() }
         try makeCoreAIBundle(relPath: "Org2/sub/qwen_bundle2")
@@ -74,6 +78,8 @@ struct CoreAIModelIdRoutingGateTests {
 
     @Test("single-slash id WITHOUT a local CoreAI asset is rejected")
     func singleSlashWithoutAssetRejected() throws {
+        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        defer { lease.release() }
         try setup()
         defer { tearDown() }
         // No bundle created for this org/name:
@@ -84,6 +90,8 @@ struct CoreAIModelIdRoutingGateTests {
 
     @Test("hub-prefixed ids are rejected even when a same-named rooted dir holds an asset")
     func hubPrefixRejected() throws {
+        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        defer { lease.release() }
         try setup()
         defer { tearDown() }
         let org = "Qwen2.5-1.5B-CoreAI"
@@ -100,6 +108,8 @@ struct CoreAIModelIdRoutingGateTests {
 
     @Test("empty and bare-name ids are rejected")
     func emptyOrBareRejected() throws {
+        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        defer { lease.release() }
         try setup()
         defer { tearDown() }
         #expect(localCoreAIModelDir(for: "") == nil)
@@ -108,6 +118,8 @@ struct CoreAIModelIdRoutingGateTests {
 
     @Test("absolute-path id still resolves (old behavior preserved)")
     func absolutePathStillResolves() throws {
+        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        defer { lease.release() }
         try setup()
         defer { tearDown() }
         let org = "Qwen2.5-1.5B-CoreAI"
@@ -122,6 +134,8 @@ struct CoreAIModelIdRoutingGateTests {
         "CoreAI-local fallback URL(fileURLWithPath: modelId) is invalid — resolvedRoot is authoritative (proves the 2nd-layer bug + fix contract)"
     )
     func coreAILocalFallbackIsInvalidUrl() throws {
+        let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR"])
+        defer { lease.release() }
         try setup()
         defer { tearDown() }
         let modelId = "Qwen2.5-1.5B-CoreAI/qwen2_5_1_5b_instruct_4bit_weights_8bit_kv_cache_dynamic"
@@ -153,8 +167,14 @@ struct CoreAIModelIdRoutingGateTests {
         #expect(
             resolvedRoot == dir.path,
             "localCoreAIModelDir returns the bundle root")
+        // nil is a failure, not a crash: force-unwrapping here SIGTRAPs the test runner, so
+        // every suite scheduled after this one reports nothing (measured 10-22, signal 5).
+        guard let resolvedRoot else {
+            Issue.record("localCoreAIModelDir returned nil for \(modelId) — expected \(dir.path)")
+            return
+        }
         #expect(
-            ModelStore.hasCoreAIAsset(at: URL(fileURLWithPath: resolvedRoot!)),
+            ModelStore.hasCoreAIAsset(at: URL(fileURLWithPath: resolvedRoot)),
             "hasCoreAIAsset at resolved root is true (ANE gate / warmup pass)")
     }
 }
