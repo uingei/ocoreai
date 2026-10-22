@@ -4,6 +4,16 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-22
 
+**10-22(9) 「客户端断开即取消」是注释里的愿望，不是事实：1.0 s 就走的客户端，那一轮照样跑满 200 token**(P1 执行链 / P0 诚实口径 / P3 判定诚实)
+
+- **测了什么**：新探针 `scripts/probes/31-client-abort-cancellation.sh`。判据不看来料顺序，只看**被抛弃那一轮自己的收尾记录**（`StdTurn`）：客户端在 1.0 s 断开（而这台机器一次 ~700-token prefill 就要 ~4.9 s），**两条面都记到 `tokens=200 reason=.maxTokens`**——流式与非流式各一次；另一轮流式记到 `103 tokens/.eos`，同样是走了人还在算力上。也就是说：走开一分钱也不省，下一个调用者替它排队（同轮实测 `Queued for inference: +4158ms` 流式 / `+3767ms` 非流式；对照组不断开时 `+4814ms`）。这把 10-22(4) 那条「被放弃的请求持锁 ~160 s」从现象升级为**已测机制**：不是偶发拥塞，是**没人告诉生产端客户已经走了**。
+- **为什么 `onTermination` 那道桥不生效**（代码在三处：`Handlers/ChatHandler.swift`、`Handlers/AnthropicMessagesHandler.swift`、`Handlers/CompletionsHandler.swift`）：桥挂的是 `AsyncStream.Continuation.onTermination`，而它只在「我们自己 `finish()`」或「消费端任务被取消」时触发。响应流归 Hummingbird 拥有：pinned `55bc9025` 的公开 `RequestContext` 里没有任何连接存活句柄（`CoreRequestContextStorage` 只有 `logger`/`endpointPath`/`parameters`），socket 的内核缓冲还吃得下几帧 SSE 时 Hummingbird 也不会因写失败而取消消费任务（日志里那条 `Waiting on child channel: CancellationError()` 出现在**整轮生成之后**）。三处注释原文都写着「client disconnect → 停 GPU」——**已按实测改成真话**（写明它只覆盖显式取消，并指回本条与探针 31）。
+- **判据被自己抓包两次，这两次都记下来**：① 第一版用 `\+[0-9]+` 在日志行里找排队毫秒数，命中的其实是时间戳的时区偏移 `+0800`，于是三条腿**全绿**、连正对照都「过」了——数字来自日志格式而不是行为；② 改用排队时长当判据仍然无效，因为 10-22(6)/(8) 那个一 token 塌陷会让长轮**提前结束**，短排队既可能是「取消了」也可能是「模型第一轮就撒手」。终版只认那一轮的 `reason`/`tokens`：`cancelled` 或干脆没有收尾记录 ⇒ 真停了；`>8 tokens`（不论 `maxTokens` 还是 `eos`）⇒ 人走了还在跑，就是缺陷。
+- **正对照为什么必须在**：leg 1 用一个「客户端不断开」的长轮证明这台机器能观察到一轮完整跑完（实测 attempt 1 就 `200/maxTokens`）。观察不到就把探针自己判红（`positive control failed … cannot tell cancellation from collapse`），而不是给「取消」发合格证。
+- **门**：`client-abort-cancellation: 3 passed / 0 failed / 6 measured / 2 known-open`，两条 xfail-open 钉住本缺陷；将来取消真落地时这两条会 XPASS，而 `_lib.sh` 把 XPASS 记为失败 ⇒ 那次改动必须同时删掉 xfail。
+- **修法留作下一条（已定方向，不臆改）**：① 请求级 wall-clock 上限（有界占用，不依赖 HB，任何失控/废弃请求都被兜住）；② 真正的断开探测：HB 这个 pin 没有管道定制入口，得走「给 SSE 生产者一个能看见消费端停滞的信号」——即 `AsyncStream` 改**有界缓冲**并观察 `yield` 返回 `.dropped`；代价是慢网络客户端可能被误杀，所以必须配「连续丢弃持续若干秒才算离开」的宽限，且默认关闭、按请求开。两者都要求先有本条这个能判真假的门。
+- **文档账**：探针索引新增 31 条并**净减 3 字节**（144941 → 144938）：29 号条目的日期化叙述与头部来历各让出一段，指回本 CHANGELOG。`docs-check` 绿（`probe-index=31/31`、`doc-orphans=0`）。
+
 **10-22(8) 塌陷与「会话身份」无关：塌掉的那一轮根本没做 prefill；同一个 prompt 连发 16 轮塌了 8 轮**(P0 正确性 / P0 诚实口径 / P3 判定诚实)
 
 - **上一条与探针 30 原文的归因错了，这里更正**：此前写成「同一个 prompt 第二次被问到时，会话仍按匿名 key 池化」才会塌。同一台机器、同一个模型、**逐字相同的 prompt** 连发 16 轮实测：8 轮共用一个匿名 key ⇒ 塌 4 轮（`1 token/stop`，`firstTokenMs=137…257`）；紧接着 8 轮每轮换一个新 `session_id` ⇒ **也塌 4 轮**（`firstTokenMs=148…257`），而且这些轮压根没有「not reusable」日志——池里本来就没有可拒的条目。所以会话身份、池化复用、磁盘快照都不是前提条件。当天更早那次「换 session_id 六连全好」是**小样本误读**，不是对照组，在此撤回，而不是留着和新数字互相打脸。

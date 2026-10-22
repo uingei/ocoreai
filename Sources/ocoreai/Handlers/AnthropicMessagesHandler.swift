@@ -836,8 +836,16 @@ private func streamAnthropicResponse(
     // Cancellation token: bridges client disconnect → inference loop
     let canceller = InferenceCancellation.cancellable()
 
-    // Bridge SSE stream closure → inference cancellation so client disconnect
-    // stops GPU work.
+    // NOT a client-disconnect detector, despite appearances (measured 10-22, probe 31):
+    // this termination handler does not fire when a client walks away mid-turn, because
+    // Hummingbird keeps owning the stream until the response completes. The abandoned turn
+    // ran all 200 tokens and the next caller queued +4158ms behind it. `onTermination`
+    // fires on our own `finish()` and on consumer-task cancellation, and Hummingbird
+    // (pinned 55bc9025) cancels neither for a socket whose kernel buffer still accepts
+    // the frames — its public RequestContext exposes no channel/liveness handle
+    // (CoreRequestContextStorage holds only logger, endpointPath, parameters). So this
+    // bridge covers explicit cancellation, not disconnect. Fix options and the measured
+    // numbers: CHANGELOG 10-22(9); probe 31 keeps the legs xfail-open until they close.
     continuation.onTermination = { @Sendable _ in
         canceller.cancel()
     }

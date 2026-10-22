@@ -1,11 +1,9 @@
 # Live probes
 
-Executable evidence for claims about the HTTP surface. The rule they exist to serve is
-AGENTS.md invariant 1 — *a claim is worth exactly the gate that goes red when it breaks* —
-and the specific failure they fix is that this repo's live findings were produced by
-throwaway scripts in temp dirs (`live24.py` on port 8124, the count-tokens triple on port
-8157), so no measurement in `AGENTS.md` or `CHANGELOG.md` could be re-run by anyone after
-the session that made it ended.
+Executable evidence for claims about the HTTP surface. They serve AGENTS.md invariant 1 —
+*a claim is worth exactly the gate that goes red when it breaks* — and fix the failure they
+were born from: live findings used to be throwaway scripts in temp dirs, so no measurement
+could be re-run once the session that made it ended.
 
 `V1EndpointCatalogTests` and friends pin the wire at **compile time**. These probes pin it
 against a **running server**, which is the only place a route can be registered in the
@@ -156,15 +154,19 @@ Fails when: instance B stays alive until someone signals it (a refusal the calle
 
 - `29-engine-busy-429.sh` — When the engine is occupied, does the wire say 429 + `Retry-After`, or 500?
 Fails when: the capacity refusal is a 500 `app_error`, lacks `engine_busy`/`rate_limit_error` or `Retry-After`, the turn in flight is
-    disturbed, or a short overlap is refused instead of waited out. Leg 1 gates on the long turn's first SSE token — lock arrival order is
-    not HTTP arrival order (measured 10-22: fired 0.4 s after that POST, the second request was served normally at +164 ms of queue).
-    Queue-and-serve is green (`Queued for inference: +220ms (face=chat)`, then a real completion); the 429 legs are still red because no
-    ordinary concurrency reaches a refusal — occupancy has only ever come from an abandoned turn holding the lock ~160 s.
+    disturbed, or a short overlap is refused instead of waited out. Leg 1 gates on the long turn's first SSE token: lock order is not
+    HTTP arrival order. Queue-and-serve measures green; the 429 legs stay red because ordinary concurrency never reaches a refusal —
+    what occupies this engine is an abandoned request, and probe 31 measures why.
 
 - `30-repeated-prompt-delivery.sh` — Ask the same thing twice: does the second answer arrive?
 Fails when: a one-token `.eos` turn leaves the log without its `Degenerate generation` line (leg 4). The truncated answers themselves are
-    XFAIL open, and identity is not the trigger — 8 of 16 identical turns collapsed, 4 on one shared anonymous key and 4 with a fresh
-    `session_id` (retracts this file's earlier "always a refused pool entry, never distinct prompts"). Narrative: `CHANGELOG.md` 10-22(6),(8).
+    XFAIL open, and identity is not the trigger — 8/16 identical turns collapsed, 4 shared-key, 4 fresh-`session_id` (retracts this
+    file's earlier "always a refused pool entry, never distinct prompts"). Narrative: `CHANGELOG.md` 10-22(6),(8).
+
+- `31-client-abort-cancellation.sh` — When a client walks away mid-turn, does the engine stop?
+Fails when: a turn whose client left still leaves a completion record with >8 tokens — measured
+    10-22, both faces ran 200 tokens/.maxTokens after a 1.0s abandon. XFAIL-open until fixed:
+    nothing detects disconnect (no HB liveness handle). Leg 1 = positive control.
 
 - `_lib.sh` — shared harness
 Fails when: —
