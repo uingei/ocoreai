@@ -55,7 +55,50 @@ def mcnemar_exact(b, c):
     return min(1.0, 2.0 * tail)
 
 
+def paired(a_root, b_root):
+    """McNemar between two configurations over all |A|x|B| run pairs.
+
+    Per task, b = pairs where A passed and B failed, c = the reverse. The exact two-sided sign
+    test is used because |A|x|B| is small and the chi-square approximation is the part that
+    would overstate significance. Pooling tasks is deliberate: the same change moves several
+    tasks, and each contributes discordance — but the pooled p is only honest when the tasks
+    share one cause, which is why the per-task breakdown is printed alongside.
+    """
+    ra, rb = load_runs(a_root), load_runs(b_root)
+    if not ra or not rb:
+        print("paired: both roots need run-*/results.tsv (A=%d B=%d)" % (len(ra), len(rb)))
+        return 1
+    tasks = sorted({t for _, rows, _ in ra + rb for t in rows})
+    b = c = 0
+    flipped = []
+    for t in tasks:
+        pa = [rows[t][1] == "0" for _, rows, _ in ra if t in rows]
+        pb = [rows[t][1] == "0" for _, rows, _ in rb if t in rows]
+        for x in pa:
+            for y in pb:
+                if x and not y:
+                    b += 1
+                elif y and not x:
+                    c += 1
+        if pa and pb and (sum(pa) / len(pa)) != (sum(pb) / len(pb)):
+            flipped.append("%s %d/%d->%d/%d" % (t, sum(pa), len(pa), sum(pb), len(pb)))
+    n = len(tasks)
+    sa = [sum(1 for t in tasks if rows.get(t, ("", "1"))[1] == "0") for _, rows, _ in ra]
+    sb = [sum(1 for t in tasks if rows.get(t, ("", "1"))[1] == "0") for _, rows, _ in rb]
+    mean_a, mean_b = sum(sa) / len(sa), sum(sb) / len(sb)
+    p = mcnemar_exact(b, c)
+    print("paired A=%s  B=%s" % ("/".join(map(str, sa)), "/".join(map(str, sb))))
+    print("mean %.2f -> %.2f of %d  (delta %+.2f tasks, %+.1f pp)"
+          % (mean_a, mean_b, n, mean_b - mean_a, 100 * (mean_b - mean_a) / n))
+    print("discordant: b(A-only)=%d c(B-only)=%d -> McNemar exact two-sided p=%.4f%s"
+          % (b, c, p, "  SIGNIFICANT" if p < 0.05 else "  NOT significant"))
+    print("tasks that moved: %s" % ("; ".join(flipped) if flipped else "none"))
+    return 0
+
+
 def main():
+    if len(sys.argv) >= 5 and sys.argv[1] == "--a":
+        return paired(sys.argv[2], sys.argv[4])
     root = sys.argv[1] if len(sys.argv) > 1 else "."
     runs = load_runs(root)
     if not runs:

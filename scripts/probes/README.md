@@ -155,7 +155,7 @@ Fails when: instance B stays alive until someone signals it (a refusal the calle
     exits 0 (a startup that never happened must not look clean to launchd), or its log omits the holder pid /
     `OCOREAI_ALLOW_MULTI_INSTANCE`. Measured 10-22: B exits unsignalled after 1 s with code 1, holder still
     /health 200 (`6 passed, 0 failed, 6 measured`); pre-fix it sat in `lifecycle: error` for 237 s with the
-    remedy already in its first line.
+    remedy in its first line.
 
 - `_lib.sh` — shared harness
 Fails when: —

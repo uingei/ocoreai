@@ -59,5 +59,5 @@ traffic-light assertion is gone on purpose — AppKit title-button sub-windows a
 entries measured 0), so it could only warn, and a check that cannot pass dilutes the ones that can.
 `scripts/e2e-gui-app.sh` adds the model-dependent half (version == tag, the listener on 127.0.0.1:8080 *is* the
 bundle binary, one real completion `'OCOREAI_GUI_E2E_OK'`, graceful SIGTERM) — locally green, and none of it
-licenses "the GUI works" as a blanket claim: the bridge is opt-in (App Store builds serve nothing), CI runs the
+licenses "the GUI works": the bridge is opt-in (App Store builds serve nothing), CI runs the
 window proof but not the completion, and Accessibility-driven control automation is unverified.

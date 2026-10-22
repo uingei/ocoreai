@@ -9,12 +9,17 @@
 /// nothing in it says what the file actually contains, so the retry was the same guess and
 /// the task ended unmade. The fix quotes the nearest actual lines; the refusal itself stays
 /// strict (a whitespace-tolerant apply would be a location guess).
+///
+/// `.serialized` because `SessionWorkspace` is a process-global (`NSLock`-guarded singleton,
+/// not task-local): the `setDirectory`/`clear` in `seeded` leak into tests running in
+/// parallel — measured 10-22 this suite failed 3/3 standalone, two tests resolving against
+/// each other's temp dir. Same trait as `SessionWorkspaceWorktreeTests`.
 import Foundation
 import Testing
 
 @testable import ocoreai
 
-@Suite("edit_file — a refusal the model can act on")
+@Suite("edit_file — a refusal the model can act on", .serialized)
 struct EditMismatchRecoveryTests {
 
     private func seeded(_ name: String, _ body: String) throws -> URL {
@@ -37,6 +42,8 @@ struct EditMismatchRecoveryTests {
 
     @Test("a miss quotes the file's real lines, with the numbering read_file uses")
     func mismatchQuotesActualLines() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
         let url = try seeded("sum100.py", Self.sum100)
         defer { SessionWorkspace.clear() }
 
@@ -72,6 +79,8 @@ struct EditMismatchRecoveryTests {
     /// right to match it — the test was wrong, not the engine).
     @Test("deeper indentation than the file has is refused, and the real indent is quoted")
     func indentationDriftIsRefusedAndAnswered() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
         let body = "def add(a, b):\n    return a +\n"
         let url = try seeded("calc.py", body)
         defer { SessionWorkspace.clear() }
@@ -89,5 +98,34 @@ struct EditMismatchRecoveryTests {
                 "the file's real indentation is what makes the next attempt succeed: \(message)")
         }
         #expect(try String(contentsOf: url, encoding: .utf8) == body, "a refusal never writes")
+    }
+
+    @Test(
+        "a multi-match refusal names the knob that resolves it, and using it works",
+        arguments: [3])
+    func multiMatchRefusalNamesTheRemedy(n: Int) throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
+        // Measured 10-22: `edit-replace-all` scored 0/3. The model asked for exactly what the
+        // tool can do (replace every FOO), got `found 3 — refusing partial edit`, and stopped:
+        // the refusal named the count but never said occurrences is the parameter that accepts it.
+        let body = "FOO bar\nbaz FOO\nFOO end\n"
+        let url = try seeded("notes.md", body)
+        do {
+            _ = try FileTools.editFile(path: "notes.md", oldString: "FOO", newString: "BAR")
+            Issue.record("a default of one must not silently rewrite three occurrences")
+        } catch let ToolError.invalidParameter(message) {
+            #expect(message.contains("found 3"), "strict refusal keeps the count: \(message)")
+            #expect(
+                message.contains("occurrences: 3"),
+                "the refusal has to say what to pass next: \(message)")
+            #expect(message.contains("refusing partial edit"), "the refusal stays strict")
+        }
+        #expect(try String(contentsOf: url, encoding: .utf8) == body, "a refusal never writes")
+
+        let result = try FileTools.editFile(
+            path: "notes.md", oldString: "FOO", newString: "BAR", occurrences: n)
+        #expect(result.contains("3 replacement(s)"), "result was \(result)")
+        #expect(try String(contentsOf: url, encoding: .utf8) == "BAR bar\nbaz BAR\nBAR end\n")
     }
 }

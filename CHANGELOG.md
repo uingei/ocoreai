@@ -4,6 +4,18 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-22
 
+## [Unreleased] — 2026-09-05 → 2026-10-22
+
+**10-22(3) 门本身在撒谎：并行时测试互相污染，一个 force-unwrap 让整条 CI 静默；同一轮把「写成功≠写对」接上，但记分板测出 Δ0.00**(P3 回归防护失效 / P1 工具调用 / P3 判定诚实)
+
+- **症状（本机 CLT 实测，不是推断）**：`.serialized` 只串行化本 suite，**不隔离 suite 之间**。把改共享状态的 suite 放一起跑，`EditMismatch|SessionWorkspace|WorkspacePathAnchor` **3/3 全红**，而且每轮受害者不同——一个 suite 把 `calc.py` 解析到另一个 suite 的 temp 目录里，`effectiveCwd` 读到别人的 `OCOREAI_WORKSPACE`。再加 `ModelStore|CoreAIModelIdRoutingGate` 直接 **signal 5**：别人的 `OCOREAI_MODELS_DIR` 让 `localCoreAIModelDir` 返回 nil，`resolvedRoot!` 把测试进程 SIGTRAP，**排在它后面的每个 suite 一条结果都不出**——比红更糟，因为它看起来像"这次跑的题目少"。
+- **改法（一个家，落在缝上）**：`Tests/ocoreaiTests/ProcessGlobalLease.swift`——凡改 `SessionWorkspace` 活动目录、`OCOREAI_WORKSPACE`、`OCOREAI_MODELS_DIR` 的测试先取租约、`defer` 归还，归还时清掉自己钉住的全局；nil 那条改成 `Issue.record` + `return`（失败就该是失败，不该是崩溃）。共 20 处测试上锁。**改前 3/3 红 + 崩，改后 56 tests / 10 suites 连续 3 轮全绿。**
+- **为什么这条比看起来重要**：`SessionWorkspace` 是 `NSLock` 保护的**进程级**单例，生产语义没得挑（一个进程一个活跃会话）；错的是测试把它当成 per-test 作用域用。这正是 invariant 1 点名的形状——门从环境里长出前提，只不过这次环境是**同时跑的其他测试**。
+- **「写成功」和「写对」是两件事**（`Sources/ocoreai/Tools/PostWriteSyntax.swift`，新）：`write_file`/`edit_file` 的 `OK` 原本只证明落盘+读回，不证明产物有效。现在同一个结果里带判决：`.json` 用 `JSONSerialization`、`.plist` 用 `PropertyListSerialization`、`.py` 用 `python3 -m py_compile`（5 s 上限，**只编译不执行**；`/usr/bin/python3` 在没有 CLT/Xcode 的机器上会弹装工具链的模态框，故显式拒绝），无效时结果写成 `OK-but-invalid` 并附上编译器自己的话。`edit_file` 的拒绝同时说出下一步：`count == 0` ⇒ "read_file 它并原样复制"，`count > 期望` ⇒ **"要替换全部 3 处就传 occurrences: 3"**（实测 `edit-replace-all` 0/3 就是因为模型要的正是工具支持的操作，而拒绝只报了数字没说键名）。门：`PostWriteSyntaxTests`(7) + `EditMismatchRecoveryTests`。
+- **诚实记录：这个改动在记分板上是 0**（k=3 × 24 题，`/tmp/eval-24-k3-after` vs `/tmp/eval-24-k3`）：`17/20/18`，mean **18.33 → 18.33，Δ0.00**；配对 McNemar **b=8, c=8, p=1.0**；**逐任务通过向量完全相同**。两条可能的传导断点都查了、都排除：引擎侧不截断 tool result（`EngineInference.swift:2961-3022` 原样回喂），`ToolError` 是 `LocalizedError` 且 `errorDescription` 带完整 detail ⇒ 文字确实进得了模型。结构性解释：**判决只在"写成功"之后出现，而丢分任务全死在写之前**（`change-config-value / copy-with-suffix / edit-replace-all / make-two-tests-pass` 四个 alwaysFail 都在 refusal 阶段退出）。⇒ 保留它，但保留理由是 invariant 2（不许把无效产物报成成功，成本 70 行 + 一道门），**不是**"它提升了成功率"；真正有空间的杠杆是 refusal 的下一步提示，那个的配对复跑还没跑完，跑完再判。
+- **门与账**：`make docs-check` 通过（root 30,133/30,138、corpus 143,577/143,578、walls 0、probe-index 28/28、claims 30/30、suites 43）；`xcrun swift-format` 对 10 个改动文件零改动。**本轮没动 AGENTS.md 的 Testing Quality**（root 只剩 5 字符预算）：隔离规则暂落在 `ProcessGlobalLease.swift` 的头部注释（就在缝上）+ 本条；等 root 腾出预算再收进 Testing Quality。
+- **仍未决（不假装）**：① `occurrences` 提示的配对评测（`_repeat_stats.py --a /tmp/eval-24-k3 --b <new>`）未跑完，不许提前写成功；② `HF_ENDPOINT` 只有 `SettingsStoreHFMirrorTests` 自己碰（已 save/restore）⇒ 暂无跨 suite 冲突，但那是"目前只有一个使用者"，不是"设计安全"；③ 租约是一把全局锁，代价是这几组测试串行（实测总增量 <1 s），如果将来 contending 集合变大变慢，再按全局分锁。
+
 **10-22(2) 记分板 9→24，第一次有噪声底：16/19/20 ⇒ 任何小于 6 个任务的「改进」都不许算**(P3 判定与回归防护 / P1 执行链 / P0 可靠性)
 
 - **裁判先自检**（`scripts/eval/_verifier_selftest.py`，24/24 zero defect）：每个任务的 `verify` 必须(a) 真做完→过、(b) 原样不动→不过、(c) 编造答案→不过。它当场抓出 **3 个 vacuous 验证器**——`case "$ANSWER" in *"$OCOREAI_EVAL_EXPECT"*)` 在 `EXPECT` 为空时等于 `*""*`，匹配任何回答。修法：验证器首行 `[ -n "${OCOREAI_EVAL_EXPECT:-}" ] || exit 1`，且 `run.sh` 在启服务之前先跑自测（一个不能失败的裁判不配打分）。顺带：期望值改由任务的 `expect_cmd` 字段给出，`run.sh` 不再为某个 id 开特例。

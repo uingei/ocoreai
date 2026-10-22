@@ -15,21 +15,22 @@
 - Modules are subdirectories of `Sources/ocoreai/`; § Routing table names the ones with their own guide.
 
 ## Two invariants
-Almost every rule below is a corollary. When a shortcut and an invariant collide, the invariant wins.
+Almost every rule below is a corollary; when a shortcut collides with an invariant, the invariant wins.
 1. **A claim is worth exactly the gate that goes red when it breaks.** A fix with no gate is a claim;
    a gate that infers its own premises from the environment rots the day the toolchain moves; a scan
    that stopped matching passes vacuously unless it floors its own hit count; a doc whose numbers
    nobody re-greps drifts.
 2. **The surface never claims more than the engine delivered.** Anything a user can read — `/v1/models`,
    `/v1/capabilities`, the dashboard, a tool result, a composer string — must be measured, and must
-   degrade honestly where the backend is absent. When authority is unclear: run it and read what came back.
+   degrade honestly where the backend is absent. A file tool's `OK` is durability, not validity: the verdict
+   travels in one result (`OK-but-invalid`). When authority is unclear: run it and read the answer.
 
 ## Contribution policy
-- Every line in git is reviewable, AI-generated or not; "it came from the model" is never an exception.
-- No claim without a check: "verified/fixed/aligned" requires same-session command output.
+- Every line in git is reviewable, AI or not; "it came from the model" excuses nothing.
+- No claim without a check: "verified/fixed/aligned" needs same-session command output.
 - An improvement answers three questions — *what* behaviour improved, *what output* proves it, *which
-  gate goes red* if it regresses. Missing the third ⇒ record it as an open item plus the instrument that
-  would settle it. Full text: `CONTRIBUTING.md` → *The three questions*.
+  gate goes red* if it regresses; missing the third makes it a claim. Full text: `CONTRIBUTING.md` → *The
+  three questions* (the open-item rule lives there).
 - If upstream already has the answer, consume or reference it and cite `file:line` instead of authoring
   a local variant.
 
@@ -236,7 +237,7 @@ Not resolved here, not forgotten: each item names the instrument that would sett
   "cannot start stream", while the camera on the same box delivers: an SCStream-in-no-GUI-session limit,
   not TCC. `screenStatus` is `ready` only after a delivered frame.
 - **`tools[]` enforcement has gaps** — `required` strength is bounded by the checkpoint. The GUI is no longer
-  static-only: one measured live end-to-end pass; scope and open halves in `Sources/ocoreai/UI/AGENTS.md`.
+  static-only; scope and open halves: `Sources/ocoreai/UI/AGENTS.md`.
 - **Two owner questions have data now and no answer** — refresh-vs-refuse when instructions change, and
   cross-conversation prefix sharing. `ReuseRefusalLedger` publishes both; the ledger is opportunity, not a
   capability claim.

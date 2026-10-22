@@ -194,8 +194,13 @@ enum FileTools {
         }
         let lineCount = content.components(separatedBy: "\n").count
         let verb = existingBytes.map { "replaced \($0) bytes" } ?? "created"
+        // Durability was proven above; validity is a separate question and the model has to
+        // be told which of the two it got (PostWriteSyntax: why "OK" is not enough).
+        let verdict = PostWriteSyntax.check(path: url.path, content: content)
+        let marker = verdict?.failed == true ? "OK-but-invalid" : "OK"
         return
-            "write_file: OK — \(bytes.count) bytes, \(lineCount) lines, \(verb), read-back verified (\(path))"
+            "write_file: \(marker) — \(bytes.count) bytes, \(lineCount) lines, \(verb), read-back verified (\(path))"
+            + PostWriteSyntax.suffix(verdict)
     }
 
     // MARK: - edit_file
@@ -229,10 +234,21 @@ enum FileTools {
         let expected = max(1, occurrences ?? 1)
         let count = original.components(separatedBy: oldString).count - 1
         guard count == expected else {
+            // The refusal stays strict (a whitespace-tolerant apply would be a location guess),
+            // but strictness without a next step is a dead end: measured 10-22 the scoreboard's
+            // `edit-replace-all` scored 0/3 because the model wanted exactly the operation the
+            // tool supports — replace every occurrence — met `found 3 — refusing partial edit`,
+            // which names the count but never says that `occurrences` is the knob for it.
+            let remedy: String
+            if count == 0 {
+                remedy = ": oldString is not in this file — read_file it and copy the exact text"
+            } else {
+                remedy = " — to replace all \(count), pass occurrences: \(count)"
+            }
             let hint = count == 0 ? nearestLinesHint(text: original, oldString: oldString) : ""
             throw ToolError.invalidParameter(
                 "edit_file: expected exactly \(expected) occurrence(s) of oldString in \(path), "
-                    + "found \(count) — refusing partial edit\(hint)")
+                    + "found \(count)\(remedy), refusing partial edit\(hint)")
         }
         let updated = original.replacingOccurrences(of: oldString, with: newString)
         let bytes = updated.data(using: .utf8) ?? Data()
@@ -252,9 +268,12 @@ enum FileTools {
             throw ToolError.invalidParameter("edit_file: read-back verification failed: \(path)")
         }
         let delta = bytes.count - (original.data(using: .utf8)?.count ?? 0)
+        let verdict = PostWriteSyntax.check(path: url.path, content: updated)
+        let marker = verdict?.failed == true ? "OK-but-invalid" : "OK"
         return
-            "edit_file: OK — \(count) replacement(s), \(delta >= 0 ? "+" : "")\(delta) bytes, "
+            "edit_file: \(marker) — \(count) replacement(s), \(delta >= 0 ? "+" : "")\(delta) bytes, "
             + "read-back verified (\(path))"
+            + PostWriteSyntax.suffix(verdict)
     }
 
     // MARK: - search_files

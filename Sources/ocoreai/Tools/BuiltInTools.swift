@@ -242,7 +242,8 @@ func bootstrapBuiltInTools(
             toolset: "files",
             argsType: EditFileArgs.self,
             description:
-                "Search-and-replace in one file; requires exact match count, verifies by read-back",
+                "Search-and-replace in one file, verified by read-back. The match count must be "
+                + "exact: pass occurrences = N to replace every occurrence of oldString.",
             schema: ToolSchema(
                 parameters: [
                     "path": ToolParameter(type: .string, description: "File path to edit"),
@@ -252,7 +253,9 @@ func bootstrapBuiltInTools(
                     "newString": ToolParameter(
                         type: .string, description: "Replacement text (empty = delete)"),
                     "occurrences": ToolParameter(
-                        type: .integer, description: "Expected match count (default 1)"),
+                        type: .integer,
+                        description: "Expected match count (default 1; set it to N to replace all"
+                            + " N occurrences, e.g. occurrences: 3)"),
                 ], required: ["path", "oldString", "newString"]),
             isDestructive: true
         ) { args in
