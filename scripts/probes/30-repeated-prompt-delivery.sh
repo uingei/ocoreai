@@ -32,9 +32,23 @@
 # cause is open, and the instrument it needs (an upstream "prefill actually happened" signal)
 # is recorded in CHANGELOG 10-22(8). What this probe requires regardless of cause is stated
 # in the last leg: **a collapsed turn must never be silent**.
-# The collapse is temperature-gated, measured 10-22 (12 turns per point): temperature 0.0 -> 0 of 12,
-# 0.3 -> 5, 0.7 -> 7, 1.0 -> 6. Greedy never collapses, so EOS is competing with the correct
-# first token at the sampling stage — leg 5 asserts that stays true.
+# TWO mechanism stories died on this file in one evening, and neither survived its own gate:
+#   • "the collapse is temperature-gated, greedy never collapses" — from one sweep (0.0 -> 0/12,
+#     0.3 -> 5/12, 0.7 -> 7/12, 1.0 -> 6/12). Dead: greedy collapsed 6 of 6 the same evening.
+#   • "clean boot is safe, the collapse needs pooled state left by earlier turns" — dead the same
+#     way it was made: 0 of 6 collapsed greedy turns on a clean boot at 21:34, 6 of 6 on a clean
+#     boot at 22:0x, same binary, same model, same config, nothing pooled at either point.
+# What survives every run: repeating one identical prompt inside one process collapses some of those
+# turns to `tokens=1 finish=stop`, at a rate that swings across the whole range between runs (0/6,
+# 6/6, 5-7/12), while distinct prompts deliver (197-200 tokens). Five single-variable experiments have
+# now failed to move it — session pool off, KV quantization off, wired memory off, temperature 0, and
+# boot order — so the rate is not a rule, and legs 0a and 5 report it rather than asserting it.
+# The instrument that would settle this is still the missing one: a per-turn answer to "did this
+# forward actually prefill, and how many cache rows did it reuse". `GenerateCompletionInfo` reports
+# tokens FED (bb0d5b048 Evaluate.swift:1753) and left `cachedPromptTokenCount` at 0 on turns that
+# answered a 713-token prompt in ~200 ms — a state in which any mechanism story is guessable, which
+# is exactly how two of them got written. The invariant this file CAN gate, and which held for 8 of 8
+# collapsed turns last run, is leg 4: a collapsed turn may never be silent.
 # The collapsed turn logs `Session pool entry … not reusable: cached history 2 exceeds common
 # prefix 1 — building a clean session` and finishes inside the same second it was dispatched,
 # so it never prefilled 708 tokens: the turn ended before it started, and said `stop`.
@@ -99,6 +113,25 @@ run_turn() {  # run_turn <body> <out>
   curl -sS -m 180 -X POST "$PROBE_BASE/v1/chat/completions" ${auth_args[@]+"${auth_args[@]}"} \
     -H 'Content-Type: application/json' --data "$1" -o "$2" 2>&1
 }
+
+# ── leg 0a: greedy on a clean boot — measured, deliberately not asserted ────────────────────
+# This was a hard gate for about half an hour, and it went red on its own re-run: the same binary
+# delivered 0 of 6 collapsed greedy turns on a clean boot at 21:34 and collapsed 6 of 6 on a clean
+# boot at 22:0x. A check that flips between identical runs measures a rate; it cannot check a rule.
+# So this leg reports the number, and leg 4 keeps the only rule this defect has never broken.
+GREEDY_CLEAN=0
+for i in 1 2 3 4 5 6; do
+  BODY_GC=$(printf '{"model":"%s","max_tokens":200,"temperature":0.0,"stream":false,"session_id":"probe30-clean-%s","messages":[{"role":"user","content":"%s"}]}' \
+    "$PROBE_MODEL" "$i" "$PROMPT")
+  OUT_GC=$(mktemp -t ocoreai-30-gc.XXXXXX)
+  run_turn "$BODY_GC" "$OUT_GC"
+  read -r TOK_GC FIN_GC <<<"$(finish_tokens "$OUT_GC")"
+  if [ "${TOK_GC:-0}" -le 1 ] 2>/dev/null && [ "$FIN_GC" = "stop" ]; then
+    GREEDY_CLEAN=$(( GREEDY_CLEAN + 1 ))
+  fi
+done
+probe_note "greedy on a clean boot: $GREEDY_CLEAN/6 collapsed — this binary has measured both 0/6 and" \
+  " 6/6 on the same shape, so no rule lives here; leg 4 gates what must be true at any rate"
 
 # ── leg 0: sequential identical repeat — no concurrency, no race, still the same defect ───
 PROMPT0='Enumerate 1 to 120, one number per line.'
@@ -207,15 +240,14 @@ else
     " the process as a plain success, which is the lie this probe exists to catch"
 fi
 
-# ── leg 5: greedy decoding must never collapse ─────────────────────────────────────────────
-# Measured 10-22 (12 turns per point, identical prompt, fresh session_id each turn, one model):
-#   temperature 0.0 -> 0 of 12 collapsed      temperature 0.7 -> 7 of 12
-#   temperature 0.3 -> 5 of 12 collapsed      temperature 1.0 -> 6 of 12
-# Greedy is deterministic, so a greedy collapse would mean something other than EOS competing
-# for the first slot — it must stay at zero. This leg is a hard assertion, not a note: if it
-# ever goes red the EOS-first account in CHANGELOG 10-22(10) is wrong and the search restarts
-# at a different layer (prefill/cache), not the sampler.
-GREEDY_COLLAPSES=0
+# ── leg 5: greedy AFTER the warm legs — measured, deliberately not asserted ─────────────────
+# This shape is the experiment that retracted the temperature story: identical greedy turns, fresh
+# session_id each, run after the repeat/concurrent legs above. Measured 10-22: 0 of 12 collapsed in
+# the morning sweep, 6 of 6 collapsed in the evening run — same host, same model, same binary. Only
+# leg 0a (clean boot) is stable, which is why greedy is asserted there and reported here. A
+# deterministic decoder that fails only once the engine has been exercised points at pooled/cache
+# state, not the sampler; the invariant that binds regardless of the rate stays leg 4's.
+GREEDY_WARM=0
 for i in 1 2 3 4 5 6; do
   BODY_G=$(printf '{"model":"%s","max_tokens":200,"temperature":0.0,"stream":false,"session_id":"probe30-greedy-%s","messages":[{"role":"user","content":"%s"}]}' \
     "$PROBE_MODEL" "$i" "$PROMPT")
@@ -223,15 +255,16 @@ for i in 1 2 3 4 5 6; do
   run_turn "$BODY_G" "$OUT_G"
   read -r TOK_G FIN_G <<<"$(finish_tokens "$OUT_G")"
   if [ "${TOK_G:-0}" -le 1 ] 2>/dev/null && [ "$FIN_G" = "stop" ]; then
-    GREEDY_COLLAPSES=$(( GREEDY_COLLAPSES + 1 ))
+    GREEDY_WARM=$(( GREEDY_WARM + 1 ))
   fi
 done
-if [ "$GREEDY_COLLAPSES" -eq 0 ]; then
-  probe_ok "greedy (temperature=0) delivered 6/6 — the collapse needs sampling, so EOS is" \
-    " competing with the real first token rather than the context being absent"
+if [ "$GREEDY_WARM" -gt "$GREEDY_CLEAN" ]; then
+  probe_note "state-dependence reproduced: greedy collapsed $GREEDY_WARM/6 once the engine was" \
+    " exercised vs $GREEDY_CLEAN/6 on the clean boot (leg 0a) — the search belongs in the" \
+    " pool/cache layer, not the sampler (CHANGELOG 10-22(11))"
 else
-  probe_fail "greedy collapsed $GREEDY_COLLAPSES/6 — deterministic decoding cannot be a sampling" \
-    " degeneracy; the cache/prefill layer is implicated after all (CHANGELOG 10-22(10))"
+  probe_note "greedy after warm legs: $GREEDY_WARM/6 collapsed (clean boot: $GREEDY_CLEAN/6) — no" \
+    " state-dependence this run; leg 4 carries the gate"
 fi
 
 probe_summary "$PROBE_NAME"

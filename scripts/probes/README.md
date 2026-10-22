@@ -159,9 +159,10 @@ Fails when: the capacity refusal is a 500 `app_error`, lacks `engine_busy`/`rate
     what occupies this engine is an abandoned request, and probe 31 measures why.
 
 - `30-repeated-prompt-delivery.sh` — Ask the same thing twice: does the second answer arrive?
-Fails when: a one-token `.eos` turn leaves the log without its `Degenerate generation` line (leg 4). The truncated answers themselves are
-    XFAIL open, and identity is not the trigger — 8/16 identical turns collapsed, 4 shared-key, 4 fresh-`session_id` (retracts this
-    file's earlier "always a refused pool entry, never distinct prompts"). Narrative: `CHANGELOG.md` 10-22(6),(8).
+Fails when: a one-token `.eos` turn lacks its `Degenerate generation` line (leg 4), the only invariant
+    this defect has never broken. Repetition collapses at a run-to-run rate (0/6, 6/6, 5-7/12): pool, KV
+    quant, wired memory, temperature 0 and boot order never moved it, and two mechanism stories fell the
+    same evening — `CHANGELOG.md` 10-22(6),(8),(11).
 
 - `31-client-abort-cancellation.sh` — When a client walks away mid-turn, does the engine stop?
 Fails when: a turn whose client left still leaves a completion record with >8 tokens — measured

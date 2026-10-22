@@ -4,6 +4,21 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-22
 
+**10-22(11) 一晚上死掉两个机制解释：温度门控、以及「干净启动安全」；据前者写完的 min_tokens 判红后整块删除**(P0 正确性 / P0 诚实口径 / P3 判定诚实)
+
+- **死法一（上一条）**：「贪心永不塌」。它来自一次扫描（0.0→0/12、0.3→5/12、0.7→7/12、1.0→6/12），据此判塌陷在采样阶段（那个位置 EOS 与正确的 `1` 竞争）。当晚同一 binary、同一模型、同一配置，greedy **6/6 塌**。
+- **死法二（本条先写下的版本，30 分钟后自我证伪）**：把对照换成「进程之前有没有被跑过」——21:34 干净启动连发 6 轮 greedy **0/6 塌**，每轮 `upstreamPrompt=713 upstreamCached=0 firstTokenMs 4904–6310 ms`（真 prefill），于是把 leg 0a 立成硬门，并把 pre-82c8e9b 6/6 → 现 binary 0/6 记成 82c8e9b 的正向证据。22:0x 同 shape 再跑：**干净启动 6/6 塌**，那条硬门当场红。⇒ 「干净 vs 已 warm」不是判别位，同批的正向证据一并作废。
+- **与速率无关、现在还活着的只有一条**：塌掉的一轮一定被记下来（leg 4；上一轮 8 个单 token `.eos` 轮对应 8 条 `Degenerate generation`）。速率本身跨轮扫过全区间（0/6、6/6、5–7/12），而不同 prompt 的对照照样出 197–200 token。
+- **五个单变量实验全部没能移动它**：`OCOREAI_SESSION_POOL=0`、`kvCacheQuantization.enabled=false`、`wiredMemory.enabled=false`、`temperature=0`、boot 顺序。加上两条机制解释死亡，本条能写的诚实结论只到这里：**同一进程里重复同一条 prompt 会按未知速率塌陷，塌的位置在 prefill/cache 层**；再往前一句都是猜。
+- **缺的仪器还是那一句**：每轮「这次 forward 到底 prefill 了没、复用了多少行」的显式信号。`GenerateCompletionInfo.promptTokenCount` 是**喂进去**的 token 数（`bb0d5b048 Evaluate.swift:1753`），而 `cachedPromptTokenCount` 在 713 token 的 prompt 只花 ~200 ms 的轮次上仍报 0——在这种读数下任何机制解释都能被「猜」出来，这正是两条解释都写得出来的原因。上游不给，就不臆修、不宣称已修。
+- **按死法一写完的修复判红即删**：`min_tokens` 当时已全线打通——chat 与 completions 两面解码、`SamplingDomain` 域检查（0 ≤ min ≤ max_tokens，文案照 vllm `vllm/sampling_params.py:697-705`）、`LogitProcessor` 走上游 `GenerationComponents.appendingLogitProcessor`（std 与 MTP 两个组装点）、9 条边界单测。真机 12 轮 `min_tokens=8`：**9 轮仍返回 1 token**，且引擎日志里 `min_tokens` 出现 **0 次**=值没走到采样器。前提被证伪 + 投递不成立 ⇒ 不留一个撒谎的 wire 字段，整块回退。备用上游事实：`bb0d5b0` 的 `Libraries/` 里没有 min_tokens；vllm `vllm/sampling_params.py:339`、sglang `python/sglang/srt/sampling/sampling_params.py:141` 默认都是 0，强制点在 `vllm/v1/sample/logits_processor/builtin.py:198-202` 与 `sglang python/sglang/srt/sampling/penaltylib/min_new_tokens.py:85-90`。
+- **门的调整**：leg 0a 与 leg 5 由硬断言降为 measured note——能在相同输入下翻转的检查测的是速率，不是规则；硬门只留 leg 4（塌掉的一轮绝不许沉默）。
+- **今晚最硬的一条：这是 per-process 的模式，不是 per-request 的race**。15 次独立启动全部内部一致（每次 2–8 轮同一 prompt，同一进程内要么全塌要么全交付：`C×8 / C×8 / .×8 / C×8`、`C×3 ×6`、`C,C / ok,ok / ok,ok / C,C / C,C`），而模式在启动之间翻转：config snapshot hash 全部相同（`3ba909f5…`），`free=35%` 既出 COLLAPSE 也出 DELIVER，两次启动的日志逐行归一化后**没有任何实质差异**。⇒ 决定发生在进程加载期/首个请求之前，且用的状态我们今天没有任何一行日志记它。前五种单变量排除 + 两条机制解释作废，全部收敛到这一句话。
+- **顺手废掉一条省事的路**：想用 `-DSWIFT_DETERMINISTIC_HASHING` 固定哈希序来验「Set/Dictionary 遍历序被当成决策」这条猜想，在本机不可用——CLT Swift 6.2 接了flag但没用，8 元素 `Set<String>` 打印两次仍不同（`bravo,delta,charlie,…` vs `bravo,delta,hotel,…`）。所以这条猜想只能靠**把每个候选决策的输入打进日志**来验，不能靠固定种子；不做假对照。
+- **下一件仪器（已命名，未实现）**：一行 load manifest——把 KV 配置解析结果、wired memory 授权、首个请求时会话池/前缀索引内容、以及任何依赖集合遍历序的选择，在模型加载时一次性打出来，再与模式对齐。对齐成功 = 找到决定位；对不齐 = 决定不在进程里，回到 per-request 假设重搜。
+
+- 本轮语料字节：`scripts/probes/README.md` **+22 B**（corpus 144,919/144,942）。
+
 **10-22(10) 塌陷是温度门控的：greedy 0/12，温度>0 就是 5–7/12；四个自研子系统 A/B 全部排除，只剩上游的 cache 生命周期**(P0 正确性 / P0 可靠性)
 
 - **先把话说全**：同一台机器、同一个模型（`gemma-4-e2b-it-4bit`）、同一条 prompt（`Count from 1 to 200…`，`max_tokens=200`）、连发 16 轮串行，四组 A/B 只换一个变量：默认配置塌 **6/16**；`OCOREAI_SESSION_POOL=0`（会话池整个关掉）塌 **8/16**；`kvCacheQuantization.enabled=false`（turbo4 关）塌 **7/16**；`wiredMemory.enabled=false`（自研 wired-memory 关掉）塌 **8/16**。四组同量级 ⇒ **我们的会话池、磁盘快照、KV 量化、wired-memory 都不是原因**（A/B 用完已逐项断言还原：`turbo4=on`、`wiredMemory=on`）。
