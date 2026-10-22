@@ -7,6 +7,17 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 
 
+**10-23(4) GUI 的发送缝第一次被执行；一条 P2 结构缺陷定位在它该在的地方**(P1 执行链 / P2 诚实面 / P0 网关诚实)
+
+- **结构真相（推翻交接里的读法）**：交接说「GUI 发送逻辑在 View 里，没窗口就测不了」。读盘：**缝是 `ChatViewModel.chat`（`Sources/ocoreai/UI/ViewModels/ChatViewModel.swift:975`）**，`ChatView.sendMessage`（`Sources/ocoreai/UI/Views/ChatView.swift:971`）只是把输入交给它，流式中的转向另有其路。GUI 走 `DirectInferenceClient`（`Sources/ocoreai/UI/ViewModels/ChatViewModel.swift:1120`）**不经 HTTP** ⇒ 探针从未覆盖这条路。
+- **一条从未被执行的缝**：`Tests/` 里此前没有任何一处调用过 `ChatState.chat(...)`，也没有任何一处读过 `OcoreaiEngine.shared.activeEnginePool`（两条 grep 在 `2a9bff4` 皆 0 命中）。所以「GUI 能发出去」一直是从 HTTP 探针外推的推论，不是验证过的事实。
+- **新增门 `ChatStateSendPathTests`(2)**：① 恒定跑（无需 Metal）——无引擎时必须**看得见的失败**：用户气泡留存、`errorMessage` 非空、`responseText` 为空（不许凭空造答复）、`loading` 复位（卡在 true 就是让输入框永久失聪）；② `OCOREAI_GUI_LIVE=1` 真跑一轮：`mlx-community/gemma-4-e2b-it-4bit`，**TTFT 三轮实测 1188 / 1868 / 1763 ms**，回复 19 字符正是指令要的那句，SQLite `messages` 里 user+assistant 两行都在且 assistant `tokenCount>0`（GUI 展示的历史就是从这张表读回来的）。跳过口径沿用 `CoreAILiveGenerateTests`。
+- **新抓一条 P2（速率徽章永远画不出来）**：设置里勾了 Performance 也不会有 tok/s——interim chunk 按设计带 `tokPerSec: nil`（`Sources/ocoreai/Client/DirectInferenceClient.swift:545`），速率只在终止 chunk 上（`:627`），而终止 chunk 与清值、`loading = false` 落在同一个 MainActor turn（`Sources/ocoreai/UI/ViewModels/ChatViewModel.swift:1437`），能画的那一帧 `isStreaming` 已经是 false（门在 `ChatView.swift:496`）。三轮 20 ms 轮询 0 次看见；`promptTokPerSec` 同为 nil ⇒ **还分不清**「终止 chunk 没到 VM」与「上游本轮没报」，诚实记账：下一条仪器在客户端边界直接看终止 chunk（HTTP 面已有 usage 探针可对拍）。机制写在 `ChatView.swift` 注释旁，不在文档里抄第二份。
+- **顺手修三条假 cite**：`Sources/ocoreai/Tools/ClipboardTools.swift:15`、`Sources/ocoreai/Tools/BuiltInTools.swift:654` 引用的 `ChatView.swift:914/:925` 落在 image picker 上，剪贴板真身在 `:1123`（NSPasteboard）/`:1138`（UIPasteboard），已改；`ContextWindowPolicy.swift:41` 的 `:690` 经本轮位移后正好落在 `Text(String(format: StringKey.contextMeter.l,…))` 上，不动。
+- **网关自我诚实**：本机没有 brew 版 swift-format，`make format-check` 回落到 `xcrun swift-format`，版本串是 **`main`**，而 CI 钉死 **`603.0.0`**（`.github/workflows/pull_request.yml`）。它会把已提交且 CI 收下的文件重排（本轮就重排了 `Engine/DegenerateMarginProbe.swift`），而原话还自称 "CI-parity"。现在每次跑先报版本，并在非钉版时明写「本地重排是**工具漂移**不是违规，别当修复提交」；那条漂移已回退，未进提交。
+- **文档一处一真**：iOS 运行时零验证在 root 与 `UI/AGENTS.md` 各写一份，删 root 副本，把 root 独有的细节（MCP/Security 未定、`ChatView`/`MultimodalControls` 仍需活验）并入 UI 指南那条。
+- **验证**：`ChatStateSendPathTests` 2/2 绿（含一次 live，12.8 s）；`swift build`（CLT `.build-clt`）exit 0；`make docs-check`、`make audit`、anchor-check、`make format-check` 除上述工具漂移外零命中。诚实边界：像素仍被拒（`could not create image from window`），故本轮**没有**任何依赖布局的改动；徽章挪位置留人拍板。
+
 **10-23(3) 交付 GUI 端到端真跑通；顺手纠正两条错账：一句「GUI 运行时零验证」早就不成立，而像素抓取从 10-22 的可用退成了被拒**(P0 可靠性 / P3 回归防护 / P0 诚实口径)
 
 - **先纠错（对自己引用的交接记录）**：本轮开场引用「GUI 端到端运行时验证 = 0」。查磁盘语料后**该说法作废**：`Sources/ocoreai/UI/AGENTS.md` 早有 § GUI end-to-end — measured scope，并记着 10-22 抓到了真实帧（`900x472`、140 KB、**846 colours**）。**注入给我的 AGENTS.md ≠ 磁盘上的 AGENTS.md**，这条老 hazard 又一次差点变成新结论；凡引用「文档说过什么」，先读盘。

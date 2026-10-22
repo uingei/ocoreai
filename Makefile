@@ -113,6 +113,11 @@ toolchain-check:
 ## "swift-format: No such file or directory". The style gate reached CI unseen
 ## because it could not be run locally. Resolve once; the args stay identical.
 SWIFT_FORMAT ?= $(shell command -v swift-format >/dev/null 2>&1 && echo swift-format || echo "xcrun swift-format")
+## The resolved binary's VERSION is part of the gate: CI installs brew swift-format and hard-fails
+## unless it reports 603.0.0, but an Xcode/CLT-only host falls back to `xcrun swift-format`, whose
+## version string is "main" — a different ruleset that reformats committed files CI accepts. Name
+## the version on every run, so a local reformat is read as drift or violation deliberately.
+SF_PIN := 603.0.0
 test-clt:
 	@echo "🧪 CLT-route test gate (macOS < 27 local; FULL suite, no skips)..."
 	@# Check the route this target actually builds (CLT + pinned SDK), not the ambient
@@ -260,6 +265,13 @@ format-check:
 	@# so this gate could never pass while work was in progress — and a gate that
 	@# always fails locally is a gate nobody runs (that is how 5 unformatted files
 	@# reached CI before bfcfb4b). Snapshot content hashes, format, compare.
+	@SFV=$$($(SWIFT_FORMAT) --version 2>&1 | head -1); \
+	echo "🧹 formatter: $$SFV (CI pins $(SF_PIN))"; \
+	case "$$SFV" in \
+	  *$(SF_PIN)*) : ;; \
+	  *) echo "⚠️  local formatter is not $(SF_PIN): anything it rewrites is TOOL DRIFT, not a" ; \
+	     echo "    violation — do not commit it as a fix. CI's pinned $(SF_PIN) is the authority." ;; \
+	esac
 	@BEFORE=$$(mktemp); AFTER=$$(mktemp); \
 	find Sources Tests -name '*.swift' -type f -exec shasum {} + | sort -k2 > "$$BEFORE"; \
 	$(SWIFT_FORMAT) format --in-place --recursive --parallel --configuration .swift-format Sources/ Tests/; \
@@ -270,7 +282,8 @@ format-check:
 	  echo "✅ swift-format: zero files reformatted"; \
 	else \
 	  echo "❌ swift-format reformatted:"; printf '%s\n' "$$BAD"; echo; \
-	  echo "Working tree KEEPS the reformat (CI-parity: no blind checkout). Accept: make format"; \
+	  echo "Working tree KEEPS the reformat (no blind checkout). If the version above is not" ; \
+	  echo "$(SF_PIN), review the diff before committing — see the drift note above."; \
 	  exit 1; \
 	fi
 

@@ -651,7 +651,7 @@ func bootstrapBuiltInTools(
 
     // ── clipboard: read_clipboard / write_clipboard ──────────────────────
     // 跨应用数据通道 — 剪贴板是 iOS 17(UIPasteboard)与 macOS 14(NSPasteboard)
-    // 各自的一等公民, 且本仓 UI 层已消费同一表面(ChatView.swift:914/:925)。
+    // 各自的一等公民, 且本仓 UI 层已消费同一表面(ChatView.swift:1123/:1138)。
     // 故不 #if 到 macOS(与桌面控制/AX/App 生命周期那些 macOS 专属语义不同轴),
     // 跨平台注册, 深度适配「各平台」。读只读免审批; 写改全局态 → 审批门。
     try? await registry.register(ReadClipboardClient.toolEntry())

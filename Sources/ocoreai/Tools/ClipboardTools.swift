@@ -12,7 +12,7 @@
 ///   macOS 14  NSPasteboard.general  string(forType:) / setString(_:forType:) / clearContents()
 ///   iOS 17    UIPasteboard.general  .string
 /// 两个都是 14/17 基线内的非弃用 API, 且与本仓 UI 层已用的同一表面
-/// (ChatView.swift:914 macOS 分支 / :925 iOS 分支) 完全一致 — 不另造桥, 消费平台面。
+/// (ChatView.swift:1123 macOS 分支 / :1138 iOS 分支) 完全一致 — 不另造桥, 消费平台面。
 /// 故本工具跨平台注册(不 #if 到 macOS), 与桌面控制/AX/App 生命周期(那些是 macOS 专属
 /// 语义)不同轴。
 ///

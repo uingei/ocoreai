@@ -485,6 +485,14 @@ struct ChatView: View {
                                 // tok/s / TTFT / token meters ("how many liters of
                                 // air") are surfaced only when the owner enables them
                                 // in Settings → Performance.
+                                // The tok/s half of this row cannot render as written: interim
+                                // chunks carry `tokPerSec: nil` (`DirectInferenceClient.swift:545`)
+                                // and the rate rides the terminal chunk (:627), which lands in the
+                                // same MainActor turn that clears it and sets `loading = false`
+                                // (`ChatViewModel.swift:1437`) — so by the first frame that could
+                                // draw it, `isStreaming` is already false. Measured: zero sightings
+                                // across two live turns polled at 20 ms. The fix is a placement
+                                // call (a finished turn's rate), not a value to fabricate.
                                 if isStreaming && settingsState.showPerformanceMetrics {
                                     HStack(spacing: 8) {
                                         if let tok = chatState.currentTokPerSec {

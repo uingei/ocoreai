@@ -44,7 +44,8 @@ in 3, `accessibilityLabel` in 15, across ~260 Swift files in `Sources/`.
 - The macOS-only *tools* (move/click/drag/scroll/type/key, `inspect_ui` via AX,
   `open`/`activate`/`list_apps`) are correct platform semantics, not parity debt.
 - iOS **runtime** is unverified on this host: `xcodebuild` cannot run in the agent sandbox, so CI's
-  `build-ios` job is the compile authority and nobody should claim iOS behaviour.
+  `build-ios` job is the compile authority and nobody should claim iOS behaviour. MCP/Security
+  undecided; `ChatView`/`MultimodalControls` need live checks.
 
 ## Capability strings
 Anything the GUI asserts about capability reads `/v1/capabilities` or the model manifest — the same
@@ -62,3 +63,5 @@ runs); local release passes `GUI_REQUIRE_PIXELS=0` and says the evidence was ski
 listener *is* the bundle binary, one real completion `'OCOREAI_GUI_E2E_OK'`, graceful SIGTERM) —
 green 10-23. None of it licenses "the GUI works": the bridge is opt-in (App Store builds serve
 nothing), CI skips the completion leg, and Accessibility-driven control automation is unverified.
+Their seam is `ChatViewModel.chat` (`:975`); `ChatView.sendMessage` (`:971`) delegates.
+`ChatStateSendPathTests` executes it (live: `OCOREAI_GUI_LIVE=1`).

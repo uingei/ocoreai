@@ -220,9 +220,6 @@ Not resolved here, not forgotten: each item names the instrument that would sett
   conversion sits before Apple's fix; the FoundationModels-block hub fallback never got the reachability
   probe. All are `@available(macOS 27.0, *)` or SDK-gated out: no blind fix, no claim of a fix.
   `HubReachabilityTests`(20) pins that the FM block is exactly one site, so an unnoted edit goes red.
-- **iOS runtime: zero verification** (UI/) — the compile gate is green in CI and the tool-layer parity is
-  audited, but nothing has *run* on an iPhone; MCP/Security on iOS undecided; ChatView and
-  MultimodalControls still need live checks.
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
   and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The remaining half needs an
   injection seam upstream's standard `ChatSession` loop does not offer; building our own session layer means
