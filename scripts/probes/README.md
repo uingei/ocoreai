@@ -162,9 +162,9 @@ Fails when: the capacity refusal is a 500 `app_error`, lacks `engine_busy`/`rate
     ordinary concurrency reaches a refusal — occupancy has only ever come from an abandoned turn holding the lock ~160 s.
 
 - `30-repeated-prompt-delivery.sh` — Ask the same thing twice: does the second answer arrive?
-Fails when: a repeated prompt returns one token with `finish_reason: stop`. Reproduced 10-22 on five concurrent runs (1,1,1,2,1 of 2 turns)
-    and once sequentially (150 then 1) — always on a turn whose pool entry was refused ("cached history 2 exceeds common prefix 1"), never on
-    distinct prompts, so it is a race, not a certainty. A pass needs the queue line (no overlap ⇒ the leg proved nothing); an XFAIL does not.
+Fails when: a one-token `.eos` turn leaves the log without its `Degenerate generation` line (leg 4). The truncated answers themselves are
+    XFAIL open, and identity is not the trigger — 8 of 16 identical turns collapsed, 4 on one shared anonymous key and 4 with a fresh
+    `session_id` (retracts this file's earlier "always a refused pool entry, never distinct prompts"). Narrative: `CHANGELOG.md` 10-22(6),(8).
 
 - `_lib.sh` — shared harness
 Fails when: —
