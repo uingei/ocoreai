@@ -7,13 +7,24 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 
 
+**10-23(10) 撤销：上一轮的「非本地工具不进 prompt」是假的，根因是我们自己的仪器不携带 tools——补上之后字节级看清了工具声明到底如何落地**(P0 文档诚实 / P1 工具面 / P3 可观测性)
+
+- **假 NOTE 的根因在仪器，不在被测物**：探针 32 的 NOTE 用「白名单路由 0/N injected，只有 tools/no-tools 指令改变字节」解释两种工具形状哈希相同。本轮复查 `DegenerateMarginProbe.run` 发现它调的是 `UserInput(prompt:processing:additionalContext:)`——**根本没有 `tools:` 参数**：一次工具轮它重建的是线上从未喂过的会话，`promptHash` 覆盖 0 个 schema 字节，却仍输出一行像是对请求下判决的话。那条 NOTE 描述的机制是仪器无法观测的机制，整条撤销；10-23(9) 「非本地工具不进 prompt」这个前提同源，一并撤销（凡此前从*工具轮*读出的「字节相同」一律作废）。
+- **修法**：`run` 收 `tools: [MLXLMCommon.ToolSpec]?` 并交给 `UserInput(tools:)`，调用点传 `registeredToolSpecs`——与 `ChatSession.tools`（`EngineInference.swift:3281`）同一份对象，不做 JSON 往返、不重排键，免得探针自己造出线上不存在的字节序；新增 `toolsCarried=N` 上报，让读者分得清「带 schema 的哈希」和「瞎的哈希」。`[String: any Sendable]` 本身 Sendable，跨 `container.perform` 直接过。
+- **实测（探针 32，gemma-4-e2b-it-4bit，temperature=0）**：4 形状 × 3 冷启，每形状 `distinct promptHash=1`，`toolsCarried=[0,1,1,0]`；另一次 2 冷启复现出**同一组哈希**（bare `9bee6869f927756b`、required `d5a6b0b906c0514a`、unrequired `a0fb8c9aee0589ae`、history `3b4f6bce19bd131d`），跨调用一致。`fidelity=match` 四轮全中——补齐 tools 后重建 token 数与线上记录对得上，这是此前做不到的。
+- **字节级（`OCOREAI_MARGIN_DUMP` 落盘后 `diff`）**：声明一个工具让投喂的 prompt 变化 **+595 bytes / +131 tokens**，且同时改两处——身份段整段换姿态（"This conversation gives you no tools: answer directly…" → "Assume the user wants code changes or tool actions…"，这正是此前观察到又解释不了的 systemChars 2811→3026 那 215 字符），并由 checkpoint 自己的模板吐出 `<|tool>declaration:lookup_order{…}<tool|>`（`ToolProseLedger` 判 skippedTemplateRenders，`0 ## Tool: block(s) written`，双重声明未复发）。该模板把 properties **按字母排序**（请求 `order_id, status, limit` → 渲染 `limit, order_id, status`），并在调用方省略 `required` 时**整个丢掉 required 键**——所以这颗 checkpoint 上属性序不可能泄漏哈希种子，而省略 required 等于告诉模型「每个参数都可省」。两者都是 checkpoint 行为而非我们的功劳；`toolCallFormat` 为 plain JSON 的 checkpoint 会直接序列化字典，那条路本轮未测。
+- **诚实边界改写**：三处 `Array(schema.parameters.keys)`（`ToolRegistry.swift:817`、`ToolEntry.swift:235`、`MCP/MCPTools.swift:46`）在**注册表侧**，caller 声明的 schema 不经过它们，而 8 个 built-in 又全都自带 `required`——本机没有任何可达路径能碰到这三处，故仍不排序、仍不宣称已测；要关这格需要一个 `inputSchema` 不带 `required` 的 MCP 工具。
+- **新门**：`logLine` 从 `log` 抽成纯函数（不占 GPU 也能测格式），`DegenerateMarginProbeReportLineTests`(3) 钉住①空上报必须写 `toolsCarried=0` 而非省略字段、②计数确实到达被 scrape 的那一行、③emit 格式与探针的 scrape 模式不许各自漂移，并对文件定位与模式匹配自设地板（扫不到就红，不许静默通过）。
+- **验证**：`swift build` exit 0；探针 32 三次实跑（3 启动判定 / 2 启动跨调用复现 / 1 启动带 dump 供字节级 diff）；`make docs-check` 绿（corpus 144888/144942、probe-index 32/32、claims 30/30）；`make anchor-check` 抓到一处因插入一行而位移的 cite，已 bump `Package.swift:77`（`EngineInference.swift:5074`→`5075`），drift=0；`make audit` 绿。
+
 **10-23(9) 新增探针 32：同一请求换进程还生成同一串 prompt 字节吗？顺带把「工具声明到底进没进 prompt」这条线钉在明处**(P0 回归防护 / P1 工具面诚实 / P3 可观测性)
 
 - **为什么需要一条常驻门**：10-23(8) 那个 bug 单元测试永远看不见——Swift 每进程只固定一次哈希种子，同进程内两次断言必然一致。能抓它的只有跨进程实测，所以做成 `scripts/probes/32-prompt-byte-determinism.sh`：N 次冷启 × 四种请求形状（无工具 / 声明 `required` 的工具 / 不声明 `required` 的工具 / 带历史），按形状跨启动聚合 `promptHash`。
 - **判据三条，含反真空**：① 每个形状跨启动必须**恰好一个**哈希（多一个就是 Dictionary/Set 或未排序 JSON 漏进 prompt）；② **同一轮内声明工具必须改变字节**——否则「稳定」只证明什么都没投喂，稳定就成了自证；③ 启动数与哈希数各自设地板，跑不够直接判失败而不是沉默。实测 `BOOTS=3`：**四个形状全部 distinct promptHash=1**，`notools`=`9bee6869f927756b`、两种工具形状=`668b96e1a6c28abb`、`history`=`3b4f6bce19bd131d`。
 - **一次自查纠我自己的假判据**：第一版把「形状之间必须互不相同」写成硬断言，立刻报 3 个 FAIL——两种工具形状哈希相同。查日志才懂这是**设计如此**：探针声明的 `lookup_order` / `fetch_rows` 不是本地工具名，白名单路由 `0/N injected`，于是只有 tools/no-tools 那句指令改变字节，schema 文本根本不进 prompt。判据改成①不声明工具必须与声明工具不同（真敏感），②两种工具形状相同只记 **NOTE** 并写明原因。把已 documented 的设计判红，等于训练所有人无视这条门。
 - **顺手把重复维护的数字清出语料**：探针 30 的条目不再抄塌陷率（`0/6, 6/6, 5-7/12` 留 CHANGELOG，两处维护必漂），改为指向 10-23 的结论与探针 32；探针 29/31 条目里的实测数值同口径删除。语料棘轮因此仍成立：**144888/144942 bytes**（新增 32 号条目后反而比改前更省），`probe-index=32/32`。
-- **诚实边界**：`Array(schema.parameters.keys)`（`ToolRegistry.swift:817`、`ToolEntry.swift:235`、`MCPTools.swift:46`）这三处字典出口**本轮仍未排序**——因为当前实测路径下非本地工具不进 prompt，`required` 缺省分支也没被这条探针命中。是否排序、以及「调用方声明的外部工具该不该进 prompt」属工具面设计（`ToolDeclarationSurfaceTests` + 探针 11 §7 已管），**留人拍板**，不在本轮擅自改语义。
+- **诚实边界**：`Array(schema.parameters.keys)`（`ToolRegistry.swift:817`、`ToolEntry.swift:235`、`MCP/MCPTools.swift:46`）这三处字典出口**本轮仍未排序**——因为当前实测路径下非本地工具不进 prompt，`required` 缺省分支也没被这条探针命中。是否排序、以及「调用方声明的外部工具该不该进 prompt」属工具面设计（`ToolDeclarationSurfaceTests` + 探针 11 §7 已管），**留人拍板**，不在本轮擅自改语义。
+  - **本条的前提已被 10-23(10) 撤销**：「非本地工具不进 prompt」经字节级实测为假——模板会渲染 `<|tool>declaration:…`，工具声明确实进 prompt（+595 bytes / +131 tokens）。那三处出口仍未排序、仍未测，但理由变了：它们位于注册表侧，caller 声明不经过，不是「外部工具不进 prompt」。
 - **验证**：`swift build` exit 0；探针 32 两轮实跑（先 3 形状全绿，再 4 形状暴露并修正判据）；`make docs-check` 绿（corpus 144888/144942、probe-index 32/32、claims 30/30）；`audit`/`anchor-check` 见提交说明。
 
 **10-23(8) P0 结案：任务成败此前由进程哈希种子决定——注入 system prompt 的技能块顺序每进程随机，修根后同一请求 8/8 稳定答出**(P0 正确性 / P0 可靠性 / P1 上下文管理 / P3 回归防护)

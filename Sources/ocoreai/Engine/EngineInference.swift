@@ -4771,6 +4771,7 @@ extension EnginePool {
                                     instructions: systemInstructions,
                                     messagePairs: marginPairs,
                                     hasMedia: marginHasMedia,
+                                    tools: registeredToolSpecs,
                                     expectedPromptTokens: localPromptTokenCount,
                                     steps: 4,
                                     baseParameters: genParams,

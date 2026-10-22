@@ -30,6 +30,19 @@
 /// failed turn recorded. A reconstruction that silently dropped the injected instructions would
 /// report `fidelity=UNVERIFIED`, and its margins must then be read as nothing.
 ///
+/// ### What the reconstruction carries, stated as a set (corrected 10-23)
+/// `instructions` + `role/content` messages + `tools`. The third member is new: until 10-23 this
+/// probe called `UserInput(prompt:processing:additionalContext:)` with **no `tools:`**, so on a
+/// turn that declared tools it re-prepared a conversation the live turn never fed, and its
+/// `promptHash` covered no schema byte at all while the log line still read like a verdict on the
+/// request. Every "identical prompt bytes" reading taken from a *tool* turn before this paragraph
+/// was written is void: the hash could not see the difference it claimed to have ruled out
+/// (AGENTS.md invariant 2 — the surface never claims more than the engine delivered). The probe now
+/// carries the same `[ToolSpec]` the std path handed `ChatSession.tools`
+/// (`EngineInference.swift:3281`) and prints `toolsCarried=N` on its line, so a reader can tell a
+/// schema-carrying hash from a blind one. Media stays out of scope: `hasMedia` skips the turn
+/// rather than half-reconstruct it.
+///
 /// ### Cost and default
 /// One extra short generation, gated by the caller: by default it fires only on a turn already
 /// judged degenerate (`OCOREAI_MARGIN_PROBE=1`), so healthy turns pay nothing.
@@ -123,6 +136,11 @@ enum DegenerateMarginProbe {
         /// happen to tokenize to the same length" — the two have opposite fixes, and every margin
         /// number read so far was ambiguous between them (AGENTS.md invariant 2).
         var promptHash = "-"
+        /// How many `ToolSpec` dictionaries went into `UserInput.tools` for this reconstruction.
+        /// A count, not a boolean: the size of the set is what decides whether schema bytes are
+        /// inside `promptHash`. Before this field existed, a tool turn and a bare turn emitted the
+        /// same kind of hash and the difference between them was invisible rather than measured.
+        var toolsCarried = 0
         /// Decoded prompt, kept only to be written out by `OCOREAI_MARGIN_DUMP=<dir>`. A hash
         /// says *that* boots differ; only the bytes say *where*, and measured 10-23 the same
         /// "identical" prompt produced four different hashes across ten cold boots.
@@ -141,6 +159,13 @@ enum DegenerateMarginProbe {
         instructions: String?,
         messagePairs: [MessagePair],
         hasMedia: Bool,
+        /// The turn's declared tool surface, exactly as the std path handed it to `ChatSession`
+        /// (`EngineInference.swift:3281`). Without it the reconstruction omits every schema byte,
+        /// so `promptHash` cannot discriminate two requests that differ only in `tools[]` — which
+        /// is exactly the question probe 32 asks. `[String: any Sendable]` is Sendable, so the
+        /// array crosses into `container.perform` unchanged: no JSON round-trip, no re-keying, and
+        /// therefore no chance of the probe sorting bytes that the live turn left unsorted.
+        tools: [MLXLMCommon.ToolSpec]?,
         expectedPromptTokens: Int?,
         steps stepLimit: Int,
         baseParameters: MLXLMCommon.GenerateParameters,
@@ -148,6 +173,7 @@ enum DegenerateMarginProbe {
     ) async -> Report {
         var report = Report()
         report.expectedPromptTokens = expectedPromptTokens ?? -1
+        report.toolsCarried = tools?.count ?? 0
         if hasMedia {
             report.failure = "skipped: turn carried media, prompt reconstruction not owned here"
             return report
@@ -169,6 +195,7 @@ enum DegenerateMarginProbe {
         }
         let parameters = mutableParameters
         let instructionsSnapshot = instructions
+        let toolsSnapshot = tools
 
         do {
             let (stream, task, promptTokens, promptHash, promptText) = try await container.perform { context ->
@@ -193,6 +220,7 @@ enum DegenerateMarginProbe {
                     input: MLXLMCommon.UserInput(
                         prompt: .chat(rebuiltMessages),
                         processing: .init(),
+                        tools: toolsSnapshot,
                         additionalContext: nil))
                 let count = prepared.text.tokens.size
                 let iterator = try MLXLMCommon.TokenIterator(
@@ -291,8 +319,13 @@ enum DegenerateMarginProbe {
     }
 
     /// One line, so a probe can grep it and a human can read the discriminator without a parser.
-    static func log(_ report: Report, convKey: String, logger: Logger) {
-        guard report.attempted else { return }
+    ///
+    /// Built as a pure function of the report rather than inline in `log`: `toolsCarried` is the
+    /// field that tells a reader whether `promptHash` covers schema bytes at all, and a value that
+    /// decides how the rest of the line must be read has to be gated where it is published, not
+    /// only consumed by the probe that greps it (AGENTS.md invariant 1). Factoring the format out
+    /// costs a signature and buys a test that needs no GPU.
+    static func logLine(_ report: Report, convKey: String) -> String {
         let fidelity = report.fidelityMatched ? "match" : "UNVERIFIED(\(report.promptTokens) vs \(report.expectedPromptTokens))"
         let steps = report.steps.map { step in
             let rival = step.runnerUpText.map { "'\($0)' id=\(step.runnerUpID ?? -1)" } ?? "none"
@@ -300,9 +333,13 @@ enum DegenerateMarginProbe {
             let eos = step.eosLogProb.map { String(format: "%.3f", $0) } ?? "out-of-top"
             return "step\(step.index) chose '\(step.chosenText)' id=\(step.chosenID) lp=\(String(format: "%.4f", step.chosenLogProb)) rival=\(rival) margin=\(margin) eos=\(eos) eosChosen=\(step.eosIsChosen)"
         }.joined(separator: " | ")
-        logger.info(
-            "Degenerate margin probe [\(convKey)] promptTokens=\(report.promptTokens) fidelity=\(fidelity) promptHash=\(report.promptHash) temperature=0 :: \(steps)"
-        )
+        return "Degenerate margin probe [\(convKey)] promptTokens=\(report.promptTokens) fidelity=\(fidelity) promptHash=\(report.promptHash) toolsCarried=\(report.toolsCarried) temperature=0 :: \(steps)"
+    }
+
+    static func log(_ report: Report, convKey: String, logger: Logger) {
+        guard report.attempted else { return }
+        let line = logLine(report, convKey: convKey)
+        logger.info("\(line)")
     }
 
     /// FNV-1a (64-bit) over token ids — cheap, allocation-free, and stable across processes, so
