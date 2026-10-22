@@ -7,6 +7,16 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 
 
+**10-23(6) 臂 F 把「磁盘 KV 是载体」也否了；代价是今天真删空了 44 个 prompt cache 快照——bug 修了，账记在这**(P0 正确性 / P0 可靠性 / P3 回归防护)
+
+- **臂 F（= C × E：每轮清空磁盘 KV 快照，同时 `=all` 量 margin）8 次冷启**：step-1 档位与臂 E 是同一批值——塌陷 `-0.0111`，健康 `-0.0278 / -0.0222`，零重叠复现（gap 0.0111 nats）。连臂 E 的 12 轮加上崩掉那次的 8 轮，**同机同字节累计 28 次冷启**，四个离散档位每次都出现、分离每次都成立 ⇒ **磁盘 KV 快照不是载体**（臂 C 过去只给出塌陷率，现在有了档位级读数背书）。
+- **真丢了东西，不遮掩**：臂 C/F 原先用 `mv` 把快照搬去临时备份，而 `probes_cleanup` 会在**首次 mid-run cleanup** 抽干 `PROBE_EXIT_HOOKS` ⇒ 备份在运行中途就被搬回 cache，下一轮 `rm -f "$CACHE"/*` 随即删掉，终局 restore 无货可还。今天 `~/Library/Application Support/ocoreai/cache/kvcache` 因此**被删空（44 个文件、695,860 KB）**，且探针轮次不会再生成它们（跑完 8 轮计数仍是 0）。这是可再生的 prompt cache、不是用户数据，引擎照常工作（同一批冷启里仍有 200 token 的健康答复），但**延迟基线从今天起断裂**：任何引用旧 `firstTokenMs`/tok-per-sec 量级的比较都必须注明基线已变，除非有人给出可复现的重建路径。
+- **修在根上**：备份改 `cp -p`（原件留在 `ORIG` 直到终局），`restore_cache` 先 `cp` 回再数，**只有当场数够**才允许 `rm -rf "$ORIG"`，数不够就把备份路径打到 stderr 保留现场；臂 C 与臂 F 同改。
+- **另修两个自己刚埋的 bug**：把判词从 heredoc 提成 `scripts/probes/margin-summary.py`（六臂共用一处算术）时，脚本里还留着 `os.environ["ROWS"]` ⇒ argv 传参 KeyError，臂 F 第一次跑完**没印判词**；判词前缀写死 `E` ⇒ 臂 F 的输出被标成 E。现 argv 传参 + 标签参数化（`E`/`F`），并把「margin 稳定而结果翻」这条判词的样本量下限钉到**每组 n≥3**——n=1 时 min==max 是恒真，属于会说谎的判词。
+- **诚实边界**：塌陷率 F=2/8、E=3/12，样本太小，不宣称清空缓存改变了任何行为；载体仍未定，但**排除清单又长一格**：内容相关且进程内固定、磁盘 KV 快照、kvCache 配置、compile 开关、内存档位、session 池都已用数字排除。剩下最像的是**开机即定的数值路径差异**（allocator 布局 / Metal 内核选择 / prefill 编译变体），而 step-1 lp 已经是可观测的读数：任何启动期开关只要能把 `-0.011/-0.009` 这一档变没，它就是候选载体。
+- **样式网关停止说谎（`make format-check` / `make format`）**：本机没有 brew 版 swift-format，回落 `xcrun swift-format` 的版本串是 `main`，而 CI 钉 `603.0.0`。原先它自称 CI-parity 并 `--in-place` 重写文件——于是每次跑都把 CI 早已收下的 5 处再排一遍，把「工具漂移」摆进工作区等着被误提交。现在按版本分岔：**等于 603.0.0 才允许写盘并按哈希判红**；不等于就只做 `lint`（只读、不写盘、不判红），并明写「样式的权威是 CI 那一腿」。顺手修掉计数 bug：lint 的诊断走 **stderr**，`awk END{NR}` 只看 stdout ⇒ 明明报了 116 条却打印「0 line(s)」，现已 `2>&1` 合并计数。
+- **验证**：臂 F 8 轮、臂 E 4 轮实跑（判词由共用脚本算出，标签正确）；`swift build` exit 0；`docs-check`/`audit`/`anchor-check` 绿。
+
 **10-23(5) 塌陷第一次有了可测前兆：同一字节只落进四个离散 logits 档位，而塌陷那一档「更肯定」**(P0 正确性 / P0 诚实口径 / P3 回归防护)
 
 - **纠自己的账①：仪器其实一直在每轮付费**。`DegenerateMarginProbe.isEnabled` 只读环境变量，而调用点落在 `DegenerateTurn.isSuspected` 判定**之外**（`Engine/EngineInference.swift:4755`）⇒ `OCOREAI_MARGIN_PROBE=1` 时**每个**标准轮都多跑一次 ≤4 token 生成，可文件头和 10-23(2) 都写着「健康轮零开销／只在已塌陷轮」。现由调用点显式持门：默认只塌陷轮跑，`OCOREAI_MARGIN_PROBE=all` 才扩到每轮。门 `DegenerateMarginProbeModeTests`(3)：unset=不上膛 / `=1` 只塌陷轮 / `=all` 扩轮 / 认不得的值（`yes`）不许上膛。

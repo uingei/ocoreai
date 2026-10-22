@@ -255,8 +255,20 @@ probes:
 
 format:
 	@echo "✨ Formatting Swift files..."
-	$(SWIFT_FORMAT) format --in-place --recursive --parallel --configuration .swift-format Sources/ Tests/
-	@echo "Done. Reverted files by hand if you disagree: git diff / git checkout -- <path>"
+	@# Write only with the ruleset CI enforces. `xcrun swift-format` on an Xcode/CLT-only host
+	@# reports "main"; its rewrites are a different ruleset, and committing them as a style "fix"
+	@# churns files CI already accepts (measured 10-23: five files in one committed module rewrap
+	@# differently under 603.0.0 vs "main"). Off-pin, diagnose read-only instead of writing.
+	@SFV=$$($(SWIFT_FORMAT) --version 2>&1 | head -1); \
+	case "$$SFV" in \
+	  *$(SF_PIN)*) \
+	    $(SWIFT_FORMAT) format --in-place --recursive --parallel --configuration .swift-format Sources/ Tests/; \
+	    echo "Done ($(SF_PIN)). Revert by hand if you disagree: git diff / git checkout -- <path>" ;; \
+	  *) \
+	    echo "⛔ refusing to write: swift-format reports \"$$SFV\", not $(SF_PIN). Lint instead:"; \
+	    $(SWIFT_FORMAT) lint --recursive --parallel --configuration .swift-format Sources/ Tests/ 2>&1 \
+	      | awk 'END { print "   advisory notes: " NR " line(s) — CI's $(SF_PIN) leg decides style" }' ;; \
+	esac
 
 format-check:
 	@echo "🔍 Checking Swift format..."
@@ -265,14 +277,18 @@ format-check:
 	@# so this gate could never pass while work was in progress — and a gate that
 	@# always fails locally is a gate nobody runs (that is how 5 unformatted files
 	@# reached CI before bfcfb4b). Snapshot content hashes, format, compare.
+	@# Off-pin, that method is invalid twice over: the rules are not CI's, and `--in-place`
+	@# dirties files CI already accepts. So off-pin = lint (read-only) + exit 0, loudly.
 	@SFV=$$($(SWIFT_FORMAT) --version 2>&1 | head -1); \
-	echo "🧹 formatter: $$SFV (CI pins $(SF_PIN))"; \
-	case "$$SFV" in \
-	  *$(SF_PIN)*) : ;; \
-	  *) echo "⚠️  local formatter is not $(SF_PIN): anything it rewrites is TOOL DRIFT, not a" ; \
-	     echo "    violation — do not commit it as a fix. CI's pinned $(SF_PIN) is the authority." ;; \
-	esac
-	@BEFORE=$$(mktemp); AFTER=$$(mktemp); \
+	MODE=pinned; case "$$SFV" in *$(SF_PIN)*) ;; *) MODE=advisory ;; esac; \
+	echo "🧹 formatter: $$SFV (CI pins $(SF_PIN)) → $$MODE"; \
+	if [ "$$MODE" = advisory ]; then \
+	  echo "⚠️  not the pinned ruleset — diagnosing with lint, writing nothing, not failing:"; \
+	  $(SWIFT_FORMAT) lint --recursive --parallel --configuration .swift-format Sources/ Tests/ 2>&1 \
+	    | awk 'END { print "   advisory notes: " NR " line(s); the $(SF_PIN) leg in CI is the style authority" }'; \
+	  exit 0; \
+	fi; \
+	BEFORE=$$(mktemp); AFTER=$$(mktemp); \
 	find Sources Tests -name '*.swift' -type f -exec shasum {} + | sort -k2 > "$$BEFORE"; \
 	$(SWIFT_FORMAT) format --in-place --recursive --parallel --configuration .swift-format Sources/ Tests/; \
 	find Sources Tests -name '*.swift' -type f -exec shasum {} + | sort -k2 > "$$AFTER"; \
@@ -282,8 +298,7 @@ format-check:
 	  echo "✅ swift-format: zero files reformatted"; \
 	else \
 	  echo "❌ swift-format reformatted:"; printf '%s\n' "$$BAD"; echo; \
-	  echo "Working tree KEEPS the reformat (no blind checkout). If the version above is not" ; \
-	  echo "$(SF_PIN), review the diff before committing — see the drift note above."; \
+	  echo "Working tree KEEPS the reformat (no blind checkout). Accept: make format"; \
 	  exit 1; \
 	fi
 

@@ -54,8 +54,12 @@ CACHE_BACKUP_COUNT=0
 #     atexit restore runs mid-run and the end-of-run report never prints at all. A safety net
 #     that only reports when it happens to be the last handler left is not a safety net.
 restore_cache() {
-  mv -f "$ORIG"/*.safetensors "$ORIG"/*.manifest.json "$CACHE"/ 2>/dev/null || true
+  # cp, never mv: probes_cleanup drains PROBE_EXIT_HOOKS at the first mid-run cleanup, so this can
+  # fire while boots are still running. A move-based backup hands its only copy to the cache, the
+  # next boot's `rm -f "$CACHE"/*` deletes it, and the final restore has nothing left to put back —
+  # measured the hard way on 10-23, when 44 snapshots were lost exactly this way.
   [ "$CACHE_BACKUP_COUNT" -gt 0 ] || return 0
+  cp -p "$ORIG"/*.safetensors "$ORIG"/*.manifest.json "$CACHE"/ 2>/dev/null || true
   local n
   n=$(ls "$CACHE"/*.safetensors 2>/dev/null | wc -l | tr -d ' ')
   if [ "${n:-0}" -ge "$CACHE_BACKUP_COUNT" ]; then
@@ -125,7 +129,7 @@ esac
 case "$ARMS" in
   *C*)
     echo "arm C — disk KV snapshot or not? ($BOOTS boots, cache dir emptied before every boot)"
-    mv -f "$CACHE"/* "$ORIG"/ 2>/dev/null || true
+    cp -p "$CACHE"/* "$ORIG"/ 2>/dev/null || true
     CACHE_BACKUP_COUNT=$(ls "$ORIG"/*.safetensors 2>/dev/null | wc -l | tr -d ' ')
     echo "  backed up $CACHE_BACKUP_COUNT snapshots to $ORIG"
     for b in $(seq 1 "$BOOTS"); do
@@ -135,8 +139,14 @@ case "$ARMS" in
       probes_cleanup >/dev/null 2>&1
       sleep 2
     done
-    restore_cache
-    rmdir "$ORIG" 2>/dev/null || true
+    restore_cache || true
+    # Discard the backup only after the cache itself proves it holds the files.
+    LIVE=$(ls "$CACHE"/*.safetensors 2>/dev/null | wc -l | tr -d ' ')
+    if [ "${LIVE:-0}" -ge "$CACHE_BACKUP_COUNT" ]; then
+      rm -rf "$ORIG" 2>/dev/null || true
+    else
+      echo "backup kept at $ORIG (cache holds ${LIVE:-0} of $CACHE_BACKUP_COUNT)" >&2
+    fi
     ;;
 esac
 
@@ -221,89 +231,43 @@ case "$ARMS" in
       sleep 2
     done
     unset OCOREAI_MARGIN_PROBE
-    ROWS="$ROWS" python3 - <<'PY'
-import os
-import re
-
-STEP = re.compile(
-    r"step(\d+) chose '(.*?)' id=(-?\d+) lp=(-?[\d.]+) rival='(.*?)' id=(-?\d+) "
-    r"margin=(-?[\d.]+|[-])"
-)
-rows = [l.rstrip("\n").split("\t") for l in open(os.environ["ROWS"]) if l.strip()]
-healthy, collapsed, noprobe = [], [], 0
-for boot, outcome, line in rows:
-    steps = {int(m.group(1)): m for m in STEP.finditer(line)}
-    if not steps:
-        noprobe += 1
-        continue
-    m1 = steps.get(1)
-    m2 = steps.get(2)
-    rec = (
-        float(m1.group(7)) if m1 and m1.group(7) != "-" else None,
-        float(m2.group(7)) if m2 and m2.group(7) != "-" else None,
-        float(m1.group(4)) if m1 else None,
-    )
-    (collapsed if outcome == "C" else healthy).append(rec)
-
-
-# The outcome is already decided by the first sampled token, so the discriminator to test is
-# step1's chosen logprob: does this process land in one discrete logits regime or another?
-def fmt(group, idx):
-    vals = [g[idx] for g in group if g[idx] is not None]
-    if not vals:
-        return "n/a"
-    return "min=%.4f max=%.4f n=%d" % (min(vals), max(vals), len(vals))
-
-
-print(
-    "  E rows=%d (collapsed=%d healthy=%d no-probe=%d)"
-    % (len(rows), len(collapsed), len(healthy), noprobe)
-)
-print("  E step1 margin — collapsed: %s | healthy: %s" % (fmt(collapsed, 0), fmt(healthy, 0)))
-print("  E step2 margin — collapsed: %s | healthy: %s" % (fmt(collapsed, 1), fmt(healthy, 1)))
-c0 = [g[2] for g in collapsed if g[2] is not None]
-h0 = [g[2] for g in healthy if g[2] is not None]
-print("  E step1 chosen lp — collapsed: %s | healthy: %s" % (fmt(collapsed, 2), fmt(healthy, 2)))
-print("  E distinct step1 lp values: %s" % sorted({round(v, 4) for v in c0 + h0}))
-c1 = [g[0] for g in collapsed if g[0] is not None]
-h1 = [g[0] for g in healthy if g[0] is not None]
-if not c1 or not h1:
-    print("  E VERDICT: INCONCLUSIVE — need both a collapsed and a healthy turn in this run")
-elif min(h1) > max(c1):
-    print(
-        "  E VERDICT: MARGIN SEPARATES — every healthy turn cleared every collapsed turn"
-        " (gap %.4f nats at step1): the near-tie is the decision point" % (min(h1) - max(c1))
-    )
-elif max(c1) - min(c1) < 1e-3 and max(h1) - min(h1) < 1e-3:
-    print(
-        "  E VERDICT: MARGIN IS STABLE WHILE OUTCOME FLIPS — slot ordering is not what"
-        " flips; look downstream of the logits (mask / grammar / eos handling)"
-    )
-else:
-    print(
-        "  E VERDICT: OVERLAP — collapsed %.4f..%.4f vs healthy %.4f..%.4f at step1 margin;"
-        " width does not decide (see the step1 lp split below)"
-        % (min(c1), max(c1), min(h1), max(h1))
-    )
-if c0 and h0:
-    if min(h0) > max(c0):
-        print(
-            "  E VERDICT(2): STEP1 LP SEPARATES — every collapsed turn sits closer to 0 than every"
-            " healthy one (gap %.4f nats): the process-level logits regime is the precursor"
-            % (min(h0) - max(c0))
-        )
-    elif min(c0) > max(h0):
-        print(
-            "  E VERDICT(2): STEP1 LP SEPARATES INVERTED — collapsed turns are the MORE certain"
-            " ones (gap %.4f nats): certainty, not a near-tie, precedes the collapse"
-            % (min(c0) - max(h0))
-        )
-    else:
-        print(
-            "  E VERDICT(2): STEP1 LP OVERLAPS — collapsed %.4f..%.4f vs healthy %.4f..%.4f;"
-            " no per-process regime found at step1" % (min(c0), max(c0), min(h0), max(h0))
-        )
-PY
+    python3 "$(dirname "$0")/probes/margin-summary.py" "$ROWS"
     rm -f "$ROWS"
+    ;;
+esac
+
+case "$ARMS" in
+  *F*)
+    # Arm F — arm C × arm E: does the DISK KV state decide which logits regime the process lands
+    # in? arm C showed an empty cache does not stop the collapse, but it could not see the
+    # regimes. Same pairing as arm E, with the snapshot dir emptied before every boot; the
+    # backup/restore is the verified one registered with probe_atexit above.
+    echo "arm F — disk KV state vs the logits regime ($BOOTS boots, cache emptied every boot)"
+    cp -p "$CACHE"/* "$ORIG"/ 2>/dev/null || true
+    CACHE_BACKUP_COUNT=$(ls "$ORIG"/*.safetensors 2>/dev/null | wc -l | tr -d ' ')
+    echo "  backed up $CACHE_BACKUP_COUNT snapshots to $ORIG"
+    ROWS=$(mktemp -t armF.XXXXXX)
+    for b in $(seq 1 "$BOOTS"); do
+      rm -f "$CACHE"/*.safetensors "$CACHE"/*.manifest.json 2>/dev/null
+      export OCOREAI_MARGIN_PROBE=all
+      new_boot
+      answer=$(ask "f${b}t" "$TARGET")
+      LINE=$(grep "Degenerate margin probe" "$PROBE_LOG" | tail -1)
+      printf '%s\t%s\t%s\n' "$b" "$answer" "$LINE" >> "$ROWS"
+      echo "  F boot=$b (cache empty) outcome=$answer :: $(printf '%s' "${LINE#*:: }" | cut -c1-120)"
+      probes_cleanup >/dev/null 2>&1
+      sleep 2
+    done
+    unset OCOREAI_MARGIN_PROBE
+    python3 "$(dirname "$0")/probes/margin-summary.py" "$ROWS"
+    rm -f "$ROWS"
+    restore_cache || true
+    # Discard the backup only after the cache itself proves it holds the files.
+    LIVE=$(ls "$CACHE"/*.safetensors 2>/dev/null | wc -l | tr -d ' ')
+    if [ "${LIVE:-0}" -ge "$CACHE_BACKUP_COUNT" ]; then
+      rm -rf "$ORIG" 2>/dev/null || true
+    else
+      echo "backup kept at $ORIG (cache holds ${LIVE:-0} of $CACHE_BACKUP_COUNT)" >&2
+    fi
     ;;
 esac
