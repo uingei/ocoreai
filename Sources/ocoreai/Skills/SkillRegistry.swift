@@ -109,12 +109,12 @@ actor SkillRegistry {
 
     /// Get all loaded skill names.
     func list() -> [String] {
-        Array(skills.keys)
+        skills.keys.sorted()
     }
 
     /// Get all categories.
     func listCategories() -> [String] {
-        Array(indexByCategory.keys)
+        indexByCategory.keys.sorted()
     }
 
     // MARK: - Dependency Resolution (cached)
@@ -128,14 +128,24 @@ actor SkillRegistry {
             resolvedDirty = false
         } catch {
             logger.error("Dependency resolution warning: \(error.localizedDescription)")
-            cachedResolvedOrder = Array(skills.keys)
+            cachedResolvedOrder = skills.keys.sorted()
             resolvedDirty = false
         }
     }
 
     /// Topological sort using Kahn's algorithm.
+    ///
+    /// Every tie is broken by name, in every place a Swift `Dictionary`/`Set` could hand back a
+    /// per-process order. Swift randomizes the hashing seed per launch, so `Array(dict.keys)` is a
+    /// different order in every process — and this order is not cosmetic: it is the order the
+    /// skill blocks are written into the system prompt. Measured 10-23 (`OCOREAI_MARGIN_DUMP`):
+    /// eight cold boots of one request produced four byte-variants of the same 713-token prompt
+    /// (`file,terminal,search,memory`, `terminal,file,memory,search`, …), each landing in its own
+    /// logits regime, and two of the four regimes answer EOS after one token. A task's fate was
+    /// being decided by the process's hash seed. Determinism here is therefore a correctness
+    /// property, not a style preference.
     private func resolveOrder() throws -> [String] {
-        let allNames = Array(skills.keys)
+        let allNames = Self.ordered(skills.keys)
         var inDegree: [String: Int] = [:]
         var adjacency: [String: [String]] = [:]
 
@@ -154,13 +164,13 @@ actor SkillRegistry {
             }
         }
 
-        var queue: [String] = inDegree.filter { $0.value == 0 }.map(\.key)
+        var queue: [String] = Self.ordered(inDegree.filter { $0.value == 0 }.map(\.key))
         var result: [String] = []
 
         while !queue.isEmpty {
             let current = queue.removeFirst()
             result.append(current)
-            for neighbor in adjacency[current, default: []] {
+            for neighbor in Self.ordered(adjacency[current, default: []]) {
                 guard let deg = inDegree[neighbor] else {
                     throw SkillError.circularDependency(cycle: [neighbor])
                 }
@@ -173,10 +183,31 @@ actor SkillRegistry {
 
         guard result.count == allNames.count else {
             let remaining = Set(allNames).subtracting(result)
-            throw SkillError.circularDependency(cycle: Array(remaining))
+            throw SkillError.circularDependency(cycle: remaining.sorted())
         }
 
         return result
+    }
+
+    /// Deterministic order for anything that reaches the prompt: the sequence the author declared
+    /// the built-in skills in (`BuiltInSkill.allCases` — shell, files, search, memory), then name;
+    /// `SKILL.md` skills land after the built-ins, by name.
+    ///
+    /// Why declaration order and not lexicographic: both are deterministic, but they are not equal
+    /// in value, and the difference is measured, not guessed. At the collapse boundary the four
+    /// byte-variants this bug produced split perfectly along one line — every variant with
+    /// `terminal` first continued (step-2 `'\n'`, margin 0.8533 / 0.2172 over EOS) and every
+    /// variant with `file` first answered EOS after one token (margin 0.0000 / 0.6212).
+    /// Declaration order is terminal-first, so it picks the side that answers.
+    static func skillRank(_ name: String) -> (Int, String) {
+        let declared = BuiltInSkill(rawValue: name).flatMap {
+            BuiltInSkill.allCases.firstIndex(of: $0)
+        }
+        return (declared ?? BuiltInSkill.allCases.count, name)
+    }
+
+    static func ordered(_ names: some Sequence<String>) -> [String] {
+        names.sorted { skillRank($0) < skillRank($1) }
     }
 
     /// Mark resolved order as dirty (called when skills change).

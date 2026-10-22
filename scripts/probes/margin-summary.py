@@ -18,10 +18,15 @@ STEP = re.compile(
 # of the instrument. A run where it matches zero times is blind at the decision point, and must
 # say so rather than summarise step-1 margins as if they were the discriminator.
 TERM = re.compile(r"step(\d+) chose '.*?' id=-?\d+ lp=-?[\d.]+ rival=.*? eos=(-?[\d.]+|out-of-top) eosChosen=true")
+HASH = re.compile(r"promptHash=([0-9a-f]{8,})")
 rows = [l.rstrip("\n").split("\t") for l in open(sys.argv[1]) if l.strip()]
 healthy, collapsed, noprobe = [], [], 0
 terminating = []
+variant_outcomes = {}
 for _boot, outcome, line in rows:
+    h = HASH.search(line)
+    if h:
+        variant_outcomes.setdefault(h.group(1), set()).add(outcome)
     steps = {int(m.group(1)): m for m in STEP.finditer(line)}
     term = TERM.search(line)
     if term:
@@ -70,6 +75,32 @@ print(
 )
 print("  %s distinct step1 lp values: %s" % (LABEL, sorted({round(v, 4) for v in c0 + h0})))
 
+# Byte determinism, checked before anything else: the arms all assume "identical prompt bytes",
+# and that assumption used to be false without any check — the skill blocks were written into the
+# system prompt in Swift's per-process dictionary order, so eight cold boots produced four
+# byte-variants and two of them answered EOS after one token (10-23). More than one variant here
+# means the run compared contents, not numerics, and no margin conclusion drawn from it is valid.
+if variant_outcomes:
+    print(
+        "  %s distinct promptHash = %d %s"
+        % (
+            LABEL,
+            len(variant_outcomes),
+            "" if len(variant_outcomes) == 1 else "!! prompt bytes are NOT stable across boots",
+        )
+    )
+    if len(variant_outcomes) > 1:
+        print(
+            "  %s VERDICT: NON-DETERMINISTIC PROMPT (P0) — %d byte-variants in %d boots; outcome "
+            "per variant %s. Fix the injection order before reading any margin."
+            % (
+                LABEL,
+                len(variant_outcomes),
+                len(rows),
+                {k[:8]: sorted(v) for k, v in variant_outcomes.items()},
+            )
+        )
+
 # The step that chose EOS: which index, and how far the model was from the other side of the tie.
 print(
     "  %s terminating-step reports=%d/%d %s"
@@ -77,9 +108,14 @@ print(
         LABEL,
         len(terminating),
         len(rows),
-        ("(blind: includeStopToken is not taking effect — the margin at the collapse is NOT measured)")
+        # Two different reasons a run can carry no terminating step, and conflating them makes a
+        # green run scream a false P0: either nothing collapsed (nothing to report), or something
+        # collapsed and the instrument failed to see it (includeStopToken not taking effect).
+        ("(no collapse in this run — nothing to report)")
+        if not terminating and healthy
+        else ("(blind: includeStopToken is not taking effect — the margin at the collapse is NOT measured)")
         if not terminating
-        else sorted({(o, i) for o, i, _ in terminating}),
+        else str(sorted({(o, i) for o, i, _ in terminating})),
     )
 )
 if terminating:

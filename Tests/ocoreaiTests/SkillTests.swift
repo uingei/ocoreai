@@ -474,3 +474,50 @@ struct SkillLoaderTests {
         #expect(skills[0].category == "test")
     }
 }
+
+// MARK: - Prompt-byte determinism
+
+/// The order `resolvedSkills()` returns is not presentation detail: it is the order the skill
+/// blocks are written into the system prompt. Swift randomizes its hashing seed per launch, so
+/// every place this registry handed back `Array(dictionary.keys)` produced different prompt bytes
+/// in every process — measured 10-23 via `OCOREAI_MARGIN_DUMP`: eight cold boots of one request
+/// produced four byte-variants of the same 713-token prompt, each in its own logits regime, and
+/// two of the four regimes answered EOS after one token. That is a task failing by coin flip.
+///
+/// What this file can pin is the contract (ties broken by name, i.e. the lexicographically
+/// smallest valid order); the cross-process property is gated live by `scripts/probes/
+/// margin-summary.py`, which fails the run when a boot set yields more than one `promptHash`.
+@Suite("SkillRegistry: deterministic order")
+struct SkillRegistryDeterminismTests {
+
+    @Test("list() and listCategories() come back sorted, not in dictionary order")
+    func surfaceOrderIsSorted() async throws {
+        let registry = SkillRegistry()
+        try await registry.bootstrap(skillsDir: nil)
+        let names = await registry.list()
+        let categories = await registry.listCategories()
+        #expect(names == names.sorted())
+        #expect(categories == categories.sorted())
+        #expect(names.count == 4)
+    }
+
+    @Test("resolved order is fixed across rebuilds and equals the declared built-in priority")
+    func resolvedOrderIsFixed() async throws {
+        let registry = SkillRegistry()
+        try await registry.bootstrap(skillsDir: nil)
+        let first = await registry.resolvedSkills().map(\.name)
+        // A second, independently bootstrapped registry: if any tie came out of dictionary order
+        // it would differ between instances a launch apart, and this equality plus the fixed
+        // sequence below is what pins it.
+        let other = SkillRegistry()
+        try await other.bootstrap(skillsDir: nil)
+        let second = await other.resolvedSkills().map(\.name)
+        #expect(first == second)
+        // `terminal` and `file` are the two dependency-free skills and come out in declared
+        // priority (terminal before file); `search` and `memory` follow their dependency, also in
+        // declared order. This is the sequence whose prompt bytes measured healthy at the
+        // collapse boundary (step-2 `'\n'`, margin 0.8533); drop any tie-break and the
+        // sequence changes and this goes red.
+        #expect(first == ["terminal", "file", "search", "memory"])
+    }
+}

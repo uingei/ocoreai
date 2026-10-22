@@ -118,6 +118,15 @@ enum DegenerateMarginProbe {
         var promptTokens = -1
         var expectedPromptTokens = -1
         var fidelityMatched = false
+        /// FNV-1a over the token ids actually fed to the model. `fidelity` compares a *count*,
+        /// and a count cannot tell "identical bytes, different numerics" from "different bytes that
+        /// happen to tokenize to the same length" — the two have opposite fixes, and every margin
+        /// number read so far was ambiguous between them (AGENTS.md invariant 2).
+        var promptHash = "-"
+        /// Decoded prompt, kept only to be written out by `OCOREAI_MARGIN_DUMP=<dir>`. A hash
+        /// says *that* boots differ; only the bytes say *where*, and measured 10-23 the same
+        /// "identical" prompt produced four different hashes across ten cold boots.
+        var promptText: String? = nil
         var steps: [Step] = []
         var failure: String? = nil
     }
@@ -162,9 +171,9 @@ enum DegenerateMarginProbe {
         let instructionsSnapshot = instructions
 
         do {
-            let (stream, task, promptTokens) = try await container.perform { context ->
+            let (stream, task, promptTokens, promptHash, promptText) = try await container.perform { context ->
                 (AsyncStream<MLXLMCommon.LogProbabilityGeneration<MLXLMCommon.Generation>>,
-                    Task<Void, Never>, Int) in
+                    Task<Void, Never>, Int, String, String) in
                 // Rebuild the conversation inside the closure, and put instructions on a leading
                 // .system message — what ChatSession does with its `instructions:` channel, which
                 // this probe has to reproduce because it bypasses ChatSession (see file header).
@@ -214,11 +223,30 @@ enum DegenerateMarginProbe {
                             tokenizer: context.tokenizer,
                             stopStrings: context.configuration.effectiveStopStrings,
                             format: context.configuration.toolCallFormat ?? .json)))
-                return (innerStream, innerTask, count)
+                // Identity of what was actually fed, not of what was asked for: this is the array
+                // handed to `TokenIterator`, so a byte difference the accounting hides still shows.
+                let fedIds = prepared.text.tokens.asArray(Int32.self)
+                return (innerStream, innerTask, count, Self.hash(fedIds),
+                    context.tokenizer.decode(tokenIds: fedIds.map { Int($0) }))
             }
 
             report.attempted = true
             report.promptTokens = promptTokens
+            report.promptHash = promptHash
+            report.promptText = promptText
+            if let dumpDir = ProcessInfo.processInfo.environment["OCOREAI_MARGIN_DUMP"], !dumpDir.isEmpty,
+                let text = report.promptText
+            {
+                // One file per distinct prompt, so a run leaves exactly the set of variants it
+                // actually produced and `diff` between two files names the varying lines.
+                try? FileManager.default.createDirectory(
+                    atPath: dumpDir, withIntermediateDirectories: true)
+                let url = URL(fileURLWithPath: dumpDir).appendingPathComponent(
+                    "prompt-\(promptHash).txt")
+                if !FileManager.default.fileExists(atPath: url.path) {
+                    try? text.write(to: url, atomically: true, encoding: .utf8)
+                }
+            }
             report.fidelityMatched = expectedPromptTokens != nil && expectedPromptTokens == promptTokens
 
             let tokenizer = await container.tokenizer
@@ -273,7 +301,23 @@ enum DegenerateMarginProbe {
             return "step\(step.index) chose '\(step.chosenText)' id=\(step.chosenID) lp=\(String(format: "%.4f", step.chosenLogProb)) rival=\(rival) margin=\(margin) eos=\(eos) eosChosen=\(step.eosIsChosen)"
         }.joined(separator: " | ")
         logger.info(
-            "Degenerate margin probe [\(convKey)] promptTokens=\(report.promptTokens) fidelity=\(fidelity) temperature=0 :: \(steps)"
+            "Degenerate margin probe [\(convKey)] promptTokens=\(report.promptTokens) fidelity=\(fidelity) promptHash=\(report.promptHash) temperature=0 :: \(steps)"
         )
+    }
+
+    /// FNV-1a (64-bit) over token ids — cheap, allocation-free, and stable across processes, so
+    /// boots that fed identical bytes share a hash and boots that did not can never collide into
+    /// the same group by accident of length.
+    static func hash(_ ids: [Int32]) -> String {
+        var h: UInt64 = 0xcbf29ce484222325
+        for id in ids {
+            var v = UInt64(bitPattern: Int64(id))
+            for _ in 0..<8 {
+                h ^= v & 0xff
+                h = h &* 0x100000001b3
+                v >>= 8
+            }
+        }
+        return String(format: "%016llx", h)
     }
 }

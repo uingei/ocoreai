@@ -1228,8 +1228,11 @@ actor EnginePool {
     /// EXC_BAD_ACCESS from concurrent LRU eviction / updateSamplingConfig.
     func listModels() async -> [[String: String]] {
         var result: [[String: String]] = []
-        // Grab stable model IDs first — keys are isolated to this actor
-        let ids = loadedModels.keys
+        // Grab stable model IDs first — keys are isolated to this actor, but a Dictionary's key
+        // order is randomized per process, so "stable here" is not stable across boots. This list
+        // is the `/v1/models` surface: unsorted, a client that falls back to `data[0]` gets a
+        // different model every restart. Sorted by id is the honest order for a published list.
+        let ids = loadedModels.keys.sorted()
         for id in ids {
             if let model = loadedModels[id] {
                 let active = model.activeSessions

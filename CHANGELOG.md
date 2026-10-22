@@ -7,6 +7,17 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 
 
+**10-23(8) P0 结案：任务成败此前由进程哈希种子决定——注入 system prompt 的技能块顺序每进程随机，修根后同一请求 8/8 稳定答出**(P0 正确性 / P0 可靠性 / P1 上下文管理 / P3 回归防护)
+
+- **伪前提先死**：10-22 起所有判别臂都写着「同一批字节、identical prompt bytes」，而**没有任何一处验证过字节**——`DegenerateMarginProbe.fidelity` 只比 token **数量**。补上仪器（`promptHash` = FNV-1a over 实际喂给模型的 token 序列，`OCOREAI_MARGIN_DUMP=<dir>` 落真实文本）后，第一次跑就翻案：**同一请求 8 次冷启产生 4 个字节变体**（`file,terminal,search,memory` / `terminal,file,memory,search` / `terminal,file,search,memory` / `file,terminal,memory,search`），长度分毫不差（2880 chars / 713 tokens），**唯一区别是四个技能块写进 system prompt 的先后**。
+- **根因**（`Sources/ocoreai/Skills/SkillRegistry.swift`）：`resolveOrder()` 的种子 `Array(skills.keys)`、Kahn ready 队列 `inDegree.filter{…}.map(\.key)`、邻接遍历、异常兜底 `Array(skills.keys)`，以及 `list()`/`listCategories()`——全是 Swift `Dictionary`/`Set` 出口，而 **Swift 每进程随机化哈希种子** ⇒ 顺序每进程不同 ⇒ 注入字节不同 ⇒ logits 落进不同区制 ⇒ 两个变体在第 2 步选 EOS（1 token 空答复），两个健康。**一次编码任务是否开口，由此前的约 50% 抛硬币决定**，且此前无任何门可拦。
+- **修在根上**：所有 tie-break 换成**作者声明序** `BuiltInSkill.allCases`（terminal→file→search→memory），`SKILL.md` 自定义技能按名排在内置之后；顺带把 `/v1/models` 的条目序也定下来（`EnginePool.listModels()` 同样取自 `loadedModels.keys`，未定序时客户端回退取 `data[0]` 每次重启换模型）。
+- **选声明序不是随手挑的，是带着可证伪预测去验的**：四个变体里 step-2 结果沿一条线干净劈开——`terminal` 开头的都续写（step2 `'\n'`，margin 0.8533 / 0.2172），`file` 开头的都在第 2 步 EOS（margin 0.0000 / 0.6212）。声明序是 terminal-first，于是预测：改后 hash 必为 `897b9b75226d0e28`、step-1 lp 必为 −0.0278、step-2 margin 必为 0.8533、且 8/8 完整答出。**实测四条全中**：`distinct promptHash = 1`、区制唯一、8 轮全部 `tokens=200 reason=maxTokens`。
+- **中间一步的账认下来（不留代码，但记在这里）**：只把 tie-break 改成字母序时，结果是 `distinct promptHash = 1` 但 **8/8 全塌**（定在 `file,terminal,memory,search`）。确定性是**必要不充分**：先把硬币变成可复现的失败，才谈得上修。若当时就此提交，等于把成功率从 ~50% 降到 0%。
+- **门（两层，缺一不可）**：① `SkillRegistryDeterminismTests`(2) 钉进程内契约——`list()`/`listCategories()` 必须有序，`resolvedSkills()` 必须等于声明序且跨实例一致（去掉任一 tie-break 即红）；② `scripts/probes/margin-summary.py` 新增 `distinct promptHash = N`，**N>1 直接判 NON-DETERMINISTIC PROMPT (P0)** 并列出每个变体的结局——这是唯一能抓跨进程随机序的门（单元测试在同一进程内看不见它）。另修一条会误报的措辞：终止步报告数为 0 时，区分「本轮没塌（无事可报）」与「塌了但仪器瞎（includeStopToken 没生效）」，绿灯不许喊假 P0。
+- **仍未证 / 下一步**：为什么 terminal-first 与 file-first 会让一个 4-bit 2B 模型在「从 1 数到 200」上选择闭嘴——未证；这属于小模型对 2880 字符常驻注入的迷信行为。**根治方向是少注入、按需注入技能块**（本轮的字节数就是证据：无关注入每轮都在花钱，还翻命），那是 P1 的注入策略设计，留待下一轮带着数据提。`OCOREAI_MARGIN_DUMP` 默认关，只在诊断/探针下开启。GUI 运行时仍只有 `OCOREAI_GUI_LIVE` 那一寸，本轮无界面结论。
+- **验证**：`swift build`（CLT `.build-clt`）exit 0；`swift test --filter "Skill|SystemPrompt|Capabilit|Model"` → **310 tests / 63 suites 全绿**；臂 E 三次实跑演进记录完整（4 hash 抛硬币 → 1 hash 全塌 → 1 hash 全答）；`docs-check`/`audit`/`anchor-check` 见提交说明。
+
 **10-23(7) 塌陷那一步终于被读到了：EOS 与换行在 4 位小数上完全平手，谁赢由进程数值决定**(P0 正确性 / P0 诚实口径 / P3 回归防护)
 
 - **一句话**：之前所有臂都在找「哪一轮塌陷」，从没读到「塌陷发生在第几步、比多少」——因为**自家探针把终止步关掉了**。上游只在调用方索要时把终止 stop token 交给 handler，并且只在同一个开关下把该步的 logprob 交出（`Evaluate.swift:2762`、`:2774`，`TokenLoopHandler.swift:62` 默认 false）。`DegenerateMarginProbe` 两个都用默认 ⇒ 重建永远停在 step 1，此前写在 `DegenerateTurn.swift` 与 10-23(5) 里的「塌陷轮记不到 step 2」是**仪表盲，不是事实**。现显式传 `includeStopToken: true`。
