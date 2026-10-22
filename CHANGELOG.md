@@ -15,6 +15,10 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 - **门的调整**：leg 0a 与 leg 5 由硬断言降为 measured note——能在相同输入下翻转的检查测的是速率，不是规则；硬门只留 leg 4（塌掉的一轮绝不许沉默）。
 - **今晚最硬的一条：这是 per-process 的模式，不是 per-request 的race**。15 次独立启动全部内部一致（每次 2–8 轮同一 prompt，同一进程内要么全塌要么全交付：`C×8 / C×8 / .×8 / C×8`、`C×3 ×6`、`C,C / ok,ok / ok,ok / C,C / C,C`），而模式在启动之间翻转：config snapshot hash 全部相同（`3ba909f5…`），`free=35%` 既出 COLLAPSE 也出 DELIVER，两次启动的日志逐行归一化后**没有任何实质差异**。⇒ 决定发生在进程加载期/首个请求之前，且用的状态我们今天没有任何一行日志记它。前五种单变量排除 + 两条机制解释作废，全部收敛到这一句话。
 - **顺手废掉一条省事的路**：想用 `-DSWIFT_DETERMINISTIC_HASHING` 固定哈希序来验「Set/Dictionary 遍历序被当成决策」这条猜想，在本机不可用——CLT Swift 6.2 接了flag但没用，8 元素 `Set<String>` 打印两次仍不同（`bravo,delta,charlie,…` vs `bravo,delta,hotel,…`）。所以这条猜想只能靠**把每个候选决策的输入打进日志**来验，不能靠固定种子；不做假对照。
+- **本条自纠**：写上面两条时我曾判定 `~/Library/Application Support/ocoreai/cache/kvcache` 是元凶（680 MB、88 个 `*.safetensors` + `.manifest.json`）。**证伪了**：把整个目录 `mv` 开走，第一次启动照样 4/4 塌；把目录放回原位，四轮连发全交付（STALE 200/200、NOVEL 43/43）。所以磁盘 KV 快照不是那个决定位，上面那句话当时说早了。
+- **但它自己是一条真问题（另计，未修）**：这个目录里的快照按 `instructionsHash` + 每条 message 的 `contentHash` + `modelId` 键存（见 `…_b3-bare-none.safetensors.manifest.json`，`version: 1`），一次会话一个 `.safetensors`，**没有 TTL、没有容量上限、也没看到淘汰**——跑了两天就堆到 680 MB / 88 个文件，里面还包括别的会话留下的 `eval-*`、`sweep-*`。淘汰策略该谁定、上限多大，留人拍板；这条与塌陷无关，别混在一起。
+- **今晚排除清单（都带数）**：磁盘 KV 快照（上面那条，双向证伪）；host 内存（`free=35%` 同档既出 COLLAPSE 也出 DELIVER）；固定哈希种子（flag 是 no-op）；温度（greedy 6/6 塌）；会话池（关掉仍塌）；KV 量化、wired memory（关掉仍塌）；boot 顺序（干净启动照样塌）；配置漂移（config snapshot hash 15 次启动全等）。剩下的仍然只有那句：**决定位在进程加载期，而我们没记它**。
+
 - **下一件仪器（已命名，未实现）**：一行 load manifest——把 KV 配置解析结果、wired memory 授权、首个请求时会话池/前缀索引内容、以及任何依赖集合遍历序的选择，在模型加载时一次性打出来，再与模式对齐。对齐成功 = 找到决定位；对不齐 = 决定不在进程里，回到 per-request 假设重搜。
 
 - 本轮语料字节：`scripts/probes/README.md` **+22 B**（corpus 144,919/144,942）。
