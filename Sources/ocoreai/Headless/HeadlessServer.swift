@@ -141,6 +141,19 @@ enum HeadlessRuntime {
             print(
                 "ocoreai headless — lifecycle: \(state), bridge: \(host):\(port)")
             fflush(stdout)
+            // A daemon whose engine never started can never serve, and staying alive while it
+            // says so only moves the diagnosis onto whoever is waiting. Measured 10-22:
+            // `serve` refused the single-instance lock, printed "lifecycle: error" at t=0, then
+            // sat in the runloop until an outside signal killed it — so `scripts/eval/run.sh`
+            // burned the full readiness timeout (237 s) on an answer it had already been told.
+            // `.error` is reachable only from paths that started nothing (second instance,
+            // open circuit breaker, startup failure), so there is nothing to drain here: exit
+            // with the code that matches the words, and let the supervisor retry.
+            if OcoreaiEngine.shared.lifecycleState == .error {
+                NSLog("[ocoreai] serve cannot serve (lifecycle: error) — exiting non-zero now")
+                fflush(stdout)
+                _exit(1)
+            }
         }
 
         // Pump the main runloop — MainActor work (engine start, HTTP

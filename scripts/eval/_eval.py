@@ -62,6 +62,15 @@ def main():
     elif cmd == "ids":
         print("\n".join(t["id"] for t in tasks()))
 
+    elif cmd == "families":
+        # kind=N lines, sorted so the caller's floor loop is deterministic: the set of
+        # capability families is part of what the scoreboard promises to measure.
+        counts = {}
+        for t in tasks():
+            counts[t["kind"]] = counts.get(t["kind"], 0) + 1
+        for k in sorted(counts):
+            print("%s=%d" % (k, counts[k]))
+
     elif cmd == "field":
         t = task(sys.argv[2])
         v = t.get(sys.argv[3], "")

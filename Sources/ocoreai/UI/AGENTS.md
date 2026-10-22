@@ -49,3 +49,15 @@ in 3, `accessibilityLabel` in 15, across ~260 Swift files in `Sources/`.
 ## Capability strings
 Anything the GUI asserts about capability reads `/v1/capabilities` or the model manifest — the same
 source the engine used — never a literal typed into a view.
+
+
+## GUI end-to-end — measured scope (10-22)
+
+`verify-gui-window.sh` asserts what a user would see: a layer-0 window of believable size, and with `SHOT=1` a
+frame that has content (distinct-colour floor ≥64). Measured here 10-22: `900x472`, 140 KB, **846 colours**. Its
+traffic-light assertion is gone on purpose — AppKit title-button sub-windows are not enumerable unattended (owned
+entries measured 0), so it could only warn, and a check that cannot pass dilutes the ones that can.
+`scripts/e2e-gui-app.sh` adds the model-dependent half (version == tag, the listener on 127.0.0.1:8080 *is* the
+bundle binary, one real completion `'OCOREAI_GUI_E2E_OK'`, graceful SIGTERM) — locally green, and none of it
+licenses "the GUI works" as a blanket claim: the bridge is opt-in (App Store builds serve nothing), CI runs the
+window proof but not the completion, and Accessibility-driven control automation is unverified.

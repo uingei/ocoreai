@@ -32,8 +32,11 @@ PROBE_NAME="eval-task-success"
 export OCOREAI_APPROVAL_POLICY
 : "${OCOREAI_EVAL_TOOLS:=read_file write_file edit_file search_files exec_command}"
 export OCOREAI_EVAL_TOOLS
-: "${OCOREAI_EVAL_FLOOR_TASKS:=6}"
+: "${OCOREAI_EVAL_FLOOR_TASKS:=18}"
 : "${OCOREAI_EVAL_FLOOR_SPECS:=4}"
+# A family floor is a different question from a total floor: 24 tasks with zero edit tasks is
+# still a shrunken instrument. Measured 10-22 over tasks.json: the smallest family has 2.
+: "${OCOREAI_EVAL_FLOOR_FAMILY:=2}"
 
 OUT="${OCOREAI_EVAL_OUT:-$(mktemp -d -t ocoreai-eval-XXXXXX)}"
 mkdir -p "$OUT"
@@ -66,6 +69,15 @@ if [ ! -s "$TOOLS_CACHE" ]; then
   probe_summary "$PROBE_NAME"
 fi
 
+# The verifiers are the instrument, so they get audited before a single model turn runs: each
+# task is scored against a solved workspace, an untouched one and (where applicable) a
+# fabricated answer. Vacuous verifiers take about a second to find and need no Metal.
+if ! python3 "$HERE/_verifier_selftest.py"; then
+  probe_fail "the scoreboard's own verifiers are not sound (see _verifier_selftest.py above) —" \
+    "scores from a verifier that cannot fail would be a harness bug wearing a model score"
+  probe_summary "$PROBE_NAME"
+fi
+
 TASK_COUNT="$(python3 "$HERE/_eval.py" count)"
 SPEC_COUNT="$(python3 "$HERE/_eval.py" spec-count "$OCOREAI_EVAL_TOOLS")"
 
@@ -79,8 +91,20 @@ if [ "$SPEC_COUNT" -lt "$OCOREAI_EVAL_FLOOR_SPECS" ]; then
   probe_fail "this server declares only $SPEC_COUNT of the needed tools (floor $OCOREAI_EVAL_FLOOR_SPECS):" \
     "$OCOREAI_EVAL_TOOLS — tasks cannot be attempted, let alone passed"
 fi
+FAMILIES="$(python3 "$HERE/_eval.py" families | tr '\n' ' ')"
+while IFS= read -r line; do
+  fam="${line%%=*}"
+  fam_n="${line##*=}"
+  if [ "$fam_n" -lt "$OCOREAI_EVAL_FLOOR_FAMILY" ]; then
+    probe_fail "family $fam has only $fam_n task(s) (floor $OCOREAI_EVAL_FLOOR_FAMILY) — a whole" \
+      "capability family missing from the set is a shrunken instrument, not a model result"
+  fi
+done < <(python3 "$HERE/_eval.py" families)
 probe_note "scoreboard $TASK_COUNT tasks · $SPEC_COUNT tool(s) declared by the server · model $PROBE_MODEL"
+probe_note "families $FAMILIES"
 probe_note "traces $OUT"
+RESULTS="$OUT/results.tsv"
+printf 'task\tkind\trc\telapsed_ms\tusage\n' > "$RESULTS"
 
 PASS=0
 RUN=0
@@ -101,8 +125,17 @@ for id in $(python3 "$HERE/_eval.py" ids); do
   answer="$(python3 "$HERE/_eval.py" answer "$OUT/response-$id.json")"
   usage="$(python3 "$HERE/_eval.py" usage "$OUT/response-$id.json")"
   verify="$(python3 "$HERE/_eval.py" field "$id" verify)"
+  kind="$(python3 "$HERE/_eval.py" field "$id" kind)"
+  # Some verifiers compare the answer against what the machine says (uname, wc, pwd). The
+  # expectation is a field of the task, so run.sh holds no per-id special case to drift, and
+  # an expectation that computes empty is reported as the harness bug it is.
   expect=""
-  [ "$id" = "run-command-report" ] && expect="$(uname -m)"
+  expect_cmd="$(python3 "$HERE/_eval.py" field "$id" expect_cmd)"
+  if [ -n "$expect_cmd" ]; then
+    expect="$(cd "$ws" && bash -c "$expect_cmd")"
+    [ -n "$expect" ] || probe_fail "$id declares expect_cmd but it produced no output — an empty" \
+      "expectation would make the answer match anything"
+  fi
 
   OCOREAI_EVAL_ANSWER="$answer" OCOREAI_EVAL_EXPECT="$expect" \
     bash -c "cd '$ws' && $verify" > "$OUT/verify-$id.log" 2>&1
@@ -112,6 +145,8 @@ for id in $(python3 "$HERE/_eval.py" ids); do
   printf 'workspace %s\nusage %s\nelapsed_ms %s\nverify_rc %s\n' "$ws" "$usage" "$PROBE_ELAPSED_MS" "$rc" \
     >> "$OUT/verify-$id.log"
 
+  printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$rc" "$PROBE_ELAPSED_MS" "$usage" >> "$RESULTS"
+
   if [ "$rc" -eq 0 ]; then
     PASS=$(( PASS + 1 ))
     probe_ok "$id — workspace says it was done (${usage}, ${PROBE_ELAPSED_MS}ms)"
@@ -120,5 +155,7 @@ for id in $(python3 "$HERE/_eval.py" ids); do
   fi
 done
 
+printf '# score %s/%s  model %s\n' "$PASS" "$RUN" "$PROBE_MODEL" >> "$RESULTS"
+probe_note "results $RESULTS"
 probe_note "TASK SUCCESS $PASS/$RUN (of $TASK_COUNT loaded; a refusal to run is not a pass)"
 probe_summary "$PROBE_NAME"

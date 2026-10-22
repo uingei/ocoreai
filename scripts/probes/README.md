@@ -141,8 +141,7 @@ Note: `$bridge/status` must state 30s startup / 300s tool; `tool_timeout_sec:-5`
 - `26-mcp-stderr-diagnosis.sh` — When an external MCP server fails, does this server say *why*?
 Note: A stdio stub that writes a traceback and exits 3 must produce a `-32603` naming **both** the exit status and `ModuleNotFoundError`, with exactly one `stderr:` clause (the client wraps the error twice — a doubled clause is a bug); a stub that complains then hangs must say `did not answer within 2s` **and** carry its `address already in use`, so the
     two failure modes stay distinguishable rather than collapsing into "it failed"; `$bridge/endpoint/list` must still hold that evidence in `lastError` (the row the GUI reads after the response scrolled past); and a healthy stub must still connect, with `/health` and a chat code word alive afterwards — capturing stderr costs a behaving server nothing.
-    Pre-fix, `proc.standardError = nil` sent the child's stderr to /dev/null, so every refusal named the symptom and destroyed the cause.
-Fails when: first the premise: the stub must record the existence request, or every later assertion is vacuous (`HF_ENDPOINT` ignored ⇒ unmeasured, not proven); then pass-through — with the hub answering 200 the answer may be a download failure (the stub holds no weights) but must not be the reachability refusal, and the box must still answer `/health`;
+   Fails when: first the premise: the stub must record the existence request, or every later assertion is vacuous (`HF_ENDPOINT` ignored ⇒ unmeasured, not proven); then pass-through — with the hub answering 200 the answer may be a download failure (the stub holds no weights) but must not be the reachability refusal, and the box must still answer `/health`;
     then the flip — kill the stub, send the *same* id, and it must come back HTTP 503 naming that id inside 15 s. Two verdicts from one id, decided by what the hub said, not by how long the caller waited. Measured 10-21: `7 passed, 0 failed, 3 measured` — the stub log shows `/api/models/<repo>` followed by `/revision/main?` and `/tree/main?recursive=true`
     (the request went through to the hub client), and the same id is refused in 0 s once the hub is gone.
 
@@ -150,7 +149,13 @@ Fails when: first the premise: the stub must record the existence request, or ev
 Fails when: the replaced fact appearing in the reply after an edited resend (the leak `canReusePooledSession` refuses to answer from, and now the leak the KV trim must not reintroduce — until this probe it was a rule believed, not observed); an appended warm turn that reuses nothing (no baseline ⇒ "this edit costs X" certifies nothing); the edited turn
     re-prefilling everything (`cached_tokens == 0` — the fork or the reserve silently stopped working and only latency would notice); `prompt_tokens < cached_tokens`, or the edited turn claiming more reuse than the appended turn got (a breakdown larger than its whole); and either half of the ledger lying — `historyDiverged > 0` books a rewound turn as
     refused-and-rebuilt, or `prefixReuse` disagreeing with the usage field the client saw. Measured 10-21 (gemma-4-e2b-it-4bit, one session, 4 turns): turn1 `708/0` · turn2 `732/710` · turn3 appended `758/734` · turn4 edited `758/718` and answers the NEW code word with the OLD one absent (`14 passed, 0 failed, 4 measured, 0 known-open`). Pre-fix the same turn
-    was `758/0`: the fork is refused-as-answer but no longer discarded, and the 1024-row rewind reserve is what lets the shared prefix survive a sliding window (`SessionRewindOnDivergenceTests` pins both)
+
+- `28-single-instance-refusal.sh` — When another instance holds the lock, does the refused `serve` actually leave?
+Fails when: instance B stays alive until someone signals it (a refusal the caller must kill is a hang wearing one),
+    exits 0 (a startup that never happened must not look clean to launchd), or its log omits the holder pid /
+    `OCOREAI_ALLOW_MULTI_INSTANCE`. Measured 10-22: B exits unsignalled after 1 s with code 1, holder still
+    /health 200 (`6 passed, 0 failed, 6 measured`); pre-fix it sat in `lifecycle: error` for 237 s with the
+    remedy already in its first line.
 
 - `_lib.sh` — shared harness
 Fails when: —

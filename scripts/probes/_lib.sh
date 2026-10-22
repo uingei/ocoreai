@@ -487,6 +487,17 @@ probe_boot() {
         port_collision=1
         break
       fi
+      # A server that has already announced it will never serve must not cost the readiness
+      # timeout. Measured 10-22: with the single-instance lock held, `serve` printed its
+      # refusal at t=0 and stayed alive in `lifecycle: error` (fixed in HeadlessServer), so
+      # the loop's only early exits — process death and port race — never fired and the
+      # remedy arrived 237 s late. Detect the terminal sentence and say it now.
+      if grep -qE "refusing to start a second engine|lifecycle: error|Circuit breaker open" \
+        "$PROBE_LOG" 2>/dev/null; then
+        probe_fail "server announced a terminal startup state after ${waited}s — last lines:"
+        tail -20 "$PROBE_LOG" | sed 's/^/        /'
+        probe_summary "${PROBE_NAME:-probe}"
+      fi
       local code
       code="$(curl -sS -m 3 -o /dev/null -w '%{http_code}' "$PROBE_BASE/health" 2>/dev/null || echo 000)"
       if [ "$code" = "200" ]; then

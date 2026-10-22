@@ -226,7 +226,6 @@ fork → branch → commit → push → open PR → review → merge (squash)
 ## Architecture Context
 
 Before architecture-sensitive changes, read:
-- `docs/CONTEXT.md` — domain vocabulary
 - `.github/REVIEW.md` — review process
 - `Sources/ocoreai/Scheduler/HardwareRouter.swift` — routing logic
 

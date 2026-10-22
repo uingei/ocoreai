@@ -4,6 +4,17 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-22
 
+**10-22(2) 记分板 9→24，第一次有噪声底：16/19/20 ⇒ 任何小于 6 个任务的「改进」都不许算**(P3 判定与回归防护 / P1 执行链 / P0 可靠性)
+
+- **裁判先自检**（`scripts/eval/_verifier_selftest.py`，24/24 zero defect）：每个任务的 `verify` 必须(a) 真做完→过、(b) 原样不动→不过、(c) 编造答案→不过。它当场抓出 **3 个 vacuous 验证器**——`case "$ANSWER" in *"$OCOREAI_EVAL_EXPECT"*)` 在 `EXPECT` 为空时等于 `*""*`，匹配任何回答。修法：验证器首行 `[ -n "${OCOREAI_EVAL_EXPECT:-}" ] || exit 1`，且 `run.sh` 在启服务之前先跑自测（一个不能失败的裁判不配打分）。顺带：期望值改由任务的 `expect_cmd` 字段给出，`run.sh` 不再为某个 id 开特例。
+- **任务集 9→24**（8 族，最小族 2：write/edit/code-fix/tests/read/exec/multi-step/honesty），`_eval.py families` + 族地板让「某一族整体消失」也会红；`results.tsv` 落盘（task/kind/rc/elapsed/usage）供聚合，`_repeat_stats.py` 输出 `noise.json`。
+- **噪声底（同配置 3 轮实测，gemma-4-e2b-it-4bit）**：`16 / 19 / 20`，mean **18.33/24 (76.4%)**，SD 2.08 ⇒ 单轮 95% CI **±4.1 个任务（±17 pp）**，单轮 A/B 要判改进至少 **≥6 个任务**；配对 McNemar（本轮 8 个 discordant 对）同样落在 6。**稳定通过 16 / 稳定失败 4 / 抖动 4**：`fix-off-by-one`、`fix-syntax-error`、`make-failing-test-pass`、`move-into-subdir`。⇒ 损失集中在**多步修复**，不在工具管线（write/read/exec/honesty 全稳）；下一步 P1 就打这四个。规矩：低于阈值的差异不写进 CHANGELOG，只记 trace。
+- **P0 可靠性：拒绝启动的 daemon 必须走人**（`Sources/ocoreai/Headless/HeadlessServer.swift`）——实测锁被占时 `serve` 打印 `refusing to start a second engine` + `lifecycle: error` 后继续活着等信号，调用方白等 **237 s**（`scripts/eval/run.sh` 就是这么烧掉的）。改成 `.error` 即非零退出：**1 s、code 1**，消息自带持有者 pid 与 `OCOREAI_ALLOW_MULTI_INSTANCE`。`_lib.sh` 另加终端态扫描（进程活着但已宣布不服务时，1 s 出诊断）。门：`scripts/probes/28-single-instance-refusal.sh`（实测 `6 passed, 0 failed, 6 measured`）+ 两处静态地板。
+- **GUI 变成门而不是段子**：`scripts/verify-gui-window.sh` 删掉永远只 warn 的 traffic-light 断言（AppKit 标题按钮子窗口无人值守不可枚举，owned 实测 0 条；像素带变体试过、只找到 3 个圆点里的 1 个，已弃）——换成**渲染地板**：截图不同颜色数 ≥64（实测 **846**，窗口 `900x472`，PNG 140 KB）。CI `release` job 新增 GUI proof + 窗口 PNG artifact，**不装模型**（1.5 GB 下载不许卡发布），模型依赖的那半留在 `scripts/e2e-gui-app.sh`。AGENTS.md 里「SwiftUI 路径 gated statically only」这句已过期，改为实测范围 + 细节落 `Sources/ocoreai/UI/AGENTS.md`（桥接是 opt-in、App Store 构建不服务、Accessibility 控件自动化未验证）。
+- **同一天两处「裁判的前提不能由被审对象提供」**：`apple.pin` 不再被本地 mirror 的 HEAD 改写（`f0978e4`），本轮又发现记分板的期望值能让验证器无条件通过——同一个形状，两次都要堵。
+- **竞品 LM Studio Bionic**（vendor docs 10-22，**未本机安装 ⇒ 全部标注为厂商自述、我们未实测**）：定位与我们几乎重合（"the AI agent designed for open models"、projects→sessions、skills、voice input、local/cloud-zero-retention/remote 三档放置、把低层配置留给另一个 app）。它宣传 **"Run multiple sessions across projects to parallelize your workflows"**，正打在我们的单实例锁上（今天实测：第二个引擎直接被拒）⇒ 并发是**调度/批处理**问题（每轮固定开销 + 单模型驻留），不是多开会话；此条记为待办，**不许**写成能力。
+- **门**：`make docs-check`（corpus 记账后 143,578/143,578、probe-index 28/28、root 30,107/30,138）、`make anchor-check`（43 锚点 + bare cites 173/173）、`make audit`、`make format-check`；`swift build --scratch-path .build-clt` 140 s 通过。
+
 **10-22 自进化第一块前置件：provenance 不许被环境偷偷改写**(P0 判定前提被污染 / P0 文档与代码一致)
 
 - **症状**：上一轮跑 `scripts/collect-third-party-licenses.sh` 后 `THIRD-PARTY-LICENSES/manifest.json` 的 `apple.pin` 从 `09e7125768` 变成 `675437b84e`，而分发物一个字节都没变。根因在脚本 `apple_pin = head`：本机 `~/references/coreai-models` mirror 往前走了，pin 就跟着走。违反 AGENTS.md「mirror ≠ HEAD」，也正是 invariant 1 点名的形状——门自己从环境里长出前提。

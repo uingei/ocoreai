@@ -360,6 +360,28 @@ jobs:
           export OCOREAI_VERSION="$(echo "${GITHUB_REF_NAME#v}")"
           bash scripts/build-dmg.sh
 
+      - name: GUI proof — the built .app must SHOW a rendered window
+        # Invariant 2 applied to the product surface: "it built" is not "the user sees a
+        # window". verify-gui-window.sh asserts a layer-0 window of believable size plus a
+        # distinct-colour floor on the captured frame (measured locally 10-22: 900x472,
+        # 140 KB, 846 distinct colours). No model here on purpose: the model-dependent half
+        # (a real completion through the bridge) is scripts/e2e-gui-app.sh, measured locally,
+        # and a ~1.5 GB download must never gate a release.
+        run: |
+          set -euo pipefail
+          OCOREAI_ENABLE_HTTP=1 open build/ocoreai.app
+          sleep 20
+          SHOT=1 PNG=/tmp/ocoreai-window.png bash scripts/verify-gui-window.sh
+          pkill -x ocoreai || true
+
+      - name: Upload the window screenshot
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        if: always()
+        with:
+          name: ocoreai-window-${{ github.ref_name }}
+          path: /tmp/ocoreai-window.png
+
       - name: Upload DMG to job artifact
         # NON-BLOCKING by evidence (2026-10-11): v0.1.12 attempts 1+2 BOTH
         # died exactly here — annotation: "Failed to CreateArtifact: Failed to

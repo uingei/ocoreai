@@ -88,7 +88,15 @@ cd "$(dirname "$0")/.."
 # docs/agent/competitor-iteration-paths.md) is paid by it several times over, which is what
 # "text goes in only when text comes out" is for. Earlier same-day raise (152041 -> 156559,
 # +5610 for that new doc, -711 stale comparator cells) is now net of: 142550 < 152041.
-: "${OCOREAI_CORPUS_MAX_BYTES:=142550}"
+# 10-22 (3) raise 142550 -> 143578: two capability statements the objective demands went in —
+# probe 28's index entry (a refused `serve` must leave: measured 237 s → 1 s with code 1) and
+# UI/AGENTS.md's measured GUI scope (900x472 layer-0 window, 846-colour frame, one real completion
+# locally; bridge opt-in, Accessibility automation unverified). Same round paid back: probe 26/27's
+# duplicated "Measured" tails (−476 B), the dangling `docs/CONTEXT.md` pointer (−41 B) and
+# third-party-notices' duplicated disclosure sentences (−245 B, recorded above). Net against the
+# 09-27 baseline of 152,041: still −8,463 B, so the ratchet is intact across the day even though
+# this constant moved up; a cap edit without this kind of accounting is what the rule forbids.
+: "${OCOREAI_CORPUS_MAX_BYTES:=143578}"
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.
 : "${OCOREAI_PROBE_FLOOR_INDEX:=20}"

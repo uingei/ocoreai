@@ -67,10 +67,9 @@ make docs-check                      # docs contract: sub-second, no build
 bash scripts/eval/run.sh               # task-success scoreboard: verifies the WORKSPACE, not the prose
 ```
 - Gate tiering: **sandbox** → app-target build + non-Metal suites (`HOME=<canonical writable path>`,
-  CLT `DEVELOPER_DIR`/`SDKROOT`, `--disable-sandbox` drops only SwiftPM's nested sandbox);
+  CLT `DEVELOPER_DIR`/`SDKROOT`, mechanism in `docs/agent/build-gate-reality.md`);
   **escalation** → `make test-clt` (full suite) + `make probes` (live `/v1/*`, `scripts/probes/`);
-  **CI only** → the `xcodebuild` legs (`test-ci`, plus the iOS build job). Mechanism, the exact recipe
-  and why `HOME` must move: `docs/agent/build-gate-reality.md`.
+  **CI only** → the `xcodebuild` legs (`test-ci`, plus the iOS build job). (the exact recipe and why `HOME` must move: same doc).
 - `make toolchain-check` evaluates both candidate routes (Xcode and CLT) instead of the ambient
   `DEVELOPER_DIR`, and settles Metal by *compiling a kernel*, never by `metal --version`.
 - CLT SDK ≠ CLT compiler: an unpinned `SDKROOT` breaks even the manifest. On the CLT route every
@@ -236,8 +235,8 @@ Not resolved here, not forgotten: each item names the instrument that would sett
 - **Screen capture cannot start a stream headlessly** (Multimodal/) — authorized, display attached, still
   "cannot start stream", while the camera on the same box delivers: an SCStream-in-no-GUI-session limit,
   not TCC. `screenStatus` is `ready` only after a delivered frame.
-- **`tools[]` enforcement and the GUI have gaps** — `required` strength is bounded by the checkpoint, and the
-  SwiftUI path (no HTTP hop) is gated statically only.
+- **`tools[]` enforcement has gaps** — `required` strength is bounded by the checkpoint. The GUI is no longer
+  static-only: one measured live end-to-end pass; scope and open halves in `Sources/ocoreai/UI/AGENTS.md`.
 - **Two owner questions have data now and no answer** — refresh-vs-refuse when instructions change, and
   cross-conversation prefix sharing. `ReuseRefusalLedger` publishes both; the ledger is opportunity, not a
   capability claim.
