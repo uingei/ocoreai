@@ -108,6 +108,13 @@ printf 'task\tkind\trc\telapsed_ms\tusage\n' > "$RESULTS"
 
 PASS=0
 RUN=0
+# A request that never reached the engine is not a model failure. Measured 10-22: one run
+# lost 13 consecutive tasks to `Generation failed: Engine busy` in 4 seconds (an abandoned
+# request held the inference lock for ~160 s), the run scored 7/23, and `repeat.sh` averaged
+# it in — McNemar then reported a *significant* p=0.0032 regression that was an outage.
+# A scoreboard that turns infrastructure faults into model scores is worse than no scoreboard.
+FAULTS=0
+: > "$OUT/faults.txt"
 for id in $(python3 "$HERE/_eval.py" ids); do
   ws="$EVAL_WS"
   # fresh slate per task, so one task's leftover file can never satisfy another's verifier
@@ -147,6 +154,15 @@ for id in $(python3 "$HERE/_eval.py" ids); do
 
   printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$rc" "$PROBE_ELAPSED_MS" "$usage" >> "$RESULTS"
 
+  # No delivered turn (`finish=None`) or an engine-level refusal means this task was never
+  # attempted. It stays in the file (the row count is the evidence), but it marks the run.
+  case "$usage$PROBE_BODY" in
+    *"finish=None"*|*"Engine busy"*|*"app_error"*)
+      FAULTS=$(( FAULTS + 1 ))
+      printf '%s %s\n' "$id" "$usage" >> "$OUT/faults.txt"
+      ;;
+  esac
+
   if [ "$rc" -eq 0 ]; then
     PASS=$(( PASS + 1 ))
     probe_ok "$id — workspace says it was done (${usage}, ${PROBE_ELAPSED_MS}ms)"
@@ -154,6 +170,16 @@ for id in $(python3 "$HERE/_eval.py" ids); do
     probe_fail "$id — workspace says it was NOT done (verify rc $rc; answer: $(printf '%.120s' "$answer"))"
   fi
 done
+
+if [ "$FAULTS" -gt 0 ]; then
+  printf '# invalid faults=%s/%s model %s\n' "$FAULTS" "$RUN" "$PROBE_MODEL" >> "$RESULTS"
+  probe_fail "$FAULTS of $RUN task(s) never reached the engine (see $OUT/faults.txt) — this run" \
+    "is NOT a score. Read faults.txt for the refusal; re-run once the cause is gone, and" \
+    "_repeat_stats.py will exclude an invalid run rather than average it into a trend."
+  probe_note "results $RESULTS"
+  probe_note "TASK SUCCESS NOT MEASURED ($FAULTS/$RUN tasks faulted; $PASS delivered passes)"
+  exit 1
+fi
 
 printf '# score %s/%s  model %s\n' "$PASS" "$RUN" "$PROBE_MODEL" >> "$RESULTS"
 probe_note "results $RESULTS"

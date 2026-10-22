@@ -15,6 +15,7 @@
 /// parallel — measured 10-22 this suite failed 3/3 standalone, two tests resolving against
 /// each other's temp dir. Same trait as `SessionWorkspaceWorktreeTests`.
 import Foundation
+import Logging
 import Testing
 
 @testable import ocoreai
@@ -106,9 +107,11 @@ struct EditMismatchRecoveryTests {
     func multiMatchRefusalNamesTheRemedy(n: Int) throws {
         let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
-        // Measured 10-22: `edit-replace-all` scored 0/3. The model asked for exactly what the
-        // tool can do (replace every FOO), got `found 3 — refusing partial edit`, and stopped:
-        // the refusal named the count but never said occurrences is the parameter that accepts it.
+        // Measured 10-22 (two rounds): `edit-replace-all` was 0/3 with a bare count in the
+        // refusal, and stayed 0/3 after naming `occurrences: 3` — the model read the count and
+        // answered the *user* ("please specify how many occurrences you intended") instead of
+        // retrying. So the refusal now names the conventional knob first and says out loud
+        // that resolving it is this call's job, not the user's.
         let body = "FOO bar\nbaz FOO\nFOO end\n"
         let url = try seeded("notes.md", body)
         do {
@@ -117,8 +120,15 @@ struct EditMismatchRecoveryTests {
         } catch let ToolError.invalidParameter(message) {
             #expect(message.contains("found 3"), "strict refusal keeps the count: \(message)")
             #expect(
+                message.contains("replace_all: true"),
+                "the conventional knob has to be named: \(message)")
+            #expect(
                 message.contains("occurrences: 3"),
-                "the refusal has to say what to pass next: \(message)")
+                "and the exact count, for a caller that prefers to be explicit: \(message)")
+            // the measured failure was escalating to the user; the refusal closes that door
+            #expect(
+                message.contains("do not ask the user"),
+                "the refusal must resolve itself, not bounce to the human: \(message)")
             #expect(message.contains("refusing partial edit"), "the refusal stays strict")
         }
         #expect(try String(contentsOf: url, encoding: .utf8) == body, "a refusal never writes")
@@ -127,5 +137,86 @@ struct EditMismatchRecoveryTests {
             path: "notes.md", oldString: "FOO", newString: "BAR", occurrences: n)
         #expect(result.contains("3 replacement(s)"), "result was \(result)")
         #expect(try String(contentsOf: url, encoding: .utf8) == "BAR bar\nbaz BAR\nBAR end\n")
+    }
+
+    /// `replace_all` states the intent without making the caller count: it cannot be wrong
+    /// about N, which is the failure the count-based knob kept hitting.
+    @Test("replace_all rewrites every occurrence without the caller naming a count")
+    func replaceAllNeedsNoCount() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
+        let url = try seeded("notes.md", "FOO bar\nbaz FOO\nFOO end\n")
+
+        let result = try FileTools.editFile(
+            path: "notes.md", oldString: "FOO", newString: "BAR", replaceAll: true)
+        #expect(result.contains("3 replacement(s)"), "result was \(result)")
+        #expect(try String(contentsOf: url, encoding: .utf8) == "BAR bar\nbaz BAR\nBAR end\n")
+
+        // replace_all on a miss is still a refusal, and still says what to do about it
+        do {
+            _ = try FileTools.editFile(
+                path: "notes.md", oldString: "nope", newString: "x", replaceAll: true)
+            Issue.record("replace_all must not invent a match")
+        } catch let ToolError.invalidParameter(message) {
+            #expect(
+                message.contains("read_file"),
+                "a miss still names the recovery: \(message)")
+        }
+    }
+
+    /// The wire name is what the model actually sends. Decoding here is the difference
+    /// between "the Swift API supports it" and "a tool call from a model reaches it"
+    /// (AGENTS.md: a knob the wire accepts must reach the engine).
+    @Test("a model's {replace_all: true} tool call decodes and dispatches")
+    func wireKnobReachesTheEngine() async throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
+        let url = try seeded("notes.md", "FOO bar\nbaz FOO\nFOO end\n")
+
+        let registry = ToolRegistry(log: Logger(label: "test.editall"))
+        await bootstrapBuiltInTools(registry: registry)
+        #expect(await registry.schema(for: "edit_file")?.parameters["replace_all"] != nil)
+
+        let out = try await registry.call(
+            "edit_file",
+            arguments:
+                #"{"path":"notes.md","oldString":"FOO","newString":"BAR","replace_all":true}"#,
+            caller: "test",
+            headless: true)
+        #expect(out.contains("3 replacement(s)"), "dispatch said: \(out)")
+        #expect(try String(contentsOf: url, encoding: .utf8) == "BAR bar\nbaz BAR\nBAR end\n")
+    }
+
+    /// A quoted window that gets clipped has to say so and say how big the file is — codex
+    /// `format_exec_output_for_model` publishes `Total output lines` whenever it shows less
+    /// than it has. A silent clip can drop the exact line the caller needed.
+    @Test("a clipped hint states the file's real size instead of trailing off")
+    func clippedHintStatesTotals() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
+        var lines: [String] = []
+        for i in 0 ..< 120 {
+            lines.append(
+                "let value_\(i) = \"some fairly long filler text to push past the hint limit\"")
+        }
+        lines[60] = "let target = compute(a, b)"
+        let url = try seeded("big.swift", lines.joined(separator: "\n"))
+
+        do {
+            _ = try FileTools.editFile(
+                path: "big.swift",
+                oldString: "let target = compute(a, c)",
+                newString: "let target = compute(a, b)")
+            Issue.record("a near-miss must not edit")
+        } catch let ToolError.invalidParameter(message) {
+            #expect(
+                message.contains("of 120 lines"),
+                "the hint must state the whole while showing a part: \(message)")
+            #expect(
+                message.contains("61|let target = compute(a, b)"),
+                "and it must reach the line the caller was aiming at: \(message)")
+            #expect(message.contains("read_file"), "and name how to see the rest: \(message)")
+        }
+        #expect(try String(contentsOf: url, encoding: .utf8) == lines.joined(separator: "\n"))
     }
 }

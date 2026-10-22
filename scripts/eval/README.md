@@ -50,6 +50,25 @@ tasks flip between identical runs — `fix-off-by-one`, `fix-syntax-error`, `mak
 plumbing. Reproduce with `bash scripts/eval/repeat.sh` (writes `results.tsv` per run and `noise.json` for the
 aggregate). **A difference below that threshold is not an improvement and does not go in `CHANGELOG.md`.**
 
+## A run that never reached the engine is not a score
+
+Measured 10-22: one run of `repeat.sh` lost **13 consecutive tasks in 4 seconds** to
+`{"error":{"message":"Generation failed: Engine busy","code":500}}` — `finish=None`, ~68 ms each, usage empty —
+because an abandoned request kept the inference lock for ~160 s. That run scored 7/23, the aggregator averaged it
+in, and McNemar reported a **p=0.0032 "significant regression"** that was an outage, not a model.
+
+The rule now enforced in code: a row whose usage carries `finish=None`, or whose response contains `Engine busy` /
+`app_error`, is a **fault**, not a failure. `run.sh` counts faults into `faults.txt`, writes
+`# invalid faults=N/<run>` into `results.tsv`, and exits 1 with `TASK SUCCESS NOT MEASURED`.
+`_repeat_stats.py` refuses to average an invalid run (retroactively, via `finish=None`, for data written before
+the marker existed) and prints the exclusion to stderr — quote it together with the number it changes.
+
+So the honest reading of the `edit_file` remedy A/B is: A=`16/19/20` → B=`20/20` after excluding one invalid run,
+mean **18.33 → 20.00 (+1.67)**, nominal McNemar b=4 c=14 p=0.031 — from 2 valid B runs, with |A|×|B| run pairs
+that are strongly correlated, and a single-run CI of ±3.6. That is **below the ≥6-task bar above**, so it is
+recorded as promising, not as an improvement. The task the change was written for did not move:
+`edit-replace-all 0/3 → 0/2`, with the model answering the *user* instead of retrying.
+
 ## Status — and what it is not
 
 This is a **scoreboard, not yet a CI gate**. A 4-bit local checkpoint has a hard ceiling

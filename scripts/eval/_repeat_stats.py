@@ -24,14 +24,20 @@ from itertools import combinations
 
 def load_runs(root):
     runs = []
+    skipped = []
     for name in sorted(os.listdir(root)):
         path = os.path.join(root, name, "results.tsv")
         if not os.path.isfile(path):
             continue
         rows = {}
         score = ""
+        invalid = ""
+        no_delivery = []
         with open(path, encoding="utf-8") as fh:
             for line in fh:
+                if line.startswith("# invalid"):
+                    invalid = line.strip().lstrip("#").strip()
+                    continue
                 if line.startswith("#"):
                     score = line.strip().lstrip("#").strip()  # per-run, reset above
                     continue
@@ -39,8 +45,38 @@ def load_runs(root):
                 if len(parts) < 5 or parts[0] == "task":
                     continue
                 rows[parts[0]] = (parts[1], parts[2], parts[3])
+                if "finish=None" in parts[4]:
+                    no_delivery.append(parts[0])
+        if not invalid and no_delivery:
+            # Runs written before run.sh learned to mark themselves: a row whose usage carries
+            # `finish=None` is a task the engine never ran, so the run's denominator is not the
+            # scoreboard's denominator and its score is not comparable with other runs.
+            if no_delivery:
+                invalid = (
+                    f"retroactive: {len(no_delivery)} task(s) delivered no turn (finish=None)"
+                    f" — e.g. {', '.join(sorted(no_delivery)[:3])}"
+                )
+        if invalid:
+            # An invalid run carries no model signal: averaging it in manufactured a p=0.0032
+            # "regression" out of an engine outage on 10-22. Exclude it, loudly.
+            skipped.append((name, invalid))
+            continue
         if rows:
             runs.append((name, rows, score))
+    if skipped:
+        print(
+            f"⚠️  {len(skipped)} run(s) in {root} EXCLUDED as invalid "
+            "(tasks never reached the engine):",
+            file=sys.stderr,
+        )
+        for name, why in skipped:
+            print(f"    {name}: {why}", file=sys.stderr)
+        if runs:
+            print(
+                f"    reporting on the {len(runs)} valid run(s) only — the exclusion is part of"
+                " the result, quote it with the number",
+                file=sys.stderr,
+            )
     return runs
 
 

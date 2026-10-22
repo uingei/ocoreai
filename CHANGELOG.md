@@ -4,7 +4,15 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-22
 
-## [Unreleased] — 2026-09-05 → 2026-10-22
+**10-22(4) 记分板自己造了一次「显著回归」：那是停机，不是模型**(P0 测量完整性 / P1 工具调用 / P1 可靠性)
+
+- **上一轮那句「配对战还没跑完」现在有答案，而且不好听**：`occurrences: 3` 提示**没救回目标任务**——`edit-replace-all` 有效轮仍是 **0/2**。模型的最终回答逐字是：*"I failed to replace all occurrences because the tool requires an exact match count. Please specify how many occurrences you intended to replace."* 它读到了计数，然后**去问用户**，而不是自己重试。工具把话说清楚 ≠ 模型会行动：这就是 生成内容 与 可靠行动 之间那道缝。
+- **记分板把停机当成了分数**（`scripts/eval/run.sh`、`scripts/eval/_repeat_stats.py`）：after2 的 run-3 里 **13 个连续任务在 4 秒内全部返回 `{"error":{"message":"Generation failed: Engine busy","code":500}}`**（`finish=None`、68 ms、usage 全空），该轮被打成 7/23，而 `repeat.sh` 照样把它平均进去，McNemar 于是报出 **p=0.0032 的「显著回归」**——一次引擎占用被写成模型能力下降。改法一句话：**没送达引擎的任务不是模型失败**。`run.sh` 统计 `finish=None`/`Engine busy`/`app_error` 行数，落 `faults.txt`，在 `results.tsv` 写 `# invalid faults=N`，整轮以 **NOT MEASURED** + exit 1 收；`_repeat_stats.py` 拒绝把 invalid 轮平均进趋势（剔除动作打印到 stderr，要求与数字一起引用），旧数据无标记则按 `finish=None` 追溯判定——对 `/tmp/eval-24-k3-after2` 实测剔除 run-3（13 题未送达），只剩 2 轮。
+- **剔除后的诚实数字**：A=`16/19/20` → B=`20/20`，mean **18.33 → 20.00（+1.67 题）**，名义 McNemar b=4 c=14 **p=0.031**；但 B 只剩 2 个有效轮、|A|×|B| 配对彼此强相关，单轮 CI 仍 **±3.6 题**，**低于本仓库自己的「≥6 个任务」判据 ⇒ 记为「有希望、未确认」**，不进能力表述。搬动的任务里没有那目标任务：`change-config-value 0/3→2/2`（同族编辑吃到措辞红利），`edit-replace-all 0/3→0/2`（没吃到）。
+- **于是换一根更朴素的杠杆**（`Sources/ocoreai/Tools/FileTools.swift`、`Sources/ocoreai/Tools/BuiltInTools.swift`）：`occurrences` 要模型自己数数，而数错/不敢数正是失败点；新增 **`replace_all: true`**——主流 agent 工具都用这个名字，模型见过，不需要现场算术。拒绝语同时给两条路并**关上问用户那扇门**：`to replace every occurrence retry this call yourself with replace_all: true (or occurrences: 3 to be exact); do not ask the user for the count`；工具描述同步写「拒绝语报了计数就自己重试」。`replace_all` 是本工具集**唯一**一处 snake_case 线上键（其余全 camelCase），为此显式写 `CodingKeys` 并在注释里记下破例理由。门：`EditMismatchRecoveryTests`（措辞 + `replaceAll` 行为 + **`{"replace_all": true}` 走 registry 全链路**）+ `FileToolsTests` 的 schema 断言。**效果未测**——下一轮 k=3 配对才算，判据写明：`edit-replace-all` 从 0/2 到 ≥2/3。
+- **顺带补齐 codex 的一条纪律**（`~/references/codex/codex-rs/core/src/tools/mod.rs:90-109`）：它截断输出时必同时公布 `Total output lines`——展示局部就要说出整体。我们 `exec_command` 早已如此（`Sources/ocoreai/Tools/ExecTools.swift:92` `[TRUNCATED N total; showing first X + last Y chars]`），但 `edit_file` 的最近行提示在 1200 字符处静默裁切，裁掉的可能正是模型要的那行。现在提示自带范围：`[lines 61-68 of 120 lines, clipped at 1200 chars — read_file for the rest]`，整文件引用时也报总行数。门：`EditMismatchRecoveryTests.clippedHintStatesTotals`。
+- **新开的 P1（只有证据，不假装已修）**：**被放弃的请求会让引擎占着不放**。run-3 时间线：13:27:36 发出 `fix-off-by-one`（基线 6–14 s 的题，本轮跑到超时被 harness 放弃）⇒ 13:30:36–13:30:40 十三连请求 4 秒内全部吃 `Engine busy` ⇒ 13:31:16 自行恢复。机制两条都落到了行：① `Sources/ocoreai/Engine/LoadedModel.swift:528 tryAcquireInference()` 是非阻塞 CAS，**抢不到立刻拒**，调度层没有排队；② 该拒绝在链路上被打成 **HTTP 500 `app_error`**（vllm/sglang 在容量饱和时用 429 + `Retry-After`），且客户端断开**不取消**在跑的那轮，废弃工作继续占锁 ~160 s。GUI 同样吃到：一次生成未完再发一条就是「Engine busy」。修法有界（限时等待 + 429/`Retry-After` + 断开即取消），但必须真机验证，留作下一条。
+- **修自己上一轮留下的账**：`CHANGELOG.md` 里 `[Unreleased]` 标题被 10-22(3) 的插入脚本重复了一次，已去重（同一个「插入时自带标题」的低级错误，两个标题会让任何按首行定位的工具读错）。
 
 **10-22(3) 门本身在撒谎：并行时测试互相污染，一个 force-unwrap 让整条 CI 静默；同一轮把「写成功≠写对」接上，但记分板测出 Δ0.00**(P3 回归防护失效 / P1 工具调用 / P3 判定诚实)
 

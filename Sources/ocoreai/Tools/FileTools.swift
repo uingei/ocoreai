@@ -213,12 +213,18 @@ enum FileTools {
     ///   - newString: Replacement text (may be empty to delete).
     ///   - occurrences: Expected count of `oldString` in the file (default 1).
     ///     Any other count throws before writing — no partial edits.
+    ///   - replaceAll: Replace every occurrence, whatever the count. Measured 10-22 the
+    ///     scoreboard's `edit-replace-all` stayed 0/3 with `occurrences` alone: the model read
+    ///     "pass occurrences: 3" and answered the *user* ("please specify how many") instead of
+    ///     retrying. `replace_all` is the name every mainstream agent tool uses, so it is the
+    ///     knob a model has seen before; `occurrences` stays for callers already on it.
     /// - Returns: Verification summary (match count, bytes before/after).
     static func editFile(
         path: String,
         oldString: String,
         newString: String,
-        occurrences: Int? = 1
+        occurrences: Int? = 1,
+        replaceAll: Bool? = nil
     ) throws -> String {
         let url = resolve(path)
         guard let original = try? String(contentsOf: url, encoding: .utf8) else {
@@ -231,8 +237,23 @@ enum FileTools {
         guard oldString != newString else {
             throw ToolError.invalidParameter("edit_file: oldString == newString (no-op)")
         }
-        let expected = max(1, occurrences ?? 1)
         let count = original.components(separatedBy: oldString).count - 1
+        // `replace_all` states intent without demanding the count, so the caller cannot be
+        // wrong about N; an explicit `occurrences` still has to match, which is the guard
+        // against a partial edit (oldString appearing 5 times when the caller saw 1).
+        // Zero matches stay a refusal under `replace_all` too: expected = 0 would let the
+        // guard pass and return an OK for a file nobody touched (measured 10-22, caught by
+        // `replaceAllNeedsNoCount`) — invariant 2, the surface may not claim more than the
+        // engine did.
+        let expected = replaceAll == true ? max(1, count) : max(1, occurrences ?? 1)
+        let head: String
+        if replaceAll == true {
+            head = "edit_file: replace_all found \(count) occurrence(s) of oldString in \(path)"
+        } else {
+            head =
+                "edit_file: expected exactly \(expected) occurrence(s) of oldString in \(path),"
+                + " found \(count)"
+        }
         guard count == expected else {
             // The refusal stays strict (a whitespace-tolerant apply would be a location guess),
             // but strictness without a next step is a dead end: measured 10-22 the scoreboard's
@@ -243,12 +264,13 @@ enum FileTools {
             if count == 0 {
                 remedy = ": oldString is not in this file — read_file it and copy the exact text"
             } else {
-                remedy = " — to replace all \(count), pass occurrences: \(count)"
+                remedy =
+                    " — to replace every occurrence retry this call yourself with replace_all: true"
+                    + " (or occurrences: \(count) to be exact); do not ask the user for the count"
             }
             let hint = count == 0 ? nearestLinesHint(text: original, oldString: oldString) : ""
             throw ToolError.invalidParameter(
-                "edit_file: expected exactly \(expected) occurrence(s) of oldString in \(path), "
-                    + "found \(count)\(remedy), refusing partial edit\(hint)")
+                "\(head)\(remedy), refusing partial edit\(hint)")
         }
         let updated = original.replacingOccurrences(of: oldString, with: newString)
         let bytes = updated.data(using: .utf8) ?? Data()
@@ -419,12 +441,28 @@ enum FileTools {
         // was line 3 (`for i in range(1, n):`), which is a hint that misleads.
         let whole = numbered(0 ..< lines.count)
         if whole.count <= limit {
-            return " — the file says (quote exactly, indentation included):\n\(whole)"
+            return
+                " — the file says (all \(lines.count) lines, quote exactly, indentation included):\n\(whole)"
         }
         let end = min(bestIndex + maxLines, lines.count)
         let window = numbered(bestIndex ..< end)
-        let clipped = window.count > limit ? String(window.prefix(limit)) + "…" : window
-        return " — nearest actual lines (quote exactly, indentation included):\n\(clipped)"
+        // Showing part of a file while naming only the part is how a hint misleads: the line
+        // the caller needs may be the one that got clipped. Codex does the same for exec
+        // output — `Total output lines` appears exactly when fewer lines are shown than exist
+        // (codex-rs/core/src/tools/mod.rs:90-109).
+        let shown: String
+        let clipNote: String
+        if window.count > limit {
+            shown = String(window.prefix(limit))
+            clipNote = ", clipped at \(limit) chars"
+        } else {
+            shown = window
+            clipNote = ""
+        }
+        return
+            " — nearest actual lines (quote exactly, indentation included):\n\(shown)"
+            + "\n[lines \(bestIndex + 1)-\(end) of \(lines.count) lines\(clipNote)"
+            + " — read_file for the rest]"
     }
 
     /// Resolve a tool-supplied path: `~` expanded; absolute stays; relative

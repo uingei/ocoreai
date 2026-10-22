@@ -234,6 +234,20 @@ func bootstrapBuiltInTools(
         let oldString: String
         let newString: String
         let occurrences: Int?
+        let replaceAll: Bool?
+
+        // The one deliberate snake_case wire name in this toolset: `replace_all` is what
+        // every mainstream agent tool calls this knob, so it is the spelling a model has
+        // already seen (measured 10-22: with `occurrences` alone the model read the count and
+        // asked the user instead of retrying). AGENTS.md: a knob the wire accepts must reach
+        // the engine — `EditMismatchRecoveryTests.wireKnobReachesTheEngine` decodes this exact JSON
+        enum CodingKeys: String, CodingKey {
+            case path
+            case oldString
+            case newString
+            case occurrences
+            case replaceAll = "replace_all"
+        }
     }
 
     try? await registry.register(
@@ -242,8 +256,10 @@ func bootstrapBuiltInTools(
             toolset: "files",
             argsType: EditFileArgs.self,
             description:
-                "Search-and-replace in one file, verified by read-back. The match count must be "
-                + "exact: pass occurrences = N to replace every occurrence of oldString.",
+                "Search-and-replace in one file, verified by read-back. By default oldString must "
+                + "occur exactly once. To replace every occurrence, pass replace_all: true. If a "
+                + "refusal reports how many occurrences it found, retry this call yourself with "
+                + "replace_all: true (or the count it names) — do not ask the user for it.",
             schema: ToolSchema(
                 parameters: [
                     "path": ToolParameter(type: .string, description: "File path to edit"),
@@ -254,8 +270,12 @@ func bootstrapBuiltInTools(
                         type: .string, description: "Replacement text (empty = delete)"),
                     "occurrences": ToolParameter(
                         type: .integer,
-                        description: "Expected match count (default 1; set it to N to replace all"
-                            + " N occurrences, e.g. occurrences: 3)"),
+                        description: "Expected match count (default 1); a different count found is"
+                            + " refused before writing"),
+                    "replace_all": ToolParameter(
+                        type: .boolean,
+                        description: "Replace every occurrence of oldString, whatever the count"
+                            + " (use this for \"replace all/every occurrence\" requests)"),
                 ], required: ["path", "oldString", "newString"]),
             isDestructive: true
         ) { args in
@@ -263,7 +283,8 @@ func bootstrapBuiltInTools(
                 path: args.path,
                 oldString: args.oldString,
                 newString: args.newString,
-                occurrences: args.occurrences
+                occurrences: args.occurrences,
+                replaceAll: args.replaceAll
             )
         }
     )

@@ -239,6 +239,9 @@ struct FileToolsRegistryTests {
         let editSchema = await registry.schema(for: "edit_file")
         #expect(editSchema?.parameters["oldString"] != nil)
         #expect(editSchema?.parameters["occurrences"] != nil)
+        // The model reaches "replace every occurrence" through this name, so it has to be
+        // published under the name the refusal tells the model to pass.
+        #expect(editSchema?.parameters["replace_all"] != nil)
         let searchSchema = await registry.schema(for: "search_files")
         #expect(searchSchema?.parameters["pattern"] != nil)
         #expect(searchSchema?.parameters["target"] != nil)
