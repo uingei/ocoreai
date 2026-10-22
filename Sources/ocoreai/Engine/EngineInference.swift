@@ -4724,6 +4724,23 @@ extension EnginePool {
                             logger.info(
                                 "StdTurn: \(convKey) fed=\(newMessages.count) of \(mlxMessages.count) divergence=\(divergenceIndex) tokens=\(actualTokenCount ?? metrics.generatedTokenCount) reason=\(String(describing: lastStopReason)) upstreamPrompt=\(String(describing: localPromptTokenCount)) upstreamCached=\(String(describing: localCachedPromptTokenCount)) firstTokenMs=\(metrics.firstTokenMs) overallMs=\(metrics.overallMs)"
                             )
+                            if DegenerateTurn.isSuspected(
+                                tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
+                                stopReason: lastStopReason,
+                                requestedMaxTokens: genParams.maxTokens
+                            ) {
+                                // Invariant 2: a turn that delivered at most one token under a budget that
+                                // asked for more is not an answer, and it must not leave the process as a
+                                // plain success. Measured 10-22: 8 of 16 identical turns collapsed to
+                                // 1 token + .eos with firstTokenMs 137-257 against 4927-8020 for the
+                                // healthy ones, while upstream still reported promptTokens=713 — the turn
+                                // never forwarded its prompt and still said `stop`. The numbers ride in the
+                                // line so a reader can make the prefill call; the engine does not claim a
+                                // root cause it has not measured (see Engine/DegenerateTurn.swift).
+                                logger.error(
+                                    "Degenerate generation for \(convKey) — tokens=\(actualTokenCount ?? metrics.generatedTokenCount) reason=eos under max_tokens=\(genParams.maxTokens ?? -1), firstTokenMs=\(metrics.firstTokenMs) promptTokens=\(localPromptTokenCount ?? -1): this turn completed as a success without the prefill its own accounting claims — not an answer"
+                                )
+                            }
                             // Capture assistant text for pool message history tracking
                             if !localStdAccumulated.isEmpty {
                                 stdAccumulated = localStdAccumulated

@@ -162,7 +162,7 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   `splitInstructionMessages` hoists `system`/`developer` into that channel pre-assembly, and
   `canReusePooledSession` requires `instructionsMatch` (a pooled session renders the instructions it was
   *created* with). Long form: `docs/agent/instruction-channel.md`. Gates:
-  `SystemInstructionDeliveryTests`(9) + `SessionIsolationTests`(24) + probe 15.
+  `SystemInstructionDeliveryTests`(9) + `SessionIsolationTests`(25) + probe 15.
 - `tools[]`'s truth set is the declaration; grammar follows the *request* (`tool_choice`, JSON
   `response_format`) and never "were tools declared" — decided once in `shouldConstrainOutput` and honoured
   identically by every `InferenceOptions` assembly. Publishing is measured (`ToolCallDeliveryLedger`, zeroed

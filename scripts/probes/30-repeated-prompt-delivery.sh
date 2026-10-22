@@ -13,6 +13,25 @@
 #   • sequential identical pair, zero overlap: reproduced once (16:08: 150 then 1), and a second
 #     run of the same shape delivered 150 and 150
 #   • the same prompt a third and fourth time: 150 and 150 (16:09)
+#
+# ### Corrected the same day: conversation identity is NOT the trigger (18:05, 16 turns)
+# Everything above reads as "it happens when the conversation key collides". It does not.
+# Sequential identical prompt bytes:
+#   • 8 turns sharing one anonymous key: 4 collapsed (1 token/stop; firstTokenMs 137…257)
+#   • the next 8 turns, same bytes, a FRESH `session_id` on every request: 4 collapsed
+#     (firstTokenMs 148…257), and those turns never logged a reuse refusal at all — there was
+#     no pooled entry to refuse, so even the "not reusable" line is not a precondition
+# An earlier 6-turn fresh-key run came back 6/6; that was a small-sample read, not a control,
+# and it is retracted here rather than left to contradict the numbers above.
+# What does hold, and is the useful discriminator, is that the split is bimodal in TIME:
+#   • healthy   — firstTokenMs 4927…8020 (a real 713-token prefill), tokens=200, .maxTokens
+#   • collapsed — firstTokenMs 137…257, tokens=1, .eos, while GenerateCompletionInfo still
+#     reported promptTokenCount=713 — the turn never forwarded its prompt to the model and
+#     still completed as a success carrying one token
+# Host memory is not it either: collapses appear at both 117 GB and 122 GB in use. The root
+# cause is open, and the instrument it needs (an upstream "prefill actually happened" signal)
+# is recorded in CHANGELOG 10-22(8). What this probe requires regardless of cause is stated
+# in the last leg: **a collapsed turn must never be silent**.
 # The collapsed turn logs `Session pool entry … not reusable: cached history 2 exceeds common
 # prefix 1 — building a clean session` and finishes inside the same second it was dispatched,
 # so it never prefilled 708 tokens: the turn ended before it started, and said `stop`.
@@ -93,8 +112,8 @@ if [ "${TOK_S2:-0}" -gt 8 ] 2>/dev/null; then
   probe_ok "the repeated prompt delivered again ($TOK_S2 tokens) — no overlap needed to break, none needed to work"
 else
   probe_xfail open "the same prompt asked twice in a row returned $TOK_S2 tokens/$FIN_S2" \
-    " after $TOK_S1/$FIN_S1 — one-token success, no overlap involved (open: session-pool" \
-    " clean-session turn, see CHANGELOG 10-22)"
+    " after $TOK_S1/$FIN_S1 — one-token success, no overlap involved (open: the collapsed"
+    " turn never prefilled, see CHANGELOG 10-22(8))"
 fi
 
 # ── legs 1+2: identical prompts, both must deliver ────────────────────────────────────────
@@ -143,7 +162,8 @@ if [ "$collapses" -eq 0 ]; then
   fi
 else
   probe_xfail open "$collapses of 2 identical concurrent turns returned a truncated answer" \
-    " while reporting success (open: the colliding turn's session identity — see CHANGELOG 10-22)"
+    " while reporting success (open: the collapsed turn never prefilled; conversation identity" \
+    " ruled out 10-22 — see CHANGELOG 10-22(8))"
 fi
 
 # ── leg 3: control pair, distinct prompts ─────────────────────────────────────────────────
@@ -162,6 +182,26 @@ if [ "${TOK_C:-0}" -gt 8 ] 2>/dev/null && [ "${TOK_D:-0}" -gt 8 ] 2>/dev/null; t
     " truncation is prompt-specific, not host saturation"
 else
   probe_note "control pair incomplete ($TOK_C, $TOK_D tokens) — host load, not the collision"
+fi
+
+
+# ── leg 4: a collapsed turn must never be silent ──────────────────────────────────────────
+# Root cause aside (legs 0-2 stay xfail until it is closed), invariant 2 still binds: a turn
+# that delivered one token under a budget that asked for more may not leave the process as a
+# plain success. Read straight off the engine log so it covers every leg above: every
+# `StdTurn` line that ended at one token with .eos must be matched by a `Degenerate
+# generation` line (`Sources/ocoreai/Engine/DegenerateTurn.swift`). Goes red the moment the
+# guard is dropped, and stays green whether or not the collapse reproduces this run.
+EOS1=$(grep -c "StdTurn:.*tokens=1 reason=Optional(ocoreai.StopReason.eos)" "$PROBE_LOG" 2>/dev/null)
+MARKERS=$(grep -c "Degenerate generation" "$PROBE_LOG" 2>/dev/null)
+if [ "${EOS1:-0}" -eq 0 ] 2>/dev/null; then
+  probe_note "no one-token .eos turn this run — nothing needed flagging"
+elif [ "${MARKERS:-0}" -ge "${EOS1:-0}" ] 2>/dev/null; then
+  probe_ok "every collapsed turn said so: $MARKERS Degenerate-generation line(s) for $EOS1" \
+    " one-token .eos turn(s) — a truncated answer is never a silent success"
+else
+  probe_fail "$EOS1 turn(s) returned 1 token + .eos but only $MARKERS said so — the rest left" \
+    " the process as a plain success, which is the lie this probe exists to catch"
 fi
 
 probe_summary "$PROBE_NAME"

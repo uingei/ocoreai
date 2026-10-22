@@ -88,7 +88,7 @@ The server-wide row (`/v1/capabilities` → `video_input`) is the *same* measure
 `VideoDeliveryAggregate.evidenceLine`, so no publisher re-words it (a router that assembles its own
 evidence sentence is a second truth). Both are measured-only: `not_observed` is a fact about this
 process, never a claim about the checkpoint. Gate: `CapabilityMeasurementHonestyTests`.
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3329 items: videoInputCount, promptTokens -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3343 items: videoInputCount, promptTokens -->
 
 ## Known defect, deliberately unfixed — do not "fix" it blind
 `_applyBitmask` (`EngineInference.swift:1386`) multiplies by `-Float.leastNormalMagnitude`
@@ -105,14 +105,14 @@ AGENTS.md moved off their targets with no gate going red; these markers are the 
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:149 Task.sleep(until: deadline -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1386 Float.leastNormalMagnitude -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3022 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3728 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4334 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3829 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4349 components: genComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3852 components: mtpGenComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3742 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4348 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3843 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4363 components: genComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3866 components: mtpGenComponents -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:845 case "affine" -->
-<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1405 static func rewindHistoryEnd -->
-<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:655 Self.rewindHistoryEnd( -->
+<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1444 static func rewindHistoryEnd -->
+<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:668 Self.rewindHistoryEnd( -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3192 rewind.source.session.fork( -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:869 let kvCacheRewindReserveTokens = 1024 -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:14 public struct Message { -->
