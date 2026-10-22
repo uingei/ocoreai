@@ -96,11 +96,13 @@ struct SessionIsolationTests {
     func continuationReuses() {
         #expect(
             MLXSessionPool.canReusePooledSession(
-                cachedMessageCount: 2, commonPrefixCount: 2, instructionsMatch: true)
+                cachedMessageCount: 2, commonPrefixCount: 2, instructionsMatch: true,
+                incomingMessageCount: 3, newestIncomingFromAssistant: false)
                 == true)
         #expect(
             MLXSessionPool.canReusePooledSession(
-                cachedMessageCount: 4, commonPrefixCount: 5, instructionsMatch: true)
+                cachedMessageCount: 4, commonPrefixCount: 5, instructionsMatch: true,
+                incomingMessageCount: 6, newestIncomingFromAssistant: false)
                 == true)
     }
 
@@ -109,21 +111,54 @@ struct SessionIsolationTests {
         // 10-12 live case: cached [u1, a1], incoming [u2] → common prefix 0 < 2
         #expect(
             MLXSessionPool.canReusePooledSession(
-                cachedMessageCount: 2, commonPrefixCount: 0, instructionsMatch: true)
+                cachedMessageCount: 2, commonPrefixCount: 0, instructionsMatch: true,
+                incomingMessageCount: 1, newestIncomingFromAssistant: false)
                 == false)
         // Edited resend: cached [u1, a1, u2, a2], incoming [u1, a1, u2'] → 2 < 4
         #expect(
             MLXSessionPool.canReusePooledSession(
-                cachedMessageCount: 4, commonPrefixCount: 2, instructionsMatch: true)
+                cachedMessageCount: 4, commonPrefixCount: 2, instructionsMatch: true,
+                incomingMessageCount: 3, newestIncomingFromAssistant: false)
                 == false)
     }
 
     @Test("empty cached history is always safe to serve")
     func emptyHistoryReusable() {
+        // Nothing is skipped, so nothing can be stale — the feed still brings its own turn.
         #expect(
             MLXSessionPool.canReusePooledSession(
-                cachedMessageCount: 0, commonPrefixCount: 0, instructionsMatch: true)
+                cachedMessageCount: 0, commonPrefixCount: 0, instructionsMatch: true,
+                incomingMessageCount: 1, newestIncomingFromAssistant: false)
                 == true)
+    }
+
+    /// Measured 10-22 (probe 30): a verbatim repeat of a prompt left a ledger covering the
+    /// whole feed, the turn was fed nothing, and the model answered end-of-turn at once —
+    /// `200 + completion_tokens=1 + finish_reason=stop` for a request that asked for 150
+    /// lines. A cache may be a *strict* prefix of the feed and nothing less.
+    @Test("verbatim repeat: cache covers the whole feed ⇒ refuse, never feed nothing")
+    func wholeFeedCoverageRefused() {
+        #expect(
+            MLXSessionPool.canReusePooledSession(
+                cachedMessageCount: 1, commonPrefixCount: 1, instructionsMatch: true,
+                incomingMessageCount: 1, newestIncomingFromAssistant: false)
+                == false)
+        #expect(
+            MLXSessionPool.canReusePooledSession(
+                cachedMessageCount: 2, commonPrefixCount: 2, instructionsMatch: true,
+                incomingMessageCount: 2, newestIncomingFromAssistant: false)
+                == false)
+        // The other side: "continue what the assistant started" is exactly what a cache
+        // holding that transcript answers, so a trailing-assistant feed keeps its warm session.
+        #expect(
+            MLXSessionPool.canReusePooledSession(
+                cachedMessageCount: 2, commonPrefixCount: 2, instructionsMatch: true,
+                incomingMessageCount: 2, newestIncomingFromAssistant: true)
+                == true)
+        // and the disk path names the same premise on the same shape
+        #expect(
+            SnapshotRefusal.cacheCoversWholeFeed(cached: 2).logText
+                == "cached 2 covers the whole feed — nothing new to feed")
     }
 
     @Test("different instructions ⇒ refuse, even with an empty transcript")
@@ -134,12 +169,14 @@ struct SessionIsolationTests {
         // turn's system prompt.
         #expect(
             MLXSessionPool.canReusePooledSession(
-                cachedMessageCount: 0, commonPrefixCount: 0, instructionsMatch: false)
+                cachedMessageCount: 0, commonPrefixCount: 0, instructionsMatch: false,
+                incomingMessageCount: 1, newestIncomingFromAssistant: false)
                 == false)
         // A perfect continuation is still a different conversation's instruction list.
         #expect(
             MLXSessionPool.canReusePooledSession(
-                cachedMessageCount: 4, commonPrefixCount: 5, instructionsMatch: false)
+                cachedMessageCount: 4, commonPrefixCount: 5, instructionsMatch: false,
+                incomingMessageCount: 6, newestIncomingFromAssistant: false)
                 == false)
         // And the snapshot path reports which premise it failed.
         let manifest = KVCacheManifest(

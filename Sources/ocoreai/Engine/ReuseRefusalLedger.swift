@@ -58,6 +58,18 @@ enum ReuseRefusalReason: String, Codable, Equatable, Sendable, CaseIterable {
     /// differently than cold (upstream `ChatSession.swift:707-715`), so the pixels are not
     /// reconcilable from the manifest.
     case mediaTurn
+    /// The ledger claims the cache already covers this turn's *entire* feed, and the feed's
+    /// newest message is one that still needs an answer (a user/tool turn). A cache is only
+    /// ever written after a completed answer, so a cache holding that message has already
+    /// answered it — the answer is in the cache's past, not ahead of the prefix. Handing it
+    /// back would feed the session nothing, and a session fed nothing emits end-of-turn
+    /// immediately (measured 10-22: the same prompt asked twice answered `200 + 1 token +
+    /// finish_reason=stop`, and once both halves of a concurrent identical pair did it).
+    ///
+    /// A feed whose newest message is from the assistant is a different request — "continue
+    /// this draft" — and a cache holding exactly that transcript is the right answer to it,
+    /// so that shape stays reusable (`SessionIsolationTests` pins both sides).
+    case cacheCoversWholeFeed
     /// The cache was built for another model — its KV encodes other embeddings.
     case modelMismatch
     /// No sidecar, unreadable, or written by a build whose hashes came from the per-process
@@ -74,10 +86,15 @@ enum ReuseRefusalReason: String, Codable, Equatable, Sendable, CaseIterable {
     static func decide(
         instructionsMatch: Bool,
         cachedMessageCount: Int,
-        commonPrefixCount: Int
+        commonPrefixCount: Int,
+        incomingMessageCount: Int,
+        newestIncomingFromAssistant: Bool
     ) -> ReuseRefusalReason? {
         if !instructionsMatch { return .instructionsChanged }
         if commonPrefixCount < cachedMessageCount { return .historyDiverged }
+        if commonPrefixCount >= incomingMessageCount && !newestIncomingFromAssistant {
+            return .cacheCoversWholeFeed
+        }
         return nil
     }
 }
@@ -92,6 +109,7 @@ extension SnapshotRefusal {
         case .mediaTurn: return .mediaTurn
         case .instructionsChanged: return .instructionsChanged
         case .notAPrefix: return .historyDiverged
+        case .cacheCoversWholeFeed: return .cacheCoversWholeFeed
         case .rewindReserveChanged: return .rewindReserveChanged
         }
     }

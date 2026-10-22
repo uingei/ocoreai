@@ -3223,12 +3223,26 @@ extension EnginePool {
                             "Rewound session for \(convKey) — this turn overrides the knobs it was forked with: \(overriddenFields.joined(separator: ","))"
                         )
                     }
-                } else if divergenceIndex > 0 {
-                    log.debug(
-                        "Pool reuse for \(convKey) — divergence at \(divergenceIndex)/\(mlxMessages.count),"
+                } else if divergenceIndex >= mlxMessages.count, mlxMessages.last?.role != .assistant
+                {
+                    // A turn that still has something to answer is never allowed to feed its
+                    // session nothing: an empty feed makes the model emit end-of-turn at once,
+                    // and the request goes out as a success carrying one token (measured 10-22 —
+                    // the same prompt asked twice). The pool refuses this shape at the source
+                    // (`canReusePooledSession`'s coverage premise); this is the backstop for
+                    // every other producer of a divergence index, and it says so in the log
+                    // rather than absorbing it silently. A feed ending with the assistant's own
+                    // message is a continuation request, where feeding nothing is the point.
+                    log.error(
+                        "Feed would be empty for \(convKey) — divergence \(divergenceIndex) covers all \(mlxMessages.count) message(s); re-prefilling the whole transcript instead"
                     )
-                    log.debug(
-                        "Passing \(mlxMessages.count - divergenceIndex) message(s) — skipping cached prefix"
+                    newMessages = mlxMessages
+                } else if divergenceIndex > 0 {
+                    // info, not debug: "the feed was deduped" is the premise a truncated answer
+                    // would rest on, and an explanation nobody can read at the moment it
+                    // matters is not an explanation (same reasoning as the reuse-refusal line).
+                    log.info(
+                        "Pool reuse for \(convKey) — divergence at \(divergenceIndex)/\(mlxMessages.count), passing \(mlxMessages.count - divergenceIndex) message(s) — skipping cached prefix"
                     )
                     // Cached prefix covers messages[..<divergenceIndex]; only feed the suffix.
                     newMessages = Array(mlxMessages[divergenceIndex...])
@@ -4707,6 +4721,9 @@ extension EnginePool {
                                             acceptedDraftTokens: localStdAcceptedDraftTokens,
                                             passthroughReason: localStdPassthroughReason)))
                             }
+                            logger.info(
+                                "StdTurn: \(convKey) fed=\(newMessages.count) of \(mlxMessages.count) divergence=\(divergenceIndex) tokens=\(actualTokenCount ?? metrics.generatedTokenCount) reason=\(String(describing: lastStopReason)) upstreamPrompt=\(String(describing: localPromptTokenCount)) upstreamCached=\(String(describing: localCachedPromptTokenCount)) firstTokenMs=\(metrics.firstTokenMs) overallMs=\(metrics.overallMs)"
+                            )
                             // Capture assistant text for pool message history tracking
                             if !localStdAccumulated.isEmpty {
                                 stdAccumulated = localStdAccumulated

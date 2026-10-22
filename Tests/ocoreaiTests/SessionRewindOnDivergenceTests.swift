@@ -59,7 +59,9 @@ struct SessionRewindOnDivergenceTests {
                                 let reusable = MLXSessionPool.canReusePooledSession(
                                     cachedMessageCount: cached,
                                     commonPrefixCount: common,
-                                    instructionsMatch: instructionsMatch)
+                                    instructionsMatch: instructionsMatch,
+                                    incomingMessageCount: incoming ?? .max,
+                                    newestIncomingFromAssistant: false)
                                 #expect(
                                     rewind == nil || !reusable,
                                     "cached=\(cached) common=\(common) incoming=\(String(describing: incoming)): rewind=\(String(describing: rewind)) while canReuse=\(reusable)"

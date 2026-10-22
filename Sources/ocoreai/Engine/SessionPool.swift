@@ -265,7 +265,7 @@ struct KVCacheManifest: Codable, Sendable {
             return .rewindReserveChanged(
                 snapshot: rewindReserve, requested: requestedRewindReserve)
         }
-        // Recorded here, decided once — by ``MLXSessionPool/canReusePooledSession(cachedMessageCount:commonPrefixCount:instructionsMatch:)``
+        // Recorded here, decided once — by ``MLXSessionPool/canReusePooledSession(cachedMessageCount:commonPrefixCount:instructionsMatch:incomingMessageCount:newestIncomingFromAssistant:)``
         // below, the same gate the in-memory pool consults. Two copies of the rule is how
         // one of them drifts.
         let instructionsMatch = instructionsHash == requestedInstructionsHash
@@ -285,13 +285,16 @@ struct KVCacheManifest: Codable, Sendable {
             MLXSessionPool.canReusePooledSession(
                 cachedMessageCount: messages.count,
                 commonPrefixCount: common,
-                instructionsMatch: instructionsMatch
+                instructionsMatch: instructionsMatch,
+                incomingMessageCount: incomingMessages.count,
+                newestIncomingFromAssistant: incomingMessages.last?.role == "assistant"
             )
         else {
             // The gate decides; this reports which of its premises the snapshot failed.
-            return instructionsMatch
+            if !instructionsMatch { return .instructionsChanged }
+            return common < messages.count
                 ? .notAPrefix(cached: messages.count, commonPrefix: common)
-                : .instructionsChanged
+                : .cacheCoversWholeFeed(cached: messages.count)
         }
         return nil
     }
@@ -315,6 +318,10 @@ enum SnapshotRefusal: Equatable, Sendable {
     /// The cache holds turns the caller never sent - a fork (edit & resend), a
     /// compacted history, or an identity collision.
     case notAPrefix(cached: Int, commonPrefix: Int)
+    /// The manifest covers the caller's whole feed including its newest message — a cache is
+    /// only written after an answer, so it has already answered that message. See
+    /// ``ReuseRefusalReason/cacheCoversWholeFeed``.
+    case cacheCoversWholeFeed(cached: Int)
     /// The snapshot was written under a different KV-cache plan (here: a different rewind
     /// reserve). Its rows cannot be realized under today's parameters, so it is dropped
     /// rather than handed to a session that would fail the turn.
@@ -330,6 +337,8 @@ enum SnapshotRefusal: Equatable, Sendable {
         case .mediaTurn: return "media turn cannot be re-verified"
         case .notAPrefix(let cached, let commonPrefix):
             return "cached \(cached) exceeds common prefix \(commonPrefix)"
+        case .cacheCoversWholeFeed(let cached):
+            return "cached \(cached) covers the whole feed — nothing new to feed"
         case .rewindReserveChanged(let snapshot, let requested):
             return "built with a \(snapshot)-row rewind reserve, this build reserves \(requested)"
         }
@@ -619,7 +628,11 @@ actor MLXSessionPool {
             if !Self.canReusePooledSession(
                 cachedMessageCount: pooled.messageHistory.count,
                 commonPrefixCount: divergence,
-                instructionsMatch: instructionsMatch
+                instructionsMatch: instructionsMatch,
+                // No ledger for this turn means no claim to contradict: the caller feeds the
+                // whole transcript, so the coverage premise cannot be the blocker.
+                incomingMessageCount: prefixMessages?.count ?? .max,
+                newestIncomingFromAssistant: prefixMessages?.last?.role == "assistant"
             ) {
                 // Refusing to *answer* from this cache is not the same as throwing it away,
                 // and the two questions have different answers. The rule above says no,
@@ -690,7 +703,9 @@ actor MLXSessionPool {
                     let reason = ReuseRefusalReason.decide(
                         instructionsMatch: instructionsMatch,
                         cachedMessageCount: pooled.messageHistory.count,
-                        commonPrefixCount: divergence
+                        commonPrefixCount: divergence,
+                        incomingMessageCount: prefixMessages?.count ?? .max,
+                        newestIncomingFromAssistant: prefixMessages?.last?.role == "assistant"
                     )
                 {
                     reuseRefusals.record(modelId: modelId, reason: reason)
@@ -702,6 +717,13 @@ actor MLXSessionPool {
                 if divergence < pooled.messageHistory.count {
                     refusalReasons.append(
                         "cached history \(pooled.messageHistory.count) exceeds common prefix \(divergence)"
+                    )
+                }
+                if let feed = prefixMessages?.count, divergence >= feed,
+                    prefixMessages?.last?.role != "assistant"
+                {
+                    refusalReasons.append(
+                        "cached history \(pooled.messageHistory.count) covers this turn's whole \(feed)-message feed"
                     )
                 }
                 // info, not debug: the HIT counterpart is info, and a refusal is the reason a
@@ -1365,12 +1387,29 @@ actor MLXSessionPool {
     /// instruction list the caller never sent. The disk path has refused on this identity
     /// since it was written (``SnapshotRefusal/instructionsChanged``); the in-memory path
     /// consults the same gate now, so one rule has one home.
+    /// Sound when the cached history is a prefix of this turn's feed **and** the feed still
+    /// has something for that cache to answer.
+    ///
+    /// The second clause is the part that was missing (measured 10-22): a ledger whose length
+    /// equals the feed claims the cache already holds the caller's newest message. If that
+    /// message is one to answer (user/tool), the cache must have answered it already, so the
+    /// turn gets fed nothing — and a session fed nothing emits end-of-turn at once while the
+    /// request leaves as a success (`200 + completion_tokens=1 + finish_reason=stop`,
+    /// reproduced by asking the same prompt twice). Refuse that shape: no skip, full prefill.
+    ///
+    /// When the feed's newest message is from the assistant the request is "continue this
+    /// draft", and a cache holding exactly that transcript is the answer to it — feeding
+    /// nothing is correct there, so a trailing-assistant feed keeps its warm session.
     nonisolated static func canReusePooledSession(
         cachedMessageCount: Int,
         commonPrefixCount: Int,
-        instructionsMatch: Bool
+        instructionsMatch: Bool,
+        incomingMessageCount: Int,
+        newestIncomingFromAssistant: Bool
     ) -> Bool {
-        instructionsMatch && commonPrefixCount >= cachedMessageCount
+        instructionsMatch
+            && commonPrefixCount >= cachedMessageCount
+            && (commonPrefixCount < incomingMessageCount || newestIncomingFromAssistant)
     }
 
     /// Rewind boundary for a diverged conversation, or nil when it must be discarded.

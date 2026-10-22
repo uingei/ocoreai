@@ -4,6 +4,13 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-22
 
+**10-22(7) 复用规则补上「前缀覆盖」前提：缓存必须真是喂给内容的前缀，且喂完还得有东西可答**(P1 上下文与状态管理 / P0 诚实口径)
+
+- **规则缺的那半个前提**：`canReusePooledSession` 过去只问「缓存历史是不是来料历史的前缀」，没问「前缀之外还剩什么」。缓存若已覆盖整份来料（`commonPrefixCount >= incomingMessageCount`）而最后一条又不是 assistant，喂给上游的就是**空 feed**——空 feed 让模型立刻吐 end-of-turn，请求却按成功出货。判决现在多一个前提：`commonPrefixCount < incomingMessageCount || newestIncomingFromAssistant`。后半句是合法形态的钉子：喂到 assistant 草稿末尾就是「接着写」，那时什么都不喂正是重点。
+- **一处判决一个家 + 调用方兜底**：新拒绝理由 `cacheCoversWholeFeed` 落 `Sources/ocoreai/Engine/ReuseRefusalLedger.swift`（快照词汇 6→7），任何别的 divergence-index producer 给出「覆盖全量且非 assistant 结尾」时，`Sources/ocoreai/Engine/EngineInference.swift` 一律整段重新 prefill 并 `log.error("Feed would be empty for …")`，不静默吞。同一条日志把 `Pool reuse` 从 debug 提到 info：「喂进去的被去重了」正是 truncated answer 唯一能赖以成立的前提，出事那一刻读不到的解释不算解释。
+- **门**：`ReuseRefusalLedgerTests`（遍历 320 组合并断言 `checked == 320`；`wholeFeedCoverageRefused`；快照词汇 `count == 7`）+ `SessionIsolationTests`（含 trailing-assistant 必须放行的反向钉）+ `SessionRewindOnDivergenceTests`。本条同会话输出：`swift build` RC=0；`swift test --filter "Session|Reuse|Prefix|EngineBusy"` ⇒ 164 tests / 47 suites 全绿。
+- **不宣称修好了上一条的塌陷**：塌掉那轮实测 `fed=1 of 1 divergence=0`——feed 非空，本条规则碰不到它。它做到的只有一件事：把「空 feed」从「可能的原因」变成「代码不允许存在的原因」。塌陷的嫌疑因此收窄到一处：**temperature>0 时第一个 token 就采到 EOS 的退化生成**（上游自己报 `generationTokenCount=1 stopReason=.eos`，而我们把它当普通成功出货）。处理方式按竞品的既有做法，见下一条。
+
 **10-22(6) 排队是真的，429 还没走到线上；顺手抓到一个更狠的：同一个 prompt 第二次被问到只回一个 token**(P1 执行链 / P0 正确性 / P3 判定诚实)
 
 - **排队落地并实测到了**：`LoadedModel.acquireInference(waiting:)`（`Sources/ocoreai/Engine/LoadedModel.swift:541`，50 ms 轮询、从不睡到 deadline、取消即返回 false）取代 fail-fast CAS；两条面共用同一家的日志与判决（`Sources/ocoreai/Engine/EngineBusySignal.swift`）。真机量到的排队：`+164 / +220 / +483 / +3465 / +3483 / +5098 / +9993 ms`，最长那次排队之后照样 200 + 400 tokens。单测 `EngineBusyAdmissionTests`(5) 钉住：唤醒在 ~120 ms 而不是 deadline、`OCOREAI_ENGINE_BUSY_WAIT=0` 立即拒、`engineBusy→429` vs `generationError→500`、钳位表 `(0,3,999→120,-4,soon→20)`、以及 `EngineInference.swift` 里不许再出现字面量 `"Engine busy"`。

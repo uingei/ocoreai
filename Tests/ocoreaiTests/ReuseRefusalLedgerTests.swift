@@ -33,25 +33,33 @@ struct ReuseRefusalReasonTests {
         var hits = 0
         for cached in 0 ... 3 {
             for common in 0 ... 3 {
-                for instructionsMatch in [true, false] {
-                    let reason = ReuseRefusalReason.decide(
-                        instructionsMatch: instructionsMatch,
-                        cachedMessageCount: cached,
-                        commonPrefixCount: common)
-                    let allowed = MLXSessionPool.canReusePooledSession(
-                        cachedMessageCount: cached,
-                        commonPrefixCount: common,
-                        instructionsMatch: instructionsMatch)
-                    #expect(
-                        (reason == nil) == allowed,
-                        "cached=\(cached) common=\(common) instructionsMatch=\(instructionsMatch): reason=\(String(describing: reason)) but allowed=\(allowed)"
-                    )
-                    checked += 1
-                    if reason == nil { hits += 1 } else { refusals += 1 }
+                for incoming in 0 ... 4 {
+                    for instructionsMatch in [true, false] {
+                        for newestFromAssistant in [true, false] {
+                            let reason = ReuseRefusalReason.decide(
+                                instructionsMatch: instructionsMatch,
+                                cachedMessageCount: cached,
+                                commonPrefixCount: common,
+                                incomingMessageCount: incoming,
+                                newestIncomingFromAssistant: newestFromAssistant)
+                            let allowed = MLXSessionPool.canReusePooledSession(
+                                cachedMessageCount: cached,
+                                commonPrefixCount: common,
+                                instructionsMatch: instructionsMatch,
+                                incomingMessageCount: incoming,
+                                newestIncomingFromAssistant: newestFromAssistant)
+                            #expect(
+                                (reason == nil) == allowed,
+                                "cached=\(cached) common=\(common) incoming=\(incoming) instructionsMatch=\(instructionsMatch) newestFromAssistant=\(newestFromAssistant): reason=\(String(describing: reason)) but allowed=\(allowed)"
+                            )
+                            checked += 1
+                            if reason == nil { hits += 1 } else { refusals += 1 }
+                        }
+                    }
                 }
             }
         }
-        #expect(checked == 32, "the traversal stopped covering the rule's input space")
+        #expect(checked == 320, "the traversal stopped covering the rule's input space")
         #expect(refusals > 0 && hits > 0, "a one-sided traversal proves nothing about agreement")
     }
 
@@ -61,15 +69,58 @@ struct ReuseRefusalReasonTests {
         // .notAPrefix (SessionPool.swift's reuseDecision), and the ledger must say the same.
         #expect(
             ReuseRefusalReason.decide(
-                instructionsMatch: false, cachedMessageCount: 4, commonPrefixCount: 1)
+                instructionsMatch: false, cachedMessageCount: 4, commonPrefixCount: 1,
+                incomingMessageCount: 2, newestIncomingFromAssistant: false)
                 == .instructionsChanged)
         #expect(
             ReuseRefusalReason.decide(
-                instructionsMatch: true, cachedMessageCount: 4, commonPrefixCount: 1)
+                instructionsMatch: true, cachedMessageCount: 4, commonPrefixCount: 1,
+                incomingMessageCount: 2, newestIncomingFromAssistant: false)
                 == .historyDiverged)
         #expect(
             ReuseRefusalReason.decide(
-                instructionsMatch: true, cachedMessageCount: 3, commonPrefixCount: 3) == nil)
+                instructionsMatch: true, cachedMessageCount: 3, commonPrefixCount: 3,
+                incomingMessageCount: 5, newestIncomingFromAssistant: false) == nil)
+
+    }
+
+    /// The shape that shipped a one-token answer as a success (measured 10-22, probe 30):
+    /// ask the same prompt twice, and the ledger left behind by the first turn covers the
+    /// second turn's whole feed. Reusing it feeds nothing → the session emits end-of-turn
+    /// immediately and the client sees `200 + completion_tokens=1 + finish_reason=stop`.
+    @Test("a cache that covers the whole feed is refused — a turn always brings new content")
+    func wholeFeedCoverageRefused() {
+        // cached [u1, a1], incoming [u1, a1] (a verbatim resend): common 2 == incoming 2.
+        #expect(
+            ReuseRefusalReason.decide(
+                instructionsMatch: true, cachedMessageCount: 2, commonPrefixCount: 2,
+                incomingMessageCount: 2, newestIncomingFromAssistant: false)
+                == .cacheCoversWholeFeed)
+        // The anon-key shape from the live log: cached [u1], incoming [u1].
+        #expect(
+            MLXSessionPool.canReusePooledSession(
+                cachedMessageCount: 1, commonPrefixCount: 1, instructionsMatch: true,
+                incomingMessageCount: 1, newestIncomingFromAssistant: false)
+                == false)
+        // A real continuation still reuses: the feed adds a message past the cache.
+        #expect(
+            ReuseRefusalReason.decide(
+                instructionsMatch: true, cachedMessageCount: 2, commonPrefixCount: 2,
+                incomingMessageCount: 3, newestIncomingFromAssistant: false)
+                == nil)
+        // The other side of the same rule: a feed whose newest message is the assistant's is
+        // a continuation request, and a cache holding exactly that transcript is its answer.
+        #expect(
+            ReuseRefusalReason.decide(
+                instructionsMatch: true, cachedMessageCount: 2, commonPrefixCount: 2,
+                incomingMessageCount: 2, newestIncomingFromAssistant: true)
+                == nil)
+        // Divergence outranks coverage: the caller replaced a turn it never sent.
+        #expect(
+            ReuseRefusalReason.decide(
+                instructionsMatch: true, cachedMessageCount: 4, commonPrefixCount: 2,
+                incomingMessageCount: 2, newestIncomingFromAssistant: true)
+                == .historyDiverged)
     }
 
     @Test("every SnapshotRefusal maps to a ledger reason, and together they are one vocabulary")
@@ -80,10 +131,11 @@ struct ReuseRefusalReasonTests {
             .mediaTurn,
             .instructionsChanged,
             .notAPrefix(cached: 3, commonPrefix: 1),
+            .cacheCoversWholeFeed(cached: 3),
             .rewindReserveChanged(snapshot: 0, requested: 1024),
         ]
         let mapped = refusals.map(\.ledgerReason)
-        #expect(mapped.count == 6)
+        #expect(mapped.count == 7)
         #expect(
             Set(mapped) == Set(ReuseRefusalReason.allCases),
             "the disk path and the wire must name the same set of reasons, not two overlapping ones"
