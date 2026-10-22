@@ -151,11 +151,20 @@ Fails when: the replaced fact appearing in the reply after an edited resend (the
     refused-and-rebuilt, or `prefixReuse` disagreeing with the usage field the client saw. Measured 10-21 (gemma-4-e2b-it-4bit, one session, 4 turns): turn1 `708/0` · turn2 `732/710` · turn3 appended `758/734` · turn4 edited `758/718` and answers the NEW code word with the OLD one absent (`14 passed, 0 failed, 4 measured, 0 known-open`). Pre-fix the same turn
 
 - `28-single-instance-refusal.sh` — When another instance holds the lock, does the refused `serve` actually leave?
-Fails when: instance B stays alive until someone signals it (a refusal the caller must kill is a hang wearing one),
-    exits 0 (a startup that never happened must not look clean to launchd), or its log omits the holder pid /
-    `OCOREAI_ALLOW_MULTI_INSTANCE`. Measured 10-22: B exits unsignalled after 1 s with code 1, holder still
-    /health 200 (`6 passed, 0 failed, 6 measured`); pre-fix it sat in `lifecycle: error` for 237 s with the
-    remedy in its first line.
+Fails when: instance B stays alive until someone signals it (a refusal the caller must kill is a hang wearing one), exits 0
+    (a startup that never happened must not look clean to launchd), or its log omits the holder pid / `OCOREAI_ALLOW_MULTI_INSTANCE`.
+
+- `29-engine-busy-429.sh` — When the engine is occupied, does the wire say 429 + `Retry-After`, or 500?
+Fails when: the capacity refusal is a 500 `app_error`, lacks `engine_busy`/`rate_limit_error` or `Retry-After`, the turn in flight is
+    disturbed, or a short overlap is refused instead of waited out. Leg 1 gates on the long turn's first SSE token — lock arrival order is
+    not HTTP arrival order (measured 10-22: fired 0.4 s after that POST, the second request was served normally at +164 ms of queue).
+    Queue-and-serve is green (`Queued for inference: +220ms (face=chat)`, then a real completion); the 429 legs are still red because no
+    ordinary concurrency reaches a refusal — occupancy has only ever come from an abandoned turn holding the lock ~160 s.
+
+- `30-repeated-prompt-delivery.sh` — Ask the same thing twice: does the second answer arrive?
+Fails when: a repeated prompt returns one token with `finish_reason: stop`. Reproduced 10-22 on five concurrent runs (1,1,1,2,1 of 2 turns)
+    and once sequentially (150 then 1) — always on a turn whose pool entry was refused ("cached history 2 exceeds common prefix 1"), never on
+    distinct prompts, so it is a race, not a certainty. A pass needs the queue line (no overlap ⇒ the leg proved nothing); an XFAIL does not.
 
 - `_lib.sh` — shared harness
 Fails when: —
@@ -197,4 +206,5 @@ Every file here keeps the contract `_lib.sh` documents:
 | `OCOREAI_PROBE_STEER_DELAY` | seconds `21` waits before injecting its steer (default 1.5 — after the request started, so the head-of-handler drain has already run and a fast steered turn can only come from the wake path) |
 | `OCOREAI_REQUIRE_PREFIX_REUSE` | `1` turns the P1 measurement into a hard assertion |
 | `OCOREAI_SESSION_POOL` | `0`/`false`/`off`/`no` starts the engine with no session pool — `17` uses it to reach the degraded lane on demand (memory pressure cannot be scheduled); the boot log must name it |
+| `OCOREAI_ENGINE_BUSY_WAIT` | seconds a second request waits for the inference lock before it is refused with 429 + `Retry-After` (default 20, clamp 0–120; `0` restores fail-fast) — `29` sets 3 so a 512-token turn overruns the window and an 8-token turn fits inside it |
 | `OCOREAI_PROBE_KEEP_LOGS` | `1` keeps the server log and prints its path |

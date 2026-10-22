@@ -232,10 +232,22 @@ extension EnginePool {
         metrics.promptTokenCount = tokenCount
         metrics.start()
 
-        guard loaded.tryAcquireInference() else {
-            continuation.yield(.init(kind: .error("Engine busy")))
+        // Capacity, not failure: queue briefly, and only then put the busy marker on the
+        // channel. The handler maps that marker to 429 + Retry-After, never a 500.
+        let busyWait = EngineBusySignal.wait
+        let queuedAtNs = DispatchTime.now().uptimeNanoseconds
+        guard await loaded.acquireInference(waiting: busyWait) else {
+            logger.warning(
+                "Engine busy — refused after \(busyWait.components.seconds)s queued (queue=\(EngineBusySignal.envWait)=0 refuses immediately)"
+            )
+            EngineBusySignal.logRefused(face: "completions")
+            continuation.yield(.init(kind: .error(EngineBusySignal.message)))
             continuation.finish()
             return
+        }
+        let waitedMs = Int((DispatchTime.now().uptimeNanoseconds - queuedAtNs) / 1_000_000)
+        if waitedMs >= 1 {
+            EngineBusySignal.logQueued(waitMs: waitedMs, face: "completions")
         }
         defer { loaded.releaseInference() }
 
@@ -1729,12 +1741,18 @@ extension EnginePool {
         // skipLock: caller already holds inference guard (e.g. _runInference delegate path)
         var lockHeldByUs = false
         if !skipLock {
-            guard loaded.tryAcquireInference() else {
-                continuation.yield(.init(kind: .error("Engine busy")))
+            let guardStart = DispatchTime.now().uptimeNanoseconds
+            guard await loaded.acquireInference(waiting: EngineBusySignal.wait) else {
+                EngineBusySignal.logRefused(face: "chat")
+                continuation.yield(.init(kind: .error(EngineBusySignal.message)))
                 continuation.finish()
                 return
             }
             lockHeldByUs = true
+            let guardWaitMs = Int((DispatchTime.now().uptimeNanoseconds - guardStart) / 1_000_000)
+            if guardWaitMs >= 1 {
+                EngineBusySignal.logQueued(waitMs: guardWaitMs, face: "chat")
+            }
         }
         defer { if lockHeldByUs { loaded.releaseInference() } }
 

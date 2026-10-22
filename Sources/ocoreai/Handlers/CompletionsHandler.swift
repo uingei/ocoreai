@@ -315,7 +315,9 @@ private func generateTextCompletion(
         case .reasoning(let r):
             acc += r
         case .error(let msg):
-            throw AppError.generationError(msg)
+            // Capacity gets its own status (see ChatHandler): 429 + Retry-After, never a 500.
+            throw EngineBusySignal.isBusy(msg)
+                ? AppError.engineBusy : AppError.generationError(msg)
         default:
             break
         }

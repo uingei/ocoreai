@@ -530,6 +530,30 @@ final class LoadedModel: @unchecked Sendable {
             .exchanged
     }
 
+    /// Bounded wait for the inference lock.
+    ///
+    /// Polls one interval, never the deadline (AGENTS.md: sleeping to the deadline inside a
+    /// `while <pending>` parks the waiter for the whole window regardless of when the lock
+    /// frees — the same bug `EnginePool.waitForLoading` carried, where the first chat request
+    /// cost 120 s for a model ready in 8 s). Returns as soon as the lock is free.
+    ///
+    /// - Returns: `true` when the caller now holds the lock; `false` on timeout or cancel.
+    func acquireInference(waiting maxWait: Duration) async -> Bool {
+        if tryAcquireInference() { return true }
+        if maxWait == .zero { return false }
+        let deadline = ContinuousClock.now + maxWait
+        while ContinuousClock.now < deadline {
+            do {
+                try await Task.sleep(for: .milliseconds(50))
+            } catch {
+                return false  // cancelled while queued
+            }
+            if Task.isCancelled { return false }
+            if tryAcquireInference() { return true }
+        }
+        return false
+    }
+
     /// Release the inference lock (called via ``defer``)
     func releaseInference() {
         inferenceGuard.store(false, ordering: .releasing)

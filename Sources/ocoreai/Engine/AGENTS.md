@@ -61,7 +61,7 @@ probe 27 (live server: reuse asserted, replaced fact absent from the reply).
 
 ## Steering is delivered at the request seam
 `mergingSteeredTurn` (`Sources/ocoreai/Handlers/ChatHandler.swift`) folds a queued steer into the head
-of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3004`,
+of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3022`,
 `:3675`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
 delivers on the next request, or its contract is fiction (root § Endpoint Promises).
 
@@ -88,10 +88,10 @@ The server-wide row (`/v1/capabilities` → `video_input`) is the *same* measure
 `VideoDeliveryAggregate.evidenceLine`, so no publisher re-words it (a router that assembles its own
 evidence sentence is a second truth). Both are measured-only: `not_observed` is a fact about this
 process, never a claim about the checkpoint. Gate: `CapabilityMeasurementHonestyTests`.
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3311 items: videoInputCount, promptTokens -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3329 items: videoInputCount, promptTokens -->
 
 ## Known defect, deliberately unfixed — do not "fix" it blind
-`_applyBitmask` (`EngineInference.swift:1374`) multiplies by `-Float.leastNormalMagnitude`
+`_applyBitmask` (`EngineInference.swift:1386`) multiplies by `-Float.leastNormalMagnitude`
 (≈ −1.18e-38, i.e. no mask) while its own doc says −inf, and `return`s on the first out-of-range
 index instead of `continue`ing. Its only caller is `@available(macOS 27.0, *)`
 `_runConstrainedDecoding`, so no host here can execute it. Land the fix on macOS 27 with a run, or
@@ -103,17 +103,17 @@ upstream revision). Round 14 inserted ~27 lines above the ThinkingBudget call an
 AGENTS.md moved off their targets with no gate going red; these markers are the red. Move code, get
 `make anchor-check` to name the cite that drifted.
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:149 Task.sleep(until: deadline -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1374 Float.leastNormalMagnitude -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3004 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3710 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4316 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3811 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4331 components: genComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3834 components: mtpGenComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1386 Float.leastNormalMagnitude -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3022 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3728 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4334 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3829 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4349 components: genComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3852 components: mtpGenComponents -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:845 case "affine" -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1405 static func rewindHistoryEnd -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:655 Self.rewindHistoryEnd( -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3174 rewind.source.session.fork( -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3192 rewind.source.session.fork( -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:869 let kvCacheRewindReserveTokens = 1024 -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:14 public struct Message { -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/UserInput.swift:131 public struct Image { -->

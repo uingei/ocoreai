@@ -96,7 +96,15 @@ cd "$(dirname "$0")/.."
 # third-party-notices' duplicated disclosure sentences (−245 B, recorded above). Net against the
 # 09-27 baseline of 152,041: still −8,463 B, so the ratchet is intact across the day even though
 # this constant moved up; a cap edit without this kind of accounting is what the rule forbids.
-: "${OCOREAI_CORPUS_MAX_BYTES:=143578}"
+# 10-22 (4) raise 143578 -> 144942 (+1364): the round's honest index entries — probe 29 (capacity
+# refusal: queue measured at the wire, 429 legs still red because lock arrival order is not HTTP
+# arrival order) and probe 30 (a repeated prompt answers one token, reproduced sequentially, so
+# without overlap), plus the `OCOREAI_ENGINE_BUSY_WAIT` knob row that probe 29's determinism needs.
+# Paid for in the same edit: probe 28's "Measured 10-22" tail (−214 B, that story is CHANGELOG's,
+# and an index row's job is the question plus its falsifier), and both new entries were written to
+# that shape after a first draft 371 B fatter. Net against the 09-27 baseline of 152,041: −7,099 B.
+# Re-pinned to the measured value: a cap with slack in it is a cap nobody enforces.
+: "${OCOREAI_CORPUS_MAX_BYTES:=144942}"
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.
 : "${OCOREAI_PROBE_FLOOR_INDEX:=20}"

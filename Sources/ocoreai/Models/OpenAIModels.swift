@@ -2127,6 +2127,12 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         switch self {
         case .invalidRequest:
             detail["type"] = "invalid_request_error"
+        case .engineBusy:
+            // Both specs name this shape for a capacity refusal (OpenAI Errors, Anthropic
+            // Errors: `rate_limit_error`), and an SDK branches on `type`, not on the string.
+            detail["type"] = "rate_limit_error"
+            detail["error_code"] = "engine_busy"
+            detail["retry_after_seconds"] = EngineBusySignal.retryAfterSeconds
         case .invalidParameter(let param, _, let value):
             detail["type"] = "invalid_request_error"
             detail["param"] = param
@@ -2139,6 +2145,12 @@ enum AppError: Error, CustomStringConvertible, LocalizedError, HTTPResponseError
         let errorBody = NSDictionary(dictionary: ["error": detail])
         var headers: HTTPFields = [:]
         headers[.contentType] = "application/json"
+        // A capacity refusal that does not say when to come back makes the client hammer the
+        // box that just said no. RFC 9110 §10.2.3 gives the number a home, and here it is
+        // exactly the window the server already spent waiting (EngineBusySignal).
+        if case .engineBusy = self {
+            headers[.retryAfter] = "\(EngineBusySignal.retryAfterSeconds)"
+        }
         guard let data = try? JSONSerialization.data(withJSONObject: errorBody, options: []) else {
             return Response(status: status)
         }

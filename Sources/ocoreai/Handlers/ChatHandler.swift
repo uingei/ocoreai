@@ -1017,7 +1017,10 @@ private func nonStreamWithToolCalling(
                     case .error: "error"
                     }
             case .error(let msg):
-                throw AppError.generationError(msg)
+                // Capacity gets its own status: a client that backs off on 429 must not have to
+                // string-parse a 500 to learn the engine is merely busy.
+                throw EngineBusySignal.isBusy(msg)
+                    ? AppError.engineBusy : AppError.generationError(msg)
             case .toolCall(let tc):
                 // tc is already ocoreai's ToolCall type (via InferenceEvent.mlxToolCall).
                 // P0-3 fix: APPEND, don't overwrite. A single generation turn may emit

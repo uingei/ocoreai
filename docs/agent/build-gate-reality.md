@@ -136,7 +136,7 @@ locally — the loop that caught defects no static audit here had (see «The fou
 
 ## CoreAI 约束解码：本机永不可运行的那一段（moved out of AGENTS.md 10-19(续3), byte ratchet）
 
-`Engine/CoreAI` 的 `_applyBitmask`（`EngineInference.swift:1374`）有两处与自己的文档相反：
+`Engine/CoreAI` 的 `_applyBitmask`（`EngineInference.swift:1386`）有两处与自己的文档相反：
 
 1. 文档写「disallowed tokens → -inf」，代码却是 `Float.leastNormalMagnitude * -1` ≈ −1.18e-38 —— 在加法掩码下
    几乎等于 0，等于没掩：被禁的 token 仍以接近原值参加 softmax。
