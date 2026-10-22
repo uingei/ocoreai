@@ -51,13 +51,14 @@ Anything the GUI asserts about capability reads `/v1/capabilities` or the model 
 source the engine used — never a literal typed into a view.
 
 
-## GUI end-to-end — measured scope (10-22)
+## GUI end-to-end — measured scope
 
-`verify-gui-window.sh` asserts what a user would see: a layer-0 window of believable size, and with `SHOT=1` a
-frame that has content (distinct-colour floor ≥64). Measured here 10-22: `900x472`, 140 KB, **846 colours**. Its
-traffic-light assertion is gone on purpose — AppKit title-button sub-windows are not enumerable unattended (owned
-entries measured 0), so it could only warn, and a check that cannot pass dilutes the ones that can.
-`scripts/e2e-gui-app.sh` adds the model-dependent half (version == tag, the listener on 127.0.0.1:8080 *is* the
-bundle binary, one real completion `'OCOREAI_GUI_E2E_OK'`, graceful SIGTERM) — locally green, and none of it
-licenses "the GUI works": the bridge is opt-in (App Store builds serve nothing), CI runs the
-window proof but not the completion, and Accessibility-driven control automation is unverified.
+`verify-gui-window.sh` asserts what a user would see: a layer-0 window of believable size, and with
+`SHOT=1` a frame with content (distinct-colour floor ≥64). Pixels came out 10-22 (`900x472`,
+140 KB, **846 colours**) and are refused here since 10-23 — `screencapture`: "could not create
+image from window" — so pixels are claimed only where they were captured: fatal by default (what CI
+runs); local release passes `GUI_REQUIRE_PIXELS=0` and says the evidence was skipped. Geometry
+10-23: 810x426. `scripts/e2e-gui-app.sh` adds the model-dependent half (version == tag, the :8080
+listener *is* the bundle binary, one real completion `'OCOREAI_GUI_E2E_OK'`, graceful SIGTERM) —
+green 10-23. None of it licenses "the GUI works": the bridge is opt-in (App Store builds serve
+nothing), CI skips the completion leg, and Accessibility-driven control automation is unverified.

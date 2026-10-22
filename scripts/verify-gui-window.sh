@@ -61,7 +61,29 @@ echo "✅ window visible: ${DIMS} (cgwindow $WID)"
 
 if [ "$SHOT" = "1" ]; then
     PNG="${PNG:-/tmp/${APP_NAME}-window.png}"
-    screencapture -o -x -l"$WID" "$PNG"
+    # screencapture refuses when the driving process lacks screen-recording consent, and it can
+    # fail outright for some window types. Both are environment conditions, not artifact defects:
+    # the window is already proven above by CGWindowList geometry, which needs no TCC. A bare
+    # call under `set -e` aborted the whole release e2e at this line — before its completion
+    # round-trip, the most important leg in that script — and left the launched app holding the
+    # single-instance lock. Degrade honestly: quote the framework, skip the pixel evidence, and
+    # never let the summary read as though pixels had been verified. Degrading is opt-out, not
+    # the default: GUI_REQUIRE_PIXELS=1 keeps CI (macos runners, where capture works) on a hard
+    # pixel gate; the local release run passes 0 because screen-recording consent belongs to whoever
+    # drives it, and a refusal there is not an artifact defect.
+    CAP_ERR="$(mktemp -t ocoreai-screencapture-XXXXXX)"
+    if ! screencapture -o -x -l"$WID" "$PNG" 2>"$CAP_ERR"; then
+        echo "⚠️ capture skipped: $(tr '\n' ' ' <"$CAP_ERR" | cut -c1-120)"
+        if [ "${GUI_REQUIRE_PIXELS:-1}" = "1" ]; then
+            rm -f "$CAP_ERR"
+            echo "❌ capture failed and pixel evidence is required here (GUI_REQUIRE_PIXELS=1)"
+            exit 1
+        fi
+        rm -f "$CAP_ERR"
+        echo "⚠️ pixel evidence skipped by request — window proven by geometry only"
+        exit 0
+    fi
+    rm -f "$CAP_ERR"
     SZ=$(stat -f%z "$PNG" 2>/dev/null || stat -c%s "$PNG")
     # A blank/black capture is only a few KB; a rendered dashboard is >>20KB.
     if [ "$SZ" -lt 20000 ]; then

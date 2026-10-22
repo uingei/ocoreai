@@ -6,6 +6,16 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 
 
+
+**10-23(3) 交付 GUI 端到端真跑通；顺手纠正两条错账：一句「GUI 运行时零验证」早就不成立，而像素抓取从 10-22 的可用退成了被拒**(P0 可靠性 / P3 回归防护 / P0 诚实口径)
+
+- **先纠错（对自己引用的交接记录）**：本轮开场引用「GUI 端到端运行时验证 = 0」。查磁盘语料后**该说法作废**：`Sources/ocoreai/UI/AGENTS.md` 早有 § GUI end-to-end — measured scope，并记着 10-22 抓到了真实帧（`900x472`、140 KB、**846 colours**）。**注入给我的 AGENTS.md ≠ 磁盘上的 AGENTS.md**，这条老 hazard 又一次差点变成新结论；凡引用「文档说过什么」，先读盘。
+- **今天实测（交付 bundle，不是 CLI 替身）**：`scripts/e2e-gui-app.sh` 全绿——版本平价 `0.1.14 == tag v0.1.14`；:8080 的监听者**就是** `build/ocoreai.app/Contents/MacOS/ocoreai`；窗口可见 `810x426`；真实一轮 `reply: 'OCOREAI_GUI_E2E_OK'`；SIGTERM 优雅退出（drain 约 5 s，我第一次用 4 s 判定误报了一次 LEAK，判定窗口放宽后复测 clean）。
+- **新出现的真退化**：像素抓取在本机失败——`screencapture` 报 `could not create image from window`，而同一检查 10-22 还能出 846 colours。**这是验证通路的退化**（抓屏授权/窗口条件），不是产物缺陷，但必须记账：像素只在真抓到时才声称，UI 指南相应改为「10-22 出过 / 10-23 起被拒」两句并附原始报错。
+- **修掉一处会吞掉整条腿的门设计**：`scripts/verify-gui-window.sh:64` 裸调 `screencapture`，在 `set -euo pipefail`（同文件 :23）下被拒即中止——于是 `e2e-gui-app.sh` 最关键的「真跑一轮 completion」永远轮不到执行，且 app 被留在运行中占住单例锁（实测泄漏过一次，手工 TERM 才清）。修法：抓取失败时**默认仍然致命**（`GUI_REQUIRE_PIXELS=1`，CI 语义不变），仅本地交付 e2e 显式传 0 并打印「像素证据已跳过」；`e2e-gui-app.sh` 加 `trap cleanup_app EXIT`，任何早退都 TERM 掉自己启的 bundle。
+- **两向都验过，不是单向**：严格默认（不设变量）实跑 → `❌ capture failed and pixel evidence is required here`、RC=1（CI 硬门没被削弱）；本地豁免 → 一路跑到 `🎉`，退出后无残留进程。
+- **仍未验证（不粉饰）**：SwiftUI 视图内交互（键鼠注入／Accessibility 驱动）零验证；App Store 构建不提供 HTTP 桥，所以这条 e2e 只覆盖 direct-distribution 产物；CI 跑窗口证明但不跑 completion。`Sources/ocoreai/UI/AGENTS.md` 的 § GUI end-to-end 已按上述实测重写，并删掉 traffic-light 那句（它和 `scripts/verify-gui-window.sh` 头部注释重复——代码在哪，理由记在哪）。
+
 **10-23(2) 第一次量到塌陷处到底差多少：step2 上 `\n` 与 `<turn|>` 只差 0.0466 nats；顺带差点把 kvCache 错认成载体**(P0 正确性 / P3 可观测性 / P3 回归防护)
 
 - **仪器**：`Sources/ocoreai/Engine/DegenerateMarginProbe.swift`。为什么不能借 chat 面：`ChatSession.swift` 对 `logProbabilities`/`LogProbabilityTokenLoopHandler` 零引用，`.probability` 事件只挂在 `LogProbabilityTokenLoopHandler.swift:9` ⇒ 给 `chatSession.generateParameters.logProbabilities` 赋值是静默 no-op。改走上游可观测缝（`TokenIterator` + `generateLoopTask` + `LogProbabilityTokenLoopHandler`，`Documentation.docc/generation-observability.md`）。**保真自证**：重建自己数出的 `promptTokens` 与塌陷轮记录的数字对账，实测 `promptTokens=713 fidelity=match`——不是假定，是每行自带。
