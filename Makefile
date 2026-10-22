@@ -277,6 +277,9 @@ format-check:
 audit:
 	@echo "🔍 Running static audit..."
 	bash scripts/audit.swift_patterns.sh
+	@# A dead type name in the architecture docs teaches an architecture that does not exist:
+	@# ARCHITECTURE.md diagrammed BackendProtocol.swift for weeks after 2123143 deleted it.
+	bash scripts/docs-type-existence.sh
 
 ## Two passes, one command. anchor-check.sh verifies the cites that carry an `anchor:` marker;
 ## upstream-cite-check.sh verifies the *bare* `path.ext:NN` cites in Sources/ comments (173 on

@@ -82,7 +82,13 @@ cd "$(dirname "$0")/.."
 # cells were wrong as of 10-22 — seven trees have zero coupling, and openclaw is a 16th clone).
 # The next corpus addition must delete its own weight; the pending owner call on splitting
 # CHANGELOG.md into docs/agent/rounds/ changes this baseline again.
-: "${OCOREAI_CORPUS_MAX_BYTES:=156559}"
+# 10-22 (2) lower 156559 -> 142550: ARCHITECTURE.md's 2026-07-26 review body left the corpus
+# (-15840 B) — it diagrammed a deleted file, carried line counts wrong by up to 3.7x, and
+# contradicted itself about CoreAI grammar. openclaw's measured verdict (+1763 B in
+# docs/agent/competitor-iteration-paths.md) is paid by it several times over, which is what
+# "text goes in only when text comes out" is for. Earlier same-day raise (152041 -> 156559,
+# +5610 for that new doc, -711 stale comparator cells) is now net of: 142550 < 152041.
+: "${OCOREAI_CORPUS_MAX_BYTES:=142550}"
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.
 : "${OCOREAI_PROBE_FLOOR_INDEX:=20}"

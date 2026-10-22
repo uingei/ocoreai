@@ -13,31 +13,25 @@
 
 ## What the order says
 
-**Authority ships first, and never finishes.** codex put sandbox, approval configuration,
-macOS completion-notification and the review/diff recipe inside its first 72 hours (open-sourced
-2025-04-16), and those four are still the most-trafficked surfaces in 12,490 commits — mcp 671
-later commits / 108 fixes, sandbox 485/94, approvals 279/104, review 257/120 (47%, the highest
-fix ratio measured). Behavior-quality axes came months later and cost far less each: resume +71d
-(21/4), mid-turn steer +93d (43/13), structured output +114d (6/5), compact +131d (35/5),
-checkpoint/undo +160d (26/11), parallel tools +172d (12/4), skills +229d (361/34), subagents
-+267d (89/15), plan mode +278d (23/2), hooks +295d (138/12).
+**Authority ships first, and never finishes.** codex put review/diff, sandbox, macOS
+completion-notification and approval configuration inside its first 72 hours (open-sourced
+2025-04-16); those four are still the most-trafficked surfaces of its 12,490 commits, while the
+behavior-quality axes arrived 3–10 months later and cost far less each. Full dated chronology and
+the per-axis fix proxy: `CHANGELOG.md`, entry "10-22 竞品的迭代次序". Consequence: the polish
+ocoreai keeps investing in — steering, compaction, tool-wire correctness, resume — sits in the
+cheap cluster. That is the ticket to play, not the moat; the moat is an authority layer that
+survives a year of adversarial use. We claim no sandbox, and the approval cache is byte-exact
+payload (`Sources/ocoreai/Agents/Approval.swift:249`), so codex's macOS alias/mount-order fix log
+(quoted in `CHANGELOG.md`) is the checklist for the day we do.
 
-Consequence: the polish ocoreai keeps investing in — steering, compaction, tool-wire correctness,
-resume — sits in the cheap cluster. That is the ticket to play, not the moat; the moat is an
-authority layer that survives a year of adversarial use. codex's macOS fix log is the free
-checklist for the day we claim a sandbox: system-alias matching in patch permission checks,
-read-only mount ordering for nested writable roots, approved escalation that still preserves denied
-reads. We claim no sandbox, and the approval cache is byte-exact payload
-(`Sources/ocoreai/Agents/Approval.swift:249`), so the alias hole does not exist here.
-
-**KV reuse is a correctness surface, not a performance one.** ollama's `x/mlxrunner` — the
-closest shipping analogue to our dual-path engine — published a nine-month cache-correctness
-series whose worst entry is silent: a lazy KV snapshot indexes the cache's *live* buffer, so it
-must be copied out before an append reaches the slots it names; they checked only the first append
-after a rewind and only that append's own range, so "restoring that snapshot later silently serves
-the new request's KV in place of the old conversation's." Two September fixes then dealt with
-budget pressure: evict the active conversation's own checkpoints, and keep the reused head of a
-cached edge safe from eviction.
+**KV reuse is a correctness surface, not a performance one.** ollama's `x/mlxrunner` — the closest
+shipping analogue to our dual-path engine — published a nine-month cache-correctness series whose
+worst entry is silent: a lazy KV snapshot indexes the cache's *live* buffer, so it must be copied
+out before an append reaches the slots it names; they checked only the first append after a rewind
+and only that append's own range, so "restoring that snapshot later silently serves the new
+request's KV in place of the old conversation's." Two September fixes then dealt with budget
+pressure: evict the active conversation's own checkpoints, and keep the reused head of a cached
+edge safe from eviction (dated series: `CHANGELOG.md`).
 
 ## The five things ocoreai changes, ranked
 
@@ -60,17 +54,46 @@ cached edge safe from eviction.
    subagents arrived late and cheap for every rival — we are already ahead of that order, so spend
    nothing extra there.
 
-**The meta-lesson, aimed at ourselves.** Reading references is not the scarce act; keeping the
-claims they produce true is. On 10-22, 4 of our own 173 bare upstream cites in `Sources/` named a
-path or line that did not exist — one a quoted sentence absent from the pinned file. Now gated by
-`scripts/upstream-cite-check.sh` (in `make anchor-check`): floor 120 on its own scan, every cite
-resolves in a clone/checkout/`.upstream-external-cites.json`, line numbers fit the file, and a
-cite outside the reference set must carry the sha it was verified at.
+**The meta-lesson.** Reading references is not the scarce act; keeping the claims they produce
+true is — 4 of our own 173 bare upstream cites were dead on 10-22. `scripts/upstream-cite-check.sh`
+(now in `make anchor-check`) is the gate: floor 120 on its own scan, every cite resolves in a
+clone/checkout/`.upstream-external-cites.json`, line numbers fit, and an out-of-set cite must
+carry the sha it was verified at.
 
-## openclaw — designated, unread
+## openclaw — 116,620 commits, 2025-11-24 → 2026-10-21 (read 10-22)
 
-`openclaw/openclaw` (TypeScript, 392k stars on 10-22, "The AI that really does things. Any OS.
-Any Platform."). `git clone` from this host times out on git-over-https — `api.github.com` answers,
-`github.com` does not — so the tree is being fetched by the owner. **No lesson is claimed for it
-here.** A designated reference that nobody has read is not evidence; when the clone lands, run the
-scan above and let it reorder this list or not.
+The only rival here that is also a native Apple product: 1,591 Swift files,
+`apps/{macos,ios,linux,android,macos-mlx-tts,swabble,shared}`, and a `packages/` split where the
+agent loop sits behind a gateway protocol (`agent-core`, `gateway-client`, `gateway-protocol`,
+`llm-core`, `net-policy`, `memory-host-sdk`, `model-catalog-core`) with the GUIs as clients. Its
+axis order at 116k commits is codex's cluster reached twice as fast — authority in week one,
+skills and memory inside a month, plan mode effectively absent (3 commits all time). Dated axis
+table and fix proxies: `CHANGELOG.md`.
+
+Four takes, ranked by what they change here:
+
+1. **Plan mode is not what makes an agent do things.** codex added it at +278d (23/2 fix proxy);
+   openclaw shipped a 392k-star "really does things" product without it. Budget memory, skills and
+   subagent reliability before any plan-mode surface — ours is currently unwired, which is fine.
+2. **On-device neural TTS is table stakes for a flagship Mac app; ours is OS voices.** openclaw
+   isolates MLX audio in its own package + helper executable (`apps/macos-mlx-tts`, exact pin
+   `mlx-audio-swift 0.1.5`, macOS 15 floor): streaming `AsyncThrowingStream<[Float], Error>`,
+   `voice`/`referenceAudioPath`, a `CachedModel{repo, model}` actor, isolated "so normal macOS app
+   tests do not compile the full MLX audio stack". Our `tts_speech` row is honest
+   (`AVSpeechSynthesizer` + personal voice, installed voices measured at `POST /v1/multimodal/status`)
+   — honest and weak is still weak on the speak axis. Closing it puts MLX audio in the build graph,
+   which collides with the "one binary" identity line: bring that collision to the owner, it is the
+   real decision.
+3. **Char-based estimates break for CJK.** openclaw needed `fix(memory): account for CJK
+   characters in QMD memory chunking`; we carry the same arithmetic open
+   (`Models/TokenEstimate.swift`, gemma Chinese /3 measured 44–56% high). Two independent hits on
+   one formula ⇒ per-model bytes/token stops being a nice-to-have.
+4. **Compat faces earn their fix rate.** openclaw's `gate parallel_tool_calls to compatible APIs
+   (#39356)` and `raw call to anthropic compatible apis (#21336)` are our two invariants seen from
+   a third stack: keep `ToolCallWireContractTests` + `AnthropicToolDeliveryTests` strict, never
+   relax per provider.
+
+openclaw is deliberately **not** in `scripts/upstream-drift.sh`'s HEAD axes: at hundreds of
+commits a day a HEAD window is permanent noise, and a warning that always fires is a warning nobody
+reads when it becomes true. The shape worth adding is a release-tag axis (it publishes Sparkle
+`appcast.xml`) — pending the owner's call on axes.
