@@ -7,6 +7,15 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 
 
+**10-23(9) 新增探针 32：同一请求换进程还生成同一串 prompt 字节吗？顺带把「工具声明到底进没进 prompt」这条线钉在明处**(P0 回归防护 / P1 工具面诚实 / P3 可观测性)
+
+- **为什么需要一条常驻门**：10-23(8) 那个 bug 单元测试永远看不见——Swift 每进程只固定一次哈希种子，同进程内两次断言必然一致。能抓它的只有跨进程实测，所以做成 `scripts/probes/32-prompt-byte-determinism.sh`：N 次冷启 × 四种请求形状（无工具 / 声明 `required` 的工具 / 不声明 `required` 的工具 / 带历史），按形状跨启动聚合 `promptHash`。
+- **判据三条，含反真空**：① 每个形状跨启动必须**恰好一个**哈希（多一个就是 Dictionary/Set 或未排序 JSON 漏进 prompt）；② **同一轮内声明工具必须改变字节**——否则「稳定」只证明什么都没投喂，稳定就成了自证；③ 启动数与哈希数各自设地板，跑不够直接判失败而不是沉默。实测 `BOOTS=3`：**四个形状全部 distinct promptHash=1**，`notools`=`9bee6869f927756b`、两种工具形状=`668b96e1a6c28abb`、`history`=`3b4f6bce19bd131d`。
+- **一次自查纠我自己的假判据**：第一版把「形状之间必须互不相同」写成硬断言，立刻报 3 个 FAIL——两种工具形状哈希相同。查日志才懂这是**设计如此**：探针声明的 `lookup_order` / `fetch_rows` 不是本地工具名，白名单路由 `0/N injected`，于是只有 tools/no-tools 那句指令改变字节，schema 文本根本不进 prompt。判据改成①不声明工具必须与声明工具不同（真敏感），②两种工具形状相同只记 **NOTE** 并写明原因。把已 documented 的设计判红，等于训练所有人无视这条门。
+- **顺手把重复维护的数字清出语料**：探针 30 的条目不再抄塌陷率（`0/6, 6/6, 5-7/12` 留 CHANGELOG，两处维护必漂），改为指向 10-23 的结论与探针 32；探针 29/31 条目里的实测数值同口径删除。语料棘轮因此仍成立：**144888/144942 bytes**（新增 32 号条目后反而比改前更省），`probe-index=32/32`。
+- **诚实边界**：`Array(schema.parameters.keys)`（`ToolRegistry.swift:817`、`ToolEntry.swift:235`、`MCPTools.swift:46`）这三处字典出口**本轮仍未排序**——因为当前实测路径下非本地工具不进 prompt，`required` 缺省分支也没被这条探针命中。是否排序、以及「调用方声明的外部工具该不该进 prompt」属工具面设计（`ToolDeclarationSurfaceTests` + 探针 11 §7 已管），**留人拍板**，不在本轮擅自改语义。
+- **验证**：`swift build` exit 0；探针 32 两轮实跑（先 3 形状全绿，再 4 形状暴露并修正判据）；`make docs-check` 绿（corpus 144888/144942、probe-index 32/32、claims 30/30）；`audit`/`anchor-check` 见提交说明。
+
 **10-23(8) P0 结案：任务成败此前由进程哈希种子决定——注入 system prompt 的技能块顺序每进程随机，修根后同一请求 8/8 稳定答出**(P0 正确性 / P0 可靠性 / P1 上下文管理 / P3 回归防护)
 
 - **伪前提先死**：10-22 起所有判别臂都写着「同一批字节、identical prompt bytes」，而**没有任何一处验证过字节**——`DegenerateMarginProbe.fidelity` 只比 token **数量**。补上仪器（`promptHash` = FNV-1a over 实际喂给模型的 token 序列，`OCOREAI_MARGIN_DUMP=<dir>` 落真实文本）后，第一次跑就翻案：**同一请求 8 次冷启产生 4 个字节变体**（`file,terminal,search,memory` / `terminal,file,memory,search` / `terminal,file,search,memory` / `file,terminal,memory,search`），长度分毫不差（2880 chars / 713 tokens），**唯一区别是四个技能块写进 system prompt 的先后**。

@@ -155,19 +155,20 @@ Fails when: instance B stays alive until someone signals it (a refusal the calle
 - `29-engine-busy-429.sh` — When the engine is occupied, does the wire say 429 + `Retry-After`, or 500?
 Fails when: the capacity refusal is a 500 `app_error`, lacks `engine_busy`/`rate_limit_error` or `Retry-After`, the turn in flight is
     disturbed, or a short overlap is refused instead of waited out. Leg 1 gates on the long turn's first SSE token: lock order is not
-    HTTP arrival order. Queue-and-serve measures green; the 429 legs stay red because ordinary concurrency never reaches a refusal —
-    what occupies this engine is an abandoned request, and probe 31 measures why.
+    HTTP arrival order.
 
 - `30-repeated-prompt-delivery.sh` — Ask the same thing twice: does the second answer arrive?
-Fails when: a one-token `.eos` turn lacks its `Degenerate generation` line (leg 4), the only invariant
-    this defect has never broken. Repetition collapses at a run-to-run rate (0/6, 6/6, 5-7/12): pool, KV
-    quant, wired memory, temperature 0 and boot order never moved it, and two mechanism stories fell the
-    same evening — `CHANGELOG.md` 10-22(6),(8),(11).
-
+Fails when: a one-token `.eos` turn lacks its `Degenerate generation` line (leg 4). Its run-to-run
+    collapse rate was explained on 10-23 — the prompt was not byte-identical across boots (probe 32);
+    the numbers and the dead mechanism stories are in `CHANGELOG.md`.
 - `31-client-abort-cancellation.sh` — When a client walks away mid-turn, does the engine stop?
-Fails when: a turn whose client left still leaves a completion record with >8 tokens — measured
-    10-22, both faces ran 200 tokens/.maxTokens after a 1.0s abandon. XFAIL-open until fixed:
+Fails when: a turn whose client left still leaves a completion record with >8 tokens XFAIL-open until fixed:
     nothing detects disconnect (no HB liveness handle). Leg 1 = positive control.
+
+- `32-prompt-byte-determinism.sh` — Same request, different boot: same prompt bytes?
+Fails when: one shape yields more than one `promptHash` across boots (a Dictionary/Set or unsorted JSON
+    reached the prompt), or declaring a tool changes nothing at all. No unit test can see this class:
+    Swift fixes the hash seed per process.
 
 - `_lib.sh` — shared harness
 Fails when: —
