@@ -181,19 +181,39 @@ def sha256(path):
 # moves on, which is exactly what a bare "verified at collection time" could not do.
 # Borrowed from harness2's third_party/PROVENANCE.md + dependencies/ASSETS.json habit:
 # vendored bytes carry their source and a hash, and a script re-checks them.
-apple_pin, apple_match = None, None
+#
+# And the pin is the *audit basis*, never the mirror's HEAD (AGENTS.md: a clone under
+# ~/references proves content, never HEAD). Measured 10-22: re-running this collector
+# bumped apple.pin 09e71257 -> 675437b8 solely because the local clone had moved, so the
+# environment rewrote provenance while nothing in the distribution changed -- the gate
+# inferring its own premise. The committed manifest's pin is therefore what gets
+# byte-checked (the stronger question: it re-opens the tree the claim is about), a mirror
+# that moved is reported as drift, and re-pinning is an explicit act:
+# OCOREAI_REPIN_APPLE=<sha> after auditing the delta.
+apple_pin, apple_match, apple_drift = None, None, None
 apple_file = os.path.join(out, "Apple-coreai-models.txt")
+recorded_pin = None
+prior_manifest = os.path.join(out, "manifest.json")
+if os.path.exists(prior_manifest):
+    with open(prior_manifest, encoding="utf-8") as fh:
+        recorded_pin = (json.load(fh).get("apple") or {}).get("pin")
+target_pin = os.environ.get("OCOREAI_REPIN_APPLE") or recorded_pin
 for cand in (os.path.expanduser("~/references/coreai-models"), "coreai-models"):
     if not os.path.isdir(os.path.join(cand, ".git")):
         continue
     head = subprocess.run(["git", "-C", cand, "rev-parse", "HEAD"],
                           capture_output=True, text=True).stdout.strip()
-    upstream_text = subprocess.run(["git", "-C", cand, "show", "%s:LICENSE" % head],
-                                   capture_output=True)
-    if not head or upstream_text.returncode != 0:
+    if not head:
         continue
-    apple_pin = head
-    apple_match = hashlib.sha256(upstream_text.stdout).hexdigest() == sha256(apple_file)
+    pin = target_pin or head
+    apple_pin = pin
+    upstream_text = subprocess.run(["git", "-C", cand, "show", "%s:LICENSE" % pin],
+                                   capture_output=True)
+    # null stays "not checked here"; only a real comparison may answer false.
+    apple_match = (hashlib.sha256(upstream_text.stdout).hexdigest() == sha256(apple_file)) \
+        if upstream_text.returncode == 0 else None
+    if head != pin:
+        apple_drift = head
     break
 
 manifest = {
@@ -234,6 +254,10 @@ print("deps=%d  texts_written=%d  missing=%s  apple_derived_files=%d  naming_cor
       % (len(rows), wrote, miss or "none", apple_count, named_coreai))
 print("provenance: apple_pin=%s  byte_identical_at_pin=%s  vendored=%d"
       % (apple_pin or "<clone not present>", apple_match, len(vendored)))
+if apple_drift:
+    print("drift: mirror HEAD %s != recorded pin %s -- the pin is the audit basis, so it is"
+          " NOT re-pinned here; audit the delta, then re-pin explicitly with"
+          " OCOREAI_REPIN_APPLE=<sha>" % (apple_drift[:12], (apple_pin or "?")[:12]))
 # Gate: BSD-3 clause 2 / Apache-2.0 4 require the text to travel with the
 # distribution, so a dependency without a collected text is a build failure,
 # not a footnote -- a silent gap here is a license violation users cannot see.

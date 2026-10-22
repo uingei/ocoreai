@@ -4,6 +4,15 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-22
 
+**10-22 自进化第一块前置件：provenance 不许被环境偷偷改写**(P0 判定前提被污染 / P0 文档与代码一致)
+
+- **症状**：上一轮跑 `scripts/collect-third-party-licenses.sh` 后 `THIRD-PARTY-LICENSES/manifest.json` 的 `apple.pin` 从 `09e7125768` 变成 `675437b84e`，而分发物一个字节都没变。根因在脚本 `apple_pin = head`：本机 `~/references/coreai-models` mirror 往前走了，pin 就跟着走。违反 AGENTS.md「mirror ≠ HEAD」，也正是 invariant 1 点名的形状——门自己从环境里长出前提。
+- **改法**：pin 是**审计基准**，不是 mirror HEAD。校验现在跑 `git show <recorded pin>:LICENSE`（问的才是这条断言真正关于的那棵树），target 取 manifest 里已提交的 pin；mirror 走前了只打一行 `drift:`，pin 不动；重钉是显式动作 `OCOREAI_REPIN_APPLE=<sha>`，前提是先审 delta。该 pin 在本机取不到时 `verifiedAgainstPin` 记 `null`——"没查"不许塌成"查过且不匹配"。
+- **实测**：`bash scripts/collect-third-party-licenses.sh` ⇒ `apple_pin=09e7125768fc09276ba3ca3524f2f05007255866 byte_identical_at_pin=True` + `drift: mirror HEAD 675437b84e2f != recorded pin 09e7125768fc …`，跑完 `git status` 对 `manifest.json` 零改动（先前必改）。门：`ThirdPartyNoticesTests`(16) 断言 pin 40 位且 `verifiedAgainstPin == true`；`make audit` Class-I 与 `git show <pin>:LICENSE` 逐字节比（clone 缺席打 loud SKIP）。本轮复跑：`make docs-check` 30/30、`make anchor-check` 43 anchors drift=0 + bare cites 173/173、`docs-type-existence` unresolved=0、audit 全绿。
+- **为什么这是 RSI 的前置件**：自进化系统的第一个断点不在模型，而在「判真假的那台机器会不会被它改进的对象偷偷改掉」。这个锚点不漂移之前，任何自动闭环都只是把污染传下去。
+- **顺带（文字进出）**：`docs/agent/third-party-notices.md` 改正 `apple.pin` 语义，并删掉与「Absent ≠ empty」/Gates 两条重复的句子——corpus 142,550 → **142,434 B**（cap 不动，walls 0）。
+- **仍未决（不假装）**：GUI 端到端只在本机证过一次（`build/ocoreai.app` + `OCOREAI_ENABLE_HTTP=1` 起 HTTP + 一次真回复 + 窗口 900x472 / 截图 131 KB），CI 还没跑它，而 AGENTS.md 仍写着 SwiftUI 路径 "gated statically only"——该句已过期；`scripts/verify-gui-window.sh` 的 traffic-light 检查无人值守时永远只 warn（AppKit 标题按钮子窗口不可枚举，实测 owned 条目 0），只响不判定的门要删不是要解释。
+
 **10-22 openclaw 读完了：116,620 commits 的迭代次序把「贵在哪」第二次证明了一遍，顺手删掉自家烂了三年的 ARCHITECTURE.md**(P0 上游偏离 / P0 文档与代码不一致)
 
 - **它的形状**（`~/references/openclaw`，10-22 clone，HEAD `6007ce78dc8`，跨度 2025-11-24→2026-10-21）：TypeScript 47,428 文件 + **1,591 个 Swift**，`apps/{macos,ios,linux,android,macos-mlx-tts,swabble,shared}`，`packages/{agent-core,gateway-client,gateway-protocol,llm-core,net-policy,memory-host-sdk,model-catalog-core,...}` —— 这套集合里唯一同时是「原生 Apple App」的竞品，agent loop 在 gateway 协议后面，GUI 是客户端。

@@ -12,18 +12,24 @@ Metric warning: grepping the *repo name* is not the derived count — 59 files u
 `THIRD-PARTY-LICENSES/` (one text per dep + Apple BSD-3 + the dlpack Apache text + `NOTICES.md` + `manifest.json`; **exits 1** if a dep text is missing, no checkouts are present, or a vendored holder is unattributed; idempotent — re-running it on a clean tree changes nothing) → `scripts/bundle-licenses.sh <app>` copies it into `Contents/Resources/` and re-reads it *from
 inside* the bundle → called by `scripts/build-app.sh`. **Adding a dependency, bumping a pin, or vendoring a header ⇒ re-run the collector and commit its output.** GUI surface: Settings → About → Third-Party Notices, backed by `Core/ThirdPartyNotices.swift`; when texts are absent the panel says so, it never renders blank.
 
-**Provenance is part of the record now (schema 2, 10-20):** the manifest used to answer "there is an Apple BSD-3 text and one text per dependency" without saying *which upstream revision* the Apple text came from or *what bytes* we ship — for code whose license obligation is precisely "the notice travels with the binary". Discipline borrowed from harness²
-(`~/references/harness2`: `third_party/*/PROVENANCE.md` per bundled tree, `dependencies/ASSETS.json` as a path→sha256 map, `scripts/check_provenance.py` exiting 1 on any changed or missing asset, `dependencies/PINNED.md` as the pin table; and it draws the line we had not drawn — release code we rewrote is *not* a vendored asset, so it does not belong in the checksum map):
+**Provenance is part of the record now (schema 2, 10-20):** the manifest used to answer "an Apple BSD-3 text plus one per
+dependency" without saying *which revision* the Apple text came from or *what bytes* we ship — for code whose obligation is
+precisely "the notice travels with the binary". Discipline borrowed from harness² (per-tree `PROVENANCE.md`, a path→sha256
+asset map, a checker exiting 1 on any changed or missing asset; plus the line it draws that we had not: release code we
+rewrote is *not* a vendored asset, so it stays out of the checksum map):
 
-- **`apple.pin` / `apple.licenseSha256` / `apple.verifiedAgainstPin`** — the upstream revision the shipped text was byte-compared against, plus the digest of the bytes actually in this folder. `pin` and `verifiedAgainstPin` are host-local facts: without the `~/references/coreai-models` clone the collector records `null` rather than guessing a SHA, and `false` means "checked,
-and it did not match" — never "the check did not run".
+- **`apple.pin` / `apple.licenseSha256` / `apple.verifiedAgainstPin`** — the revision the shipped text was byte-compared
+against, plus the digest of the bytes actually shipped. **`pin` is the audit basis, not the mirror's HEAD**: re-collection
+verifies `git show <recorded pin>:LICENSE` and keeps the pin — on 10-22 a re-run bumped it 09e71257→675437b8 solely
+because the clone had moved, so the environment rewrote provenance while the shipped bytes were identical. A moved mirror
+prints `drift:` and changes nothing; re-pinning is the explicit `OCOREAI_REPIN_APPLE=<sha>`, after auditing the delta.
+Host-local as before: no clone ⇒ `null`, never a guessed SHA, and `false` means "checked and it did not match".
 - **`vendored[]`** — one row per third-party file that ships inside our source tree instead of as a SwiftPM dependency (`file` / `upstream` / `license` / `holder` / `textFile` / `sha256`). No package graph resolves these and no build log mentions them, so this record is the only thing stating that the file is not ours.
 - **Absent ≠ empty (the 10-13 `stream` rule, mirror side)** — `ThirdPartyNoticesManifest` hand-decodes `vendored` with `decodeIfPresent(…) ?? []`, so a schema-1 manifest or an older bundle still loads, and a missing key never reads as "this build ships no vendored code".
-- **GUI disclosure** — the About panel gained `ThirdPartyVendoredSection` (`UI/Views/ThirdPartyNoticesView.swift`, between the dependency and codex rows): path · license · sha256 prefix on the row, full upstream text behind the disclosure, localized in both delivered tables. An empty list renders nothing: that is the collector's measured "none", and Class-I refuses to ship
-a manifest predating the field.
+- **GUI disclosure** — the About panel gained `ThirdPartyVendoredSection` (`UI/Views/ThirdPartyNoticesView.swift`, between the dependency and codex rows): path · license · sha256 prefix on the row, full upstream text behind the disclosure, localized in both delivered tables.
 - **Gates** — `ThirdPartyNoticesTests` (16 tests, no checkouts needed ⇒ every CI leg) recomputes both digests with `CryptoKit` *from the bytes on disk* rather than reading the recorded value back, floors `vendored` at ≥1 so a collector that finds nothing cannot pass vacuously, pins the absent-key decode, and scans the view source so a deleted section goes red.
-`scripts/audit.swift_patterns.sh` Class-I additionally asserts `schemaVersion ≥ 2`, the Apple digest, byte-identity with `git show <pin>:LICENSE` when the clone exists (loud SKIP when it does not) and every vendored row's digest/upstream/text file. Red sample (10-20): zeroing `vendored[0].sha256` in `THIRD-PARTY-LICENSES/manifest.json` made `make audit` exit 1 *and* `swift
-test --filter ThirdPartyNotices` fail at `Tests/ocoreaiTests/ThirdPartyNoticesTests.swift:325` — the manifest is read at runtime, so both went red without a rebuild; restoring it returned both to green.
+`scripts/audit.swift_patterns.sh` Class-I additionally asserts `schemaVersion ≥ 2`, the Apple digest, byte-identity with `git show <pin>:LICENSE` when the clone exists (loud SKIP when it does not) and every vendored row's digest/upstream/text file. Red sample (10-20): zeroing `vendored[0].sha256` made `make audit` exit 1 *and*
+`swift test --filter ThirdPartyNotices` fail at `Tests/ocoreaiTests/ThirdPartyNoticesTests.swift:325` without a rebuild — the manifest is read at runtime.
 - **Not proven** — the panel has never been rendered by an automated run (no UI-test target), so "the user actually reads the dlpack Apache text in Settings" is an inference from the data + source gates, not a measurement; and the byte-identity-vs-upstream check currently runs only on a host holding the clone — CI prints SKIP for it, which is why `apple.pin` being non-null
 in the committed manifest is asserted separately.
 
