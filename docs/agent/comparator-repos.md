@@ -1,15 +1,14 @@
 # Comparator repositories — who is good at what
 
-> The long form behind § *Upstream Audit Dependencies* item 6 in `AGENTS.md`.
-> The "what the clone contains" column was read off the local clone on 10-20 (`ls` + README head).
-> The audit column is CHANGELOG lines naming the tree, re-measurable with:
-> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata hermes-agent deepseek-harness harness2; do printf "%s=%s\n" "$r" "$(grep -c -- "$r" CHANGELOG.md)"; done`
-> — the numbers in the cells are a **dated snapshot**; what actually gates is the floor block at the
-> bottom, so a trimmed CHANGELOG goes red in `make docs-check` instead of leaving a stale claim.
-> A **pin** is a build input (`Package.swift:43` `revision:` — only `mlx-swift-lm` and, for
-> derivation, `coreai-models`). Everything else here is a comparator: nothing is linked, nothing
-> is redistributed, and a borrowed verdict stays an inference until a `file:line` in *our* build
-> carries it (AGENTS.md policy 3 + 4).
+> Long form behind § *Upstream Audit Dependencies* item 6 in `AGENTS.md`. The "what the clone
+> contains" column was read off the local clone on 10-20 (`ls` + README head). The audit column is
+> CHANGELOG lines naming the tree, re-measurable with:
+> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash hermes-agent deepseek-harness harness2; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
+> — cells are a **dated snapshot**; the floor block at the bottom is the gate, so a trimmed
+> CHANGELOG goes red in `make docs-check` instead of leaving a stale claim. A **pin** is a build
+> input (`Package.swift:43` `revision:` — only `mlx-swift-lm`, and `coreai-models` for
+> derivation); everything here is a comparator. Iteration order and per-axis fix-cost for the two
+> agent-product rivals: `docs/agent/competitor-iteration-paths.md`.
 
 Each entry is one clone under `~/references/`: what it holds, the axis worth borrowing,
 and how far the audit got. A borrowed verdict is an inference until a `file:line` in our
@@ -59,6 +58,10 @@ Borrow: named, unused — 1 (rounds 9–15 audited mlx-swift-lm's own MTP instea
 Contains: How a Python server reaches Metal; mostly out of stack for a Swift-native engine. 10-20: it is also where this repo first found the **Jev / System 1 decision** axis named (`docs/structured_decisions.md:3`) → `docs/agent/systemone-decisions.md`
 Borrow: touched — 2
 
+- `openclaw` — TypeScript, 392k stars on 10-22, "The AI that really does things. Any OS. Any
+Platform." Designated 10-22; `git clone` times out from this host (github.com is unreachable,
+api.github.com answers) ⇒ **unread, no verdict claimed** here or in AGENTS.md.
+
 - `deepseek-harness` — `dsh`, "everything-is-a-plugin" agent harness powered by Cordis
 Contains: Skill/plugin surface design and how a harness declares capabilities — the axis `codex` covers for us in Rust
 Borrow: named, unused — 1; same call pending
@@ -66,27 +69,15 @@ Borrow: named, unused — 1; same call pending
 
 ## How to use this file
 
-1. Pick the axis you are on (compat, MTP, packaging, harness, provenance) and read that tree's
-   relevant module before designing — if it has an answer, reference it instead of authoring a
-   local variant.
-2. Any borrowed verdict needs three things before it is a change: the upstream `file:line`, the
-   line in ocoreai that implements it, and the gate that goes red when it regresses.
-3. Update the audit column by re-running the one-liner above (the floors below are the gate, so
-   refresh both together). A tree that stays at "named, unused" for several rounds is a
-   named-but-unused reference: use it or drop it from `AGENTS.md` rather than keep it as
-   decoration — four of the twelve are in that state as of 10-20.
-4. All twelve designated trees are present under `~/references/` as of 10-20 (15 directories total
-   — `mlx-swift-lm`, `coreai-models` and `codex` are the axes in § Upstream Audit Dependencies
-   1–3, not comparators). A clone proves *content*, never HEAD (see the mirror caveat there).
-
-<!-- claim:cmp_matrix_rows>=12 :: grep -c '^- \`' docs/agent/comparator-repos.md -->
-<!-- claim:cmp_named_trees>=12 :: grep -oE '^- \`[A-Za-z0-9._-]+\`' docs/agent/comparator-repos.md | wc -l -->
-<!-- claim:cmp_vllm_changelog_lines>=21 :: grep -c -- vllm CHANGELOG.md -->
-<!-- claim:cmp_sglang_changelog_lines>=17 :: grep -c -- sglang CHANGELOG.md -->
-<!-- claim:cmp_omlx_changelog_lines>=12 :: grep -c -- omlx CHANGELOG.md -->
-<!-- claim:cmp_hermes_changelog_lines>=6 :: grep -c -- hermes-agent CHANGELOG.md -->
-<!-- claim:cmp_ollama_changelog_lines>=5 :: grep -c -- ollama CHANGELOG.md -->
-<!-- claim:cmp_mlx_serve_changelog_lines>=3 :: grep -c -- mlx-serve CHANGELOG.md -->
-<!-- claim:cmp_vllm_metal_changelog_lines>=2 :: grep -c -- vllm-metal CHANGELOG.md -->
-<!-- claim:cmp_harness2_changelog_lines>=3 :: grep -c -- harness2 CHANGELOG.md -->
-<!-- claim:cmp_designation_line_exists=1 :: grep -c '^6\. \*\*Comparators\*\*' AGENTS.md -->
+1. Pick the axis (compat, MTP, packaging, harness, provenance) and read that tree's module before
+   designing — if it has an answer, cite it instead of authoring a local variant. A borrowed
+   verdict becomes a change only with three things: the upstream `file:line`, the ocoreai line that
+   implements it, and the gate that goes red if it regresses.
+2. Refresh the audit column with the one-liner above; the floors below are the gate, so change
+   both together. A tree that stays "named, unused" is decoration: use it or drop it from
+   `AGENTS.md`. Measured 10-22 (cites in `Sources/` + `Tests/`, `scripts/competitor-path-scan.sh`
+   territory): seven trees have zero coupling — MTPLX, TensorFold, Strata, mlx-serve,
+   deepseek-harness, harness2, splash — and openclaw is designated but unread.
+3. Sixteen directories sit under `~/references/` as of 10-22: the thirteen comparators above plus
+   `mlx-swift-lm`, `coreai-models` and `codex`, which are § Upstream Audit Dependencies 1–3, not
+   comparators. A clone proves *content*, never HEAD.

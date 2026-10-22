@@ -700,7 +700,7 @@ actor MLXModelLoader {
 ///    provider-agnostic identity, omlx `ms_downloader`/`HF_downloader` `target_dir = model_dir / repo_id`).
 ///    swift-huggingface `downloadSnapshot(to:)` (HubClient+Files.swift:1152) is the
 ///    exact API that omlx uses on the Python side (`local_dir=...` in
-///    omlx/admin/HF_downloader.py:1122), so this is not a local invention.
+///    omlx/admin/hf_downloader.py:1772), so this is not a local invention.
 /// 2. **Local-first** — before any network is touched, check whether a ready
 ///    snapshot already exists at `flatRoot/<org>/<name>/` (non-empty `.safetensors`);
 ///    when present and `useLatest == false`, return it directly. Mirrors

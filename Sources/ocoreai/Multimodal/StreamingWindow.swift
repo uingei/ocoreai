@@ -65,7 +65,9 @@ public struct EndpointingConfig: Sendable, Equatable {
     /// Past a long gap the predictor resists re-entering an emitting state, so the resuming
     /// utterance loses its opening words. Well above `silenceFrames`, which closes a segment for
     /// display only: resetting at every endpoint cost ~3.8 s of dropped audio. NeMo never resets
-    /// (`speech_to_text_streaming_infer_rnnt.py:426`), so 0 matches upstream.
+    /// (`NVIDIA/NeMo@5a1a37b62d3c examples/asr/asr_chunked_inference/rnnt/
+    /// speech_to_text_streaming_infer_rnnt.py:426-427`,
+    /// 全 629 行内 `reset` 出现 0 次, `state = None` 仅每次取样的循环头 1 处), so 0 matches upstream.
     ///
     /// Assumes the host pushes audio through pauses: this and `silenceFrames` advance only when
     /// hops run. A host that gates its mic should call `finishStream()` rather than withhold
@@ -149,7 +151,9 @@ internal struct EndpointDetector {
 /// `transformers`, so live transcription re-runs the whole encoder over a bounded
 /// `[left | chunk | right]` window each hop, consumes only the chunk's frames, and carries the
 /// transducer state across hops — NVIDIA's own algorithm (NeMo
-/// `examples/asr/asr_chunked_inference/rnnt/speech_to_text_streaming_infer_rnnt.py:446-527`).
+/// `NVIDIA/NeMo@5a1a37b62d3c examples/asr/asr_chunked_inference/rnnt/
+/// speech_to_text_streaming_infer_rnnt.py:446-527` — 实测该循环 `while left_sample < ...` 到
+/// `left_sample = right_sample` 即本窗口的左移与状态携带)。
 ///
 /// Everything is in encoder frames, the only unit in which the chunk boundary is exact. One
 /// frame is `hopLength * subsamplingFactor` samples (1280 = 80 ms for Parakeet).

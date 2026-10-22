@@ -76,7 +76,13 @@ cd "$(dirname "$0")/.."
 # pass: 13 files, 152,041 bytes, zero lines over 400 bytes outside code fences. Raising
 # either constant must be a visible edit in the diff.
 : "${OCOREAI_CORPUS_MAX_LINE:=400}"
-: "${OCOREAI_CORPUS_MAX_BYTES:=152041}"
+# 10-22 re-pin 152041 -> 156559: docs/agent/competitor-iteration-paths.md (+5610, a rules-only
+# evidence hop with its dated chronology left in CHANGELOG) broke the ratchet by 4518; 711 bytes
+# of stale text went out of comparator-repos.md (its "four of the twelve"/"fifteen directories"
+# cells were wrong as of 10-22 — seven trees have zero coupling, and openclaw is a 16th clone).
+# The next corpus addition must delete its own weight; the pending owner call on splitting
+# CHANGELOG.md into docs/agent/rounds/ changes this baseline again.
+: "${OCOREAI_CORPUS_MAX_BYTES:=156559}"
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.
 : "${OCOREAI_PROBE_FLOOR_INDEX:=20}"

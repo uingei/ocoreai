@@ -278,6 +278,10 @@ audit:
 	@echo "🔍 Running static audit..."
 	bash scripts/audit.swift_patterns.sh
 
+## Two passes, one command. anchor-check.sh verifies the cites that carry an `anchor:` marker;
+## upstream-cite-check.sh verifies the *bare* `path.ext:NN` cites in Sources/ comments (173 on
+## 10-22) against the reference clones, package checkouts and .upstream-external-cites.json —
+## 4 of them named a path or line that did not exist, so this layer needed its own gate.
 ## Verifies every file:line cite in AGENTS.md / area guides / docs and the upstream cites in
 ## code comments against the file it names (working tree, or the pinned upstream revision).
 ## Line numbers are how the agent navigates, and they move under every edit and bump: 15 of
@@ -286,6 +290,7 @@ audit:
 anchor-check:
 	@echo "🎯 Verifying line cites in docs and code comments..."
 	bash scripts/anchor-check.sh
+	bash scripts/upstream-cite-check.sh
 
 ## Four upstream axes, one command. Three HEAD axes (mlx-swift-lm revision pin, coreai-models
 ## and codex reference axes) against .upstream-baseline.json, plus the mlx-swift *tag* axis —

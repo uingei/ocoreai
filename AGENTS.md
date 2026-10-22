@@ -260,9 +260,9 @@ Five empirical sources plus comparators; round-by-round verdicts live in `CHANGE
    source that judges the GUI itself, so on anything user-visible it is the authority, not codex. It is not
    DocC (its `.json` variants 404) — cite the section; there is no machine index to grep.
 6. **Comparators** — vllm, sglang, vllm-metal, omlx, mlx-serve, MTPLX, ollama, TensorFold, Strata, splash,
-   hermes-agent, deepseek-harness, harness2: serving, MTP, packaging and agent-loop comparators, not pins.
-   Nothing is linked or redistributed, and a borrowed verdict stays an inference until a `file:line` in our
-   build says otherwise. Per-repo strengths: `docs/agent/comparator-repos.md`.
+   openclaw, hermes-agent, deepseek-harness, harness2: not pins; nothing linked or redistributed, and a
+   borrowed verdict stays an inference until a `file:line` in our build says otherwise. Per-repo strengths:
+   `docs/agent/comparator-repos.md`; shipped order + fix-cost per axis: `docs/agent/competitor-iteration-paths.md`.
 - **OpenAI / Anthropic compatibility** is judged the way vllm and sglang do it: the spec, their
   implementation, real requests, and observed behaviour — not our convenience.
 - **A mirror proves content, never HEAD.** `api.github.com` is authoritative for HEAD and compare windows.

@@ -1,0 +1,14 @@
+{
+  "note": "Upstream citations in Sources/ that point at a tree this host does not clone. Each entry records how it was verified, so the claim stays checkable instead of becoming folklore. scripts/upstream-cite-check.sh fails any bare upstream cite that resolves in neither ~/references nor .build*/checkouts nor this manifest.",
+  "entries": [
+    {
+      "path": "examples/asr/asr_chunked_inference/rnnt/speech_to_text_streaming_infer_rnnt.py",
+      "repo": "NVIDIA/NeMo",
+      "sha": "5a1a37b62d3c",
+      "verified_at": "2026-10-22",
+      "route": "api.github.com/repos/NVIDIA/NeMo/contents/<path>?ref=main (629 lines)",
+      "lines_claimed": "426-427, 446-527",
+      "substance": "state = None once per sample (line 427) and `reset` appears 0 times in 629 lines => NeMo never resets the predictor on silence; the window loop at 446-527 slides left_sample = right_sample over a [left|chunk|right] buffer"
+    }
+  ]
+}
