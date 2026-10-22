@@ -4743,6 +4743,29 @@ extension EnginePool {
                                     "Degenerate generation for \(convKey) — tokens=\(actualTokenCount ?? metrics.generatedTokenCount) reason=eos under max_tokens=\(genParams.maxTokens ?? -1), firstTokenMs=\(metrics.firstTokenMs) promptTokens=\(localPromptTokenCount ?? -1): this turn completed as a success carrying one token — the model answered EOS where the task asked for more, and prefill is not the measured failure (713 tokens cost ~180 ms warm) — not an answer"
                                 )
                             }
+                            // The shape is detected above; the number that says *why* is
+                            // measured here. Opt-in because it costs one extra short generation
+                            // on a turn that already failed — healthy turns stay untouched, and
+                            // the chat face cannot carry logprobabilities at all (ChatSession has no
+                            // probability path; see DegenerateMarginProbe.swift header).
+                            if DegenerateMarginProbe.isEnabled {
+                                let marginPairs = stdRetryMessages.map {
+                                    DegenerateMarginProbe.MessagePair(
+                                        role: $0.role.rawValue, content: $0.content)
+                                }
+                                let marginHasMedia = stdRetryMessages.contains {
+                                    !$0.images.isEmpty || !$0.videos.isEmpty || !$0.audios.isEmpty
+                                }
+                                _ = await DegenerateMarginProbe.run(
+                                    container: handleRef.modelContainer,
+                                    instructions: systemInstructions,
+                                    messagePairs: marginPairs,
+                                    hasMedia: marginHasMedia,
+                                    expectedPromptTokens: localPromptTokenCount,
+                                    steps: 4,
+                                    baseParameters: genParams,
+                                    logger: logger)
+                            }
                             // Capture assistant text for pool message history tracking
                             if !localStdAccumulated.isEmpty {
                                 stdAccumulated = localStdAccumulated

@@ -129,3 +129,54 @@ case "$ARMS" in
     rmdir "$ORIG" 2>/dev/null || true
     ;;
 esac
+
+case "$ARMS" in
+  *D*)
+    # Arm D — the carrier. Measured on this host: on a process whose real turn collapsed, the
+    # probe re-runs the SAME prompt bytes (fidelity=match against the turn's own promptTokens)
+    # and reports how many tokens it got before the model answered EOS.
+    #   parity (engine's GenerateParameters, kvCache included) -> reconstruction stops at step1,
+    #     the same one-token shape as the real collapse;
+    #   OCOREAI_MARGIN_NO_KV=1 (kvCache dropped, everything else identical) -> the reconstruction
+    #     reaches step2 and beyond.
+    # One field, two outcomes, same process, same bytes: the KV-cache configuration is what
+    # carries the collapse. Both legs must actually see a collapse, or the run is INCONCLUSIVE —
+    # a leg that never fired proves nothing, and the rate on this host swings across boots.
+    echo "arm D — which configuration carries the collapse? ($BOOTS boots per leg)"
+    PARITY_HITS=0
+    PARITY_COLLAPSED_REPLAY=0
+    NOKV_HITS=0
+    NOKV_SURVIVED_REPLAY=0
+    for LEG in parity nokv; do
+      if [ "$LEG" = nokv ]; then export OCOREAI_MARGIN_NO_KV=1; else unset OCOREAI_MARGIN_NO_KV; fi
+      for b in $(seq 1 "$BOOTS"); do
+        new_boot
+        for t in 1 2 3; do
+          answer=$(ask "d${LEG}${b}${t}" "$TARGET")
+          case "$answer" in C) ;; *) continue ;; esac
+          LINE=$(grep "Degenerate margin probe" "$PROBE_LOG" | tail -1)
+          STEPS=$(printf '%s' "$LINE" | grep -c "step[0-9]* chose")
+          FID=$(printf '%s' "$LINE" | grep -o "fidelity=[a-zA-Z]*" | head -1)
+          if [ "$LEG" = parity ]; then
+            PARITY_HITS=$((PARITY_HITS + 1))
+            [ "$STEPS" -le 1 ] && PARITY_COLLAPSED_REPLAY=$((PARITY_COLLAPSED_REPLAY + 1))
+          else
+            NOKV_HITS=$((NOKV_HITS + 1))
+            [ "$STEPS" -ge 2 ] && NOKV_SURVIVED_REPLAY=$((NOKV_SURVIVED_REPLAY + 1))
+          fi
+          echo "  D $LEG boot=$b turn=$t $FID replay_steps=$STEPS"
+        done
+        probes_cleanup >/dev/null 2>&1
+        sleep 2
+      done
+    done
+    echo "  D summary: parity replays collapsed $PARITY_COLLAPSED_REPLAY/$PARITY_HITS; no-kv replays survived $NOKV_SURVIVED_REPLAY/$NOKV_HITS"
+    if [ "$PARITY_HITS" -eq 0 ] || [ "$NOKV_HITS" -eq 0 ]; then
+      echo "  D VERDICT: INCONCLUSIVE — one leg never saw a collapse, so nothing was separated"
+    elif [ "$PARITY_COLLAPSED_REPLAY" -eq "$PARITY_HITS" ] && [ "$NOKV_SURVIVED_REPLAY" -eq "$NOKV_HITS" ]; then
+      echo "  D VERDICT: kvCache configuration carries the collapse (every parity replay collapsed, every no-kv replay continued)"
+    else
+      echo "  D VERDICT: SEPARATION BROKEN — replay shape no longer tracks kvCache; the carrier changed, re-open the hunt"
+    fi
+    ;;
+esac

@@ -5,6 +5,16 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 ## [Unreleased] — 2026-09-05 → 2026-10-23
 
 
+
+**10-23(2) 第一次量到塌陷处到底差多少：step2 上 `\n` 与 `<turn|>` 只差 0.0466 nats；顺带差点把 kvCache 错认成载体**(P0 正确性 / P3 可观测性 / P3 回归防护)
+
+- **仪器**：`Sources/ocoreai/Engine/DegenerateMarginProbe.swift`。为什么不能借 chat 面：`ChatSession.swift` 对 `logProbabilities`/`LogProbabilityTokenLoopHandler` 零引用，`.probability` 事件只挂在 `LogProbabilityTokenLoopHandler.swift:9` ⇒ 给 `chatSession.generateParameters.logProbabilities` 赋值是静默 no-op。改走上游可观测缝（`TokenIterator` + `generateLoopTask` + `LogProbabilityTokenLoopHandler`，`Documentation.docc/generation-observability.md`）。**保真自证**：重建自己数出的 `promptTokens` 与塌陷轮记录的数字对账，实测 `promptTokens=713 fidelity=match`——不是假定，是每行自带。
+- **量到的数**（greedy，同进程、同字节）：`step1 chose '1' lp≈-0.01`；**`step2 chose '\n' id=107`，rival `<turn|>` id=106（EOS），margin=0.0466**；step3 才轮到 `'2'`。也就是说塌陷位就是「换行 vs 结束符」的**近天平局**，差距是 1e-2 nats 量级。而跨 boot 看，同一位置 step1 的 lp 在 `-0.0091 / -0.0094 / -0.0100 / -0.0111 / -0.0278` 之间跳——**跨进程数值抖动与 margin 同量级**，近天平局被数值掀翻从此有数可依，不再是猜测。
+- **kvCache 错认载体，被自己的门拦下**：第一批 4 次 parity（沿用引擎 `genParams`，含 `kvCache`）重建全部停在 step1，而 `OCOREAI_MARGIN_NO_KV=1` 的 2 次重建走到 step2+ ⇒ 形似单变量分离。同一仪器再跑一遍：parity 三 boot **一次没塌**，no-kv 的 boot3 重建反而 **3/3 停在 step1**。⇒ 旗标不决定结果，boot 决定；`kvCache` **不是**载体，`scripts/collapse-discriminators.sh` arm D 当场输出 `VERDICT: INCONCLUSIVE — one leg never saw a collapse, so nothing was separated`。这条硬门（两臂都必须真的出现塌陷、且形状必须完全跟随旗标）是专门为了拦住这类「n 很小但看起来很干净」的分离而写的，它第一次上岗就起作用了。
+- **顺带解释了一条旧负结果**：`kvCacheQuantization.enabled=false` 当年「没动它」并不奇怪——`makeKVCacheConfiguration` 带 fallback（`Engine/AGENTS.md:48`：包括那个过去会返回 nil 的非量化分支），关全局开关仍会得到非 nil 的 kvCache、走同一条路，因此那个实验在设计上就分不出东西。
+- **现在仍然成立的**：塌陷是 **(内容 × 进程)** 层面的判定（arm A：同进程内 TARGET 连塌、另两条 prompt 出满长度）；机制候选收敛到「该位置近天平局 + 跨进程数值抖动」；`min_tokens` 类 EOS 地板仍只在 plumbing 证明后才谈，且必须像 vllm/sglang 那样按请求显式，不做静默默认。
+- **门与成本**：`OCOREAI_MARGIN_PROBE=1` 才跑，只在已判定塌陷的轮次多花一次 ≤4 token 生成；健康轮零开销。`swift build` exit 0。
+
 **10-23(1) 「boot 内一致 84 轮」是实验设计造出来的假象：把内容交错一下，进程全局说当场死，磁盘快照也说谎**(P0 正确性 / P3 回归防护)
 
 - **盲区在哪**：此前 15 boots × 同 prompt（84 轮）全部 boot 内一致，读起来像「进程级绑定」。错在**每个 boot 只用一条内容**——单一内容下的 boot 内一致性由内容保证，两种假设（进程全局数值 / 内容特定）在这个设计里根本分不开。缺的不是更多轮数，是**第二条内容**。
