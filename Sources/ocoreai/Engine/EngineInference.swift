@@ -4731,14 +4731,16 @@ extension EnginePool {
                             ) {
                                 // Invariant 2: a turn that delivered at most one token under a budget that
                                 // asked for more is not an answer, and it must not leave the process as a
-                                // plain success. Measured 10-22: 8 of 16 identical turns collapsed to
-                                // 1 token + .eos with firstTokenMs 137-257 against 4927-8020 for the
-                                // healthy ones, while upstream still reported promptTokens=713 — the turn
-                                // never forwarded its prompt and still said `stop`. The numbers ride in the
-                                // line so a reader can make the prefill call; the engine does not claim a
-                                // root cause it has not measured (see Engine/DegenerateTurn.swift).
+                                // plain success. Measured 10-22: identical greedy turns collapse to
+                                // 1 token + .eos at firstTokenMs 137-257 while healthy ones sit at
+                                // 4927-8020, and upstream reports promptTokens=713 in both modes. The
+                                // clause that used to live here — "the turn never forwarded its prompt" —
+                                // is retracted by measurement: a 713-token prefill costs ~180 ms once the
+                                // process is warm, so 130-257 ms is consistent with a prefill that ran
+                                // (CHANGELOG 10-22(11)). What the line claims is only the shape; the
+                                // numbers ride along so a reader can make the call (Engine/DegenerateTurn.swift).
                                 logger.error(
-                                    "Degenerate generation for \(convKey) — tokens=\(actualTokenCount ?? metrics.generatedTokenCount) reason=eos under max_tokens=\(genParams.maxTokens ?? -1), firstTokenMs=\(metrics.firstTokenMs) promptTokens=\(localPromptTokenCount ?? -1): this turn completed as a success without the prefill its own accounting claims — not an answer"
+                                    "Degenerate generation for \(convKey) — tokens=\(actualTokenCount ?? metrics.generatedTokenCount) reason=eos under max_tokens=\(genParams.maxTokens ?? -1), firstTokenMs=\(metrics.firstTokenMs) promptTokens=\(localPromptTokenCount ?? -1): this turn completed as a success carrying one token — the model answered EOS where the task asked for more, and prefill is not the measured failure (713 tokens cost ~180 ms warm) — not an answer"
                                 )
                             }
                             // Capture assistant text for pool message history tracking
