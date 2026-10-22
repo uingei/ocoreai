@@ -4,6 +4,14 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-22
 
+**10-22(10) 塌陷是温度门控的：greedy 0/12，温度>0 就是 5–7/12；四个自研子系统 A/B 全部排除，只剩上游的 cache 生命周期**(P0 正确性 / P0 可靠性)
+
+- **先把话说全**：同一台机器、同一个模型（`gemma-4-e2b-it-4bit`）、同一条 prompt（`Count from 1 to 200…`，`max_tokens=200`）、连发 16 轮串行，四组 A/B 只换一个变量：默认配置塌 **6/16**；`OCOREAI_SESSION_POOL=0`（会话池整个关掉）塌 **8/16**；`kvCacheQuantization.enabled=false`（turbo4 关）塌 **7/16**；`wiredMemory.enabled=false`（自研 wired-memory 关掉）塌 **8/16**。四组同量级 ⇒ **我们的会话池、磁盘快照、KV 量化、wired-memory 都不是原因**（A/B 用完已逐项断言还原：`turbo4=on`、`wiredMemory=on`）。
+- **温度扫描把机制钉住**（每点 12 轮、每轮换 `session_id`）：`temperature=0.0 → 0/12`、`0.3 → 5/12`、`0.7 → 7/12`、`1.0 → 6/12`；`firstTokenMs` 双峰与之逐一对应（贪心那 12 轮全是 ≥1 s 的 H）。**贪心永不塌，温度>0 就塌** ⇒ 塌陷发生在**采样阶段**：那个位置上 EOS 与正确答案的 `1` 并列高分，argmax 恒取 `1`，温度采样约五成取 EOS。
+- **第一次拿到塌掉那轮的内容**（此前只有 token 数）：`content='1'`——**正是这道题正确答案的第一个 token**，`tokens=1 fin=stop`，整轮 `overallMs≈158 ms`（健康轮首 token 要 4932–9507 ms）。也就是说：模型答对了题头，却没有跑那 713 token 的 prefill，而 `GenerateCompletionInfo` 仍报 `promptTokenCount=713 / cachedPromptTokenCount=0`。唯一自洽的解释是**上下文来自上一轮残留的 KV/循环状态被静默复用**，而这次复用在账面上不存在；所以既不是"没上下文"（内容对），也不是"报了缓存"（cached=0）。
+- **仍未证的那一层**（不许写成结论）：残留具体在哪。排除法目前只走到「不在我们这四个子系统里」，指向 pinned `bb0d5b0` 上游的 cache 生命周期——`ChatSession` 的 cache 是不是真的随 session 一起重建。缺的仪器还是同一样：**「这一轮前向到底跑了没有、复用了多少行」的显式信号**（`cachedPromptTokenCount` 这里两头都证不了）。上游不给，就不臆修、不宣称已修。
+- **门（能让它红）**：`scripts/probes/30-repeated-prompt-delivery.sh` 新增 leg 5——**贪心连发 6 轮必须 0 塌**（硬断言，不是 note）。它的价值恰恰在于能证伪本条：若哪天 greedy 也塌，EOS-first 的解释就是错的，搜索必须回到 prefill/cache 层。本条同会话真机：`8 passed / 0 failed / 7 measured / 1 known-open`（唯一的 known-open 仍是塌陷本身）；leg 4（塌掉的轮必须留 `Degenerate generation` 日志）同轮再次 PASS（1 塌 1 记）。
+
 **10-22(9) 「客户端断开即取消」是注释里的愿望，不是事实：1.0 s 就走的客户端，那一轮照样跑满 200 token**(P1 执行链 / P0 诚实口径 / P3 判定诚实)
 
 - **测了什么**：新探针 `scripts/probes/31-client-abort-cancellation.sh`。判据不看来料顺序，只看**被抛弃那一轮自己的收尾记录**（`StdTurn`）：客户端在 1.0 s 断开（而这台机器一次 ~700-token prefill 就要 ~4.9 s），**两条面都记到 `tokens=200 reason=.maxTokens`**——流式与非流式各一次；另一轮流式记到 `103 tokens/.eos`，同样是走了人还在算力上。也就是说：走开一分钱也不省，下一个调用者替它排队（同轮实测 `Queued for inference: +4158ms` 流式 / `+3767ms` 非流式；对照组不断开时 `+4814ms`）。这把 10-22(4) 那条「被放弃的请求持锁 ~160 s」从现象升级为**已测机制**：不是偶发拥塞，是**没人告诉生产端客户已经走了**。

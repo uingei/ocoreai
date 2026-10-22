@@ -32,6 +32,9 @@
 # cause is open, and the instrument it needs (an upstream "prefill actually happened" signal)
 # is recorded in CHANGELOG 10-22(8). What this probe requires regardless of cause is stated
 # in the last leg: **a collapsed turn must never be silent**.
+# The collapse is temperature-gated, measured 10-22 (12 turns per point): temperature 0.0 -> 0 of 12,
+# 0.3 -> 5, 0.7 -> 7, 1.0 -> 6. Greedy never collapses, so EOS is competing with the correct
+# first token at the sampling stage — leg 5 asserts that stays true.
 # The collapsed turn logs `Session pool entry … not reusable: cached history 2 exceeds common
 # prefix 1 — building a clean session` and finishes inside the same second it was dispatched,
 # so it never prefilled 708 tokens: the turn ended before it started, and said `stop`.
@@ -202,6 +205,33 @@ elif [ "${MARKERS:-0}" -ge "${EOS1:-0}" ] 2>/dev/null; then
 else
   probe_fail "$EOS1 turn(s) returned 1 token + .eos but only $MARKERS said so — the rest left" \
     " the process as a plain success, which is the lie this probe exists to catch"
+fi
+
+# ── leg 5: greedy decoding must never collapse ─────────────────────────────────────────────
+# Measured 10-22 (12 turns per point, identical prompt, fresh session_id each turn, one model):
+#   temperature 0.0 -> 0 of 12 collapsed      temperature 0.7 -> 7 of 12
+#   temperature 0.3 -> 5 of 12 collapsed      temperature 1.0 -> 6 of 12
+# Greedy is deterministic, so a greedy collapse would mean something other than EOS competing
+# for the first slot — it must stay at zero. This leg is a hard assertion, not a note: if it
+# ever goes red the EOS-first account in CHANGELOG 10-22(10) is wrong and the search restarts
+# at a different layer (prefill/cache), not the sampler.
+GREEDY_COLLAPSES=0
+for i in 1 2 3 4 5 6; do
+  BODY_G=$(printf '{"model":"%s","max_tokens":200,"temperature":0.0,"stream":false,"session_id":"probe30-greedy-%s","messages":[{"role":"user","content":"%s"}]}' \
+    "$PROBE_MODEL" "$i" "$PROMPT")
+  OUT_G=$(mktemp -t ocoreai-30-g.XXXXXX)
+  run_turn "$BODY_G" "$OUT_G"
+  read -r TOK_G FIN_G <<<"$(finish_tokens "$OUT_G")"
+  if [ "${TOK_G:-0}" -le 1 ] 2>/dev/null && [ "$FIN_G" = "stop" ]; then
+    GREEDY_COLLAPSES=$(( GREEDY_COLLAPSES + 1 ))
+  fi
+done
+if [ "$GREEDY_COLLAPSES" -eq 0 ]; then
+  probe_ok "greedy (temperature=0) delivered 6/6 — the collapse needs sampling, so EOS is" \
+    " competing with the real first token rather than the context being absent"
+else
+  probe_fail "greedy collapsed $GREEDY_COLLAPSES/6 — deterministic decoding cannot be a sampling" \
+    " degeneracy; the cache/prefill layer is implicated after all (CHANGELOG 10-22(10))"
 fi
 
 probe_summary "$PROBE_NAME"
