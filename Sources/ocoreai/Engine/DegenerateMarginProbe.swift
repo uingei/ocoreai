@@ -31,8 +31,25 @@
 /// report `fidelity=UNVERIFIED`, and its margins must then be read as nothing.
 ///
 /// ### Cost and default
-/// One extra short generation, run only on a turn that already failed and only when
-/// `OCOREAI_MARGIN_PROBE=1`. Healthy turns pay nothing.
+/// One extra short generation, gated by the caller: by default it fires only on a turn already
+/// judged degenerate (`OCOREAI_MARGIN_PROBE=1`), so healthy turns pay nothing.
+/// `OCOREAI_MARGIN_PROBE=all` widens that gate to every turn on the standard path, which is the
+/// only way to read a margin *against* an outcome — collapse-only mode has no healthy comparison
+/// in the same build, so it can never test "small margin ⇒ collapse".
+///
+/// ### What arm E measured (10-23, 12 cold boots, one content, greedy, `all` mode)
+/// Identical prompt bytes landed in **four discrete step-1 logprob regimes**, and the outcome
+/// tracked the regime with zero overlap: collapsed turns sat at lp −0.0111 / −0.0094 (margin
+/// 5.5677 / 5.8204), healthy turns at −0.0278 / −0.0222 (margin 4.4361 / 4.6290). So the
+/// collapse is preceded by *more* certainty at the first sampled token, not by a near-tie — and
+/// a margin width cannot be the mechanism, since the collapsed margins are the wider ones.
+/// Collapsed turns also record no step 2 at all: generation ends at the first sampled token, so
+/// whatever terminates the turn sits between the first token and the next forward pass.
+/// Retracted by this run: a previously recorded "0.0466 nats at slot 2" does not appear in any
+/// of these reconstructions (step-2 margin here is 0.2172–0.8533), so it was a one-off reading
+/// of one reconstruction and must not be quoted as the margin at the collapse. Reconstruction
+/// still ≠ live turn — it re-prepares without the session's KV — which is why the regime, not
+/// any single margin, is the number worth chasing.
 
 import Foundation
 import Logging
@@ -43,7 +60,14 @@ enum DegenerateMarginProbe {
     /// Opt-in switch: the probe re-runs a generation, so it stays off unless a diagnostician
     /// (or `scripts/collapse-discriminators.sh`) asks for it explicitly.
     static var isEnabled: Bool {
-        ProcessInfo.processInfo.environment["OCOREAI_MARGIN_PROBE"] == "1"
+        let mode = ProcessInfo.processInfo.environment["OCOREAI_MARGIN_PROBE"]
+        return mode == "1" || mode == "all"
+    }
+
+    /// `OCOREAI_MARGIN_PROBE=all` — measure healthy turns too, so margins can be paired with
+    /// outcomes instead of only with collapses.
+    static var runsOnEveryTurn: Bool {
+        ProcessInfo.processInfo.environment["OCOREAI_MARGIN_PROBE"] == "all"
     }
 
     /// Sendable transport for the conversation the failed turn delivered.

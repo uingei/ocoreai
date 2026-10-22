@@ -4724,11 +4724,12 @@ extension EnginePool {
                             logger.info(
                                 "StdTurn: \(convKey) fed=\(newMessages.count) of \(mlxMessages.count) divergence=\(divergenceIndex) tokens=\(actualTokenCount ?? metrics.generatedTokenCount) reason=\(String(describing: lastStopReason)) upstreamPrompt=\(String(describing: localPromptTokenCount)) upstreamCached=\(String(describing: localCachedPromptTokenCount)) firstTokenMs=\(metrics.firstTokenMs) overallMs=\(metrics.overallMs)"
                             )
-                            if DegenerateTurn.isSuspected(
+                            let degenerateSuspected = DegenerateTurn.isSuspected(
                                 tokenCount: actualTokenCount ?? metrics.generatedTokenCount,
                                 stopReason: lastStopReason,
                                 requestedMaxTokens: genParams.maxTokens
-                            ) {
+                            )
+                            if degenerateSuspected {
                                 // Invariant 2: a turn that delivered at most one token under a budget that
                                 // asked for more is not an answer, and it must not leave the process as a
                                 // plain success. Measured 10-22: identical greedy turns collapse to
@@ -4748,7 +4749,12 @@ extension EnginePool {
                             // on a turn that already failed — healthy turns stay untouched, and
                             // the chat face cannot carry logprobabilities at all (ChatSession has no
                             // probability path; see DegenerateMarginProbe.swift header).
-                            if DegenerateMarginProbe.isEnabled {
+                            // The caller owns the gate: collapse-only by default (healthy turns pay
+                            // nothing); `=all` measures every turn, so a margin can be paired with an
+                            // outcome instead of only with a collapse.
+                            if DegenerateMarginProbe.isEnabled,
+                                degenerateSuspected || DegenerateMarginProbe.runsOnEveryTurn
+                            {
                                 let marginPairs = stdRetryMessages.map {
                                     DegenerateMarginProbe.MessagePair(
                                         role: $0.role.rawValue, content: $0.content)

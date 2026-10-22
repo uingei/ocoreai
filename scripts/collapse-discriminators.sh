@@ -14,6 +14,12 @@
 #                  collapses 3/4 ⇒ it is keyed to the exact prompt bytes, not the task.
 #   C empty cache: TARGET still collapses with zero snapshots on disk ⇒ restoring a disk KV
 #                  snapshot is not the mechanism.
+#   E margin×outcome : 12 boots in `OCOREAI_MARGIN_PROBE=all`. Identical bytes landed in FOUR
+#                  discrete step-1 logprob regimes and the outcome tracked the regime with zero
+#                  overlap: collapsed lp −0.0111/−0.0094 (margin 5.5677/5.8204, n=3) vs healthy
+#                  lp −0.0278/−0.0222 (margin 4.4361/4.6290, n=9). So certainty, not a near-tie,
+#                  precedes the collapse; a margin width cannot be the mechanism (the collapsed
+#                  margins are the wider ones); and a collapsed turn records no step 2 at all.
 #
 # What survives: a content-specific decision that stays fixed inside a process and flips between
 # processes. The next instrument is the logprob margin between EOS and the next candidate at
@@ -31,6 +37,10 @@
 set -uo pipefail
 source "$(dirname "$0")/probes/_lib.sh"
 export OCOREAI_PROBE_KEEP_LOGS=1
+# The arms below judge themselves on the probe's log lines, and nothing else in this repo sets the
+# switch: an operator who forgets it gets zero probe lines, which arm D used to count as collapsed
+# replays and print as a verdict. Arm it here (one home); arm E widens it to every turn.
+export OCOREAI_MARGIN_PROBE="${OCOREAI_MARGIN_PROBE:-1}"
 
 CACHE="$HOME/Library/Application Support/ocoreai/cache/kvcache"
 ORIG="$(mktemp -d -t ocoreai-kvbak-XXXXXX)"
@@ -157,6 +167,13 @@ case "$ARMS" in
           LINE=$(grep "Degenerate margin probe" "$PROBE_LOG" | tail -1)
           STEPS=$(printf '%s' "$LINE" | grep -c "step[0-9]* chose")
           FID=$(printf '%s' "$LINE" | grep -o "fidelity=[a-zA-Z]*" | head -1)
+          # Vacuity guard: a leg may only count a replay whose reconstruction was verified. An
+          # absent line or fidelity=UNVERIFIED carries no number, and counting it would let a
+          # scan that stopped matching decide the verdict.
+          if [ -z "$LINE" ] || [ "$FID" != "fidelity=match" ]; then
+            echo "  D $LEG boot=$b turn=$t NO VERIFIED PROBE (${FID:-no probe line}) — not counted"
+            continue
+          fi
           if [ "$LEG" = parity ]; then
             PARITY_HITS=$((PARITY_HITS + 1))
             [ "$STEPS" -le 1 ] && PARITY_COLLAPSED_REPLAY=$((PARITY_COLLAPSED_REPLAY + 1))
@@ -178,5 +195,115 @@ case "$ARMS" in
     else
       echo "  D VERDICT: SEPARATION BROKEN — replay shape no longer tracks kvCache; the carrier changed, re-open the hunt"
     fi
+    ;;
+esac
+
+case "$ARMS" in
+  *E*)
+    # Arm E — does the margin actually predict the outcome? Arms A–D measure a margin only where a
+    # turn ALREADY collapsed, so "small margin ⇒ collapse" never had a healthy comparison in the
+    # same build. `OCOREAI_MARGIN_PROBE=all` runs the reconstruction after every turn on the
+    # standard path, pairing each outcome with the margin of its own prompt bytes.
+    #   groups separate (healthy margins wider than every collapsed one) -> the near-tie is the
+    #     decision point, and the carrier is whatever moves it between processes;
+    #   margins stable across boots while the outcome flips -> slot ordering is NOT what flips,
+    #     and the terminator sits downstream of the logits (mask / grammar / eos handling).
+    echo "arm E — margin paired with outcome ($BOOTS boots, probe on every turn)"
+    ROWS=$(mktemp -t armE.XXXXXX)
+    for b in $(seq 1 "$BOOTS"); do
+      export OCOREAI_MARGIN_PROBE=all
+      new_boot
+      answer=$(ask "e${b}t" "$TARGET")
+      LINE=$(grep "Degenerate margin probe" "$PROBE_LOG" | tail -1)
+      printf '%s\t%s\t%s\n' "$b" "$answer" "$LINE" >> "$ROWS"
+      echo "  E boot=$b outcome=$answer :: $(printf '%s' "${LINE#*:: }" | cut -c1-150)"
+      probes_cleanup >/dev/null 2>&1
+      sleep 2
+    done
+    unset OCOREAI_MARGIN_PROBE
+    ROWS="$ROWS" python3 - <<'PY'
+import os
+import re
+
+STEP = re.compile(
+    r"step(\d+) chose '(.*?)' id=(-?\d+) lp=(-?[\d.]+) rival='(.*?)' id=(-?\d+) "
+    r"margin=(-?[\d.]+|[-])"
+)
+rows = [l.rstrip("\n").split("\t") for l in open(os.environ["ROWS"]) if l.strip()]
+healthy, collapsed, noprobe = [], [], 0
+for boot, outcome, line in rows:
+    steps = {int(m.group(1)): m for m in STEP.finditer(line)}
+    if not steps:
+        noprobe += 1
+        continue
+    m1 = steps.get(1)
+    m2 = steps.get(2)
+    rec = (
+        float(m1.group(7)) if m1 and m1.group(7) != "-" else None,
+        float(m2.group(7)) if m2 and m2.group(7) != "-" else None,
+        float(m1.group(4)) if m1 else None,
+    )
+    (collapsed if outcome == "C" else healthy).append(rec)
+
+
+# The outcome is already decided by the first sampled token, so the discriminator to test is
+# step1's chosen logprob: does this process land in one discrete logits regime or another?
+def fmt(group, idx):
+    vals = [g[idx] for g in group if g[idx] is not None]
+    if not vals:
+        return "n/a"
+    return "min=%.4f max=%.4f n=%d" % (min(vals), max(vals), len(vals))
+
+
+print(
+    "  E rows=%d (collapsed=%d healthy=%d no-probe=%d)"
+    % (len(rows), len(collapsed), len(healthy), noprobe)
+)
+print("  E step1 margin — collapsed: %s | healthy: %s" % (fmt(collapsed, 0), fmt(healthy, 0)))
+print("  E step2 margin — collapsed: %s | healthy: %s" % (fmt(collapsed, 1), fmt(healthy, 1)))
+c0 = [g[2] for g in collapsed if g[2] is not None]
+h0 = [g[2] for g in healthy if g[2] is not None]
+print("  E step1 chosen lp — collapsed: %s | healthy: %s" % (fmt(collapsed, 2), fmt(healthy, 2)))
+print("  E distinct step1 lp values: %s" % sorted({round(v, 4) for v in c0 + h0}))
+c1 = [g[0] for g in collapsed if g[0] is not None]
+h1 = [g[0] for g in healthy if g[0] is not None]
+if not c1 or not h1:
+    print("  E VERDICT: INCONCLUSIVE — need both a collapsed and a healthy turn in this run")
+elif min(h1) > max(c1):
+    print(
+        "  E VERDICT: MARGIN SEPARATES — every healthy turn cleared every collapsed turn"
+        " (gap %.4f nats at step1): the near-tie is the decision point" % (min(h1) - max(c1))
+    )
+elif max(c1) - min(c1) < 1e-3 and max(h1) - min(h1) < 1e-3:
+    print(
+        "  E VERDICT: MARGIN IS STABLE WHILE OUTCOME FLIPS — slot ordering is not what"
+        " flips; look downstream of the logits (mask / grammar / eos handling)"
+    )
+else:
+    print(
+        "  E VERDICT: OVERLAP — collapsed %.4f..%.4f vs healthy %.4f..%.4f at step1 margin;"
+        " width does not decide (see the step1 lp split below)"
+        % (min(c1), max(c1), min(h1), max(h1))
+    )
+if c0 and h0:
+    if min(h0) > max(c0):
+        print(
+            "  E VERDICT(2): STEP1 LP SEPARATES — every collapsed turn sits closer to 0 than every"
+            " healthy one (gap %.4f nats): the process-level logits regime is the precursor"
+            % (min(h0) - max(c0))
+        )
+    elif min(c0) > max(h0):
+        print(
+            "  E VERDICT(2): STEP1 LP SEPARATES INVERTED — collapsed turns are the MORE certain"
+            " ones (gap %.4f nats): certainty, not a near-tie, precedes the collapse"
+            % (min(c0) - max(h0))
+        )
+    else:
+        print(
+            "  E VERDICT(2): STEP1 LP OVERLAPS — collapsed %.4f..%.4f vs healthy %.4f..%.4f;"
+            " no per-process regime found at step1" % (min(c0), max(c0), min(h0), max(h0))
+        )
+PY
+    rm -f "$ROWS"
     ;;
 esac

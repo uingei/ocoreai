@@ -7,6 +7,17 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 
 
+**10-23(5) 塌陷第一次有了可测前兆：同一字节只落进四个离散 logits 档位，而塌陷那一档「更肯定」**(P0 正确性 / P0 诚实口径 / P3 回归防护)
+
+- **纠自己的账①：仪器其实一直在每轮付费**。`DegenerateMarginProbe.isEnabled` 只读环境变量，而调用点落在 `DegenerateTurn.isSuspected` 判定**之外**（`Engine/EngineInference.swift:4755`）⇒ `OCOREAI_MARGIN_PROBE=1` 时**每个**标准轮都多跑一次 ≤4 token 生成，可文件头和 10-23(2) 都写着「健康轮零开销／只在已塌陷轮」。现由调用点显式持门：默认只塌陷轮跑，`OCOREAI_MARGIN_PROBE=all` 才扩到每轮。门 `DegenerateMarginProbeModeTests`(3)：unset=不上膛 / `=1` 只塌陷轮 / `=all` 扩轮 / 认不得的值（`yes`）不许上膛。
+- **纠自己的账②：脚本从不给仪器上膛，还能把「没测到」印成结论**（P0 级可靠性）。全仓没有任何地方设 `OCOREAI_MARGIN_PROBE`，全靠操作者手口；而 arm D 用 `grep -c "step[0-9]* chose"` 数步数，探针没跑时 STEPS=0 恰好落进「parity replay 也塌陷」分支——**零测量也能打印出「kvCache 是载体」的判词**。现在脚本自己 `export OCOREAI_MARGIN_PROBE="${OCOREAI_MARGIN_PROBE:-1}"`（一处家），arm D 只统计 `fidelity=match` 的行，缺行或未核验一律 `NO VERIFIED PROBE … — not counted`。
+- **新臂 E（把 margin 和结果配成对）**：A–D 只在**已经塌陷**的轮次量 margin，于是「小 margin ⇒ 塌陷」这句话在同一次构建里从来没有健康对照组，属不可测命题。`=all` 让每次冷启都产出一条自己那份字节的 margin，才谈得上对照。
+- **12 次冷启动实测（同机同模型 greedy，`Count from 1 to 200…`，`max_tokens=200`）**：同一份字节只出现 **四个离散的 step-1 logprob**——`-0.0278`×6、`-0.0222`×3、`-0.0111`×2、`-0.0094`×1；结果与档位**零重叠**：塌陷 3 轮 lp `-0.0111 / -0.0094`（step1 margin `5.5677 / 5.8204`），健康 9 轮 lp `-0.0278 / -0.0222`（margin `4.4361 / 4.6290`），间隙 **0.0111 nats**。⇒ **塌陷的前兆是第一位 token 更肯定，不是近天平局**；margin 宽度不可能是机制（塌陷那侧反而更宽）；且塌陷轮**连 step2 都没有记录**——终止发生在「第一个已采样 token」与「下一次前向」之间。
+- **撤一条被引用过的数**：10-23(2) 记的「step2 `
+` vs `<turn|>` margin=0.0466」在本轮 12 次重建里**一次也没出现**（step-2 margin 实测 `0.2172–0.8533`）。它只是某一次重建的一次性读数，**不得再当作塌陷处的 margin**；何况重建≠真轮（重新 `prepare`、不带会话 KV）。值得追的是**档位**，不是任何一个单独的 margin。
+- **下一步已能具体化**：档位是**进程级**的（同一次 boot 里真轮与其重建同档），所以要找的是开机即定的数值路径差异——allocator 布局 / Metal 内核选择 / prefill 编译变体这一类（arm C 已排除磁盘 KV 快照）。判据现成：把 step-1 lp 当读数，任何启动期开关只要能把 `-0.011/-0.009` 这一档变没，它就是候选载体。
+- **验证**：`swift build`（CLT `.build-clt`）exit 0；`DegenerateMarginProbeModeTests` 3/3；臂 E 实跑两次（`BOOTS=6` 与 `BOOTS=12`，判词由脚本自己算，不靠人眼看）；`make docs-check`/`audit`/`anchor-check`/`format-check` 见本轮提交说明。诚实边界：塌陷样本 n=3，「零重叠」是这 12 轮的观测而非已证机制；像素与 in-view GUI 交互在本机仍不可用，故本轮不声称任何界面结论。
+
 **10-23(4) GUI 的发送缝第一次被执行；一条 P2 结构缺陷定位在它该在的地方**(P1 执行链 / P2 诚实面 / P0 网关诚实)
 
 - **结构真相（推翻交接里的读法）**：交接说「GUI 发送逻辑在 View 里，没窗口就测不了」。读盘：**缝是 `ChatViewModel.chat`（`Sources/ocoreai/UI/ViewModels/ChatViewModel.swift:975`）**，`ChatView.sendMessage`（`Sources/ocoreai/UI/Views/ChatView.swift:971`）只是把输入交给它，流式中的转向另有其路。GUI 走 `DirectInferenceClient`（`Sources/ocoreai/UI/ViewModels/ChatViewModel.swift:1120`）**不经 HTTP** ⇒ 探针从未覆盖这条路。
