@@ -26,8 +26,11 @@
 # What does hold, and is the useful discriminator, is that the split is bimodal in TIME:
 #   • healthy   — firstTokenMs 4927…8020 (a real 713-token prefill), tokens=200, .maxTokens
 #   • collapsed — firstTokenMs 137…257, tokens=1, .eos, while GenerateCompletionInfo still
-#     reported promptTokenCount=713 — the turn never forwarded its prompt to the model and
-#     still completed as a success carrying one token
+#     reported promptTokenCount=713
+# The clause that used to finish that sentence ("the turn never forwarded its prompt to the model")
+# is retracted by measurement, same day: a 713-token prefill costs ~180 ms once the process is warm
+# (max_tokens=1: turn 1 = 7404 ms cold, then 176/230 ms), so 130…257 ms is consistent with a prefill
+# that genuinely ran. The layer is the sampler, not the feed — CHANGELOG 10-22(11).
 # Host memory is not it either: collapses appear at both 117 GB and 122 GB in use. The root
 # cause is open, and the instrument it needs (an upstream "prefill actually happened" signal)
 # is recorded in CHANGELOG 10-22(8). What this probe requires regardless of cause is stated
@@ -40,9 +43,23 @@
 #     boot at 22:0x, same binary, same model, same config, nothing pooled at either point.
 # What survives every run: repeating one identical prompt inside one process collapses some of those
 # turns to `tokens=1 finish=stop`, at a rate that swings across the whole range between runs (0/6,
-# 6/6, 5-7/12), while distinct prompts deliver (197-200 tokens). Five single-variable experiments have
-# now failed to move it — session pool off, KV quantization off, wired memory off, temperature 0, and
-# boot order — so the rate is not a rule, and legs 0a and 5 report it rather than asserting it.
+# 6/6, 5-7/12), while distinct prompts deliver (197-200 tokens). Seven single-variable experiments have
+# now failed to move it — session pool off, KV quantization off, wired memory off, temperature 0, boot
+# order, 680 MB of stale disk KV snapshots, and MLX_DISABLE_COMPILE (read once per process, mlx
+# mlx/compile.cpp:220 function-local static; 3/6 vs 4/6 collapse boots, no separation — so the compiled
+# Gemma4Text fusions are not the carrier) — so the rate is not a rule, and legs 0a and 5 report it
+# rather than asserting it.
+#
+# Per-process, or per-lane? 15 boots x identical greedy turns (84 turns, both compile arms) came back
+# internally unanimous — every boot all-collapse or all-deliver, never mixed. That reads as a
+# process-global bind, and this file's own 16:08 record contradicts it (one process, sequential, zero
+# overlap: 150 tokens then 1). The gap between the two readings looked like turn count, so turn count
+# became the next axis and got measured: 3 boots x 12 turns, fresh session_id every turn, came back
+# ok x12 / ok x12 / C x12 — no transition anywhere inside a boot. Cumulative per-process state is
+# therefore not the mechanism either, and the single mixed pair at 16:08 stands as the one observation a
+# process-global model still has to explain (or fail to reproduce). Env and config are excluded by
+# construction rather than measurement: inside one A/B arm both stay constant while the mode still flips
+# between boots, so whatever decides is neither of them.
 # The instrument that would settle this is still the missing one: a per-turn answer to "did this
 # forward actually prefill, and how many cache rows did it reuse". `GenerateCompletionInfo` reports
 # tokens FED (bb0d5b048 Evaluate.swift:1753) and left `cachedPromptTokenCount` at 0 on turns that
