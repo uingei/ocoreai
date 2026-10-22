@@ -2,7 +2,19 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-10-22
+## [Unreleased] — 2026-09-05 → 2026-10-23
+
+
+**10-23(1) 「boot 内一致 84 轮」是实验设计造出来的假象：把内容交错一下，进程全局说当场死，磁盘快照也说谎**(P0 正确性 / P3 回归防护)
+
+- **盲区在哪**：此前 15 boots × 同 prompt（84 轮）全部 boot 内一致，读起来像「进程级绑定」。错在**每个 boot 只用一条内容**——单一内容下的 boot 内一致性由内容保证，两种假设（进程全局数值 / 内容特定）在这个设计里根本分不开。缺的不是更多轮数，是**第二条内容**。
+- **arm A（交错内容，同进程）**：`T=C D1=ok(200) T=C D2=ok(173) T=C`（boot 1），boot 2 同形（D 出 200/133）；boot 3–5 全 ok。⇒ **不是进程全局**：同一进程里计数 prompt 连塌 3 次，另外两条 prompt 照常出满长度答案。
+- **arm B（nonce 变体，任务相同、字节不同、此前从未发过）**：变体 8/8 出 200，TARGET 3/4 塌。⇒ 键在**prompt 字节**，不在任务语义。
+- **arm C（`cache/kvcache` 清空后逐 boot 重跑）**：TARGET 仍稳定塌（`T=C U=ok(38) T=C` ×3 boots，boot4 全 ok）。⇒ **磁盘 KV 快照恢复不是机制**，H2 死。
+- **反例当场也记**：arm C 另一次跑出 `T=ok(200) U=C T=ok(200)`——nonce 塌而 TARGET 不塌。⇒ 绑定**不钉在某一条串**上，是 (内容 × 进程) 的组合，与「某些内容在 slot-2 本来就接近平局、由进程级数值定夺」一致。
+- **下一台 instrument 不能挂在 chat 面上（已核）**：`ChatSession.swift` 里 `logProbabilities` / `LogProbabilityTokenLoopHandler` **零引用**，`.probability` 事件只存在于 `LogProbabilityTokenLoopHandler.swift:9`，而 mlx 文档明写普通 `generate`/`generateTokens` 流不发概率事件（`Documentation.docc/generation-observability.md`）⇒ 给 `chatSession.generateParameters.logProbabilities` 赋值将是**静默 no-op**，正撞自家规则（wire 收下的旋钮必须抵达引擎；替换件必须运行时可检）。margin 要走 `generateLoopTask` + `LogProbabilityTokenLoopHandler` 自建一趟，代价 ~180 ms warm 重 prefill，可接受。
+- **入库仪器**：`scripts/collapse-discriminators.sh`（arm A/B/C + `ARMS=`/`BOOTS=` 单臂开关）。它自己先伤了自己两次，都被「跑一遍」抓到并修在原地：① `trap … EXIT` 写在 source 之前会被 `_lib.sh:158` 的 `trap probes_cleanup EXIT INT TERM` 整条替换，还原静默失效；改用 `probe_atexit` 注册。② 还原核验拿「移空之后」的备份目录计数 ⇒ 44 对 0，好结果报成失败；改为在移出时记下基线、结束时**无条件**核验（`probes_cleanup` 会在每次 boot 之间抽干 hook，只在最后一个 handler 才报的保险不是保险）。
+- **用户数据两次靠人肉救回**：`~/Library/Application Support/ocoreai/cache/kvcache` 一度被 park 且无人还原。现状已核对齐：44 `*.safetensors` + 44 `.manifest.json`，695,860 KB，备份目录已清。
 
 **10-22(11) 一晚上死掉两个机制解释：温度门控、以及「干净启动安全」；据前者写完的 min_tokens 判红后整块删除**(P0 正确性 / P0 诚实口径 / P3 判定诚实)
 
