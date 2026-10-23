@@ -783,7 +783,7 @@ actor ToolRegistry {
     /// array 参数带 `items`、object 参数带 `required`（递归）——否则嵌套
     /// 结构全丢（update_plan.plan 变裸 array<string>）。对齐上游
     /// `ToolParameterType.schemaType`（array→items / object→required）+ ocoreai 自有
-    /// `buildParametersJSON()`（ToolEntry.swift），三处同形。
+    /// `buildParametersJSON()`（ToolEntry.swift），三处同形（合成分一律排序，见 ToolSchemaCanonical）。
     func toToolSpecs() -> [[String: any Sendable]] {
         tools.values.map { entry in
             func propSchema(_ param: ToolParameter) -> [String: any Sendable] {
@@ -809,12 +809,15 @@ actor ToolRegistry {
                 properties[paramName] = propSchema(param)
             }
             var params: [String: any Sendable] = ["type": "object", "properties": properties]
-            // 有显式 required 子集(MCP inputSchema.required 忠实透传)→ 用子集;
-            // 无声明(built-in 惯例: 全声明=required)→ 保持原行为。
+            // 有显式 required 子集(MCP inputSchema.required 忠实透传)→ 用子集: 调用方写序属于请求
+            // 本身, 已确定, 不动。
+            // 无声明(built-in 惯例: 全声明=required)→ **排序**合成: Dictionary 的迭代序由每进程随机的
+            // 哈希种子决定, 原样进 prompt 就是 10-23(8) 那一类(同一请求换进程就换字节)。
+            // 判据与理由见 ToolSchemaCanonical; 活测 = 探针 33(跨冷启比字节)。
             if let req = entry.schema.required {
                 params["required"] = req
             } else if !entry.schema.parameters.isEmpty {
-                params["required"] = Array(entry.schema.parameters.keys)
+                params["required"] = ToolSchemaCanonical.sortedRequired(entry.schema.parameters.keys)
             }
             return [
                 "type": "function" as any Sendable,

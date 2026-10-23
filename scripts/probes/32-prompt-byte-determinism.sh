@@ -35,10 +35,12 @@
 # checkpoint property order cannot leak a hash seed, and an unrequired schema tells the model that
 # nothing is mandatory. Both are the checkpoint's behaviour, not ours: a checkpoint whose
 # `toolCallFormat` is plain JSON serializes the dictionary instead, and that path stays unmeasured
-# here. The three `Array(schema.parameters.keys)` exits (`ToolRegistry.swift:817`,
-# `ToolEntry.swift:235`, `MCP/MCPTools.swift:46`) are registry-side and unreachable from a
-# caller-declared schema; all 8 built-ins declare `required` themselves, so nothing on this host
-# reaches them — closing that gap needs an MCP tool whose `inputSchema` omits `required`.
+# here. The registry-side synthesis (nobody declared `required` → "every declared parameter is
+# required") is name-sorted for exactly that reason — see `ToolSchemaCanonical`, whose two live
+# exits are `ToolRegistry.swift:820` and `ToolEntry.swift:237`. Probe 33 drives them from a real
+# MCP server whose `inputSchema` omits `required`, the only door left on this host: a
+# caller-declared `tools[]` entry carries its own order and never reaches them, and all 8 built-ins
+# declare `required` themselves. Which is why the determinism claim needs both probes.
 #
 # ### What `promptHash` could not see when this probe was written, and what it can see now
 # The hash comes from `DegenerateMarginProbe`, which re-prepares the prompt instead of riding the
@@ -90,11 +92,11 @@ body = {
 if shape == "unrequired":
     # `required` is NOT declared. Measured 10-23 on gemma-4-e2b: this checkpoint's template
     # renders the declaration itself and omits the `required:` key entirely, so the model reads
-    # every argument as optional. This shape does NOT reach `Array(schema.parameters.keys)`
-    # (ToolRegistry.swift:817, ToolEntry.swift:235, MCP/MCPTools.swift:46) — those sit on the
-    # registry side, a caller-declared schema never routes through them, and all 8 built-ins
-    # declare `required` themselves. Kept because "caller omits required" is a wire-legal shape
-    # a real client sends; the claim it tests is delivery, not the dictionary exit.
+    # every argument as optional. Kept because "caller omits required" is a wire-legal shape a
+    # real client sends — the claim it tests is delivery. It is NOT the dictionary-exit shape:
+    # the synthesis lives registry-side (`ToolRegistry.swift:820`, `ToolEntry.swift:237`), a
+    # caller-declared schema carries its own order and never routes through it, and every built-in
+    # declares `required`. Probe 33 is the shape that does reach it, through MCP.
     body["tools"] = [{
         "type": "function",
         "function": {

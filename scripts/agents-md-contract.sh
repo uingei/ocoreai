@@ -104,7 +104,20 @@ cd "$(dirname "$0")/.."
 # and an index row's job is the question plus its falsifier), and both new entries were written to
 # that shape after a first draft 371 B fatter. Net against the 09-27 baseline of 152,041: −7,099 B.
 # Re-pinned to the measured value: a cap with slack in it is a cap nobody enforces.
-: "${OCOREAI_CORPUS_MAX_BYTES:=144942}"
+# 10-23 raise 144942 -> 145623 (+681 over the old cap; +735 measured against HEAD): two index
+# entries for two gates this round had to add, both for defects found by posting to the running
+# server rather than by reading code — probe 34 (`/mcp` answered -32700 to a spec-legal numeric
+# JSON-RPC id, so standard SDK clients could not complete one handshake; `params` never decoded, so
+# `tools/call` replied with a success-shaped `{}`; `tools/list` described all 39 tools as taking no
+# arguments) and probe 33 (the registry synthesizes `required` from Dictionary keys, whose order
+# Swift picks per process — the 10-23(8) seed class reaching the prompt through the MCP door).
+# Written to the index's own job — the question plus its falsifier — with the reasoning left in each
+# script's header, since an index that re-argues is a second home for the same claim. Nothing else
+# in the corpus moved (README is the only corpus file in this diff: +735 B, −0). Net against the
+# 09-27 baseline of 152,041: −6,418 B, so the ratchet is still negative across the window.
+# Re-pinned to the measured value: a cap with slack in it is a cap nobody enforces.
+: "${OCOREAI_CORPUS_MAX_BYTES:=145623}"
+
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.
 : "${OCOREAI_PROBE_FLOOR_INDEX:=20}"

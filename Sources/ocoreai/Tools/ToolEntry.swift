@@ -230,9 +230,11 @@ extension ToolEntry {
             "type": AnyCodable("object"),
             "properties": AnyCodable(properties),
         ]
-        // required = 显式子集优先; 未声明 → 全部已声明键(built-in 旧惯例)。
-        // 与 toToolSpecs() / MCP inputSchema 三处同形。
-        json["required"] = AnyCodable(schema.required ?? Array(schema.parameters.keys))
+        // required = 显式子集优先(调用方写序属于请求本身, 不动); 未声明 → 全部已声明键并按名排序,
+        // 因为 Dictionary 迭代序由每进程哈希种子决定, 原样出去就是换进程换字节。
+        // 与 toToolSpecs() / MCP inputSchema 三处同形, 判据一处: ToolSchemaCanonical。
+        json["required"] = AnyCodable(
+            schema.required ?? ToolSchemaCanonical.sortedRequired(schema.parameters.keys))
         return json
     }
 }

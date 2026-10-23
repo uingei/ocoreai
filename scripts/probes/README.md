@@ -170,6 +170,15 @@ Fails when: one shape yields more than one `promptHash` across boots (a Dictiona
     reached the prompt), or declaring a tool changes nothing at all. No unit test can see this class:
     Swift fixes the hash seed per process.
 
+- `33-mcp-required-byte-determinism.sh` — A tool whose server declares no `required`: same bytes, and a sorted list?
+Fails when: the tool is not local (then no schema byte entered the prompt and any byte claim is vacuous), the
+    declaration or `promptHash` differs across boots, or the synthesized `required:` is not name-sorted.
+
+- `34-mcp-server-wire-conformance.sh` — Does the advertised `/mcp` face answer what the specs allow?
+Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list` publishes tools without
+    properties/descriptions, `tools/call` answers a success-shaped `{}` because params never decoded, a malformed
+    call is not refused by name, or the box stops serving after MCP traffic.
+
 - `_lib.sh` — shared harness
 Fails when: —
 

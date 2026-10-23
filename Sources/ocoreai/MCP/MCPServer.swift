@@ -46,14 +46,32 @@ private struct JVal: Codable {
 }
 
 /// JSON-RPC 2.0 request.
+///
+/// `id` and `params` are untyped JSON on the wire, so they are untyped here. Two live defects
+/// this closes, both measured on this host at HEAD before the change:
+///   • `id` was `String?`, and the synthesized `Decodable` therefore *required* a string.
+///     `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}` — the shape the Python and
+///     TypeScript MCP SDKs and Claude Desktop send, since §4.1 allows String, Number or Null —
+///     came back `-32700 Parse error`. A spec-legal client could not complete one handshake.
+///   • `paramsData` had no `CodingKey` for the wire key `params`, so **every** request decoded
+///     with params == nil, and `tools/call` answered `{"result":{}}` — a success-shaped empty
+///     body — instead of running the tool or refusing. Callers cannot distinguish "no arguments"
+///     from "we dropped your arguments", which is invariant 2 in the worst direction.
+/// Same class as the pinned-wire-DTO rule in AGENTS.md, applied to a field the spec leaves open:
+/// pinning one JSON type is a refusal the surface never documented.
 private struct JsonRpcReq: Decodable {
     let jsonrpc: String
     let method: String
-    let id: String?
-    let paramsData: String?
+    let id: JVal?
+    let paramsJSON: JVal?
+
+    private enum CodingKeys: String, CodingKey {
+        case jsonrpc, method, id
+        case paramsJSON = "params"
+    }
+
     var params: [String: Any]? {
-        guard let d = paramsData, let data = d.data(using: .utf8) else { return nil }
-        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        paramsJSON?.value as? [String: Any]
     }
 }
 
@@ -106,16 +124,34 @@ actor MCPServer {
         }
         guard req.jsonrpc == "2.0" else { return err(.invalid, id: req.id) }
 
-        let ok: JVal?
+        // Methods that carry work need the handshake and need their params; both refusals name the
+        // field or the step, because "Invalid params" alone leaves the caller guessing (and a
+        // silent empty result leaves them guessing wrong).
         switch req.method {
-        case "initialize": ok = doInit(req.params)
-        case "tools/list": ok = await doList()
-        case "tools/call": ok = await doCall(req.params)
-        case "ping": ok = JVal([String: String]())
+        case "initialize":
+            return res(doInit(req.params), id: req.id)
+        case "tools/list":
+            guard ready else {
+                return err(.invalid, id: req.id, detail: "not initialized — send `initialize` first")
+            }
+            return res(await doList(), id: req.id)
+        case "tools/call":
+            guard ready else {
+                return err(.invalid, id: req.id, detail: "not initialized — send `initialize` first")
+            }
+            guard let params = req.params else {
+                return err(.badParams, id: req.id, detail: "tools/call needs a params object")
+            }
+            guard let name = params["name"] as? String, !name.isEmpty else {
+                return err(.badParams, id: req.id, detail: "missing required field `name`")
+            }
+            let arguments = params["arguments"] as? [String: Any] ?? [:]
+            return res(await doCall(name: name, arguments: arguments), id: req.id)
+        case "ping":
+            return res(JVal([String: String]()), id: req.id)
         case "$/cancel": return nil
         default: return err(.noMethod, id: req.id)
         }
-        return ok.map { res($0, id: req.id) }
     }
 
     // MARK: - Methods
@@ -129,23 +165,45 @@ actor MCPServer {
         ])
     }
 
+    /// The list must describe the tools. Measured at HEAD this published
+    /// `{"inputSchema":{"properties":{},"type":"object"}}` for all 39 tools: every tool presented
+    /// as taking no arguments and carrying no description, so a client that trusted it generated
+    /// argument-less calls and nothing could succeed — while the surface kept advertising `/mcp`.
+    /// `ToolEntry.toToolDef()` is the one home that already renders the faithful JSON Schema
+    /// (nested `properties`, `items`, and the name-sorted synthesized `required`), so publish that
+    /// instead of a second, thinner translation of the same registry.
+    /// Foundation's `JSONSerialization` raises an Objective-C exception for a value it cannot
+    /// represent, and `try?` does not catch ObjC exceptions — measured: the test process aborted
+    /// with `libc++abi: terminating due to uncaught exception of type NSException` rather than
+    /// failing a case. `AnyCodable` is such a value (it is Codable, not a Foundation JSON type),
+    /// so anything built by `toToolDef()` must travel through its own Codable conformance and come
+    /// back as plain Foundation objects before it joins a response dictionary.
+    private func plainJSON<T: Encodable>(_ value: T) -> Any? {
+        guard let data = try? JSONEncoder().encode(value) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data)
+    }
+
     private func doList() async -> JVal {
-        guard ready else { return JVal([String: String]()) }
         var list: [[String: Any]] = []
-        for n in await registry.listTools() {
-            if await registry.schema(for: n) != nil {
-                list.append([
-                    "name": n, "inputSchema": ["type": "object", "properties": [String: Any]()],
-                ])
+        for name in await registry.listTools() {
+            guard let entry = await registry.lookup(name) else { continue }
+            let def = entry.toToolDef()
+            let schema = def.function.parameters.flatMap(plainJSON)
+                ?? ["type": "object", "properties": [String: Any]()]
+            var tool: [String: Any] = [
+                "name": name,
+                "inputSchema": schema,
+            ]
+            if let description = def.function.description, !description.isEmpty {
+                tool["description"] = description
             }
+            list.append(tool)
         }
+        log.info("tools/list published \(list.count) tools with schemas")
         return JVal(["tools": list])
     }
 
-    private func doCall(_ p: [String: Any]?) async -> JVal {
-        guard ready else { return JVal([String: String]()) }
-        guard let name = p?["name"] as? String else { return JVal([String: String]()) }
-        let args = p?["arguments"] as? [String: Any] ?? [:]
+    private func doCall(name: String, arguments args: [String: Any]) async -> JVal {
         let j =
             (try? JSONSerialization.data(withJSONObject: args)).flatMap {
                 String(decoding: $0, as: UTF8.self)
@@ -162,20 +220,25 @@ actor MCPServer {
 
     // MARK: - Encode
 
-    private func res(_ v: JVal, id: String?) -> String {
+    private func res(_ v: JVal, id: JVal?) -> String {
         enc(["result": v.value], id: id)
     }
 
-    private func err(_ e: RpcErr, id: String?) -> String {
-        enc(["error": ["code": e.code, "message": e.msg]], id: id)
+    /// `detail` names what the client got wrong. An error that says only "Invalid params" makes a
+    /// caller guess; the refusal must be as specific as the check that produced it.
+    private func err(_ e: RpcErr, id: JVal?, detail: String? = nil) -> String {
+        enc(["error": ["code": e.code, "message": detail.map { "\(e.msg): \($0)" } ?? e.msg]], id: id)
     }
 
-    private func enc(_ body: [String: Any], id: String?) -> String {
+    private func enc(_ body: [String: Any], id: JVal?) -> String {
         var d: [String: Any] = ["jsonrpc": "2.0"]
         d.merge(body, uniquingKeysWith: { $1 })
-        if let id { d["id"] = id }
+        // Echo the id in the type the client sent it: §4.1 requires the responder to return the
+        // same identifier, so answering the number 1 with the string "1" is a different id.
+        if let id { d["id"] = id.value }
         guard let data = try? JSONSerialization.data(withJSONObject: d, options: .sortedKeys) else {
-            log.error("Failed to serialize JSON-RPC response for id: \(id ?? "nil")")
+            log.error(
+                "Failed to serialize JSON-RPC response for id: \(String(describing: id?.value))")
             return err(.internalServerError, id: id)
         }
         return String(decoding: data, as: UTF8.self)
