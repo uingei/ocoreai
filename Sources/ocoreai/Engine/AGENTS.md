@@ -33,7 +33,7 @@ signed bundle (nested code object ⇒ CodeSign dies). Gate: `MetalShaderLibraryT
 ## An edited resend rewinds; it does not re-prefill
 The pool may not *answer* a conversation that diverged from its resident cache
 (`canReusePooledSession`) — but that is not a reason to discard the cache. `rewindHistoryEnd`
-(`SessionPool.swift:1389`, called at `SessionPool.swift:647`) decides whether the cache can be
+(`SessionPool.swift:1526`, called at `SessionPool.swift:683`) decides whether the cache can be
 rewound onto the conversation that arrived and hands the boundary to the caller as
 `AcquireResult.rewind`; the fork itself is `EngineInference.swift:3139`, the only such site,
 because the transcript cannot cross into the pool actor — upstream `Chat.Message`
@@ -111,8 +111,8 @@ AGENTS.md moved off their targets with no gate going red; these markers are the 
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4366 components: genComponents -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3869 components: mtpGenComponents -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:845 case "affine" -->
-<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1455 static func rewindHistoryEnd -->
-<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:673 Self.rewindHistoryEnd( -->
+<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1526 static func rewindHistoryEnd -->
+<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:683 Self.rewindHistoryEnd( -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3194 rewind.source.session.fork( -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:869 let kvCacheRewindReserveTokens = 1024 -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:14 public struct Message { -->
