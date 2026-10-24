@@ -21,7 +21,7 @@
 //!   static LoRATrain.evaluate(model:dataset:loss:tokenizer:batchSize:batchCount:)
 //! ```
 //!
-//! `LoraTrain.swift:191` at the pinned revision (`bb0d5b048`) reads `let model = model as!
+//! `LoraTrain.swift:191` at the pinned revision (`991266ad3`) reads `let model = model as!
 //! any LLMModel`. This checkpoint loads through `VLMModelFactory`, so its model is a Module
 //! that does not conform to `MLXLLM.LLMModel` — the unconditional cast traps. mlx-swift-lm
 //! #683 (upstream `bb0d5b0`) added sample-length pre-flights but left this cast alone, so

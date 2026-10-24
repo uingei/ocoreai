@@ -144,6 +144,23 @@ XGrammarCompiledGrammar* xgrammar_compile_json_schema(
     }
 }
 
+XGrammarCompiledGrammar* xgrammar_compile_structural_tag(
+    XGrammarCompiler* compiler,
+    const char* tag_json
+) {
+    try {
+        if (!compiler || !tag_json) return nullptr;
+
+        CompiledGrammar compiled = compiler->cpp_obj.CompileStructuralTag(
+            std::string(tag_json)
+        );
+
+        return new XGrammarCompiledGrammar(std::move(compiled));
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 size_t xgrammar_compiled_grammar_memory_size(const XGrammarCompiledGrammar* grammar) {
     try {
         if (!grammar) return 0;

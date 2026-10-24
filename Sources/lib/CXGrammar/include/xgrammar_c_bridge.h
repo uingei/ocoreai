@@ -68,6 +68,19 @@ XGrammarCompiledGrammar* xgrammar_compile_json_schema(
     bool strict_mode
 );
 
+// Compile a structural tag: a grammar that admits ANY of several formats in one turn.
+// `tag_json` is xgrammar's structural-tag document, e.g.
+//   {"type":"structural_tag","begin":[],"structure":{"type":"or","elements":
+//      [{"type":"json_schema","json_schema":…},{"type":"json_schema","json_schema":…}]},
+//   "end":[]}
+// — the shape sglang uses to keep a tool-call channel and a JSON answer alive in one
+// constrained turn (upstream: xgrammar compiler.h CompileStructuralTag). nullptr on failure,
+// like every other entry here; the caller reports the schema it refused.
+XGrammarCompiledGrammar* xgrammar_compile_structural_tag(
+    XGrammarCompiler* compiler,
+    const char* tag_json
+);
+
 // Get memory size of compiled grammar
 size_t xgrammar_compiled_grammar_memory_size(const XGrammarCompiledGrammar* grammar);
 

@@ -481,8 +481,8 @@ fi
 #
 # Root cause, and why only the guided/tool session leaked: sampling lives on the
 # `ChatSession`, not on the call — mlx-swift-lm declares `public var generateParameters`
-# (ChatSession.swift:370) and `streamMap` captures that stored property when the stream
-# starts (ChatSession.swift:981-987), so `streamDetails(to:)` carries no parameters at all. A pooled session
+# (ChatSession.swift:361) and `streamMap` captures that stored property when the stream
+# starts (ChatSession.swift:1037-1043), so `streamDetails(to:)` carries no parameters at all. A pooled session
 # reused on the next turn therefore generates under whatever budget it was created with.
 # Plain turns mask this: they park a transcript in the pool, so their successor fails
 # `MLXSessionPool.canReusePooledSession` and gets a clean session; a guided/MTP turn
@@ -491,7 +491,7 @@ fi
 #
 # Fix: `MLXSessionPool.acquire` refreshes the reused session's `generateParameters` from
 # this turn's request before handing it back (cache-affecting fields stay upstream's job:
-# ChatSession.swift:1052-1067 rebuilds from its retained transcript when the plan moves).
+# ChatSession.swift:1108-1122 rebuilds from its retained transcript when the plan moves).
 # Unit gate: Tests/ocoreaiTests/PooledParameterDriftTests.swift (field set + the site).
 # This section is that gate's live half: delete the refresh and §7 goes red twice.
 probe_section "7 — a turn obeys its own budget after a guided turn on the same session"

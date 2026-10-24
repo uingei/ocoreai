@@ -165,7 +165,7 @@ struct TokenBiasCache: @unchecked Sendable {
 ///   - `MLXFoundationModels/MLXLanguageModel.swift:1370/1704` — canonical 下游处理:
 ///     `catch GuidedGenerationError.incompleteOutput { incomplete = true }` 保留已产出,
 ///     照常收尾, **不 throw**; prematureEOS 不在吸收清单(上游只 catch incompleteOutput)。
-///   - `GuidedGenerationError.swift:8-14` (pin bb0d5b048, 全文件 15 行) — 上游对该错误的原文
+///   - `GuidedGenerationError.swift:8-14` (pin 991266ad3, 全文件 15 行) — 上游对该错误的原文
 ///     只描述结构: "Generation exhausted `maxTokens` before the grammar reached a stop state.
 ///     The output is incomplete"; `prematureEOS` :12-14 同样只声明 incomplete。上游 **不**在此
 ///     文件规定下游如何处理 ⇒ 吸收语义取自下面两条 emit 现场的实证, 不取自本文件。

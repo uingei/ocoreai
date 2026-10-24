@@ -886,6 +886,57 @@ struct ChatCompletion: Encodable {
         case choices
         case usage
         case audioInput = "audio_input"
+        case ocoreai
+    }
+
+    /// What this server's own tool loop did during the turn, measured. Absent when no tool
+    /// ran — absence is "nothing was dispatched", never "nothing succeeded".
+    var ocoreai: OcoreaiTurn? = nil
+}
+
+/// One dispatched tool call, as the wire reports it. `durationMs` is the wall time measured
+/// around the real dispatch, so a client can verify a timing claim without echoing it back
+/// through the model (`ToolResultMeta` is the source; the summary is redacted at the exit).
+struct OcoreaiToolRecord: Encodable, Sendable {
+    let id: String
+    let name: String
+    let ok: Bool
+    let durationMs: Double
+    let summary: String
+    let failure: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case ok
+        case durationMs = "duration_ms"
+        case summary
+        case failure
+    }
+
+    static func from(_ meta: ToolResultMeta) -> OcoreaiToolRecord {
+        OcoreaiToolRecord(
+            id: meta.id,
+            name: meta.name,
+            ok: meta.failure == nil,
+            durationMs: meta.durationMs,
+            summary: SecretRedactor.redact(meta.resultSummary),
+            failure: meta.failure.map { SecretRedactor.redact($0) }
+        )
+    }
+}
+
+/// Namespaced turn extension. `ocoreai` owns this key, so a canonical OpenAI client ignores
+/// it and we never present a non-spec field as spec.
+struct OcoreaiTurn: Encodable, Sendable {
+    let toolResults: [OcoreaiToolRecord]
+
+    init(toolResults: [OcoreaiToolRecord]) {
+        self.toolResults = toolResults
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case toolResults = "tool_results"
     }
 }
 
@@ -1025,9 +1076,11 @@ struct Usage: Encodable {
 /// Upstream hands us the two parts and never the total: `GenerateCompletionInfo.promptTokenCount`
 /// is what this turn **prefilled** ("When a session reuses a KV-cache prefix only the remaining
 /// suffix is fed to the model, so this counts fewer tokens than the rendered prompt" —
-/// mlx-swift-lm `Evaluate.swift:2921-2926`), while `cachedPromptTokenCount` is the prefix its KV
+/// mlx-swift-lm `Evaluate.swift:2938-2943`), while `cachedPromptTokenCount` is the prefix its KV
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:2941 counts fewer tokens than the rendered prompt
 /// cache kept. Upstream's own total is `cached + prefilled` (`totalPromptTokenCount`,
-/// `Evaluate.swift:2984-2987`), and mlx-swift-lm emits exactly that as its input-token count at
+/// `Evaluate.swift:3002-3004`), and mlx-swift-lm emits exactly that as its input-token count at
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:3003 cachedPromptTokenCount + promptTokenCount
 /// `MLXLanguageModel.swift:1377`, `:1519` and `:1721`.
 ///
 /// Publishing the prefilled suffix instead was the deviation this exists to prevent. Measured 10-21
@@ -1526,18 +1579,23 @@ struct ChatCompletionChunk: Encodable {
     /// Token usage statistics (only when stream_options.include_usage is true)
     let usage: Usage?
 
+    /// Carried on the terminal chunk when the turn dispatched a tool; nil elsewhere.
+    var ocoreai: OcoreaiTurn? = nil
+
     init(
         id: String,
         created: Int64,
         model: String,
         choices: [ChunkChoice],
-        usage: Usage? = nil
+        usage: Usage? = nil,
+        ocoreai: OcoreaiTurn? = nil
     ) {
         self.id = id
         self.created = created
         self.model = model
         self.choices = choices
         self.usage = usage
+        self.ocoreai = ocoreai
     }
 }
 
@@ -2298,7 +2356,8 @@ let jsonObjectSchema = #"{"type":"object"}"#
 
 func buildGrammarSchema(
     from tools: [ToolDef]?,
-    responseFormat: ResponseFormat? = nil
+    responseFormat: ResponseFormat? = nil,
+    toolChoice: String? = nil
 ) -> String? {
     // 递归剥壳见 `flattenJSONValue`(共享: grammar 与 tool-spec 两条路都必须
     // 把 AnyCodable 换成 JSON 原生 Any, 两处各写一份迟早漂移)。
@@ -2307,7 +2366,16 @@ func buildGrammarSchema(
         (flattenJSONValue(dict) as? [String: Any]) ?? [:]
     }
 
-    // Tools path: build function_call-style schema with $defs hoisting
+    // Which constraint wins. `shouldConstrainOutput` decided WHETHER this turn is
+    // constrained; this decides WITH WHAT. A tool grammar goes on the wire only when
+    // `tool_choice` demands a call — sglang installs one solely for `required`/named
+    // choices (serving_chat.py:1488-1501) and calls the schema "response data"
+    // (serving_chat.py:1349-1353). With a JSON `response_format` beside undeclared-as-demand
+    // tools the JSON wins; the four orderings tried on this engine, and what each cost, are
+    // recorded at the decision below.
+    let jsonShapeAsked =
+        responseFormat?.type == "json_schema" || responseFormat?.type == "json_object"
+    var toolGrammar: [String: Any]?
     if let toolsDef = tools, !toolsDef.isEmpty {
         var hoistedDefs: [String: Any] = [:]
         let oneOf: [[String: Any]] = toolsDef.compactMap { tool in
@@ -2337,37 +2405,50 @@ func buildGrammarSchema(
             envelope["$defs"] = hoistedDefs
         }
 
-        guard
-            let data = try? JSONSerialization.data(
-                withJSONObject: [
-                    "type": "array",
-                    "items": envelope,
-                ],
-                options: []
-            ), let s = String(data: data, encoding: .utf8)
-        else {
-            return nil
-        }
-        return s
+        toolGrammar = ["type": "array", "items": envelope]
     }
 
-    // JSON schema path: passthrough or fallback
-    if let responseFmt = responseFormat,
-        responseFmt.type == "json_schema" || responseFmt.type == "json_object"
-    {
-        if let schemaReq = responseFmt.jsonSchema,
-            let data = try? JSONSerialization.data(
-                withJSONObject: toAny(schemaReq.schema),
-                options: []
-            ), let s = String(data: data, encoding: .utf8)
-        {
-            return s
-        }
-        // Schema-less JSON mode: an OPEN object. See `jsonObjectSchema` — naming zero
-        // properties here is what used to make every `json_object` reply `{}`.
-        return jsonObjectSchema
+    // The caller's JSON, resolved once. A schema-less `json_object` is an OPEN object —
+    // naming zero properties is what used to make every `json_object` reply `{}`
+    // (`jsonObjectSchema`).
+    var jsonGrammar: [String: Any]?
+    if jsonShapeAsked {
+        // The open-object literal is the same decision as `jsonObjectSchema` (strict
+        // concurrency will not host a `[String: Any]` global); `openObjectFormsAgree`
+        // pins the two so they cannot drift apart.
+        jsonGrammar = responseFormat?.jsonSchema.map { toAny($0.schema) } ?? ["type": "object"]
     }
-    return nil
+
+    guard let tool = toolGrammar else {
+        return jsonGrammar.flatMap { grammarSchemaString($0) }
+    }
+    guard let json = jsonGrammar else {
+        return grammarSchemaString(tool)
+    }
+    if toolChoiceDemandsCall(toolChoice) {
+        return grammarSchemaString(tool)
+    }
+    // Both channels asked, no demand: the JSON wins. Four shapes were run on this engine
+    // and this is the only one that keeps a decidable promise (§6: keys arrive 3/3 with the
+    // tools still declared, both shapes). The others each cost a channel — envelope-first
+    // delivered the caller's JSON 0/3 with every turn ending `finish: tool_calls`; an
+    // `anyOf` of both compiled and then reported the document finished after one brace
+    // (`grammarTerm=true tokens=1`, content `'{'` / `'}'`); and no grammar at all fenced the
+    // answer in ```json so the client could not parse it (3/3, probe 12 §6/§7). What JSON-first
+    // still cannot do is ground the answer: a turn that must call a tool before it answers
+    // cannot emit the call, measured by §7 — the gap is the loop's per-iteration grammar, not
+    // an ordering, so it is recorded open rather than fixed by picking a different loser.
+    return grammarSchemaString(json)
+}
+
+/// One home for "compile a grammar object into the string GuidedGeneration takes".
+/// Internal, not private: `GrammarSchemaRegressionTests` pins that this is still the only
+/// serialiser behind `jsonObjectSchema`, and that needs the function by name.
+func grammarSchemaString(_ grammar: [String: Any]) -> String? {
+    guard let data = try? JSONSerialization.data(withJSONObject: grammar, options: []) else {
+        return nil
+    }
+    return String(data: data, encoding: .utf8)
 }
 
 /// Hoist `$defs` from a tool parameter schema to the envelope root,

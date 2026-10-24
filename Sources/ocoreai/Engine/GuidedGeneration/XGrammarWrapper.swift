@@ -82,6 +82,26 @@ final class GrammarCompiler {
 
         return CompiledGrammar(handle: grammarHandle, tokenizerInfo: tokenizerInfo)
     }
+
+    /// Compile a structural tag — one grammar that admits several formats in a single turn.
+    ///
+    /// This is what a turn that names BOTH a JSON `response_format` and `tools[]` needs: today
+    /// `buildGrammarSchema` picks a side, and whichever side loses is ungeneratable for that
+    /// turn (measured four ways, CHANGELOG 10-24(1)). A tag whose structure is
+    /// `or[json_schema(caller), json_schema(envelope)]` keeps both channels reachable while the
+    /// output stays grammar-valid — the route sglang takes with StructuralTag
+    /// (~/references/sglang: xgrammar-backed), compiled here by
+    /// `xgrammar_compile_structural_tag` over xgrammar 0.2.2's `CompileStructuralTag`
+    /// (include/xgrammar/compiler.h:96).
+    func compileStructuralTag(_ tagJson: String) throws -> CompiledGrammar {
+        guard
+            let grammarHandle = xgrammar_compile_structural_tag(handle, tagJson)
+        else {
+            throw XGrammarError.structuralTagCompilationFailed(tagJson)
+        }
+
+        return CompiledGrammar(handle: grammarHandle, tokenizerInfo: tokenizerInfo)
+    }
 }
 
 // MARK: - Grammar Matcher
@@ -171,11 +191,14 @@ final class GrammarMatcher {
 @available(macOS 27.0, iOS 27.0, *)
 enum XGrammarError: Error, LocalizedError {
     case schemaCompilationFailed(String)
+    case structuralTagCompilationFailed(String)
 
     var errorDescription: String? {
         switch self {
         case .schemaCompilationFailed(let schema):
             return "Failed to compile JSON schema: \(schema.prefix(200))"
+        case .structuralTagCompilationFailed(let tag):
+            return "Failed to compile structural tag: \(tag.prefix(200))"
         }
     }
 }

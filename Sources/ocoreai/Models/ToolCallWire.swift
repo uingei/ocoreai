@@ -71,7 +71,7 @@ enum ToolCallWire {
     ///
     /// A `length` cut stays visible so a client can tell a complete call from one the
     /// budget chopped — the reasoning behind both references' wording (vllm
-    /// `tool_calls_utils.py:47-65`; sglang `serving_chat.py:2151` gates on
+    /// `tool_calls_utils.py:41-59`; sglang `serving_chat.py:2151` gates on
     /// `finish_reason_type == "stop"`). `cancelled` and `error` are never rewritten into
     /// a success word.
     ///

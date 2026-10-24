@@ -1768,7 +1768,8 @@ extension EnginePool {
         // These are deliberately NOT deleted when the request ends. Upstream ChatSession
         // keeps the message it was given, with the resolved media URL inside it, and
         // re-feeds that whole transcript to `processor.prepare` on every later turn of the
-        // conversation (ChatSession.swift:1110 — `templateMessages = leadingMessages +
+        // conversation (ChatSession.swift:1166 — `templateMessages = leadingMessages +
+        // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1166 templateMessages = leadingMessages
         // currentConversation.messages`; gated by `make anchor-check`). Bytes deleted here therefore cost the
         // conversation its own history: measured 10-16, a clip posted as a data URL was
         // answered correctly on turn 1 ("Red", +79 prompt tokens) and every turn after it
@@ -3183,7 +3184,8 @@ extension EnginePool {
                 // via poolRefForRelease and nil out chatSession to prevent double release.
                 if let rewind = acquired.rewind, rewind.historyEnd < mlxMessages.count {
                     // The pool refused this conversation but left a resumable cache behind:
-                    // `fork(history:)` (ChatSession.swift:1652) gives back a session that
+                    // `fork(history:)` (ChatSession.swift:1723) gives back a session that
+                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1723 func fork(history
                     // holds *this* transcript and keeps only the KV rows its prompt starts
                     // with, so an edited resend stops costing a full re-prefill. The pool
                     // could not do this itself — `[Chat.Message]` is not `Sendable`, so the
@@ -3192,7 +3194,8 @@ extension EnginePool {
                     let forked = await rewind.source.session.fork(
                         history: Array(mlxMessages[0 ..< rewind.historyEnd]))
                     // A fork inherits the parent's configuration, and sampling lives on the
-                    // session rather than the call (`ChatSession.swift:370`), so a fork that
+                    // session rather than the call (`ChatSession.swift:361`), so a fork that
+                    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:361 public var generateParameters
                     // keeps last turn's knobs answers this turn under them — the same drift
                     // `staleSamplingFields` names on the pool-hit path.
                     let overriddenFields = MLXSessionPool.staleSamplingFields(

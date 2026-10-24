@@ -515,10 +515,15 @@ struct AnthropicMessageResponse: Encodable {
     let stopReason: String?
     let usage: AnthropicUsage
 
+    /// Namespaced extension shared with the OpenAI face: what this server's own tool loop
+    /// measured. Absent when no tool ran. Not Anthropic spec — `ocoreai` owns the key.
+    var ocoreai: OcoreaiTurn? = nil
+
     enum CodingKeys: String, CodingKey {
         case id, type, role, content, model
         case stopReason = "stop_reason"
         case usage
+        case ocoreai
     }
 }
 
@@ -614,17 +619,74 @@ struct AnthropicUsage: Encodable {
     let inputTokens: Int
     let outputTokens: Int
 
-    /// Cache creation tokens (reserved for future cache feature)
-    let cacheCreationInputTokens: Int? = nil
+    /// Prompt tokens the KV cache served this turn, present only when the engine measured
+    /// it (`GenerateCompletionInfo.cachedPromptTokenCount`). Anthropic's own identity is
+    /// `total == input + cache_read + cache_creation`, so ``inputTokens`` carries the
+    /// uncached part — vllm `entrypoints/anthropic/serving.py:80-110`, ollama
+    /// `anthropic/anthropic.go:226-238`, splash `server/api_shapes.py:1221-1226`. The
+    /// OpenAI face already publishes the measurement as
+    /// `usage.prompt_tokens_details.cached_tokens`; omitting it here hid prefix reuse
+    /// from a client that costs cache hits, and left `input_tokens` claiming a prompt the
+    /// cache had already served part of.
+    /// Defaults to absent; ``split`` is the only assembly this face uses, and
+    /// `AnthropicCacheUsageTests` goes red on a construction site that bypasses it.
+    let cacheReadInputTokens: Int?
 
-    /// Cache read tokens (reserved for future cache feature)
-    let cacheReadInputTokens: Int? = nil
+    /// Never claimed: this engine measures no cache *write*, so the key stays absent —
+    /// the same omission vllm applies when `created_cache_tokens` is absent.
+    let cacheCreationInputTokens: Int?
 
     enum CodingKeys: String, CodingKey {
         case inputTokens = "input_tokens"
         case outputTokens = "output_tokens"
-        case cacheCreationInputTokens = "cache_creation_input_tokens"
         case cacheReadInputTokens = "cache_read_input_tokens"
+        case cacheCreationInputTokens = "cache_creation_input_tokens"
+    }
+
+    init(
+        inputTokens: Int,
+        outputTokens: Int,
+        cacheReadInputTokens: Int? = nil,
+        cacheCreationInputTokens: Int? = nil
+    ) {
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.cacheReadInputTokens = cacheReadInputTokens
+        self.cacheCreationInputTokens = cacheCreationInputTokens
+    }
+
+    /// This face's one split of a prompt: `totalPromptTokens` is what the turn rendered
+    /// (``PromptTokenAccounting``), `cacheRead` what the cache served of it.
+    static func split(
+        totalPromptTokens: Int, cacheRead: Int?, outputTokens: Int
+    ) -> AnthropicUsage {
+        let parts = AnthropicCacheUsage.split(
+            totalPromptTokens: totalPromptTokens, cacheRead: cacheRead)
+        return AnthropicUsage(
+            inputTokens: parts.uncached,
+            outputTokens: outputTokens,
+            cacheReadInputTokens: parts.cacheRead,
+            cacheCreationInputTokens: nil)
+    }
+}
+
+/// Anthropic's accounting identity in one home: a prompt's whole is
+/// `input + cache_read + cache_creation`, so a breakdown may never exceed the whole it
+/// belongs to, and an unmeasured part stays absent instead of becoming a claimed zero.
+/// A measured zero is still a measurement, and is published.
+enum AnthropicCacheUsage {
+    struct Parts {
+        let uncached: Int
+        let cacheRead: Int?
+    }
+
+    static func split(totalPromptTokens total: Int, cacheRead: Int?) -> Parts {
+        let whole = max(0, total)
+        guard let cacheRead else {
+            return Parts(uncached: whole, cacheRead: nil)
+        }
+        let reused = min(max(0, cacheRead), whole)
+        return Parts(uncached: whole - reused, cacheRead: reused)
     }
 }
 
@@ -659,10 +721,13 @@ struct AnthropicStreamEvent: Encodable {
     /// "input":{}}`) and SDKs open their accumulator from `content_block.type`, so an
     /// event that omits it is not a stream a spec client can start a block in.
     var contentBlock: AnthropicAssistantContent? = nil
+    /// Namespaced carrier for measured tool outcomes (`message_delta` only).
+    var ocoreai: OcoreaiTurn? = nil
 
     enum CodingKeys: String, CodingKey {
         case type, index, message, delta, usage
         case contentBlock = "content_block"
+        case ocoreai
     }
 
     /// Stream start event
@@ -753,20 +818,28 @@ struct AnthropicStreamEvent: Encodable {
     /// terminal `stop_reason`. Live 10-13: the SSE path went
     /// `content_block_stop → message_stop`, so clients read no stop_reason at all
     /// (`stream()` ends without the field the SDKs key on).
-    static func messageDelta(stopReason: String, outputTokens: Int) -> AnthropicStreamEvent {
+    static func messageDelta(
+        stopReason: String, outputTokens: Int, ocoreai: OcoreaiTurn? = nil
+    ) -> AnthropicStreamEvent {
         AnthropicStreamEvent(
             type: "message_delta", index: nil, message: nil,
             delta: AnthropicStreamDelta(
                 type: "message_delta", partialJson: nil, text: nil,
                 stopReason: stopReason, stopSequence: nil),
-            usage: AnthropicStreamUsage(outputTokens: outputTokens, inputTokens: nil))
+            usage: AnthropicStreamUsage(outputTokens: outputTokens, inputTokens: nil),
+            ocoreai: ocoreai)
     }
 
-    /// Message stop event (with final usage)
-    static func messageStop(inputTokens: Int, outputTokens: Int) -> AnthropicStreamEvent {
+    /// Message stop event (with final usage). `totalPromptTokens` is the rendered prompt
+    /// and `cacheRead` the part the cache served, split by ``AnthropicCacheUsage``.
+    static func messageStop(
+        totalPromptTokens: Int, cacheRead: Int?, outputTokens: Int
+    ) -> AnthropicStreamEvent {
         AnthropicStreamEvent(
             type: "message_stop", index: nil, message: nil, delta: nil,
-            usage: AnthropicStreamUsage(outputTokens: outputTokens, inputTokens: inputTokens))
+            usage: AnthropicStreamUsage.split(
+                totalPromptTokens: totalPromptTokens, cacheRead: cacheRead,
+                outputTokens: outputTokens))
     }
 }
 
@@ -822,10 +895,31 @@ struct AnthropicStreamUsage: Encodable {
     let outputTokens: Int
     /// Optional: Anthropic's `message_delta` carries output_tokens only.
     let inputTokens: Int?
+    /// The cache-served part of this turn's prompt — see ``AnthropicUsage/cacheReadInputTokens``.
+    let cacheReadInputTokens: Int?
 
     enum CodingKeys: String, CodingKey {
         case inputTokens = "input_tokens"
         case outputTokens = "output_tokens"
+        case cacheReadInputTokens = "cache_read_input_tokens"
+    }
+
+    init(outputTokens: Int, inputTokens: Int? = nil, cacheReadInputTokens: Int? = nil) {
+        self.outputTokens = outputTokens
+        self.inputTokens = inputTokens
+        self.cacheReadInputTokens = cacheReadInputTokens
+    }
+
+    /// The terminal event's split, through the same ``AnthropicCacheUsage`` home as the
+    /// non-stream response, so both shapes carry one number for one prompt.
+    static func split(
+        totalPromptTokens: Int, cacheRead: Int?, outputTokens: Int
+    ) -> AnthropicStreamUsage {
+        let parts = AnthropicCacheUsage.split(
+            totalPromptTokens: totalPromptTokens, cacheRead: cacheRead)
+        return AnthropicStreamUsage(
+            outputTokens: outputTokens, inputTokens: parts.uncached,
+            cacheReadInputTokens: parts.cacheRead)
     }
 }
 

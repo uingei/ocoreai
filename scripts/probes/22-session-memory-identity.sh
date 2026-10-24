@@ -384,6 +384,98 @@ PY
   fi
 fi
 
+# ── one prompt, both faces ─────────────────────────────────────────────────────────────
+# Anthropic accounts for a prompt as `input_tokens + cache_read_input_tokens +
+# cache_creation_input_tokens`; OpenAI's `prompt_tokens` is already that whole. Both faces read
+# the same engine measurement for the same conversation, so the same history must cost the same
+# number on both wires — the identity splash pins at
+# `dev/tests/server/test_anthropic_contract.py:889`, with the split vllm and ollama apply. This
+# is the only place two faces meet on one prompt: a face that hides the reused prefix, or
+# subtracts it twice, fails here rather than in a client's invoice.
+probe_section "one conversation, both faces: does one prompt cost one number?"
+if [ -n "${MREPLY2:-}" ]; then
+  PKEY="$MKEY"
+  PBODY_OPENAI="$(python3 - "$PROBE_MODEL" "$PKEY" "$MAX_TOKENS" "$MTEXT1" "$MREPLY1" "$MTEXT2" <<'PYOPENAI'
+import json, sys
+model, key, max_tokens, t1, r1, t2 = sys.argv[1:7]
+messages = [{"role": "user", "content": t1}, {"role": "assistant", "content": r1},
+            {"role": "user", "content": t2}]
+print(json.dumps({"model": model, "max_tokens": int(max_tokens), "temperature": 0.0,
+                 "session_id": key, "messages": messages}))
+PYOPENAI
+)"
+  PBODY_ANTHROPIC="$(python3 - "$PROBE_MODEL" "$PKEY" "$MAX_TOKENS" "$MTEXT1" "$MREPLY1" "$MTEXT2" <<'PYANTHROPIC'
+import json, sys
+model, key, max_tokens, t1, r1, t2 = sys.argv[1:7]
+messages = [{"role": "user", "content": t1}, {"role": "assistant", "content": r1},
+            {"role": "user", "content": t2}]
+print(json.dumps({"model": model, "max_tokens": int(max_tokens), "temperature": 0.0,
+                 "metadata": {"user_id": "probe-user", "session_id": key},
+                 "messages": messages}))
+PYANTHROPIC
+)"
+  probe_api POST /v1/chat/completions "$PBODY_OPENAI"
+  OPENAI_OK=0
+  if [ "${PROBE_STATUS:-}" = "200" ]; then
+    OPENAI_OK=1
+  else
+    probe_fail "POST /v1/chat/completions (identity turn) -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:200}"
+  fi
+  OPENAI_BODY="$PROBE_BODY"
+  probe_api POST /v1/messages "$PBODY_ANTHROPIC"
+  if [ "${PROBE_STATUS:-}" != "200" ]; then
+    probe_fail "POST /v1/messages (identity turn) -> ${PROBE_STATUS:-no response}: ${PROBE_BODY:0:200}"
+  elif [ "$OPENAI_OK" = "1" ]; then
+    IJSON="/tmp/ocoreai-probe22-identity-$$.json"
+    IVERDICT="/tmp/ocoreai-probe22-identity-verdict-$$.txt"
+    printf '%s' "{\"openai\": $OPENAI_BODY, \"anthropic\": $PROBE_BODY}" > "$IJSON"
+    python3 - "$IJSON" > "$IVERDICT" <<'PYVERDICT'
+import json, sys
+with open(sys.argv[1], encoding="utf-8", errors="replace") as fh:
+    doc = json.load(fh)
+o = (doc.get("openai") or {}).get("usage") or {}
+a = (doc.get("anthropic") or {}).get("usage") or {}
+prompt = o.get("prompt_tokens")
+cached_o = (o.get("prompt_tokens_details") or {}).get("cached_tokens")
+uncached_a = a.get("input_tokens")
+cached_a = a.get("cache_read_input_tokens")
+if not isinstance(prompt, int) or not isinstance(uncached_a, int):
+    print("IDENTFAIL no numeric prompt on at least one face (openai=%r anthropic=%r)" % (o, a))
+else:
+    whole_a = uncached_a + (cached_a if isinstance(cached_a, int) else 0)
+    if uncached_a < 0:
+        print("IDENTFAIL negative input_tokens=%s on /v1/messages" % uncached_a)
+    elif isinstance(cached_a, int) and cached_a > whole_a:
+        print("IDENTFAIL cache_read=%s exceeds the whole prompt it belongs to (%s)" % (cached_a, whole_a))
+    elif whole_a != prompt:
+        print("IDENTFAIL one prompt costs two numbers: /v1/chat/completions prompt_tokens=%s,"
+              " /v1/messages input_tokens+cache_read_input_tokens=%s (%s+%s)"
+              % (prompt, whole_a, uncached_a, cached_a if cached_a is not None else 0))
+    else:
+        print("IDENT OK one prompt costs %s tokens on both faces (uncached=%s, cache_read=%s)"
+              % (prompt, uncached_a, cached_a if cached_a is not None else "absent"))
+    # Presence parity: both handler paths read the same engine field, so a cache measured on
+    # one wire and not the other is our inconsistency, not the engine's.
+    if isinstance(cached_o, int) and cached_a is None:
+        print("IDENTFAIL the OpenAI face reported cached_tokens=%s for this conversation while"
+              " the Anthropic face published no cache_read_input_tokens" % cached_o)
+    elif isinstance(cached_o, int) and isinstance(cached_a, int):
+        print("IDENTMEASURE cached on this conversation: openai=%s anthropic=%s" % (cached_o, cached_a))
+    else:
+        print("IDENTMEASURE no cache reported by either face on this turn (openai=%r anthropic=%r)"
+              % (cached_o, cached_a))
+PYVERDICT
+    while IFS= read -r line; do
+      case "$line" in
+        IDENT\ OK\ *) probe_ok "one prompt is one number across both faces — ${line#IDENT OK }" ;;
+        IDENTFAIL\ *) probe_fail "${line#IDENTFAIL }" ;;
+        IDENTMEASURE\ *) probe_note "${line#IDENTMEASURE }" ;;
+      esac
+    done < "$IVERDICT"
+    rm -f "$IJSON" "$IVERDICT"
+  fi
+fi
+
 # Leave the dev database as found: the rows this run made are evidence, not cruft. The id list
 # is flattened at registration time — `probe_atexit` stores a string it later evals, so a
 # multi-line command (or one with non-id digits glued on) dies with a syntax error at exit.

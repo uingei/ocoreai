@@ -150,4 +150,107 @@ struct GrammarSchemaRegressionTests {
             "the zero-key object schema is back in \(offenders) — that schema means only {} is legal"
         )
     }
+
+    /// The shape a client really sends when it wants both: `tools[]` + `response_format` in
+    /// one turn, `tool_choice` unset. Four shapes were run on this engine and this is the
+    /// only one that keeps a decidable promise: envelope-first delivered the caller's JSON
+    /// 0/3 with every turn ending `finish: tool_calls` (one of them a schema-valid but
+    /// semantically absurd `edit_file{oldString:"read_file",…}`); an `anyOf` of both members
+    /// compiled and then reported the document finished after one brace
+    /// (`grammarTerm=true tokens=1`, content `'{'` / `'}'`); and no grammar at all fenced the
+    /// answer in ```json, so nothing downstream could parse it (3/3). sglang installs a tool
+    /// grammar only for a demand (`serving_chat.py:1488-1501`) and calls the schema response
+    /// data (`serving_chat.py:1349-1353`). What JSON-first still cannot do is ground a turn
+    /// that must call a tool before answering — probe 12 §7 holds that open.
+    @Test("tools + json_object: the caller's JSON wins, the envelope must not")
+    func jsonObjectBeatsToolEnvelope() throws {
+        let tools = try decodeTools(
+            """
+            [{"type":"function","function":{"name":"echo","description":"Echo back.",
+              "parameters":{"type":"object",
+                 "properties":{"text":{"type":"string"}}, "required":["text"]}}}]
+            """)
+        let rf = try JSONDecoder().decode(
+            ResponseFormat.self, from: Data(#"{"type":"json_object"}"#.utf8))
+        let out = try #require(buildGrammarSchema(from: tools, responseFormat: rf, toolChoice: nil))
+        #expect(out == jsonObjectSchema, "json_object must be the open object here, got \(out)")
+        #expect(!out.contains("oneOf"), "the tool envelope is back on the wire")
+        #expect(!out.contains("echo"), "tool names leaked into the answer grammar")
+    }
+
+    @Test("tools + json_schema: the caller's schema is the grammar")
+    func jsonSchemaBeatsToolEnvelope() throws {
+        let tools = try decodeTools(
+            """
+            [{"type":"function","function":{"name":"edit_file","description":"Edit a file.",
+              "parameters":{"type":"object","properties":{"path":{"type":"string"}},
+               "required":["path"]}}}]
+            """)
+        let rf = try JSONDecoder().decode(
+            ResponseFormat.self,
+            from: Data(
+                #"""
+                {"type":"json_schema","json_schema":{"name":"answer",
+                 "schema":{"type":"object","properties":{"n":{"type":"integer"}},
+                          "required":["n"]}}}
+                """#.utf8))
+        let out = try #require(buildGrammarSchema(from: tools, responseFormat: rf, toolChoice: "auto"))
+        let parsed = try JSONDecoder().decode([String: AnyCodable].self, from: Data(out.utf8))
+        #expect(parsed["type"]?.value as? String == "object")
+        #expect((parsed["properties"]?.value as? [String: Any])?["n"] != nil, "the caller's key vanished: \(out)")
+        #expect(parsed["oneOf"] == nil, "the tool envelope is back on the wire")
+        #expect(!out.contains("edit_file"), "tool names leaked into the answer grammar")
+    }
+
+    /// A demand IS the answer shape: `tool_choice: "required"`/pinned function means the
+    /// caller asked for a call, so the envelope constrains alone even with a JSON
+    /// `response_format` alongside it — sglang's `required`-only rule, same direction.
+    @Test("tool_choice required keeps the envelope alone, and constrains")
+    func demandKeepsEnvelopeAlone() throws {
+        let tools = try decodeTools(
+            """
+            [{"type":"function","function":{"name":"echo","description":"Echo back.",
+              "parameters":{"type":"object","properties":{"text":{"type":"string"}},
+               "required":["text"]}}}]
+            """)
+        let rf = try JSONDecoder().decode(
+            ResponseFormat.self, from: Data(#"{"type":"json_object"}"#.utf8))
+        let out = try #require(
+            buildGrammarSchema(from: tools, responseFormat: rf, toolChoice: "required"))
+        #expect(out.contains("\"oneOf\""), "a demand must produce the envelope")
+        #expect(out.contains("\"const\":\"echo\""), "the demanded tool is missing")
+        #expect(out.contains("\"arguments\""), "the envelope lost its arguments key")
+        #expect(
+            shouldConstrainOutput(declaredTools: tools, responseFormat: rf, toolChoice: "required"),
+            "a demand is the case the grammar exists for")
+    }
+
+    /// JSON with no tools on the wire is the grammar's own job and stays constrained.
+    @Test("json alone stays just the caller's schema")
+    func jsonAloneStaysConstrained() throws {
+        let rf = try JSONDecoder().decode(
+            ResponseFormat.self,
+            from: Data(
+                #"""
+                {"type":"json_schema","json_schema":{"name":"answer",
+                 "schema":{"type":"object","properties":{"n":{"type":"integer"}},
+                          "required":["n"]}}}
+                """#.utf8))
+        let out = try #require(buildGrammarSchema(from: nil, responseFormat: rf, toolChoice: nil))
+        let root = try JSONDecoder().decode([String: AnyCodable].self, from: Data(out.utf8))
+        #expect(root["type"]?.value as? String == "object")
+        #expect((root["properties"]?.value as? [String: Any])?["n"] != nil)
+        #expect(
+            shouldConstrainOutput(declaredTools: nil, responseFormat: rf, toolChoice: nil),
+            "a JSON-only turn must stay grammar-constrained — that shape is decidable")
+    }
+
+    @Test("the open-object string and the open-object dict form are one decision")
+    func openObjectFormsAgree() throws {
+        #expect(grammarSchemaString(["type": "object"]) == jsonObjectSchema)
+    }
+}
+
+private func decodeTools(_ json: String) throws -> [ToolDef] {
+    try JSONDecoder().decode([ToolDef].self, from: Data(json.utf8))
 }

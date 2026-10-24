@@ -21,7 +21,7 @@ import FoundationModels
 @Suite("Full Registry ToolSpec Pipeline")
 struct ToolSpecFullRegistryTests {
 
-    /// 生产同款 bootstrap：skill 全工具面 + update_plan/get_plan opt-in 全开（全集口径 iOS 31 / macOS 41）。
+    /// 生产同款 bootstrap：skill 全工具面 + update_plan/get_plan opt-in 全开（全集口径 iOS 32 / macOS 42）。
     static func fullRegistry() async -> ToolRegistry {
         let registry = ToolRegistry(log: Logger(label: "test.fullregistry"))
         await bootstrapBuiltInTools(
@@ -33,19 +33,21 @@ struct ToolSpecFullRegistryTests {
         return registry
     }
 
-    @Test("bootstrap registry: 全参 bootstrap 精确工具集(macOS 41 / iOS 31 真值源)+ 关键面全在")
+    @Test("bootstrap registry: 全参 bootstrap 精确工具集(macOS 42 / iOS 32 真值源)+ 关键面全在")
     func registeredCountExact() async {
         let registry = await Self.fullRegistry()
         let names = Set(await registry.listTools())
-        // 真值（BuiltInTools.swift 逐点核）：
-        //   无条件 22 + skills×3（if let skillRegistry）+ plan×2（if updatePlanEnabled）+ clipboard×2
-        //   + system_info×1 + open_url×1 = 31 基础口径;
-        //   clipboard + system_info + open_url 是 iOS17/macOS14 各平台一等面(非 macOS-only):
+        // 真值（BuiltInTools.swift 注册点逐点数：bootstrap 共 42 处 registry.register,
+        // 其中 10 处落在唯一一段 #if os(macOS)(:661-700) ⇒ 两平台基础 32,macOS 42）：
+        //   无条件 27（含 clipboard×2 / system_info×1 / open_url×1 —— 源码层无条件注册,
+        //     它们是 iOS17/macOS14 各平台一等面(非 macOS-only):
         //     open_url=按 URL 路由到 handler app(macOS NSWorkspace.open(url)/iOS UIApplication.open(url))。
+        //   + skills×3（skillRegistry 非 nil）+ plan×2（updatePlanEnabled）= 32 基础口径;
         //   + macOS 10 桌面控制面（move_mouse/click/drag/scroll/type_text/key_press/inspect_ui
-        //     + open_app/activate_app/list_apps，#if os(macOS) 门控）= 41
-        //   生产默认口径（skills+plan 默认关）= 22+3 = 25。
-        var expectedCount = 31
+        //     + open_app/activate_app/list_apps）= 42。
+        //   最小口径（skillRegistry=nil、updatePlanEnabled=false）= 无条件 27;
+        //   生产入口 App.swift:444 恒传 skillRegistry 非 nil、updatePlanEnabled 取设置。
+        var expectedCount = 32
         #if os(macOS)
         expectedCount += 10
         #endif
@@ -53,7 +55,7 @@ struct ToolSpecFullRegistryTests {
             names.count == expectedCount,
             "实际注册(\(names.count)), 期望 \(expectedCount): \(names.sorted())")
         for required in [
-            "info", "echo", "read_file", "write_file", "edit_file", "search_files",
+            "info", "echo", "read_file", "write_file", "edit_file", "edit_lines", "search_files",
             "exec_shell", "exec_command", "exec_poll", "write_stdin", "view_image",
             "view_screen", "observe_state", "get_context_remaining", "web_search",
             "web_fetch", "transcribe_audio", "speak", "generate_video",
@@ -81,12 +83,12 @@ struct ToolSpecFullRegistryTests {
         let specs = await registry.toToolSpecs()
         #if os(macOS)
         #expect(
-            specs.count == 41,
-            "specs \(specs.count) (macOS 基础 31 + desktop 6 + inspect_ui + lifecycle 3)")
+            specs.count == 42,
+            "specs \(specs.count) (基础 32 + 桌面 10；基础 = 无条件 27 + skills 3 + plan 2)")
         #else
         #expect(
-            specs.count == 31,
-            "specs \(specs.count) (基础 27 + clipboard 2 + system_info 1 + open_url 1)")
+            specs.count == 32,
+            "specs \(specs.count) (基础 = 无条件 27 + skills 3 + plan 2；桌面 10 在 #if os(macOS) 内)")
         #endif
 
         for spec in specs {

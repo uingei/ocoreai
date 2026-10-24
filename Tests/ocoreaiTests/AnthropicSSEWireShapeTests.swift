@@ -49,14 +49,16 @@ struct AnthropicSSEWireShapeTests {
         #expect(d.keys.contains("partial_json") == false)
     }
 
-    /// message_stop keeps reporting both counters, as before.
+    /// message_stop keeps reporting both counters, and says nothing about a cache it did
+    /// not measure.
     @Test("message_stop still reports input and output tokens")
     func messageStopShape() {
-        let u =
-            json(AnthropicStreamEvent.messageStop(inputTokens: 19, outputTokens: 5))["usage"]
-            as? [String: Any]
+        let stop = AnthropicStreamEvent.messageStop(
+            totalPromptTokens: 19, cacheRead: nil, outputTokens: 5)
+        let u = json(stop)["usage"] as? [String: Any]
         #expect(u?["input_tokens"] as? Int == 19)
         #expect(u?["output_tokens"] as? Int == 5)
+        #expect(u?.keys.contains("cache_read_input_tokens") == false)
     }
 
     /// The OpenAI→Anthropic reason mapping the handler feeds the delta event.
