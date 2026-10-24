@@ -36,9 +36,9 @@ Direct SwiftPM build, no `.xcodeproj` (the test gate runs through the SPM `ocore
 **Headless HTTP entry: `ocoreai serve`** (`swift run ocoreai serve`, or the built binary directly) — boots the engine + bridge on `127.0.0.1:8080` with no GUI/WindowServer session. Shutdown: `SIGTERM` or closing stdin drains the engine (≤30s) then exits clean; `SIGINT` keeps default terminal behavior. Bare `ocoreai` launches the GUI as before. Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显式 opt-in — 终端运行 `OCOREAI_ENABLE_HTTP=1 /Applications/ocoreai.app/Contents/MacOS/ocoreai`（实证：bridge 日志出现 + `/health` 200 + `/v1/chat/completions` 推理闭环）。无头启动走 `ocoreai serve`：引擎 + 桥绑定 `127.0.0.1:8080`，无需窗口会话；`SIGTERM` 或关闭 stdin 触发优雅退出（引擎排空 ≤30s），`SIGINT` 保持终端默认行为。
 
-> ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. **Auth is off unless** the `OCOREAI_API_KEYS` env var is set; **no TLS**. Token-bucket rate limiting is on by default: global **200 req/s** (burst 300), per-model 30/s (burst 45), per-IP 20/s (burst 30) — set once at `App.swift:703`, enforced by `Middleware/RateLimitMiddleware.swift`.
+> ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. **Auth is off unless** the `OCOREAI_API_KEYS` env var is set; **no TLS**. Token-bucket rate limiting is on by default: global **200 req/s** (burst 300), per-model 30/s (burst 45), per-IP 20/s (burst 30) — set once at `App.swift:721`, enforced by `Middleware/RateLimitMiddleware.swift`.
 <!-- claim:global_rate_set=1 :: grep -c 'globalRate: 200' Sources/ocoreai/App.swift -->
-<!-- anchor:. Sources/ocoreai/App.swift:703 globalRate: 200 -->
+<!-- anchor:. Sources/ocoreai/App.swift:721 globalRate: 200 -->
 
 > 🛠️ **Dev release** — This is a development build. Production use requires additional hardening (see Security section below).
 
@@ -119,7 +119,7 @@ Known boundaries (as of this commit, not aspirations):
 
 > Everything else needs an API key once `OCOREAI_API_KEYS` is set — **including `GET /v1/perception`**, which is keyed because it is absent from `AuthRoutePolicy.publicPaths`. That set is the one home for this list; P10 of `make docs-check` fails if the two diverge.
 
-> **Measured, never inferred.** `GET /v1/models` carries per-model disclosure keys — `vlm`, `contextLength`, `capabilities`, `videoInput`/`videoEvidence`, `toolCallDelivery`/`toolCallEvidence` (`parsed` | `prose_only` | `not_observed`) — and `GET /v1/capabilities` publishes the same measurements aggregated, plus `tokenizerBackend` (`real`/`heuristic`) and the endpoint index. Nothing is inferred from an architecture name or a linked framework: an unmeasured capability is an explicit `not_observed`/`unknown`, never a silent absence, and unloading a model resets its claims. Model ids contain `/`, so percent-encode them in `/v1/models/:model/…` paths.
+> **Measured, never inferred.** `GET /v1/models` carries per-model disclosure keys — `vlm`, `contextLength`, `capabilities`, `videoInput`/`videoEvidence`, `toolCallDelivery`/`toolCallEvidence` (`parsed` | `prose_only` | `not_observed`) — and `GET /v1/capabilities` publishes the same measurements aggregated, plus `tokenizerBackend` (`real`/`heuristic`) and the endpoint index. Nothing is inferred from an architecture name or a linked framework: an unmeasured capability is an explicit `not_observed`/`unknown`, never a silent absence, and unloading a model resets its claims. Model ids contain `/`, so percent-encode them (`org/name` → `org%2Fname`) in `/v1/models/:model/…` paths.
 
 ---
 
@@ -155,7 +155,7 @@ memory:
 
 > **Auth** is not a YAML key: set the `OCOREAI_API_KEYS` env var (comma-separated) to enable it; empty = unauthenticated.
 
-> **Full env-var reference**: the runtime surface is **23 environment variables** (17 static `environment["KEY"]` literals + 6 read through a constant or interpolated prefix, e.g. `HttpBridgePolicy.envVar`, `ConfigSystem.applyEnvOverrides`) spread across server/auth/backend/agent-approval/model-store/HF/ModelScope/web tools. See [`.env.example`](.env.example) — every key with its code-source default value (line-cited). A guard test set (`EnvKeysDocumentationTests`) fails the build if the file ever drifts from what the code actually reads.
+> **Full env-var reference**: the runtime surface is **30 environment variables** (22 static `environment["KEY"]` literals + 8 read through a constant, the hub accessor or an interpolated prefix, e.g. `HttpBridgePolicy.envVar`, `ConfigSystem.applyEnvOverrides`) spread across server/auth/backend/agent-approval/model-store/HF/ModelScope/web tools. See [`.env.example`](.env.example) — every key with its code-source default value (line-cited). A guard test set (`EnvKeysDocumentationTests`) fails the build if the file ever drifts from what the code actually reads.
 
 Memory budget auto-detected from `sysctl hw.memsize`; default guard tier is `balanced` = 55% of physical RAM (tiers: safe 40% / balanced 55% / aggressive 75%, custom 20–85%, floor 4 GB). OOMGuard then enforces the downgrade chain 8-bit → 4-bit → refuse (no CPU tier on UMA) — no disk I/O, the correct approach for Apple Silicon UMA.
 

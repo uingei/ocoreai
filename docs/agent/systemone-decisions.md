@@ -1,9 +1,8 @@
 # System 1 / Jev decisions — what the axis is, and what it would cost here
 
-> Status: **research, nothing implemented, nothing run.** Written 10-20 because "Jev
-> Compatibility" appears in the mission line and had **no definition anywhere in this repo**
-> (`git grep -in jev -- Sources` = 0 hits, and no doc defined it either). The comparators do
-> define it, in two shapes. Everything below marked *read* came from a file in a local clone at
+> Status: **research, nothing implemented, nothing run.** "Jev Compatibility" appears in the
+> mission line and had **no definition anywhere in this repo** (`git grep -in jev -- Sources` = 0
+> hits, and no doc defined it either). The comparators do define it, in two shapes. Everything below marked *read* came from a file in a local clone at
 > the cited path:line; nothing here was executed.
 >
 > <!-- claim:systemone_route_sites<=0 :: git grep -lE '/v1/(systemone|decisions)' -- Sources | wc -l -->

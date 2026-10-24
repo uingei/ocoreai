@@ -1,14 +1,11 @@
 # Comparator repositories — who is good at what
 
-> Long form behind § *Upstream Audit Dependencies* item 6 in `AGENTS.md`. The "what the clone
-> contains" column was read off the local clone on 10-20 (`ls` + README head). The audit column is
-> CHANGELOG lines naming the tree, re-measurable with:
-> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash hermes-agent deepseek-harness harness2; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
-> — cells are a **dated snapshot**; the floor block at the bottom is the gate, so a trimmed
-> CHANGELOG goes red in `make docs-check` instead of leaving a stale claim. A **pin** is a build
-> input (`Package.swift:43` `revision:` — only `mlx-swift-lm`, and `coreai-models` for
-> derivation); everything here is a comparator. Iteration order and per-axis fix-cost for the two
-> agent-product rivals: `docs/agent/competitor-iteration-paths.md`.
+> Long form behind § *Upstream Audit Dependencies* 6. Cells are a **dated snapshot** read off the
+> local clone (`ls` + README head); re-measure the diary column:
+> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent deepseek-harness harness2 goose opencode; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
+> — P16 re-derives both lists, so a trimmed diary or a stale cell goes
+> red. A **pin** is a build input (`Package.swift:43` — `mlx-swift-lm`, plus `coreai-models` for
+> derivation); everything here is a comparator.
 
 Each entry is one clone under `~/references/`: what it holds, the axis worth borrowing,
 and how far the audit got. A borrowed verdict is an inference until a `file:line` in our
@@ -38,9 +35,9 @@ Borrow: touched, not audited, no file:line verdict yet
 Contains: The convention that a behaviour claim ships as a committed shell probe (the rule behind `scripts/probes/`)
 Borrow: convention adopted; deeper API audit open
 
-- `harness2` — Python agent harness (`harness2/{core,benchmarks,cli,substrate}`); `third_party/{jb_runner,lab_runner,wb_runner,patches,licenses}` each with `PROVENANCE.md`; `ASSETS.json` = 47 path→sha256 entries; `check_provenance.py` (exit 1 on any changed/missing asset); `PINNED.md` pin table; `docs/{BENCHMARKS,EXPERIMENTS,SETUP}.md`
-Contains: **Release-asset provenance**: every redistributed file pinned by digest in a committed map, a checker that fails on drift, and a written line between "vendored asset" and "release code we rewrote". Adopted 10-20 as manifest schema 2 (Apple `pin`+`licenseSha256`+`verifiedAgainstPin`, `vendored[]` rows) — see `docs/agent/third-party-notices.md`
-Borrow: consumed (designated + this round's two borrowings)
+- `harness2` — Python agent harness: `ASSETS.json` (path→sha256), `check_provenance.py` (exit 1 on any changed/missing asset), per-runner `PROVENANCE.md`, `PINNED.md`
+Contains: **Release-asset provenance** — every redistributed file pinned by digest in a committed map, with a checker that fails on drift. Adopted as manifest schema 2 (`pin`+`licenseSha256`+`verifiedAgainstPin`, `vendored[]` rows): `docs/agent/third-party-notices.md`
+Borrow: consumed
 
 - `TensorFold` — Zig engine (`metal/`, `include/`, `packaging/`), `NOTICE` + `THIRD_PARTY_NOTICES.md` + `LICENSES/`, `RUNBOOK.md`, `RELEASE-NOTES-1.0.0.md`, `SECURITY.md`, `ZIG-PREVIEW.md`
 Contains: Distribution discipline next to ours: a third-party notice set that ships with the binary (our `THIRD-PARTY-LICENSES/` + `ThirdPartyNoticesTests`), plus a runbook/release-notes habit we do not have
@@ -48,21 +45,36 @@ Borrow: named, unused (the designation line); use it or drop it from `AGENTS.md`
 
 - `Strata` — C++/Metal host: `apps/host`, `apps/desktop`, `metal/`, `packaging/`, `bench/`, `docs/{BENCHMARK_PROTOCOL,COMMUNITY_BENCHMARKS,BATCHING,BATCHED_DMA,AMD_HIP}.md`, 7 README localizations
 Contains: A written benchmark protocol (how a number is produced, before it is quoted) and app packaging for a local model host; AMD/HIP + DMA batching are outside our hardware envelope
-Borrow: named, unused; same call pending
+Borrow: consumed — the rule now runs as `scripts/eval/_conditions.py`, which writes what produced every
+scoreboard number into `results.tsv` and gives `_repeat_stats.py` the fields to refuse on
 
 - `MTPLX` — MTP speculative decoding for MLX
-Contains: MTP drafter/acceptance behaviour against our `_runInferenceWithMessages` → `generate(::mtpDrafter:)` path
-Borrow: named, unused (rounds 9–15 audited mlx-swift-lm's own MTP instead)
+Contains: MTP drafter/acceptance behaviour against our `_runInferenceWithMessages` → `generate(::mtpDrafter:)` path. Also a per-seat memory policy: `ee9cca4f` prices a family's prefill from measurement (MLX peak over each chunk's end state, peak reset per prompt) and narrows the prefill width before it refuses.
+Borrow: consumed — pricing from measurement landed as `Engine/KVCacheResidency.swift` + probe 35 (bytes read off the cache, not a constant); narrow-before-refuse still has no ocoreai seam
 
 - `vllm-metal` — Metal backend for vllm
-Contains: How a Python server reaches Metal; mostly out of stack for a Swift-native engine. 10-20: it is also where this repo first found the **Jev / System 1 decision** axis named (`docs/structured_decisions.md:3`) → `docs/agent/systemone-decisions.md`
+Contains: How a Python server reaches Metal; mostly out of stack for a Swift-native engine. It is also where this repo first found the **Jev / System 1 decision** axis named (`docs/structured_decisions.md:3`) → `docs/agent/systemone-decisions.md`
 Borrow: touched
 
-- `openclaw` — TypeScript + 1,591 Swift, 392k stars, `apps/{macos,ios,linux,android,macos-mlx-tts,
-swabble,shared}` + `packages/{agent-core,gateway-protocol,llm-core,net-policy,memory-host-sdk}`:
-the only rival in this set that is also a native Apple app, and the fastest mover (116,620 commits
-in 11 months). Iteration shape + what it changes here: `docs/agent/competitor-iteration-paths.md`.
+- `openclaw` — TypeScript + 1,596 Swift, the fastest mover in the set; **not** the only native Apple app here —
+  mlx-serve, MTPLX and omlx ship an `@main … App` shell too, and all four gate their GUI harder than we do
+  (measured; CHANGELOG). Iteration shape + what it changes here: `docs/agent/competitor-iteration-paths.md`
 Borrow: consumed
+
+- `splash` — Python MLX server; `dev/tests/server/test_anthropic_contract.py`, `api_shapes.py`
+Contains: the usage identity a client sums — `count == input + cache_read` (`:889`) — and the keys a face
+must leave absent when it measured no creation. Borrow: consumed (`AnthropicCacheUsageTests` + probe 22)
+
+- `goose` — Rust agent platform; `crates/goose-{context-management,download-manager}`, `ui/{desktop,goose-acp}`,
+`agent-client-protocol = 2.2.0` (`Cargo.toml:23`)
+Contains: ACP as a third surface (editors as clients); compaction as its own crate (`context-management/lib.rs:49`).
+Downloads are *not* a gap — `Models/ModelScopeDownloader.swift` resumes on Range + If-Range identity.
+Borrow: ACP is a new core surface (ladder rung 6) ⇒ an owner call, not an audit
+
+- `opencode` — TypeScript monorepo; `packages/{protocol,schema,httpapi-codegen,http-recorder,session-ui,desktop,tui}`
+Contains: contract-first wire (one spec → generated SDK and docs) and **cassette replay** (`http-recorder/README.md`:
+record real HTTP/WS once, replay deterministic JSON) — the axis our harness lacks, since every `scripts/probes/` claim
+needs a live Metal server. Borrow: named; replay for harness regressions, never for capability claims
 
 - `deepseek-harness` — `dsh`, "everything-is-a-plugin" agent harness powered by Cordis
 Contains: Skill/plugin surface design and how a harness declares capabilities — the axis `codex` covers for us in Rust
@@ -75,11 +87,10 @@ Borrow: named, unused; same call pending
    designing — if it has an answer, cite it instead of authoring a local variant. A borrowed
    verdict becomes a change only with three things: the upstream `file:line`, the ocoreai line that
    implements it, and the gate that goes red if it regresses.
-2. Refresh the audit column with the one-liner above; the floors below are the gate, so change
-   both together. A tree that stays "named, unused" is decoration: use it or drop it from
-   `AGENTS.md`. Measured 10-22 (cites in `Sources/` + `Tests/`, `scripts/competitor-path-scan.sh`
-   territory): seven trees have zero coupling — MTPLX, TensorFold, Strata, mlx-serve,
-   deepseek-harness, harness2, splash — and openclaw is designated but unread.
-3. Sixteen directories sit under `~/references/` as of 10-22: the thirteen comparators above plus
-   `mlx-swift-lm`, `coreai-models` and `codex`, which are § Upstream Audit Dependencies 1–3, not
-   comparators. A clone proves *content*, never HEAD.
+2. Refresh the audit column with the one-liner above; P16 re-derives both lists, so change the
+   two together. A tree that stays "named, unused" is decoration: use it or drop it from
+   `AGENTS.md`. P16 re-derives it from `Sources/` + `Tests/`: eight trees have zero coupling —
+   MTPLX, TensorFold, Strata, goose, mlx-serve, opencode,
+   deepseek-harness, harness2 — and openclaw is designated but unread.
+3. `~/references/` holds the comparators above plus `mlx-swift-lm`, `coreai-models` and `codex`
+   (§ Upstream Audit Dependencies 1–3, not comparators). A clone proves *content*, never HEAD.

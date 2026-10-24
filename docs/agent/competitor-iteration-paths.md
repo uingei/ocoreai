@@ -60,7 +60,7 @@ true is — 4 of our own 173 bare upstream cites were dead on 10-22. `scripts/up
 clone/checkout/`.upstream-external-cites.json`, line numbers fit, and an out-of-set cite must
 carry the sha it was verified at.
 
-## openclaw — 116,620 commits, 2025-11-24 → 2026-10-21 (read 10-22)
+## openclaw — 116,620 commits, 2025-11-24 → 2026-10-21
 
 The only rival here that is also a native Apple product: 1,591 Swift files,
 `apps/{macos,ios,linux,android,macos-mlx-tts,swabble,shared}`, and a `packages/` split where the

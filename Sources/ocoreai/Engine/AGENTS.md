@@ -37,7 +37,7 @@ The pool may not *answer* a conversation that diverged from its resident cache
 rewound onto the conversation that arrived and hands the boundary to the caller as
 `AcquireResult.rewind`; the fork itself is `EngineInference.swift:3139`, the only such site,
 because the transcript cannot cross into the pool actor — upstream `Chat.Message`
-(`Libraries/MLXLMCommon/Chat.swift:13`) is not `Sendable` and carries `UserInput.Image`
+(`Libraries/MLXLMCommon/Chat.swift:14`) is not `Sendable` and carries `UserInput.Image`
 (`Libraries/MLXLMCommon/UserInput.swift:131`). The pool judges, the caller forks.
 
 Three conditions, and two of the ways they fail are silent (measured, not inferred):
@@ -61,7 +61,7 @@ probe 27 (live server: reuse asserted, replaced fact absent from the reply).
 
 ## Steering is delivered at the request seam
 `mergingSteeredTurn` (`Sources/ocoreai/Handlers/ChatHandler.swift`) folds a queued steer into the head
-of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3022`,
+of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3023`,
 `:3675`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
 delivers on the next request, or its contract is fiction (root § Endpoint Promises).
 
@@ -88,7 +88,7 @@ The server-wide row (`/v1/capabilities` → `video_input`) is the *same* measure
 `VideoDeliveryAggregate.evidenceLine`, so no publisher re-words it (a router that assembles its own
 evidence sentence is a second truth). Both are measured-only: `not_observed` is a fact about this
 process, never a claim about the checkpoint. Gate: `CapabilityMeasurementHonestyTests`.
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3343 items: videoInputCount, promptTokens -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3346 items: videoInputCount, promptTokens -->
 
 ## Known defect, deliberately unfixed — do not "fix" it blind
 `_applyBitmask` (`EngineInference.swift:1386`) multiplies by `-Float.leastNormalMagnitude`
@@ -104,24 +104,24 @@ AGENTS.md moved off their targets with no gate going red; these markers are the 
 `make anchor-check` to name the cite that drifted.
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:149 Task.sleep(until: deadline -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1386 Float.leastNormalMagnitude -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3022 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3742 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4348 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3843 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4363 components: genComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3866 components: mtpGenComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3023 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3745 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4351 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3846 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4366 components: genComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3869 components: mtpGenComponents -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:845 case "affine" -->
-<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1444 static func rewindHistoryEnd -->
-<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:668 Self.rewindHistoryEnd( -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3192 rewind.source.session.fork( -->
+<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1455 static func rewindHistoryEnd -->
+<!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:673 Self.rewindHistoryEnd( -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3194 rewind.source.session.fork( -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:869 let kvCacheRewindReserveTokens = 1024 -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:14 public struct Message { -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/UserInput.swift:131 public struct Image { -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1652 func fork(history -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:307 func requirePlan -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1723 func fork(history -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:298 func requirePlan -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/KVCache.swift:1015 var maxTrimCount -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1724 func saveCache -->
-<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1110 templateMessages = leadingMessages -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1795 func saveCache -->
+<!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1166 templateMessages = leadingMessages -->
 
 ## Verification in this subtree
 - Sandbox route compiles it without escalation; Metal suites self-skip on

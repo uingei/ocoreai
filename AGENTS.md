@@ -24,6 +24,9 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
    `/v1/capabilities`, the dashboard, a tool result, a composer string — must be measured, and must
    degrade honestly where the backend is absent. A file tool's `OK` is durability, not validity: the verdict
    travels in one result (`OK-but-invalid`). When authority is unclear: run it and read the answer.
+   Read-echo chrome of our own surface (`N|` prefixes, the `total_lines:` footer, the
+   `[System Perception]` header) is stripped when provable, reported when not: `PresentationEcho`,
+   gate `PresentationEchoGuardTests`(16).
 
 ## Contribution policy
 - Every line in git is reviewable, AI or not; "it came from the model" excuses nothing.
@@ -70,7 +73,7 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
 - Gate tiering: **sandbox** → app-target build + non-Metal suites (`HOME=<canonical writable path>`,
   CLT `DEVELOPER_DIR`/`SDKROOT`, mechanism in `docs/agent/build-gate-reality.md`);
   **escalation** → `make test-clt` (full suite) + `make probes` (live `/v1/*`, `scripts/probes/`);
-  **CI only** → the `xcodebuild` legs (`test-ci`, plus the iOS build job). (the exact recipe and why `HOME` must move: same doc).
+  **CI only** → the `xcodebuild` legs (`test-ci`, plus the iOS build job).
 - `make toolchain-check` evaluates both candidate routes (Xcode and CLT) instead of the ambient
   `DEVELOPER_DIR`, and settles Metal by *compiling a kernel*, never by `metal --version`.
 - CLT SDK ≠ CLT compiler: an unpinned `SDKROOT` breaks even the manifest. On the CLT route every
@@ -118,12 +121,17 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   Gate: `WireDTOOptionalityTests`(8).
 - No wire value may own the process. A bounded knob out of domain is a 400 naming field, range and value
   sent (`error.param`, vllm's shape) — never a trap. Ranges live in one checker (`Models/SamplingDomain.swift`,
-  `top_k` 0 = disable) and the token→byte math is floored (`Scheduler/KVCacheBudget.swift`). A capability
-  problem arriving on the wire is asked once with `is` at the entry point (`Models/LoRAModelSupport.swift`).
-  Gates: `RequestNumericDomainTests`(26) + probe 09.
+  `top_k` 0 = disable); the token→byte math is floored **and priced by the model**
+  (`Scheduler/KVCacheBudget.swift`, `KVCachePriceLedger` — an unpriced model reserves at the floor, and
+  every decision names its basis `measured`|`fallback`). A capability problem arriving on the wire is
+  asked once with `is` at the entry point (`Models/LoRAModelSupport.swift`).
+  Gates: `RequestNumericDomainTests`(26), `KVCacheAdmissionPricingTests`(7) + probes 09, 35.
 - A fallback schema is a promise too: `"properties": {}` means "no key is legal", so a schema-less
-  `json_object` answered `{}`. One permissive schema, `jsonObjectSchema`. Gate:
-  `GrammarSchemaRegressionTests`(6) + probe 12.
+  `json_object` answered `{}`. One permissive schema, `jsonObjectSchema`; and when a JSON shape and
+  `tools[]` arrive together, the JSON constrains the answer unless `tool_choice` demands a call —
+  one home, `buildGrammarSchema` (sglang installs a tool grammar only for a demand,
+  serving_chat.py:1488-1501; four orderings measured, and §7 keeps the grounded half open — a read-turn cannot
+  emit the call its numbers come from). Gate: `GrammarSchemaRegressionTests`(11) + probe 12 §6, §7.
 - A per-turn knob must be refreshed where the object is *reused*, not only where it is parsed: sampling
   lives on the upstream session, so a pooled session that keeps last turn's parameters answers this turn
   under them. One home: `MLXSessionPool.staleSamplingFields`. Gate: `PooledParameterDriftTests`(6) + probe 14.
@@ -163,13 +171,13 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   `canReusePooledSession` requires `instructionsMatch` (a pooled session renders the instructions it was
   *created* with). Long form: `docs/agent/instruction-channel.md`. Gates:
   `SystemInstructionDeliveryTests`(9) + `SessionIsolationTests`(25) + probe 15.
-- `tools[]`'s truth set is the declaration; grammar follows the *request* (`tool_choice`, JSON
-  `response_format`) and never "were tools declared" — decided once in `shouldConstrainOutput` and honoured
+- `tools[]`'s truth set is the declaration; grammar follows the *request* and never "were tools declared" —
+  decided once in `shouldConstrainOutput` and honoured
   identically by every `InferenceOptions` assembly. Publishing is measured (`ToolCallDeliveryLedger`, zeroed
   on unload). Gate: `ToolDeclarationSurfaceTests`(15) + probe 11. `required` strength is bounded by the checkpoint.
 - A hub is a dependency, not a promise: ask the cheap decidable question before handing over the request,
   and never let "could not ask" wear "does not exist" — `HubReachability.probe` names the repo, the status
-  and the remedy (`HF_ENDPOINT`), and flowing bytes are never cut, only silence. Gate:
+  and the remedy (`HF_ENDPOINT`). Gate:
   `HubReachabilityTests`(20) + probes 23, 24.
 
 - **A turn's last sentence is a claim, checked against the audit.** `ClaimVsAudit` compares a
@@ -178,9 +186,8 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   echoes no `tool_calls` on a native turn, so it proves nothing). "File created." with zero
   writes, and "I failed" with a landed edit, both get an `[audit]` line on all four faces;
   read-only tools never count, so a notice can only under-accuse. Gate: `ClaimVsAuditTests`(17).
-- `/v1/models/:model/…` takes a **percent-encoded** model id: `:model` matches one path segment while
-  `/v1/models` publishes `org/name`. The catalog says so and probe 03 pins it. Accepting an unencoded slash
-  would drag `/v1/models/download` into the same wildcard — owner call.
+- `/v1/models/:model/…` takes a **percent-encoded** model id (`:model` matches one segment, `/v1/models`
+  publishes `org/name`); the catalog says so and probe 03 pins it — the owner call lives in § Open.
 
 ### Error Handling
 - `precondition`/`preconditionFailure` are for structural invariants and upstream-verbatim surfaces only;
@@ -211,8 +218,8 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   outlives the session that made it. Index: `scripts/probes/README.md`.
 
 ## Open — measured, unresolved
-Not resolved here, not forgotten: each item names the instrument that would settle it, its evidence is in
-`CHANGELOG.md` (grep the symbol), and the long form sits one hop away in § Read on demand. `make audit` Class-J keeps suite names cited in comments honest.
+Not resolved here, not forgotten: each item names the instrument that would settle it, and its evidence
+is in `CHANGELOG.md` (grep the symbol). `make audit` Class-J keeps suite names cited honestly.
 - **`/v1/models/:model/…` needs `%2F`** (Handlers/) — verbatim `org/name` ids router-404; accepting a slash
   costs a second routing truth. Owner call; the sharp edge is documented and pinned, not hidden.
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — the bitmask helper masks
@@ -221,9 +228,9 @@ Not resolved here, not forgotten: each item names the instrument that would sett
   probe. All are `@available(macOS 27.0, *)` or SDK-gated out: no blind fix, no claim of a fix.
   `HubReachabilityTests`(20) pins that the FM block is exactly one site, so an unnoted edit goes red.
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
-  and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The remaining half needs an
-  injection seam upstream's standard `ChatSession` loop does not offer; building our own session layer means
-  rebuilding what upstream already owns. Owner call.
+  and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The injection seam landed
+  upstream at pin `991266ad3` (`observe(to:using:)` + `GenerationTransformer`), so what is left is
+  owning what upstream's `ChatSession` loop owns. Owner call.
 - **Rewind is landed; the reserve is a guessed constant** (Engine/) — 1024 rows, measured on one
   checkpoint, not tuned to model or memory pressure; an edit further back than the reserve still pays its
   full prefix. `SessionRewindOnDivergenceTests`(7) + probe 27 hold the wiring and the number.
@@ -233,15 +240,15 @@ Not resolved here, not forgotten: each item names the instrument that would sett
 - **Screen capture cannot start a stream headlessly** (Multimodal/) — authorized, display attached, still
   "cannot start stream", while the camera on the same box delivers: an SCStream-in-no-GUI-session limit,
   not TCC. `screenStatus` is `ready` only after a delivered frame.
-- **`tools[]` enforcement has gaps** — `required` strength is bounded by the checkpoint. The GUI is no longer
-  static-only; scope and open halves: `Sources/ocoreai/UI/AGENTS.md`.
+- **`tools[]` enforcement has gaps** — scope and open halves: `Sources/ocoreai/UI/AGENTS.md`; the
+  `required`-strength bound sits in § Endpoint Promises.
 - **Two owner questions have data now and no answer** — refresh-vs-refuse when instructions change, and
   cross-conversation prefix sharing. `ReuseRefusalLedger` publishes both; the ledger is opportunity, not a
   capability claim.
 
 ## Upstream Audit Dependencies
 Five empirical sources plus comparators; round-by-round verdicts live in `CHANGELOG.md`, one diary, one home.
-1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `bb0d5b048`;
+1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `991266ad3`;
    `Package.swift` keeps the pin and a pointer, never a per-commit diary. Bump protocol: audit the consumption surface commit by
    commit → bump `.revision` → `swift build` + `make test-ci` green → verdicts into `CHANGELOG.md`.
    Upstream sources live under `Libraries/`, not `Sources/`; what must hold between clone and pin is
@@ -253,11 +260,12 @@ Five empirical sources plus comparators; round-by-round verdicts live in `CHANGE
 3. **`codex`** — semantic axis reference (Rust; nothing linked, nothing redistributed, no per-commit copying).
 4. **Apple Developer Documentation** — public, no login. DocC for intent and semantics, the SDK's
    `.swiftinterface` for exact signatures and `@available` gates, live execution for behaviour.
-5. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: the one
-   source that judges the GUI itself, so on anything user-visible it is the authority, not codex. It is not
-   DocC (its `.json` variants 404) — cite the section; there is no machine index to grep.
+5. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: the
+   GUI's judge, so on anything user-visible it is the authority, not codex. 102 topics,
+   two about AI, none about agents (measured: `agent` = 3 hits, all link metadata) ⇒
+   `docs/agent/agent-interface-guidelines.md`.
 6. **Comparators** — vllm, sglang, vllm-metal, omlx, mlx-serve, MTPLX, ollama, TensorFold, Strata, splash,
-   openclaw, hermes-agent, deepseek-harness, harness2: not pins; nothing linked or redistributed, and a
+   openclaw, hermes-agent, deepseek-harness, harness2, goose, opencode: not pins; nothing linked or redistributed, and a
    borrowed verdict stays an inference until a `file:line` in our build says otherwise. Per-repo strengths:
    `docs/agent/comparator-repos.md`; shipped order + fix-cost per axis: `docs/agent/competitor-iteration-paths.md`.
 - **OpenAI / Anthropic compatibility** is judged the way vllm and sglang do it: the spec, their
@@ -279,6 +287,7 @@ Five empirical sources plus comparators; round-by-round verdicts live in `CHANGE
 - `docs/agent/comparator-repos.md` — what each comparator repo is actually good for.
 - `docs/agent/codex-runtime.md` — what the coding host is (and is not), skills, sub-agents, escalation.
 - `scripts/probes/README.md` — every live probe: what it asserts, what it measured, which shape goes red.
+- `docs/agent/long-horizon-goal.md` — the ladder, and what would kill it.
 
 ## Routing table — working in X → read this first
 | Area | Read | Covers |
@@ -300,9 +309,8 @@ row here — a guide costs context only inside its subtree, which is the whole p
 no build: root + guide byte budgets on a shrink-only ratchet; every named file, `make` target,
 suite names, `§` sections and `file:line` anchors resolving; every `<!-- claim: … -->` reproducing; numbered
 suite counts equal to `Tests/`; the probe/doc indexes equal to the filesystem; the READMEs equal to the
-router and `AuthRoutePolicy`; this file and the one-hop corpus carrying no dates and no prose walls.
-The named gate list with its rationale and env knobs lives **in that script** — one home: the copy here
-omitted gates twice before anything read it.
+router and `AuthRoutePolicy`; this file date-free (P13), the corpus prose-wall-free (P15).
+The named gate list, its rationale and env knobs live **in that script** — one home.
 Operator semantics (`>=` floor, `<=` ceiling) + the three questions: `CONTRIBUTING.md`.
 
 ## Documentation Map — Agent-facing vs Human-facing
@@ -323,7 +331,7 @@ project is **Human-facing**.
 ## Working here
 - **Direct commits to `main`**, no branch ritual; CI on macos-26 (`make test-ci`) is the authority.
   `make docs-check` green when touching this file, `docs/**` or a guide. `CHANGELOG.md` records every
-  user-visible change with its commit.
+  user-visible change with its commit; `make push-ready` checks the tree: clean, pushed, paired.
 - Verification is three layers: grep → compile → read the matched lines. A single-layer check is speculation.
   `swift build` exit 0 before any completion claim; audit findings cite `file:line` + commit, and label
   inference as inference.
@@ -342,9 +350,8 @@ project is **Human-facing**.
   its own view. Persisted keys declare their scope (global | session | model | window) — a wrong scope is how
   one session's setting bleeds into another.
 - **Respect the person using it.** Never navigate, refocus, open a pane or announce because something
-  *happened* in the background — offer, don't hijack. Empty / loading / reconnecting / degraded-stale /
-  exhausted-recovery are five different experiences, each needing honest copy and a way out. On anything
-  user-visible the HIG is the authority.
+  *happened* in the background — offer, don't hijack. The five non-happy states each owe honest copy and
+  a way out (the list: `Sources/ocoreai/UI/AGENTS.md`). On anything user-visible the HIG is authority.
 - **A file's lifetime is the lifetime of the thing that cites it.** Bytes that outlive the request that wrote
   them need an owner, a pin while in flight, and collection by idle TTL + byte budget; deleting at request end
   turns the next use into an unreadable-path error far from its cause. `MediaSpool`; gates:
@@ -353,10 +360,9 @@ project is **Human-facing**.
   source comments — that is the commit message. Diffs are read by a human: one logical change per commit.
 - **No new defensive clutter:** no wrapper or `try?` around code that cannot fail.
 - **Not a diary.** A root rule is ≤3 lines: what + the one-line evidence + the gate. Dates, round verdicts
-  and host forensics go to `CHANGELOG.md` / `docs/agent/` next to the claim they came from — enforced by P13.
+  and host forensics go next to their claim, in `CHANGELOG.md` / `docs/agent/` (P13 enforces this file).
 - Default is one-pass: intent → plan → implement → review → verify → commit in one thread, no sub-agent
-  unless the owner asks (the owner reviews every commit, and local verification is serialised on one scratch
-  path anyway).
+  unless the owner asks (the owner reviews every commit).
 
 ## Taste test before you hand off
 - Does every piece of state live with its authority, at the narrowest scope that can still be right?

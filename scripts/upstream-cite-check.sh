@@ -12,6 +12,13 @@
 # Resolution order: this repo's tracked files -> ~/references/* clones -> .build*/checkouts
 # (package deps) -> .upstream-external-cites.json (paths outside the reference set, which must
 # carry the sha they were verified at, so the claim survives the upstream tree moving).
+#
+# Line counts for a pinned dependency are read at the PIN (`git show <rev>:<path>`), not at
+# whatever the checkout happens to hold: measured 10-24, after the lm bump bb0d5b048 ->
+# 991266ad3, `.build/` still carried the old checkout, and the same repo name resolved to a
+# 1758-line ChatSession.swift while the pin has 1829 — every honest cite to the new lines read
+# as past EOF, and (worse) a cite that is wrong at the pin could pass because a stale tree
+# happens to be long enough. Same reason anchor-check reads upstream with `git show`.
 # Degrades loudly: with no reference roots (CI) it reports SKIP and still floors its own scan.
 set -uo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -52,13 +59,44 @@ def tracked(path):
 ours = set(tracked(root))
 our_base = {os.path.basename(p) for p in ours}
 names = {}
+roots_for = {}
 for n, p in roots:
     names[n] = tracked(p)
+    roots_for.setdefault(n, []).append(p)
 ext = {}
 try:
     ext = {e["path"]: e for e in json.load(open(os.path.join(root, ".upstream-external-cites.json")))["entries"]}
 except (OSError, ValueError, KeyError):
     ext = {}
+
+def load_pins():
+    """repo identity -> the revision this project actually consumes (Package.resolved, then the
+    manifest's own `revision:`/`exact:` when the resolution carries no version)."""
+    pins = {}
+    try:
+        res = json.load(open(os.path.join(root, "Package.resolved")))
+    except (OSError, ValueError):
+        res = {}
+    for entry in res.get("pins", []):
+        ident = entry.get("identity") or os.path.basename(entry.get("location", ""))
+        ident = ident[:-4] if ident.endswith(".git") else ident
+        rev = (entry.get("state") or {}).get("revision")
+        if ident and rev:
+            pins[ident] = rev
+    try:
+        pkg = open(os.path.join(root, "Package.swift"), encoding="utf-8").read()
+    except OSError:
+        return pins
+    for m in re.finditer(
+        r'url:\s*"https://[^"]+/([A-Za-z0-9._-]+)\.git",(?:\s*//[^\n]*)*?\s*(?:revision|exact):\s*"([0-9a-zA-Z.\-]+)"',
+        pkg,
+    ):
+        pins.setdefault(m.group(1), m.group(2))
+    return pins
+
+
+pins = load_pins()
+at_pin = set()
 
 def resolve(path, hint):
     """(kind, detail, max_lines) — where this cite resolves, and how long that file is.
@@ -78,13 +116,37 @@ def resolve(path, hint):
                     cands.append((n, f))
         if cands:
             break
-    rr = dict(roots)
     hits = []
+    stale = []
     for n, f in cands:
-        try:
-            hits.append(("clone", "%s:%s" % (n, f), sum(1 for _ in open(os.path.join(rr[n], f), encoding="utf-8", errors="ignore"))))
-        except OSError:
+        rev = pins.get(n)
+        if rev:
+            # Every clone of this repo gets a chance to produce the pinned revision: a stale
+            # checkout (`.build/` keeps the previous pin after a bump) must not be the one that
+            # answers, and must not be counted as an answer it cannot give.
+            held = False
+            for base in roots_for[n]:
+                shown = subprocess.run(
+                    ["git", "-C", base, "show", "%s:%s" % (rev, f)], capture_output=True, text=True)
+                if shown.returncode == 0:
+                    at_pin.add(n)
+                    hits.append(("clone", "%s:%s@%s" % (n, f, rev[:9]), shown.stdout.count("\n") + 1))
+                    held = True
+                    break
+            if held:
+                continue
+            # A clone set that does not hold the pinned commit cannot speak for the pin: counting
+            # its lines would call an honest cite "past EOF" (and hide a dishonest one). Say so,
+            # and let the caller report the cite as unverified rather than wrong.
+            stale.append("%s@%s" % (n, rev[:9]))
             continue
+        for base in roots_for[n]:
+            try:
+                hits.append(("clone", "%s:%s" % (n, f), sum(1 for _ in open(os.path.join(base, f), encoding="utf-8", errors="ignore"))))
+            except OSError:
+                continue
+    if not hits and stale:
+        return ("stale", ",".join(sorted(set(stale))), None)
     if hits:
         return max(hits, key=lambda h: h[2] or 0)
     for var in variants:
@@ -107,6 +169,7 @@ missing = []
 oor = []
 nosha = []
 skipped = 0
+stale_roots = set()
 files = sorted(glob.glob(os.path.join(root, "Sources/**/*.swift"), recursive=True))
 for src in files:
     lines = open(src, encoding="utf-8", errors="replace").read().splitlines()
@@ -121,6 +184,10 @@ for src in files:
                 continue
             scanned += 1
             kind, detail, n = resolve(path, hint)
+            if kind == "stale":
+                stale_roots.add(detail)
+                skipped += 1
+                continue
             if kind is None:
                 if roots:
                     missing.append("%s:%d %s" % (src.replace(root + "/", ""), no, path))
@@ -140,9 +207,13 @@ for src in files:
             else:
                 ok += 1
 
-print("  roots: %d (references + checkouts), external manifest entries: %d" % (len(roots), len(ext)))
+print("  roots: %d (references + checkouts), external manifest entries: %d, line counts read at the pin for: %s"
+      % (len(roots), len(ext), ", ".join(sorted(at_pin)) or "none — no resolution pins found"))
 print("  bare upstream cites: scanned=%d ok=%d missing=%d line-past-eof=%d external-without-sha=%d skipped=%d"
       % (scanned, ok, len(missing), len(oor), len(nosha), skipped))
+if stale_roots:
+    print("  ⚠️  %d clone(s) lack the pinned commit, so cites through them are UNVERIFIED (fetch them or resolve the other root): %s"
+          % (len(stale_roots), ", ".join(sorted(stale_roots))))
 if scanned < floor:
     print("  ❌ scan matched only %d cites (< floor %d) — the regex rotted, so 'every cite resolves' is vacuous" % (scanned, floor))
     sys.exit(1)

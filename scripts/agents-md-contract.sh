@@ -52,6 +52,14 @@
 #   P15 corpus shape  P13's shape rule one hop out — no line over OCOREAI_CORPUS_MAX_LINE bytes
 #                    outside code fences/comments/tables, corpus total under OCOREAI_CORPUS_MAX_BYTES.
 #                    A guide nobody can read is a guide nobody obeys.
+#   P16 comparators § Upstream 6 names fourteen trees, and the long-form doc claimed twice that
+#                    "the floors below are the gate" while carrying no floors — so the audit column
+#                    rotted in silence. This is that floor: every named tree must appear in
+#                    CHANGELOG.md, and the file's spelled-out zero-coupling list must equal the set
+#                    re-derived by grep, so a tree that gains a cite cannot stay called dead and one
+#                    that loses it cannot keep being quoted as consumed.
+#                    Two hand-copied lists must equal § 6 too: an entry per named tree, and a
+#                    refresh loop that names exactly the registered comparators.
 #
 # Why (measured 10-14, same session as this file): three "verified" counts had already
 # drifted — Engine/*.swift 44 -> 53, precondition 12 sites/9 files -> 14/11 — and the
@@ -67,7 +75,12 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 ## ── pinned budgets (a raise must be a visible edit in the diff) ──────────────
-: "${OCOREAI_AGENTS_MAX_ROOT:=30138}"   # pinned 10-22 by `make docs-budget`
+# 10-24 raise 30138 -> 30428 (+290): one §Open item with a live instrument behind it —
+# `response_format` + `tools[]` on one turn loses the answer (probe 12 §6: keys arrive 3/3 with grammar
+# alone, 3/3 with tools alone, 0/3 with both), paid partly by folding a duplicate `required`-strength
+# sentence into a §-pointer (-55 B). Debt is stated, not hidden: repay from the dated forensics in
+# docs/agent/build-gate-reality.md and the "named, unused" comparator cells (splash, deepseek-harness).
+: "${OCOREAI_AGENTS_MAX_ROOT:=30428}"   # pinned 10-22 by `make docs-budget`
                                      # `make docs-budget` may only lower it (B1 stays a ratchet)
 # P13: the injected file carries rules, not diary. Longest allowed line in AGENTS.md, in bytes.
 : "${OCOREAI_AGENTS_MAX_LINE:=400}"
@@ -76,6 +89,7 @@ cd "$(dirname "$0")/.."
 # pass: 13 files, 152,041 bytes, zero lines over 400 bytes outside code fences. Raising
 # either constant must be a visible edit in the diff.
 : "${OCOREAI_CORPUS_MAX_LINE:=400}"
+: "${OCOREAI_COMPARATOR_FLOOR_TREES:=14}"
 # 10-22 re-pin 152041 -> 156559: docs/agent/competitor-iteration-paths.md (+5610, a rules-only
 # evidence hop with its dated chronology left in CHANGELOG) broke the ratchet by 4518; 711 bytes
 # of stale text went out of comparator-repos.md (its "four of the twelve"/"fifteen directories"
@@ -116,7 +130,34 @@ cd "$(dirname "$0")/.."
 # in the corpus moved (README is the only corpus file in this diff: +735 B, −0). Net against the
 # 09-27 baseline of 152,041: −6,418 B, so the ratchet is still negative across the window.
 # Re-pinned to the measured value: a cap with slack in it is a cap nobody enforces.
-: "${OCOREAI_CORPUS_MAX_BYTES:=145623}"
+# 10-23 (+116 B, cumulative −6,302 against the 09-27 baseline): the UI guide's defect sentence had
+# rotted — it described keyboardShortcut/textSelection/accessibilityLabel as present in 3/3/15 files
+# where the greps now say 5/5/17 — and its two markers were `>=` floors, so a defect that grows can
+# never go red. Numbers re-measured, both markers turned into ceilings, and `textSelection` given the
+# marker it never had (+84 B). A ceiling is the only direction that can catch this class.
+# 10-23 re-pin 145739 -> 145966 (+227): one root rule for the write-side echo contract, stated in
+# three lines and cited to its gate. A docs/agent/ hop would cost the same bytes and add a hop for
+# a rule that has to be in front of anyone writing a file tool, so the text went in at the root and
+# nothing came out — the next corpus addition still owes its own weight.
+# 10-23 raise 145966 -> 150805 (+4839 net): docs/agent/long-horizon-goal.md and its root pointer,
+# minus a duplicate pointer to build-gate-reality.md removed from § Build / Test / Lint (-55 B there).
+# Debt is stated, not hidden: repay it by compressing the two host-colour cells in
+# docs/agent/comparator-repos.md (harness2, openclaw), whose facts CHANGELOG.md already carries.
+# 10-24 raise 150805 -> 154536 (+3731 net): docs/agent/agent-interface-guidelines.md (4284 B) — the
+# agent-loop half of the interface contract, which the HIG provably does not carry (102 articles, `agent`
+# = 3 hits, all linked video titles) — plus its root pointer and the corrected P13/P15 date claim, minus
+# the debt named here on 10-23: harness2/openclaw host-colour cells and a dated ~/references inventory
+# compressed out of docs/agent/comparator-repos.md (-539 B).
+# Debt is stated, not hidden: repay by compressing the dated forensics in docs/agent/build-gate-reality.md
+# (15 MM-DD stamps whose verdicts CHANGELOG.md already carries) and the two "named, unused" comparator
+# cells (splash, deepseek-harness) — use those trees or drop them from `AGENTS.md` § Comparators.
+# 10-24 raise 154536 -> 155386 (+850): the §Open item above (root is in the corpus) and the §6
+# assertions + measured numbers added to scripts/probes/README.md's 12-json-mode-delivery row, so the
+# grammar×tools crossing has a documented verdict that outlives this session. No repayment was available
+# without deleting the four-defect pairing table in docs/agent/build-gate-reality.md — that table is the
+# standing argument for live probes, so it stays and the debt carries forward: the two "named, unused"
+# cells (splash, deepseek-harness) or the dated forensics there owe the corpus its bytes.
+: "${OCOREAI_CORPUS_MAX_BYTES:=155386}"
 
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.
@@ -163,6 +204,7 @@ OCOREAI_AGENTS_MAX_AREA="$OCOREAI_AGENTS_MAX_AREA" \
 OCOREAI_AGENTS_MAX_LINE="$OCOREAI_AGENTS_MAX_LINE" \
 OCOREAI_CORPUS_MAX_LINE="$OCOREAI_CORPUS_MAX_LINE" \
 OCOREAI_CORPUS_MAX_BYTES="$OCOREAI_CORPUS_MAX_BYTES" \
+OCOREAI_COMPARATOR_FLOOR_TREES="$OCOREAI_COMPARATOR_FLOOR_TREES" \
 OCOREAI_PROBE_FLOOR_INDEX="$OCOREAI_PROBE_FLOOR_INDEX" \
 OCOREAI_FLOOR_MD_SCANNED="$OCOREAI_FLOOR_MD_SCANNED" \
 OCOREAI_FLOOR_DOC_FILES="$OCOREAI_FLOOR_DOC_FILES" \
@@ -679,6 +721,7 @@ if doc_orphans:
 # line nobody reads, a file that grows because nothing priced it. Code fences, HTML comments and
 # table rows are exempt (a command line may be long; a claim inside a comment must stay on the
 # line its parser reads it from, and table arity is P14's job).
+CMP_DOC = "docs/agent/comparator-repos.md"
 CORPUS = (["AGENTS.md", "ARCHITECTURE.md", "CONTRIBUTING.md", "scripts/probes/README.md"]
           + AREA_GUIDES + doc_files)
 corpus_bytes = 0
@@ -708,6 +751,69 @@ if corpus_walls:
                 "comments and tables): %s"
                 % (len(corpus_walls), env_int("OCOREAI_CORPUS_MAX_LINE"), "; ".join(corpus_walls[:6])))
 
+# ── P16 comparator coupling ──────────────────────────────────────────────────
+# A comparator is a dependency you chose to read, not a folder you own. The floor below prices the
+# choice twice: named in the diary, and coupled (or honestly declared uncoupled) in the build.
+cmp_floor = env_int("OCOREAI_COMPARATOR_FLOOR_TREES")
+cmp_block = re.search(r"\*\*Comparators\*\* \u2014([^:]*):", root_text, re.S)
+comparators = [c.strip() for c in cmp_block.group(1).replace("\n", " ").split(",")] if cmp_block else []
+comparators = [c for c in comparators if c]
+changelog = read("CHANGELOG.md")
+cmp_silent, cmp_coupled = [], []
+for name in comparators:
+    if not re.search(re.escape(name), changelog, re.I):
+        cmp_silent.append(name)
+    hits = subprocess.run(["git", "grep", "-l", "-i", "-F", name, "--", "Sources", "Tests"],
+                          capture_output=True, text=True)
+    if hits.stdout.strip():
+        cmp_coupled.append(name)
+cmp_derived = sorted(n.lower() for n in comparators if n not in cmp_coupled)
+if len(comparators) < cmp_floor:
+    fail.append("P16 only %d comparator tree(s) parsed from \u00a7 Upstream Audit Dependencies 6 "
+                "(floor %d) \u2014 a list that stopped matching passes vacuously"
+                % (len(comparators), cmp_floor))
+if cmp_silent:
+    fail.append("P16 %d comparator(s) named in \u00a7 Upstream 6 never appear in CHANGELOG.md (%s) \u2014 "
+                "a tree that was never audited is decoration, not a comparator: use it or drop the name"
+                % (len(cmp_silent), ", ".join(cmp_silent)))
+NUM_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+             "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14}
+stated = []
+stated_block = re.search(r"([a-z]+) trees have zero coupling\s*\u2014\s*(.+?)\s*\u2014", read(CMP_DOC), re.S)
+if not stated_block:
+    fail.append("P16 %s no longer states its zero-coupling list \u2014 the premise of the claim is gone"
+                % CMP_DOC)
+else:
+    stated = [x.strip().strip("`").lower() for x in stated_block.group(2).replace("\n", " ").split(",")]
+    stated = [x for x in stated if x]
+    if NUM_WORDS.get(stated_block.group(1), -1) != len(cmp_derived):
+        fail.append("P16 %s says \"%s trees have zero coupling\", grep says %d (%s)"
+                   % (CMP_DOC, stated_block.group(1), len(cmp_derived), ", ".join(cmp_derived)))
+    if sorted(stated) != cmp_derived:
+        fail.append("P16 %s lists zero-coupling as (%s) but grep over Sources/Tests derives (%s) \u2014 "
+                   "a tree that gained a cite cannot stay declared dead, and one that lost it cannot be "
+                   "quoted as consumed" % (CMP_DOC, ", ".join(sorted(stated)), ", ".join(cmp_derived)))
+    # Two more hand-copied lists are checked against § 6 rather than trusted: the long-form doc can
+    # name a tree it never describes (splash was registered for rounds with no entry), and its
+    # diary-refresh loop can quietly drop one while claiming to re-measure every cell (openclaw was).
+    cmp_text = read(CMP_DOC)
+    entry_missing = [n for n in comparators if not re.search("^- `" + re.escape(n) + "`", cmp_text, re.M)]
+    if entry_missing:
+        fail.append("P16 § Upstream 6 names %s but %s carries no entry for it \u2014 an index that"
+                   " points at a description which was never written" % (", ".join(entry_missing), CMP_DOC))
+    loop_m = re.search("for r in ([A-Za-z0-9 -]+); do", cmp_text)
+    if not loop_m:
+        fail.append("P16 %s no longer states its diary-refresh loop \u2014 the cell values quoted in"
+                   " this file would have no reproducible source" % CMP_DOC)
+    else:
+        registered = sorted({c.lower() for c in comparators})
+        loop_set = sorted({t.lower() for t in loop_m.group(1).split()})
+        if loop_set != registered:
+            fail.append("P16 %s's refresh loop covers %d tree(s) while § Upstream 6 registers %d \u2014"
+                       " a hand-copied list drifts silently; it must name exactly the registered set"
+                       " (differing: %s)" % (CMP_DOC, len(loop_set), len(registered),
+                                            ", ".join(sorted(set(loop_set) ^ set(registered)))))
+
 # ── report ───────────────────────────────────────────────────────────────────
 print("AGENTS.md contract (%s)" % mode)
 print("  xrefs     §-refs=%d (floor %d)  anchors=%d  dangling=%d"
@@ -720,6 +826,9 @@ print("  budgets   root=%d/%d chars  guides=%d  chain-cap=%d"
 print("  scan      gateable-refs=%d (floor %d)  claims=%d/%d ok (floor %d)  suites=%d  routing=%d  upstream-trees=%d"
       % (len(hard_refs), env_int("OCOREAI_AGENTS_FLOOR_REFS"), ok_claims, len(claims),
          env_int("OCOREAI_AGENTS_FLOOR_CLAIMS"), len(suites), len(routing), len(clones)))
+print("  comparators trees=%d (floor %d) diary-silent=%d coupled=%d zero-coupling=%d/%d=%s"
+      % (len(comparators), cmp_floor, len(cmp_silent), len(cmp_coupled), len(cmp_derived),
+         len(stated), sorted(stated) == cmp_derived))
 print("  human     router-routes=%d (floor %d)  public-paths=%d  README tables=%s"
       % (len(router_routes), env_int("OCOREAI_README_FLOOR_ROUTES"), len(public_paths),
          ",".join("%d rows" % len({("%s %s" % (m.group(1), m.group(2)))

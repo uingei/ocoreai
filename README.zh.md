@@ -26,13 +26,17 @@ swift run ocoreai serve    # headless：引擎 + HTTP 桥，无窗口
 # 本地出 DMG: bash scripts/build-dmg.sh
 ```
 
+```bash
+curl -s http://127.0.0.1:8080/health
+```
+
 直接 SwiftPM 构建，无 `.xcodeproj`（测试门经 SPM 生成的 `ocoreai.xcworkspace` → `xcodebuild` → `xctest`）。
 **无头 HTTP 入口：`ocoreai serve`**（`swift run ocoreai serve`，或直接运行构建产物）——引擎 + 桥绑定 `127.0.0.1:8080`，无需窗口/WindowServer 会话。退出语义：`SIGTERM` 或关闭 stdin 触发优雅退出（引擎排空 ≤30s 后干净退出），`SIGINT` 保持终端默认行为。不带参数直接 `ocoreai` 则照常启动 GUI。服务监听 `127.0.0.1:8080`。配置位于 `~/.ocoreai/config.yaml`。
 DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显式 opt-in — 终端运行 `OCOREAI_ENABLE_HTTP=1 /Applications/ocoreai.app/Contents/MacOS/ocoreai`（实证：`/health` 200 + `/v1/chat/completions` 推理闭环）。
 
-> ⚠️ **仅本机访问** — HTTP API 默认绑定 `127.0.0.1`。认证默认关（设 `OCOREAI_API_KEYS` 环境变量开启），无 TLS。令牌桶限流默认开：全局 **200 次/秒**（burst 300）、单模型 30/秒（burst 45）、单 IP 20/秒（burst 30）—— 在 `App.swift:703` 一处设定，由 `Middleware/RateLimitMiddleware.swift` 执行。
+> ⚠️ **仅本机访问** — HTTP API 默认绑定 `127.0.0.1`。认证默认关（设 `OCOREAI_API_KEYS` 环境变量开启），无 TLS。令牌桶限流默认开：全局 **200 次/秒**（burst 300）、单模型 30/秒（burst 45）、单 IP 20/秒（burst 30）—— 在 `App.swift:721` 一处设定，由 `Middleware/RateLimitMiddleware.swift` 执行。
 <!-- claim:global_rate_set=1 :: grep -c 'globalRate: 200' Sources/ocoreai/App.swift -->
-<!-- anchor:. Sources/ocoreai/App.swift:703 globalRate: 200 -->
+<!-- anchor:. Sources/ocoreai/App.swift:721 globalRate: 200 -->
 
 > 🛠️ **开发版本** — 此为开发构建。生产使用需要额外加固（见下方 Security 部分）。
 
@@ -58,6 +62,8 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 - **代码审计 ✅ ≠ 行为验证** — 只说明"源码已实现"，有测试的才算验证过。
 
 **方向** —— 开放模型的 Agent，原生本地，为创作、工作与代码而生；面向编码与知识工作的完整 agentic 系统。**编码是最深切片**：Coding/Computer Agent，让 LLM 在端侧可靠完成多步工程任务（**Execute** → **Verify** → **Recover**）。创作（Apple 原生感知/多模态）与知识工作（检索/阅读/写作）是一等产品面，不是附属。推理归上游（MLX / CoreAI），ocoreai 是其上的可靠执行层 —— 跟齐上游，不与之竞争。
+
+**参考** — [Apple Developer 文档](https://developer.apple.com/documentation/)、[mlx-swift-lm](https://github.com/ml-explore/mlx-swift-lm)(推理与 SPM pin)、[coreai-models](https://github.com/apple/coreai-models)(CoreAI 路线参照)、[codex](https://github.com/openai/codex)(agent 语义)、[Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines) —— 另有 [vLLM](https://github.com/vllm-project/vllm) / [vLLM-Metal](https://github.com/vllm-project/vllm-metal) / [SGLang](https://github.com/sgl-project/sglang) 作服务化系统参照、[omlx](https://github.com/omlx-ai/omlx) 作生产级参照、[OpenClaw](https://github.com/steipete/clawd) 与 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 作 agent 平台参照。
 
 ---
 
@@ -101,6 +107,8 @@ DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显�
 | `GET`  | `/metrics` | Prometheus 指标（文本格式） |
 
 > 免认证 public 路由：`/health`、`/ready`、`/v1/models`、`/v1/tools`、`/v1/capabilities`、`/v1/stats`、`/metrics`（与 `AuthMiddleware.publicPaths` 一致）。所有 `PATCH`/`DELETE` 需 admin key（`OCOREAI_ADMIN_KEYS`）。
+> 模型 id 里的 `/` 写成 `%2F`。
+
 
 > 其余路由在设了 `OCOREAI_API_KEYS` 之后一律要 API key —— **包括 `GET /v1/perception`**：它不在 `AuthRoutePolicy.publicPaths` 里，所以是带鉴权的。该集合是这份名单的唯一真源，两者分叉时 `make docs-check` 的 P10 会判红。
 
@@ -138,7 +146,7 @@ memory:
 
 > **认证**不是 YAML 键：设环境变量 `OCOREAI_API_KEYS`（逗号分隔）即开启；为空 = 不认证。
 
-> **环境变量全参考**：运行时表面积为 **23 个环境变量**（17 个静态 `environment["KEY"]` 字面量 + 6 个经常量或插值前缀读取，如 `HttpBridgePolicy.envVar`、`ConfigSystem.applyEnvOverrides`），横跨 server/auth/backend/agent-approval/model-store/HF/ModelScope/web tools。见 [`.env.example`](.env.example) — 每个键附代码出处默认值（行号引用）。守卫测试集（`EnvKeysDocumentationTests`）在文件与代码实际读取集漂移时即编译红。
+> **环境变量全参考**：运行时表面积为 **30 个环境变量**（22 个静态 `environment["KEY"]` 字面量 + 8 个经常量/访问器/插值前缀读取，如 `HttpBridgePolicy.envVar`、`ConfigSystem.applyEnvOverrides`），横跨 server/auth/backend/agent-approval/model-store/HF/ModelScope/web tools。见 [`.env.example`](.env.example) — 每个键附代码出处默认值（行号引用）。守卫测试集（`EnvKeysDocumentationTests`）在文件与代码实际读取集漂移时即编译红。
 
 显存预算自 `sysctl hw.memsize` 自动检测；默认保护档 `balanced` = 物理 RAM 的 55%（档位：safe 40% / balanced 55% / aggressive 75%，下限 4 GB）。
 

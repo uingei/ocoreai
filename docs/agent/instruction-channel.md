@@ -26,16 +26,16 @@ two answers, and the surface that most clients use was the one that lied.
 ## 2. Why it was structural, not a parsing miss
 
 The engine reads standing instructions from exactly one place: the **first** `system` message it
-finds (`Sources/ocoreai/Engine/EngineInference.swift:1799`), which becomes
+finds (`Sources/ocoreai/Engine/EngineInference.swift:1800`), which becomes
 `ChatSession(instructions:)` (`:3117`, `:3175`). Every `system` role is then filtered out of the
 message feed it renders (`:1805`), and the role switch under that filter admits `assistant`,
 `tool`, and everything else as `.user` (`:1808-1812`) — mlx-swift-lm's `Chat.Message.Role` has no
 `developer` case (`Chat.swift:120-124`), so `developer` never matched either: it arrived as
 something the *user* said.
 
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1799 switch messages.first(where: -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1813 nonSystemMessages = messages.filter -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1820 default: .user -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1800 switch messages.first(where: -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1814 nonSystemMessages = messages.filter -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1821 default: .user -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:120-124 public enum Role -->
 
 `MessageBuilder.buildMessages` inserted this server's own prompt at index 0 and left the client's

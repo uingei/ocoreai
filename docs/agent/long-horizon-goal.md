@@ -16,23 +16,23 @@ claim coverage → 1.0. The product surface grows only where a gate already meas
 | # | quantity | value | how to re-measure |
 |---|---|---|---|
 | B | smallest provable improvement | **6 discordant cells** | exact sign test at the shipped α: `mcnemar_exact(b,0) < 0.05` first holds at b=6 (b=5 → 0.0625) — `scripts/eval/_repeat_stats.py` |
-| B′ | tasks that can produce a cell | **6 of 21** (14 stable-pass, 1 stable-fail) | per-task passes across the k runs of the frozen baseline — `_repeat_stats.py` on the base root |
-| C | cost of one verdict | **≈12 min** (build 11.7 s, rest is inference at k=6) | `OCOREAI_AUTOAB_BASE=<root> bash scripts/eval/autoab.sh <patch>` and time it |
+| B′ | tasks that can produce a cell | **14 of 52** (21 pass, 17 fail); adjacent k=6 windows moved 7/48 bands, so ±4 is noise | `_repeat_stats.py` on the base root; ledger in `scripts/eval/README.md` |
+| C | cost of one verdict | **≈28.7 min** at 52 tasks (4.79 min/run × k=6, base reused) — one run costs 4.8 min, so a ≤3 min/proposal target is throughput-bound, not orchestration | `stat -f %m /tmp/oc-k6-f52/run-*` → deltas |
 | G | goal-post write surface | **0** (allow = 1 prefix, protected = 15 judgement paths) | `scripts/eval/autoloop-allow.txt` / `autoloop-protected.txt`, gated by `scripts/eval/_autoab_selftest.py` + `_autoab_mutate.py` |
-| S | claim coverage | incomplete: doc claims reproduce, 34 live probes, the UI capability matrix reads `RuntimeCapability.lines`; gaps = MTP acceptance rate (0 sites), structured output has no eval task, UI focus discipline has no test | `make docs-check` + the gap list below |
+| S | claim coverage | incomplete: doc claims reproduce, 34 live probes; gaps = MTP acceptance rate (0 sites), claimed read/exec failures are unaudited (only mutations count), UI focus discipline has no test | `make docs-check` + the gap list below |
 
-**Why B is the constraint**: 14 stable-pass tasks contribute *no* upward evidence but *can* trip the
-regression veto, so the structure is asymmetric on purpose — a change must move most of the flaky pool
-cleanly to be provable. Consequence worth repeating: **an improvement of ≈0.5 tasks is not measurable here
-at any α**, so effort spent on it is not conservative, it is invisible.
+**Why B is the constraint**: stable-pass tasks give *no* upward evidence yet *can* trip the regression veto, so
+the shape is asymmetric on purpose, and **≈0.5 tasks is not measurable at any α** — that effort is not
+conservative, it is invisible. Per-window numbers: `scripts/eval/README.md`.
 
 ## The ladder
 
-1. **Resolution first** — critical-task share 6 → ≥12: replace stable-pass tasks with near-line tasks
-   (same count, same cost, double the cell sources), and put structured output on the board so the
-   `response_format` face has a task and a probe that fails open-ended (`scripts/probes/12-json-mode-delivery.sh`
-   currently asks a two-key prompt with a 96-token budget). *Failure signal*: after reshaping, the base run
-   still shows ≤6 flaky tasks → our model of where the model fails is empty.
+1. **Resolution first** — critical-task share 6 → ≥12: **met, 14 of 52** (k=6, 29-31, SD 0.89). Structured
+   output is on the board; probe 12 fails open-ended (3/6 never close), while §6 (grammar + tools in one turn)
+   now delivers 3/3 with tools on both shapes, pinned fail-first; §7 keeps the grounded half open — a
+   read-turn cannot emit the call its JSON integers come from. Guessing p from last window's rates added nothing (8 instances: three at
+   6/6, five at 0/6); screening at k=3 and freezing only the mid-band ones took B′ 9 → 10 → 14 while 7/48
+   bands moved on their own — **a window statistic, not a set property; no criterion moved.**
 2. **Beat** — C 12 min → ≤3 min: engine stays warm across proposals, contract-class changes judge at
    k=1 by byte-exact gates (they are decidable, so they must not spend statistical budget). *Failure
    signal*: the floor is inference throughput, not orchestration — that is a quantization/kernel job, not
@@ -59,6 +59,5 @@ Weight-level self-improvement: interface kept, never claimed (no training pipeli
 checkpoint cannot be quietly upgraded into a claim). Multi-machine/MoE staging: outside the hardware
 envelope this product ships in. Putting MTP on the capability face before an acceptance rate exists.
 
-*Discordant cell* = one (task, matched run) pair where the two configurations disagree;
-pairing is matched 1:1, never the A×B product (see § *Measured, not asserted* in
-`scripts/eval/README.md`, where the numbers live).
+*Discordant cell* = one (task, matched run) pair where the two configurations disagree; pairing is
+matched 1:1, never the A×B product (`scripts/eval/README.md`, where the numbers live).

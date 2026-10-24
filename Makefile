@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release app dmg test test-verbose test-coverage test-ci probes format format-check audit docs-check anchor-check clean metallib help ci-local
+.PHONY: all build release app dmg test test-verbose test-coverage test-ci probes format format-check audit docs-check anchor-check clean metallib help ci-local push-ready
 
 all: build
 
@@ -343,6 +343,12 @@ drift:
 # the docs.
 docs-check:
 	bash scripts/agents-md-contract.sh check
+
+# A round is not finished while it lives only in this checkout: CI on macos-26 is the stated
+# authority, and an unpushed commit has been verified by nobody but this box. Two days of uncommitted
+# work escaped every gate that exists, so this one checks the tree instead of the text.
+push-ready:
+	bash scripts/worktree-hygiene.sh
 
 # Shrink-only ratchet: re-pin the root cap to the file's current size. Refuses to raise it —
 # text goes in only when text comes out.

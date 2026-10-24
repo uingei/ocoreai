@@ -100,19 +100,14 @@ because it resolves cleanly). The instrument that would settle it is
 `bash scripts/toolchain-contract.sh check --probe-metal`, which already compiles a kernel and
 therefore observes module-cache writability directly.
 
-## The four defects the live loop caught (moved out of AGENTS.md 10-15, byte ratchet)
+## The four defects the live loop caught (dated table: `CHANGELOG.md`)
 
-AGENTS.md invariant 2 keeps the rule; the enumeration lives here. All four were found by
-running `ocoreai serve` and calling `/v1/*` on this host — a route-level audit of the same
-code missed every one of them, which is the entire argument for treating a live check as a
-different instrument rather than a nicer-looking grep:
+All four were found by running `ocoreai serve` and calling `/v1/*` on this host — a route-level
+audit of the same code missed every one of them, which is the entire argument for treating a
+live check as a different instrument rather than a nicer-looking grep. The dated table (wire
+statement vs engine fact vs where the fix landed) is diary and lives in `CHANGELOG.md`,
+grep "live loop caught".
 
-| Defect | What the wire said | What the engine did | Fix landed |
-|---|---|---|---|
-| count-tokens unreachable | 404 | the model was reported ready on `/v1/models` | CHANGELOG 10-12 (live 404 → 200), wire shapes 10-14 (`scripts/probes/02-count-tokens-shapes.sh`) |
-| vision capability denied | `vlm:false` | the same weights answered an image correctly | CHANGELOG 10-12 ("一个事实两套谓词"); pinned live by `03-capabilities-models-consistency.sh` |
-| grammar turns | HTTP 500 | valid constrained output had already been generated | CHANGELOG 10-13 (small `max_tokens` / reserve区) |
-| zero-tool turns | fabricated `terminal command:` output | no tool was ever called | AGENTS.md invariant 2 names it; the emission path is guarded against it |
 
 The generalization, which is what to carry forward: **a defect in the *mapping* from engine
 state to wire statement is invisible to any static reading of either side.** Both sides are
@@ -147,12 +142,3 @@ locally — the loop that caught defects no static audit here had (see «The fou
 macOS 26 既编不进也跑不了这段 ⇒ 改法虽然显然（`-Float.infinity` + `continue`），在 macOS 27 上真跑通之前不臆修、
 不宣称已修（AGENTS.md §Open 的同名条目只留判据与指针）。门：`V1EndpointCatalogTests` 那套自带地板的源码扫描风格
 适合它，但断言的是一处不可运行的代码 —— 需要 CI 的 macOS 27 leg 才能长出真正的行为门。
-
-## `AppLifecycleLiveTests` 需要解锁的 GUI 会话（10-20 实测）
-
-同一 scratch、同一支 `make test-clt`：07:16 = 2728 tests / 484 suites 全绿；09:20 = 2739 / 486，3 处红，全在
-`AppLifecycleLiveTests`，报 `never became frontmost (frontmost=com.apple.loginwindow)`。锁屏/登录窗时
-`NSWorkspace.frontmostApplication` 就是 loginwindow，任何 app 都到不了前台 ⇒ 与代码无关（本轮 diff 不含
-AppLifecycle/Computer 文件；`--filter AppLifecycleLive` 同样三处红）。这是**会话状态**的门，与 §Open 屏幕抓取
-条目同源；**已收口（10-20 续10）**：`frontmostBlocker` 实测 frontmost 的占有者，两条「必须上前台」的断言挂 `.enabled(if: frontmostBlocker == nil)`，锁屏侧另加一条 `.enabled(if: != nil)` 专测降级必须点名 `never became frontmost (frontmost=…)` 且不得写出成功句式。锁屏实测 `--filter AppLifecycle` = 13 tests / 2 suites
-绿、两条 `➜ skipped`、降级条真跑并绿：断言一字未放宽，各自只在前提成立处说话。
