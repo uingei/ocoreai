@@ -169,6 +169,14 @@ struct ToolResultMeta: Sendable, Codable {
     let resultSummary: String
     let durationMs: Double
     let failure: String?
+    /// What the caller actually sent, carried **only when the call failed**.
+    ///
+    /// A refusal that quotes the file's content but not the arguments that missed it is half a
+    /// diagnosis, and on a native turn the wire echoes no `tool_calls` at all — so without this
+    /// a client (or the eval's trace) cannot tell a wrong path from a wrong `oldString` from a
+    /// call that never left the harness. Bounded, because a failed `write_file` can carry
+    /// kilobytes the transcript does not need twice.
+    var arguments: String? = nil
 
     /// Condense a tool result into a UI-safe summary. Long outputs (file
     /// dumps, logs) are capped so a single card cannot dominate the transcript.
@@ -176,6 +184,86 @@ struct ToolResultMeta: Sendable, Codable {
         let squashed = text.replacingOccurrences(of: "\n", with: " ")
         if squashed.count <= limit { return squashed }
         return String(squashed.prefix(limit)) + "…"
+    }
+
+    /// Renders call arguments for a refusal: keys in stable order, one line, each value capped so
+    /// a truncated value says how much it dropped. Sorted keys are the point — two refusals of
+    /// the same call must read identically, or the string cannot be diffed across runs.
+    static func argumentsDigest(_ arguments: [String: Any], valueLimit: Int = 120) -> String {
+        arguments.keys.sorted().map { key in
+            let value = renderArgumentValue(arguments[key])
+            if value.count <= valueLimit {
+                return "\(key)=\(value)"
+            }
+            return "\(key)=\(value.prefix(valueLimit))…(+\(value.count - valueLimit))"
+        }.joined(separator: " ")
+    }
+
+    private static func renderArgumentValue(_ value: Any?) -> String {
+        guard let value else { return "null" }
+        // `NSNull` is a non-nil object, and handing it to `withJSONObject` raises an Objective-C
+        // exception — which `try?` cannot catch, so it takes the whole process with it. Ask the
+        // API whether the value is a JSON fragment rather than hoping the throw stays in Swift.
+        if value is NSNull { return "null" }
+        let raw: String
+        if let text = value as? String {
+            raw = "\"\(text)\""
+        } else if let number = value as? NSNumber {
+            raw = "\(number)"
+        } else if
+            JSONSerialization.isValidJSONObject(value),
+            let data = try? JSONSerialization.data(withJSONObject: value),
+            let text = String(data: data, encoding: .utf8)
+        {
+            raw = text
+        } else {
+            raw = "\(value)"
+        }
+        return raw.replacingOccurrences(of: "\n", with: "\\n")
+    }
+
+    /// Our own marker for "declared here, executed by the client" (see the handoff in
+    /// `EngineInference`). A call this engine never ran must not be published as an executed
+    /// result, so the marker lives here and every lane asks the same predicate.
+    static let callerHandoffMarker = "[tool_handoff:"
+
+    static func isCallerHandoff(_ result: String) -> Bool {
+        result.hasPrefix(callerHandoffMarker)
+    }
+}
+
+/// The one home for publishing a dispatched tool's outcome onto the inference stream.
+///
+/// Both lanes — the std `ChatSession` loop and the MTP iteration loop — publish through here, so
+/// neither can stop publishing quietly (MTP dispatched every call and yielded none of them) and
+/// neither can invent its own duration or its own rule for when `arguments` travels.
+/// Gate: `ToolResultAttributionTests` pins one construction and two call sites.
+enum ToolResultPublisher {
+    static func emit(
+        _ continuation: AsyncThrowingStream<InferenceEvent, Error>.Continuation,
+        id: String,
+        name: String,
+        summary: String,
+        failure: String?,
+        startedAt: ContinuousClock.Instant,
+        arguments: String?
+    ) {
+        let elapsed = startedAt.duration(to: .now)
+        let ms =
+            Double(elapsed.components.seconds) * 1000
+            + Double(elapsed.components.attoseconds) / 1e15
+        continuation.yield(
+            .init(
+                kind: .toolResult(
+                    ToolResultMeta(
+                        id: id, name: name,
+                        resultSummary: summary, durationMs: ms,
+                        failure: failure,
+                        arguments: failure == nil ? nil : arguments
+                    )
+                )
+            )
+        )
     }
 }
 

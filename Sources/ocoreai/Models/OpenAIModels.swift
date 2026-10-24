@@ -904,6 +904,9 @@ struct OcoreaiToolRecord: Encodable, Sendable {
     let durationMs: Double
     let summary: String
     let failure: String?
+    /// The arguments of a call that **failed**, digested by `ToolResultMeta.argumentsDigest`.
+    /// Absent on success: a client must never have to infer from `"args"` whether the call ran.
+    let args: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -912,6 +915,7 @@ struct OcoreaiToolRecord: Encodable, Sendable {
         case durationMs = "duration_ms"
         case summary
         case failure
+        case args
     }
 
     static func from(_ meta: ToolResultMeta) -> OcoreaiToolRecord {
@@ -921,7 +925,8 @@ struct OcoreaiToolRecord: Encodable, Sendable {
             ok: meta.failure == nil,
             durationMs: meta.durationMs,
             summary: SecretRedactor.redact(meta.resultSummary),
-            failure: meta.failure.map { SecretRedactor.redact($0) }
+            failure: meta.failure.map { SecretRedactor.redact($0) },
+            args: meta.arguments.map { SecretRedactor.redact($0) }
         )
     }
 }

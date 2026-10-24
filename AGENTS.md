@@ -49,8 +49,8 @@ UI Layer (SwiftUI)           ChatViewModel, SessionManager(SQLite)
   `toolDispatch`). `ReasoningEventEmitter` is wired on both backends; `KVCacheRuntime` runs
   `.turboQuant`/`.affine`; `ThinkingBudget` is applied on both the std and MTP lanes. Where each line
   lives: `Sources/ocoreai/Engine/AGENTS.md` (its cites are gated by `make anchor-check`).
-- MTP path: `generate(mtpDrafter:)` bypasses `ChatSession`; tool calls are collected and dispatched per
-  iteration, aligned with upstream `MTPSpeculativeTokenIterator`.
+- MTP path: `generate(mtpDrafter:)` bypasses `ChatSession`; tool calls are collected, dispatched and
+  published per iteration via `ToolResultPublisher`, aligned with upstream `MTPSpeculativeTokenIterator`.
 - ANE/GPU constrained decoding: CoreAI `MPSGraphSamplers` (argmax / composite / sampler).
 - `SessionPool` is message-level *feed* dedupe. Whether the KV cache skipped a prefill is upstream's
   answer, reported only via `cachedPromptTokenCount`; per-model it is published on

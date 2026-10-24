@@ -4,6 +4,14 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-25
 
+**10-25(6) MTP 车道第一次向 GUI/wire 发布工具结果,而"采纳"这一轮真的咬了:拦住一个进程级崩溃**(P1 / 一个决定一个家 + 采纳纪律) — 实测 `ToolResultMeta(` 在 `Sources/` 只有 **1 处**(std 车道的 `emitToolResult`),而 MTP 的 `for toolCall in iterationToolCalls` 把收集到的每个调用都 dispatch 了、却从不 `continuation.yield(.toolResult(...))`:MTP 下的 GUI 工具卡没有真实时长、没有失败、没有摘要;而 native 轮不在 wire 回显 `tool_calls`,客户端连"发生过一次工具调用"都看不见。
+
+- **一个家**:`ToolResultPublisher.emit`(`Engine/EngineEvents.swift`)独占"时长怎么测、失败怎么带、`arguments` 何时随行"三个决定,std 与 MTP 各剩一个调用点。caller-owned 工具在 dispatch 闭包内就被交回客户端,故发布前先过 `ToolResultMeta.isCallerHandoff(result)`——本机没跑过的调用不得伪装成执行完毕(不变量 2),字面量 `[tool_handoff:` 从此只有一处。
+- **wire 新字段** `ocoreai.tool_results[].args`:**仅失败携带**、经 `SecretRedactor`,由 `ToolResultMeta.argumentsDigest` 渲染(键排序⇒同一调用两次的拒因可 diff;单行;超长以 `…(+N)` 报出丢了多少字节)。它补的正是 `fix-off-by-one-slice` 那类失败无法归因的缺口:此前分不清"路径错 / oldString 抄错 / 调用根本没发出"。
+- **采纳纪律当场生效**:上一轮遗留的 `argumentsDigest` 取值器把 `NSNull` 交给 `JSONSerialization.data(withJSONObject:)`——那是 Objective-C 异常,`try?` 拦不住 ⇒ **一次带 `null` 参数的失败工具调用就会 abort 整个 serve**。它是本轮新写的精确值测试**第一次运行把进程打死**时暴露的,不是读代码读出来的。改法:`value is NSNull` 显式返回 `null`,其余先问 `JSONSerialization.isValidJSONObject(value)` 再转换。
+- **门** `Tests/ocoreaiTests/ToolResultAttributionTests.swift` **8 tests**:digest 键排序 / 换行转义 / `k=null` / `…(+12)` 精确值 + 非 JSON 片段值不得崩(并扫 `isValidJSONObject` 与 `NSNull` 两句必须在);publisher 双语义(成功 `arguments == nil`、失败携带且 `durationMs >= 25`,用 `Instant.advanced(by: −25ms)` 造可复现下界);wire 侧成功键**缺席**、失败键在且 `ok=false`;结构扫描 `ToolResultMeta(` 在 `EngineInference.swift` **0 处**、在 `EngineEvents.swift` **恰好 1 处**、`ToolResultPublisher.emit(` **恰好 2 处**、handoff 字面量仅 publisher 一份——第三条车道忘记发布、或某车道自建 meta,当场红。
+- **锚点债现形**:本次编辑让 std 段 −9 行、MTP 段 +10 行,`anchor-check` 立刻报 **12 条**指向 `EngineInference.swift` 的 `file:line` 失效(`Package.swift` 4 + `Engine/AGENTS.md` 8),逐条改回后 `checked=72 drift=0`。这就是 5,135 行单文件的真实成本:任何改动都要重钉 12 处锚——把两条车道收成共用 `ToolLane` 的理由从此有数。
+- **验证**:`swift build -c release` **exit 0**(91.90s,Xcode/SDK27 路线);CLT 路线 `--filter ToolResultAttribution` **8/8 绿**(含那条崩溃回归);`make round-gates` 全绿(docs contract + anchors drift=0 + patterns,Class-J 52 local suites 全解析)。诚实边界:MTP 车道的**活体**工具卡仍缺一次 MTP 实跑证据(本轮只有单元层);`§Open` 的"无工具调用轮次不可中断"(`observe(to:` 0 处)不受本轮影响,仍未解。
 **10-25(5) 任务成功率第一次有了"本机本任务集"的噪声地板：21/22/±5.8 题——顺手得到 12 道稳定失败题的清单**(P1 / 仪器的账) — 上一份地板是 README 里 10-22 的 `16 / 19 / 20`（24 题集）。任务集现在是 36 题（`tasks.json` + 15a8ccf1ea94），旧数字不再适用，于是跑 `OCOREAI_EVAL_REPEATS=3 bash scripts/eval/repeat.sh`（`gemma-4-e2b-it-4bit`、`temperature=0.0`、approval=auto、concurrency=1、tools=6）。
 
 - **测到**：三轮分数 **21、(排除)、22**（36 题），**mean 21.50/36 (59.7%)**，SD **0.71**，单轮 95% CI 半宽 **±5.8 题（16.0 pp）**；**未配对 A/B 必须动 ≥9 题**才在 95% 下说得出口，配对最小结果是 **6 题单向翻转**（McNemar，本轮 5 个 discordant 对）。

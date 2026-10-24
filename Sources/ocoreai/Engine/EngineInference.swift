@@ -2922,35 +2922,26 @@ extension EnginePool {
                         continuation.yield(
                             .init(kind: .toolCall(InferenceEvent.mlxToolCall(from: toolCall))))
                         return
-                            "[tool_handoff: \(dispName) is the caller's tool — the caller executes it and sends back the result]"
+                            "\(ToolResultMeta.callerHandoffMarker) \(dispName) is the caller's tool — the caller executes it and sends back the result]"
                     }
                     let dispStart = ContinuousClock.now
-                    // Truthful completion event (codex `function_call_output` baseline):
-                    // measure the real wall duration around `registry.call` and surface
-                    // it — success AND failure — so the GUI tool card shows what actually
-                    // happened (result + ms) instead of arguments + 0ms. The stream
-                    // continuation is Sendable and multi-producer safe (AsyncThrowingStream).
-                    let emitToolResult: (String, String?) -> Void = {
-                        summary, failure in
-                        let elapsed = dispStart.duration(to: .now)
-                        let ms =
-                            Double(elapsed.components.seconds) * 1000
-                            + Double(elapsed.components.attoseconds) / 1e15
-                        continuation.yield(
-                            .init(
-                                kind: .toolResult(
-                                    ToolResultMeta(
-                                        id: dispId, name: dispName,
-                                        resultSummary: summary, durationMs: ms,
-                                        failure: failure
-                                    )
-                                )
-                            )
-                        )
-                    }
                     let argsDict =
                         toolCall.function.arguments
                         .mapValues { $0.anyValue } as? [String: Any] ?? [:]
+                    // Truthful completion event (codex `function_call_output` baseline): duration,
+                    // failure and — on failure — the arguments that missed are decided in one home,
+                    // `ToolResultPublisher.emit`, so the std and MTP lanes cannot diverge.
+                    let emitToolResult: (String, String?) -> Void = {
+                        summary, failure in
+                        ToolResultPublisher.emit(
+                            continuation,
+                            id: dispId, name: dispName,
+                            summary: summary, failure: failure, startedAt: dispStart,
+                            arguments:
+                                failure == nil ? nil
+                                : ToolResultMeta.argumentsDigest(argsDict)
+                        )
+                    }
 
                     // replace fatalError with graceful error response
                     // (tool args should always serialize, but release must not crash)
@@ -4121,7 +4112,9 @@ extension EnginePool {
                         for toolCall in iterationToolCalls {
                             // Use toolDispatchClosure if available (dispatches via ToolRegistry)
                             // Otherwise dispatch inline
+                            let mtpDispStart = ContinuousClock.now
                             var result: String
+                            var dispatchFailure: String?
                             do {
                                 if let dispatch = mtpToolDispatch {
                                     result = try await dispatch(toolCall)
@@ -4144,6 +4137,7 @@ extension EnginePool {
                             } catch {
                                 result =
                                     "[\(toolCall.function.name): \(error.localizedDescription)]"
+                                dispatchFailure = error.localizedDescription
                                 log.warning(
                                     "MTP tool dispatch error for \(toolCall.function.name): \(error)"
                                 )
@@ -4158,6 +4152,22 @@ extension EnginePool {
                                 if mtpToolDispatch == nil {
                                     result = result + "\n" + perception
                                 }
+                            }
+                            // Publish the outcome on the same home the std lane uses. A call handed
+                            // back to the client inside the dispatch closure was never run here, so
+                            // it stays unpublished rather than claiming a completed execution.
+                            if !ToolResultMeta.isCallerHandoff(result) {
+                                ToolResultPublisher.emit(
+                                    continuation,
+                                    id: toolCall.id ?? "", name: toolCall.function.name,
+                                    summary: ToolResultMeta.summary(result),
+                                    failure: dispatchFailure, startedAt: mtpDispStart,
+                                    arguments:
+                                        dispatchFailure == nil ? nil
+                                        : ToolResultMeta.argumentsDigest(
+                                            toolCall.function.arguments
+                                                .mapValues { $0.anyValue } as? [String: Any] ?? [:])
+                                )
                             }
                             // Append tool result message for next iteration
                             mtpMessages.append(
