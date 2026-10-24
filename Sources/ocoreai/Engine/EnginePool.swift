@@ -514,7 +514,17 @@ actor EnginePool {
         defer { loadingModels.remove(modelId) }
         if loadedModels[modelId] != nil { return }
 
-        loadedModels[modelId] = try await loadModel(modelId)
+        // One chokepoint for both outcomes: every way a load can die (structural 404, config,
+        // download, specialization) counts as a load failure, so an operator never reads
+        // "never failed" for a model that was never actually loadable here.
+        do {
+            let loaded = try await loadModel(modelId)
+            loadedModels[modelId] = loaded
+            await MetricsRegistry.shared.recordModelLoad()
+        } catch {
+            await MetricsRegistry.shared.recordModelLoadFailure()
+            throw error
+        }
     }
 
     /// Acquire a session for an already-loaded model.

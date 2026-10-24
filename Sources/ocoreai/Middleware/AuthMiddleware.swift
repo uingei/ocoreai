@@ -246,22 +246,32 @@ struct AuthMiddleware<Context: RequestContext>: RouterMiddleware {
             return try await next(request, context)
         }
 
-        // 3. Extract API key from headers/query
-        let apiKey = try extractAPIKey(from: request)
+        // One chokepoint counts every refusal this middleware raises. A counter wired to one
+        // branch would understate the number an operator reads when deciding whether keys are
+        // being guessed — and `ocoreai_auth_failures_total` had no producer at all until now.
+        let apiKey: String
+        do {
+            // 3. Extract API key from headers/query
+            apiKey = try extractAPIKey(from: request)
 
-        // 4. Verify API key against allowed set
-        guard config.apiKeys.contains(apiKey) else {
-            throw AuthError.unauthorized
-        }
-
-        // 5. Admin method check — only after key is validated
-        if AuthRoutePolicy.adminMethods.contains(request.method) {
-            guard config.adminKeys.contains(apiKey) else {
-                throw AuthError.adminKeyRequired
+            // 4. Verify API key against allowed set
+            guard config.apiKeys.contains(apiKey) else {
+                throw AuthError.unauthorized
             }
+
+            // 5. Admin method check — only after key is validated
+            if AuthRoutePolicy.adminMethods.contains(request.method) {
+                guard config.adminKeys.contains(apiKey) else {
+                    throw AuthError.adminKeyRequired
+                }
+            }
+        } catch let error as AuthError {
+            await MetricsRegistry.shared.recordAuthFailure()
+            throw error
         }
 
         // 6. Passthrough
+        // Outside the `do`: a failure downstream belongs to the handler, not to authentication.
         return try await next(request, context)
     }
 

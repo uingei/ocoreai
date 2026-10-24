@@ -1978,6 +1978,10 @@ private func streamWithToolCalling(
             ttfbMsVal =
                 Double(ttfbDur.components.seconds) * 1000 + Double(ttfbDur.components.attoseconds)
                 / 1e15
+            // The first byte was already timed here; it just never reached its own histogram, so
+            // `ocoreai_ttfb_seconds` published an empty distribution. Inside the `if` on purpose:
+            // a turn that emitted nothing has no first byte and must not enter a latency curve.
+            await metrics.observeTTFB(ttfbMsVal / 1000.0)
         }
         await metrics.observeInferenceDuration(
             ms: inferenceDurationMs,

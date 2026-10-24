@@ -1045,6 +1045,7 @@ actor MLXSessionPool {
         let removed = before - pool.count
         if removed > 0 {
             logger.info("Pressure evicted \(removed) session(s) (\(pool.count) remain)")
+            await noteKVCacheEvictions(removed)
         }
     }
 
@@ -1077,6 +1078,7 @@ actor MLXSessionPool {
         let removed = before - pool.count
         if removed > 0 {
             logger.info("Expired \(removed) session(s) from pool (\(pool.count) remain)")
+            await noteKVCacheEvictions(removed)
         }
     }
 
@@ -1103,6 +1105,16 @@ actor MLXSessionPool {
             persistEntry(entry, key: oldestKey, reason: "LRU")
         }
         logger.info("LRU evicted: \(oldestKey) (pool: \(pool.count))")
+        await noteKVCacheEvictions(1)
+    }
+
+    /// One home for "this pool discarded N KV caches while their model stayed loaded" — the
+    /// only shape of eviction a caller could have avoided, and therefore the only one
+    /// `ocoreai_kv_cache_evictions_total` may claim. `clear()` and `clear(modelId:)` are not
+    /// here on purpose: teardown discards caches whose weights are leaving too, and counting
+    /// those would publish pressure that no request ever caused.
+    private func noteKVCacheEvictions(_ count: Int) async {
+        await MetricsRegistry.shared.incrementKVEvictions(count)
     }
 
     /// Persist one evicted session: the raw KV snapshot plus the manifest that states

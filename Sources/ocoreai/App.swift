@@ -626,7 +626,9 @@ public final class OcoreaiEngine {
         await _sessionCompressor?.setSummarizer(summarizer.makeCallback())
         logger.info("SessionCompressor: LLM summarizer injected via SummarizerActor")
 
-        metrics = MetricsRegistry()
+        // The same instance every producer counts into (`MetricsRegistry.shared`); a private
+        // instance here would export zeros for every series this container does not touch.
+        metrics = MetricsRegistry.shared
 
         // MARK: - Fast Path Ready Signal
 

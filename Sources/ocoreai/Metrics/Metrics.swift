@@ -15,6 +15,8 @@
 /// - `ocoreai_engine_pool_loaded_models` (Gauge)
 /// - `ocoreai_kv_cache_gpu_bytes` (Gauge)
 /// - `ocoreai_kv_cache_evictions_total` (Counter)
+/// - `ocoreai_model_loads_total` / `ocoreai_model_load_failures_total` (Counters)
+/// - `ocoreai_auth_failures_total` / `ocoreai_rate_limit_rejections_total` (Counters)
 /// - `ocoreai_ttfb_seconds` (Histogram — time to first byte)
 
 import Atomics
@@ -44,6 +46,16 @@ struct ServerStatsSnapshot: Equatable {
 ///
 /// All mutations go through actor mailbox; reads return snapshots.
 actor MetricsRegistry {
+    /// The registry the process counts into, and the one ``GET /metrics`` exports.
+    ///
+    /// Producers live where the event happens — an auth middleware, a model loader, a pooled
+    /// session, the first byte of a stream — and none of them sits on the dependency path to the
+    /// app container that owns the exporter. A registry instance passed only to handlers therefore
+    /// orphaned every other series at zero: the exporter read one object while the events happened
+    /// to another. One instance, published by `App` at startup, is the only shape where "the
+    /// counter moved" and "the event happened" are the same fact.
+    static let shared = MetricsRegistry()
+
     // MARK: - Counters
 
     /// Cumulative HTTP request count, keyed by (method, path, status_code).
@@ -142,9 +154,11 @@ actor MetricsRegistry {
         tokenCounts[kind, default: 0] &+= UInt64(count)
     }
 
-    /// Increment KV cache eviction counter.
-    func incrementKVEviction() {
-        kvCacheEvictions &+= 1
+    /// Count KV cache eviction events — one per cache discarded while its model stays loaded.
+    /// A sweep removes many caches at once, so the count is an argument, not a loop of calls.
+    func incrementKVEvictions(_ count: Int = 1) {
+        guard count > 0 else { return }
+        kvCacheEvictions &+= UInt64(count)
     }
 
     /// Record an authentication failure.
@@ -341,6 +355,12 @@ actor MetricsRegistry {
         lines.append("# HELP ocoreai_auth_failures_total Total authentication failures.")
         lines.append("# TYPE ocoreai_auth_failures_total counter")
         lines.append("ocoreai_auth_failures_total \(authFailures)")
+        lines.append("")
+
+        // Model Loads Counter
+        lines.append("# HELP ocoreai_model_loads_total Successful model loads since startup.")
+        lines.append("# TYPE ocoreai_model_loads_total counter")
+        lines.append("ocoreai_model_loads_total \(modelLoads)")
         lines.append("")
 
         // Model Load Failures Counter

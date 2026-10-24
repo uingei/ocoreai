@@ -425,6 +425,10 @@ struct RateLimitMiddleware<Context: RequestContext>: RouterMiddleware {
             return try await next(request, context)
         }
 
+        // The rejected request reports itself: `ocoreai_rate_limit_rejections_total` published
+        // zeros while this branch was refusing traffic, because nothing on this path counted.
+        await MetricsRegistry.shared.recordRateLimitRejection()
+
         // 429 Too Many Requests
         let bodyData =
             #"{"error":{"message":"Rate limit exceeded","type":"rate_limit","code":429}}"#.data(

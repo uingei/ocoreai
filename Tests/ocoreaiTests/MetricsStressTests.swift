@@ -107,9 +107,12 @@ struct MetricsStressTests {
     @Test("KV eviction counter increments")
     func testKVEvictionCounter() async {
         let registry = MetricsRegistry()
-        await registry.incrementKVEviction()
-        await registry.incrementKVEviction()
-        await registry.incrementKVEviction()
+        // A sweep discards many caches at once, so the count is an argument: default 1, an
+        // explicit batch, and a 0 that must not move the series (a sweep that removed nothing
+        // is not an eviction, and a counter that counts zeros reads as pressure that did not happen).
+        await registry.incrementKVEvictions()
+        await registry.incrementKVEvictions(2)
+        await registry.incrementKVEvictions(0)
 
         let output = await registry.export()
         #expect(output.contains("ocoreai_kv_cache_evictions_total 3"))
