@@ -30,9 +30,14 @@ PROBE_NAME="eval-task-success"
 
 : "${OCOREAI_APPROVAL_POLICY:=auto}"
 export OCOREAI_APPROVAL_POLICY
-: "${OCOREAI_EVAL_TOOLS:=read_file write_file edit_file search_files exec_command}"
+: "${OCOREAI_EVAL_TOOLS:=read_file write_file edit_file edit_lines search_files exec_command}"
 export OCOREAI_EVAL_TOOLS
-: "${OCOREAI_EVAL_FLOOR_TASKS:=18}"
+# Two sets share this runner: the default 36-task set and the frozen 52-task edit-repair set the
+# A/B loop judges with. The floor sits under both so a silently truncated set still goes red —
+# measured 10-24 against the loaded sets (`_eval.py count`), and raised with them: 30 covered a
+# 36/40 pair, 34 covers a 36/52 pair, so the scored set losing eighteen tasks is a failure and the
+# default set losing two is a failure. Screening pools override this env rather than the default.
+: "${OCOREAI_EVAL_FLOOR_TASKS:=34}"
 : "${OCOREAI_EVAL_FLOOR_SPECS:=4}"
 # A family floor is a different question from a total floor: 24 tasks with zero edit tasks is
 # still a shrunken instrument. Measured 10-22 over tasks.json: the smallest family has 2.
@@ -53,6 +58,40 @@ TOOLS_CACHE="$OUT/tools.json"
 # _eval.py reads the cached /v1/tools payload through this name; an unexported variable
 # here makes every task fail with a KeyError, which is a harness bug wearing a model score.
 export OCOREAI_TOOLS_CACHE="$TOOLS_CACHE"
+
+# The task set is the instrument, so it is proven before the server is even booted (a loader that
+# crashes should not cost a boot and leave a server behind), and the loader's stderr travels into
+# the refusal instead of being left on the terminal.
+LOADER_ERR="$(mktemp -t ocoreai-eval-loader-XXXXXX)"
+TASK_COUNT="$(python3 "$HERE/_eval.py" count 2>"$LOADER_ERR")"
+probe_require_int "_eval.py count" "$TASK_COUNT" "$(tail -n 1 "$LOADER_ERR")"
+
+# The guard proves its own premise: fed an empty value it must fail. A guard that only fires when
+# someone remembers to look is the hole it was written to close.
+if (probe_require_int "self-test" "" >/dev/null 2>&1); then
+  echo "  FAIL  probe_require_int let an empty value through — the crash path is open again" >&2
+  exit 1
+fi
+
+# The B/B′ ledger is the record every resolution claim cites, and it drifted the round the task set
+# grew (table said 14, the paragraph under it still said "short of target"), so its digits are
+# re-derived from the table here rather than trusted. No Metal, no server: it runs before the boot.
+if ! python3 "$HERE/_ledger_selftest.py"; then
+  echo "  FAIL  scripts/eval/README.md's B/B′ ledger does not follow from its own digits — a verdict" \
+    "citing a number the ledger cannot reproduce would be prose wearing a measurement" >&2
+  exit 1
+fi
+
+# Same class, one rung up: a quoted `# score N/M` is only attributable when the line naming what
+# produced it is in the file, and `_repeat_stats.py` refuses to average runs whose conditions
+# differ. `_conditions_selftest.py` re-derives both from bytes (no server, no GPU), so it runs
+# next to the ledger check, before the boot.
+if ! python3 "$HERE/_conditions_selftest.py"; then
+  echo "  FAIL  the scoreboard's conditions line is unsound or unwired — a score that cannot name" \
+    "its task set, tool set, model, sampling, approval policy and host would be averaged against" \
+    "runs played under other rules" >&2
+  exit 1
+fi
 
 probe_boot
 probe_require_ready_model
@@ -78,8 +117,8 @@ if ! python3 "$HERE/_verifier_selftest.py"; then
   probe_summary "$PROBE_NAME"
 fi
 
-TASK_COUNT="$(python3 "$HERE/_eval.py" count)"
-SPEC_COUNT="$(python3 "$HERE/_eval.py" spec-count "$OCOREAI_EVAL_TOOLS")"
+SPEC_COUNT="$(python3 "$HERE/_eval.py" spec-count "$OCOREAI_EVAL_TOOLS" 2>"$LOADER_ERR")"
+probe_require_int "_eval.py spec-count" "$SPEC_COUNT" "$(tail -n 1 "$LOADER_ERR")"
 
 # Two premises, floored before a single task runs: a scoreboard over zero tasks, or one
 # where the agent had no tools, would print 0/0 and look like a quiet pass.
@@ -95,6 +134,7 @@ FAMILIES="$(python3 "$HERE/_eval.py" families | tr '\n' ' ')"
 while IFS= read -r line; do
   fam="${line%%=*}"
   fam_n="${line##*=}"
+  probe_require_int "family $fam task count" "$fam_n"
   if [ "$fam_n" -lt "$OCOREAI_EVAL_FLOOR_FAMILY" ]; then
     probe_fail "family $fam has only $fam_n task(s) (floor $OCOREAI_EVAL_FLOOR_FAMILY) — a whole" \
       "capability family missing from the set is a shrunken instrument, not a model result"
@@ -105,6 +145,19 @@ probe_note "families $FAMILIES"
 probe_note "traces $OUT"
 RESULTS="$OUT/results.tsv"
 printf 'task\tkind\trc\telapsed_ms\tusage\n' > "$RESULTS"
+
+# What produced this number, written before any score line: `load_runs` keeps the last `#` line
+# as the score, so the score must stay last. `_conditions.py` digests the task file and the
+# server's own tool declarations, and `field_diffs` is what `_repeat_stats.py` refuses on.
+CONDITIONS="$(python3 "$HERE/_conditions.py" --model "$PROBE_MODEL" \
+  --tools "$OCOREAI_EVAL_TOOLS" --approval "$OCOREAI_APPROVAL_POLICY" 2>"$LOADER_ERR")"
+if [ -z "$CONDITIONS" ]; then
+  probe_fail "could not derive the conditions line for this run ($(tail -n 1 "$LOADER_ERR")) — a" \
+    "score with no conditions behind it cannot be compared with any other run, so it is not written"
+  probe_summary "$PROBE_NAME"
+fi
+printf '# conditions %s\n' "$CONDITIONS" >> "$RESULTS"
+probe_note "$CONDITIONS"
 
 PASS=0
 RUN=0
@@ -151,6 +204,17 @@ for id in $(python3 "$HERE/_eval.py" ids); do
   printf '%s\n' "$answer" > "$OUT/answer-$id.txt"
   printf 'workspace %s\nusage %s\nelapsed_ms %s\nverify_rc %s\n' "$ws" "$usage" "$PROBE_ELAPSED_MS" "$rc" \
     >> "$OUT/verify-$id.log"
+
+  # A verifier's rc says the workspace is wrong, never what the produced file said, and the next
+  # task wipes the directory: without these bytes the cause of a failure dies with the session.
+  # Passing tasks are snapshotted too — "it passed" is only evidence once the shape is on disk.
+  snap="$OUT/artifacts-$id.txt"
+  snap_bytes="$(python3 "$HERE/_eval.py" snapshot "$ws" "$snap" 2>&1)"
+  probe_require_int "artefact snapshot for $id" "$snap_bytes"
+  if [ "$snap_bytes" -lt 1 ]; then
+    probe_fail "$id left an empty artefact snapshot ($snap_bytes bytes) — an instrument that loses" \
+      "its own evidence is a harness fault wearing a model score"
+  fi
 
   printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$rc" "$PROBE_ELAPSED_MS" "$usage" >> "$RESULTS"
 

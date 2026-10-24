@@ -1,0 +1,8 @@
+ts	proposal	base_commit	valid_runs	scores_base	scores_variant	b	c	p	decision	traces
+20261023-190231	fixture-goalpost-move	778e5a4	0	-	-	-	-	-	refused	gate
+20261023-190317	fixture-comment-touch	778e5a4	6/6	16/18/20/19/17/17	16/18/16/16/17/18	12	6	0.2379	revert	/var/folders/dy/hh313rts3g3b7hdwzzw7mwrr0000gn/T/ocoreai-autoab-XXXXXX.w4li1EQPd3/fixture-comment-touch
+20261023-192454	fixture-stale-context	778e5a4	0	-	-	-	-	-	not-measured	stale-patch
+20261023-192455	fixture-build-breaks	778e5a4	0	-	-	-	-	-	not-measured	build-failed
+20261023-192605	fixture-stale-context	778e5a4	0	-	-	-	-	-	not-measured	stale-patch
+20261023-192606	fixture-goalpost-move	778e5a4	0	-	-	-	-	-	refused	gate
+20261023-192641	fixture-comment-touch	778e5a4	6/6	16/18/20/19/17/17	18/17/19/16/18/17	8	6	0.7905	revert	/var/folders/dy/hh313rts3g3b7hdwzzw7mwrr0000gn/T/ocoreai-autoab-XXXXXX.NxZpDQ8Gle/fixture-comment-touch

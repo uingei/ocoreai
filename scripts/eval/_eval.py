@@ -9,6 +9,9 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TASKS_PATH = os.environ.get("OCOREAI_EVAL_TASKS", os.path.join(HERE, "tasks.json"))
+# The scoreboard's single sampling setting, named so the conditions line can state it without a
+# second literal to drift: `_conditions.py` reads this constant instead of repeating 0.0.
+REQUEST_TEMPERATURE = 0.0
 
 
 def tasks():
@@ -21,6 +24,58 @@ def task(task_id):
         if t["id"] == task_id:
             return t
     raise SystemExit("unknown task id: %s" % task_id)
+
+
+SNAPSHOT_PER_FILE_BYTES = 2048
+SNAPSHOT_BUDGET_BYTES = 65536
+
+
+def write_snapshot(ws, dest, budget=SNAPSHOT_BUDGET_BYTES,
+                  per_file=SNAPSHOT_PER_FILE_BYTES):
+    """Record what the workspace actually holds, for a task that failed.
+
+    `verify` says the workspace is wrong; it never says what the produced file *says*, and the
+    next task wipes the directory. Without these bytes the cause of a failure is gone when the
+    session ends, which turns every root-cause claim in README.md into a claim with no gate.
+    Returns the size written so the caller can floor it (a snapshot of nothing is still a fact,
+    so the report is never empty)."""
+    names = sorted(
+        os.path.relpath(os.path.join(root, name), ws)
+        for root, _dirs, files in os.walk(ws)
+        for name in files
+    )
+    chunks = []
+    if not names:
+        chunks.append("<< workspace holds no files: the agent created nothing >>\n")
+    used = 0
+    for index, rel in enumerate(names):
+        path = os.path.join(ws, rel)
+        size = os.path.getsize(path)
+        with open(path, "rb") as fh:
+            raw = fh.read(per_file)
+        body = raw.decode("utf-8", "replace")
+        shown = "" if len(raw) >= size else ", first %d bytes shown" % len(raw)
+        chunk = "### %s (%d bytes%s)\n%s%s" % (
+            rel, size, shown, body, "" if body.endswith("\n") or not body else "\n")
+        cost = len(chunk.encode("utf-8"))
+        if used + cost > budget:
+            chunks.append("<< artefact budget %d B exhausted; %d file(s) not shown >>\n"
+                         % (budget, len(names) - index))
+            break
+        chunks.append(chunk)
+        used += cost
+    text = "".join(chunks)
+    with open(dest, "w", encoding="utf-8") as out:
+        out.write(text)
+    return len(text.encode("utf-8"))
+
+
+def spec_name(spec):
+    """A tool entry's name under both shapes the wire answers: {function:{name}} and {name}."""
+    if not isinstance(spec, dict):
+        return ""
+    fn = spec.get("function")
+    return (fn or {}).get("name") if isinstance(fn, dict) else spec.get("name", "")
 
 
 def tool_specs(needed):
@@ -43,13 +98,6 @@ def tool_specs(needed):
         specs = payload.get("data") or payload.get("tools") or []
     if not isinstance(specs, list):
         return []
-
-    def spec_name(s):
-        if not isinstance(s, dict):
-            return ""
-        fn = s.get("function")
-        return (fn or {}).get("name") if isinstance(fn, dict) else s.get("name", "")
-
     return [s for s in specs if spec_name(s) in needed]
 
 
@@ -89,29 +137,46 @@ def main():
             with open(dest, "w", encoding="utf-8") as fh:
                 fh.write(content)
 
+    elif cmd == "snapshot":
+        # Prints the byte count it wrote; run.sh proves it is an integer and floors it at 1.
+        print(write_snapshot(sys.argv[2], sys.argv[3]))
+
     elif cmd == "body":
         ws, model, session_id, needed = sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
         t = task(sys.argv[6])
         specs = tool_specs(set(needed.split()))
         names = ", ".join(sorted((s.get("function") or {}).get("name", "?") for s in specs))
-        prompt = (
+        head = (
             t["prompt"]
             + "\n\nWorkspace directory (absolute): "
             + ws
             + "\nTools available to you: "
             + names
-            + "\nUse the tools to actually change or read the workspace. Do not describe what"
-              " you would do — do it, then reply with one short line saying what happened."
+            + "\n"
         )
+        # A task that declares response_format asks for a machine-readable answer, so the
+        # harness must not also demand "one short line" — two instructions, one of them
+        # unparseable, would score the harness's own ambiguity instead of the server's.
+        response_format = t.get("response_format")
+        tail = (
+            "Use the tools to actually change or read the workspace, then reply with only the"
+            " JSON object described above — no prose, no code fences."
+            if response_format
+            else "Use the tools to actually change or read the workspace. Do not describe what"
+                 " you would do — do it, then reply with one short line saying what happened."
+        )
+        prompt = head + tail
         body = {
             "model": model,
             "session_id": session_id,
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": int(t.get("max_tokens", 700)),
-            "temperature": 0.0,
+            "temperature": REQUEST_TEMPERATURE,
         }
         if specs:
             body["tools"] = specs
+        if response_format:
+            body["response_format"] = response_format
         print(json.dumps(body))
 
     elif cmd == "answer":
@@ -146,4 +211,5 @@ def main():
         raise SystemExit("unknown command: %s" % cmd)
 
 
-main()
+if __name__ == "__main__":
+    main()

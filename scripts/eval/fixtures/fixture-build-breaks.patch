@@ -1,0 +1,8 @@
+diff --git a/Sources/ocoreai/Tools/AutoAbBreakFixture.swift b/Sources/ocoreai/Tools/AutoAbBreakFixture.swift
+new file mode 100644
+--- /dev/null
++++ b/Sources/ocoreai/Tools/AutoAbBreakFixture.swift
+@@ -0,0 +1,3 @@
++// Transient fixture for `autoab.sh`: a variant that does not compile must land in the ledger as
++// not-measured and must never be kept. Reverted by the loop; never committed.
++enum AutoAbBreakFixture { static let answer: Int = "not an int" }

@@ -1,0 +1,14 @@
+# Transient fixture for `autoab.sh`: a well-formed patch whose context no longer matches the
+# tree. `git apply --check` must fail on it, and the loop must ledger not-measured/stale-patch
+# instead of treating an unmeasured variant as a result. Never committed.
+diff --git a/Sources/ocoreai/Tools/PresentationEcho.swift b/Sources/ocoreai/Tools/PresentationEcho.swift
+--- a/Sources/ocoreai/Tools/PresentationEcho.swift
++++ b/Sources/ocoreai/Tools/PresentationEcho.swift
+@@ -24,6 +24,7 @@
+ /// ### False-positive floor
+ /// A pipe-delimited table whose rows start `1|`, `3|` is content, not a read dump, and a test that
+ /// quotes the label `"total_lines: 3 (full)"` is not this repo's footer: both need the box-drawing
++/// Fixture marker: the auto-A/B end-to-end probe changes nothing but this comment.
+ /// this context line does not exist anywhere in this tree, so the hunk cannot be placed.
+ import Foundation
+ 

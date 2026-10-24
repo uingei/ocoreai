@@ -1,0 +1,4 @@
+# Prefixes an auto-A/B proposal may modify. The loop exists to test contract/format changes in
+# the product, so that is all it may touch. Everything else — the harness, the judges, the gates,
+# the docs that cite numbers — is refused before a patch is ever applied.
+Sources/

@@ -18,6 +18,7 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${OCOREAI_EVAL_REPEATS:=3}"
+WORST=0
 ROOT="${OCOREAI_EVAL_REPEAT_ROOT:-$(mktemp -d -t ocoreai-eval-repeat-XXXXXX)}"
 mkdir -p "$ROOT"
 
@@ -41,8 +42,18 @@ for k in $(seq 1 "$OCOREAI_EVAL_REPEATS"); do
   echo "=== run $k/$OCOREAI_EVAL_REPEATS → $ROOT/run-$k ==="
   OCOREAI_EVAL_OUT="$ROOT/run-$k" bash "$HERE/run.sh" >"$ROOT/run-$k.log" 2>&1
   rc=$?
+  if [ "$rc" -gt "$WORST" ]; then WORST=$rc; fi
   tail -2 "$ROOT/run-$k.log" | sed 's/^/    /'
   echo "    run $k exit $rc"
 done
 
 python3 "$HERE/_repeat_stats.py" "$ROOT"
+STATS_RC=$?
+# A wrapper that exits 0 while every leg exited 1 turns a scoreboard into a green light: measured
+# on a 21-task set, three runs each reporting task failures exited 1, and this script exited 0
+# because the aggregator itself succeeded. The aggregate is a number; the legs hold the verdict.
+if [ "$WORST" -ne 0 ]; then
+  echo "exit $WORST — at least one run reported failures; the aggregate above is a measurement, not a pass" >&2
+  exit "$WORST"
+fi
+exit "$STATS_RC"

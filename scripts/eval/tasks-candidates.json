@@ -1,0 +1,139 @@
+{
+ "tasks": [
+  {
+   "id": "edit-delete-one-of-three-identical",
+   "kind": "edit",
+   "prompt": "lines.txt has three identical `stale` lines. Remove exactly one of them — the file must still hold two — and leave both `keep` lines and the order intact.",
+   "files": {
+    "lines.txt": "keep\nstale\nstale\nstale\nkeep\n"
+   },
+   "verify": "[ \"$(grep -c '^stale$' lines.txt)\" = 2 ] && [ \"$(wc -l < lines.txt | tr -d ' ')\" = 4 ] && head -1 lines.txt | grep -qx keep && tail -1 lines.txt | grep -qx keep",
+   "max_tokens": 900,
+   "note": "screen candidate: occurrence-count, not content match — edit-remove-line (5/6) and edit-delete-first-line (4/6) both went critical in the 48-task window"
+  },
+  {
+   "id": "test-repair-two-named-defects",
+   "kind": "code-fix-with-tests",
+   "prompt": "test_mathx.py has two failing tests and the failure output names both functions. Fix mathx.py until the suite passes. Do not modify test_mathx.py.",
+   "files": {
+    "mathx.py": "def double(x):\n    return x + 2\n\n\ndef half(x):\n    return x * 2\n",
+    "test_mathx.py": "import unittest\n\nfrom mathx import double, half\n\n\nclass MathxTest(unittest.TestCase):\n    def test_double(self):\n        self.assertEqual(double(3), 6)\n\n    def test_half(self):\n        self.assertEqual(half(8), 4)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+   },
+   "verify": "grep -qF 'self.assertEqual(double(3), 6)' test_mathx.py && grep -qF 'self.assertEqual(half(8), 4)' test_mathx.py && python3 -m unittest -q test_mathx 2>&1 | tail -3 | grep -q OK",
+   "max_tokens": 1200,
+   "note": "screen candidate: make-two-tests-pass sits at 1/6 with two defects and one module; the suite names both functions, so the diagnosis is easier and the landing is the question"
+  },
+  {
+   "id": "copy-token-uppercased",
+   "kind": "multi-step",
+   "prompt": "Read src2.txt, then create shout.txt whose entire content is the token src2.txt holds, uppercased.",
+   "files": {
+    "src2.txt": "delta-9\n"
+   },
+   "verify": "[ \"$(tr -d '[:space:]' < shout.txt)\" = \"DELTA-9\" ]",
+   "max_tokens": 700,
+   "note": "screen candidate: the copy family spans the whole range this window (copy-with-suffix 6/6, copy-with-prefix 0/6); the token is only on disk, so the read hop is required and the transform is one case change"
+  },
+  {
+   "id": "exec-redirect-sorted-file",
+   "kind": "exec",
+   "prompt": "Use one shell command to write the lines of data2.txt in ascending order into sorted.txt; the file must exist afterwards.",
+   "files": {
+    "data2.txt": "pear\napple\nfig\n"
+   },
+   "verify": "[ \"$(tr '\\n' ',' < sorted.txt)\" = \"apple,fig,pear,\" ]",
+   "max_tokens": 600,
+   "note": "screen candidate: the file must be created by the exec lane rather than write_file, the half multi-step-two-derived-writes (0/6) loses while multi-step-nested-write (6/6) passes"
+  },
+  {
+   "id": "fix-strict-vs-inclusive-comparison",
+   "kind": "code-fix",
+   "prompt": "eligibility.py is off by one at the line: can_drive(18) must be True and can_drive(17) must be False. Fix the comparison.",
+   "files": {
+    "eligibility.py": "def can_drive(age):\n    return age > 18\n"
+   },
+   "verify": "python3 -c \"import eligibility; assert eligibility.can_drive(18) is True and eligibility.can_drive(17) is False and eligibility.can_drive(21) is True\"",
+   "max_tokens": 900,
+   "note": "screen candidate: the boundary cluster went critical this window; the verifier pins both sides of the line"
+  },
+  {
+   "id": "edit-keep-indent-in-block",
+   "kind": "edit",
+   "prompt": "In settings.py, change the value of retries inside the function from 3 to 5 without touching the indentation or the other line.",
+   "files": {
+    "settings.py": "def policy():\n    retries = 3\n    return retries\n"
+   },
+   "verify": "python3 -c \"assert open('settings.py').read()=='def policy():\\n    retries = 5\\n    return retries\\n', repr(open('settings.py').read())\"",
+   "max_tokens": 900,
+   "note": "screen candidate: the edit lane carries three of this window ten critical tasks, and whitespace inside an indented block is where edit_file exactness bites"
+  },
+  {
+   "id": "edit-second-occurrence-only",
+   "kind": "edit",
+   "prompt": "notes.txt holds the same line twice. Rewrite only the SECOND occurrence so the file reads note: alpha then note: beta.",
+   "files": {
+    "notes.txt": "note: alpha\nnote: alpha\n"
+   },
+   "verify": "[ \"$(sed -n 1p notes.txt)\" = \"note: alpha\" ] && [ \"$(sed -n 2p notes.txt)\" = \"note: beta\" ] && [ \"$(wc -l < notes.txt | tr -d ' ')\" = 2 ]",
+   "max_tokens": 900,
+   "note": "screen candidate: a non-unique anchor is the case edit_file was designed against; edit-replace-all (6/6) and edit-remove-line (5/6) bracket it from both sides"
+  },
+  {
+   "id": "exec-report-longest-line",
+   "kind": "exec",
+   "prompt": "Run a shell command over rows.txt and reply with just the length of its longest line, in characters.",
+   "files": {
+    "rows.txt": "short\nthe longest line here\nmid\n"
+   },
+   "verify": "[ -n \"${OCOREAI_EVAL_EXPECT:-}\" ] || exit 1\ncase \"$OCOREAI_EVAL_ANSWER\" in *\"$OCOREAI_EVAL_EXPECT\"*) exit 0 ;; *) exit 1 ;; esac",
+   "expect_cmd": "awk '{ if (length($0) > m) m = length($0) } END { print m }' rows.txt",
+   "max_tokens": 500,
+   "note": "screen candidate: a derived aggregate through the exec lane, where the family straddles (mid instances exist, exec-sum-column is 0/6)"
+  },
+  {
+   "id": "copy-token-and-count",
+   "kind": "multi-step",
+   "prompt": "Read cfg.txt, then create report.txt whose content is the token cfg.txt holds, a single space, and the number of lines cfg.txt has, in that order.",
+   "files": {
+    "cfg.txt": "omega-4\nsecond\nthird\n"
+   },
+   "verify": "[ \"$(tr -d '[:space:]' < report.txt)\" = \"omega-43\" ]",
+   "max_tokens": 700,
+   "note": "screen candidate: two facts on one hop (a disk-only token and a count); the derived-write instance is 0/6 and the single-transform copy is 6/6, so the middle of this family is unmeasured"
+  },
+  {
+   "id": "test-repair-helper-and-caller",
+   "kind": "code-fix-with-tests",
+   "prompt": "test_pack.py has two failing tests caused by two separate defects in pack.py (one in the helper, one in the caller). Fix pack.py until the suite passes. Do not modify test_pack.py.",
+   "files": {
+    "pack.py": "def wrap(s):\n    return \"[\" + s + \"]\"\n\n\ndef badge(s):\n    return wrap(s).lower()\n",
+    "test_pack.py": "import unittest\n\nfrom pack import badge, wrap\n\n\nclass PackTest(unittest.TestCase):\n    def test_wrap(self):\n        self.assertEqual(wrap(\"x\"), \"(x)\")\n\n    def test_badge(self):\n        self.assertEqual(badge(\"Y\"), \"(y)\")\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+   },
+   "verify": "grep -qF 'self.assertEqual(wrap(\"x\"), \"(x)\")' test_pack.py && grep -qF 'self.assertEqual(badge(\"Y\"), \"(y)\")' test_pack.py && python3 -m unittest -q test_pack 2>&1 | tail -3 | grep -q OK",
+   "max_tokens": 1200,
+   "note": "screen candidate: two defects across two functions, the shape that sits between the two-test and three-test instances"
+  },
+  {
+   "id": "fix-same-key-two-functions",
+   "kind": "code-fix",
+   "prompt": "Both functions in roster.py read a key that does not exist in the sample dict in the same file. Fix every wrong key so both functions work against that sample.",
+   "files": {
+    "roster.py": "STUDENT = {\"name\": \"ada\", \"grade\": \"A\"}\n\n\ndef name_of(item):\n    return item[\"label\"]\n\n\ndef grade_of(item):\n    return item[\"mark\"]\n"
+   },
+   "verify": "python3 -c \"import roster; assert roster.name_of(roster.STUDENT)=='ada' and roster.grade_of(roster.STUDENT)=='A'\"",
+   "max_tokens": 1000,
+   "note": "screen candidate: the critical key cluster this window, with the same mechanism required twice in one turn"
+  },
+  {
+   "id": "fix-join-called-wrong",
+   "kind": "code-fix",
+   "prompt": "join.py raises AttributeError: joined(words) must return the words joined by a single space, so joined([\"a\",\"b\"]) == \"a b\". Fix join.py.",
+   "files": {
+    "join.py": "def joined(words):\n    return words.join(\" \")\n"
+   },
+   "verify": "python3 -c \"import join; assert join.joined(['a','b'])=='a b', join.joined(['a','b'])\"",
+   "max_tokens": 900,
+   "note": "screen candidate: a receiver/argument swap, a class none of the current fix-* tasks cover (name, operator, index, key, boundary are all taken)"
+  }
+ ]
+}

@@ -1,0 +1,21 @@
+# Even under an allowed prefix, these paths are the goal posts: the frozen task set, the verifiers,
+# the scoreboard's floors and the doc ratchet. A proposal that moves any of them is measuring a
+# different game, so the loop refuses it. Editing this file is a human act; `_autoab_selftest.py`
+# fails when one of these entries disappears.
+scripts/eval/tasks-edit-repair.json
+scripts/eval/tasks.json
+scripts/eval/_eval.py
+scripts/eval/_verifier_selftest.py
+scripts/eval/_repeat_stats.py
+scripts/eval/_autoab_gate.py
+scripts/eval/_autoab_selftest.py
+scripts/eval/autoab.sh
+scripts/eval/autoloop-allow.txt
+scripts/eval/autoloop-protected.txt
+scripts/eval/run.sh
+scripts/eval/repeat.sh
+scripts/probes/_lib.sh
+scripts/agents-md-contract.sh
+scripts/audit.swift_patterns.sh
+scripts/eval/_conditions.py
+scripts/eval/_conditions_selftest.py
