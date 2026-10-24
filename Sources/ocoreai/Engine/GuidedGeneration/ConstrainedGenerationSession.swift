@@ -54,7 +54,7 @@ struct ConstrainedGenerationSession: ~Copyable {
     /// - Parameters:
     ///   - jsonSchema: A valid JSON schema string
     ///   - vocabulary: The full tokenizer vocabulary (one entry per token ID)
-    ///   - vocabType: The vocabulary encoding type (default: `.byteLevel`)
+    ///   - vocabType: The vocabulary encoding type (default: inferred from `vocabulary`)
     ///   - stopTokenIds: Token IDs to treat as stop tokens (e.g., EOS).
     ///     xgrammar allows these only at grammar-terminal states (valid JSON complete).
     ///     Pass `nil` to rely on xgrammar defaults.
@@ -62,7 +62,7 @@ struct ConstrainedGenerationSession: ~Copyable {
     init(
         jsonSchema: String,
         vocabulary: [String],
-        vocabType: VocabularyType = .byteLevel,
+        vocabType: VocabularyType? = nil,
         stopTokenIds: [Int32]? = nil
     ) throws {
         try Self.validateJSONSchema(jsonSchema)
@@ -124,7 +124,9 @@ struct ConstrainedGenerationSession: ~Copyable {
     ///   - jsonSchema: A valid JSON schema string
     ///   - tokenizer: A swift-transformers Tokenizer for vocabulary extraction
     ///   - vocabSize: Size of the tokenizer vocabulary
-    ///   - vocabType: The vocabulary encoding type (default: `.byteLevel`)
+    ///   - vocabType: The vocabulary encoding type (default: inferred from the tokenizer's
+    ///     vocabulary — a SentencePiece byte-fallback vocab is not byte-level, and a wrong
+    ///     type makes xgrammar reject valid JSON mid-generation)
     ///   - stopTokenIds: Token IDs to treat as stop tokens (e.g., EOS).
     ///     xgrammar allows these tokens only at grammar-terminal states (valid JSON complete),
     ///     blocking them mid-generation. Pass `nil` to rely on xgrammar defaults (not recommended).
@@ -133,7 +135,7 @@ struct ConstrainedGenerationSession: ~Copyable {
         jsonSchema: String,
         tokenizer: any Tokenizer,
         vocabSize: Int,
-        vocabType: VocabularyType = .byteLevel,
+        vocabType: VocabularyType? = nil,
         stopTokenIds: [Int32]? = nil
     ) throws {
         // Extract vocabulary from tokenizer
@@ -298,13 +300,13 @@ extension ConstrainedGenerationSession {
     /// - Parameters:
     ///   - schemaPath: Path to a JSON schema file
     ///   - vocabulary: The full tokenizer vocabulary
-    ///   - vocabType: The vocabulary encoding type
+    ///   - vocabType: The vocabulary encoding type (default: inferred from `vocabulary`)
     ///   - stopTokenIds: Token IDs to treat as stop tokens (e.g., EOS)
     /// - Throws: If the file can't be read or the schema is invalid
     init(
         schemaPath: String,
         vocabulary: [String],
-        vocabType: VocabularyType = .byteLevel,
+        vocabType: VocabularyType? = nil,
         stopTokenIds: [Int32]? = nil
     ) throws {
         let schema = try String(contentsOfFile: schemaPath, encoding: .utf8)
