@@ -52,6 +52,14 @@ public final class OcoreaiEngine {
     /// Backward-compatible alias — SwiftUI consumers still read `engineReady` for guard clauses
     var engineReady: Bool { lifecycleState.isHealthy }
 
+    /// Why the last startup failed. Retained for the GUI: the cause used to reach the log
+    /// only, so the dashboard could report that the engine was down but never why, and a
+    /// retry affordance had nothing to explain itself with.
+    private(set) var lastStartupFailure: String?
+
+    /// Consecutive startup failures still inside the breaker window.
+    var startupFailureCount: Int { circuitBreaker.failureCount }
+
     private var serverApp: (any ApplicationProtocol)?
     /// Single-instance flock — held for the engine lifetime, kernel-released
     /// on process death. See Core/SingleInstanceLock.swift.
@@ -193,6 +201,7 @@ public final class OcoreaiEngine {
     /// Call from any early-return path in `start()`.
     private func failStartup(_ message: String) {
         circuitBreaker.recordFailure()
+        lastStartupFailure = message
         if circuitBreaker.isCircuitOpen {
             lifecycleState = .error
             logger.critical(
@@ -203,6 +212,14 @@ public final class OcoreaiEngine {
         logger.critical(
             "Startup failed: \(message) — failures: \(circuitBreaker.failureCount)/\(circuitBreaker.maxFailures)"
         )
+    }
+
+    /// The GUI's recovery affordance: close the breaker and try once more. The breaker
+    /// keeps its own bound — a retry that fails re-opens it — so this cannot loop.
+    func retryStart() async {
+        circuitBreaker.resetCircuit()
+        lastStartupFailure = nil
+        await start()
     }
 
     /// Boot the engine core components (always runs) + optional HTTP server.
@@ -616,6 +633,7 @@ public final class OcoreaiEngine {
         // Engine core is now fully initialized. UI can start using direct accessors
         // even before (or without) the HTTP server starting.
         circuitBreaker.recordSuccess()
+        lastStartupFailure = nil
         lifecycleState = .ready
         logger.info("Engine core ready — Fast Path available for UI")
 

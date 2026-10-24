@@ -630,7 +630,10 @@ public struct BackendConfig: Sendable, Codable, Equatable {
 /// ``quantizedKVStart`` tokens, saving up to 4× memory on long-context sessions.
 /// Backed by mlx-swift-lm ``GenerateParameters.kvBits`` /\
 /// ``GenerateParameters.quantizedKVStart`` / ``GenerateParameters.kvScheme``
-/// (see MLXLMCommon/Evaluate.swift:54-78).
+/// (mlx-swift-lm MLXLMCommon/Evaluate.swift:166 `kvBits`, :172 `quantizedKVStart`, :197 `kvScheme`).
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:166 public var kvBits
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:172 public var quantizedKVStart
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/Evaluate.swift:197 public var kvScheme
 public struct KVCacheQuantizationConfig: Sendable, Codable, Equatable {
     /// Master toggle — enabled means KV cache quantization is active.
     public var enabled: Bool
@@ -642,7 +645,7 @@ public struct KVCacheQuantizationConfig: Sendable, Codable, Equatable {
     /// 0 means quantize immediately; higher values keep early context in FP16 for accuracy.
     public var quantizedKVStart: Int
     /// Optional compression scheme string (e.g. "affine4", "affine8").
-    /// When set, overrides kvBits — see upstream Evaluate.swift L75-78.
+    /// When set, overrides kvBits — see upstream Evaluate.swift:197.
     public var kvScheme: String?
 
     public static let `default` = KVCacheQuantizationConfig(

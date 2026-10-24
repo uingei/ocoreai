@@ -40,7 +40,7 @@ let package = Package(
         // in CHANGELOG.md; AGENTS.md keeps only the current pin and the transferable rules.
         // (docs/agent/upstream-audit-log.md was written once and deleted the same session:
         //  CHANGELOG.md already carries the round-by-round verdicts — one diary, one home.)
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "bb0d5b048"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", revision: "991266ad3"),
         // mlx-swift: pinned exact 0.32.3 (resolved revision 19601207e). This sentence is
         // gated against the pin below and against Package.resolved by
         // DependencyPinStatementTests — this sentence named 0.32.2 as the pin long after
@@ -63,23 +63,25 @@ let package = Package(
         // IPHONEOS_DEPLOYMENT_TARGET=27, and cd36d17 makes mlx-c custom-io return bytes
         // read/written.
         //
-        // Consumer-impact audit. Direct MLX surface = 10 sites / 5 APIs: 8 call+construct
+        // Consumer-impact audit. Direct MLX surface = 11 sites / 5 APIs: 9 call+construct
         // sites across 5 APIs plus 2 MLXArray-typed properties. It is not the two calls an
-        // earlier verdict here counted — asArray is called 4× (prompt-tail decode, std and
-        // MTP paths, and the embedding path), and MLXArray itself is constructed there.
+        // earlier verdict here counted — asArray is called 5× (prompt-tail decode, std and
+        // MTP paths, the embedding path and the degeneration probe), and MLXArray itself is
+        // constructed there.
         // Every cite below is anchored, so make anchor-check (which scans this file too)
         // goes red when an edit moves one, instead of a cite drifting 214 lines as this
         // one did; DependencyPinStatementTests re-greps Sources and fails when this audit
         // stops being the set the code actually reaches.
-// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3611 asArray(Int32.self) -->
-// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3658 Stream.gpu.synchronize -->
-// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3871 asArray(Int32.self) -->
-// anchor:. Sources/ocoreai/Engine/EngineInference.swift:5075 asArray(Int.self) -->
+// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3614 asArray(Int32.self) -->
+// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3661 Stream.gpu.synchronize -->
+// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3874 asArray(Int32.self) -->
+// anchor:. Sources/ocoreai/Engine/EngineInference.swift:5078 asArray(Int.self) -->
         // anchor:. Sources/ocoreai/Engine/EngineInferenceSupport.swift:153 MLXArray
 // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1270 MLXArray( -->
 // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1276 MLXArray.zeros -->
 // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1282 result.eval -->
 // anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1284 asArray(Float.self) -->
+// anchor:. Sources/ocoreai/Engine/DegenerateMarginProbe.swift:256 asArray(Int32.self) -->
         // All MLX *inference* flows through MLXLLM/MLXNN/MLXLMCommon; these 5 APIs are
         // where an MLX signature change lands in ocoreai's own code, so a bump audits
         // exactly these files. The 0.31→0.32 verdict holds for released versions (zero

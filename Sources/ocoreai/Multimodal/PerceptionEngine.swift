@@ -606,6 +606,8 @@ final class PerceptionEngine: Sendable {
 
     /// Produce a compact perception summary string suitable for system prompt
     /// augmentation. Format: "[System Perception] channel=value ..."
+    /// Empty string when no channel delivered a frame: an unpopulated header is not
+    /// context, and the `!isEmpty` guards on the injection side depend on it being empty.
     ///
     /// nonisolated instance method — underlying PerceptionBuffer is
     /// @unchecked Sendable (mutex-protected), so reads are safe off MainActor.
@@ -619,7 +621,7 @@ final class PerceptionEngine: Sendable {
         // self.buffer is @unchecked Sendable (mutex-protected), so direct
         // access from nonisolated context is safe.
         let snaps = self.buffer.snapshot(budget: PerceptionBudget.default)
-        var parts: [String] = ["[System Perception]"]
+        var entries: [(label: String, value: String)] = []
 
         for (_, frame) in snaps {
             let label: String
@@ -641,9 +643,20 @@ final class PerceptionEngine: Sendable {
                 continue
             }
 
-            parts.append("\(label)=\(value)")
+            entries.append((label, value))
         }
 
+        return Self.renderContext(entries)
+    }
+
+    /// The one rendering of channel entries into injected text: empty in, empty out. A header
+    /// with nothing behind it claims perception the engine never delivered, and while it was
+    /// unconditional it reached every prompt *and* every tool result on a perception-free box —
+    /// models then copied `[System Perception]` into the files they wrote.
+    nonisolated static func renderContext(_ entries: [(label: String, value: String)]) -> String {
+        guard !entries.isEmpty else { return "" }
+        var parts = ["[System Perception]"]
+        parts.append(contentsOf: entries.map { "\($0.label)=\($0.value)" })
         return parts.joined(separator: ", ")
     }
 
