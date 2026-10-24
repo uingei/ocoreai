@@ -65,8 +65,7 @@ enum FileTools {
         guard !text.contains("\0") else {
             throw ToolError.invalidParameter("read_file: not a text file: \(path)")
         }
-        var lines = text.components(separatedBy: "\n")
-        if lines.last == "" { lines.removeLast() }
+        let lines = Self.numberedContentLines(text)
         let total = lines.count
         guard total > 0 else { return "read_file: empty file: \(path)" }
         let start = max(1, offset ?? 1)
@@ -83,14 +82,9 @@ enum FileTools {
         let end = start + safeLimit - 1  // ≤ total, overflow-proof
         var out = ""
         for i in start ... end {
-            out += "\(i)|\(lines[i - 1].replacingOccurrences(of: "\r", with: ""))\n"
+            out += "\(i)|\(lines[i - 1])\n"
         }
-        if end < total {
-            out +=
-                "─── total_lines: \(total) (window \(start)–\(end); continue at offset=\(end + 1)) ───"
-        } else {
-            out += "─── total_lines: \(total) (full) ───"
-        }
+        out += Self.presentationFooter(total: total, start: start, end: end)
         return out
     }
 
@@ -159,12 +153,7 @@ enum FileTools {
             let line = lines[i - 1].replacingOccurrences(of: "\r", with: "")
             out += "\(i)|\(line)\n"
         }
-        if end < total {
-            out +=
-                "─── total_lines: \(total) (window \(start)–\(end); continue at offset=\(end + 1)) ───"
-        } else {
-            out += "─── total_lines: \(total) (full) ───"
-        }
+        out += Self.presentationFooter(total: total, start: start, end: end)
         return out
     }
 
@@ -173,7 +162,8 @@ enum FileTools {
     /// Write (create or replace) a file, then verify by read-back.
     static func write(path: String, content: String) throws -> String {
         let url = resolve(path)
-        let bytes = Data(content.utf8)
+        let echo = PresentationEcho.repair(content)
+        let bytes = Data(echo.text.utf8)
         guard bytes.count <= maxWriteBytes else {
             throw ToolError.invalidParameter(
                 "write_file: content too large (\(bytes.count) bytes, max \(maxWriteBytes))")
@@ -192,15 +182,14 @@ enum FileTools {
         guard let back = try? Data(contentsOf: url, options: .uncached), back == bytes else {
             throw ToolError.invalidParameter("write_file: read-back verification failed: \(path)")
         }
-        let lineCount = content.components(separatedBy: "\n").count
+        let lineCount = echo.text.components(separatedBy: "\n").count
         let verb = existingBytes.map { "replaced \($0) bytes" } ?? "created"
         // Durability was proven above; validity is a separate question and the model has to
         // be told which of the two it got (PostWriteSyntax: why "OK" is not enough).
-        let verdict = PostWriteSyntax.check(path: url.path, content: content)
-        let marker = verdict?.failed == true ? "OK-but-invalid" : "OK"
+        let verdict = Self.writeVerdict(path: url.path, fileContent: echo.text, echo: echo)
         return
-            "write_file: \(marker) — \(bytes.count) bytes, \(lineCount) lines, \(verb), read-back verified (\(path))"
-            + PostWriteSyntax.suffix(verdict)
+            "write_file: \(verdict.marker) — \(bytes.count) bytes, \(lineCount) lines, \(verb), read-back verified (\(path))"
+            + verdict.suffix
     }
 
     // MARK: - edit_file
@@ -272,7 +261,8 @@ enum FileTools {
             throw ToolError.invalidParameter(
                 "\(head)\(remedy), refusing partial edit\(hint)")
         }
-        let updated = original.replacingOccurrences(of: oldString, with: newString)
+        let echo = PresentationEcho.repair(newString)
+        let updated = original.replacingOccurrences(of: oldString, with: echo.text)
         let bytes = updated.data(using: .utf8) ?? Data()
         guard bytes.count <= maxWriteBytes else {
             throw ToolError.invalidParameter(
@@ -290,12 +280,140 @@ enum FileTools {
             throw ToolError.invalidParameter("edit_file: read-back verification failed: \(path)")
         }
         let delta = bytes.count - (original.data(using: .utf8)?.count ?? 0)
-        let verdict = PostWriteSyntax.check(path: url.path, content: updated)
-        let marker = verdict?.failed == true ? "OK-but-invalid" : "OK"
+        let verdict = Self.writeVerdict(path: url.path, fileContent: updated, echo: echo)
         return
-            "edit_file: \(marker) — \(count) replacement(s), \(delta >= 0 ? "+" : "")\(delta) bytes, "
+            "edit_file: \(verdict.marker) — \(count) replacement(s), \(delta >= 0 ? "+" : "")\(delta) bytes, "
             + "read-back verified (\(path))"
-            + PostWriteSyntax.suffix(verdict)
+            + verdict.suffix
+    }
+    // MARK: - edit_lines
+
+    /// The one line-numbering this toolset shows a caller: `N|text` over content lines, so a file
+    /// ending in a newline has no phantom last line. `read_file` renders this list and names its
+    /// length `total_lines:`, `edit_file` quotes it on a mismatch, and `edit_lines` accepts it as
+    /// input — one number, one meaning (AGENTS.md: one home per decision).
+    static func numberedContentLines(_ text: String) -> [String] {
+        var lines = text.components(separatedBy: "\n")
+        if lines.last == "" { lines.removeLast() }
+        return lines.map { $0.replacingOccurrences(of: "\r", with: "") }
+    }
+
+    /// The footer `read_file` prints under a numbered window, said in one place because both
+    /// readers emit it. Nothing persuasive goes in here: measured on the scoreboard, a sentence
+    /// telling the caller not to copy the numbering was itself copied into the produced file, so
+    /// the disclaimer belongs on the write side, where a violation is what summons it.
+    static func presentationFooter(total: Int, start: Int, end: Int) -> String {
+        let scope =
+            end < total
+            ? "window \(start)–\(end); continue at offset=\(end + 1)" : "full"
+        return "─── total_lines: \(total) (\(scope)) ───"
+    }
+
+    /// Durability was proven by the caller's read-back; this is the other half of the report.
+    /// Syntax is judged over the whole file, presentation-echo only over the text this call
+    /// supplied — otherwise a file that already holds a numbered dump would condemn every
+    /// unrelated edit made in it.
+    private static func writeVerdict(
+        path: String,
+        fileContent: String,
+        echo: PresentationEcho.Repair
+    ) -> (marker: String, suffix: String) {
+        let syntax = PostWriteSyntax.check(path: path, content: fileContent)
+        let marker: String
+        if syntax?.failed == true || echo.isUnrepaired {
+            marker = "OK-but-invalid"
+        } else {
+            marker = echo.didRepair ? "OK-but-repaired" : "OK"
+        }
+        return (marker, PostWriteSyntax.suffix(syntax) + PresentationEcho.suffix(echo))
+    }
+
+    /// Replace, insert, or delete a numbered line range, verified by read-back.
+    ///
+    /// `edit_file` asks the caller to reproduce bytes; the measured failure mode on the repair tasks
+    /// is `found 0` — the model knows which lines to change and not their exact indentation. Every
+    /// surface here already prints the file with `N|` numbers, so this seam takes the numbers back
+    /// instead of the bytes. A range means exactly what `read_file` printed.
+    /// - Parameters:
+    ///   - path: File to edit.
+    ///   - startLine: First line to replace, 1-based; `total + 1` appends at end of file.
+    ///   - endLine: Last line to replace, inclusive; `endLine == startLine - 1` inserts without
+    ///     deleting, so append and insert are the same mode — no third one exists.
+    ///   - newText: Replacement text; empty deletes the range.
+    /// - Returns: Verification summary (range, line counts, byte delta, read-back state).
+    static func editLines(path: String, startLine: Int, endLine: Int, newText: String) throws
+        -> String
+    {
+        let url = resolve(path)
+        guard let original = try? String(contentsOf: url, encoding: .utf8) else {
+            throw ToolError.invalidParameter(
+                "edit_lines: cannot read (missing or non-UTF8): \(path)\(Self.pathContext(url))")
+        }
+        let lines = Self.numberedContentLines(original)
+        let total = lines.count
+        guard total > 0 else {
+            throw ToolError.invalidParameter("edit_lines: \(path) is empty — write_file it instead")
+        }
+        guard startLine >= 1, startLine <= total + 1 else {
+            throw ToolError.invalidParameter(
+                "edit_lines: start_line \(startLine) is outside 1...\(total + 1) — \(path) has "
+                    + "\(total) lines (\(total + 1) appends at end of file)")
+        }
+        guard endLine >= startLine - 1, endLine <= total else {
+            throw ToolError.invalidParameter(
+                "edit_lines: end_line \(endLine) is outside \(startLine - 1)...\(total) — "
+                    + "\(startLine - 1) inserts before line \(startLine) without deleting")
+        }
+
+        let echo = PresentationEcho.repair(newText)
+        var insertion: [String] =
+            echo.text.isEmpty ? [] : echo.text.components(separatedBy: "\n")
+        if insertion.last == "" { insertion.removeLast() }
+        let cutEnd = min(endLine, total)
+        let replacedCount = max(0, cutEnd - (startLine - 1))
+        // Split with explicit types: the single concat expression timed out the type-checker.
+        var updatedLines: [String] = []
+        updatedLines.append(contentsOf: lines[0 ..< (startLine - 1)])
+        updatedLines.append(contentsOf: insertion)
+        updatedLines.append(contentsOf: lines[cutEnd ..< total])
+        var updated = updatedLines.joined(separator: "\n")
+        if original.hasSuffix("\n"), !updated.isEmpty { updated += "\n" }
+        guard updated != original else {
+            throw ToolError.invalidParameter(
+                "edit_lines: lines \(startLine)-\(endLine) already read as newText (no-op)")
+        }
+
+        let bytes = updated.data(using: .utf8) ?? Data()
+        guard bytes.count <= maxWriteBytes else {
+            throw ToolError.invalidParameter(
+                "edit_lines: result too large (\(bytes.count) bytes, max \(maxWriteBytes))")
+        }
+        do {
+            try bytes.write(to: url, options: .atomic)
+        } catch {
+            throw ToolError.invalidParameter(
+                "edit_lines: write failed: \(error.localizedDescription)")
+        }
+        guard let readBack = try? Data(contentsOf: url, options: .uncached), readBack == bytes
+        else {
+            throw ToolError.invalidParameter("edit_lines: read-back verification failed: \(path)")
+        }
+        let delta = bytes.count - (original.data(using: .utf8)?.count ?? 0)
+        let verdict = Self.writeVerdict(path: url.path, fileContent: updated, echo: echo)
+        let verb: String
+        if replacedCount == 0 {
+            verb = "inserted \(insertion.count) line(s) before line \(startLine) of \(total)"
+        } else if insertion.isEmpty {
+            verb = "deleted \(replacedCount) line(s) \(startLine)-\(endLine) of \(total)"
+        } else {
+            verb =
+                "replaced lines \(startLine)-\(endLine) (\(replacedCount)) with \(insertion.count), "
+                + "of \(total) lines"
+        }
+        return
+            "edit_lines: \(verdict.marker) — \(verb), \(delta >= 0 ? "+" : "")\(delta) bytes, "
+            + "read-back verified (\(path))"
+            + verdict.suffix
     }
 
     // MARK: - search_files
@@ -411,7 +529,7 @@ enum FileTools {
         func normalized(_ slice: some StringProtocol) -> String {
             slice.split(whereSeparator: { $0 == " " || $0 == "\t" }).joined(separator: " ")
         }
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        let lines = Self.numberedContentLines(text)
         guard !lines.isEmpty else { return "" }
         let target = oldString.split(separator: "\n").first.map(normalized) ?? ""
         var bestIndex = 0

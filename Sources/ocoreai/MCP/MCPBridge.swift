@@ -556,7 +556,8 @@ actor MCPBridge {
     /// Text blocks are joined verbatim. Media blocks (image/audio) are valid
     /// MCP `tools/call` results but this tool-result channel is text-only
     /// (`ChatSession.toolDispatch` returns `String`,
-    /// `MLXLMCommon/ChatSession.swift:318` — upstream API surface, not ocoreai
+    /// `MLXLMCommon/ChatSession.swift:377` — upstream API surface, not ocoreai
+    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:377 public var toolDispatch
     /// choice), so they render as an explicit `[<type>]` placeholder: the agent
     /// learns content existed and of what kind instead of the call failing or
     /// the content vanishing (old local/handler paths both did).

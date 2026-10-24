@@ -15,7 +15,7 @@
 # Run 1 (10-16) found the answer was yes for the default model — and that the conversation
 # died immediately after. A `data:` clip was written to a temp file, deleted when the
 # request ended, and left inside the transcript that upstream re-feeds on every later turn
-# (ChatSession.swift:1131), so turn two — even a plain text follow-up — answered
+# (ChatSession.swift:1166), so turn two — even a plain text follow-up — answered
 # `500 {"message":"Generation failed: Inference failed: The operation could not be
 # completed"}`, permanently. Same bytes as a `file://` URL: fine, and recalled. The fix
 # moved the bytes to MediaSpool, whose lifetime is the session's. Hence three gates here:

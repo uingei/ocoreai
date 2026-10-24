@@ -11,6 +11,8 @@
 /// - write_stdin interactive: `cat` echoes stdin → round-trip
 /// - exec_poll: pure poll returns the same report shape, no stdin touch
 /// - kill: SIGTERM → exit code 143, terminated note
+/// - kill/poll after a later spawn: a finished session stays addressable
+///   (retention = idle TTL + ceiling, not "drop all finished at spawn")
 /// - clampYieldMs: exact bounds 250 / 30_000 (codex `mod.rs` constants)
 /// - truncate: boundary at maxReportChars (parity with ExecTools)
 /// - destructive gate: exec_shell `.ask` w/o broker → denied, handler
@@ -54,6 +56,41 @@ struct ExecSessionsHelperTests {
         #expect(ExecSessionManager.clampMinYieldMs == 250)
         #expect(ExecSessionManager.clampMaxYieldMs == 30_000)
         #expect(ExecSessionManager.defaultYieldMs == 10_000)
+    }
+
+    @Test("retention budget — live 16, finished 32, idle 1h")
+    func retentionConstants() {
+        #expect(ExecSessionManager.maxLive == 16)
+        #expect(ExecSessionManager.maxFinished == 32)
+        #expect(ExecSessionManager.finishedIdleSeconds == 3_600)
+    }
+
+    @Test(
+        "finishedToCollect — idle past the TTL first, then the oldest past the ceiling",
+        arguments: [
+            (ceiling: 3, expected: [Int]()),  // at the ceiling: nothing goes
+            (ceiling: 2, expected: [7]),  // one over: the oldest fresh goes
+            (ceiling: 1, expected: [7, 8]),
+            (ceiling: 0, expected: [7, 8, 9]),  // ceiling 0 collects every finished entry
+        ])
+    func finishedRetentionFreshOnly(ceiling: Int, expected: [Int]) {
+        let fresh = [(id: 7, ageSeconds: 5.0), (id: 8, ageSeconds: 3.0), (id: 9, ageSeconds: 1.0)]
+        #expect(
+            ExecSessionManager.finishedToCollect(fresh, idleSeconds: 60, ceiling: ceiling)
+                == expected)
+    }
+
+    @Test("finishedToCollect — aged entries leave regardless of the ceiling, survivors exact")
+    func finishedRetentionMixed() {
+        let agedOnly = [(id: 1, ageSeconds: 3_600.0), (id: 2, ageSeconds: 61.0)]
+        #expect(
+            ExecSessionManager.finishedToCollect(agedOnly, idleSeconds: 60, ceiling: 2) == [1, 2])
+        let mixed = [(id: 1, ageSeconds: 120.0), (id: 2, ageSeconds: 10.0), (id: 3, ageSeconds: 2.0)]
+        #expect(
+            ExecSessionManager.finishedToCollect(mixed, idleSeconds: 60, ceiling: 1) == [1, 2])
+        #expect(
+            ExecSessionManager.finishedToCollect(mixed, idleSeconds: 60, ceiling: 2) == [1])
+        #expect(ExecSessionManager.finishedToCollect([], idleSeconds: 60, ceiling: 2) == [])
     }
 
     @Test("clampEmptyYieldMs — codex empty-poll regime 5_000–300_000 (process_manager.rs:828)")
@@ -280,6 +317,30 @@ struct ExecSessionsKillTests {
         let note = try await m.kill(sessionId: spawn.sessionId)
         #expect(note.contains("already finished"))
         #expect(note.contains("exit code: 0"))
+    }
+
+    /// The regression: `makeRoom()` used to drop every finished session at the head of every
+    /// spawn, so the idempotent answer documented by `kill`/`poll`/`write_stdin` was unreachable
+    /// as soon as anything else ran — a contract that only holds while nothing else happens is
+    /// not a contract. Retention (idle TTL + ceiling) bounds finished entries instead.
+    @Test("a later spawn does not erase a finished session — every consumer still reaches it")
+    func finishedSessionSurvivesNextSpawn() async throws {
+        let m = ExecSessionManager.shared
+        let first = try await m.spawn(command: "echo retained-one", yieldMs: 5_000)
+        #expect(first.completed)
+        let second = try await m.spawn(command: "echo retained-two", yieldMs: 5_000)
+        #expect(second.completed)
+
+        let note = try await m.kill(sessionId: first.sessionId)
+        #expect(note.contains("already finished"))
+        #expect(note.contains("exit code: 0"))
+        let polled = try await m.poll(sessionId: first.sessionId, yieldMs: 500)
+        #expect(polled.completed)
+        #expect(polled.report.contains("retained-one"))
+        let wrote = try await m.writeStdin(sessionId: first.sessionId)
+        #expect(wrote.completed)
+        let addressable = await m.contains(first.sessionId)
+        #expect(addressable)
     }
 
     @Test("kill unknown session → ToolError")

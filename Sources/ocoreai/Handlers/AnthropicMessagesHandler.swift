@@ -287,7 +287,7 @@ func anthropicMessagesHandler(
     /// == what the client sent.
     let grammarSchema: String? =
         useGuidedGeneration
-        ? buildGrammarSchema(from: declaredTools, responseFormat: nil)
+        ? buildGrammarSchema(from: declaredTools, responseFormat: nil, toolChoice: toolChoice)
         : nil
     if let toolChoice {
         logger.info(
@@ -500,6 +500,8 @@ private func nonStreamAnthropicResponse(
     /// before it is translated — the resolution must not be a per-face folk variant.
     var openAIFinishReason = "stop"
     var detectedToolCalls: [ToolCall]? = nil
+    /// Measured outcome of every tool dispatched this turn, published on the response.
+    var toolResults: [ToolResultMeta] = []
     /// The engine's own measurement of the prompt it prefilled, when it reports one.
     /// Preferred over the handler's tokenize-ahead estimate for `usage.input_tokens`,
     /// because that is what `ChatHandler` reports as `prompt_tokens` — two faces of one
@@ -549,8 +551,10 @@ private func nonStreamAnthropicResponse(
                 // emit several) — dropping them here is what made the Anthropic face
                 // answer `end_turn` to a request whose model had called.
                 detectedToolCalls = (detectedToolCalls ?? []) + [tc]
-            case .toolResult:
-                // Tool finished — informational for this handler, model context already has it
+            case .toolResult(let meta):
+                // The result text goes back to the model inside the loop; the verdict is what
+                // the client cannot otherwise see, so it rides the response body.
+                toolResults.append(meta)
                 break
             case .reasoning(let r):
                 try Task.checkCancellation()
@@ -762,9 +766,11 @@ private func nonStreamAnthropicResponse(
         )
     }
 
-    // Build Anthropic response — the measured prompt count where the engine has one.
-    let usage = AnthropicUsage(
-        inputTokens: observedInputTokens,
+    // Build Anthropic response — the measured prompt count where the engine has one,
+    // split the way Anthropic accounts for it: uncached input plus cache read.
+    let usage = AnthropicUsage.split(
+        totalPromptTokens: observedInputTokens,
+        cacheRead: observedCachedPromptTokens,
         outputTokens: totalOutputTokens)
     /// The terminal word, resolved in OpenAI's vocabulary by the shared rule and then
     /// translated: `tool_use` only when a block actually reached this client **and** the
@@ -781,6 +787,8 @@ private func nonStreamAnthropicResponse(
         model: modelId,
         stopReason: stopReason.isEmpty ? nil : stopReason,
         usage: usage,
+        ocoreai: toolResults.isEmpty
+            ? nil : OcoreaiTurn(toolResults: toolResults.map(OcoreaiToolRecord.from(_:))),
     )
 
     logger.info("Anthropic non-stream request completed")
@@ -879,6 +887,7 @@ private func streamAnthropicResponse(
             /// as it is on the OpenAI face.
             var observedCachedPromptTokens: Int? = nil
             var deliveredToolCalls: [ToolCall] = []
+            var streamToolResults: [ToolResultMeta] = []
             var emitter = AnthropicStreamEmitter()
             /// `tool_choice.disable_parallel_tool_use:true` → the client takes one call,
             /// not a list. Checked against what has already been emitted, so it holds
@@ -895,7 +904,10 @@ private func streamAnthropicResponse(
                 content: [],
                 model: modelId,
                 stopReason: nil,
-                usage: AnthropicUsage(inputTokens: inputTokenCount, outputTokens: 0),
+                // Nothing has been prefilled at this event, so there is no cache measurement
+                // to report yet — the terminal event carries the engine's number.
+                usage: AnthropicUsage.split(
+                    totalPromptTokens: inputTokenCount, cacheRead: nil, outputTokens: 0),
             )
             let messageStart = AnthropicStreamEvent.messageStart(message: startResponse)
             writeSSEEvent(continuation, event: messageStart)
@@ -1013,8 +1025,8 @@ private func streamAnthropicResponse(
                         ) {
                             writeSSEEvent(continuation, event: event)
                         }
-                    case .toolResult:
-                        // Tool finished — informational, model context already carried the result
+                    case .toolResult(let meta):
+                        streamToolResults.append(meta)
                         break
                     case .reasoning(let r):
                         // Reasoning gets its own `thinking` block, streamed live as
@@ -1140,6 +1152,9 @@ private func streamAnthropicResponse(
             let deltaEvent = AnthropicStreamEvent.messageDelta(
                 stopReason: streamStopReason,
                 outputTokens: totalOutputTokens,
+                ocoreai: streamToolResults.isEmpty
+                    ? nil
+                    : OcoreaiTurn(toolResults: streamToolResults.map(OcoreaiToolRecord.from(_:))),
             )
             writeSSEEvent(continuation, event: deltaEvent)
 
@@ -1171,7 +1186,8 @@ private func streamAnthropicResponse(
             }
 
             let finalEvent = AnthropicStreamEvent.messageStop(
-                inputTokens: observedInputTokens,
+                totalPromptTokens: observedInputTokens,
+                cacheRead: observedCachedPromptTokens,
                 outputTokens: totalOutputTokens,
             )
             writeSSEEvent(continuation, event: finalEvent)

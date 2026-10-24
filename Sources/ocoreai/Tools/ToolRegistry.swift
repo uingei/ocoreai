@@ -539,7 +539,8 @@ actor ToolRegistry {
         let inputHash = String(format: "%llX", arguments.hashValue)
         try checkLoop(
             entry: entry, inputHash: inputHash,
-            scope: conversationKey ?? Self.loopScopeNoConversation)
+            scope: conversationKey ?? Self.loopScopeNoConversation,
+            arguments: arguments)
 
         // 3. Destructive tool serialization check
         if destructiveBlacklist.contains(name) {
@@ -678,7 +679,8 @@ actor ToolRegistry {
     private func checkLoop(
         entry: ToolEntry,
         inputHash: String,
-        scope: String
+        scope: String,
+        arguments: String
     ) throws {
         // Clean old entries (> 60 seconds)
         let now = ContinuousClock.now
@@ -690,8 +692,52 @@ actor ToolRegistry {
         })
 
         guard recentCount < maxHistoryDepth else {
-            throw ToolError.loopDetected(entry.name)
+            // A bare `loopDetected(read_file)` is a wall: it names neither what was repeated
+            // nor what to do instead, and the model answers it by repeating again (measured:
+            // 68 identical refusals in one 21-task scoreboard run). Same discipline as
+            // `nearestLinesHint` for `edit_file` — the refusal stays strict, the message
+            // becomes correctable.
+            let remedy: String
+            if entry.name == "read_file" || entry.name == "search_files" {
+                remedy =
+                    "what it returned is already in this conversation — stop re-reading and act:"
+                        + " apply the change now with edit_lines (the `N|` numbers you read) or"
+                        + " edit_file, or answer the user with what you have"
+            } else {
+                remedy =
+                    "do not send this call again unchanged — vary the arguments, use another tool,"
+                        + " or answer the user with what you have"
+            }
+            throw ToolError.loopDetected(
+                "\(entry.name) with \(Self.loopSignature(arguments)) called \(recentCount + 1) "
+                    + "times in 60 s — \(remedy)")
         }
+    }
+
+    /// A short fingerprint of the repeated call. Only addressing keys are echoed: an argument
+    /// may hold file content, and a refusal travels back into model context as a wire surface,
+    /// so a tool result is not where a body gets quoted (see `SecretRedactor`'s reasoning).
+    static func loopSignature(_ arguments: String) -> String {
+        guard let data = arguments.data(using: .utf8),
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return "the same arguments"
+        }
+        let keys = [
+            "path", "pattern", "query", "command", "url", "offset", "start_line", "end_line",
+        ]
+        var parts: [String] = []
+        for key in keys {
+            guard let value = obj[key] else { continue }
+            if let text = value as? String {
+                parts.append("\(key)=\(text.prefix(80))")
+            } else if let number = value as? Int {
+                parts.append("\(key)=\(number)")
+            } else if let flag = value as? Bool {
+                parts.append("\(key)=\(flag)")
+            }
+        }
+        return parts.isEmpty ? "the same arguments" : parts.joined(separator: ", ")
     }
 
     /// Record a successful execution for loop detection

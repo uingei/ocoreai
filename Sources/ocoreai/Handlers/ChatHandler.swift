@@ -728,7 +728,8 @@ func chatCompletionsHandler(
         /// `tools[]` as the client sent it.
         let grammarSchema =
             useGuidedGeneration
-            ? buildGrammarSchema(from: effectiveTools, responseFormat: request.responseFormat)
+            ? buildGrammarSchema(
+                from: effectiveTools, responseFormat: request.responseFormat, toolChoice: request.toolChoice)
             : nil
 
         /// Build inference options with same fallback chain.
@@ -975,6 +976,9 @@ private func nonStreamWithToolCalling(
     /// channel — reasoning must not leak into `content`.
     var accumulatedReasoning = ""
     var detectedToolCalls: [ToolCall]? = nil
+    /// Measured outcome of every tool this turn dispatched, published on the wire at the end
+    /// of the turn (the model's echo is not evidence of a dispatch — invariant 2).
+    var toolResults: [ToolResultMeta] = []
     /// Reasoning tokens from upstream `.done(reasoningTokenCount:)` (baseline:
     /// mlx-swift-lm + coreai-models completion info) → OpenAI
     /// `completion_tokens_details.reasoning_tokens`.
@@ -1029,9 +1033,10 @@ private func nonStreamWithToolCalling(
                 // The old `detectedToolCalls = [tc]` silently dropped every call but the
                 // last, corrupting multi-tool turns into a single-call response.
                 detectedToolCalls = (detectedToolCalls ?? []) + [tc]
-            case .toolResult:
-                // Tool finished — the real result already flows back to the model
-                // through toolDispatch; the wire API needs no extra SSE field.
+            case .toolResult(let meta):
+                // The result text reaches the model through toolDispatch; what the *client*
+                // never got was the verdict, so it travels here instead of stopping at the GUI.
+                toolResults.append(meta)
                 break
             case .reasoning(let r):
                 // Reasoning from ReasoningEventEmitter — SEPARATE channel from
@@ -1186,7 +1191,7 @@ private func nonStreamWithToolCalling(
     /// at `max_tokens` (measured 10-19: `completion_tokens == max_tokens == 18`, one call
     /// delivered, `finish_reason:"tool_calls"`), which leaves a client executing a call
     /// list it cannot know was chopped. `length` stays visible — vllm
-    /// `resolve_finish_reason` (`tool_calls_utils.py:47-65`) and sglang
+    /// `resolve_finish_reason` (`tool_calls_utils.py:41-59`) and sglang
     /// (`serving_chat.py:2149-2152`, "had tool calls **and stopped naturally**").
     let finishReasonFinal = ToolCallWire.resolveFinishReason(
         engineReason: finishReason, toolCallsMade: toolCalls != nil)
@@ -1305,6 +1310,8 @@ private func nonStreamWithToolCalling(
             reasoningTokens: finalReasoningTokens
         ),
         audioInput: audioInput,
+        ocoreai: toolResults.isEmpty
+            ? nil : OcoreaiTurn(toolResults: toolResults.map(OcoreaiToolRecord.from(_:))),
     )
 
     /// Persist conversation to SQLite (fire-and-forget, non-blocking).
@@ -1476,6 +1483,9 @@ private func streamWithToolCalling(
         /// `tool_calls` actually emitted on this stream — the delivery fact recorded
         /// once at stream end for `tool_call_delivery` (``ToolCallDeliveryLedger``).
         var deliveredToolCalls: [ToolCall] = []
+        /// Measured tool outcomes carried on the terminal chunk (same record the non-stream
+        /// face publishes; the model's echo is not evidence that a dispatch happened).
+        var streamToolResults: [ToolResultMeta] = []
         /// Reasoning tokens from upstream `.done(reasoningTokenCount:)` →
         /// `completion_tokens_details.reasoning_tokens` in the usage chunk.
         var finalReasoningTokens: Int? = nil
@@ -1695,10 +1705,11 @@ private func streamWithToolCalling(
                     )
                     _ = yieldSSE(tcChunk, to: continuation)
 
-                /// .toolResult — tool finished. The wire/SSE surface already has the
-                /// `function_call_output` equivalent for wire consumers via the tool
-                /// result message that follows in the loop; no extra SSE field here.
-                case .toolResult:
+                /// .toolResult — tool finished. The loop hands the result text to the model
+                /// internally and the spec carries no `function_call_output` for a server-side
+                /// loop, so this event is the only place the client can learn a call ran.
+                case .toolResult(let meta):
+                    streamToolResults.append(meta)
                     break
 
                 /// .error — send a raw diagnostic marker and terminate.
@@ -1928,6 +1939,9 @@ private func streamWithToolCalling(
                         toolCallsMade: !deliveredToolCalls.isEmpty),
                 )
             ],
+            ocoreai: streamToolResults.isEmpty
+                ? nil
+                : OcoreaiTurn(toolResults: streamToolResults.map(OcoreaiToolRecord.from(_:))),
         )
         _ = yieldSSE(stopChunk, to: continuation)
         /// If stream_options.include_usage is true, emit usage in final SSE chunk.
@@ -2181,7 +2195,8 @@ extension Message {
 /// Build JSON schema for GuidedGeneration grammar constraint from request tools/schema.
 /// Returns a JSON string that GrammarConstraint can parse.
 private func buildGrammarSchema(from request: ChatCompletionRequest) -> String? {
-    buildGrammarSchema(from: request.tools, responseFormat: request.responseFormat)
+    buildGrammarSchema(
+        from: request.tools, responseFormat: request.responseFormat, toolChoice: request.toolChoice)
 }
 
 // MARK: - Per-Model Settings (pure decision helpers — testable without a live pool)

@@ -169,6 +169,11 @@ actor ExecSessionManager {
     static let emptyYieldMaxMs = 300_000  // codex DEFAULT_MAX_BACKGROUND_TERMINAL_TIMEOUT_MS (mod.rs:78)
     static let emptyYieldDefaultMs = 5_000  // empty poll default (codex `input.is_empty()` regime)
     static let maxLive = 16  // codex MAX_UNIFIED_EXEC_PROCESSES=64 (documented deviation)
+    /// Finished sessions kept addressable, and how long after they stopped. Their output lives in
+    /// memory (`finishSession` has already removed the capture dir), so this bound is bytes:
+    /// `maxFinished` × 2 × `maxDiskOutputBytes` worst case.
+    static let maxFinished = 32
+    static let finishedIdleSeconds: TimeInterval = 3_600  // same idle-TTL family as `MediaSpool`
     static let maxDiskOutputBytes = 262_144  // 256KB per-stream cap (mirrors ExecTools)
     static let maxReportChars = 12_000  // head (6k) + tail (6k) (mirrors ExecTools)
     static let killGraceSeconds: TimeInterval = 2  // SIGTERM → SIGKILL window (mirrors ExecTools)
@@ -211,6 +216,21 @@ actor ExecSessionManager {
     /// responsive window so interactive stdin stays snappy).
     static func clampEmptyYieldMs(_ ms: Int) -> Int {
         min(max(ms, emptyYieldMinMs), emptyYieldMaxMs)
+    }
+
+    /// Which finished sessions retention collects: everything idle past `idleSeconds`, then the
+    /// oldest ones past `ceiling`. Pure — pinned by exact values, no spawn, no actor hop.
+    static func finishedToCollect(
+        _ finished: [(id: Int, ageSeconds: TimeInterval)],
+        idleSeconds: TimeInterval = finishedIdleSeconds,
+        ceiling: Int = maxFinished
+    ) -> [Int] {
+        let aged = finished.filter { $0.ageSeconds >= idleSeconds }.map { $0.id }
+        let survivors = finished.count - aged.count
+        guard survivors > ceiling else { return aged }
+        let oldestFresh = finished.filter { $0.ageSeconds < idleSeconds }
+            .sorted { $0.ageSeconds > $1.ageSeconds }
+        return aged + oldestFresh.prefix(survivors - ceiling).map { $0.id }
     }
 
     /// Head+tail truncation — identical marker to `ExecTools.truncate`.
@@ -502,16 +522,26 @@ actor ExecSessionManager {
 
     // MARK: - Capacity / eviction
 
-    /// Codex keeps ≤ `MAX_UNIFIED_EXEC_PROCESSES` live. We first drop
-    /// finished sessions, then terminate the OLDEST live one if the map is
-    /// still at the cap (the model cannot self-extend the cap).
+    /// Codex keeps ≤ `MAX_UNIFIED_EXEC_PROCESSES` live; we keep ≤ `maxLive`. Pressure is what
+    /// collects a session, never the mere arrival of a new one: `kill`/`poll` document an
+    /// idempotent answer for a session that already finished, and the previous "drop every
+    /// finished session" made that answer unreachable — the next spawn deleted the id its caller
+    /// was about to name. Finished entries are bounded by retention instead (`finishedToCollect`:
+    /// idle TTL + ceiling, oldest first), the same shape `MediaSpool` uses for spooled bytes.
     private func makeRoom() async {
-        sessions = sessions.filter { !$0.value.completed }
-        guard sessions.values.count >= Self.maxLive else { return }
-        let live = sessions.values.map { ($0.createdAt, $0) }.sorted { $0.0 < $1.0 }
-        guard let oldest = live.first else { return }
-        let oldestProc = oldest.1.proc
-        let oldestDir = oldest.1.dir
+        let now = Date()
+        let finished = sessions.compactMap { id, session in
+            session.completed ? (id: id, ageSeconds: now.timeIntervalSince(session.createdAt)) : nil
+        }
+        for id in Self.finishedToCollect(finished) {
+            sessions[id] = nil
+        }
+
+        let live = sessions.values.filter { !$0.completed }
+        guard live.count >= Self.maxLive else { return }
+        guard let oldest = live.min(by: { $0.createdAt < $1.createdAt }) else { return }
+        let oldestProc = oldest.proc
+        let oldestDir = oldest.dir
         do {
             try await runOnBackground { () -> Void in
                 oldestProc.terminate()

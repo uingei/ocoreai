@@ -289,6 +289,63 @@ func bootstrapBuiltInTools(
         }
     )
 
+    // ── edit_lines ──────────────────────────────────────────────────────────
+    struct EditLinesArgs: Codable {
+        let path: String
+        let startLine: Int
+        let endLine: Int
+        let newText: String
+
+        // snake_case on the wire: it is the spelling line-range editors use in the agents a model
+        // has already seen, for the same reason `replace_all` above is snake_case (AGENTS.md: a
+        // knob the wire accepts must reach the engine).
+        enum CodingKeys: String, CodingKey {
+            case path
+            case startLine = "start_line"
+            case endLine = "end_line"
+            case newText = "new_text"
+        }
+    }
+
+    try? await registry.register(
+        ToolEntry.typed(
+            name: "edit_lines",
+            toolset: "files",
+            argsType: EditLinesArgs.self,
+            description:
+                "Replace, insert, or delete a numbered line range in one file, verified by "
+                + "read-back. Line numbers are the `N|` numbers read_file prints (1-based). To "
+                + "rewrite lines 7-9 pass start_line 7, end_line 9 and new_text holding the "
+                + "replacement lines; to insert without deleting pass end_line = start_line - 1; "
+                + "empty new_text deletes the range. Prefer this over edit_file straight after "
+                + "read_file: cite the lines you saw instead of reproducing their bytes.",
+            schema: ToolSchema(
+                parameters: [
+                    "path": ToolParameter(type: .string, description: "File path to edit"),
+                    "start_line": ToolParameter(
+                        type: .integer,
+                        description:
+                            "First line to replace, 1-based, exactly as read_file printed it; "
+                                + "total_lines + 1 appends at end of file"),
+                    "end_line": ToolParameter(
+                        type: .integer,
+                        description:
+                            "Last line to replace, inclusive; start_line - 1 inserts without "
+                                + "deleting"),
+                    "new_text": ToolParameter(
+                        type: .string, description: "Replacement lines (empty = delete range)"),
+                ], required: ["path", "start_line", "end_line", "new_text"]),
+            isDestructive: true
+        ) { args in
+            try FileTools.editLines(
+                path: args.path,
+                startLine: args.startLine,
+                endLine: args.endLine,
+                newText: args.newText
+            )
+        }
+    )
+
     // ── search_files ────────────────────────────────────────────────────────
     struct SearchFilesArgs: Codable {
         let path: String
