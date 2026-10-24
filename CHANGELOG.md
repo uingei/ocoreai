@@ -4,6 +4,16 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-25
 
+**10-25(5) 任务成功率第一次有了"本机本任务集"的噪声地板：21/22/±5.8 题——顺手得到 12 道稳定失败题的清单**(P1 / 仪器的账) — 上一份地板是 README 里 10-22 的 `16 / 19 / 20`（24 题集）。任务集现在是 36 题（`tasks.json` + 15a8ccf1ea94），旧数字不再适用，于是跑 `OCOREAI_EVAL_REPEATS=3 bash scripts/eval/repeat.sh`（`gemma-4-e2b-it-4bit`、`temperature=0.0`、approval=auto、concurrency=1、tools=6）。
+
+- **测到**：三轮分数 **21、(排除)、22**（36 题），**mean 21.50/36 (59.7%)**，SD **0.71**，单轮 95% CI 半宽 **±5.8 题（16.0 pp）**；**未配对 A/B 必须动 ≥9 题**才在 95% 下说得出口，配对最小结果是 **6 题单向翻转**（McNemar，本轮 5 个 discordant 对）。
+- **一轮被判无效并且如实排除**：run-2 `invalid faults=2/35`（任务从未到达引擎）⇒ 聚合只报 2 个有效轮，脚本自己要求"把排除连同数字一起引用"。这条本身是个待查缺陷：36 题里有 2 题在跑动中根本没进引擎，却直到聚合阶段才被识别为 invalid——错误应当当场点名，而不是事后算进分母。
+- **稳定通过 19 · 稳定失败 12 · 抖动 5**：`copy-with-suffix`、`edit-rename-key-keep-value`、`exec-report-two-numbers`、`make-two-tests-pass`、`move-into-subdir`。抖动题是信号 thieves：修掉它们比修能力更便宜，且直接把 CI 半宽压下来。
+- **稳定失败 12 题的形状（逐条读原始 answer，不是猜）**：`change-config-value, copy-with-suffix-token2, exec-sum-column, fix-boundary-comparison, fix-off-by-one-slice, fix-wrong-key, fix-wrong-key-decoy, json-object-closes, json-schema-report, json-two-integers-closes, make-third-test-pass, multi-step-two-derived-writes`。两类占大头：① **该动 workspace 却只在聊天里作答**——`json-two-integers-closes` 的 answer 就是内容正确的 `{"rows": 10,"cols": 10}`，但 verifier 看的是文件，工作区没动 ⇒ FAIL（这正是本目录存在的理由：生成内容 ≠ 可靠行动）；② **盲改不读文件，失败即弃**——`fix-off-by-one-slice`: "I failed to fix the slice in `page.py` because the expected string was not found. I need to read the file first…"（它说出了正确策略，却没有执行第二次），`exec-report-two-numbers`/`exec-sum-column`: "notes.txt was not found in the specified directory"。
+- **于是修复顺序有了量化依据**（目标：一次改动让 ≥6 题翻转，否则按今天的地板就是噪声）：① 把失败的工具结果做成**可自愈**——edit/exec 未命中时随拒因附上工作区真实路径与候选（目录列举/近似行），让"读一次再改"成为工具递到嘴边的下一步而不是模型自己想出来的第二步；② 修 5 道抖动题（同一题同参数两种结果 = 缓存/会话/审批态的作用域问题，正是 §"persisted keys declare their scope" 该管的地方）；③ 查 run-2 那 2 题 never-reached-engine 的当场点名；④ 再谈上游移植（#368 空白守卫、#370/#375 Gemma 视觉、#367 连续批处理）。
+- **数字的家**：本轮数字只写在这里。`scripts/eval/README.md` 与 README 的地板段带着日期（10-22、24 题），未被证伪但也已被取代；corpus 只剩 47 字节，把新数字塞进受 Ratchet 的文档要先删等重的字——按本仓规矩，量在 CHANGELOG，规则留在文档。
+
+
 **10-25(4) 消费 coreai-models #359：JSON 语法不再对 Gemma/Llama 的 byte-fallback 词表硬称 byte-level**(P1 / 上游偏离落地第一条) — 把 coreai-models 的 +8 窗口逐条 `git show --name-only` 分类，结论推翻"export 侧一律 consumer-transparent"的想当然：**8 条里 7 条含 `.swift`**（只有 #365 是纯 Python），且落点正是我们镜像的文件族。#359 是 Apple 修的一个真 bug：`ConstrainedGenerationSession(jsonSchema:tokenizer:vocabSize:vocabType:)` 默认 `.byteLevel`，而 SentencePiece byte-fallback 词表（Gemma、Llama）把空格编成 `▁` 并携带全部 256 个 `<0xHH>` byte token ⇒ xgrammar 把 token id 映射到错串，`{"name": "Alice", "age": 7}` 这种合法文档在第 4 个 token 就被拒。
 
 - **这个缺陷在我们树里是原样的**：`Engine/GuidedGeneration/ConstrainedGenerationSession.swift` 三个入口 + `TokenizerInfo.swift` 的 cache 入口都写死 `.byteLevel`（`TokenizerInfo.init` 更糟，默认 `.raw`），而两个生产调用点 `Engine/CoreAIPipelinedEngine.swift:476`、`Engine/GuidedGeneration/ConstrainedDecodingStrategy.swift:105` 都走 tokenizer 初始化且不传 type ⇒ 直接继承常数；机上就躺着 `mlx-community/gemma-4-e2b-it-4bit`。
