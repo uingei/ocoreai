@@ -81,6 +81,237 @@ struct LocaleTableCompletenessTests {
             }
         }
     }
+
+    /// A translation that takes a different number of `%@` arguments than the
+    /// base string silently drops content: `String(format:)` ignores the extra
+    /// argument, so the two languages deliver different text from one call site.
+    /// Arity is read off the resolved values, so a literal split across several
+    /// concatenated lines counts correctly (parsing one line at a time is how a
+    /// scan starts matching again after a refactor and quietly stops).
+    @Test("en and zh agree on format-specifier arity for every key")
+    func formatSpecifierArityMatchesAcrossDeliveredTables() {
+        var mismatches: [String] = []
+        var parameterized = 0
+        for (key, enValue) in L10nTables.base {
+            guard let zhValue = L10nTables.zh[key] else { continue }
+            let enCount = Self.specifierCount(enValue)
+            let zhCount = Self.specifierCount(zhValue)
+            if enCount > 0 { parameterized += 1 }
+            if enCount != zhCount {
+                mismatches.append("\(key.rawValue): en=\(enCount) zh=\(zhCount)")
+            }
+        }
+        #expect(mismatches == [], "specifier arity drift: \(mismatches)")
+        #expect(
+            parameterized >= 20,
+            "the scan lost its subject: only \(parameterized) parameterized keys")
+    }
+
+    /// Copy has one home (`StringKey`); a literal typed into the GUI is copy
+    /// that no locale can reach. Measured before this gate existed: 7 sites
+    /// (`ApprovalNotifier` banner + the five quick-load model cards).
+    /// `Security/` and `Reasoning/` keep CJK on purpose — those are matcher
+    /// vocabularies (263 literals), not strings a user reads.
+    @Test("the GUI holds no copy outside the string table")
+    func guiHasNoCopyOutsideTheStringTable() throws {
+        let root = try Self.repoRoot()
+        let ui = root.appendingPathComponent("Sources/ocoreai/UI")
+        let files = try Self.swiftFiles(in: ui)
+        #expect(files.count >= 40, "the GUI scan found only \(files.count) files")
+        var leaks: [String] = []
+        for file in files {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            for line in Self.cjkLiteralLines(in: source) {
+                leaks.append("\(file.lastPathComponent):\(line)")
+            }
+        }
+        #expect(leaks == [], "hardcoded copy in the GUI: \(leaks)")
+
+        // The same scanner must still find copy where copy legitimately lives,
+        // or a broken scan would pass vacuously.
+        let table = root.appendingPathComponent(
+            "Sources/ocoreai/Localization/Localization.swift")
+        let tableSource = try String(contentsOf: table, encoding: .utf8)
+        #expect(
+            Self.cjkLiteralLines(in: tableSource).count >= 400,
+            "the CJK scanner stopped matching — it finds no copy in the table either")
+    }
+
+    /// The consumer side: quick-load cards carry a key, and both delivered
+    /// tables answer it with the model's own parameters and size, so a card
+    /// cannot render blank or lose its size figure in one language.
+    @Test("every quick-load card resolves its description in both tables")
+    @MainActor
+    func quickLoadCardsResolveTheirKeys() {
+        let models = ModelManager.recommendedModels
+        #expect(models.count == 5, "recommended list changed shape: \(models.count)")
+        for rec in models {
+            let en = rec.descriptionKey.localized(for: .en)
+            let zh = rec.descriptionKey.localized(for: .zhHans)
+            #expect(en.contains("4-bit"), "\(rec.id): en description lost its quantization")
+            #expect(zh.contains("4-bit"), "\(rec.id): zh description lost its quantization")
+            #expect(
+                en.contains("MB") || en.contains("GB"),
+                "\(rec.id): en description lost its size")
+            #expect(
+                zh.contains("MB") || zh.contains("GB"),
+                "\(rec.id): zh description lost its size")
+            #expect(en != zh, "\(rec.id): zh is a copy of en")
+        }
+    }
+
+    /// `ocoreaiText`/`ocoreaiMono`/`ocoreaiDisplay` map a raw size onto a TextStep so Dynamic Type
+    /// scales (Theme.swift). A `.system(size:)` literal pins the pixel size for every user, which the
+    /// HIG duty this file is about does not allow. Measured before this gate: 7 sites, 6 of them in
+    /// the very view the UI guide cites as the honest-empty-state pattern.
+    @Test("the GUI scales its text instead of pinning pixel sizes")
+    func guiUsesTheScaledFontSeam() throws {
+        let ui = try Self.repoRoot().appendingPathComponent("Sources/ocoreai/UI")
+        var pinned: [String] = []
+        var scaled = 0
+        for file in try Self.swiftFiles(in: ui) {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            let rows = source.split(separator: "\n", omittingEmptySubsequences: false)
+            for (index, row) in rows.enumerated() {
+                let text = String(row)
+                if text.contains(".font(.system(size:") {
+                    pinned.append("\(file.lastPathComponent):\(index + 1)")
+                }
+                if text.contains(".ocoreaiText(") || text.contains(".ocoreaiMono(")
+                    || text.contains(".ocoreaiDisplay(")
+                {
+                    scaled += 1
+                }
+            }
+        }
+        #expect(pinned == [], "pixel-pinned fonts, Dynamic Type dead: \(pinned)")
+        #expect(scaled >= 150, "the scaled seam fell out of use: only \(scaled) sites")
+    }
+
+    // MARK: - Scan helpers
+
+    /// Count `String(format:)` conversions, ignoring `%%` and honouring the
+    /// positional form (`%1$@`), which this table uses for reordered text.
+    private static func specifierCount(_ value: String) -> Int {
+        let chars = Array(value)
+        let flags: Set<Character> = ["-", "+", " ", "#", "0"]
+        let conversions: Set<Character> = [
+            "l", "d", "u", "f", "x", "X", "o", "O", "e", "E", "g", "G", "c", "C", "s", "S", "a", "@",
+        ]
+        var count = 0
+        var index = 0
+        while index < chars.count {
+            guard chars[index] == "%" else {
+                index += 1
+                continue
+            }
+            if index + 1 < chars.count, chars[index + 1] == "%" {
+                index += 2
+                continue
+            }
+            var cursor = index + 1
+            while cursor < chars.count, flags.contains(chars[cursor]) { cursor += 1 }
+            while cursor < chars.count, chars[cursor].isNumber { cursor += 1 }
+            if cursor < chars.count, chars[cursor] == "$" { cursor += 1 }
+            if cursor < chars.count, chars[cursor] == "." {
+                cursor += 1
+                while cursor < chars.count, chars[cursor].isNumber { cursor += 1 }
+            }
+            if cursor < chars.count, conversions.contains(chars[cursor]) { count += 1 }
+            index = cursor + 1
+        }
+        return count
+    }
+
+    /// Line numbers (1-based) holding a CJK character inside a string literal.
+    /// Comment syntax is honoured outside strings, so `// 中文` and `/// 中文`
+    /// never count, and `"https://…"` never truncates the scan.
+    private static func cjkLiteralLines(in source: String) -> [Int] {
+        var lines: [Int] = []
+        var insideBlockComment = false
+        let rows = source.split(separator: "\n", omittingEmptySubsequences: false)
+        for (offset, row) in rows.enumerated() {
+            let chars = Array(row)
+            var inString = false
+            var escaped = false
+            var found = false
+            var index = 0
+            while index < chars.count {
+                let char = chars[index]
+                if insideBlockComment {
+                    if char == "*", index + 1 < chars.count, chars[index + 1] == "/" {
+                        insideBlockComment = false
+                        index += 2
+                        continue
+                    }
+                    index += 1
+                    continue
+                }
+                if !inString {
+                    if char == "/", index + 1 < chars.count, chars[index + 1] == "/" { break }
+                    if char == "/", index + 1 < chars.count, chars[index + 1] == "*" {
+                        insideBlockComment = true
+                        index += 2
+                        continue
+                    }
+                    if char == "\"" {
+                        inString = true
+                        escaped = false
+                    }
+                    index += 1
+                    continue
+                }
+                if escaped {
+                    escaped = false
+                } else if char == "\\" {
+                    escaped = true
+                } else if char == "\"" {
+                    inString = false
+                } else if isCJK(char) {
+                    found = true
+                }
+                index += 1
+            }
+            if found { lines.append(offset + 1) }
+        }
+        return lines
+    }
+
+    private static func isCJK(_ char: Character) -> Bool {
+        guard let scalar = char.unicodeScalars.first else { return false }
+        return (0x4E00...0x9FFF).contains(scalar.value)
+            || (0x3040...0x30FF).contains(scalar.value)
+            || (0xAC00...0xD7AF).contains(scalar.value)
+    }
+
+    /// The repo root is found by searching, not by counting path hops.
+    private static func repoRoot() throws -> URL {
+        var url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while url.path != "/" {
+            if FileManager.default.fileExists(
+                atPath: url.appendingPathComponent("Package.swift").path)
+            {
+                return url
+            }
+            url.deleteLastPathComponent()
+        }
+        throw CocoaError(.fileReadNoSuchFile)
+    }
+
+    private static func swiftFiles(in directory: URL) throws -> [URL] {
+        guard let enumerator = FileManager.default.enumerator(
+            at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+        var files: [URL] = []
+        for case let url as URL in enumerator where url.pathExtension == "swift" {
+            files.append(url)
+        }
+        return files.sorted { $0.path < $1.path }
+    }
 }
 
 @Suite("Locale — picker only lists delivered locales")

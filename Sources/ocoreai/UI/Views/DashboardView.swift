@@ -55,7 +55,13 @@ struct DashboardView: View {
             .padding(.horizontal, 20)
             .padding(.top, 16)
 
-        if dashboardState.isLive {
+        failureCauseRow
+            .padding(.horizontal, 20)
+
+        // The last values the engine produced stay on screen, with the health bar saying
+        // whether they are still moving: erasing them at stop would remove the only baseline
+        // the user has for "it was running a minute ago".
+        if dashboardState.metricsSnapshot != .empty {
             metricsSection
             systemInfoSection
             if dashboardState.tokenHistory.count > 1 {
@@ -74,24 +80,29 @@ struct DashboardView: View {
     private var healthBar: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(dashboardState.isLive ? theme.greenDot : theme.amberDot)
+                .fill(healthColor)
                 .frame(width: 8, height: 8)
-                .shadow(
-                    color: (dashboardState.isLive ? theme.greenDot : theme.amberDot).opacity(0.3),
-                    radius: 2,
-                )
+                .shadow(color: healthColor.opacity(0.3), radius: 2)
                 .accessibilityHidden(true)
-            Text(
-                dashboardState.isLive
-                    ? StringKey.systemOnline.l
-                    : StringKey.systemLoading.l
-            )
-            .font(.ocoreaiText(14, weight: .medium))
-            .foregroundStyle(theme.textSecondary)
-            .accessibilityLabel(
-                "System status: \(dashboardState.isLive ? StringKey.systemOnline.l : StringKey.systemLoading.l)"
-            )
-            .accessibilityAddTraits(.isStaticText)
+            Text(dashboardState.health.label)
+                .font(.ocoreaiText(14, weight: .medium))
+                .foregroundStyle(theme.textSecondary)
+                .accessibilityLabel("System status: \(dashboardState.health.label)")
+                .accessibilityAddTraits(.isStaticText)
+            if dashboardState.metricsAreStale {
+                Text(StringKey.staleMetricsBadge.l)
+                    .font(.ocoreaiText(10))
+                    .foregroundStyle(theme.amberDot)
+                    .accessibilityLabel(StringKey.staleMetricsBadge.l)
+            }
+            if let affordance = dashboardState.health.affordanceLabelKey {
+                Button(action: recoverFromHealth) {
+                    Text(affordance.l)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityLabel(affordance.l)
+            }
             // P1: Channel baseline badge
             if dashboardState.isLive,
                 let channel = AppState.shared.currentBaselineChannel
@@ -113,12 +124,48 @@ struct DashboardView: View {
                         : "\(StringKey.a11yComputeChannel.l): \(channel.badgeLabel)")
             }
             Spacer()
-            if dashboardState.isLive {
+            if dashboardState.health == .online {
                 Text(uptimeLabel)
                     .font(.ocoreaiMono(11))
                     .foregroundStyle(theme.textTertiary)
                     .accessibilityLabel("\(StringKey.uptime.l): \(uptimeLabel)")
             }
+        }
+    }
+
+    /// Colour per engine state; `.stopped` is not an alarm, so it stays neutral.
+    private var healthColor: Color {
+        switch dashboardState.health {
+        case .online: theme.greenDot
+        case .starting, .stopping: theme.blueDot
+        case .degraded: theme.amberDot
+        case .stopped: theme.textTertiary
+        case .failed: theme.redDot
+        }
+    }
+
+    /// The way out each resting state owes. Tab navigation happens only because the
+    /// user pressed this button - a background state change never moves the foreground.
+    private func recoverFromHealth() {
+        switch dashboardState.health {
+        case .degraded: AppState.shared.selectedTab = .system
+        case .stopped: Task { await OcoreaiEngine.shared.start() }
+        case .failed: Task { await OcoreaiEngine.shared.retryStart() }
+        default: break
+        }
+    }
+
+    /// The engine's own words for why it failed: diagnostics, quoted verbatim rather
+    /// than paraphrased, under a label that already names the state.
+    @ViewBuilder
+    private var failureCauseRow: some View {
+        if case .failed = dashboardState.health,
+            let cause = OcoreaiEngine.shared.lastStartupFailure
+        {
+            Text(String(format: StringKey.lastFailureCausePrefix.l, cause))
+                .font(.ocoreaiText(11))
+                .foregroundStyle(theme.redDot)
+                .accessibilityLabel(String(format: StringKey.lastFailureCausePrefix.l, cause))
         }
     }
 

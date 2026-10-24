@@ -568,7 +568,7 @@ private struct ModelEmptyState: View {
                     .font(.ocoreaiText(13))
                     .fontWeight(.semibold)
                     .lineLimit(1)
-                Text(rec.description)
+                Text(rec.descriptionKey.l)
                     .font(.ocoreaiText(10))
                     .foregroundStyle(theme.textTertiary)
             }

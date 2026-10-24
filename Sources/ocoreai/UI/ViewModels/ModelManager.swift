@@ -79,7 +79,7 @@ final class ModelManager {
     /// Curated list of lightweight-to-medium models available on both HF and ModelScope.
     struct RecommendedQuickModel: Identifiable, Sendable {
         let id: String
-        let description: String
+        let descriptionKey: StringKey
         let hub: HubSource
     }
 
@@ -89,28 +89,28 @@ final class ModelManager {
             // Qwen 系列 → ModelScope 为主
             RecommendedQuickModel(
                 id: "mlx-community/Qwen3.5-0.8B-4bit",
-                description: "Qwen3.5 0.8B 4-bit, 轻量快速, ~652 MB",
+                descriptionKey: .quickModelQwen35,
                 hub: .modelScope
             ),
             RecommendedQuickModel(
                 id: "mlx-community/Qwen3.8-27B-4bit",
-                description: "Qwen3.8 27B 4-bit, 强推理, ~16.1 GB",
+                descriptionKey: .quickModelQwen38,
                 hub: .modelScope
             ),
             RecommendedQuickModel(
                 id: "mlx-community/Qwen3.6-35B-A3B-4bit",
-                description: "Qwen3.6 35B MoE 4-bit, 强推理, ~20.4 GB",
+                descriptionKey: .quickModelQwen36,
                 hub: .modelScope
             ),
             // Gemma 系列 → HuggingFace 为主
             RecommendedQuickModel(
                 id: "mlx-community/gemma-4-e2b-it-4bit",
-                description: "Gemma 4 E2B 4-bit, 轻量为指令 tuned, ~3.58 GB",
+                descriptionKey: .quickModelGemmaE2B,
                 hub: .huggingFace
             ),
             RecommendedQuickModel(
                 id: "mlx-community/gemma-4-26b-a4b-it-4bit",
-                description: "Gemma 4 26B 4-bit, 强混合注意力, ~15.4 GB",
+                descriptionKey: .quickModelGemma26B,
                 hub: .huggingFace
             ),
         ]

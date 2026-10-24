@@ -8,6 +8,76 @@
 import Foundation
 import SwiftUI
 
+/// What the dashboard health bar is allowed to claim, derived from the engine's own
+/// lifecycle machine. The bar used to render `engineReady ? "System Online" : "System
+/// Loading"`, which called an idle, degraded or breaker-open engine "loading" forever and
+/// offered a way out of none of them.
+enum DashboardHealth: Equatable, Sendable {
+    case online
+    case starting
+    case stopping
+    case degraded
+    case stopped
+    case failed(failures: Int)
+
+    /// Pure mapping so all six engine states are pinned by a test rather than by a boolean.
+    static func derive(
+        state: EngineLifecycleState, failures: Int, cause: String?
+    ) -> DashboardHealth {
+        switch state {
+        case .ready: return .online
+        case .starting: return .starting
+        case .stopping: return .stopping
+        case .degraded: return .degraded
+        case .idle: return cause == nil ? .stopped : .failed(failures: max(failures, 1))
+        case .error: return .failed(failures: max(failures, 1))
+        }
+    }
+
+    var labelKey: StringKey {
+        switch self {
+        case .online: return .systemOnline
+        case .starting: return .systemLoading
+        case .stopping: return .systemStopping
+        case .degraded: return .systemDegraded
+        case .stopped: return .systemStopped
+        case .failed: return .systemFailedFormat
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .failed(let failures): String(format: StringKey.systemFailedFormat.l, failures)
+        default: labelKey.l
+        }
+    }
+
+    /// Transient states may wait without an action; every resting state owes one.
+    var affordanceLabelKey: StringKey? {
+        switch self {
+        case .online, .starting, .stopping: nil
+        case .degraded: .tabSystem
+        case .stopped: .startBackendAction
+        case .failed: .retryAction
+        }
+    }
+
+    /// Whether this tick produced a measurement worth plotting. Stamping a point anyway
+    /// would draw throughput through minutes that were never sampled.
+    var samplesMetrics: Bool {
+        switch self {
+        case .online, .degraded: true
+        default: false
+        }
+    }
+
+    /// Stale = "the numbers on screen are old", which is only true when there are numbers
+    /// to be old about. A cold launch with nothing measured yet must not wear the badge.
+    static func metricsAreStale(health: DashboardHealth, hasValues: Bool) -> Bool {
+        !health.samplesMetrics && hasValues
+    }
+}
+
 @Observable
 @MainActor
 final class DashboardState {
@@ -30,6 +100,19 @@ final class DashboardState {
     private(set) var launchTime: Date?
     var isLive: Bool {
         connected
+    }
+
+    /// The engine's own lifecycle, read at display time — see ``DashboardHealth``.
+    var health: DashboardHealth {
+        DashboardHealth.derive(
+            state: OcoreaiEngine.shared.lifecycleState,
+            failures: OcoreaiEngine.shared.startupFailureCount,
+            cause: OcoreaiEngine.shared.lastStartupFailure)
+    }
+
+    /// True when numbers on screen came from an earlier, live poll rather than this tick.
+    var metricsAreStale: Bool {
+        DashboardHealth.metricsAreStale(health: health, hasValues: metricsSnapshot != .empty)
     }
 
     private var pollingTask: Task<Void, Never>?
@@ -84,6 +167,11 @@ final class DashboardState {
 
         // Connection state: mirror AppState
         self.connected = AppState.shared.isConnected
+
+        // A stopped engine produced no sample this tick: keep the last known values (zeroing
+        // them would claim a measured idle) and freeze the charts rather than drawing a flat
+        // line through minutes that were never measured. `metricsAreStale` flags the pause.
+        guard health.samplesMetrics else { return }
 
         // Update current snapshot
         self.metricsSnapshot = snap

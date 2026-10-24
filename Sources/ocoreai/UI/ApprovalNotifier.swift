@@ -97,11 +97,11 @@ enum ApprovalNotifier {
         snippet: String
     ) {
         let content = UNMutableNotificationContent()
-        // The snippet is the REVIEW surface — same 80-grapheme truncation the
-        // banner shows (ApprovalCore.snippet), so notification and banner can
-        // never disagree about what the user is being asked to approve.
-        content.title = "ocoreai 需要你的批准 · approval needed"
-        content.body = "\(toolName): \(snippet)\n点击返回对话裁决 · click to decide in chat"
+        // The snippet is the REVIEW surface — same 80-grapheme truncation the banner
+        // shows (ApprovalCore.snippet), so notification and banner never disagree about
+        // what is being approved; copy comes from the table, so it speaks the user's language.
+        content.title = StringKey.approvalNotificationTitle.l
+        content.body = String(format: StringKey.approvalNotificationBody.l, toolName, snippet)
         content.categoryIdentifier = categoryIdentifier
         content.sound = .default
         let request = UNNotificationRequest(

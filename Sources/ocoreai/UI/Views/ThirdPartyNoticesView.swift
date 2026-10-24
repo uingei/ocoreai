@@ -72,7 +72,7 @@ struct ThirdPartyNoticesView: View {
                 .fixedSize(horizontal: false, vertical: true)
             DisclosureGroup {
                 Text(ThirdPartyNotices.appleLicenseText ?? StringKey.thirdPartyNoticesUnavailable.l)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.ocoreaiMono(11))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } label: {
@@ -136,19 +136,19 @@ private struct ThirdPartyVendoredSection: View {
                         ThirdPartyNotices.vendoredLicenseText(for: entry)
                             ?? StringKey.thirdPartyNoticesUnavailable.l
                     )
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.ocoreaiMono(11))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {
                     HStack(spacing: 8) {
                         Text(entry.file)
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(.ocoreaiMono(11))
                         Spacer(minLength: 8)
                         Text(entry.license)
                             .font(.ocoreaiText(11))
                             .foregroundStyle(.secondary)
                         Text(String(entry.sha256?.prefix(12) ?? ""))
-                            .font(.system(size: 10, design: .monospaced))
+                            .font(.ocoreaiMono(10))
                             .foregroundStyle(.tertiary)
                     }
                 }
@@ -169,7 +169,7 @@ private struct ThirdPartyLicenseRow: View {
                 ThirdPartyNotices.licenseText(for: entry)
                     ?? StringKey.thirdPartyNoticesUnavailable.l
             )
-            .font(.system(size: 11, design: .monospaced))
+            .font(.ocoreaiMono(11))
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
         } label: {
@@ -181,7 +181,7 @@ private struct ThirdPartyLicenseRow: View {
                     .font(.ocoreaiText(11))
                     .foregroundStyle(.secondary)
                 Text(entry.pin)
-                    .font(.system(size: 10, design: .monospaced))
+                    .font(.ocoreaiMono(10))
                     .foregroundStyle(.tertiary)
             }
         }

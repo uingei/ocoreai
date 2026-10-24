@@ -19,20 +19,23 @@ delivered) is *this* subtree's whole job.
   background (model loaded, tool finished, a log line appeared). Offer an affordance; leave the
   foreground where the user put it.
 - One cancel gesture, exactly one effect. Keyboard ownership follows focus.
-- Expensive surfaces (live tools, video, terminals) stay alive when hidden — visibility is not lifecycle.
-- Empty / loading / reconnecting / degraded-stale / exhausted-recovery are five different
-  experiences, each needing honest copy and a way out. Say "heuristic tokenizer", say "model not
-  loaded"; never render blank (`ThirdPartyNoticesView` is the pattern: absent texts ⇒ the panel says so).
+- Expensive surfaces (live tools, video, terminals) stay alive when hidden.
+- Five non-happy states, each owing honest copy and a way out. Named today: empty (`chatWelcomeTitle`),
+  loading, degraded/stopped/failed (one readout per engine state, each with an affordance:
+  `DashboardHealth`), recovery (`retryAction`). Reconnecting is not: 0 hits for `reconnect` in the
+  string table — measured, not claimed. Say "heuristic tokenizer", say "model not loaded"; never render blank
+  (`ThirdPartyNoticesView` is the pattern: absent texts ⇒ the panel says so).
 
 ## On anything user-visible, the HIG is the authority
 Not codex, not mlx-swift-lm (it ships no GUI). Duties: ⌘ coverage and a sane focus order for
 primary actions, `Cmd+,` grouped Settings, `textSelection` on anything readable, accessibility labels,
 Dark Mode + Dynamic Type, destructive-confirmation wording, and answering in the medium the user used
 — this app hears and speaks, so a voice turn ends in voice, not in text the user must read.
-Measured thinness (a defect whatever upstream does): `keyboardShortcut` in 3 files, `textSelection`
-in 3, `accessibilityLabel` in 15, across ~260 Swift files in `Sources/`.
-<!-- claim:ui_keyboard_shortcut_files>=3 :: git grep -l keyboardShortcut -- Sources | wc -l -->
-<!-- claim:ui_accessibility_files>=15 :: git grep -l accessibilityLabel -- Sources | wc -l -->
+Measured thinness, floored as ceilings (a `>=` floor cannot see a defect grow): `keyboardShortcut`
+in 5 files, `textSelection` in 5, `accessibilityLabel` in 17, across 298 Swift files in `Sources/`.
+<!-- claim:ui_keyboard_shortcut_files<=5 :: git grep -l keyboardShortcut -- Sources | wc -l -->
+<!-- claim:ui_text_selection_files<=5 :: git grep -l textSelection -- Sources | wc -l -->
+<!-- claim:ui_accessibility_files<=17 :: git grep -l accessibilityLabel -- Sources | wc -l -->
 
 ## iOS parity — compile gates settled, runtime not
 - Checked against the iPhoneOS SDK rather than from memory: `HSplitView` is `@available(iOS,
@@ -55,13 +58,13 @@ source the engine used — never a literal typed into a view.
 ## GUI end-to-end — measured scope
 
 `verify-gui-window.sh` asserts what a user would see: a layer-0 window of believable size, and with
-`SHOT=1` a frame with content (distinct-colour floor ≥64). Pixels came out 10-22 (`900x472`,
-140 KB, **846 colours**) and are refused here since 10-23 — `screencapture`: "could not create
-image from window" — so pixels are claimed only where they were captured: fatal by default (what CI
-runs); local release passes `GUI_REQUIRE_PIXELS=0` and says the evidence was skipped. Geometry
-10-23: 810x426. `scripts/e2e-gui-app.sh` adds the model-dependent half (version == tag, the :8080
-listener *is* the bundle binary, one real completion `'OCOREAI_GUI_E2E_OK'`, graceful SIGTERM) —
-green 10-23. None of it licenses "the GUI works": the bridge is opt-in (App Store builds serve
-nothing), CI skips the completion leg, and Accessibility-driven control automation is unverified.
+`SHOT=1` a frame with content (distinct-colour floor ≥64). Pixels have both come out and been refused
+on this host (`screencapture`: "could not create image from window"; the captured geometry is diary in
+CHANGELOG), so pixels are claimed only where they were captured: fatal by default (what CI runs); local
+release passes `GUI_REQUIRE_PIXELS=0` and says the evidence was skipped. `scripts/e2e-gui-app.sh` adds
+the model-dependent half (version == tag, the :8080 listener *is* the bundle binary, one real completion
+`'OCOREAI_GUI_E2E_OK'`, graceful SIGTERM). None of it licenses "the GUI works": the bridge is opt-in
+(App Store builds serve nothing), CI skips the completion leg, and Accessibility-driven control
+automation is unverified.
 Their seam is `ChatViewModel.chat` (`:975`); `ChatView.sendMessage` (`:971`) delegates.
 `ChatStateSendPathTests` executes it (live: `OCOREAI_GUI_LIVE=1`).

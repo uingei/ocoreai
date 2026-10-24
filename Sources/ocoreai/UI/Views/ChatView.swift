@@ -677,7 +677,7 @@ struct ChatView: View {
                 ? theme.tintRed : fraction >= 0.8 ? theme.tintOrange : theme.accent
             HStack(spacing: 8) {
                 Image(systemName: "circle.circle")
-                    .font(.system(size: 11))
+                    .font(.ocoreaiText(11))
                     .foregroundStyle(theme.textTertiary)
                     .accessibilityHidden(true)
                 ProgressView(value: fraction)

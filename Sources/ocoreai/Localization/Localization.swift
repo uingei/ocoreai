@@ -111,6 +111,13 @@ public enum StringKey: String, CaseIterable, Sendable {
     case systemOnline = "Dashboard.SystemOnline"
     case backend = "Dashboard.Backend"
     case systemLoading = "Dashboard.SystemLoading"
+    case systemStopping = "Dashboard.SystemStopping"
+    case systemDegraded = "Dashboard.Degraded"
+    case systemStopped = "Dashboard.Stopped"
+    case systemFailedFormat = "Dashboard.FailedFormat"
+    case startBackendAction = "Dashboard.StartBackend"
+    case lastFailureCausePrefix = "Dashboard.LastFailureCause"
+    case staleMetricsBadge = "Dashboard.StaleMetricsBadge"
     case metrics = "Dashboard.Metrics"
     case throughput = "Dashboard.Throughput"
     case ttft = "Dashboard.TTFT"
@@ -643,6 +650,17 @@ public enum StringKey: String, CaseIterable, Sendable {
     case proactiveDraft = "Proactive.Draft"
     case proactiveObservation = "Proactive.Observation"
     case proactiveReadFailed = "Proactive.ReadFailed"
+
+    // — System notification (approval banner) —
+    case approvalNotificationTitle = "Approval.NotificationTitle"
+    case approvalNotificationBody = "Approval.NotificationBody"
+
+    // — Quick-load recommended models —
+    case quickModelQwen35 = "QuickModel.Qwen35"
+    case quickModelQwen38 = "QuickModel.Qwen38"
+    case quickModelQwen36 = "QuickModel.Qwen36"
+    case quickModelGemmaE2B = "QuickModel.GemmaE2B"
+    case quickModelGemma26B = "QuickModel.Gemma26B"
 }
 
 // MARK: - Translation Table (per locale)
@@ -668,6 +686,13 @@ enum L10nTables {
         .systemOnline: "System Online",
         .backend: "Backend",
         .systemLoading: "System Loading",
+        .systemStopping: "Stopping\u{2026}",
+        .systemDegraded: "Degraded \u{2014} inference runs, a subsystem is offline",
+        .systemStopped: "Engine not running",
+        .systemFailedFormat: "Startup failed \u{00b7} %d attempts",
+        .startBackendAction: "Start engine",
+        .lastFailureCausePrefix: "Last failure: %@",
+        .staleMetricsBadge: "No live data",
         .metrics: "Metrics",
         .throughput: "Throughput",
         .ttft: "TTFT",
@@ -1202,6 +1227,17 @@ enum L10nTables {
 
         // Model search
         .modelErrorOccurred: "An error occurred",
+
+        // System notification — approval banner
+        .approvalNotificationTitle: "ocoreai needs your approval",
+        .approvalNotificationBody: "%1$@: %2$@\nClick to return to the conversation and decide.",
+
+        // Quick-load recommended models
+        .quickModelQwen35: "Qwen3.5 0.8B 4-bit · light and fast · ~652 MB",
+        .quickModelQwen38: "Qwen3.8 27B 4-bit · strong reasoning · ~16.1 GB",
+        .quickModelQwen36: "Qwen3.6 35B MoE 4-bit · strong reasoning · ~20.4 GB",
+        .quickModelGemmaE2B: "Gemma 4 E2B 4-bit · lightweight instruction-tuned · ~3.58 GB",
+        .quickModelGemma26B: "Gemma 4 26B 4-bit · strong hybrid attention · ~15.4 GB",
     ]
 
     /// Translation overrides per locale (zh-Hans).
@@ -1209,6 +1245,13 @@ enum L10nTables {
         .systemOnline: "系统在线",
         .backend: "后端服务",
         .systemLoading: "系统加载中",
+        .systemStopping: "正在停止\u{2026}",
+        .systemDegraded: "降级 \u{2014} 推理仍可用，有子系统离线",
+        .systemStopped: "引擎未运行",
+        .systemFailedFormat: "启动失败 \u{00b7} 已试 %d 次",
+        .startBackendAction: "启动引擎",
+        .lastFailureCausePrefix: "上次失败原因：%@",
+        .staleMetricsBadge: "暂无实时数据",
         .metrics: "指标",
         .throughput: "吞吐量",
         .ttft: "首字延迟",
@@ -1716,6 +1759,17 @@ enum L10nTables {
         // Model search
         .codeLanguageFallback: "代码",
         .modelErrorOccurred: "发生错误",
+
+        // System notification — approval banner
+        .approvalNotificationTitle: "ocoreai 需要你的批准",
+        .approvalNotificationBody: "%1$@：%2$@\n点击返回对话裁决。",
+
+        // Quick-load recommended models
+        .quickModelQwen35: "Qwen3.5 0.8B 4-bit · 轻量快速 · ~652 MB",
+        .quickModelQwen38: "Qwen3.8 27B 4-bit · 强推理 · ~16.1 GB",
+        .quickModelQwen36: "Qwen3.6 35B MoE 4-bit · 强推理 · ~20.4 GB",
+        .quickModelGemmaE2B: "Gemma 4 E2B 4-bit · 轻量指令微调 · ~3.58 GB",
+        .quickModelGemma26B: "Gemma 4 26B 4-bit · 强混合注意力 · ~15.4 GB",
     ]
 
 }
