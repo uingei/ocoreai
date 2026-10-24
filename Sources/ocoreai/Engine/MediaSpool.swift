@@ -6,7 +6,8 @@
 // when the *request* ended. But a conversation's transcript is not request-scoped:
 // upstream `ChatSession` keeps the message it was given — with the resolved URL inside it
 // — and re-feeds that whole transcript to `processor.prepare` on **every later turn**
-// (`ChatSession.swift:1131`: `templateMessages = leadingMessages +
+// (`ChatSession.swift:1166`: `templateMessages = leadingMessages +
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1166 templateMessages = leadingMessages
 // currentConversation.messages`). So the next turn opened a file that no longer existed,
 // AVFoundation threw, and the client got `500 {"message":"Generation failed: Inference
 // failed: The operation could not be completed"}`.

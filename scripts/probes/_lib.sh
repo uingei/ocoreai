@@ -60,6 +60,21 @@ probe_fail() {
   printf '  FAIL  %s\n' "$*"
 }
 
+# A floor compared against an empty string is not a floor: `[ "" -lt 18 ]` is a bash *error*
+# (rc 2), so the `if` body is skipped and the premise passes in silence. Measured on a task set
+# the loader could not parse, the scoreboard printed "2 passed, 0 failed" and exited 0. Every
+# count read back from a subprocess is therefore proven to be an integer before it is floored.
+probe_require_int() {
+  local label="$1" value="$2" cause="${3:-}"
+  case "$value" in
+    '' | *[!0-9]*)
+      probe_fail "$label returned '$value', not an integer — the producer failed, which is a" \
+        "harness fault and never a zero${cause:+; stderr: $cause}"
+      probe_summary "${PROBE_NAME:-premise}"
+      ;;
+  esac
+}
+
 # A measured fact that is not itself a pass/fail — printed so the number outlives
 # the session, which is the whole point of keeping probes in git.
 probe_note() {

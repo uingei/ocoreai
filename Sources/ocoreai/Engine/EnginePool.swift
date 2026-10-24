@@ -1268,7 +1268,10 @@ actor EnginePool {
     }
 
     func engineSummary() async -> EngineSummary {
-        let gpuCacheGB: Double = 0.0
+        // Measured off the pools that hold the caches, so `/metrics` and the dashboard's GPU
+        // tile say what is resident instead of what this function used to hardcode (0.0).
+        let residentKVBytes = await sessionPool?.residentKVBytesTotal ?? 0
+        let gpuCacheGB = Double(residentKVBytes) / 1_073_741_824.0
         #if canImport(CoreAI)
         var specializedCount: Int
         if #available(macOS 27.0, iOS 27.0, *) {
@@ -1567,6 +1570,9 @@ actor EnginePool {
         // off these weights. A reload may be a different checkpoint under the same id, so
         // the answer is re-measured at load rather than trusted from before.
         await ToolProseLedger.shared.forget(modelId: modelId)
+        // And for the KV price: the bytes that earned it are gone, so a reload re-prices
+        // rather than reserving at a checkpoint that may no longer be the one loaded.
+        await KVCachePriceLedger.shared.forget(modelId: modelId)
 
         logger.info("Model unloaded: \(modelId)")
         return true

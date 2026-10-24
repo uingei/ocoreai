@@ -266,6 +266,12 @@ actor SchedulerActor {
             let request = comparable.request
             let requestId = request.id
 
+            // What this turn's reservation is priced at, and on whose authority. The gate decides
+            // it (measured off the model's own caches, else the floor); the dispatcher consumes
+            // that same answer rather than re-deriving a second price for the same request.
+            var kvBytesPerToken = KVCacheBudget.bytesPerToken
+            var kvPricingBasis = AdmissionResult.unpricedBasis
+
             // Safety: if we've already processed every request in the initial
             // queue, all were rejected — stop and return nil so the caller
             // can wait for memory to free up.
@@ -287,6 +293,7 @@ actor SchedulerActor {
                     requestId: requestId,
                     inputTokens: estimateInputTokens(from: request.prompt),
                     maxOutputTokens: request.tokenBudget,
+                    modelId: request.modelId,
                 )
                 if !result.admitted {
                     rejected.append(comparable)
@@ -296,6 +303,8 @@ actor SchedulerActor {
                     )
                     continue
                 }
+                kvBytesPerToken = result.kvBytesPerToken
+                kvPricingBasis = result.pricingBasis
             }
 
             // All requests previously rejected get re-enqueued before we
@@ -313,6 +322,7 @@ actor SchedulerActor {
                     requestId,
                     inputTokens: estimateInputTokens(from: request.prompt),
                     maxOutputTokens: request.tokenBudget,
+                    modelId: request.modelId,
                 )
                 totalAdmitted += 1
             }
@@ -321,15 +331,19 @@ actor SchedulerActor {
             activeRequests[requestId] = request
             requestStates[requestId] = .inferring
 
-            // Estimate and allocate memory for KV cache
-            let estBytes = KVCacheBudget.bytes(request.tokenBudget)
+            // Estimate and allocate memory for KV cache — at the price the gate just decided,
+            // so the tracker's view of this turn and the gate's reservation are the same number.
+            let estBytes = KVCacheBudget.bytes(
+                request.tokenBudget, bytesPerToken: kvBytesPerToken)
             requestMemoryMap[requestId] = estBytes
             if let tracker = memoryTracker {
                 await tracker.allocation(estBytes)
             }
 
+            let estMB = estBytes / 1_048_576
+            let pricing = "\(kvPricingBasis) \(kvBytesPerToken) B/token"
             logger.info(
-                "Dispatched request \(requestId) (model: \(request.modelId), est: \(estBytes / 1_048_576)MB)"
+                "Dispatched request \(requestId) (model: \(request.modelId), est: \(estMB)MB @ \(pricing))"
             )
             totalProcessed += 1
             return request

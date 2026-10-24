@@ -44,6 +44,8 @@ struct KVCacheStatusResponse: Encodable {
         let state: String
         let resolvedStrategy: String?
         let reason: String?
+        /// This layer's KV bytes as the cache itself reports them (`nbytes` of its arrays).
+        let memoryBytes: Int
     }
 
     struct KVCapacityWire: Encodable {
@@ -67,12 +69,19 @@ struct KVCacheStatusResponse: Encodable {
     /// cost of the rules, never a claim that loosening them would save anything.
     let reuseRefusals: ReuseRefusalObservation
 
+    /// What this model's *resident* KV caches cost in bytes, measured off the sessions that
+    /// hold them. The planned topology above prices nothing: upstream allocates no tensors
+    /// until the first cache update, so `residency` is where the byte answer lives.
+    let residency: KVCacheResidencyObservation
+
     init(
         status: KVCacheStatus,
         prefixReuse: PrefixReuseObservation = .notObserved,
         toolProse: ToolProseObservation = ToolProseMode.injectedUnmeasured.observation,
-        reuseRefusals: ReuseRefusalObservation = .empty
+        reuseRefusals: ReuseRefusalObservation = .empty,
+        residency: KVCacheResidencyObservation = .notObserved
     ) {
+        self.residency = residency
         self.prefixReuse = prefixReuse
         self.toolProse = toolProse
         self.reuseRefusals = reuseRefusals
@@ -147,6 +156,7 @@ extension KVCacheStatusResponse.KVCacheLayerWire {
         state = Self.stateName(layer.state)
         resolvedStrategy = layer.resolvedStrategy?.rawValue
         reason = layer.reason.map(Self.reasonName)
+        memoryBytes = layer.memoryBytes
     }
 
     fileprivate static func capacitySourceName(
@@ -203,10 +213,15 @@ nonisolated func makeKVCacheStatusResponse(
     _ status: KVCacheStatus,
     prefixReuse: PrefixReuseObservation = .notObserved,
     toolProse: ToolProseObservation = ToolProseMode.injectedUnmeasured.observation,
-    reuseRefusals: ReuseRefusalObservation = .empty
+    reuseRefusals: ReuseRefusalObservation = .empty,
+    residency: KVCacheResidencyObservation = .notObserved
 ) -> KVCacheStatusResponse {
     KVCacheStatusResponse(
-        status: status, prefixReuse: prefixReuse, toolProse: toolProse, reuseRefusals: reuseRefusals
+        status: status,
+        prefixReuse: prefixReuse,
+        toolProse: toolProse,
+        reuseRefusals: reuseRefusals,
+        residency: residency
     )
 }
 
@@ -242,7 +257,9 @@ extension EnginePool {
                 prefixReuse: prefixReuse.observation(modelId: modelId),
                 toolProse: await ToolProseLedger.shared.observation(modelId: modelId),
                 reuseRefusals: await sessionPool?.reuseRefusalObservation(modelId: modelId)
-                    ?? .empty)
+                    ?? .empty,
+                residency: await sessionPool?.residencyObservation(modelId: modelId)
+                    ?? .notObserved)
         } catch {
             throw AppError.inferenceFailed("KV cache status: \(error)")
         }

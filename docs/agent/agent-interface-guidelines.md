@@ -1,0 +1,53 @@
+# Agent Interface Guidelines — the chapter the HIG does not have
+
+Apple's HIG judges anything user-visible (`AGENTS.md` § Upstream Audit Dependencies 5): components, focus
+order, wording, the five non-happy states. It carries no agent chapter, and the gap is structural, not an
+oversight — HIG is indexed by **surface** (Foundations · Patterns · Components · Inputs · Technologies)
+times platform, a map of what a person can perceive and touch. An agent is not a surface: it is a **policy
+over time** — who decides next, and what the person can see, undo, and believe.
+
+Measured, not asserted. Walk
+`https://developer.apple.com/tutorials/data/design/human-interface-guidelines.json` plus the six
+`<section>.json` under it: 102 articles, `Generative AI` and `Machine learning` included, and the token
+`agent` in 3 places — all three WWDC video titles linked from Generative AI, none as guidance. The ML
+chapter's axes (complementary/critical, data sensitivity, proactive/reactive, visible/invisible,
+static/dynamic, explicit/implicit feedback) describe a model that *proposes*. The rows below are that genus
+one rung further, where software *executes*. Why no rival publishes one either: prose without a gate is a
+claim, and behaviour that varies run to run needs a statistical acceptance rule, which design docs have
+never carried.
+
+## The loop's own contract, priced by the gate that goes red
+
+| # | What the person is owed | Decidable assertion | Goes red here |
+|---|---|---|---|
+| 1 | Its last sentence is true about what happened | file-change sentences of a self-terminated answer vs the write ledger at `ToolRegistry.call`, which native/MTP/GUI/MCP all pass | `ClaimVsAuditTests`(17) |
+| 2 | Your stop word ends the turn | a stop string ends with `finish_reason: stop`; only the last SSE chunk speaks | `StopSequenceDeliveryTests`(13) + probe 10 |
+| 3 | You may change your mind mid-turn | steered text merges at the head of the chat handler, pre-assembly | `SteerRequestHeadTests` + probe 21 |
+| 4 | A refused edit still tells you where it is | durability and validity in one result (`OK-but-invalid`), quoting the file with its `N|` numbers | `EditLinesContractTests`(8) |
+| 5 | Being stuck yields a next step, not a wall | the identical-call cap returns a remedy, not the same refusal | `LoopGuardRemedyTests`(3) |
+| 6 | Its own chrome never passes as your content | read-then-write strips `N|`/`total_lines:` decoration, repairs what is provable, refuses to guess | `PresentationEchoGuardTests`(16) |
+
+The human-facing **wire** half of the same policy — knobs that ask instead of trapping, usage numbers that
+carry what their names claim, capability rows that degrade from measurement, honest hub and capture
+refusals, instruction identity, file lifetimes — is already owned by `AGENTS.md` § Endpoint Promises, with
+one gate per row there; it is not restated here, because a second copy is where one of them drifts.
+
+## Rows with no gate ⇒ claims, not guidelines
+
+- **A turn with no tool call cannot be interrupted** — `AGENTS.md` § Open names the seam upstream's
+  `ChatSession` does not offer; only the tool-bearing half is provable (probe 21).
+- **A false failure on a read** — scoreboard-measured: correct bytes came back and the answer said the file
+  was missing (`exec-sum-column`, 0/6). Row 1 counts writes, so nothing is red.
+- **A voice turn that ends in text** — an HIG duty and a rule in `Sources/ocoreai/UI/AGENTS.md`, zero tests.
+- **Which model answered** — no GUI surface discloses it today; if one ever does it reads
+  `/v1/capabilities`, and this row moves up a section.
+- **Focus discipline** — "offer, don't hijack" is prose; the UI guide's ceilings count shortcuts and
+  labels, i.e. adoption, not obedience.
+
+## The unit is a distribution, not a screenshot
+
+Same prompt, different answer, so acceptance is k matched runs per task: a task counts once its band agrees
+across two windows, and every judge is re-proved against near-miss artefacts and a mutation set. Numbers:
+`scripts/eval/README.md`; the ladder they sit on: `docs/agent/long-horizon-goal.md`. Presentation duties
+(⌘ coverage, focus order, Dark Mode, Dynamic Type, destructive wording, the five states) belong to
+`Sources/ocoreai/UI/AGENTS.md`.

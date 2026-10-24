@@ -162,7 +162,8 @@ struct MessageHistoryKey: Hashable, Sendable, Codable {
     let contentHash: Int
     /// Media-carrying turns cannot be reconciled with a restored snapshot: a vision
     /// encoder attends an image beside a cached prefix differently than cold
-    /// (upstream `ChatSession.swift:707-715`), so these turns block disk reuse.
+    /// (upstream `ChatSession.swift:701-707`), so these turns block disk reuse.
+    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:703 image-bearing turn continues warm
     var hasMedia: Bool = false
     /// Tool traffic renders into the prompt as control text that a caller-supplied
     /// message list does not describe faithfully, so a ledger containing it is not
@@ -196,7 +197,8 @@ enum ConversationIdentity {
 ///
 /// Upstream persists raw KV state only and says the caller owns the transcript:
 /// "A restored raw cache therefore uses fragment-based continuation"
-/// (`ChatSession.swift:1710-1716`) — the session continues from whatever tokens the
+/// (`ChatSession.swift:1786-1790`) — the session continues from whatever tokens the
+// anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1787 A restored raw cache therefore uses
 /// file happens to hold and cannot check them against a chat template. Accepting one
 /// without proof re-attaches a previous conversation's context to a new request, so
 /// this manifest is the proof, and no manifest means no reuse.
@@ -205,7 +207,8 @@ struct KVCacheManifest: Codable, Sendable {
     ///
     /// A v1 file cannot state its reserve, and upstream will not realize a cache whose plan
     /// differs from the live generation parameters: `requirePlan` throws
-    /// `kvCacheConfigurationChanged` (`ChatSession.swift:307`), which would surface as a
+    /// `kvCacheConfigurationChanged` (`ChatSession.swift:302`), which would surface as a
+    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:302 throw ChatSessionError.kvCacheConfigurationChanged
     /// failed turn for every conversation that persisted before a plan change. Refusing the
     /// snapshot here turns that into what it actually is — one cold turn — and says so on
     /// the ledger instead of the error path.
@@ -270,7 +273,8 @@ struct KVCacheManifest: Codable, Sendable {
         // one of them drifts.
         let instructionsMatch = instructionsHash == requestedInstructionsHash
         // A vision encoder attends an image beside a cached prefix differently than
-        // cold (upstream `ChatSession.swift:707-715`), and the pixels are not in the
+        // cold (upstream `ChatSession.swift:701-707`), and the pixels are not in the
+        // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:703 image-bearing turn continues warm
         // manifest, so a media turn on either side is unverifiable.
         guard !messages.contains(where: \.hasMedia),
             !incomingMessages.contains(where: \.hasMedia)
@@ -396,6 +400,16 @@ struct PooledChatSession: @unchecked Sendable {
     /// Each entry corresponds to a role+content pair that contributed tokens to the KV cache.
     /// On acquire, we compare new messages against this to find the longest common prefix.
     var messageHistory: [MessageHistoryKey] = []
+
+    /// KV bytes this session's cache holds in RAM, measured at the last release.
+    ///
+    /// Travels with the entry on purpose: the pool *is* the resident set, so a number stored
+    /// here is freed at every removal site for free, while a side ledger would rot upward the
+    /// first time an eviction forgot to decrement it. 0 = never measured, not "empty cache".
+    var residentKVBytes: Int = 0
+
+    /// Tokens the measured cache provably held (`KVCacheStatus.processedTokenCount`).
+    var residentKVTokens: Int = 0
 
     /// Inline media files this conversation's transcript cites (see ``MediaSpool``).
     ///
@@ -638,13 +652,14 @@ actor MLXSessionPool {
                 // and the two questions have different answers. The rule above says no,
                 // correctly: these KV rows describe the conversation before this caller
                 // replaced part of it. Upstream's `fork(history:)`
-                // (ChatSession.swift:1652 at pin bb0d5b048) answers the other question — may
+                // (ChatSession.swift:1723 at pin 991266ad3) answers the other question — may
                 // the cache be rewound onto the conversation the caller did send? — with a
                 // session that holds that transcript and "keeps only the part of the cache
                 // that its prompt starts with, and prefills the rest". Its boundary is the
                 // token-level common prefix, and upstream verifies the trim landed before
                 // trusting it (the verify-and-downgrade block that opens at
-                // ChatSession.swift:1217). Editing a past turn is the most common state change a
+                // ChatSession.swift:1270). Editing a past turn is the most common state change a
+                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1272 Verify and downgrade to a rebuild
                 // coding-agent UI makes, and every such turn used to re-prefill everything:
                 // measured 10-21 (probe 27, gemma-4-e2b-it-4bit, one session) a warm
                 // appended turn reused 734 of 758 tokens while the edited resend reused 0.
@@ -740,11 +755,14 @@ actor MLXSessionPool {
                 // Hand back this turn's knobs, not the ones the session was born with.
                 // Sampling lives on the session, not on the call: upstream captures
                 // `ChatSession.generateParameters` when a stream starts
-                // (`ChatSession.swift:370`, capture list at `:981-987`), so a reused
+                // (`ChatSession.swift:361`, capture list at `:1037-1043`), so a reused
+                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:361 public var generateParameters
+                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1040 generateParameters = parameters
                 // session that keeps turn 1's parameters answers turn 2 under turn 1's
                 // `max_tokens`/`temperature`/`seed` — measured, and named in
                 // ``staleSamplingFields``. Cache-affecting changes stay upstream's job
-                // (`ChatSession.swift:1052-1067` rebuilds from its retained transcript).
+                // (`ChatSession.swift:1108-1122` rebuilds from its retained transcript).
+                // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1114 rebuild the cache from it
                 let overriddenFields = Self.staleSamplingFields(
                     before: pooled.session.generateParameters,
                     after: genParams
@@ -907,6 +925,28 @@ actor MLXSessionPool {
         // reused pooled session could serve stale cache state.
         await pooled.session.synchronize()
 
+        // Price this session's cache while its lock is free. `cacheStatus()` comes back
+        // `.realized` once a turn has run, and its per-layer `memoryBytes` are allocated
+        // bytes read off the cache's own arrays — the only per-model KV price that is not a
+        // guess. A failed read claims nothing: the entry keeps 0, which reads as
+        // `not_observed` rather than as a zero-byte cache.
+        var measuredBytes = 0
+        var measuredTokens = 0
+        do {
+            let residency = KVCacheResidency(status: try await pooled.session.cacheStatus())
+            measuredBytes = residency.residentBytes
+            measuredTokens = residency.processedTokens
+        } catch {
+            logger.debug(
+                "KV residency [\(modelId)] not measured: \(error.localizedDescription)")
+        }
+        // Fold the same measurement into the per-model price the admission gate reserves at.
+        // One read, two consumers: a model never priced keeps the fallback and says so.
+        await KVCachePriceLedger.shared.record(
+            modelId: modelId,
+            residentBytes: measuredBytes,
+            processedTokens: measuredTokens)
+
         // The ledger records what the KV cache provably represents after this turn.
         // Before this, nothing ever wrote the prompt side into it — only the assistant
         // key was appended — so a legitimate second turn compared as "cached 1 message
@@ -921,6 +961,8 @@ actor MLXSessionPool {
         // unprovable turn claims nothing: reuse still happens, it just hands the full
         // history back to ChatSession, which reconciles it against its own transcript.
         var entryToPool = pooled
+        entryToPool.residentKVBytes = measuredBytes
+        entryToPool.residentKVTokens = measuredTokens
         if let promptMessages, let assistantMessage,
             !promptMessages.contains(where: { $0.hasMedia || $0.hasToolTraffic })
         {
@@ -1105,7 +1147,8 @@ actor MLXSessionPool {
     /// snapshot belongs to the conversation asking for it.
     ///
     /// Upstream persists raw KV state and leaves the transcript to the caller
-    /// (`ChatSession.swift:1710-1716`): a restored session continues from whatever
+    /// (`ChatSession.swift:1786-1790`): a restored session continues from whatever
+    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1787 A restored raw cache therefore uses
     /// tokens the file happens to hold, with no chat template to reconcile against.
     /// Accepting one without proof grafts a previous conversation's context onto a
     /// new request, so every refusal here is also a deletion — a snapshot this build
@@ -1224,7 +1267,8 @@ actor MLXSessionPool {
             .replacingOccurrences(of: ":", with: "_")
         // MLX dispatches its loader on the file extension (`MLX/IO.swift`) and only
         // recognises `safetensors` here — upstream documents the snapshot as a
-        // `.safetensors` file (`KVCache.swift:1888`). With a `.mlx` suffix every save
+        // `.safetensors` file (`KVCache.swift:2102`). With a `.mlx` suffix every save
+        // anchor:mlx-swift-lm Libraries/MLXLMCommon/KVCache.swift:2102 The URL to the
         // failed "Unknown extension mlx", so this persistence never wrote a byte.
         return cacheDirectory.appendingPathComponent(safeKey + ".safetensors")
     }
@@ -1349,6 +1393,31 @@ actor MLXSessionPool {
         reuseRefusals.observation(modelId: modelId)
     }
 
+    /// What this model's resident sessions are holding in KV bytes, as measured on release.
+    func residencyObservation(modelId: String) -> KVCacheResidencyObservation {
+        var bytes = 0
+        var tokens = 0
+        var sessions = 0
+        for entry in pool.values where entry.modelId == modelId {
+            // An entry that never got priced contributes nothing: `measured` on a set of
+            // unpriced caches would be a claim about bytes nobody read.
+            guard entry.residentKVBytes > 0 else { continue }
+            bytes += entry.residentKVBytes
+            tokens += entry.residentKVTokens
+            sessions += 1
+        }
+        return KVCacheResidencyObservation.measured(
+            residentBytes: bytes,
+            residentSessions: sessions,
+            processedTokens: tokens)
+    }
+
+    /// KV bytes held by every resident session across every model — the process-wide figure
+    /// `/metrics` publishes. Zero honestly means "no priced cache is resident".
+    var residentKVBytesTotal: Int {
+        pool.values.reduce(0) { $0 + $1.residentKVBytes }
+    }
+
     // MARK: - Helpers
 
     private func poolKey(modelId: String, conversationId convId: String) -> String {
@@ -1418,8 +1487,8 @@ actor MLXSessionPool {
     /// asks "may this turn be answered from the cache as it stands?" — still no, and it must
     /// stay no: the cache holds turns this caller replaced. This asks "may the cache be
     /// rewound onto the conversation the caller *did* send, before answering?" — the question
-    /// upstream's `ChatSession.fork(history:)` exists to take (ChatSession.swift:1652 at pin
-    /// bb0d5b048), whose trim boundary is the token-level common prefix and which verifies
+    /// upstream's `ChatSession.fork(history:)` exists to take (ChatSession.swift:1723 at pin
+    /// 991266ad3), whose trim boundary is the token-level common prefix and which verifies
     /// the trim landed before trusting it. Kept pure and off the MLX path so the whole table
     /// is pinned by `SessionRewindOnDivergenceTests` without a live model.
     ///
@@ -1432,7 +1501,8 @@ actor MLXSessionPool {
     ///   turn no new message and the caller no answer, so it keeps the discard path.
     /// - `!carriesMedia`: a media placeholder is the same tokens for different pixels, so
     ///   shared tokens cannot prove a shared prefix, and upstream refuses to reconcile those
-    ///   (ChatSession.swift:345-356) — the fork would start cold while this line claimed a
+    ///   (ChatSession.swift:330-347) — the fork would start cold while this line claimed a
+    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:346 return .history(history)
     ///   rewind.
     /// - `laneCanSpend`: this turn generates through the pooled `ChatSession`. Guided gen and
     ///   MTP build their own KV cache and release the slot before generating, so a rewind
@@ -1468,8 +1538,9 @@ actor MLXSessionPool {
     ///
     /// Why this exists: sampling does not travel with the call. Upstream reads the
     /// session's *stored* parameters when a stream starts
-    /// (`ChatSession.swift:370` declares `public var generateParameters`, and `streamMap`
-    /// captures that property in its task capture list at `:981-987`), so handing a pooled
+    /// (`ChatSession.swift:361` declares `public var generateParameters`, and `streamMap`
+    // anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:361 public var generateParameters
+    /// captures that property in its task capture list at `:1037-1043`), so handing a pooled
     /// session back untouched means the next turn on that conversation generates under the
     /// previous turn's knobs. Measured 10-19 on this host
     /// (`mlx-community/gemma-4-e2b-it-4bit`, temp 0, two turns on one session): a
@@ -1487,7 +1558,7 @@ actor MLXSessionPool {
     /// The cache-affecting fields (`maxKVSize`, `kvBits`, `kvGroupSize`,
     /// `quantizedKVStart`, `kvScheme`, `kvCache`) are deliberately absent: upstream
     /// reconciles those itself, rebuilding the cache from its retained transcript when the
-    /// plan moves (`ChatSession.swift:1052-1067`), so a change there is not silently lost
+    /// plan moves (`ChatSession.swift:1108-1122`), so a change there is not silently lost
     /// and naming it here would claim a defect upstream already handles.
     nonisolated static func staleSamplingFields(
         before stored: MLXLMCommon.GenerateParameters,

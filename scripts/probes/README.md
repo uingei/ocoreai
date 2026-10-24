@@ -1,13 +1,11 @@
 # Live probes
 
-Executable evidence for claims about the HTTP surface. They serve AGENTS.md invariant 1 —
-*a claim is worth exactly the gate that goes red when it breaks* — and fix the failure they
-were born from: live findings used to be throwaway scripts in temp dirs, so no measurement
-could be re-run once the session that made it ended.
+Executable evidence about the HTTP surface (AGENTS.md invariant 1). They fix the
+failure they were born from: live findings were throwaway scripts in temp dirs, so no measurement
+outlived the session that made it.
 
-`V1EndpointCatalogTests` and friends pin the wire at **compile time**. These probes pin it
-against a **running server**, which is the only place a route can be registered in the
-router and still 404 at runtime (middleware, ordering, a handler that throws).
+`V1EndpointCatalogTests` and friends pin the wire at **compile time**. These probe a **running
+server** — the only place a registered route can still 404 (middleware, ordering, a throwing handler).
 
 ## Running
 
@@ -36,7 +34,7 @@ each defect named here lives in `CHANGELOG.md`, at the dated round that found it
 - `01-prefix-accounting.sh` — Does a session-pool HIT actually save a prefill, and does the server admit whether it did?
 Fails when: the wire claims `cached_tokens > 0` that the engine did not deliver, a HIT turn goes unaccounted, the dedupe path was never exercised, or `prefixReuse` / `reuseRefusals` on `/v1/models/:model/kv-cache` disagree with the measured turns (including which rule refused a warm session, and the cold turn whose head was already resident in another
     conversation), or the engine's `Prefix cache reused C of T` line disagrees digit-for-digit with that same turn's `cached_tokens`/`prompt_tokens` (the whole-vs-part tie that stayed silent for exactly as long as the wire published the prefilled suffix under the prompt's name), or one streaming turn's `prompt_tokens` and the `/metrics` prompt counter move by
-    different amounts (§E: the wire was accounted on 10-21 and the counter was not, so cost and capacity were read from a number ~36x too small)
+    different amounts (§E: the wire was accounted while the counter was not, so cost and capacity were read from a number ~36x too small)
 
 - `02-count-tokens-shapes.sh` — Can OpenAI *and* Anthropic clients size a request here?
 Fails when: any spec-legal shape 400/404s, an unlabelled count, same-text shapes disagreeing on one endpoint, the pre-flight counting **less** than the caller's own bytes (it sizes the assembled request, not just the payload), the `system` block dropping out of either endpoint's count, or a malformed body answering 200/500
@@ -73,8 +71,13 @@ Fails when: a knob is decoded, cascaded and logged yet changes nothing measurabl
 - `11-tool-call-delivery.sh` — Does a declared tool come back as a call the client can run?
 Fails when: `tools[]` yields prose instead of `tool_calls`, declaring a tool costs the answer (forcing gated on presence), `tool_choice:"none"` still calls, SSE and JSON disagree, or `toolCallDelivery` says `parsed` without evidence naming the tool
 
-- `12-json-mode-delivery.sh` — Does `response_format` deliver JSON with something inside it?
-Fails when: `json_object` fails to parse or disagrees with `json_schema{"type":"object"}`, a schema naming required keys returns none, or a caller that pins zero properties stops getting `{}`
+- `12-json-mode-delivery.sh` — Does `response_format` deliver JSON with something inside it, with and without `tools[]` on the same turn?
+Fails when: `json_object` fails to parse or disagrees with `json_schema{"type":"object"}`, a schema naming required keys returns none, a caller that pins zero properties stops getting `{}`, or §6's own control collapses —
+    the ask must still deliver its keys with tools removed, otherwise §6 blames the crossing for what grammar alone broke. §6 is `probe_fail`, not xfail: the keys arrive 3/3 with the tools still
+    declared, on both shapes, the same rate the identical prompt reaches without them — and that ordering was chosen from four measured candidates, since envelope-first lost the answer 0/3, an `anyOf` of both channels
+    finished after one brace, and no grammar fenced the JSON in ``` so nothing downstream could parse it. §7 holds the half no ordering can give: a turn that must read a file before answering cannot emit the call under a
+    JSON grammar, so 200 comes back with schema-valid integers the file never stated (fixture says 47 by 13; answers said 10/10, twice ran the digits out to `finish=length`). §5 splits by prompt, not by run — 3/3 close
+    on one ask, 3/3 run to `finish=length` with a 126-character repeat run on the other.
 
 - `13-anthropic-tool-delivery.sh` — Does the Anthropic face deliver what its wire promises — a call, a result continuation, thinking, the same prompt the OpenAI face sends, and a steer?
 Fails when: a demanded call arrives as `end_turn` prose instead of a `tool_use` block (id/name, `input` as an object); the SSE stream opens a block without naming it or leaks the call dialect as text; `message_delta` carries no `tool_use` reason; a declaration without demand loses the answer; `tool_choice:{"type":"none"}` still calls; the shared
@@ -83,7 +86,7 @@ Fails when: a demanded call arrives as `end_turn` prose instead of a `tool_use` 
 
 - `14-parallel-and-terminal-word.sh` — Does a tool turn tell the truth about itself — how many calls it may run, whether the budget cut it, and which chunk is the last?
 Fails when: `parallel_tool_calls:false` / `disable_parallel_tool_use:true` still delivers two calls; a turn the budget chopped says `tool_calls` instead of `length` (`completion_tokens == max_tokens`); an SSE delta carries a `finish_reason` or more than one chunk does; a delivered call ends with `stop`; OpenAI's nested `tool_choice` answers 400 `Coding key
-    \`name\` not found.` while an unknown word answers 200; a refusal that does not name `tool_choice`. §7 pins that a turn obeys its own `max_tokens` even when the turn before it on the same session was grammar- or tool-constrained (regression pin for the 10-19 pooled-session leak, fixed 10-20)
+    \`name\` not found.` while an unknown word answers 200; a refusal that does not name `tool_choice`. §7 pins that a turn obeys its own `max_tokens` even when the turn before it on the same session was grammar- or tool-constrained (regression pin for the pooled-session leak)
 
 - `15-system-instruction-delivery.sh` — Does the caller's `system`/`developer` text reach the model on both faces, and does rewriting it invalidate the cache that was rendered without it?
 Fails when: a ~1k-char `system` message that leaves `usage.prompt_tokens` at the no-system baseline (accepted, counted by the disclosure line, never delivered); `developer` costing different tokens than `system`; the two faces disagreeing on identical content by more than 8 tokens; the disclosure showing two system messages (`[system,system,…]`) or its
@@ -101,12 +104,12 @@ Fails when: a turn on that lane naming the clip's colour with a prompt-token jum
 
 - `18-auth-surface.sh` — Does the `auth` column `/v1/capabilities` publishes match what the server actually enforces?
 Fails when: boots with keys ON and floors that premise first (a disabled middleware makes every refusal pass vacuously at 200), then certifies all 7 public routes answer keyless, all 27 key/admin routes refuse with 401, `GET /v1/perception` by name (401 keyless / 200 keyed — the router's own docstring called it "public" while it was never in
-    `AuthRoutePolicy.publicPaths`), and `DELETE /sessions/:id` with a **user** key → 403 `adminKeyRequired` (never a silent 2xx); last, the public set measured on the wire must equal README.md's documented list. A route that never answered counts as a contradiction, never as "open". Measured 10-20: **12 passed / 0 failed / 4 measured**; red sample — adding
+    `AuthRoutePolicy.publicPaths`), and `DELETE /sessions/:id` with a **user** key → 403 `adminKeyRequired` (never a silent 2xx); last, the public set measured on the wire must equal README.md's documented list. A route that never answered counts as a contradiction, never as "open"; red sample — adding
     `/v1/perception` to `publicPaths` fails 3 assertions (keyless 200, and README's 7 paths vs the wire's 8)
 
 - `19-instruction-change-cost.sh` — When the caller's instructions change mid-conversation, are the new ones obeyed — and what does that cost?
 Fails when: instructions A still obeyed after B is sent (the stale-instruction defect `instructionsMatch` exists to prevent), a same-instruction warm turn reporting `cached_tokens == 0` (the premise: without reuse there is no baseline to price), the wire's `cached_tokens` disagreeing with the number the engine logged for that conversation, or the changed
-    turn claiming the whole prompt was reused when the old prefix described the old instructions. Measured 10-20: turn1 `prompt=1456 cached=0` · same-instruction warm `prompt=12 cached=1458` · changed-instruction `prompt=1438 cached=0` — refuse-and-rebuild, priced at one full re-prefill (the owner-call in AGENTS.md § Open, with codex #53872's
+    turn claiming the whole prompt was reused when the old prefix described the old instructions— refuse-and-rebuild, priced at one full re-prefill (the owner-call in AGENTS.md § Open, with codex #53872's
     supersede-marker as the alternative)
 
 - `20-download-path-traversal.sh` — Does a model id get to choose where the cache lives?
@@ -114,19 +117,20 @@ Fails when: a traversing `model`/`revision` not answering 400 with `error.param`
     eat real downloads); an SSE stream that emits no `data:` line; either pre-existing refusal losing the field it blames; or the server not answering `/health` afterwards. It also caught the defect it now gates: before the fix every body answered `400 Coding key \`useLatest\` not found.` — and the two "pre-existing validation" legs passed on that run, which
     is why every refusal leg here now asserts *which* field it blamed
 
-- `21-sleep-steer-wake.sh` — Does input for *this* conversation end `clock.sleep`'s wait, does the injected text reach the model in that same turn, and does another conversation's input leave the wait alone?
+- `21-sleep-steer-wake.sh` — Does input for *this* conversation end `clock.sleep`'s wait, does the injected text reach the model in that same turn, and does another conversation's input leave the wait alone? The timing verdict comes from `ocoreai.tool_results[0].duration_ms` (measured), not from the model's echo.
 Fails when: a control turn that never spent its requested duration (without a real sleep, "the steered turn was fast" certifies nothing); a steer accepted with `queued_count>=1` while the turn still runs the full duration (no early wake); a steered reply missing `[mid-turn user steering]` (accepted but never delivered into the turn); `Sleep completed.` on a
     turn that was actually woken, or `interrupt` missing when the control proved the checkpoint echoes tool output; a steer aimed at a *different* session ending this session's sleep (cross-session wake — the same leak `SessionIsolationTests` closed on the pool side); `sleep` absent from `/v1/tools`; a `/v1/tools` scan that parsed fewer than 5 names (vacuous
-    premise); or any response with `cached_tokens > prompt_tokens` (a breakdown larger than the whole it belongs to). Measured 10-21: control 10807 ms for 9000 ms asked · steered 2651 ms for 8000 ms (`sleep` itself 1086 ms) · foreign-steered 8628 ms for 7000 ms · usage pairs 957/987, 957/1006, 957/987
+    premise); or any response with `cached_tokens > prompt_tokens` (a breakdown larger than the whole it belongs to)
+    or `ocoreai.tool_results` missing on a dispatching turn, or a `duration_ms` contradicting its leg (a wait reported short, a wake that never happened)
 
 - `22-session-memory-identity.sh` — Does one `session_id` (and one Anthropic `metadata.session_id`) become one session in memory, does a message row hold its own tokens, and does a re-sent history get stored once?
 Fails when: a conversation key splitting into a second `sessions` row (measured before the fix: 3 turns ⇒ 3 rows of `message_count=2`), the turns not accumulating in that one row, a user row costing more than its own content (before the fix: 34 characters stored as `token_count: 705` = the turn's whole prompt), or the session total exceeding 1.5× one
     turn's `prompt_tokens` — the signature of charging history again every turn against the 128k prune rule
 
 - `23-lora-seam-honesty.sh` — Does one LoRA request take the box down, and does an id `/v1/models` advertises ever reach the engine?
-Fails when: silence or a dead server on `/v1/models/evaluate` or `/v1/models/train` (measured 10-21 before the fix: legal datasets killed the process — `Trace/BPT trap: 5`, `Swift runtime failure: type cast failed` inside upstream `LoRATrain.loss`'s `model as! any LLMModel`, `LoraTrain.swift:165` at pin `48114eedf`); a refusal that does not name the
+Fails when: silence or a dead server on `/v1/models/evaluate` or `/v1/models/train` (before the fix legal datasets killed the process inside upstream `LoRATrain.loss`'s `model as! any LLMModel` — the trap, the file:line and the pin are in CHANGELOG); a refusal that does not name the
     capability it needs; a train stream that opens and then cuts without an `error` chunk; an SSE error carrying no message; the box not answering `/health`, or a normal chat turn losing its code word, afterwards. **Gated hard since the same session** (`HubReachability`): an unresolvable id must now be answered within 30 s — HTTP 404 when a hub said the repo
-    is not there, HTTP 503 when a hub could not be asked, naming the id in both, and the 503 also naming both hubs plus the `HF_ENDPOINT` lever. Measured 10-21 post-fix: both legs **8 s / HTTP 503**, `/health` and the chat code word alive afterwards (`10 passed, 0 failed, 4 measured, 1 known-open`; pre-fix this same probe carried 2 known-open silences). The
+    is not there, HTTP 503 when a hub could not be asked, naming the id in both, and the 503 also naming both hubs plus the `HF_ENDPOINT` lever. Both legs refused at the hub ceiling with the code word alive afterwards; pre-fix the same probe carried two known-open silences. The
     residual stays xfail: nothing caches a failed resolution, so retrying a dead id re-pays the probe window (8 s → 8 s). The 1-token-sample rule is unit-pinned (`LoRASampleDomainTests`) because this box's checkpoint is refused earlier by capability — the probe says so rather than claiming it checked
 
 - `24-hub-existence-gate.sh` — Does the hub reachability gate refuse only what it actually asked?
@@ -140,13 +144,13 @@ Note: `$bridge/status` must state 30s startup / 300s tool; `tool_timeout_sec:-5`
 Note: A stdio stub that writes a traceback and exits 3 must produce a `-32603` naming **both** the exit status and `ModuleNotFoundError`, with exactly one `stderr:` clause (the client wraps the error twice — a doubled clause is a bug); a stub that complains then hangs must say `did not answer within 2s` **and** carry its `address already in use`, so the
     two failure modes stay distinguishable rather than collapsing into "it failed"; `$bridge/endpoint/list` must still hold that evidence in `lastError` (the row the GUI reads after the response scrolled past); and a healthy stub must still connect, with `/health` and a chat code word alive afterwards — capturing stderr costs a behaving server nothing.
    Fails when: first the premise: the stub must record the existence request, or every later assertion is vacuous (`HF_ENDPOINT` ignored ⇒ unmeasured, not proven); then pass-through — with the hub answering 200 the answer may be a download failure (the stub holds no weights) but must not be the reachability refusal, and the box must still answer `/health`;
-    then the flip — kill the stub, send the *same* id, and it must come back HTTP 503 naming that id inside 15 s. Two verdicts from one id, decided by what the hub said, not by how long the caller waited. Measured 10-21: `7 passed, 0 failed, 3 measured` — the stub log shows `/api/models/<repo>` followed by `/revision/main?` and `/tree/main?recursive=true`
+    then the flip — kill the stub, send the *same* id, and it must come back HTTP 503 naming that id inside 15 s. Two verdicts from one id, decided by what the hub said, not by how long the caller waited — the stub log shows `/api/models/<repo>` followed by `/revision/main?` and `/tree/main?recursive=true`
     (the request went through to the hub client), and the same id is refused in 0 s once the hub is gone.
 
 - `27-edited-history-honesty.sh` — When a caller rewrites the past, does the answer come from the history it actually sent — and what does that turn pay?
 Fails when: the replaced fact appearing in the reply after an edited resend (the leak `canReusePooledSession` refuses to answer from, and now the leak the KV trim must not reintroduce — until this probe it was a rule believed, not observed); an appended warm turn that reuses nothing (no baseline ⇒ "this edit costs X" certifies nothing); the edited turn
     re-prefilling everything (`cached_tokens == 0` — the fork or the reserve silently stopped working and only latency would notice); `prompt_tokens < cached_tokens`, or the edited turn claiming more reuse than the appended turn got (a breakdown larger than its whole); and either half of the ledger lying — `historyDiverged > 0` books a rewound turn as
-    refused-and-rebuilt, or `prefixReuse` disagreeing with the usage field the client saw. Measured 10-21 (gemma-4-e2b-it-4bit, one session, 4 turns): turn1 `708/0` · turn2 `732/710` · turn3 appended `758/734` · turn4 edited `758/718` and answers the NEW code word with the OLD one absent (`14 passed, 0 failed, 4 measured, 0 known-open`). Pre-fix the same turn
+    refused-and-rebuilt, or `prefixReuse` disagreeing with the usage field the client saw. The four-turn usage ladder and its pass count belong to the run, recorded in CHANGELOG. Pre-fix the same turn
 
 - `28-single-instance-refusal.sh` — When another instance holds the lock, does the refused `serve` actually leave?
 Fails when: instance B stays alive until someone signals it (a refusal the caller must kill is a hang wearing one), exits 0
@@ -159,7 +163,7 @@ Fails when: the capacity refusal is a 500 `app_error`, lacks `engine_busy`/`rate
 
 - `30-repeated-prompt-delivery.sh` — Ask the same thing twice: does the second answer arrive?
 Fails when: a one-token `.eos` turn lacks its `Degenerate generation` line (leg 4). Its run-to-run
-    collapse rate was explained on 10-23 — the prompt was not byte-identical across boots (probe 32);
+    the collapse rate is explained: the prompt was not byte-identical across boots (probe 32);
     the numbers and the dead mechanism stories are in `CHANGELOG.md`.
 - `31-client-abort-cancellation.sh` — When a client walks away mid-turn, does the engine stop?
 Fails when: a turn whose client left still leaves a completion record with >8 tokens XFAIL-open until fixed:
@@ -178,6 +182,13 @@ Fails when: the tool is not local (then no schema byte entered the prompt and an
 Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list` publishes tools without
     properties/descriptions, `tools/call` answers a success-shaped `{}` because params never decoded, a malformed
     call is not refused by name, or the box stops serving after MCP traffic.
+
+- `35-kv-cache-residency.sh` — Does the KV byte figure the surfaces publish ever become real,
+  and does admission learn its price from that measurement?
+    Fails when: `/metrics` reads non-zero before any cache exists, stays zero after a 3K-token
+    turn, disagrees with the endpoint's `residency.residentBytes`, reports a `bytesPerToken`
+    outside 256..1048575, or after a turn has priced the model no reservation logs
+    `@ measured <that price> B/token` (§6 — the 1024 B/token floor is for the unpriced model only).
 
 - `_lib.sh` — shared harness
 Fails when: —

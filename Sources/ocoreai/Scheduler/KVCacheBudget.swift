@@ -21,13 +21,26 @@
 import Foundation
 
 enum KVCacheBudget {
-    /// Bytes of KV cache per generated/prompt token: 1 KB/token for bits-4 q4_0 weights.
+    /// Fallback price of one KV token, in bytes, for a model this process has never priced.
     ///
-    /// Single home for the constant both the admission gate and the dispatcher used to carry.
+    /// Single home for the constant both the admission gate and the dispatcher carry. It is a
+    /// *floor for the unknown*, not a claim about any model: the measured price on the default
+    /// checkpoint is 10,475 B/token (`KVCachePriceLedger`, probe 35), 10× this number, because
+    /// KV bytes follow layers × kv heads × head dim × dtype with sliding windows and KV sharing
+    /// on top — none of which a weight-quantization heuristic can see. Where a real price
+    /// exists the gate uses it (`AdmissionGate.effectiveBytesPerToken`); where it does not,
+    /// the decision says `fallback`.
     static let bytesPerToken: UInt64 = 1024
 
-    /// KV-cache bytes for `tokens`, with a non-trapping floor at zero.
+    /// KV-cache bytes for `tokens` at the fallback price, with a non-trapping floor at zero.
     static func bytes(_ tokens: Int) -> UInt64 {
-        UInt64(Swift.max(0, tokens)) * bytesPerToken
+        bytes(tokens, bytesPerToken: bytesPerToken)
+    }
+
+    /// KV-cache bytes for `tokens` at a measured price, floored at zero tokens and at the
+    /// fallback price per token: a zero or negative price would admit anything, which is the
+    /// failure this file exists to prevent.
+    static func bytes(_ tokens: Int, bytesPerToken price: UInt64) -> UInt64 {
+        UInt64(Swift.max(0, tokens)) * Swift.max(price, bytesPerToken)
     }
 }

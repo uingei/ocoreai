@@ -216,7 +216,7 @@ fi
 # "reused 710 of 730" and answer prompt_tokens=20 / cached_tokens=710. Assertion B above compares
 # the CACHED numbers turn for turn, so it stayed green through that: a gate that checks the part
 # and never the whole cannot see a whole that is too small (AGENTS.md invariant 1). Upstream's
-# total is cached + prefilled (mlx-swift-lm Evaluate.swift:2984-2987) and the reuse line already
+# total is cached + prefilled (mlx-swift-lm Evaluate.swift:3002-3004) and the reuse line already
 # prints it, so log and wire must agree digit for digit.
 PAIR_CHECK="$(python3 - "$PROBE_LOG" "$SESSION" "$T2_CACHED" "$T2_PROMPT" "$T3_CACHED" "$T3_PROMPT" "$T4_CACHED" "$T4_PROMPT" <<'PY'
 import re, sys
