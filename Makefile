@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release app dmg test test-verbose test-coverage test-ci probes format format-check audit docs-check anchor-check clean metallib help ci-local push-ready
+.PHONY: all build release app dmg test test-verbose test-coverage test-ci probes format format-check audit docs-check anchor-check round-gates clean metallib help ci-local push-ready
 
 all: build
 
@@ -344,6 +344,13 @@ drift:
 docs-check:
 	bash scripts/agents-md-contract.sh check
 
+## Every no-build gate a round owns, in one command. `ci-local` is the full pipeline but it
+## starts with `clean`, and a half-hour target gets skipped mid-round — which is exactly how five
+## line-cites survived a push after their files grew (docs-check only asks whether a cited path
+## exists; verifying the *line* is anchor-check's job, and nothing chained the two).
+round-gates: docs-check anchor-check audit
+	@echo "✅ round gates green — docs contract, line cites, swift patterns"
+
 # A round is not finished while it lives only in this checkout: CI on macos-26 is the stated
 # authority, and an unpushed commit has been verified by nobody but this box. Two days of uncommitted
 # work escaped every gate that exists, so this one checks the tree instead of the text.
@@ -391,6 +398,7 @@ help:
 	@echo "  make format         Format all Swift files"
 	@echo "  make docs-check     AGENTS.md budget + refs + claims + routing (no build needed)"
 	@echo "  make anchor-check   every file:line cite points at the code it claims (no build)"
+	@echo "  make round-gates    docs-check + anchor-check + audit in one no-build pass (run it every round)"
 	@echo "  make docs-budget    Lower the AGENTS.md size cap (shrink-only)"
 	@echo "  make format-check   Check format compliance (exit 1 if dirty)"
 	@echo "  make audit          Run static audit (failure pattern check)"
