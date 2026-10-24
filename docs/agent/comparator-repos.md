@@ -89,8 +89,8 @@ Borrow: named, unused; same call pending
    implements it, and the gate that goes red if it regresses.
 2. Refresh the audit column with the one-liner above; P16 re-derives both lists, so change the
    two together. A tree that stays "named, unused" is decoration: use it or drop it from
-   `AGENTS.md`. P16 re-derives it from `Sources/` + `Tests/`: eight trees have zero coupling —
-   MTPLX, TensorFold, Strata, goose, mlx-serve, opencode,
-   deepseek-harness, harness2 — and openclaw is designated but unread.
+   `AGENTS.md`. P16 re-derives it from `Sources/` + `Tests/`: six trees have zero coupling —
+   MTPLX, TensorFold, Strata, mlx-serve, opencode, harness2 — and openclaw is designated
+   but unread.
 3. `~/references/` holds the comparators above plus `mlx-swift-lm`, `coreai-models` and `codex`
    (§ Upstream Audit Dependencies 1–3, not comparators). A clone proves *content*, never HEAD.
