@@ -334,6 +334,9 @@ project is **Human-facing**.
   opt-in flag/trait → tool or skill → new module → new core/agent-facing surface. A new surface needs a
   consumer that exists today, not one imagined for tomorrow.
 - **One home per decision.** A second copy of a rule is where one of them drifts.
+  **A side effect is gated where it is declared:** `ToolEntry.isDestructive` is the only destructive
+  truth and `securityPrecheck` asks from it (∪ blacklist for names nothing registers) — a hand-copied
+  matcher list is how 11 of 17 mutating tools ran unasked. Gate: `DestructiveApprovalGateTests`(5).
 - **One resolver, one ladder:** precedence as data, a candidate trusted only once probed, a failed *read*
   falling to the next rung, a failed *authoritative write* surfacing or rolling back, bounded retries that
   end in a recovery affordance. `MetalShaderLibrary` is the pattern.

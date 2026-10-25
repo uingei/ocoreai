@@ -394,17 +394,23 @@ actor ToolRegistry {
     ///
     /// Extracted from `call` — local-tool behavior is unchanged: same verdict
     /// order, same broker path, same deny reasons, same log lines.
-    /// Security preflight for **local** tool calls (legacy surface, behavior
-    /// unchanged): a hook verdict governs; a call no hook claims is ungated —
-    /// the bootstrap hook in `App.swift` (destructive-tool matcher) is the
-    /// approval surface for the 7 built-in local tools.
+    /// Security preflight for **local** tool calls: a hook verdict governs; a call no
+    /// hook claims is gated by what the tool declared at registration
+    /// (`ToolEntry.isDestructive` ∪ blacklist) — the gate reads the declaration, so a new
+    /// side-effecting tool is under approval before anyone adds it to a matcher.
     /// - Throws: ``ToolError/denied(reason:):`` on `.deny` or user denial.
     func securityPrecheck(
         toolName: String, arguments: String, headless: Bool = false
     ) async throws {
+        // An ask only means something where someone can answer it: with no broker wired
+        // there is no adjudicator, and this stays the hooks-only surface harnesses use.
+        let ungated: HookVerdict =
+            (approvalBroker != nil && isDestructive(toolName))
+            ? .ask(reason: "destructive tool call")
+            : .allow
         try await securityGate(
             toolName: toolName, arguments: arguments,
-            ungated: .allow, headless: headless
+            ungated: ungated, headless: headless
         )
     }
 
@@ -579,10 +585,9 @@ actor ToolRegistry {
             scope: loopScope,
             arguments: arguments)
 
-        // 3. Destructive tool serialization check
-        if destructiveBlacklist.contains(name) {
-            logger.info("Serial execution of destructive tool: \(name)")
-        }
+        // 3. Destructive calls were gated at the security precheck above. No lock lives
+        //    here: both lanes hand calls to the registry one at a time (native loop,
+        //    MTP per-iteration), so serialization is not this registry's claim to make.
 
         // 4. Begin audit trail
         let token: AuditToken?

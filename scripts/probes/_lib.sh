@@ -482,12 +482,16 @@ probe_boot() {
     PROBE_LOG="$(mktemp -t ocoreai-probe-XXXXXX).log"
     probe_note "bridge $PROBE_BASE · log ${PROBE_LOG} (boot attempt $attempt)"
 
+    # Approval policy is pinned, not inherited: an unpinned serve adopts whatever this
+    # host's GUI recorded (yaml first, then the GUI domain), so a probe asserting a
+    # write-side delivery would pass or fail on the operator's settings, not the code.
     # stdin must be /dev/null: HeadlessServer installs a stdin-EOF shutdown watcher for
     # pipes and TTYs (agent-harness semantics). A background probe launched from a
     # script would otherwise be killed by its own closed pipe at t=0.
     OCOREAI_ENABLE_HTTP=1 \
     OCOREAI_HOST=127.0.0.1 \
     OCOREAI_PORT="$PROBE_PORT" \
+    OCOREAI_APPROVAL_POLICY="${OCOREAI_APPROVAL_POLICY:-auto}" \
       "$bin" serve < /dev/null > "$PROBE_LOG" 2>&1 &
     PROBE_PID=$!
 

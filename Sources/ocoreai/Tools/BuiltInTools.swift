@@ -664,8 +664,8 @@ func bootstrapBuiltInTools(
     // (点/键/拖/滚/打字)此前全库为零 —— 本段补齐, 与 codex `computer_use`
     // (codex-rs/features/src/lib.rs:1468, Stage::Stable, default_enabled: true)
     // 对齐: 一等轴, 默认可达。
-    // 安全: 6 个全 isDestructive → 串行 + 逐次审批 ask(App.swift destructive
-    // matcher, 每次驱动用户裁决); 无 Accessibility 权限 → 诚实回报(工具面
+    // 安全: 6 个全 isDestructive → 逐次审批 ask(注册声明即闸门, 见
+    // ToolRegistry.securityPrecheck); 无 Accessibility 权限 → 诚实回报(工具面
     // trustedStatus, 不假装已发出); headless → 既有 fail-closed 拒绝。
     try? await registry.register(MoveMouseClient.toolEntry())
     try? await registry.register(ClickClient.toolEntry())

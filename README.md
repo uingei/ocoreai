@@ -42,9 +42,9 @@ Direct SwiftPM build, no `.xcodeproj` (the test gate runs through the SPM `ocore
 **Headless HTTP entry: `ocoreai serve`** (`swift run ocoreai serve`, or the built binary directly) — boots the engine + bridge on `127.0.0.1:8080` with no GUI/WindowServer session. Shutdown: `SIGTERM` or closing stdin drains the engine (≤30s) then exits clean; `SIGINT` keeps default terminal behavior. Bare `ocoreai` launches the GUI as before. Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
 DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显式 opt-in — 终端运行 `OCOREAI_ENABLE_HTTP=1 /Applications/ocoreai.app/Contents/MacOS/ocoreai`（实证：bridge 日志出现 + `/health` 200 + `/v1/chat/completions` 推理闭环）。无头启动走 `ocoreai serve`：引擎 + 桥绑定 `127.0.0.1:8080`，无需窗口会话；`SIGTERM` 或关闭 stdin 触发优雅退出（引擎排空 ≤30s），`SIGINT` 保持终端默认行为。
 
-> ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. **Auth is off unless** the `OCOREAI_API_KEYS` env var is set; **no TLS**. Token-bucket rate limiting is on by default: global **200 req/s** (burst 300), per-model 30/s (burst 45), per-IP 20/s (burst 30) — set once at `App.swift:723`, enforced by `Middleware/RateLimitMiddleware.swift`.
+> ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. **Auth is off unless** the `OCOREAI_API_KEYS` env var is set; **no TLS**. Token-bucket rate limiting is on by default: global **200 req/s** (burst 300), per-model 30/s (burst 45), per-IP 20/s (burst 30) — set once at `App.swift:718`, enforced by `Middleware/RateLimitMiddleware.swift`.
 <!-- claim:global_rate_set=1 :: grep -c 'globalRate: 200' Sources/ocoreai/App.swift -->
-<!-- anchor:. Sources/ocoreai/App.swift:723 globalRate: 200 -->
+<!-- anchor:. Sources/ocoreai/App.swift:718 globalRate: 200 -->
 
 > 🛠️ **Dev release** — This is a development build. Production use requires additional hardening (see Security section below).
 

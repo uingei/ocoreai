@@ -15,8 +15,8 @@
 ///   key_press   虚拟键 + modifiers(cmd/shift/control/option)
 ///
 /// 安全(三层, 均 fail-closed):
-///   1. 6 个全 `isDestructive: true` → 串行执行 + 逐次审批 ask(App.swift
-///      destructive matcher, 每次驱动用户裁决)
+///   1. 6 个全 `isDestructive: true` → 逐次审批 ask(闸门读注册声明本身,
+///      见 `ToolRegistry.securityPrecheck`, 每次驱动用户裁决)
 ///   2. 无 Accessibility 权限 → 驱动不生效; 工具面 `trustedStatus()` 诚实回报
 ///      权限态与授予引导, 不假装已发出
 ///   3. headless 通道 → 既有 securityGate fail-closed 拒绝(无 GUI 裁决者)

@@ -416,8 +416,9 @@ public final class OcoreaiEngine {
         // 由 persist 路径真消费；未绑定 = 纯内存环（AuditTrail 文档明示）。
         await auditTrail.attach(store: store)
         // Approval broker — codex `ExecApprovalRequest` 通路（参照形状）。
-        // 策略读 SettingsStore（`.interactive` 默认 = 高危才问）；hook 只拦
-        // 已注册的危险工具（write_file / edit_file）→ `.ask` → broker 裁决。
+        // 策略读 SettingsStore（`.interactive` 默认 = 高危才问）。高危判定不在这里列名：
+        // ToolRegistry 按注册声明（`isDestructive` ∪ blacklist）自己判——名单与声明
+        // 各存一份必然漂移（实测量到 17 条声明对 7 条名单）。
         // broker 缺席时 `.ask` 保持硬拒（ToolRegistry 内回归保护）。
         let approvalPolicyRaw = SettingsStore.shared.approvalPolicy
         let approvalPolicy = ApprovalPolicy(rawValue: approvalPolicyRaw) ?? .interactive
@@ -441,13 +442,7 @@ public final class OcoreaiEngine {
         }
         _toolRegistry = ToolRegistry(
             auditTrail: auditTrail,
-            hooks: [
-                .matching(
-                    "write_file,edit_file,exec_command,execute_code,exec_shell,write_stdin,exec_poll"
-                ) { _ in
-                    .ask(reason: "destructive tool call")
-                }
-            ],
+            hooks: [],
             approvalBroker: approvalBroker,
         )
 
