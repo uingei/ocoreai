@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 import Foundation
 
 /// Single choke point between engine output and the OpenAI-compatible wire.

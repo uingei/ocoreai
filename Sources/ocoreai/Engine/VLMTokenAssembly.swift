@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 import Foundation
 
 /// VLMTokenizerOperations — VLM prompt 装配的注入面(注入,使装配成为纯函数)。

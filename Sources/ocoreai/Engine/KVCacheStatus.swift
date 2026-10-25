@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 // KV cache inspection endpoint — GET /v1/models/:model/kv-cache
 //
 // Surfaces the model's planned KV/SSM cache topology and capacity disposition

@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 /// Line diff for the change-review UI (Bionic-parity inline diffs).
 ///
 /// A minimal, dependency-free LCS line diff: turns `edit_file`

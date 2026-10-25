@@ -6,9 +6,9 @@
 > (Class-I). Every count below is a `<!-- claim:… -->` marker that `make docs-check` re-runs,
 > so none of them can rot silently (invariant 1).
 
-**Distribution licenses (CI-gated):** the artifact is MIT **plus** third-party code under its own terms, and BSD-3 cl.1/cl.2 / Apache-2.0 §4 attach to the notice, so those texts must travel with the binary. Composition (every number machine-checked below): Apple-derived = files carrying Apple's verbatim BSD-3 header, all 44 of them (29 name `coreai-models`, the rest
+**Distribution licenses (CI-gated):** the artifact is MIT **plus** third-party code under its own terms, and BSD-3 cl.1/cl.2 / Apache-2.0 §4 attach to the notice, so those texts must travel with the binary. Composition (every number machine-checked below): Apple-derived = files carrying Apple's verbatim BSD-3 header, all 49 of them (35 name `coreai-models`, the rest
 Apple-authored files from other Apple trees, e.g. the XGrammar C bridge); vendored headers under `Sources/lib/` = **1** (`dlpack.h`, dmlc/dlpack, Apache-2.0 — attribution lives in the collector's explicit `VENDORED` table, anything outside it fails); deps = **29 Apache-2.0 + 5 MIT**; codex = semantic reference only (Rust, not linked, nothing redistributed → no text ships).
-Metric warning: grepping the *repo name* is not the derived count — 59 files under `Sources/` mention `coreai-models`, and only 29 of those carry an Apple copyright notice (the rest name the reference repo in a comment), while 15 BSD-3 files carry Apple's notice without naming coreai-models. Pipeline: `scripts/collect-third-party-licenses.sh` regenerates
+Metric warning: grepping the *repo name* is not the derived count — 60 files under `Sources/` mention `coreai-models`, and only 35 of those carry an Apple copyright notice (the rest name the reference repo in a comment), while 14 BSD-3 files carry Apple's notice without naming coreai-models. Pipeline: `scripts/collect-third-party-licenses.sh` regenerates
 `THIRD-PARTY-LICENSES/` (one text per dep + Apple BSD-3 + the dlpack Apache text + `NOTICES.md` + `manifest.json`; **exits 1** if a dep text is missing, no checkouts are present, or a vendored holder is unattributed; idempotent — re-running it on a clean tree changes nothing) → `scripts/bundle-licenses.sh <app>` copies it into `Contents/Resources/` and re-reads it *from
 inside* the bundle → called by `scripts/build-app.sh`. **Adding a dependency, bumping a pin, or vendoring a header ⇒ re-run the collector and commit its output.** GUI surface: Settings → About → Third-Party Notices, backed by `Core/ThirdPartyNotices.swift`; when texts are absent the panel says so, it never renders blank.
 
@@ -33,8 +33,8 @@ and `ThirdPartyNoticesTests` with no rebuild — the manifest is read at runtime
 - **Not proven** — the panel has never been rendered by an automated run (no UI-test target), so "the user actually reads the dlpack Apache text in Settings" is an inference from the data + source gates, not a measurement; and the byte-identity-vs-upstream check currently runs only on a host holding the clone — CI prints SKIP for it, which is why `apple.pin` being non-null
 in the committed manifest is asserted separately.
 
-<!-- claim:tpn_apple_derived>=44 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
-<!-- claim:tpn_naming_coreai>=29 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | xargs git grep -l coreai-models | wc -l -->
+<!-- claim:tpn_apple_derived>=49 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
+<!-- claim:tpn_naming_coreai>=35 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | xargs git grep -l coreai-models | wc -l -->
 <!-- claim:tpn_notice_files>=38 :: ls THIRD-PARTY-LICENSES | wc -l -->
 <!-- claim:tpn_schema=2 :: python3 -c "import json;print(json.load(open('THIRD-PARTY-LICENSES/manifest.json'))['schemaVersion'])" -->
 <!-- claim:tpn_manifest_deps>=34 :: python3 -c "import json;print(len(json.load(open('THIRD-PARTY-LICENSES/manifest.json'))['dependencies']))" -->

@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 // CoreAI shared sequence & token types — aligned with coreai-models HEAD a5ece33
 //
 // Scalar types (LogitsScalarType, InferenceOutput) and strategy enums live in

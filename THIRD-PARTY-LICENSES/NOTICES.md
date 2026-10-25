@@ -5,8 +5,8 @@ ocoreai's own code is MIT (see LICENSE). This product additionally ships:
 ## 1. Apple-derived source (BSD-3-Clause)
 
 - Verbatim license text: `Apple-coreai-models.txt`, byte-compared against upstream `apple/coreai-models`' `LICENSE` by `scripts/collect-third-party-licenses.sh` whenever that clone is reachable.
-- 44 files under `Sources/` retain Apple's copyright notice together with its verbatim "BSD-3-clause ... can be found in the LICENSE file" header. Detection: `git grep -l "Copyright 2026 Apple Inc" -- Sources`.
-- Of those, 29 name `coreai-models` in the header; the rest are Apple-authored files from other Apple trees (e.g. the XGrammar C bridge under `Sources/lib/CXGrammar/`), covered by the same BSD-3 text. `git grep -il coreai-models -- Sources` is deliberately NOT used as the count: 59 hits include files that only mention the reference repo in a comment.
+- 49 files under `Sources/` retain Apple's copyright notice together with its verbatim "BSD-3-clause ... can be found in the LICENSE file" header. Detection: `git grep -l "Copyright 2026 Apple Inc" -- Sources`.
+- Of those, 35 name `coreai-models` in the header; the rest are Apple-authored files from other Apple trees (e.g. the XGrammar C bridge under `Sources/lib/CXGrammar/`), covered by the same BSD-3 text. `git grep -il coreai-models -- Sources` is deliberately NOT used as the count: 60 hits include files that only mention the reference repo in a comment.
 - The repo root `LICENSE` is MIT and covers only ocoreai's own code; here the BSD-3 conditions live in `NOTICES.md` + `Apple-coreai-models.txt`, next to this file. In the shipped app the folder sits at `ocoreai.app/Contents/Resources/THIRD-PARTY-LICENSES/`, and the GUI renders it under Settings → About → Third-Party Notices.
 
 ## 2. Linked SwiftPM dependencies

@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 // MediaSpool.swift — where the bytes behind a `data:` media URL live, and for how long.
 //
 // ### The defect this closes (measured 10-16, `scripts/probes/08-video-honesty.sh`)

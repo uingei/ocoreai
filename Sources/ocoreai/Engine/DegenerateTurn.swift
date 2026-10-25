@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 /// A turn that ends after producing at most one token, under a budget that asked
 /// for more, is not an answer — and it must not leave the process as a plain
 /// `200 + finish_reason: stop`.

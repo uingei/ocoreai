@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 // Provenance: coreai-models (BSD-3-clause, Apple) — absorbed.
 //   Upstream:
 //     CoreAIShared/Bundle/ModelBundle.swift  — ComponentKey.main/vision/embedding,

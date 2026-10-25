@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 import Foundation
 
 /// Single source of truth for the Hugging Face endpoint lever.

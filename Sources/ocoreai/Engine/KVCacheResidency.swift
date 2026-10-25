@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 // KV cache residency — what a resident cache actually costs, in bytes, measured.
 //
 // ### Why this exists

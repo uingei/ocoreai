@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 // ChatMediaResolution.swift — a media part the client *named* but this process cannot
 // open must be refused by name, never answered as an opaque server error.
 //

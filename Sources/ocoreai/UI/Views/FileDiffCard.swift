@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 import SwiftUI
 
 /// Inline file-change review card (Bionic-parity "review every change").

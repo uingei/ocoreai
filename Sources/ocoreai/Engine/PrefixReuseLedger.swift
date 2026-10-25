@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 // Prefix reuse accounting — what the KV prefix cache actually saved, per model.
 //
 // ### Why this exists

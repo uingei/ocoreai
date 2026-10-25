@@ -1,3 +1,5 @@
+// Copyright © 2026 uingei@163.com.
+// Licensed under MIT.
 // MARK: - CLILogger stub (no-op for ocoreai)
 // Signature mirrors upstream coreai-models CoreAIShared/Logger/Logger.swift:
 //   public static func log(_ message: String, component: String? = nil, level: Int = 1)

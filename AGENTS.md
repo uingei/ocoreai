@@ -80,7 +80,7 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   dependency, bumping a pin or vendoring a header ⇒ re-run `scripts/collect-third-party-licenses.sh` and commit
   its output. Gates: `ThirdPartyNoticesTests`(16) + `scripts/audit.swift_patterns.sh` Class-I; composition:
   `docs/agent/third-party-notices.md`.
-<!-- claim:apple_derived_files>=44 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
+<!-- claim:apple_derived_files>=49 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
 <!-- claim:notice_files>=38 :: ls THIRD-PARTY-LICENSES | wc -l -->
 
 ## Code Conventions
