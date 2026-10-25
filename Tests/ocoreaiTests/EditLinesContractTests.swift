@@ -131,6 +131,9 @@ struct EditLinesContractTests {
             #expect(
                 message.contains("outside 1...4") && message.contains("3 lines"),
                 "the refusal must carry the bound and the count: \(message)")
+            #expect(
+                message.contains("do not answer the user before that retry"),
+                "a refusal stating the range sends the retry before the answer: \(message)")
         }
         #expect(try String(contentsOf: url, encoding: .utf8) == "a\nb\nc\n", "refusal never writes")
     }

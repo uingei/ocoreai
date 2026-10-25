@@ -229,8 +229,51 @@ struct EditMismatchRecoveryTests {
                 !message.contains("61|let target"),
                 "the number belongs to the label, not the quoted text: \(message)")
             #expect(message.contains("read_file"), "and name how to see the rest: \(message)")
+            #expect(
+                !message.contains("Retry this call now"),
+                "a window must not order a retry whose line it may have clipped: \(message)")
         }
         #expect(try String(contentsOf: url, encoding: .utf8) == lines.joined(separator: "\n"))
+    }
+
+    /// The scoreboard shape this contract came from: `fix-boundary-comparison` quoted a
+    /// `capacity.py` line that did not exist, the refusal printed the two-line file whole —
+    /// with the caller's own `newString` already correct — and the turn ended at "I need to
+    /// read the file first". The data was there; the next action was not. So a refusal that
+    /// quoted everything names the retry and closes the exit that loses the task.
+    @Test("a whole-file quote orders the retry instead of a round trip it already served")
+    func wholeFileQuoteOrdersTheRetry() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
+        let url = try seeded(
+            "capacity.py", "def fits(load, limit):\n    return load < limit\n")
+        defer { SessionWorkspace.clear() }
+
+        do {
+            _ = try FileTools.editFile(
+                path: "capacity.py",
+                oldString: "return load == limit",
+                newString: "return load <= limit")
+            Issue.record("a non-matching oldString must not edit")
+        } catch let ToolError.invalidParameter(message) {
+            #expect(message.contains("found 0"), "the refusal stays strict: \(message)")
+            #expect(
+                message.contains("all 2 lines") && message.contains("return load < limit"),
+                "the whole file is in the message: \(message)")
+            #expect(
+                message.contains("Retry this call now"),
+                "and the next action is named: \(message)")
+            #expect(
+                message.contains("Do not answer the user before that retry"),
+                "the give-up exit is closed: \(message)")
+            #expect(
+                !message.contains("read_file it"),
+                "no round trip may be ordered for a file already quoted whole: \(message)")
+        }
+        let untouched = try String(contentsOf: url, encoding: .utf8)
+        #expect(
+            untouched == "def fits(load, limit):\n    return load < limit\n",
+            "a refusal never writes")
     }
 
     /// The failure shape the scoreboard's `fix-*` tasks actually hit: the caller quoted

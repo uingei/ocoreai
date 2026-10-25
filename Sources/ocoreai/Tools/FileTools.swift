@@ -274,6 +274,23 @@ enum FileTools {
             // `edit-replace-all` scored 0/3 because the model wanted exactly the operation the
             // tool supports — replace every occurrence — met `found 3 — refusing partial edit`,
             // which names the count but never says that `occurrences` is the knob for it.
+            let hint =
+                count == 0
+                ? Self.nearestLinesHint(text: original, oldString: oldString) : MismatchHint()
+            if hint.quotedWholeFile {
+                // A refusal that orders a round trip it already completed is how a recoverable
+                // miss ends the turn: measured on the scoreboard, `fix-boundary-comparison` got
+                // the file quoted whole in this very message — with the caller's own newString
+                // already correct — and answered "I need to read the file first", task unmade.
+                // When every line is in hand the only next step is the retry, so the message
+                // names it and closes the other exit (the shape that took `edit-replace-all`
+                // from 0/3 to a pass: name the knob, then forbid stopping).
+                throw ToolError.invalidParameter(
+                    "\(head), refusing partial edit\(hint.text)"
+                        + "\nRetry this call now with the exact line above as oldString:"
+                        + " the whole file is quoted above, so nothing has to be read first."
+                        + " Do not answer the user before that retry.")
+            }
             let remedy: String
             if count == 0 {
                 remedy = ": oldString is not in this file — read_file it and copy the exact text"
@@ -282,9 +299,8 @@ enum FileTools {
                     " — to replace every occurrence retry this call yourself with replace_all: true"
                     + " (or occurrences: \(count) to be exact); do not ask the user for the count"
             }
-            let hint = count == 0 ? nearestLinesHint(text: original, oldString: oldString) : ""
             throw ToolError.invalidParameter(
-                "\(head)\(remedy), refusing partial edit\(hint)")
+                "\(head)\(remedy), refusing partial edit\(hint.text)")
         }
         let echo = PresentationEcho.repair(newString)
         let updated = original.replacingOccurrences(of: located, with: echo.text)
@@ -354,6 +370,14 @@ enum FileTools {
         return (marker, PostWriteSyntax.suffix(syntax) + PresentationEcho.suffix(echo))
     }
 
+    /// A refusal that states the valid range and then falls silent loses the turn: measured on
+    /// the scoreboard, `make-third-test-pass` answered "the line range provided was invalid for
+    /// the file structure" with the correct range printed one line above it. Every refusal that
+    /// already hands the caller what it needs to correct says the retry comes before the answer.
+    static let retryBeforeAnswering =
+        " Retry this call now with a line number inside the stated range; do not answer the"
+        + " user before that retry."
+
     /// Replace, insert, or delete a numbered line range, verified by read-back.
     ///
     /// `edit_file` asks the caller to reproduce bytes; the measured failure mode on the repair tasks
@@ -383,12 +407,14 @@ enum FileTools {
         guard startLine >= 1, startLine <= total + 1 else {
             throw ToolError.invalidParameter(
                 "edit_lines: start_line \(startLine) is outside 1...\(total + 1) — \(path) has "
-                    + "\(total) lines (\(total + 1) appends at end of file)")
+                    + "\(total) lines (\(total + 1) appends at end of file)"
+                    + Self.retryBeforeAnswering)
         }
         guard endLine >= startLine - 1, endLine <= total else {
             throw ToolError.invalidParameter(
                 "edit_lines: end_line \(endLine) is outside \(startLine - 1)...\(total) — "
-                    + "\(startLine - 1) inserts before line \(startLine) without deleting")
+                    + "\(startLine - 1) inserts before line \(startLine) without deleting"
+                    + Self.retryBeforeAnswering)
         }
 
         let echo = PresentationEcho.repair(newText)
@@ -541,6 +567,14 @@ enum FileTools {
         return " (resolved: \(url.path); anchored to \(anchor); \(source))"
     }
 
+    /// What a mismatch hint handed the caller: quotable text, and whether that text is the
+    /// whole file. The refusal's next step depends on the second answer — everything quoted
+    /// means the retry needs nothing else, a window means the needed line may be out of view.
+    struct MismatchHint {
+        var text: String = ""
+        var quotedWholeFile: Bool = false
+    }
+
     /// When `oldString` misses, quote the file's own lines back so the caller can correct
     /// instead of re-sending the same guess.
     ///
@@ -551,12 +585,12 @@ enum FileTools {
     /// actually says. So the edit stays refused, and the message becomes correctable.
     static func nearestLinesHint(
         text: String, oldString: String, maxLines: Int = 8, limit: Int = 1200
-    ) -> String {
+    ) -> MismatchHint {
         func normalized(_ slice: some StringProtocol) -> String {
             slice.split(whereSeparator: { $0 == " " || $0 == "\t" }).joined(separator: " ")
         }
         let lines = Self.numberedContentLines(text)
-        guard !lines.isEmpty else { return "" }
+        guard !lines.isEmpty else { return MismatchHint() }
         let target = oldString.split(separator: "\n").first.map(normalized) ?? ""
         var bestIndex = 0
         var bestScore = -1.0
@@ -591,8 +625,12 @@ enum FileTools {
         let whole = quoted(0 ..< lines.count)
         if whole.count <= limit {
             return
-                " — the file says (all \(lines.count) lines, verbatim, indentation included,"
-                + " and this is the file's own text, not the read_file view):\n\(whole)"
+                MismatchHint(
+                    text:
+                        " — the file says (all \(lines.count) lines, verbatim, indentation"
+                        + " included, and this is the file's own text, not the read_file view):"
+                        + "\n\(whole)",
+                    quotedWholeFile: true)
         }
         let end = min(bestIndex + maxLines, lines.count)
         let window = quoted(bestIndex ..< end)
@@ -610,10 +648,12 @@ enum FileTools {
             clipNote = ""
         }
         return
-            " — nearest actual lines (verbatim, indentation included, and this is the file's own"
-            + " text, not the read_file view):\n\(shown)"
-            + "\n[lines \(bestIndex + 1)-\(end) of \(lines.count) lines\(clipNote)"
-            + " — read_file for the rest]"
+            MismatchHint(
+                text:
+                    " — nearest actual lines (verbatim, indentation included, and this is the"
+                    + " file's own text, not the read_file view):\n\(shown)"
+                    + "\n[lines \(bestIndex + 1)-\(end) of \(lines.count) lines\(clipNote)"
+                    + " — read_file for the rest]")
     }
 
     /// Resolve a tool-supplied path: `~` expanded; absolute stays; relative
