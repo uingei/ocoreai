@@ -235,3 +235,37 @@ struct DiskSpaceGuardWholeRepoTests {
         try? fm.removeItem(at: dir)
     }
 }
+@Suite("DiskSpaceGuard — the volume of a path that does not exist yet")
+struct DiskSpaceGuardVolumeResolutionTests {
+    @Test("a missing model dir still reports its volume free bytes")
+    func missingDirResolvesToItsVolume() throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let absent = root.appendingPathComponent("org/name", isDirectory: true)
+        #expect(FileManager.default.fileExists(atPath: absent.path) == false)
+        let viaAbsent = DiskSpaceGuard.freeBytes(onVolumeHosting: absent)
+        let viaRoot = DiskSpaceGuard.freeBytes(onVolumeHosting: root)
+        #expect(viaAbsent != nil, "a not-yet-created model dir must still price its volume")
+        #expect(viaRoot != nil, "the seeded root must price its volume")
+        if let viaAbsent, let viaRoot {
+            // Same volume: the two readings cannot be a volume apart (1 GiB drift bound).
+            #expect(abs(viaAbsent - viaRoot) < 1_073_741_824)
+        }
+    }
+
+    @Test("a first-time ask can actually be refused now")
+    func firstTimeAskIsRefusable() throws {
+        let root = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let absent = root.appendingPathComponent("org/name", isDirectory: true)
+        let free = DiskSpaceGuard.freeBytes(onVolumeHosting: absent)
+        #expect(free != nil, "nil free here is what made the guard a no-op")
+        let huge = (free ?? 0) + 40_000_000_000
+        #expect(DiskSpaceGuard.decision(freeBytes: free, requiredBytes: huge) == false)
+    }
+
+    @Test("a path with no readable ancestor is still nil, not zero")
+    func unreadablePathIsNilNotZero() {
+        #expect(DiskSpaceGuard.freeBytes(onVolumeHosting: URL(fileURLWithPath: "/")) != nil)
+    }
+}

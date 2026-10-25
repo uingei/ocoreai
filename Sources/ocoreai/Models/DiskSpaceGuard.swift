@@ -31,14 +31,35 @@ enum DiskSpaceGuard {
         return free - need >= requiredHeadroom(freeBytes: free)
     }
 
-    /// Free bytes on the volume hosting `path` (nil when unreadable).
+    /// Reportable verdict: nil when either side is unknown. `decision` exists to *block*
+    /// and must not block on silence; a published answer must not *claim* on silence either,
+    /// so the two directions of honesty are separate functions with separate gates.
+    static func verdict(freeBytes: Int64?, requiredBytes: Int64?) -> Bool? {
+        guard let free = freeBytes, let need = requiredBytes else { return nil }
+        return decision(freeBytes: free, requiredBytes: need)
+    }
+
+    /// Free bytes on the volume that would host `path`, walking to the nearest existing
+    /// ancestor when the path itself is not there yet.
+    ///
+    /// Measured: `attributesOfFileSystem` resolves the path, so it throws ENOENT for the
+    /// not-yet-created model dir (reproduced with a two-line swift script against
+    /// `~/.ocoreai/models/org/<absent>`). `decision` treats an unknown as "do not block", so
+    /// every first-time download passed the guard on a nil -- the one case the guard exists
+    /// for. Free space is a property of the volume, and the volume is always decidable here.
     static func freeBytes(onVolumeHosting path: URL) -> Int64? {
-        do {
-            let vals = try FileManager.default.attributesOfFileSystem(forPath: path.path)
-            return (vals[.systemFreeSize] as? NSNumber)?.int64Value
-        } catch {
-            return nil
+        let fm = FileManager.default
+        var candidate: URL? = path
+        while let url = candidate {
+            if let vals = try? fm.attributesOfFileSystem(forPath: url.path),
+                let bytes = (vals[.systemFreeSize] as? NSNumber)?.int64Value
+            {
+                return bytes
+            }
+            let parent = url.deletingLastPathComponent()
+            candidate = parent.path == url.path ? nil : parent
         }
+        return nil
     }
 
     /// Bytes still to fetch = remote total (matched globs) minus local cache.
@@ -130,6 +151,39 @@ enum DiskSpaceGuard {
         }
     }
 
+    /// The measured pre-flight numbers, with the block taken out.
+    ///
+    /// `ensureFits` and the dry-run (`POST /v1/models/download`, `dryRun: true`) ask the same
+    /// question of the same sources; a second assembly of it would be a second truth about how
+    /// big the hole is. Unknown sides stay nil -- unknown is neither a fit nor a refusal.
+    struct Assessment: Sendable {
+        let remoteTotalBytes: Int64?
+        let cachedBytes: Int64
+        let requiredBytes: Int64?
+        let freeBytes: Int64?
+        let fits: Bool?
+    }
+
+    static func assess(
+        hub: HubClient,
+        repoId: String,
+        revision: String?,
+        patterns: [String],
+        cacheDir: URL
+    ) async -> Assessment {
+        let remote = await measuredRemoteBytes(
+            hub: hub, repoId: repoId, revision: revision, patterns: patterns)
+        let cached = cachedBytes(in: cacheDir, patterns: patterns)
+        let required = requiredBytes(remoteTotal: remote, cachedBytes: cached)
+        let free = freeBytes(onVolumeHosting: cacheDir)
+        return Assessment(
+            remoteTotalBytes: remote,
+            cachedBytes: cached,
+            requiredBytes: required,
+            freeBytes: free,
+            fits: verdict(freeBytes: free, requiredBytes: required))
+    }
+
     /// The full guard for the HF path: metadata total − cache, vs free−
     /// headroom. Blocks ONLY when both sides are honest numbers.
     static func ensureFits(
@@ -139,16 +193,13 @@ enum DiskSpaceGuard {
         patterns: [String],
         cacheDir: URL
     ) async throws {
-        let remote = await measuredRemoteBytes(
-            hub: hub, repoId: repoId, revision: revision, patterns: patterns)
-        let required = requiredBytes(
-            remoteTotal: remote, cachedBytes: cachedBytes(in: cacheDir, patterns: patterns))
-        let free = freeBytes(onVolumeHosting: cacheDir)
-        guard decision(freeBytes: free, requiredBytes: required) else {
+        let measured = await assess(
+            hub: hub, repoId: repoId, revision: revision, patterns: patterns, cacheDir: cacheDir)
+        guard measured.fits != false else {
             throw DownloaderError.insufficientDiskSpace(
                 repoId: repoId,
-                requiredBytes: required ?? 0,
-                freeBytes: free ?? 0)
+                requiredBytes: measured.requiredBytes ?? 0,
+                freeBytes: measured.freeBytes ?? 0)
         }
     }
 }
