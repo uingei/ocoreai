@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# anchor-check.sh — verify every line cite in this repo's docs, code comments and the
-# package manifest against the file it points at: the working tree for local files, the
-# pinned revision for upstream ones.
+# anchor-check.sh — verify every ANCHORED line cite in this repo's docs, code comments and
+# the package manifest against the file it points at: the working tree for local files, the
+# pinned revision for upstream ones. A cite written as bare prose (`File.swift:123`, no
+# marker) carries no token, so its content cannot be checked here; those are counted and
+# their beyond-EOF cases are failed (see the visibility block at the end).
 #
 # Why this exists. Line numbers are the most load-bearing and most fragile thing in
 # AGENTS.md: the agent navigates by them, and they move under every edit and every bump.
@@ -237,6 +239,54 @@ print("  floor: local>=%d  (upstream anchors only verify where a local tree exis
       "resolved checkout reports them as skipped, and the leg that builds must run this)" % floor)
 print("  upstream pins: %s" % ", ".join("%s=%s" % (k, v[:9]) for k, v in sorted(pins.items())
                                         if k in ("mlx-swift-lm", "mlx-swift")))
+
+# ── prose cites: count them, and fail only what is decidable ─────────────────
+# A bare `File.swift:123` in prose has no token, so content cannot be verified here.
+# Measured 10-25: an edit moved the only `.fork(` site; the marker beside it went red and
+# the sentence next to it kept saying `EngineInference.swift:3139`. So the count goes on
+# the record, and the one thing that IS provable about a bare cite — a line number past the
+# end of its file — fails like P3 does for markers. Nothing else is gated: a ceiling here
+# would push prose into markers for shape rather than for meaning.
+# Floor on the scan itself, not on the style: measured 10-25 at 296 cites over 317 files.
+prose_floor = int(os.environ.get("OCOREAI_PROSE_CITE_FLOOR", "150"))
+PROSE_CITE = re.compile(
+    r"([A-Za-z0-9_./+-]+\.(?:swift|md|py|rs|yaml|yml|toml)):(\d{1,6})")
+prose_total = 0
+prose_beyond: list = []
+line_counts: dict = {}
+for src in SOURCES:
+    body = read(src)
+    if not body:
+        continue
+    for no, ln in enumerate(body.split("\n"), 1):
+        if MARKER.search(ln) or DECLARED.search(ln):
+            continue
+        for m in PROSE_CITE.finditer(ln):
+            prose_total += 1
+            tgt = m.group(1)
+            if tgt.startswith("./"):
+                tgt = tgt[2:]
+            if not os.path.exists(tgt):
+                tgt = os.path.join(repo_root, tgt)
+                if not os.path.exists(tgt):
+                    continue
+            if tgt not in line_counts:
+                line_counts[tgt] = len(read(tgt).split("\n"))
+            if int(m.group(2)) > line_counts[tgt]:
+                prose_beyond.append("%s:%d cites %s:%s, past its %d lines"
+                                   % (src, no, m.group(1), m.group(2), line_counts[tgt]))
+
+print("  prose cites (no marker, content unverifiable): %d across %d scanned file(s);"
+      " beyond-EOF checked=%d  floor>=%d"
+      % (prose_total, len(SOURCES), len(line_counts), prose_floor))
+if prose_total < prose_floor:
+    print("FAIL the prose-cite scan found only %d cite(s) (< %d) — the regex stopped "
+          "matching, so 'the unverified set is this big' became a vacuous reassurance "
+          "(invariant 1)" % (prose_total, prose_floor))
+    drift += 1
+for b in prose_beyond:
+    print("  PROSE-DRIFT " + b)
+    drift += 1
 
 if mode == "print-pin":
     for k, v in sorted(pins.items()):

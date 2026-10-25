@@ -4,6 +4,14 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-25
 
+**10-25(26) 锚点门只核有 marker 的行引用，prose 里的 `File.swift:NNN` 一直无人核对**（P2 文档完整性 / 门自身的盲区，符号 `anchor-prose-cites`） — 上一轮改 `EngineInference.swift` 时 `make anchor-check` 一次报 17 处漂移（都是插入行号把 marker 引用顶偏，已逐条改到实测行位）。修的过程中撞见一个更值得记的事实：`Sources/ocoreai/Engine/AGENTS.md` 讲 fork 站点的那句写的是 `EngineInference.swift:3139`，而唯一的 `.fork(` 在本轮之前就在 3185 —— **改动之前它已经错了 46 行**，marker 那行红了，旁边的句子没红。原因写在脚本自己身上：它只解析 `anchor:<repo> <path>:<line> <token>`，prose 引用没有 token，无法核对内容；而脚本头一句写的是 "verify every line cite"，又是一处声称大于机制。
+
+- **改法：能判定的判死，判不了的摊开。** ① 头部改成实际做的事（只核 anchored 引用）；② 新增 prose 引用扫描：统计全仓 `File.ext:NNN` 形式的裸引用（marker 行除外），把**行数超过目标文件总行数**这种唯一可证伪的情形判 FAIL（与 P3 对 marker 的 EOF 判据同形）；③ 把不可核实的集合大小说出来，而不是留在暗处。实测：prose 引用 **296 处 / 317 个被扫文件**，唯一目标文件 7 个，本轮 beyond-EOF **0**。
+- **为什么不设"必须写成 marker"的上限**：那只会把散文逼成 marker，为形状而非为意义——同一句引用真正需要的是 token，不是注释壳。要做的是下一步（把承重的那几条 prose 引用改写成带 token 的 marker，提高可核实覆盖率），而不是先立一条会把人引向形式合规的门。
+- **门自身的门**：新扫描按 invariant 1 给自己的命中数下界（`OCOREAI_PROSE_CITE_FLOOR`，实测 296，默认 150），正则一旦不再命中就红，而不是把"未核实集合只有这么大"变成空洞安慰。两条红样实测：把 floor 抬到 500 → exit 1；在 AGENTS.md 追加一条 `ToolRegistry.swift:999999` → `PROSE-DRIFT … past its 1110 lines` 且 exit 1；还原后回到 296 / drift=0。
+- **验证**：`scripts/anchor-check.sh` 绿（checked=72，drift=0，local=30）；`make round-gates` 绿。**不声称**：prose 引用的内容仍不核实（296 处的正确性没有门保证，只有数量与 EOF 界保证）。
+
+
 **10-25(25) 拒绝墙曾把"改了文件之后的复读"也拦下，而拒词是假的：把文件的真实新鲜度折进调用身份，并把循环账记从整场会话收到一轮**（P1 正确性 + 可靠性 / `loop-stall` 的第二段，五条同源改动） — 起点是上一轮留下的两个未决事实。① `make-two-tests-pass` 在阈值 2 时**被切断**（吃两次拒绝后本会自己做完，第三次拒绝变终态就提前收尾），抬到 5 才恢复 ⇒ "任一成功调用清零" 这个复位条件是错的：它既让 A 卡死、B 成功一次就把 A 买回（A/B 交替可无限循环，每圈付一整轮生成），也没有回答"这一次调用还有没有东西可给"。② 从既有 transcript 量到的分布：36 题里"同一调用给出逐字相同答案"的最大重复 = {1 次: 29 题, 2 次: 2 题, 3 次: 2 题}，其中 `move-into-subdir`（**PASS**）含 3 次逐字相同的 `edit_file` 答案 ⇒ 任何把"复读"当终态证据的门必须高于 3–4，否则会切断已经通过的任务；这条分布是量的，不是拍的。
 
 - **另有一处 invariant 2 违例，物证级**：墙只按 arguments 认身份，于是文件被自家 `write_file` 改过之后，同样路径的 `read_file` 仍被拒，而拒词写着 "what it returned is already in this conversation"。撤掉本次折叠后的红样原文：`read_file with path=page.py called 4 times in 60 s — what it returned is already in this conversation — stop re-reading and act`，而此时 page.py 内容已经变了。⇒ 这句话在内容变过的文件上是**假的**，且它拦掉的正是 Execute→Verify 的验证回合。
