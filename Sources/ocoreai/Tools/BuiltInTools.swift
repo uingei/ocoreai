@@ -318,7 +318,10 @@ func bootstrapBuiltInTools(
                 + "rewrite lines 7-9 pass start_line 7, end_line 9 and new_text holding the "
                 + "replacement lines; to insert without deleting pass end_line = start_line - 1; "
                 + "empty new_text deletes the range. Prefer this over edit_file straight after "
-                + "read_file: cite the lines you saw instead of reproducing their bytes.",
+                + "read_file: cite the lines you saw instead of reproducing their bytes. "
+                + "A line number past the end clamps onto the append position and says so; a "
+                + "range that already reads exactly as new_text answers OK-no-change, not a "
+                + "refusal — the file is left as it is.",
             schema: ToolSchema(
                 parameters: [
                     "path": ToolParameter(type: .string, description: "File path to edit"),
@@ -326,7 +329,8 @@ func bootstrapBuiltInTools(
                         type: .integer,
                         description:
                             "First line to replace, 1-based, exactly as read_file printed it; "
-                                + "total_lines + 1 appends at end of file"),
+                                + "total_lines + 1 appends at end of file, and any larger number "
+                                + "lands there too (the result names both numbers)"),
                     "end_line": ToolParameter(
                         type: .integer,
                         description:

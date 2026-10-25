@@ -370,14 +370,6 @@ enum FileTools {
         return (marker, PostWriteSyntax.suffix(syntax) + PresentationEcho.suffix(echo))
     }
 
-    /// A refusal that states the valid range and then falls silent loses the turn: measured on
-    /// the scoreboard, `make-third-test-pass` answered "the line range provided was invalid for
-    /// the file structure" with the correct range printed one line above it. Every refusal that
-    /// already hands the caller what it needs to correct says the retry comes before the answer.
-    static let retryBeforeAnswering =
-        " Retry this call now with a line number inside the stated range; do not answer the"
-        + " user before that retry."
-
     /// Replace, insert, or delete a numbered line range, verified by read-back.
     ///
     /// `edit_file` asks the caller to reproduce bytes; the measured failure mode on the repair tasks
@@ -386,8 +378,9 @@ enum FileTools {
     /// instead of the bytes. A range means exactly what `read_file` printed.
     /// - Parameters:
     ///   - path: File to edit.
-    ///   - startLine: First line to replace, 1-based; `total + 1` appends at end of file.
-    ///   - endLine: Last line to replace, inclusive; `endLine == startLine - 1` inserts without
+    ///   - startLine: First line to replace, 1-based; `total + 1` appends at end of file, and
+    ///     anything past the end clamps onto it, stated in the result.
+   ///   - endLine: Last line to replace, inclusive; `endLine == startLine - 1` inserts without
     ///     deleting, so append and insert are the same mode — no third one exists.
     ///   - newText: Replacement text; empty deletes the range.
     /// - Returns: Verification summary (range, line counts, byte delta, read-back state).
@@ -404,35 +397,41 @@ enum FileTools {
         guard total > 0 else {
             throw ToolError.invalidParameter("edit_lines: \(path) is empty — write_file it instead")
         }
-        guard startLine >= 1, startLine <= total + 1 else {
-            throw ToolError.invalidParameter(
-                "edit_lines: start_line \(startLine) is outside 1...\(total + 1) — \(path) has "
-                    + "\(total) lines (\(total + 1) appends at end of file)"
-                    + Self.retryBeforeAnswering)
-        }
-        guard endLine >= startLine - 1, endLine <= total else {
-            throw ToolError.invalidParameter(
-                "edit_lines: end_line \(endLine) is outside \(startLine - 1)...\(total) — "
-                    + "\(startLine - 1) inserts before line \(startLine) without deleting"
-                    + Self.retryBeforeAnswering)
-        }
+        // A line number past the end has exactly one legal reading: the text belongs after the
+        // last line; below 1 can only mean at the top. The strict version was measured as a trap
+        // — `make-third-test-pass` re-sent `start_line: 14` into a 10-line file six times, each
+        // refusal printing the bound and commanding a retry, none of them landing (scoreboard
+        // FAIL, zero writes). The clamp performs the one thing that can be meant and reports the
+        // deviation in the same result (`clampedNote` below), so the caller gets a file to verify
+        // instead of arithmetic to redo (invariant 2: the verdict travels with the answer).
+        let start = min(max(startLine, 1), total + 1)
+        let end = min(max(endLine, start - 1), total)
 
         let echo = PresentationEcho.repair(newText)
         var insertion: [String] =
             echo.text.isEmpty ? [] : echo.text.components(separatedBy: "\n")
         if insertion.last == "" { insertion.removeLast() }
-        let cutEnd = min(endLine, total)
-        let replacedCount = max(0, cutEnd - (startLine - 1))
+        let cutEnd = end
+        let replacedCount = max(0, cutEnd - (start - 1))
         // Split with explicit types: the single concat expression timed out the type-checker.
         var updatedLines: [String] = []
-        updatedLines.append(contentsOf: lines[0 ..< (startLine - 1)])
+        updatedLines.append(contentsOf: lines[0 ..< (start - 1)])
         updatedLines.append(contentsOf: insertion)
         updatedLines.append(contentsOf: lines[cutEnd ..< total])
         var updated = updatedLines.joined(separator: "\n")
         if original.hasSuffix("\n"), !updated.isEmpty { updated += "\n" }
         guard updated != original else {
-            throw ToolError.invalidParameter(
-                "edit_lines: lines \(startLine)-\(endLine) already read as newText (no-op)")
+            // "It already says exactly that" is a fact about the goal, not a bad parameter: the
+            // refusal bought four identical refusals on `make-two-tests-pass` (zero writes, FAIL)
+            // because nothing in it named the state the file was in. A result that wrote nothing
+            // must not claim verification, so this one says what is true and what to do next.
+            let state = replacedCount == 0 && insertion.isEmpty
+                ? "lines \(start)-\(end) hold nothing to insert or delete"
+                : "lines \(start)-\(end) already read exactly as newText"
+            return
+                "edit_lines: OK-no-change — \(state); the file is unchanged (\(total) lines). "
+                    + "If you meant to change them, send the text you want, or read the file"
+                    + " again and edit the line that differs."
         }
 
         let bytes = updated.data(using: .utf8) ?? Data()
@@ -450,20 +449,29 @@ enum FileTools {
         else {
             throw ToolError.invalidParameter("edit_lines: read-back verification failed: \(path)")
         }
+        let clampedNote: String
+        if start == startLine, end == endLine {
+            clampedNote = ""
+        } else {
+            clampedNote =
+                " (clamped: start_line \(startLine) -> \(start), end_line \(endLine) -> \(end);"
+                    + " \(path) has \(total) lines, now \(updatedLines.count))"
+        }
         let delta = bytes.count - (original.data(using: .utf8)?.count ?? 0)
         let verdict = Self.writeVerdict(path: url.path, fileContent: updated, echo: echo)
         let verb: String
         if replacedCount == 0 {
-            verb = "inserted \(insertion.count) line(s) before line \(startLine) of \(total)"
+            verb = "inserted \(insertion.count) line(s) before line \(start) of \(total)"
         } else if insertion.isEmpty {
-            verb = "deleted \(replacedCount) line(s) \(startLine)-\(endLine) of \(total)"
+            verb = "deleted \(replacedCount) line(s) \(start)-\(end) of \(total)"
         } else {
             verb =
-                "replaced lines \(startLine)-\(endLine) (\(replacedCount)) with \(insertion.count), "
+                "replaced lines \(start)-\(end) (\(replacedCount)) with \(insertion.count), "
                 + "of \(total) lines"
         }
         return
-            "edit_lines: \(verdict.marker) — \(verb), \(delta >= 0 ? "+" : "")\(delta) bytes, "
+            "edit_lines: " + verdict.marker + " — " + verb + clampedNote + ", "
+            + "\(delta >= 0 ? "+" : "")\(delta) bytes, "
             + "read-back verified (\(path))"
             + verdict.suffix
     }

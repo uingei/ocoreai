@@ -116,43 +116,52 @@ struct EditLinesContractTests {
         #expect(try String(contentsOf: url, encoding: .utf8) == "keep\nkeep2\n")
     }
 
-    @Test("a range outside the file is refused and names the file's real line count")
-    func outOfRangeNamesTheBound() throws {
+    @Test("a line number past the end clamps onto the append position and names both numbers")
+    func outOfRangeClampsAndDiscloses() throws {
         let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("notes.md", "a\nb\nc\n")
         defer { SessionWorkspace.clear() }
 
-        do {
-            _ = try FileTools.editLines(
-                path: "notes.md", startLine: 99, endLine: 99, newText: "x")
-            Issue.record("an out-of-range start_line must not edit")
-        } catch let ToolError.invalidParameter(message) {
-            #expect(
-                message.contains("outside 1...4") && message.contains("3 lines"),
-                "the refusal must carry the bound and the count: \(message)")
-            #expect(
-                message.contains("do not answer the user before that retry"),
-                "a refusal stating the range sends the retry before the answer: \(message)")
-        }
-        #expect(try String(contentsOf: url, encoding: .utf8) == "a\nb\nc\n", "refusal never writes")
+        let out = try FileTools.editLines(
+            path: "notes.md", startLine: 99, endLine: 99, newText: "x")
+        #expect(out.contains("inserted 1 line(s) before line 4 of 3"), "\(out)")
+        #expect(out.contains("clamped: start_line 99 -> 4, end_line 99 -> 3"), "\(out)")
+        #expect(out.contains("notes.md has 3 lines, now 4"), "\(out)")
+        #expect(out.contains("read-back verified"), "\(out)")
+        #expect(try String(contentsOf: url, encoding: .utf8) == "a\nb\nc\nx\n", "\(out)")
     }
 
-    @Test("rewriting a range into what it already says is a refused no-op")
-    func noOpIsRefused() throws {
+    @Test("a line number below the first line clamps onto line 1 instead of refusing")
+    func belowRangeClampsToTheTop() throws {
         let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
         let url = try seeded("notes.md", "a\nb\nc\n")
         defer { SessionWorkspace.clear() }
 
-        do {
-            _ = try FileTools.editLines(
-                path: "notes.md", startLine: 1, endLine: 2, newText: "a\nb")
-            Issue.record("a no-op range must be refused, not reported as work done")
-        } catch let ToolError.invalidParameter(message) {
-            #expect(message.contains("no-op"), "\(message)")
-        }
-        #expect(try String(contentsOf: url, encoding: .utf8) == "a\nb\nc\n")
+        let out = try FileTools.editLines(
+            path: "notes.md", startLine: 0, endLine: 0, newText: "top")
+        #expect(out.contains("clamped: start_line 0 -> 1, end_line 0 -> 0"), "\(out)")
+        #expect(try String(contentsOf: url, encoding: .utf8) == "top\na\nb\nc\n", "\(out)")
+    }
+
+    @Test("a range that already reads as newText answers its state, and never claims a write")
+    func noOpAnswersWithTheState() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
+        let url = try seeded("notes.md", "a\nb\nc\n")
+        defer { SessionWorkspace.clear() }
+
+        let out = try FileTools.editLines(
+            path: "notes.md", startLine: 1, endLine: 2, newText: "a\nb")
+        #expect(out.contains("OK-no-change"), "\(out)")
+        #expect(out.contains("lines 1-2 already read exactly as newText"), "\(out)")
+        #expect(out.contains("unchanged (3 lines)"), "\(out)")
+        // Nothing was written, so nothing may be reported as verified: the no-change answer
+        // keeps the verification claim for the lane that actually did a durable write.
+        #expect(!out.contains("read-back"), "\(out)")
+        #expect(!out.contains("bytes"), "\(out)")
+        #expect(try String(contentsOf: url, encoding: .utf8) == "a\nb\nc\n", "\(out)")
     }
 
     @Test("the wire accepts snake_case and it reaches the engine")
