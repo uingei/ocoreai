@@ -4,7 +4,9 @@
 ///
 /// P95 lookup: ~3μs (1 actor hop + O(1) dict).
 /// Memory: ~64KB for 256 tools.
-/// Security: checkFn preflight with TTL cache, SHA256 loop detection.
+/// Security: checkFn preflight with TTL cache. Loop detection keys on process-local
+/// `String.hashValue` for both the arguments and the answer — in-process identity only,
+/// never persisted, never a security boundary (see `checkLoop`).
 /// Audit: every tool call is logged via AuditTrail with trace ID and duration.
 import Foundation
 import Logging
@@ -223,22 +225,41 @@ actor ToolRegistry {
     static let loopScopeNoConversation = "process"
     private let maxHistoryDepth = 3
 
-    /// How often an identical call may be refused before the refusal becomes terminal.
+    /// Zero-new-information accounting for one exact call, and the end of its rope.
     ///
-    /// `executionHistory` only records attempts that REACHED the handler, so a preflight
-    /// refusal advanced no state at all: the same `loopDetected` could be issued on every
-    /// iteration forever, and the 60 s sweep could even clear the successes that built the
-    /// wall and reopen it. A refusal that never changes the outcome is not feedback, it is
-    /// a stall — and a stall needs an end. Keyed per identical call so a varied call is
-    /// unaffected, expired on the same window as the wall it terminates.
-    private var loopStrikes: [String: (count: Int, time: ContinuousClock.Instant)] = [:]
-    /// Five correctable refusals, terminal on the sixth. The number is measured, not picked:
-    /// at two strikes a task that WOULD have escaped got cut instead — one eval task took two
-    /// refusals and then finished its fix, and turned FAIL the moment a third refusal became
-    /// terminal (paired scoreboard run; CHANGELOG `loop-stall`). The runaway this net exists
-    /// for never escapes at any count, so the threshold only has to clear what a recovering
-    /// model demonstrably needed.
-    private let maxLoopStrikes = 5
+    /// Two kinds of event count, because both produce nothing: a refusal (the call never
+    /// ran, and `executionHistory` records only attempts that reached the handler, so
+    /// before this ladder a refusal advanced no state and the same `loopDetected` was
+    /// renewable forever) and a byte-identical answer (the call ran and said exactly what
+    /// the model already had). Only a DIFFERENT answer resets it — a *different tool*
+    /// succeeding says nothing about whether this call has anything left to give, and
+    /// clearing on any success let a caller alternate two calls forever without either
+    /// strike climbing.
+    ///
+    /// Scope is the turn where the lane can name one (`call(..., turnToken:)`), matching
+    /// codex's per-turn accounting (`AGENTS.md` § Open records the divergence this closes);
+    /// where no token exists the conversation is the scope and `ladderMemory` is the only
+    /// expiry, so a runaway — measured at ~0.6 s per round — cannot outwait it.
+    private struct ZeroGain {
+        var identicalAnswers = 0
+        var refusals = 0
+        var answer = ""
+        var last: ContinuousClock.Instant
+        var strikes: Int { identicalAnswers + refusals }
+    }
+    private var zeroGain: [String: ZeroGain] = [:]
+    private var zeroGainOrder: [String] = []
+    /// Memory hygiene only — the registry outlives every conversation. Dropping in
+    /// insertion order mirrors `recordExecution`'s trim.
+    private let zeroGainCapacity = 100
+    /// Eight zero-new-information events for one call, terminal on the ninth. Measured,
+    /// not picked: at two strikes the net cut a task that would have escaped (one eval
+    /// task took two refusals, then finished its fix; CHANGELOG `loop-stall`). The
+    /// runaway this exists for never escapes at any count, so the cap only has to clear
+    /// what a recovering model demonstrably needed — re-measure it, do not tune it blind.
+    private let maxZeroGainStrikes = 8
+    /// How long a ladder entry survives when no turn token scopes it.
+    private let ladderMemory: Duration = .seconds(600)
 
     /// Exec failure circuit breaker (absorbs codex #41454 `GoalAccountingState`).
     ///
@@ -574,7 +595,7 @@ actor ToolRegistry {
     /// - Throws: ``ToolError`` on validation or execution failure
     func call(
         _ name: String, arguments: String, caller: String = "unknown", headless: Bool = false,
-        conversationKey: String? = nil
+        conversationKey: String? = nil, turnToken: String? = nil
     ) async throws -> String {
         // 0a. Exec-host state guard (absorbs codex #41454): a blocked exec host
         //      is refused BEFORE any hook/approval — asking the user for a call
@@ -583,6 +604,14 @@ actor ToolRegistry {
         // The owning conversation scopes the breaker, the loop net and the audit for
         // this call; one binding so no site re-derives it and drifts.
         let loopScope = conversationKey ?? Self.loopScopeNoConversation
+        // Two scopes, on purpose. Authorization, steering and audit follow the
+        // conversation (who is allowed, whose input can interrupt, whose log this is).
+        // Loop accounting follows the TURN — the unit codex counts in — so a call that was
+        // refused while the model was stuck does not stay charged against it for the rest
+        // of the day, and a fresh message buys a fresh budget. Without a token the turn
+        // cannot be named, so the conversation stands in and `ladderMemory` is the only
+        // expiry: degradation, not a disabled net.
+        let turnScope = turnToken == nil ? loopScope : "\(loopScope)#\(turnToken!)"
         try checkExecBreaker(name: name, scope: loopScope)
 
         // 0. Security preflight (PreToolUse hooks + approval broker gate) —
@@ -594,12 +623,15 @@ actor ToolRegistry {
             throw ToolError.notFound(name)
         }
 
-        // 2. Loop detection via process-local hash of arguments (String.hashValue —
-        //    in-process identity key only; NOT a cryptographic digest, never persisted)
-        let inputHash = String(format: "%llX", arguments.hashValue)
+        // 2. Loop detection keyed on what the call would return, hashed process-locally
+        //    (String.hashValue — in-process identity only, never persisted, never a
+        //    security boundary). `loopIdentity` folds a file's freshness into a read's
+        //    identity so a re-read after an edit is not mistaken for a repeat.
+        let inputHash = String(format: "%llX", Self.loopIdentity(name: name, arguments: arguments)
+            .hashValue)
         try checkLoop(
             entry: entry, inputHash: inputHash,
-            scope: loopScope,
+            scope: turnScope,
             arguments: arguments)
 
         // 3. Destructive calls were gated at the security precheck above. No lock lives
@@ -639,14 +671,15 @@ actor ToolRegistry {
             }
             recordExecution(
                 name, hash: inputHash,
-                scope: loopScope)
+                scope: turnScope)
             // Exec-breaker reset (codex #41454: any successful tool clears the
             // streak in the turn). Success of ANY tool — not just the exec
             // surface — breaks the "consecutive" run, matching `successful_tool`.
             resetExecBreaker(scope: loopScope)
-            // A call that RAN proves the cycle is broken, so the terminal counter for this
-            // conversation goes back to zero — same authority as the breaker reset above.
-            resetLoopStrikes(scope: loopScope)
+            // Did this call answer anything new, or repeat itself word for word? That is the
+            // only evidence the ladder cares about (see `ZeroGain`).
+            recordLadderAnswer(
+                scope: turnScope, name: name, inputHash: inputHash, result: result)
             // Complete audit on success
             if let t = token {
                 await auditTrail?.completeToken(t, status: .success, result: result)
@@ -683,7 +716,7 @@ actor ToolRegistry {
             // ToolRegistryTests.repeatedFailuresAreLoopDetected for the exact-value lock.
             recordExecution(
                 name, hash: inputHash,
-                scope: loopScope)
+                scope: turnScope)
             // Exec-breaking (codex #41454): a HANDLER failure on the exec surface
             // advances the consecutive-failure streak. Only exec-host tools count
             // (codex scopes to `exec`); only failures that got this far count
@@ -777,7 +810,7 @@ actor ToolRegistry {
         // Clean old entries (> 60 seconds)
         let now = ContinuousClock.now
         executionHistory.removeAll { $0.time.duration(to: now) >= .seconds(60) }
-        loopStrikes = loopStrikes.filter { $0.value.time.duration(to: now) < .seconds(60) }
+        pruneLadder(now: now)
 
         // Check for recent identical calls (cycle = same tool + same input ≥ maxDepth times)
         let recentCount = executionHistory.count(where: {
@@ -801,25 +834,53 @@ actor ToolRegistry {
                     "do not send this call again unchanged — vary the arguments, use another tool,"
                         + " or answer the user with what you have"
             }
-            // Every refusal of this exact call is a strike. Up to `maxLoopStrikes` they read
-            // as correctable feedback; past that the same sentence has demonstrably not
-            // worked, so the verdict changes to terminal rather than repeating louder.
-            let strikeKey = "\(scope)|\(entry.name)|\(inputHash)"
-            let strikes = (loopStrikes[strikeKey]?.count ?? 0) + 1
-            loopStrikes[strikeKey] = (strikes, now)
+            // A refusal is an event that produced nothing, so it climbs the ladder; the
+            // first ones still read as correctable feedback, and past the cap the verdict
+            // turns terminal instead of repeating the same sentence louder.
+            let key = ladderKey(scope: scope, name: entry.name, inputHash: inputHash)
+            var gain = zeroGain[key] ?? ZeroGain(last: now)
+            if zeroGain[key] == nil { zeroGainOrder.append(key) }
+            gain.refusals += 1
+            gain.last = now
+            zeroGain[key] = gain
 
-            if strikes > maxLoopStrikes {
+            if gain.strikes > maxZeroGainStrikes {
                 throw ToolError.loopStalled(
-                    "\(entry.name) with \(Self.loopSignature(arguments)) refused \(strikes) "
-                        + "times in 60 s — it will NOT run again this turn. Sending it "
-                        + "again changes nothing: act on what you already have "
-                        + "(edit_lines takes the `N|` numbers you read) or answer the "
-                        + "user with what you have.")
+                    "\(entry.name) with \(Self.loopSignature(arguments)) produced nothing new "
+                        + "\(gain.strikes) times in a row (\(gain.identicalAnswers) byte-identical "
+                        + "answers, \(gain.refusals) refusals) — it will NOT run again this "
+                        + "turn. Sending it again changes nothing: act on what you already have "
+                        + "(edit_lines takes the `N|` numbers you read) or answer the user "
+                        + "with what you have.")
             }
             throw ToolError.loopDetected(
                 "\(entry.name) with \(Self.loopSignature(arguments)) called \(recentCount + 1) "
                     + "times in 60 s — \(remedy)")
         }
+    }
+
+    /// What this call would actually return, as far as the loop net can tell.
+    ///
+    /// A `read_file` whose file changed since the last read carries new information even
+    /// when the arguments match byte for byte. Refusing that call is doubly wrong: it
+    /// blocks the model from verifying its own edit (Execute → Verify is the mission's
+    /// spine), and it makes the refusal's own sentence — "what it returned is already in
+    /// this conversation" — untrue. Statting one file is what makes that sentence honest.
+    /// Other tools keep argument identity; the answer digest in `recordLadderAnswer` still
+    /// catches their repeats one step later, once the bytes prove nothing changed.
+    static func loopIdentity(name: String, arguments: String) -> String {
+        guard name == "read_file",
+            let data = arguments.data(using: .utf8),
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let raw = obj["path"] as? String
+        else {
+            return arguments
+        }
+        let attrs = try? FileManager.default.attributesOfItem(
+            atPath: FileTools.resolve(raw).path)
+        let size = (attrs?[.size] as? Int) ?? -1
+        let mtime = (attrs?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? -1
+        return "\(arguments)|\(size)|\(mtime)"
     }
 
     /// A short fingerprint of the repeated call. Only addressing keys are echoed: an argument
@@ -889,11 +950,47 @@ actor ToolRegistry {
         execFailureStreaks[scope] = nil
     }
 
-    /// Clear the refusal strikes for one conversation after a call actually ran.
-    /// Scoped, not global: one client getting unstuck does not unstick another.
-    private func resetLoopStrikes(scope: String) {
-        let prefix = scope + "|"
-        loopStrikes = loopStrikes.filter { !$0.key.hasPrefix(prefix) }
+    /// The one key shape for the ladder, shared by the refusal path and the answer path so
+    /// "the same call" cannot mean two different things.
+    private func ladderKey(
+        scope: String, name: String, inputHash: String
+    ) -> String {
+        "\(scope)|\(name)|\(inputHash)"
+    }
+
+    /// Whether this call added information. Identical bytes mean it did not, and that is
+    /// counted; different bytes are the ONE event that makes repeating legitimate, so they
+    /// clear the ladder for this call (and only for this call).
+    private func recordLadderAnswer(
+        scope: String, name: String, inputHash: String, result: String
+    ) {
+        let key = ladderKey(scope: scope, name: name, inputHash: inputHash)
+        let digest = String(format: "%llX", result.hashValue)
+        var gain = zeroGain[key] ?? ZeroGain(last: ContinuousClock.now)
+        if zeroGain[key] == nil { zeroGainOrder.append(key) }
+        if gain.answer.isEmpty {
+            gain.answer = digest
+        } else if gain.answer == digest {
+            gain.identicalAnswers += 1
+        } else {
+            gain = ZeroGain(answer: digest, last: ContinuousClock.now)
+        }
+        gain.last = ContinuousClock.now
+        zeroGain[key] = gain
+        pruneLadder(now: gain.last)
+    }
+
+    /// Age out entries the ladder can no longer attribute to a live turn, and cap the map:
+    /// the registry is process-wide and outlives every conversation.
+    private func pruneLadder(now: ContinuousClock.Instant) {
+        zeroGain = zeroGain.filter { $0.value.last.duration(to: now) < ladderMemory }
+        zeroGainOrder = zeroGainOrder.filter { zeroGain[$0] != nil }
+        while zeroGainOrder.count > zeroGainCapacity {
+            // Oldest first, unconditionally: an entry dropped here re-enters fresh on its
+            // next call, which is the same fresh-then-climbing life it had the first time.
+            let dropped = zeroGainOrder.removeFirst()
+            zeroGain[dropped] = nil
+        }
     }
 
     /// Count a handler failure on the run surface (codex: `Failed { handler_executed: true }`

@@ -216,7 +216,7 @@ is in `CHANGELOG.md` (grep the symbol). `make audit` Class-J keeps suite names c
 - **`/v1/models/:model/…` needs `%2F`** (Handlers/) — verbatim `org/name` ids router-404; accepting a slash
   costs a second routing truth. Owner call; the sharp edge is documented and pinned, not hidden.
 - **A stall stops MTP hard, the std lane only by consent** (Tools/, Engine/) — the ladder and
-  `LoopStallTerminationTests`(5) landed; upstream's `restart:` loop (ChatSession.swift:1154) still has no
+  `LoopStallTerminationTests`(6) landed; upstream's `restart:` loop (ChatSession.swift:1154) still has no
   cap, and a std-lane hard stop throws out of `toolDispatch` (:1632) reaching the wire as an error, not a
   finished turn — the terminal word for four faces is the owner call.
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — the bitmask helper's −inf case, the

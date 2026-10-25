@@ -28,14 +28,14 @@ signed bundle (nested code object ⇒ CodeSign dies). Gate: `MetalShaderLibraryT
 - Polling: `EnginePool.waitForLoading` sleeps one poll interval (`min(deadline, now +
   loadingPollInterval)`), never to the deadline — sleeping to the deadline inside `while` cost 120 s
   for a model ready in 8 s. Deadline-sleeping is correct only in a single-shot watchdog
-  (`EngineInference.swift:149`).
+  (`EngineInference.swift:172`).
 
 ## An edited resend rewinds; it does not re-prefill
 The pool may not *answer* a conversation that diverged from its resident cache
 (`canReusePooledSession`) — but that is not a reason to discard the cache. `rewindHistoryEnd`
 (`SessionPool.swift:1526`, called at `SessionPool.swift:683`) decides whether the cache can be
 rewound onto the conversation that arrived and hands the boundary to the caller as
-`AcquireResult.rewind`; the fork itself is `EngineInference.swift:3139`, the only such site,
+`AcquireResult.rewind`; the fork itself is `EngineInference.swift:3214`, the only such site,
 because the transcript cannot cross into the pool actor — upstream `Chat.Message`
 (`Libraries/MLXLMCommon/Chat.swift:14`) is not `Sendable` and carries `UserInput.Image`
 (`Libraries/MLXLMCommon/UserInput.swift:131`). The pool judges, the caller forks.
@@ -61,7 +61,7 @@ probe 27 (live server: reuse asserted, replaced fact absent from the reply).
 
 ## Steering is delivered at the request seam
 `mergingSteeredTurn` (`Sources/ocoreai/Handlers/ChatHandler.swift`) folds a queued steer into the head
-of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3014`,
+of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3043`,
 `:3675`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
 delivers on the next request, or its contract is fiction (root § Endpoint Promises).
 
@@ -88,10 +88,10 @@ The server-wide row (`/v1/capabilities` → `video_input`) is the *same* measure
 `VideoDeliveryAggregate.evidenceLine`, so no publisher re-words it (a router that assembles its own
 evidence sentence is a second truth). Both are measured-only: `not_observed` is a fact about this
 process, never a claim about the checkpoint. Gate: `CapabilityMeasurementHonestyTests`.
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3337 items: videoInputCount, promptTokens -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3366 items: videoInputCount, promptTokens -->
 
 ## Known defect, deliberately unfixed — do not "fix" it blind
-`_applyBitmask` (`EngineInference.swift:1386`) multiplies by `-Float.leastNormalMagnitude`
+`_applyBitmask` (`EngineInference.swift:1409`) multiplies by `-Float.leastNormalMagnitude`
 (≈ −1.18e-38, i.e. no mask) while its own doc says −inf, and `return`s on the first out-of-range
 index instead of `continue`ing. Its only caller is `@available(macOS 27.0, *)`
 `_runConstrainedDecoding`, so no host here can execute it. Land the fix on macOS 27 with a run, or
@@ -102,18 +102,18 @@ Every `file:line` this area leans on is asserted below against the working tree 
 upstream revision). Round 14 inserted ~27 lines above the ThinkingBudget call and 15 cites across
 AGENTS.md moved off their targets with no gate going red; these markers are the red. Move code, get
 `make anchor-check` to name the cite that drifted.
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:149 Task.sleep(until: deadline -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1386 Float.leastNormalMagnitude -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3014 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3736 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4361 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3837 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4376 components: genComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3860 components: mtpGenComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:172 Task.sleep(until: deadline -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1409 Float.leastNormalMagnitude -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3043 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3766 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4403 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3867 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4418 components: genComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3890 components: mtpGenComponents -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:845 case "affine" -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1526 static func rewindHistoryEnd -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:683 Self.rewindHistoryEnd( -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3185 rewind.source.session.fork( -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3214 rewind.source.session.fork( -->
 <!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:869 let kvCacheRewindReserveTokens = 1024 -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:14 public struct Message { -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/UserInput.swift:131 public struct Image { -->

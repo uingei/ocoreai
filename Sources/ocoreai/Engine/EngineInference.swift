@@ -2429,6 +2429,11 @@ extension EnginePool {
             let convKey: String =
                 conversationId
                 ?? "\(modelId):anon:\(ConversationIdentity.seed(messages: mlxMessages))"
+            // One identity for this agent turn, handed to the registry so its
+            // zero-new-information ladder resets at the turn boundary instead of counting
+            // across every turn the conversation ever has (codex counts per turn). Fresh
+            // per invocation: this function runs once per user-visible turn on both lanes.
+            let turnToken = UUID().uuidString
             // Say out loud who owns the bytes this turn cited. If this turn never reaches
             // the pool (CPU channel, guided/MTP paths that close their own session), the
             // idle sweep is what eventually collects them — a fact worth naming in the log
@@ -2998,7 +3003,8 @@ extension EnginePool {
                             arguments: jsonArgs,
                             caller: "mlx_engine",
                             headless: headless,
-                            conversationKey: convKey
+                            conversationKey: convKey,
+                            turnToken: turnToken
                         )
                     } catch let error as ToolError {
                         logger.warning(
@@ -4155,7 +4161,7 @@ extension EnginePool {
                                     result =
                                         try await toolRegistry?.call(
                                             toolCall.function.name, arguments: argsString,
-                                            conversationKey: convKey)
+                                            conversationKey: convKey, turnToken: turnToken)
                                         ?? "[\(toolCall.function.name): tool registry not available]"
                                 }
                             } catch {
