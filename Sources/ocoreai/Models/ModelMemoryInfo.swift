@@ -50,21 +50,6 @@ struct ModelMemoryInfo: Identifiable, Hashable, Sendable {
         return "\(maxContext)"
     }
 
-    /// Combined label for UI display
-    var displayLabel: String {
-        var label = id
-        if !contextString.isEmpty {
-            label += " (\(contextString))"
-        }
-        if isVlm {
-            label += " 🖼 VLM"
-        }
-        if !memoryString.isEmpty {
-            label += " — \(memoryString)"
-        }
-        return label
-    }
-
     /// Initialize from plain ModelID
     static func fromModelID(_ model: ModelID) -> ModelMemoryInfo {
         ModelMemoryInfo(

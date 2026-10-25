@@ -137,7 +137,7 @@ struct ProfileSpan: ~Copyable {
             let metaStr = metadata.map { "\($0.key)=\($0.value)" }.joined(separator: ", ")
             let logger = Logger(label: "ocoreai.coreai.profiler")
             logger.error(
-                "⚠️ PROFILING ERROR: ProfileSpan[\(category.rawValue)] was not explicitly ended! This indicates a programming error. Always call span.end() Metadata: \(metaStr)"
+                "PROFILING ERROR: ProfileSpan[\(category.rawValue)] was not explicitly ended! This indicates a programming error. Always call span.end() Metadata: \(metaStr)"
             )
 
             // End signpost to avoid leaving it open, but DO NOT record stats

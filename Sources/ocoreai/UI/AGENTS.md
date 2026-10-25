@@ -33,8 +33,9 @@ Dark Mode + Dynamic Type, destructive-confirmation wording, and answering in the
 — this app hears and speaks, so a voice turn ends in voice, not in text the user must read.
 - Ornament is not information: delete slogans, explanatory paragraphs and secondary labels. If a screen is
   unreadable once they are gone, the defect is the layout — fix the layout, not the labels.
+- Colored pictographs are not icons: `Image(systemName:)` for icons, `↓ ★ ·` as punctuation, emoji only where emoji *is* the data. Gate: Class-K.
 Measured thinness, floored as ceilings (a `>=` floor cannot see a defect grow): `keyboardShortcut`
-in 5 files, `textSelection` in 5, `accessibilityLabel` in 17, across 298 Swift files in `Sources/`.
+in 5 files, `textSelection` in 5, `accessibilityLabel` in 17, across every `Sources/` file.
 <!-- claim:ui_keyboard_shortcut_files<=5 :: git grep -l keyboardShortcut -- Sources | wc -l -->
 <!-- claim:ui_text_selection_files<=5 :: git grep -l textSelection -- Sources | wc -l -->
 <!-- claim:ui_accessibility_files<=17 :: git grep -l accessibilityLabel -- Sources | wc -l -->

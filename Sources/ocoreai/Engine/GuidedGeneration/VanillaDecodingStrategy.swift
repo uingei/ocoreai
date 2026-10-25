@@ -37,7 +37,7 @@ struct VanillaDecodingStrategy: DecodingStrategy {
         options: InferenceOptions,
         stopSequences: StopSequences
     ) async throws -> VanillaDecodedSequence {
-        CLILogger.log("🔄 Starting vanilla decoding generation")
+        CLILogger.log("Starting vanilla decoding generation")
 
         // Eager setup.
         let inputTokens =
@@ -191,7 +191,7 @@ extension VanillaDecodingStrategy.VanillaDecodedSequence {
 
                 endInferenceSpan()
 
-                CLILogger.log("✅ Generated token ID: \(output.tokenId)", level: 2)
+                CLILogger.log("Generated token ID: \(output.tokenId)", level: 2)
 
                 let decodingSpan = InstrumentsProfiler.beginDecode(step: step)
 
@@ -225,7 +225,7 @@ extension VanillaDecodingStrategy.VanillaDecodedSequence {
                 }
 
                 if let matched = stopSequences.matchedSequence(recentTokens: recentTokens) {
-                    CLILogger.log("✅ Stop sequence detected at tokens: \(recentTokens)", level: 2)
+                    CLILogger.log("Stop sequence detected at tokens: \(recentTokens)", level: 2)
                     decodingSpan.end()
                     stopped = true
 
@@ -259,7 +259,7 @@ extension VanillaDecodingStrategy.VanillaDecodedSequence {
                         rawLogits: output.logits
                     )
                 }
-                CLILogger.log("✅ Generated newText: \(newText)", level: 2)
+                CLILogger.log("Generated newText: \(newText)", level: 2)
             }
 
             // Engine stream exhausted naturally — its iterator already recorded `.maxTokens` (or `.cancelled`/`.error`

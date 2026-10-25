@@ -412,6 +412,78 @@ else
     rm "$J_CLAIMS" "$J_LINES"
 fi
 
+
+# --- Class-K: a colored emoji is not an icon ---
+# The GUI's judge is the HIG (AGENTS.md, Upstream Audit Dependencies 5), and the platform draws
+# this line by *presentation*, not by taste: U+FE0F and the Emoji_Presentation property are
+# exactly the codepoints that render as fixed-color pictographs, which a control cannot restyle
+# for Dark Mode, tint or Dynamic Type. Upstream writes the same rule down: pi "No emojis in
+# commits, issues, PR comments, or code" (references/pi/AGENTS.md:6); sglang "No decorative
+# formatting or emoji" (references/sglang/docs/AGENTS.md:281); opencode routes every icon field
+# through a named catalog rather than free text (references/opencode/packages/gui-extensions/
+# AGENTS.md:13).
+# Text-presentation marks stay where they are punctuation, not pictures: U+2193 arrow, U+2605
+# star, U+00B7 middle dot all render monochrome and inherit font, weight and colour.
+# Mechanism: perl, which ships with the macOS toolchain. grep -E has no Unicode property class and
+# a hand-typed byte list is precisely the regex that quietly stops matching (invariant 1), so the
+# expression is run against two known pictographs in-process first: a perl too old for
+# Emoji_Presentation, or a source tree that moved, fails here instead of reporting a Clean scan
+# that never scanned.
+echo ""
+echo "[Class-K: colored pictographs in code; icons are SF Symbols]"
+K_MIN_FILES=250
+K_WHITELIST='SentimentAnalyzer.swift'
+if ! command -v perl >/dev/null 2>&1; then
+    echo "  X perl is not on PATH - the Unicode-property scan cannot run (an unrun scan is not a Clean)"
+    FAIL=1
+else
+    K_PROBE=$(perl -CSD -e 'my $n = 0; $n++ if "\x{2B50}" =~ /\p{Emoji_Presentation}/; $n++ if "\x{26A0}\x{FE0F}" =~ /\x{FE0F}/; print $n')
+    if [ "$K_PROBE" != "2" ]; then
+        echo "  X this perl does not match the pattern against two known pictographs (probe=$K_PROBE/2)"
+        FAIL=1
+    else
+        K_FILES=$(find "$SRC" -name '*.swift' | grep -c . || true)
+        echo "  scan: $K_FILES .swift file(s), floor $K_MIN_FILES, perl probe $K_PROBE/2"
+        if [ "$K_FILES" -lt "$K_MIN_FILES" ]; then
+            echo "    scan premise unmet: the source tree moved or was pruned - a thin scan proves nothing"
+            FAIL=1
+        fi
+        # An exemption that no longer names a live file is a loaded silence (same premise check the
+        # shared whitelist gets above), so it is checked here too rather than trusted.
+        K_DEAD=0
+        while IFS= read -r kentry; do
+            [ -n "$kentry" ] || continue
+            if ! find "$SRC" -name "$kentry" 2>/dev/null | grep -q .; then
+                echo "    X dead exemption: $kentry matches no file in $SRC - prune it"
+                K_DEAD=$((K_DEAD + 1))
+            fi
+        done <<KEOF
+$(printf '%s\n' "$K_WHITELIST" | tr '|' '\n')
+KEOF
+        FAIL=$((FAIL + K_DEAD))
+        K_HITS=$(find "$SRC" -name '*.swift' -print0 | xargs -0 perl -CSD -ne \
+            'print "$ARGV:$.: $_" if /\p{Emoji_Presentation}|\x{FE0F}/; close ARGV if eof;' 2>/dev/null \
+            | grep -vE ':[0-9]+: *(//|/\*|\*)' || true)
+        K_RAW=$(printf '%s\n' "$K_HITS" | grep -c . || true)
+        K_CLEAN="$K_HITS"
+        while IFS= read -r kentry; do
+            [ -n "$kentry" ] || continue
+            K_CLEAN=$(printf '%s\n' "$K_CLEAN" | grep -vF "$kentry" || true)
+        done <<KEOF2
+$(printf '%s\n' "$K_WHITELIST" | tr '|' '\n')
+KEOF2
+        K_COUNT=$(printf '%s\n' "$K_CLEAN" | grep -c . || true)
+        echo "  result: $K_RAW line(s) with a pictograph, $((K_RAW - K_COUNT)) exempt (emoji AS the data) -> $K_COUNT violation(s)"
+        if [ "$K_COUNT" -gt 0 ]; then
+            printf '%s\n' "$K_CLEAN" | head -10 | sed 's/^/     /'
+            echo "  X $K_COUNT violation(s) - use Image(systemName:), a text-presentation glyph, or say why emoji IS the data"
+            FAIL=1
+        else
+            echo "  Clean"
+        fi
+    fi
+fi
+
 echo ""
 echo "=========================================="
 if [ "$FAIL" -eq 0 ]; then

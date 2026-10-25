@@ -176,7 +176,7 @@ private struct HFResultsList: View {
                     Self.shortNumber(model.downloads ?? 0, suffix: "↓"),
                     model.sizeString,
                 ].filter { !$0.isEmpty }
-                let mlxBadge: String = model.isMLXCompatible ? "⚡MLX" : ""
+                let mlxBadge: String = model.isMLXCompatible ? "MLX" : ""
                 let sub = [mlxBadge, subParts.joined(separator: " · ")].filter { !$0.isEmpty }
                     .joined(separator: " · ")
                 ModelResultRow(
@@ -223,7 +223,7 @@ private struct MSResultsList: View {
     }
 
     private static func shortStars(_ n: Int) -> String {
-        n > 0 ? "⭐\(n)" : ""
+        n > 0 ? "★\(n)" : ""
     }
 
     private static func shortNumber(_ n: Int, suffix: String) -> String {

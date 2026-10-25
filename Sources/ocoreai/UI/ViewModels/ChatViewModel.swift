@@ -181,9 +181,10 @@ final class ChatState {
     /// via notifySteerDrained(); turn-end flush zeroes it.
     private(set) var pendingSteerCount: Int = 0
 
-    /// Visible bubble marker so steering reads distinct from the original ask
-    /// (mirrors SteerQueue.wireMarker on the model side).
-    static let steerBubbleMarker = "⚡"
+    /// Visible bubble marker so steering reads distinct from the original ask.
+    /// Text-presentation glyph, never a colored pictograph (HIG: icons are SF
+    /// Symbols). The model-side prefix is SteerQueue.wireMarker, not this.
+    static let steerBubbleMarker = "»"
 
     /// Current steering session key (nil before the first session exists —
     /// guard in steerNow keeps the enqueue honest rather than keyless).
@@ -322,7 +323,7 @@ final class ChatState {
     /// Drives contextual progress labels instead of a generic spinner.
     var inferencePhase: InferencePhase?
     /// P0: Compute channel used for the current streaming response.
-    /// Drives the channel badge (⚡GPU / 🧠ANE / 💻CPU) in ChatView.
+    /// Drives the channel badge (GPU / ANE / CPU pill) in ChatView.
     var currentComputeChannel: ComputeChannel?
 
     /// Human-readable label for the current inference phase.
