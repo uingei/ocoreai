@@ -24,16 +24,14 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
    `/v1/capabilities`, the dashboard, a tool result, a composer string — must be measured, and must
    degrade honestly where the backend is absent. A file tool's `OK` is durability, not validity: the verdict
    travels in one result (`OK-but-invalid`). When authority is unclear: run it and read the answer.
-   Read-echo chrome of our own surface (`N|` prefixes, the `total_lines:` footer, the
-   `[System Perception]` header) is stripped when provable, reported when not: `PresentationEcho`,
-   gate `PresentationEchoGuardTests`(16).
+   Read-echo chrome of our own surface (`N|` prefixes, `total_lines:`, `[System Perception]`) is stripped
+   when provable, reported when not: `PresentationEcho`, gate `PresentationEchoGuardTests`(16).
 
 ## Contribution policy
 - Every line in git is reviewable, AI or not; "it came from the model" excuses nothing.
 - No claim without a check: "verified/fixed/aligned" needs same-session command output.
-- An improvement answers three questions — *what* behaviour improved, *what output* proves it, *which
-  gate goes red* if it regresses; missing the third makes it a claim. Full text: `CONTRIBUTING.md` → *The
-  three questions* (the open-item rule lives there).
+- An improvement answers *the three questions* (what improved, what output proves it, which gate goes red
+  if it regresses); missing the third makes it a claim. Full text: `CONTRIBUTING.md`.
 - If upstream already has the answer, consume or reference it and cite `file:line` instead of authoring
   a local variant.
 
@@ -66,9 +64,9 @@ swift test --filter <SuiteRegex>     # one suite (substring)
 make docs-check                      # docs contract: sub-second, no build
 bash scripts/eval/run.sh               # task-success scoreboard: verifies the WORKSPACE, not the prose
 ```
-- Gate tiering: **sandbox** → app-target build + non-Metal suites (writable `HOME`, CLT
-  `DEVELOPER_DIR`/`SDKROOT`; mechanism `docs/agent/build-gate-reality.md`); **escalation** → `make test-clt`
-  + `make probes` (live `/v1/*`); **CI only** → the `xcodebuild` legs (`test-ci`, the iOS build job).
+- Gate tiering: **sandbox** → app-target build + non-Metal suites; **escalation** → `make test-clt`
+  + `make probes` (live `/v1/*`); **CI only** → `xcodebuild` (`test-ci`, iOS build). Env recipe:
+  `docs/agent/build-gate-reality.md`.
 - `make toolchain-check` evaluates both candidate routes (Xcode and CLT) instead of the ambient
   `DEVELOPER_DIR`, and settles Metal by *compiling a kernel*, never by `metal --version`.
 - CLT SDK ≠ CLT compiler: an unpinned `SDKROOT` breaks even the manifest. On the CLT route every
@@ -175,10 +173,9 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
 
 - **A turn's last sentence is a claim, checked against the audit.** `ClaimVsAudit` compares a
   self-terminated answer's file-change sentences with `ToolMutationLedger`, fed at
-  `ToolRegistry.call` — the chokepoint the native loop, MTP, GUI and MCP share (the wire echoes no
-  `tool_calls` on a native turn, so it proves nothing). A false "File created." and a false "I failed"
-  both get an `[audit]` line on all four faces; read-only tools never count, so a notice can only
-  under-accuse. Gate: `ClaimVsAuditTests`(17).
+  `ToolRegistry.call` — the chokepoint native loop, MTP, GUI and MCP share (a native turn echoes no
+  `tool_calls`, so the wire proves nothing). Both false directions get an `[audit]` line on four faces;
+  read-only tools never count, so a notice can only under-accuse. Gate: `ClaimVsAuditTests`(17).
 - `/v1/models/:model/…` takes a **percent-encoded** model id (`:model` matches one segment, `/v1/models`
   publishes `org/name`); the catalog says so and probe 03 pins it — the owner call lives in § Open.
 
@@ -200,8 +197,9 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
 - Target names ≠ module boundaries (`GuidedGenerationLoop` is a peer of `ChatSession`, not nested inside it).
 
 ### Testing Quality
-- Gold standard: exact-value assertions (`#expect(x == N)`), parameterized traversal, boundary cases.
-  Reject `count > N` where the exact value is knowable.
+- Gold standard: exact values a caller can observe (a wire field, a file's bytes, an exit code),
+  parameterized traversal, boundary cases. Reject `count > N` where N is knowable; never pin a constant
+  copied out of the code under test.
 - A scan-based test asserts its own premises: find the repo root by searching rather than by fixed
   `deletingLastPathComponent()` hops, and floor the scan's own hit count so a regex that stopped matching
   fails instead of passing vacuously.
@@ -271,15 +269,13 @@ Five empirical sources plus comparators; round-by-round verdicts live in `CHANGE
   Repo-binding verdicts live in `CHANGELOG.md`. Codex-host facts: `docs/agent/codex-runtime.md`.
 
 ## Read on demand — detail one hop away
-- `docs/agent/build-gate-reality.md` — why the local gate is tiered: sandbox / Metal / metallib /
-  module-cache / toolchain-bump forensics.
+- `docs/agent/build-gate-reality.md` — the toolchain / SDK / Metal forensics behind that tiering.
 - `docs/agent/third-party-notices.md` — license composition, the `coreai-models` metric warning, the
   vendored-header table.
 - `docs/agent/closed-items-log.md` — verdicts § Open used to carry prose for (resolved / retracted / phantom).
 - `docs/agent/instruction-channel.md` — who delivers the caller's `system`/`developer` text, and what
   refusing to reuse its cache costs.
-- `docs/agent/systemone-decisions.md` — upstream's Jev / System 1 decision API, what we already have, and
-  the price of the cheapest honest slice.
+- `docs/agent/systemone-decisions.md` — upstream's Jev / System 1 decision API and the cheapest honest slice.
 - `docs/agent/comparator-repos.md` — what each comparator repo is actually good for.
 - `docs/agent/codex-runtime.md` — what the coding host is (and is not), skills, sub-agents, escalation.
 - `scripts/probes/README.md` — every live probe: what it asserts, what it measured, which shape goes red.
@@ -340,7 +336,7 @@ project is **Human-facing**.
   matcher list is how 11 of 17 mutating tools ran unasked. Gate: `DestructiveApprovalGateTests`(5).
 - **One resolver, one ladder:** precedence as data, a candidate trusted only once probed, a failed *read*
   falling to the next rung, a failed *authoritative write* surfacing or rolling back, bounded retries that
-  end in a recovery affordance. `MetalShaderLibrary` is the pattern.
+  end in a recovery affordance. Pattern: `MetalShaderLibrary`.
 - **Decide state by authority, and put the scope in the key.** Engine actors own engine/model truth;
   `SessionManager` + SQLite own durable sessions; SwiftUI owns this window's presentation; a wire client owns
   its own view. Persisted keys declare their scope (global | session | model | window) — a wrong scope is how
@@ -348,13 +344,15 @@ project is **Human-facing**.
 - **Respect the person using it.** Never navigate, refocus, open a pane or announce because something
   *happened* in the background — offer, don't hijack. The five non-happy states each owe honest copy and
   a way out (the list: `Sources/ocoreai/UI/AGENTS.md`). On anything user-visible the HIG is authority.
-- **A file's lifetime is the lifetime of the thing that cites it.** Bytes that outlive the request that wrote
-  them need an owner, a pin while in flight, and collection by idle TTL + byte budget; deleting at request end
-  turns the next use into an unreadable-path error far from its cause. `MediaSpool`; gates:
+- **A file's lifetime is the lifetime of the thing that cites it.** Bytes outliving their request need an
+  owner, a pin in flight, and collection by idle TTL + byte budget; deleting at request end turns the next
+  use into an unreadable-path error far from its cause. `MediaSpool`; gates:
   `MediaLifetimeTests`(15) + probe 08.
 - **Comments say the *why* the code cannot, in 1–3 lines.** No bug history, dates or audit trails inside
   source comments — that is the commit message. Diffs are read by a human: one logical change per commit.
-- **No new defensive clutter:** no wrapper or `try?` around code that cannot fail.
+- **No defensive clutter; no guard for a failure nobody observed.** Validate once at the boundary that owns
+  the value and pass typed values inward; quote the failure (a probe line, a red test, a scoreboard row)
+  before writing its guard. Unquotable means ask first, not write first.
 - **Not a diary.** A root rule is ≤3 lines: what + the one-line evidence + the gate. Dates, round verdicts
   and host forensics go next to their claim, in `CHANGELOG.md` / `docs/agent/` (P13 enforces this file).
 - Default is one-pass: intent → plan → implement → review → verify → commit in one thread, no sub-agent
