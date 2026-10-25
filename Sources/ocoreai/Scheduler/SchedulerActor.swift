@@ -225,31 +225,24 @@ actor SchedulerActor {
         return ids
     }
 
-    /// Submit and immediately dispatch — atomic enqueue + admission + memory reservation.
-    /// This is the fast path for Handler pipelines that want to submit and dispatch
-    /// in one step (avoiding a separate dispatch call). If admission fails, the
-    /// request is removed from the queue before throwing (no orphaned entries).
-    /// If dispatch succeeds but dispatched another request first (higher priority),
-    /// returns `nil` — the caller may retry or proceed; our request stays in queue.
-    /// - Parameter request: The scheduling request to submit and dispatch.
-    /// - Returns: The dispatched request if it matches ours, `nil` if another request
-    ///   was dispatched first, or throws on admission failure.
-    /// - Throws: ``SchedulerError`` on OOM, full queue, or admission refusal.
+    /// Enqueue + admit + reserve + activate **this** request in one step: the returned
+    /// request is always the one that was passed in.
+    ///
+    /// Ownership is by id, and that is the whole point. `dispatch()` hands out "the next
+    /// best" request, and a submission is two actor messages (`submit`, then `dispatch`),
+    /// so two callers arriving together interleave: the loser popped the winner's request,
+    /// 503'd its own, and the stranger it dispatched sat in `activeRequests` with a live
+    /// reservation and nobody to run it or release it. A request can only be started by the
+    /// call that owns it.
+    /// - Throws: ``SchedulerError`` on OOM, full queue, or admission refusal. Ours is then
+    ///   removed from the queue and its row dropped, so no orphan survives the refusal.
     @discardableResult
-    func submitAndDispatch(_ request: SchedulingRequest) async throws -> SchedulingRequest? {
+    func submitAndDispatch(_ request: SchedulingRequest) async throws -> SchedulingRequest {
         try await submit(request)
-        guard let dispatched = await dispatch() else {
-            // All requests rejected in this pass — remove our entry from queue to avoid orphan
+        guard let dispatched = await dispatch(ownedBy: request.id) else {
             _ = queue.remove(where: { $0.request.id == request.id })
             requestStates.removeValue(forKey: request.id)
             throw SchedulerError.admissionRefused
-        }
-        // Safety: dispatch() pops by priority — only accept our own request.
-        // If someone else's request was dispatched first, ours is still pending
-        // in the queue. Returning nil prevents the "double dispatch" bug where
-        // the caller proceeds thinking their request was admitted when it wasn't.
-        guard dispatched.id == request.id else {
-            return nil
         }
         return dispatched
     }
@@ -263,36 +256,44 @@ actor SchedulerActor {
     /// return nil, allowing the caller to wait for memory.
     /// - Returns: The next scheduling request, or nil if queue is empty.
     func dispatch() async -> SchedulingRequest? {
+        await dispatch(ownedBy: nil)
+    }
+
+    /// Ownership-aware dispatch: with `owner` set, only that id may leave the queue;
+    /// every other candidate is put back untouched (its owner's own call will reach it).
+    /// `owner == nil` is the standalone drain and keeps the "next best" semantics.
+    ///
+    /// Anything set aside this pass — rejected for headroom, or held for ownership — is
+    /// restored before returning. The old guard for that (`rejected.count >= initialCount`)
+    /// was checked at the top of an iteration the loop never reaches again, so a rejected
+    /// request left the queue and was never seen again: "wait for memory" never happened.
+    func dispatch(ownedBy owner: String?) async -> SchedulingRequest? {
         let initialCount = queue.count
         // Collect rejected requests separately — we must try every request
         // in priority order. A rejected high-priority request must not block
         // lower-priority requests with smaller budgets that could fit.
         var rejected: [ComparableRequest] = []
+        var held: [ComparableRequest] = []
 
         while let comparable = queue.pop() {
             let request = comparable.request
             let requestId = request.id
+
+            // Ownership first: before the gate, before a reservation, before `.inferring`.
+            if let owner, request.id != owner {
+                held.append(comparable)
+                if rejected.count + held.count >= initialCount {
+                    restoreSetAside(&rejected, &held)
+                    break
+                }
+                continue
+            }
 
             // What this turn's reservation is priced at, and on whose authority. The gate decides
             // it (measured off the model's own caches, else the floor); the dispatcher consumes
             // that same answer rather than re-deriving a second price for the same request.
             var kvBytesPerToken = KVCacheBudget.bytesPerToken
             var kvPricingBasis = AdmissionResult.unpricedBasis
-
-            // Safety: if we've already processed every request in the initial
-            // queue, all were rejected — stop and return nil so the caller
-            // can wait for memory to free up.
-            if rejected.count >= initialCount {
-                logger.info(
-                    "All queued requests rejected — re-enqueueing \(rejected.count) to wait for memory"
-                )
-                // Re-enqueue rejected requests in their original order
-                for item in rejected {
-                    queue.insert(item)
-                }
-                rejected.removeAll()
-                break
-            }
 
             // Check admission — does this request fit in available headroom?
             if let gate = admissionGate {
@@ -308,20 +309,25 @@ actor SchedulerActor {
                     logger.info(
                         "Admission failed for \(requestId): \(result.reason ?? "budget") — (\(rejected.count)/\(initialCount) rejected this pass)"
                     )
+                    // Every candidate this pass was rejected or held: nothing to dispatch,
+                    // so all of them wait for memory — checked after the append, which is
+                    // the only point where "all" is decidable.
+                    if rejected.count + held.count >= initialCount {
+                        logger.info(
+                            "All queued requests rejected — re-enqueueing \(rejected.count + held.count) to wait for memory"
+                        )
+                        restoreSetAside(&rejected, &held)
+                        break
+                    }
                     continue
                 }
                 kvBytesPerToken = result.kvBytesPerToken
                 kvPricingBasis = result.pricingBasis
             }
 
-            // All requests previously rejected get re-enqueued before we
-            // dispatch an admitted request (preserves their priority order).
-            if !rejected.isEmpty {
-                for item in rejected {
-                    queue.insert(item)
-                }
-                rejected.removeAll()
-            }
+            // Everything set aside goes back before this one is activated; the queue
+            // re-sorts by priority and arrival, so their order survives.
+            restoreSetAside(&rejected, &held)
 
             // Admit — reserve memory for this request
             if let gate = admissionGate {
@@ -355,6 +361,10 @@ actor SchedulerActor {
             totalProcessed += 1
             return request
         }
+        // The queue drained without anything being dispatched: whatever was set aside stays
+        // queued. Dropping it here is how a caller's request vanished with its row left in
+        // `.pending`.
+        restoreSetAside(&rejected, &held)
         return nil
     }
 
@@ -376,6 +386,21 @@ actor SchedulerActor {
 
     private func estimateInputTokens(from prompt: String) -> Int {
         TokenEstimate.promptTokens(prompt)
+    }
+
+    /// Put back, in one place, everything a dispatch pass took out of the queue without
+    /// dispatching it.
+    private func restoreSetAside(
+        _ rejected: inout [ComparableRequest], _ held: inout [ComparableRequest]
+    ) {
+        for item in rejected {
+            queue.insert(item)
+        }
+        for item in held {
+            queue.insert(item)
+        }
+        rejected.removeAll()
+        held.removeAll()
     }
 
     // MARK: - Interrupt

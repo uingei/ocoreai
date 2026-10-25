@@ -330,14 +330,7 @@ func chatCompletionsHandler(
         tokenBudget: request.maxTokens ?? 4096,
     )
     do {
-        let dispatched = try await scheduler.submitAndDispatch(schedulingRequest)
-        guard dispatched != nil else {
-            // Higher-priority request dispatched instead — ours still in queue.
-            // Clean up scheduler state to prevent orphaned .pending entry.
-            await scheduler.fail(
-                schedulingRequest.id, with: "Higher-priority request dispatched first")
-            throw AppError.engineUnavailable
-        }
+        _ = try await scheduler.submitAndDispatch(schedulingRequest)
     } catch let e as SchedulerError {
         // Clean up scheduler state on admission failure
         await scheduler.fail(schedulingRequest.id, with: e.localizedDescription)

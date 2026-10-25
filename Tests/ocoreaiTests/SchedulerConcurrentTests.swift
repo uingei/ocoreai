@@ -156,4 +156,74 @@ struct SchedulerConcurrentTests {
         #expect(await sched.activeCount == 0)
         #expect(await sched.pendingCount == 5)
     }
+
+    // ── ownership + re-enqueue integrity ────────────────────────────────────
+    // A submission is two actor messages (`submit`, then `dispatch`), so concurrent callers
+    // interleave: whoever pops a stranger's request used to refuse its own caller with a
+    // 503 while the stranger it dispatched became an active reservation nobody owned. And
+    // the "all rejected → wait for memory" path never ran at all, so a rejected request
+    // left the queue and was never seen again.
+
+    @Test("a request refused by admission stays queued instead of vanishing")
+    func rejectedRequestsWaitInQueue() async throws {
+        let tracker = MemoryTracker(budgetBytes: 1_073_741_824)
+        let gate = AdmissionGate(maxConcurrentPreFills: 0, memoryTracker: tracker)
+        let sched = SchedulerActor(
+            maxQueueSize: 128, admissionGate: gate, log: Logger(label: "test.reenqueue"))
+
+        _ = try await sched.submit(
+            SchedulingRequest(
+                id: "wait-0", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
+        _ = try await sched.submit(
+            SchedulingRequest(
+                id: "wait-1", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
+
+        // Nothing fits (0 pre-fills allowed) ⇒ nobody is dispatched, and both candidates
+        // are still there to be retried when memory frees.
+        #expect(await sched.dispatch() == nil)
+        #expect(await sched.pendingCount == 2)
+        #expect(await sched.activeCount == 0)
+    }
+
+    @Test("submitAndDispatch starts its own request and leaves a stranger queued")
+    func submitAndDispatchIsOwnedById() async throws {
+        let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.ownership"))
+
+        // X (higher priority) submitted; its own dispatch message has not run yet —
+        // exactly how two callers interleave.
+        _ = try await sched.submit(
+            SchedulingRequest(
+                id: "X", priority: .interrupt, modelId: "m", prompt: "p", tokenBudget: 256))
+
+        let mine = try await sched.submitAndDispatch(
+            SchedulingRequest(
+                id: "Y", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 256))
+
+        // Y got its own request, and X is untouched for the call that owns it.
+        #expect(mine.id == "Y")
+        #expect(await sched.activeCount == 1)
+        #expect(await sched.pendingCount == 1)
+        #expect(await sched.dispatch()?.id == "X")
+    }
+
+    @Test("a too-large head waits while the smaller one behind it runs")
+    func rejectedHeadDoesNotBlockSmallerTail() async throws {
+        let tracker = MemoryTracker(budgetBytes: 1_073_741_824)
+        let gate = AdmissionGate(maxConcurrentPreFills: 4, memoryTracker: tracker)
+        let sched = SchedulerActor(
+            maxQueueSize: 128, admissionGate: gate, log: Logger(label: "test.headroom-order"))
+
+        // ~1 GB requested against an 858 MB usable budget ⇒ refused; the tail fits.
+        _ = try await sched.submit(
+            SchedulingRequest(
+                id: "big", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 1_000_000))
+        _ = try await sched.submit(
+            SchedulingRequest(
+                id: "small", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 1024))
+
+        let dispatched = await sched.dispatch()
+        #expect(dispatched?.id == "small")
+        #expect(await sched.pendingCount == 1)
+        #expect(await sched.activeCount == 1)
+    }
 }

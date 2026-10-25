@@ -129,12 +129,7 @@ func completionsHandler(
         tokenBudget: request.maxTokens ?? 4096,
     )
     do {
-        let dispatched = try await scheduler.submitAndDispatch(schedulingRequest)
-        guard dispatched != nil else {
-            await scheduler.fail(
-                schedulingRequest.id, with: "Higher-priority request dispatched first")
-            throw AppError.engineUnavailable
-        }
+        _ = try await scheduler.submitAndDispatch(schedulingRequest)
     } catch let e as SchedulerError {
         await scheduler.fail(schedulingRequest.id, with: e.localizedDescription)
         switch e {

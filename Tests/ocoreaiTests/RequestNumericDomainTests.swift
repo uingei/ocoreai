@@ -395,10 +395,12 @@ struct SchedulerTokenFloorTests {
             id: "neg-budget-1", priority: .chat, modelId: "m", prompt: "hi", tokenBudget: -5)
         // Either answer is fine — admitted, or refused with a typed reason. What is not
         // fine is the 10-17 outcome: reaching this line at all is the assertion, because
-        // before the fix `UInt64(-5)` inside dispatch() ended the process here.
+        // before the fix `UInt64(-5)` inside dispatch() ended the process here. A refusal
+        // by this call can only ever be about *our* request, so a dispatch that does come
+        // back is ours by contract.
         do {
             let dispatched = try await scheduler.submitAndDispatch(request)
-            #expect(dispatched == nil || dispatched?.id == request.id)
+            #expect(dispatched.id == request.id)
         } catch let error as SchedulerError {
             #expect(
                 error.errorDescription?.isEmpty == false,
