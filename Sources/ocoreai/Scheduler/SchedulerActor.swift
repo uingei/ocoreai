@@ -126,6 +126,13 @@ actor SchedulerActor {
     private var queue: PriorityQueue<ComparableRequest> = PriorityQueue()
     private var activeRequests: [String: SchedulingRequest] = [:]
     private var requestStates: [String: RequestState] = [:]
+    /// Terminal states stay queryable for the last `maxTerminalRecords` requests, then a
+    /// FIFO evicts the oldest. Without the cap this actor is a leak: one row per request
+    /// forever, keyed by a fresh id, in a server whose premise is that it stays up (the
+    /// same pit references paid for — hermes-agent `bound the pending-created-topics
+    /// cache`, `terminate provider writer threads on soft eviction`).
+    private let maxTerminalRecords = 256
+    private var terminalOrder: [String] = []
     private let logger: Logger
     private var memoryTracker: MemoryTracker?
     private var oomGuard: OOMGuard?
@@ -384,7 +391,7 @@ actor SchedulerActor {
         }
 
         if let request = activeRequests[requestId] {
-            requestStates[requestId] = .interrupted
+            noteTerminal(requestId, .interrupted)
             activeRequests.removeValue(forKey: requestId)
             await deallocateMemory(for: requestId)
             logger.info("Interrupted request \(requestId)")
@@ -392,7 +399,7 @@ actor SchedulerActor {
         }
         // Also try to remove from pending queue
         if let removed = queue.remove(where: { $0.request.id == requestId }) {
-            requestStates[requestId] = .interrupted
+            noteTerminal(requestId, .interrupted)
             logger.info("Interrupted pending request \(requestId)")
             return removed.request
         }
@@ -408,7 +415,7 @@ actor SchedulerActor {
         }
 
         for id in idsToInterrupt {
-            requestStates[id] = .interrupted
+            noteTerminal(id, .interrupted)
             activeRequests.removeValue(forKey: id)
             // Release admission reservation
             if let gate = admissionGate {
@@ -419,7 +426,7 @@ actor SchedulerActor {
 
         // Remove matching from pending queue
         while let removed = queue.remove(where: { $0.request.modelId == modelId }) {
-            requestStates[removed.request.id] = .interrupted
+            noteTerminal(removed.request.id, .interrupted)
         }
     }
 
@@ -434,7 +441,7 @@ actor SchedulerActor {
         }
 
         activeRequests.removeValue(forKey: requestId)
-        requestStates[requestId] = .completed
+        noteTerminal(requestId, .completed)
         await deallocateMemory(for: requestId)
         logger.info("Completed request \(requestId)")
     }
@@ -450,7 +457,7 @@ actor SchedulerActor {
         }
 
         activeRequests.removeValue(forKey: requestId)
-        requestStates[requestId] = .failed
+        noteTerminal(requestId, .failed)
         await deallocateMemory(for: requestId)
         logger.error("Failed request \(requestId): \(error)")
     }
@@ -459,7 +466,10 @@ actor SchedulerActor {
 
     /// Get status of a request.
     func status(of requestId: String) async -> RequestStatus? {
-        let state = requestStates[requestId] ?? .pending
+        // No record ⇒ this id was never submitted, or it finished far enough back to fall
+        // out of the terminal window. Answering `.pending` for it would invent a request
+        // that does not exist (invariant 2: the surface never claims more than the state).
+        guard let state = requestStates[requestId] else { return nil }
         // Resolve modelId + createdAt from active or pending queue
         var modelId = activeRequests[requestId]?.modelId ?? ""
         var createdAt: Date? = activeRequests[requestId]?.createdAt
@@ -533,6 +543,18 @@ actor SchedulerActor {
     }
 
     // MARK: - Memory helpers
+
+    /// Record a terminal state and keep the terminal record bounded: the id enters the FIFO
+    /// once (a repeat terminal does not re-queue it), and the oldest falls out past the cap.
+    private func noteTerminal(_ requestId: String, _ state: RequestState) {
+        if requestStates[requestId]?.isTerminal != true {
+            terminalOrder.append(requestId)
+        }
+        requestStates[requestId] = state
+        while terminalOrder.count > maxTerminalRecords {
+            requestStates.removeValue(forKey: terminalOrder.removeFirst())
+        }
+    }
 
     /// Release estimated memory for a completed/interrupted/failed request.
     private func deallocateMemory(for requestId: String) async {

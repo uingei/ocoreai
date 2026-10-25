@@ -66,21 +66,31 @@ public struct SchedulingRequest: Identifiable, Sendable, Codable {
     }
 }
 
-/// Request lifecycle states
+/// Request lifecycle states.
 public enum RequestState: String, Codable, Sendable {
+    /// Submitted, not yet admitted.
     case pending
-    /// Waiting in priority queue
+    /// Waiting in the priority queue.
     case queued
-    /// Accepted, waiting for model
+    /// Admitted; generating.
     case inferring
-    /// Currently being generated
+    /// Finished normally.
     case completed
-    /// Successfully generated
+    /// Stopped by the user or by the scheduler.
     case interrupted
-    /// Stop requested by user
+    /// Exceeded its timeout.
     case timedOut
-    /// Exceeded timeout
-    case failed/// Error during processing
+    /// Error during processing.
+    case failed
+
+    /// A state no later transition can leave. The scheduler keeps a bounded record of
+    /// these so a just-finished request is still queryable, then forgets it.
+    public var isTerminal: Bool {
+        switch self {
+        case .completed, .interrupted, .timedOut, .failed: return true
+        case .pending, .queued, .inferring: return false
+        }
+    }
 }
 
 /// Request status report

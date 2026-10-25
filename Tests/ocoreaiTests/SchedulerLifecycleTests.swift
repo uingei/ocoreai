@@ -138,4 +138,50 @@ struct SchedulerLifecycleTests {
         #expect(snap.inferringCount == 1)
         #expect(snap.totalRequests >= 1)
     }
+
+    // ── terminal-record bound ───────────────────────────────────────────────
+    // The actor lives as long as the server and its keys are fresh request ids, so one
+    // row per finished request forever is a leak (the pit references paid for: hermes-agent
+    // `bound the pending-created-topics cache`). The cap is `maxTerminalRecords` = 256,
+    // so of 300 finished requests the first 44 are forgotten and the last 256 stay
+    // queryable — asserted at the boundary, not as "count < 300".
+
+    @Test("300 finished requests keep exactly 256 terminal records")
+    func terminalRecordsAreCapped() async {
+        let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.bound"))
+        var ids: [String] = []
+        for i in 0 ..< 300 {
+            let id = "req-\(i)"
+            _ = try? await sched.submit(
+                SchedulingRequest(
+                    id: id, priority: .chat, modelId: "m", prompt: "p", tokenBudget: 512))
+            _ = await sched.dispatch()
+            await sched.complete(id)
+            ids.append(id)
+        }
+
+        var known: [String] = []
+        for id in ids where await sched.status(of: id) != nil {
+            known.append(id)
+        }
+        #expect(known.count == 256)
+        #expect(known.first == "req-44")
+        #expect(known.last == "req-299")
+        #expect(await sched.status(of: ids[43]) == nil)
+        #expect(await sched.status(of: ids[44])?.state == .completed)
+    }
+
+    @Test("an id that was never submitted has no status, not a fabricated .pending")
+    func unknownIdHasNoStatus() async {
+        let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.unknown"))
+        #expect(await sched.status(of: "never-submitted") == nil)
+    }
+
+    @Test("isTerminal names exactly four terminal and three live states")
+    func isTerminalExact() {
+        let terminal: [RequestState] = [.completed, .interrupted, .timedOut, .failed]
+        let live: [RequestState] = [.pending, .queued, .inferring]
+        #expect(terminal.filter { $0.isTerminal }.count == 4)
+        #expect(live.filter { $0.isTerminal }.count == 0)
+    }
 }
