@@ -13,6 +13,12 @@
 
 **macOS 14+ · iOS 17+ · Apple Silicon · Swift 6.2 · Pure SwiftPM**
 
+**Measured vs declared:** executed on macOS 26 — the full test suite, live `/v1/*` probes and the
+36-task scoreboard all run here, and `make release` asserts its artifact is CoreAI-free at
+minos 14.0. macOS 14/15: never executed on hardware. iOS 17+: compile-validated only
+(`generic/platform=iOS` in CI) — no iOS runtime has been executed by this project, so the
+platform line above is the declared floor from `Package.swift`, not a measurement.
+
 **用户路径 — 双击即用:**
 下载 [最新 Release](https://github.com/uingei/ocoreai/releases/latest) 的 `ocoreai-<ver>.dmg` → 打开 → 拖 `ocoreai` 到 `Applications` → 启动。模型在 App「模型」页推荐列表中首启下载（推荐列表已内置）。
 
@@ -209,7 +215,7 @@ Per-feature status with commit refs lives in `CHANGELOG.md` — a pinned ✅ tab
 ### Build Info
 
 - Swift 6.2 · SwiftUI · Hummingbird 2.26
-- macOS 14+ / iOS 17+ · Apple Silicon · pure SwiftPM
+- Declared `.macOS(.v14)` / `.iOS(.v17)` · Apple Silicon · pure SwiftPM — executed on macOS 26; iOS is compile-validated (`generic/platform=iOS`), never run
 - No `.xcodeproj` — the test gate runs through the SPM `ocoreai.xcworkspace` → `xcodebuild` → `xctest`
 
 ---

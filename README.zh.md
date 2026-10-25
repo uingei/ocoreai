@@ -13,6 +13,11 @@
 
 **macOS 14+ · iOS 17+ · Apple Silicon · Swift 6.2 · 纯 SwiftPM**
 
+**测过的 vs 声明的:** 本项目在 macOS 26 上实机执行——全量测试、live `/v1/*` 探针、36 题任务台
+都在此机跑过,且 `make release` 断言产物不含 CoreAI、minos=14.0。macOS 14/15:未在真机运行过。
+iOS 17+:仅编译验证(CI 的 `generic/platform=iOS`),iOS 上从未真跑过一次;所以上面那行是
+`Package.swift` 里声明的下限,不是实测结论。
+
 **用户路径 — 双击即用:** 下载 [最新 Release](https://github.com/uingei/ocoreai/releases/latest) 的 `ocoreai-<ver>.dmg` → 打开 → 拖到 `应用程序` → 启动。模型在「模型」页推荐列表首启下载；界面跟随系统语言（已内置简体中文）。
 
 > 首次启动: 当前 DMG 为 ad-hoc 签名(未公证)。若 Gatekeeper 提示"无法打开",在访达的 `应用程序` 里**右键 ocoreai → 打开 → 打开**即可,仅需一次。
@@ -201,7 +206,7 @@ memory:
 ### Build Info
 
 - Swift 6.2 · SwiftUI · Hummingbird 2.26
-- macOS 14+ / iOS 17+ · Apple Silicon · 纯 SwiftPM
+- 声明 `.macOS(.v14)` / `.iOS(.v17)` · Apple Silicon · 纯 SwiftPM —— 实机执行于 macOS 26;iOS 仅编译验证(`generic/platform=iOS`),未运行过
 - 质量门：`make test-ci`（xcodebuild 路径，macOS-26 腿为权威）；ocoreai 源码 0 警告（依赖 bundle 噪声除外）
 ---
 
