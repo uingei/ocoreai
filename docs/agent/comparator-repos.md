@@ -1,11 +1,9 @@
 # Comparator repositories — who is good at what
 
 > Long form behind § *Upstream Audit Dependencies* 6. Cells are a **dated snapshot** read off the
-> local clone (`ls` + README head); re-measure the diary column:
+> local clone; re-measure the diary column:
 > `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent deepseek-harness harness2 goose opencode; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
-> — P16 re-derives both lists, so a trimmed diary or a stale cell goes
-> red. A **pin** is a build input (`Package.swift:43` — `mlx-swift-lm`, plus `coreai-models` for
-> derivation); everything here is a comparator.
+> — P16 re-derives both lists, so a stale cell goes red. A **pin** is a build input (`Package.swift:43`); everything else is a comparator.
 
 Each entry is one clone under `~/references/`: what it holds, the axis worth borrowing,
 and how far the audit got. A borrowed verdict is an inference until a `file:line` in our
@@ -43,10 +41,12 @@ Borrow: consumed
 Contains: Distribution discipline next to ours: a third-party notice set that ships with the binary (our `THIRD-PARTY-LICENSES/` + `ThirdPartyNoticesTests`), plus a runbook/release-notes habit we do not have
 Borrow: named, unused (the designation line); use it or drop it from `AGENTS.md`
 
-- `Strata` — C++/Metal host: `apps/host`, `apps/desktop`, `metal/`, `packaging/`, `bench/`, `docs/{BENCHMARK_PROTOCOL,COMMUNITY_BENCHMARKS,BATCHING,BATCHED_DMA,AMD_HIP}.md`, 7 README localizations
-Contains: A written benchmark protocol (how a number is produced, before it is quoted) and app packaging for a local model host; AMD/HIP + DMA batching are outside our hardware envelope
-Borrow: consumed — the rule now runs as `scripts/eval/_conditions.py`, which writes what produced every
-scoreboard number into `results.tsv` and gives `_repeat_stats.py` the fields to refuse on
+- `Strata` — local-AI product: desktop app, agent terminal, C++ engine across CUDA/HIP/SYCL/Metal.
+Contains: `launch --plan` prints a multi-GB mutation before doing it, then exits untouched
+  (`docs/TERMINAL_LAUNCH.md:110`); engine packages carry a manifest `engine_component.py` checks before
+  start (`packaging/ENGINE-COMPONENT.md`); installers fetch the engine for the GPU present. Cadence:
+  2337 of 4196 commits in 14 days.
+Borrow: open — dry-run plan before our download path; integrity check on runtime-fetched artifacts.
 
 - `MTPLX` — MTP speculative decoding for MLX
 Contains: MTP drafter/acceptance behaviour against our `_runInferenceWithMessages` → `generate(::mtpDrafter:)` path. Also a per-seat memory policy: `ee9cca4f` prices a family's prefill from measurement (MLX peak over each chunk's end state, peak reset per prompt) and narrows the prefill width before it refuses.
