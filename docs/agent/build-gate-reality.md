@@ -8,6 +8,7 @@
 execute tool 'metal' due to missing Metal Toolchain`)⇒ 依赖 mlx 的目标一旦 artifacts 失效就编不动,「`swift build` exit 0 = done」当场不可执行。修法:`scripts/toolchain-contract.sh`(R1 交付 SDK 不含 CoreAI = 硬门,CI `audit` job 同跑;R2 shader 编译器 = 建议项,`--require-metal` 升硬)+ `make test-clt` 显式传 `SDKROOT=<最新无 CoreAI 的
 SDK>`,不再信 `MacOSX.sdk` 符号链接。本机恢复配方:`xcodebuild -downloadComponent MetalToolchain`,然后 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk`(Xcode 只带 SDK 27,故 no-CoreAI 形状要从 CLT 的 26.5 借)。另记沙箱 gotcha:`HOME` 必须用 canonical 路径 `/private/tmp/…`;
 写成 `/tmp/…` 会让 clang module cache 出现 `/tmp` 与 `/private/tmp` 两份同名 `.pcm`,swift-frontend 直接 SIGSEGV(`module '_DarwinFoundation1' is defined in both …`)。
+R1 亦判产物:`scripts/release-artifact-check.sh`(release/app)。
 
 **Sandboxed route = compile + non-Metal tests, no approval needed (verified 10-13):** a compile gate does *not* require escalation. `HOME=<writable-dir> DEVELOPER_DIR=/Library/Developer/CommandLineTools swift build --scratch-path .build-clt --disable-sandbox` goes green inside the agent sandbox. `--disable-sandbox` drops only SwiftPM's *own* nested sandbox for the
 package-manifest compile (nesting is impossible here: `sandbox-exec: sandbox_apply: Operation not permitted`); the outer harness sandbox still applies — the same run is denied writing `~/.cache/clang`, which is exactly why `HOME` must point somewhere writable. `make test-clt`'s `-F`/`-rpath` flags are still required for the Testing library, and `DEVELOPER_DIR` keeps it on the

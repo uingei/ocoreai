@@ -11,6 +11,13 @@ APP_NAME="ocoreai"
 echo "🔨 Building release..."
 swift build -c release --traits appStore
 
+# 1b. Judge the shape of what ships. A bare `swift build` produces whichever shape the ambient
+#     SDK carries, and this script's output is the bundle a user installs: an SDK-26 image and a
+#     host whose SDK ships CoreAI.framework do not build the same product under the same name.
+#     R1 names the CoreAI-free build as the delivery form, so the artifact — not the environment —
+#     is what gets asserted here. Failure names the remedy; `set -e` keeps the bundle unbuilt.
+bash "$(dirname "$0")/release-artifact-check.sh" delivery .build/release/ocoreai
+
 # 2. Create .app bundle
 echo "📦 Creating $APP_NAME.app..."
 APP_DIR="build/${APP_NAME}.app"

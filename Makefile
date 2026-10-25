@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release app dmg test test-verbose test-coverage test-ci probes format format-check audit docs-check anchor-check round-gates clean metallib help ci-local push-ready
+.PHONY: all build release release-mac27 app dmg test test-verbose test-coverage test-ci probes format format-check audit docs-check anchor-check round-gates clean metallib help ci-local push-ready
 
 all: build
 
@@ -36,8 +36,28 @@ build:
 	swift build
 
 release:
-	@echo "🔨 Building release..."
-	swift build -c release
+	@echo "🔨 Building release — delivery shape (CoreAI-free SDK, pinned route)..."
+	@# Judge the artifact, not the environment. `swift build -c release` on the ambient route
+	@# is whatever SDK the host happens to have: on this host that is Xcode/SDK 27, which ships
+	@# CoreAI.framework, so a "release" binary silently became the macOS-27 shape that R1 calls
+	@# out-of-delivery — while the CI release leg, on an SDK-26 image, produced the other one.
+	@# Same release name, two different products, nothing comparing them.
+	@$(METAL_PATH_EXPORT)DEVELOPER_DIR=$(CLT_DIR) $(SDKROOT_CLT) swift build -c release \
+	  -Xswiftc -F$(CLT_F) -Xlinker -F$(CLT_F) -Xlinker -rpath -Xlinker $(CLT_F) \
+	  -Xlinker -rpath -Xlinker $(CLT_L)
+	@bash scripts/release-artifact-check.sh delivery .build/release/ocoreai
+
+## The deliberate macOS-27 route (OCOREAI_TARGET_SDK=macos27): CoreAI blocks compiled IN, so
+## the artifact names it. Asserted, because a form nobody can tell apart from the delivery form
+## is how an unverifiable code path gets shipped under the delivery name.
+release-mac27:
+	@echo "🔨 Building release — macOS-27 shape (CoreAI linked IN, NOT the delivery form)..."
+	@# Own scratch: `.build/release` is where `release` leaves the delivery binary and where the
+	@# probes and eval look for it. A second form written to the same path would leave a
+	@# CoreAI-linked binary sitting at the delivery location after the target that named it had
+	@# finished — the trap this whole split exists to close.
+	@DEVELOPER_DIR=$${DEVELOPER_DIR:-$(XCODE_APP)/Contents/Developer} swift build -c release --scratch-path .build-mac27
+	@bash scripts/release-artifact-check.sh macos27 .build-mac27/release/ocoreai
 
 ## 开箱即用产物 (first-run ready)
 app:

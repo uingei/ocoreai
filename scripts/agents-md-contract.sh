@@ -80,7 +80,7 @@ cd "$(dirname "$0")/.."
 # alone, 3/3 with tools alone, 0/3 with both), paid partly by folding a duplicate `required`-strength
 # sentence into a §-pointer (-55 B). Debt is stated, not hidden: repay from the dated forensics in
 # docs/agent/build-gate-reality.md and the "named, unused" comparator cells (splash, deepseek-harness).
-: "${OCOREAI_AGENTS_MAX_ROOT:=30428}"   # pinned 10-22 by `make docs-budget`
+: "${OCOREAI_AGENTS_MAX_ROOT:=30388}"   # pinned 10-25 by `make docs-budget`
                                      # `make docs-budget` may only lower it (B1 stays a ratchet)
 # P13: the injected file carries rules, not diary. Longest allowed line in AGENTS.md, in bytes.
 : "${OCOREAI_AGENTS_MAX_LINE:=400}"
