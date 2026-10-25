@@ -429,9 +429,9 @@ enum FileTools {
                 ? "lines \(start)-\(end) hold nothing to insert or delete"
                 : "lines \(start)-\(end) already read exactly as newText"
             return
-                "edit_lines: OK-no-change — \(state); the file is unchanged (\(total) lines). "
-                    + "If you meant to change them, send the text you want, or read the file"
-                    + " again and edit the line that differs."
+                "edit_lines: OK-no-change — \(state); the file is unchanged (\(total) lines)."
+                    + Self.currentLinesNote(lines: lines, start: start, end: end)
+                    + " To change them, send newText that differs from the lines quoted above."
         }
 
         let bytes = updated.data(using: .utf8) ?? Data()
@@ -575,6 +575,28 @@ enum FileTools {
         return " (resolved: \(url.path); anchored to \(anchor); \(source))"
     }
 
+    /// The lines a no-change answer was pointed at, quoted in the numbering `read_file` prints,
+    /// so the caller sees the state it asked about without paying a second read. Bounded: a long
+    /// range quotes its head and says how much it left out; an empty range quotes the line it sits
+    /// before (or says the position is past the end).
+    static func currentLinesNote(lines: [String], start: Int, end: Int) -> String {
+        let lo = max(1, min(start, lines.count))
+        // lo <= hi always holds here: the file is non-empty (guarded above) and both bounds are
+        // clamped into 1...count, so a range of any shape — including the append position and an
+        // insert-before range — still names at least the line it sits against.
+        let hi = min(max(end, lo), lines.count)
+        var quoted: [String] = []
+        for index in lo ... hi {
+            let text = lines[index - 1]
+            quoted.append("\(index)|" + (text.count > 200 ? String(text.prefix(200)) + "..." : text))
+        }
+        let shown = quoted.count > 12 ? Array(quoted.prefix(12)) : quoted
+        var note = " The file currently says: " + shown.joined(separator: " ")
+        if quoted.count > shown.count {
+            note += " (+\(quoted.count - shown.count) more lines not quoted)"
+        }
+        return note
+    }
     /// What a mismatch hint handed the caller: quotable text, and whether that text is the
     /// whole file. The refusal's next step depends on the second answer — everything quoted
     /// means the retry needs nothing else, a window means the needed line may be out of view.

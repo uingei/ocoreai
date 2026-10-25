@@ -157,6 +157,9 @@ struct EditLinesContractTests {
         #expect(out.contains("OK-no-change"), "\(out)")
         #expect(out.contains("lines 1-2 already read exactly as newText"), "\(out)")
         #expect(out.contains("unchanged (3 lines)"), "\(out)")
+        // The state the caller asked about travels in the answer, so it never pays a read.
+        #expect(out.contains("currently says: 1|a 2|b"), "\(out)")
+        #expect(!out.contains("read the file"), "\(out)")
         // Nothing was written, so nothing may be reported as verified: the no-change answer
         // keeps the verification claim for the lane that actually did a durable write.
         #expect(!out.contains("read-back"), "\(out)")
@@ -164,6 +167,20 @@ struct EditLinesContractTests {
         #expect(try String(contentsOf: url, encoding: .utf8) == "a\nb\nc\n", "\(out)")
     }
 
+    @Test("a no-op at the append position quotes the line it sits against")
+    func noOpAtAppendPositionQuotesTheTail() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
+        let url = try seeded("notes.md", "a\nb\nc\n")
+        defer { SessionWorkspace.clear() }
+
+        let out = try FileTools.editLines(
+            path: "notes.md", startLine: 4, endLine: 3, newText: "")
+        #expect(out.contains("OK-no-change"), "\(out)")
+        #expect(out.contains("currently says: 3|c"), "\(out)")
+        #expect(!out.contains("read the file"), "\(out)")
+        #expect(try String(contentsOf: url, encoding: .utf8) == "a\nb\nc\n", "\(out)")
+    }
     @Test("the wire accepts snake_case and it reaches the engine")
     func wireSnakeCaseReachesTheEngine() async throws {
         let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])

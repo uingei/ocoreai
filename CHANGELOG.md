@@ -2,7 +2,15 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-10-25
+## [Unreleased] — 2026-09-05 → 2026-10-26
+
+**10-26(1) 上一轮我修的 no-op 拒词自己造了新的自相矛盾:它叫模型"再读一遍",而复读墙把那一读拦下了**（P1 Agent 可靠性 / 工具语义,符号 `no-change-quotes-lines`） — 证据是上一轮那笔改动**之后**的实跑 `/tmp/abN2/response-make-two-tests-pass.json`,逐次参数摊开:`edit_lines` 三次答 `OK-no-change … If you meant to change them, send the text you want, or read the file again and edit the line that differs.`,模型照做去 `read_file`,第三次同身份复读撞墙 `Execution loop detected: read_file … called 4 times in 60 s`,任务 FAIL。也就是说 `10-25(27)` 把"参数错误"改成了诚实的状态答案,却**在同一个答案里下了一道另一个机制必然拒绝的命令**——正是上一轮刚删掉的 `retryBeforeAnswering` 那一类毛病,我自己又犯了一次。
+
+- **改法:状态随答案走,不再命令往返。** `OK-no-change` 现在把**调用方指名的那几行原文**按 `read_file` 的 `N|` 编号交出来:`edit_lines: OK-no-change — lines 10-10 already read exactly as newText; the file is unchanged (14 lines). The file currently says: 10|    def test_whisper(self): … To change them, send newText that differs from the lines quoted above.`。落点是新 helper `FileTools.currentLinesNote(lines:start:end:)`:任何形状的范围(含"末尾追加位"和 `end = start-1` 的插入位)都至少报出它贴着的那一行;超过 12 行只报头部并如实写 `(+N more lines not quoted)`,单行超 200 字符截断加 `...`。同时**删掉**"read the file again"这句。
+- **顺手用上一轮刚写进 `AGENTS.md:353` 的规矩清自己的码**:`currentLinesNote` 初版有个 `guard lo <= hi else` 分支,而 `lo = max(1, min(start, count))`、`hi = min(max(end, lo), count)` 在"文件非空"(上面已 guard)下恒成立 ⇒ 那是**无人观察到的失败**的死码,删除并注明为何恒成立。
+- **同类句子的裁决(逐一核对,不是一切)**:`FileTools.swift:296` 的 `oldString is not in this file — read_file it and copy the exact text` **不动**——它处在 `hint.quotedWholeFile == false` 分支,目标行可能压根没进视野,叫读是正当出路(既有测试 `clippedHintStatesTotals` 正是为此禁止"照上面那行改");`ClaimVsAudit.swift:289` 的 `re-read the file before redoing the work` **不动**,因为本轮没有证据显示它把任务带进死循环,而为假想的矛盾改措辞正是新规矩禁止的那类机器。
+- **门**:`EditLinesContractTests`(10)(`docs/agent/agent-interface-guidelines.md:27` 已同步 9→10)。新断言:单行范围报 `currently says: 1|a 2|b`;新增第 10 条 `noOpAtAppendPositionQuotesTheTail`——追加位 no-op 报 `currently says: 3|c`;两条都断言**不得**出现 `read the file`(反自相矛盾钉,和 `wholeFileQuoteOrdersTheRetry`/`clippedHintStatesTotals` 同族);另保持 no-change 结果不得出现 `read-back`/`bytes`(没落盘就不许声称验证)。红样实测:撤引文 + 恢复旧尾句 ⇒ **恰好 2 测 4 断言红**(`EditLinesContractTests.swift:161/162/180/181`),还原后 10/1 绿;定向 83 测/12 套绿(上一态 82/12,+1 即新测试)。
+- **不声称**:`OK-no-change` 报出原文是否足以让 `make-two-tests-pass` 变 PASS **未证明**——那题真正的死因是小模型给出的"修复"本身就是 no-op(它不知道要改什么),工具能做的只是把状态一次交够、并停止把它往墙上赶;改善与否等同一题集的 A/B 两腿数字,不拿单轮总分当改善。
 
 **10-25(28) 从 opencode 的 AGENTS.md 借两条规矩进来,并且让它们自付字节**（P2 注入契约 / 符号 `agents-md-opencode-rules`） — 业主点名参考 `~/references/opencode`。对照量到的事实:opencode 根 `AGENTS.md` **14002 B / 189 行**,全篇祈使句 + 落点 + 命令,**零日期、零事故叙述**;它有 18 份 AGENTS.md,多数 1–5 KB,最大一份 19 KB(`packages/gui-extensions/AGENTS.md`)。我们根文件 **30124 B**,`## Code Conventions` 一节 **10112 B(34%)**,90 条顶层 bullet 里 **20 条超过 3 行**——违反它自己写的"root rule ≤3 lines",而 `docs-check` 扫的是别的形状(单行 ≤400 B、corpus 总量),**门与规矩不同形这条仍未解**。
 
