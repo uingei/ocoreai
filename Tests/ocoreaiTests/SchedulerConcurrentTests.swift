@@ -111,27 +111,6 @@ struct SchedulerConcurrentTests {
         #expect(third?.id.hasPrefix("ch-") == true)
     }
 
-    @Test("batch dispatch: 5 queued, batch 3, then complete 2")
-    func testBatchDispatch() async throws {
-        let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.batch"))
-
-        for i in (0 ..< 5) {
-            _ = try await sched.submit(
-                SchedulingRequest(
-                    id: "batch-\(i)", priority: .chat, modelId: "m", prompt: "p", tokenBudget: 128
-                ))
-        }
-
-        let batch = await sched.dispatchBatch(3)
-        #expect(batch.count == 3)
-        #expect(await sched.pendingCount == 2)
-        #expect(await sched.activeCount == 3)
-
-        await sched.complete("batch-0")
-        await sched.complete("batch-1")
-        #expect(await sched.activeCount == 1)
-    }
-
     @Test("active count after dispatch and complete")
     func testActiveCountDrains() async throws {
         let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.drain"))
@@ -143,7 +122,11 @@ struct SchedulerConcurrentTests {
                 ))
         }
 
-        let dispatched = await sched.dispatchBatch(5)
+        var dispatched: [SchedulingRequest] = []
+        for _ in 0 ..< 5 {
+            guard let next = await sched.dispatch() else { break }
+            dispatched.append(next)
+        }
         #expect(dispatched.count == 5)
         #expect(await sched.pendingCount == 5)
         #expect(await sched.activeCount == 5)

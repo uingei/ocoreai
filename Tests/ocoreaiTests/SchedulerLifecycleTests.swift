@@ -1,7 +1,7 @@
 // Copyright © 2026 uingei@163.com.
 // Licensed under MIT.
 /// Scheduler lifecycle tests — submit → dispatch → complete/fail/interrupt
-/// Verifies: memory tracking, OOM protection, priority queue, request states
+/// Verifies: memory tracking, OOM protection, priority queue, release-on-completion
 
 import Foundation
 import Logging
@@ -41,11 +41,6 @@ struct SchedulerLifecycleTests {
         // 3. Complete → done
         await sched.complete("req-1")
         #expect(await sched.activeCount == 0)
-
-        // 4. Status query
-        let status = await sched.status(of: "req-1")
-        #expect(status != nil)
-        #expect(status?.state == .completed)
     }
 
     @Test("优先队列：P0 interrupt 在 P1 chat 之前 dispatch")
@@ -84,8 +79,6 @@ struct SchedulerLifecycleTests {
         let usageAfter = await tracker.usageFraction()
 
         #expect(usageAfter < usageBefore)
-        let status = await sched.status(of: "fail-me")
-        #expect(status?.state == .failed)
     }
 
     @Test("interrupt → 活跃请求立即释放")
@@ -125,63 +118,32 @@ struct SchedulerLifecycleTests {
         }
     }
 
-    @Test("snapshot → 调度器健康状态")
-    func testSnapshot() async {
-        let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.snapshot"))
+    // ── release on completion ────────────────────────────────────────────────
+    // The actor lives as long as the server, so anything keyed by a fresh request id that
+    // survives its completion is a leak (the pit references paid for: hermes-agent
+    // `bound the pending-created-topics cache`). The table that leaked used to be capped at
+    // 256; it has since been deleted outright — nothing is retained per finished request, so
+    // the honest assertion is that *nothing* accumulates: after 300 full cycles the queue, the
+    // active set and the tracker's reservation are all back to zero.
 
-        let req = SchedulingRequest(
-            id: "snap", priority: .chat, modelId: "m", prompt: "snap test", tokenBudget: 4096)
-        _ = try? await sched.submit(req)
-        _ = await sched.dispatch()
+    @Test("300 full cycles leave no queue residue and no held reservation")
+    func nothingAccumulatesAcrossThreeHundredRequests() async throws {
+        let tracker = MemoryTracker(budgetBytes: 1 << 40)
+        let sched = SchedulerActor(
+            maxQueueSize: 128, memoryTracker: tracker, log: Logger(label: "test.bound"))
 
-        let snap = await sched.snapshot()
-        #expect(snap.inferringCount == 1)
-        #expect(snap.totalRequests >= 1)
-    }
-
-    // ── terminal-record bound ───────────────────────────────────────────────
-    // The actor lives as long as the server and its keys are fresh request ids, so one
-    // row per finished request forever is a leak (the pit references paid for: hermes-agent
-    // `bound the pending-created-topics cache`). The cap is `maxTerminalRecords` = 256,
-    // so of 300 finished requests the first 44 are forgotten and the last 256 stay
-    // queryable — asserted at the boundary, not as "count < 300".
-
-    @Test("300 finished requests keep exactly 256 terminal records")
-    func terminalRecordsAreCapped() async {
-        let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.bound"))
-        var ids: [String] = []
         for i in 0 ..< 300 {
             let id = "req-\(i)"
-            _ = try? await sched.submit(
+            _ = try await sched.submit(
                 SchedulingRequest(
                     id: id, priority: .chat, modelId: "m", prompt: "p", tokenBudget: 512))
-            _ = await sched.dispatch()
+            let dispatched = await sched.dispatch()
+            #expect(dispatched?.id == id)
             await sched.complete(id)
-            ids.append(id)
         }
 
-        var known: [String] = []
-        for id in ids where await sched.status(of: id) != nil {
-            known.append(id)
-        }
-        #expect(known.count == 256)
-        #expect(known.first == "req-44")
-        #expect(known.last == "req-299")
-        #expect(await sched.status(of: ids[43]) == nil)
-        #expect(await sched.status(of: ids[44])?.state == .completed)
-    }
-
-    @Test("an id that was never submitted has no status, not a fabricated .pending")
-    func unknownIdHasNoStatus() async {
-        let sched = SchedulerActor(maxQueueSize: 128, log: Logger(label: "test.unknown"))
-        #expect(await sched.status(of: "never-submitted") == nil)
-    }
-
-    @Test("isTerminal names exactly four terminal and three live states")
-    func isTerminalExact() {
-        let terminal: [RequestState] = [.completed, .interrupted, .timedOut, .failed]
-        let live: [RequestState] = [.pending, .queued, .inferring]
-        #expect(terminal.filter { $0.isTerminal }.count == 4)
-        #expect(live.filter { $0.isTerminal }.count == 0)
+        #expect(await sched.pendingCount == 0)
+        #expect(await sched.activeCount == 0)
+        #expect(await tracker.usageFraction() == 0, "every reservation must be released")
     }
 }

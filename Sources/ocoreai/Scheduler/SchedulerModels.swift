@@ -38,7 +38,6 @@ public struct SchedulingRequest: Identifiable, Sendable, Codable {
     public let prompt: String
     public let tokenBudget: Int
     public let createdAt: Date
-    public let timeout: TimeInterval
 
     /// Create a new scheduling request.
     /// - Parameters:
@@ -47,14 +46,12 @@ public struct SchedulingRequest: Identifiable, Sendable, Codable {
     ///   - modelId: Model to use for inference
     ///   - prompt: Input prompt text
     ///   - tokenBudget: Maximum tokens to generate
-    ///   - timeout: Seconds before auto-interrupt (default 30s)
     public init(
         id: String,
         priority: RequestPriority,
         modelId: String,
         prompt: String,
         tokenBudget: Int = 4096,
-        timeout: TimeInterval = 30,
     ) {
         self.id = id
         self.priority = priority
@@ -62,95 +59,5 @@ public struct SchedulingRequest: Identifiable, Sendable, Codable {
         self.prompt = prompt
         self.tokenBudget = tokenBudget
         createdAt = Date()
-        self.timeout = timeout
-    }
-}
-
-/// Request lifecycle states.
-public enum RequestState: String, Codable, Sendable {
-    /// Submitted, not yet admitted.
-    case pending
-    /// Waiting in the priority queue.
-    case queued
-    /// Admitted; generating.
-    case inferring
-    /// Finished normally.
-    case completed
-    /// Stopped by the user or by the scheduler.
-    case interrupted
-    /// Exceeded its timeout.
-    case timedOut
-    /// Error during processing.
-    case failed
-
-    /// A state no later transition can leave. The scheduler keeps a bounded record of
-    /// these so a just-finished request is still queryable, then forgets it.
-    public var isTerminal: Bool {
-        switch self {
-        case .completed, .interrupted, .timedOut, .failed: return true
-        case .pending, .queued, .inferring: return false
-        }
-    }
-}
-
-/// Request status report
-public struct RequestStatus: Codable, Sendable {
-    public let requestId: String
-    public let state: RequestState
-    public let modelId: String
-    public let age: TimeInterval
-    public let message: String?
-
-    public init(
-        requestId: String,
-        state: RequestState,
-        modelId: String,
-        age: TimeInterval = 0,
-        message: String? = nil,
-    ) {
-        self.requestId = requestId
-        self.state = state
-        self.modelId = modelId
-        self.age = age
-        self.message = message
-    }
-}
-
-/// Scheduler health snapshot
-public struct SchedulerSnapshot: Codable, Sendable {
-    public let pendingCount: Int
-    public let inferringCount: Int
-    public let totalRequests: Int
-    public let avgQueueTimeMs: Double
-    /// Memory fraction from MemoryTracker (0.0-1.0), not absolute GB.
-    public let memoryUsageFraction: Double
-    public let oomGuardLevel: String
-    /// Admission gate — reserved memory in MB.
-    public let admissionReservedMB: Double
-    /// Admission gate — total budget in MB (from MemoryTracker).
-    public let admissionBudgetMB: Double
-    /// Admission gate — currently active admissions.
-    public let admissionActive: Int
-
-    public init(
-        pendingCount: Int,
-        inferringCount: Int,
-        totalRequests: Int,
-        avgQueueTimeMs: Double,
-        memoryUsageFraction: Double,
-        oomGuardLevel: String,
-        admissionReservedMB: Double = 0,
-        admissionBudgetMB: Double = 0,
-        admissionActive: Int = 0,
-    ) {
-        self.pendingCount = pendingCount
-        self.inferringCount = inferringCount
-        self.totalRequests = totalRequests
-        self.avgQueueTimeMs = avgQueueTimeMs
-        self.memoryUsageFraction = memoryUsageFraction
-        self.oomGuardLevel = oomGuardLevel
-        self.admissionReservedMB = admissionReservedMB
-        self.admissionBudgetMB = admissionBudgetMB
-        self.admissionActive = admissionActive
     }
 }

@@ -374,16 +374,6 @@ struct SchedulerTokenFloorTests {
         #expect(normal == 150 * 1024)
     }
 
-    @Test("dispatchBatch with a negative count returns nothing instead of trapping the Range")
-    func dispatchBatchNegative() async {
-        let scheduler = SchedulerActor(
-            maxQueueSize: 4, memoryTracker: nil, log: Logger(label: "test.numeric-domain"))
-        let dispatched = await scheduler.dispatchBatch(-1)
-        #expect(dispatched.isEmpty)
-        let zero = await scheduler.dispatchBatch(0)
-        #expect(zero.isEmpty)
-    }
-
     /// The exact crash path from 10-17, one level below the wire: a request whose budget is
     /// negative reaches `dispatch()` and must come back as a result or a typed error — never
     /// as a dead process.

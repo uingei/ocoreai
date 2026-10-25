@@ -343,8 +343,12 @@ actor AdmissionGate {
         }
     }
 
-    /// Emergency abort — release all reservations immediately.
-    /// Called when OOMGuard signals .oom level.
+    /// Release every reservation immediately.
+    ///
+    /// No caller today: OOM escalation is consulted at `submit` (which throws
+    /// `.oomRefused`) and never reaches the gate afterwards, so a machine that runs out of
+    /// memory mid-flight does not have its reservations freed by this. Deleting the valve
+    /// would hide the gap; wiring it is the honest fix and is recorded as open.
     func emergencyAbort() {
         let totalFreed = reservedBytes
         reservations.removeAll()

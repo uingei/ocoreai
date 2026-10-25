@@ -57,11 +57,6 @@ private struct PriorityQueue<Element: Comparable> {
         return removed
     }
 
-    /// Find element without removal — O(n) scan, query-only path.
-    func find(where predicate: (Element) -> Bool) -> Element? {
-        heap.first(where: predicate)
-    }
-
     private mutating func bubbleUp(_ index: Int) {
         var i = index
         while i > 0 {
@@ -125,14 +120,6 @@ private struct ComparableRequest: Comparable, Equatable {
 actor SchedulerActor {
     private var queue: PriorityQueue<ComparableRequest> = PriorityQueue()
     private var activeRequests: [String: SchedulingRequest] = [:]
-    private var requestStates: [String: RequestState] = [:]
-    /// Terminal states stay queryable for the last `maxTerminalRecords` requests, then a
-    /// FIFO evicts the oldest. Without the cap this actor is a leak: one row per request
-    /// forever, keyed by a fresh id, in a server whose premise is that it stays up (the
-    /// same pit references paid for — hermes-agent `bound the pending-created-topics
-    /// cache`, `terminate provider writer threads on soft eviction`).
-    private let maxTerminalRecords = 256
-    private var terminalOrder: [String] = []
     private let logger: Logger
     private var memoryTracker: MemoryTracker?
     private var oomGuard: OOMGuard?
@@ -148,15 +135,6 @@ actor SchedulerActor {
 
     /// Max queue size — reject when exceeded.
     let maxQueueSize: Int
-
-    /// Total requests processed.
-    private(set) var totalProcessed = 0
-
-    /// Total requests rejected at admission gate.
-    private(set) var totalRejected = 0
-
-    /// Total requests admitted and dispatched.
-    private(set) var totalAdmitted = 0
 
     /// Initialize the scheduler.
     /// - Parameters:
@@ -207,22 +185,9 @@ actor SchedulerActor {
 
         let id = request.id
         queue.insert(ComparableRequest(request: request))
-        requestStates[id] = .pending
         logger.info(
             "Request \(id) enqueued (priority: \(request.priority.name), queue: \(queue.count))")
         return id
-    }
-
-    /// Submit a batch of requests.
-    /// - Parameter requests: Array of scheduling requests.
-    /// - Returns: Array of request IDs.
-    @discardableResult
-    func submitAll(_ requests: [SchedulingRequest]) async throws -> [String] {
-        var ids: [String] = []
-        for request in requests {
-            try await ids.append(submit(request))
-        }
-        return ids
     }
 
     /// Enqueue + admit + reserve + activate **this** request in one step: the returned
@@ -241,7 +206,6 @@ actor SchedulerActor {
         try await submit(request)
         guard let dispatched = await dispatch(ownedBy: request.id) else {
             _ = queue.remove(where: { $0.request.id == request.id })
-            requestStates.removeValue(forKey: request.id)
             throw SchedulerError.admissionRefused
         }
         return dispatched
@@ -305,7 +269,6 @@ actor SchedulerActor {
                 )
                 if !result.admitted {
                     rejected.append(comparable)
-                    totalRejected += 1
                     logger.info(
                         "Admission failed for \(requestId): \(result.reason ?? "budget") — (\(rejected.count)/\(initialCount) rejected this pass)"
                     )
@@ -337,12 +300,10 @@ actor SchedulerActor {
                     maxOutputTokens: request.tokenBudget,
                     modelId: request.modelId,
                 )
-                totalAdmitted += 1
             }
 
             // Mark active
             activeRequests[requestId] = request
-            requestStates[requestId] = .inferring
 
             // Estimate and allocate memory for KV cache — at the price the gate just decided,
             // so the tracker's view of this turn and the gate's reservation are the same number.
@@ -358,7 +319,6 @@ actor SchedulerActor {
             logger.info(
                 "Dispatched request \(requestId) (model: \(request.modelId), est: \(estMB)MB @ \(pricing))"
             )
-            totalProcessed += 1
             return request
         }
         // The queue drained without anything being dispatched: whatever was set aside stays
@@ -366,22 +326,6 @@ actor SchedulerActor {
         // `.pending`.
         restoreSetAside(&rejected, &held)
         return nil
-    }
-
-    /// Dispatch up to `count` requests.
-    /// - Parameter count: Maximum number to dispatch.
-    /// - Returns: Array of dispatched requests.
-    func dispatchBatch(_ count: Int) async -> [SchedulingRequest] {
-        var requests: [SchedulingRequest] = []
-        // `0 ..< count` traps when count is negative — a caller bug must not cost the process.
-        for _ in 0 ..< Swift.max(0, count) {
-            if let request = await dispatch() {
-                requests.append(request)
-            } else {
-                break
-            }
-        }
-        return requests
     }
 
     private func estimateInputTokens(from prompt: String) -> Int {
@@ -406,6 +350,9 @@ actor SchedulerActor {
     // MARK: - Interrupt
 
     /// Interrupt a running request.
+    /// No caller today: the GUI stops a turn by cancelling its `Task`, and that path reaches
+    /// `complete`/`fail`. This stays as the one seam that frees a reservation mid-flight without
+    /// pretending the turn finished — the interrupt-with-no-tool-call gap is an open item.
     /// - Parameter requestId: The request to interrupt.
     /// - Returns: The interrupted request, or nil if not found.
     @discardableResult
@@ -416,7 +363,6 @@ actor SchedulerActor {
         }
 
         if let request = activeRequests[requestId] {
-            noteTerminal(requestId, .interrupted)
             activeRequests.removeValue(forKey: requestId)
             await deallocateMemory(for: requestId)
             logger.info("Interrupted request \(requestId)")
@@ -424,35 +370,10 @@ actor SchedulerActor {
         }
         // Also try to remove from pending queue
         if let removed = queue.remove(where: { $0.request.id == requestId }) {
-            noteTerminal(requestId, .interrupted)
             logger.info("Interrupted pending request \(requestId)")
             return removed.request
         }
         return nil
-    }
-
-    /// Interrupt all requests for a given model.
-    /// Collects target request IDs first, then removes — safe under Dictionary iteration.
-    func interruptAll(for modelId: String) async {
-        // Collect IDs to interrupt first (avoid mutating dict while iterating)
-        let idsToInterrupt: [String] = activeRequests.compactMap { id, req in
-            req.modelId == modelId ? id : nil
-        }
-
-        for id in idsToInterrupt {
-            noteTerminal(id, .interrupted)
-            activeRequests.removeValue(forKey: id)
-            // Release admission reservation
-            if let gate = admissionGate {
-                await gate.release(id)
-            }
-            await deallocateMemory(for: id)
-        }
-
-        // Remove matching from pending queue
-        while let removed = queue.remove(where: { $0.request.modelId == modelId }) {
-            noteTerminal(removed.request.id, .interrupted)
-        }
     }
 
     // MARK: - Completion
@@ -466,7 +387,6 @@ actor SchedulerActor {
         }
 
         activeRequests.removeValue(forKey: requestId)
-        noteTerminal(requestId, .completed)
         await deallocateMemory(for: requestId)
         logger.info("Completed request \(requestId)")
     }
@@ -482,82 +402,15 @@ actor SchedulerActor {
         }
 
         activeRequests.removeValue(forKey: requestId)
-        noteTerminal(requestId, .failed)
         await deallocateMemory(for: requestId)
         logger.error("Failed request \(requestId): \(error)")
     }
 
     // MARK: - Query
 
-    /// Get status of a request.
-    func status(of requestId: String) async -> RequestStatus? {
-        // No record ⇒ this id was never submitted, or it finished far enough back to fall
-        // out of the terminal window. Answering `.pending` for it would invent a request
-        // that does not exist (invariant 2: the surface never claims more than the state).
-        guard let state = requestStates[requestId] else { return nil }
-        // Resolve modelId + createdAt from active or pending queue
-        var modelId = activeRequests[requestId]?.modelId ?? ""
-        var createdAt: Date? = activeRequests[requestId]?.createdAt
-        if modelId.isEmpty,
-            let found = queue.find(where: { $0.request.id == requestId })
-        {
-            modelId = found.request.modelId
-            createdAt = found.request.createdAt
-        }
-        let age = createdAt.map { Date().timeIntervalSince($0) } ?? 0
-        return RequestStatus(
-            requestId: requestId,
-            state: state,
-            modelId: modelId,
-            age: age,
-            message: nil,
-        )
-    }
-
-    /// Get a snapshot of scheduler health.
-    func snapshot() async -> SchedulerSnapshot {
-        // Memory fraction from tracker (0.0 - 1.0)
-        let memFraction: Double =
-            if let tracker = memoryTracker {
-                await tracker.usageFraction()
-            } else {
-                0
-            }
-        // OOMGuard quantization level
-        let level: String =
-            if let oomg = oomGuard {
-                await oomg.currentQuantization().rawValue
-            } else {
-                "unknown"
-            }
-        // Admission gate state
-        var admissionReservedMB: Double = 0
-        var admissionBudgetMB: Double = 0
-        var admissionActive: Int = 0
-        if let gate = admissionGate {
-            let state = await gate.state()
-            admissionReservedMB = Double(state.reserved) / 1_048_576
-            admissionBudgetMB = Double(state.totalBudget) / 1_048_576
-            admissionActive = state.active
-        }
-
-        return SchedulerSnapshot(
-            pendingCount: queue.count,
-            inferringCount: activeRequests.count,
-            totalRequests: totalProcessed,
-            // avgQueueTimeMs requires per-request timestamps — reserved for v2
-            avgQueueTimeMs: 0,
-            // MemoryTracker reports fraction (0.0-1.0), not GB
-            memoryUsageFraction: memFraction,
-            oomGuardLevel: level,
-            // Admission gate stats if available
-            admissionReservedMB: admissionReservedMB,
-            admissionBudgetMB: admissionBudgetMB,
-            admissionActive: admissionActive,
-        )
-    }
-
-    /// Get pending queue size.
+    /// Queue depth and active count have no production reader — every call site uses
+    /// `submitAndDispatch`/`complete`/`fail` and queries nothing. They exist so the drain and
+    /// release invariants have a gate. Gate: `SchedulerConsumedSurfaceTests`.
     var pendingCount: Int {
         queue.count
     }
@@ -568,18 +421,6 @@ actor SchedulerActor {
     }
 
     // MARK: - Memory helpers
-
-    /// Record a terminal state and keep the terminal record bounded: the id enters the FIFO
-    /// once (a repeat terminal does not re-queue it), and the oldest falls out past the cap.
-    private func noteTerminal(_ requestId: String, _ state: RequestState) {
-        if requestStates[requestId]?.isTerminal != true {
-            terminalOrder.append(requestId)
-        }
-        requestStates[requestId] = state
-        while terminalOrder.count > maxTerminalRecords {
-            requestStates.removeValue(forKey: terminalOrder.removeFirst())
-        }
-    }
 
     /// Release estimated memory for a completed/interrupted/failed request.
     private func deallocateMemory(for requestId: String) async {
@@ -594,8 +435,6 @@ public enum SchedulerError: Error, LocalizedError, Sendable, Equatable {
     case queueFull
     case oomRefused(usedGB: Int, budgetGB: Int)
     case admissionRefused
-    case notFound(String)
-    case timeout(String)
 
     public var errorDescription: String? {
         switch self {
@@ -603,8 +442,6 @@ public enum SchedulerError: Error, LocalizedError, Sendable, Equatable {
         case .oomRefused(let used, let budget):
             "Request refused due to OOM protection — memory \(used) GB used of \(budget) GB budget"
         case .admissionRefused: "Request refused — insufficient admission headroom"
-        case .notFound(let id): "Request not found: \(id)"
-        case .timeout(let id): "Request timed out: \(id)"
         }
     }
 }
