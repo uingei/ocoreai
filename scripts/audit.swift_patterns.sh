@@ -243,18 +243,80 @@ if [ ! -f "$NOTICES" ]; then
     echo "  ❌ $NOTICES missing — run scripts/collect-third-party-licenses.sh"
     I_FAIL=1
 fi
-broken=$(grep -rn "Copyright ?\|uigei@\|Copyright @[[:space:]]*$" "$SRC" \
-    --include='*.swift' --include='*.h' --include='*.cpp' 2>/dev/null || true)
-if [ -n "$broken" ]; then
-    echo "  ❌ malformed rightsholder line:"
-    echo "$broken" | sed 's/^/     /'
+# Portable spelling of an alternation: BSD grep -E treats \| as a LITERAL pipe, so the
+# "a\|b\|c" this class used to write has matched nothing on this platform since it was
+# written (measured: printf "aaa\nfoo\n" | grep -cE "aaa\|foo" = 0). That made the
+# malformed-rightsholder scan vacuous, and the "Apple Inc.\|uingei" skip in the vendored loop
+# was dead for the same reason. One -e per alternative, and each alternative is self-tested
+# against its own known-bad line before it may report 0 hits (invariant 1).
+I_BAD_PATTERNS=(
+    'Copyright[[:space:]]*$'
+    '// Copyright'
+    'Copyright ©[[:space:]]*$'
+    '// Copyright ©'
+    'Copyright [?]'
+    '// Copyright ? 2026'
+    'Â'
+    '// Copyright Â© 2026 someone'
+)
+I_PATTERN_ARGS=()
+k=0
+while [ "$k" -lt "${#I_BAD_PATTERNS[@]}" ]; do
+    i_pat="${I_BAD_PATTERNS[$k]}"
+    i_sample="${I_BAD_PATTERNS[$((k + 1))]}"
+    if printf '%s\n' "$i_sample" | grep -qE "$i_pat" 2>/dev/null; then
+        I_PATTERN_ARGS+=(-e "$i_pat")
+    else
+        echo "  X dead pattern: $i_pat does not match its own known-bad line"
+        I_FAIL=1
+    fi
+    k=$((k + 2))
+done
+if [ "${#I_PATTERN_ARGS[@]}" -gt 0 ]; then
+    broken=$(grep -rn "${I_PATTERN_ARGS[@]}" "$SRC" \
+        --include='*.swift' --include='*.h' --include='*.m' --include='*.mm' \
+        --include='*.c' --include='*.cpp' 2>/dev/null || true)
+    if [ -n "$broken" ]; then
+        echo "  ❌ malformed rightsholder line (a notice that names nobody correct):"
+        echo "$broken" | sed 's/^/     /'
+        I_FAIL=1
+    fi
+fi
+# Attribution coverage: a binary that ships source must say, per file, whose it is. The class
+# used to look only at files that already had a notice, so a file with NO notice at all was
+# invisible to every license gate in the repo - measured 10-26, 20 files under Sources/ carried
+# no holder line whatsoever, 5 of them stating in their own first comment that they were
+# absorbed verbatim from Apple's BSD-3 coreai-models (BSD-3 cl.1 retains the copyright notice on
+# redistribution). The scan floors its own file count so an empty tree is not a Clean.
+I_SCANNED=$(find "$SRC" \( -name '*.swift' -o -name '*.h' -o -name '*.m' -o -name '*.mm' \
+        -o -name '*.c' -o -name '*.cpp' \) -type f | grep -c . || true)
+I_MIN_SCANNED=250
+case "$I_SCANNED" in
+    ''|*[!0-9]*)
+        echo "  X coverage scan produced no count ($I_SCANNED) - an unread scan is never a Clean"
+        I_SCANNED=0
+        I_FAIL=1
+        ;;
+esac
+if [ "$I_SCANNED" -lt "$I_MIN_SCANNED" ]; then
+    echo "  ❌ attribution coverage premise unmet: only $I_SCANNED source file(s) scanned (floor $I_MIN_SCANNED)"
     I_FAIL=1
+else
+    I_NOHOLDER=$(find "$SRC" \( -name '*.swift' -o -name '*.h' -o -name '*.m' -o -name '*.mm' \
+        -o -name '*.c' -o -name '*.cpp' \) -type f -print0 | xargs -0 grep -Li 'copyright' 2>/dev/null || true)
+    I_GAP=$(printf '%s\n' "$I_NOHOLDER" | grep -c . || true)
+    echo "  coverage: $I_SCANNED shipped source file(s) scanned (floor $I_MIN_SCANNED), $I_GAP without a holder line"
+    if [ "$I_GAP" -gt 0 ]; then
+        echo "  ❌ unattributed source ships inside the binary:"
+        printf '%s\n' "$I_NOHOLDER" | sed 's/^/     /'
+        I_FAIL=1
+    fi
 fi
 LIBDIR="$ROOT/Sources/lib"
 if [ -d "$LIBDIR" ] && [ -f "$NOTICES" ]; then
     for f in $(grep -rl "Copyright" "$LIBDIR" --include='*.h' --include='*.hpp' \
             --include='*.c' --include='*.cpp' --include='*.mm' 2>/dev/null || true); do
-        if grep -q "Apple Inc.\|uingei" "$f"; then continue; fi
+        if grep -q -e "Apple Inc." -e "uingei" "$f"; then continue; fi
         case "$f" in
             *"$ROOT"*) rel="${f#$ROOT/}" ;;
             *) rel="$f" ;;
@@ -422,7 +484,14 @@ else
     J_LINES=$(mktemp)
     # Comment lines only: `//…` or a doc-comment continuation ` * …`. Sources/ is the side
     # that makes the promise; Tests/ is the side that has to keep it.
-    grep -rn --include='*.swift' -E '(//|\*)[^"]*[A-Za-z0-9_]*Tests\b' "$SRC" 2>/dev/null \
+    # Self-test first: the detection regex must still see a suite claim when one is there.
+    # Without this, a regex that stopped matching would report "0 claims, all resolved".
+    J_RX='(//|\*)[^"]*[A-Za-z0-9_]*Tests\b'
+    if ! printf '%s\n' '// exercised by PipelineGateTests' | grep -qE "$J_RX" 2>/dev/null; then
+        echo "  X dead pattern: $J_RX no longer sees a suite claim in a comment"
+        J_FAIL=1
+    fi
+    grep -rn --include='*.swift' -E "$J_RX" "$SRC" 2>/dev/null \
         > "$J_LINES" || true
     grep -oE '[A-Za-z0-9_]*Tests\b' "$J_LINES" | sort -u > "$J_CLAIMS" || true
     J_TOTAL=$(grep -c . "$J_CLAIMS" || true)
