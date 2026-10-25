@@ -9,91 +9,159 @@ FAIL=0
 echo "🔍 ocoreai static audit"
 echo "=========================================="
 
+# check <label> <ERE> <known-bad sample>
+# Every class answers three questions before it may report Clean:
+#   1. does the pattern still match a known-bad line, using the same grep that scans? A regex
+#      that stopped matching scans nothing, and "nothing found" renders exactly like "clean".
+#      Class-D lived its whole life with `URL\\(string:.*!` (a doubled escape): BSD grep rejects
+#      that with "parentheses not balanced", the error went to /dev/null, and three live
+#      `URL(string: ...)!` sites stayed invisible while the gate printed Clean.
+#   2. did grep actually run? Exit status >= 2, or any stderr at all, is a failure - never a
+#      Clean. Swallowing stderr is how failure 1 survived.
+#   3. how much did the exemptions remove? raw -> remaining prints every run, so "0 hits" and
+#      "N hits, all N exempted" cannot look the same.
 check() {
-    local label="$1" pattern="$2" whitelist="$3"
+    local label="$1" pattern="$2" sample="$3"
     echo ""
     echo "[$label]"
-    local count
-    # Step 1: grep pattern in Swift source
-    # Step 2: exclude doc-comment lines (///)
-    # Step 3: exclude whitelist patterns (inline pipe-separated + the whitelist file)
-    local first_pass
-    first_pass=$(grep -rEn "$pattern" "$SRC" --include='*.swift' 2>/dev/null \
-        | grep -v '///')
-    if [ -z "$first_pass" ]; then
-        echo "  ✅ Clean"
+    if [ -z "$sample" ]; then
+        echo "  X no known-bad sample - a class without a self-test cannot prove it still scans"
+        FAIL=1
         return
     fi
-    # Exclusions come from two places, and every run prints how much it removed: the
-    # inline list (3rd arg, pipe-separated) and scripts/audit_whitelist.txt, whose own
-    # header promises "one excluded path per line … that the audit grep will skip via
-    # -F match". That file was declared and touched but never read, so an entry added
-    # there bought silence that was not real. Printing raw → remaining is what keeps a
-    # Clean honest: without it, "nothing matches the pattern" and "15 hits, all 15
-    # whitelisted" render identically, and only the first means the code is free of it.
-    local raw cleaned entry
-    raw=$(echo "$first_pass" | grep -c . || true)
+    if ! printf '%s\n' "$sample" | grep -qE "$pattern" 2>/dev/null; then
+        echo "  X dead pattern: $pattern no longer matches its own sample, so the class scans nothing"
+        echo "    sample: $sample"
+        FAIL=1
+        return
+    fi
+    local first_pass grep_err grep_status
+    grep_err=$(mktemp)
+    first_pass=$(grep -rEn "$pattern" "$SRC" --include='*.swift' 2>"$grep_err" \
+        | grep -vE ':[0-9]+: *(//|/\*|\*)')
+    grep_status=${PIPESTATUS[0]}
+    if [ "$grep_status" -ge 2 ] || [ -s "$grep_err" ]; then
+        echo "  X grep failed (status $grep_status): $(head -2 "$grep_err")"
+        echo "    a scan that did not run is not a Clean"
+        FAIL=1
+        rm -f "$grep_err"
+        return
+    fi
+    rm -f "$grep_err"
+    if [ -z "$first_pass" ]; then
+        echo "  Clean (pattern self-tested, 0 hits)"
+        return
+    fi
+    # Exemptions have one home and one semantics: scripts/audit_whitelist.txt, where every entry
+    # is `path-token :: line-shape :: count` and gets re-measured against the tree before any
+    # class runs (Premise block below). The inline list this call used to take is gone - two
+    # mechanisms with different semantics is where one of them drifts, and a path-level token
+    # excuses every future hit in that file: Class-B's measured 97-hits/97-exempted rate (10-15)
+    # was born exactly that way.
+    local raw cleaned token shape doomed_file hit_file
+    raw=$(printf '%s\n' "$first_pass" | grep -c . || true)
     cleaned="$first_pass"
-    while IFS= read -r entry; do
-        [ -n "$entry" ] || continue
-        cleaned=$(echo "$cleaned" | grep -vF "$entry" || true)
-    done <<EOF
-$(printf '%s\n' "$whitelist" | tr '|' '\n')
-$(sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$WHITELIST" 2>/dev/null | grep -v '^[[:space:]]*$' || true)
-EOF
-    # Count non-empty lines — avoids "echo '' | wc -l" returning 1
-    count=$(echo "$cleaned" | grep -c . || true)
-    echo "  scan: $raw hit(s), $((raw - count)) whitelisted → $count violation(s)"
+    if [ -s "$EXEMPT_SPEC" ]; then
+        doomed_file=$(mktemp)
+        hit_file=$(mktemp)
+        while IFS="$TAB" read -r token shape; do
+            [ -n "$token" ] || continue
+            printf '%s\n' "$cleaned" > "$hit_file"
+            if grep -F "$token" "$hit_file" | grep -E "$shape" > "$doomed_file" 2>/dev/null \
+               && [ -s "$doomed_file" ]; then
+                cleaned=$(grep -vxF -f "$doomed_file" "$hit_file" || true)
+            fi
+        done < "$EXEMPT_SPEC"
+        rm -f "$doomed_file" "$hit_file"
+    fi
+    count=$(printf '%s\n' "$cleaned" | grep -c . || true)
+    echo "  scan: $raw hit(s), $((raw - count)) exempted -> $count violation(s)"
     if [ "$count" -gt 0 ]; then
-        echo "  ❌ $count violation(s)"
-        # Show what is left, capped — a gate that reports only a number cannot be
-        # triaged without re-running the grep by hand.
-        echo "$cleaned" | head -20 | sed 's/^/     /'
+        echo "  X $count violation(s)"
+        # Show what is left, capped - a gate that reports only a number cannot be triaged
+        # without re-running the grep by hand.
+        printf '%s\n' "$cleaned" | head -20 | sed 's/^/     /'
         if [ "$count" -gt 20 ]; then
-            echo "     … $((count - 20)) more (re-run the grep in check() for the full list)"
+            echo "     ... $((count - 20)) more (re-run the grep in check() for the full list)"
         fi
         FAIL=1
     else
-        echo "  ✅ Clean"
+        echo "  Clean"
     fi
 }
 
-# whitelist file
+# One home, one semantics for exemptions: scripts/audit_whitelist.txt, entries shaped
+# `path-token :: line-shape :: count`, each with its rationale in a comment above it.
 WHITELIST="$ROOT/scripts/audit_whitelist.txt"
+TAB=$(printf '\t')
+EXEMPT_SPEC=$(mktemp)
+: > "$EXEMPT_SPEC"
 touch "$WHITELIST" 2>/dev/null || true
 
-# --- Premise: every whitelist entry must point at a live path ---
-# The whitelist is the loudest part of this gate, so it needs its own premise check
-# (AGENTS.md invariant 1). An entry whose path no longer exists is not an exemption, it is
-# a loaded silence: the day a file reuses that name, the audit waves it through — and the
-# rationale above it keeps explaining, at length, why a defect that isn't there is forgiven.
-# Measured 10-20: `ErrorContext` was one such entry (the file it excused had been deleted;
-# grep = 0 in Sources/), found the same hour Class-J started resolving suite-name claims.
+# --- Premise: every exemption still excuses exactly the lines it claims ---
+# An exemption is the loudest part of a gate, so it is checked harder than the scan. Each entry
+# declares how many lines it currently excuses; the gate recomputes that from the tree and goes
+# red on any mismatch. Three failure modes this closes, all measured here on this tree rather
+# than imagined: bare-path entries that excused nothing (4 of the old format's 5 suppressed 0
+# lines while blinding 6,478 source lines from five classes at once), an entry whose defect got
+# fixed but stays behind as cover for the next one, and a genuine new instance landing inside an
+# already-exempted file and walking through the door the entry left open.
 echo ""
-echo "[Premise: whitelist entries point at live paths]"
-W_ENTRIES=$(sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$WHITELIST" \
-    | grep -v '^[[:space:]]*$' || true)
-W_TOTAL=$(printf '%s\n' "$W_ENTRIES" | grep -c . || true)
-W_DEAD=0
-while IFS= read -r wentry; do
-    [ -n "$wentry" ] || continue
-    if ! grep -rlF --include='*.swift' "$wentry" "$SRC" 2>/dev/null | grep -q .; then
-        echo "  ❌ dead entry: $wentry matches no file in $SRC — prune it, or restore the defect it excuses"
-        W_DEAD=$((W_DEAD + 1))
+echo "[Premise: every exemption excuses exactly the lines it claims]"
+P_FAIL=0
+P_ENTRIES=0
+P_LIVE=$(mktemp)
+while IFS= read -r wline; do
+    [ -n "$wline" ] || continue
+    case "$wline" in
+        *::*::*) ;;
+        *)
+            echo "  X malformed entry: $wline"
+            echo "    the format is  path-token :: line-shape :: count  - a bare path excuses every"
+            echo "    future hit in that file, which is the defect this file's own header forbids"
+            P_FAIL=$((P_FAIL + 1))
+            continue
+            ;;
+    esac
+    P_TOKEN=$(printf '%s' "${wline%%::*}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+    P_REST=${wline#*::}
+    P_SHAPE=$(printf '%s' "${P_REST%%::*}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+    P_WANT=$(printf '%s' "${P_REST##*::}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+    P_ACTUAL=$(grep -rEn "$P_SHAPE" "$SRC" --include='*.swift' 2>/dev/null \
+        | grep -vE ':[0-9]+: *(//|/\*|\*)' | grep -F "$P_TOKEN" | grep -c . || true)
+    P_ENTRIES=$((P_ENTRIES + 1))
+    if [ "$P_ACTUAL" != "$P_WANT" ]; then
+        echo "  X $P_TOKEN :: $P_SHAPE excuses $P_ACTUAL line(s), the entry says $P_WANT"
+        if [ "$P_ACTUAL" = "0" ]; then
+            echo "    nothing left to excuse - prune it (an unused exemption is a loaded door)"
+        else
+            echo "    either the defect grew (fix it) or the line moved - re-pin the count deliberately"
+        fi
+        P_FAIL=$((P_FAIL + 1))
+    else
+        printf '%s\n' "$wline" >> "$P_LIVE"
     fi
 done <<WEOF
-$W_ENTRIES
+$(sed -e 's/#.*//' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$WHITELIST" 2>/dev/null | grep -v '^[[:space:]]*$' || true)
 WEOF
-echo "  scan: $W_TOTAL exemption entries, $W_DEAD dead"
-if [ "$W_DEAD" -gt 0 ]; then
+while IFS= read -r wline; do
+    [ -n "$wline" ] || continue
+    P_TOKEN=$(printf '%s' "${wline%%::*}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+    P_REST=${wline#*::}
+    P_SHAPE=$(printf '%s' "${P_REST%%::*}" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+    printf '%s%s%s\n' "$P_TOKEN" "$TAB" "$P_SHAPE" >> "$EXEMPT_SPEC"
+done < "$P_LIVE"
+rm -f "$P_LIVE"
+echo "  scan: $P_ENTRIES exemption entr(ies), $P_FAIL not true of the tree"
+if [ "$P_FAIL" -gt 0 ]; then
     FAIL=1
 else
-    echo "  ✅ Clean"
+    echo "  Clean"
 fi
 
 # --- Class-F: .first! force unwrap ---
 check "Class-F: .first! force unwrap" '\.first!' \
-    "test|Test"
+    'let x = rows.first!'
 
 # --- Class-B: hardcoded UI strings in the view layer ---
 # The class is named for the view layer, so it scans the view layer. Scanning all of
@@ -137,19 +205,19 @@ fi
 
 # --- Class-A: Empty catch ---
 check "Class-A: Empty catch" 'catch\s*{[[:space:]]*}' \
-    "ErrorContext|EngineInference"
+    'do { try await work() } catch {}'
 
 # --- Class-D: URL(string:)! ---
-check "Class-D: URL(string:)!" 'URL\\(string:.*!' \
-    "defaultURL|makeURL|safe|ModelScopeSearchClient"
+check "Class-D: URL(string:)!" 'URL\(string:.*\)!' \
+    'let u = URL(string: "https://x.dev")!'
 
 # --- Class-G: Hardcoded version literal — version truth flows through
 # AppInfo.shortVersion / the git-tag pipeline, never a source literal.
 # (Shipped bug 2026-10: About said v1.0.0, metrics said 1.0.0, MCP said
 # 0.7.0 — three frozen mouths while v0.1.6 was on the wire.)
 # Pattern is unquoted so /// doc-comment mentions are filtered by check().
-check "Class-G: hardcoded version literal" '"v\?[0-9]\+\.[0-9]\+\.[0-9]\+"' \
-    "AppInfo.swift|0.0.4"
+check "Class-G: hardcoded version literal" '"v?[0-9]+\.[0-9]+\.[0-9]+"' \
+    'let v = "v0.1.15"'
 
 
 # --- Class-H: MLX buffer-cache limit must have exactly one owner ---
@@ -160,7 +228,7 @@ check "Class-G: hardcoded version literal" '"v\?[0-9]\+\.[0-9]\+\.[0-9]\+"' \
 # then keeps freed device buffers resident instead of handing them back.
 # Owner = MLXModelLoader (Engine/MLXBridge.swift); any second writer fails here.
 check "Class-H: Memory.cacheLimit written outside its owner" 'Memory\.cacheLimit[[:space:]]*=' \
-    "MLXBridge.swift"
+    'MLX.Memory.cacheLimit = 256 * 1024 * 1024'
 
 # --- Class-I: redistribution notices must stay accurate ---
 # BSD-3 cl.1 / Apache-2.0 4 attach to the notice itself, and THIRD-PARTY-LICENSES/
