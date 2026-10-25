@@ -5,9 +5,8 @@
 > `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent deepseek-harness harness2 goose opencode; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
 > — P16 re-derives both lists, so a stale cell goes red. A **pin** is a build input (`Package.swift:43`); everything else is a comparator.
 
-Each entry is one clone under `~/references/`: what it holds, the axis worth borrowing,
-and how far the audit got. A borrowed verdict is an inference until a `file:line` in our
-build carries it.
+Each entry is one clone under `~/references/`: what it holds, the axis worth borrowing, and
+how far the audit got.
 
 - `vllm` — Python serving stack; `entrypoints/serve/utils/tool_calls_utils.py`, `entrypoints/anthropic/serving.py`
 Contains: OpenAI + Anthropic compatibility: parallel-call filtering, `finish_reason` resolution, OpenAI→Anthropic field mapping
@@ -38,15 +37,19 @@ Contains: **Release-asset provenance** — every redistributed file pinned by di
 Borrow: consumed
 
 - `TensorFold` — Zig engine (`metal/`, `include/`, `packaging/`), `NOTICE` + `THIRD_PARTY_NOTICES.md` + `LICENSES/`, `RUNBOOK.md`, `RELEASE-NOTES-1.0.0.md`, `SECURITY.md`, `ZIG-PREVIEW.md`
-Contains: Distribution discipline next to ours: a third-party notice set that ships with the binary (our `THIRD-PARTY-LICENSES/` + `ThirdPartyNoticesTests`), plus a runbook/release-notes habit we do not have
-Borrow: named, unused (the designation line); use it or drop it from `AGENTS.md`
+Contains: the same notice set we ship with the binary (`THIRD-PARTY-LICENSES/` +
+  `ThirdPartyNoticesTests`). Its `RUNBOOK.md`/release-notes are not a habit we lack: versioned
+  `CHANGELOG.md` sections, `scripts/release-artifact-check.sh` and
+  `scripts/verify-installed-release.sh` are ours. Nothing left on this axis.
+Borrow: none measured (the designation line); keep the name only if a new axis appears
 
 - `Strata` — local-AI product: desktop app, agent terminal, C++ engine across CUDA/HIP/SYCL/Metal.
 Contains: `launch --plan` prints a multi-GB mutation before doing it, then exits untouched
   (`docs/TERMINAL_LAUNCH.md:110`); engine packages carry a manifest `engine_component.py` checks before
   start (`packaging/ENGINE-COMPONENT.md`); installers fetch the engine for the GPU present. Cadence:
   2337 of 4196 commits in 14 days.
-Borrow: open — dry-run plan before our download path; integrity check on runtime-fetched artifacts.
+Borrow: consumed for the dry-run (`Models/ModelDownloadDTO.swift` `DownloadPlan` + probe 36);
+  integrity checking of runtime-fetched artifacts is still open.
 
 - `MTPLX` — MTP speculative decoding for MLX
 Contains: MTP drafter/acceptance behaviour against our `_runInferenceWithMessages` → `generate(::mtpDrafter:)` path. Also a per-seat memory policy: `ee9cca4f` prices a family's prefill from measurement (MLX peak over each chunk's end state, peak reset per prompt) and narrows the prefill width before it refuses.
@@ -83,14 +86,9 @@ Borrow: named, unused; same call pending
 
 ## How to use this file
 
-1. Pick the axis (compat, MTP, packaging, harness, provenance) and read that tree's module before
-   designing — if it has an answer, cite it instead of authoring a local variant. A borrowed
-   verdict becomes a change only with three things: the upstream `file:line`, the ocoreai line that
-   implements it, and the gate that goes red if it regresses.
-2. Refresh the audit column with the one-liner above; P16 re-derives both lists, so change the
-   two together. A tree that stays "named, unused" is decoration: use it or drop it from
-   `AGENTS.md`. P16 re-derives it from `Sources/` + `Tests/`: six trees have zero coupling —
-   MTPLX, TensorFold, Strata, mlx-serve, opencode, harness2 — and openclaw is designated
-   but unread.
-3. `~/references/` holds the comparators above plus `mlx-swift-lm`, `coreai-models` and `codex`
-   (§ Upstream Audit Dependencies 1–3, not comparators). A clone proves *content*, never HEAD.
+1. Read that tree's module before designing: where it has the answer, cite `file:line` rather
+   than authoring a local variant, and land the change with upstream line, our line, and the gate
+   that goes red on regression.
+2. Refresh with the one-liner above; P16 re-derives both lists from `Sources/` + `Tests/`,
+   where six trees have zero coupling — MTPLX, TensorFold, Strata, mlx-serve, opencode,
+   harness2 — so a row left "named, unused" is decoration: use it or drop the name.
