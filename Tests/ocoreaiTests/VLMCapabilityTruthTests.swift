@@ -77,16 +77,16 @@ struct VLMWireParseTests {
     func readsVlmKey() {
         // EnginePool.listModels() publishes `entry["vlm"]`; "specialized" is the
         // CoreAI ANE flag and is absent on macOS 26, so parsers reading it
-        // reported every MLX vision model as text-only.
+        // reported every MLX vision model as text-only. `ModelID.fromListModels` is
+        // the one UI-side parse of that fact (ModelManager refreshes the list
+        // through it), so the pin sits on the path that ships.
         let entry = ["id": "mlx-community/gemma-4-e2b-it-4bit", "vlm": "true"]
-        #expect(ModelMemoryInfo.fromListModels(entry).isVlm)
         #expect(ModelID.fromListModels(entry).isVlm)
     }
 
     @Test("absent vlm key reports false, never guesses true")
     func absentMeansFalse() {
         let entry = ["id": "some/text-model"]
-        #expect(!ModelMemoryInfo.fromListModels(entry).isVlm)
         #expect(!ModelID.fromListModels(entry).isVlm)
     }
 }
