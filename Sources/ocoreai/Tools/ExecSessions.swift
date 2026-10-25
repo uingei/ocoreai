@@ -243,13 +243,6 @@ actor ExecSessionManager {
             + tail
     }
 
-    static func expandPath(_ p: String) -> String {
-        if p == "~" || p.hasPrefix("~/") {
-            return NSHomeDirectory() + String(p.dropFirst())
-        }
-        return p
-    }
-
     // MARK: - Spawn
 
     struct SpawnResult: Sendable {
@@ -266,6 +259,8 @@ actor ExecSessionManager {
     {
         #if os(macOS)
         await makeRoom()
+        // One cwd home: the session lane must not start somewhere the blocking lane does not.
+        let (runDir, cwdNote) = try ExecTools.resolveCwd(cwd)
         let dir = Self.makeSessionDir()
         let outPath = dir.appendingPathComponent("out").path
         let errPath = dir.appendingPathComponent("err").path
@@ -283,8 +278,8 @@ actor ExecSessionManager {
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/bin/zsh")
         proc.arguments = ["-c", command]
-        if let cwd, !cwd.isEmpty {
-            proc.currentDirectoryURL = URL(fileURLWithPath: Self.expandPath(cwd))
+        if let runDir {
+            proc.currentDirectoryURL = URL(fileURLWithPath: runDir)
         }
         let stdinPipe = Pipe()
         proc.standardOutput = outHandle
@@ -327,7 +322,10 @@ actor ExecSessionManager {
             session = Self.capAccumulations(session)
         }
         sessions[sessionId] = session
-        return SpawnResult(sessionId: sessionId, completed: completed, report: report(for: session))
+        let body = report(for: session)
+        return SpawnResult(
+            sessionId: sessionId, completed: completed,
+            report: cwdNote.map { "\($0)\n\(body)" } ?? body)
         #else
         _ = (command, cwd, yieldMs)
         throw ToolError.checkFailed(

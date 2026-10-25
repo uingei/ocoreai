@@ -123,16 +123,6 @@ struct ExecSessionsHelperTests {
         #expect(out.hasPrefix("a"))
         #expect(out.hasSuffix("a"))
     }
-
-    @Test("expandPath — ~ , ~/x, absolute, relative (parity with ExecTools.expand)")
-    func expandPath() {
-        let home = NSHomeDirectory()
-        #expect(ExecSessionManager.expandPath("~") == home)
-        #expect(ExecSessionManager.expandPath("~/x/y") == home + "/x/y")
-        #expect(ExecSessionManager.expandPath("/abs/path") == "/abs/path")
-        #expect(ExecSessionManager.expandPath("rel/path") == "rel/path")
-        #expect(ExecSessionManager.expandPath("~nottilde") == "~nottilde")
-    }
 }
 
 // MARK: - Spawn (yield + persist)

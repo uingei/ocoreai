@@ -116,6 +116,7 @@ enum ExecTools {
     ) async throws -> String {
         #if os(macOS)
         let clamped = min(max(timeoutSeconds, minTimeoutSeconds), maxTimeoutSeconds)
+        let (dir, cwdNote) = try resolveCwd(cwd)
         let result = try await withCheckedThrowingContinuation {
             (
                 cont: CheckedContinuation<Result, Error>
@@ -125,14 +126,15 @@ enum ExecTools {
                     cont.resume(
                         returning: try runSync(
                             command: command,
-                            cwd: effectiveCwd(cwd),
+                            cwd: dir,
                             timeoutSeconds: clamped))
                 } catch {
                     cont.resume(throwing: error)
                 }
             }
         }
-        return format(result)
+        let report = format(result)
+        return cwdNote.map { "\($0)\n\(report)" } ?? report
         #else
         _ = (command, cwd, timeoutSeconds)
         throw ToolError.checkFailed(
@@ -147,6 +149,37 @@ enum ExecTools {
     static func effectiveCwd(_ cwd: String?) -> String? {
         if let cwd, !cwd.isEmpty { return cwd }
         return SessionWorkspace.currentDirectory() ?? WorkspaceContext.configuredDirectory()
+    }
+
+    /// Resolve a caller-supplied `cwd` into a directory the child can start in, plus a note
+    /// for the caller when the resolution had to move. Both exec lanes come through here, so
+    /// the default and the refusal cannot disagree.
+    ///
+    /// A `cwd` naming a *file* is the most common slip on this surface (measured: three lost
+    /// tasks in two scored runs), and the launch error it produces — "The operation couldn't
+    /// be completed. Not a directory" — reads as though the operand were missing, so the
+    /// model abandons a task it could have finished. The intent is unambiguous: run in the
+    /// file's directory and say so.
+    static func resolveCwd(_ cwd: String?) throws -> (dir: String?, note: String?) {
+        guard let cwd, !cwd.isEmpty else { return (effectiveCwd(nil), nil) }
+        // A relative `cwd` anchors on the workspace, exactly as `FileTools.resolve` anchors a
+        // relative `path` — the schema promises both, and a tool pair disagreeing about where
+        // "src" is makes a written file unreadable by the command that was meant to check it.
+        let path: String = {
+            let expanded = expand(cwd)
+            guard !(expanded as NSString).isAbsolutePath else { return expanded }
+            let anchor = effectiveCwd(nil) ?? FileManager.default.currentDirectoryPath
+            return (anchor as NSString).appendingPathComponent(expanded)
+        }()
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir) else {
+            throw ToolError.invalidParameter(
+                "cwd \"\(cwd)\" is not an existing directory — pass a directory, or omit cwd "
+                    + "to use \(effectiveCwd(nil) ?? FileManager.default.currentDirectoryPath)")
+        }
+        guard !isDir.boolValue else { return (path, nil) }
+        let parent = (path as NSString).deletingLastPathComponent
+        return (parent, "[cwd] \"\(cwd)\" is a file, not a directory — ran in \(parent)")
     }
 
     #if os(macOS)
