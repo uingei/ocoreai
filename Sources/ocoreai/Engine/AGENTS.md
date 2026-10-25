@@ -44,7 +44,7 @@ Three conditions, and two of the ways they fail are silent (measured, not inferr
 - **The reserve must be requested.** A rotating cache past its window reports `maxTrimCount == 0`
   (upstream `KVCache.swift:1015`), so `RewindToCommonPrefixRule` downgrades the trim to
   `.rebuild`: the answer stays correct and `cached_tokens` stays 0.
-  `kvCacheRewindReserveTokens` (`MLXBridge.swift:869`) is therefore passed at all three exits of
+  `kvCacheRewindReserveTokens` (`MLXBridge.swift:909`) is therefore passed at all three exits of
   `makeKVCacheConfiguration`, including the unquantized one that used to return nil.
 - **A rewind is not a refusal.** It books under `prefixReuse`, never `historyDiverged` — a ledger
   that counts it as refused publishes a full recompute the engine did not perform.
@@ -110,11 +110,11 @@ AGENTS.md moved off their targets with no gate going red; these markers are the 
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3867 .applyingThinkingBudget -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4418 components: genComponents -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3890 components: mtpGenComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:845 case "affine" -->
+<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:885 case "affine" -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1526 static func rewindHistoryEnd -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:683 Self.rewindHistoryEnd( -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3214 rewind.source.session.fork( -->
-<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:869 let kvCacheRewindReserveTokens = 1024 -->
+<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:909 let kvCacheRewindReserveTokens = 1024 -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:14 public struct Message { -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/UserInput.swift:131 public struct Image { -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1723 func fork(history -->

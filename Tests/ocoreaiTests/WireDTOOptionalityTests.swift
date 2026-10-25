@@ -41,6 +41,8 @@ struct WireDTOOptionalityTests {
         #expect(r.provider == nil)
         #expect(r.revision == nil)
         #expect(r.useLatest == false)
+        // A dry-run is opt-in: a client that never heard of it keeps downloading.
+        #expect(r.dryRun == false)
         #expect(r.effectiveProvider == "hf")
     }
 
@@ -48,11 +50,13 @@ struct WireDTOOptionalityTests {
     func downloadRequestFullBody() throws {
         let r = try Self.decode(
             DownloadModelRequest.self,
-            #"{"model":"Qwen/Qwen2.5-7B-Instruct","provider":"mscope","revision":"master","useLatest":true}"#
+            #"{"model":"Qwen/Qwen2.5-7B-Instruct","provider":"mscope","#
+                + #""revision":"master","useLatest":true,"dryRun":true}"#
         )
         #expect(r.effectiveProvider == "mscope")
         #expect(r.revision == "master")
         #expect(r.useLatest == true)
+        #expect(r.dryRun == true)
     }
 
     @Test("…but a body without `model` is still refused")

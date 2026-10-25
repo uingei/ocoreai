@@ -44,6 +44,31 @@ func modelDownloadHandler(
 
     let responseHeaders = SSEHeaders
 
+    // A dry-run answers the same question the pre-flight guard blocks on and fetches nothing,
+    // so a client can size a multi-GB download before committing to it. It rides the route's
+    // own SSE contract with one `plan` event and no `completed` -- nothing was completed.
+    if request.dryRun {
+        return Response(
+            status: .ok,
+            headers: responseHeaders,
+            body: .init { writer in
+                let frame: String
+                do {
+                    let planned = try await planDownload(
+                        model: request.model, provider: provider, revision: request.revision,
+                        useLatest: request.useLatest, msToken: msToken, logger: logger)
+                    frame = try encodeEvent(.plan(downloadId, plan: planned))
+                } catch {
+                    frame = (try? encodeEvent(
+                        .error(downloadId, message: error.localizedDescription))) ?? "[]"
+                }
+                if let bytes = frame.data(using: .utf8) {
+                    try? await writer.write(.init(data: bytes))
+                }
+                try? await writer.finish(nil)
+            })
+    }
+
     return Response(
         status: .ok,
         headers: responseHeaders,
@@ -98,6 +123,33 @@ func modelDownloadHandler(
             try? await writer.finish(nil)
         },
     )
+}
+
+// MARK: - Dry Run
+
+/// The plan for either provider, read off the same assemblies the real download uses.
+private func planDownload(
+    model: String,
+    provider: String,
+    revision: String?,
+    useLatest: Bool,
+    msToken: String?,
+    logger: Logger
+) async throws -> DownloadPlan {
+    logger.info("Planning download (no bytes fetched)", metadata: ["model": .string(model)])
+    switch provider {
+    case "hf":
+        return try await ReadyHubDownloader(
+            hub: ModelStore.readyHubClient(), flatRoot: ModelStore.root
+        ).plan(
+            id: model, revision: revision, useLatest: useLatest,
+            matching: ModelStore.modelDownloadPatterns)
+    case "mscope":
+        return try await ModelScopeDownloader(token: msToken).plan(
+            id: model, revision: revision, matching: ModelStore.modelDownloadPatterns,
+            useLatest: useLatest)
+    default: throw AppError.invalidRequest("Unknown provider: \(provider)")
+    }
 }
 
 // MARK: - Download Dispatch
@@ -172,7 +224,7 @@ private func downloadFromHF(
     result = try await downloader.download(
         id: modelId,
         revision: revision,
-        matching: [],
+        matching: ModelStore.modelDownloadPatterns,
         useLatest: useLatest,
         progressHandler: { progress in
             let pct = Int(progress.fractionCompleted * 100)
@@ -210,7 +262,7 @@ private func downloadFromMscope(
     result = try await downloader.download(
         id: modelId,
         revision: revision,
-        matching: ["*.safetensors", "*.json", "*.jinja"],
+        matching: ModelStore.modelDownloadPatterns,
         useLatest: useLatest,
         progressHandler: { progress in
             let pct = Int(progress.fractionCompleted * 100)

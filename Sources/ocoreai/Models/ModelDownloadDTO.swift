@@ -13,20 +13,26 @@ struct DownloadModelRequest: Codable {
     let provider: String?
     let revision: String?
     let useLatest: Bool
+    /// Report what would happen and fetch nothing.
+    let dryRun: Bool
 
     var effectiveProvider: String {
         provider ?? "hf"
     }
 
-    init(model: String, provider: String? = nil, revision: String? = nil, useLatest: Bool = false) {
+    init(
+        model: String, provider: String? = nil, revision: String? = nil, useLatest: Bool = false,
+        dryRun: Bool = false
+    ) {
         self.model = model
         self.provider = provider
         self.revision = revision
         self.useLatest = useLatest
+        self.dryRun = dryRun
     }
 
     enum CodingKeys: String, CodingKey {
-        case model, provider, revision, useLatest
+        case model, provider, revision, useLatest, dryRun
     }
 
     /// `model` is the only key the wire requires; the rest carry defaults.
@@ -43,6 +49,7 @@ struct DownloadModelRequest: Codable {
         provider = try container.decodeIfPresent(String.self, forKey: .provider)
         revision = try container.decodeIfPresent(String.self, forKey: .revision)
         useLatest = try container.decodeIfPresent(Bool.self, forKey: .useLatest) ?? false
+        dryRun = try container.decodeIfPresent(Bool.self, forKey: .dryRun) ?? false
     }
 
     func validate() throws {
@@ -68,6 +75,29 @@ struct DownloadModelRequest: Codable {
     }
 }
 
+// MARK: - Plan
+
+/// What a dry-run answers: the same numbers the pre-flight guard blocks on, measured, with
+/// nothing written. `requiredBytes == 0` means every byte the download would fetch is already
+/// in the cache dir. A nil side means the hub or the volume did not say, and ocoreai turns
+/// silence into neither a fit nor a refusal (AGENTS.md invariant 2).
+struct DownloadPlan: Codable {
+    let model: String
+    let provider: String
+    /// Bytes still to fetch.
+    let requiredBytes: Int64?
+    /// Bytes the matched files weigh at the hub, before cache credit.
+    let remoteTotalBytes: Int64?
+    /// Bytes this repo already has in its cache dir.
+    let cachedBytes: Int64
+    /// Free bytes on the volume that would hold it.
+    let freeBytes: Int64?
+    /// nil when either side is unknown.
+    let wouldFit: Bool?
+    /// "measured" -- hub sizes minus cache; "locallySatisfied" -- the fetch would be a no-op.
+    let basis: String
+}
+
 // MARK: - SSE Event
 
 struct DownloadSSEEvent: Codable {
@@ -79,6 +109,8 @@ struct DownloadSSEEvent: Codable {
     let cacheDir: String?
     let errorMessage: String?
     let etaSeconds: Int64?
+    /// Set only on `eventType: "plan"`; nil on progress/completed/error events.
+    let plan: DownloadPlan?
 
     static func progress(
         _ downloadId: String, percentage: Int, totalBytes: Int64, transferredBytes: Int64,
@@ -87,21 +119,28 @@ struct DownloadSSEEvent: Codable {
         DownloadSSEEvent(
             downloadId: downloadId, eventType: "progress", percentage: percentage,
             totalBytes: totalBytes, transferredBytes: transferredBytes,
-            cacheDir: nil, errorMessage: nil, etaSeconds: eta)
+            cacheDir: nil, errorMessage: nil, etaSeconds: eta, plan: nil)
+    }
+
+    static func plan(_ downloadId: String, plan: DownloadPlan) -> DownloadSSEEvent {
+        DownloadSSEEvent(
+            downloadId: downloadId, eventType: "plan", percentage: nil,
+            totalBytes: nil, transferredBytes: nil, cacheDir: nil,
+            errorMessage: nil, etaSeconds: nil, plan: plan)
     }
 
     static func completed(_ downloadId: String, cacheDir: String) -> DownloadSSEEvent {
         DownloadSSEEvent(
             downloadId: downloadId, eventType: "completed", percentage: 100,
             totalBytes: nil, transferredBytes: nil, cacheDir: cacheDir,
-            errorMessage: nil, etaSeconds: nil)
+            errorMessage: nil, etaSeconds: nil, plan: nil)
     }
 
     static func error(_ downloadId: String, message: String) -> DownloadSSEEvent {
         DownloadSSEEvent(
             downloadId: downloadId, eventType: "error", percentage: nil,
             totalBytes: nil, transferredBytes: nil, cacheDir: nil,
-            errorMessage: message, etaSeconds: nil)
+            errorMessage: message, etaSeconds: nil, plan: nil)
     }
 }
 

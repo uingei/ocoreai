@@ -189,6 +189,11 @@ Fails when: a numeric JSON-RPC id is refused or echoed as a string, `tools/list`
     turn, disagrees with the endpoint's `residency.residentBytes`, reports a `bytesPerToken`
     outside 256..1048575, or after a turn has priced the model no reservation logs
     `@ measured <that price> B/token` (§6 — the 1024 B/token floor is for the unpriced model only).
+- `36-download-plan-dry-run.sh` — can a client size a download before committing to one?
+    Fails when: `dryRun: true` writes anything under `~/.ocoreai/models`, the plan disagrees
+    with the stub hub's sizes (1000150 on an empty cache), a 404'd repo publishes
+    `requiredBytes`/`wouldFit`, a seeded repo plans anything but `0` + `locallySatisfied`, or
+    an escaping id is planned instead of refused.
 
 - `_lib.sh` — shared harness
 Fails when: —

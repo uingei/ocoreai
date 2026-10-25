@@ -106,12 +106,101 @@ actor ModelScopeDownloader: Downloader {
         }
     }
 
+    /// One home for the ModelScope sizing: what the matched files weigh at the hub, and how
+    /// much of that the cache dir already holds. Any matched entry without a size leaves
+    /// `remoteTotal` nil -- the guard allows an unknown through, and a plan must not invent one.
+    /// Internal (not private) so `@testable` tests pin the arithmetic, including the
+    /// unknown-size shape, without a network round trip.
+    static func matchedTotals(
+        _ matchingFiles: [FileInfo], existingFilenames: Set<String>
+    ) -> (remoteTotal: Int64?, cachedBytes: Int64) {
+        let remote =
+            matchingFiles.allSatisfy { $0.size != nil }
+            ? matchingFiles.reduce(Int64(0)) { $0 + ($1.size ?? 0) }
+            : nil
+        let cached =
+            matchingFiles
+            .filter { existingFilenames.contains($0.path) }
+            .reduce(Int64(0)) { $0 + ($1.size ?? 0) }
+        return (remote, cached)
+    }
+
+    /// What `download(id:revision:matching:useLatest:)` would do, measured and written nowhere:
+    /// the manifest is read, the cache dir is read, no file is created, fetched or deleted.
+    /// Same short-circuit, same patterns, same guard as the real lane -- a plan that disagreed
+    /// with the download it describes would be worse than no plan.
+    func plan(
+        id: String,
+        revision: String? = nil,
+        matching patterns: [String] = ModelStore.modelDownloadPatterns,
+        useLatest: Bool = false
+    ) async throws -> DownloadPlan {
+        let rev = revision ?? "master"
+        let cacheDir = try HubRelativePath.resolve(under: cacheRoot, id, field: "model")
+        let existingFilenames: Set<String> = Set((try? listLocalFiles(in: cacheDir)) ?? [])
+
+        if !useLatest, !existingFilenames.isEmpty,
+            firstMissingPattern(patterns, in: Array(existingFilenames)) == nil
+        {
+            let fetched = existingFilenames.filter { name in
+                patterns.contains { matchesGlob(name, $0) }
+            }
+            let bytes = fetched.reduce(Int64(0)) { total, name in
+                // A name from the directory walk still joins under the rule, so a plan cannot
+                // be talked out of the cache root by a poisoned entry the walk happened to see.
+                guard let url = try? HubRelativePath.resolve(
+                    under: cacheDir, name, field: Self.manifestPathField)
+                else { return total }
+                return total + (Self.localFileSize(url) ?? 0)
+            }
+            return DownloadPlan(
+                model: id, provider: "mscope", requiredBytes: 0, remoteTotalBytes: nil,
+                cachedBytes: bytes, freeBytes: DiskSpaceGuard.freeBytes(onVolumeHosting: cacheDir),
+                wouldFit: true, basis: "locallySatisfied")
+        }
+
+        let fileInfo = try await withRetry(maxAttempts: 3) {
+            try await self.listRepoFiles(repoId: id, revision: rev)
+        }
+        let matchingFiles = fileInfo.filter { info in
+            patterns.contains { matchesGlob(info.path, $0) }
+        }
+        for info in matchingFiles {
+            do {
+                _ = try HubRelativePath.components(info.path, field: Self.manifestPathField)
+            } catch let rejection as HubRelativePath.Unsafe {
+                throw DownloaderError.unsafeManifestPath(repoId: id, rejection: rejection)
+            }
+        }
+        guard !matchingFiles.isEmpty else {
+            throw DownloaderError.noFilesMatching(repoId: id, patterns: patterns)
+        }
+
+        let totals = Self.matchedTotals(matchingFiles, existingFilenames: existingFilenames)
+        let required = DiskSpaceGuard.requiredBytes(
+            remoteTotal: totals.remoteTotal, cachedBytes: totals.cachedBytes)
+        let free = DiskSpaceGuard.freeBytes(onVolumeHosting: cacheDir)
+        return DownloadPlan(
+            model: id, provider: "mscope", requiredBytes: required,
+            remoteTotalBytes: totals.remoteTotal, cachedBytes: totals.cachedBytes,
+            freeBytes: free,
+            wouldFit: DiskSpaceGuard.verdict(freeBytes: free, requiredBytes: required),
+            basis: "measured")
+    }
+
+    private static func localFileSize(_ url: URL) -> Int64? {
+        guard let v = try? url.resourceValues(forKeys: [.fileSizeKey]),
+            (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
+        else { return nil }
+        return v.fileSize.map(Int64.init)
+    }
+
     // MARK: - Downloader Conformance
 
     func download(
         id: String,
         revision: String? = nil,
-        matching patterns: [String] = ["*.safetensors", "*.json", "*.jinja"],
+        matching patterns: [String] = ModelStore.modelDownloadPatterns,
         useLatest: Bool = false,
         progressHandler: @Sendable @escaping (Progress) -> Void = { _ in },
     ) async throws -> URL {
@@ -175,16 +264,9 @@ actor ModelScopeDownloader: Downloader {
         // already in hand from listRepoFiles — block BEFORE bytes flow when
         // the volume can't hold the remainder (minus what's cached). Sizes
         // missing across matched files → allow (existing guards own it).
-        let measured =
-            matchingFiles.allSatisfy { $0.size != nil }
-            ? matchingFiles.reduce(Int64(0)) { $0 + ($1.size ?? 0) }
-            : nil
-        let alreadyCached =
-            matchingFiles
-            .filter { existingFilenames.contains(String($0.path)) }
-            .reduce(Int64(0)) { $0 + ($1.size ?? 0) }
+        let totals = Self.matchedTotals(matchingFiles, existingFilenames: existingFilenames)
         let required = DiskSpaceGuard.requiredBytes(
-            remoteTotal: measured, cachedBytes: alreadyCached)
+            remoteTotal: totals.remoteTotal, cachedBytes: totals.cachedBytes)
         let free = DiskSpaceGuard.freeBytes(onVolumeHosting: cacheDir)
         guard DiskSpaceGuard.decision(freeBytes: free, requiredBytes: required) else {
             throw DownloaderError.insufficientDiskSpace(

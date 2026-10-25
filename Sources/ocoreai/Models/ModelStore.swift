@@ -100,6 +100,15 @@ enum ModelStore {
         return raw
     }
 
+    /// The file set a model download must contain.
+    ///
+    /// One home: the HF lane, the ModelScope lane and the dry-run plan all ask for the same
+    /// globs, so a plan can never report a smaller hole than the download it describes digs.
+    /// Same set as upstream `modelDownloadPatterns` (pin `991266ad3`,
+    /// `Libraries/MLXLMCommon/ModelFactory.swift:8`), redefined here because upstream declares
+    /// it `package`-scoped and it is not visible across the package boundary.
+    static let modelDownloadPatterns = ["*.safetensors", "*.json", "*.jinja"]
+
     /// 就绪目录锚定的 `HubClient`(认证走 `.environment`,与旧宏路径一致;
     /// 缓存固定到 `hubRoot`)。host 由 SDK `detectHost()` 读取 HF_ENDPOINT —
     /// SettingsStore.useHFMirror 的 setenv 即活开关（每次构造生效，默认

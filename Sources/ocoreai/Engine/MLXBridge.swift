@@ -558,7 +558,7 @@ actor MLXModelLoader {
             OcoreaiDownloadProgress.shared.start(modelId: progressKey)
             let msDownloader = ModelScopeDownloader(token: modelScopeToken)
             let directory = try await msDownloader.download(
-                id: repoId, revision: nil, matching: ["*.safetensors", "*.json", "*.jinja"],
+                id: repoId, revision: nil, matching: ModelStore.modelDownloadPatterns,
                 useLatest: false,
                 progressHandler: { [progressKey] progress in
                     // Forward to upstream progressHandler (e.g. MLXDownloadProgress on macOS 27)
@@ -743,6 +743,36 @@ struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
         return dir
     }
 
+    /// What `download(id:revision:matching:useLatest:)` would do, measured and fetched nowhere.
+    ///
+    /// Same short-circuit, same patterns, same guard as the real lane -- a plan that disagreed
+    /// with the download it describes is worse than no plan. No byte is transferred and no
+    /// model file is written; only the hub's file metadata and the cache dir are read.
+    func plan(
+        id: String,
+        revision: String?,
+        useLatest: Bool,
+        matching patterns: [String] = ModelStore.modelDownloadPatterns
+    ) async throws -> DownloadPlan {
+        guard HuggingFace.Repo.ID(rawValue: id) != nil else {
+            throw HuggingFaceDownloaderError.invalidRepositoryID(id)
+        }
+        let cacheDir = flatTarget(for: id) ?? ModelStore.hubRoot
+        if flatTarget(for: id) != nil, !useLatest, allPatternsSatisfied(patterns, in: cacheDir) {
+            return DownloadPlan(
+                model: id, provider: "hf", requiredBytes: 0, remoteTotalBytes: nil,
+                cachedBytes: DiskSpaceGuard.cachedBytes(in: cacheDir, patterns: patterns),
+                freeBytes: DiskSpaceGuard.freeBytes(onVolumeHosting: cacheDir),
+                wouldFit: true, basis: "locallySatisfied")
+        }
+        let measured = await DiskSpaceGuard.assess(
+            hub: hub, repoId: id, revision: revision, patterns: patterns, cacheDir: cacheDir)
+        return DownloadPlan(
+            model: id, provider: "hf", requiredBytes: measured.requiredBytes,
+            remoteTotalBytes: measured.remoteTotalBytes, cachedBytes: measured.cachedBytes,
+            freeBytes: measured.freeBytes, wouldFit: measured.fits, basis: "measured")
+    }
+
     func download(
         id: String,
         revision: String?,
@@ -799,9 +829,16 @@ struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
     /// Per-pattern presence check — same contract as
     /// `ModelScopeDownloader.firstMissingPattern` / `matchesGlob` (L660-676):
     /// every glob in `patterns` must match at least one regular file directly
-    /// under `dir`. Empty pattern list → true (caller's decision; call sites
-    /// always pass non-empty patterns).
-    private func allPatternsSatisfied(_ patterns: [String], in dir: URL) -> Bool {
+    /// under `dir`.
+    ///
+    /// An empty pattern list is NOT satisfied: `matching: []` means "the whole repo" to
+    /// swift-huggingface (`DiskSpaceGuard.cachedBytes` reads it that way), so certifying it as
+    /// "already here" let one stray file in the flat dir stand for a complete model, and the
+    /// download endpoint answered `completed` without fetching the weights. Presence has to be
+    /// provable per glob, or it is not claimed. Internal (not private) so `@testable` tests
+    /// pin all three shapes -- satisfied, stray-only and empty -- without a network round trip.
+    func allPatternsSatisfied(_ patterns: [String], in dir: URL) -> Bool {
+        guard !patterns.isEmpty else { return false }
         let fm = FileManager.default
         guard
             let enumerator = fm.enumerator(
@@ -810,9 +847,12 @@ struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
                 options: [.skipsHiddenFiles])
         else { return false }
         var files: [String] = []
-        while let item = enumerator.nextObject() as? URL,
-            (try? item.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
-        {
+        while let item = enumerator.nextObject() as? URL {
+            // Skip, do not stop: a subdirectory in the model dir used to end the walk, so any
+            // required file after it went unseen and the lane re-fetched bytes it already had.
+            guard (try? item.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile
+                == true
+            else { continue }
             files.append(item.lastPathComponent)
         }
         for pattern in patterns {
