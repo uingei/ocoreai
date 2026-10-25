@@ -4,6 +4,13 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-25
 
+**10-25(8) 删掉的协调器留下了两处谎:质量信号写死 toolCallCount: 0,字段文档 promise 一个不可能的条件**(P1 正确性 / 死面清算) — `Agents/AgentLoop.swift` 的 runner 早先因"零调用者"被删(引擎循环移进 `DirectInferenceClient`),但它的**契约文字与默认值留了下来**,而这两样都在对用户/对回路说话:① fast path 的 post-stream 质量信号传 `toolCallCount: 0`,而同一条流刚刚把每个 `.toolCall` 转发给 UI(`case .toolCall(let tc)` 就在同一个 `doStreamInference` 里)——**thinking budget 的标定回路正是吃这个输入**,于是"这一轮用了几个工具"永远按 0 参与调参;② `DirectInferenceResult.toolCallParts` 的文档写 "Populated when AgentLoop ran multiple iterations with tool execution",而那个协调器已不存在,该条件**结构性不可能**。
+
+- **修的是"实测代替默认"**:在 `doStreamInference` 里就地在同一个 `.toolCall` 分支计数,质量信号改吃 `toolCallCount`;文档改成实情——一个 pass 收集一次,协调器因是引擎循环的重复而被删。`iterationCount: 1` 保留:这两条车道**确实是单趟**,"1" 是测量结果而不是遮掩,与上面那条"承诺多轮"性质不同(前者是真,后者是假)。
+- **门** 新 `Tests/ocoreaiTests/TelemetryTruthfulnessTests.swift` **2 tests**:① `toolCallCount: 0` 在该文件必须 **0 命中**、`toolCallCount: toolCallCount` 恰好 **1**、`toolCallCount += 1` 恰好 **1**,并 floor 自己的前提(该文件必须确实有 ≥2 个 `case .toolCall(let tc):`,否则上面的钉就成了空断言);② 全量扫 `Sources/ocoreai`(**floor 200 个 swift 文件**)禁止任何 `AgentLoop.run(` / `AgentLoop.iterate` 调用者复活,并禁止 "AgentLoop ran multiple iterations" 这类死条件文案再出现。
+- **背景**:同一轮审计还量到 `Agents/AgentLoop.swift`(44 行)现存内容只有值类型,由 `ThinkingTelemetry` 与测试消费——保留是合理的,但"死面的文档"必须一起清,否则下一个读代码的人会照着不存在的机制写代码(这正是本轮之前几轮反复付过学费的模式)。
+- **验证**:CLT 路线 `--filter Telemetry|Direct|ToolResultAttribution|EditMismatchRecovery` = **63 tests / 15 suites 全绿**;`make round-gates` 全绿(corpus 155,376/155,386、anchors checked=72 drift=0、Class-J 53 suites 全解析、exemption 扫描 0 dead)。`make test-ci`(xcodebuild 权威腿)本轮未跑。
+- **仍排在其后**:有界恢复跳(治"一次失败即弃":审计显示失败的 mutation 之后没有成功 mutation 时,在轮次边界补一次迭代)——上一条 12 题实测只翻转 1 题,主因已被 `args` 归因为**凭空造 oldString 后不再尝试**,所以恢复跳优先级高于任何移植项。
 **10-25(7) 修掉"忠实引用反而失配"的根因:唯一的读面给出 chrome,而定位侧原样计数**(P1 能力 / P1 自我纠错) — `read_file` 是这个工具集唯一的读面,它的答案带 `N|` 前缀与 `─── total_lines: … ───` 尾注;`edit_file` 却只对 `newString` 过 `PresentationEcho.repair`(FileTools.swift 写前修复),对 `oldString` **原样计数**。于是"读了再改"的忠实引用到达时带着 chrome,raw 计数恒为 0,拒因只能说 found 0——这正是 eval `fix-*` 类稳定失败的一个机制级解释(而不是"模型能力不行")。
 
 - **可判定的剥离,不是宽容匹配**:剥离只在 raw 计数**已经失败**之后尝试,且只有当剥离串在文件里恰好命中 `expected` 才接受(`replace_all` 的 expected 一并按剥离串重算);成功文案显式追加 `[oldString carried read_file chrome (…) — matched after stripping it]`,绝不静默。管道分隔表格这类**真内容**(`1|alpha`)走 raw 命中路径,既不进剥离也不宣称 repair——假阳性地板有测试钉住。

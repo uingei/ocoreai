@@ -484,6 +484,10 @@ extension DirectInferenceClient {
         var capturedPassthroughReason: String?
         // GAP-4: track incomplete/budget-truncated signal
         var capturedTruncatedByBudget = false
+        // The post-stream quality signal calibrates the thinking budget, so it has to count what
+        // this stream actually did: tool calls were forwarded to the UI but never counted, and the
+        // signal claimed zero tool calls on turns that had run several.
+        var toolCallCount = 0
         // Phase tracking: emit .generating once on the first content delta
         var didEmitGeneratingPhase = false
 
@@ -577,6 +581,7 @@ extension DirectInferenceClient {
                     continuation.finish()
                     throw AppError.generationError(errorMsg)
                 case .toolCall(let tc):
+                    toolCallCount += 1
                     // Forward tool call events to UI so tool-use progress is visible
                     // Emit both the structured metadata (for transcript injection)
                     // and the phase signal (for live tool-executing indicator)
@@ -667,7 +672,7 @@ extension DirectInferenceClient {
                 complexity: 0.5,  // Desktop UI has no upstream ComplexityAnalyzer
                 outputLength: outputLen,
                 iterationCount: 1,
-                toolCallCount: 0,
+                toolCallCount: toolCallCount,
                 finishReason: finishReason ?? "stop"
             )
             _ = await ThinkingTelemetry.signal(
@@ -1026,7 +1031,8 @@ struct DirectInferenceResult {
     let stopReason: String
     let outputTokens: Int
     /// Aggregated tool call parts from agent loop iterations.
-    /// Populated when AgentLoop ran multiple iterations with tool execution.
+    /// Populated when this pass emitted tool calls. The multi-iteration coordinator is gone (its
+    /// runner was removed as a duplicate of the engine's loop), so one pass collects once here.
     let toolCallParts: [ToolCallPart]?
 
     init(
