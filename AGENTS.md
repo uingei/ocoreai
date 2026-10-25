@@ -45,19 +45,15 @@ Scheduler Layer (Scheduler/) SchedulerActor, AdmissionGate, MemoryTracker, OOMGu
 UI Layer (SwiftUI)           ChatViewModel, SessionManager(SQLite)
 ```
 - `EnginePool` gates backends with inline `#if canImport(CoreAI)`; there is no `BackendProtocol`.
-- MLX path: `_runInferenceWithMessages()` → `ChatSession` (session pool, guided generation,
-  `toolDispatch`). `ReasoningEventEmitter` is wired on both backends; `KVCacheRuntime` runs
-  `.turboQuant`/`.affine`; `ThinkingBudget` is applied on both the std and MTP lanes. Where each line
-  lives: `Sources/ocoreai/Engine/AGENTS.md` (its cites are gated by `make anchor-check`).
+- MLX path: `_runInferenceWithMessages()` → `ChatSession` (session pool, guided generation, `toolDispatch`);
+  `ReasoningEventEmitter` on both backends, `KVCacheRuntime` `.turboQuant`/`.affine`, `ThinkingBudget` on the
+  std and MTP lanes. Where each line lives: `Sources/ocoreai/Engine/AGENTS.md` (cites gated by anchor-check).
 - MTP path: `generate(mtpDrafter:)` bypasses `ChatSession`; tool calls are collected, dispatched and
   published per iteration via `ToolResultPublisher`, aligned with upstream `MTPSpeculativeTokenIterator`.
 - ANE/GPU constrained decoding: CoreAI `MPSGraphSamplers` (argmax / composite / sampler).
-- `SessionPool` is message-level *feed* dedupe. Whether the KV cache skipped a prefill is upstream's
-  answer, reported only via `cachedPromptTokenCount`; per-model it is published on
-  `/v1/models/:model/kv-cache` (`prefixReuse`), and refusals as `reuseRefusals`. An edited resend
-  rewinds onto the shared prefix instead of re-prefilling; a turn whose lane builds its own cache
-  (guided gen, MTP) is not offered a rewind and is booked as the refusal it actually was — same rule as
-  § Endpoint Promises below: whatever is published is what was measured.
+- `SessionPool` dedupes the *feed*, not the prefill: whether the cache skipped work is upstream's answer
+  (`cachedPromptTokenCount`), published per model as `prefixReuse` on `/v1/models/:model/kv-cache` and as
+  `reuseRefusals`; a lane that builds its own cache (guided gen, MTP) is booked as the refusal it was.
 - Sampling: `argmax` when temperature is 0, `multinomialSample` above it, with filters mirroring
   upstream `CompositeSampler` — `Models/InferenceStubs.swift`.
 
@@ -70,10 +66,9 @@ swift test --filter <SuiteRegex>     # one suite (substring)
 make docs-check                      # docs contract: sub-second, no build
 bash scripts/eval/run.sh               # task-success scoreboard: verifies the WORKSPACE, not the prose
 ```
-- Gate tiering: **sandbox** → app-target build + non-Metal suites (`HOME=<canonical writable path>`,
-  CLT `DEVELOPER_DIR`/`SDKROOT`, mechanism in `docs/agent/build-gate-reality.md`);
-  **escalation** → `make test-clt` (full suite) + `make probes` (live `/v1/*`, `scripts/probes/`);
-  **CI only** → the `xcodebuild` legs (`test-ci`, plus the iOS build job).
+- Gate tiering: **sandbox** → app-target build + non-Metal suites (writable `HOME`, CLT
+  `DEVELOPER_DIR`/`SDKROOT`; mechanism `docs/agent/build-gate-reality.md`); **escalation** → `make test-clt`
+  + `make probes` (live `/v1/*`); **CI only** → the `xcodebuild` legs (`test-ci`, the iOS build job).
 - `make toolchain-check` evaluates both candidate routes (Xcode and CLT) instead of the ambient
   `DEVELOPER_DIR`, and settles Metal by *compiling a kernel*, never by `metal --version`.
 - CLT SDK ≠ CLT compiler: an unpinned `SDKROOT` breaks even the manifest. On the CLT route every
@@ -83,11 +78,10 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
 - Style: `swift-format` (`.swift-format`, pinned) via `make format-check`; no other linter, aligned
   with upstream. Crash-safe coding (no `try!`/`as!`/`fatalError` in `Sources/`) is a convention here
   and a ceiling below § Error Handling.
-- Licenses travel with the binary: MIT **plus** third-party terms (BSD-3 cl.1/cl.2, Apache-2.0 §4).
-  Adding a dependency, bumping a pin or vendoring a header ⇒ re-run
-  `scripts/collect-third-party-licenses.sh` and commit its output. Gates:
-  `ThirdPartyNoticesTests`(16) + `scripts/audit.swift_patterns.sh` Class-I. Composition and the
-  vendored-header table: `docs/agent/third-party-notices.md`.
+- Licenses travel with the binary: MIT **plus** third-party terms (BSD-3 cl.1/cl.2, Apache-2.0 §4). Adding a
+  dependency, bumping a pin or vendoring a header ⇒ re-run `scripts/collect-third-party-licenses.sh` and commit
+  its output. Gates: `ThirdPartyNoticesTests`(16) + `scripts/audit.swift_patterns.sh` Class-I; composition:
+  `docs/agent/third-party-notices.md`.
 <!-- claim:apple_derived_files>=44 :: git grep -l "Copyright 2026 Apple Inc" -- Sources | wc -l -->
 <!-- claim:notice_files>=38 :: ls THIRD-PARTY-LICENSES | wc -l -->
 
@@ -127,11 +121,10 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   asked once with `is` at the entry point (`Models/LoRAModelSupport.swift`).
   Gates: `RequestNumericDomainTests`(25), `KVCacheAdmissionPricingTests`(7) + probes 09, 35.
 - A fallback schema is a promise too: `"properties": {}` means "no key is legal", so a schema-less
-  `json_object` answered `{}`. One permissive schema, `jsonObjectSchema`; and when a JSON shape and
-  `tools[]` arrive together, the JSON constrains the answer unless `tool_choice` demands a call —
-  one home, `buildGrammarSchema` (sglang installs a tool grammar only for a demand,
-  serving_chat.py:1488-1501; four orderings measured, and §7 keeps the grounded half open — a read-turn cannot
-  emit the call its numbers come from). Gate: `GrammarSchemaRegressionTests`(11) + probe 12 §6, §7.
+  `json_object` answered `{}`. One permissive schema, `jsonObjectSchema`; a JSON shape arriving with `tools[]`
+  constrains the answer unless `tool_choice` demands a call — one home, `buildGrammarSchema` (upstream
+  installs a tool grammar only for a demand, serving_chat.py:1488-1501).
+  Gate: `GrammarSchemaRegressionTests`(11) + probe 12 §6, §7.
 - A per-turn knob must be refreshed where the object is *reused*, not only where it is parsed: sampling
   lives on the upstream session, so a pooled session that keeps last turn's parameters answers this turn
   under them. One home: `MLXSessionPool.staleSamplingFields`. Gate: `PooledParameterDriftTests`(6) + probe 14.
@@ -182,10 +175,10 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
 
 - **A turn's last sentence is a claim, checked against the audit.** `ClaimVsAudit` compares a
   self-terminated answer's file-change sentences with `ToolMutationLedger`, fed at
-  `ToolRegistry.call` — the one chokepoint the native loop, MTP, GUI and MCP share (the wire
-  echoes no `tool_calls` on a native turn, so it proves nothing). "File created." with zero
-  writes, and "I failed" with a landed edit, both get an `[audit]` line on all four faces;
-  read-only tools never count, so a notice can only under-accuse. Gate: `ClaimVsAuditTests`(17).
+  `ToolRegistry.call` — the chokepoint the native loop, MTP, GUI and MCP share (the wire echoes no
+  `tool_calls` on a native turn, so it proves nothing). A false "File created." and a false "I failed"
+  both get an `[audit]` line on all four faces; read-only tools never count, so a notice can only
+  under-accuse. Gate: `ClaimVsAuditTests`(17).
 - `/v1/models/:model/…` takes a **percent-encoded** model id (`:model` matches one segment, `/v1/models`
   publishes `org/name`); the catalog says so and probe 03 pins it — the owner call lives in § Open.
 
@@ -222,18 +215,17 @@ Not resolved here, not forgotten: each item names the instrument that would sett
 is in `CHANGELOG.md` (grep the symbol). `make audit` Class-J keeps suite names cited honestly.
 - **`/v1/models/:model/…` needs `%2F`** (Handlers/) — verbatim `org/name` ids router-404; accepting a slash
   costs a second routing truth. Owner call; the sharp edge is documented and pinned, not hidden.
-- **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — the bitmask helper masks
-  `-Float.leastNormalMagnitude` instead of −inf and `return`s where it should `continue`; the fp8→fp16 KV
-  conversion sits before Apple's fix; the FoundationModels-block hub fallback never got the reachability
-  probe. All are `@available(macOS 27.0, *)` or SDK-gated out: no blind fix, no claim of a fix.
-  `HubReachabilityTests`(20) pins that the FM block is exactly one site, so an unnoted edit goes red.
+- **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — the bitmask helper's −inf case, the
+  fp8→fp16 KV conversion (sits before Apple's fix) and the FoundationModels-block hub fallback are all
+  `@available(macOS 27.0, *)` or SDK-gated out ⇒ no blind fix, no claim of one; `HubReachabilityTests`(20)
+  pins the FM block at exactly one site so an unnoted edit goes red.
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
   and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The injection seam landed
   upstream at pin `991266ad3` (`observe(to:using:)` + `GenerationTransformer`), so what is left is
   owning what upstream's `ChatSession` loop owns. Owner call.
-- **Rewind is landed; the reserve is a guessed constant** (Engine/) — 1024 rows, measured on one
-  checkpoint, not tuned to model or memory pressure; an edit further back than the reserve still pays its
-  full prefix. `SessionRewindOnDivergenceTests`(7) + probe 27 hold the wiring and the number.
+- **Rewind is landed; the reserve is a guessed constant** (Engine/) — 1024 rows measured on one checkpoint,
+  not tuned to model or memory pressure, so an edit further back than the reserve still pays its full prefix.
+  `SessionRewindOnDivergenceTests`(7) + probe 27 hold the wiring and the number.
 - **Video publishing is per-checkpoint** (Multimodal/) — one processor reads `input.videos`, the other does
   not, so it is never inferred from architecture; a turn that received frames but never answered is not
   counted, and relaxing that is untested (`VideoDeliveryLedger`).
@@ -370,4 +362,5 @@ project is **Human-facing**.
 - Does each resolver/fallback have one home, a validated ladder, and a bounded, recoverable end?
 - Is the hot path still cheap under *realistic* content — long transcript, warm KV, a real model — not the
   empty demo?
+- Did the user, the developer and the agent reading this surface each end up better off than before?
 - Did `swift build` exit 0, and does `CHANGELOG.md` name the commit?

@@ -4,6 +4,15 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-25
 
+**10-25(19) 按用途整理文档：同一事实只留一份，两条规矩各归其家——并明确放弃"再加一道门"的方案**（P3 文档卫生 / 业主两次纠偏："别没事就造门，文档应该根据用途编写合适的内容"） — 判据：一个事实如果有三份副本（`Tests/` 里的门、`CHANGELOG.md` 里的裁决、`AGENTS.md` 行内的测量叙述），那么 root 那份就是第三份，删它。本轮删的全是"测量过程与历史叙述"（`measured …`、`four orderings measured`、"某轮量到 X"），**规则本身、符号名、`file:line` 锚点、门名与 `(N)` 条数一条未动**。
+
+- **回收**：root `30388 → 29817` chars（净 −571：去复述 −672、taste test 新问句 +101），corpus `155379 → 155009` B（净 −370，余 377 B）。八处：MLX path、`SessionPool`、Gate tiering、Licenses、grammar-schema、rewind 项、CoreAI/macOS 27 项、`ClaimVsAudit`。删语法那句前先确认它有家：`scripts/probes/README.md:78` 已写 §7 的开放半边（"必须先读文件才能作答的回合发不出那个调用"），所以 root 只留 `serving_chat.py:1488-1501` 锚点与 `probe 12 §6, §7` 指针。
+- **规矩 1（装饰不是信息）的家 = `Sources/ocoreai/UI/AGENTS.md`**，进 § On anything user-visible（HIG 是用户可见面的裁判）：删标语、解释性段落与次要标签；删完界面就看不懂，缺陷在布局——改布局，别改标签。它只在 UI 子树里咬人，放 root 就是让每个非 UI 会话为它付字节。
+- **规矩 2（三受众）的家 = root § Taste test before you hand off**，压成一行问句：*Did the user, the developer and the agent reading this surface each end up better off than before?* 它是交工前的自问，不是可判红的机制，因此写在清单里而不是写成门。
+- **放弃上一轮的提案**：曾拟给 root 加 P17（bullet ≤3 行 + 21 条豁免名单）。**需要 21 条例外才能通过的形状门是自证无用的门**——它统计的是自己的例外，不是文档的质量；且同类已有 P13（root 单行 ≤400 B、无日期）与 P15（corpus 无 prose wall）覆盖。业主否掉它是对的，本条把"为什么不做"记下来，防止下一轮重新发明。
+- **验证**：`make round-gates` 绿（docs contract + line cites + swift patterns，含 `claims=31/31`、`suites=52`、`probe-index=35/35`、`numbered-claims=27/27`、Class-J `0 unresolved`）；`make docs-check` 单独复跑绿，`anchors=94 dangling=0`。**没有新增任何门、任何测试、任何脚本**。
+- **不声称**：文档变短不等于能力变强。同一模型同配方下任务成功率仍是 **19/36**（上一条同配方 22/35、22/36），差值在 10-25(5) 量到的 ±6 单向地板之内，两个方向都不构成结论；本轮唯一的成效是注入给模型的上下文更省、且每条 root 规则的证据仍然指得到家。
+
 **10-25(18) 拒绝语已经把整份文件贴给模型了，却还在叫它"先去 read_file"——拆掉这句自相矛盾：小文件失配时命令是"立刻重试"，不是"再读一遍"**（P1 可靠性 / 记分板失败回合驱动） — 本轮记分板（`scripts/eval/run.sh`，model `mlx-community/gemma-4-e2b-it-4bit`、temperature 0、6 工具、approval auto）里 `fix-boundary-comparison` 的失败回合是教科书形状：`response-*.json` 的 `tool_results[0]` 为 `edit_file(path=capacity.py, oldString="return load == limit", newString="return load <= limit")`、`ok=false`——它的 **newString 本来就是正解**，而拒绝语也已经把整份文件连 `return load < limit` 一起给出去了（`the file says (all 2 lines, verbatim…)`）；模型的收尾却是 "I failed … I need to read the file first"，`finish=stop`，任务没做。⇒ 缺的不是信息，是**下一步命令**：同一条回文一边给出可原样复制的原文，一边派调用方去读它已经看得见的文件。
 
 - **判据换成"整份是否已经给出"，而不是"提示是否非空"**：`nearestLinesHint` 返回从 `String` 改为 `MismatchHint(text:quotedWholeFile:)`（唯一读者就是 `edit_file` 这一处调用点，改签名零外溢）。整份引用 ⇒ 命令是 `Retry this call now with the exact line above as oldString: the whole file is quoted above, so nothing has to be read first. Do not answer the user before that retry.`；窗口引用 ⇒ **保留**原句 `read_file it and copy the exact text`，因为被裁掉的行可能正是目标行（同一条纪律在 codex `Total output lines` 那里是"展示局部必须说整体"，`Sources/ocoreai/Tools/ExecTools.swift:92` 早已如此）。

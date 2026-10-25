@@ -31,6 +31,8 @@ Not codex, not mlx-swift-lm (it ships no GUI). Duties: ⌘ coverage and a sane f
 primary actions, `Cmd+,` grouped Settings, `textSelection` on anything readable, accessibility labels,
 Dark Mode + Dynamic Type, destructive-confirmation wording, and answering in the medium the user used
 — this app hears and speaks, so a voice turn ends in voice, not in text the user must read.
+- Ornament is not information: delete slogans, explanatory paragraphs and secondary labels. If a screen is
+  unreadable once they are gone, the defect is the layout — fix the layout, not the labels.
 Measured thinness, floored as ceilings (a `>=` floor cannot see a defect grow): `keyboardShortcut`
 in 5 files, `textSelection` in 5, `accessibilityLabel` in 17, across 298 Swift files in `Sources/`.
 <!-- claim:ui_keyboard_shortcut_files<=5 :: git grep -l keyboardShortcut -- Sources | wc -l -->
