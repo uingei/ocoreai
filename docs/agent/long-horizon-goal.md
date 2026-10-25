@@ -19,7 +19,7 @@ claim coverage → 1.0. The product surface grows only where a gate already meas
 | B′ | tasks that can produce a cell | **14 of 52** (21 pass, 17 fail); adjacent k=6 windows moved 7/48 bands, so ±4 is noise | `_repeat_stats.py` on the base root; ledger in `scripts/eval/README.md` |
 | C | cost of one verdict | **≈28.7 min** at 52 tasks (4.79 min/run × k=6, base reused) — one run costs 4.8 min, so a ≤3 min/proposal target is throughput-bound, not orchestration | `stat -f %m /tmp/oc-k6-f52/run-*` → deltas |
 | G | goal-post write surface | **0** (allow = 1 prefix, protected = 15 judgement paths) | `scripts/eval/autoloop-allow.txt` / `autoloop-protected.txt`, gated by `scripts/eval/_autoab_selftest.py` + `_autoab_mutate.py` |
-| S | claim coverage | incomplete: doc claims reproduce, 34 live probes; gaps = MTP acceptance rate (0 sites), claimed read/exec failures are unaudited (only mutations count), UI focus discipline has no test | `make docs-check` + the gap list below |
+| S | claim coverage | incomplete: doc claims reproduce, 34 live probes; gaps = MTP acceptance rate (0 sites), UI focus discipline has no test | `make docs-check` + the gap list below |
 
 **Why B is the constraint**: stable-pass tasks give *no* upward evidence yet *can* trip the regression veto, so
 the shape is asymmetric on purpose, and **≈0.5 tasks is not measurable at any α** — that effort is not

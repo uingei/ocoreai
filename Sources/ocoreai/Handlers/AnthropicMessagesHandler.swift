@@ -476,6 +476,9 @@ private func nonStreamAnthropicResponse(
     /// Baseline for the claim/audit cross-check at this face's finalize site — the same rule
     /// as `ChatHandler`, one home for the verdict (`Models/ClaimVsAudit.swift`).
     let mutationBaseline = await ToolMutationLedger.shared.snapshot()
+    /// The failure half of the same record: only `ToolAttemptLedger` knows a handler was
+    /// reached and missed, which the mutation ledger alone cannot see (`Models/ClaimVsAudit.swift`).
+    let attemptBaseline = await ToolAttemptLedger.shared.snapshot()
 
     await handle.markActive()
 
@@ -733,9 +736,12 @@ private func nonStreamAnthropicResponse(
     /// `edit_file` succeeded answered "I failed to fix the code". A `tool_use` turn is not
     /// an answer yet, so it is not judged.
     let turnMutations = await ToolMutationLedger.shared.since(mutationBaseline)
+    let turnAttempts = await ToolAttemptLedger.shared.since(attemptBaseline)
     var auditedContent = content
     if deliveredCalls.isEmpty, finishReason == "end_turn",
-        let notice = ClaimVsAudit.notice(text: content, mutations: turnMutations)
+        let notice = ClaimVsAudit.notice(
+            text: content, mutations: turnMutations, attempts: turnAttempts
+        )
     {
         auditedContent += "\n\n" + notice
         contentBlocks.append(AnthropicAssistantContent(text: notice))
@@ -838,6 +844,9 @@ private func streamAnthropicResponse(
 
     /// See `nonStreamAnthropicResponse`: same audit baseline, same rule, this face's stream.
     let mutationBaseline = await ToolMutationLedger.shared.snapshot()
+    /// The failure half of the same record: only `ToolAttemptLedger` knows a handler was
+    /// reached and missed, which the mutation ledger alone cannot see (`Models/ClaimVsAudit.swift`).
+    let attemptBaseline = await ToolAttemptLedger.shared.snapshot()
 
     let (stream, continuation) = AsyncStream<ByteBuffer>.makeStream()
 
@@ -1173,8 +1182,11 @@ private func streamAnthropicResponse(
             /// the audit line arrives as one more `text_delta` (clients concatenate blocks) and
             /// the persisted row stores the corrected answer.
             let streamTurnMutations = await ToolMutationLedger.shared.since(mutationBaseline)
+            let streamTurnAttempts = await ToolAttemptLedger.shared.since(attemptBaseline)
             if deliveredToolCalls.isEmpty, finishReason == "stop",
-                let notice = ClaimVsAudit.notice(text: answerText, mutations: streamTurnMutations)
+                let notice = ClaimVsAudit.notice(
+                    text: answerText, mutations: streamTurnMutations, attempts: streamTurnAttempts
+                )
             {
                 writeSSEEvent(
                     continuation,

@@ -72,6 +72,97 @@ actor ToolMutationLedger {
     }
 }
 
+/// One dispatched tool call and how it ended.
+///
+/// `ToolMutationLedger` keeps only successes, which answers "did this turn change a file" and
+/// leaves the other half of the record unkept: a turn that fired `edit_file` five times and hit
+/// nothing looks, in that audit, exactly like a turn that never touched a tool. On the
+/// scoreboard they are different failures with different remedies — one needs a retry the model
+/// can act on, the other needs the work to be asked for — and neither can be told apart, or
+/// counted, without the failure half.
+struct ToolAttempt: Equatable, Sendable {
+    enum Outcome: String, Equatable, Sendable {
+        case succeeded
+        case failed
+    }
+
+    /// Tool that ran (`edit_file`, `exec_command`, …).
+    let tool: String
+    /// The path or command it named, when its arguments carried one.
+    let target: String?
+    /// Whether this tool writes the workspace — decided where that truth lives
+    /// (`ToolRegistry.readOnlyWhitelist`), so the ledger never invents a second classifier.
+    let isMutation: Bool
+    let outcome: Outcome
+    /// First line of the refusal, redacted and capped; nil on success.
+    let failure: String?
+}
+
+/// Process-wide record of every dispatched tool call, success and failure alike.
+///
+/// Fed at the same single chokepoint as `ToolMutationLedger` (`ToolRegistry.call`), so
+/// "attempted" means *reached a handler*, not *was asked for*: a security pre-flight denial
+/// throws before the handler and is not an attempt here, which keeps the ledger's meaning
+/// aligned with the one place tools actually execute. Same monotonic-counter + snapshot-at-turn
+/// head shape as its sibling, and the same one-directional skew under concurrency.
+actor ToolAttemptLedger {
+    static let shared = ToolAttemptLedger()
+
+    /// How many recent attempts to keep (turn-local windows are tiny; the cap exists so a
+    /// long-lived server does not grow this without bound).
+    private static let window = 64
+
+    /// Longest failure line kept: enough to name the cause, short enough to quote in a notice.
+    nonisolated static let failureLineLimit = 160
+
+    private var total: UInt64 = 0
+    private var recent: [(seq: UInt64, attempt: ToolAttempt)] = []
+
+    func record(_ attempt: ToolAttempt) {
+        total &+= 1
+        recent.append((total, attempt))
+        if recent.count > Self.window {
+            recent.removeFirst(recent.count - Self.window)
+        }
+    }
+
+    /// Baseline for one turn: take this at the turn head, ask `since(_:)` at its finalize.
+    func snapshot() -> UInt64 {
+        total
+    }
+
+    /// Everything dispatched after `baseline`, oldest first.
+    func since(_ baseline: UInt64) -> [ToolAttempt] {
+        recent.filter { $0.seq > baseline }.map(\.attempt)
+    }
+
+    /// Failed writer calls with no successful write after them.
+    ///
+    /// Ordering matters: a failure that a later success repaired is not an open problem, so the
+    /// count resets on every successful mutation. It is 0 when nothing was attempted, and 0 when
+    /// every attempt succeeded — a turn is never accused on the strength of a repaired mistake.
+    nonisolated static func unresolvedMutatingFailures(_ attempts: [ToolAttempt]) -> Int {
+        var unresolved = 0
+        for attempt in attempts where attempt.isMutation {
+            unresolved = attempt.outcome == .failed ? unresolved + 1 : 0
+        }
+        return unresolved
+    }
+
+    /// `edit_file×2, exec_command×1` for the failed writers, in first-seen order; "" for none.
+    nonisolated static func summarizeFailures(_ attempts: [ToolAttempt]) -> String {
+        var order: [String] = []
+        var counts: [String: Int] = [:]
+        for attempt in attempts where attempt.isMutation && attempt.outcome == .failed {
+            if counts[attempt.tool] == nil {
+                order.append(attempt.tool)
+            }
+            counts[attempt.tool, default: 0] += 1
+        }
+        return order.prefix(4).map { "\($0)×\(counts[$0] ?? 0)" }.joined(separator: ", ")
+    }
+}
+
 /// Decides whether a final answer contradicts its own turn's tool record.
 enum ClaimVsAudit {
 
@@ -155,7 +246,17 @@ enum ClaimVsAudit {
     ///   • claims success, mutated nothing → say so, and name what did run;
     ///   • claims failure, did mutate → name the files that changed.
     /// A turn containing both kinds (or a grammar/tool termination) is ambiguous and stays quiet.
-    static func notice(text: String, mutations: [SuccessfulMutation]) -> String? {
+    ///
+    /// `attempts` is the failure half of the same turn's record. When a completion claim meets an
+    /// empty mutation set *and* open failed writes, the honest sentence is not "nothing happened"
+    /// — something happened, and it did not land; naming the attempts is what tells an over-claim
+    /// apart from a give-up. With no writer attempted at all, "nothing was written" is the whole
+    /// truth and the older copy stands.
+    static func notice(
+        text: String,
+        mutations: [SuccessfulMutation],
+        attempts: [ToolAttempt] = []
+    ) -> String? {
         var successClaims = 0
         var failureClaims = 0
         for sentence in text.components(separatedBy: sentenceSeparators) {
@@ -166,6 +267,14 @@ enum ClaimVsAudit {
             }
         }
         if successClaims > 0, failureClaims == 0, mutations.isEmpty {
+            let unresolved = ToolAttemptLedger.unresolvedMutatingFailures(attempts)
+            if unresolved > 0 {
+                let named = ToolAttemptLedger.summarizeFailures(attempts)
+                let which = named.isEmpty ? "\(unresolved) call(s)" : named
+                return "[audit] This turn attempted \(which) and none of them landed, so the "
+                    + "completion claim above is not backed by the workspace. The last refusal "
+                    + "quoted what the file actually says — retry it with that text."
+            }
             return "[audit] Nothing was written or edited in this turn (0 successful file-"
                 + "changing tool calls), so the completion claim above is not backed by the "
                 + "workspace. Verify the path before treating it as done."

@@ -908,6 +908,9 @@ private func nonStreamWithToolCalling(
     /// Skew is one-directional: a concurrent turn's write can only inflate this set, which
     /// suppresses a notice rather than inventing a contradiction.
     let mutationBaseline = await ToolMutationLedger.shared.snapshot()
+    /// The failure half of the same record: only `ToolAttemptLedger` knows a handler was
+    /// reached and missed, which the mutation ledger alone cannot see (`Models/ClaimVsAudit.swift`).
+    let attemptBaseline = await ToolAttemptLedger.shared.snapshot()
 
     /// Generate unique request ID for tracing.
     let requestId = "req-\(UUID().uuidString.prefix(8))"
@@ -1235,7 +1238,10 @@ private func nonStreamWithToolCalling(
     /// finished the work yet, so its text is not a completion claim.
     if toolCalls == nil, finishReasonFinal == "stop" {
         let mutations = await ToolMutationLedger.shared.since(mutationBaseline)
-        if let notice = ClaimVsAudit.notice(text: finalContent, mutations: mutations) {
+        let attempts = await ToolAttemptLedger.shared.since(attemptBaseline)
+        if let notice = ClaimVsAudit.notice(
+            text: finalContent, mutations: mutations, attempts: attempts
+        ) {
             finalContent += "\n\n" + notice
             logger.info(
                 "Claim/audit mismatch corrected at the wire edge: \(mutations.count) successful mutation(s)"
@@ -1380,6 +1386,9 @@ private func streamWithToolCalling(
     /// Skew is one-directional: a concurrent turn's write can only inflate this set, which
     /// suppresses a notice rather than inventing a contradiction.
     let mutationBaseline = await ToolMutationLedger.shared.snapshot()
+    /// The failure half of the same record: only `ToolAttemptLedger` knows a handler was
+    /// reached and missed, which the mutation ledger alone cannot see (`Models/ClaimVsAudit.swift`).
+    let attemptBaseline = await ToolAttemptLedger.shared.snapshot()
 
     /// Configure SSE-compliant response headers.
     let responseHeaders = SSEHeaders
@@ -1903,7 +1912,11 @@ private func streamWithToolCalling(
             engineReason: lastFinishReason,
             toolCallsMade: !deliveredToolCalls.isEmpty)
         if deliveredToolCalls.isEmpty, streamResolvedFinish == "stop",
-            let notice = ClaimVsAudit.notice(text: prevDecodedText, mutations: streamMutations)
+            let notice = ClaimVsAudit.notice(
+                text: prevDecodedText,
+                mutations: streamMutations,
+                attempts: await ToolAttemptLedger.shared.since(attemptBaseline)
+            )
         {
             _ = yieldSSE(
                 ChatCompletionChunk(

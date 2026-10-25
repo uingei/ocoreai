@@ -595,10 +595,15 @@ actor ToolRegistry {
             // file" is answered here and nowhere else. Read-only tools do not count; an
             // unknown external tool counts as mutating, which keeps the notice from ever
             // accusing a turn that ran an unrecognised writer.
-            if ToolMutationLedger.countsAsMutation(isReadOnly: isReadOnly(name)) {
+            let isMutating = ToolMutationLedger.countsAsMutation(isReadOnly: isReadOnly(name))
+            if isMutating {
                 await ToolMutationLedger.shared.record(
                     SuccessfulMutation(tool: name, target: Self.mutationTarget(in: arguments)))
             }
+            await ToolAttemptLedger.shared.record(
+                ToolAttempt(
+                    tool: name, target: Self.mutationTarget(in: arguments),
+                    isMutation: isMutating, outcome: .succeeded, failure: nil))
             await hookRunner.firePostToolUse(
                 toolName: name, arguments: arguments, result: result, error: nil)
             // Secret redaction (codex main-axis baseline, `secrets/sanitizer.rs`):
@@ -622,6 +627,14 @@ actor ToolRegistry {
             // (codex scopes to `exec`); only failures that got this far count
             // (preflight rejections threw earlier and are not handler failures).
             recordExecFailure(name: name)
+            // The failure half of the audit record (Models/ClaimVsAudit.swift): successes alone
+            // cannot tell "tried and missed" from "never tried", and only the chokepoint knows
+            // that a handler was reached at all.
+            await ToolAttemptLedger.shared.record(
+                ToolAttempt(
+                    tool: name, target: Self.mutationTarget(in: arguments),
+                    isMutation: ToolMutationLedger.countsAsMutation(isReadOnly: isReadOnly(name)),
+                    outcome: .failed, failure: Self.failureLine(of: error)))
             // Complete audit on error
             if let t = token {
                 await auditTrail?.completeToken(
@@ -654,6 +667,23 @@ actor ToolRegistry {
             }
         }
         return nil
+    }
+
+    /// One redacted line naming why a dispatched call failed.
+    ///
+    /// Multi-line refusals (`edit_file` quotes the file's own lines back) would bury the cause in
+    /// an audit line meant to name it, and a secret on line 3 must not travel further than the
+    /// tool result already carried it — so: redact, then take the first non-empty line, capped.
+    static func failureLine(of error: Error) -> String {
+        let text = SecretRedactor.redact(error.localizedDescription)
+        let line =
+            text.split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init)
+            ?? text
+        if line.count <= ToolAttemptLedger.failureLineLimit {
+            return line
+        }
+        let end = line.index(line.startIndex, offsetBy: ToolAttemptLedger.failureLineLimit)
+        return String(line[..<end]) + "…"
     }
 
     /// Check if a tool is read-only (safe for concurrent execution)
