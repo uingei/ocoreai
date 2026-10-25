@@ -41,7 +41,7 @@ struct EditMismatchRecoveryTests {
             return s
         """
 
-    @Test("a miss quotes the file's real lines, with the numbering read_file uses")
+    @Test("a miss quotes the file's real lines, as text the caller can copy verbatim")
     func mismatchQuotesActualLines() throws {
         let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
         defer { lease.release() }
@@ -58,16 +58,23 @@ struct EditMismatchRecoveryTests {
         } catch let ToolError.invalidParameter(message) {
             #expect(message.contains("found 0"), "still a strict refusal: \(message)")
             #expect(
-                message.contains("3|    for i in range(1, n):"),
-                "the refusal must show the actual line at its real number: \(message)")
+                message.contains("    for i in range(1, n):"),
+                "the refusal must show the actual line, indentation and all: \(message)")
             // Nearest-window scoring alone pointed at the wrong line on 10-22 (`return s` at
             // line 5), so a file this small is quoted whole — the target line cannot be hidden.
             #expect(
-                message.contains("1|def total(n):"),
+                message.contains("def total(n):"),
                 "a small file is quoted whole so the target cannot be missed: \(message)")
             #expect(
-                message.contains("quote exactly"),
+                message.contains("verbatim"),
                 "and say what to do with it: \(message)")
+            // The quoted body must be copyable as-is: `read_file`'s `N|` prefixes in a message
+            // that says "quote verbatim" is a guaranteed miss on the next call, and §
+            // PresentationEcho measured that a sentence asking the model to drop them does not
+            // work. Position stays in labels ("all N lines", "[lines a-b of N]").
+            #expect(
+                !message.contains("1|def total(n):"),
+                "a hint that says verbatim may not hand back chrome: \(message)")
         }
         // the file is untouched — the hint adds information, never a write
         let onDisk = try String(contentsOf: url, encoding: .utf8)
@@ -95,8 +102,11 @@ struct EditMismatchRecoveryTests {
         } catch let ToolError.invalidParameter(message) {
             #expect(message.contains("found 0"), "\(message)")
             #expect(
-                message.contains("2|    return a +"),
+                message.contains("    return a +"),
                 "the file's real indentation is what makes the next attempt succeed: \(message)")
+            #expect(
+                !message.contains("2|    return a +"),
+                "quotable means quotable: \(message)")
         }
         #expect(try String(contentsOf: url, encoding: .utf8) == body, "a refusal never writes")
     }
@@ -213,10 +223,56 @@ struct EditMismatchRecoveryTests {
                 message.contains("of 120 lines"),
                 "the hint must state the whole while showing a part: \(message)")
             #expect(
-                message.contains("61|let target = compute(a, b)"),
+                message.contains("let target = compute(a, b)"),
                 "and it must reach the line the caller was aiming at: \(message)")
+            #expect(
+                !message.contains("61|let target"),
+                "the number belongs to the label, not the quoted text: \(message)")
             #expect(message.contains("read_file"), "and name how to see the rest: \(message)")
         }
         #expect(try String(contentsOf: url, encoding: .utf8) == lines.joined(separator: "\n"))
     }
+
+    /// The failure shape the scoreboard's `fix-*` tasks actually hit: the caller quoted
+    /// `read_file` faithfully — chrome and all — and the raw count came back 0. Stripping is
+    /// decided by the match itself (attempted only after a raw miss, accepted only when the
+    /// stripped string matches `expected`), and the verdict says out loud that it happened.
+    @Test("a quote copied from read_file is stripped to match, and says so")
+    func copiedReadChromeIsStrippedToMatch() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
+        let body = "def first_n(items, n):\n    return items[0:n - 1]\n"
+        let url = try seeded("page.py", body)
+        defer { SessionWorkspace.clear() }
+
+        let ok = try FileTools.editFile(
+            path: "page.py",
+            oldString: "1|def first_n(items, n):\n2|    return items[0:n - 1]",
+            newString: "def first_n(items, n):\n    return items[0:n]",
+            occurrences: 1)
+        #expect(ok.contains("OK"), "a faithful quote must not be lost: \(ok)")
+        #expect(ok.contains("1 replacement(s)"), "\(ok)")
+        #expect(ok.contains("oldString carried read_file chrome"), "never silent: \(ok)")
+        #expect(
+            try String(contentsOf: url, encoding: .utf8)
+                == "def first_n(items, n):\n    return items[0:n]\n")
+    }
+
+    /// The false-positive floor: `1|alpha` is legitimate content in a pipe-delimited file, so a
+    /// raw match is never second-guessed and no repair is claimed.
+    @Test("genuine pipe-delimited content matches raw and is never called chrome")
+    func pipeDelimitedContentMatchesRaw() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
+        let body = "1|alpha\n2|beta\n"
+        let url = try seeded("table.txt", body)
+        defer { SessionWorkspace.clear() }
+
+        let ok = try FileTools.editFile(
+            path: "table.txt", oldString: "1|alpha", newString: "1|ALPHA", occurrences: 1)
+        #expect(ok.contains("1 replacement(s)"), "\(ok)")
+        #expect(!ok.contains("chrome"), "a raw match is not a repair: \(ok)")
+        #expect(try String(contentsOf: url, encoding: .utf8) == "1|ALPHA\n2|beta\n")
+    }
+
 }

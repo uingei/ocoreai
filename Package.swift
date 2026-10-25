@@ -155,7 +155,10 @@ let package = Package(
             ],
         ),
         // CXGrammar C bridge — Apple-authored C shim over the xgrammar C++ core
-        // (copied from coreai-models swift/Sources/lib/CXGrammar, byte-identical).
+        // Derived from coreai-models swift/Sources/lib/CXGrammar, and NOT byte-identical:
+        // measured 10-25 with `cmp`, this tree adds `xgrammar_compile_structural_tag`
+        // (structural-tag grammar) to `xgrammar_c_bridge.cpp`. Re-diff on every
+        // coreai-models adopt — a "derived" copy that silently grows is a fork.
         .target(
             name: "CXGrammar",
             dependencies: [

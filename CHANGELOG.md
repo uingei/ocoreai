@@ -4,6 +4,13 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-25
 
+**10-25(7) 修掉"忠实引用反而失配"的根因:唯一的读面给出 chrome,而定位侧原样计数**(P1 能力 / P1 自我纠错) — `read_file` 是这个工具集唯一的读面,它的答案带 `N|` 前缀与 `─── total_lines: … ───` 尾注;`edit_file` 却只对 `newString` 过 `PresentationEcho.repair`(FileTools.swift 写前修复),对 `oldString` **原样计数**。于是"读了再改"的忠实引用到达时带着 chrome,raw 计数恒为 0,拒因只能说 found 0——这正是 eval `fix-*` 类稳定失败的一个机制级解释(而不是"模型能力不行")。
+
+- **可判定的剥离,不是宽容匹配**:剥离只在 raw 计数**已经失败**之后尝试,且只有当剥离串在文件里恰好命中 `expected` 才接受(`replace_all` 的 expected 一并按剥离串重算);成功文案显式追加 `[oldString carried read_file chrome (…) — matched after stripping it]`,绝不静默。管道分隔表格这类**真内容**(`1|alpha`)走 raw 命中路径,既不进剥离也不宣称 repair——假阳性地板有测试钉住。
+- **拒因正文改成可直接引用**:原先提示一边写 "quote exactly"、一边展示 `1|def total(n):` 这种带前缀的行,是自相矛盾(照做必失配)。本仓 `PresentationEcho` 的文档早已写明"对模型提要求的句子只会让工件更大"(copy-with-suffix 的实测教训),所以这里不加"别复制前缀"的劝告,而是把 chrome 从正文拿掉,行号只留在标签里(`all N lines` / `[lines a-b of N]`),位置信息不丢。
+- **顺带纠错两条"继承即真"的断言**:① `Package.swift` 宣称 CXGrammar 与上游 "byte-identical",`cmp` 实测**并非如此**(本树在 `xgrammar_c_bridge.cpp` 里多了 `xgrammar_compile_structural_tag`)——注释改成实情,并要求每次 coreai-models adopt 重 diff("derived 的副本悄悄长大就是 fork");② `.upstream-baseline.json` 的 mlx 基线仍停 `bb0d5b0`,而 `bb0d5b0..991266ad3` 早在 10-24(2) 就逐 commit 审完并 bump 了 pin,那条窗口是**已裁决却被重复上报**的假漂移——用 `scripts/upstream-drift.sh adopt mlx-swift-lm` 只关这一条轴(`coreai-models` +8、`codex` +115 如实留着),`checked_at` 更新。
+- **门**:新增 2 条 + 改真 3 条断言(`EditMismatchRecoveryTests` 旧断言钉的正是"`N|` 出现在号称 quote exactly 的提示里"这个契约,本次按新契约改写并在测试名与注释里说明理由);新契约两面都钉:失配提示必须含可原样复制的原文且**不得**含 `N|`,忠实引用带 chrome 的 edit 必须成功且明说剥离过。CLT 路线 `--filter EditMismatchRecovery|PresentationEcho|FileTools` = **33 tests / 4 suites 全绿**;`make round-gates` 全绿(anchors checked=72 drift=0,corpus 155,376/155,386)。
+- **尚未证明**:这批改动能否让 eval 的 `fix-*` 题翻转还没跑;判据沿用 10-25(5) 的噪声地板——12 道稳定失败题子集上 **≥6 题单向翻转**才算改善,否则记为噪声。`make test-ci`(xcodebuild 权威腿)本轮未跑。
 **10-25(6) MTP 车道第一次向 GUI/wire 发布工具结果,而"采纳"这一轮真的咬了:拦住一个进程级崩溃**(P1 / 一个决定一个家 + 采纳纪律) — 实测 `ToolResultMeta(` 在 `Sources/` 只有 **1 处**(std 车道的 `emitToolResult`),而 MTP 的 `for toolCall in iterationToolCalls` 把收集到的每个调用都 dispatch 了、却从不 `continuation.yield(.toolResult(...))`:MTP 下的 GUI 工具卡没有真实时长、没有失败、没有摘要;而 native 轮不在 wire 回显 `tool_calls`,客户端连"发生过一次工具调用"都看不见。
 
 - **一个家**:`ToolResultPublisher.emit`(`Engine/EngineEvents.swift`)独占"时长怎么测、失败怎么带、`arguments` 何时随行"三个决定,std 与 MTP 各剩一个调用点。caller-owned 工具在 dispatch 闭包内就被交回客户端,故发布前先过 `ToolResultMeta.isCallerHandoff(result)`——本机没跑过的调用不得伪装成执行完毕(不变量 2),字面量 `[tool_handoff:` 从此只有一处。

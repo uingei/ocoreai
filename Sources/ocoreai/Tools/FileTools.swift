@@ -226,7 +226,7 @@ enum FileTools {
         guard oldString != newString else {
             throw ToolError.invalidParameter("edit_file: oldString == newString (no-op)")
         }
-        let count = original.components(separatedBy: oldString).count - 1
+        var count = original.components(separatedBy: oldString).count - 1
         // `replace_all` states intent without demanding the count, so the caller cannot be
         // wrong about N; an explicit `occurrences` still has to match, which is the guard
         // against a partial edit (oldString appearing 5 times when the caller saw 1).
@@ -234,7 +234,32 @@ enum FileTools {
         // guard pass and return an OK for a file nobody touched (measured 10-22, caught by
         // `replaceAllNeedsNoCount`) — invariant 2, the surface may not claim more than the
         // engine did.
-        let expected = replaceAll == true ? max(1, count) : max(1, occurrences ?? 1)
+        var expected = replaceAll == true ? max(1, count) : max(1, occurrences ?? 1)
+        // A caller quotes what the only read surface it has shows: `read_file` answers with `N|`
+        // prefixes and a `total_lines:` footer, so a correct quote arrives carrying chrome and
+        // counts zero against the raw file. Measured on the scoreboard's `fix-*` tasks, that
+        // refusal ("found 0") was the last thing the model tried. Stripping is decided, not
+        // guessed: it runs only after the raw count already failed, and is accepted only when the
+        // stripped text matches `expected` exactly — then the verdict says it happened.
+        var located = oldString
+        var chromeNote = ""
+        if count != expected {
+            let repair = PresentationEcho.repair(oldString)
+            if repair.didRepair && !repair.isUnrepaired {
+                let stripped = original.components(separatedBy: repair.text).count - 1
+                let strippedExpected =
+                    replaceAll == true ? max(1, stripped) : max(1, occurrences ?? 1)
+                if stripped == strippedExpected {
+                    located = repair.text
+                    count = stripped
+                    expected = strippedExpected
+                    let families = repair.removed.map { $0.artifact.rawValue }
+                    chromeNote =
+                        " [oldString carried read_file chrome (\(families.joined(separator: ", ")))"
+                        + " — matched after stripping it]"
+                }
+            }
+        }
         let head: String
         if replaceAll == true {
             head = "edit_file: replace_all found \(count) occurrence(s) of oldString in \(path)"
@@ -262,7 +287,7 @@ enum FileTools {
                 "\(head)\(remedy), refusing partial edit\(hint)")
         }
         let echo = PresentationEcho.repair(newString)
-        let updated = original.replacingOccurrences(of: oldString, with: echo.text)
+        let updated = original.replacingOccurrences(of: located, with: echo.text)
         let bytes = updated.data(using: .utf8) ?? Data()
         guard bytes.count <= maxWriteBytes else {
             throw ToolError.invalidParameter(
@@ -285,6 +310,7 @@ enum FileTools {
             "edit_file: \(verdict.marker) — \(count) replacement(s), \(delta >= 0 ? "+" : "")\(delta) bytes, "
             + "read-back verified (\(path))"
             + verdict.suffix
+            + chromeNote
     }
     // MARK: - edit_lines
 
@@ -551,19 +577,25 @@ enum FileTools {
                 if score == 1 { break }
             }
         }
-        func numbered(_ range: Range<Int>) -> String {
-            range.map { "\($0 + 1)|\(lines[$0])" }.joined(separator: "\n")
+        // Quotable, not echoed. `read_file` shows `N|` prefixes, but this body is exactly what the
+        // caller is being told to copy into `oldString`, and a prefix copied there is a guaranteed
+        // miss. Telling the model "quote exactly" beside text it must not quote verbatim is the
+        // contradiction; § PresentationEcho measured that a sentence asking for restraint makes the
+        // artefact bigger, so the chrome comes out of the body and the position stays in labels.
+        func quoted(_ range: Range<Int>) -> String {
+            range.map { lines[$0] }.joined(separator: "\n")
         }
         // A small file is quoted whole: scoring the nearest window was a false economy —
         // measured 10-22 it pointed at line 5 (`return s`) when the line the caller needed
         // was line 3 (`for i in range(1, n):`), which is a hint that misleads.
-        let whole = numbered(0 ..< lines.count)
+        let whole = quoted(0 ..< lines.count)
         if whole.count <= limit {
             return
-                " — the file says (all \(lines.count) lines, quote exactly, indentation included):\n\(whole)"
+                " — the file says (all \(lines.count) lines, verbatim, indentation included,"
+                + " and this is the file's own text, not the read_file view):\n\(whole)"
         }
         let end = min(bestIndex + maxLines, lines.count)
-        let window = numbered(bestIndex ..< end)
+        let window = quoted(bestIndex ..< end)
         // Showing part of a file while naming only the part is how a hint misleads: the line
         // the caller needs may be the one that got clipped. Codex does the same for exec
         // output — `Total output lines` appears exactly when fewer lines are shown than exist
@@ -578,7 +610,8 @@ enum FileTools {
             clipNote = ""
         }
         return
-            " — nearest actual lines (quote exactly, indentation included):\n\(shown)"
+            " — nearest actual lines (verbatim, indentation included, and this is the file's own"
+            + " text, not the read_file view):\n\(shown)"
             + "\n[lines \(bestIndex + 1)-\(end) of \(lines.count) lines\(clipNote)"
             + " — read_file for the rest]"
     }
