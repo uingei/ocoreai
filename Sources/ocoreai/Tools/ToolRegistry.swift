@@ -278,9 +278,7 @@ actor ToolRegistry {
         /// TTL for the exec-host failure breaker. `.zero` = never trippable
         /// (used by tests to exercise the expiry branch deterministically).
         execFailureTTL: Duration = .seconds(60),
-        execHostTools: [String] = [
-            "exec_command", "exec_shell", "write_stdin", "exec_poll",
-        ],
+        execHostTools: Set<String>? = nil,
         log: Logger = Logger(label: "ocoreai.tools.registry"),
     ) {
         self.readOnlyWhitelist = Set(readOnlyWhitelist)
@@ -289,9 +287,23 @@ actor ToolRegistry {
         self.hookRunner = ToolHookRunner(hooks: hooks)
         self.approvalBroker = approvalBroker
         self.execFailureTTL = execFailureTTL
-        self.execHostTools = Set(execHostTools)
+        // `nil` = the default run surface (an empty set is a caller saying "no tool
+        // runs", which must stay meaningful).
+        if let runTools = execHostTools {
+            self.execHostTools = runTools
+        } else {
+            self.execHostTools = Self.execHostToolNames
+        }
         logger = log
     }
+
+    /// The tools that RUN a command — one home for the set the exec breaker scopes to and
+    /// the verify surface asks about ("did anything execute against what was written?").
+    /// A second copy elsewhere is where one of them would drift. `nonisolated` so the
+    /// synchronous audit rendering can read it; the value is an immutable Set of String.
+    nonisolated static let execHostToolNames: Set<String> = [
+        "exec_command", "exec_shell", "write_stdin", "exec_poll",
+    ]
 
     // MARK: - Registration
 

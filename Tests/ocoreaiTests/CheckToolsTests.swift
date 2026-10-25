@@ -212,3 +212,96 @@ struct CheckToolsEntryTests {
         #expect(e.schema.parameters.count == 4)
     }
 }
+
+// ── the gap this report used to hide ───────────────────────────────────────
+// Every audit row says the CALL ran. None of them says whether the artifact was ever
+// run, so a turn that wrote three files and executed nothing could read its own
+// `check_tools` output as four green lights (durability, not validity — AGENTS.md).
+
+@Suite("check_tools writes awaiting a run")
+struct CheckToolsVerifyGapTests {
+
+    @Test("writes with no run at all are named with an exact count")
+    func writesWithoutRunAreNamed() {
+        let es = [
+            mk("w1", t0.addingTimeInterval(-3), "write_file", .success),
+            mk("w2", t0.addingTimeInterval(-2), "edit_file", .success),
+        ]
+        let pending = AuditVerify.writesAwaitingRun(in: es)
+        #expect(pending.writes == 2)
+        #expect(pending.ranInWindow == false)
+        let out = AuditVerify.render(entries: es, windowSeconds: 300, limit: 20, now: t0)
+        #expect(out.contains("[verify] 2 successful write(s) and no run at all in the window"))
+    }
+
+    @Test("a run before the writes does not count as verification")
+    func writeAfterRunStillAwaits() {
+        let es = [
+            mk("r", t0.addingTimeInterval(-10), "exec_command", .success),
+            mk("w", t0.addingTimeInterval(-2), "write_file", .success),
+        ]
+        let pending = AuditVerify.writesAwaitingRun(in: es)
+        #expect(pending.writes == 1)
+        #expect(pending.ranInWindow == true)
+        let out = AuditVerify.render(entries: es, windowSeconds: 300, limit: 20, now: t0)
+        #expect(out.contains("[verify] 1 successful write(s) after the last run"))
+    }
+
+    @Test("a run after the writes clears the notice")
+    func runAfterWritesClearsNotice() {
+        let es = [
+            mk("w", t0.addingTimeInterval(-5), "write_file", .success),
+            mk("r", t0.addingTimeInterval(-1), "exec_command", .success),
+        ]
+        let pending = AuditVerify.writesAwaitingRun(in: es)
+        #expect(pending.writes == 0)
+        #expect(pending.ranInWindow == true)
+        let out = AuditVerify.render(entries: es, windowSeconds: 300, limit: 20, now: t0)
+        #expect(out.contains("[verify]") == false)
+    }
+
+    @Test("a run that FAILED still counts as having executed something")
+    func failedRunCountsAsAttempt() {
+        let es = [
+            mk("w", t0.addingTimeInterval(-5), "write_file", .success),
+            mk("r", t0.addingTimeInterval(-1), "exec_poll", .error, "exit 1"),
+        ]
+        #expect(AuditVerify.writesAwaitingRun(in: es).writes == 0)
+    }
+
+    @Test("failed writes and reads never produce the notice")
+    func onlySuccessfulWritesAccuse() {
+        let es = [
+            mk("w1", t0, "write_file", .error, "permission denied"),
+            mk("w2", t0, "edit_lines", .error, "no match"),
+            mk("rd", t0, "read_file", .success),
+        ]
+        #expect(AuditVerify.writesAwaitingRun(in: es).writes == 0)
+        let out = AuditVerify.render(entries: es, windowSeconds: 300, limit: 20, now: t0)
+        #expect(out.contains("[verify]") == false)
+    }
+
+    /// Premise floor: the two name sets must be tools that actually exist. A rename in
+    /// `BuiltInTools` would otherwise leave the notice silently reporting nothing forever.
+    @Test("every write and run name resolves to a registered tool")
+    func verifySurfaceNamesResolve() throws {
+        var root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while root.path != "/",
+            !FileManager.default.fileExists(atPath: root.appendingPathComponent("Package.swift").path)
+        {
+            root.deleteLastPathComponent()
+        }
+        let text = try String(
+            contentsOf: root.appendingPathComponent("Sources/ocoreai/Tools/BuiltInTools.swift"),
+            encoding: .utf8)
+        let names = AuditVerify.artifactWriteTools.union(ToolRegistry.execHostToolNames)
+        #expect(names.count == 7)
+        var hits = 0
+        for name in names {
+            let registered = text.contains("name: \"\(name)\"")
+            #expect(registered, "\(name) is not registered in BuiltInTools.swift")
+            if registered { hits += 1 }
+        }
+        #expect(hits == 7, "scan matched \(hits)/7 — its own premise went stale")
+    }
+}

@@ -4,6 +4,15 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-25
 
+**10-25(16) `check_tools` 把"写而没跑"如实报出来；同时量到一件更重要的事：这条纪律在默认面上根本拿不到流量**（P1 诚实面 + 一条把下一步钉死的测量） — `AuditVerify` 报的每一行都只说"这次调用跑成功了"，而文件工具的 `success` 只代表字节落地（`PostWriteSyntax` 只判语法、绝不执行），所以一个"写了三个文件、一次都没执行"的回合，读自己的 `check_tools` 输出会看到三盏绿灯。这正是 § Two invariants 第 2 条点名的形状（durability 被当成 validity），而 Verify 段此前从不提这一点。
+
+- **改成什么**：`AuditVerify.writesAwaitingRun(in:)`——窗口内成功的产物写入（`write_file`/`edit_file`/`edit_lines`）里，晚于最后一次"运行"的条数；**运行无论成败都算**（跑起来失败也是模型读到过的证据），所以这句话只说"还没有任何东西被执行过"，绝不说"你写错了"（宁可漏报，与 `ClaimVsAudit` 同方向）。`render` 在计数 >0 时追加一行 `[verify] N successful write(s) …nothing has executed against them yet…`。
+- **一个家**：运行面名字集合上提为 `ToolRegistry.execHostToolNames`（`nonisolated static let`，`Set<String>` 不可变可跨隔离读），熔断器与 verify 面共用；`init` 的 `execHostTools` 改为 `Set<String>? = nil`（`nil` = 默认；空集是调用方明确说"没有运行工具"，必须仍有意义）。
+- **门**：`CheckToolsTests` 新 **6 tests**——无运行时逐条点名（`writes == 2`、`ranInWindow == false`、文案含 `and no run at all in the window`）；写在运行之后仍待验（`after the last run`）；运行在写之后清掉提示；**失败的运行也算执行过**；失败写与只读工具绝不产出提示；再加自身前提地板——两个名字集合共 **7** 个名字，逐个必须在 `BuiltInTools.swift` 里以 `name: "…"` 注册，`hits == 7` 否则判"扫描自身失效"（工具改名不会让这条纪律悄悄失效）。`--filter CheckTools|ToolRegistry|ClaimVsAudit|ToolAttempt` = **82 tests / 14 suites 全绿**。
+- **量到的反直觉事实（这才是本条的价值）**：同一产物连跑两遍 36 题任务台。6 工具集 = **22/35**（35 题到达引擎）；把 `check_tools` 声明进去（7 工具）= **22/36**；配对差 **4 个不连续对 < 地板 6** ⇒ 按 10-25(5) 的判据**既不能声称改善也不能声称退化**。更关键的是流量：36 题里模型只调用 `check_tools` **1 次**（`response-*.json` 的 `ocoreai.tool_results` 逐条统计：read_file 32、write_file 15、edit_lines 13、edit_file 5、exec_command 5、search_files 6、**check_tools 1**）。⇒ **"把纪律写进一个可选查询面"这条路是惰性的**：纪律必须长在本来就有流量的面上（写结果本身），或者长在注入提示里（`SystemPromptBuilder` 里 `grep check_tools` = **0** 命中——注入提示从未告诉模型有这个工具）。
+- **顺带得到一条可复用的量化**：这一轮 36 题总共 **25 次成功写（另有 8 次写失败）vs 5 次运行**——"改完不验证"不是印象，是记分板上的比值。
+- **保留还是撤除**：保留。它对现有面零成本、被 6 条精确值门钉住、且是 Invariant 2 要求的如实措辞；但**不宣称它改善了任务成绩**（证据不支持），并且本条明确记下：下一步的承重点在写结果的判决词与注入提示，不在这个可选查询。
+
 **10-25(15) 并发到达时调度器会把别人的请求派给自己：一方吃到 503，另一方留下一个无人认领的活跃预约；而"全拒→等内存重排队"那条保险丝从未执行过一次**（P0 可靠性 / 同一处两个缺陷，日志为证） — 一次提交在 actor 上是**两条消息**（`submit` 然后 `dispatch`），所以两个调用方几乎同时到达时必然交错。修复前用临时探针实测：① 队列里 interrupt 优先级的 X 先入队（它自己的 `dispatch` 还没轮到），Y 的 `submitAndDispatch` 调 `dispatch()` 弹出的是 X ⇒ 日志 `Dispatched request X (model: m, est: 0MB @ fallback 1024 B/token)`，而 Y 的调用方拿到 `nil` → 五个 handler 一致地回 503，理由是 **"Higher-priority request dispatched first"**；与此同时 X 已经进入 `activeRequests`、已经 `.inferring`、已经在 `AdmissionGate` 里占了预约——但**没有任何人会替 X 跑推理，也没有人会替 X 释放预约**（唯一能收尾的是 X 自己的调用方，而它此刻正等着一个永远不会到来的返回）。② `AdmissionGate(maxConcurrentPreFills: 0)` 下两条请求全部被拒，日志有 `2/2 rejected this pass`，但那句"全部拒绝—重新入队"**从未打印**：保险 `if rejected.count >= initialCount` 写在循环体开头，可当最后一个候选被搬进 `rejected` 时队列已空，`pop()` 先返回 nil 结束循环，这一行永远等不到 ⇒ 被拒请求**从队列里消失**（`submitAndDispatch` 只删自己那条，别人的那条连同 `.pending` 状态行一起蒸发）。⇒ "等内存"这件事在产品里从来没发生过：真实行为是把放不下的请求直接丢掉，还告诉客户端是优先级抢占。
 
 - **所有权按 id，且只有按 id**：新 `dispatch(ownedBy:)`——不是本人 id 的候选在**过闸之前**就放回 `held`（不查预算、不预约、不标 `.inferring`），只有本人可能被启动；`dispatch()` 改为 `dispatch(ownedBy: nil)`，保留"取最优"的排空语义给 `dispatchBatch` 与既有测试。

@@ -31,6 +31,31 @@ enum AuditVerify {
     static let defaultLimit = 20
     static let maxLimit = 200
 
+    /// Tools that change an artifact on disk. `success` on one of these means the bytes
+    /// landed, never that they work (`PostWriteSyntax` is the only verdict this repo owns,
+    /// and it never executes), so a green audit row is not evidence a change is correct.
+    /// An unlisted writer only under-reports, which is the safe direction.
+    static let artifactWriteTools: Set<String> = ["write_file", "edit_file", "edit_lines"]
+
+    /// Successful writes that no run has touched since. Decidable from the audit trail
+    /// alone: a run counts whatever its status was (an attempt that executed and failed is
+    /// still something the model read), so this says only "nothing has executed against
+    /// these writes", never "the writes are wrong".
+    static func writesAwaitingRun(in entries: [AuditEntry]) -> (writes: Int, ranInWindow: Bool) {
+        let lastRun = entries
+            .filter { ToolRegistry.execHostToolNames.contains($0.toolName) }
+            .map(\.timestamp)
+            .max()
+        let writes = entries.filter { e in
+            guard e.status == .success, artifactWriteTools.contains(e.toolName) else {
+                return false
+            }
+            guard let lastRun else { return true }
+            return e.timestamp > lastRun
+        }.count
+        return (writes, lastRun != nil)
+    }
+
     /// 窗口 + 过滤 + 时间倒序 + limit 截断的**纯**函数（now 注入 → 窗口边界精确
     /// 可测, 不依赖 wall clock）。同时间戳 tiebreak = id 倒序（merge 先例, 确定性）。
     /// tool/status 过滤语义: nil = 不过滤; 非 nil = 精确匹配（status 匹配 rawValue,
@@ -102,6 +127,19 @@ enum AuditVerify {
                 "- \(e.toolName): \(e.status.rawValue) (\(Int(e.durationMs))ms, age \(age)s)\(summary)"
             )
         }
+        // The gap this report would otherwise hide: every row above says the call ran, and
+        // nothing says whether the artifact was ever run. Naming the count is the honest
+        // half of Verify — it does not demand a write, it points at the missing evidence.
+        let pending = writesAwaitingRun(in: inWindow)
+        if pending.writes > 0 {
+            let since =
+                pending.ranInWindow ? "after the last run" : "and no run at all in the window"
+            lines.append(
+                "[verify] \(pending.writes) successful write(s) \(since) — nothing has executed "
+                    + "against them yet; run the project's tests with exec_command before "
+                    + "reporting the change as working."
+            )
+        }
         return lines.joined(separator: "\n")
     }
 }
@@ -127,6 +165,7 @@ enum CheckToolsClient {
                 + "(ground truth, not self-report): success/error/cancelled/timeout "
                 + "counts plus per-call duration and result summary within a time window. "
                 + "Use to verify past tool calls before declaring a task complete. "
+                + "Also names writes that no run has executed against yet. "
                 + "Optional `tool` filters to one tool name; `status` to one result status.",
             schema: ToolSchema(
                 parameters: [
