@@ -254,6 +254,12 @@ enum ToolError: Error, LocalizedError {
     /// agent can stop-and-retry with a different tool (a success unblocks it)
     /// rather than looking like a same-input cycle.
     case breakerEngaged(String)
+    /// The same call has been refused so often that refusing it again is no longer
+    /// information: the caller is stuck, not misinformed. Terminal — the lane that owns
+    /// its loop stops on it, and its wording forbids another attempt instead of
+    /// inviting one. `loopDetected` says "vary the arguments"; after three refusals that
+    /// instruction is what keeps the cycle alive (measured 86 refusals in one task).
+    case loopStalled(String)
 
     var errorDescription: String? {
         switch self {
@@ -265,6 +271,8 @@ enum ToolError: Error, LocalizedError {
         case .denied(let reason): "Tool call denied by hook: \(reason)"
         case .breakerEngaged(let name):
             "Exec host blocked after 3 consecutive failures (tool: \(name))"
+        case .loopStalled(let detail):
+            "Tool loop stalled: \(detail)"
         }
     }
 }

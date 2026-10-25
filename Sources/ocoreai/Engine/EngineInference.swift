@@ -93,6 +93,19 @@ extension EnginePool {
     /// model may answer in, so recovery narrates reality instead of
     /// inventing one. Prefix stays `[tool_error:` on every branch — wire
     /// contract pinned by FMToolErrorRecoveryTests (FM path mirrors it).
+    /// The one place that decides whether a tool verdict ends the turn.
+    ///
+    /// Kept as a pure function so both lanes and the tests ask the same question: the MTP
+    /// loop owns its iteration and breaks on true; the std lane does not own upstream's
+    /// `restart` loop, so there it can only be wording (see CHANGELOG `loop-stall` for
+    /// what a hard stop there would still cost on the wire).
+    static func isTerminalStall(_ error: Error) -> Bool {
+        if case ToolError.loopStalled = error {
+            return true
+        }
+        return false
+    }
+
     static func toolRecoveryText(for error: Error) -> String {
         let denied: Bool
         if case ToolError.denied = error {
@@ -101,6 +114,16 @@ extension EnginePool {
             denied = false
         }
         let reason = error.localizedDescription
+        if Self.isTerminalStall(error) {
+            // A stall is not a failure to retry: the generic branch below ends in
+            // "retry differently", which is the sentence that kept a real run spinning
+            // for tens of identical refusals. Terminal wording, terminal instruction.
+            return
+                "[tool_error: \(reason)] NOT executed, and it will not run again this turn. "
+                + "Do NOT call any tool again. Do NOT claim you created, wrote, ran, or read "
+                + "anything you do not already have. Answer the user now with what you have, "
+                + "or say plainly what you could not do."
+        }
         if denied {
             return
                 "[tool_error: \(reason)] NOT executed. NOTHING was created, run, or changed — nothing exists. Do NOT claim you created, wrote, ran, or did anything. Tell the user plainly it was denied, then propose a next step."
@@ -3694,7 +3717,8 @@ extension EnginePool {
                     // hard iteration cap (10) prevents runaway tool loops
                     var mtpToolLoopCount = 0
                     let maxMtpToolLoop = 10
-                    while mtpToolLoopCount < maxMtpToolLoop {
+                    var mtpStallDetail: String?
+                    mtpToolLoop: while mtpToolLoopCount < maxMtpToolLoop {
                         mtpToolLoopCount += 1
                         if Task.isCancelled || cancellation.isCancelled {
                             // Emit cancelled .done event — same as ChatSession path (L2528-2538).
@@ -4141,6 +4165,12 @@ extension EnginePool {
                                 log.warning(
                                     "MTP tool dispatch error for \(toolCall.function.name): \(error)"
                                 )
+                                // Record, do not break here: the tool message below still has to
+                                // pair with the call the model emitted, or the history this turn
+                                // writes is malformed. The loop ends one step later.
+                                if Self.isTerminalStall(error) {
+                                    mtpStallDetail = error.localizedDescription
+                                }
                             }
                             // P-S2: Append fresh perception context to tool result so the model
                             // sees updated environment state on each MTP iteration.
@@ -4173,6 +4203,12 @@ extension EnginePool {
                             mtpMessages.append(
                                 Chat.Message.tool(result, id: toolCall.id)
                             )
+                        }
+                        // This lane owns its iteration, so a terminal stall ends it rather
+                        // than trading one more refusal for one more generation round.
+                        if let stall = mtpStallDetail {
+                            log.warning("MTP tool loop ended on a stalled call: \(stall)")
+                            break mtpToolLoop
                         }
                     }
                     // Sync MTP result back to outer scope

@@ -215,10 +215,10 @@ Not resolved here, not forgotten: each item names the instrument that would sett
 is in `CHANGELOG.md` (grep the symbol). `make audit` Class-J keeps suite names cited honestly.
 - **`/v1/models/:model/…` needs `%2F`** (Handlers/) — verbatim `org/name` ids router-404; accepting a slash
   costs a second routing truth. Owner call; the sharp edge is documented and pinned, not hidden.
-- **An identical-call refusal has no terminal state** (Tools/) — `recordExecution` counts *successes*
-  only, so a refusal never advances the count, and upstream's `restart: while !pendingMessages.isEmpty`
-  (ChatSession.swift:1154) has no cap: measured 86 identical refusals in one task. A throw from
-  `toolDispatch` ends the turn (ChatSession.swift:1632); what is missing is a strike ladder that uses it.
+- **A stall stops MTP hard, the std lane only by consent** (Tools/, Engine/) — the ladder and
+  `LoopStallTerminationTests`(5) landed; upstream's `restart:` loop (ChatSession.swift:1154) still has no
+  cap, and a std-lane hard stop throws out of `toolDispatch` (:1632) reaching the wire as an error, not a
+  finished turn — the terminal word for four faces is the owner call.
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — the bitmask helper's −inf case, the
   fp8→fp16 KV conversion (sits before Apple's fix) and the FoundationModels-block hub fallback are all
   `@available(macOS 27.0, *)` or SDK-gated out ⇒ no blind fix, no claim of one; `HubReachabilityTests`(20)

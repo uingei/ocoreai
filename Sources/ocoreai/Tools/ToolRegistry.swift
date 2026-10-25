@@ -223,6 +223,23 @@ actor ToolRegistry {
     static let loopScopeNoConversation = "process"
     private let maxHistoryDepth = 3
 
+    /// How often an identical call may be refused before the refusal becomes terminal.
+    ///
+    /// `executionHistory` only records attempts that REACHED the handler, so a preflight
+    /// refusal advanced no state at all: the same `loopDetected` could be issued on every
+    /// iteration forever, and the 60 s sweep could even clear the successes that built the
+    /// wall and reopen it. A refusal that never changes the outcome is not feedback, it is
+    /// a stall — and a stall needs an end. Keyed per identical call so a varied call is
+    /// unaffected, expired on the same window as the wall it terminates.
+    private var loopStrikes: [String: (count: Int, time: ContinuousClock.Instant)] = [:]
+    /// Five correctable refusals, terminal on the sixth. The number is measured, not picked:
+    /// at two strikes a task that WOULD have escaped got cut instead — one eval task took two
+    /// refusals and then finished its fix, and turned FAIL the moment a third refusal became
+    /// terminal (paired scoreboard run; CHANGELOG `loop-stall`). The runaway this net exists
+    /// for never escapes at any count, so the threshold only has to clear what a recovering
+    /// model demonstrably needed.
+    private let maxLoopStrikes = 5
+
     /// Exec failure circuit breaker (absorbs codex #41454 `GoalAccountingState`).
     ///
     /// Scope: the tools that RUN a command. codex counts failures of `exec`, and its `exec`
@@ -627,6 +644,9 @@ actor ToolRegistry {
             // streak in the turn). Success of ANY tool — not just the exec
             // surface — breaks the "consecutive" run, matching `successful_tool`.
             resetExecBreaker(scope: loopScope)
+            // A call that RAN proves the cycle is broken, so the terminal counter for this
+            // conversation goes back to zero — same authority as the breaker reset above.
+            resetLoopStrikes(scope: loopScope)
             // Complete audit on success
             if let t = token {
                 await auditTrail?.completeToken(t, status: .success, result: result)
@@ -757,6 +777,7 @@ actor ToolRegistry {
         // Clean old entries (> 60 seconds)
         let now = ContinuousClock.now
         executionHistory.removeAll { $0.time.duration(to: now) >= .seconds(60) }
+        loopStrikes = loopStrikes.filter { $0.value.time.duration(to: now) < .seconds(60) }
 
         // Check for recent identical calls (cycle = same tool + same input ≥ maxDepth times)
         let recentCount = executionHistory.count(where: {
@@ -779,6 +800,21 @@ actor ToolRegistry {
                 remedy =
                     "do not send this call again unchanged — vary the arguments, use another tool,"
                         + " or answer the user with what you have"
+            }
+            // Every refusal of this exact call is a strike. Up to `maxLoopStrikes` they read
+            // as correctable feedback; past that the same sentence has demonstrably not
+            // worked, so the verdict changes to terminal rather than repeating louder.
+            let strikeKey = "\(scope)|\(entry.name)|\(inputHash)"
+            let strikes = (loopStrikes[strikeKey]?.count ?? 0) + 1
+            loopStrikes[strikeKey] = (strikes, now)
+
+            if strikes > maxLoopStrikes {
+                throw ToolError.loopStalled(
+                    "\(entry.name) with \(Self.loopSignature(arguments)) refused \(strikes) "
+                        + "times in 60 s — it will NOT run again this turn. Sending it "
+                        + "again changes nothing: act on what you already have "
+                        + "(edit_lines takes the `N|` numbers you read) or answer the "
+                        + "user with what you have.")
             }
             throw ToolError.loopDetected(
                 "\(entry.name) with \(Self.loopSignature(arguments)) called \(recentCount + 1) "
@@ -851,6 +887,13 @@ actor ToolRegistry {
     /// another client's breaker back.
     private func resetExecBreaker(scope: String) {
         execFailureStreaks[scope] = nil
+    }
+
+    /// Clear the refusal strikes for one conversation after a call actually ran.
+    /// Scoped, not global: one client getting unstuck does not unstick another.
+    private func resetLoopStrikes(scope: String) {
+        let prefix = scope + "|"
+        loopStrikes = loopStrikes.filter { !$0.key.hasPrefix(prefix) }
     }
 
     /// Count a handler failure on the run surface (codex: `Failed { handler_executed: true }`
