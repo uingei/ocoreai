@@ -335,10 +335,12 @@ struct ToolRegistryExecutionTests {
     }
 
     // ── exec-host failure breaker (absorbs codex #41454) ──────────────────
-    // Scope: exec-host tools only (exec_shell / write_stdin / exec_poll) —
-    // codex counts `exec` host failures, not every tool. Trigger: 3 consecutive
-    // HANDLER failures → refused on the 4th call (distinct from the loop net,
-    // which keys on identical re-attempts). Reset: any successful tool, or TTL.
+    // Scope: the tools that RUN a command (`exec_command` + the live-session trio),
+    // not every tool — codex counts failures of `exec`. Trigger: 3 consecutive
+    // HANDLER failures → refused on the 4th call (distinct from the loop net, which
+    // keys on identical re-attempts). Reset: a successful tool in the same
+    // conversation, or TTL. Streaks are bucketed per conversation: the registry is
+    // process-wide, so one client's grind must not refuse another client's run.
 
     @Test("3 consecutive exec-host handler failures trip the breaker (breakerEngaged)")
     func execBreakerTripsAfter3Failures() async {
@@ -476,6 +478,76 @@ struct ToolRegistryExecutionTests {
             } catch {
                 #expect(Bool(false), "Unexpected error type: ")
             }
+        }
+    }
+
+    @Test("the breaker covers exec_command — the name the default toolset runs")
+    func execCommandTripsBreaker() async {
+        let registry = makeRegistry()
+        try? await registry.register(
+            ToolEntry(
+                name: "exec_command", toolset: "debug", schema: ToolSchema(),
+                handler: { _ in throw BrokenToolError() }))
+
+        // `exec_shell`-only tests could not see this: the default `execHostTools` set
+        // named the live-session trio, and `exec_command` — the one-shot runner every
+        // default toolset registers — was outside it, so the breaker never fired for
+        // the surface an agent actually grinds. Args vary to keep the loop net out.
+        for i in 0 ..< 3 {
+            do {
+                _ = try await registry.call("exec_command", arguments: "{\"command\": \"run\(i)\"}")
+                #expect(Bool(false), "Broken exec_command should throw")
+            } catch let error as ToolError {
+                #expect(error.localizedDescription.contains("execution failed"))
+            } catch {
+                #expect(Bool(false), "Unexpected error type: ")
+            }
+        }
+        do {
+            _ = try await registry.call("exec_command", arguments: "{\"command\": \"fourth\"}")
+            #expect(Bool(false), "Expected breaker to refuse the 4th exec_command")
+        } catch let error as ToolError {
+            #expect(error.localizedDescription.contains("Exec host blocked"))
+        } catch {
+            #expect(Bool(false), "Unexpected error type: ")
+        }
+    }
+
+    @Test("exec breaker streaks are per conversation, not process-wide")
+    func execBreakerIsScopedToConversation() async {
+        let registry = makeRegistry()
+        try? await registry.register(
+            ToolEntry(
+                name: "exec_command", toolset: "debug", schema: ToolSchema(),
+                handler: { _ in throw BrokenToolError() }))
+
+        // Conversation A burns its 3 failures.
+        for i in 0 ..< 3 {
+            _ = try? await registry.call(
+                "exec_command", arguments: "{\"command\": \"a\(i)\"}", conversationKey: "conv-A")
+        }
+
+        // B runs the same tool on the same process-wide registry: it inherits none of
+        // A's streak, so its call must reach the handler (plain failure, not refusal).
+        do {
+            _ = try await registry.call(
+                "exec_command", arguments: "{\"command\": \"b1\"}", conversationKey: "conv-B")
+            #expect(Bool(false), "Broken exec_command should throw")
+        } catch let error as ToolError {
+            #expect(error.localizedDescription.contains("execution failed"))
+        } catch {
+            #expect(Bool(false), "Unexpected error type: ")
+        }
+
+        // A is still broken: B's clean run does not buy A's breaker back.
+        do {
+            _ = try await registry.call(
+                "exec_command", arguments: "{\"command\": \"a4\"}", conversationKey: "conv-A")
+            #expect(Bool(false), "Expected A's own breaker to still refuse")
+        } catch let error as ToolError {
+            #expect(error.localizedDescription.contains("Exec host blocked"))
+        } catch {
+            #expect(Bool(false), "Unexpected error type: ")
         }
     }
 

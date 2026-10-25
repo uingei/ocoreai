@@ -4,6 +4,15 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-25
 
+**10-25(13) exec 熔断对真正在跑命令的那个工具从来没生效过：默认集合点名三件套、漏掉 `exec_command`，而失败计数还是进程级**（P0 Agent 可靠性 / 一个门看不见的一路） — `ToolError.breakerEngaged` 的全部意义是别让 agent 对着坏掉的运行面一直磨（codex #41454）。取证两处同源缺陷：① `execHostTools` 默认 `["exec_shell","write_stdin","exec_poll"]`，而默认工具集里真正跑命令的是 `exec_command`（`BuiltInTools.swift:394`；codex 的 `exec` 就是 `ToolName::plain("exec_command")`，`ExecTools.swift:11`）——**熔断对主运行面恒不点火**；② 计数是 `var execFailureStreak: Int` 进程级，三个客户端各失败一次就能拒掉第四个客户端的第四次调用，与 10-21 修循环网时踩过的正是同一个坑（那次只把 `executionHistory` 改成分会话，这套后来写的没拿到同一条教训）。**既有 4 条测试全部只用 `exec_shell`**——门恰好只覆盖那条本来就能点火的通路，于是两处缺陷一个都照不出来（Invariant 1：没有门的修复等于没修）。
+
+- **改成什么**：`execHostTools` 默认加 `exec_command`；计数改 `execFailureStreaks: [conversation: (streak,last)]`，>64 条时清掉已过窗的条目（长跑服务器不能让这张表跟着会话数无限增长——hermes-agent 踩过同类：`fix(memory): terminate provider writer threads on soft eviction`、`bound the pending-created-topics cache`）；`call` 开头一处 `let loopScope = conversationKey ?? Self.loopScopeNoConversation`，贯穿 `checkLoop`/`resetExecBreaker`/`recordExecFailure`，消掉三处各自重推的重复表达式（一个决定一个家）。`.zero` TTL 仍"永不断路"，过期分支语义不变。
+- **门**：`ToolRegistryTests` 新 **2 tests**——`exec_command` 桩连续 3 次抛错 ⇒ 第 4 次在 handler 运行前 `Exec host blocked`（入参逐次不同以避开循环网）；会话隔离双向：conv-A 烧满 3 次后 conv-B 的 `exec_command` 仍进 handler（拿到普通失败而非拒绝），而 conv-B 的干净记录**不给** conv-A 赎回熔断。原有 4 条 `exec_shell` 测试原样保留。
+- **红样逐轴归因**（不是"改回去就红一片"）：只把三处 scope 退回进程级 ⇒ **32 tests / 5 suites 恰红 1**（隔离那条）；只把名字退回三件套 ⇒ **恰红 2**（`exec_command` 两条，`exec_shell` 三条全绿）；修复后复跑 **32 tests / 5 suites 全绿**。两条门各自只钉一件事，红样能归因到单个缺陷轴。
+- **顺手把上游精确语义核到底（源码注释此前说得比代码满）**：codex 只有 `Failed{handler_executed:true}` 递增 streak——命令**跑起来且非零退出**是 `Ok(_)→Completed{success}`，**不计数**（`accounting.rs:143-149`、`registry.rs:885-888`）；且 codex 粒度是**按 turn**、动作是**阻塞 goal**（`accounting.rs:151-172`），我们**按调用**计、动作是**拒绝该调用**（wire 面上没有 goal 对象可阻塞），这是刻意保留的分歧，后果是我们的点火比 codex 更早。由此得到一条此前没写清的事实：**这张网拦的是"运行面坏了"（spawn/exec 硬失败），不是"程序一直红"**；后者是 verify 缺口（`PostWriteSyntax` 只判语法、绝不执行），别再指望它。
+- **验证**：CLT 路线（SDK 钉 26.5）`--filter ToolRegistry` = **32 tests / 5 suites 全绿**；`make round-gates` 绿（corpus 155,379/155,386，本轮不动文档字节，只改源码与测试）。
+- **未解**：`destructiveBlacklist` 里仍留着未注册的 `execute_code`（陈旧名，只多一行日志，无正确性影响）；真正的"改完不验证"缺口按 10-25(10) 的结论继续走 verify，而不是继续对写操作加压。
+
 **10-25(12) README 的平台行第一次带上"测过的 vs 声明的":iOS 至今零次真跑,这句话现在写在用户读到的第一面**(P1 诚实面 / 附一个必须由业主拍板的下载决定) — 两份 README 长期写 "**macOS 14+ · iOS 17+**"。取证:`sw_vers` = macOS **26.6.2**,全量测试、live `/v1/*` 探针、36 题任务台都只在这一台机上跑过;CI 的 iOS 腿是 `-destination 'generic/platform=iOS'` 的**编译**验证;本机 `xcrun simctl list runtimes` 与 `list devices available` 均**为空**——没有任何模拟器运行时。⇒ "iOS 能跑"在本项目历史上**从未被执行过一次**,而它和对外的声明之间没有任何门。
 
 - **为什么这算 bug 而不是措辞**:Invariant 2 点名"任何用户能读到的东西都必须是被测量的,后端缺席时须诚实降级"。`/v1/capabilities` 有 `CapabilityMeasurementHonestyTests`(16)守着,而 README——用户读到的第一面、也是唯一一面写平台矩阵的地方——**没有对应门**;同一族漏洞(声称多于实证)此前已在 `/v1/models`、tool 结果、usage 上各修过一次。

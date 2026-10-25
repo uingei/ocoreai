@@ -223,20 +223,40 @@ actor ToolRegistry {
     static let loopScopeNoConversation = "process"
     private let maxHistoryDepth = 3
 
-    /// Exec-host failure circuit breaker (absorbs codex #41454 `GoalAccountingState`.
-    /// Scope: the exec-host tools only (codex counts `exec` failures whose handler
-    /// ran — ocoreai's equivalent surface is these three, `BuiltInTools.swift:288/332/373`
-    /// on the destructive blacklist).
-    /// Count: a handler execution failure (reaching the catch below). Preflight
-    /// errors (notFound / denied / loop) throw BEFORE `do` — they are NOT failures
-    /// of the handler and do not count (codex: `Blocked` / `Failed{handler_executed:false}`
-    /// do not advance the streak).
-    /// Trips: 3 consecutive handler failures → the 4th call is refused before the
-    /// handler runs (codex: `consecutive_execution_failure_turns >= 3` blocks the goal).
-    /// Resets: ANY successful tool call (codex: `successful_tool` in the turn clears it)
-    /// and TTL expiry (same 60s window convention as the loop net above).
-    private var execFailureStreak = 0
-    private var lastExecFailure: ContinuousClock.Instant?
+    /// Exec failure circuit breaker (absorbs codex #41454 `GoalAccountingState`).
+    ///
+    /// Scope: the tools that RUN a command. codex counts failures of `exec`, and its `exec`
+    /// is the one-shot runner (`ToolName::plain("exec_command")`, ExecTools.swift:11) plus
+    /// the trio that drives a live session. The set named only the trio, so the mechanism
+    /// whose entire purpose is to stop an agent grinding a failing exec surface was inert
+    /// for the tool the default toolset actually runs — and both breaker tests exercised
+    /// `exec_shell`, so nothing covered the name that matters.
+    ///
+    /// Count: a handler execution failure (reaching the catch below). Preflight errors
+    /// (notFound / denied / loop) throw BEFORE `do` — they are not handler failures and do
+    /// not count (codex: `Blocked` / `Failed{handler_executed:false}` do not advance the
+    /// streak).
+    ///
+    /// What that excludes, deliberately and identically to upstream: a command that RUNS and
+    /// exits non-zero is a delivered result, not a handler failure (codex maps `Ok(_)` to
+    /// `Completed{success}`, and only `Failed{handler_executed:true}` advances the streak —
+    /// `accounting.rs:143-149`, `registry.rs:885-888`). So this breaker stops a broken run
+    /// surface (spawn/exec errors), not a failing program; the "grinding a red test" shape is
+    /// the verify gap (`docs/agent/long-horizon-goal.md`), not this net.
+    /// Trips: 3 consecutive handler failures → the 4th call is refused before the handler
+    /// runs (codex: `consecutive_execution_failure_turns >= 3` blocks the goal).
+    /// Divergence, kept on purpose: upstream counts per TURN and blocks the GOAL
+    /// (`accounting.rs:151-172`); we count per CALL inside a conversation and refuse the
+    /// call, because there is no goal object on the wire faces to block. Consequence: ours
+    /// trips sooner than codex would on the same transcript.
+    /// Resets: a successful tool call in the same scope (codex: `successful_tool`) and TTL
+    /// expiry (same 60s window convention as the loop net above).
+    ///
+    /// Streaks are bucketed per conversation, for the reason `executionHistory` already
+    /// records: the registry is process-wide, and three failures from three clients inside
+    /// the window must not refuse a fourth client's command.
+    private var execFailureStreaks:
+        [String: (streak: Int, last: ContinuousClock.Instant)] = [:]
     private let execFailureThreshold = 3
     private let execFailureTTL: Duration
     private let execHostTools: Set<String>
@@ -258,7 +278,9 @@ actor ToolRegistry {
         /// TTL for the exec-host failure breaker. `.zero` = never trippable
         /// (used by tests to exercise the expiry branch deterministically).
         execFailureTTL: Duration = .seconds(60),
-        execHostTools: [String] = ["exec_shell", "write_stdin", "exec_poll"],
+        execHostTools: [String] = [
+            "exec_command", "exec_shell", "write_stdin", "exec_poll",
+        ],
         log: Logger = Logger(label: "ocoreai.tools.registry"),
     ) {
         self.readOnlyWhitelist = Set(readOnlyWhitelist)
@@ -523,7 +545,10 @@ actor ToolRegistry {
         //      is refused BEFORE any hook/approval — asking the user for a call
         //      we know we will refuse is a wart, and codex blocks the goal
         //      before the exec attempt itself.
-        try checkExecBreaker(name: name)
+        // The owning conversation scopes the breaker, the loop net and the audit for
+        // this call; one binding so no site re-derives it and drifts.
+        let loopScope = conversationKey ?? Self.loopScopeNoConversation
+        try checkExecBreaker(name: name, scope: loopScope)
 
         // 0. Security preflight (PreToolUse hooks + approval broker gate) —
         //    shared with the external-MCP path (see `securityPrecheck`).
@@ -539,7 +564,7 @@ actor ToolRegistry {
         let inputHash = String(format: "%llX", arguments.hashValue)
         try checkLoop(
             entry: entry, inputHash: inputHash,
-            scope: conversationKey ?? Self.loopScopeNoConversation,
+            scope: loopScope,
             arguments: arguments)
 
         // 3. Destructive tool serialization check
@@ -580,11 +605,11 @@ actor ToolRegistry {
             }
             recordExecution(
                 name, hash: inputHash,
-                scope: conversationKey ?? Self.loopScopeNoConversation)
+                scope: loopScope)
             // Exec-breaker reset (codex #41454: any successful tool clears the
             // streak in the turn). Success of ANY tool — not just the exec
             // surface — breaks the "consecutive" run, matching `successful_tool`.
-            resetExecBreaker()
+            resetExecBreaker(scope: loopScope)
             // Complete audit on success
             if let t = token {
                 await auditTrail?.completeToken(t, status: .success, result: result)
@@ -621,12 +646,12 @@ actor ToolRegistry {
             // ToolRegistryTests.repeatedFailuresAreLoopDetected for the exact-value lock.
             recordExecution(
                 name, hash: inputHash,
-                scope: conversationKey ?? Self.loopScopeNoConversation)
+                scope: loopScope)
             // Exec-breaking (codex #41454): a HANDLER failure on the exec surface
             // advances the consecutive-failure streak. Only exec-host tools count
             // (codex scopes to `exec`); only failures that got this far count
             // (preflight rejections threw earlier and are not handler failures).
-            recordExecFailure(name: name)
+            recordExecFailure(name: name, scope: loopScope)
             // The failure half of the audit record (Models/ClaimVsAudit.swift): successes alone
             // cannot tell "tried and missed" from "never tried", and only the chokepoint knows
             // that a handler was reached at all.
@@ -782,42 +807,56 @@ actor ToolRegistry {
 
     // MARK: - Exec-host failure breaker (absorbs codex #41454)
 
-    /// Refuse an exec-host call once 3 consecutive handler failures are recorded
-    /// within the TTL window (codex `execution_failure_goal`: `>= 3` blocks).
-    private func checkExecBreaker(name: String) throws {
-        // TTL: a stale streak (older than the window) no longer counts — same
-        // 60s convention as `checkLoop` above (`.zero` TTL = never stale, tests).
-        if let last = lastExecFailure, execFailureStreak > 0, execFailureTTL >= .nanoseconds(0) {
-            let age = ContinuousClock.now - last
-            if age >= execFailureTTL {
-                execFailureStreak = 0
-                lastExecFailure = nil
-            }
+    /// Refuse an exec-surface call once 3 consecutive handler failures are recorded
+    /// within the TTL window for this conversation (codex `execution_failure_goal`: `>= 3`).
+    private func checkExecBreaker(name: String, scope: String) throws {
+        // TTL: a streak older than the window no longer counts — the same 60s convention as
+        // `checkLoop` above. A `.zero` TTL therefore means "always stale", i.e. the breaker
+        // is never trippable, which is how tests exercise the expiry branch.
+        guard let recorded = execFailureStreaks[scope] else { return }
+        if recorded.last.duration(to: .now) >= execFailureTTL {
+            execFailureStreaks[scope] = nil
+            return
         }
         guard
             execHostTools.contains(name),
-            execFailureStreak >= execFailureThreshold
+            recorded.streak >= execFailureThreshold
         else { return }
         logger.warning(
-            "Exec-host breaker engaged: \(execFailureStreak) consecutive handler failures (window \(execFailureTTL.formatted())) — refusing '\(name)'"
+            "Exec-host breaker engaged: \(recorded.streak) consecutive handler failures (window \(execFailureTTL.formatted())) — refusing '\(name)'"
         )
         throw ToolError.breakerEngaged(name)
     }
 
-    /// Any successful tool call clears the consecutive-failure run
+    /// A successful tool call clears the consecutive-failure run for its own conversation
     /// (codex: `successful_tool` in the turn resets `consecutive_execution_failure_turns`).
-    private func resetExecBreaker() {
-        execFailureStreak = 0
-        lastExecFailure = nil
+    /// Other conversations' streaks are left alone — one client's good run does not buy
+    /// another client's breaker back.
+    private func resetExecBreaker(scope: String) {
+        execFailureStreaks[scope] = nil
     }
 
-    /// Count a handler failure on the exec surface (codex: `Failed { handler_executed: true }`
-    /// on `exec` only). Non-exec tools are ignored — codex does not let other
-    /// tool failures advance the exec-failure goal.
-    private func recordExecFailure(name: String) {
+    /// Count a handler failure on the run surface (codex: `Failed { handler_executed: true }`
+    /// on `exec` only). Non-exec tools are ignored — codex does not let other tool failures
+    /// advance the exec-failure goal.
+    private func recordExecFailure(name: String, scope: String) {
         guard execHostTools.contains(name) else { return }
-        execFailureStreak += 1
-        lastExecFailure = ContinuousClock.now
+        let now = ContinuousClock.now
+        let prior = execFailureStreaks[scope]
+        let carried =
+            prior != nil && prior!.last.duration(to: now) < execFailureTTL
+        execFailureStreaks[scope] = (
+            streak: carried ? prior!.streak + 1 : 1, last: now
+        )
+        // Long-lived server: drop streaks whose window has closed, so the map cannot grow
+        // with every session that ever failed an exec.
+        if execFailureStreaks.count > 64 {
+            for key in execFailureStreaks.keys.filter({
+                execFailureStreaks[$0]!.last.duration(to: now) >= execFailureTTL
+            }) {
+                execFailureStreaks[key] = nil
+            }
+        }
     }
 
     // MARK: - Lifecycle
