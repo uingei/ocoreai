@@ -120,10 +120,14 @@ struct ToolRequiredOrderDeterminismTests {
             Issue.record("mcp_noreq 未注册 — 前提不成立, 后面的排序断言会是空转")
             return
         }
-        #expect(entry.schema.required == nil, "服务端已省略 required, 注册表却读出了 \(String(describing: entry.schema.required))")
+        #expect(
+            entry.schema.required == nil,
+            "服务端已省略 required, 注册表却读出了 \(String(describing: entry.schema.required))")
         // Floor the premise: with fewer than two parameters there is no order to get wrong, and a
         // gate that has nothing to discriminate passes vacuously.
-        #expect(entry.schema.parameters.count == 4, "参数集只有 \(entry.schema.parameters.count) 个, 不足以区分字典序与名序")
+        #expect(
+            entry.schema.parameters.count == 4,
+            "参数集只有 \(entry.schema.parameters.count) 个, 不足以区分字典序与名序")
     }
 
     @Test("exit 1 — ToolRegistry.toToolSpecs synthesizes `required` in name order")
@@ -134,7 +138,9 @@ struct ToolRequiredOrderDeterminismTests {
             try? FileManager.default.removeItem(at: path)
         }
         let got = wireRequired(await registry.toToolSpecs(), "mcp_noreq")
-        #expect(got == alphabetical, "toToolSpecs required=\(String(describing: got)) — 期望按名排序; 这是进 prompt 的那一份")
+        #expect(
+            got == alphabetical,
+            "toToolSpecs required=\(String(describing: got)) — 期望按名排序; 这是进 prompt 的那一份")
     }
 
     @Test("exit 2 — ToolEntry.toToolDef synthesizes `required` in name order")

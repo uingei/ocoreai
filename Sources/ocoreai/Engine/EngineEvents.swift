@@ -210,8 +210,7 @@ struct ToolResultMeta: Sendable, Codable {
             raw = "\"\(text)\""
         } else if let number = value as? NSNumber {
             raw = "\(number)"
-        } else if
-            JSONSerialization.isValidJSONObject(value),
+        } else if JSONSerialization.isValidJSONObject(value),
             let data = try? JSONSerialization.data(withJSONObject: value),
             let text = String(data: data, encoding: .utf8)
         {

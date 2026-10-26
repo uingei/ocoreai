@@ -196,7 +196,8 @@ struct LocaleTableCompletenessTests {
         let chars = Array(value)
         let flags: Set<Character> = ["-", "+", " ", "#", "0"]
         let conversions: Set<Character> = [
-            "l", "d", "u", "f", "x", "X", "o", "O", "e", "E", "g", "G", "c", "C", "s", "S", "a", "@",
+            "l", "d", "u", "f", "x", "X", "o", "O", "e", "E", "g", "G", "c", "C", "s", "S", "a",
+            "@",
         ]
         var count = 0
         var index = 0
@@ -279,9 +280,9 @@ struct LocaleTableCompletenessTests {
 
     private static func isCJK(_ char: Character) -> Bool {
         guard let scalar = char.unicodeScalars.first else { return false }
-        return (0x4E00...0x9FFF).contains(scalar.value)
-            || (0x3040...0x30FF).contains(scalar.value)
-            || (0xAC00...0xD7AF).contains(scalar.value)
+        return (0x4E00 ... 0x9FFF).contains(scalar.value)
+            || (0x3040 ... 0x30FF).contains(scalar.value)
+            || (0xAC00 ... 0xD7AF).contains(scalar.value)
     }
 
     /// The repo root is found by searching, not by counting path hops.
@@ -299,11 +300,13 @@ struct LocaleTableCompletenessTests {
     }
 
     private static func swiftFiles(in directory: URL) throws -> [URL] {
-        guard let enumerator = FileManager.default.enumerator(
-            at: directory,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else {
+        guard
+            let enumerator = FileManager.default.enumerator(
+                at: directory,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
             throw CocoaError(.fileReadNoSuchFile)
         }
         var files: [URL] = []

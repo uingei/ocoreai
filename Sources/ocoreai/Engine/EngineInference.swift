@@ -2966,7 +2966,8 @@ extension EnginePool {
                             id: dispId, name: dispName,
                             summary: summary, failure: failure, startedAt: dispStart,
                             arguments:
-                                failure == nil ? nil
+                                failure == nil
+                                ? nil
                                 : ToolResultMeta.argumentsDigest(argsDict)
                         )
                     }
@@ -4199,7 +4200,8 @@ extension EnginePool {
                                     summary: ToolResultMeta.summary(result),
                                     failure: dispatchFailure, startedAt: mtpDispStart,
                                     arguments:
-                                        dispatchFailure == nil ? nil
+                                        dispatchFailure == nil
+                                        ? nil
                                         : ToolResultMeta.argumentsDigest(
                                             toolCall.function.arguments
                                                 .mapValues { $0.anyValue } as? [String: Any] ?? [:])

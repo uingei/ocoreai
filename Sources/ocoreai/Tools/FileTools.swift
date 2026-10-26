@@ -380,7 +380,7 @@ enum FileTools {
     ///   - path: File to edit.
     ///   - startLine: First line to replace, 1-based; `total + 1` appends at end of file, and
     ///     anything past the end clamps onto it, stated in the result.
-   ///   - endLine: Last line to replace, inclusive; `endLine == startLine - 1` inserts without
+    ///   - endLine: Last line to replace, inclusive; `endLine == startLine - 1` inserts without
     ///     deleting, so append and insert are the same mode — no third one exists.
     ///   - newText: Replacement text; empty deletes the range.
     /// - Returns: Verification summary (range, line counts, byte delta, read-back state).
@@ -425,13 +425,14 @@ enum FileTools {
             // refusal bought four identical refusals on `make-two-tests-pass` (zero writes, FAIL)
             // because nothing in it named the state the file was in. A result that wrote nothing
             // must not claim verification, so this one says what is true and what to do next.
-            let state = replacedCount == 0 && insertion.isEmpty
+            let state =
+                replacedCount == 0 && insertion.isEmpty
                 ? "lines \(start)-\(end) hold nothing to insert or delete"
                 : "lines \(start)-\(end) already read exactly as newText"
             return
                 "edit_lines: OK-no-change — \(state); the file is unchanged (\(total) lines)."
-                    + Self.currentLinesNote(lines: lines, start: start, end: end)
-                    + " To change them, send newText that differs from the lines quoted above."
+                + Self.currentLinesNote(lines: lines, start: start, end: end)
+                + " To change them, send newText that differs from the lines quoted above."
         }
 
         let bytes = updated.data(using: .utf8) ?? Data()
@@ -455,7 +456,7 @@ enum FileTools {
         } else {
             clampedNote =
                 " (clamped: start_line \(startLine) -> \(start), end_line \(endLine) -> \(end);"
-                    + " \(path) has \(total) lines, now \(updatedLines.count))"
+                + " \(path) has \(total) lines, now \(updatedLines.count))"
         }
         let delta = bytes.count - (original.data(using: .utf8)?.count ?? 0)
         let verdict = Self.writeVerdict(path: url.path, fileContent: updated, echo: echo)
@@ -588,7 +589,8 @@ enum FileTools {
         var quoted: [String] = []
         for index in lo ... hi {
             let text = lines[index - 1]
-            quoted.append("\(index)|" + (text.count > 200 ? String(text.prefix(200)) + "..." : text))
+            quoted.append(
+                "\(index)|" + (text.count > 200 ? String(text.prefix(200)) + "..." : text))
         }
         let shown = quoted.count > 12 ? Array(quoted.prefix(12)) : quoted
         var note = " The file currently says: " + shown.joined(separator: " ")

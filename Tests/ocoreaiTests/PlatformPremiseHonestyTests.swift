@@ -55,7 +55,8 @@ struct PlatformPremiseHonestyTests {
     func noTestIsPermanentlyDisabled() throws {
         let root = try Self.repoRoot()
         let tests = root.appendingPathComponent("Tests")
-        guard let walker = FileManager.default.enumerator(at: tests, includingPropertiesForKeys: nil)
+        guard
+            let walker = FileManager.default.enumerator(at: tests, includingPropertiesForKeys: nil)
         else { throw ScanError.rootNotFound }
 
         var files = 0
@@ -75,12 +76,14 @@ struct PlatformPremiseHonestyTests {
 
         #expect(
             exemptions == 1,
-            "only the scanner may name the pattern (measured \(exemptions)) — an accidental match here would make the scan blind, not clean")
+            "only the scanner may name the pattern (measured \(exemptions)) — an accidental match here would make the scan blind, not clean"
+        )
         // Floors first: without them "no offenders" is also true when the scan sees nothing.
         #expect(files >= 300, "the scan walked Tests/ (floor 300, measured \(files))")
         #expect(
             conditional >= 20,
-            "the conditional idiom is still visible to the scan (floor 20, measured \(conditional))")
+            "the conditional idiom is still visible to the scan (floor 20, measured \(conditional))"
+        )
         #expect(
             offenders.isEmpty,
             "a disabled test is a claim with no gate — declare its premise with `.enabled(if:)`: \(offenders.joined(separator: ", "))"
@@ -95,6 +98,7 @@ struct PlatformPremiseHonestyTests {
         let running = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27
         #expect(
             PlatformPremise.hasMacOS27 == running,
-            "hasMacOS27 said \(PlatformPremise.hasMacOS27) on OS \(ProcessInfo.processInfo.operatingSystemVersion)")
+            "hasMacOS27 said \(PlatformPremise.hasMacOS27) on OS \(ProcessInfo.processInfo.operatingSystemVersion)"
+        )
     }
 }

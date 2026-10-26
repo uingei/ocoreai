@@ -850,8 +850,9 @@ struct ReadyHubDownloader: MLXLMCommon.Downloader, @unchecked Sendable {
         while let item = enumerator.nextObject() as? URL {
             // Skip, do not stop: a subdirectory in the model dir used to end the walk, so any
             // required file after it went unseen and the lane re-fetched bytes it already had.
-            guard (try? item.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile
-                == true
+            guard
+                (try? item.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile
+                    == true
             else { continue }
             files.append(item.lastPathComponent)
         }

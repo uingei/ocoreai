@@ -44,7 +44,8 @@ struct PresentationEchoGuardTests {
                     PresentationEcho.Finding(artifact: .readFooter, line: 2),
                     PresentationEcho.Finding(artifact: .perceptionHeader, line: 3),
                 ],
-            "numbering is corroborated here by the chrome beside it: \(PresentationEcho.findings(in: Self.measured))")
+            "numbering is corroborated here by the chrome beside it: \(PresentationEcho.findings(in: Self.measured))"
+        )
     }
 
     @Test("clean content yields nothing to report and nothing to strip")
@@ -120,7 +121,7 @@ struct PresentationEchoGuardTests {
         #expect(
             suffix.contains(
                 "presentation-echo repaired: stripped N| line numbers at line 1, "
-                + "total_lines footer at line 2, [System Perception] channel header at line 3"),
+                    + "total_lines footer at line 2, [System Perception] channel header at line 3"),
             "the report must be exact about what it removed: \(suffix)")
         #expect(!suffix.contains("KERNEL-7"), "a tool result is not where a body gets quoted")
     }
@@ -138,10 +139,12 @@ struct PresentationEchoGuardTests {
         #expect(out.contains("write_file: OK-but-repaired"), "\(out)")
         #expect(out.contains("read-back verified"), "durability is still proven: \(out)")
         #expect(out.contains("presentation-echo repaired"))
-        #expect(try String(contentsOf: dir.appendingPathComponent("copy.txt"), encoding: .utf8)
-            == "KERNEL-7-COPY")
-        #expect(try String(contentsOf: dir.appendingPathComponent("src.txt"), encoding: .utf8)
-            == "KERNEL-7\n")
+        #expect(
+            try String(contentsOf: dir.appendingPathComponent("copy.txt"), encoding: .utf8)
+                == "KERNEL-7-COPY")
+        #expect(
+            try String(contentsOf: dir.appendingPathComponent("src.txt"), encoding: .utf8)
+                == "KERNEL-7\n")
     }
 
     @Test("a clean write keeps saying plain OK")

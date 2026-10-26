@@ -44,8 +44,9 @@ struct ProcessGlobalLeaseDisciplineTests {
     private static func testFiles() throws -> [String] {
         let root = try repoRoot()
         let tests = root.appendingPathComponent("Tests")
-        guard let enumerator = FileManager.default.enumerator(
-            at: tests, includingPropertiesForKeys: nil)
+        guard
+            let enumerator = FileManager.default.enumerator(
+                at: tests, includingPropertiesForKeys: nil)
         else { throw ScanError.rootNotFound }
         var found: [String] = []
         for case let url as URL in enumerator where url.pathExtension == "swift" {
@@ -63,7 +64,8 @@ struct ProcessGlobalLeaseDisciplineTests {
             let trimmed = line.trimmingCharacters(in: CharacterSet.whitespaces)
             return !trimmed.hasPrefix("//") && !trimmed.hasPrefix("*")
         }
-        return kept
+        return
+            kept
             .joined(separator: "\n")
             // `unsetenv(key)` contains `setenv(` — restoring a value is not a mutation.
             .replacingOccurrences(of: "unsetenv(", with: "unSETENV(")
@@ -82,8 +84,9 @@ struct ProcessGlobalLeaseDisciplineTests {
         var mutators: [String] = []
         var offenders: [String] = []
         for path in files {
-            guard let text = try? String(
-                contentsOf: Self.repoRoot().appendingPathComponent(path), encoding: .utf8)
+            guard
+                let text = try? String(
+                    contentsOf: Self.repoRoot().appendingPathComponent(path), encoding: .utf8)
             else { continue }
             let code = Self.codeOnly(text)
             // Bare `setenv(`, not `setenv("`: a key held in a constant mutates the global just
@@ -101,7 +104,8 @@ struct ProcessGlobalLeaseDisciplineTests {
         let exemptions = mutators.filter { $0 == Self.leaseImplementation }
         #expect(
             exemptions.count == 1,
-            "exactly the lease implementation may mutate without leasing (measured \(exemptions.count))")
+            "exactly the lease implementation may mutate without leasing (measured \(exemptions.count))"
+        )
         // Floor the mutator count: if these patterns stop matching anything, "no offenders"
         // would be vacuously true — the failure mode this repo keeps tripping over.
         #expect(
@@ -122,7 +126,8 @@ struct ProcessGlobalLeaseDisciplineTests {
 
         let lease = ProcessGlobalLease(envKeys: [key])
         setenv(key, "inner", 1)
-        #expect(ProcessInfo.processInfo.environment[key] == "inner", "the lease does not block writes")
+        #expect(
+            ProcessInfo.processInfo.environment[key] == "inner", "the lease does not block writes")
         lease.release()
         #expect(
             ProcessInfo.processInfo.environment[key] == "outer",

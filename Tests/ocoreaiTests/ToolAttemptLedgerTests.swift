@@ -203,7 +203,7 @@ struct ToolAttemptLedgerTests {
     /// The window is a bound, not a suggestion: 70 recorded leaves exactly 64 queryable.
     @Test func windowCapsTheRetainedRecord() async {
         let baseline = await ToolAttemptLedger.shared.snapshot()
-        for _ in 0..<70 {
+        for _ in 0 ..< 70 {
             await ToolAttemptLedger.shared.record(attempt("edit_file", .succeeded))
         }
         let kept = await ToolAttemptLedger.shared.since(baseline)

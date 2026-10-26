@@ -59,7 +59,8 @@ final class ProcessGlobalLease: @unchecked Sendable {
             self.savedValues = [:]
             self.held = false
             Issue.record(
-                "lease starved after \(Self.waitBudget)s — held by \(Self.holder) for \(-Self.heldSince.timeIntervalSinceNow)s; a blocked cooperative thread starves the pool, so this test proceeds unleased and the run goes red")
+                "lease starved after \(Self.waitBudget)s — held by \(Self.holder) for \(-Self.heldSince.timeIntervalSinceNow)s; a blocked cooperative thread starves the pool, so this test proceeds unleased and the run goes red"
+            )
             return
         }
         Self.holder = caller

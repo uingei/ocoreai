@@ -34,9 +34,9 @@ private struct VocabCase: Sendable {
 
 private let vocabCases: [VocabCase] = [
     VocabCase(
-        name: "all 256 byte tokens", vocabulary: byteTokens(0..<256), expected: .byteFallback
+        name: "all 256 byte tokens", vocabulary: byteTokens(0 ..< 256), expected: .byteFallback
     ),
-    VocabCase(name: "255 byte tokens", vocabulary: byteTokens(0..<255), expected: .byteLevel),
+    VocabCase(name: "255 byte tokens", vocabulary: byteTokens(0 ..< 255), expected: .byteLevel),
     VocabCase(
         name: "no byte tokens (byte-level BPE)",
         vocabulary: ["<unk>", "Ġthe", "ā"],
@@ -45,12 +45,13 @@ private let vocabCases: [VocabCase] = [
     VocabCase(name: "empty vocabulary", vocabulary: [], expected: .byteLevel),
     VocabCase(
         name: "gemma-like: byte tokens plus SentencePiece pieces",
-        vocabulary: ["<pad>", "<s>"] + byteTokens(0..<256) + ["▁the", "▁", "name", "\"", ":"],
+        vocabulary: ["<pad>", "<s>"] + byteTokens(0 ..< 256) + ["▁the", "▁", "name", "\"", ":"],
         expected: .byteFallback
     ),
     VocabCase(
         name: "mixed-case byte tokens still reach 256 distinct bytes",
-        vocabulary: byteTokens(0..<128, uppercase: true) + byteTokens(128..<256, uppercase: false)
+        vocabulary: byteTokens(0 ..< 128, uppercase: true)
+            + byteTokens(128 ..< 256, uppercase: false)
             + ["<pad>", "▁the"],
         expected: .byteFallback
     ),
@@ -89,16 +90,16 @@ struct VocabularyTypeDetectionTests {
     @Test("an all-uppercase and an all-lowercase byte vocabulary agree")
     func caseInsensitiveAgreement() {
         #expect(
-            VocabularyType.detect(vocabulary: byteTokens(0..<256, uppercase: true))
-                == VocabularyType.detect(vocabulary: byteTokens(0..<256, uppercase: false)),
+            VocabularyType.detect(vocabulary: byteTokens(0 ..< 256, uppercase: true))
+                == VocabularyType.detect(vocabulary: byteTokens(0 ..< 256, uppercase: false)),
             "the same 256 bytes must not read as two encodings"
         )
     }
 
     @Test("hex-shaped tokens of the wrong width are not counted as byte tokens")
     func hexShapeIsStrictlySixBytes() {
-        let tooLong = (0..<256).map { String(format: "<0x%04X>", $0) }
-        let tooShort = (0..<256).map { String(format: "0x%02X", $0) }
+        let tooLong = (0 ..< 256).map { String(format: "<0x%04X>", $0) }
+        let tooShort = (0 ..< 256).map { String(format: "0x%02X", $0) }
         #expect(VocabularyType.detect(vocabulary: tooLong) == .byteLevel)
         #expect(VocabularyType.detect(vocabulary: tooShort) == .byteLevel)
     }
@@ -135,6 +136,7 @@ struct VocabularyTypeDetectionTests {
             return
         }
         #expect(enumLine < gateLine, "VocabularyType sits inside the CoreAI gate again")
-        #expect(!lines[enumLine].contains("@available"), "a pure enum must not carry a macOS 27 gate")
+        #expect(
+            !lines[enumLine].contains("@available"), "a pure enum must not carry a macOS 27 gate")
     }
 }

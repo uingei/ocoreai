@@ -94,7 +94,7 @@ struct SQLiteOpenBusyTimeoutTests {
     private static func msSince(_ epoch: DispatchTime) -> Int {
         Int(
             (epoch.uptimeNanoseconds.distance(to: DispatchTime.now().uptimeNanoseconds))
-            / 1_000_000)
+                / 1_000_000)
     }
 
     @Test("uncontended open: WAL, timeout in force, checkpoint not busy")

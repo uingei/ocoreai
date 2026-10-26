@@ -329,13 +329,13 @@ func bootstrapBuiltInTools(
                         type: .integer,
                         description:
                             "First line to replace, 1-based, exactly as read_file printed it; "
-                                + "total_lines + 1 appends at end of file, and any larger number "
-                                + "lands there too (the result names both numbers)"),
+                            + "total_lines + 1 appends at end of file, and any larger number "
+                            + "lands there too (the result names both numbers)"),
                     "end_line": ToolParameter(
                         type: .integer,
                         description:
                             "Last line to replace, inclusive; start_line - 1 inserts without "
-                                + "deleting"),
+                            + "deleting"),
                     "new_text": ToolParameter(
                         type: .string, description: "Replacement lines (empty = delete range)"),
                 ], required: ["path", "start_line", "end_line", "new_text"]),

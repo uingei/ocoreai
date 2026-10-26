@@ -42,7 +42,8 @@ private struct AnyEncodable: Encodable {
 struct ToolResultWireDeliveryTests {
     @Test("a successful dispatch is ok:true with its measured duration, verbatim")
     func successCarriesMeasuredDuration() {
-        let record = OcoreaiToolRecord.from(meta("c1", "sleep", "Wall time: 9.4024 seconds", 9402.5))
+        let record = OcoreaiToolRecord.from(
+            meta("c1", "sleep", "Wall time: 9.4024 seconds", 9402.5))
         #expect(record.id == "c1")
         #expect(record.name == "sleep")
         #expect(record.ok == true)
@@ -91,13 +92,16 @@ struct ToolResultWireDeliveryTests {
 
     @Test("absence means nothing was dispatched — on every face and both modes")
     func absentWhenNoToolRan() throws {
-        #expect(jsonObject(
-            ChatCompletionChunk(id: "c", created: 1, model: "m",
-                choices: [ChunkChoice(delta: ChatDelta(content: "hi"), finishReason: nil)])
-        )["ocoreai"] == nil)
-        #expect(jsonObject(
-            AnthropicStreamEvent.messageDelta(stopReason: "end_turn", outputTokens: 7)
-        )["ocoreai"] == nil)
+        #expect(
+            jsonObject(
+                ChatCompletionChunk(
+                    id: "c", created: 1, model: "m",
+                    choices: [ChunkChoice(delta: ChatDelta(content: "hi"), finishReason: nil)])
+            )["ocoreai"] == nil)
+        #expect(
+            jsonObject(
+                AnthropicStreamEvent.messageDelta(stopReason: "end_turn", outputTokens: 7)
+            )["ocoreai"] == nil)
     }
 
     @Test("OpenAI stream and Anthropic stream each carry it on the terminal event")
@@ -106,17 +110,21 @@ struct ToolResultWireDeliveryTests {
             OcoreaiToolRecord.from(meta("c9", "clock.sleep", "Sleep interrupted", 2458.0))
         ])
         let chunk = jsonObject(
-            ChatCompletionChunk(id: "c", created: 1, model: "m",
+            ChatCompletionChunk(
+                id: "c", created: 1, model: "m",
                 choices: [ChunkChoice(delta: ChatDelta(content: nil), finishReason: "stop")],
                 ocoreai: turn))
-        let chunkResults = try #require((chunk["ocoreai"] as? [String: Any])?["tool_results"] as? [[String: Any]])
+        let chunkResults = try #require(
+            (chunk["ocoreai"] as? [String: Any])?["tool_results"] as? [[String: Any]])
         #expect(chunkResults[0]["duration_ms"] as? Double == 2458.0)
         #expect(chunkResults[0]["ok"] as? Bool == true)
 
         let delta = jsonObject(
-            AnthropicStreamEvent.messageDelta(stopReason: "end_turn", outputTokens: 9, ocoreai: turn))
+            AnthropicStreamEvent.messageDelta(
+                stopReason: "end_turn", outputTokens: 9, ocoreai: turn))
         #expect(delta["type"] as? String == "message_delta")
-        let deltaResults = try #require((delta["ocoreai"] as? [String: Any])?["tool_results"] as? [[String: Any]])
+        let deltaResults = try #require(
+            (delta["ocoreai"] as? [String: Any])?["tool_results"] as? [[String: Any]])
         #expect(deltaResults[0]["name"] as? String == "clock.sleep")
     }
 
@@ -126,13 +134,16 @@ struct ToolResultWireDeliveryTests {
     @Test("four assembly sites exist, one per face per mode")
     func assemblySitesAreFour() throws {
         var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        while dir.path != "/", !FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("Package.swift").path)
+        while dir.path != "/",
+            !FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("Package.swift").path)
         {
             dir = dir.deletingLastPathComponent()
         }
-        let handlers = ["Sources/ocoreai/Handlers/ChatHandler.swift",
-                        "Sources/ocoreai/Handlers/AnthropicMessagesHandler.swift"]
+        let handlers = [
+            "Sources/ocoreai/Handlers/ChatHandler.swift",
+            "Sources/ocoreai/Handlers/AnthropicMessagesHandler.swift",
+        ]
         var sites = 0
         var bindings = 0
         for relative in handlers {

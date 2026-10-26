@@ -407,7 +407,7 @@ actor SQLiteStore {
         let statementMs =
             Int(
                 (started.uptimeNanoseconds.distance(to: DispatchTime.now().uptimeNanoseconds))
-                / 1_000_000)
+                    / 1_000_000)
         guard stepped else {
             return WALCheckpoint(
                 busy: true, logPages: 0, checkpointedPages: 0, statementMs: statementMs)

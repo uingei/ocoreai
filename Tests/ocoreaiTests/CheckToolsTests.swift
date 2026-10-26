@@ -287,7 +287,8 @@ struct CheckToolsVerifyGapTests {
     func verifySurfaceNamesResolve() throws {
         var root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         while root.path != "/",
-            !FileManager.default.fileExists(atPath: root.appendingPathComponent("Package.swift").path)
+            !FileManager.default.fileExists(
+                atPath: root.appendingPathComponent("Package.swift").path)
         {
             root.deleteLastPathComponent()
         }

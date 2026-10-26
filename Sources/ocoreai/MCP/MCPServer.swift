@@ -132,12 +132,14 @@ actor MCPServer {
             return res(doInit(req.params), id: req.id)
         case "tools/list":
             guard ready else {
-                return err(.invalid, id: req.id, detail: "not initialized — send `initialize` first")
+                return err(
+                    .invalid, id: req.id, detail: "not initialized — send `initialize` first")
             }
             return res(await doList(), id: req.id)
         case "tools/call":
             guard ready else {
-                return err(.invalid, id: req.id, detail: "not initialized — send `initialize` first")
+                return err(
+                    .invalid, id: req.id, detail: "not initialized — send `initialize` first")
             }
             guard let params = req.params else {
                 return err(.badParams, id: req.id, detail: "tools/call needs a params object")
@@ -188,7 +190,8 @@ actor MCPServer {
         for name in await registry.listTools() {
             guard let entry = await registry.lookup(name) else { continue }
             let def = entry.toToolDef()
-            let schema = def.function.parameters.flatMap(plainJSON)
+            let schema =
+                def.function.parameters.flatMap(plainJSON)
                 ?? ["type": "object", "properties": [String: Any]()]
             var tool: [String: Any] = [
                 "name": name,
@@ -227,7 +230,9 @@ actor MCPServer {
     /// `detail` names what the client got wrong. An error that says only "Invalid params" makes a
     /// caller guess; the refusal must be as specific as the check that produced it.
     private func err(_ e: RpcErr, id: JVal?, detail: String? = nil) -> String {
-        enc(["error": ["code": e.code, "message": detail.map { "\(e.msg): \($0)" } ?? e.msg]], id: id)
+        enc(
+            ["error": ["code": e.code, "message": detail.map { "\(e.msg): \($0)" } ?? e.msg]],
+            id: id)
     }
 
     private func enc(_ body: [String: Any], id: JVal?) -> String {

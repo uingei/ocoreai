@@ -42,7 +42,8 @@ enum AuditVerify {
     /// still something the model read), so this says only "nothing has executed against
     /// these writes", never "the writes are wrong".
     static func writesAwaitingRun(in entries: [AuditEntry]) -> (writes: Int, ranInWindow: Bool) {
-        let lastRun = entries
+        let lastRun =
+            entries
             .filter { ToolRegistry.execHostToolNames.contains($0.toolName) }
             .map(\.timestamp)
             .max()

@@ -91,7 +91,9 @@ struct MetricProducerWiringTests {
 
     @Test("the scan floors its own premises, and every name in the header reaches the exporter")
     fileprivate func scanFloorsItsOwnPremises() async throws {
-        #expect(producers.count == 6, "this suite exists to hold six producers; a shorter list is a vacuous pass")
+        #expect(
+            producers.count == 6,
+            "this suite exists to hold six producers; a shorter list is a vacuous pass")
         let metrics = try readSource("Sources/ocoreai/Metrics/Metrics.swift")
         let header = String(
             metrics.prefix(upTo: metrics.range(of: "\nimport ")?.lowerBound ?? metrics.endIndex))
@@ -99,13 +101,15 @@ struct MetricProducerWiringTests {
             Issue.record("the header-name regex stopped compiling")
             return
         }
-        let headerRange = NSRange(header.startIndex..<header.endIndex, in: header)
+        let headerRange = NSRange(header.startIndex ..< header.endIndex, in: header)
         var named: [String] = []
         for match in re.matches(in: header, range: headerRange) {
             guard let range = Range(match.range(at: 1), in: header) else { continue }
             named.append(String(header[range]))
         }
-        #expect(named.count >= 12, "the exported-series header stopped enumerating (\(named.count) names)")
+        #expect(
+            named.count >= 12,
+            "the exported-series header stopped enumerating (\(named.count) names)")
         let output = await MetricsRegistry().export()
         for name in named {
             // Prometheus puts a label set or a suffix between the name and its value: a
@@ -128,7 +132,8 @@ struct MetricProducerWiringTests {
         )
     }
 
-    @Test("a fresh registry exports each series at zero, with the header name spelled alike",
+    @Test(
+        "a fresh registry exports each series at zero, with the header name spelled alike",
         arguments: producers
     )
     fileprivate func exportCarriesEveryName(_ producer: Producer) async {
@@ -159,7 +164,8 @@ struct MetricProducerWiringTests {
             Issue.record("the first-byte guard or its TTFB observation is gone")
             return
         }
-        let distance = callRange.lowerBound.utf16Offset(in: text)
+        let distance =
+            callRange.lowerBound.utf16Offset(in: text)
             - guardRange.lowerBound.utf16Offset(in: text)
         #expect(
             distance > 0 && distance < 900,

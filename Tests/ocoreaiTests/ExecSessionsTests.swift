@@ -85,7 +85,9 @@ struct ExecSessionsHelperTests {
         let agedOnly = [(id: 1, ageSeconds: 3_600.0), (id: 2, ageSeconds: 61.0)]
         #expect(
             ExecSessionManager.finishedToCollect(agedOnly, idleSeconds: 60, ceiling: 2) == [1, 2])
-        let mixed = [(id: 1, ageSeconds: 120.0), (id: 2, ageSeconds: 10.0), (id: 3, ageSeconds: 2.0)]
+        let mixed = [
+            (id: 1, ageSeconds: 120.0), (id: 2, ageSeconds: 10.0), (id: 3, ageSeconds: 2.0),
+        ]
         #expect(
             ExecSessionManager.finishedToCollect(mixed, idleSeconds: 60, ceiling: 1) == [1, 2])
         #expect(

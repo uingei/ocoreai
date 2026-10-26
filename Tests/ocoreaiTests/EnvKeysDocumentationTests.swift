@@ -224,7 +224,10 @@ struct EnvKeysDocumentationTests {
     /// go red, not report parity vacuously.
     @Test func readmeStatesThePinnedSurfaceCount() throws {
         let surface: [(file: String, pattern: String)] = [
-            ("README.md", "\\*\\*(\\d+) environment variables\\*\\* \\((\\d+) static.*?(\\d+) read through"),
+            (
+                "README.md",
+                "\\*\\*(\\d+) environment variables\\*\\* \\((\\d+) static.*?(\\d+) read through"
+            ),
             ("README.zh.md", "\\*\\*(\\d+) 个环境变量\\*\\*（(\\d+) 个静态.*?(\\d+) 个经常量"),
         ]
         let literal = Self.derivedLiteralKeys().count
@@ -232,9 +235,10 @@ struct EnvKeysDocumentationTests {
             let text = try String(
                 contentsOfFile: Self.repoRoot + "/" + entry.file, encoding: .utf8)
             let regex = try NSRegularExpression(pattern: entry.pattern)
-            guard let match = regex.firstMatch(
-                in: text, range: NSRange(text.startIndex..., in: text)
-            ),
+            guard
+                let match = regex.firstMatch(
+                    in: text, range: NSRange(text.startIndex..., in: text)
+                ),
                 let totalRange = Range(match.range(at: 1), in: text),
                 let staticRange = Range(match.range(at: 2), in: text),
                 let viaRange = Range(match.range(at: 3), in: text)
@@ -249,10 +253,12 @@ struct EnvKeysDocumentationTests {
             let statedVia = Int(text[viaRange]) ?? -1
             #expect(
                 statedTotal == Self.expectedKeys.count,
-                "\(entry.file) states \(statedTotal) environment variables; the contract carries \(Self.expectedKeys.count) — fix the prose, not this assertion")
+                "\(entry.file) states \(statedTotal) environment variables; the contract carries \(Self.expectedKeys.count) — fix the prose, not this assertion"
+            )
             #expect(
                 statedStatic == literal && statedVia == Self.expectedKeys.count - literal,
-                "\(entry.file) splits the surface \(statedStatic) static + \(statedVia) indirect, Sources/ splits it \(literal) + \(Self.expectedKeys.count - literal)")
+                "\(entry.file) splits the surface \(statedStatic) static + \(statedVia) indirect, Sources/ splits it \(literal) + \(Self.expectedKeys.count - literal)"
+            )
         }
     }
 

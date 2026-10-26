@@ -198,9 +198,11 @@ enum DegenerateMarginProbe {
         let toolsSnapshot = tools
 
         do {
-            let (stream, task, promptTokens, promptHash, promptText) = try await container.perform { context ->
-                (AsyncStream<MLXLMCommon.LogProbabilityGeneration<MLXLMCommon.Generation>>,
-                    Task<Void, Never>, Int, String, String) in
+            let (stream, task, promptTokens, promptHash, promptText) = try await container.perform {
+                context -> (
+                    AsyncStream<MLXLMCommon.LogProbabilityGeneration<MLXLMCommon.Generation>>,
+                    Task<Void, Never>, Int, String, String
+                ) in
                 // Rebuild the conversation inside the closure, and put instructions on a leading
                 // .system message — what ChatSession does with its `instructions:` channel, which
                 // this probe has to reproduce because it bypasses ChatSession (see file header).
@@ -213,7 +215,8 @@ enum DegenerateMarginProbe {
                     rebuiltMessages.first?.role != .system
                 {
                     rebuiltMessages.insert(
-                        MLXLMCommon.Chat.Message(role: .system, content: instructionsSnapshot), at: 0)
+                        MLXLMCommon.Chat.Message(role: .system, content: instructionsSnapshot),
+                        at: 0)
                 }
 
                 let prepared = try await context.processor.prepare(
@@ -254,15 +257,18 @@ enum DegenerateMarginProbe {
                 // Identity of what was actually fed, not of what was asked for: this is the array
                 // handed to `TokenIterator`, so a byte difference the accounting hides still shows.
                 let fedIds = prepared.text.tokens.asArray(Int32.self)
-                return (innerStream, innerTask, count, Self.hash(fedIds),
-                    context.tokenizer.decode(tokenIds: fedIds.map { Int($0) }))
+                return (
+                    innerStream, innerTask, count, Self.hash(fedIds),
+                    context.tokenizer.decode(tokenIds: fedIds.map { Int($0) })
+                )
             }
 
             report.attempted = true
             report.promptTokens = promptTokens
             report.promptHash = promptHash
             report.promptText = promptText
-            if let dumpDir = ProcessInfo.processInfo.environment["OCOREAI_MARGIN_DUMP"], !dumpDir.isEmpty,
+            if let dumpDir = ProcessInfo.processInfo.environment["OCOREAI_MARGIN_DUMP"],
+                !dumpDir.isEmpty,
                 let text = report.promptText
             {
                 // One file per distinct prompt, so a run leaves exactly the set of variants it
@@ -275,7 +281,8 @@ enum DegenerateMarginProbe {
                     try? text.write(to: url, atomically: true, encoding: .utf8)
                 }
             }
-            report.fidelityMatched = expectedPromptTokens != nil && expectedPromptTokens == promptTokens
+            report.fidelityMatched =
+                expectedPromptTokens != nil && expectedPromptTokens == promptTokens
 
             let tokenizer = await container.tokenizer
             var eosIDs = Set<Int>()
@@ -326,14 +333,18 @@ enum DegenerateMarginProbe {
     /// only consumed by the probe that greps it (AGENTS.md invariant 1). Factoring the format out
     /// costs a signature and buys a test that needs no GPU.
     static func logLine(_ report: Report, convKey: String) -> String {
-        let fidelity = report.fidelityMatched ? "match" : "UNVERIFIED(\(report.promptTokens) vs \(report.expectedPromptTokens))"
+        let fidelity =
+            report.fidelityMatched
+            ? "match" : "UNVERIFIED(\(report.promptTokens) vs \(report.expectedPromptTokens))"
         let steps = report.steps.map { step in
             let rival = step.runnerUpText.map { "'\($0)' id=\(step.runnerUpID ?? -1)" } ?? "none"
             let margin = step.margin.map { String(format: "%.4f", $0) } ?? "-"
             let eos = step.eosLogProb.map { String(format: "%.3f", $0) } ?? "out-of-top"
-            return "step\(step.index) chose '\(step.chosenText)' id=\(step.chosenID) lp=\(String(format: "%.4f", step.chosenLogProb)) rival=\(rival) margin=\(margin) eos=\(eos) eosChosen=\(step.eosIsChosen)"
+            return
+                "step\(step.index) chose '\(step.chosenText)' id=\(step.chosenID) lp=\(String(format: "%.4f", step.chosenLogProb)) rival=\(rival) margin=\(margin) eos=\(eos) eosChosen=\(step.eosIsChosen)"
         }.joined(separator: " | ")
-        return "Degenerate margin probe [\(convKey)] promptTokens=\(report.promptTokens) fidelity=\(fidelity) promptHash=\(report.promptHash) toolsCarried=\(report.toolsCarried) temperature=0 :: \(steps)"
+        return
+            "Degenerate margin probe [\(convKey)] promptTokens=\(report.promptTokens) fidelity=\(fidelity) promptHash=\(report.promptHash) toolsCarried=\(report.toolsCarried) temperature=0 :: \(steps)"
     }
 
     static func log(_ report: Report, convKey: String, logger: Logger) {
@@ -346,12 +357,12 @@ enum DegenerateMarginProbe {
     /// boots that fed identical bytes share a hash and boots that did not can never collide into
     /// the same group by accident of length.
     static func hash(_ ids: [Int32]) -> String {
-        var h: UInt64 = 0xcbf29ce484222325
+        var h: UInt64 = 0xcbf2_9ce4_8422_2325
         for id in ids {
             var v = UInt64(bitPattern: Int64(id))
-            for _ in 0..<8 {
+            for _ in 0 ..< 8 {
                 h ^= v & 0xff
-                h = h &* 0x100000001b3
+                h = h &* 0x100_0000_01b3
                 v >>= 8
             }
         }

@@ -59,8 +59,9 @@ func modelDownloadHandler(
                         useLatest: request.useLatest, msToken: msToken, logger: logger)
                     frame = try encodeEvent(.plan(downloadId, plan: planned))
                 } catch {
-                    frame = (try? encodeEvent(
-                        .error(downloadId, message: error.localizedDescription))) ?? "[]"
+                    frame =
+                        (try? encodeEvent(
+                            .error(downloadId, message: error.localizedDescription))) ?? "[]"
                 }
                 if let bytes = frame.data(using: .utf8) {
                     try? await writer.write(.init(data: bytes))

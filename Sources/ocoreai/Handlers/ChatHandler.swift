@@ -722,7 +722,8 @@ func chatCompletionsHandler(
         let grammarSchema =
             useGuidedGeneration
             ? buildGrammarSchema(
-                from: effectiveTools, responseFormat: request.responseFormat, toolChoice: request.toolChoice)
+                from: effectiveTools, responseFormat: request.responseFormat,
+                toolChoice: request.toolChoice)
             : nil
 
         /// Build inference options with same fallback chain.

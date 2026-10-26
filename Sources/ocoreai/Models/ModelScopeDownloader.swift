@@ -148,8 +148,9 @@ actor ModelScopeDownloader: Downloader {
             let bytes = fetched.reduce(Int64(0)) { total, name in
                 // A name from the directory walk still joins under the rule, so a plan cannot
                 // be talked out of the cache root by a poisoned entry the walk happened to see.
-                guard let url = try? HubRelativePath.resolve(
-                    under: cacheDir, name, field: Self.manifestPathField)
+                guard
+                    let url = try? HubRelativePath.resolve(
+                        under: cacheDir, name, field: Self.manifestPathField)
                 else { return total }
                 return total + (Self.localFileSize(url) ?? 0)
             }

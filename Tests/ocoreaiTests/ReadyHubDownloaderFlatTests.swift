@@ -46,10 +46,13 @@ private func freshModelRoot() -> (URL, cleanup: @Sendable () -> Void) {
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     setenv("OCOREAI_MODELS_DIR", dir.path, 1)
     setenv("HF_ENDPOINT", unreachableHubEndpoint, 1)
-    return (dir, {
-        lease.release()
-        try? FileManager.default.removeItem(at: dir)
-    })
+    return (
+        dir,
+        {
+            lease.release()
+            try? FileManager.default.removeItem(at: dir)
+        }
+    )
 }
 
 private func seed(_ dir: URL, names: [String]) {

@@ -92,8 +92,9 @@ struct DownloadPlanTests {
         let dir = try writeModelFiles(in: root)
         // `matching: []` means "the whole repo" to swift-huggingface. Returning true here
         // let any existing directory stand for a fetched model.
-        #expect(ReadyHubDownloader(hub: try HubClient(), flatRoot: root)
-            .allPatternsSatisfied([], in: dir) == false)
+        #expect(
+            ReadyHubDownloader(hub: try HubClient(), flatRoot: root)
+                .allPatternsSatisfied([], in: dir) == false)
     }
 
     @Test("one stray file is not a model")
@@ -101,8 +102,9 @@ struct DownloadPlanTests {
         let root = try planTempRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let dir = try writeModelFiles(in: root, strayOnly: true)
-        #expect(ReadyHubDownloader(hub: try HubClient(), flatRoot: root)
-            .allPatternsSatisfied(ModelStore.modelDownloadPatterns, in: dir) == false)
+        #expect(
+            ReadyHubDownloader(hub: try HubClient(), flatRoot: root)
+                .allPatternsSatisfied(ModelStore.modelDownloadPatterns, in: dir) == false)
     }
 
     @Test("every required glob present is satisfied")
@@ -110,8 +112,9 @@ struct DownloadPlanTests {
         let root = try planTempRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let dir = try writeModelFiles(in: root)
-        #expect(ReadyHubDownloader(hub: try HubClient(), flatRoot: root)
-            .allPatternsSatisfied(ModelStore.modelDownloadPatterns, in: dir) == true)
+        #expect(
+            ReadyHubDownloader(hub: try HubClient(), flatRoot: root)
+                .allPatternsSatisfied(ModelStore.modelDownloadPatterns, in: dir) == true)
     }
 
     @Test("a subdirectory in the model dir does not end the search")
@@ -125,8 +128,9 @@ struct DownloadPlanTests {
         try FileManager.default.createDirectory(
             at: dir.appendingPathComponent("snapshots", isDirectory: true),
             withIntermediateDirectories: true)
-        #expect(ReadyHubDownloader(hub: try HubClient(), flatRoot: root)
-            .allPatternsSatisfied(ModelStore.modelDownloadPatterns, in: dir) == true)
+        #expect(
+            ReadyHubDownloader(hub: try HubClient(), flatRoot: root)
+                .allPatternsSatisfied(ModelStore.modelDownloadPatterns, in: dir) == true)
     }
 
     @Test("a directory that does not exist is not satisfied")
@@ -134,8 +138,9 @@ struct DownloadPlanTests {
         let root = try planTempRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let dir = root.appendingPathComponent("org/absent", isDirectory: true)
-        #expect(ReadyHubDownloader(hub: try HubClient(), flatRoot: root)
-            .allPatternsSatisfied(ModelStore.modelDownloadPatterns, in: dir) == false)
+        #expect(
+            ReadyHubDownloader(hub: try HubClient(), flatRoot: root)
+                .allPatternsSatisfied(ModelStore.modelDownloadPatterns, in: dir) == false)
     }
 
     // ---- plan assembly ----
@@ -214,47 +219,49 @@ struct DownloadPlanTests {
     func progressEventOmitsPlanKey() throws {
         let event = DownloadSSEEvent.progress(
             "hf:org/name", percentage: 10, totalBytes: 100, transferredBytes: 10, eta: 5)
-        let json = String(
-            data: try JSONEncoder().encode(event), encoding: .utf8) ?? ""
+        let json =
+            String(
+                data: try JSONEncoder().encode(event), encoding: .utf8) ?? ""
         #expect(!json.contains("\"plan\""))
         #expect(event.plan == nil)
     }
 }
-    // ---- the call site keeps the one home ----
+// ---- the call site keeps the one home ----
 
-    @Test("no download call site asks swift-huggingface for the whole repo by empty pattern")
-    func noEmptyPatternAtDownloadCallSites() throws {
-        let fm = FileManager.default
-        var rootURL = URL(fileURLWithPath: #filePath, isDirectory: false)
-        while rootURL.lastPathComponent != "ocoreai" {
-            rootURL.deleteLastPathComponent()
-        }
-        let sources = rootURL.appendingPathComponent("Sources", isDirectory: true)
-        var offenders: [String] = []
-        var sawMatchingArg = 0
-        guard let it = fm.enumerator(
+@Test("no download call site asks swift-huggingface for the whole repo by empty pattern")
+func noEmptyPatternAtDownloadCallSites() throws {
+    let fm = FileManager.default
+    var rootURL = URL(fileURLWithPath: #filePath, isDirectory: false)
+    while rootURL.lastPathComponent != "ocoreai" {
+        rootURL.deleteLastPathComponent()
+    }
+    let sources = rootURL.appendingPathComponent("Sources", isDirectory: true)
+    var offenders: [String] = []
+    var sawMatchingArg = 0
+    guard
+        let it = fm.enumerator(
             at: sources, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
-        ) else { throw DiscloseError("no Sources directory under \(rootURL.path)") }
-        while let item = it.nextObject() {
-            // `while let x = …, cond` would BREAK on the first non-swift entry; a scan that
-            // stops early looks like a clean sweep, which is the failure mode this file exists
-            // to catch. Skip, do not stop.
-            guard let url = item as? URL, url.pathExtension == "swift" else { continue }
-            let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-            for (n, line) in text.split(separator: "\n").enumerated() {
-                let body = String(line)
-                if body.contains("matching:") {
-                    sawMatchingArg += 1
-                    if body.replacingOccurrences(of: " ", with: "").contains("matching:[]"),
-                        !body.trimmingCharacters(in: .whitespaces).hasPrefix("//")
-                    {
-                        offenders.append("\(url.lastPathComponent):\(n + 1)")
-                    }
+        )
+    else { throw DiscloseError("no Sources directory under \(rootURL.path)") }
+    while let item = it.nextObject() {
+        // `while let x = …, cond` would BREAK on the first non-swift entry; a scan that
+        // stops early looks like a clean sweep, which is the failure mode this file exists
+        // to catch. Skip, do not stop.
+        guard let url = item as? URL, url.pathExtension == "swift" else { continue }
+        let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        for (n, line) in text.split(separator: "\n").enumerated() {
+            let body = String(line)
+            if body.contains("matching:") {
+                sawMatchingArg += 1
+                if body.replacingOccurrences(of: " ", with: "").contains("matching:[]"),
+                    !body.trimmingCharacters(in: .whitespaces).hasPrefix("//")
+                {
+                    offenders.append("\(url.lastPathComponent):\(n + 1)")
                 }
             }
         }
-        // The scan must have seen the argument it is policing, or it proves nothing.
-        #expect(sawMatchingArg >= 4, "scan saw only \(sawMatchingArg) `matching:` call sites")
-        #expect(offenders == [], "empty pattern list at \(offenders.joined(separator: ", "))")
     }
-
+    // The scan must have seen the argument it is policing, or it proves nothing.
+    #expect(sawMatchingArg >= 4, "scan saw only \(sawMatchingArg) `matching:` call sites")
+    #expect(offenders == [], "empty pattern list at \(offenders.joined(separator: ", "))")
+}

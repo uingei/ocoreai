@@ -194,10 +194,13 @@ struct GrammarSchemaRegressionTests {
                  "schema":{"type":"object","properties":{"n":{"type":"integer"}},
                           "required":["n"]}}}
                 """#.utf8))
-        let out = try #require(buildGrammarSchema(from: tools, responseFormat: rf, toolChoice: "auto"))
+        let out = try #require(
+            buildGrammarSchema(from: tools, responseFormat: rf, toolChoice: "auto"))
         let parsed = try JSONDecoder().decode([String: AnyCodable].self, from: Data(out.utf8))
         #expect(parsed["type"]?.value as? String == "object")
-        #expect((parsed["properties"]?.value as? [String: Any])?["n"] != nil, "the caller's key vanished: \(out)")
+        #expect(
+            (parsed["properties"]?.value as? [String: Any])?["n"] != nil,
+            "the caller's key vanished: \(out)")
         #expect(parsed["oneOf"] == nil, "the tool envelope is back on the wire")
         #expect(!out.contains("edit_file"), "tool names leaked into the answer grammar")
     }

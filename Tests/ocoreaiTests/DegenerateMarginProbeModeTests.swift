@@ -73,7 +73,8 @@ struct DegenerateMarginProbeReportLineTests {
     private func probeScript() -> String? {
         var dir = URL(fileURLWithPath: #filePath)
         while dir.path != "/" {
-            let candidate = dir.appendingPathComponent("scripts/probes/32-prompt-byte-determinism.sh")
+            let candidate = dir.appendingPathComponent(
+                "scripts/probes/32-prompt-byte-determinism.sh")
             if let text = try? String(contentsOf: candidate, encoding: .utf8) {
                 return text
             }
@@ -90,7 +91,8 @@ struct DegenerateMarginProbeReportLineTests {
         let line = DegenerateMarginProbe.logLine(report, convKey: "margin")
         #expect(report.toolsCarried == 0)
         #expect(line.contains("toolsCarried=0"), "a bare turn must say it carried no schema")
-        #expect(line.range(of: Self.scrapePattern, options: .regularExpression) != nil,
+        #expect(
+            line.range(of: Self.scrapePattern, options: .regularExpression) != nil,
             "the emitted line must match the pattern the probe scrapes")
     }
 
@@ -106,13 +108,16 @@ struct DegenerateMarginProbeReportLineTests {
     @Test("the emit format and the probe's scrape pattern have not drifted apart")
     func emitFormatAndProbeAgree() throws {
         guard let script = probeScript() else {
-            Issue.record("could not locate scripts/probes/32-prompt-byte-determinism.sh from \(#filePath)")
+            Issue.record(
+                "could not locate scripts/probes/32-prompt-byte-determinism.sh from \(#filePath)")
             return
         }
         // Floor the scan's own premises: a missing file or a rewritten scrape line must fail loudly,
         // not pass because the substring search quietly found nothing to compare.
         #expect(script.contains("32-prompt-byte-determinism"), "found the wrong file")
-        #expect(script.contains("grep -oE \"\(Self.scrapePattern)\""),
-            "the probe no longer scrapes promptHash+toolsCarried in one pass — update both sides together")
+        #expect(
+            script.contains("grep -oE \"\(Self.scrapePattern)\""),
+            "the probe no longer scrapes promptHash+toolsCarried in one pass — update both sides together"
+        )
     }
 }

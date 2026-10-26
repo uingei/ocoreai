@@ -293,8 +293,7 @@ actor ToolRegistry {
     /// Streaks are bucketed per conversation, for the reason `executionHistory` already
     /// records: the registry is process-wide, and three failures from three clients inside
     /// the window must not refuse a fourth client's command.
-    private var execFailureStreaks:
-        [String: (streak: Int, last: ContinuousClock.Instant)] = [:]
+    private var execFailureStreaks: [String: (streak: Int, last: ContinuousClock.Instant)] = [:]
     private let execFailureThreshold = 3
     private let execFailureTTL: Duration
     private let execHostTools: Set<String>
@@ -627,8 +626,10 @@ actor ToolRegistry {
         //    (String.hashValue — in-process identity only, never persisted, never a
         //    security boundary). `loopIdentity` folds a file's freshness into a read's
         //    identity so a re-read after an edit is not mistaken for a repeat.
-        let inputHash = String(format: "%llX", Self.loopIdentity(name: name, arguments: arguments)
-            .hashValue)
+        let inputHash = String(
+            format: "%llX",
+            Self.loopIdentity(name: name, arguments: arguments)
+                .hashValue)
         try checkLoop(
             entry: entry, inputHash: inputHash,
             scope: turnScope,
@@ -827,12 +828,12 @@ actor ToolRegistry {
             if entry.name == "read_file" || entry.name == "search_files" {
                 remedy =
                     "what it returned is already in this conversation — stop re-reading and act:"
-                        + " apply the change now with edit_lines (the `N|` numbers you read) or"
-                        + " edit_file, or answer the user with what you have"
+                    + " apply the change now with edit_lines (the `N|` numbers you read) or"
+                    + " edit_file, or answer the user with what you have"
             } else {
                 remedy =
                     "do not send this call again unchanged — vary the arguments, use another tool,"
-                        + " or answer the user with what you have"
+                    + " or answer the user with what you have"
             }
             // A refusal is an event that produced nothing, so it climbs the ladder; the
             // first ones still read as correctable feedback, and past the cap the verdict
@@ -1089,7 +1090,8 @@ actor ToolRegistry {
             if let req = entry.schema.required {
                 params["required"] = req
             } else if !entry.schema.parameters.isEmpty {
-                params["required"] = ToolSchemaCanonical.sortedRequired(entry.schema.parameters.keys)
+                params["required"] = ToolSchemaCanonical.sortedRequired(
+                    entry.schema.parameters.keys)
             }
             return [
                 "type": "function" as any Sendable,

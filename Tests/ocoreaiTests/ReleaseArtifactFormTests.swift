@@ -44,7 +44,8 @@ struct ReleaseArtifactFormTests {
         let url = formRoot().appendingPathComponent("scripts/release-artifact-check.sh")
         let exists = FileManager.default.fileExists(atPath: url.path)
         #expect(exists, "scripts/release-artifact-check.sh must exist")
-        let perms = try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions]
+        let perms =
+            try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions]
             as? NSNumber
         let executable = (perms?.uint16Value ?? 0) & 0o111 != 0
         #expect(executable, "the checker must be executable, got \(String(describing: perms))")
@@ -79,8 +80,10 @@ struct ReleaseArtifactFormTests {
         let makefile = try read("Makefile")
         let start = makefile.range(of: "\nrelease:\n")
         #expect(start != nil, "a `release:` target must exist")
-        let body = String(makefile[(start!.upperBound)...]).components(
-            separatedBy: "\n\n").first ?? ""
+        let body =
+            String(makefile[(start!.upperBound)...]).components(
+                separatedBy: "\n\n"
+            ).first ?? ""
         let pinsDeveloperDir = body.contains("DEVELOPER_DIR=$(CLT_DIR)")
         #expect(pinsDeveloperDir, "delivery pins the CLT route: \(body)")
         let pinsSdk = body.contains("$(SDKROOT_CLT)")
