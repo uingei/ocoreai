@@ -117,7 +117,21 @@ jobs:
       - name: Toolchain contract
         # --probe-metal: judge R2 by compiling a kernel, not by `metal --version`
         # (whose answer tracks whether cryptexd has the asset mounted right now).
-        run: bash scripts/toolchain-contract.sh check --probe-metal
+        # A red here used to leave one annotation ("exit code 1") and a log that needs a
+        # token this repo does not have — undiagnosable. So the step carries its own
+        # diagnosis: name the step, then publish the fact that decides R1 (does a
+        # CoreAI-free SDK exist on this runner at all?). That answer is the owner's input
+        # for pinning SDKROOT versus declaring the macOS-27 route.
+        run: |
+          bash scripts/toolchain-contract.sh check --probe-metal || {
+            echo "::error::failed step: toolchain contract (R1 shipping SDK carries no CoreAI; R2 a kernel compiles)"
+            for s in /Applications/Xcode*.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX*.sdk; do
+              [ -e "$s" ] || continue
+              if [ -d "$s/System/Library/Frameworks/CoreAI.framework" ]; then coreai=yes; else coreai=no; fi
+              echo "::error::sdk $(basename "$s") CoreAI=$coreai"
+            done
+            exit 1
+          }
 
       # Lockfile drift gate — xcodebuild (all test/release legs) reads the
       # WORKSPACE Package.resolved; swift build reads the ROOT one. Two
