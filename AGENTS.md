@@ -62,7 +62,7 @@ swift test                           # full suite; needs Metal, so CI macos-26 i
 make test                            # same, but names $OCOREAI_METALLIB first — else MLX dies mid-run
 make test FILTER=<Regex>         # one suite (swift-testing half: the XCTest helper SEGVs on filter)
 make test-clt [FILTER=<Regex>]   # CLT route, serial — runs both halves
-make docs-check                      # docs contract: sub-second, no build
+make docs-check                      # docs contract: ~3 s, no build
 bash scripts/eval/run.sh               # task-success scoreboard: verifies the WORKSPACE, not the prose
 ```
 - Gate tiering: **sandbox** → app-target build + non-Metal suites; **escalation** → `make test-clt`
@@ -229,7 +229,7 @@ row here — a guide costs context only inside its subtree.
 
 ## Docs Contract — how this file stays true
 `make docs-check` (`scripts/agents-md-contract.sh`; CI `audit` job) holds this file and its corpus to their
-claims, sub-second, no build; its gate list, rationale and env knobs live **in that script**. Operator
+claims, ~3 s measured, no build; its gate list, rationale and env knobs live **in that script**. Operator
 semantics (`>=` floor, `<=` ceiling) + the three questions: `CONTRIBUTING.md`.
 
 ## Documentation Map — Agent-facing vs Human-facing
