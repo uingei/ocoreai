@@ -10,6 +10,14 @@ on:
 permissions:
   contents: write
 
+# Every one of the four upstreams this repo learns from sets this (mlx-swift-lm, coreai-models,
+# codex, opencode) and this file did not: a PR push used to stack a second full arm64 run behind
+# the first. Semantics are codex's — a PR/branch group cancels its own stale run, while `main`
+# appends its run id so nothing on main is ever cancelled, because main's run history is the trail.
+concurrency:
+  group: ocoreai-ci::${{ github.event.pull_request.number > 0 && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}${{ github.ref_name == 'main' && format('::{0}', github.run_id) || ''}}
+  cancel-in-progress: true
+
 jobs:
   ## ── Governance — review infrastructure health ────────────────────
   governance:
