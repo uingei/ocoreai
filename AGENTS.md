@@ -60,7 +60,8 @@ UI Layer (SwiftUI)           ChatViewModel, SessionManager(SQLite)
 swift build -c release                 # production build — exit 0 is the minimum completion claim
 swift build --traits appStore        # App Store route (traits: appStore | FoundationModelsIntegration)
 swift test                           # full suite; needs Metal, so CI macos-26 is the authority
-swift test --filter <SuiteRegex>     # one suite (substring)
+make test                            # same, but names $OCOREAI_METALLIB first — else MLX dies mid-run
+make test-clt FILTER=<Regex>     # one suite on the CLT route; omit FILTER for the full suite
 make docs-check                      # docs contract: sub-second, no build
 bash scripts/eval/run.sh               # task-success scoreboard: verifies the WORKSPACE, not the prose
 ```
@@ -220,7 +221,8 @@ is in `CHANGELOG.md` (grep the symbol). `make audit` Class-J keeps suite names c
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — the bitmask helper's −inf case, the
   fp8→fp16 KV conversion (sits before Apple's fix) and the FoundationModels-block hub fallback are all
   `@available(macOS 27.0, *)` or SDK-gated out ⇒ no blind fix, no claim of one; `HubReachabilityTests`(20)
-  pins the FM block at exactly one site so an unnoted edit goes red.
+  pins the FM block at exactly one site so an unnoted edit goes red; its gated suites fail rather
+  than skip on macOS 26, so a red on the SDK-27 route is two verdicts at once.
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
   and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The injection seam landed
   upstream at pin `991266ad3` (`observe(to:using:)` + `GenerationTransformer`), so what is left is

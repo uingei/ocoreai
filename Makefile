@@ -138,8 +138,10 @@ SWIFT_FORMAT ?= $(shell command -v swift-format >/dev/null 2>&1 && echo swift-fo
 ## version string is "main" — a different ruleset that reformats committed files CI accepts. Name
 ## the version on every run, so a local reformat is read as drift or violation deliberately.
 SF_PIN := 603.0.0
+## FILTER=<Regex> narrows the run to one suite (swift-testing matches test IDs, so a suite type
+## name is the reliable handle); omit it and the target stays the FULL-suite escalation gate.
 test-clt:
-	@echo "🧪 CLT-route test gate (macOS < 27 local; FULL suite, no skips)..."
+	@echo "🧪 CLT-route test gate (macOS < 27 local; FULL suite unless FILTER is set)..."
 	@# Check the route this target actually builds (CLT + pinned SDK), not the ambient
 	@# DEVELOPER_DIR: reporting R1 against Xcode's SDK 27 while the build passes
 	@# SDKROOT=…26.5 cries wolf every run, and a warning that always fires is a warning
@@ -160,27 +162,11 @@ test-clt:
 	@# process points MLX at it via $$OCOREAI_METALLIB → MLX.GPU.metallib
 	@# (MetalShaderLibrary.swift: MLX's own search is path-shaped and reaches neither
 	@# location from inside a signed bundle).
-	@# Payload preference = what the pinned mlx actually compiled, in provenance order:
-	@#   1. this scratch's own SwiftPM product (mlx-swift_Cmlx.bundle/…/default.metallib —
-	@#      SwiftPM 6.4 compiles .metal itself once the Metal Toolchain component is
-	@#      installed, which is the whole upstream approach: mlx-swift-lm
-	@#      .github/workflows/pull_request.yml:216-237 asserts `Status: installed` and
-	@#      downloads the component otherwise, then lets the build emit the shaders; it
-	@#      stages no metallib at all);
-	@#   2. an Xcode DerivedData product for this project (same repo, maybe older revision);
-	@#   3. the pip mlx wheel's lib (different release entirely — last resort).
-	@# The scratch keeps stale trees from earlier layouts (a 10-08 `test/out/Products`
-	@# survived alongside today's `out/Products`), so pick the FRESHEST bundle and record
-	@# an ABSOLUTE path: the runner's cwd is not the repo root, and a relative
-	@# $OCOREAI_METALLIB would resolve against wherever the runner happened to start.
-	@S=$$(ls -t .build-clt/out/Products/*/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib .build-clt/*/Products/*/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib 2>/dev/null | head -1); \
-	M=$$(ls -dt ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/*/mlx-swift_Cmlx.bundle/Contents/Resources/default.metallib 2>/dev/null | head -1); \
-	P=/opt/homebrew/lib/python3.11/site-packages/mlx/lib/mlx.metallib; \
-	SRC=""; for CAND in "$$S" "$$M" "$$P"; do if [ -n "$$CAND" ] && [ -f "$$CAND" ]; then SRC="$$CAND"; break; fi; done; \
-	[ -n "$$SRC" ] || { echo "❌ no metallib payload anywhere (SwiftPM product, Xcode DerivedData, or pip mlx)."; \
-	  echo "   The SwiftPM product is missing because .metal did not compile here —"; \
-	  echo "   xcodebuild -showComponent MetalToolchain, and if Status is not installed:"; \
-	  echo "   xcodebuild -downloadComponent MetalToolchain (the upstream remedy, mlx-swift-lm PR CI)."; exit 1; }; \
+	@# Which payload wins is one ladder with one home — scripts/resolve-metallib.sh prints it
+	@# (provenance order: $OCOREAI_METALLIB, this scratch's SwiftPM product, an Xcode product,
+	@# the pip wheel) and exits 1 with the remedy when nothing is usable. The target only
+	@# stages the winner where the runner can reach it.
+	@SRC=$$(bash scripts/resolve-metallib.sh .build-clt) || { echo "❌ no payload to stage — remedy above"; exit 1; }; \
 	BUNDLES=$$(find .build-clt -path '*/Products/*' -name '*.xctest' -type d 2>/dev/null); \
 	[ -n "$$BUNDLES" ] || { echo "❌ no .xctest under .build-clt — the test build produced nothing to stage beside"; exit 1; }; \
 	for B in $$BUNDLES; do cp -f "$$SRC" "$$(dirname "$$B")/mlx.metallib" || true; done; \
@@ -202,11 +188,18 @@ test-clt:
 	  -Xswiftc -F$(CLT_F) \
 	  -Xlinker -F$(CLT_F) \
 	  -Xlinker -rpath -Xlinker $(CLT_F) \
-	  -Xlinker -rpath -Xlinker $(CLT_L)
+	  -Xlinker -rpath -Xlinker $(CLT_L) \
+	  $(if $(FILTER),--filter "$(FILTER)",)
 
 test:
 	@echo "🧪 Running tests..."
-	swift test
+	@# Name the shader payload before the run: a test process that lets MLX search for it dies
+	@# at the first Metal allocation ("Failed to load the default metallib", Cmlx memory.cpp) and
+	@# the suite never reports — measured 10-26 on the Xcode route, 4k lines in, no summary.
+	@METALLIB=$$(bash scripts/resolve-metallib.sh .build) \
+	  || { echo "❌ no payload to name — remedy above"; exit 1; }; \
+	echo "   shader payload: $$METALLIB"; \
+	OCOREAI_METALLIB="$$METALLIB" swift test
 
 test-verbose:
 	@echo "🧪 Running tests (verbose)..."

@@ -32,6 +32,10 @@
 /// search still runs, and the log says which file won — a kernel source the process
 /// cannot name is the defect family this repo keeps tripping on.
 ///
+/// The gates do not each guess where the payload is: `scripts/resolve-metallib.sh` is the one
+/// ladder (env override → this scratch's SwiftPM product → an Xcode product → a pip wheel) and
+/// it fails with the remedy when none is usable, because a run without a payload never reports.
+///
 /// ### Gate
 /// `MetalShaderLibraryTests` pins the candidate order against a synthetic SwiftPM 6.4
 /// layout — it goes red when the layout changes under us, which is what bit this host —

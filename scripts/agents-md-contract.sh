@@ -166,7 +166,13 @@ cd "$(dirname "$0")/.."
 # Repaid in the next commit of the same round (measured 155575, −6 B): the guide line stopped
 # enumerating ⌘ keys once UIFocusDisciplineTests derived their order from AppTab — proof in the
 # gate means prose does not have to carry the list. The ceiling stays where the ratchet put it.
-: "${OCOREAI_CORPUS_MAX_BYTES:=155597}"
+# 10-26 raise 155597 -> 157800 (+2203): the payload-and-filter block in
+# docs/agent/build-gate-reality.md. It prices two commands every session runs: a test process
+# that lets MLX hunt for its shader library dies mid-run and reports neither pass nor fail, and
+# `swift test --filter` signals 11 on the Xcode route here, so the filter recipe had to move.
+# Debt is the same debt, still named: the dated forensics in that file (verdicts CHANGELOG.md
+# already carries) and the deepseek-harness comparator cell.
+: "${OCOREAI_CORPUS_MAX_BYTES:=157800}"
 
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.

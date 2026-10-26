@@ -143,3 +143,23 @@ locally — the loop that caught defects no static audit here had (see «The fou
 macOS 26 既编不进也跑不了这段 ⇒ 改法虽然显然（`-Float.infinity` + `continue`），在 macOS 27 上真跑通之前不臆修、
 不宣称已修（AGENTS.md §Open 的同名条目只留判据与指针）。门：`V1EndpointCatalogTests` 那套自带地板的源码扫描风格
 适合它，但断言的是一处不可运行的代码 —— 需要 CI 的 macOS 27 leg 才能长出真正的行为门。
+
+**A local test run must name its shader payload, or it reports nothing (measured 10-26).**
+Letting MLX search for the library dies at the first Metal allocation
+(`Failed to load the default metallib`, Cmlx `mlx-c/memory.cpp:69`) thousands of lines in, exit 1,
+**no summary**: neither a pass nor a fail. `make test` exports `$OCOREAI_METALLIB` from
+`scripts/resolve-metallib.sh`, the one ladder. It prints the rung that won and exits 1 naming
+`xcodebuild -downloadComponent MetalToolchain` when nothing is usable; `make test-clt` stages the
+winner beside the products dir instead (a payload inside a signed bundle fails the sign step).
+Same tree, both routes: **CLT (SDK 26.5, `--no-parallel`) 3180 tests / 562 suites green in 429 s**;
+**Xcode (ambient SDK 27, default parallelism) 3340 / 587, 10 issues in 123 s**. Three of those six
+tests record a *failure* where they mean "platform too old" — `requires macOS 27 / iOS 27`
+(`LegacyConstrainedDecodingStrategyTests` ×2, `CoreAILiveGenerateTests`): SDK 27 compiles them in and
+the OS will not run them: a local red there is partly the platform talking. The other three
+(`MCPStderrDiagnosisTests` ×4 issues, `EngineBusyAdmissionTests`, `ExecCwdContractTests`) pass on the
+CLT route; which axis explains each — SDK 27, or the parallelism the CLT gate runs without — is
+inference, not measurement.
+**`swift test --filter` is broken on the Xcode route here** — `signalled(11)` inside
+`swiftpm-xctest-helper` before anything runs (twice; same family as the `Makefile` § *test-ci* note). One suite therefore goes through
+`make test-clt FILTER=<Regex>`, which cites swift-testing test **IDs**: a suite *type* name, not its
+display text.
