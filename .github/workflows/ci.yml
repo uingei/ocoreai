@@ -46,16 +46,25 @@ jobs:
       # (mlx-swift-lm / coreai-models ship no swiftlint; .swift-format is the
       # shared config surface). Version-locked: a new swift-format release can
       # change formatting rules and reformat files no PR touched.
-      - name: Setup swift-format
+      # A pin you cannot install is not a pin. `brew install` serves whatever the
+      # current release is (604.0.0 since 09-16), so this step failed on *every*
+      # push for ~90 runs — and since three legs `needs:` this job, the leg
+      # AGENTS.md calls the authority was reported `skipped`, not red. Build the
+      # tag instead, so the version lock is reproducible and the failure is honest.
+      - name: Setup swift-format (pinned)
         run: |
-          brew install swift-format
-          # Same version-lock pattern. swift-format 603.0.0 is the release
-          # whose format output this codebase conforms to.
-          SF="$(swift-format --version 2>&1 | head -1)"
-          case "$SF" in
-            *603.0.0*) echo "✅ swift-format pinned: $SF" ;;
-            *) echo "❌ swift-format not 603.0.0 (got: $SF) — bump deliberately with a reformat." ; exit 1 ;;
+          set -euo pipefail
+          TAG=603.0.0
+          git clone --depth 1 --branch "$TAG" \
+            https://github.com/swiftlang/swift-format.git /tmp/sf-pin
+          ( cd /tmp/sf-pin && swift build -c release --quiet )
+          SF=/tmp/sf-pin/.build/release/swift-format
+          V="$("$SF" --version 2>&1 | head -1)"
+          case "$V" in
+            *"$TAG"*) echo "✅ swift-format pinned: $V" ;;
+            *) echo "❌ built $V, wanted $TAG — bump deliberately and reformat in one commit"; exit 1 ;;
           esac
+          echo "/tmp/sf-pin/.build/release" >> "$GITHUB_PATH"
 
       # Pattern-based static audit (whitelist-protected)
       - name: Run static audit
@@ -155,7 +164,10 @@ jobs:
     name: "Build & Test (${{ matrix.os }})"
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
-    needs: [audit]
+    # No `needs:` on audit, deliberately: AGENTS.md names this leg the authority,
+    # and an authority that a formatter install can cancel is not an authority.
+    # Measured cost of the old coupling — every leg sat `skipped` for ~90 pushes
+    # while a style-tool version assert failed.
     strategy:
       fail-fast: false
       matrix:
@@ -474,7 +486,7 @@ jobs:
     name: "App Store trait compile (macOS 26)"
     runs-on: macos-26
     timeout-minutes: 40
-    needs: [audit]
+    # Independent of the style gate: compile validation outranks style.
     steps:
       - uses: actions/checkout@v4
 
@@ -506,7 +518,7 @@ jobs:
     name: "macOS 26 · iOS compile-only"
     runs-on: macos-26
     timeout-minutes: 60
-    needs: [audit]
+    # Independent of the style gate: compile validation outranks style.
     steps:
       - uses: actions/checkout@v4
 
