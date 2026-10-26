@@ -60,7 +60,10 @@ jobs:
       # tag instead, so the version lock is reproducible and the failure is honest.
       - name: Setup swift-format (pinned)
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
+          # A bare exit 1 is unreadable from outside (annotations are the only text this repo can
+          # read), so the step names itself before anything can fail inside it.
+          trap 'echo "::error::failed step: setup pinned swift-format"' ERR
           TAG=603.0.0
           git clone --depth 1 --branch "$TAG" \
             https://github.com/swiftlang/swift-format.git /tmp/sf-pin
@@ -90,7 +93,7 @@ jobs:
       - name: Resolve dependencies (so upstream cites resolve at the pin)
         run: |
           set -euo pipefail
-          swift package resolve
+          swift package resolve || { echo "::error::failed step: swift package resolve (dependency graph)"; exit 1; }
 
       - name: AGENTS.md contract
         run: |
@@ -162,29 +165,14 @@ jobs:
           fi
           echo "✅ swift-format gate: zero files reformatted"
 
-      # Secret scanning — detect hardcoded keys, tokens, passwords in the diff
-      # Source: references/zeroclaw/.githooks/pre-commit + gitleaks.toml
-      - name: Setup gitleaks
-        run: brew install gitleaks
-
-      - name: Secret scanning (diff scan)
-        run: |
-          set -euo pipefail
-          # In PR context, scan the diff between HEAD and base branch
-          if [ -n "${GITHUB_BASE_REF:-}" ]; then
-            git fetch origin +refs/heads/${GITHUB_BASE_REF}:
-            gitleaks detect --source "$(git diff origin/${GITHUB_BASE_REF})" --verbose || {
-              echo "❌ Secret detected in changes — pipeline blocked"
-              exit 1
-            }
-          else
-            # Fallback: scan staged content or current files
-            gitleaks detect --source "." --verbose --no-git || {
-              echo "❌ Secret detected — pipeline blocked"
-              exit 1
-            }
-          fi
-          echo "✅ Secret scan: clean"
+      # No secret scanner in CI, and that is a measurement, not a preference. It was imported from
+      # `references/zeroclaw` — a project not in references and never in this repo's history — and
+      # 0 of the 20 reference projects run one in CI. Its own record: never green (it trips our
+      # fabricated-key fixtures), it walked `.build` (5.1 GB of other projects' fixtures, which is
+      # where the job's minutes went), and its PR branch handed `git diff` output to `--source`,
+      # a path, so no PR was ever scanned while the step printed clean. Credential detection with
+      # maintained signatures is free where it also lands before history: GitHub secret scanning +
+      # push protection for this public repo, which the owner enables under Settings → Code security.
 
       - name: Test coverage report (advisory)
         run: |

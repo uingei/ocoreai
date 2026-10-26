@@ -120,17 +120,8 @@ Local API keys and credentials:
 2. **Never commit** — API keys, tokens, passwords, or credentials in any source file.
 3. **Never commit PII** — Real names, emails, user identities in tests or fixtures. The full content discipline is the merge gate.
 
-Pre-commit secret scan (recommended):
-
-```bash
-brew install gitleaks
-git config core.hooksPath .github/hooks
-```
-
-Or run manually:
-```bash
-bash .github/pre-commit-gitleaks.sh
-```
+**Secret detection is the platform's job**: enable GitHub secret scanning + push protection (maintained
+signatures, blocks at push time). `Tests/`/eval fixtures carry fake keys.
 
 **If a secret lands in a commit by accident:**
 1. Rotate the credential **immediately**

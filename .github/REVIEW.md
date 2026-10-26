@@ -246,7 +246,6 @@ bash scripts/audit.swift_patterns.sh           # pattern audit
 | Evidence standard | PR_EVIDENCE.md exists | `ls .github/PR_EVIDENCE.md` |
 | Review workflow | REVIEW.md exists | `ls .github/REVIEW.md` |
 | Contributing guide | CONTRIBUTING.md exists | `ls CONTRIBUTING.md` |
-| Secret scanning | gitleaks config | `ls .gitleaks.toml` |
 
 ### Phase C — Code Metrics
 | Metric | Command | Target |
