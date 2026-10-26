@@ -132,7 +132,9 @@ toolchain-check:
 ## host ships it only under `xcrun`, so `make format`/`format-check` died with
 ## "swift-format: No such file or directory". The style gate reached CI unseen
 ## because it could not be run locally. Resolve once; the args stay identical.
-SWIFT_FORMAT ?= $(shell command -v swift-format >/dev/null 2>&1 && echo swift-format || echo "xcrun swift-format")
+SF_CACHE = $(HOME)/.cache/ocoreai-swift-format-$(SF_PIN)
+SF_LOCAL = $(SF_CACHE)/repo/.build/release/swift-format
+SWIFT_FORMAT ?= $(shell if [ -x "$(SF_LOCAL)" ]; then echo "$(SF_LOCAL)"; elif command -v swift-format >/dev/null 2>&1; then echo swift-format; else echo "xcrun swift-format"; fi)
 ## The resolved binary's VERSION is part of the gate: CI installs brew swift-format and hard-fails
 ## unless it reports 603.0.0, but an Xcode/CLT-only host falls back to `xcrun swift-format`, whose
 ## version string is "main" — a different ruleset that reformats committed files CI accepts. Name
@@ -197,6 +199,12 @@ test:
 	@# at the first Metal allocation ("Failed to load the default metallib", Cmlx memory.cpp) and
 	@# the suite never reports — measured 10-26 on the Xcode route, 4k lines in, no summary.
 	@#
+	@# A red whose failing test name scrolls off the terminal is a red nobody can root-cause:
+	@# measured 10-27, a 1-issue full run behind `| tail -12` lost its identity entirely. So the run is
+	@# teed and the ✘ lines are re-printed on failure — the verdict survives its own pipe. The status
+	@# travels through a file because PIPESTATUS is a bash-ism: this recipe runs under /bin/sh, where a
+	@# failing pipeline reports `${PIPESTATUS[0]}` as 0 (measured), which would have made the tee swallow
+	@# every red.
 	@# The XCTest half is never run, filtered or not. It serves zero tests — `git grep -l
 	@# "import XCTest" in Tests/` is the count, checked below before anything builds — and its
 	@# runner dies before test #1 on any macOS < 27 host: objc_copyClassList → realizeAllClasses
@@ -214,11 +222,20 @@ test:
 	  || { echo "❌ no payload to name — remedy above"; exit 1; }; \
 	  echo "   shader payload: $$METALLIB"; \
 	  echo "   XCTest half: $$XCT file(s) → swift-testing only (--disable-xctest)"; \
+	  LOG="$${OCOREAI_TEST_LOG:-$$(mktemp -t ocoreai-test-XXXXXX).log}"; \
+	  RC="$$(mktemp -t ocoreai-test-rc-XXXXXX)"; \
+	  echo "   test log: $$LOG"; \
 	  if [ -n "$(FILTER)" ]; then \
-	    OCOREAI_METALLIB="$$METALLIB" swift test --disable-xctest --filter "$(FILTER)"; \
+	    { OCOREAI_METALLIB="$$METALLIB" swift test --disable-xctest --filter "$(FILTER)"; echo "$$?" > "$$RC"; } 2>&1 | tee "$$LOG"; \
 	  else \
-	    OCOREAI_METALLIB="$$METALLIB" swift test --disable-xctest; \
-	  fi
+	    { OCOREAI_METALLIB="$$METALLIB" swift test --disable-xctest; echo "$$?" > "$$RC"; } 2>&1 | tee "$$LOG"; \
+	  fi; \
+	  T="$$(cat "$$RC")"; rm -f "$$RC"; \
+	  if [ "$$T" -ne 0 ]; then \
+	    echo "---- failing tests (full log: $$LOG) ----"; \
+	    grep -E '✘|Expectation failed|^ *↳' "$$LOG" | head -40; \
+	  fi; \
+	  exit "$$T"
 
 test-verbose:
 	@echo "🧪 Running tests (verbose)..."
@@ -370,6 +387,20 @@ drift:
 	@echo "🛰 Checking upstream drift (3 HEAD axes + mlx-swift tag axis)..."
 	bash scripts/upstream-drift.sh
 
+## A pin you cannot install is not a pin. CI builds $(SF_PIN) from the tag for exactly this reason
+## (brew serves whatever is current), and until this target existed the same argument did not hold
+## locally: an Xcode/CLT host reports "main", so format-check went advisory and exited 0 whatever
+## the tree looked like — measured 10-27, ten committed files were already off CI's ruleset and
+## nothing local could say so. Builds once into $(SF_CACHE); format-check then finds it by itself.
+sf-pin:
+	@set -euo pipefail; \
+	if [ -x "$(SF_LOCAL)" ]; then echo "✅ swift-format $(SF_PIN) already installed: $$("$(SF_LOCAL)" --version | head -1)"; exit 0; fi; \
+	mkdir -p "$(SF_CACHE)"; \
+	git clone --depth 1 --branch "$(SF_PIN)" https://github.com/swiftlang/swift-format.git "$(SF_CACHE)/repo"; \
+	( cd "$(SF_CACHE)/repo" && swift build -c release --quiet ); \
+	echo "✅ built $(SF_PIN) → $(SF_LOCAL) (format-check and format now run CI's ruleset)"
+
+
 ## ── Docs Contract ──────────────────────────────────────────────────
 
 # AGENTS.md (and the area guides) are injected into the model's context on every session, so they
@@ -440,6 +471,7 @@ help:
 	@echo ""
 	@echo "Quality:"
 	@echo "  make format         Format all Swift files"
+	@echo "  make sf-pin         Build the swift-format version CI pins, so format-check stops being advisory"
 	@echo "  make docs-check     AGENTS.md budget + refs + claims + routing (no build needed)"
 	@echo "  make anchor-check   every file:line cite points at the code it claims (no build)"
 	@echo "  make round-gates    docs-check + anchor-check + audit in one no-build pass (run it every round)"
