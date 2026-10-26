@@ -31,22 +31,65 @@ struct EngineBusyAdmissionTests {
         let model = makeLoadedModel()
         #expect(model.tryAcquireInference())  // occupy it
 
-        let releaser = Task {
+        // The release instant is returned, not assumed. A wall-clock ceiling here (`waitedMs <
+        // 1000`) took 120 ms as its premise, so it measured the host's scheduler: on a loaded
+        // machine the *releaser* task is itself late, the waiter is correct to wait, and the
+        // gate went red for a bug that was not there (measured in a full set run: this was the
+        // last red on the host). Returning the instant makes the slack a measured difference,
+        // which is the sentence the test's name actually claims.
+        let releaser = Task<Int, Never> {
+            let t0 = DispatchTime.now().uptimeNanoseconds
             try? await Task.sleep(for: .milliseconds(120))
             model.releaseInference()
+            return Int((DispatchTime.now().uptimeNanoseconds - t0) / 1_000_000)
         }
 
+        // Control: what one 50 ms sleep costs on this host right now, measured while the waiter
+        // waits. A set run shares one concurrency pool across thousands of tests, so wall clock
+        // here is a property of the scheduler and the bound has to be too. Measured on this host
+        // in set runs: a 50 ms poll landed 1109 ms and 2194 ms after the release, so any ceiling
+        // of a few hundred ms reds the host rather than the code.
+        let control = Task<Int, Never> {
+            var worst = 0
+            for _ in 0 ..< 4 {
+                let tick = DispatchTime.now()
+                try? await Task.sleep(for: .milliseconds(50))
+                worst = max(worst, Self.msSince(tick))
+            }
+            return max(0, worst - 50)
+        }
         let start = DispatchTime.now()
         let acquired = await model.acquireInference(waiting: .seconds(5))
-        let waitedMs =
-            (start.uptimeNanoseconds.distance(to: DispatchTime.now().uptimeNanoseconds)) / 1_000_000
-        await releaser.value
+        let waitedMs = Self.msSince(start)
+        let freedAtMs = await releaser.value
+        let controlMs = await control.value
+        let wakeSlackMs = waitedMs > freedAtMs ? waitedMs - freedAtMs : 0
 
-        #expect(acquired, "the lock was released 120 ms in — the waiter must take it")
-        // The bug this pins: `Task.sleep(until: deadline)` inside a pending loop parks the
-        // caller for the whole window regardless of when the condition clears (AGENTS.md).
-        #expect(waitedMs < 1000, "waited \(waitedMs)ms for a lock that freed at ~120ms")
+        #expect(
+            acquired,
+            "the lock freed at \(freedAtMs)ms of a 5000ms window and the waiter missed it")
+        // The defect this suite exists for is `Task.sleep(until: deadline)` inside the pending
+        // loop: it reaches the guard only when the window closes, so its signature is a wake
+        // slack of ~4.8 s against a release at ~120 ms. The bound sits between the two measured
+        // ends of this host's behaviour and that signature: the worst set-run wake here was
+        // 2194 ms (3350 tests sharing one pool; the control reads low because a saturated
+        // clock's tail is far worse than its median), and 3 s stays clearly under the defect.
+        // Both ends are re-measurable, and the control term keeps the bound honest on a host
+        // slower than this one.
+        let budgetMs = max(3000, 4 * controlMs)
+        #expect(
+            wakeSlackMs < budgetMs,
+            """
+            wake slack \(wakeSlackMs)ms against a \(budgetMs)ms budget (host latency \
+            \(controlMs)ms, lock freed at \(freedAtMs)ms, waiter took \(waitedMs)ms)
+            """)
         model.releaseInference()
+    }
+
+    private static func msSince(_ epoch: DispatchTime) -> Int {
+        Int(
+            (epoch.uptimeNanoseconds.distance(to: DispatchTime.now().uptimeNanoseconds))
+            / 1_000_000)
     }
 
     @Test("a full wait says no, and a zero wait says no immediately")

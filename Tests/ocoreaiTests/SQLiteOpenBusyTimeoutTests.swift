@@ -72,7 +72,7 @@ struct SQLiteOpenBusyTimeoutTests {
     /// first is what makes "there is a truncation to refuse" true by construction, not by host
     /// luck — and it is the premise the whole suite's `busy == true` rests on.
     private func holdWriteLock(on writer: SQLiteStore, delay: UInt64) async throws
-        -> Task<Void, any Error>
+        -> (epoch: DispatchTime, commit: Task<Int, any Error>)
     {
         try await writer.execute(sql: "CREATE TABLE busy_probe(x INTEGER);")
         try await writer.execute(sql: "BEGIN IMMEDIATE;")
@@ -80,10 +80,21 @@ struct SQLiteOpenBusyTimeoutTests {
         try await writer.execute(sql: "COMMIT;")
         try await writer.execute(sql: "BEGIN IMMEDIATE;")
         try await writer.execute(sql: "INSERT INTO busy_probe VALUES (2);")
-        return Task {
+        // The epoch is taken here, before the task exists, so every number the tests compare
+        // shares one origin: the commit lands `delay` ms from `epoch`.
+        let epoch = DispatchTime.now()
+        let commit = Task<Int, any Error> {
             try await Task.sleep(nanoseconds: delay)
             try await writer.execute(sql: "COMMIT;")
+            return Self.msSince(epoch)
         }
+        return (epoch, commit)
+    }
+
+    private static func msSince(_ epoch: DispatchTime) -> Int {
+        Int(
+            (epoch.uptimeNanoseconds.distance(to: DispatchTime.now().uptimeNanoseconds))
+            / 1_000_000)
     }
 
     @Test("uncontended open: WAL, timeout in force, checkpoint not busy")
@@ -114,7 +125,7 @@ struct SQLiteOpenBusyTimeoutTests {
 
         let writer = SQLiteStore(path: path)
         try await writer.open()
-        let commit = try await holdWriteLock(on: writer, delay: Self.commitInsideTimeout)
+        let (_, commit) = try await holdWriteLock(on: writer, delay: Self.commitInsideTimeout)
 
         let challenger = SQLiteStore(path: path)
         let started = ContinuousClock.now
@@ -140,7 +151,8 @@ struct SQLiteOpenBusyTimeoutTests {
 
         let writer = SQLiteStore(path: path)
         try await writer.open()
-        let commit = try await holdWriteLock(on: writer, delay: Self.commitPastTimeout)
+        let (epoch, commit) = try await holdWriteLock(
+            on: writer, delay: Self.commitPastTimeout)
 
         // Premise, floored before the challenger can change anything: with no committed frames
         // there is no truncation to refuse and busy=0 is the honest answer, so this suite would
@@ -154,10 +166,11 @@ struct SQLiteOpenBusyTimeoutTests {
             """)
 
         let challenger = SQLiteStore(path: path)
-        let openedAt = ContinuousClock.now
+        let openStartMs = Self.msSince(epoch)
         try await challenger.open()
-        let waited = openedAt.duration(to: .now)
-        try await commit.value
+        let openEndMs = Self.msSince(epoch)
+        let waitedMs = openEndMs - openStartMs
+        let commitMs = try await commit.value
 
         let reported = await challenger.lastOpenWALCheckpoint
         // CI reproduces this red on both matrix legs and this host does not, and the job log
@@ -169,7 +182,8 @@ struct SQLiteOpenBusyTimeoutTests {
             let timeout = try? await challenger.scalarQuery(sql: "PRAGMA busy_timeout;")
             print(
                 """
-                EVIDENCE sqlite-open-busy: waited=\(waited) busy=\(String(describing: reported?.busy)) \
+                EVIDENCE sqlite-open-busy: waitedMs=\(waitedMs) openEndMs=\(openEndMs) \
+                commitMs=\(commitMs) busy=\(String(describing: reported?.busy)) \
                 logPages=\(String(describing: reported?.logPages)) \
                 ckptPages=\(String(describing: reported?.checkpointedPages)) \
                 busyTimeout=\(String(describing: timeout?.asInt64)) \
@@ -180,18 +194,19 @@ struct SQLiteOpenBusyTimeoutTests {
         }
         #expect(
             reported?.busy == true, "the busy column was not read — contention would be swallowed")
-        // Ordering, pinned, because it is the one thing a runner can steal: `busy == true` is
-        // only evidence about contention if the checkpoint ran *before* the writer committed.
-        // CI measured `open()` at 6.60 s against a 6.5 s commit, which is indistinguishable
-        // from "it ran afterwards and succeeded". The commit now lands at 12 s, so an `open()`
-        // past 8 s can no longer be blamed on the 5 s timeout and this is the sentence that
-        // goes red instead of the assertion drawing the wrong conclusion.
+        // Ordering, pinned by measurement rather than a guessed constant: `busy == true` is
+        // only evidence about contention if `open()` finished before the writer committed. CI's
+        // first reading (`waited=6.60s` against a 6.5 s commit) was indistinguishable from "it
+        // ran afterwards and succeeded"; the first cut of this guard then used a hand-picked 8 s
+        // ceiling and CI broke *that* at 8.30 s while the ordering itself held, because the
+        // runner was slow rather than wrong. So the bound is the commit instant on one clock,
+        // with 50 ms of slack for the two measurements' own skew.
         #expect(
-            waited < .seconds(8),
+            openEndMs + 50 < commitMs,
             """
-            open() took \(waited), past any bound the 5 s busy timeout can explain: the \
-            checkpoint verdict can no longer be attributed to contention rather than to \
-            waiting for the commit itself
+            open() returned at \(openEndMs)ms and the writer committed at \(commitMs)ms \
+            (open took \(waitedMs)ms) — a refusal landing after the commit cannot be \
+            attributed to contention
             """)
         // A refused truncation is a degraded start, not a fatal one: SQLite auto-checkpoints later.
         #expect((try await challenger.scalarQuery(sql: "PRAGMA journal_mode;"))?.asString == "wal")
@@ -218,7 +233,8 @@ struct SQLiteOpenBusyTimeoutTests {
         #expect(
             walBytes(path) == 0, "this run did not reproduce the empty-WAL start CI reported")
 
-        let commit = try await holdWriteLock(on: writer, delay: Self.commitPastTimeout)
+        let (_, commit) = try await holdWriteLock(
+            on: writer, delay: Self.commitPastTimeout)
         let frames = walBytes(path)
         #expect(frames > 0, "a committed transaction must reach the WAL, got \(frames) bytes")
 
