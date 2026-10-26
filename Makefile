@@ -316,7 +316,7 @@ format:
 	  *) \
 	    echo "⛔ refusing to write: swift-format reports \"$$SFV\", not $(SF_PIN). Lint instead:"; \
 	    $(SWIFT_FORMAT) lint --recursive --parallel --configuration .swift-format Sources/ Tests/ 2>&1 \
-	      | awk 'END { print "   advisory notes: " NR " line(s) — CI's $(SF_PIN) leg decides style" }' ;; \
+	      | awk 'END { print "   advisory notes: " NR " line(s) — the pinned $(SF_PIN) ruleset decides style" }' ;; \
 	esac
 
 format-check:
@@ -354,6 +354,10 @@ format-check:
 audit:
 	@echo "🔍 Running static audit..."
 	bash scripts/audit.swift_patterns.sh
+	@# A documented remediation target that cannot even parse is a gate with no exit: `make format`
+	@# died on an apostrophe inside a single-quoted awk program, so the stated fix for
+	@# `make format-check` had never once run. Parse every recipe before trusting it.
+	bash scripts/makefile-parse-check.sh
 	@# Two lockfiles, one dependency graph: xcodebuild (make test-ci, the DMG) reads the WORKSPACE
 	@# copy, swift build reads the ROOT one. They drifted for three pin bumps and only CI ever said
 	@# so, because this target is the local mirror of the CI audit job — which already checks it.
