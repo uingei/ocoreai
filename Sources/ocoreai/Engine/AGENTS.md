@@ -53,7 +53,7 @@ Three conditions, and two of the ways they fail are silent (measured, not inferr
   (one cold turn) rather than hand upstream rows it rejects at first token — `requirePlan` throws
   `kvCacheConfigurationChanged` for a plan mismatch.
 
-Measured 10-21 (gemma-4-e2b-it-4bit, one session): appended turn `758/734`, edited resend
+Measured (gemma-4-e2b-it-4bit, one session): appended turn `758/734`, edited resend
 `758/718`; the same turn was `758/0` before this landed. Gates: `SessionRewindOnDivergenceTests`
 (the two rules never both say yes, over a 384-cell sweep; one fork site, one decision home,
 reserve at every resolver exit), `SessionIsolationTests` (plan mismatch, precedence, round trip),
@@ -76,7 +76,7 @@ reading `processor_class` would claim it for checkpoints whose processor ignores
 
 **Never inside the pooled release.** `releasePoolSlotWithAssistant` is a no-op when there is no pool —
 the degraded `.cpu` lane (`poolRef = nil`) and a pool-disabled engine (`sessionPool = nil`) both run
-without one, and both still hand every frame to the processor. Measured 10-20 on that lane: the model
+without one, and both still hand every frame to the processor. Measured on that lane: the model
 answered "Red" with prompt 712 → 856 (+144 video tokens) while `/v1/models` held `video_input =
 not_observed`. `OCOREAI_SESSION_POOL=0` reaches the lane on demand (the memory-pressure route cannot
 be scheduled). Gates: `VideoDeliveryPathTests` (placement, premise-floored: one record site in the

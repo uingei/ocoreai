@@ -87,13 +87,13 @@ live assertion about the pair (`scripts/probes/`), not a test of the handler alo
 <!-- anchor:mlx-swift-lm .github/workflows/pull_request.yml:250 xcodebuild build-for-testing -->
 <!-- anchor:mlx-swift Source/MLX/GPU+Metal.swift:54-55 metallib load path -->
 
-## 本地全量到底能不能跑（moved out of AGENTS.md 10-19(续3), byte ratchet）
+## Why the full suite once looked unrunnable here
 
-the full suite **does** run on this host — ~2.7k tests / ~480 suites on the CLT route (`make test-clt`).
 The blocker was the **agent sandbox**, never the platform, metallib or macOS 26: inside it MLX logs
-`No Metal device available` and the first MLX suite dies. And `ocoreai serve` + live `curl` on `/v1/*` work
-locally — the loop that caught defects no static audit here had (see «The four defects the live loop caught»).
-**Prefer a live check over an inference whenever a claim is about behaviour.**
+`No Metal device available` and the first MLX suite dies. Run outside it, the full suite is ~2.7k tests /
+~480 suites on the CLT route (`make test-clt`), and `ocoreai serve` + live `curl` on `/v1/*` answer — the
+loop behind «The four defects the live loop caught». What that costs the reader is root's rule, not
+this file's: *prefer a live check over an inference whenever a claim is about behaviour*.
 
 ## CoreAI constrained decoding: the span this host can never run (moved out of AGENTS.md, byte ratchet)
 
@@ -119,59 +119,51 @@ fallback (one `HubReachability` site), whose `canImport(FoundationModels)` block
 
 ## Test runs on this host (measured 10-26)
 
-**A local test run must name its shader payload, or it reports nothing (measured 10-26).**
+**A local test run must name its shader payload, or it reports nothing.**
 Letting MLX search for the library dies at the first Metal allocation
 (`Failed to load the default metallib`, Cmlx `mlx-c/memory.cpp:69`) thousands of lines in, exit 1,
 **no summary**: neither a pass nor a fail. `make test` exports `$OCOREAI_METALLIB` from
 `scripts/resolve-metallib.sh`, the one ladder. It prints the rung that won and exits 1 naming
 `xcodebuild -downloadComponent MetalToolchain` when nothing is usable; `make test-clt` stages the
 winner beside the products dir instead (a payload inside a signed bundle fails the sign step).
-Same tree, both routes: **CLT (SDK 26.5, `--no-parallel`) 3180 tests / 562 suites green in 429 s**
-(before this round's test work); **Xcode (ambient SDK 27, parallel) 3345 / 589 in ~15 s with 44
-skipped**. Nothing red here is the platform any more: the eight suites that used to fail-or-quietly-print
-on an SDK-27/macOS-26 host now report `skipped` through `PlatformPremise.hasMacOS27`, so a red is one
-verdict. What is left red is wall-clock budgets losing to parallelism, green standalone in seconds and
-drifting in set from run to run: `MCPStderrDiagnosisTests` loses a child's stderr and its own timeout
-window, `EngineBusyAdmissionTests` misses a 1 s budget. A former round blamed these on four suites sharing one seeded file in
-the repo workspace — wrong, each seeds its own temp dir; the cause was an unleased
-`SessionWorkspace` setter, now owned by `ProcessGlobalLease` and floored by
-`ProcessGlobalLeaseDisciplineTests`.
+Run counts are not copied here on purpose: this file once carried a CLT number that had already been
+outlived by the round that edited it, and invariant 1 says a number nobody re-greps drifts. Each leg
+prints its own counts; `CHANGELOG.md` prices each round's. What stays true between rounds: nothing red
+is the platform (`PlatformPremise.hasMacOS27` makes an unmet OS premise a skip, so a red is one
+verdict), and the residual reds are wall-clock budgets losing to parallelism — green standalone in
+seconds, drifting in set run to run (`MCPStderrDiagnosisTests`, `EngineBusyAdmissionTests`, the
+rate-limit window).
 **`swift test --filter` needs `--disable-xctest`**: filtered `swift test` `signalled(11)` inside
 `swiftpm-xctest-helper`, which serves only the XCTest half; with it off `make test FILTER=<Regex>`
 answers in seconds and `make test-clt FILTER=<Regex>` covers the rest. Both cite swift-testing **IDs** —
 a suite *type* name, not its display text.
 
-**A lease must not span live network (measured 10-26).** Making the workspace anchor exclusive put every
-env-touching suite behind one lock, and the run went 122 s -> 370 s with 9 false reds: three
-`ReadyHubDownloaderFlatTests` cases deliberately take the network path, each holding the lock through
-122 s of connect timeout against a hub this host black-holes. `HubClient` reads `HF_ENDPOINT` at
-construction (swift-huggingface `Sources/HuggingFace/Hub/HubClient.swift:116`, `detectHost()` at :189),
-so that suite now pins it to a port that refuses on loopback — same five tests, same assertions,
-366.0 s -> 0.03 s, and they no longer depend on whether the machine has a network. Full run:
-122 s -> 15 s. `ProcessGlobalLease.waitBudget` is 60 s and on expiry *records and proceeds*: a leaked
-lease is a named red, never a hang (before the deadline it hung 13 min with 19 cooperative threads
-parked on the lock and `sample` named the holder).
+**A lease must not span live network.** A lock held across a connect timeout serialises the whole run:
+three `ReadyHubDownloaderFlatTests` cases deliberately take the network path, and behind one lock the
+full suite went 122 s -> 370 s with 9 false reds. `HubClient` reads `HF_ENDPOINT` at construction
+(swift-huggingface `Sources/HuggingFace/Hub/HubClient.swift:116`, `detectHost()` at :189), so that suite
+pins it to a loopback port that refuses — same five tests, same assertions, 366.0 s -> 0.03 s, and no
+premise about whether the host has a network. `ProcessGlobalLease.waitBudget` is 60 s and on expiry
+*records and proceeds*: a leaked lease is a named red, never a hang. Round forensics (the 13-minute
+pre-deadline hang, 19 parked threads, `sample` naming the holder): CHANGELOG 10-26(11).
 
 **A process-global singleton is the same hazard as an env var.** `PerceptionEngine.stop()` fires a
 detached `SystemContextSensor.shared.stop()` (`PerceptionEngine.swift:292`) that lands whenever the pool
-likes, so the live sensor suite read `no context` on one full run and passed the next. `pollLoop`
-published to `Self.shared` rather than `self`, so no second instance could be driven; it publishes to its
-own instance now and the suite owns its sensor, and reverting the publish target turns that suite red —
-both directions measured 10-26. Shipped behaviour is unchanged: `shared` is the only instance
-production starts (`PerceptionEngine.swift:265`).
+likes, so the live sensor suite read `no context` on one run and passed the next. `pollLoop` published to
+`Self.shared` rather than `self`, so no second instance could be driven; it publishes to its own instance
+now, the suite owns its sensor, and reverting the publish target turns that suite red. Shipped behaviour
+is unchanged: `shared` is the only instance production starts (`PerceptionEngine.swift:265`).
 
-**An OS premise is declared at the declaration, never inside the body (measured 10-26).** Three shapes
-hid it, and all three cost verdicts: `Issue.record("requires macOS 27")` made the platform look like a
-defect, `print("[X] SKIP …")` never reached the run summary (so untested work read as tested), and
-`.disabled("requires macOS 27 runtime; exercised in CI matrix")` did not revive when CI moves to
-macOS 27 — five tests in `CoreAIVisionConfigTests` were silently dead that way. The shape that works is
+**An OS premise is declared at the declaration, never inside the body.** Three shapes hid it and each
+cost a verdict: `Issue.record("requires macOS 27")` made the platform look like a defect;
+`print("[X] SKIP …")` never reached the run summary, so untested work read as tested; and
+`.disabled("requires macOS 27 runtime; exercised in CI matrix")` does not revive when CI moves to
+macOS 27 — five `CoreAIVisionConfigTests` were dead that way. The shape that works is
 `@Test(…, .enabled(if: PlatformPremise.hasMacOS27))` on a function carrying `@available(macOS 27.0, *)`:
-the annotation is what lets the body compile against the API, the condition is what skips it, and
-`PlatformPremiseHonestyTests`(2) keeps both honest — a floored scan over `Tests/` for `.disabled(`
-(300-file and 20-`enabled(if:)` floors, scanner exempted by name) plus a check that the predicate agrees
-with `operatingSystemVersion`, so a premise hardened to `true` goes red with the OS quoted. Both red
-samples were run: a `.disabled` suite got named by path, and `return true` reported
-`hasMacOS27 said true on OS … majorVersion: 26`.
+the annotation is what lets the body compile against the API, the condition is what skips it.
+`PlatformPremiseHonestyTests`(2) floors a `.disabled(` scan over `Tests/` (300 files, 20
+`.enabled(if:)`, scanner exempted by name) and checks the predicate against `operatingSystemVersion`, so
+a premise hardened to `true` goes red with the OS quoted. Round forensics: CHANGELOG 10-26(12).
 
 A premise can also be *earned back*: `applyWritesResolvedEndpointToProcessEnv` shipped disabled because
 it writes the real `HF_ENDPOINT`, which `SettingsStoreTests` reads expecting the canonical value. The

@@ -79,3 +79,10 @@ how code is written anywhere, it belongs at the root. Two copies of one rule is 
   read-only tools never count, so a notice can only under-accuse. Gate: `ClaimVsAuditTests`(17).
 - `/v1/models/:model/…` takes a **percent-encoded** model id (`:model` matches one segment, `/v1/models`
   publishes `org/name`); the catalog says so and probe 03 pins it — the owner call lives in § Open.
+
+## Verification in this subtree
+- `make test FILTER='WireDTOOptionalityTests'` — a key the spec calls optional decodes when absent.
+- `make test FILTER='GrammarSchemaRegressionTests'` — the schema a constrained answer is promised.
+- `make test FILTER='ToolCallWireContractTests'` — parallelism, terminal word, terminal chunk.
+- `make probes` — the same rows against a live `/v1/*` server, so the claim outlives the session
+  that made it.

@@ -52,6 +52,13 @@
 #   P15 corpus shape  P13's shape rule one hop out — no line over OCOREAI_CORPUS_MAX_LINE bytes
 #                    outside code fences/comments/tables, corpus total under OCOREAI_CORPUS_MAX_BYTES.
 #                    A guide nobody can read is a guide nobody obeys.
+#   P17 guide shape  every Sources/**/AGENTS.md opens `# <Area> — <claim>`, states in its scope
+#                    block that the root file still governs and which directories it owns, names
+#                    at least two gates, ends its rules with the command that verifies them, and
+#                    carries no dated stamp. opencode ships 18 guides that all open with an
+#                    ownership line and most name their own validation command; a reader who has
+#                    read one knows where to look in the next. "Each area has a guide" is a file
+#                    count; a shape is a contract.
 #   P16 comparators § Upstream 6 names fourteen trees, and the long-form doc claimed twice that
 #                    "the floors below are the gate" while carrying no floors — so the audit column
 #                    rotted in silence. This is that floor: every named tree must appear in
@@ -188,6 +195,11 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_AGENTS_FLOOR_SUITES:=8}"
 : "${OCOREAI_AGENTS_FLOOR_SUITE_COUNTS:=8}"
 : "${OCOREAI_AGENTS_FLOOR_ROUTING:=4}"
+# P17 floors: the area-guide scan must keep matching (measured 3 guides, 26 distinct gate names
+# on 10-26), else "every guide has a shape" would be a claim about an empty list.
+: "${OCOREAI_FLOOR_AREA_GUIDES:=3}"
+: "${OCOREAI_FLOOR_GUIDE_GATES:=20}"
+
 # P12 floor: the § cross-reference scan must keep matching, or "every ref resolves" is
 # vacuous (measured 23 distinct refs across root + guides on 10-21).
 : "${OCOREAI_AGENTS_FLOOR_XREFS:=12}"
@@ -229,6 +241,8 @@ OCOREAI_AGENTS_FLOOR_SUITES="$OCOREAI_AGENTS_FLOOR_SUITES" \
 OCOREAI_AGENTS_FLOOR_SUITE_COUNTS="$OCOREAI_AGENTS_FLOOR_SUITE_COUNTS" \
 OCOREAI_AGENTS_FLOOR_ROUTING="$OCOREAI_AGENTS_FLOOR_ROUTING" \
 OCOREAI_AGENTS_FLOOR_XREFS="$OCOREAI_AGENTS_FLOOR_XREFS" \
+OCOREAI_FLOOR_AREA_GUIDES="$OCOREAI_FLOOR_AREA_GUIDES" \
+OCOREAI_FLOOR_GUIDE_GATES="$OCOREAI_FLOOR_GUIDE_GATES" \
 OCOREAI_README_FLOOR_ROUTES="$OCOREAI_README_FLOOR_ROUTES" \
 OCOREAI_README_FLOOR_JOBS="$OCOREAI_README_FLOOR_JOBS" \
 python3 - <<'PY'
@@ -829,6 +843,58 @@ else:
                        " (differing: %s)" % (CMP_DOC, len(loop_set), len(registered),
                                             ", ".join(sorted(set(loop_set) ^ set(registered)))))
 
+# ── P17 area-guide shape ─────────────────────────────────────────────────────
+# An area guide is injected into the context of every session that works inside its subtree, so it
+# owes the root file's discipline *and* a predictable shape: a rule with no command to run is a
+# claim about how to check it, a guide that never says root still governs reads as a replacement
+# for it, and a dated stamp inside an injected file is the diary P13 forbids wearing a subtree
+# pass. Floors first, or an empty glob makes every assertion below vacuous (P1's pattern).
+H1_RE = re.compile(r"^# [A-Z][^—]{2,60}— \S")
+CMD_RE = re.compile(r"`(make [a-z-]+[^`]*|swift (build|test)[^`]*)`")
+if len(AREA_GUIDES) < env_int("OCOREAI_FLOOR_AREA_GUIDES"):
+    fail.append("P17 only %d area guide(s) scanned (floor %d) \u2014 the glob rotted, so every "
+                "shape rule below would pass vacuously"
+                % (len(AREA_GUIDES), env_int("OCOREAI_FLOOR_AREA_GUIDES")))
+guide_gates = set()
+for g in sorted(set(AREA_GUIDES)):
+    txt = read(g)
+    lines = txt.split("\n")
+    head = "\n".join(lines[:8])
+    if not H1_RE.match(lines[0]):
+        fail.append("P17 %s line 1 must be `# <Area> \u2014 <one-line claim>`: uniform openings are "
+                    "what let a reader scan the Nth guide like the first" % g)
+    elif len(lines[0].encode("utf-8")) > 90:
+        fail.append("P17 %s title is %d bytes \u2014 the claim is one line"
+                    % (g, len(lines[0].encode("utf-8"))))
+    if not re.search(r"AGENTS\.md`?[^\n]{0,30}governs", head):
+        fail.append("P17 %s does not state in its first 8 lines that the root AGENTS.md governs "
+                    "\u2014 a guide that stays silent reads like it replaced the root file" % g)
+    if not re.search(r"`[A-Za-z0-9_/]+/`", head):
+        fail.append("P17 %s scope block names no directory it owns, so nothing says where its "
+                    "rules stop and root's resume" % g)
+    gates = set(re.findall(r"`([A-Za-z0-9_]*Tests)`", txt))
+    guide_gates |= gates
+    if len(gates) < 2:
+        fail.append("P17 %s names %d gate(s); a rule here that no gate goes red for is a claim "
+                    "(invariant 1 applies inside a subtree too)" % (g, len(gates)))
+    vsec = re.search(r"^## (Verification|Validation)[^\n]*$", txt, re.M)
+    if not vsec:
+        fail.append("P17 %s has no `## Verification\u2026` section \u2014 the commands that check "
+                    "this subtree belong where the work is being read" % g)
+    else:
+        tail = txt[vsec.end():]
+        nxt = re.search(r"^## ", tail, re.M)
+        if not CMD_RE.search(tail[:nxt.start()] if nxt else tail):
+            fail.append("P17 %s's Verification section names no `make …` / `swift …` command" % g)
+    stamps = re.findall(r"(?<![\d/.])(?:0[1-9]|1[0-2])-(?:[1-9]|[12]\d|3[01])(?![\d])", txt)
+    if stamps:
+        fail.append("P17 %s carries %d dated stamp(s) (%s) \u2014 P13's diary rule reaches inside a "
+                    "subtree: an injected file holds rules, the date belongs to CHANGELOG.md"
+                    % (g, len(stamps), ", ".join(sorted(set(stamps))[:4])))
+if len(guide_gates) < env_int("OCOREAI_FLOOR_GUIDE_GATES"):
+    fail.append("P17 only %d distinct gate name(s) across area guides (floor %d) \u2014 guides whose "
+                "rules are not wired to a test" % (len(guide_gates), env_int("OCOREAI_FLOOR_GUIDE_GATES")))
+
 # ── report ───────────────────────────────────────────────────────────────────
 print("AGENTS.md contract (%s)" % mode)
 print("  xrefs     §-refs=%d (floor %d)  anchors=%d  dangling=%d"
@@ -838,6 +904,9 @@ print("  corpus    files=%d bytes=%d/%d  walls=%d  probe-index=%d/%d  doc-orphan
          len(corpus_walls), len(probe_indexed), len(probe_scripts), len(doc_orphans), len(table_bad)))
 print("  budgets   root=%d/%d chars  guides=%d  chain-cap=%d"
       % (root_size, env_int("OCOREAI_AGENTS_MAX_ROOT"), len(guides), env_int("OCOREAI_AGENTS_MAX_CHAIN")))
+print("  guides    area=%d (floor %d)  gate-names=%d (floor %d)"
+      % (len(set(AREA_GUIDES)), env_int("OCOREAI_FLOOR_AREA_GUIDES"),
+         len(guide_gates), env_int("OCOREAI_FLOOR_GUIDE_GATES")))
 print("  scan      gateable-refs=%d (floor %d)  claims=%d/%d ok (floor %d)  suites=%d  routing=%d  upstream-trees=%d"
       % (len(hard_refs), env_int("OCOREAI_AGENTS_FLOOR_REFS"), ok_claims, len(claims),
          env_int("OCOREAI_AGENTS_FLOOR_CLAIMS"), len(suites), len(routing), len(clones)))

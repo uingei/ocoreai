@@ -73,3 +73,11 @@ the model-dependent half (version == tag, the :8080 listener *is* the bundle bin
 automation is unverified.
 Their seam is `ChatViewModel.chat` (`:975`); `ChatView.sendMessage` (`:971`) delegates.
 `ChatStateSendPathTests` executes it (live: `OCOREAI_GUI_LIVE=1`).
+
+## Verification in this subtree
+- `make test FILTER='UIFocusDisciplineTests'` — ⌘ coverage and tab numbering follow the sidebar. A
+  filtered route drops the XCTest half and must say so (`docs/agent/build-gate-reality.md`).
+- `make test FILTER='ChatStateSendPathTests'` — the send path is executed at its real seam, and
+  `PresentationEchoGuardTests` pins that our own read-echo chrome is stripped, not forwarded.
+- `GUI_REQUIRE_PIXELS=1 scripts/e2e-gui-app.sh` — the only honest claim about pixels here, and it
+  is opt-in for the model-dependent leg (the copy above must never be read as "the GUI works").
