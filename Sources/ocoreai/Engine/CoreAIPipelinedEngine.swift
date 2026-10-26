@@ -23,14 +23,6 @@ import Synchronization
 import os
 import Tokenizers
 
-// MARK: - Timing
-
-private func milliseconds(since start: ContinuousClock.Instant) -> Double {
-    let duration = ContinuousClock.now - start
-    let (secs, attoseconds) = duration.components
-    return (Double(secs) + Double(attoseconds) / 1e18) * 1000.0
-}
-
 // MARK: - Constants
 
 /// Maximum number of in-flight pipeline stages. Shared by the backpressure gate

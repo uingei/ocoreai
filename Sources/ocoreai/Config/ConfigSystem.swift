@@ -129,32 +129,6 @@ actor ConfigSystem {
         config
     }
 
-    /// Update a specific section.
-    func updateServer(_ section: ServerConfig) async {
-        config.server = section
-        try? await save()
-    }
-
-    func updateBackend(_ section: BackendConfig) async {
-        config.backend = section
-        try? await save()
-    }
-
-    func updateMemory(_ section: MemoryConfig) async {
-        config.memory = section
-        try? await save()
-    }
-
-    func updateMetrics(_ section: MetricsConfig) async {
-        config.metrics = section
-        try? await save()
-    }
-
-    func updateModel(_ id: String, entry: ModelConfigEntry) async {
-        config.models[id] = entry
-        try? await save()
-    }
-
     // MARK: - Watch
 
     /// Start file watcher — poll-based, reloads if file changes.
