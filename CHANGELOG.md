@@ -4,6 +4,13 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-26
 
+**10-26(21) The iOS leg went green, and the annotation meant to name tests named nothing** (P1 CI legibility / symbols `swift-testing-failure-shape`, `pdbg-removed`)
+
+- **One open half of 10-26(19) closed by evidence**: `macOS 26 · iOS compile-only -> success` on commit `2644008`. The `Process` platform gate held on the runner, so the stub fix is CI-verified rather than macOS-verified-and-hoped. `Governance Check` and `App Store trait compile` also pass; both `Build & Test` legs stay red.
+- **The grep was wrong about the framework this suite is written in**: the "no failure line" branch fired on *both* matrix legs, and that is itself the measurement — swift-testing reports `✘ Test "…" failed after N seconds with M issues`, not `Test Case '-[…]' failed`. The pattern now matches both shapes plus `Fatal error`, so a red leg names its cases instead of its tail.
+- **What the tail showed instead of a diagnosis**: three leftover `print("PDBG …")` statements in `Tests/ocoreaiTests/PDFReadFileTests.swift` dumped whole tool outputs into every CI log — a full `read_file` body with its `total_lines:` chrome and the numbered echo, i.e. exactly the read-echo chrome § Two invariants says to strip when provable. Removed (suite still 3/3 green); the no-match branch now quotes the log's line count and 12 tail lines rather than 6.
+- **Still unknown, and named as unknown**: why `xcrun xctest` exits 1 on both legs without emitting one failure line — crash, timeout or shader payload. This push is the instrument; `scripts/ci-status.sh` reads the answer back without a token.
+
 **10-26(20) A dead server's cause was arriving 150 ms too late — measured, then widened** (P1 diagnosis reliability / symbols `stderr-drain-starved`, `counted-not-clocked-evidence`) — `MCPStderrDeliveryTests` was the only red in the full local suite, and the handoff's hypothesis (drain starvation) was tested rather than trusted.
 
 - **Hypothesis refused to reproduce on demand**: 12 CPU spinners on 18 cores ran the filtered suite 3× — 3 passes. Only the *full* suite reproduces it, so the mechanism was measured, not argued: a temporary probe inside `stderrEvidence()` (installed, run, reverted with `git checkout` — no debug code ships) logged `entrySnapshot=0 entryEnded=0 polls=10 finalSnapshot=0 ended=0 lines=0`, three times, in a run that failed with 7 issues. Two hundred and fifty milliseconds after the child died the tail had **no line and no EOF** — the drain block had not started at all.

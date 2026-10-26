@@ -258,14 +258,14 @@ jobs:
             # `' failed` and published an FM-tool warning as if it were a test result, while
             # the other matrix leg published nothing at all. `Test Case ...] failed` is the
             # XCTest line; anything else is a crash, and a crash says so instead of staying quiet.
-            CASES=$(grep -E "^Test Case .*\] failed" xctest.log | head -20 || true)
+            CASES=$(grep -E "^Test Case .*\] failed|failed after .* with .* issue|✘ |Fatal error" xctest.log | head -20 || true)
             { echo "### xctest failures (exit $RC)"; echo '```'
               grep -E "failed|Fatal error|error:" xctest.log | tail -40; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
             if [ -n "$CASES" ]; then
               printf '%s\n' "$CASES" | sed 's/^/::error::failing case: /'
             else
-              echo "::error::xctest exited $RC with no 'Test Case ... failed' line — the bundle died before reporting (crash, timeout, or no metallib); log tail:"
-              tail -6 xctest.log | sed 's/^/::error::  /'
+              echo "::error::xctest exited $RC with no failure line at all — the bundle died before reporting (crash, timeout, or no metallib). $(wc -l < xctest.log) log line(s), tail:"
+              tail -12 xctest.log | sed 's/^/::error::  /'
             fi
             exit "$RC"
           fi

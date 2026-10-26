@@ -55,7 +55,6 @@ struct PDFReadFileTests {
     func pdfExtractHappy() throws {
         try seedPDFs()
         let out = try FileTools.read(path: workdir.appendingPathComponent("real.pdf").path)
-        print("PDBG HAPPY:\n\(out)")
         // The exact text must surface, numbered, with the full footer.
         #expect(out.contains("1|Hello ocoreai PDF text layer 12345"))
         #expect(out.contains("total_lines: 1 (full)"))
@@ -81,7 +80,6 @@ struct PDFReadFileTests {
         }()
         #expect(threw != nil, "expected ToolError")
         if case ToolError.invalidParameter(let message)? = threw {
-            print("PDBG NOTEXT-HONEST: \(message.prefix(140))")
             #expect(message.contains("no extractable text"))
             #expect(message.contains("view_image"))
         } else {
@@ -94,7 +92,6 @@ struct PDFReadFileTests {
         try seedPDFs()
         let hit = try FileTools.search(
             path: workdir.path, pattern: "ocoreai", target: "content")
-        print("PDBG SEARCH-HIT: \(hit.prefix(120))")
         #expect(hit.contains("real.pdf"))
         // notext has no text → must NOT match, and total should be exactly 1.
         #expect(!hit.contains("notext.pdf"))
