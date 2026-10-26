@@ -267,6 +267,9 @@ struct EditMismatchRecoveryTests {
                 message.contains("Do not answer the user before that retry"),
                 "the give-up exit is closed: \(message)")
             #expect(
+                !message.contains("exec_command"),
+                "a replacement intent is never nudged toward rm: \(message)")
+            #expect(
                 !message.contains("read_file it"),
                 "no round trip may be ordered for a file already quoted whole: \(message)")
         }
@@ -316,6 +319,33 @@ struct EditMismatchRecoveryTests {
         #expect(ok.contains("1 replacement(s)"), "\(ok)")
         #expect(!ok.contains("chrome"), "a raw match is not a repair: \(ok)")
         #expect(try String(contentsOf: url, encoding: .utf8) == "1|ALPHA\n2|beta\n")
+    }
+
+    /// Reproduced from the scoreboard, not imagined: `delete-only-what-was-asked` aimed an
+    /// `edit_file` with an empty `newString` (the caller's own deletion intent) at a file whose
+    /// one line it had not read, was refused with that line quoted whole, and answered the user
+    /// asking for exactly that line. `edit_file` can empty a file and no file tool deletes one,
+    /// so the refusal has to say which route exists — or the turn dies on a two-line file.
+    @Test("an empty newString names the removal route the retry cannot be")
+    func deletionIntentNamesTheRemovalRoute() throws {
+        let lease = ProcessGlobalLease(envKeys: [WorkspaceContext.workspaceEnvironmentKey])
+        defer { lease.release() }
+        let url = try seeded("stale.log", "old\n")
+        defer { SessionWorkspace.clear() }
+
+        do {
+            _ = try FileTools.editFile(
+                path: "stale.log", oldString: "stale lock entry", newString: "")
+            Issue.record("a non-matching oldString must not edit")
+        } catch let ToolError.invalidParameter(message) {
+            #expect(message.contains("found 0"), "still strict: \(message)")
+            #expect(
+                message.contains("exec_command") && message.contains("rm stale.log"),
+                "removal intent gets the route that exists: \(message)")
+        }
+        #expect(
+            try String(contentsOf: url, encoding: .utf8) == "old\n",
+            "naming a route must not delete anything by itself")
     }
 
 }

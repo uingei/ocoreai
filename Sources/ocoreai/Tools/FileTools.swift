@@ -285,11 +285,23 @@ enum FileTools {
                 // When every line is in hand the only next step is the retry, so the message
                 // names it and closes the other exit (the shape that took `edit-replace-all`
                 // from 0/3 to a pass: name the knob, then forbid stopping).
+                // An empty newString is the caller's own deletion intent, and the retry ordered
+                // above cannot finish that job: edit_file can empty a file, and no file tool
+                // deletes one. Measured on the scoreboard, `delete-only-what-was-asked` met this
+                // refusal, had no route to a removal, and asked the user for the line quoted in
+                // the same message. So name the route that does exist — and only where the
+                // caller's own argument proves removal intent, because an `rm` suggestion in an
+                // ordinary mismatch would nudge a mistyped edit into an unrecoverable delete.
+                let removal =
+                    newString.isEmpty
+                    ? "\nDeleting the file itself is not a file tool: use exec_command with"
+                        + " `rm \(path)`. The retry above empties the file instead."
+                    : ""
                 throw ToolError.invalidParameter(
                     "\(head), refusing partial edit\(hint.text)"
                         + "\nRetry this call now with the exact line above as oldString:"
                         + " the whole file is quoted above, so nothing has to be read first."
-                        + " Do not answer the user before that retry.")
+                        + " Do not answer the user before that retry.\(removal)")
             }
             let remedy: String
             if count == 0 {
