@@ -175,7 +175,7 @@ is in `CHANGELOG.md` (grep the symbol). `make audit` Class-J keeps suite names c
 Five empirical sources plus comparators; round-by-round verdicts live in `CHANGELOG.md`, one diary, one home.
 1. **`mlx-swift-lm`** — the `revision:` pin in `Package.swift` is the contract, currently `991266ad3`;
    `Package.swift` keeps the pin and a pointer, never a per-commit diary. Bump protocol: audit the consumption surface commit by
-   commit → bump `.revision` → `swift build` + `make test-ci` green → verdicts into `CHANGELOG.md`.
+   commit → bump `.revision` → `make audit` (both lockfiles) → `swift build` + `make test-ci` green → verdicts into `CHANGELOG.md`.
    Upstream sources live under `Libraries/`, not `Sources/`; what must hold between clone and pin is
    `git merge-base --is-ancestor`, and "the built checkout is clean and at the pin" is asserted by
    `scripts/probes/_lib.sh`, not by prose.
