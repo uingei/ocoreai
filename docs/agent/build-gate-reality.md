@@ -133,10 +133,9 @@ is the platform (`PlatformPremise.hasMacOS27` makes an unmet OS premise a skip, 
 verdict), and the residual reds are wall-clock budgets losing to parallelism — green standalone in
 seconds, drifting in set run to run (`MCPStderrDiagnosisTests`, `EngineBusyAdmissionTests`, the
 rate-limit window).
-**`swift test --filter` needs `--disable-xctest`**: filtered `swift test` `signalled(11)` inside
-`swiftpm-xctest-helper`, which serves only the XCTest half; with it off `make test FILTER=<Regex>`
-answers in seconds and `make test-clt FILTER=<Regex>` covers the rest. Both cite swift-testing **IDs** —
-a suite *type* name, not its display text.
+**The XCTest half is never run**: `make test` always passes `--disable-xctest`, because that half holds
+zero tests and its runner SEGVs at class realization on macOS < 27 — the mechanism and the refusal gate
+live in that target. Filtered routes cite swift-testing **IDs** — a suite *type* name, not display text.
 
 **A lease must not span live network.** A lock held across a connect timeout serialises the whole run:
 three `ReadyHubDownloaderFlatTests` cases deliberately take the network path, and behind one lock the

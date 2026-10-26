@@ -197,20 +197,28 @@ test:
 	@# at the first Metal allocation ("Failed to load the default metallib", Cmlx memory.cpp) and
 	@# the suite never reports — measured 10-26 on the Xcode route, 4k lines in, no summary.
 	@#
-	@# FILTER needs --disable-xctest on this route: filtered `swift test` signalled(11) inside
-	@# swiftpm-xctest-helper before anything ran, and that helper is the XCTest half. With it
-	@# disabled the same filter answers in seconds instead of the CLT route's minutes — and the
-	@# dropped half is named out loud, because a filtered run that silently skips a target
-	@# reads as a full green.
-	@METALLIB=$$(bash scripts/resolve-metallib.sh .build) \
+	@# The XCTest half is never run, filtered or not. It serves zero tests — `git grep -l
+	@# "import XCTest" in Tests/` is the count, checked below before anything builds — and its
+	@# runner dies before test #1 on any macOS < 27 host: objc_copyClassList → realizeAllClasses
+	@# realizes CoreAIPipelinedEngine, whose @available(macOS 27) metadata needs the weak-linked
+	@# CoreAI/FoundationModels class refs (`otool -L` reports "(weak)") that bind to NULL there,
+	@# so an unfiltered `swift test` could never exit 0 whatever the suite did. The refusal is the
+	@# gate: if Tests/ ever gains an XCTest file, --disable-xctest would be dropping tests, not
+	@# noise, and that must be a red rather than a silently greener run.
+	@XCT=$$(grep -rl "import XCTest" Tests 2>/dev/null | wc -l | tr -d ' '); \
+	  if [ "$$XCT" != "0" ]; then \
+	    echo "❌ Tests/ holds $$XCT XCTest file(s) — --disable-xctest would drop real tests."; \
+	    echo "   The XCTest runner SEGVs at class realization on macOS < 27 (see above): port the"; \
+	    echo "   cases to swift-testing, or run them where CoreAI loads (macOS 27)."; exit 1; fi; \
+	  METALLIB=$$(bash scripts/resolve-metallib.sh .build) \
 	  || { echo "❌ no payload to name — remedy above"; exit 1; }; \
-	echo "   shader payload: $$METALLIB"; \
-	if [ -n "$(FILTER)" ]; then \
-	  echo "   FILTER set → swift-testing only (--disable-xctest), XCTest half not run"; \
-	  OCOREAI_METALLIB="$$METALLIB" swift test --disable-xctest --filter "$(FILTER)"; \
-	else \
-	  OCOREAI_METALLIB="$$METALLIB" swift test; \
-	fi
+	  echo "   shader payload: $$METALLIB"; \
+	  echo "   XCTest half: $$XCT file(s) → swift-testing only (--disable-xctest)"; \
+	  if [ -n "$(FILTER)" ]; then \
+	    OCOREAI_METALLIB="$$METALLIB" swift test --disable-xctest --filter "$(FILTER)"; \
+	  else \
+	    OCOREAI_METALLIB="$$METALLIB" swift test --disable-xctest; \
+	  fi
 
 test-verbose:
 	@echo "🧪 Running tests (verbose)..."

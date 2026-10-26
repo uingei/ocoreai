@@ -1022,6 +1022,13 @@ if fail:
     print("\n❌ %d violation(s):" % len(fail))
     for f in fail:
         print("   • %s" % f)
+    # On Actions the job log needs a token to read and annotations do not, so a red docs gate
+    # on a runner would be a red nobody could diagnose (it sat red for four pushes with only
+    # "failed step: AGENTS.md contract" to go on). Each violation therefore also leaves as a
+    # workflow command, the shape the xctest step already uses for failing cases.
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        for f in fail[:10]:
+            print("::error::docs gate: %s" % f.replace("%", "%25").replace("\n", "%0A"))
     raise SystemExit(1 if mode == "check" else 0)
 print("\n✅ AGENTS.md contract holds (budgets, refs, anchors, claims, gates, routing)")
 PY
