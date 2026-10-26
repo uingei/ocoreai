@@ -9,10 +9,10 @@
 ///   - flatRoot == nil     → legacy HubCache path (backward compat preserved)
 ///   - invalid repo id     → HuggingFaceDownloaderError.invalidRepositoryID
 ///
-/// Network-path tests observe the attempt via the error the Hub client throws
-/// (offline / no token) rather than asserting "no call happened", which keeps
-/// the tests hermetic: a local-hit test asserts the exact returned URL, which
-/// only the short-circuit can produce.
+/// Network-path tests observe the attempt via the error the Hub client throws rather than
+/// asserting "no call happened": a local-hit test asserts the exact returned URL, which only
+/// the short-circuit can produce. The hub is aimed at a port that refuses on loopback, so
+/// "the attempt went out" costs milliseconds here instead of one connect timeout per test.
 
 import Foundation
 import HuggingFace
@@ -23,16 +23,33 @@ import Testing
 
 // MARK: - Helpers
 
-/// Isolated temp root per test (tempdir keeps tests hermetic).
-/// `ModelStore.root` reads `OCOREAI_MODELS_DIR` — pointing it at a unique
-/// temp dir makes every test independent of real `~/.ocoreai/models`.
+/// The hub endpoint this file pins every test to: nothing listens on loopback:9, so a request
+/// leaves the process and comes back refused in milliseconds on any host, online or offline.
+private let unreachableHubEndpoint = "http://127.0.0.1:9"
+
+/// The process-global scope one test of this file needs: an empty model root, and a hub that
+/// answers immediately.
+///
+/// `ModelStore.root` reads `OCOREAI_MODELS_DIR`, so a unique temp dir makes each test independent
+/// of real `~/.ocoreai/models`; `HubClient` reads `HF_ENDPOINT` when it is constructed
+/// (swift-huggingface `HubClient.swift:116` → `detectHost()` at :189), so pinning it makes the
+/// network-path tests independent of the machine. Both are process-wide, so both travel in one
+/// `ProcessGlobalLease` — this helper used to leave `OCOREAI_MODELS_DIR` pointing at a temp dir for
+/// every suite scheduled afterwards (it once turned a force-unwrap into a SIGTRAP that silenced
+/// the rest of the run), and leaving `HF_ENDPOINT` alone cost 122 s per network-path test on a
+/// host that black-holes the hub, which serialized behind this very lease.
 @discardableResult
 private func freshModelRoot() -> (URL, cleanup: @Sendable () -> Void) {
+    let lease = ProcessGlobalLease(envKeys: ["OCOREAI_MODELS_DIR", "HF_ENDPOINT"])
     let dir = FileManager.default.temporaryDirectory
         .appendingPathComponent("readyhub-dl-\(UUID().uuidString)")
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     setenv("OCOREAI_MODELS_DIR", dir.path, 1)
-    return (dir, { try? FileManager.default.removeItem(at: dir) })
+    setenv("HF_ENDPOINT", unreachableHubEndpoint, 1)
+    return (dir, {
+        lease.release()
+        try? FileManager.default.removeItem(at: dir)
+    })
 }
 
 private func seed(_ dir: URL, names: [String]) {
@@ -45,7 +62,7 @@ private func seed(_ dir: URL, names: [String]) {
 
 // MARK: - ReadyHubDownloader local-first tests
 
-@Suite("ReadyHubDownloader M8 — flat + local-first")
+@Suite("ReadyHubDownloader M8 — flat + local-first", .serialized)
 struct ReadyHubDownloaderFlatTests {
 
     @Test("local-ready dir returns flat target without network")

@@ -40,12 +40,21 @@ struct SystemContextSensorLiveTests {
     @Test("sensor up => real fields, not 'no context'")
     @MainActor
     func liveSmoke() async throws {
-        // Real L2: start the sensor, let a poll land, read contextText().
-        // Without start() the read returns "[system] no context" — this is
-        // the "closed vs. powered-on" distinction made testable.
-        SystemContextSensor.shared.start()
+        // Real L2: start a sensor, let a poll land, read contextText(). Without start() the read
+        // returns "[system] no context" — the "closed vs. powered-on" distinction made testable.
+        //
+        // The sensor is *owned* here, not `.shared`: `PerceptionEngine.stop()` fires a detached
+        // `SystemContextSensor.shared.stop()` (PerceptionEngine.swift:292) that lands whenever the
+        // pool likes, so a suite driving the shared instance raced five other suites and read
+        // `no context` under full parallelism (measured 10-26: 3 issues on one run, green the next).
+        // Owning it is what makes "the poll landed" a fact about this test; the shipped wiring
+        // (`PerceptionEngine.swift:265` starts `.shared`) is unchanged and a revert to publishing
+        // into the singleton turns this red, because this instance would then never fill in.
+        let sensor = SystemContextSensor()
+        sensor.start()
+        defer { sensor.stop() }
         try await Task.sleep(for: .milliseconds(200))
-        let text = SystemContextSensor.shared.contextText()
+        let text = sensor.contextText()
         #expect(text.hasPrefix("[system]"), "expected [system] prefix, got: \(text)")
         #expect(text.contains("thermal="), "thermal field missing: \(text)")
         #expect(text.contains("cpu="), "cpu field missing: \(text)")

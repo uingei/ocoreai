@@ -64,8 +64,14 @@ final class SystemContextSensor: Sendable {
         guard !isActive else { return }
         isActive = true
 
-        _monitorTask = Task.detached(priority: .utility) {
-            await Self.shared.pollLoop()
+        // Published to *this* instance, not to `Self.shared`: an instance method that writes a
+        // global it does not own cannot be exercised without racing whoever does own it, and
+        // `PerceptionEngine.stop()` fires a detached `SystemContextSensor.shared.stop()` that
+        // lands whenever the pool likes (measured 10-26 — it blanked the live suite's read).
+        // In production there is exactly one instance (`shared`, started at PerceptionEngine.swift:265),
+        // so this changes no shipped behaviour; it makes the class honour its own state.
+        _monitorTask = Task.detached(priority: .utility) { [self] in
+            await self.pollLoop()
         }
 
         sysLogger.info("[SystemContextSensor] started")
@@ -86,9 +92,9 @@ final class SystemContextSensor: Sendable {
         while !Task.isCancelled {
             let ctx = Self.readSystemContext()
             Task { @MainActor in
-                Self.shared.latestContext = ctx
+                self.latestContext = ctx
             }
-            try? await Task.sleep(for: .seconds(Self.shared.pollInterval))
+            try? await Task.sleep(for: .seconds(pollInterval))
         }
     }
 

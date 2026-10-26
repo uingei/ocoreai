@@ -8,7 +8,10 @@ import Testing
 
 @testable import ocoreai
 
-@Suite("exec cwd — resolved once, honestly, by both lanes")
+// `SessionWorkspace` is a process-global: this suite sets it, so it leases it (see
+// `ProcessGlobalLease` — an unleased setter is how a passing suite turns into a flaky one).
+
+@Suite("exec cwd — resolved once, honestly, by both lanes", .serialized)
 struct ExecCwdContractTests {
 
     /// `<tmp>/sub/` plus `<tmp>/sub/notes.txt`, so a file-as-cwd slip is reachable.
@@ -53,20 +56,22 @@ struct ExecCwdContractTests {
 
     @Test("a relative cwd anchors on the workspace, not on the process directory")
     func relativeCwdAnchorsOnWorkspace() async throws {
+        let lease = ProcessGlobalLease()
+        defer { lease.release() }
         let ws = try makeScratch()
         defer { try? FileManager.default.removeItem(at: ws) }
         SessionWorkspace.setDirectory(ws.path)
-        defer { SessionWorkspace.clear() }
         let report = try await ExecTools.run(command: "pwd", cwd: "sub", timeoutSeconds: 20)
         #expect(report.contains(ws.appendingPathComponent("sub").path), "report: \(report)")
     }
 
     @Test("both exec lanes start in the same directory when no cwd is given")
     func lanesShareTheDefault() async throws {
+        let lease = ProcessGlobalLease()
+        defer { lease.release() }
         let ws = try makeScratch()
         defer { try? FileManager.default.removeItem(at: ws) }
         SessionWorkspace.setDirectory(ws.path)
-        defer { SessionWorkspace.clear() }
         let blocking = try await ExecTools.run(command: "pwd", timeoutSeconds: 20)
         let session = try await ExecSessionManager().spawn(command: "pwd", yieldMs: 4000)
         #expect(blocking.contains(ws.path), "blocking: \(blocking)")

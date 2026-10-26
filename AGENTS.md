@@ -61,7 +61,8 @@ swift build -c release                 # production build — exit 0 is the mini
 swift build --traits appStore        # App Store route (traits: appStore | FoundationModelsIntegration)
 swift test                           # full suite; needs Metal, so CI macos-26 is the authority
 make test                            # same, but names $OCOREAI_METALLIB first — else MLX dies mid-run
-make test-clt FILTER=<Regex>     # one suite on the CLT route; omit FILTER for the full suite
+make test FILTER=<Regex>         # one suite (swift-testing half: the XCTest helper SEGVs on filter)
+make test-clt [FILTER=<Regex>]   # CLT route, serial — runs both halves
 make docs-check                      # docs contract: sub-second, no build
 bash scripts/eval/run.sh               # task-success scoreboard: verifies the WORKSPACE, not the prose
 ```
@@ -208,21 +209,22 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   `/metrics` and the persisted row behind once already).
 - Anything that proves behaviour against a live server ships as a script in `scripts/probes/`, so the claim
   outlives the session that made it. Index: `scripts/probes/README.md`.
+- Process-global state (workspace anchor, `OCOREAI_*`, `HF_ENDPOINT`, a `shared` sensor) is leased, never
+  set: `.serialized` orders a suite's *own* tests, not suites against each other, and a lease never spans
+  live I/O. Gate: `ProcessGlobalLeaseDisciplineTests`(3).
 
 ## Open — measured, unresolved
 Not resolved here, not forgotten: each item names the instrument that would settle it, and its evidence
 is in `CHANGELOG.md` (grep the symbol). `make audit` Class-J keeps suite names cited honestly.
-- **`/v1/models/:model/…` needs `%2F`** (Handlers/) — verbatim `org/name` ids router-404; accepting a slash
-  costs a second routing truth. Owner call; the sharp edge is documented and pinned, not hidden.
+- **`/v1/models/:model/…` needs `%2F`** (Handlers/) — accepting a slash costs a second routing truth, so the
+  wire shape stays pinned in § Endpoint Promises and the owner call stays open here.
 - **A stall stops MTP hard, the std lane only by consent** (Tools/, Engine/) — the ladder and
   `LoopStallTerminationTests`(6) landed; upstream's `restart:` loop (ChatSession.swift:1154) still has no
   cap, and a std-lane hard stop throws out of `toolDispatch` (:1632) reaching the wire as an error, not a
   finished turn — the terminal word for four faces is the owner call.
-- **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — the bitmask helper's −inf case, the
-  fp8→fp16 KV conversion (sits before Apple's fix) and the FoundationModels-block hub fallback are all
-  `@available(macOS 27.0, *)` or SDK-gated out ⇒ no blind fix, no claim of one; `HubReachabilityTests`(20)
-  pins the FM block at exactly one site so an unnoted edit goes red; its gated suites fail rather
-  than skip on macOS 26, so a red on the SDK-27 route is two verdicts at once.
+- **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — three `@available(macOS 27.0, *)` or
+  SDK-gated sites (detail: `docs/agent/build-gate-reality.md`) ⇒ no blind fix and no claim of one, and
+  their suites fail rather than skip here, so an SDK-27-route red is two verdicts at once.
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
   and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The injection seam landed
   upstream at pin `991266ad3` (`observe(to:using:)` + `GenerationTransformer`), so what is left is
@@ -258,8 +260,7 @@ Five empirical sources plus comparators; round-by-round verdicts live in `CHANGE
    `.swiftinterface` for exact signatures and `@available` gates, live execution for behaviour.
 5. **Human Interface Guidelines** — <https://developer.apple.com/design/human-interface-guidelines>: the
    GUI's judge, so on anything user-visible it is the authority, not codex. 102 topics,
-   two about AI, none about agents (measured: `agent` = 3 hits, all link metadata) ⇒
-   `docs/agent/agent-interface-guidelines.md`.
+   none about agents (both counts: that guide) ⇒ `docs/agent/agent-interface-guidelines.md`.
 6. **Comparators** — vllm, sglang, vllm-metal, omlx, mlx-serve, MTPLX, ollama, TensorFold, Strata, splash,
    openclaw, hermes-agent, deepseek-harness, harness2, goose, opencode: not pins; nothing linked or redistributed, and a
    borrowed verdict stays an inference until a `file:line` in our build says otherwise. Per-repo strengths:
@@ -296,7 +297,7 @@ Five empirical sources plus comparators; round-by-round verdicts live in `CHANGE
 
 Areas without a guide (Scheduler, MCP, Tools, Skills, Multimodal, Video, Security): start from
 § Code Conventions plus the code. When an area accumulates three dated notes, give it an `AGENTS.md` and a
-row here — a guide costs context only inside its subtree, which is the whole point.
+row here — a guide costs context only inside its subtree.
 
 ## Docs Contract — how this file stays true
 `make docs-check` (`scripts/agents-md-contract.sh`; CI: the `audit` job) holds this file and its corpus to
@@ -312,7 +313,7 @@ project is **Human-facing**.
 | Doc | Audience | When to touch |
 |---|---|---|
 | `AGENTS.md` (this file) | Agent, every session | a convention or architecture fact drifted — keep lines accurate, add nothing dated |
-| `Sources/ocoreai/{Engine,UI}/AGENTS.md` | Agent, inside that subtree | a rule that only bites inside one area belongs there; that is what keeps this file short |
+| `Sources/ocoreai/{Engine,UI}/AGENTS.md` | Agent, inside that subtree | a rule that only bites inside one area belongs there |
 | `docs/agent/*.md` | Human + Agent, one hop away | when a verdict needs more than three lines, move it here and leave a pointer |
 | `Sources/ocoreai/Skills/SystemPromptBuilder.swift` | Agent (LLM context) | prompt wording changes are behaviour changes — needs an inference regression |
 | `Sources/ocoreai/Tools/ToolEntry.swift` (+ `Tool*.swift`) | Agent (LLM context) | `description`/schema are function-calling contracts — test with a live model |
@@ -331,7 +332,7 @@ project is **Human-facing**.
   missing, check the sources in § Upstream Audit Dependencies.
 - **Footprint ladder — take the highest rung that solves it:** consume upstream → extend an existing seam →
   opt-in flag/trait → tool or skill → new module → new core/agent-facing surface. A new surface needs a
-  consumer that exists today, not one imagined for tomorrow.
+  consumer that exists today.
 - **One home per decision.** A second copy of a rule is where one of them drifts.
   **A side effect is gated where it is declared:** `ToolEntry.isDestructive` is the only destructive
   truth and `securityPrecheck` asks from it (∪ blacklist for names nothing registers) — a hand-copied

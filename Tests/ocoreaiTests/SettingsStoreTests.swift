@@ -166,12 +166,11 @@ struct SettingsStoreHFMirrorTests {
         UserDefaults(suiteName: "test.ocoreai.\(UUID().uuidString)")!
     }
 
-    /// Snapshot & restore HF_ENDPOINT around each test — setenv is process-wide.
+    /// HF_ENDPOINT is process-wide: lease it, so the value is both restored *and* not raced
+    /// against another suite that reads the mirror policy (the lease owns save/restore now).
     private func withEnvRestore(_ body: () async throws -> Void) async rethrows {
-        let saved = ProcessInfo.processInfo.environment["HF_ENDPOINT"]
-        defer {
-            if let saved { setenv("HF_ENDPOINT", saved, 1) } else { unsetenv("HF_ENDPOINT") }
-        }
+        let lease = ProcessGlobalLease(envKeys: ["HF_ENDPOINT"])
+        defer { lease.release() }
         try await body()
     }
 

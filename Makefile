@@ -196,10 +196,21 @@ test:
 	@# Name the shader payload before the run: a test process that lets MLX search for it dies
 	@# at the first Metal allocation ("Failed to load the default metallib", Cmlx memory.cpp) and
 	@# the suite never reports — measured 10-26 on the Xcode route, 4k lines in, no summary.
+	@#
+	@# FILTER needs --disable-xctest on this route: filtered `swift test` signalled(11) inside
+	@# swiftpm-xctest-helper before anything ran, and that helper is the XCTest half. With it
+	@# disabled the same filter answers in seconds instead of the CLT route's minutes — and the
+	@# dropped half is named out loud, because a filtered run that silently skips a target
+	@# reads as a full green.
 	@METALLIB=$$(bash scripts/resolve-metallib.sh .build) \
 	  || { echo "❌ no payload to name — remedy above"; exit 1; }; \
 	echo "   shader payload: $$METALLIB"; \
-	OCOREAI_METALLIB="$$METALLIB" swift test
+	if [ -n "$(FILTER)" ]; then \
+	  echo "   FILTER set → swift-testing only (--disable-xctest), XCTest half not run"; \
+	  OCOREAI_METALLIB="$$METALLIB" swift test --disable-xctest --filter "$(FILTER)"; \
+	else \
+	  OCOREAI_METALLIB="$$METALLIB" swift test; \
+	fi
 
 test-verbose:
 	@echo "🧪 Running tests (verbose)..."
