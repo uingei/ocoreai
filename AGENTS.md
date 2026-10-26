@@ -223,8 +223,8 @@ is in `CHANGELOG.md` (grep the symbol). `make audit` Class-J keeps suite names c
   cap, and a std-lane hard stop throws out of `toolDispatch` (:1632) reaching the wire as an error, not a
   finished turn — the terminal word for four faces is the owner call.
 - **CoreAI / macOS 27 items unverifiable on this host** (Engine/) — three `@available(macOS 27.0, *)` or
-  SDK-gated sites (detail: `docs/agent/build-gate-reality.md`) ⇒ no blind fix and no claim of one, and
-  their suites fail rather than skip here, so an SDK-27-route red is two verdicts at once.
+  SDK-gated sites (detail: `docs/agent/build-gate-reality.md`) ⇒ no blind fix and no claim of one; their
+  suites now skip on this OS through `PlatformPremise.hasMacOS27` instead of reporting a red.
 - **A turn with no tool call cannot be interrupted** (Engine/) — the drain points are the tool-result tail
   and the MTP loop; a tool-bearing turn provably breaks in-run (probe 21). The injection seam landed
   upstream at pin `991266ad3` (`observe(to:using:)` + `GenerationTransformer`), so what is left is

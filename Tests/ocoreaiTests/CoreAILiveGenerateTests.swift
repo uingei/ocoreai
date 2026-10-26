@@ -59,12 +59,11 @@ struct CoreAILiveGenerateTests {
                 isDirectory: &isDir)
     }
 
-    @Test("EngineFactory + vendored CoreAI engine → real tokens from .aimodel bundle")
+    @Test(
+        "EngineFactory + vendored CoreAI engine → real tokens from .aimodel bundle",
+        .enabled(if: PlatformPremise.hasMacOS27))
+    @available(macOS 27.0, iOS 27.0, *)
     func liveGenerateFromRealBundle() async throws {
-        guard #available(macOS 27.0, iOS 27.0, *) else {
-            Issue.record("requires macOS 27")
-            return
-        }
         guard isLive() else {
             // Live‑asset proof: skip quietly when the bundle is not on disk.
             print("[COREAI-LIVE-GEN] SKIP — bundle not on disk at \(bundleRoot.path)")

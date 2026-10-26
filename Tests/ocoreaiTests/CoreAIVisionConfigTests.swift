@@ -105,8 +105,7 @@ struct CoreAIVisionConfigTests {
     #if canImport(CoreAI)
     @Test(
         "VLMModelConfig surfaces InferenceConfiguration via base (exact)",
-        .disabled(
-            "requires macOS 27 runtime; exercised in CI matrix"))
+        .enabled(if: PlatformPremise.hasMacOS27))
     @available(macOS 27.0, *)
     func vlmConfigSurfaces() {
         let base = InternalModelConfig(
@@ -141,7 +140,7 @@ struct VLMModelConfigOverridesTests {
 
     @Test(
         "No override: effective == base (exactly)",
-        .disabled("requires macOS 27 runtime; exercised in CI matrix"))
+        .enabled(if: PlatformPremise.hasMacOS27))
     @available(macOS 27.0, *)
     func noOverrideFallsBackToBase() {
         let v = VLMModelConfig(
@@ -154,7 +153,7 @@ struct VLMModelConfigOverridesTests {
 
     @Test(
         "Override set: effective == override (exactly), base untouched",
-        .disabled("requires macOS 27 runtime; exercised in CI matrix"))
+        .enabled(if: PlatformPremise.hasMacOS27))
     @available(macOS 27.0, *)
     func overrideWins() {
         let base = Self.makeBase()
@@ -174,7 +173,7 @@ struct VLMModelConfigOverridesTests {
 
     @Test(
         "Only size override: chunk threshold still from base (exactly)",
-        .disabled("requires macOS 27 runtime; exercised in CI matrix"))
+        .enabled(if: PlatformPremise.hasMacOS27))
     @available(macOS 27.0, *)
     func partialOverride() {
         let base = Self.makeBase()
@@ -189,7 +188,7 @@ struct VLMModelConfigOverridesTests {
 
     @Test(
         "Engine init contract: config override beats options, then base (exactly)",
-        .disabled("requires macOS 27 runtime; exercised in CI matrix"))
+        .enabled(if: PlatformPremise.hasMacOS27))
     @available(macOS 27.0, *)
     func engineInitOptionsFallback() {
         // CoreAISequentialVLMEngine.init (L141-146) builds:

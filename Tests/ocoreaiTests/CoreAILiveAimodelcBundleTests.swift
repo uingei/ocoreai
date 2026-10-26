@@ -57,16 +57,14 @@ struct CoreAILiveBundleDirTests {
             #"{"name":"\#(name)","vocab_size":\#(vocab),"max_context_length":\#(ctx),"function":"main"}"#
     }
 
-    @Test("EngineFactory over bundle dir (raw .aimodel + hardware-specialized .aimodelc)")
+    // Both premises are declared where the test is declared. A `print`ed SKIP never reached the run
+    // summary, so this read as work nobody had decided to skip — the third dishonest shape that
+    // `PlatformPremiseHonestyTests` now keeps out of Tests/.
+    @Test(
+        "EngineFactory over bundle dir (raw .aimodel + hardware-specialized .aimodelc)",
+        .enabled(if: PlatformPremise.hasMacOS27 && CoreAILiveBundleDirTests.bundleAlive()))
+    @available(macOS 27.0, iOS 27.0, *)
     func generateFromBundleDirectory() async throws {
-        guard #available(macOS 27.0, iOS 27.0, *) else {
-            print("[COREAI-BUNDLE-DIR] SKIP — requires macOS 27")
-            return
-        }
-        guard Self.bundleAlive() else {
-            print("[COREAI-BUNDLE-DIR] SKIP — bundle dir with .aimodelc assets not on disk")
-            return
-        }
 
         // Config from the bundle's REAL metadata.json (not "{}" defaults):
         // ocrei parseModelConfig snake_case keys (name / vocab_size /

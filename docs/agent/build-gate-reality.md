@@ -126,14 +126,13 @@ Letting MLX search for the library dies at the first Metal allocation
 `scripts/resolve-metallib.sh`, the one ladder. It prints the rung that won and exits 1 naming
 `xcodebuild -downloadComponent MetalToolchain` when nothing is usable; `make test-clt` stages the
 winner beside the products dir instead (a payload inside a signed bundle fails the sign step).
-Same tree, both routes: **CLT (SDK 26.5, `--no-parallel`) 3180 tests / 562 suites green in 429 s**;
-**Xcode (ambient SDK 27, parallel) 3343 / 588**. Three of its reds are the platform talking, not the
-tree: `requires macOS 27 / iOS 27` (`LegacyConstrainedDecodingStrategyTests` ×2,
-`CoreAILiveGenerateTests`) — SDK 27 compiles them in and macOS 26 will not run them, so one local red
-there is two verdicts (skip-instead-of-fail sits in § Open). The rest are wall-clock budgets losing to
-parallelism, green standalone in seconds and drifting in set from run to run: `MCPStderrDiagnosisTests`
-loses a child's stderr, and `EngineBusyAdmissionTests`, `SleepSteerWakeTests` and one exec-reap test
-miss a beat. A former round blamed these on four suites sharing one seeded file in
+Same tree, both routes: **CLT (SDK 26.5, `--no-parallel`) 3180 tests / 562 suites green in 429 s**
+(before this round's test work); **Xcode (ambient SDK 27, parallel) 3345 / 589 in ~15 s with 44
+skipped**. Nothing red here is the platform any more: the eight suites that used to fail-or-quietly-print
+on an SDK-27/macOS-26 host now report `skipped` through `PlatformPremise.hasMacOS27`, so a red is one
+verdict. What is left red is wall-clock budgets losing to parallelism, green standalone in seconds and
+drifting in set from run to run: `MCPStderrDiagnosisTests` loses a child's stderr and its own timeout
+window, `EngineBusyAdmissionTests` misses a 1 s budget. A former round blamed these on four suites sharing one seeded file in
 the repo workspace — wrong, each seeds its own temp dir; the cause was an unleased
 `SessionWorkspace` setter, now owned by `ProcessGlobalLease` and floored by
 `ProcessGlobalLeaseDisciplineTests`.
@@ -160,3 +159,21 @@ published to `Self.shared` rather than `self`, so no second instance could be dr
 own instance now and the suite owns its sensor, and reverting the publish target turns that suite red —
 both directions measured 10-26. Shipped behaviour is unchanged: `shared` is the only instance
 production starts (`PerceptionEngine.swift:265`).
+
+**An OS premise is declared at the declaration, never inside the body (measured 10-26).** Three shapes
+hid it, and all three cost verdicts: `Issue.record("requires macOS 27")` made the platform look like a
+defect, `print("[X] SKIP …")` never reached the run summary (so untested work read as tested), and
+`.disabled("requires macOS 27 runtime; exercised in CI matrix")` did not revive when CI moves to
+macOS 27 — five tests in `CoreAIVisionConfigTests` were silently dead that way. The shape that works is
+`@Test(…, .enabled(if: PlatformPremise.hasMacOS27))` on a function carrying `@available(macOS 27.0, *)`:
+the annotation is what lets the body compile against the API, the condition is what skips it, and
+`PlatformPremiseHonestyTests`(2) keeps both honest — a floored scan over `Tests/` for `.disabled(`
+(300-file and 20-`enabled(if:)` floors, scanner exempted by name) plus a check that the predicate agrees
+with `operatingSystemVersion`, so a premise hardened to `true` goes red with the OS quoted. Both red
+samples were run: a `.disabled` suite got named by path, and `return true` reported
+`hasMacOS27 said true on OS … majorVersion: 26`.
+
+A premise can also be *earned back*: `applyWritesResolvedEndpointToProcessEnv` shipped disabled because
+it writes the real `HF_ENDPOINT`, which `SettingsStoreTests` reads expecting the canonical value. The
+process-global lease makes those two mutually exclusive and restores the key afterwards, so the test now
+runs and `Tests/` contains no `.disabled(` at all.

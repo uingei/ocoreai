@@ -237,13 +237,11 @@ private struct MockByteTokenizer: Tokenizers.Tokenizer, Sendable {
 struct LegacyConstrainedDecodingStrategyTests {
 
     @Test(
-        "per-step loop: includeLogits → mask → sample → accept → 4 grammar-allowed tokens"
+        "per-step loop: includeLogits → mask → sample → accept → 4 grammar-allowed tokens",
+        .enabled(if: PlatformPremise.hasMacOS27)
     )
+    @available(macOS 27.0, iOS 27.0, *)
     func drivesEnginePerStep() async throws {
-        guard #available(macOS 27.0, iOS 27.0, *) else {
-            Issue.record("requires macOS 27 / iOS 27")
-            return
-        }
         // '5' (53) is a valid next token at every integer-grammar step.
         let schema = #"{"type":"integer"}"#
         let expectedBias: Int32 = 53
@@ -274,12 +272,11 @@ struct LegacyConstrainedDecodingStrategyTests {
             "every step must sample the bias token (mask allows '5' at every integer step)")
     }
 
-    @Test("no-logits engine throws ConstrainedGenerationError.generationFailed on iteration")
+    @Test(
+        "no-logits engine throws ConstrainedGenerationError.generationFailed on iteration",
+        .enabled(if: PlatformPremise.hasMacOS27))
+    @available(macOS 27.0, iOS 27.0, *)
     func noLogitsThrows() async throws {
-        guard #available(macOS 27.0, iOS 27.0, *) else {
-            Issue.record("requires macOS 27 / iOS 27")
-            return
-        }
         let schema = #"{"type":"integer"}"#
         let engine = NoLogitsEngine()
         let tokenizer = MockByteTokenizer(vocabSize: 256)

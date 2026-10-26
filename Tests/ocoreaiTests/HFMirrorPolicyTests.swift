@@ -119,19 +119,19 @@ struct HFMirrorPolicyTests {
         #expect(HFMirrorPolicy.persistedKey == "settings.hub.useHFMirror")
     }
 
-    @Test(
-        .disabled(
-            "apply mutates the real HF_ENDPOINT process env; resolution itself is fully pinned by the resolve() matrix above"
-        )) func applyWritesResolvedEndpointToProcessEnv()
-    {
+    @Test("apply writes the resolved endpoint into the real process env")
+    func applyWritesResolvedEndpointToProcessEnv() {
+        // This ran disabled while `setenv` had no owner: it writes the process-wide HF_ENDPOINT, and
+        // `SettingsStoreTests` asserts the *canonical* value out of that same environment, so the two
+        // could trade places mid-run. A lease makes them mutually exclusive and restores the key on
+        // the way out, which is what turns "re-run standalone when touching apply()" into a gate.
+        let lease = ProcessGlobalLease(envKeys: ["HF_ENDPOINT"])
+        defer { lease.release() }
         let suiteName = "hfmirror.apply.\(UUID().uuidString)"
         let suite = UserDefaults(suiteName: suiteName)!
         defer { suite.removePersistentDomain(forName: suiteName) }
         suite.set(true, forKey: HFMirrorPolicy.persistedKey)
         // Fresh process: no operator env → persisted toggle wins → mirror.
-        // NOTE: this pollutes the process-global HF_ENDPOINT for the test
-        // runner; kept disabled by default, re-run standalone when touching
-        // apply()'s precedence logic.
         let decision = HFMirrorPolicy.apply(env: [:], defaults: suite)
         #expect(decision.endpoint == HFMirrorPolicy.mirror)
         #expect(decision.source == .persistedToggle)
