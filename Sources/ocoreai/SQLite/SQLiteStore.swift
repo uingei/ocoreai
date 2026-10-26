@@ -143,6 +143,13 @@ actor SQLiteStore {
         let logPages: Int
         /// Pages written back into the database file.
         let checkpointedPages: Int
+        /// Milliseconds spent inside the statement itself, i.e. inside SQLite's busy handler.
+        ///
+        /// This is the only number that can answer "was ``walBusyTimeoutMilliseconds`` honoured",
+        /// because ``open()``'s own wall time also carries actor hops and whatever the process is
+        /// doing: a CI run measured 8.30 s for `open()` and nothing in it can say whether the
+        /// wait was SQLite's or the machine's. The wait lives here, so the bound is priced here.
+        let statementMs: Int
     }
 
     /// nil until ``open()`` has run; set by every subsequent open on this instance.
@@ -388,16 +395,24 @@ actor SQLiteStore {
     /// this bypasses ``exec`` — which would call a refused truncation a success.
     private static func walCheckpointTruncate(db: OpaquePointer) throws -> WALCheckpoint {
         guard let stmt = try prepare(sql: "PRAGMA wal_checkpoint(TRUNCATE);", db: db) else {
-            return WALCheckpoint(busy: false, logPages: 0, checkpointedPages: 0)
+            return WALCheckpoint(busy: false, logPages: 0, checkpointedPages: 0, statementMs: 0)
         }
         defer { _ = _finalize(stmt) }
-        guard _step(stmt) == SQLITE_ROW else {
-            return WALCheckpoint(busy: true, logPages: 0, checkpointedPages: 0)
+        let started = DispatchTime.now()
+        let stepped = _step(stmt) == SQLITE_ROW
+        let statementMs =
+            Int(
+                (started.uptimeNanoseconds.distance(to: DispatchTime.now().uptimeNanoseconds))
+                / 1_000_000)
+        guard stepped else {
+            return WALCheckpoint(
+                busy: true, logPages: 0, checkpointedPages: 0, statementMs: statementMs)
         }
         return WALCheckpoint(
             busy: _column_int64(stmt, 0) != 0,
             logPages: Int(_column_int64(stmt, 1)),
-            checkpointedPages: Int(_column_int64(stmt, 2)))
+            checkpointedPages: Int(_column_int64(stmt, 2)),
+            statementMs: statementMs)
     }
 
     /// Execute DML/DDL

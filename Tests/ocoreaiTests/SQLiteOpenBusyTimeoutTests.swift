@@ -187,6 +187,7 @@ struct SQLiteOpenBusyTimeoutTests {
                 logPages=\(String(describing: reported?.logPages)) \
                 ckptPages=\(String(describing: reported?.checkpointedPages)) \
                 busyTimeout=\(String(describing: timeout?.asInt64)) \
+                statementMs=\(String(describing: reported?.statementMs)) \
                 walAtOpen=\(framesAtStart) \
                 walAtRead=\(walBytes(path))
                 """
@@ -194,6 +195,20 @@ struct SQLiteOpenBusyTimeoutTests {
         }
         #expect(
             reported?.busy == true, "the busy column was not read — contention would be swallowed")
+        // The wait was the knob, not the machine. SQLite reports contention as a *value*, so a
+        // timeout that never took effect looks identical to success unless the wait is measured:
+        // pre-fix this statement returned busy=1 in ~4 ms (pinned by the lower bound), and a wait
+        // that runs past the configured window means the refusal was actually dictated by the
+        // other connection's schedule (the upper bound sits at 2x the timeout, above the CI
+        // reading where a saturated runner's sleep steps each land a little late).
+        let statementMs = reported?.statementMs ?? -1
+        #expect(
+            statementMs >= 4_500 && statementMs <= 10_000,
+            """
+            busy_timeout is \(String(describing: reported?.busy)) with the statement waiting \
+            \(statementMs)ms — expected between ~5s (the knob) and 2x that \
+            (the other side's schedule)
+            """)
         // Ordering, pinned by measurement rather than a guessed constant: `busy == true` is
         // only evidence about contention if `open()` finished before the writer committed. CI's
         // first reading (`waited=6.60s` against a 6.5 s commit) was indistinguishable from "it
