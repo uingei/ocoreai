@@ -19,11 +19,12 @@ minos 14.0. macOS 14/15: never executed on hardware. iOS 17+: compile-validated 
 (`generic/platform=iOS` in CI) — no iOS runtime has been executed by this project, so the
 platform line above is the declared floor from `Package.swift`, not a measurement.
 
-**Install (double-click path):** download `ocoreai-<ver>.dmg` from [the latest Release](https://github.com/uingei/ocoreai/releases/latest),
-open it, drag `ocoreai` into `Applications`, launch. Models download on first run from the built-in
-recommended list on the app's Models page.
+**Install (double-click path):** if [Releases](https://github.com/uingei/ocoreai/releases) lists an
+`ocoreai-<ver>.dmg`, download it, open it, drag `ocoreai` into `Applications`, launch. Models download on
+first run from the built-in recommended list on the app's Models page. The release line is being
+republished from a clean slate: if that page lists nothing, use the source build below — minutes, no setup.
 
-> First launch: the DMG is ad-hoc signed and **not notarised**. If Gatekeeper refuses it, right-click
+> First launch: DMGs are ad-hoc signed and **not notarised**. If Gatekeeper refuses one, right-click
 > `ocoreai` in `Applications` → **Open** → **Open** — once, then it starts normally.
 
 **Build from source (headless engine + HTTP bridge):**

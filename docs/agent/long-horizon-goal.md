@@ -56,12 +56,12 @@ defaulted, or virally demoed — and the top four each sit on a machine that man
 vendors, one large ecosystem, one phenomenon with institutional amplification). Distribution therefore comes
 first, and every rung below is falsifiable:
 
-0. **Ship.** `make push-ready` said it in the project's own words: "8 commit(s) ahead of origin/main — **CI
-   has not seen them, so they are unverified**." Pushed; the gate now reads "nothing unpushed".
-1. **One release per tag.** `v0.1.14` exists on this host while the newest published release is `v0.1.13`,
-   so the README's double-click path serves a build 15 days behind `main`. Gate to write: published
-   release tag == `git describe --tags` at HEAD (`scripts/verify-installed-release.sh` is the harness);
-   needs the owner's credentials — `gh` is not installed here, so this rung is the owner's, not ours.
+0. **Ship.** Done, and now askable: `scripts/ci-status.sh` reports what CI concluded (1 = failed *or
+   skipped*, 2 = could not ask — never green).
+1. **One release per tag.** The publisher is in-repo and needs no owner credential: the `release` job
+   uses the runner's own `${{ github.token }}`. All tags were withdrawn on 10-26 (the last
+   three releases carried 7 downloads), so: green the authority leg → tag → CI publishes.
+   What blocks this is the suite, not a person with a token.
 2. **Sixty seconds to first token.** Honest today: `swift build -c release` (minutes) or an ad-hoc-signed
    DMG plus the Gatekeeper right-click. Rung = notarised artefact + Homebrew cask; the metric to floor is
    *clean machine → first completion*, one command, timed.

@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
-# Single source of truth for version: the git tag (CI exports OCOREAI_VERSION
-# from GITHUB_REF_NAME; local builds derive from the same tag so a hand-run
-# build can never stamp a stale number onto the artifact).
-VERSION="${OCOREAI_VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | tr -d 'v' || echo 0.0.0)}"
+# Single source of truth for version: the git tag, via scripts/version.sh
+# (CI exports OCOREAI_VERSION from GITHUB_REF_NAME; a hand-run build derives
+# from the same ladder, so it can never stamp a stale number).
+VERSION="$(bash "$(dirname "$0")/version.sh")"
 BUILD="1"
 APP_NAME="ocoreai"
 

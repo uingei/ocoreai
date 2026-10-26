@@ -107,6 +107,13 @@ enum PostWriteSyntax: Sendable {
 
     /// `python3 -m py_compile` — compiles to bytecode, imports nothing, runs nothing.
     static func pythonVerdict(path: String) -> Verdict {
+        #if !os(macOS)
+        // `Process` is unavailable in iOS, and an App Store sandbox could not spawn an
+        // interpreter either: the honest verdict is "not checked", the same refusal the
+        // missing-interpreter path below already makes (pattern: `ExecSessions.SessionProc`).
+        _ = path
+        return .notChecked("no subprocess on this platform — syntax not checked")
+        #else
         guard let exe = pythonExecutable else {
             return .notChecked("python unavailable here — syntax not checked")
         }
@@ -139,6 +146,7 @@ enum PostWriteSyntax: Sendable {
         let text = String(data: raw, encoding: .utf8) ?? ""
         let line = text.split(separator: "\n").last.map(String.init) ?? "compile error"
         return .invalid("py_compile FAILED — \(clip(line)) (line numbers are the compiler's)")
+        #endif
     }
 
     static func clip(_ s: String) -> String {

@@ -15,18 +15,18 @@ cd "$(dirname "$0")/.."
 APP="${APP:-build/ocoreai.app}"
 PORT="${PORT:-8080}"
 MODEL="${MODEL:-}"
-TAG="$(git describe --tags --abbrev=0 2>/dev/null | tr -d 'v' || echo 0.0.0)"
+TAG="$(bash scripts/version.sh)"
 
 [ -d "$APP" ] || { echo "❌ $APP missing — run scripts/build-app.sh first"; exit 1; }
 
-# 1. Artifact must not be stale: bundle version == newest tag. A stale build/
-#    directory silently ships an old version stamp (observed: 0.1.3 under v0.1.5).
+# 1. Artifact must not be stale: bundle version == the version this tree resolves to.
+#    A stale build/ directory silently ships an old stamp (observed: 0.1.3 under v0.1.5).
 V="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist" 2>/dev/null || echo none)"
 if [ "$V" != "$TAG" ]; then
-  echo "❌ STALE ARTIFACT: $APP says $V, newest tag is v$TAG — rebuild before release"
+  echo "❌ STALE ARTIFACT: $APP says $V, this tree resolves $TAG — rebuild before release"
   exit 1
 fi
-echo "✅ version parity — bundle $V == tag v$TAG"
+echo "✅ version parity — bundle $V == tree $TAG"
 
 # 2. Free the port AND kill any lingering bundle processes (a zombie that
 #    dropped the socket but lives on makes `open` a no-op activate — the

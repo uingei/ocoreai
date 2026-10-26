@@ -11,7 +11,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DIST="${DIST:-dist}"
-VERSION="${OCOREAI_VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | tr -d 'v' || echo 0.0.0)}"
+VERSION="$(bash scripts/version.sh)"
 DST="$DIST/ocoreai-$VERSION.dmg"
 
 export OCOREAI_VERSION="$VERSION"

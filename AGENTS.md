@@ -282,7 +282,8 @@ project is **Human-facing**.
   source comments — that is the commit message. Diffs are read by a human: one logical change per commit.
 - **No defensive clutter; no guard for a failure nobody observed.** Validate once at the boundary that owns
   the value and pass typed values inward; quote the failure (a probe line, a red test, a scoreboard row)
-  before writing its guard. Unquotable means ask first, not write first.
+  before writing its guard. For a speculative race or security edge case, name the failure mode, likelihood
+  and complexity cost and get the owner's buy-in — no scope for theoretical robustness.
 - **Not a diary.** A root rule is ≤3 lines: what + the one-line evidence + the gate. Dates, round verdicts
   and host forensics go next to their claim, in `CHANGELOG.md` / `docs/agent/` (P13 enforces this file).
 - Default is one-pass: intent → plan → implement → review → verify → commit in one thread, no sub-agent

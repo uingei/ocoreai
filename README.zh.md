@@ -18,9 +18,9 @@
 iOS 17+:仅编译验证(CI 的 `generic/platform=iOS`),iOS 上从未真跑过一次;所以上面那行是
 `Package.swift` 里声明的下限,不是实测结论。
 
-**用户路径 — 双击即用:** 下载 [最新 Release](https://github.com/uingei/ocoreai/releases/latest) 的 `ocoreai-<ver>.dmg` → 打开 → 拖到 `应用程序` → 启动。模型在「模型」页推荐列表首启下载；界面跟随系统语言（已内置简体中文）。
+**用户路径 — 双击即用:** 若 [Releases](https://github.com/uingei/ocoreai/releases) 列出了 `ocoreai-<ver>.dmg`,下载后打开 → 拖到 `应用程序` → 启动。模型在「模型」页推荐列表首启下载;界面跟随系统语言(已内置简体中文)。发布线已清空重发:若那个页面是空的,请用下面的源码构建,几分钟,无需额外配置。
 
-> 首次启动: 当前 DMG 为 ad-hoc 签名(未公证)。若 Gatekeeper 提示"无法打开",在访达的 `应用程序` 里**右键 ocoreai → 打开 → 打开**即可,仅需一次。
+> 首次启动: DMG 均为 ad-hoc 签名(未公证)。若 Gatekeeper 提示"无法打开",在访达的 `应用程序` 里**右键 ocoreai → 打开 → 打开**即可,仅需一次。
 
 **开发者路径 — 源码构建:**
 

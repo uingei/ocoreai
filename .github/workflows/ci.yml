@@ -68,7 +68,8 @@ jobs:
 
       # Pattern-based static audit (whitelist-protected)
       - name: Run static audit
-        run: bash scripts/audit.swift_patterns.sh
+        run: |
+          bash scripts/audit.swift_patterns.sh || { echo "::error::failed step: static audit (code patterns)"; exit 1; }
 
       # AGENTS.md contract — the injected context layer is code: budget it (shrink-only), resolve
       # every path/`file:line` it names, re-run every `<!-- claim:… -->` number, and check that its
@@ -85,7 +86,8 @@ jobs:
           swift package resolve
 
       - name: AGENTS.md contract
-        run: bash scripts/agents-md-contract.sh check
+        run: |
+          bash scripts/agents-md-contract.sh check || { echo "::error::failed step: AGENTS.md contract (docs gate)"; exit 1; }
 
       # Line-cite anchors — docs-check can only ask whether `file:line` is inside the file;
       # this asks whether the line is the code the doc claims. 15 cites were wrong on 10-17
@@ -94,7 +96,8 @@ jobs:
       # wherever a dependency tree exists and are reported as skipped otherwise, so a
       # runner with no ~/references neither false-fails nor passes silently.
       - name: Line-cite anchors
-        run: bash scripts/anchor-check.sh
+        run: |
+          bash scripts/anchor-check.sh || { echo "::error::failed step: line-cite anchors"; exit 1; }
 
       # Toolchain contract — assert this runner's SDK/toolchain is the shape the build
       # claims. A runner-image bump can repoint MacOSX.sdk to a newer SDK that ships
@@ -115,7 +118,8 @@ jobs:
       # graph CI tested and the graph that compiles into the DMG were
       # different for weeks. Fail loudly; sync is a one-liner.
       - name: Resolved lockfiles in sync
-        run: bash scripts/resolved-sync.sh check
+        run: |
+          bash scripts/resolved-sync.sh check || { echo "::error::failed step: resolved lockfile sync"; exit 1; }
 
       # Format gate — mlx-swift-lm pattern (pre-commit run --all, swift-format
       # format hook). Run swift-format in-place then require zero diff: any
@@ -128,6 +132,10 @@ jobs:
             echo "❌ swift-format reformatted files (see diff) — run locally:"
             echo "   swift-format format --in-place --recursive --configuration .swift-format Sources/ Tests/ && git add -A"
             git --no-pager diff --stat -- Sources/ Tests/ || true
+            # Name the drifted files where they can be read without a token: this leg is the
+            # one a pin bump is expected to trip, and a red "format" step with no file list
+            # cannot be acted on from the annotations API.
+            git diff --name-only -- Sources/ Tests/ | sed 's/^/::error::needs swift-format: /'
             head -40 /tmp/format-diff.txt || true
             exit 1
           fi
@@ -246,9 +254,19 @@ jobs:
             echo "::error::MLX found no shader payload — the run dies at the first Metal allocation and reports no summary (docs/agent/build-gate-reality.md)"
           fi
           if [ "$RC" -ne 0 ]; then
-            { echo "### xctest failures"; echo '```'
+            # Name the failing cases, not the prose: the first version of this grep matched
+            # `' failed` and published an FM-tool warning as if it were a test result, while
+            # the other matrix leg published nothing at all. `Test Case ...] failed` is the
+            # XCTest line; anything else is a crash, and a crash says so instead of staying quiet.
+            CASES=$(grep -E "^Test Case .*\] failed" xctest.log | head -20 || true)
+            { echo "### xctest failures (exit $RC)"; echo '```'
               grep -E "failed|Fatal error|error:" xctest.log | tail -40; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-            grep -E "' failed|Fatal error" xctest.log | head -15 | sed 's/^/::error::/'
+            if [ -n "$CASES" ]; then
+              printf '%s\n' "$CASES" | sed 's/^/::error::failing case: /'
+            else
+              echo "::error::xctest exited $RC with no 'Test Case ... failed' line — the bundle died before reporting (crash, timeout, or no metallib); log tail:"
+              tail -6 xctest.log | sed 's/^/::error::  /'
+            fi
             exit "$RC"
           fi
           echo "✅ xctest exit 0"
