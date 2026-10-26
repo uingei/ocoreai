@@ -163,6 +163,9 @@ cd "$(dirname "$0")/.."
 # the splash half is repaid (the comparator-repos.md cell now reads Borrow: consumed);
 # the deepseek-harness half stays an owner call, and the dated forensics in
 # docs/agent/build-gate-reality.md still owe the corpus its bytes.
+# Repaid in the next commit of the same round (measured 155575, −6 B): the guide line stopped
+# enumerating ⌘ keys once UIFocusDisciplineTests derived their order from AppTab — proof in the
+# gate means prose does not have to carry the list. The ceiling stays where the ratchet put it.
 : "${OCOREAI_CORPUS_MAX_BYTES:=155597}"
 
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a

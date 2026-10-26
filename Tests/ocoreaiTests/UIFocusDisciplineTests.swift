@@ -164,15 +164,12 @@ struct UIFocusDisciplineTests {
 
     // MARK: - The numbering rule
 
-    // The sidebar renders AppTab.serverGroup + workflowGroup + systemGroup
-    // = dashboard, chat, projects, models, sessions, skills, system, status, settings.
-    // The ⌘ map below is the menu's own declaration order, which is *not* that order:
-    // `projects` has no key and `status` (⌘4) sits last in the sidebar. Pinned as
-    // measured so the divergence is a decision, not a drift.
-    @Test("⌘1–⌘7 pin seven tabs; the order is the menu's, not the sidebar's")
-    func tabNumberingIsTheTabMap() throws {
-        let app = try Self.read("Sources/ocoreai/UI/Application.swift")
-        let pattern = #"selectedTab = \.([A-Za-z_]+)\s*\}\s*\.keyboardShortcut\("(\d)"\)"#
+    /// `selectedTab = .x` … `.keyboardShortcut("N")` pairs, in declaration order.
+    /// A shortcut behind `//` is not a shortcut, so the shape is anchored to the line:
+    /// assignment, the closing brace, then the key — whitespace only before each.
+    private static func numberedTabShortcuts(in app: String) throws -> [String] {
+        let pattern =
+            #"[ \t]*selectedTab = \.([A-Za-z_]+)\n[ \t]*\}[ \t]*\n[ \t]*\.keyboardShortcut\("(\d)"\)"#
         let regex = try NSRegularExpression(pattern: pattern)
         let range = NSRange(location: 0, length: app.utf16.count)
         var pairs: [String] = []
@@ -183,11 +180,41 @@ struct UIFocusDisciplineTests {
             else { continue }
             pairs.append(String(app[tabRange]) + ":" + String(app[keyRange]))
         }
+        return pairs
+    }
+
+    // The expectation is derived from AppTab's own sidebar groups, which is what
+    // `sidebarSections` renders — not from a literal copied out of the menu. Drift
+    // on either side goes red: reorder a group, or renumber a button, same failure.
+    @Test("⌘1–⌘8 number every tab but Settings, in the order the sidebar renders them")
+    func tabNumberingFollowsTheSidebar() throws {
+        let sidebar = AppTab.serverGroup + AppTab.workflowGroup + AppTab.systemGroup
         #expect(
-            pairs == [
-                "dashboard:1", "chat:2", "models:3", "status:4",
-                "sessions:5", "skills:6", "system:7",
-            ],
-            "each numbered shortcut maps to its tab, keys contiguous from ⌘1")
+            Set(sidebar) == Set(AppTab.allCases) && sidebar.count == AppTab.allCases.count,
+            "the three groups are the whole sidebar; a tab outside them would silently shorten it")
+        // Settings is last and owns ⌘,, so the eight number keys are the other eight.
+        let numbered = sidebar.filter { $0 != .settings }
+        let expected = numbered.enumerated().map { "\($0.element.rawValue):\($0.offset + 1)" }
+        #expect(expected.count >= 8, "eight numbered tabs (floor 8, measured 8)")
+
+        let app = try Self.read("Sources/ocoreai/UI/Application.swift")
+        #expect(
+            try Self.numberedTabShortcuts(in: app) == expected,
+            "⌘ numbers follow the sidebar order, contiguous from ⌘1")
+    }
+
+    // `CommandGroup(replacing: .appSettings)` deletes the system item, so the ⌘, it
+    // carried is gone unless this file declares it — the guide's "Cmd+, grouped
+    // Settings" duty needed a line that delivers it, and this is the line.
+    @Test("⌘, for Settings is a declared shortcut, not just the name of the group")
+    func settingsOwnsItsCommandKey() throws {
+        let app = try Self.read("Sources/ocoreai/UI/Application.swift")
+        let pattern =
+            #"CommandGroup\(replacing: \.appSettings\)[\s\S]{0,400}?\n[ \t]*\.keyboardShortcut\(",", modifiers: \.command\)\n"#
+        let regex = try NSRegularExpression(pattern: pattern)
+        #expect(
+            regex.firstMatch(
+                in: app, range: NSRange(location: 0, length: app.utf16.count)) != nil,
+            "the Settings button declares ⌘, itself")
     }
 }

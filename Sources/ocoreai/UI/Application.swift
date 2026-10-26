@@ -74,6 +74,9 @@ struct OcoreaiGUIApp: App {
                 Button(StringKey.tabSettings.l) {
                     AppState.shared.selectedTab = .settings
                 }
+                // Replacing .appSettings removes the system item, so the ⌘, it used to
+                // carry has to be declared here or the Settings key is gone.
+                .keyboardShortcut(",", modifiers: .command)
             }
             // Edit ▸ Paste Image or Files — the guaranteed route for a clipboard
             // screenshot or Finder copy, because the text field's own field editor
@@ -85,6 +88,9 @@ struct OcoreaiGUIApp: App {
                 .keyboardShortcut("v", modifiers: [.command, .shift])
             }
             CommandMenu(StringKey.navigationTitle.l) {
+                // ⌘1–⌘8 follow the sidebar's own order (AppTab.serverGroup +
+                // workflowGroup + systemGroup, minus Settings, which owns ⌘,):
+                // muscle memory and eye order must not be two different truths.
                 Button(StringKey.tabDashboard.l) {
                     AppState.shared.selectedTab = .dashboard
                 }
@@ -93,12 +99,12 @@ struct OcoreaiGUIApp: App {
                     AppState.shared.selectedTab = .chat
                 }
                 .keyboardShortcut("2")
-                Button(StringKey.tabModels.l) {
-                    AppState.shared.selectedTab = .models
+                Button(StringKey.tabProjects.l) {
+                    AppState.shared.selectedTab = .projects
                 }
                 .keyboardShortcut("3")
-                Button(StringKey.tabStatus.l) {
-                    AppState.shared.selectedTab = .status
+                Button(StringKey.tabModels.l) {
+                    AppState.shared.selectedTab = .models
                 }
                 .keyboardShortcut("4")
                 Button(StringKey.tabSessions.l) {
@@ -113,6 +119,10 @@ struct OcoreaiGUIApp: App {
                     AppState.shared.selectedTab = .system
                 }
                 .keyboardShortcut("7")
+                Button(StringKey.tabStatus.l) {
+                    AppState.shared.selectedTab = .status
+                }
+                .keyboardShortcut("8")
             }
         }
         #else
