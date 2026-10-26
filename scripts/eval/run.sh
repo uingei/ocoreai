@@ -55,6 +55,14 @@ EVAL_WS="${OCOREAI_EVAL_WORKSPACE:-$(mktemp -d -t ocoreai-eval-ws-XXXXXX)}"
 mkdir -p "$EVAL_WS"
 export OCOREAI_WORKSPACE="$EVAL_WS"
 TOOLS_CACHE="$OUT/tools.json"
+
+# A FAIL whose cause never reaches disk is a scoreboard nobody can root-cause: a native turn echoes
+# no tool_calls, so `response-<id>.json` holds only the final text and the server log is the sole
+# record of which tool ran, what it was asked, and what it answered. `_lib.sh` deletes that log on
+# cleanup unless told to keep it (measured 10-27: a task that failed with "the tool execution
+# failed" could not be explained from any artefact), so keep it and ship it beside the run's rows.
+export OCOREAI_PROBE_KEEP_LOGS=1
+trap 'if [ -n "${PROBE_LOG:-}" ] && [ -f "$PROBE_LOG" ]; then cp -f "$PROBE_LOG" "$OUT/server.log" 2>/dev/null; fi' EXIT
 # _eval.py reads the cached /v1/tools payload through this name; an unexported variable
 # here makes every task fail with a KeyError, which is a harness bug wearing a model score.
 export OCOREAI_TOOLS_CACHE="$TOOLS_CACHE"
