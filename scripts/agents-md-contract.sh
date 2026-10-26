@@ -210,7 +210,15 @@ cd "$(dirname "$0")/.."
 # collapsing the comparator list into a pointer left P16 parsing 2 "trees" against a floor of 14, and it
 # stayed quiet about half of it. Keep the list verbatim; retire a tree by dropping its name from BOTH
 # homes (root § Upstream 6 and the refresh loop in comparator-repos.md).
-: "${OCOREAI_CORPUS_MAX_BYTES:=161004}"
+# 10-27 raise 161004 -> 161178 (+174 net, +352 gross). In: two root rules that each name their gate —
+# "a gate you did not run is not green" extended with the half this round proved (a stated fix that cannot
+# run is no exit: `make format`, the remediation `make format-check` names, died on an apostrophe inside a
+# single-quoted awk program and had therefore never executed), and "name a destructive route only where the
+# caller's own argument asks for it" (gate: EditMismatchRecoveryTests, both directions). Out, same edit:
+# the §Identity pointer that restated the routing table 200 lines below it in this same file (-106 B) and
+# the §Docs Contract restatement of what the script header already owns (-60 B). Scripts are not corpus,
+# so scripts/makefile-parse-check.sh — the gate that would have caught the Makefile — cost nothing.
+: "${OCOREAI_CORPUS_MAX_BYTES:=161178}"
 
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.

@@ -12,7 +12,6 @@
   creativity (Apple-native perception, multimodal) are first-class product surfaces, not demos.
 - Stack: Swift 6.2 · SwiftPM · Hummingbird 2 · SwiftUI · SQLite + FTS5. Dual-channel on-device
   inference: MLX Metal GPU + CoreAI (derived from Apple's `coreai-models` reference, BSD-3).
-- Modules are subdirectories of `Sources/ocoreai/`; § Routing table names the ones with their own guide.
 
 ## Two invariants
 Almost every rule below is a corollary; when a shortcut collides with an invariant, the invariant wins.
@@ -73,9 +72,10 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   `DEVELOPER_DIR`, and settles Metal by *compiling a kernel*, never by `metal --version`.
 - CLT SDK ≠ CLT compiler: an unpinned `SDKROOT` breaks even the manifest. On the CLT route every
   `canImport(CoreAI)` block compiles out, and macOS 26 can never run them.
-- **A gate you did not run is not green.** `make push-ready` runs the no-build set (docs contract, line
-  cites, patterns) and off-pin local checks are advisory; `round-gates` is the same set on demand.
-  `serve` + live `curl` work here — **prefer a live check over an inference about behaviour.**
+- **A gate you did not run is not green; a stated fix that cannot run is no exit.** `make push-ready` runs
+  the no-build set (docs contract, cites, patterns) and `make audit` now parses every recipe — `make
+  format`, the fix `format-check` names, had never once run. Off-pin checks stay advisory; **prefer a live
+  `serve` + `curl` over an inference about behaviour.**
 - Style: `swift-format` (`.swift-format`, pinned) via `make format-check`; no other linter, aligned
   with upstream. Crash-safe coding (no `try!`/`as!`/`fatalError` in `Sources/`) is a convention here
   and a ceiling below § Error Handling.
@@ -228,10 +228,9 @@ Areas without a guide (Scheduler, MCP, Tools, Skills, Multimodal, Video, Securit
 row here — a guide costs context only inside its subtree.
 
 ## Docs Contract — how this file stays true
-`make docs-check` (`scripts/agents-md-contract.sh`; CI: the `audit` job) holds this file and its corpus to
-the claims they make, sub-second and without a build. The named gate list, its rationale and env knobs live
-**in that script** — one home. Operator semantics (`>=` floor, `<=` ceiling) + the three questions:
-`CONTRIBUTING.md`.
+`make docs-check` (`scripts/agents-md-contract.sh`; CI `audit` job) holds this file and its corpus to their
+claims, sub-second, no build; its gate list, rationale and env knobs live **in that script**. Operator
+semantics (`>=` floor, `<=` ceiling) + the three questions: `CONTRIBUTING.md`.
 
 ## Documentation Map — Agent-facing vs Human-facing
 **Rule of thumb:** text *injected into the model's context at runtime* is **Agent-facing** — a change alters
@@ -273,8 +272,10 @@ project is **Human-facing**.
   its own view. Persisted keys declare their scope (global | session | model | window) — a wrong scope is how
   one session's setting bleeds into another.
 - **Respect the person using it.** Never navigate, refocus, open a pane or announce because something
-  *happened* in the background — offer, don't hijack. The five non-happy states each owe honest copy and
-  a way out (the list: `Sources/ocoreai/UI/AGENTS.md`). On anything user-visible the HIG is authority.
+  *happened* in the background — offer, don't hijack. **Name a destructive route only where the caller's own
+  argument asks for it**: `edit_file` offers `rm` solely when `newString` is empty, because in an ordinary
+  mismatch that offer nudges a typo into an unrecoverable delete. Gate: `EditMismatchRecoveryTests`(10). HIG is authority on anything user-visible; the five non-happy states each owe honest copy
+  and a way out (`Sources/ocoreai/UI/AGENTS.md`).
 - **A file's lifetime is the lifetime of the thing that cites it.** Bytes outliving their request need an
   owner, a pin in flight, and collection by idle TTL + byte budget; deleting at request end turns the next
   use into an unreadable-path error far from its cause. `MediaSpool`; gates:
