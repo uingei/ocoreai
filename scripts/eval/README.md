@@ -3,6 +3,21 @@
 `scripts/probes/` answers *is the wire telling the truth*. This directory answers the
 mission's own question: **did the agent finish a real coding job on this machine?**
 
+## Board ledger (k=1, gemma-4-e2b-it-4bit, temperature 0, tools 6, approval auto)
+
+| run | passes | median_ms_success | p95_ms_success | ms_per_success | tokens_per_success | note |
+|---|---|---|---|---|---|---|
+| `013050` | 21/39 | 2191 | 11346 | 8126 | 4224 | first four-axis board |
+| `KcooVJ3yuB` | **25/39** | 2144 | 8362 | **5429** | **3560** | after `edit_file` named the removal route |
+
+Row-by-row diff between the two (same task-file hash `b709e8aab69d`, same tool hash, temp 0): gained
+`delete-only-what-was-asked`, `edit-remove-line`, `edit-rename-key-keep-value`, `fix-wrong-key`;
+**lost none**. Only the removal-shaped pair is attributed: `delete-only-what-was-asked` is proven by
+mechanism, not by the aggregate — the refusal named `rm logs/stale.log`, the next call was
+`exec_command — success`, and the verifier accepted the product (`server.log`, 142 KB retained by the
+log-retention change). The other two gains sit inside the k=1 noise band (adjacent k=6 windows moved
+7/48 bands, so ±4 is noise) and stay unattributed until k=3.
+
 ## The rule that makes it a measurement
 
 Each task mutates a throwaway workspace and the verifier inspects **the workspace**, never
