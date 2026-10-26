@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release release-mac27 app dmg test test-verbose test-coverage test-ci probes format format-check audit docs-check anchor-check round-gates clean metallib help ci-local push-ready
+.PHONY: all build release release-mac27 app dmg test test-verbose test-coverage test-ci probes format format-check audit docs-check anchor-check round-gates clean metallib help ci-local push-ready ci-status
 
 all: build
 
@@ -380,6 +380,14 @@ round-gates: docs-check anchor-check audit
 # work escaped every gate that exists, so this one checks the tree instead of the text.
 push-ready:
 	bash scripts/worktree-hygiene.sh
+	@# CI truth, reported not enforced: the authority leg sat `skipped` for ~90 pushes because
+	@# nothing local could ask what CI concluded. Exit 2 from this script means "could not ask"
+	@# (offline, rate-limited, still running) and must never be read as green.
+	@bash scripts/ci-status.sh || true
+
+## ── CI truth for the commit origin/main points at (exit 2 = could not ask, not green) ──
+ci-status:
+	@bash scripts/ci-status.sh
 
 # Shrink-only ratchet: re-pin the root cap to the file's current size. Refuses to raise it —
 # text goes in only when text comes out.

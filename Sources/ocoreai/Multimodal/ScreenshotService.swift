@@ -423,10 +423,18 @@ final class ScreenshotService: NSObject {
     var latestFrameDataURL: String?
     var latestOCRText: String? = nil
 
+    /// Mirrors the macOS service's surface: a capture failure quotes this, so a stub that
+    /// left it nil would make an unsupported platform read as a capture that failed for an
+    /// unstated reason. `isAvailable == false` is the compile-time fact; this is the runtime one.
+    private(set) var lastError: String?
+
     @discardableResult
     func captureScreen() async -> String? {
-        _ = Logger(subsystem: "ocoreai", category: "screenshot")
-            .warning("[ScreenshotService] Screen capture not supported on this platform")
+        let reason = "Screen capture is not supported on this platform"
+        self.lastError = reason
+        _ = Logger(subsystem: "ocoreai", category: "screenshot").warning(
+            "[ScreenshotService] \(reason)"
+        )
         return nil
     }
 

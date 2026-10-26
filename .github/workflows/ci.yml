@@ -75,6 +75,15 @@ jobs:
       # routing table matches the guides on disk. Its first run here caught three counts that had
       # drifted and four map rows pointing at files the repo never had — invisible to every other
       # job because nothing greps the docs.
+      # Upstream cites inside the docs (`ChatSession.swift:1154`) are evidence, and they resolve
+      # only against real code at the pinned revision. CI has no ~/references, so resolve the
+      # dependency graph first: a cite that resolves nowhere must stay a failure, never become an
+      # exemption granted for convenience.
+      - name: Resolve dependencies (so upstream cites resolve at the pin)
+        run: |
+          set -euo pipefail
+          swift package resolve
+
       - name: AGENTS.md contract
         run: bash scripts/agents-md-contract.sh check
 
@@ -225,7 +234,24 @@ jobs:
           XCB=$(ls -dt ~/Library/Developer/Xcode/DerivedData/ocoreai-*/Build/Products/Debug/ocoreaiTests.xctest 2>/dev/null | head -1 || true)
           [ -n "$XCB" ] || { echo "❌ ocoreaiTests.xctest not found in DerivedData"; exit 1; }
           echo "Running test bundle: $XCB"
-          xcrun xctest "$XCB"
+          # A red leg nobody can read is a red leg nobody fixes: both matrix legs sat on this
+          # step's bare `exit 1` for a fortnight. Publish what failed, in the one place readable
+          # without a token (`/check-runs/{id}/annotations`), and name the documented way this
+          # command can exit non-zero while reporting no test results at all.
+          set +e
+          xcrun xctest "$XCB" 2>&1 | tee xctest.log
+          RC=${PIPESTATUS[0]}
+          set -e
+          if grep -q "Failed to load the default metallib" xctest.log; then
+            echo "::error::MLX found no shader payload — the run dies at the first Metal allocation and reports no summary (docs/agent/build-gate-reality.md)"
+          fi
+          if [ "$RC" -ne 0 ]; then
+            { echo "### xctest failures"; echo '```'
+              grep -E "failed|Fatal error|error:" xctest.log | tail -40; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            grep -E "' failed|Fatal error" xctest.log | head -15 | sed 's/^/::error::/'
+            exit "$RC"
+          fi
+          echo "✅ xctest exit 0"
 
       # ── Headless serve smoke — the 10-08 fc28cc8 contract ──
       # 'serve' must boot the bridge on 127.0.0.1:8080 in a SESSION WITH NO
