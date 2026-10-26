@@ -426,7 +426,12 @@ actor MCPStdioClient {
         let tail = stderrTail
         let log = self.log
         let program = endpoint.stdioCommand
-        DispatchQueue.global(qos: .utility).async {
+        // `.userInitiated`, not `.utility`: the drain's output is the sentence a caller reads
+        // at the moment of failure, and at utility QoS a loaded host starved it past the whole
+        // evidence window (measured 10-26, full suite: 150 ms after a child's exit the tail
+        // held 0 lines and had not reached EOF -- the block had not started). The bytes are
+        // not lost, they sit in the pipe; only the diagnosis was late.
+        DispatchQueue.global(qos: .userInitiated).async {
             let fd = pipe.fileHandleForReading.fileDescriptor
             guard fd >= 0 else {
                 _ = tail.finish()
@@ -451,8 +456,8 @@ actor MCPStdioClient {
     }
 
     /// 取证据。已有证据、或管道已 EOF（确实没写过）→ 立刻返回，不白等；只有"孩子刚死、
-    /// 最后几行可能还压在管道里"这一种情况会轮询，上限 10×15ms=150ms（读侧要到 EOF 才
-    /// 收剩下字节；探针量的是秒级，这点窗口不改变任何预算）。
+    /// 最后几行可能还压在管道里"这一种情况会轮询，上限 40×25ms=1s（读侧要到 EOF 才收
+    /// 剩下字节；探针量的是秒级，这点窗口不改变任何预算）。
     ///
     /// 刻意写成**次数**而不是 `ContinuousClock.now + …`：本文件的门
     /// （`MCPTimeoutDeliveryTests.scanFloors`）规定"响应等待只能有一条死线，且归调用方"。
@@ -461,9 +466,14 @@ actor MCPStdioClient {
     private func stderrEvidence() async -> String? {
         if let early = stderrTail.snapshot() { return early }
         if stderrTail.isEnded() { return nil }
-        for _ in 0 ..< 10 {
+        // 1 s of 25 ms looks, not 150 ms: the first look is free when the tail already has
+        // bytes, and the ceiling exists for the one case the probe caught -- a drain block the
+        // scheduler had not started 150 ms after the child died. Counted, not clocked, so this
+        // stays a bounded clean-up poll and never reads as a second response deadline
+        // (`MCPTimeoutDeliveryTests.scanFloors` owns that rule).
+        for _ in 0 ..< 40 {
             if Task.isCancelled { break }
-            try? await Task.sleep(for: .milliseconds(15))
+            try? await Task.sleep(for: .milliseconds(25))
             if stderrTail.isEnded() || stderrTail.snapshot() != nil { break }
         }
         return stderrTail.snapshot()
