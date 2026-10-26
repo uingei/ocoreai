@@ -246,7 +246,11 @@ actor SQLiteStore {
             // Not fatal: SQLite auto-checkpoints on later writes. Stated, not swallowed — a WAL
             // that never truncates is a growing file nobody reported.
             logger.warning(
-                "wal_checkpoint(TRUNCATE) skipped at open: another connection held the WAL (log=\(checkpoint.logPages) checkpointed=\(checkpoint.checkpointedPages) db=\(dbPath))"
+                """
+                wal_checkpoint(TRUNCATE) skipped at open: another connection held the WAL for \
+                \(checkpoint.statementMs)ms of a \(SQLiteStore.walBusyTimeoutMilliseconds)ms budget \
+                (log=\(checkpoint.logPages) checkpointed=\(checkpoint.checkpointedPages) db=\(dbPath))
+                """
             )
         }
         try SQLiteStore.exec(sql: "PRAGMA page_size=4096;", db: ptr)
