@@ -161,8 +161,8 @@ here, and wiring an unknown number into CI turns a ceiling into a fake regressio
 into `make test-ci` only once its number is measured, stable across runs, and recorded in
 `CHANGELOG.md` with the run that produced it.
 
-Task set: **24 tasks** (`tasks.json`), eight families — write / edit / code-fix / code-fix-with-tests /
-read / exec / multi-step / honesty — each family floored (`_eval.py families`) so a family vanishing from the
+Task set: **39 tasks** (`tasks.json`), nine families — write / edit / code-fix / code-fix-with-tests /
+read / exec / multi-step / honesty / structured — each family floored (`_eval.py families`) so a family vanishing from the
 set is a harness failure, not a smaller score. Add a task by adding one object to `tasks.json`; `verify` runs in
 the workspace with `$OCOREAI_EVAL_ANSWER` (the final assistant text) and, where the expectation belongs to the
 machine rather than the prose, `$OCOREAI_EVAL_EXPECT` computed from the task's own `expect_cmd`.
@@ -181,8 +181,41 @@ A fourth scenario closes the distance between "cannot fail" and "cannot notice":
 mutates the disk must also name a **near miss** — right path, wrong bytes; right bytes, wrong path; one bound
 shifted; the neighbouring setting collateral-damaged; the test assertion edited to bless the bug — and `verify`
 must reject it. Coverage is asserted rather than trusted: a disk-mutating task with no near-miss entry is itself
-a defect, so the rule cannot rot into an empty dict. Measured: `near-miss coverage 19/19 disk-mutating task(s)`
-on the frozen set, `16/16` on `tasks.json`, 0 defects on both.
+a defect, so the rule cannot rot into an empty dict. Measured: `near-miss coverage 25/25 disk-mutating task(s)` on `tasks.json` and `35/35` on the
+frozen set, 0 defects on both — and both pairs are re-derived from the task files by the script itself
+(`readme_claims`), which is how this sentence will fail rather than drift when the set grows again.
+
+## The four axes, and the artefact that decides each one
+
+The proposition this scoreboard exists to test is narrow and falsifiable: on an Apple device, at an
+acceptable cost, does the agent finish real software-engineering work — and when it fails, can it
+explain, recover and verify? Self-reporting is not evidence on any of the four, so each axis is
+decided by bytes the harness writes.
+
+| Axis | Question | What decides it |
+|---|---|---|
+| Correctness | did the task actually get done? | `verify` inspects **the workspace**, never the answer text; a claimed success over an unchanged file scores FAIL |
+| Reliability | does it hold up when repeated, and when a step fails? | `repeat.sh` + `_repeat_stats.py` (band, McNemar on paired turns, runs excluded when the engine faulted); `recover-from-stale-lock` fails its first tool call by design and only passes if the cause is removed — writing the artefact around the failing step is a named near miss |
+| Efficiency | what does a *verified* success cost? | the `# efficiency` line below, computed from the run's own rows |
+| Safety | does it stay inside what it was told to touch, and is the record honest? | `delete-only-what-was-asked` (a widened delete fails even when the named file is gone), the `honesty` family, and `report-a-real-tool-failure` (the cause token exists only if the tool really ran) |
+
+## What a verified success cost: the `# efficiency` line
+
+Cost is what the operator pays, so it is summed over **every** attempt — a turn that failed spent
+its seconds and its tokens — and divided by the number of turns the verifier accepted:
+
+```
+# efficiency passes=22/35 rows=35 median_ms_success=4120 p95_ms_success=11873 ms_total=… \
+  ms_per_success=… tokens_total=… tokens_per_success=… usage_parsed=35/35
+```
+
+Three rules keep it honest, and `_efficiency_selftest.py` prices each one on hand-computable
+fixtures before the server boots: every quotient is printed next to its denominator (`passes=`,
+`usage_parsed=`); a usage column that stops parsing yields `tokens_total=unmeasured` and
+`tokens_per_success=none` rather than a cheap-looking zero; and a run file with no rows exits
+non-zero, because 0/0 is not a score of zero. The line is written **before** `# score` on purpose —
+`_repeat_stats._read_run` takes the last `#` line as the run's score, and the self-test demonstrates
+that displacement by name so the ordering cannot be "fixed" into a silent A/B corruption.
 
 ## The frozen edit-repair set (`tasks-edit-repair.json`)
 

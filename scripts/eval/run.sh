@@ -93,6 +93,15 @@ if ! python3 "$HERE/_conditions_selftest.py"; then
   exit 1
 fi
 
+# One rung further on the same class: the cost figures are computed from the rows this run is
+# about to write, so the parser is judged on hand-computable fixtures before the boot — including
+# the trap where a `# efficiency` line lands after `# score` and silently becomes the score.
+if ! python3 "$HERE/_efficiency_selftest.py"; then
+  echo "  FAIL  the scoreboard's cost figures are unsound — the cost of a verified success" \
+    "would be a number nobody can check" >&2
+  exit 1
+fi
+
 probe_boot
 probe_require_ready_model
 
@@ -244,6 +253,19 @@ if [ "$FAULTS" -gt 0 ]; then
   probe_note "TASK SUCCESS NOT MEASURED ($FAULTS/$RUN tasks faulted; $PASS delivered passes)"
   exit 1
 fi
+
+# What a verified success cost, derived from the rows above: cost is summed over every attempt
+# (a failed turn spent its seconds and its tokens) and every quotient is printed next to its
+# denominator. This line goes BEFORE the score on purpose — `_repeat_stats._read_run` takes the
+# last `#` line as the score, and _efficiency_selftest.py demonstrates the displaced reading.
+EFFICIENCY="$(python3 "$HERE/_eval.py" efficiency "$RESULTS" 2>"$LOADER_ERR")"
+if [ -z "$EFFICIENCY" ]; then
+  probe_fail "could not derive the cost figures for this run ($(tail -n 1 "$LOADER_ERR")) — a" \
+    "score nobody can price is not comparable with the run before it, so nothing is written"
+  probe_summary "$PROBE_NAME"
+fi
+printf '# efficiency %s\n' "$EFFICIENCY" >> "$RESULTS"
+probe_note "$EFFICIENCY"
 
 printf '# score %s/%s  model %s\n' "$PASS" "$RUN" "$PROBE_MODEL" >> "$RESULTS"
 probe_note "results $RESULTS"

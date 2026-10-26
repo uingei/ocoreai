@@ -5,6 +5,7 @@ report a pass it never measured)."""
 
 import json
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -68,6 +69,95 @@ def write_snapshot(ws, dest, budget=SNAPSHOT_BUDGET_BYTES,
     with open(dest, "w", encoding="utf-8") as out:
         out.write(text)
     return len(text.encode("utf-8"))
+
+
+
+
+
+def _usage_ints(usage):
+    """(prompt, completion) from a usage cell, or None if either is missing.
+
+    The cell is written by `usage` above (`finish=… prompt=… cached=… completion=…`), so a wire
+    or helper change shows up here as an unparsed row rather than as a silently zero token count:
+    a cost figure computed from zeros is a harness bug wearing a model score."""
+    out = []
+    for field in ("prompt", "completion"):
+        m = re.search(r"%s=([0-9]+)" % field, usage or "")
+        if not m:
+            return None
+        out.append(int(m.group(1)))
+    return out
+
+
+def efficiency(path):
+    """Cost per VERIFIED success, derived from the run file's own rows.
+
+    Two decisions this cannot get wrong quietly: cost is summed over every row (a failed attempt
+    spends its tokens and its seconds, and excluding them would price success below its real
+    cost), and the denominators are published next to the quotients (`passes=`, `usage_parsed=`),
+    so `tokens_per_success` always names what it was divided by. At zero passes the quotient is
+    `none` — undefined is a fact, zero is a fabrication."""
+    rows = []
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("#"):
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 5 or parts[0] == "task":
+                continue
+            rows.append(parts)
+    if not rows:
+        raise SystemExit(
+            "efficiency: %s holds zero task rows — an instrument that read nothing prints no "
+            "number (a 0/0 average would be a score invented from absence)" % path)
+
+    passes = 0
+    ms_all = 0
+    ms_success = []
+    tokens = 0
+    parsed = 0
+    unparsed = []
+    for parts in rows:
+        try:
+            ms = int(parts[3])
+        except ValueError:
+            ms = None
+        if ms is not None:
+            ms_all += ms
+        ok = parts[2].strip() == "0"
+        if ok:
+            passes += 1
+            if ms is not None:
+                ms_success.append(ms)
+        ints = _usage_ints(parts[4])
+        if ints is None:
+            unparsed.append(parts[0])
+        else:
+            parsed += 1
+            tokens += ints[0] + ints[1]
+
+    def rank(values, q_bp):
+        """Nearest-rank percentile over `q_bp` basis points, in exact integer arithmetic.
+
+        Float arithmetic here crashed the first live run (23 successes: ceil(0.95*23)-1 = 21.0
+        reached `ordered[...]`), which is why the quantiles take basis points and the ceiling
+        floors at 19 successes instead of trusting a two-row fixture to find it."""
+        ordered = sorted(values)
+        rank_ceil = (q_bp * len(ordered) + 9999) // 10000
+        return ordered[min(len(ordered) - 1, max(0, rank_ceil - 1))]
+
+    out = ["passes=%d/%d" % (passes, len(rows)),
+           "rows=%d" % len(rows),
+           "median_ms_success=%s" % (rank(ms_success, 5000) if ms_success else "none"),
+           "p95_ms_success=%s" % (rank(ms_success, 9500) if ms_success else "none"),
+           "ms_total=%d" % ms_all,
+           "ms_per_success=%s" % (round(ms_all / passes) if passes else "none"),
+           "tokens_total=%s" % (tokens if parsed else "unmeasured"),
+           "tokens_per_success=%s" % (round(tokens / passes) if passes and parsed else "none"),
+           "usage_parsed=%d/%d" % (parsed, len(rows))]
+    if parsed == 0:
+        out.append("usage_shape=broken")
+    return " ".join(out), unparsed
 
 
 def spec_name(spec):
@@ -206,6 +296,12 @@ def main():
                 len(calls),
             )
         )
+
+    elif cmd == "efficiency":
+        line, unparsed = efficiency(sys.argv[2])
+        if unparsed:
+            line += " usage_unparsed=%d(%s)" % (len(unparsed), ",".join(unparsed[:3]))
+        print(line)
 
     else:
         raise SystemExit("unknown command: %s" % cmd)
