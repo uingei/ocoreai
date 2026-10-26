@@ -4,6 +4,12 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-26
 
+**10-26(25) The last unpriced number in the startup path is now a measurement** (P1 determinism / symbol `checkpoint-statement-is-timed`)
+
+- Three rounds of CI-vs-host reading turned on one unanswerable question: was `walBusyTimeoutMilliseconds` honoured? `open()`'s wall time cannot say, because it also carries actor hops and the rest of the process — which is why `waited=8.30s` against a 5 s timeout was arguable. The wait lives inside `_step` (SQLite's busy handler spins there), so `WALCheckpoint` now carries `statementMs` measured at that line, and EVIDENCE prints it.
+- Both directions get a bound, and both are the measured signature of a real defect rather than a picked number: `>= 4500` is the pre-fix shape (a timeout installed after the pragma answered `busy=1` in ~4 ms, indistinguishable from success unless the wait is timed), `<= 10_000` is "the refusal came from our knob, not from the other connection's schedule". The ceiling is 2x the timeout because a saturated busy handler sleeps in ~25 ms steps whose lateness accumulates — the mechanism the CI number points at — so a tighter idle-host ceiling would have turned a host artefact into a red.
+- Measured: 4/4 green here with the wait inside the window. **Open**: what CI reports is the first real datum, and it goes in this file whichever way it lands.
+
 **10-26(24) The authority leg moved the red somewhere honest, and the empty XCTest half was never a half** (P0 CI truth + P1 gate honesty / symbols `ordering-bound-is-the-commit-instant`, `xctest-half-holds-zero-tests`, `latency-bound-priced-by-measurement`, `docs-gate-annotates-itself`)
 
 - **CI read the instrument and answered** (`27934fa`): `busy == true` passes on both matrix legs now — the committed-frames premise held — and what went red was the guard added with it: `Expectation failed: (waited → 8.299391875 seconds) < (.seconds(8) → 8.0 seconds)`. That is the ordering *holding* while a hand-picked ceiling fails: an 8.30 s `open()` on a runner driving 3190 tests, with the truncation still refused. So the bound is no longer a constant. `holdWriteLock` returns the commit instant measured from one epoch and the assertion reads `openEndMs + 50 < commitMs` — the causal sentence ("the refusal landed while the lock was held"), with nothing to re-tune when a runner is slow; EVIDENCE prints `waitedMs/openEndMs/commitMs` so the next reading is arithmetic.
