@@ -190,7 +190,7 @@ Five empirical sources plus comparators; round-by-round verdicts live in `CHANGE
    GUI's judge, so on anything user-visible it is the authority, not codex. 102 topics,
    none about agents (both counts: that guide) ⇒ `docs/agent/agent-interface-guidelines.md`.
 6. **Comparators** — vllm, sglang, vllm-metal, omlx, mlx-serve, MTPLX, ollama, TensorFold, Strata, splash,
-   openclaw, hermes-agent, deepseek-harness, harness2, goose, opencode: not pins; nothing linked or redistributed, and a
+   openclaw, hermes-agent, harness2, goose, opencode: not pins; nothing linked or redistributed, and a
    borrowed verdict stays an inference until a `file:line` in our build says otherwise. Per-repo strengths:
    `docs/agent/comparator-repos.md`; shipped order + fix-cost per axis: `docs/agent/competitor-iteration-paths.md`.
 - **OpenAI / Anthropic compatibility** is judged the way vllm and sglang do it: the spec, their

@@ -3,7 +3,7 @@
 > The long form behind § *Build / Test / Lint* → "Gate tiering" in `AGENTS.md`, moved out of the
 > injected layer on 10-14 so the root file keeps judgment and verdicts. Every number here was
 > measured on the owner's host (macOS 26 · CLT + Xcode); CI remains the authoritative gate.
-**10-14: a toolchain update invalidated the route premises, so they became assertions.** One Xcode/CLT
+**A toolchain update can invalidate the route premises, so they are assertions.** One Xcode/CLT
 update repointed CLT's `MacOSX.sdk` from 26.5 to **27.0** (SDK 27 ships `CoreAI.framework`, measured:
 absent in `MacOSX26.5.sdk`) and moved swiftc 6.3.3 -> 6.4, so `DEVELOPER_DIR=…/CommandLineTools`
 **no longer** meant the "macOS 26 / no-CoreAI" route — `canImport(CoreAI)` silently flipped true and
@@ -16,12 +16,12 @@ is a hard gate that also runs in CI's `audit` job), and `make test-clt` passes
 a session: `HOME` must be the canonical `/private/tmp/…` — `/tmp/…` leaves two same-named `.pcm` files
 in the clang module cache and swift-frontend SIGSEGVs on `_DarwinFoundation1`.
 
-**Sandboxed route = compile + non-Metal tests, no approval needed (verified 10-13):** a compile gate does *not* require escalation. `HOME=<writable-dir> DEVELOPER_DIR=/Library/Developer/CommandLineTools swift build --scratch-path .build-clt --disable-sandbox` goes green inside the agent sandbox. `--disable-sandbox` drops only SwiftPM's *own* nested sandbox for the
+**Sandboxed route = compile + non-Metal tests, no approval needed:** a compile gate does *not* require escalation. `HOME=<writable-dir> DEVELOPER_DIR=/Library/Developer/CommandLineTools swift build --scratch-path .build-clt --disable-sandbox` goes green inside the agent sandbox. `--disable-sandbox` drops only SwiftPM's *own* nested sandbox for the
 package-manifest compile (nesting is impossible here: `sandbox-exec: sandbox_apply: Operation not permitted`); the outer harness sandbox still applies — the same run is denied writing `~/.cache/clang`, which is exactly why `HOME` must point somewhere writable. `make test-clt`'s `-F`/`-rpath` flags are still required for the Testing library, and `DEVELOPER_DIR` keeps it on the
 macOS-26 (no-CoreAI) route. Inside the sandbox pure-logic suites really run — `--filter 'SessionIsolation|MemoryPressureCorroboration|HardwareRouter|EnginePoolRouting'` = **79 tests / 15 suites green** — while Metal suites self-skip (`.enabled(if: MTLCreateSystemDefaultDevice() != nil)`) and `xcodebuild` cannot run at all (`xcodebuild: error: 'ocoreai.xcworkspace' is not a
 workspace file`), so the `test-ci` and `build-ios` legs stay CI's job. Tiering: sandbox → build + non-Metal suites; escalation → full suite + live `serve`/`curl`; `xcodebuild` legs → CI.
 
-**The sandbox route is conditional — the Metal node must be clean (10-14, reproducible).** The Metal
+**The sandbox route is conditional — the Metal node must be clean (reproducible).** The Metal
 toolchain's clang resolves its module cache to the *real* user home (`/var/folders/<…>/C/clang/
 ModuleCache/*.pcm`) whatever `HOME` the caller exports — not `~/.cache/clang`, and a gate naming the
 wrong path sends the next reader hunting in the wrong directory (measured by executing the compile: the
@@ -37,25 +37,23 @@ the test gate unsandboxed (`make test-clt`); when the sandbox route suddenly die
 it is a stale Metal node plus an unwritable module cache, not a code regression — one unsandboxed build
 fixes it, do not revert code to "fix" it.
 
-**Shader payload (10-14): why the test binary could not find `default.metallib`.** `make test-clt`
-died 352 tests in with `MLX error: Failed to load the default metallib` — a process abort, not a skip,
-with no cause named. MLX's `load_default_library` (mlx `mlx/backend/metal/device.cpp:196-244`) searches
-five PATH SHAPES (colocated `mlx.metallib`, `Resources/mlx`, a **loaded** `mlx-swift_Cmlx` bundle under
-`Bundle.main`/`allBundles`/`allFrameworks`, `Resources/default`, then the compile-time default), and
-SwiftPM 6.4 puts the runner three levels below its resource bundle, so all five miss even though the
-payload demonstrably exists in the products dir. mlx-swift-lm never sees this: it tests through
-`xcodebuild build-for-testing`, which puts resources within reach of its own runner. So the payload is
-resolved upstream-first and handed to MLX through the API built for it — `MLX.GPU.metallib`
-(mlx-swift `Source/MLX/GPU+Metal.swift:54-73`, "set early in the process to override or provide the
-metallib load path"), once at `EnginePool.init` via `MetalShaderLibrary.swift`, with
+**Shader payload — why the test binary cannot find `default.metallib`.** MLX's `load_default_library`
+(mlx `mlx/backend/metal/device.cpp:196-244`) searches five PATH SHAPES (colocated `mlx.metallib`,
+`Resources/mlx`, a **loaded** `mlx-swift_Cmlx` bundle under `Bundle.main`/`allBundles`/`allFrameworks`,
+`Resources/default`, then the compile-time default), and SwiftPM 6.4 puts the runner three levels below
+its resource bundle, so all five miss though the payload sits in the products dir. mlx-swift-lm never
+sees it: it tests through `xcodebuild build-for-testing`, which keeps resources within reach of its own
+runner. So the payload is resolved upstream-first and handed to MLX through the API built for it —
+`MLX.GPU.metallib` (mlx-swift `Source/MLX/GPU+Metal.swift:54-73`, "set early in the process to override
+or provide the metallib load path") once at `EnginePool.init` via `MetalShaderLibrary.swift`, with
 `$OCOREAI_METALLIB` as the explicit override. Copying it *into* the bundle is not available: a
-`.metallib` under `Contents/MacOS` is a nested code object and CodeSign dies with
-`code object is not signed at all`. Gates: `MetalShaderLibraryTests` pins the candidate order against a
-synthetic SwiftPM 6.4 layout (red the day the layout moves), `$OCOREAI_METALLIB` precedence, and "never
-hand back an unverified path" — and it reads the Makefile, so "don't stage into a signed bundle" stays
-a red build rather than a comment. The ladder itself is `scripts/resolve-metallib.sh`.
+`.metallib` under `Contents/MacOS` is a nested code object and CodeSign dies with `code object is not
+signed at all`. Gate: `MetalShaderLibraryTests` pins the candidate order against a synthetic SwiftPM 6.4
+layout (red the day the layout moves), `$OCOREAI_METALLIB` precedence and "never hand back an unverified
+path" — and it reads the Makefile, so "don't stage into a signed bundle" stays a red build rather than a
+comment. The ladder itself is `scripts/resolve-metallib.sh`.
 
-**R2 must not infer (10-14):** `metal --version` and a listing of the cryptexd mount both flip with the
+**R2 must not infer:** `metal --version` and a listing of the cryptexd mount both flip with the
 environment — the same `report` answered `metal=ok-cryptex` inside the sandbox and
 `metal=component-missing` outside it within a minute, while llbuild compiled `arg_reduce.metal`
 successfully in that unsandboxed run. The stable fact is upstream's:

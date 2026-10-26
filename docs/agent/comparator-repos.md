@@ -2,7 +2,7 @@
 
 > Long form behind § *Upstream Audit Dependencies* 6. Cells are a **dated snapshot** read off the
 > local clone; re-measure the diary column:
-> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent deepseek-harness harness2 goose opencode; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
+> `for r in vllm sglang vllm-metal omlx mlx-serve MTPLX ollama TensorFold Strata splash openclaw hermes-agent harness2 goose opencode; do printf "%s=%s\n" "$r" "$(grep -c -- \"$r\" CHANGELOG.md)"; done`
 > — P16 re-derives both lists, so a stale cell goes red. A **pin** is a build input (`Package.swift:43`); everything else is a comparator.
 
 Each entry is one clone under `~/references/`: what it holds, the axis worth borrowing, and
@@ -78,10 +78,6 @@ Borrow: ACP is a new core surface (ladder rung 6) ⇒ an owner call, not an audi
 Contains: contract-first wire (one spec → generated SDK and docs) and **cassette replay** (`http-recorder/README.md`:
 record real HTTP/WS once, replay deterministic JSON) — the axis our harness lacks, since every `scripts/probes/` claim
 needs a live Metal server. Borrow: named; replay for harness regressions, never for capability claims
-
-- `deepseek-harness` — `dsh`, "everything-is-a-plugin" agent harness powered by Cordis
-Contains: Skill/plugin surface design and how a harness declares capabilities — the axis `codex` covers for us in Rust
-Borrow: named, unused; same call pending
 
 
 ## How to use this file

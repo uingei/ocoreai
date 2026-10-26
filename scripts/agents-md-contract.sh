@@ -198,7 +198,19 @@ cd "$(dirname "$0")/.."
 # unmoved) -> 160694 with Rung zero. Net over the round: +3809, and root itself went the other way (-6363
 # to 24025) because the wire rules moved to where they cost context only inside their own subtree. The next
 # corpus growth still owes its own weight.
-: "${OCOREAI_CORPUS_MAX_BYTES:=160694}"
+# 10-27 raise 160694 -> 161004 (+310). In: § *The proposition the product is judged on* in
+# docs/agent/long-horizon-goal.md (the owner's four axes and the acceptance metrics that are not
+# LOC/commits/model-count/complexity) plus the root rule naming `make push-ready` as the gate path (a
+# pure reformat moved 19 line-cites and every local gate stayed green, because `round-gates` is not what
+# anyone runs before pushing). Out, same edit: the "named, unused" deepseek-harness cell and its registry
+# name (-269 B, debt this ledger has named since 10-24), the dated metallib narration and four MM-DD
+# stamps in build-gate-reality.md (-213 B, upstream cites and gate kept), and the goal doc's B′/C/rung-1
+# figures, which had already drifted (it quoted 52 tasks where the set is 39) and now live only in
+# scripts/eval/README.md (-510 B). WARNING for the next editor: § Upstream 6 is P16'S INPUT, not prose —
+# collapsing the comparator list into a pointer left P16 parsing 2 "trees" against a floor of 14, and it
+# stayed quiet about half of it. Keep the list verbatim; retire a tree by dropping its name from BOTH
+# homes (root § Upstream 6 and the refresh loop in comparator-repos.md).
+: "${OCOREAI_CORPUS_MAX_BYTES:=161004}"
 
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.

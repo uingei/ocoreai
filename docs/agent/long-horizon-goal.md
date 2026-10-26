@@ -4,7 +4,19 @@
 > turning a change into a fact**. Everything here is re-computable with the commands quoted next to each
 > number; a number that cannot be re-run is not a target, it is a slogan.
 
-## The objective
+## The proposition the product is judged on
+
+The instrument below keeps claims true; it is not the product. The falsifiable question: **on Apple
+devices, can ocoreai finish real software-engineering tasks at acceptable cost, and on failure explain,
+recover and verify?** Four axes, scored by the fixed task set (`scripts/eval/`) and its verifiers, never
+by the model's self-report: **correctness** (the task's verifier, not the answer's prose) ·
+**reliability** (the same task at k repeats; recovery from a tool error, a stall, a model swap) ·
+**efficiency** (wall-clock and tokens per *verified* success) · **safety** (a side effect only inside the
+approval boundary, one auditable record each). Acceptance = task success rate, outcome correctness,
+execution reliability, cost per successful task. Explicitly not acceptance: lines of code, commit count,
+supported model count, architectural complexity.
+
+## The objective (the instrument)
 
 Make ocoreai a machine that converts *change* → *fact* cheaply and cannot move its own goal posts:
 
@@ -16,23 +28,22 @@ claim coverage → 1.0. The product surface grows only where a gate already meas
 | # | quantity | value | how to re-measure |
 |---|---|---|---|
 | B | smallest provable improvement | **6 discordant cells** | exact sign test at the shipped α: `mcnemar_exact(b,0) < 0.05` first holds at b=6 (b=5 → 0.0625) — `scripts/eval/_repeat_stats.py` |
-| B′ | tasks that can produce a cell | **14 of 52** (21 pass, 17 fail); adjacent k=6 windows moved 7/48 bands, so ±4 is noise | `_repeat_stats.py` on the base root; ledger in `scripts/eval/README.md` |
-| C | cost of one verdict | **≈28.7 min** at 52 tasks (4.79 min/run × k=6, base reused) — one run costs 4.8 min, so a ≤3 min/proposal target is throughput-bound, not orchestration | `stat -f %m /tmp/oc-k6-f52/run-*` → deltas |
+| B′ | tasks that can produce a cell | set size, pass/fail split and the noise band: `scripts/eval/README.md` (this file does not restate them — a figure in two homes is one drift waiting) | `_repeat_stats.py` on the base root |
+| C | cost of one verdict | one k=6 verdict costs minutes, not seconds — the floor is inference throughput, so a ≤3 min/proposal target is throughput-bound, not orchestration | `stat -f %m` on the run dirs → deltas |
 | G | goal-post write surface | **0** (allow = 1 prefix, protected = 15 judgement paths) | `scripts/eval/autoloop-allow.txt` / `autoloop-protected.txt`, gated by `scripts/eval/_autoab_selftest.py` + `_autoab_mutate.py` |
 | S | claim coverage | incomplete: doc claims reproduce, 36 live probes; gaps = MTP acceptance rate (0 sites) | `make docs-check` + the gap list below |
 
-**Why B is the constraint**: stable-pass tasks give *no* upward evidence yet *can* trip the regression veto, so
-the shape is asymmetric on purpose, and **≈0.5 tasks is not measurable at any α** — that effort is not
-conservative, it is invisible. Per-window numbers: `scripts/eval/README.md`.
+**Why B is the constraint**: stable-pass tasks give *no* upward evidence yet *can* trip the regression veto,
+so the shape is asymmetric on purpose, and a sub-point effect is not measurable at any α — that effort is
+not conservative, it is invisible.
 
 ## The ladder
 
-1. **Resolution first** — critical-task share 6 → ≥12: **met, 14 of 52** (k=6, 29-31, SD 0.89). Structured
-   output is on the board; probe 12 fails open-ended (3/6 never close), while §6 (grammar + tools in one turn)
-   now delivers 3/3 with tools on both shapes, pinned fail-first; §7 keeps the grounded half open — a
-   read-turn cannot emit the call its JSON integers come from. Guessing p from last window's rates added nothing (8 instances: three at
-   6/6, five at 0/6); screening at k=3 and freezing only the mid-band ones took B′ 9 → 10 → 14 while 7/48
-   bands moved on their own — **a window statistic, not a set property; no criterion moved.**
+1. **Resolution first** — critical-task share ≥12: **met** (the share and its floors live in
+   `scripts/eval/README.md`). Structured output is on the board and probe 12 still fails open-ended; §7
+   keeps the grounded half open — a read-turn cannot emit the call its JSON integers come from. Screening
+   criteria were tried against the mid-band tasks and **none moved B′ past window noise** (per-round
+   windows: CHANGELOG).
 2. **Beat** — C 12 min → ≤3 min: engine stays warm across proposals, contract-class changes judge at
    k=1 by byte-exact gates (they are decidable, so they must not spend statistical budget). *Failure
    signal*: the floor is inference throughput, not orchestration — that is a quantization/kernel job, not
