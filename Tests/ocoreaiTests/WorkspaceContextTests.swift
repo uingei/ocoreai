@@ -182,7 +182,7 @@ struct WorkspaceContextTests {
 
         // Set non-directory → rejected (key absent → configuredDirectory nil).
         store.removeObject(forKey: key)
-        let file = dir.appendingPathComponent("afile")
+        let file = dir.appendingPathComponent("afile")  // codespell:ignore
         FileManager.default.createFile(atPath: file.path, contents: Data())
         store.set(file.path, forKey: key)
         #expect(WorkspaceContext.configuredDirectory(defaults: store) == nil)

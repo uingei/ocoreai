@@ -25,7 +25,7 @@ else
   endif
 endif
 
-.PHONY: all build release release-mac27 app dmg test test-verbose test-coverage test-ci probes format format-check audit docs-check anchor-check round-gates clean metallib help ci-local push-ready ci-status
+.PHONY: all build release release-mac27 app dmg test test-verbose test-coverage test-ci probes format format-check audit docs-check anchor-check round-gates clean metallib help ci-local push-ready ci-status spell install-hooks
 
 all: build
 
@@ -415,12 +415,24 @@ sf-pin:
 docs-check:
 	bash scripts/agents-md-contract.sh check
 
+## Pinned codespell, version asserted before use, vocabulary in .codespellrc. CI runs it too — on
+## ubuntu, because it reads text and the arm64 audit leg already costs 715 s a push.
+spell:
+	bash scripts/spell-check.sh
+
+## Opt-in local hooks from .pre-commit-config.yaml. Needs pre-commit on PATH
+## (python3 -m pip install --user pre-commit); nothing here is required to contribute, CI runs
+## the same file. Named install-hooks because a target called `hooks` is shadowed by the
+## directory of the same name — make said "up to date" and the parse gate caught it.
+install-hooks:
+	pre-commit install
+
 ## Every no-build gate a round owns, in one command. `ci-local` is the full pipeline but it
 ## starts with `clean`, and a half-hour target gets skipped mid-round — which is exactly how five
 ## line-cites survived a push after their files grew (docs-check only asks whether a cited path
 ## exists; verifying the *line* is anchor-check's job, and nothing chained the two).
-round-gates: docs-check anchor-check audit
-	@echo "✅ round gates green — docs contract, line cites, swift patterns"
+round-gates: docs-check anchor-check audit spell
+	@echo "✅ round gates green — docs contract, line cites, swift patterns, spelling"
 
 # A round is not finished while it lives only in this checkout: CI on macos-26 is the stated
 # authority, and an unpushed commit has been verified by nobody but this box. Two days of uncommitted

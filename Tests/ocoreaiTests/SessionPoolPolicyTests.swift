@@ -57,16 +57,16 @@ struct SessionPoolPolicyTests {
     func unknownValueDoesNotDisable() {
         var on = SessionPoolConfig.default
         on.enabled = true
-        for raw in ["1", "true", "yes", "ture", ""] {
+        for raw in ["1", "true", "yes", "ture", ""] {  // codespell:ignore
             #expect(
                 SessionPoolPolicy.enabled(
                     config: on, environment: ["OCOREAI_SESSION_POOL": raw]), "\(raw)")
         }
-        // `ture` is a typo for `true`, not a request to disable; the override stays nil so
+        // `ture` is a typo for `true`, not a request to disable; the override stays nil so  // codespell:ignore
         // the boot log does not claim the hatch took effect when it did not.
         #expect(
             SessionPoolPolicy.environmentOverride(
-                environment: ["OCOREAI_SESSION_POOL": "ture"]) == nil)
+                environment: ["OCOREAI_SESSION_POOL": "ture"]) == nil)  // codespell:ignore
     }
 
     @Test("the environment cannot turn a disabled config back on")

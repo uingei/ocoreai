@@ -1,10 +1,30 @@
+# Local hygiene hooks: the layer every project this repo learns from ships (mlx-swift-lm,
+# coreai-models, vllm, sglang, codex) and this repo did not. Two rules decide membership here:
+# the check must need nothing but the checkout — no pinned toolchain, no Metal, no model — and it
+# must have bitten. So swift-format and the docs contract stay in `make round-gates`, where the
+# pinned swift-format build is resolved; what follows is free everywhere and starts clean today.
+#
+# `detect-private-key` is the whole secret story this repo needs: sglang gates secrets with exactly
+# this hook rather than a scanner job, so a credential stops where it is typed, at zero CI minutes
+# (why the old gitleaks job was deleted: CHANGELOG.md, `secret-gate-never-green`).
+#
+# Opt in:  make hooks        Run all:  pre-commit run --all-files
+# CI:      the ubuntu governance job runs `pre-commit run --all-files` (verifies this file and its
+#          clean state without spending an arm64 minute).
 repos:
-
-- repo: local
-  hooks:
-    - id: swift-format
-      name: swift-format
-      language: system
-      entry: swift-format format --in-place --configuration .swift-format --recursive Sources Tests
-      require_serial: true
-      types: [swift]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: [--maxkb=2048]
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-toml
+      - id: check-json
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.3
+    hooks:
+      - id: codespell

@@ -84,7 +84,7 @@ SOLUTIONS = {
     "json-two-integers-closes": "",
     "fix-wrong-key-nested": 'printf \'RECORD = {"user": {"handle": "ada", "team": "flight"}}\\n\\n\\ndef handle_of(rec):\\n    return rec["user"]["handle"]\\n\' > contacts.py',
     "fix-early-return-in-loop": 'printf \'def first_even(xs):\\n    for x in xs:\\n        if x %% 2 == 0:\\n            return x\\n    return None\\n\' > pick.py',
-    "edit-rename-two-keys": "sed -e 's/^tineout = /timeout = /' -e 's/^thme = /theme = /' config.toml > .t && mv .t config.toml",
+    "edit-rename-two-keys": "sed -e 's/^tineout = /timeout = /' -e 's/^thme = /theme = /' config.toml > .t && mv .t config.toml",  # codespell:ignore
     "edit-insert-line-between": "printf 'alpha\\nbeta\\nbeta-two\\ngamma\\n' > list.cfg",
     "exec-count-unique-lines": "",
     "read-count-line-prefix": "",
@@ -197,7 +197,7 @@ NEAR_MISS = {
     "fix-wrong-key-nested": 'printf \'RECORD = {"user": {"handle": "ada", "team": "flight"}}\\n\\n\\ndef handle_of(rec):\\n    return rec["user"]["team"]\\n\' > contacts.py',
     "fix-early-return-in-loop": 'printf \'def first_even(xs):\\n    for x in xs:\\n        if x %% 2 == 0:\\n            return True\\n    return None\\n\' > pick.py',
     "edit-rename-two-keys": ["sed -e 's/^tineout = /timeout = /' config.toml > .t && mv .t config.toml",
-                              "sed -e 's/^tineout = 30/timeout = 31/' -e 's/^thme = /theme = /' config.toml > .t && mv .t config.toml"],
+                              "sed -e 's/^tineout = 30/timeout = 31/' -e 's/^thme = /theme = /' config.toml > .t && mv .t config.toml"],  # codespell:ignore
     "edit-insert-line-between": ["printf 'alpha\\nbeta\\ngamma\\nbeta-two\\n' > list.cfg",
                                  "printf 'alpha\\nbeta-two\\ngamma\\n' > list.cfg"],
     "copy-two-lines-swapped": ["printf 'alpha marker\\nbeta marker\\ngamma marker\\n' > swapped.txt",

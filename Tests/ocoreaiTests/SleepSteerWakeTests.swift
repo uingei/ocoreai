@@ -306,7 +306,7 @@ struct EngineToolLanesCarryConversationKey {
         // 两条投喂点写法不同: 标准路是 `registry.call(`, MTP 路是 `toolRegistry?.call(`。
         // 那个 `?` 让「registry.call(」这个子串漏掉后者 —— 一条只数到 1 的扫描会把
         // 「投喂点少了一条」读成「一切正常」, 所以按正则匹配, 并让下面的 count 断言说话。
-        let lanePattern = #/[A-Za-z]*[Rr]egistry\??\.call\(/#
+        let lanePattern = #/[A-Za-z]*[Rr]egistry\??\.call\(/#  // codespell:ignore
         for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             // 只数真代码: 注释里那句 "→ registry.call()" 是叙述, 不是投喂点。

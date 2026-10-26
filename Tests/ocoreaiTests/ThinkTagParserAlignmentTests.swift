@@ -42,7 +42,7 @@ struct ThinkTagParserTagPairTests {
         out += p.consume("a")
         out += p.consume("<think")
         out += p.consume(">mid")
-        out += p.consume("</thi")
+        out += p.consume("</thi")  // codespell:ignore
         out += p.consume("nk>b")
         out += p.flush()
         #expect(eventStrings(out, kind: .text) == ["a", "b"])

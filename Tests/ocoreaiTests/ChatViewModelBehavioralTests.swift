@@ -275,7 +275,7 @@ struct ChatStateDisplayTextTests {
     @Test("Unsettled/incomplete tool array survives incremental view (no partial strip)")
     func incompleteArraySurvives() {
         // While streaming: array not yet closed — must NOT be spliced
-        let raw = "Planning: [{ \"name\": \"exec_command\", \"argumen"
+        let raw = "Planning: [{ \"name\": \"exec_command\", \"argumen"  // codespell:ignore
         #expect(ChatState.displayText(from: raw) == raw)
     }
 

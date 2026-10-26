@@ -169,7 +169,7 @@ enum ClaimVsAudit {
     /// Verbs asserting a file got changed, for a **success** claim. Broad on purpose: "fixed",
     /// "implemented" and "replaced" are how a coding agent reports done work.
     private static let changeVerbs = [
-        "creat", "writ", "sav", "updat", "modif", "patch", "delet", "append", "edit",
+        "creat", "writ", "sav", "updat", "modif", "patch", "delet", "append", "edit",  // codespell:ignore
         "fix", "chang", "refactor", "implement", "replac",
         "创建", "写入", "保存", "更新", "修改", "删除", "新增", "修复", "替换", "实现", "改",
     ]
@@ -178,13 +178,13 @@ enum ClaimVsAudit {
     /// "it cannot compile" are verification statements — a successful edit does not refute
     /// them, so calling them contradicted would over-claim in the other direction.
     private static let operationVerbs = [
-        "creat", "writ", "sav", "updat", "modif", "patch", "delet", "append", "edit",
+        "creat", "writ", "sav", "updat", "modif", "patch", "delet", "append", "edit",  // codespell:ignore
         "创建", "写入", "保存", "更新", "修改", "删除", "新增",
     ]
 
     /// Markers that the same sentence says the thing did *not* happen.
     private static let failureMarkers = [
-        "fail", "could not", "couldn\u{2019}t", "unable", "not possible", "refus", "denied",
+        "fail", "could not", "couldn\u{2019}t", "unable", "not possible", "refus", "denied",  // codespell:ignore
         "error", "not found", "does not exist", "no such",
         "失败", "无法", "未能", "不能", "没", "未成功", "报错", "不存在", "找不到",
     ]
@@ -192,7 +192,7 @@ enum ClaimVsAudit {
     /// A claim has to be about a file/artifact, not just contain a verb: "creative writing"
     /// and "let me fix that later" are not completion claims.
     private static let fileContextMarkers = [
-        "file", "path", "director", "folder", "config", "code", "script", "sourc", "function",
+        "file", "path", "director", "folder", "config", "code", "script", "sourc", "function",  // codespell:ignore
         "document", "note", "report", "test", "readme", "output",
         "文件", "目录", "代码", "配置", "脚本", "函数", "文档", "笔记", "报告", "测试",
     ]

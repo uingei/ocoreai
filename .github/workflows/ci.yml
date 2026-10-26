@@ -41,6 +41,28 @@ jobs:
           [ "$FAIL" -eq 1 ] && exit 1
           echo "✅ Review governance: all infrastructure files present"
 
+      # Text gates belong on the free runner: the macos-26 audit leg costs 715 s a push, and
+      # neither of these needs a Swift toolchain. codespell's pin lives in the script (one home),
+      # so the workflow installs exactly what the gate asserts. setup-python first because the
+      # runner's system python is PEP 668 externally-managed and refuses `pip install`.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Spell gate
+        run: |
+          set -euo pipefail
+          PIN="$(sed -n 's/^PIN=\([0-9.]*\)$/\1/p' scripts/spell-check.sh)"
+          python3 -m pip install --quiet "codespell==$PIN"
+          bash scripts/spell-check.sh
+
+      - name: Local hygiene hooks
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet pre-commit
+          pre-commit --version
+          pre-commit run --all-files || { echo "::error::failed step: pre-commit hooks (see .pre-commit-config.yaml)"; exit 1; }
+
   ## ── Static audit — fast, no build ───────────────────────────────
   audit:
     name: Static Audit

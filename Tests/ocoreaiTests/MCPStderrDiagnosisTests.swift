@@ -162,7 +162,7 @@ struct MCPStderrTailTests {
     @Test("a line split across chunks assembles; so does a multibyte character")
     func chunkBoundariesDoNotBreakLines() {
         let tail = MCPStderrTail()
-        #expect(tail.append(Data("hel".utf8)).isEmpty, "half a line is not a line yet")
+        #expect(tail.append(Data("hel".utf8)).isEmpty, "half a line is not a line yet")  // codespell:ignore
         #expect(tail.append(Data("lo wor".utf8)).isEmpty)
         #expect(tail.append(Data("ld\n".utf8)) == ["hello world"])
 

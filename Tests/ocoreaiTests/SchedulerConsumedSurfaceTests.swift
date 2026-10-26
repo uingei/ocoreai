@@ -74,7 +74,7 @@ struct SchedulerConsumedSurfaceTests {
     @Test("production consumes exactly submitAndDispatch / complete / fail")
     func consumedSurfaceIsThreeMethods() throws {
         let pattern = try NSRegularExpression(
-            pattern: "[a-zA-Z]*[sS]cheduler\\??\\.([a-zA-Z]+)")
+            pattern: "[a-zA-Z]*[sS]cheduler\\??\\.([a-zA-Z]+)")  // codespell:ignore
         var members: Set<String> = []
         var sites = 0
         var filesWithActor = 0

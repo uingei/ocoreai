@@ -658,8 +658,8 @@ extension DirectInferenceClient {
         // Fire-and-forget: failures silently ignored to avoid blocking stream end.
         if let budget = OcoreaiEngine.shared.activeThinkingBudget {
             let outputLen: Double
-            if let ot = outputTokens, ot > 0 {
-                outputLen = min(1.0, Double(ot) / Double(effectiveMaxTokens ?? 4096))
+            if let tokens = outputTokens, tokens > 0 {
+                outputLen = min(1.0, Double(tokens) / Double(effectiveMaxTokens ?? 4096))
             } else {
                 outputLen = 0.0
             }

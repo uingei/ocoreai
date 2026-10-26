@@ -199,7 +199,7 @@ struct AccTruncated {
     func midTokenSplit() async {
         var acc = ToolCallAccumulator()
         acc.processChunk("[{\"name\":\"get_w")
-        acc.processChunk("eather\",\"arguments\":")
+        acc.processChunk("eather\",\"arguments\":")  // codespell:ignore
         acc.processChunk("{\"city\":\"London\"}}]")
         let result = acc.processEOS()
         #expect(result != nil)

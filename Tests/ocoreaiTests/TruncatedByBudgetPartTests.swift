@@ -29,7 +29,7 @@ struct TruncatedByBudgetPartTests {
     func displayText() {
         let text = TranscriptPart.truncatedByBudget.displayText
         #expect(!text.isEmpty)
-        #expect(text.lowercased().contains("truncat"))
+        #expect(text.lowercased().contains("truncat"))  // codespell:ignore
     }
 
     @Test("hashable: .truncatedByBudget is a distinct stable identity")
@@ -69,7 +69,7 @@ struct TruncatedByBudgetMessageTests {
         ]
         let msg = ChatMessage(role: "assistant", parts: parts)
         #expect(msg.hasParts)
-        #expect(msg.textContent.lowercased().contains("truncat"))
+        #expect(msg.textContent.lowercased().contains("truncat"))  // codespell:ignore
     }
 
     @Test("coexists with compactionNote without cross-contamination")
@@ -81,6 +81,6 @@ struct TruncatedByBudgetMessageTests {
         ]
         let msg = ChatMessage(role: "assistant", parts: parts)
         #expect(msg.textContent.contains("Compacted"))
-        #expect(msg.textContent.lowercased().contains("truncat"))
+        #expect(msg.textContent.lowercased().contains("truncat"))  // codespell:ignore
     }
 }

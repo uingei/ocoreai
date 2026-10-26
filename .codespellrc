@@ -1,0 +1,13 @@
+[codespell]
+# Domain vocabulary this project deliberately writes, each entry a fact rather than a slip:
+# ANE = Apple Neural Engine; inout = Swift keyword; caf = Core Audio Format; ND = n-dimensional;
+# ans = the answer variable in scripts/probes; numer = mach_timebase_info_data_t's own field
+# (Apple's header, not ours); datas = the local name for a [Data] batch; checkin = the
+# checkout/checkin handle pattern; unparseable is this repo's term of art; re-declaring and
+# allReady/ot-style camelCase entries are identifiers. Same convention as sglang/.codespellrc
+# and codex/.codespellrc — a spell gate is only affordable if the vocabulary is stated once.
+ignore-words-list = ane,caf,nd,ans,inout,unparseable,uptodate,ontext,allready,optionall,reuseable,alloc,datas,checkin,numer,re-declaring
+# Vendored and generated surfaces are not ours to reword: CXGrammar + dlpack are upstream C,
+# THIRD-PARTY-LICENSES is collected verbatim, and .build is a resolved dependency cache.
+skip = .git*,.build*,.build-clt*,Sources/lib/*,THIRD-PARTY-LICENSES/*,*.json,*.jsonl,*.lock,*.png,*.icns,*.metallib,*.svg,Package.resolved
+check-hidden = true

@@ -28,7 +28,7 @@ AX = [
     ("parallel-tools", r"parallel.{0,15}tool"), ("skills", r"\bskill"), ("subagents", r"subagent|sub-agent"),
     ("plan-mode", r"plan.?mode|\bplan\b.{0,20}mode"), ("hooks", r"\bhooks?\b"),
     ("background-tasks", r"background (task|job|run|exec)"),
-    ("kv-cache-correctness", r"kv.?cach|prefix cach|prompt cach|rewind|evict|snapshot"),
+    ("kv-cache-correctness", r"kv.?cach|prefix cach|prompt cach|rewind|evict|snapshot"),  # codespell:ignore
 ]
 FIX = re.compile(r"\bfix|revert|harden|guard|race|leak|deadlock|hang|corrupt|safe", re.I)
 for repo in repos:

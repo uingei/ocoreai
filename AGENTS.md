@@ -23,8 +23,6 @@ Almost every rule below is a corollary; when a shortcut collides with an invaria
    `/v1/capabilities`, the dashboard, a tool result, a composer string — must be measured, and must
    degrade honestly where the backend is absent. A file tool's `OK` is durability, not validity: the verdict
    travels in one result (`OK-but-invalid`). When authority is unclear: run it and read the answer.
-   Read-echo chrome of our own surface (`N|` prefixes, `total_lines:`, `[System Perception]`) is stripped
-   when provable, reported when not: `PresentationEcho`, gate `PresentationEchoGuardTests`(16).
 
 ## Contribution policy
 - Every line in git is reviewable, AI or not; "it came from the model" excuses nothing.
@@ -63,6 +61,7 @@ make test                            # same, but names $OCOREAI_METALLIB first �
 make test FILTER=<Regex>         # one suite (swift-testing half: the XCTest helper SEGVs on filter)
 make test-clt [FILTER=<Regex>]   # CLT route, serial — runs both halves
 make docs-check                      # docs contract: ~3 s, no build
+make spell                           # codespell, pin asserted; vocab in .codespellrc
 bash scripts/eval/run.sh               # task-success scoreboard: verifies the WORKSPACE, not the prose
 ```
 - Gate tiering: **sandbox** → app-target build + non-Metal suites; **escalation** → `make test-clt`
@@ -77,8 +76,7 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   format`, the fix `format-check` names, had never once run. Off-pin checks stay advisory; **prefer a live
   `serve` + `curl` over an inference about behaviour.**
 - Style: `swift-format` (`.swift-format`, pinned) via `make format-check`; no other linter, aligned
-  with upstream. Crash-safe coding (no `try!`/`as!`/`fatalError` in `Sources/`) is a convention here
-  and a ceiling below § Error Handling.
+  with upstream; crash-safety is § Error Handling's ceiling.
 - Licenses travel with the binary: MIT **plus** third-party terms (BSD-3 cl.1/cl.2, Apache-2.0 §4). Adding a
   dependency, bumping a pin or vendoring a header ⇒ re-run `scripts/collect-third-party-licenses.sh` and commit
   its output. Gates: `ThirdPartyNoticesTests`(16) + `scripts/audit.swift_patterns.sh` Class-I; composition:
@@ -228,9 +226,8 @@ Areas without a guide (Scheduler, MCP, Tools, Skills, Multimodal, Video, Securit
 row here — a guide costs context only inside its subtree.
 
 ## Docs Contract — how this file stays true
-`make docs-check` (`scripts/agents-md-contract.sh`; CI `audit` job) holds this file and its corpus to their
-claims, ~3 s measured, no build; its gate list, rationale and env knobs live **in that script**. Operator
-semantics (`>=` floor, `<=` ceiling) + the three questions: `CONTRIBUTING.md`.
+`make docs-check` (`scripts/agents-md-contract.sh`) holds this file and its corpus to their claims; its gate
+list, rationale and env knobs live **in that script**; floor/ceiling semantics: `CONTRIBUTING.md`.
 
 ## Documentation Map — Agent-facing vs Human-facing
 **Rule of thumb:** text *injected into the model's context at runtime* is **Agent-facing** — a change alters
@@ -282,6 +279,9 @@ project is **Human-facing**.
   `MediaLifetimeTests`(15) + probe 08.
 - **Comments say the *why* the code cannot, in 1–3 lines.** No bug history, dates or audit trails inside
   source comments — that is the commit message. Diffs are read by a human: one logical change per commit.
+- **A lock lives at the cheapest rung that bites:** hook → `make` → CI, priced in runner-seconds (the arm64
+  audit leg is 715 s a push, so text gates go to ubuntu). A gate nobody can install or ever sees go red is
+  decoration — `hooks/pre-commit` and gitleaks were both that.
 - **No defensive clutter; no guard for a failure nobody observed.** Validate once at the boundary that owns
   the value and pass typed values inward; quote the failure (a probe line, a red test, a scoreboard row)
   before writing its guard. For a speculative race or security edge case, name the failure mode, likelihood
