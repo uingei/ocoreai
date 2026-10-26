@@ -119,10 +119,30 @@ struct SQLiteOpenBusyTimeoutTests {
         let commit = try await holdWriteLock(on: writer, delay: Self.commitPastTimeout)
 
         let challenger = SQLiteStore(path: path)
+        let openedAt = ContinuousClock.now
         try await challenger.open()
+        let waited = openedAt.duration(to: .now)
         try await commit.value
 
         let reported = await challenger.lastOpenWALCheckpoint
+        // CI reproduces this red on both matrix legs and this host does not, and the job log
+        // needs a token to read. So a failing run names the quantity that broke instead of
+        // leaving a bare `busy == false` behind: `logPages` separates "sqlite refused the
+        // truncation and nobody read it" from "there was nothing to truncate" — and only one
+        // of those is a bug in `open()`. Tagged EVIDENCE so CI publishes the line.
+        if reported?.busy != true {
+            let attrs = try? FileManager.default.attributesOfItem(atPath: path + "-wal")
+            let walBytes = attrs?[.size] as? Int ?? -1
+            let timeout = try? await challenger.scalarQuery(sql: "PRAGMA busy_timeout;")
+            print(
+                """
+                EVIDENCE sqlite-open-busy: waited=\(waited) busy=\(String(describing: reported?.busy)) \
+                logPages=\(String(describing: reported?.logPages)) \
+                ckptPages=\(String(describing: reported?.checkpointedPages)) \
+                busyTimeout=\(String(describing: timeout?.asInt64)) walBytes=\(walBytes)
+                """
+            )
+        }
         #expect(
             reported?.busy == true, "the busy column was not read — contention would be swallowed")
         // A refused truncation is a degraded start, not a fatal one: SQLite auto-checkpoints later.

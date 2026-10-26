@@ -253,12 +253,18 @@ jobs:
           if grep -q "Failed to load the default metallib" xctest.log; then
             echo "::error::MLX found no shader payload — the run dies at the first Metal allocation and reports no summary (docs/agent/build-gate-reality.md)"
           fi
+          # One line that settles "did the harness finish?" in either framework's words:
+          # XCTest says "Executed N tests, with M failures", swift-testing says
+          # "Test run with N tests in M suites failed after …". If neither appears, the run
+          # aborted rather than failed, and the annotation says so with a number attached.
+          SUMMARY=$(grep -E "Test run with|Executed [0-9]+ test" xctest.log | tail -2 || true)
+          echo "::notice::xctest summary (exit $RC): ${SUMMARY:-none -- the harness never reported}"
           if [ "$RC" -ne 0 ]; then
             # Name the failing cases, not the prose: the first version of this grep matched
             # `' failed` and published an FM-tool warning as if it were a test result, while
             # the other matrix leg published nothing at all. `Test Case ...] failed` is the
             # XCTest line; anything else is a crash, and a crash says so instead of staying quiet.
-            CASES=$(grep -E "^Test Case .*\] failed|failed after .* with .* issue|✘ |Fatal error" xctest.log | head -20 || true)
+            CASES=$(grep -E "^Test Case .*\] failed|failed after .* with .* issue|✘ |Fatal error|^EVIDENCE " xctest.log | head -20 || true)
             { echo "### xctest failures (exit $RC)"; echo '```'
               grep -E "failed|Fatal error|error:" xctest.log | tail -40; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
             if [ -n "$CASES" ]; then

@@ -4,6 +4,14 @@ All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](h
 
 ## [Unreleased] — 2026-09-05 → 2026-10-26
 
+**10-26(22) The authority leg now has one named red, and it is not this host's behaviour** (P0 CI truth / symbols `sqlite-busy-ci-only`, `evidence-line-ships-on-red`)
+
+- **The legibility work paid for itself in one run**: commit `099e2d7` turned `Build & Test (xcode-27)` and `Build & Test (macos-26)` from "exit 1, nothing readable" into a named assertion — `SQLiteOpenBusyTimeoutTests.swift:126:9: Expectation failed: (reported?.busy -> false) == true`, `Test run with 3349 tests in 590 suites failed after 88.572 seconds with 1 issue` — the **same single failure on both matrix legs**, with `Governance Check`, `App Store trait compile` and `iOS compile-only` green. The suite is one assertion from green on CI, and two runners agreeing twice rules out a timing flake.
+- **Control measured here, not assumed**: the passing path was temporarily printed and reverted (same discipline as the 10-26(20) probe) — `waited=5.1997495s busy=true logPages=79 ckptPages=79 busyTimeout=5000 walBytes=329632`. The mechanism was also reproduced outside the app: two connections in one process, `BEGIN IMMEDIATE` + `INSERT` left open, `PRAGMA wal_checkpoint(TRUNCATE)` answers `(1, 2, 2)` on sqlite 3.51.0. So contention *is* enforced where the suite is green.
+- **What ships is an instrument, not a guess**: a failing run prints `EVIDENCE sqlite-open-busy: waited=… busy=… logPages=… ckptPages=… busyTimeout=… walBytes=…`, and the CI grep publishes any line tagged `EVIDENCE`. The discriminating field is `logPages`: zero means the truncation had nothing to copy, so `busy=false` is sqlite being correct and the *test's premise* is what CI breaks; non-zero with `busy=false` means the busy column was swallowed, which is a bug in `open()`. Patching before reading that field would be a guess wearing a commit message.
+- **One more legibility line**: the step publishes a notice stating whether the harness reported a summary at all (`Executed N tests…` / `Test run with N tests…`), so "the run aborted" is now a different sentence from "a test failed".
+- **Unchanged and named**: `Static Audit` is red on the same assertion, reached through its advisory coverage step — the 10-26(21) step-name annotations did not fire there because that step runs the suite rather than one of the four wrapped scripts.
+
 **10-26(21) The iOS leg went green, and the annotation meant to name tests named nothing** (P1 CI legibility / symbols `swift-testing-failure-shape`, `pdbg-removed`)
 
 - **One open half of 10-26(19) closed by evidence**: `macOS 26 · iOS compile-only -> success` on commit `2644008`. The `Process` platform gate held on the runner, so the stub fix is CI-verified rather than macOS-verified-and-hoped. `Governance Check` and `App Store trait compile` also pass; both `Build & Test` legs stay red.
