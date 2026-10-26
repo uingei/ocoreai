@@ -337,6 +337,10 @@ format-check:
 audit:
 	@echo "🔍 Running static audit..."
 	bash scripts/audit.swift_patterns.sh
+	@# Two lockfiles, one dependency graph: xcodebuild (make test-ci, the DMG) reads the WORKSPACE
+	@# copy, swift build reads the ROOT one. They drifted for three pin bumps and only CI ever said
+	@# so, because this target is the local mirror of the CI audit job — which already checks it.
+	bash scripts/resolved-sync.sh check
 	@# A dead type name in the architecture docs teaches an architecture that does not exist:
 	@# ARCHITECTURE.md diagrammed BackendProtocol.swift for weeks after 2123143 deleted it.
 	bash scripts/docs-type-existence.sh
