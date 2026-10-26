@@ -2,7 +2,15 @@
 
 All notable changes to **ocoreai**. This project adheres to [Keep a Changelog](https://keepachangelog.com/) conventions.
 
-## [Unreleased] — 2026-09-05 → 2026-10-26
+## [Unreleased] — 2026-09-05 → 2026-10-27
+
+**10-27(1) The gate that speaks for itself named its own four-push-old cause** (P0 CI truth / symbols `comparator-cites-declared-not-faith`, `docs-gate-annotation-earned-its-keep`)
+
+- **One round of instrumentation, one named cause**: the first push carrying `::error::docs gate: …` (10-26(24)) returned — without a token — `P2 23 unresolved reference(s) … ASSETS.json, Cargo.toml, PINNED.md, … serving_chat.py, srt/entrypoints/openai/protocol.py`. The Static Audit leg had been red since at least `9e0a984` with nothing but `failed step: AGENTS.md contract (docs gate)` to read.
+- **Cause, measured rather than inferred**: 23 cites point into **comparator** trees. `docs/agent/comparator-repos.md` carries 18, `docs/agent/instruction-channel.md` 3, `docs/agent/systemone-decisions.md` 2, and `Sources/ocoreai/Handlers/AGENTS.md:25` 1 (`serving_chat.py:1488-1501`) — and none of the 23 ever existed in our history (`git log --all --name-only` over the set: empty), so this is not drift. Locally they resolve through `~/references`; on a runner that tree does not exist, so CI was right and the local green was the accident. Reproduced faithfully: with the host clones removed from the resolver, the scan reports the same 23.
+- **The fix is the mechanism the script already sanctions** (`02d4cb5`), the one that `SYSTEM_REFS` uses for OS headers: `COMPARATOR_REFS` declares them, implementing § Upstream Audit Dependencies 6 verbatim ("not pins; nothing linked or redistributed, and a borrowed verdict stays an inference"). It rots in both directions and both are gated, not trusted: delete an entry and its cite goes red on a runner (red sample: `srt/entrypoints/openai/protocol.py`), keep one no doc cites and the dead-declaration check goes red (red sample: a planted name). A third check refuses a declaration for a file the repo actually carries. The run prints `outside 23/23`, so the count is visible instead of assumed.
+- **What was deliberately *not* done**: no "skip on CI" branch, and no rewrite of 23 cites into prose that loses the line numbers — the workflow's own comment forbids turning an unresolvable cite into an exemption granted for convenience, so the declaration is tied to a stated policy and gated against its own decay.
+- **Also open, and now distinguishable**: `macOS 26 · iOS compile-only` came back `cancelled` on the same run for a provider reason — `The job was not acquired by Runner of type hosted even after multiple attempts` — which is GitHub capacity, not a red we authored. It will be re-run by the next push rather than papered over with a retry loop.
 
 **10-26(25) The last unpriced number in the startup path is now a measurement** (P1 determinism / symbol `checkpoint-statement-is-timed`)
 
