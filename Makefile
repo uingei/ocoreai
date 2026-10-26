@@ -423,6 +423,10 @@ round-gates: docs-check anchor-check audit
 # work escaped every gate that exists, so this one checks the tree instead of the text.
 push-ready:
 	bash scripts/worktree-hygiene.sh
+	@# A pure reformat moved 19 line-cites in three files and every local gate stayed green, because
+	@# round-gates (which does check them) is not the target anyone runs before pushing. A gate that
+	@# exists off the path taken is not a gate: verify the cites here, where the tree is verified.
+	@bash scripts/anchor-check.sh || { echo "::error::line-cite drift — repoint the cite or fix the code"; exit 1; }
 	@# CI truth, reported not enforced: the authority leg sat `skipped` for ~90 pushes because
 	@# nothing local could ask what CI concluded. Exit 2 from this script means "could not ask"
 	@# (offline, rate-limited, still running) and must never be read as green.

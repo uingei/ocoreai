@@ -73,8 +73,9 @@ bash scripts/eval/run.sh               # task-success scoreboard: verifies the W
   `DEVELOPER_DIR`, and settles Metal by *compiling a kernel*, never by `metal --version`.
 - CLT SDK ≠ CLT compiler: an unpinned `SDKROOT` breaks even the manifest. On the CLT route every
   `canImport(CoreAI)` block compiles out, and macOS 26 can never run them.
-- The full suite does run on this host, and `serve` + live `curl` work: **prefer a live check over an
-  inference whenever a claim is about behaviour.**
+- **A gate you did not run is not green.** `make push-ready` runs the no-build set (docs contract, line
+  cites, patterns) and off-pin local checks are advisory; `round-gates` is the same set on demand.
+  `serve` + live `curl` work here — **prefer a live check over an inference about behaviour.**
 - Style: `swift-format` (`.swift-format`, pinned) via `make format-check`; no other linter, aligned
   with upstream. Crash-safe coding (no `try!`/`as!`/`fatalError` in `Sources/`) is a convention here
   and a ceiling below § Error Handling.
@@ -250,7 +251,7 @@ project is **Human-facing**.
 ## Working here
 - **Direct commits to `main`**, no branch ritual; CI on macos-26 (`make test-ci`) is the authority.
   `make docs-check` green when touching this file, `docs/**` or a guide. `CHANGELOG.md` records every
-  user-visible change with its commit; `make push-ready` checks the tree: clean, pushed, paired.
+  user-visible change with its commit; `make push-ready` checks the tree: clean, pushed, paired, cites.
 - Verification is three layers: grep → compile → read the matched lines. A single-layer check is speculation.
   `swift build` exit 0 before any completion claim; audit findings cite `file:line` + commit, and label
   inference as inference.
