@@ -361,6 +361,22 @@ for t in sorted(tracked | on_disk):
 # the doc really did cite an outside tree.
 SYSTEM_REFS = ("UIPasteboard.h", "arg_reduce.metal", "device.cpp", "GPU+Metal.swift",
                "CoreAIRuntime.swiftinterface", "coreai.json", ".swiftinterface")
+# Cites into comparator trees. § Upstream Audit Dependencies 6 is the policy they implement:
+# comparators are "not pins; nothing linked or redistributed, and a borrowed verdict stays an
+# inference" — so these files exist on a host that cloned them and on no runner, and resolving
+# them was never an option. Declaring them is the honest form of that fact, and it rots in both
+# directions on purpose: delete an entry and its cite goes red, keep one nothing cites and the
+# dead-declaration check below goes red. Adding an entry means a doc really did cite an outside
+# tree, and the same check counts them so the list cannot quietly become a general exemption.
+COMPARATOR_REFS = (
+    "ASSETS.json", "Cargo.toml", "PINNED.md", "PROVENANCE.md", "RELEASE-NOTES-1.0.0.md",
+    "RUNBOOK.md", "THIRD_PARTY_NOTICES.md", "ZIG-PREVIEW.md", "api_shapes.py",
+    "check_provenance.py", "engine_component.py", "structured_server.py",
+    "docs/TERMINAL_LAUNCH.md", "docs/structured_decisions.md", "packaging/ENGINE-COMPONENT.md",
+    "dev/tests/server/test_anthropic_contract.py", "entrypoints/anthropic/serving.py",
+    "entrypoints/openai/parser/harmony_utils.py", "entrypoints/openai/responses/harmony.py",
+    "entrypoints/serve/utils/tool_calls_utils.py", "srt/entrypoints/anthropic/protocol.py",
+    "srt/entrypoints/openai/protocol.py", "serving_chat.py")
 # Two home candidate sources, because $HOME is not a stable fact here: the documented
 # CLT/sandbox recipe exports HOME=/private/tmp/codexhome, and a resolver that asks $HOME
 # where the reference trees live then reports every upstream cite as unresolved. A gate
@@ -431,7 +447,7 @@ if len(routing) < env_int("OCOREAI_AGENTS_FLOOR_ROUTING"):
     fail.append("P1 only %d routing-table rows (< floor %d)" % (len(routing), env_int("OCOREAI_AGENTS_FLOOR_ROUTING")))
 
 # ── P2 refs resolve ──────────────────────────────────────────────────────────
-unresolved, upstream = [], []
+unresolved, upstream, declared_outside = [], [], []
 for r in hard_refs:
     if r.startswith("~/") or r.startswith("/"):
         targets = [os.path.expanduser(r)]
@@ -451,11 +467,33 @@ for r in hard_refs:
         shown = ",".join(trees[:3]) + (",+%d more" % (len(trees) - 3) if len(trees) > 3 else "")
         upstream.append("%s (%s)" % (r, shown))
         continue
+    if r in COMPARATOR_REFS or base in COMPARATOR_REFS:
+        declared_outside.append(r)
+        continue
     unresolved.append(r)
 if unresolved:
     fail.append("P2 %d unresolved reference(s) — no such file here, no basename match in git, "
                 "not in a local upstream clone, not declared absent: %s"
                 % (len(unresolved), ", ".join(unresolved)))
+# A declaration that no doc uses is an exemption with no owner, and a list nobody trims is how
+# allowlists become a way of not looking. Both directions are cheap to check, so both are checked.
+dead_declarations = [d for d in COMPARATOR_REFS
+                     if not any(h == d or os.path.basename(h) == d for h in hard_refs)]
+if dead_declarations:
+    fail.append("P2 %d declared outside-tree cite(s) no longer cited by any doc (%s) — delete "
+                "them; an unused declaration is an exemption, not a fact"
+                % (len(dead_declarations), ", ".join(dead_declarations)))
+# Declaring a file outside-tree while the repo carries it is simply wrong, and that is the only
+# "resolved anyway" that means anything: on a host with the comparator trees cloned these cites
+# resolve through the clone and never need the declaration (CI is where they do).
+unused_cites = sorted({r for r in hard_refs
+                       if (r in COMPARATOR_REFS or os.path.basename(r) in COMPARATOR_REFS)
+                       and (r in tracked or r in on_disk
+                            or os.path.basename(r) in by_base)})
+if unused_cites:
+    fail.append("P2 %d outside-tree declaration(s) are carried by the repo itself (%s) \u2014 "
+                "drop the declaration; the cite resolves here"
+                % (len(unused_cites), ", ".join(unused_cites)))
 
 # ── P3 anchors in range ──────────────────────────────────────────────────────
 bad_anchors = []
@@ -1013,7 +1051,9 @@ print("  suites    numbered-claims=%d/%d ok (floor %d)  files-with-@Test=%d"
          len([1 for s, _, _ in suite_counts if s not in DIARIES]),
          env_int("OCOREAI_AGENTS_FLOOR_SUITE_COUNTS"), len(test_fn_counts)))
 if upstream:
-    print("  upstream  %d ref(s) resolved in a dependency checkout or ~/references "
+    print("  outside   %d/%d comparator-tree cite(s) declared (host trees, never on a runner)"
+      % (len(declared_outside), len(COMPARATOR_REFS)))
+print("  upstream  %d ref(s) resolved in a dependency checkout or ~/references "
           "(line numbers inside them are what `make anchor-check` verifies): %s"
           % (len(upstream), ", ".join(sorted(set(upstream))[:6])))
 for w in warn:
