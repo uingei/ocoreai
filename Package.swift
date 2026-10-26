@@ -72,16 +72,16 @@ let package = Package(
         // goes red when an edit moves one, instead of a cite drifting 214 lines as this
         // one did; DependencyPinStatementTests re-greps Sources and fails when this audit
         // stops being the set the code actually reaches.
-// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3634 asArray(Int32.self) -->
-// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3681 Stream.gpu.synchronize -->
-// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3895 asArray(Int32.self) -->
-// anchor:. Sources/ocoreai/Engine/EngineInference.swift:5130 asArray(Int.self) -->
+// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3635 asArray(Int32.self) -->
+// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3682 Stream.gpu.synchronize -->
+// anchor:. Sources/ocoreai/Engine/EngineInference.swift:3896 asArray(Int32.self) -->
+// anchor:. Sources/ocoreai/Engine/EngineInference.swift:5132 asArray(Int.self) -->
         // anchor:. Sources/ocoreai/Engine/EngineInferenceSupport.swift:153 MLXArray
-// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1310 MLXArray( -->
-// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1316 MLXArray.zeros -->
-// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1322 result.eval -->
-// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1324 asArray(Float.self) -->
-// anchor:. Sources/ocoreai/Engine/DegenerateMarginProbe.swift:256 asArray(Int32.self) -->
+// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1311 MLXArray( -->
+// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1317 MLXArray.zeros -->
+// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1323 result.eval -->
+// anchor:. Sources/ocoreai/Engine/MLXBridge.swift:1325 asArray(Float.self) -->
+// anchor:. Sources/ocoreai/Engine/DegenerateMarginProbe.swift:259 asArray(Int32.self) -->
         // All MLX *inference* flows through MLXLLM/MLXNN/MLXLMCommon; these 5 APIs are
         // where an MLX signature change lands in ocoreai's own code, so a bump audits
         // exactly these files. The 0.31→0.32 verdict holds for released versions (zero

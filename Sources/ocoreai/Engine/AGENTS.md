@@ -35,7 +35,7 @@ The pool may not *answer* a conversation that diverged from its resident cache
 (`canReusePooledSession`) — but that is not a reason to discard the cache. `rewindHistoryEnd`
 (`SessionPool.swift:1526`, called at `SessionPool.swift:683`) decides whether the cache can be
 rewound onto the conversation that arrived and hands the boundary to the caller as
-`AcquireResult.rewind`; the fork itself is `EngineInference.swift:3214`, the only such site,
+`AcquireResult.rewind`; the fork itself is `EngineInference.swift:3215`, the only such site,
 because the transcript cannot cross into the pool actor — upstream `Chat.Message`
 (`Libraries/MLXLMCommon/Chat.swift:14`) is not `Sendable` and carries `UserInput.Image`
 (`Libraries/MLXLMCommon/UserInput.swift:131`). The pool judges, the caller forks.
@@ -44,7 +44,7 @@ Three conditions, and two of the ways they fail are silent (measured, not inferr
 - **The reserve must be requested.** A rotating cache past its window reports `maxTrimCount == 0`
   (upstream `KVCache.swift:1015`), so `RewindToCommonPrefixRule` downgrades the trim to
   `.rebuild`: the answer stays correct and `cached_tokens` stays 0.
-  `kvCacheRewindReserveTokens` (`MLXBridge.swift:909`) is therefore passed at all three exits of
+  `kvCacheRewindReserveTokens` (`MLXBridge.swift:910`) is therefore passed at all three exits of
   `makeKVCacheConfiguration`, including the unquantized one that used to return nil.
 - **A rewind is not a refusal.** It books under `prefixReuse`, never `historyDiverged` — a ledger
   that counts it as refused publishes a full recompute the engine did not perform.
@@ -61,7 +61,7 @@ probe 27 (live server: reuse asserted, replaced fact absent from the reply).
 
 ## Steering is delivered at the request seam
 `mergingSteeredTurn` (`Sources/ocoreai/Handlers/ChatHandler.swift`) folds a queued steer into the head
-of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3043`,
+of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3044`,
 `:3675`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
 delivers on the next request, or its contract is fiction (wire guide: `Handlers/AGENTS.md` § Endpoint Promises).
 
@@ -88,7 +88,7 @@ The server-wide row (`/v1/capabilities` → `video_input`) is the *same* measure
 `VideoDeliveryAggregate.evidenceLine`, so no publisher re-words it (a router that assembles its own
 evidence sentence is a second truth). Both are measured-only: `not_observed` is a fact about this
 process, never a claim about the checkpoint. Gate: `CapabilityMeasurementHonestyTests`.
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3366 items: videoInputCount, promptTokens -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3367 items: videoInputCount, promptTokens -->
 
 ## Known defect, deliberately unfixed — do not "fix" it blind
 `_applyBitmask` (`EngineInference.swift:1409`) multiplies by `-Float.leastNormalMagnitude`
@@ -104,17 +104,17 @@ AGENTS.md moved off their targets with no gate going red; these markers are the 
 `make anchor-check` to name the cite that drifted.
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:172 Task.sleep(until: deadline -->
 <!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:1409 Float.leastNormalMagnitude -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3043 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3766 SteerQueue.shared.drain -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4403 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3867 .applyingThinkingBudget -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4418 components: genComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3890 components: mtpGenComponents -->
-<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:885 case "affine" -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3044 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3767 SteerQueue.shared.drain -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4405 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3868 .applyingThinkingBudget -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:4420 components: genComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3891 components: mtpGenComponents -->
+<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:886 case "affine" -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:1526 static func rewindHistoryEnd -->
 <!-- anchor:. Sources/ocoreai/Engine/SessionPool.swift:683 Self.rewindHistoryEnd( -->
-<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3214 rewind.source.session.fork( -->
-<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:909 let kvCacheRewindReserveTokens = 1024 -->
+<!-- anchor:. Sources/ocoreai/Engine/EngineInference.swift:3215 rewind.source.session.fork( -->
+<!-- anchor:. Sources/ocoreai/Engine/MLXBridge.swift:910 let kvCacheRewindReserveTokens = 1024 -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/Chat.swift:14 public struct Message { -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/UserInput.swift:131 public struct Image { -->
 <!-- anchor:mlx-swift-lm Libraries/MLXLMCommon/ChatSession.swift:1723 func fork(history -->
