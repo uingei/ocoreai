@@ -157,7 +157,13 @@ cd "$(dirname "$0")/.."
 # without deleting the four-defect pairing table in docs/agent/build-gate-reality.md — that table is the
 # standing argument for live probes, so it stays and the debt carries forward: the two "named, unused"
 # cells (splash, deepseek-harness) or the dated forensics there owe the corpus its bytes.
-: "${OCOREAI_CORPUS_MAX_BYTES:=155386}"
+# 10-26 raise 155386 -> 155597 (+211): the keyboard-contract gate line in
+# Sources/ocoreai/UI/AGENTS.md (UIFocusDisciplineTests) — the HIG prose "⌘ coverage ...
+# keyboard ownership follows focus" finally names the test that pins it. Debt movement:
+# the splash half is repaid (the comparator-repos.md cell now reads Borrow: consumed);
+# the deepseek-harness half stays an owner call, and the dated forensics in
+# docs/agent/build-gate-reality.md still owe the corpus its bytes.
+: "${OCOREAI_CORPUS_MAX_BYTES:=155597}"
 
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.

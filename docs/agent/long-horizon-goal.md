@@ -19,7 +19,7 @@ claim coverage → 1.0. The product surface grows only where a gate already meas
 | B′ | tasks that can produce a cell | **14 of 52** (21 pass, 17 fail); adjacent k=6 windows moved 7/48 bands, so ±4 is noise | `_repeat_stats.py` on the base root; ledger in `scripts/eval/README.md` |
 | C | cost of one verdict | **≈28.7 min** at 52 tasks (4.79 min/run × k=6, base reused) — one run costs 4.8 min, so a ≤3 min/proposal target is throughput-bound, not orchestration | `stat -f %m /tmp/oc-k6-f52/run-*` → deltas |
 | G | goal-post write surface | **0** (allow = 1 prefix, protected = 15 judgement paths) | `scripts/eval/autoloop-allow.txt` / `autoloop-protected.txt`, gated by `scripts/eval/_autoab_selftest.py` + `_autoab_mutate.py` |
-| S | claim coverage | incomplete: doc claims reproduce, 34 live probes; gaps = MTP acceptance rate (0 sites), UI focus discipline has no test | `make docs-check` + the gap list below |
+| S | claim coverage | incomplete: doc claims reproduce, 36 live probes; gaps = MTP acceptance rate (0 sites) | `make docs-check` + the gap list below |
 
 **Why B is the constraint**: stable-pass tasks give *no* upward evidence yet *can* trip the regression veto, so
 the shape is asymmetric on purpose, and **≈0.5 tasks is not measurable at any α** — that effort is not
@@ -39,7 +39,7 @@ conservative, it is invisible. Per-window numbers: `scripts/eval/README.md`.
    a harness job.
 3. **Coverage** — S gaps 3 → 0: publish MTP acceptance where MTP runs (or keep MTP off the capability
    face, which is honest today), disclose truncated structured output rather than 200 + invalid JSON, and
-   pin the UI's focus/number rules with a test instead of prose. *Failure signal*: a capability row that
+   the UI's focus/number rules are pinned (`UIFocusDisciplineTests`). *Failure signal*: a capability row that
    cannot name its measurement site survives a review cycle → the review, not the code, is broken.
 4. **Anti-self-deception** — the mutation set only grows; each cycle re-proves the judges catch a real
    defect, not just a fabricated board. *Failure signal*: a mutation escapes.

@@ -39,6 +39,8 @@ in 5 files, `textSelection` in 5, `accessibilityLabel` in 17, across every `Sour
 <!-- claim:ui_keyboard_shortcut_files<=5 :: git grep -l keyboardShortcut -- Sources | wc -l -->
 <!-- claim:ui_text_selection_files<=5 :: git grep -l textSelection -- Sources | wc -l -->
 <!-- claim:ui_accessibility_files<=17 :: git grep -l accessibilityLabel -- Sources | wc -l -->
+Gate for the keyboard contract: `UIFocusDisciplineTests` pins the single focus site, the one key monitor,
+the ⌘ map (⌘↵, ⇧⌘V, ⌘1–⌘7 as declared in `Application.swift`) and the Esc effect — a scan that floors itself.
 
 ## iOS parity — compile gates settled, runtime not
 - Checked against the iPhoneOS SDK rather than from memory: `HSplitView` is `@available(iOS,
