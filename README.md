@@ -19,18 +19,20 @@ minos 14.0. macOS 14/15: never executed on hardware. iOS 17+: compile-validated 
 (`generic/platform=iOS` in CI) — no iOS runtime has been executed by this project, so the
 platform line above is the declared floor from `Package.swift`, not a measurement.
 
-**用户路径 — 双击即用:**
-下载 [最新 Release](https://github.com/uingei/ocoreai/releases/latest) 的 `ocoreai-<ver>.dmg` → 打开 → 拖 `ocoreai` 到 `Applications` → 启动。模型在 App「模型」页推荐列表中首启下载（推荐列表已内置）。
+**Install (double-click path):** download `ocoreai-<ver>.dmg` from [the latest Release](https://github.com/uingei/ocoreai/releases/latest),
+open it, drag `ocoreai` into `Applications`, launch. Models download on first run from the built-in
+recommended list on the app's Models page.
 
-> 首次启动: 当前 DMG 为 ad-hoc 签名(未公证)。若 Gatekeeper 提示"无法打开",在 Finder 的 `Applications` 里**右键 ocoreai → 打开 → 打开**即可,仅需一次。
+> First launch: the DMG is ad-hoc signed and **not notarised**. If Gatekeeper refuses it, right-click
+> `ocoreai` in `Applications` → **Open** → **Open** — once, then it starts normally.
 
-**开发者路径 — 源码构建 + HTTP 桥:**
+**Build from source (headless engine + HTTP bridge):**
 
 ```bash
 git clone https://github.com/uingei/ocoreai.git && cd ocoreai
-swift build -c release     # 或 make app
-swift run ocoreai serve    # headless：引擎 + HTTP 桥，无窗口
-# or: bash scripts/build-dmg.sh   # 本地出 DMG
+swift build -c release     # or: make app
+swift run ocoreai serve    # headless: engine + HTTP bridge, no window
+# or: bash scripts/build-dmg.sh   # build the DMG locally
 ```
 
 ```bash
@@ -40,7 +42,9 @@ curl -s http://127.0.0.1:8080/health
 
 Direct SwiftPM build, no `.xcodeproj` (the test gate runs through the SPM `ocoreai.xcworkspace` → `xcodebuild` → `xctest`).
 **Headless HTTP entry: `ocoreai serve`** (`swift run ocoreai serve`, or the built binary directly) — boots the engine + bridge on `127.0.0.1:8080` with no GUI/WindowServer session. Shutdown: `SIGTERM` or closing stdin drains the engine (≤30s) then exits clean; `SIGINT` keeps default terminal behavior. Bare `ocoreai` launches the GUI as before. Server listens on `127.0.0.1:8080`. Config at `~/.ocoreai/config.yaml`.
-DMG 安装的 App Store build 默认只开 GUI（Fast Path）；HTTP 桥需显式 opt-in — 终端运行 `OCOREAI_ENABLE_HTTP=1 /Applications/ocoreai.app/Contents/MacOS/ocoreai`（实证：bridge 日志出现 + `/health` 200 + `/v1/chat/completions` 推理闭环）。无头启动走 `ocoreai serve`：引擎 + 桥绑定 `127.0.0.1:8080`，无需窗口会话；`SIGTERM` 或关闭 stdin 触发优雅退出（引擎排空 ≤30s），`SIGINT` 保持终端默认行为。
+An App Store build installed from the DMG starts the GUI only (Fast Path); the HTTP bridge is an
+explicit opt-in — run `OCOREAI_ENABLE_HTTP=1 /Applications/ocoreai.app/Contents/MacOS/ocoreai`
+(measured: a bridge log line, `/health` 200, and a completed `/v1/chat/completions` turn).
 
 > ⚠️ **Localhost-only** — The HTTP API binds to `127.0.0.1` by default. **Auth is off unless** the `OCOREAI_API_KEYS` env var is set; **no TLS**. Token-bucket rate limiting is on by default: global **200 req/s** (burst 300), per-model 30/s (burst 45), per-IP 20/s (burst 30) — set once at `App.swift:718`, enforced by `Middleware/RateLimitMiddleware.swift`.
 <!-- claim:global_rate_set=1 :: grep -c 'globalRate: 200' Sources/ocoreai/App.swift -->

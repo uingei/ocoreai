@@ -52,6 +52,13 @@
 #   P15 corpus shape  P13's shape rule one hop out — no line over OCOREAI_CORPUS_MAX_LINE bytes
 #                    outside code fences/comments/tables, corpus total under OCOREAI_CORPUS_MAX_BYTES.
 #                    A guide nobody can read is a guide nobody obeys.
+#   P18 doc language  docs are English by default and exactly one file is Chinese: README.zh.md, the
+#                    mirror of README.md (the owner's rule). Enforced at zero where a newcomer or an
+#                    agent reads — root docs, area guides, docs/**, script READMEs. The diary is not
+#                    rewritten into a language it was not written in: CHANGELOG/CHECKPOINT/IDEA carry
+#                    pinned CJK ceilings, so a *new* Chinese line fails while 137k characters of
+#                    history stay intact. The mirror must stay Chinese too — a zh file that stopped
+#                    being Chinese is the same defect wearing the other face.
 #   P17 guide shape  every Sources/**/AGENTS.md opens `# <Area> — <claim>`, states in its scope
 #                    block that the root file still governs and which directories it owns, names
 #                    at least two gates, ends its rules with the command that verifies them, and
@@ -207,6 +214,16 @@ cd "$(dirname "$0")/.."
 : "${OCOREAI_AGENTS_FLOOR_SUITES:=8}"
 : "${OCOREAI_AGENTS_FLOOR_SUITE_COUNTS:=8}"
 : "${OCOREAI_AGENTS_FLOOR_ROUTING:=4}"
+# P18 floors: the language scan must keep matching real files (measured 26 English .md, 2 436 CJK
+# chars in the mirror), and the diary ceilings are pinned with THIS gate's own classifier (Han + CJK
+# punctuation + fullwidth) — pinning them from a narrower probe made the gate fail for the wrong
+# reason on its first run, and a ceiling with slack in it is drift with an invitation.
+: "${OCOREAI_FLOOR_LANG_SCANNED:=20}"
+: "${OCOREAI_FLOOR_ZH_MIRROR_CJK:=2000}"
+: "${OCOREAI_CJK_MAX_CHANGELOG:=158161}"
+: "${OCOREAI_CJK_MAX_CHECKPOINT:=1159}"
+: "${OCOREAI_CJK_MAX_IDEA:=6}"
+
 # P17 floors: the area-guide scan must keep matching (measured 3 guides, 26 distinct gate names
 # on 10-26), else "every guide has a shape" would be a claim about an empty list.
 : "${OCOREAI_FLOOR_AREA_GUIDES:=3}"
@@ -253,6 +270,11 @@ OCOREAI_AGENTS_FLOOR_SUITES="$OCOREAI_AGENTS_FLOOR_SUITES" \
 OCOREAI_AGENTS_FLOOR_SUITE_COUNTS="$OCOREAI_AGENTS_FLOOR_SUITE_COUNTS" \
 OCOREAI_AGENTS_FLOOR_ROUTING="$OCOREAI_AGENTS_FLOOR_ROUTING" \
 OCOREAI_AGENTS_FLOOR_XREFS="$OCOREAI_AGENTS_FLOOR_XREFS" \
+OCOREAI_FLOOR_LANG_SCANNED="$OCOREAI_FLOOR_LANG_SCANNED" \
+OCOREAI_FLOOR_ZH_MIRROR_CJK="$OCOREAI_FLOOR_ZH_MIRROR_CJK" \
+OCOREAI_CJK_MAX_CHANGELOG="$OCOREAI_CJK_MAX_CHANGELOG" \
+OCOREAI_CJK_MAX_CHECKPOINT="$OCOREAI_CJK_MAX_CHECKPOINT" \
+OCOREAI_CJK_MAX_IDEA="$OCOREAI_CJK_MAX_IDEA" \
 OCOREAI_FLOOR_AREA_GUIDES="$OCOREAI_FLOOR_AREA_GUIDES" \
 OCOREAI_FLOOR_GUIDE_GATES="$OCOREAI_FLOOR_GUIDE_GATES" \
 OCOREAI_README_FLOOR_ROUTES="$OCOREAI_README_FLOOR_ROUTES" \
@@ -907,6 +929,56 @@ if len(guide_gates) < env_int("OCOREAI_FLOOR_GUIDE_GATES"):
     fail.append("P17 only %d distinct gate name(s) across area guides (floor %d) \u2014 guides whose "
                 "rules are not wired to a test" % (len(guide_gates), env_int("OCOREAI_FLOOR_GUIDE_GATES")))
 
+# ── P18 documentation language ────────────────────────────────────────────────
+# README.md holds 0 CJK characters and README.zh.md 2 436 on the day this gate was written; before it,
+# the English README carried a Chinese install block that the zh mirror already held, and four
+# agent-facing docs each leaked a phrase. Nothing could see that, because nothing counted.
+CJK_RE = re.compile(r"[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]")
+ESC_RE = re.compile(r"\\u[0-9a-fA-F]{4}")
+MIRROR = "README.zh.md"
+DIARY = {"CHANGELOG.md": env_int("OCOREAI_CJK_MAX_CHANGELOG"),
+         "CHECKPOINT.md": env_int("OCOREAI_CJK_MAX_CHECKPOINT"),
+         "IDEA.md": env_int("OCOREAI_CJK_MAX_IDEA")}
+tracked_md = subprocess.run(["git", "ls-files", "*.md"], capture_output=True, text=True).stdout.split()
+lang_zero = [f for f in tracked_md if f != MIRROR and f not in DIARY and not f.endswith(".zh.md")]
+if len(lang_zero) < env_int("OCOREAI_FLOOR_LANG_SCANNED"):
+    fail.append("P18 only %d English-default .md file(s) scanned (floor %d) \u2014 the file list rotted, "
+                "so \u201call docs are English\u201d would pass vacuously"
+                % (len(lang_zero), env_int("OCOREAI_FLOOR_LANG_SCANNED")))
+for f in sorted(lang_zero):
+    n = len(CJK_RE.findall(read(f)))
+    if n:
+        fail.append("P18 %s carries %d CJK character(s) \u2014 docs are English by default and the one "
+                    "Chinese surface is %s (a diary file gets a ceiling, an English-facing one gets zero)"
+                    % (f, n, MIRROR))
+if not os.path.exists(MIRROR):
+    fail.append("P18 %s is missing \u2014 the rule names exactly one Chinese mirror of README.md" % MIRROR)
+else:
+    n = len(CJK_RE.findall(read(MIRROR)))
+    if n < env_int("OCOREAI_FLOOR_ZH_MIRROR_CJK"):
+        fail.append("P18 %s holds %d CJK characters (floor %d) \u2014 a mirror that stopped being "
+                    "Chinese mirrors nothing" % (MIRROR, n, env_int("OCOREAI_FLOOR_ZH_MIRROR_CJK")))
+# No raw escape sequences in prose. A Markdown file carrying `\u2014` is not styling, it is a
+# generator that wrote its own source: 25 of these landed in CHANGELOG.md and one in a guide when
+# heredoc strings double-escaped them, and the commits shipped green because nothing read the text.
+for f in sorted(set(tracked_md)):
+    if not f.endswith(".md"):
+        continue
+    raw = ESC_RE.findall(read(f))
+    if raw:
+        fail.append("P18 %s carries %d raw \\uXXXX escape(s) (%s) — markdown holds characters, "
+                    "not source escapes; the generator that wrote them is the bug"
+                    % (f, len(raw), ", ".join(sorted(set(raw))[:4])))
+
+for f, ceiling in sorted(DIARY.items()):
+    if f not in tracked_md:
+        continue
+    n = len(CJK_RE.findall(read(f)))
+    if n > ceiling:
+        fail.append("P18 %s grew to %d CJK characters, ceiling %d \u2014 the diary is not rewritten for "
+                    "the rule, but new prose under it is English; raise the ceiling only by deleting "
+                    "history you actually mean to keep in Chinese" % (f, n, ceiling))
+
 # ── report ───────────────────────────────────────────────────────────────────
 print("AGENTS.md contract (%s)" % mode)
 print("  xrefs     §-refs=%d (floor %d)  anchors=%d  dangling=%d"
@@ -916,6 +988,12 @@ print("  corpus    files=%d bytes=%d/%d  walls=%d  probe-index=%d/%d  doc-orphan
          len(corpus_walls), len(probe_indexed), len(probe_scripts), len(doc_orphans), len(table_bad)))
 print("  budgets   root=%d/%d chars  guides=%d  chain-cap=%d"
       % (root_size, env_int("OCOREAI_AGENTS_MAX_ROOT"), len(guides), env_int("OCOREAI_AGENTS_MAX_CHAIN")))
+print("  language  english-md=%d (floor %d)  mirror-cjk=%d (floor %d)  diary=%s"
+      % (len(lang_zero), env_int("OCOREAI_FLOOR_LANG_SCANNED"),
+         len(CJK_RE.findall(read(MIRROR))) if os.path.exists(MIRROR) else -1,
+         env_int("OCOREAI_FLOOR_ZH_MIRROR_CJK"),
+         ",".join("%s:%d/%d" % (f.split(".")[0], len(CJK_RE.findall(read(f))), c)
+                  for f, c in sorted(DIARY.items()) if f in tracked_md)))
 print("  guides    area=%d (floor %d)  gate-names=%d (floor %d)"
       % (len(set(AREA_GUIDES)), env_int("OCOREAI_FLOOR_AREA_GUIDES"),
          len(guide_gates), env_int("OCOREAI_FLOOR_GUIDE_GATES")))

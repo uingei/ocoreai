@@ -45,7 +45,7 @@ Fails when: the endpoint index is thin or lists a route the live server 404s, a 
 - `04-multimodal-honesty.sh` — Does "can see / can hear / can speak" survive contact with the OS?
 Fails when: the status payload publishes verdicts without the permission/device facts behind them, a capture leg returns `success:true` with no bytes, a capture request blocks on a TCC dialog, empty text reports a successful speak, or a `vlm:true` model fails to answer an inline PNG
 
-- `05-hearing.sh` — Does 能听 survive contact with the OS, over the wire?
+- `05-hearing.sh` — Does hearing survive contact with the OS, over the wire?
 Note: — and does the server hold its own `ready` verdict to its word?
 Fails when: any refusal for speech arrives as a 500 or without `error_code`/`remediation`, the status payload claims `transcriptionStatus` without the `hearing` block behind it, `transcriptionStatus` and `hearing.verdict` disagree, a `ready` verdict is not backed by `probe: ok`, the two accepted body shapes answer differently for the same bytes,
     `response_format: text` answers as JSON, a remote `url` is fetched instead of refused, the endpoint index omits the route, or `--probe-hearing` claims success it did not measure

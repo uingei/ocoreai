@@ -17,7 +17,8 @@
 completion-notification and approval configuration inside its first 72 hours (open-sourced
 2025-04-16); those four are still the most-trafficked surfaces of its 12,490 commits, while the
 behavior-quality axes arrived 3–10 months later and cost far less each. Full dated chronology and
-the per-axis fix proxy: `CHANGELOG.md`, entry "10-22 竞品的迭代次序". Consequence: the polish
+the per-axis fix proxy: `CHANGELOG.md`, the 10-22 round’s comparator-iteration-order entry.
+Consequence: the polish
 ocoreai keeps investing in — steering, compaction, tool-wire correctness, resume — sits in the
 cheap cluster. That is the ticket to play, not the moat; the moat is an authority layer that
 survives a year of adversarial use. We claim no sandbox, and the approval cache is byte-exact

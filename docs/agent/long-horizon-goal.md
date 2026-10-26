@@ -53,8 +53,8 @@ a mirror proves content, never HEAD): `openclaw` 393 101 stars / 82 643 forks, `
 releases**. The shape is the finding, not the gap: the field's best *sustained* growth is ~408/day, the
 leader is at ~393k, so no honest engineering schedule reaches #1. #1 is a distribution event — bundled,
 defaulted, or virally demoed — and the top four each sit on a machine that manufactures those (two model
-vendors, one large ecosystem, one phenomenon with institutional amplification). Distribution therefore
-comes before more instrumentation, and every rung below is still falsifiable:
+vendors, one large ecosystem, one phenomenon with institutional amplification). Distribution therefore comes
+first, and every rung below is falsifiable:
 
 0. **Ship.** `make push-ready` said it in the project's own words: "8 commit(s) ahead of origin/main — **CI
    has not seen them, so they are unverified**." Pushed; the gate now reads "nothing unpushed".
