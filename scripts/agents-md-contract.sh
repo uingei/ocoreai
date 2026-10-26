@@ -179,7 +179,19 @@ cd "$(dirname "$0")/.."
 # `swift test --filter` signals 11 on the Xcode route here, so the filter recipe had to move.
 # Debt is the same debt, still named: the dated forensics in that file (verdicts CHANGELOG.md
 # already carries) and the deepseek-harness comparator cell.
-: "${OCOREAI_CORPUS_MAX_BYTES:=157800}"
+# 10-26 raise 157800 -> 160694 (+2894). What went in: § *Rung zero* in docs/agent/long-horizon-goal.md
+# (+2956) — the field's adoption numbers (seven comparators' stars/forks/rate, and ocoreai's own 1 star /
+# 7 DMG downloads, read from api.github.com because a mirror proves content, never HEAD) and the
+# distribution ladder that follows. This is the exception the rule names rather than the breach it forbids:
+# outside-world measurement that reorders the plan, not a verdict the diary already owns.
+# Ledger, each figure re-derivable (sum `git show <ref>:<corpus file> | wc -c` over AGENTS.md,
+# ARCHITECTURE.md, CONTRIBUTING.md, scripts/probes/README.md, Sources/**/AGENTS.md, docs/agent/*.md):
+# 156885 at f036fc0 (before the round) -> 158778 at P17's peak -> 157738 after 1040 B of repayment (the
+# stale `3180/562 in 429 s` CLT counts and two 10-26 narration blocks collapsed into rules + pointers, cap
+# unmoved) -> 160694 with Rung zero. Net over the round: +3809, and root itself went the other way (-6363
+# to 24025) because the wire rules moved to where they cost context only inside their own subtree. The next
+# corpus growth still owes its own weight.
+: "${OCOREAI_CORPUS_MAX_BYTES:=160694}"
 
 # P14 floor: probe scripts indexed in scripts/probes/README.md (measured 27 on 10-22), so a
 # README whose index pattern rotted cannot report "every probe is documented" vacuously.
