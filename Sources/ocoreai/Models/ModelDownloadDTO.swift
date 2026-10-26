@@ -41,7 +41,7 @@ struct DownloadModelRequest: Codable {
     /// every body that omitted `useLatest` — which is every body, since it is a refresh override
     /// — answered `400 Coding key \`useLatest\` not found.`, so the endpoint never reached
     /// `validate()` and never streamed. `useLatest: Bool = false` in `init` is Swift-side
-    /// convenience; the synthesized decoder still asks for the key (AGENTS.md § Wire DTOs: an
+    /// convenience; the synthesized decoder still asks for the key (Handlers/AGENTS.md § Wire DTOs: an
     /// optional field must be Optional in the DTO or hand-decoded with `decodeIfPresent`).
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)

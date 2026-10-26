@@ -29,7 +29,7 @@ statistical acceptance rule design docs never carried.
 | 6 | Its own chrome never passes as your content | read-then-write strips the `N` gutter and `total_lines:` footer, repairs what is provable, refuses to guess | `PresentationEchoGuardTests`(16) |
 
 The human-facing **wire** half of the same policy — knobs, usage numbers, capability rows, hub and capture
-refusals — is owned by `AGENTS.md` § Endpoint Promises, one gate per row there. Not restated here: a
+refusals — is owned by `Sources/ocoreai/Handlers/AGENTS.md` § Endpoint Promises, one gate per row there. Not restated here: a
 second copy is where one of them drifts.
 
 ## Rows with no gate ⇒ claims, not guidelines

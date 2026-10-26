@@ -63,7 +63,7 @@ probe 27 (live server: reuse asserted, replaced fact absent from the reply).
 `mergingSteeredTurn` (`Sources/ocoreai/Handlers/ChatHandler.swift`) folds a queued steer into the head
 of the *next* request; the in-turn drains live in the tool-dispatch loop (`EngineInference.swift:3043`,
 `:3675`) and the GUI composer flush. Every accept-then-deliver surface must name the line that
-delivers on the next request, or its contract is fiction (root § Endpoint Promises).
+delivers on the next request, or its contract is fiction (wire guide: `Handlers/AGENTS.md` § Endpoint Promises).
 
 ## Video is disclosed where a turn completes, not where bytes arrive
 `/v1/models` may say `video_input=delivered` only once a turn that carried frames has *completed*:

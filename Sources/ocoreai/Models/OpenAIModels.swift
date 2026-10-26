@@ -1473,7 +1473,7 @@ struct StreamOptions: Decodable {
 
     /// OpenAI types `stream_options.include_usage` as optional, and `"stream_options": {}` is a
     /// legal body — with the synthesized decoder it was a 400 that killed the whole chat request
-    /// (a property default does not relax the decoder: AGENTS.md § Wire DTOs).
+    /// (a property default does not relax the decoder: Handlers/AGENTS.md § Wire DTOs).
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         includeUsage = try container.decodeIfPresent(Bool.self, forKey: .includeUsage) ?? false

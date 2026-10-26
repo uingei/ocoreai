@@ -1,6 +1,6 @@
 # The instructions channel — who delivers the caller's `system` message, and who pays for it
 
-Long form for the AGENTS.md § Endpoint Promises rule *"the caller's instructions have one delivery
+Long form for the `Sources/ocoreai/Handlers/AGENTS.md` § Endpoint Promises rule *"the caller's instructions have one delivery
 seam, and instruction identity gates cache reuse."* Root carries the rule; the measurements, the
 upstream comparison and the cost of the fix live here.
 
