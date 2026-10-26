@@ -37,7 +37,14 @@ jobs:
   audit:
     name: Static Audit
     runs-on: macos-26
-    timeout-minutes: 15
+    # 25, not 15: at 65836b7 this job hit "exceeded the maximum execution time of 15m0s" with no
+    # step failure, having reached the anchor step inside budget at 5442d03 — it sits at the
+    # ceiling, and arm64 capacity warnings make the margin negative. The two known cost centres are
+    # the pinned swift-format build (~4 min measured on host) and `swift package resolve`, which
+    # must stay (upstream cites resolve only at the pin). If 25 min still trips, cache the SPM
+    # mirror (~/.cache/org.swift.swiftpm), not `.build`; per-step attribution needs a token this
+    # repo does not have, so this is headroom, not a fix.
+    timeout-minutes: 25
     needs: [governance]
     steps:
       - uses: actions/checkout@v4
