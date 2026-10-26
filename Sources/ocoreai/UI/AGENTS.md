@@ -39,7 +39,7 @@ in 5 files, `textSelection` in 5, `accessibilityLabel` in 17, across every `Sour
 <!-- claim:ui_keyboard_shortcut_files<=5 :: git grep -l keyboardShortcut -- Sources | wc -l -->
 <!-- claim:ui_text_selection_files<=5 :: git grep -l textSelection -- Sources | wc -l -->
 <!-- claim:ui_accessibility_files<=17 :: git grep -l accessibilityLabel -- Sources | wc -l -->
-Gate for the keyboard contract: `UIFocusDisciplineTests` pins the single focus site, the one key monitor,
+Gate for the keyboard contract: `UIFocusDisciplineTests`(7) pins the single focus site, the one key monitor,
 the ⌘ map (⌘↵, ⇧⌘V, Esc, ⌘, and ⌘1–⌘8 derived from `AppTab`'s sidebar groups) — a self-flooring scan.
 
 ## iOS parity — compile gates settled, runtime not
