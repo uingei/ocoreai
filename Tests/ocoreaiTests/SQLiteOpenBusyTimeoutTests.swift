@@ -37,7 +37,14 @@ struct SQLiteOpenBusyTimeoutTests {
     /// The writer commits this long after `open()` starts: inside the 5 s timeout.
     private static let commitInsideTimeout: UInt64 = 300_000_000
     /// …and this long after: past the timeout, so the truncation must be reported as refused.
-    private static let commitPastTimeout: UInt64 = 6_500_000_000
+    ///
+    /// The margin is arithmetic, not taste: `open()` may spend the whole 5 s busy timeout
+    /// before it gives up, so committing at 6.5 s left 1.5 s for the checkpoint to overrun
+    /// into the commit and *succeed* — which makes `busy == false` pass for the wrong
+    /// reason. CI measured an `open()` that ran 6.60 s against that 5 s timeout, so the
+    /// overrun is not hypothetical. At 12 s a late success needs a 7 s overrun of a handler
+    /// that sleeps in millisecond steps.
+    private static let commitPastTimeout: UInt64 = 12_000_000_000
 
     private func dbPath() -> String {
         FileManager.default.temporaryDirectory
@@ -49,13 +56,30 @@ struct SQLiteOpenBusyTimeoutTests {
         for suffix in ["", "-wal", "-shm"] { try? fm.removeItem(atPath: path + suffix) }
     }
 
-    /// Opens a `BEGIN IMMEDIATE` transaction on `writer` and releases it `delay` ns from now.
+    /// The WAL file's size in bytes, or -1 when it is absent. One home for the quantity that
+    /// decided this suite's CI-vs-host disagreement.
+    private func walBytes(_ path: String) -> Int {
+        (try? FileManager.default.attributesOfItem(atPath: path + "-wal"))?[.size] as? Int ?? -1
+    }
+
+    /// Leaves `writer` holding a `BEGIN IMMEDIATE` transaction it releases `delay` ns from now,
+    /// with **committed frames already in the WAL**.
+    ///
+    /// CI is what found the premise missing: the runners reached `open()` where this host had 79
+    /// pages to copy and they had none (`walAtRead=0 logPages=0`). Frames belonging to an
+    /// *uncommitted* transaction are invisible to a checkpoint, so the old helper left copyable
+    /// pages only when the writer's own startup truncation happened to skip them. Committing
+    /// first is what makes "there is a truncation to refuse" true by construction, not by host
+    /// luck — and it is the premise the whole suite's `busy == true` rests on.
     private func holdWriteLock(on writer: SQLiteStore, delay: UInt64) async throws
         -> Task<Void, any Error>
     {
         try await writer.execute(sql: "CREATE TABLE busy_probe(x INTEGER);")
         try await writer.execute(sql: "BEGIN IMMEDIATE;")
         try await writer.execute(sql: "INSERT INTO busy_probe VALUES (1);")
+        try await writer.execute(sql: "COMMIT;")
+        try await writer.execute(sql: "BEGIN IMMEDIATE;")
+        try await writer.execute(sql: "INSERT INTO busy_probe VALUES (2);")
         return Task {
             try await Task.sleep(nanoseconds: delay)
             try await writer.execute(sql: "COMMIT;")
@@ -118,6 +142,17 @@ struct SQLiteOpenBusyTimeoutTests {
         try await writer.open()
         let commit = try await holdWriteLock(on: writer, delay: Self.commitPastTimeout)
 
+        // Premise, floored before the challenger can change anything: with no committed frames
+        // there is no truncation to refuse and busy=0 is the honest answer, so this suite would
+        // be asserting a bug that does not exist (which is exactly what it did on CI).
+        let framesAtStart = walBytes(path)
+        #expect(
+            framesAtStart > 0,
+            """
+            premise broken: the WAL held no committed frames (\(framesAtStart) B) before \
+            `open()`, so this run did not create the contention it claims to measure
+            """)
+
         let challenger = SQLiteStore(path: path)
         let openedAt = ContinuousClock.now
         try await challenger.open()
@@ -131,22 +166,70 @@ struct SQLiteOpenBusyTimeoutTests {
         // truncation and nobody read it" from "there was nothing to truncate" — and only one
         // of those is a bug in `open()`. Tagged EVIDENCE so CI publishes the line.
         if reported?.busy != true {
-            let attrs = try? FileManager.default.attributesOfItem(atPath: path + "-wal")
-            let walBytes = attrs?[.size] as? Int ?? -1
             let timeout = try? await challenger.scalarQuery(sql: "PRAGMA busy_timeout;")
             print(
                 """
                 EVIDENCE sqlite-open-busy: waited=\(waited) busy=\(String(describing: reported?.busy)) \
                 logPages=\(String(describing: reported?.logPages)) \
                 ckptPages=\(String(describing: reported?.checkpointedPages)) \
-                busyTimeout=\(String(describing: timeout?.asInt64)) walBytes=\(walBytes)
+                busyTimeout=\(String(describing: timeout?.asInt64)) \
+                walAtOpen=\(framesAtStart) \
+                walAtRead=\(walBytes(path))
                 """
             )
         }
         #expect(
             reported?.busy == true, "the busy column was not read — contention would be swallowed")
+        // Ordering, pinned, because it is the one thing a runner can steal: `busy == true` is
+        // only evidence about contention if the checkpoint ran *before* the writer committed.
+        // CI measured `open()` at 6.60 s against a 6.5 s commit, which is indistinguishable
+        // from "it ran afterwards and succeeded". The commit now lands at 12 s, so an `open()`
+        // past 8 s can no longer be blamed on the 5 s timeout and this is the sentence that
+        // goes red instead of the assertion drawing the wrong conclusion.
+        #expect(
+            waited < .seconds(8),
+            """
+            open() took \(waited), past any bound the 5 s busy timeout can explain: the \
+            checkpoint verdict can no longer be attributed to contention rather than to \
+            waiting for the commit itself
+            """)
         // A refused truncation is a degraded start, not a fatal one: SQLite auto-checkpoints later.
         #expect((try await challenger.scalarQuery(sql: "PRAGMA journal_mode;"))?.asString == "wal")
+        await challenger.close()
+        await writer.close()
+    }
+
+    /// The CI start, manufactured instead of hoped for.
+    ///
+    /// This suite passed on one host and failed on the runners from the same code, and the
+    /// difference was a file's size: 79 pages to copy here, none there, because the writer's own
+    /// startup checkpoint truncated cleanly over there. Truncating on purpose reproduces that
+    /// beginning on any host, which leaves exactly one variable: the frames. With a 0-byte WAL
+    /// and a *committed* transaction behind it, a refused truncation must still be reported —
+    /// that is the property this test pins, and it fails if `holdWriteLock` stops committing.
+    @Test("a WAL the writer already truncated still produces a refused truncation")
+    func truncatedStartStillRefusesTruncation() async throws {
+        let path = dbPath()
+        defer { removeDB(path) }
+
+        let writer = SQLiteStore(path: path)
+        try await writer.open()
+        _ = try await writer.scalarQuery(sql: "PRAGMA wal_checkpoint(TRUNCATE);")
+        #expect(
+            walBytes(path) == 0, "this run did not reproduce the empty-WAL start CI reported")
+
+        let commit = try await holdWriteLock(on: writer, delay: Self.commitPastTimeout)
+        let frames = walBytes(path)
+        #expect(frames > 0, "a committed transaction must reach the WAL, got \(frames) bytes")
+
+        let challenger = SQLiteStore(path: path)
+        try await challenger.open()
+        try await commit.value
+
+        let reported = await challenger.lastOpenWALCheckpoint
+        #expect(
+            reported?.busy == true,
+            "with frames to copy (\(frames) bytes) contention must still be reported")
         await challenger.close()
         await writer.close()
     }
